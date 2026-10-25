@@ -136,7 +136,7 @@ fn assert_private_identity_absent(value: &serde_json::Value) {
 }
 
 #[tokio::test]
-async fn codex_thread_owner_reaches_outer_request_without_invented_identity() {
+async fn lime_thread_owner_reaches_outer_request_without_invented_identity() {
     let server = AppServer::new();
     let mut outbound = server.subscribe_outbound_messages();
     let params = McpServerElicitationRequestParams {

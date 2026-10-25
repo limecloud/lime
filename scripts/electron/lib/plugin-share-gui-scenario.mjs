@@ -7,9 +7,9 @@ import { parseJsonRpcRequestsFromInvokeTrace } from "../mcp-config-fixture-smoke
 
 export function preparePluginShareDraft(home) {
   const root = path.join(home, "plugins/draft");
-  fs.mkdirSync(path.join(root, ".codex-plugin"), { recursive: true });
+  fs.mkdirSync(path.join(root, ".lime-plugin"), { recursive: true });
   fs.writeFileSync(
-    path.join(root, ".codex-plugin/plugin.json"),
+    path.join(root, ".lime-plugin/plugin.json"),
     JSON.stringify({ name: "draft", version: "1.0.0" }),
   );
   fs.writeFileSync(path.join(root, ".hidden"), "draft private marker\n");

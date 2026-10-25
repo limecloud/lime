@@ -14,7 +14,7 @@ mod property_tests {
         prop_oneof![
             Just(ClientType::Cursor),
             Just(ClientType::ClaudeCode),
-            Just(ClientType::Codex),
+            Just(ClientType::Lime),
             Just(ClientType::Windsurf),
             Just(ClientType::Kiro),
             Just(ClientType::Other),
@@ -28,7 +28,7 @@ mod property_tests {
             Just("qwen".to_string()),
             Just("openai".to_string()),
             Just("claude".to_string()),
-            Just("codex".to_string()),
+            Just("lime".to_string()),
         ]
     }
 
@@ -45,11 +45,11 @@ mod property_tests {
             arb_optional_provider(),
             arb_optional_provider(),
         )
-            .prop_map(|(cursor, claude_code, codex, windsurf, kiro, other)| {
+            .prop_map(|(cursor, claude_code, lime, windsurf, kiro, other)| {
                 EndpointProvidersConfig {
                     cursor,
                     claude_code,
-                    codex,
+                    lime,
                     windsurf,
                     kiro,
                     other,

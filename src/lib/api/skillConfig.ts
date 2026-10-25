@@ -1,5 +1,9 @@
 import { createAppServerClient } from "@/lib/api/appServerClient";
 import type { Skill } from "@/lib/api/skills";
+import type {
+  AppServerSkillsListParams,
+  AppServerSkillsListResponse,
+} from "./appServerTypes";
 
 export interface ProtocolSkillEnabledState {
   name: string;
@@ -55,14 +59,22 @@ export function matchProtocolSkillEnabledState(
   return nameMatches.length === 1 ? nameMatches[0] : null;
 }
 
-export async function listProtocolSkillEnabledStates(
+export async function listSkills(
+  params: AppServerSkillsListParams = {},
   client: Pick<SkillConfigClient, "listSkills"> = createAppServerClient(),
-): Promise<ProtocolSkillEnabledState[]> {
-  const response = await client.listSkills({});
+): Promise<AppServerSkillsListResponse> {
+  const response = await client.listSkills(params);
   const data = response.result?.data;
   if (!Array.isArray(data)) {
     throw new Error("skills/list did not return data");
   }
+  return response.result;
+}
+
+export async function listProtocolSkillEnabledStates(
+  client: Pick<SkillConfigClient, "listSkills"> = createAppServerClient(),
+): Promise<ProtocolSkillEnabledState[]> {
+  const { data } = await listSkills({}, client);
 
   const states: ProtocolSkillEnabledState[] = [];
   for (const entry of data) {
@@ -83,7 +95,10 @@ export async function listProtocolSkillEnabledStates(
 
 export async function writeProtocolSkillEnabled(
   input: { path: string; enabled: boolean },
-  client: Pick<SkillConfigClient, "writeSkillsConfig"> = createAppServerClient(),
+  client: Pick<
+    SkillConfigClient,
+    "writeSkillsConfig"
+  > = createAppServerClient(),
 ): Promise<boolean> {
   const path = input.path.trim();
   if (!isAbsoluteSkillPath(path)) {

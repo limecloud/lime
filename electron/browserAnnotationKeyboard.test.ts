@@ -66,8 +66,8 @@ describe("annotation Space input", () => {
     "<select></select>",
     '<div contenteditable="true"><span></span></div>',
     '<div role="textbox"><span></span></div>',
-    "<div data-codex-composer><span></span></div>",
-    "<div data-codex-terminal><span></span></div>",
+    "<div data-lime-composer><span></span></div>",
+    "<div data-lime-terminal><span></span></div>",
   ])("preserves typing in %s, including composed shadow paths", (markup) => {
     document.body.innerHTML = markup;
     const target =

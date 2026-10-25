@@ -18,17 +18,17 @@ src/lib/api/
 ├── mcpTypes.ts            # 公开类型与 mcp__<server>__<tool> 命名 helper
 └── mcpResponseGuards.ts   # App Server response fail-closed guard
 
-src/hooks/
-├── useMcp.ts              # MCP runtime 状态与事件刷新
-└── useMcpEvents.ts        # MCP resource Desktop events 与 App Server typed notification bridge
-
-src/components/mcp/
-├── McpPage.tsx            # 设置页入口
-├── McpPanel.tsx           # runtime 面板 facade
-├── McpServerList.tsx      # server runtime 列表 facade
-├── McpToolsBrowser.tsx    # tools browser facade
-├── McpPromptsBrowser.tsx  # prompts browser facade
-└── McpResourcesBrowser.tsx # resources browser facade
+src/components/settings-v2/integrations/plugins/
+├── index.tsx                  # PluginsSettings，插件/MCP/技能/Marketplace 同一管理页
+├── McpServerManager.tsx        # 用户配置与插件来源分组、启停和认证
+├── McpServerDetail.tsx         # 新增/编辑/卸载及脏草稿守卫
+├── McpServerFields.tsx         # STDIO / HTTP 结构化字段
+├── mcpServerConfig.ts          # 配置往返，保留未展示字段
+├── useMcpSettings.ts           # canonical 配置/status 与 typed notification
+├── InstalledSkillsSettings.tsx # skills/list metadata 与精确路径启停
+├── useSkillsSettings.ts        # skills/config/write、effective state 与只读确认
+├── MarketplaceSettings.tsx     # 配置市场、升级与移除入口
+└── useMarketplaceSettings.ts   # 精确市场身份、影响列表和逐个卸载恢复
 
 lime-rs/crates/
 ├── mcp/                   # MCP manager、stdio / streamable HTTP、OAuth、tools/prompts/resources
@@ -51,8 +51,6 @@ Current MCP method 固定为：
 - `mcpServer/update`
 - `mcpServer/delete`
 - `mcpServer/enabled/set`
-- `mcpServer/importFromApp`
-- `mcpServer/syncAllToLive`
 - `mcpServer/oauth/login`
 - `mcpServer/oauthLogin/completed`
 - `mcpServer/startupStatus/updated`
@@ -77,7 +75,7 @@ Current MCP method 固定为：
 
 - `mcpServer/start` 在调用 RuntimeCore 前发布 `mcpServer/startupStatus/updated { threadId: null, name, status: "starting", error: null, failureReason: null }`。
 - 启动成功发布 `ready`；启动失败先发布带 typed error 的 `failed`，再保留原 JSON-RPC error。`cancelled` 与 `reauthenticationRequired` 保留为 Codex 对齐的严格协议值，当前 app-scoped start producer 不伪造它们。
-- Renderer 必须同步订阅 App Server typed event bus；`starting` 投影 server connection phase，`ready` / `cancelled` / `failed` 刷新 `mcpServerStatus/list` 与 `mcpTool/list`，`failed` 显示连接错误。
+- 插件设置同步订阅 App Server typed event bus，生命周期通知触发同一配置/status owner 重读。设置不提供独立运行统计、工具手工调用或资源预览面板；工具、资源和 prompts 由 Agent 现役消费者使用。
 - `mcp:server_started`、`mcp:server_stopped`、`mcp:server_error` 与 `mcp:oauth_completed` 均为 `dead / deleted / forbidden-to-restore`。`mcp:tools_updated`、`mcp:resources_updated`、`mcp:resource_updated` 仍由各自 current owner 承接，不得与 startup notification 混成第二生命周期 owner。
 
 ## Server-Originated Elicitation
@@ -109,8 +107,7 @@ MCP runtime 工具命名唯一事实源：
 
 - `mcpResource/list` 同时返回 `resources` 与 `resourceTemplates`；读取使用 exact `mcpServer/resource/read -> contents[]`。
 - `mcpResource/subscribe` / `mcpResource/unsubscribe` 使用 MCP 标准 resource subscription。
-- 标准通知 `notifications/resources/list_changed` 与 `notifications/resources/updated` 通过 `mcp:resources_updated` / `mcp:resource_updated` 事件刷新 GUI。
-- GUI resource preview 必须截断大文本、只展示 image/blob 摘要，不能把完整 base64 或大正文压进 DOM。
+- 标准通知 `notifications/resources/list_changed` 与 `notifications/resources/updated` 通过现役 MCP runtime/事件协议消费；不能为旧设置面板恢复第二份资源投影。
 - `ReadMcpResourceTool` 的 grounding 进入 canonical read model 的 diagnostics facts，只记录 server、URI 摘要、mime、content refs 等可回放元数据，不复制 resource 正文或 blob。
 
 ## 校验入口
@@ -118,7 +115,7 @@ MCP runtime 工具命名唯一事实源：
 最低校验按改动范围选择：
 
 ```bash
-npx vitest run "src/lib/api/mcp.test.ts" "src/lib/api/mcp.failClosed.test.ts" "src/hooks/useMcp.test.tsx"
+npx vitest run "src/lib/api/mcp.test.ts" "src/lib/api/mcp.failClosed.test.ts" "src/components/settings-v2/integrations/plugins/McpServerManager.test.tsx"
 npm run test:contracts
 npm run verify:gui-smoke
 ```
@@ -142,3 +139,19 @@ npm run smoke:mcp-current -- --allow-live-provider
 - [quality-workflow.md](quality-workflow.md) - GUI / command / bridge 校验门槛
 - [governance.md](governance.md) - current / compat / deprecated / dead 分类语言
 - [../exec-plans/mcp-modernization-progress.md](../exec-plans/mcp-modernization-progress.md) - 当前 MCP 现代化进度与缺口
+
+### 跨应用同步已退役
+
+外部应用 MCP 导入与同步为 `dead / deleted / forbidden-to-restore`：原同步模块、两条公共 RPC、SDK/gateway 方法及专用启用 flags 均删除。普通 CRUD 和启停仅操作本地 MCP authority，不读写其它应用的配置文件；启用参数只有服务器 id 与 enabled，旧 appType 必须拒绝。数据库启动时移除退役列，保留当前配置和本地启用状态，不根据其它应用的旧开关重新启用服务器。模型 provider 的多协议配置不受影响。
+
+### STDIO 环境与配置 owner
+
+`lime-rs/crates/mcp/src/mcp_types.rs` 是 MCP 传输配置唯一类型化解析 owner，`types.rs` 仅重导出公共配置类型并承接协议数据。旧 core `McpServerConfigTyped` 与容错 `parse_config` 已删除，持久化仍保存原始 server_config 对象。
+
+本地 STDIO 的 `env_vars` 与显式 `env` 分开：前者只包含需从宿主读取的变量名，后者的原始值覆盖透传值。设置的名称列表修剪空白、空项不落盘，显式值原样；无关宿主变量不隐式继承，不可继承变量即使显式覆盖也被过滤。本机不接受 remote source 对象。`utils.rs#create_env_for_mcp_server` 与进程 launcher 直接接线，名称、优先级和环境筛选复制适配自 Codex rmcp-client/src/utils.rs；Windows 使用同一 agent-protocol 的 WINDOWS_CORE_ENV_VARS，证书路径按上游转为绝对路径。
+
+### 组合管理边界
+
+分组顺序沿安装包证据为 Plugins、Apps、MCPs、Skills、Marketplace；MCPs 恒可见，其他分组在完整读回为空后隐藏。Apps 的 hosted connector 与独立启停 authority 尚有缺口，不能用本地插件声明或 `callable: false` 冒充可连接应用，也不显示无真实行为的开关。
+
+Skills 消费完整项目 roots 和 `skills/list` metadata，按 canonical 绝对路径去重和写入 `skills/config/write`，不按显示名称修改。Marketplace 按名称与 canonical manifest path 标识；只有唯一已配置市场可移除，只有 Git 来源可升级。移除前完整读取已安装插件，按精确 plugin ID 顺序卸载；重试跳过已成功项。升级或移除写入成功而读回失败时只读确认，不能再次提交破坏性操作。所有操作仍使用既有 gateway、App Server 和持久化 owner。

@@ -74,14 +74,14 @@ describe("local environment editor", () => {
   });
 
   it.each([
-    ["/work/repo/", "/work/repo/.codex/environments/environment.toml"],
+    ["/work/repo/", "/work/repo/.lime/environments/environment.toml"],
     [
       "C:\\work\\repo\\",
-      "C:\\work\\repo\\.codex\\environments\\environment.toml",
+      "C:\\work\\repo\\.lime\\environments\\environment.toml",
     ],
     [
       "\\\\host\\share",
-      "\\\\host\\share\\.codex\\environments\\environment.toml",
+      "\\\\host\\share\\.lime\\environments\\environment.toml",
     ],
   ])("uses the reference directory under %s", (root, expected) => {
     expect(defaultEnvironmentConfigPath(root)).toBe(expected);
@@ -90,18 +90,18 @@ describe("local environment editor", () => {
   it.each([
     [
       "/work/repo/",
-      "/work/repo/.codex/environments/local.toml",
-      "/work/.codex/environments/shared.toml",
+      "/work/repo/.lime/environments/local.toml",
+      "/work/.lime/environments/shared.toml",
     ],
     [
       "C:\\Work\\Repo\\",
-      "c:\\work\\repo\\.codex\\environments\\local.toml",
-      "C:\\Work\\.codex\\environments\\shared.toml",
+      "c:\\work\\repo\\.lime\\environments\\local.toml",
+      "C:\\Work\\.lime\\environments\\shared.toml",
     ],
     [
       "\\\\host\\Share\\Repo",
-      "\\\\HOST\\share\\repo\\.codex\\environments\\local.toml",
-      "\\\\host\\share\\.codex\\environments\\shared.toml",
+      "\\\\HOST\\share\\repo\\.lime\\environments\\local.toml",
+      "\\\\host\\share\\.lime\\environments\\shared.toml",
     ],
   ])("separates inherited environments for %s", (root, local, inherited) => {
     const entry = (configPath: string) => ({
@@ -125,7 +125,7 @@ describe("local environment editor", () => {
   it("creates the first available environment filename without replacing another file", () => {
     const entry = (file: string) => ({
       type: "error" as const,
-      configPath: `/repo/.codex/environments/${file}`,
+      configPath: `/repo/.lime/environments/${file}`,
       cwdRelativeToGitRoot: ".",
       error: { message: "invalid" },
     });
@@ -141,6 +141,6 @@ describe("local environment editor", () => {
         ],
         "/repo",
       ),
-    ).toBe("/repo/.codex/environments/environment-3.toml");
+    ).toBe("/repo/.lime/environments/environment-3.toml");
   });
 });

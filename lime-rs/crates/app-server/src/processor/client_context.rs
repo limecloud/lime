@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone, Default)]
 pub(super) struct ClientContext {
     state: Arc<Mutex<ClientState>>,
+    connection_id: Option<ConnectionId>,
 }
 
 #[derive(Default)]
@@ -48,12 +49,18 @@ impl RequestProcessor {
         };
         drop(contexts);
         Self {
-            client_context,
+            client_context: ClientContext {
+                connection_id: Some(connection_id),
+                ..client_context
+            },
             ..self.clone()
         }
     }
 
     pub(crate) fn close_client_connection(&self, connection_id: ConnectionId) {
+        self.runtime
+            .computer_use
+            .disconnect(&format!("transport:{connection_id}"));
         self.connection_contexts
             .lock()
             .expect("app-server client contexts mutex poisoned")
@@ -67,6 +74,7 @@ impl RequestProcessor {
     }
 
     pub(crate) fn clear_client_connections(&self) {
+        self.runtime.computer_use.disconnect_all();
         self.connection_contexts
             .lock()
             .expect("app-server client contexts mutex poisoned")
@@ -83,7 +91,9 @@ impl RequestProcessor {
             .expect("app-server client contexts mutex poisoned")
             .get(&connection_id)
             .cloned();
-        RuntimeHostContext::from(context.and_then(|context| context.client_info()))
+        let mut host = RuntimeHostContext::from(context.and_then(|context| context.client_info()));
+        host.connection_id = Some(format!("transport:{connection_id}"));
+        host
     }
 
     pub(crate) fn handle_transport_notification(
@@ -220,7 +230,13 @@ impl RequestProcessor {
     }
 
     pub(crate) fn runtime_host_context(&self) -> RuntimeHostContext {
-        RuntimeHostContext::from(self.client_info())
+        let mut host = RuntimeHostContext::from(self.client_info());
+        host.connection_id = Some(
+            self.client_context
+                .connection_id
+                .map_or_else(|| "direct".into(), |id| format!("transport:{id}")),
+        );
+        host
     }
 }
 

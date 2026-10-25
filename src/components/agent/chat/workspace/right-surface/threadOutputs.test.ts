@@ -198,8 +198,8 @@ describe("canonical thread output directory", () => {
     ).toEqual([]);
     for (const path of [
       "work/index.html",
-      ".codex_scratch/index.html",
-      ".codex/visualizations/2026/10/21/thread/vis-1.html",
+      ".lime_scratch/index.html",
+      ".lime/visualizations/2026/10/21/thread/vis-1.html",
     ])
       expect(collect([turn("t")], [patch([path])])).toEqual([]);
   });
@@ -441,7 +441,7 @@ describe("canonical thread output directory", () => {
   it("排除临时目录但保留同名前缀目录，输出根按路径边界检查", () => {
     const paths = [
       "work/a.pdf",
-      ".codex_scratch/a.pdf",
+      ".lime_scratch/a.pdf",
       "workbench/a.pdf",
       "out/a.pdf",
       "outside/a.pdf",

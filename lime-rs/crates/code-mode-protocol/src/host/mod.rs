@@ -2,8 +2,8 @@
 //!
 //! This module is intentionally only a boundary index. Wire envelopes live in
 //! [`message`], operation payloads in [`payload`], and connection constants in
-//! [`types`]. Keeping those owners separate mirrors the Codex host protocol
-//! and prevents transport implementations from defining their own copies.
+//! [`types`]. Keeping those owners separate prevents transport implementations
+//! from defining duplicate protocol contracts.
 
 mod codec;
 mod error;

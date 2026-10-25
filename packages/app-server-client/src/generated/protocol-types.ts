@@ -45,6 +45,11 @@ export const METHOD_COMMAND_EXEC_OUTPUT_DELTA = "command/exec/outputDelta";
 export const METHOD_COMMAND_EXEC_RESIZE = "command/exec/resize";
 export const METHOD_COMMAND_EXEC_TERMINATE = "command/exec/terminate";
 export const METHOD_COMMAND_EXEC_WRITE = "command/exec/write";
+export const METHOD_COMPUTER_USE_LEASE_ACQUIRE = "computerUse/lease/acquire";
+export const METHOD_COMPUTER_USE_LEASE_RELEASE = "computerUse/lease/release";
+export const METHOD_COMPUTER_USE_REVOKE = "computerUse/revoke";
+export const METHOD_COMPUTER_USE_SETUP = "computerUse/setup";
+export const METHOD_COMPUTER_USE_STATUS = "computerUse/status";
 export const METHOD_CONFIG_BATCH_WRITE = "config/batchWrite";
 export const METHOD_CONFIG_READ = "config/read";
 export const METHOD_CONFIG_VALUE_WRITE = "config/value/write";
@@ -174,7 +179,6 @@ export const METHOD_MCP_SERVER_EVENT_STREAM_START =
   "mcpServer/event/stream/start";
 export const METHOD_MCP_SERVER_EVENT_STREAM_STOP =
   "mcpServer/event/stream/stop";
-export const METHOD_MCP_SERVER_IMPORT_FROM_APP = "mcpServer/importFromApp";
 export const METHOD_MCP_SERVER_LIST = "mcpServer/list";
 export const METHOD_MCP_SERVER_OAUTH_LOGIN = "mcpServer/oauth/login";
 export const METHOD_MCP_SERVER_OAUTH_LOGOUT = "mcpServer/oauth/logout";
@@ -185,7 +189,6 @@ export const METHOD_MCP_SERVER_START = "mcpServer/start";
 export const METHOD_MCP_SERVER_STARTUP_STATUS_UPDATED =
   "mcpServer/startupStatus/updated";
 export const METHOD_MCP_SERVER_STOP = "mcpServer/stop";
-export const METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE = "mcpServer/syncAllToLive";
 export const METHOD_MCP_SERVER_TOOL_CALL = "mcpServer/tool/call";
 export const METHOD_MCP_SERVER_UPDATE = "mcpServer/update";
 export const METHOD_MCP_SERVER_STATUS_LIST = "mcpServerStatus/list";
@@ -294,6 +297,8 @@ export const METHOD_PROJECT_GIT_DIFF = "projectGit/diff";
 export const METHOD_PROJECT_GIT_STATUS = "projectGit/status";
 export const METHOD_PROJECT_GIT_WORKTREE_CREATE = "projectGit/worktree/create";
 export const METHOD_PROJECT_GIT_WORKTREE_DELETE = "projectGit/worktree/delete";
+export const METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET =
+  "projectGit/worktree/environment/set";
 export const METHOD_PROJECT_GIT_WORKTREE_LIST = "projectGit/worktree/list";
 export const METHOD_PROJECT_MEMORY_READ = "projectMemory/read";
 export const METHOD_PROMPT_HISTORY_APPEND = "promptHistory/append";
@@ -618,6 +623,26 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "command/exec/write",
+  },
+  {
+    kind: "request",
+    method: "computerUse/lease/acquire",
+  },
+  {
+    kind: "request",
+    method: "computerUse/lease/release",
+  },
+  {
+    kind: "request",
+    method: "computerUse/revoke",
+  },
+  {
+    kind: "request",
+    method: "computerUse/setup",
+  },
+  {
+    kind: "request",
+    method: "computerUse/status",
   },
   {
     kind: "request",
@@ -1033,10 +1058,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   },
   {
     kind: "request",
-    method: "mcpServer/importFromApp",
-  },
-  {
-    kind: "request",
     method: "mcpServer/list",
   },
   {
@@ -1066,10 +1087,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "mcpServer/stop",
-  },
-  {
-    kind: "request",
-    method: "mcpServer/syncAllToLive",
   },
   {
     kind: "request",
@@ -1442,6 +1459,10 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "projectGit/worktree/delete",
+  },
+  {
+    kind: "request",
+    method: "projectGit/worktree/environment/set",
   },
   {
     kind: "request",
@@ -2860,6 +2881,11 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
+      method: "projectGit/worktree/environment/set";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
       method: "projectGit/diff";
       params?: unknown;
     }
@@ -3545,16 +3571,6 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
-      method: "mcpServer/importFromApp";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "mcpServer/syncAllToLive";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
       method: "mcpServer/oauth/login";
       params?: unknown;
     }
@@ -3949,13 +3965,11 @@ export type AppServerRequestMethod =
   | "mcpServer/create"
   | "mcpServer/delete"
   | "mcpServer/enabled/set"
-  | "mcpServer/importFromApp"
   | "mcpServer/list"
   | "mcpServer/oauth/login"
   | "mcpServer/oauth/logout"
   | "mcpServer/start"
   | "mcpServer/stop"
-  | "mcpServer/syncAllToLive"
   | "mcpServer/update"
   | "mcpServerStatus/list"
   | "mcpTool/list"
@@ -4007,6 +4021,7 @@ export type AppServerRequestMethod =
   | "projectGit/status"
   | "projectGit/worktree/create"
   | "projectGit/worktree/delete"
+  | "projectGit/worktree/environment/set"
   | "projectGit/worktree/list"
   | "projectMemory/read"
   | "scheduledTask/create"
@@ -4138,6 +4153,21 @@ export interface AppToolSummary {
   isReadOnly?: boolean;
   name: string;
   title?: null | string;
+}
+
+export interface ApplicationNetworkRequirements {
+  domains: Record<string, NetworkDomainPermission>;
+  enabled: boolean;
+}
+
+export interface ApplicationRequirements {
+  network?: ApplicationNetworkRequirements | null;
+  storage?: ApplicationStorageRequirements | null;
+}
+
+export interface ApplicationStorageRequirements {
+  defaultProjectParent?: null | string;
+  projectlessWorkspaceRoot?: null | string;
 }
 
 export interface AppsInstalledParams {
@@ -4801,6 +4831,31 @@ export type ClientRequest =
     }
   | {
       id: number | string;
+      method: "computerUse/status";
+      params: ComputerUseStatusParams;
+    }
+  | {
+      id: number | string;
+      method: "computerUse/setup";
+      params: ComputerUseSetupParams;
+    }
+  | {
+      id: number | string;
+      method: "computerUse/revoke";
+      params: ComputerUseRevokeParams;
+    }
+  | {
+      id: number | string;
+      method: "computerUse/lease/acquire";
+      params: ComputerUseLeaseAcquireParams;
+    }
+  | {
+      id: number | string;
+      method: "computerUse/lease/release";
+      params: ComputerUseLeaseReleaseParams;
+    }
+  | {
+      id: number | string;
       method: "config/read";
       params: ConfigReadParams;
     }
@@ -5104,44 +5159,6 @@ export interface CloudRequestResponse {
   status: number;
 }
 
-export type CodexErrorInfo =
-  | "badRequest"
-  | "contextWindowExceeded"
-  | "cyberPolicy"
-  | "internalServerError"
-  | "other"
-  | "sandboxError"
-  | "serverOverloaded"
-  | "sessionBudgetExceeded"
-  | "threadRollbackFailed"
-  | "unauthorized"
-  | "usageLimitExceeded"
-  | {
-      httpConnectionFailed: {
-        httpStatusCode?: number | null;
-      };
-    }
-  | {
-      responseStreamConnectionFailed: {
-        httpStatusCode?: number | null;
-      };
-    }
-  | {
-      responseStreamDisconnected: {
-        httpStatusCode?: number | null;
-      };
-    }
-  | {
-      responseTooManyFailedAttempts: {
-        httpStatusCode?: number | null;
-      };
-    }
-  | {
-      activeTurnNotSteerable: {
-        turnKind: NonSteerableTurnKind;
-      };
-    };
-
 export interface CollabAgentState {
   message?: null | string;
   status: CollabAgentStatus;
@@ -5314,6 +5331,193 @@ export interface CommandExecutionTerminalInteractionNotification {
   turnId: string;
 }
 
+export type ComputerUseAdapterKind = "chrome" | "native" | "office";
+
+export interface ComputerUseAdapterStatus {
+  adapter: ComputerUseAdapterKind;
+  capabilities?: ComputerUseCapability[];
+  epoch: number;
+  readiness: ComputerUseReadiness;
+  reason?: null | string;
+  setupSteps?: string[];
+  targets?: ComputerUseTargetIdentity[];
+}
+
+export type ComputerUseCapability =
+  | "chart_read"
+  | "chart_write"
+  | "click"
+  | "dom_read"
+  | "download"
+  | "drag"
+  | "formula_read"
+  | "formula_write"
+  | "key"
+  | "navigate"
+  | "observe"
+  | "range_read"
+  | "range_write"
+  | "raw_cdp"
+  | "screenshot"
+  | "scroll"
+  | "sheet_read"
+  | "sheet_write"
+  | "table_read"
+  | "table_write"
+  | "type"
+  | "upload"
+  | "workbook_read"
+  | "workbook_write";
+
+export interface ComputerUseConfig {
+  default_app_access?: AllowDenyRequirement | null;
+  macos?: ComputerUseMacosConfig | null;
+  windows?: ComputerUseWindowsConfig | null;
+}
+
+export interface ComputerUseGrant {
+  adapter: ComputerUseAdapterKind;
+  capabilities: ComputerUseCapability[];
+  epoch: number;
+  id: string;
+  scope: ComputerUseGrantScope;
+  target: ComputerUseTargetIdentity;
+}
+
+export type ComputerUseGrantScope = "persistent" | "session";
+
+export interface ComputerUseLeaseAcquireParams {
+  adapter: ComputerUseAdapterKind;
+  capability: ComputerUseCapability;
+  grantId?: null | string;
+  target: ComputerUseTargetIdentity;
+  threadId: string;
+  turnId: string;
+}
+
+export interface ComputerUseLeaseAcquireResponse {
+  adapter: ComputerUseAdapterKind;
+  capability: ComputerUseCapability;
+  epoch: number;
+  leaseId: string;
+  target: ComputerUseTargetIdentity;
+}
+
+export interface ComputerUseLeaseReleaseParams {
+  leaseId: string;
+}
+
+export interface ComputerUseLeaseReleaseResponse {
+  epoch: number;
+  released: boolean;
+}
+
+export interface ComputerUseMacosConfig {
+  bundle_ids?: null | Record<string, AllowDenyRequirement>;
+}
+
+export interface ComputerUseMacosRequirements {
+  bundleIds?: null | Record<string, AllowDenyRequirement>;
+}
+
+export type ComputerUseReadiness =
+  | "blocked"
+  | "busy"
+  | "connecting"
+  | "disabled"
+  | "disconnected"
+  | "not_installed"
+  | "permission_required"
+  | "ready"
+  | "unavailable"
+  | "update_required";
+
+export interface ComputerUseRequirements {
+  allowLockedComputerUse?: boolean | null;
+  allowPersistentApproval?: boolean | null;
+  defaultAppAccess?: AllowDenyRequirement | null;
+  macos?: ComputerUseMacosRequirements | null;
+  windows?: ComputerUseWindowsRequirements | null;
+}
+
+export interface ComputerUseRevokeParams {
+  grantId: string;
+}
+
+export interface ComputerUseRevokeResponse {
+  epoch: number;
+  revoked: boolean;
+}
+
+export interface ComputerUseSetupParams {
+  adapter: ComputerUseAdapterKind;
+  grantScope?: ComputerUseGrantScope;
+  target?: ComputerUseTargetIdentity | null;
+}
+
+export interface ComputerUseSetupResponse {
+  accepted: boolean;
+  grant?: ComputerUseGrant | null;
+  status: ComputerUseAdapterStatus;
+}
+
+export interface ComputerUseStatusParams {
+  adapter?: ComputerUseAdapterKind | null;
+  target?: ComputerUseTargetIdentity | null;
+}
+
+export interface ComputerUseStatusResponse {
+  adapters: ComputerUseAdapterStatus[];
+  epoch: number;
+}
+
+export type ComputerUseTargetIdentity =
+  | {
+      appId: string;
+      processId?: number | null;
+      title?: null | string;
+      type: "native";
+      windowId?: null | string;
+    }
+  | {
+      origin: string;
+      profileId: string;
+      tabId: string;
+      type: "chrome";
+      url?: null | string;
+    }
+  | {
+      host: string;
+      sessionId: string;
+      type: "office";
+      workbookId: string;
+      workbookName?: null | string;
+    };
+
+export interface ComputerUseWindowsConfig {
+  aumids?: null | Record<string, AllowDenyRequirement>;
+  exes?: ComputerUseWindowsExeConfig[] | null;
+}
+
+export interface ComputerUseWindowsExeConfig {
+  access: AllowDenyRequirement;
+  binary_name?: null | string;
+  product_name: string;
+  publisher_name: string;
+}
+
+export interface ComputerUseWindowsExeRequirement {
+  access: AllowDenyRequirement;
+  binaryName?: null | string;
+  productName: string;
+  publisherName: string;
+}
+
+export interface ComputerUseWindowsRequirements {
+  aumids?: null | Record<string, AllowDenyRequirement>;
+  exes?: ComputerUseWindowsExeRequirement[] | null;
+}
+
 export interface ConfigBatchWriteParams {
   edits: ConfigEdit[];
   expectedVersion?: null | string;
@@ -5360,7 +5564,7 @@ export type ConfigLayerSource =
       type: "user";
     }
   | {
-      dotCodexFolder: string;
+      dotLimeFolder: string;
       type: "project";
     }
   | {
@@ -5390,7 +5594,9 @@ export interface ConfigRequirements {
   allowedApprovalPolicies?: string[] | null;
   allowedSandboxModes?: string[] | null;
   allowedWebSearchModes?: string[] | null;
+  application?: ApplicationRequirements | null;
   browserUse?: BrowserUseRequirements | null;
+  computerUse?: ComputerUseRequirements | null;
   inAppBrowser?: InAppBrowserRequirements | null;
 }
 
@@ -6445,6 +6651,44 @@ export interface ItemStartedNotification {
   turnId: string;
 }
 
+export type LimeErrorInfo =
+  | "badRequest"
+  | "contextWindowExceeded"
+  | "cyberPolicy"
+  | "internalServerError"
+  | "other"
+  | "sandboxError"
+  | "serverOverloaded"
+  | "sessionBudgetExceeded"
+  | "threadRollbackFailed"
+  | "unauthorized"
+  | "usageLimitExceeded"
+  | {
+      httpConnectionFailed: {
+        httpStatusCode?: number | null;
+      };
+    }
+  | {
+      responseStreamConnectionFailed: {
+        httpStatusCode?: number | null;
+      };
+    }
+  | {
+      responseStreamDisconnected: {
+        httpStatusCode?: number | null;
+      };
+    }
+  | {
+      responseTooManyFailedAttempts: {
+        httpStatusCode?: number | null;
+      };
+    }
+  | {
+      activeTurnNotSteerable: {
+        turnKind: NonSteerableTurnKind;
+      };
+    };
+
 export interface ListMcpServerStatusParams {
   cursor?: null | string;
   detail?: McpServerStatusDetail | null;
@@ -6772,7 +7016,6 @@ export interface McpServerElicitationRequestResponse {
 }
 
 export interface McpServerEnabledSetParams {
-  appType: string;
   enabled: boolean;
   id: string;
 }
@@ -6803,15 +7046,6 @@ export interface McpServerEventStreamStopParams {
 }
 
 export type McpServerEventStreamStopResponse = Record<string, unknown>;
-
-export interface McpServerImportFromAppParams {
-  appType: string;
-}
-
-export interface McpServerImportFromAppResponse {
-  importedCount: number;
-  servers?: unknown[];
-}
 
 export interface McpServerInfo {
   description?: null | string;
@@ -7463,6 +7697,11 @@ export type Method =
   | "command/exec/resize"
   | "command/exec/terminate"
   | "command/exec/write"
+  | "computerUse/lease/acquire"
+  | "computerUse/lease/release"
+  | "computerUse/revoke"
+  | "computerUse/setup"
+  | "computerUse/status"
   | "config/batchWrite"
   | "config/read"
   | "config/value/write"
@@ -8011,6 +8250,8 @@ export type NetworkApprovalProtocol =
   | "https"
   | "socks5Tcp"
   | "socks5Udp";
+
+export type NetworkDomainPermission = "allow" | "deny";
 
 export type NonSteerableTurnKind = "compact" | "review";
 
@@ -8619,6 +8860,11 @@ export interface ProjectGitWorktreeDeleteResponse {
   worktreePath: string;
 }
 
+export interface ProjectGitWorktreeEnvironmentSetParams {
+  configPath?: null | string;
+  rootPath: string;
+}
+
 export type ProjectGitWorktreeListParams = Record<string, never>;
 
 export interface ProjectGitWorktreeListResponse {
@@ -8728,7 +8974,6 @@ export interface PromptHistoryReadResponse {
 export type ProtocolKind =
   | "anthropic_messages"
   | "bedrock_converse"
-  | "codex_responses"
   | "fal"
   | "gemini_generate_content"
   | "openai_audio_speech"
@@ -10991,7 +11236,7 @@ export interface TurnEnvironmentParams {
 
 export interface TurnError {
   additionalDetails?: null | string;
-  codexErrorInfo?: CodexErrorInfo | null;
+  limeErrorInfo?: LimeErrorInfo | null;
   message: string;
 }
 

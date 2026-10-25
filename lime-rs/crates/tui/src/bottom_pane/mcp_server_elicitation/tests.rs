@@ -221,7 +221,7 @@ fn ctrl_c_on_select_field_cancels_without_mutating_selection() {
 fn tool_suggestion_empty_schema_remains_fail_closed_without_a_consumer() {
     let request = params_with_meta(
         json!({ "type": "object", "properties": {} }),
-        Some(json!({ "codex_approval_kind": "tool_suggestion" })),
+        Some(json!({ "lime_approval_kind": "tool_suggestion" })),
     );
     assert!(
         McpServerElicitationOverlay::from_server_request(RequestId::Integer(11), &request)
@@ -236,7 +236,7 @@ fn approval_metadata_renders_explicit_display_order_and_truncates_values() {
         &params_with_meta(
             json!({ "type": "object", "properties": {} }),
             Some(json!({
-                "codex_approval_kind": "mcp_tool_call",
+                "lime_approval_kind": "mcp_tool_call",
                 "tool_params": { "zeta": 3, "alpha": 1 },
                 "tool_params_display": [
                     { "name": "calendar_id", "value": "primary", "display_name": "Calendar" },
@@ -271,7 +271,7 @@ fn approval_metadata_renders_explicit_display_order_and_truncates_values() {
         &params_with_meta(
             json!({ "type": "object", "properties": {} }),
             Some(json!({
-                "codex_approval_kind": "mcp_tool_call",
+                "lime_approval_kind": "mcp_tool_call",
                 "tool_params": { "zeta": 3, "alpha": 1 }
             })),
         ),

@@ -1,0 +1,560 @@
+ Downloading crates ...
+  Downloaded assert-json-diff v2.0.2
+  Downloaded addr2line v0.25.1
+  Downloaded caseless v0.2.2
+  Downloaded cached v0.56.0
+  Downloaded color-spantrace v0.3.0
+  Downloaded ctor-proc-macro v0.0.7
+  Downloaded darling_macro v0.20.11
+  Downloaded deadpool v0.12.3
+  Downloaded dtor-proc-macro v0.0.6
+  Downloaded fast-srgb8 v1.0.0
+  Downloaded is-terminal v0.4.17
+  Downloaded line-clipping v0.3.7
+  Downloaded objc2-local-authentication v0.3.2
+  Downloaded onig v6.5.1
+  Downloaded pest v2.8.7
+  Downloaded palette v0.7.6
+  Downloaded pest_meta v2.8.7
+  Downloaded ratatui-macros v0.7.2
+  Downloaded petgraph v0.8.3
+  Downloaded siphasher v1.0.3
+  Downloaded supports-color v2.1.0
+  Downloaded supports-color v3.0.2
+  Downloaded symphonia-format-isomp4 v0.6.0
+  Downloaded symphonia-format-riff v0.6.0
+  Downloaded tonic-build v0.14.3
+  Downloaded tracing-serde v0.2.0
+  Downloaded wiremock v0.6.5
+  Downloaded bm25 v2.3.2
+  Downloaded clap_complete v4.5.65
+  Downloaded ctor v0.6.3
+  Downloaded deadpool-runtime v0.1.4
+  Downloaded dtor v0.1.1
+  Downloaded gimli v0.32.3
+  Downloaded jsonptr v0.7.1
+  Downloaded objc2-security v0.3.2
+  Downloaded owo-colors v4.3.0
+  Downloaded pest_derive v2.8.7
+  Downloaded prost-build v0.14.3
+  Downloaded stop-words v0.9.0
+  Downloaded symphonia-common v0.6.0
+  Downloaded rust-stemmers v1.2.0
+  Downloaded symphonia-format-ogg v0.6.0
+  Downloaded tonic-prost-build v0.14.3
+  Downloaded tracing-error v0.2.1
+  Downloaded cached_proc_macro v0.25.0
+  Downloaded deunicode v1.6.2
+  Downloaded compact_str v0.9.1
+  Downloaded eyre v0.6.12
+  Downloaded linkify v0.11.0
+  Downloaded pest_generator v2.8.7
+  Downloaded onig_sys v69.9.1
+  Downloaded symphonia v0.6.0
+  Downloaded quick-xml v0.39.4
+  Downloaded symphonia-format-mkv v0.6.0
+  Downloaded backtrace v0.3.76
+  Downloaded darling v0.20.11
+  Downloaded extended v0.1.0
+  Downloaded num_cpus v1.17.0
+  Downloaded pathdiff v0.2.3
+  Downloaded rustc-demangle v0.1.27
+  Downloaded symphonia-core v0.6.0
+  Downloaded unicode-width v0.2.1
+  Downloaded color-eyre v0.6.5
+  Downloaded two-face v0.5.1
+  Downloaded is_ci v1.2.0
+  Downloaded instability v0.3.11
+  Downloaded smawk v0.3.2
+  Downloaded symphonia-bundle-mp3 v0.6.0
+  Downloaded palette_derive v0.7.6
+  Downloaded darling_core v0.20.11
+  Downloaded symphonia-metadata v0.6.0
+  Downloaded cached_proc_macro_types v0.1.1
+  Downloaded plist v1.9.0
+  Downloaded zerocopy-derive v0.8.37
+  Downloaded prost-types v0.14.3
+  Downloaded terminal_size v0.4.3
+  Downloaded object v0.37.3
+  Downloaded diffy v0.4.2
+    Blocking waiting for file lock on build directory
+    Checking zeroize v1.8.2
+    Checking mio v1.2.0
+   Compiling serde_json v1.0.149
+   Compiling zerocopy v0.8.37
+   Compiling zerocopy-derive v0.8.37
+   Compiling rustix v1.1.4
+    Checking sha1_smol v1.0.1
+    Checking security-framework-sys v2.15.0
+    Checking generic-array v0.14.7
+    Checking rustls-pki-types v1.14.0
+    Checking aws-lc-rs v1.18.1
+    Checking tokio v1.52.3
+    Checking uuid v1.20.0
+    Checking security-framework v3.5.1
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+    Checking unicode-normalization v0.1.25
+    Checking digest v0.10.7
+    Checking sha2 v0.10.9
+    Checking rustls-webpki v0.103.16
+    Checking gix-utils v0.5.0
+    Checking webpki-roots v1.0.10
+    Checking hmac v0.12.1
+    Checking security-framework v2.11.1
+    Checking tracing-serde v0.2.0
+    Checking schemars v0.8.22
+    Checking tracing-subscriber v0.3.22
+    Checking rustls-native-certs v0.8.3
+    Checking rustls v0.23.46
+    Checking ts-rs v11.1.0
+    Checking sha1 v0.10.6
+    Checking cookie_store v0.22.1
+    Checking arrayvec v0.7.6
+    Checking codex-utils-absolute-path v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/absolute-path)
+    Checking tempfile v3.27.0
+    Checking terminal_size v0.4.3
+    Checking moka v0.12.13
+    Checking native-tls v0.2.14
+   Compiling convert_case v0.10.0
+    Checking clap_builder v4.5.58
+    Checking blake3 v1.8.2
+    Checking tracing-opentelemetry v0.32.1
+   Compiling derive_more-impl v2.1.1
+   Compiling fax_derive v0.2.0
+    Checking zune-core v0.4.12
+    Checking pagable v0.4.1
+    Checking zune-jpeg v0.4.21
+    Checking fax v0.2.6
+    Checking codex-utils-home-dir v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/home-dir)
+    Checking x509-parser v0.18.1
+    Checking lsp-types v0.97.0
+    Checking starlark_map v0.14.2
+    Checking clap v4.5.58
+    Checking fd-lock v4.0.4
+    Checking gix-url v0.40.0
+    Checking derive_more v2.1.1
+    Checking rustyline v14.0.0
+    Checking tokio-util v0.7.18
+    Checking aws-smithy-async v1.2.14
+    Checking tokio-graceful v0.2.2
+    Checking rama-utils v0.3.0-alpha.4
+    Checking aws-smithy-runtime-api v1.12.0
+    Checking tokio-rustls v0.26.4
+    Checking tokio-native-tls v0.3.1
+    Checking codex-utils-rustls-provider v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/rustls-provider)
+    Checking rcgen v0.14.9
+    Checking debugserver-types v0.5.0
+    Checking codex-utils-cache v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/cache)
+    Checking h2 v0.4.19
+    Checking tower v0.5.3
+    Checking tokio-stream v0.1.18
+    Checking ppv-lite86 v0.2.21
+    Checking ahash v0.8.12
+    Checking rand_chacha v0.9.0
+    Checking aws-credential-types v1.2.11
+    Checking rama-core v0.3.0-alpha.4
+    Checking aws-smithy-http v0.62.6
+    Checking rand v0.9.3
+    Checking half v2.7.1
+    Checking aws-sigv4 v1.3.7
+    Checking tiff v0.10.3
+    Checking hickory-proto v0.25.2
+    Checking tower-http v0.6.8
+    Checking tokio-test v0.4.5
+    Checking rand_regex v0.18.1
+    Checking codex-utils-path-uri v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/path-uri)
+    Checking codex-async-utils v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/async-utils)
+    Checking codex-extension-items v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/items)
+    Checking codex-utils-redacted-string v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/redacted-string)
+    Checking codex-utils-string v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/string)
+    Checking image v0.25.9
+    Checking gix-hash v0.28.0
+    Checking gix-fs v0.24.0
+    Checking gix-hashtable v0.18.0
+    Checking gix-object v0.66.0
+    Checking objc2-core-foundation v0.3.2
+    Checking gix-tempfile v26.0.0
+    Checking rama-http-types v0.3.0-alpha.4
+    Checking inout v0.1.4
+    Checking cipher v0.4.4
+    Checking hickory-resolver v0.25.2
+    Checking gix-lock v26.0.0
+    Checking block2 v0.6.2
+    Checking gix-quote v0.10.0
+    Checking codex-utils-image v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/image)
+    Checking headers v0.4.1
+    Checking objc2-foundation v0.3.2
+    Checking gix-ref v0.69.0
+    Checking hyper v1.11.1
+    Checking codex-utils-pty v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/pty)
+    Checking gix-commitgraph v0.41.0
+    Checking universal-hash v0.5.1
+    Checking tungstenite v0.27.0 (https://github.com/openai-oss-forks/tungstenite-rs?rev=4fffad30fe373adbdcffab9545e9e9bf4f2fc19f#4fffad30)
+    Checking gix-revwalk v0.37.0
+    Checking gix-command v0.12.0
+    Checking gix-pack v0.76.0
+    Checking gix-transport v0.61.0
+    Checking rama-net v0.3.0-alpha.4
+    Checking der v0.7.10
+    Checking gix-shallow v0.15.0
+    Checking hyper-util v0.1.20
+    Checking gix-glob v0.29.0
+    Checking tokio-tungstenite v0.28.0 (https://github.com/openai-oss-forks/tokio-tungstenite?rev=0e5b2d73aa18dd9f0a50ee9ff199d5aef7594186#0e5b2d73)
+    Checking rand_chacha v0.3.1
+    Checking gix-config-value v0.21.0
+    Checking gix-protocol v0.67.0
+    Checking rand v0.8.6
+    Checking gix-config v0.62.0
+    Checking gix-odb v0.86.0
+    Checking spki v0.7.3
+    Checking gix-traverse v0.63.0
+    Checking gix-revision v0.51.0
+    Checking gix-discover v0.57.0
+    Checking gix-diff v0.69.0
+    Checking gix-refspec v0.47.0
+    Checking gethostname v1.1.0
+    Checking aead v0.5.2
+    Checking pkcs8 v0.10.2
+    Checking hyper-rustls v0.27.7
+    Checking hyper-tls v0.6.0
+    Checking hyper-timeout v0.5.2
+    Checking opentelemetry_sdk v0.31.0
+    Checking curve25519-dalek v4.1.3
+    Checking gix v0.89.0
+    Checking reqwest v0.12.28
+    Checking tonic v0.14.3
+    Checking polyval v0.6.2
+    Checking opentelemetry-appender-tracing v0.31.1
+    Checking ghash v0.5.1
+    Checking block-buffer v0.12.0
+    Checking starlark_syntax v0.14.2
+    Checking codex-http-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/http-client)
+    Checking opentelemetry-http v0.31.0
+    Checking tonic-prost v0.14.3
+    Checking aes v0.8.4
+    Checking ctr v0.9.2
+    Checking signature v2.2.0
+    Checking digest v0.11.3
+    Checking sec1 v0.7.3
+    Checking aes-gcm v0.10.3
+    Checking hkdf v0.12.4
+    Checking crypto-bigint v0.5.5
+    Checking sha3 v0.10.9
+    Checking codex-utils-path v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/path-utils)
+    Checking kem v0.3.0-pre.0
+    Checking x25519-dalek v2.0.1
+    Checking ml-kem v0.2.3
+    Checking rama-http-headers v0.3.0-alpha.4
+    Checking rama-dns v0.3.0-alpha.4
+    Checking rama-udp v0.3.0-alpha.4
+    Checking rama-unix v0.3.0-alpha.4
+    Checking starlark v0.14.2
+    Checking rama-tls-rustls v0.3.0-alpha.4
+    Checking codex-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/codex-client)
+    Checking codex-websocket-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/websocket-client)
+    Checking opentelemetry-proto v0.31.0
+    Checking elliptic-curve v0.13.8
+    Checking rfc6979 v0.4.0
+    Checking poly1305 v0.8.0
+    Checking sha2 v0.11.0
+    Checking ecdsa v0.16.9
+    Checking primeorder v0.13.6
+    Checking jsonwebtoken v9.3.1
+    Checking p256 v0.13.2
+    Checking salsa20 v0.10.2
+    Checking chacha20 v0.9.1
+    Checking rama-http v0.3.0-alpha.4
+    Checking which v8.0.0
+    Checking chacha20poly1305 v0.10.1
+    Checking rust-embed-utils v8.11.0
+    Checking hpke v0.12.0
+    Checking pbkdf2 v0.12.2
+    Checking rust-embed v8.11.0
+    Checking secrecy v0.10.3
+    Checking i18n-embed v0.16.0
+    Checking scrypt v0.11.0
+    Checking age-core v0.12.0
+    Checking codex-install-context v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/install-context)
+    Checking keyring v3.6.3
+    Checking age v0.12.1
+    Checking objc2-core-graphics v0.3.2
+    Checking codex-keyring-store v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/keyring-store)
+    Checking sqlx-core v0.9.0
+    Checking opentelemetry-otlp v0.31.0
+    Checking crypto_secretbox v0.1.1
+    Checking ed25519 v2.2.3
+    Checking aws-smithy-http-client v1.1.12
+    Checking rama-tcp v0.3.0-alpha.4
+    Checking aws-smithy-observability v0.1.5
+    Checking tracing-appender v0.2.4
+    Checking blake2 v0.10.6
+    Checking mxc-sdk v1.0.0 (https://github.com/microsoft/mxc?rev=b21120168d70befe12356411423266bfef168446#b2112016)
+    Checking aws-smithy-runtime v1.9.5
+    Checking crypto_box v0.9.1
+    Checking ed25519-dalek v2.2.0
+    Checking aws-types v1.3.11
+    Checking codex-uds v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/uds)
+    Checking rama-socks5 v0.3.0-alpha.4
+    Checking codex-build-info v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/build-info)
+    Checking codex-workload-identity v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/workload-identity)
+    Checking sqlx-sqlite v0.9.0
+    Checking axum v0.8.8
+    Checking aws-runtime v1.5.17
+    Checking sqlx v0.9.0
+    Checking clatter v2.2.0
+    Checking codex-file-watcher v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/file-watcher)
+    Checking codex-core-plugin-common v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/core-plugin-common)
+    Checking codex-websocket-auth v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/websocket-auth)
+   Compiling getrandom v0.4.2
+   Compiling prettyplease v0.2.37
+    Checking os_info v3.14.0
+    Checking objc2-app-kit v0.3.2
+    Checking codex-file-search v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/file-search)
+    Checking debugid v0.8.0
+   Compiling errno v0.3.14
+   Compiling foldhash v0.1.5
+   Compiling bitflags v2.13.1
+    Checking rama-http-core v0.3.0-alpha.4
+   Compiling hashbrown v0.15.5
+    Checking webbrowser v1.2.4
+    Checking sentry-types v0.46.1
+   Compiling prost v0.14.3
+    Checking hmac v0.13.0
+   Compiling fastrand v2.5.0
+   Compiling petgraph v0.8.3
+    Checking pbkdf2 v0.13.0
+    Checking aws-sdk-sts v1.95.0
+   Compiling prost-types v0.14.3
+    Checking aws-sdk-signin v1.2.0
+    Checking aws-sdk-ssooidc v1.93.0
+    Checking sentry-core v0.46.1
+    Checking aws-sdk-sso v1.91.0
+    Checking lzma-rust2 v0.21.0
+    Checking sha1 v0.11.0
+   Compiling prost-build v0.14.3
+    Checking codex-execpolicy v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/execpolicy)
+    Checking schemars v1.2.1
+    Checking sentry v0.46.1
+    Checking process-wrap v10.0.0
+   Compiling tonic-build v0.14.3
+    Checking oauth2 v5.0.0
+    Checking aws-config v1.8.12
+    Checking reqwest v0.13.4
+   Compiling glob v0.3.3
+    Checking zip v9.0.0
+   Compiling tonic-prost-build v0.14.3
+    Checking codex-attachment-store v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/attachment-store)
+    Checking jsonptr v0.7.1
+    Checking num-complex v0.4.6
+   Compiling darling_core v0.20.11
+   Compiling stop-words v0.9.0
+   Compiling codex-code-mode-protocol v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/code-mode-protocol)
+    Checking rmcp v3.5.1 (https://github.com/modelcontextprotocol/rust-sdk?rev=98a54789b80110ad210495c4ad845c89e1980471#98a54789)
+    Checking symphonia-core v0.6.0
+    Checking caseless v0.2.2
+   Compiling pulldown-cmark v0.10.3
+    Checking extended v0.1.0
+    Checking web-time v1.1.0
+    Checking cached_proc_macro_types v0.1.1
+    Checking pulldown-cmark-escape v0.10.1
+    Checking rust-stemmers v1.2.0
+    Checking deunicode v1.6.2
+    Checking whoami v1.6.1
+    Checking codex-utils-head-tail-buffer v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/head-tail-buffer)
+   Compiling signal-hook v0.3.18
+    Checking codex-backend-openapi-models v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/codex-backend-openapi-models)
+    Checking symphonia-metadata v0.6.0
+    Checking symphonia-bundle-mp3 v0.6.0
+   Compiling darling_macro v0.20.11
+    Checking symphonia-common v0.6.0
+    Checking rama-http-backend v0.3.0-alpha.4
+    Checking symphonia-format-riff v0.6.0
+    Checking symphonia-format-ogg v0.6.0
+   Compiling darling v0.20.11
+    Checking symphonia-format-isomp4 v0.6.0
+    Checking symphonia-format-mkv v0.6.0
+   Compiling cached_proc_macro v0.25.0
+    Checking codex-aws-auth v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/aws-auth)
+    Checking is_ci v1.2.0
+    Checking is-terminal v0.4.17
+   Compiling owo-colors v4.3.0
+    Checking supports-color v2.1.0
+    Checking supports-color v3.0.2
+    Checking unicode-width v0.2.1
+   Compiling codex-linux-sandbox v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/linux-sandbox)
+    Checking symphonia v0.6.0
+    Checking codex-network-proxy v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/network-proxy)
+    Checking objc2-security v0.3.2
+    Checking castaway v0.2.4
+   Compiling darling_core v0.23.0
+    Checking cached v0.56.0
+    Checking objc2-local-authentication v0.3.2
+    Checking linkify v0.11.0
+    Checking dotenvy v0.15.7
+    Checking codex-user-verification v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/user-verification)
+    Checking compact_str v0.9.1
+    Checking unicode-truncate v2.0.1
+    Checking bm25 v2.3.2
+    Checking codex-utils-json-to-toml v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/json-to-toml)
+    Checking strum v0.28.0
+    Checking kasuari v0.4.12
+   Compiling instability v0.3.11
+   Compiling indoc v2.0.7
+   Compiling onig_sys v69.9.1
+    Checking num_cpus v1.17.0
+    Checking deadpool-runtime v0.1.4
+    Checking ratatui-core v0.1.2
+    Checking deadpool v0.12.3
+    Checking signal-hook-mio v0.2.5
+    Checking assert-json-diff v2.0.2
+   Compiling async-stream-impl v0.3.6
+    Checking line-clipping v0.3.7
+   Compiling object v0.37.3
+    Checking wiremock v0.6.5
+    Checking async-stream v0.3.6
+    Checking crossterm v0.29.0 (https://github.com/openai-oss-forks/crossterm?rev=ed1cdab335221515706178d68495bba2aed1924f#ed1cdab3)
+    Checking quick-xml v0.39.4
+   Compiling color-spantrace v0.3.0
+    Checking gimli v0.32.3
+   Compiling eyre v0.6.12
+    Checking plist v1.9.0
+   Compiling darling_macro v0.23.0
+    Checking tracing-error v0.2.1
+   Compiling darling v0.23.0
+    Checking bincode v1.3.3
+    Checking rustc-demangle v0.1.27
+    Checking simdutf8 v0.1.5
+    Checking ansi-to-tui v8.0.1
+   Compiling quinn-udp v0.5.14
+    Checking diffy v0.4.2
+    Checking addr2line v0.25.1
+    Checking smawk v0.3.2
+    Checking ratatui-widgets v0.3.2
+    Checking ratatui-crossterm v0.1.2
+    Checking unicode-linebreak v0.1.5
+    Checking textwrap v0.16.2
+    Checking codex-mermaid v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/mermaid)
+    Checking arboard v3.6.1
+    Checking codex-realtime-webrtc v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/realtime-webrtc)
+   Compiling quinn v0.11.9
+    Checking codex-utils-sleep-inhibitor v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/sleep-inhibitor)
+    Checking rand_pcg v0.10.2
+    Checking lru-slab v0.1.2
+    Checking pathdiff v0.2.3
+    Checking codex-utils-elapsed v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/elapsed)
+    Checking codex-utils-fuzzy-match v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/fuzzy-match)
+    Checking quinn-proto v0.11.18
+    Checking backtrace v0.3.76
+    Checking ratatui v0.30.2
+    Checking ratatui-macros v0.7.2
+    Checking codex-ansi-escape v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ansi-escape)
+   Compiling dtor-proc-macro v0.0.6
+    Checking color-eyre v0.6.5
+    Checking h3 v0.0.8 (https://github.com/hyperium/h3?rev=e07e69412876f7e26f026bd75a48b2704d8c8283#e07e6941)
+   Compiling ctor-proc-macro v0.0.7
+    Checking codex-process-hardening v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/process-hardening)
+    Checking dtor v0.1.1
+   Compiling codex-cli v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/cli)
+    Checking codex-stdio-to-uds v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/stdio-to-uds)
+    Checking clap_complete v4.5.65
+    Checking ctor v0.6.3
+    Checking codex-responses-api-proxy v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/responses-api-proxy)
+    Checking codex-protocol v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/protocol)
+    Checking onig v6.5.1
+    Checking syntect v5.3.0
+    Checking h3-quinn v0.0.10 (https://github.com/hyperium/h3?rev=e07e69412876f7e26f026bd75a48b2704d8c8283#e07e6941)
+    Checking codex-tcp-tunnel v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/tcp-tunnel)
+    Checking two-face v0.5.1
+    Checking codex-file-system v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/file-system)
+    Checking codex-api v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/codex-api)
+    Checking codex-features v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/features)
+    Checking codex-model-provider-info v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/model-provider-info)
+    Checking codex-shell-command v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/shell-command)
+    Checking codex-history v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/history)
+    Checking codex-utils-output-truncation v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/output-truncation)
+    Checking codex-agent-identity v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/agent-identity)
+    Checking codex-context-fragments v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/context-fragments)
+    Checking codex-utils-audio v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/audio)
+    Checking codex-utils-sandbox-summary v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/sandbox-summary)
+    Checking codex-git-utils v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/git-utils)
+    Checking codex-utils-approval-presets v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/approval-presets)
+    Checking codex-skills v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/skills)
+    Checking codex-memories-read v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/memories/read)
+    Checking codex-utils-cli v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/cli)
+    Checking codex-state v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/state)
+    Checking codex-guardian-context v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/guardian-context)
+    Checking codex-exec-server-protocol v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/exec-server-protocol)
+    Checking codex-config v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/config)
+    Checking codex-secrets v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/secrets)
+    Checking codex-utils-git-discovery v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/git-discovery)
+    Checking codex-worktree v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/worktree)
+    Checking codex-prompts v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/prompts)
+    Checking codex-otel v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/otel)
+    Checking codex-response-debug-context v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/response-debug-context)
+    Checking codex-agent-graph-store v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/agent-graph-store)
+    Checking codex-windows-sandbox v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/windows-sandbox-rs)
+    Checking codex-rollout v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/rollout)
+    Checking codex-code-mode v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/code-mode)
+    Checking codex-mxc-sandbox v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/mxc-sandbox)
+    Checking codex-sandboxing v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/sandboxing)
+    Checking codex-rollout-trace v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/rollout-trace)
+    Checking codex-app-server-protocol v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/app-server-protocol)
+    Checking codex-login v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/login)
+    Checking codex-exec-server v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/exec-server)
+    Checking codex-agent-roles v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/agent-roles)
+    Checking codex-message-history v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/message-history)
+    Checking codex-feedback v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/feedback)
+    Checking codex-models-manager v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/models-manager)
+    Checking codex-model-provider v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/model-provider)
+    Checking codex-backend-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/backend-client)
+    Checking codex-cloud-config v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/cloud-config)
+    Checking codex-cloud-tasks-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/cloud-tasks-client)
+    Checking codex-cloud-tasks-mock-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/cloud-tasks-mock-client)
+    Checking codex-utils-plugins v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/plugins)
+    Checking codex-rmcp-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/rmcp-client)
+    Checking codex-apply-patch v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/apply-patch)
+    Checking codex-plugin v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/plugin)
+    Checking codex-arg0 v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/arg0)
+    Checking codex-connectors v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/connectors)
+    Checking codex-hooks v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/hooks)
+    Checking codex-tools v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/tools)
+    Checking codex-message-board v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/message-board)
+    Checking codex-mcp v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/codex-mcp)
+    Checking codex-extension-api v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/extension-api)
+    Checking codex-agent-message-board-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/agent-message-board-client)
+    Checking codex-agent-message-board-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/agent-message-board)
+    Checking codex-home v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/codex-home)
+    Checking codex-multi-env-copy-file v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/multi-env-copy-file)
+    Checking codex-git-attribution v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/git-attribution)
+    Checking codex-analytics v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/analytics)
+    Checking codex-thread-store v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/thread-store)
+    Checking codex-core-plugins v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/core-plugins)
+    Checking codex-guardian-reviewer v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/guardian-reviewer)
+    Checking codex-skills-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/skills)
+    Checking codex-connectors-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/connectors)
+    Checking codex-core v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/core)
+    Checking codex-app-server-transport v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/app-server-transport)
+    Checking codex-memories-write v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/memories/write)
+    Checking codex-agent-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/agent)
+    Checking codex-queue-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/queue)
+    Checking codex-mcp-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/mcp)
+    Checking codex-image-generation-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/image-generation)
+    Checking codex-goal-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/goal)
+    Checking codex-history-notes-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/history-notes)
+    Checking codex-memories-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/memories)
+    Checking codex-guardian-v2 v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/guardian-v2)
+    Checking codex-web-search-extension v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ext/web-search)
+    Checking codex-chatgpt v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/chatgpt)
+    Checking codex-ollama v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/ollama)
+    Checking codex-lmstudio v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/lmstudio)
+    Checking codex-app-server-test-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/app-server-test-client)
+    Checking codex-utils-oss v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/oss)
+    Checking codex-external-agent-migration v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/external-agent-migration)
+    Checking codex-app-server-daemon v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/app-server-daemon)
+    Checking codex-app-server v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/app-server)
+    Checking codex-app-server-client v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/app-server-client)
+    Checking codex-tui v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/tui)
+    Checking codex-exec v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/exec)
+    Checking codex-cloud-tasks v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/cloud-tasks)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3m 52s

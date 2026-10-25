@@ -384,6 +384,20 @@ impl RuntimeCore {
         let server = self
             .execution_process_server()
             .ok_or_else(|| "local execution environment is not configured".to_string())?;
+        let thread = self
+            .read_thread(agent_protocol::thread::ThreadReadParams {
+                thread_id: agent_protocol::ThreadId::new(thread_id),
+                turns_view: agent_protocol::ThreadTurnsView::NotLoaded,
+            })
+            .await
+            .map_err(|error| error.to_string())?;
+        let mut runtime_metadata = json!({
+            "surface": "user_shell",
+            "explicitUserCommand": true,
+        });
+        if let Some(policy) = thread.thread.metadata.get("shellEnvironmentPolicy") {
+            runtime_metadata["metadata"] = json!({"shell_environment_policy": policy});
+        }
         server
             .start_thread_process(
                 thread_id,
@@ -398,10 +412,7 @@ impl RuntimeCore {
                     tty: false,
                     approval_policy: Some("never".to_string()),
                     sandbox_policy: Some("danger-full-access".to_string()),
-                    runtime_metadata: Some(json!({
-                        "surface": "user_shell",
-                        "explicitUserCommand": true,
-                    })),
+                    runtime_metadata: Some(runtime_metadata),
                     env: HashMap::new(),
                     attempt: None,
                 },

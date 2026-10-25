@@ -199,7 +199,58 @@ export async function runBrowserNewTabAddressScenario({
       third !== first &&
       third !== second &&
       (await address.inputValue()) === "";
-    await close(third);
+    const prefix = url.slice(0, -3);
+    await address.fill(prefix);
+    const suggestion = page.locator('[role="listbox"] [role="option"]').first();
+    await suggestion.waitFor({ state: "visible" });
+    await waitFor(
+      inputState,
+      (state) => state.value === url,
+      "Committed history did not complete the New tab address",
+    );
+    const inline = await address.evaluate((input) => ({
+      start: input.selectionStart,
+      end: input.selectionEnd,
+      value: input.value,
+    }));
+    assertions.committedHistoryCompletesOnlySuffix =
+      inline.start === prefix.length && inline.end === url.length;
+    assertions.historySuggestionUsesCommittedNativeUrl = (
+      await suggestion.textContent()
+    ).includes(url);
+    await address.press("ArrowUp");
+    assertions.arrowSelectionRestoresTypedQuery =
+      (await address.inputValue()) === prefix;
+    await address.press("ArrowDown");
+    assertions.arrowSelectionReturnsToHistoryUrl =
+      (await address.inputValue()) === url;
+    await capture("history-address-suggestions");
+    await suggestion.click();
+    const suggestionTabs = await waitFor(
+      listTabs,
+      (tabs) =>
+        tabs.length === 3 &&
+        tabs.some((tab) => tab.selected && tab.url === url && !tab.isLoading),
+      "History suggestion did not navigate its real source New tab",
+    );
+    const suggestionTab = suggestionTabs.find((tab) => tab.selected);
+    const suggestionGui = await waitFor(
+      () => readBrowserWorkspaceState(page),
+      (state) => state.tabId === suggestionTab.tabId,
+      "History suggestion lost its native projection",
+    );
+    assertions.historyMouseSelectionReplacesSourceTab =
+      (await page.locator(`[id="${third}"]`).count()) === 0;
+    assertions.historyMouseSelectionKeepsNativeSession =
+      suggestionTab.browserSessionId === original.sessionId &&
+      suggestionTab.threadId === original.threadId &&
+      suggestionTab.webContentsId !== opened.webContentsId;
+    flows.push({
+      name: "history-suggestion-navigation",
+      gui: suggestionGui,
+      native: suggestionTab,
+      inline,
+    });
     const trace = await waitFor(
       readInvokeTrace,
       (entries) =>
@@ -221,6 +272,12 @@ export async function runBrowserNewTabAddressScenario({
     );
     assertions.noMockFallback = !trace.some(
       (entry) => entry.transport === "mock" || entry.fallback === true,
+    );
+    assertions.historySuggestionsUseProductionHistoryIpc = trace.some(
+      (entry) =>
+        entry.command === "browser_history_list" &&
+        entry.status === "success" &&
+        entry.transport === "electron-ipc",
     );
     const host = await app.evaluate(
       () => globalThis.__browserDesignHostEvidence ?? null,

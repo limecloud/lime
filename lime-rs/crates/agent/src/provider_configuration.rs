@@ -336,7 +336,7 @@ mod tests {
         assert_eq!(
             runtime_provider_protocol_from_route_protocol(
                 "codex",
-                Some(ProtocolKind::CodexResponses),
+                Some(ProtocolKind::OpenaiResponses),
             ),
             Some(RuntimeProviderProtocol::Responses)
         );

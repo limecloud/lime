@@ -46,6 +46,81 @@ fn exec_params(process_id: Option<&str>, script: &str) -> CommandExecParams {
     }
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn explicit_environment_removal_is_not_reintroduced_by_process_inheritance() {
+    let mut params = exec_params(None, "");
+    params.command = vec!["/usr/bin/env".into()];
+    params.env = Some(HashMap::from([("PATH".into(), None)]));
+    params.output_bytes_cap = None;
+    params.disable_output_cap = true;
+    let response = CommandExecServer::default()
+        .exec(ConnectionId(81), params, None)
+        .await
+        .unwrap();
+    assert_eq!(response.exit_code, 0, "{response:?}");
+    assert!(!response
+        .stdout
+        .lines()
+        .any(|line| line.starts_with("PATH=")));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn worktree_environment_is_applied_before_explicit_command_overrides() {
+    use lime_services::project_git_service as git;
+    let temporary = tempfile::tempdir().unwrap();
+    let cwd = std::fs::canonicalize(temporary.path()).unwrap();
+    let output = std::process::Command::new("git")
+        .arg("init")
+        .arg("--template=")
+        .arg(&cwd)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let diff =
+        git::WorktreeShellEnvironment::from_captures("HOME=old\n", "LIME_SETUP_TEST=from-setup\n")
+            .unwrap();
+    git::write_worktree_shell_environment(&cwd, &diff)
+        .await
+        .unwrap();
+    let server = CommandExecServer::default();
+    let mut params = exec_params(
+        None,
+        "printf '%s|%s' \"${LIME_SETUP_TEST-missing}\" \"${HOME-missing}\"",
+    );
+    params.cwd = Some(cwd);
+    let inherited = server
+        .exec(ConnectionId(82), params.clone(), None)
+        .await
+        .unwrap();
+    assert_eq!(inherited.stdout, "from-setup|missing");
+    params.env = Some(HashMap::from([
+        ("LIME_SETUP_TEST".into(), Some("explicit".into())),
+        ("HOME".into(), Some("explicit-home".into())),
+    ]));
+    let explicit = server
+        .exec(ConnectionId(83), params.clone(), None)
+        .await
+        .unwrap();
+    assert_eq!(explicit.stdout, "explicit|explicit-home");
+    params.env = None;
+    let host = server
+        .exec_cancellable(
+            ConnectionId(84),
+            params,
+            None,
+            CommandExecEnvironment::Host,
+            || false,
+        )
+        .await
+        .unwrap();
+    assert!(
+        host.stdout.starts_with("missing|"),
+        "Host setup must not reuse the previous worktree diff"
+    );
+}
+
 #[cfg(windows)]
 fn windows_exec_params(script: &str) -> CommandExecParams {
     CommandExecParams {

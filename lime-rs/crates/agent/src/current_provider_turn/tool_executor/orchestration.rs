@@ -281,6 +281,7 @@ async fn execute_current_tool_attempt(
             params: request.params,
             working_directory: request.context.working_directory().clone(),
             session_id: request.context.session_id().to_string(),
+            tool_identity: request.context.tool_identity().cloned(),
             cancel_token: request.context.cancel_token().cloned(),
             turn_context: request.turn_context,
         },

@@ -28,11 +28,17 @@ impl RequestProcessor {
             .map_err(super::to_jsonrpc_error)?;
         dispatch_result(
             self.command_exec
-                .exec_cancellable(connection_id, params, granted_permissions, || {
-                    request_id
-                        .as_ref()
-                        .is_some_and(|id| self.is_request_canceled(id))
-                })
+                .exec_cancellable(
+                    connection_id,
+                    params,
+                    granted_permissions,
+                    crate::command_exec::CommandExecEnvironment::Worktree,
+                    || {
+                        request_id
+                            .as_ref()
+                            .is_some_and(|id| self.is_request_canceled(id))
+                    },
+                )
                 .await?,
         )
     }

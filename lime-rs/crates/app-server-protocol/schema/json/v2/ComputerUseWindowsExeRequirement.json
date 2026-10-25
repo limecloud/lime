@@ -1,0 +1,36 @@
+{
+  "$defs": {
+    "AllowDenyRequirement": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "access": {
+      "$ref": "#/$defs/AllowDenyRequirement"
+    },
+    "binaryName": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "productName": {
+      "type": "string"
+    },
+    "publisherName": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "access",
+    "productName",
+    "publisherName"
+  ],
+  "title": "ComputerUseWindowsExeRequirement",
+  "type": "object"
+}

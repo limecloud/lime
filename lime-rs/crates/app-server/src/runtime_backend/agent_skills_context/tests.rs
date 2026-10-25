@@ -377,7 +377,7 @@ fn orchestrator_skill_enters_turn_snapshot_once_without_local_body_read() {
         "interface": {
             "display_name": "delivery:release-notes",
             "execution_mode": "mcp_resource",
-            "provider": "codex_apps",
+            "provider": "lime_apps",
             "model": null,
             "argument_hint": null
         },

@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::MutexGuard;
 
+mod hooks;
 mod managed;
 mod projects;
 mod requirements;
@@ -40,6 +41,7 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "worktrees",
     "browser",
     "browser_use",
+    "computer_use",
     "routing",
     "retry",
     "logging",
@@ -107,6 +109,8 @@ impl RequestProcessor {
         self.ensure_initialized()?;
         let params: ConfigValueWriteParams = parse_params(params)?;
         let plugins_changed = plugin_key_path(&params.key_path);
+        let computer_use_changed = params.key_path == "computer_use"
+            || params.key_path.starts_with("computer_use.");
         let worktrees_changed =
             params.key_path == "worktrees" || params.key_path.starts_with("worktrees.");
         let response = write_edits(
@@ -123,6 +127,9 @@ impl RequestProcessor {
                 merge_strategy: params.merge_strategy,
             }],
         )?;
+        if computer_use_changed {
+            self.runtime.computer_use.policy_changed();
+        }
         if worktrees_changed {
             self.request_worktree_cleanup().await;
         }
@@ -135,6 +142,8 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: ConfigBatchWriteParams = parse_params(params)?;
+        let computer_use_changed = params.edits.iter().any(|edit|
+            edit.key_path == "computer_use" || edit.key_path.starts_with("computer_use."));
         // Runtime consumers resolve config.yaml at each operation, so there is no
         // thread-local config cache to refresh when this flag is true.
         let plugins_changed = params
@@ -155,6 +164,9 @@ impl RequestProcessor {
             params.expected_version,
             params.edits,
         )?;
+        if computer_use_changed {
+            self.runtime.computer_use.policy_changed();
+        }
         if worktrees_changed {
             self.request_worktree_cleanup().await;
         }
@@ -268,6 +280,12 @@ fn write_edits(
     let _guard = config_lock()?;
     managed::check_edits(&edits)?;
     requirements::check_edits(requirements, &edits)?;
+    if edits.iter().any(|edit| {
+        parse_key_path(&edit.key_path)
+            .is_ok_and(|segments| segments.first().is_some_and(|key| key == "hooks"))
+    }) {
+        return hooks::write_edits(file_path.as_deref(), expected_version.as_deref(), &edits);
+    }
     if let Some(file) = file_path.as_deref().filter(|file| Path::new(file) != path) {
         return projects::write_project_edits(path, file, expected_version, edits);
     }
@@ -407,36 +425,36 @@ fn parse_key_path(path: &str) -> Result<Vec<String>, String> {
         return Err("keyPath must not be empty".to_string());
     }
     let mut segments = Vec::new();
-    let mut segment = String::new();
-    let mut chars = path.chars();
-    let mut quoted = false;
-    while let Some(ch) = chars.next() {
-        match ch {
-            '"' if segment.is_empty() && !quoted => quoted = true,
-            '"' if quoted => quoted = false,
-            '\\' if quoted => {
-                let Some(escaped) = chars.next() else {
-                    return Err("unterminated escape in keyPath".to_string());
-                };
-                segment.push(escaped);
+    let mut remainder = path;
+    loop {
+        let (segment, consumed) = if remainder.starts_with('"') {
+            let mut strings = serde_json::Deserializer::from_str(remainder).into_iter::<String>();
+            let segment = strings
+                .next()
+                .ok_or_else(|| "invalid quoted keyPath segment".to_string())?
+                .map_err(|error| format!("invalid quoted keyPath segment: {error}"))?;
+            (segment, strings.byte_offset())
+        } else {
+            let end = remainder.find('.').unwrap_or(remainder.len());
+            let segment = &remainder[..end];
+            if segment.contains('"') {
+                return Err("invalid quoted keyPath segment".to_string());
             }
-            '.' if !quoted => {
-                if segment.is_empty() {
-                    return Err("keyPath segments must not be empty".to_string());
-                }
-                segments.push(std::mem::take(&mut segment));
-            }
-            '"' => return Err("invalid quoted keyPath segment".to_string()),
-            _ => segment.push(ch),
+            (segment.to_string(), end)
+        };
+        if segment.is_empty() {
+            return Err("keyPath segments must not be empty".to_string());
         }
+        segments.push(segment);
+        remainder = &remainder[consumed..];
+        if remainder.is_empty() {
+            break;
+        }
+        remainder = remainder
+            .strip_prefix('.')
+            .filter(|rest| !rest.is_empty())
+            .ok_or_else(|| "keyPath segments must be separated by dots".to_string())?;
     }
-    if quoted {
-        return Err("unterminated quoted keyPath segment".to_string());
-    }
-    if segment.is_empty() {
-        return Err("keyPath segments must not be empty".to_string());
-    }
-    segments.push(segment);
     Ok(segments)
 }
 
@@ -603,9 +621,7 @@ mod tests {
             Some(&json!("disabled"))
         );
         assert_eq!(
-            restored
-                .config
-                .pointer("/browser/allowedOrigins/0"),
+            restored.config.pointer("/browser/allowedOrigins/0"),
             Some(&json!("https://*.example.com"))
         );
         let persisted = std::fs::read(&path).expect("persisted YAML bytes");
@@ -621,9 +637,16 @@ mod tests {
         assert!(conflict.message.contains("modified since last read"));
         assert_eq!(std::fs::read(&path).unwrap(), persisted);
 
-        let invalid = write_edits(&path, None, None, Some(saved.version), vec![edit(json!({
-            "allowedOrigins": ["https://user:secret@example.com/private"]
-        }))]).expect_err("invalid Browser permission pattern must not be persisted");
+        let invalid = write_edits(
+            &path,
+            None,
+            None,
+            Some(saved.version),
+            vec![edit(json!({
+                "allowedOrigins": ["https://user:secret@example.com/private"]
+            }))],
+        )
+        .expect_err("invalid Browser permission pattern must not be persisted");
         assert!(invalid.message.contains("Invalid configuration"));
         assert_eq!(std::fs::read(&path).unwrap(), persisted);
     }

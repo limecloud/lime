@@ -734,15 +734,15 @@ function hasErrorNotification(value: unknown): boolean {
   const params = record(value);
   const error = record(params?.error);
   const additionalDetails = error?.additionalDetails;
-  const codexErrorInfo = error?.codexErrorInfo;
+  const limeErrorInfo = error?.limeErrorInfo;
   return (
     hasOnlyKeys(params, ["error", "threadId", "turnId", "willRetry"]) &&
-    hasOnlyKeys(error, ["additionalDetails", "codexErrorInfo", "message"]) &&
+    hasOnlyKeys(error, ["additionalDetails", "limeErrorInfo", "message"]) &&
     hasString(params, "threadId") &&
     hasString(params, "turnId") &&
     hasString(error, "message") &&
     typeof params?.willRetry === "boolean" &&
-    hasCodexErrorInfo(codexErrorInfo) &&
+    hasLimeErrorInfo(limeErrorInfo) &&
     (additionalDetails === undefined ||
       additionalDetails === null ||
       typeof additionalDetails === "string")
@@ -863,7 +863,7 @@ function hasOptionalString(
   );
 }
 
-function hasCodexErrorInfo(value: unknown): boolean {
+function hasLimeErrorInfo(value: unknown): boolean {
   if (value === undefined || value === null) {
     return true;
   }

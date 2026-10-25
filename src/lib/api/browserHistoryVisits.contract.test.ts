@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  listBrowserHistory,
   listBrowserHistoryVisits,
   removeBrowserHistoryVisits,
 } from "./browserHistory";
@@ -24,6 +25,42 @@ beforeEach(() => {
   invoke.mockReset();
 });
 describe("history visit IPC contract", () => {
+  it("uses the same history owner for validated URL summaries and rejects malformed results", async () => {
+    const summary = {
+      entries: [
+        {
+          id: "summary-1",
+          url: row.url,
+          title: row.title,
+          visitCount: 2,
+          firstVisitedAt: 1,
+          lastVisitedAt: 2,
+        },
+      ],
+      total: 1,
+      nextCursor: null,
+      revision: 3,
+    };
+    invoke.mockResolvedValue(summary);
+    expect(await listBrowserHistory({ query: " EXAMPLE ", limit: 50 })).toBe(
+      summary,
+    );
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("browser_history_list", {
+      query: "example",
+      cursor: null,
+      limit: 50,
+    });
+    invoke.mockResolvedValue({
+      ...summary,
+      entries: [{ ...summary.entries[0], url: "file:///private" }],
+    });
+    await expect(listBrowserHistory()).rejects.toThrow();
+    invoke.mockClear();
+    await expect(
+      listBrowserHistory({ query: "x".repeat(257) }),
+    ).rejects.toThrow();
+    expect(invoke).not.toHaveBeenCalled();
+  });
   it("uses the existing list command with an explicit native visit view and normalized query", async () => {
     invoke.mockResolvedValue(page);
     expect(

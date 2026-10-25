@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { DEFAULT_GIT_PREFERENCES } from "@/lib/api/gitPreferences";
 import {
   SettingsAction,
   SettingsGroup,
@@ -60,7 +61,7 @@ export function GitSettings() {
               targetId="git-branch-prefix"
               label={t("settings.git.branchPrefix")}
               description={t("settings.git.branchPrefixDescription")}
-              placeholder="codex/"
+              placeholder={DEFAULT_GIT_PREFERENCES["branch-prefix"]}
               savedValue={preferences["branch-prefix"]}
               save={savePrefix}
             />

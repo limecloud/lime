@@ -108,7 +108,7 @@ impl RuntimeCoreEventAppender {
         }
         let thread_id = stored.session.thread_id.clone();
 
-        append_runtime_events_to_stored_session(
+        let events = append_runtime_events_to_stored_session(
             stored,
             self.file_checkpoint_snapshot_store.as_ref(),
             self.output_snapshot_store.as_ref(),
@@ -123,7 +123,14 @@ impl RuntimeCoreEventAppender {
             runtime_events,
             None,
             TerminalTurnAppendPolicy::Reject,
-        )
+        )?;
+        crate::runtime::computer_use::cancel_terminal_computer_use(
+            &self.computer_use,
+            &thread_id,
+            turn_id,
+            &events,
+        );
+        Ok(events)
     }
 
     pub(in crate::runtime) fn append_artifact_snapshot(

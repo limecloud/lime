@@ -1,4 +1,4 @@
-export const CODEX_DEFAULT_INPUT_MODALITIES = ["text", "image"] as const;
+export const LIME_DEFAULT_INPUT_MODALITIES = ["text", "image"] as const;
 
 export const MODEL_INPUT_MODALITIES = [
   "text",
@@ -22,7 +22,7 @@ export const MODEL_INPUT_GATE_MODALITIES = [
 export type ModelInputModality = (typeof MODEL_INPUT_MODALITIES)[number];
 export type ModelInputGateModality =
   (typeof MODEL_INPUT_GATE_MODALITIES)[number];
-export type ModelInputModalityPolicySource = "codex_default" | "explicit";
+export type ModelInputModalityPolicySource = "lime_default" | "explicit";
 
 export interface ModelInputModalityPolicyInput {
   input_modalities?: unknown;
@@ -160,14 +160,13 @@ function toSendGateModalities(
       mapped.add(gateModality);
     }
   }
-  return MODEL_INPUT_GATE_MODALITIES.filter((modality) =>
-    mapped.has(modality),
-  );
+  return MODEL_INPUT_GATE_MODALITIES.filter((modality) => mapped.has(modality));
 }
 
-function resolveInputModalitiesSource(
-  input: ModelInputModalityPolicyInput,
-): { value: unknown; source: ModelInputModalityPolicySource } {
+function resolveInputModalitiesSource(input: ModelInputModalityPolicyInput): {
+  value: unknown;
+  source: ModelInputModalityPolicySource;
+} {
   const direct = firstPresent(input, ["input_modalities", "inputModalities"]);
   if (direct !== undefined) {
     return {
@@ -185,8 +184,8 @@ function resolveInputModalitiesSource(
   }
 
   return {
-    value: [...CODEX_DEFAULT_INPUT_MODALITIES],
-    source: "codex_default",
+    value: [...LIME_DEFAULT_INPUT_MODALITIES],
+    source: "lime_default",
   };
 }
 

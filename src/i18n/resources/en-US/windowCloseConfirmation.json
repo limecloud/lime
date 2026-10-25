@@ -1,0 +1,12 @@
+{
+  "settings.general.confirmBeforeClose.label": "Confirm before closing a window",
+  "settings.general.confirmBeforeClose.shortcutDescription": "Warn when a tab-close shortcut would close the window",
+  "settings.general.confirmBeforeClose.description": "Choose when to warn before closing a window. Alt+F4 and the close button warn only with Always",
+  "settings.general.confirmBeforeClose.never": "Never",
+  "settings.general.confirmBeforeClose.keyboardOnly": "Close shortcut only",
+  "settings.general.confirmBeforeClose.always": "Always",
+  "desktop.windowCloseConfirmation.title": "Are you sure you want to close the window?",
+  "desktop.windowCloseConfirmation.doNotAskAgain": "Do not ask me again",
+  "desktop.windowCloseConfirmation.cancel": "Cancel",
+  "desktop.windowCloseConfirmation.confirm": "Close Window"
+}

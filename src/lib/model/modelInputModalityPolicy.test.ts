@@ -5,7 +5,7 @@ import {
 } from "./modelInputModalityPolicy";
 
 describe("modelInputModalityPolicy", () => {
-  it("缺少 input_modalities 时使用 Codex 兼容默认值", () => {
+  it("缺少 input_modalities 时使用 Lime 默认值", () => {
     expect(buildModelInputModalityPolicy(null)).toEqual({
       input_modalities: ["text", "image"],
       send_gate_modalities: ["text", "image"],
@@ -13,7 +13,7 @@ describe("modelInputModalityPolicy", () => {
       supports_text_input: true,
       supports_media_input: true,
       supports_image_input: true,
-      source: "codex_default",
+      source: "lime_default",
     });
   });
 

@@ -40,7 +40,7 @@ impl Drop for Issuer {
 fn package(name: &str) -> Vec<u8> {
     let manifest = json!({"name":name,"version":"bundle-version","skills":"./skills"}).to_string();
     archive(&[
-        (".codex-plugin/plugin.json", manifest.as_bytes()),
+        (".lime-plugin/plugin.json", manifest.as_bytes()),
         (
             "skills/research/SKILL.md",
             b"---\nname: research\ndescription: Research fixture\n---\nResearch carefully"
@@ -193,7 +193,7 @@ async fn remote_install_discards_download_after_peer_logout_and_preserves_previo
     let base = temp
         .path()
         .join("agent/plugins/cache/workspace-directory/research");
-    let before = std::fs::read(base.join(".codex-remote-plugin-install.json")).unwrap();
+    let before = std::fs::read(base.join(".lime-remote-plugin-install.json")).unwrap();
     let (started, ready) = tokio::sync::oneshot::channel();
     let (release, released) = tokio::sync::oneshot::channel();
     *issuer.gate.lock().unwrap() = Some((started, released));
@@ -205,7 +205,7 @@ async fn remote_install_discards_download_after_peer_logout_and_preserves_previo
     });
     assert!(result.get("error").is_some(), "{result}");
     assert_eq!(
-        std::fs::read(base.join(".codex-remote-plugin-install.json")).unwrap(),
+        std::fs::read(base.join(".lime-remote-plugin-install.json")).unwrap(),
         before
     );
     assert_eq!(installed(&server).await["marketplaces"], json!([]));
@@ -275,7 +275,7 @@ async fn remote_tar_gz_install_persists_shared_provenance_and_cold_read_model_th
         assert_eq!(detail["plugin"]["onboardingSkill"].is_null(), !enabled);
     }
     let metadata = std::fs::read(temp.path().join(
-        "agent/plugins/cache/workspace-directory/research/.codex-remote-plugin-install.json",
+        "agent/plugins/cache/workspace-directory/research/.lime-remote-plugin-install.json",
     ))
     .unwrap();
     let metadata: Value = serde_json::from_slice(&metadata).unwrap();

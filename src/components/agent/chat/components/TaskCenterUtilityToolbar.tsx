@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { revealPathInFinder } from "@/lib/api/fileSystem";
-import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
 import {
   checkoutProjectGitBranch,
   createProjectGitWorktree,
@@ -231,20 +230,6 @@ export function TaskCenterUtilityToolbar({
     }
   }, [normalizedProjectRootPath]);
 
-  const handleOpenCodexWeb = React.useCallback(async () => {
-    try {
-      await openExternalUrlWithSystemBrowser("https://chatgpt.com/codex");
-    } catch (openError) {
-      toast.error(
-        agentText(
-          "agentChat.navbar.appSwitcher.toast.codexWebFailed",
-          "打开 Codex web 失败：{{message}}",
-          { message: extractErrorMessage(openError) },
-        ),
-      );
-    }
-  }, []);
-
   const handleCreateWorktree = React.useCallback(async () => {
     if (!normalizedProjectRootPath || !onProjectChange) {
       return;
@@ -425,7 +410,6 @@ export function TaskCenterUtilityToolbar({
           <TaskCenterLocationPanel
             canOpenLocal={Boolean(normalizedProjectRootPath)}
             onOpenLocal={() => void handleOpenLocalLocation()}
-            onOpenCodexWeb={() => void handleOpenCodexWeb()}
             canCreateWorktree={Boolean(
               normalizedProjectRootPath && onProjectChange,
             )}

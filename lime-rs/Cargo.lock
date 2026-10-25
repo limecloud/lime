@@ -31,16 +31,17 @@ dependencies = [
 
 [[package]]
 name = "agent-protocol"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
- "schemars",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
+ "wildmatch",
 ]
 
 [[package]]
 name = "agent-runtime"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -170,7 +171,7 @@ dependencies = [
 
 [[package]]
 name = "ansi-escape"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "ansi-to-tui",
  "ratatui",
@@ -248,7 +249,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "app-server"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "agent-runtime",
@@ -316,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-client"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "app-server-protocol",
  "app-server-transport",
@@ -332,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-daemon"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "app-server-protocol",
  "app-server-transport",
@@ -344,10 +345,10 @@ dependencies = [
 
 [[package]]
 name = "app-server-protocol"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
- "schemars",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "url",
@@ -356,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-test-client"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "anyhow",
  "app-server-client",
@@ -367,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-transport"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "app-server-protocol",
  "axum",
@@ -1012,7 +1013,7 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "cli"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -1024,7 +1025,7 @@ dependencies = [
  "crossterm",
  "execpolicy",
  "jsonschema",
- "schemars",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "tempfile",
@@ -1068,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "anyhow",
  "code-mode-host",
@@ -1086,7 +1087,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-host"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "axum",
  "code-mode-protocol",
@@ -1102,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-protocol"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
@@ -1116,7 +1117,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-runtime"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "base64 0.22.1",
  "code-mode-protocol",
@@ -1941,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "document-preview"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "flate2",
  "tempfile",
@@ -1968,6 +1969,12 @@ checksum = "cd1511a7b6a56299bd043a9c167a6d2bfb37bf84a6dfceaba651168adfb43c87"
 dependencies = [
  "dtoa",
 ]
+
+[[package]]
+name = "dunce"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "dupe"
@@ -2161,10 +2168,11 @@ dependencies = [
 
 [[package]]
 name = "execpolicy"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "anyhow",
  "clap",
+ "lime-utils-absolute-path",
  "multimap",
  "pretty_assertions",
  "serde",
@@ -2172,7 +2180,7 @@ dependencies = [
  "shlex",
  "starlark",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -3631,7 +3639,7 @@ dependencies = [
 
 [[package]]
 name = "lime-agent"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "agent-runtime",
@@ -3666,7 +3674,7 @@ dependencies = [
 
 [[package]]
 name = "lime-config"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -3682,7 +3690,7 @@ dependencies = [
 
 [[package]]
 name = "lime-core"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "async-trait",
@@ -3704,7 +3712,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rusqlite",
- "schemars",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -3739,7 +3747,7 @@ dependencies = [
 
 [[package]]
 name = "lime-gateway"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "aes",
  "async-trait",
@@ -3767,7 +3775,7 @@ dependencies = [
 
 [[package]]
 name = "lime-infra"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "chrono",
  "dashmap 5.5.3",
@@ -3789,15 +3797,15 @@ dependencies = [
 
 [[package]]
 name = "lime-mcp"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
+ "agent-protocol",
  "async-trait",
  "axum",
  "chrono",
  "dirs 5.0.1",
  "email_address",
  "futures",
- "glob",
  "libc",
  "lime-core",
  "reqwest",
@@ -3815,7 +3823,7 @@ dependencies = [
 
 [[package]]
 name = "lime-media-runtime"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3834,7 +3842,7 @@ dependencies = [
 
 [[package]]
 name = "lime-processor"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -3874,7 +3882,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "async-stream",
@@ -3917,7 +3925,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server-utils"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "axum",
  "futures",
@@ -3932,7 +3940,7 @@ dependencies = [
 
 [[package]]
 name = "lime-services"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3975,7 +3983,7 @@ dependencies = [
 
 [[package]]
 name = "lime-skills"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -3996,8 +4004,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "lime-utils-absolute-path"
+version = "1.170.0"
+dependencies = [
+ "dirs 6.0.0",
+ "dunce",
+ "pretty_assertions",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "ts-rs",
+]
+
+[[package]]
 name = "lime-websocket"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "axum",
  "chrono",
@@ -4331,7 +4353,7 @@ dependencies = [
 
 [[package]]
 name = "model-provider"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -5158,7 +5180,7 @@ checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
 
 [[package]]
 name = "patch-apply"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "tempfile",
  "thiserror 1.0.69",
@@ -6239,7 +6261,7 @@ dependencies = [
  "process-wrap",
  "reqwest",
  "rmcp-macros",
- "schemars",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "sse-stream",
@@ -6266,7 +6288,7 @@ dependencies = [
 
 [[package]]
 name = "runtime-core"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "app-server-protocol",
@@ -6490,6 +6512,18 @@ dependencies = [
 
 [[package]]
 name = "schemars"
+version = "0.8.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
+dependencies = [
+ "dyn-clone",
+ "schemars_derive 0.8.22",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "schemars"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2b42f36aa1cd011945615b92222f6bf73c599a102a300334cd7f8dbeec726cc"
@@ -6497,9 +6531,21 @@ dependencies = [
  "chrono",
  "dyn-clone",
  "ref-cast",
- "schemars_derive",
+ "schemars_derive 1.2.1",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "schemars_derive"
+version = "0.8.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32e265784ad618884abaea0600a9adf15393368d840e0222d101a072f3f7534d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_derive_internals",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -7393,6 +7439,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "termcolor"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
 name = "termina"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7549,7 +7604,7 @@ dependencies = [
 
 [[package]]
 name = "thread-store"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "chrono",
@@ -7876,7 +7931,7 @@ dependencies = [
 
 [[package]]
 name = "tool-runtime"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "app-server-protocol",
@@ -8128,8 +8183,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
+name = "ts-rs"
+version = "11.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4994acea2522cd2b3b85c1d9529a55991e3ad5e25cdcd3de9d505972c4379424"
+dependencies = [
+ "serde_json",
+ "thiserror 2.0.18",
+ "ts-rs-macros",
+]
+
+[[package]]
+name = "ts-rs-macros"
+version = "11.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee6ff59666c9cbaec3533964505d39154dc4e0a56151fdea30a09ed0301f62e2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "termcolor",
+]
+
+[[package]]
 name = "tui"
-version = "1.169.0"
+version = "1.170.0"
 dependencies = [
  "agent-protocol",
  "ansi-escape",
@@ -8898,6 +8976,12 @@ dependencies = [
  "wasite",
  "web-sys",
 ]
+
+[[package]]
+name = "wildmatch"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29333c3ea1ba8b17211763463ff24ee84e41c78224c16b001cd907e663a38c68"
 
 [[package]]
 name = "winapi"

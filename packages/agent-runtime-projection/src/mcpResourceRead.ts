@@ -128,7 +128,9 @@ const CONTRACTS: readonly AgentUiMcpResourceToolContract[] = [
   },
 ];
 
-const CONTRACT_BY_NAME = new Map(CONTRACTS.map((contract) => [contract.name, contract]));
+const CONTRACT_BY_NAME = new Map(
+  CONTRACTS.map((contract) => [contract.name, contract]),
+);
 
 const LEGACY_MCP_RESOURCE_TOOL_NAMES = new Set([
   "ListMcpResources",
@@ -142,7 +144,9 @@ const LEGACY_MCP_RESOURCE_TOOL_NAMES = new Set([
   "mcp.resource.read",
 ]);
 
-function normalizedToolName(value: string | null | undefined): string | undefined {
+function normalizedToolName(
+  value: string | null | undefined,
+): string | undefined {
   return definedString(value);
 }
 
@@ -156,7 +160,10 @@ function issue(
 
 function readStringArrayFromUnknown(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return value.filter(
+    (item): item is string =>
+      typeof item === "string" && item.trim().length > 0,
+  );
 }
 
 function uniqueStrings(values: Array<string | undefined>): string[] {
@@ -165,7 +172,10 @@ function uniqueStrings(values: Array<string | undefined>): string[] {
   );
 }
 
-function resultRoots(result: unknown, metadata: unknown): Record<string, unknown>[] {
+function resultRoots(
+  result: unknown,
+  metadata: unknown,
+): Record<string, unknown>[] {
   const resultRecord = readRecord(result);
   const resultMetadata = readRecord(resultRecord?.metadata);
   const inputMetadata = readRecord(metadata);
@@ -296,17 +306,17 @@ function resolveStatus(
   }
 }
 
-export function listCodexMcpResourceToolContracts(): readonly AgentUiMcpResourceToolContract[] {
+export function listMcpResourceToolContracts(): readonly AgentUiMcpResourceToolContract[] {
   return CONTRACTS;
 }
 
-export function isCodexMcpResourceToolName(
+export function isMcpResourceToolName(
   toolName: string | null | undefined,
 ): toolName is AgentUiMcpResourceToolName {
   const normalized = normalizedToolName(toolName);
   return Boolean(
     normalized &&
-      CONTRACT_BY_NAME.has(normalized as AgentUiMcpResourceToolName),
+    CONTRACT_BY_NAME.has(normalized as AgentUiMcpResourceToolName),
   );
 }
 
@@ -317,7 +327,7 @@ export function isLegacyMcpResourceToolName(
   return Boolean(normalized && LEGACY_MCP_RESOURCE_TOOL_NAMES.has(normalized));
 }
 
-export function getCodexMcpResourceToolContract(
+export function getMcpResourceToolContract(
   toolName: string | null | undefined,
 ): AgentUiMcpResourceToolContract | undefined {
   const normalized = normalizedToolName(toolName);
@@ -325,14 +335,18 @@ export function getCodexMcpResourceToolContract(
   return CONTRACT_BY_NAME.get(normalized as AgentUiMcpResourceToolName);
 }
 
-export function validateCodexMcpResourceToolSchema(
+export function validateMcpResourceToolSchema(
   input: AgentUiMcpResourceSchemaValidationInput,
 ): AgentUiMcpResourceSchemaIssue[] {
   const path = input.path ?? "$";
   const toolName = normalizedToolName(input.toolName);
   if (!toolName) {
     return [
-      issue("unknown_tool", `${path}.toolName`, "MCP resource tool name is required."),
+      issue(
+        "unknown_tool",
+        `${path}.toolName`,
+        "MCP resource tool name is required.",
+      ),
     ];
   }
   if (isLegacyMcpResourceToolName(toolName)) {
@@ -340,18 +354,18 @@ export function validateCodexMcpResourceToolSchema(
       issue(
         "legacy_tool_name",
         `${path}.toolName`,
-        `${toolName} is a legacy Lime/Agent MCP resource tool name; use Codex MCP resource tools instead.`,
+        `${toolName} is a legacy Lime/Agent MCP resource tool name; use current MCP resource tools instead.`,
       ),
     ];
   }
 
-  const contract = getCodexMcpResourceToolContract(toolName);
+  const contract = getMcpResourceToolContract(toolName);
   if (!contract) {
     return [
       issue(
         "unknown_tool",
         `${path}.toolName`,
-        `${toolName} is not a Codex MCP resource tool.`,
+        `${toolName} is not a current MCP resource tool.`,
       ),
     ];
   }
@@ -359,7 +373,11 @@ export function validateCodexMcpResourceToolSchema(
   const args = readRecord(input.input) ?? {};
   const issues: AgentUiMcpResourceSchemaIssue[] = [];
   for (const field of contract.requiredInputFields) {
-    if (args[field] === undefined || args[field] === null || args[field] === "") {
+    if (
+      args[field] === undefined ||
+      args[field] === null ||
+      args[field] === ""
+    ) {
       issues.push(
         issue(
           "missing_required_field",
@@ -383,11 +401,13 @@ export function validateCodexMcpResourceToolSchema(
   return issues;
 }
 
-export function extractCodexMcpResourceReadSnapshot(
+export function extractMcpResourceReadSnapshot(
   input: AgentUiMcpResourceReadProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiMcpResourceReadSnapshot | undefined {
-  if (getCodexMcpResourceToolContract(input.toolName)?.name !== "read_mcp_resource") {
+  if (
+    getMcpResourceToolContract(input.toolName)?.name !== "read_mcp_resource"
+  ) {
     return undefined;
   }
   const args = readRecord(input.input) ?? {};
@@ -420,22 +440,23 @@ export function extractCodexMcpResourceReadSnapshot(
     truncated:
       contents.some((content) => content.truncated) ||
       Boolean(
-        contentPreview && contentPreview.length > RESOURCE_CONTENT_PREVIEW_LIMIT,
+        contentPreview &&
+        contentPreview.length > RESOURCE_CONTENT_PREVIEW_LIMIT,
       ),
     artifactRefs,
     evidenceRefs,
   } satisfies AgentUiMcpResourceReadSnapshot);
 }
 
-export function buildCodexMcpResourceReadProjectionEvent(
+export function buildMcpResourceReadProjectionEvent(
   input: AgentUiMcpResourceReadProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent | undefined {
-  const contract = getCodexMcpResourceToolContract(input.toolName);
+  const contract = getMcpResourceToolContract(input.toolName);
   if (contract?.name !== "read_mcp_resource") return undefined;
-  const snapshot = extractCodexMcpResourceReadSnapshot(input, context);
+  const snapshot = extractMcpResourceReadSnapshot(input, context);
   if (!snapshot) return undefined;
-  const validationIssues = validateCodexMcpResourceToolSchema({
+  const validationIssues = validateMcpResourceToolSchema({
     toolName: input.toolName,
     input: input.input,
   });

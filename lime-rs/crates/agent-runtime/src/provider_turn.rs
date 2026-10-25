@@ -550,7 +550,7 @@ where
     let mut last_server_model = None;
     let mut model_reroute_emitted = false;
     let mut model_verification_emitted = false;
-    // Codex keeps this bit across provider steps. A blocked Stop hook therefore receives
+    // The provider keeps this state across steps. A blocked Stop hook therefore receives
     // `stop_hook_active=true` on the continuation sampling request and cannot recurse as if it
     // were the first terminal check.
     let mut stop_hook_active = false;
@@ -2196,7 +2196,7 @@ fn current_provider_usage(usage: Usage) -> CurrentProviderUsage {
         cache_creation_input_tokens: usage
             .cache_write_input_tokens
             .map(|value| value.min(u32::MAX as u64) as u32),
-        codex_rollout_budget_units: usage.codex_rollout_budget_units,
+        lime_rollout_budget_units: usage.lime_rollout_budget_units,
     }
 }
 

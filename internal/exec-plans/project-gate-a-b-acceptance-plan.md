@@ -183,7 +183,7 @@ Gate B-F/B-R/B-L/B-P 都属于 Gate B 的不同运行环境，不建立第二套
 ```yaml
 run_id: 20260715Txxxxxx-<short-digest>
 git_head: <commit>
-codex_reference_commit: <audited Codex commit>
+reference_commit: <audited Codex commit>
 blocking_trackers:
   - path: internal/roadmap/codeximport/implementation-tracker.md
     status: <ready | ready-for-gate | completed | closed>
@@ -223,7 +223,7 @@ provider request/response、用户真实对话正文或真实历史路径。
 
 ```bash
 npm run agent-qc:project-gate-candidate -- \
-  --codex-reference-repo "/Users/coso/Documents/dev/rust/codex"
+  --reference-repo "/Users/coso/Documents/dev/rust/codex"
 ```
 
 该命令先要求 Codex import tracker 明确进入 `ready`、`ready-for-gate`、`completed` 或 `closed`；

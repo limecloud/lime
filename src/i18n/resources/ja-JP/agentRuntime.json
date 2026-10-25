@@ -1071,5 +1071,6 @@
   "agentChat.runtimeWarning.skillLoadFailed": "選択した Skill を読み込めませんでした。",
   "agentChat.runtimeWarning.mentionNotAvailable": "選択した Mention を解決できませんでした。",
   "agentChat.runtimeWarning.unknownNotification": "このバージョンでは実行通知 {{method}} を認識できません。プロトコル診断を記録しました。",
-  "agentChat.runtimeWarning.unprojectedNotification": "実行通知 {{method}} は現在の画面にまだ接続されていません。プロトコル診断を記録しました。"
+  "agentChat.runtimeWarning.unprojectedNotification": "実行通知 {{method}} は現在の画面にまだ接続されていません。プロトコル診断を記録しました。",
+  "agentChat.runtimeError.providerRateLimit": "モデルプロバイダーがリクエストを制限しています（429）。しばらくしてから再試行してください。解消しない場合は、利用枠を確認するか、利用可能な別のモデルを選択してください。"
 }

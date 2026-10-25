@@ -15,7 +15,9 @@ import {
   METHOD_ITEM_STARTED,
   METHOD_MCP_TOOL_CALL_PROGRESS,
   METHOD_MODEL_LIST_UPDATED,
+  METHOD_THREAD_CLOSED,
   METHOD_THREAD_STARTED,
+  METHOD_THREAD_STATUS_CHANGED,
   METHOD_THREAD_TOKEN_USAGE_UPDATED,
   METHOD_TURN_COMPLETED,
   METHOD_TURN_STARTED,
@@ -50,6 +52,7 @@ import {
 } from "./appServerDynamicToolHost";
 import type { ElectronBrowserTabHost } from "./browserTabHost";
 import { BrowserAppServerBridge } from "./browserAppServerBridge";
+import type { DesktopPreferencesHost } from "./desktopPreferencesHost";
 
 const APP_SERVER_PROXY_REQUEST_ID_PREFIX = "electron-host";
 const APP_SERVER_CANCEL_REQUEST_METHOD = "$/cancelRequest";
@@ -220,7 +223,10 @@ export class ElectronAppServerHost {
   readonly #dynamicToolHost: AppServerDynamicToolHost;
   readonly #browserBridge: BrowserAppServerBridge | null;
 
-  constructor(browserHost: ElectronBrowserTabHost | null = null) {
+  constructor(
+    browserHost: ElectronBrowserTabHost | null = null,
+    readonly desktopPreferencesHost: DesktopPreferencesHost | null = null,
+  ) {
     this.#browserBridge = browserHost
       ? new BrowserAppServerBridge(browserHost, (method, params) =>
           this.request(method, params),
@@ -234,6 +240,7 @@ export class ElectronAppServerHost {
 
   async warmup(): Promise<InitializeResponse> {
     const connected = await this.#connect();
+    await this.desktopPreferencesHost?.refresh();
     await this.#browserBridge?.refreshSettings();
     return connected.initializeResponse;
   }
@@ -307,6 +314,12 @@ export class ElectronAppServerHost {
     );
     this.#dynamicToolHost.observeClientResult(method, response.result);
     await this.#browserBridge?.observeResult(method, params, response.result);
+    if (this.#connected === connected && !this.#stopping)
+      await this.desktopPreferencesHost?.observeResult(
+        method,
+        response.result,
+        params,
+      );
     return response.result;
   }
 
@@ -367,6 +380,12 @@ export class ElectronAppServerHost {
             result.result,
             owner?.ownerWebContentsId,
           );
+          if (this.#connected === connected && !this.#stopping)
+            await this.desktopPreferencesHost?.observeResult(
+              proxiedMessage.message.method,
+              result.result,
+              proxiedMessage.message.params,
+            );
           responses.push(
             ...result.messages.map((response) =>
               restoreProxyResponseId(response, proxiedMessage.originalId),
@@ -463,6 +482,7 @@ export class ElectronAppServerHost {
     this.#stage = "stopping";
     this.#stopping = true;
     this.#browserBridge?.reset();
+    this.desktopPreferencesHost?.reset();
     this.#dynamicToolHost.connectionLost("app-server-stopped");
     this.#rejectRestartWaiter(this.#lifecycle, appServerHostStoppingError());
     await this.#lifecycle?.stop();
@@ -647,6 +667,8 @@ export class ElectronAppServerHost {
         eventMethods: [
           "agentSession/event",
           METHOD_THREAD_STARTED,
+          METHOD_THREAD_STATUS_CHANGED,
+          METHOD_THREAD_CLOSED,
           METHOD_TURN_STARTED,
           METHOD_TURN_COMPLETED,
           METHOD_ITEM_STARTED,
@@ -686,6 +708,7 @@ export class ElectronAppServerHost {
             this.#stage = "restarting";
             this.#lastFailure = failure;
             this.#dynamicToolHost.connectionLost("app-server-disconnected");
+            this.desktopPreferencesHost?.connectionLost();
             this.#browserBridge?.reset();
             this.#connected = null;
             this.#waitForRestart(lifecycle);
@@ -704,6 +727,12 @@ export class ElectronAppServerHost {
             this.#connected = connected;
             this.#installServerRequestHandler(connected);
             this.#resolveRestartWaiter(lifecycle, connected);
+            void this.desktopPreferencesHost?.refresh(true).catch((error) => {
+              console.warn(
+                "[electron-host] Desktop preference recovery failed",
+                error,
+              );
+            });
           }
         },
         onRestartFailed: (event) => {
@@ -714,6 +743,7 @@ export class ElectronAppServerHost {
           ) {
             this.#stage = "failed";
             this.#dynamicToolHost.connectionLost("app-server-restart-failed");
+            this.desktopPreferencesHost?.connectionLost();
             this.#connected = null;
             this.#lifecycle = null;
             this.#rejectRestartWaiter(
@@ -801,6 +831,14 @@ export class ElectronAppServerHost {
       if (!isCurrentConnection()) {
         return;
       }
+      try {
+        this.desktopPreferencesHost?.observeServerMessage(message);
+      } catch (error) {
+        console.warn(
+          "[electron-host] Desktop platform resource update failed",
+          error,
+        );
+      }
       if (process.env.LIME_DEBUG_MCP_NOTIFICATIONS === "1") {
         appendDebugMcpNotification(
           `observed notification method=${message.method}`,
@@ -847,6 +885,7 @@ export class ElectronAppServerHost {
     this.#stage = "recovering";
     this.#connected = null;
     this.#dynamicToolHost.connectionLost("app-server-system-resume");
+    this.desktopPreferencesHost?.connectionLost();
     try {
       const connected = await lifecycle.restart();
       if (this.#stopping || this.#lifecycle !== lifecycle) {
@@ -956,6 +995,7 @@ export class ElectronAppServerHost {
     this.#connected = null;
     this.#connectPromise = null;
     this.#dynamicToolHost.connectionLost("app-server-stale-connection");
+    this.desktopPreferencesHost?.connectionLost();
     try {
       await lifecycle?.stop();
     } catch (error) {

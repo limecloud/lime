@@ -11,7 +11,6 @@ import { toast } from "sonner";
 
 const {
   mockRevealPathInFinder,
-  mockOpenExternalUrlWithSystemBrowser,
   mockCheckoutProjectGitBranch,
   mockCreateProjectGitBranch,
   mockCreateProjectGitWorktree,
@@ -20,7 +19,6 @@ const {
   translate,
 } = vi.hoisted(() => ({
   mockRevealPathInFinder: vi.fn(),
-  mockOpenExternalUrlWithSystemBrowser: vi.fn(),
   mockCheckoutProjectGitBranch: vi.fn(),
   mockCreateProjectGitBranch: vi.fn(),
   mockCreateProjectGitWorktree: vi.fn(),
@@ -37,10 +35,6 @@ const {
 
 vi.mock("@/lib/api/fileSystem", () => ({
   revealPathInFinder: mockRevealPathInFinder,
-}));
-
-vi.mock("@/lib/api/externalUrl", () => ({
-  openExternalUrlWithSystemBrowser: mockOpenExternalUrlWithSystemBrowser,
 }));
 
 vi.mock("@/lib/api/projectGit", async () => ({
@@ -194,7 +188,6 @@ beforeEach(async () => {
   HTMLElement.prototype.setPointerCapture ??= vi.fn();
   HTMLElement.prototype.releasePointerCapture ??= vi.fn();
   mockRevealPathInFinder.mockResolvedValue(undefined);
-  mockOpenExternalUrlWithSystemBrowser.mockResolvedValue(undefined);
   mockCheckoutProjectGitBranch.mockResolvedValue({
     rootPath: "/tmp/project",
     hasGitRepository: true,
@@ -284,7 +277,7 @@ describe("TaskCenterUtilityToolbar", () => {
     expect(toolbar?.getAttribute("data-workspace-root")).toBe("/tmp/target");
   });
 
-  it.each([null, "/tmp/project/.codex/environments/dev.toml"])(
+  it.each([null, "/tmp/project/.lime/environments/dev.toml"])(
     "creates using the canonical environment selection %s",
     async (configPath) => {
       vi.mocked(readLocalEnvironmentSelection).mockResolvedValueOnce(
@@ -401,14 +394,18 @@ describe("TaskCenterUtilityToolbar", () => {
     );
     expect(popover?.textContent).toContain("继续使用");
     expect(popover?.textContent).toContain("在本地处理");
-    expect(popover?.textContent).toContain("关联 Codex web");
     expect(popover?.textContent).toContain("发送至云端");
     expect(popover?.textContent).toContain("工作树");
     expect(popover?.className).toContain("w-[min(216px,calc(100vw-1rem))]");
-    const codexWebButton = popover?.querySelector<HTMLButtonElement>(
-      '[data-testid="task-center-location-codex-web"]',
-    );
-    expect(codexWebButton?.disabled).toBe(false);
+    expect(
+      Array.from(popover?.querySelectorAll("button") ?? []).map(
+        (button) => button.dataset.testid,
+      ),
+    ).toEqual([
+      "task-center-location-local",
+      "task-center-location-cloud",
+      "task-center-location-worktree",
+    ]);
     expect(
       popover?.querySelector<HTMLButtonElement>(
         '[data-testid="task-center-location-cloud"]',
@@ -421,14 +418,6 @@ describe("TaskCenterUtilityToolbar", () => {
     ).toBe(false);
     const localButton = popover?.querySelector<HTMLButtonElement>(
       '[data-testid="task-center-location-local"]',
-    );
-
-    await act(async () => {
-      codexWebButton?.click();
-      await Promise.resolve();
-    });
-    expect(mockOpenExternalUrlWithSystemBrowser).toHaveBeenCalledWith(
-      "https://chatgpt.com/codex",
     );
 
     await act(async () => {
@@ -700,7 +689,7 @@ describe("TaskCenterUtilityToolbar", () => {
             metadata: {
               imported: true,
               source_client: "codex",
-              sourcePath: "/Users/example/.codex/sessions/thread.jsonl",
+              sourcePath: "/Users/example/.lime/sessions/thread.jsonl",
             },
           },
         ],
@@ -727,7 +716,7 @@ describe("TaskCenterUtilityToolbar", () => {
     ).toBeNull();
     expect(document.body.textContent).not.toContain("查看完整记录");
     expect(document.body.textContent).not.toContain(
-      "/Users/example/.codex/sessions/thread.jsonl",
+      "/Users/example/.lime/sessions/thread.jsonl",
     );
   });
 

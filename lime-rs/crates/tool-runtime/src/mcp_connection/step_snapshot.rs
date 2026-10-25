@@ -342,13 +342,13 @@ fn mcp_app_context(
     tool: &Tool,
     resource_uri: Option<String>,
 ) -> Option<McpStepRouteAppContext> {
-    if server_name != "codex_apps" {
+    if server_name != "lime_apps" {
         return None;
     }
     let meta = tool.meta.as_ref()?;
     let connector_id = non_empty_meta_string(meta, "connector_id")?;
-    let codex_apps = meta.get("_codex_apps").and_then(Value::as_object);
-    let action_name = codex_apps
+    let lime_apps = meta.get("_lime_apps").and_then(Value::as_object);
+    let action_name = lime_apps
         .and_then(|value| value.get("resource_uri"))
         .and_then(Value::as_str)
         .map(str::trim)

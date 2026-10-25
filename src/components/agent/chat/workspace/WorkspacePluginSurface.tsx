@@ -180,7 +180,7 @@ function WorkspacePluginSurfaceFrame({
   const runtimeOwnerSessionId = runtimeOwner?.sessionId;
   const runtimeOwnerThreadId = runtimeOwner?.threadId;
   const installedPluginId =
-    surface.mcpApp?.serverName === "codex_apps" ? null : surface.appId;
+    surface.mcpApp?.serverName === "lime_apps" ? null : surface.appId;
   const mcpAppPluginUninstalled = mcpAppPluginAvailability === "uninstalled";
   const embeddedHostReady =
     hostAvailable &&

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexMcpThreadScopeProjectionEvent,
-  extractCodexMcpThreadScopeSnapshot,
+  buildMcpThreadScopeProjectionEvent,
+  extractMcpThreadScopeSnapshot,
 } from "../dist/index.js";
 
 const selectedRoot = {
@@ -83,7 +83,7 @@ function scopedInput(overrides = {}) {
 }
 
 test("MCP thread scope keeps selected executor plugin servers on the owning thread", () => {
-  const event = buildCodexMcpThreadScopeProjectionEvent(scopedInput(), {
+  const event = buildMcpThreadScopeProjectionEvent(scopedInput(), {
     sequence: 31,
     sessionId: "session-mcp",
     timestamp: "2026-07-09T00:00:00.000Z",
@@ -130,7 +130,7 @@ test("MCP thread scope keeps selected executor plugin servers on the owning thre
 });
 
 test("MCP thread scope fails closed when selected plugin servers leak globally or to another thread", () => {
-  const event = buildCodexMcpThreadScopeProjectionEvent(
+  const event = buildMcpThreadScopeProjectionEvent(
     scopedInput({
       threadInventories: [
         {
@@ -173,7 +173,7 @@ test("MCP thread scope fails closed when selected plugin servers leak globally o
 });
 
 test("MCP thread scope requires selected plugin tool calls and OAuth notifications to carry the owning thread", () => {
-  const snapshot = extractCodexMcpThreadScopeSnapshot(
+  const snapshot = extractMcpThreadScopeSnapshot(
     scopedInput({
       toolCalls: [
         {
@@ -213,7 +213,7 @@ test("MCP thread scope requires selected plugin tool calls and OAuth notificatio
 });
 
 test("MCP thread scope requires selected roots and selected plugin server metadata", () => {
-  const snapshot = extractCodexMcpThreadScopeSnapshot({
+  const snapshot = extractMcpThreadScopeSnapshot({
     selectedThreadId: "thread-selected",
     threadInventories: [
       {

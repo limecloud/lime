@@ -28,6 +28,11 @@ function createWindowsPackage() {
   const root = mkdtempSync(path.join(tmpdir(), "lime-desktop-resources-"));
   roots.push(root);
   const resources = path.join(root, "resources");
+  mkdirSync(path.join(resources, "browser-client"), { recursive: true });
+  writeFileSync(
+    path.join(resources, "browser-client", "client.mjs"),
+    "export const connect = () => {};\n",
+  );
   const sidecars = path.join(resources, "app-server", "win32-x64");
   mkdirSync(sidecars, { recursive: true });
   for (const name of [
@@ -91,6 +96,7 @@ describe("electron desktop resource manifest", () => {
       platformKey: "win32-x64",
     });
     expect(result.manifest.resources.map((resource) => resource.id)).toEqual([
+      "browser-client",
       "app-server",
       "code-mode-host",
       "windows-sandbox-setup",
@@ -127,6 +133,11 @@ describe("electron desktop resource manifest", () => {
     const root = mkdtempSync(path.join(tmpdir(), "lime-macos-resources-"));
     roots.push(root);
     const resources = path.join(root, "Lime.app", "Contents", "Resources");
+    mkdirSync(path.join(resources, "browser-client"), { recursive: true });
+    writeFileSync(
+      path.join(resources, "browser-client", "client.mjs"),
+      "export const connect = () => {};\n",
+    );
     const sidecars = path.join(resources, "app-server", "darwin-arm64");
     mkdirSync(sidecars, { recursive: true });
     writeFileSync(path.join(sidecars, "app-server"), "app-server");

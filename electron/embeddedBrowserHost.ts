@@ -1,5 +1,6 @@
 import process from "node:process";
 import { randomUUID } from "node:crypto";
+import { EmbeddedBrowserSiteAudio } from "./embeddedBrowserSiteAudio";
 import {
   effectiveBrowserSettings,
   validateBrowserSettings,
@@ -51,6 +52,10 @@ import type { BrowserDownloadRecoveryRequest } from "./browserDownloadResume";
 import { installEmbeddedBrowserPermissionHandling } from "./embeddedBrowserPermissions";
 import { BrowserPermissionRequests } from "./browserPermissionRequests";
 import {
+  ApplicationNetworkPolicy,
+  resetApplicationNetworkConnections,
+} from "./applicationNetworkPolicy";
+import {
   buildEmbeddedBrowserHtmlDataUrl,
   readEmbeddedBrowserHtmlPayload,
 } from "./embeddedBrowserHtml";
@@ -59,8 +64,16 @@ import type {
   WebContents as ElectronWebContents,
   WebPreferences,
 } from "electron";
-import type { BrowserDeviceBounds, BrowserDeviceViewport } from "../src/lib/browserDeviceLayout";
-import { layoutEmbeddedBrowser, setEmbeddedBrowserDevice } from "./embeddedBrowserDevice";
+import type {
+  BrowserDeviceBounds,
+  BrowserDeviceViewport,
+} from "../src/lib/browserDeviceLayout";
+import {
+  layoutEmbeddedBrowser,
+  setEmbeddedBrowserDevice,
+} from "./embeddedBrowserDevice";
+import type { BrowserSitePermission } from "../src/lib/api/browserSiteSettingsTypes";
+import type { BrowserSitePermissionSetting } from "../src/lib/api/browserSiteSettingsTypes";
 
 type HostArgs = Record<string, unknown> | null | undefined;
 type HostEventEmitter = (event: string, payload?: unknown) => void;
@@ -183,22 +196,47 @@ export function isEmbeddedBrowserCommand(
 
 export class ElectronEmbeddedBrowserHost {
   getBrowsingDataSession(): ElectronSession {
-    return configureEmbeddedBrowserSession().embeddedSession;
+    this.#networkSession ??= configureEmbeddedBrowserSession().embeddedSession;
+    this.#requestPermissions.install(this.#networkSession);
+    return this.#networkSession;
   }
   #entries = new Map<string, EmbeddedBrowserEntry>();
   #downloadPaths = new Map<string, string>();
   #downloadObserver: EmbeddedBrowserDownloadController["onDownload"];
-  #downloadHandling: ReturnType<typeof installEmbeddedBrowserDownloadHandling> | null = null;
+  #downloadHandling: ReturnType<
+    typeof installEmbeddedBrowserDownloadHandling
+  > | null = null;
   #pendingPermissions = new Map<string, PendingPermission>();
-  #permissionGrants: ReturnType<typeof installEmbeddedBrowserPermissionHandling> | null = null;
+  #permissionGrants: ReturnType<
+    typeof installEmbeddedBrowserPermissionHandling
+  > | null = null;
   #deferPermissions = false;
   #emit: HostEventEmitter;
   #sessionHandlersInstalled = false;
   readonly #downloadDirectory: string;
   #settings = effectiveBrowserSettings();
+  readonly #networkPolicy = new ApplicationNetworkPolicy();
+  #networkRequirementsProvider: (() => Promise<void>) | null = null;
+  #networkRequirementsChanged: (() => void) | null = null;
+  #networkSession: ElectronSession | null = null;
   #downloadPermission:
     | ((viewId: string, url: string) => Promise<boolean>)
     | null = null;
+  #sitePermissionDecisionHandler: {
+    canUseSavedPermissions: (viewId: string) => boolean;
+    decision: (
+      origin: string,
+      permission: BrowserSitePermission,
+    ) => BrowserSitePermissionSetting;
+    resolveDecision: (
+      origin: string,
+      permission: BrowserSitePermission,
+    ) => Promise<BrowserSitePermissionSetting>;
+  } | null = null;
+  readonly #siteAudio = new EmbeddedBrowserSiteAudio(
+    (origin) =>
+      this.#sitePermissionDecisionHandler?.decision(origin, "sound") ?? "allow",
+  );
   #popupHandler:
     | ((request: EmbeddedBrowserPopupRequest) => Promise<void>)
     | null = null;
@@ -206,6 +244,12 @@ export class ElectronEmbeddedBrowserHost {
     | ((viewId: string, url: string, action: "browse" | "download") => boolean)
     | null = null;
   readonly #requestPermissions = new BrowserPermissionRequests({
+    networkAllows: (url) => this.#networkPolicy.allows(url),
+    refreshNetwork: async () => {
+      if (!this.#networkRequirementsProvider)
+        throw new Error("Browser managed network authority is unavailable");
+      await this.#networkRequirementsProvider();
+    },
     viewId: (webContentsId) =>
       [...this.#entries.values()].find(
         (entry) => entry.view.webContents.id === webContentsId,
@@ -242,6 +286,28 @@ export class ElectronEmbeddedBrowserHost {
     this.#settings = validateBrowserSettings(settings);
   }
 
+  setNetworkRequirementsProvider(provider: () => Promise<void>): void {
+    this.#networkRequirementsProvider = provider;
+  }
+
+  setNetworkRequirementsChangedHandler(handler: (() => void) | null): void {
+    this.#networkRequirementsChanged = handler;
+  }
+
+  setApplicationNetworkRequirements(requirements: unknown): Promise<void> {
+    return this.#networkPolicy.update(
+      requirements,
+      async () => {
+        if (!this.#networkSession) return;
+        await resetApplicationNetworkConnections(
+          this.#networkSession,
+          [...this.#entries.values()].map((entry) => entry.view.webContents),
+        );
+      },
+      () => this.#networkRequirementsChanged?.(),
+    );
+  }
+
   setPopupHandler(
     handler: ((request: EmbeddedBrowserPopupRequest) => Promise<void>) | null,
   ): void {
@@ -262,6 +328,28 @@ export class ElectronEmbeddedBrowserHost {
     handler: (viewId: string, url: string) => Promise<boolean>,
   ): void {
     this.#downloadPermission = handler;
+  }
+
+  setSitePermissionDecisionHandler(
+    handler: {
+      canUseSavedPermissions: (viewId: string) => boolean;
+      decision: (
+        origin: string,
+        permission: BrowserSitePermission,
+      ) => BrowserSitePermissionSetting;
+      resolveDecision: (
+        origin: string,
+        permission: BrowserSitePermission,
+      ) => Promise<BrowserSitePermissionSetting>;
+    } | null,
+  ): void {
+    this.#sitePermissionDecisionHandler = handler;
+    this.refreshSiteSettings();
+  }
+
+  refreshSiteSettings(): void {
+    for (const entry of this.#entries.values())
+      this.#siteAudio.refresh(entry.view.webContents);
   }
 
   async invoke(
@@ -313,7 +401,7 @@ export class ElectronEmbeddedBrowserHost {
         const entry = this.#requireEntry(window, args);
         if (typeof args?.muted !== "boolean")
           throw new Error("Browser muted must be a boolean");
-        entry.view.webContents.setAudioMuted(args.muted);
+        this.#siteAudio.setMuted(entry.view.webContents, args.muted);
         return this.#emitState(entry);
       }
       case "embedded_browser_view_set_device": {
@@ -328,6 +416,12 @@ export class ElectronEmbeddedBrowserHost {
   }
 
   dispose(): void {
+    this.#networkRequirementsProvider = null;
+    void this.setApplicationNetworkRequirements(undefined).catch(
+      (error: unknown) => {
+        console.error("Browser network revocation failed", error);
+      },
+    );
     this.#downloadHandling?.dispose();
     for (const viewId of [...this.#entries.keys()]) {
       this.#destroy({ viewId }, "host-dispose");
@@ -381,7 +475,9 @@ export class ElectronEmbeddedBrowserHost {
     this.#downloadHandling?.prepareShutdown();
   }
 
-  revokePermissionGrants(viewId?: string): void { this.#permissionGrants?.revoke(viewId); }
+  revokePermissionGrants(viewId?: string): void {
+    this.#permissionGrants?.revoke(viewId);
+  }
 
   resolvePermission(
     requestId: string,
@@ -749,6 +845,11 @@ export class ElectronEmbeddedBrowserHost {
     });
     attachEntryToWindow(entry, window);
     this.#entries.set(viewId, entry);
+    this.#siteAudio.attach(
+      view.webContents,
+      () => this.#emitState(entry),
+      () => !entry.sourceUri,
+    );
     view.webContents.on(
       "did-start-navigation",
       (_event, url, _isInPlace, isMainFrame) => {
@@ -855,6 +956,7 @@ export class ElectronEmbeddedBrowserHost {
       return;
     }
     this.#sessionHandlersInstalled = true;
+    this.#networkSession = embeddedSession;
     this.#requestPermissions.install(embeddedSession);
     const controller = {
       findEntryByWebContents: (webContents: ElectronWebContents) =>
@@ -885,11 +987,42 @@ export class ElectronEmbeddedBrowserHost {
               ),
             }
           : null,
-      canDownload: (viewId: string, url: string) =>
-        this.#downloadPermission
+      canDownload: async (
+        viewId: string,
+        url: string,
+        recovered = false,
+        signal?: AbortSignal,
+      ) => {
+        const allowed = await (this.#downloadPermission
           ? this.#downloadPermission(viewId, url)
-          : this.#agentPermission?.(viewId, url, "download") !== false,
+          : this.#agentPermission?.(viewId, url, "download") !== false);
+        if (!allowed || signal?.aborted) return false;
+        const entry = this.#entries.get(viewId);
+        if (!entry || entry.sourceUri || !this.#permissionGrants) return false;
+        if (recovered) return true;
+        return this.#permissionGrants.requestAutomaticDownload(
+          entry.view.webContents,
+          signal,
+        );
+      },
       deferPermissionRequest: this.#deferPermissions,
+      canUseSavedPermissions: (viewId: string) =>
+        this.#sitePermissionDecisionHandler?.canUseSavedPermissions(viewId) ??
+        false,
+      sitePermissionDecision: (
+        origin: string,
+        permission: BrowserSitePermission,
+      ) =>
+        this.#sitePermissionDecisionHandler?.decision(origin, permission) ??
+        "block",
+      resolveSitePermissionDecision: (
+        origin: string,
+        permission: BrowserSitePermission,
+      ) =>
+        this.#sitePermissionDecisionHandler?.resolveDecision(
+          origin,
+          permission,
+        ) ?? Promise.resolve("block" as const),
       onPendingPermission: (
         requestId: string,
         viewId: string,
@@ -900,6 +1033,8 @@ export class ElectronEmbeddedBrowserHost {
           callback,
         });
       },
+      onPermissionCancelled: (requestId: string, viewId: string) =>
+        this.clearPendingPermission(requestId, viewId),
     };
     this.#downloadHandling = installEmbeddedBrowserDownloadHandling(
       embeddedSession,

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 pub(super) fn create_test_config() -> McpServerConfig {
     McpServerConfig {
         transport: McpServerTransport::Stdio {
+            env_vars: Vec::new(),
             command: "test-command".to_string(),
             args: vec!["--arg1".to_string(), "--arg2".to_string()],
             env: HashMap::new(),
@@ -28,6 +29,7 @@ pub(super) fn create_test_config() -> McpServerConfig {
 pub(super) fn create_test_config_with_command(command: &str, timeout: u64) -> McpServerConfig {
     McpServerConfig {
         transport: McpServerTransport::Stdio {
+            env_vars: Vec::new(),
             command: command.to_string(),
             args: Vec::new(),
             env: HashMap::new(),

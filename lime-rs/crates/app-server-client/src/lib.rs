@@ -143,8 +143,6 @@ pub use app_server_protocol::McpResourceUnsubscribeParams;
 pub use app_server_protocol::McpServerCreateParams;
 pub use app_server_protocol::McpServerDeleteParams;
 pub use app_server_protocol::McpServerEnabledSetParams;
-pub use app_server_protocol::McpServerImportFromAppParams;
-pub use app_server_protocol::McpServerImportFromAppResponse;
 pub use app_server_protocol::McpServerLifecycleResponse;
 pub use app_server_protocol::McpServerListResponse;
 pub use app_server_protocol::McpServerStartParams;
@@ -292,12 +290,10 @@ pub use app_server_protocol::METHOD_MCP_RESOURCE_UNSUBSCRIBE;
 pub use app_server_protocol::METHOD_MCP_SERVER_CREATE;
 pub use app_server_protocol::METHOD_MCP_SERVER_DELETE;
 pub use app_server_protocol::METHOD_MCP_SERVER_ENABLED_SET;
-pub use app_server_protocol::METHOD_MCP_SERVER_IMPORT_FROM_APP;
 pub use app_server_protocol::METHOD_MCP_SERVER_LIST;
 pub use app_server_protocol::METHOD_MCP_SERVER_START;
 pub use app_server_protocol::METHOD_MCP_SERVER_STATUS_LIST;
 pub use app_server_protocol::METHOD_MCP_SERVER_STOP;
-pub use app_server_protocol::METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE;
 pub use app_server_protocol::METHOD_MCP_SERVER_UPDATE;
 pub use app_server_protocol::METHOD_MCP_TOOL_LIST;
 pub use app_server_protocol::METHOD_MCP_TOOL_LIST_FOR_CONTEXT;
@@ -369,6 +365,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 mod remote;
+pub mod computer_use;
 mod session;
 mod transport;
 
@@ -1065,17 +1062,6 @@ impl AppServerClient {
         params: McpServerEnabledSetParams,
     ) -> Result<JsonRpcRequest, ClientError> {
         self.typed_request(typed::set_mcp_server_enabled(params))
-    }
-
-    pub fn import_mcp_servers_from_app(
-        &mut self,
-        params: McpServerImportFromAppParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::import_mcp_servers_from_app(params))
-    }
-
-    pub fn sync_all_mcp_servers_to_live(&mut self) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::sync_all_mcp_servers_to_live())
     }
 
     pub fn start_mcp_server(
@@ -1861,16 +1847,6 @@ pub mod typed {
         TypedRequest::new(METHOD_MCP_SERVER_ENABLED_SET, params)
     }
 
-    pub fn import_mcp_servers_from_app(
-        params: McpServerImportFromAppParams,
-    ) -> TypedRequest<McpServerImportFromAppParams> {
-        TypedRequest::new(METHOD_MCP_SERVER_IMPORT_FROM_APP, params)
-    }
-
-    pub fn sync_all_mcp_servers_to_live() -> TypedRequest<serde_json::Value> {
-        TypedRequest::new(METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE, serde_json::json!({}))
-    }
-
     pub fn start_mcp_server(params: McpServerStartParams) -> TypedRequest<McpServerStartParams> {
         TypedRequest::new(METHOD_MCP_SERVER_START, params)
     }
@@ -2654,9 +2630,6 @@ mod tests {
             "name": "filesystem",
             "server_config": { "command": "node", "args": ["server.js"] },
             "enabled_lime": true,
-            "enabled_claude": false,
-            "enabled_codex": true,
-            "enabled_gemini": false,
         });
         let create = client
             .create_mcp_server(McpServerCreateParams {
@@ -2676,16 +2649,9 @@ mod tests {
         let enabled = client
             .set_mcp_server_enabled(McpServerEnabledSetParams {
                 id: "server-1".to_string(),
-                app_type: "codex".to_string(),
                 enabled: true,
             })
             .expect("set server enabled");
-        let imported = client
-            .import_mcp_servers_from_app(McpServerImportFromAppParams {
-                app_type: "codex".to_string(),
-            })
-            .expect("import servers");
-        let synced = client.sync_all_mcp_servers_to_live().expect("sync servers");
         let start = client
             .start_mcp_server(McpServerStartParams {
                 name: "filesystem".to_string(),
@@ -2751,15 +2717,8 @@ mod tests {
         assert_eq!(enabled.method, METHOD_MCP_SERVER_ENABLED_SET);
         assert_eq!(
             enabled.params.expect("params"),
-            json!({ "id": "server-1", "appType": "codex", "enabled": true })
+            json!({ "id": "server-1", "enabled": true })
         );
-        assert_eq!(imported.method, METHOD_MCP_SERVER_IMPORT_FROM_APP);
-        assert_eq!(
-            imported.params.expect("params"),
-            json!({ "appType": "codex" })
-        );
-        assert_eq!(synced.method, METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE);
-        assert_eq!(synced.params.expect("params"), json!({}));
         assert_eq!(start.method, METHOD_MCP_SERVER_START);
         assert_eq!(
             start.params.expect("params"),

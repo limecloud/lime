@@ -63,6 +63,8 @@ pub enum AppServerRequestMethod {
     ArtifactRead,
     #[serde(rename = "projectGit/status")]
     ProjectGitStatus,
+    #[serde(rename = "projectGit/worktree/environment/set")]
+    ProjectGitWorktreeEnvironmentSet,
     #[serde(rename = "projectGit/diff")]
     ProjectGitDiff,
     #[serde(rename = "projectGit/commits/list")]
@@ -338,10 +340,6 @@ pub enum AppServerRequestMethod {
     McpServerDelete,
     #[serde(rename = "mcpServer/enabled/set")]
     McpServerEnabledSet,
-    #[serde(rename = "mcpServer/importFromApp")]
-    McpServerImportFromApp,
-    #[serde(rename = "mcpServer/syncAllToLive")]
-    McpServerSyncAllToLive,
     #[serde(rename = "mcpServer/oauth/login")]
     McpServerOauthLogin,
     #[serde(rename = "mcpServer/oauth/logout")]
@@ -477,6 +475,7 @@ impl AppServerRequestMethod {
             Self::CapabilityList => METHOD_CAPABILITY_LIST,
             Self::ArtifactRead => METHOD_ARTIFACT_READ,
             Self::ProjectGitStatus => METHOD_PROJECT_GIT_STATUS,
+            Self::ProjectGitWorktreeEnvironmentSet => METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
             Self::ProjectGitDiff => METHOD_PROJECT_GIT_DIFF,
             Self::ProjectGitCommitsList => METHOD_PROJECT_GIT_COMMITS_LIST,
             Self::ProjectGitBranchCheckout => METHOD_PROJECT_GIT_BRANCH_CHECKOUT,
@@ -623,8 +622,6 @@ impl AppServerRequestMethod {
             Self::McpServerUpdate => METHOD_MCP_SERVER_UPDATE,
             Self::McpServerDelete => METHOD_MCP_SERVER_DELETE,
             Self::McpServerEnabledSet => METHOD_MCP_SERVER_ENABLED_SET,
-            Self::McpServerImportFromApp => METHOD_MCP_SERVER_IMPORT_FROM_APP,
-            Self::McpServerSyncAllToLive => METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
             Self::McpServerOauthLogin => METHOD_MCP_SERVER_OAUTH_LOGIN,
             Self::McpServerOauthLogout => METHOD_MCP_SERVER_OAUTH_LOGOUT,
             Self::McpServerStart => METHOD_MCP_SERVER_START,
@@ -697,6 +694,9 @@ impl AppServerRequestMethod {
             METHOD_CAPABILITY_LIST => Some(Self::CapabilityList),
             METHOD_ARTIFACT_READ => Some(Self::ArtifactRead),
             METHOD_PROJECT_GIT_STATUS => Some(Self::ProjectGitStatus),
+            METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET => {
+                Some(Self::ProjectGitWorktreeEnvironmentSet)
+            }
             METHOD_PROJECT_GIT_DIFF => Some(Self::ProjectGitDiff),
             METHOD_PROJECT_GIT_COMMITS_LIST => Some(Self::ProjectGitCommitsList),
             METHOD_PROJECT_GIT_BRANCH_CHECKOUT => Some(Self::ProjectGitBranchCheckout),
@@ -855,8 +855,6 @@ impl AppServerRequestMethod {
             METHOD_MCP_SERVER_UPDATE => Some(Self::McpServerUpdate),
             METHOD_MCP_SERVER_DELETE => Some(Self::McpServerDelete),
             METHOD_MCP_SERVER_ENABLED_SET => Some(Self::McpServerEnabledSet),
-            METHOD_MCP_SERVER_IMPORT_FROM_APP => Some(Self::McpServerImportFromApp),
-            METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE => Some(Self::McpServerSyncAllToLive),
             METHOD_MCP_SERVER_OAUTH_LOGIN => Some(Self::McpServerOauthLogin),
             METHOD_MCP_SERVER_OAUTH_LOGOUT => Some(Self::McpServerOauthLogout),
             METHOD_MCP_SERVER_START => Some(Self::McpServerStart),
@@ -973,6 +971,10 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     },
     AppServerMethodSpec {
         method: METHOD_ARTIFACT_READ,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {
@@ -1529,14 +1531,6 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     },
     AppServerMethodSpec {
         method: METHOD_MCP_SERVER_ENABLED_SET,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_MCP_SERVER_IMPORT_FROM_APP,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {

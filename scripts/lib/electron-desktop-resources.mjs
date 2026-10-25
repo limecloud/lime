@@ -28,6 +28,14 @@ const MAC_SCREEN_CAPTURE_SOURCE = path.join(
   REPO_ROOT,
   "electron/native/macos/macos-screen-capture.swift",
 );
+const MAC_COMPUTER_USE_SOURCE = path.join(
+  REPO_ROOT,
+  "electron/native/macos/macos-computer-use.swift",
+);
+const MAC_COMPUTER_USE_ACTIONS_SOURCE = path.join(
+  REPO_ROOT,
+  "electron/native/macos/macos-computer-use-actions.swift",
+);
 const MAC_SECURITY_SOURCE = path.join(
   REPO_ROOT,
   "electron/native/macos/macos-security.swift",
@@ -231,6 +239,7 @@ function prepareDesktopResourcesFromRoot({
   const codeModeHostName =
     platform === "win32" ? "code-mode-host.exe" : "code-mode-host";
   const files = {
+    "browser-client": path.join("browser-client", "client.mjs"),
     "app-server": path.join("app-server", platformKey, binaryName),
     "code-mode-host": path.join("app-server", platformKey, codeModeHostName),
   };
@@ -258,6 +267,8 @@ function prepareDesktopResourcesFromRoot({
       sourcePaths: [
         MAC_NATIVE_HOST_SOURCE,
         MAC_SCREEN_CAPTURE_SOURCE,
+        MAC_COMPUTER_USE_SOURCE,
+        MAC_COMPUTER_USE_ACTIONS_SOURCE,
         MAC_SECURITY_SOURCE,
         MAC_WINDOW_ORCHESTRATION_SOURCE,
         MAC_ACCESSIBILITY_TREE_SOURCE,

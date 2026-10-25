@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   bindingIdentity,
+  bindingMatchesPrefix,
+  bindingsConflict,
   captureBinding,
-  matchesBinding,
   normalizeBinding,
 } from "./bindings";
 
@@ -23,7 +24,7 @@ describe("键位解析、捕获和派发", () => {
     "CommandOrControl+Command+K",
     "F25",
     "F01",
-    "Control+K Control+S",
+    "Control+K Hyper+S",
   ])("拒绝无效或不支持的组合 %s", (binding) =>
     expect(normalizeBinding(binding)).toBeNull(),
   );
@@ -44,24 +45,31 @@ describe("键位解析、捕获和派发", () => {
     expect(key(" ", { altKey: true })).toBe("Alt+Space");
     expect(key("+", { metaKey: true })).toBe("Command+Plus");
   });
-  it("平台主键冲突与实际按键使用同一身份，额外修饰键不匹配", () => {
+  it("每一键独立规范化，平台身份覆盖整个序列，前缀与相邻键不混淆", () => {
+    expect(normalizeBinding(" g   commandorcontrol + s ")).toBe(
+      "G CommandOrControl+S",
+    );
+    expect(
+      bindingIdentity("CommandOrControl+K CommandOrControl+S", "mac"),
+    ).toBe("Command+K Command+S");
+    expect(normalizeBinding("A B C")).toBe("A B C");
+    expect(bindingMatchesPrefix("G Control+S", "G", "windows")).toBe(true);
+    expect(bindingMatchesPrefix("G", "G G", "windows")).toBe(false);
+    expect(bindingsConflict("G G", "G", "windows")).toBe(true);
+    expect(bindingsConflict("G", "G G", "windows")).toBe(true);
+    expect(bindingsConflict("G G", "G H", "windows")).toBe(false);
+    expect(bindingsConflict("G", "Control+G", "windows")).toBe(false);
+    expect(bindingsConflict("G", "Hyper+G", "windows")).toBe(false);
+  });
+  it("平台主键身份与显式修饰键一致，不丢弃多余修饰键", () => {
     expect(bindingIdentity("CommandOrControl+K", "mac")).toBe(
       bindingIdentity("Command+K", "mac"),
     );
     expect(bindingIdentity("CommandOrControl+K", "windows")).toBe(
       bindingIdentity("Control+K", "windows"),
     );
-    const event = {
-      key: "k",
-      ctrlKey: false,
-      metaKey: true,
-      shiftKey: false,
-      altKey: false,
-    };
-    expect(matchesBinding(event, "CommandOrControl+K", "mac")).toBe(true);
-    expect(matchesBinding(event, "CommandOrControl+K", "windows")).toBe(false);
-    expect(
-      matchesBinding({ ...event, ctrlKey: true }, "CommandOrControl+K", "mac"),
-    ).toBe(false);
+    expect(bindingIdentity("Command+Control+K", "mac")).not.toBe(
+      bindingIdentity("CommandOrControl+K", "mac"),
+    );
   });
 });

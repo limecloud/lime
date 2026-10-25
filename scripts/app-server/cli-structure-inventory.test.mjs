@@ -64,7 +64,7 @@ describe("Codex CLI structure inventory", () => {
     );
   });
 
-  it("locks Codex-shaped current names in the Lime command owner", () => {
+  it("locks Lime-native current names in the Lime command owner", () => {
     const symbols = new Set(
       inventory.trees["lime-rs/crates/cli"].symbols.map(
         (symbol) => symbol.name,
@@ -140,7 +140,12 @@ describe("Codex CLI structure inventory", () => {
     expect(
       inventory.trees["lime-rs/crates/execpolicy"].fileCount,
     ).toBeGreaterThan(0);
-    expect(inventory.comparisons.execpolicyFilesMissingInLime).toEqual([]);
+    expect(inventory.comparisons.execpolicyFilesMissingInLime).toEqual([
+      "examples/example.codexpolicy",
+    ]);
+    expect(inventory.comparisons.execpolicyFilesOnlyInLime).toContain(
+      "examples/example.limepolicy",
+    );
     const symbols = new Set(
       inventory.trees["lime-rs/crates/execpolicy"].symbols.map(
         (symbol) => symbol.name,

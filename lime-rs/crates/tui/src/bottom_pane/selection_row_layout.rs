@@ -1,4 +1,4 @@
-//! Codex-shaped selection-row layout shared by TUI pickers.
+//! Lime-native selection-row layout shared by TUI pickers.
 //!
 //! This module owns display-only row composition: names, optional descriptions, disabled
 //! reasons, and width-aware wrapping. Picker state and selection actions remain owned by their

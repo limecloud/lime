@@ -59,19 +59,6 @@ pub trait McpAppDataSource: Send + Sync {
         Err(requires_current("mcpServer/enabled/set"))
     }
 
-    async fn import_mcp_servers_from_app(
-        &self,
-        _params: McpServerImportFromAppParams,
-    ) -> Result<McpServerImportFromAppResponse, RuntimeCoreError> {
-        Err(requires_current("mcpServer/importFromApp"))
-    }
-
-    async fn sync_all_mcp_servers_to_live(
-        &self,
-    ) -> Result<McpServerListResponse, RuntimeCoreError> {
-        Err(requires_current("mcpServer/syncAllToLive"))
-    }
-
     async fn start_mcp_server(
         &self,
         _params: McpServerStartParams,

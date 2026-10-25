@@ -29,7 +29,7 @@ additionalContextLimit = 4096
     .expect("write config");
 
     let report = discover_hooks(&HookDiscoveryInput {
-        codex_home: home.path().to_path_buf(),
+        lime_home: home.path().to_path_buf(),
         cwd: cwd.path().to_path_buf(),
         plugins: Vec::new(),
     });
@@ -65,7 +65,7 @@ async = true
     .expect("write config");
 
     let report = discover_hooks(&HookDiscoveryInput {
-        codex_home: home.path().to_path_buf(),
+        lime_home: home.path().to_path_buf(),
         cwd: cwd.path().to_path_buf(),
         plugins: Vec::new(),
     });
@@ -96,7 +96,7 @@ timeout = 12
     .expect("write config");
 
     let report = discover_hooks(&HookDiscoveryInput {
-        codex_home: home.path().to_path_buf(),
+        lime_home: home.path().to_path_buf(),
         cwd: cwd.path().to_path_buf(),
         plugins: Vec::new(),
     });
@@ -127,7 +127,7 @@ command = "echo trusted"
     )
     .expect("write config");
     let input = HookDiscoveryInput {
-        codex_home: home.path().to_path_buf(),
+        lime_home: home.path().to_path_buf(),
         cwd: cwd.path().to_path_buf(),
         plugins: Vec::new(),
     };
@@ -183,7 +183,7 @@ fn discovers_active_plugin_hooks_with_plugin_stable_key() {
         .expect("plugin hooks");
 
     let report = discover_hooks(&HookDiscoveryInput {
-        codex_home: home.path().to_path_buf(),
+        lime_home: home.path().to_path_buf(),
         cwd: cwd.path().to_path_buf(),
         plugins: vec![PluginHookSource {
             plugin_id: "demo@test".to_string(),
@@ -230,7 +230,7 @@ timeout = 30
     )
     .expect("config");
     let report = discover_hooks(&HookDiscoveryInput {
-        codex_home: home.path().to_path_buf(),
+        lime_home: home.path().to_path_buf(),
         cwd: cwd.path().to_path_buf(),
         plugins: Vec::new(),
     });

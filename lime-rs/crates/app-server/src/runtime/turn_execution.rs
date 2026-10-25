@@ -1603,6 +1603,7 @@ impl RuntimeCore {
                 .get(&session.session_id)
                 .cloned(),
         };
+        self.bind_computer_use_turn(&request)?;
         let effective_runtime_options = self
             .backend
             .effective_turn_runtime_options(&request, first_sampling_turn);
@@ -3033,6 +3034,12 @@ impl RuntimeCore {
             turn_id,
             runtime_events,
         )?;
+        super::computer_use::cancel_terminal_computer_use(
+            &self.computer_use,
+            thread_id,
+            turn_id,
+            &events,
+        );
         self.record_rollout_budget_events(thread_id, turn_id, &events)?;
         Ok(events)
     }

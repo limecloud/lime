@@ -452,7 +452,7 @@ fn input_modality_policy_from_value(value: &Value) -> ModelInputModalityPolicySn
         supports_text_input,
         supports_media_input,
         supports_image_input,
-        source: enum_field(value, &["source"], &["codex_default", "explicit"])
+        source: enum_field(value, &["source"], &["lime_default", "explicit"])
             .unwrap_or_else(|| "explicit".to_string()),
     }
 }

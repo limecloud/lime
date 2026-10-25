@@ -2,6 +2,10 @@ import type { TFunction } from "i18next";
 import type { SettingsTabs } from "@/types/settings";
 import type { CategoryGroup } from "./hooks/useSettingsCategory";
 import { settingsSearchDocuments } from "./settingsSearchDocuments";
+import {
+  resolveHotkeyPlatform,
+  type HotkeyPlatform,
+} from "@/lib/hotkeys/platform";
 
 export interface SettingsSearchResult {
   section: SettingsTabs;
@@ -17,20 +21,26 @@ export function isSettingsSearchTarget(
   section: SettingsTabs,
   targetId: string,
   localProfile: boolean,
+  platform = resolveHotkeyPlatform(globalThis.navigator),
 ): boolean {
-  return Boolean(getSettingsSearchDocument(section, targetId, localProfile));
+  return Boolean(
+    getSettingsSearchDocument(section, targetId, localProfile, platform),
+  );
 }
 
 export function getSettingsSearchDocument(
   section: SettingsTabs,
   targetId: string | undefined,
   localProfile: boolean,
+  platform = resolveHotkeyPlatform(globalThis.navigator),
 ) {
   return settingsSearchDocuments.find(
     (document) =>
       document.section === section &&
       document.targetId === targetId &&
-      (!document.localProfile || localProfile),
+      (!document.localProfile || localProfile) &&
+      document.excludePlatform !== platform &&
+      (!document.platform || document.platform === platform),
   );
 }
 
@@ -39,6 +49,7 @@ export function searchSettings(
   groups: CategoryGroup[],
   t: TFunction<"settings", undefined>,
   localProfile: boolean,
+  platform: HotkeyPlatform = resolveHotkeyPlatform(globalThis.navigator),
 ): SettingsSearchResult[] {
   const terms = normalize(query).split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
@@ -58,7 +69,9 @@ export function searchSettings(
       for (const document of settingsSearchDocuments) {
         if (
           document.section !== item.key ||
-          (document.localProfile && !localProfile)
+          (document.localProfile && !localProfile) ||
+          document.excludePlatform === platform ||
+          (document.platform && document.platform !== platform)
         )
           continue;
         const label = t(document.labelKey);

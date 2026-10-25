@@ -331,7 +331,7 @@ export function projectAppServerV2NotificationPayload(
         type: "error",
         message,
         will_retry: params.willRetry,
-        codex_error_info: error.codexErrorInfo ?? null,
+        lime_error_info: error.limeErrorInfo ?? null,
         additional_details: error.additionalDetails ?? null,
       };
     }

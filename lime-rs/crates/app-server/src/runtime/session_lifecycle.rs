@@ -505,6 +505,7 @@ impl RuntimeCore {
             .lock()
             .expect("runtime core state mutex poisoned");
         if let Some(stored) = state.sessions.get_mut(session_id) {
+            self.computer_use.cancel_turn(&stored.session.thread_id, turn_id);
             stored.turns.retain(|turn| turn.turn_id != turn_id);
             stored.turn_inputs.remove(turn_id);
             stored.turn_runtime_options.remove(turn_id);

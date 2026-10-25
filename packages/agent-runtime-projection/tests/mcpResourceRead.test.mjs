@@ -2,38 +2,34 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexMcpResourceReadProjectionEvent,
-  extractCodexMcpResourceReadSnapshot,
-  getCodexMcpResourceToolContract,
-  isCodexMcpResourceToolName,
+  buildMcpResourceReadProjectionEvent,
+  extractMcpResourceReadSnapshot,
+  getMcpResourceToolContract,
+  isMcpResourceToolName,
   isLegacyMcpResourceToolName,
-  listCodexMcpResourceToolContracts,
-  validateCodexMcpResourceToolSchema,
+  listMcpResourceToolContracts,
+  validateMcpResourceToolSchema,
 } from "../dist/index.js";
 
-test("Codex MCP resource contracts expose current tool names only", () => {
+test("Current MCP resource contracts expose current tool names only", () => {
   assert.deepEqual(
-    listCodexMcpResourceToolContracts().map((contract) => contract.name),
-    [
-      "list_mcp_resources",
-      "list_mcp_resource_templates",
-      "read_mcp_resource",
-    ],
+    listMcpResourceToolContracts().map((contract) => contract.name),
+    ["list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource"],
   );
 
-  assert.equal(isCodexMcpResourceToolName("read_mcp_resource"), true);
-  assert.equal(isCodexMcpResourceToolName("ReadMcpResourceTool"), false);
+  assert.equal(isMcpResourceToolName("read_mcp_resource"), true);
+  assert.equal(isMcpResourceToolName("ReadMcpResourceTool"), false);
   assert.equal(isLegacyMcpResourceToolName("ReadMcpResourceTool"), true);
   assert.equal(isLegacyMcpResourceToolName("ListMcpResourcesTool"), true);
 });
 
 test("read_mcp_resource requires server and uri and rejects legacy input fields", () => {
-  const contract = getCodexMcpResourceToolContract("read_mcp_resource");
+  const contract = getMcpResourceToolContract("read_mcp_resource");
   assert.deepEqual(contract?.requiredInputFields, ["server", "uri"]);
   assert.deepEqual(contract?.outputRequiredFields, ["contents"]);
 
   assert.deepEqual(
-    validateCodexMcpResourceToolSchema({
+    validateMcpResourceToolSchema({
       toolName: "read_mcp_resource",
       input: {
         server: "docs",
@@ -44,7 +40,7 @@ test("read_mcp_resource requires server and uri and rejects legacy input fields"
   );
 
   assert.deepEqual(
-    validateCodexMcpResourceToolSchema({
+    validateMcpResourceToolSchema({
       toolName: "read_mcp_resource",
       input: {
         server_name: "docs",
@@ -64,14 +60,14 @@ test("read_mcp_resource requires server and uri and rejects legacy input fields"
 
 test("legacy Lime/Agent MCP resource names fail closed before projection", () => {
   assert.deepEqual(
-    validateCodexMcpResourceToolSchema({
+    validateMcpResourceToolSchema({
       toolName: "ReadMcpResourceTool",
       input: { server: "docs", uri: "file:///workspace/README.md" },
     }).map((item) => item.code),
     ["legacy_tool_name"],
   );
   assert.equal(
-    buildCodexMcpResourceReadProjectionEvent({
+    buildMcpResourceReadProjectionEvent({
       toolName: "ReadMcpResourceTool",
       input: { server: "docs", uri: "file:///workspace/README.md" },
       result: { contents: [] },
@@ -82,7 +78,7 @@ test("legacy Lime/Agent MCP resource names fail closed before projection", () =>
 
 test("resource read snapshot preserves server uri mime content truncation and thread scope", () => {
   const longText = `${"Resource line ".repeat(32)}tail`;
-  const snapshot = extractCodexMcpResourceReadSnapshot(
+  const snapshot = extractMcpResourceReadSnapshot(
     {
       toolName: "read_mcp_resource",
       toolCallId: "tool-resource-1",
@@ -133,7 +129,7 @@ test("resource read snapshot preserves server uri mime content truncation and th
 });
 
 test("projection event binds resource read to timeline evidence instead of ordinary tool text", () => {
-  const event = buildCodexMcpResourceReadProjectionEvent(
+  const event = buildMcpResourceReadProjectionEvent(
     {
       toolName: "read_mcp_resource",
       toolCallId: "tool-resource-1",
@@ -200,12 +196,15 @@ test("projection event binds resource read to timeline evidence instead of ordin
   assert.equal(event?.payload?.server, "docs");
   assert.equal(event?.payload?.uri, "file:///workspace/README.md");
   assert.equal(event?.payload?.contentCount, 1);
-  assert.equal(event?.payload?.mcpResourceRead.contents[0].mimeType, "text/markdown");
+  assert.equal(
+    event?.payload?.mcpResourceRead.contents[0].mimeType,
+    "text/markdown",
+  );
   assert.deepEqual(event?.payload?.validationIssues, []);
 });
 
 test("string-only tool output cannot masquerade as MCP resource contents", () => {
-  const event = buildCodexMcpResourceReadProjectionEvent({
+  const event = buildMcpResourceReadProjectionEvent({
     toolName: "read_mcp_resource",
     toolCallId: "tool-resource-plain-output",
     input: {

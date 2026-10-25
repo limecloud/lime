@@ -36,7 +36,7 @@ pub struct GitConfig {
 impl Default for GitConfig {
     fn default() -> Self {
         Self {
-            branch_prefix: "codex/".to_string(),
+            branch_prefix: "lime/".to_string(),
             always_force_push: false,
             create_draft_pull_requests: true,
             pull_request_merge_method: PullRequestMergeMethod::Merge,
@@ -91,6 +91,7 @@ mod tests {
     fn defaults_and_explicit_empty_prefix_survive_yaml_round_trip() {
         let default: GitConfig = serde_json::from_value(json!({})).unwrap();
         assert!(default.is_default());
+        assert_eq!(default.branch_prefix, "lime/");
         assert!(default.create_draft_pull_requests);
         assert!(!default.always_force_push);
         let config: GitConfig = serde_json::from_value(json!({

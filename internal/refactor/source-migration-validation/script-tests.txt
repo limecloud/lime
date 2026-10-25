@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /Users/coso/Documents/dev/ai/aiclientproxy/lime
+
+···············
+
+ Test Files  4 passed (4)
+      Tests  15 passed (15)
+   Start at  08:54:06
+   Duration  1.16s (transform 73ms, setup 158ms, collect 71ms, tests 74ms, environment 1.63s, prepare 363ms)
+

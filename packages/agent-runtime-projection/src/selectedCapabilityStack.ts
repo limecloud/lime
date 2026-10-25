@@ -141,7 +141,11 @@ function readRootIds(value: unknown): string[] {
     value.map((item) => {
       if (typeof item === "string") return item;
       const record = readRecord(item);
-      return readStringField(record, ["id", "selectedRootId", "selected_root_id"]);
+      return readStringField(record, [
+        "id",
+        "selectedRootId",
+        "selected_root_id",
+      ]);
     }),
   );
 }
@@ -149,7 +153,10 @@ function readRootIds(value: unknown): string[] {
 function normalizePath(value: string | undefined): string | undefined {
   const trimmed = definedString(value);
   if (!trimmed) return undefined;
-  return trimmed.replace(/^file:\/\//, "").replace(/\\/g, "/").replace(/\/+$/g, "");
+  return trimmed
+    .replace(/^file:\/\//, "")
+    .replace(/\\/g, "/")
+    .replace(/\/+$/g, "");
 }
 
 function selectedRootsForInput(
@@ -157,7 +164,11 @@ function selectedRootsForInput(
 ): AgentUiSelectedCapabilityRootSnapshot[] {
   const roots: AgentUiSelectedCapabilityRootSnapshot[] = [];
   for (const record of recordArray(input.selectedCapabilityRoots)) {
-    const id = readStringField(record, ["id", "selectedRootId", "selected_root_id"]);
+    const id = readStringField(record, [
+      "id",
+      "selectedRootId",
+      "selected_root_id",
+    ]);
     const location = readRecord(record.location) ?? record;
     if (!id) continue;
     roots.push(
@@ -197,8 +208,12 @@ function environmentStatesForInput(
       compactProjectionFields({
         environmentId,
         available:
-          readBooleanField(record, ["available", "enabled", "connected", "reachable"]) ??
-          false,
+          readBooleanField(record, [
+            "available",
+            "enabled",
+            "connected",
+            "reachable",
+          ]) ?? false,
         generation: readGeneration(record.generation ?? record.version),
         source: readStringField(record, ["source", "phase"]),
       } satisfies AgentUiSelectedEnvironmentStateSnapshot),
@@ -216,7 +231,8 @@ function latestState(
   if (generation) {
     return states.find(
       (state) =>
-        state.environmentId === environmentId && state.generation === generation,
+        state.environmentId === environmentId &&
+        state.generation === generation,
     );
   }
   for (let index = states.length - 1; index >= 0; index -= 1) {
@@ -247,19 +263,20 @@ function buildSample(
   roots: readonly AgentUiSelectedCapabilityRootSnapshot[],
   states: readonly AgentUiSelectedEnvironmentStateSnapshot[],
 ): AgentUiSelectedCapabilitySampleSnapshot {
-  const rootIds =
-    firstNonEmptyList(
-      record.selectedRootIds,
-      record.selected_root_ids,
-      record.selectedRoots,
-      record.selected_roots,
-    );
+  const rootIds = firstNonEmptyList(
+    record.selectedRootIds,
+    record.selected_root_ids,
+    record.selectedRoots,
+    record.selected_roots,
+  );
   const environmentId =
     readStringField(record, ["environmentId", "environment_id"]) ??
     roots.find((root) => rootIds.includes(root.id))?.environmentId ??
     roots[0]?.environmentId;
   const generation = readGeneration(
-    record.environmentGeneration ?? record.environment_generation ?? record.generation,
+    record.environmentGeneration ??
+      record.environment_generation ??
+      record.generation,
   );
   const state = latestState(states, environmentId, generation);
   const explicitAvailable = readBooleanField(record, [
@@ -269,15 +286,26 @@ function buildSample(
   ]);
   return compactProjectionFields({
     sampleId:
-      readStringField(record, ["sampleId", "sample_id", "requestId", "request_id", "id"]) ??
-      `sample-${index + 1}`,
-    turnId: readStringField(record, ["turnId", "turn_id"]) ?? input.turnId ?? undefined,
+      readStringField(record, [
+        "sampleId",
+        "sample_id",
+        "requestId",
+        "request_id",
+        "id",
+      ]) ?? `sample-${index + 1}`,
+    turnId:
+      readStringField(record, ["turnId", "turn_id"]) ??
+      input.turnId ??
+      undefined,
     phase: readStringField(record, ["phase", "stage"]),
     environmentId,
     environmentGeneration: generation ?? state?.generation,
     environmentAvailable: explicitAvailable ?? state?.available ?? false,
-    selectedRootIds: rootIds.length > 0 ? rootIds : roots.map((root) => root.id),
-    selectedSkillNames: readNameList(record.selectedSkills ?? record.selected_skill_names),
+    selectedRootIds:
+      rootIds.length > 0 ? rootIds : roots.map((root) => root.id),
+    selectedSkillNames: readNameList(
+      record.selectedSkills ?? record.selected_skill_names,
+    ),
     selectedMcpServerNames: readNameList(
       record.selectedMcpServers ?? record.selected_mcp_server_names,
     ),
@@ -323,8 +351,12 @@ function timelineForInput(
       compactProjectionFields({
         environmentId,
         available:
-          readBooleanField(record, ["available", "enabled", "connected", "reachable"]) ??
-          false,
+          readBooleanField(record, [
+            "available",
+            "enabled",
+            "connected",
+            "reachable",
+          ]) ?? false,
         generation: readGeneration(record.generation ?? record.version),
         turnId: readStringField(record, ["turnId", "turn_id"]),
         sampleId: readStringField(record, ["sampleId", "sample_id"]),
@@ -345,7 +377,9 @@ function hasCapabilityInjection(
   );
 }
 
-function sampleSignature(sample: AgentUiSelectedCapabilitySampleSnapshot): string {
+function sampleSignature(
+  sample: AgentUiSelectedCapabilitySampleSnapshot,
+): string {
   return JSON.stringify({
     environmentAvailable: sample.environmentAvailable,
     environmentGeneration: sample.environmentGeneration,
@@ -360,10 +394,12 @@ function validateHistory(
   currentSamples: readonly AgentUiSelectedCapabilitySampleSnapshot[],
 ): AgentUiSelectedCapabilityStackIssue[] {
   const issues: AgentUiSelectedCapabilityStackIssue[] = [];
-  const previous = sampleRecords({ samples: input.previousSamples }).map((record, index) =>
-    buildSample(record, index, input, [], []),
+  const previous = sampleRecords({ samples: input.previousSamples }).map(
+    (record, index) => buildSample(record, index, input, [], []),
   );
-  const currentById = new Map(currentSamples.map((sample) => [sample.sampleId, sample]));
+  const currentById = new Map(
+    currentSamples.map((sample) => [sample.sampleId, sample]),
+  );
   previous.forEach((sample, index) => {
     const current = currentById.get(sample.sampleId);
     if (current && sampleSignature(current) !== sampleSignature(sample)) {
@@ -487,7 +523,9 @@ function validateSnapshot(
       !sample.environmentAvailable &&
       sample.environmentId &&
       sample.environmentGeneration &&
-      availableGenerations.has(`${sample.environmentId}:${sample.environmentGeneration}`)
+      availableGenerations.has(
+        `${sample.environmentId}:${sample.environmentGeneration}`,
+      )
     ) {
       issues.push(
         issue(
@@ -536,7 +574,7 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexSelectedCapabilityStackSnapshot(
+export function extractSelectedCapabilityStackSnapshot(
   input: AgentUiSelectedCapabilityStackProjectionInput,
 ): AgentUiSelectedCapabilityStackSnapshot {
   const roots = selectedRootsForInput(input);
@@ -584,11 +622,11 @@ export function extractCodexSelectedCapabilityStackSnapshot(
   };
 }
 
-export function buildCodexSelectedCapabilityStackProjectionEvent(
+export function buildSelectedCapabilityStackProjectionEvent(
   input: AgentUiSelectedCapabilityStackProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(input);
+  const snapshot = extractSelectedCapabilityStackSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",

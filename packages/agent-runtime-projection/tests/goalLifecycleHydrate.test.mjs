@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexGoalLifecycleHydrateProjectionEvent,
-  extractCodexGoalLifecycleHydrateSnapshot,
+  buildGoalLifecycleHydrateProjectionEvent,
+  extractGoalLifecycleHydrateSnapshot,
 } from "../dist/index.js";
 
 function goal(overrides = {}) {
@@ -135,7 +135,7 @@ function baseInput(overrides = {}) {
 }
 
 test("goal lifecycle hydrate keeps goal status, budget, usage and clear state structured", () => {
-  const event = buildCodexGoalLifecycleHydrateProjectionEvent(baseInput(), {
+  const event = buildGoalLifecycleHydrateProjectionEvent(baseInput(), {
     sequence: 411,
     sessionId: "session-goal",
     threadId: "thread-goal",
@@ -188,8 +188,8 @@ test("goal lifecycle hydrate keeps goal status, budget, usage and clear state st
   );
 });
 
-test("goal lifecycle maps Codex stopped wire statuses", () => {
-  const snapshot = extractCodexGoalLifecycleHydrateSnapshot(baseInput());
+test("goal lifecycle maps stopped wire statuses", () => {
+  const snapshot = extractGoalLifecycleHydrateSnapshot(baseInput());
   const statuses = new Set(
     snapshot.goalSnapshots.map((item) => item.status).filter(Boolean),
   );
@@ -201,7 +201,7 @@ test("goal lifecycle maps Codex stopped wire statuses", () => {
 });
 
 test("goal lifecycle fails closed when objective edit resets accounted usage", () => {
-  const snapshot = extractCodexGoalLifecycleHydrateSnapshot(
+  const snapshot = extractGoalLifecycleHydrateSnapshot(
     baseInput({
       goalSetResponses: [
         goalResponse(),
@@ -225,7 +225,7 @@ test("goal lifecycle fails closed when objective edit resets accounted usage", (
 });
 
 test("goal lifecycle requires clear notification and null read after clear", () => {
-  const snapshot = extractCodexGoalLifecycleHydrateSnapshot(
+  const snapshot = extractGoalLifecycleHydrateSnapshot(
     baseInput({
       goalClearedNotifications: [],
       goalRead: {
@@ -249,7 +249,7 @@ test("goal lifecycle requires clear notification and null read after clear", () 
 });
 
 test("goal lifecycle rejects analytics leakage and transcript/read-model item leaks", () => {
-  const snapshot = extractCodexGoalLifecycleHydrateSnapshot(
+  const snapshot = extractGoalLifecycleHydrateSnapshot(
     baseInput({
       analyticsEvents: [
         analytics("created", "active", {
@@ -287,7 +287,7 @@ test("goal lifecycle rejects analytics leakage and transcript/read-model item le
 });
 
 test("goal lifecycle requires shared thread-scoped goal status surfaces", () => {
-  const snapshot = extractCodexGoalLifecycleHydrateSnapshot(
+  const snapshot = extractGoalLifecycleHydrateSnapshot(
     baseInput({
       statusSurfaces: [
         surface("header"),

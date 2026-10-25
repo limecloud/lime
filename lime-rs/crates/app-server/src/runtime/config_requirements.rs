@@ -15,13 +15,7 @@ impl RuntimeCore {
     pub(crate) fn read_config_requirements(
         &self,
     ) -> Result<Option<ConfigRequirements>, RuntimeCoreError> {
-        let path = self
-            .requirements_path
-            .clone()
-            .map(Ok)
-            .unwrap_or_else(system_requirements_path)
-            .map_err(policy_error)?;
-        lime_core::config::managed::read_requirements(&path).map_err(policy_error)
+        read_config_requirements_at(self.requirements_path.as_deref())
     }
 
     pub(crate) fn validate_requirement_values(
@@ -150,6 +144,16 @@ impl RuntimeCore {
             request.web_search_mode,
         )
     }
+}
+
+pub(super) fn read_config_requirements_at(
+    path: Option<&Path>,
+) -> Result<Option<ConfigRequirements>, RuntimeCoreError> {
+    let path = path
+        .map(|path| Ok(path.to_path_buf()))
+        .unwrap_or_else(system_requirements_path)
+        .map_err(policy_error)?;
+    lime_core::config::managed::read_requirements(&path).map_err(policy_error)
 }
 
 fn check_values(

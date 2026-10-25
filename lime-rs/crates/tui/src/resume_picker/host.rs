@@ -1,6 +1,6 @@
 use super::*;
 
-/// Codex-shaped resume picker entry point backed by App Server's Thread list.
+/// Lime-native resume picker entry point backed by App Server's Thread list.
 pub(crate) async fn run_resume_picker_with_app_server(
     options: &TuiOptions,
 ) -> Result<Option<String>> {

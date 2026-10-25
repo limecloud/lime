@@ -16,6 +16,7 @@ import { useBrowserSettings } from "./useBrowserSettings";
 import { BrowserAgentPermissions } from "./BrowserAgentPermissions";
 import { BrowserHistoryPage } from "./BrowserHistoryPage";
 import { BrowserDownloadsPage } from "./BrowserDownloadsPage";
+import { BrowserSiteSettingsPage } from "./BrowserSiteSettingsPage";
 import { useBrowserClearBrowsingData } from "./useBrowserClearBrowsingData";
 import { BrowserClearBrowsingDataDialog } from "./BrowserClearBrowsingDataDialog";
 import {
@@ -25,11 +26,9 @@ import {
   BrowserSettingsSwitch,
 } from "./BrowserSettingsFields";
 
-type ManagementPage = "history" | "downloads";
+type ManagementPage = "history" | "downloads" | "site-settings";
 
-export function BrowserUseSettings({
-  page,
-}: { page?: "history" | "downloads" } = {}) {
+export function BrowserUseSettings({ page }: { page?: ManagementPage } = {}) {
   const navigate = useAppNavigationRequest();
   const returnPage = useRef<ManagementPage | null>(null);
   const back = () => {
@@ -38,6 +37,8 @@ export function BrowserUseSettings({
   };
   if (page === "history") return <BrowserHistoryPage onBack={back} />;
   if (page === "downloads") return <BrowserDownloadsPage onBack={back} />;
+  if (page === "site-settings")
+    return <BrowserSiteSettingsPage onBack={back} />;
   return (
     <BrowserSettingsPage
       onHistory={
@@ -58,6 +59,15 @@ export function BrowserUseSettings({
               })
           : undefined
       }
+      onSiteSettings={
+        navigate
+          ? () =>
+              navigate("settings", {
+                tab: SettingsTabs.Browser,
+                browserPage: "site-settings",
+              })
+          : undefined
+      }
       restoreFocus={returnPage.current}
     />
   );
@@ -66,10 +76,12 @@ export function BrowserUseSettings({
 function BrowserSettingsPage({
   onHistory,
   onDownloads,
+  onSiteSettings,
   restoreFocus,
 }: {
   onHistory?: () => void;
   onDownloads?: () => void;
+  onSiteSettings?: () => void;
   restoreFocus: ManagementPage | null;
 }) {
   const { t } = useTranslation("settings");
@@ -83,7 +95,7 @@ function BrowserSettingsPage({
     if (restoreFocus)
       settingsRef.current
         ?.querySelector<HTMLButtonElement>(
-          `#browser-${restoreFocus === "history" ? "history" : "download-history"} button`,
+          `#browser-${restoreFocus === "history" ? "history" : restoreFocus === "downloads" ? "download-history" : "site-settings"} button`,
         )
         ?.focus();
   }, [restoreFocus]);
@@ -283,6 +295,20 @@ function BrowserSettingsPage({
             onClick={onHistory}
           >
             {t("browserHistory.manage")}
+          </button>
+        </BrowserSettingsRow>
+        <BrowserSettingsRow
+          id="browser-site-settings"
+          label={t("browserSiteSettings.title")}
+          description={t("browserSiteSettings.description")}
+        >
+          <button
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            disabled={!onSiteSettings}
+            onClick={onSiteSettings}
+          >
+            {t("browserSiteSettings.manage")}
           </button>
         </BrowserSettingsRow>
         <PreferenceMenu

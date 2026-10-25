@@ -26,6 +26,7 @@ import {
   type UnifiedTabStripEntry,
 } from "./UnifiedTabStripRenderer";
 import { KeyboardShortcutsDialogHost } from "@/components/keyboard-shortcuts/KeyboardShortcutsDialogHost";
+import { WindowCloseConfirmationDialogHost } from "@/components/window-close-confirmation/WindowCloseConfirmationDialogHost";
 
 const HeaderContext = createContext<ReturnType<
   typeof createShellRegistry
@@ -43,6 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <HeaderContext.Provider value={registry}>
       {children}
       <KeyboardShortcutsDialogHost />
+      <WindowCloseConfirmationDialogHost />
     </HeaderContext.Provider>
   );
 }

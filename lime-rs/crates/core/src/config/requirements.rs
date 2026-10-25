@@ -1,8 +1,8 @@
 //! 独立于用户、项目和会话配置的系统管理员约束。
 
 use super::{
-    ApprovalPolicy, BrowserUseRequirementsToml, Config, ConfigError, InAppBrowserRequirementsToml,
-    SandboxMode,
+    ApplicationRequirementsToml, ApprovalPolicy, BrowserUseRequirementsToml, ComputerUseRequirementsToml, Config, ConfigError,
+    InAppBrowserRequirementsToml, SandboxMode,
 };
 use agent_protocol::WebSearchMode;
 use serde::Deserialize;
@@ -14,20 +14,28 @@ mod windows;
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigRequirements {
+    pub application: Option<ApplicationRequirementsToml>,
+    // Typed network defaults must not erase an explicitly disabled lower layer.
+    #[serde(skip)]
+    pub(super) application_network_enabled: Option<bool>,
     pub allowed_approval_policies: Option<Vec<ApprovalPolicy>>,
     pub allowed_sandbox_modes: Option<Vec<SandboxMode>>,
     pub allowed_web_search_modes: Option<Vec<WebSearchMode>>,
     pub allow_browser_and_computer_use: Option<bool>,
+    pub computer_use: Option<ComputerUseRequirementsToml>,
     pub browser_use: Option<BrowserUseRequirementsToml>,
     pub in_app_browser: Option<InAppBrowserRequirementsToml>,
 }
 
 impl ConfigRequirements {
     pub fn is_empty(&self) -> bool {
-        self.allowed_approval_policies.is_none()
+        self.application.as_ref().is_none_or(|application| {
+            application.network.is_none() && application.storage.is_none()
+        }) && self.allowed_approval_policies.is_none()
             && self.allowed_sandbox_modes.is_none()
             && self.allowed_web_search_modes.is_none()
             && self.allow_browser_and_computer_use.is_none()
+            && self.computer_use.as_ref().is_none_or(ComputerUseRequirementsToml::is_empty)
             && self
                 .browser_use
                 .as_ref()
@@ -57,6 +65,21 @@ impl ConfigRequirements {
     pub fn parse(source: &str) -> Result<Self, ConfigError> {
         let mut requirements: Self = toml_edit::de::from_str(source)
             .map_err(|error| ConfigError::ParseError(format!("requirements.toml: {error}")))?;
+        if requirements
+            .application
+            .as_ref()
+            .is_some_and(|application| application.storage.is_some())
+        {
+            return Err(invalid("application.storage is not supported until Desktop workspace storage enforcement is available"));
+        }
+        let document = source
+            .parse::<toml_edit::DocumentMut>()
+            .map_err(|error| ConfigError::ParseError(format!("requirements.toml: {error}")))?;
+        requirements.application_network_enabled = document
+            .get("application")
+            .and_then(|application| application.get("network"))
+            .and_then(|network| network.get("enabled"))
+            .and_then(toml_edit::Item::as_bool);
         if requirements
             .allowed_approval_policies
             .as_ref()
@@ -143,6 +166,13 @@ fn invalid(message: impl Into<String>) -> ConfigError {
     ConfigError::ValidationError(message.into())
 }
 
+#[derive(serde::Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkDomainPermissionToml {
+    Allow,
+    Deny,
+}
+
 pub fn system_requirements_path() -> Result<std::path::PathBuf, ConfigError> {
     #[cfg(windows)]
     {
@@ -156,5 +186,7 @@ pub fn system_requirements_path() -> Result<std::path::PathBuf, ConfigError> {
 
 #[cfg(test)]
 mod browser_tests;
+#[cfg(test)]
+mod computer_tests;
 #[cfg(test)]
 mod tests;

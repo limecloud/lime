@@ -93,7 +93,7 @@ Desktop GUI 业务能力只通过 App Server JSON-RPC 进入 Rust runtime。Elec
 | 已删除的 `lime-providers`                                         | `dead / deleted / forbidden-to-restore` | Provider 能力只能进入 `model-provider`，不得恢复依赖或 compat 包装             |
 | 旧 Electron 业务 facade、legacy JSON-RPC/IPC 与生产 mock fallback | `dead` 或 `deprecated`                  | 业务调用迁入 App Server current method；旧名只允许负向守卫或有退出条件的委托层 |
 | 旧 MCP、Skills、Automation 与外部 Chrome/CDP 正向入口             | `dead / retired guard-only`             | 不恢复 catalog、Renderer gateway、Desktop command 或正向 fixture               |
-| `.lime/AGENTS.md` / `.lime/AGENTS.override.md` 文件位置 fallback  | `compat`                                | 只委托标准 `CODEX_HOME/AGENTS.md` 与项目 `AGENTS.md`，不得扩展新语义           |
+| `.lime/AGENTS.md` / `.lime/AGENTS.override.md` 文件位置 fallback  | `compat`                                | 只委托标准 `LIME_HOME/AGENTS.md` 与项目 `AGENTS.md`，不得扩展新语义           |
 | 消息渠道旧单通道入口与 remote command wrapper                     | `compat` 或 `deprecated`                | 新能力只能进入 current 消息渠道或浏览器连接器 ingress；按领域计划迁出          |
 
 ## 6. 维护规则

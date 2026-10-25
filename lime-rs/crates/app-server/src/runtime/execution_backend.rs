@@ -5,6 +5,13 @@ use tokio_util::sync::CancellationToken;
 
 #[async_trait]
 pub trait ExecutionBackend: Send + Sync {
+    fn set_computer_use_gateway(
+        &self,
+        _gateway: Arc<dyn tool_runtime::computer_use::ComputerUseGateway>,
+    ) -> Result<(), RuntimeCoreError> {
+        Ok(())
+    }
+
     fn requires_provider_selection(&self) -> bool {
         false
     }

@@ -158,7 +158,7 @@ async fn memory_stage1_route_uses_current_session_selection_and_fails_closed_on_
         route.route_protocol,
         app_server_protocol::ProtocolKind::OpenaiChat
             | app_server_protocol::ProtocolKind::OpenaiResponses
-            | app_server_protocol::ProtocolKind::CodexResponses
+            | app_server_protocol::ProtocolKind::OpenaiResponses
     ));
 
     let metadata = session

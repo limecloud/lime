@@ -11,8 +11,8 @@ vi.mock("@/hooks/useLocalEnvironmentSelection", () => ({
   useLocalEnvironmentSelection: vi.fn(),
 }));
 const workspaceRoot = "/workspace/project";
-const configPath = `${workspaceRoot}/.codex/environments/environment.toml`;
-const otherPath = `${workspaceRoot}/.codex/environments/environment-2.toml`;
+const configPath = `${workspaceRoot}/.lime/environments/environment.toml`;
+const otherPath = `${workspaceRoot}/.lime/environments/environment-2.toml`;
 const environment = (path: string, name: string) => ({
   type: "success" as const,
   configPath: path,

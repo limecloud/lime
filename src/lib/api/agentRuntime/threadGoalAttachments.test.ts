@@ -52,7 +52,7 @@ describe("ThreadGoal attachment materialization", () => {
       h.options,
     );
     expect(materialized.objective).toBe(
-      `Read the Codex goal objective file at ${directory}/goal-objective.md before continuing.`,
+      `Read the Lime goal objective file at ${directory}/goal-objective.md before continuing.`,
     );
     expect(text(h.written.get(`${directory}/goal-objective.md`)!)).toBe(long);
     expect(h.files.remove).not.toHaveBeenCalled();

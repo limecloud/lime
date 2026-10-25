@@ -2,7 +2,7 @@ import { logAgentDebug } from "@/lib/agentDebug";
 import type { AppServerJsonRpcNotification } from "@/lib/api/appServer";
 import { RENDER_PROJECTION_REFERENCE_REVISION } from "./conversationProjection";
 
-const CODEX_REALTIME_NOTIFICATION_METHODS = [
+const APP_SERVER_REALTIME_NOTIFICATION_METHODS = [
   "thread/realtime/closed",
   "thread/realtime/error",
   "thread/realtime/itemAdded",
@@ -13,7 +13,7 @@ const CODEX_REALTIME_NOTIFICATION_METHODS = [
   "thread/realtime/transcript/done",
 ] as const;
 
-const CODEX_V2_NOTIFICATION_METHODS = new Set([
+const APP_SERVER_V2_NOTIFICATION_METHODS = new Set([
   "account/login/completed",
   "account/rateLimits/updated",
   "account/updated",
@@ -71,7 +71,7 @@ const CODEX_V2_NOTIFICATION_METHODS = new Set([
   "thread/project/updated",
   "thread/queue/changed",
   "thread/reverted",
-  ...CODEX_REALTIME_NOTIFICATION_METHODS,
+  ...APP_SERVER_REALTIME_NOTIFICATION_METHODS,
   "thread/settings/updated",
   "thread/started",
   "thread/status/changed",
@@ -106,7 +106,7 @@ const DIAGNOSTIC_ONLY_NOTIFICATION_METHODS = new Set([
   "thread/compacted",
   "thread/environment/connected",
   "thread/environment/disconnected",
-  ...CODEX_REALTIME_NOTIFICATION_METHODS,
+  ...APP_SERVER_REALTIME_NOTIFICATION_METHODS,
 ]);
 const PROJECTED_NOTIFICATION_METHODS = new Set([
   "fs/changed",
@@ -133,8 +133,8 @@ const PROJECTED_NOTIFICATION_METHODS = new Set([
 
 const MAX_DIAGNOSTIC_FIELDS = 32;
 
-export function listCodexV2NotificationMethods(): string[] {
-  return [...CODEX_V2_NOTIFICATION_METHODS].sort((left, right) =>
+export function listV2NotificationMethods(): string[] {
+  return [...APP_SERVER_V2_NOTIFICATION_METHODS].sort((left, right) =>
     left.localeCompare(right),
   );
 }
@@ -164,7 +164,7 @@ export function readAppServerNotificationDrift(
 ): AppServerNotificationDrift {
   const params = asRecord(notification.params);
   const route = readAppServerNotificationDriftRoute(notification);
-  const known = CODEX_V2_NOTIFICATION_METHODS.has(notification.method);
+  const known = APP_SERVER_V2_NOTIFICATION_METHODS.has(notification.method);
   return {
     disposition: PROJECTED_NOTIFICATION_METHODS.has(notification.method)
       ? "known_projected"

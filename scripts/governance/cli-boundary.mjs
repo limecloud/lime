@@ -6,6 +6,9 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const RETIRED_PATHS = [
+  "lime-rs/upstream",
+  "lime-rs/codex-rs",
+  "codex-rs",
   "lime-rs/crates/lime-cli",
   "packages/lime-cli-npm",
   "tools/lime-cli",
@@ -17,6 +20,7 @@ const RETIRED_PATHS = [
 ];
 
 const CURRENT_PATHS = [
+  "lime-rs/Cargo.toml",
   "lime-rs/crates/cli/Cargo.toml",
   "lime-rs/crates/cli/src/main.rs",
   "lime-rs/crates/cli/src/connection.rs",
@@ -97,6 +101,20 @@ export function checkCliBoundary(repoRoot = process.cwd()) {
   }
 
   const cargoManifest = read(repoRoot, "lime-rs/crates/cli/Cargo.toml");
+  for (const manifest of [
+    "lime-rs/Cargo.toml",
+    "lime-rs/crates/cli/Cargo.toml",
+  ]) {
+    if (
+      /\bpath\s*=\s*"(?:[^"\n]*[\\/])?(?:upstream|codex-rs)(?:[\\/][^"\n]*)?"/u.test(
+        read(repoRoot, manifest),
+      )
+    ) {
+      failures.push(
+        `Cargo dependencies must use current Lime owners: ${manifest}`,
+      );
+    }
+  }
   if (!/^name = "cli"$/mu.test(cargoManifest)) {
     failures.push('CLI crate package must be named "cli"');
   }

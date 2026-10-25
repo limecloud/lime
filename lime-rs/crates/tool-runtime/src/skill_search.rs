@@ -266,7 +266,7 @@ fn skill_search_output(
             .iter()
             .map(skill_search_result_value)
             .collect::<Vec<_>>(),
-        "usage": "Search results are metadata only. Local skills use SKILL.md; scope=orchestrator skill:// locators must be read with read_mcp_resource from codex_apps. Do not treat this search as execution approval."
+        "usage": "Search results are metadata only. Local skills use SKILL.md; scope=orchestrator skill:// locators must be read with read_mcp_resource from lime_apps. Do not treat this search as execution approval."
     })
 }
 
@@ -464,7 +464,7 @@ mod tests {
                         "interface": {
                             "display_name": "delivery:release-notes",
                             "execution_mode": "mcp_resource",
-                            "provider": "codex_apps",
+                            "provider": "lime_apps",
                             "model": null,
                             "argument_hint": null
                         },

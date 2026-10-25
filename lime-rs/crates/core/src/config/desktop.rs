@@ -4,6 +4,22 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ComposerEnterBehavior {
+    Enter,
+    CmdIfMultiline,
+    CmdAlways,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConfirmBeforeClose {
+    Never,
+    KeyboardOnly,
+    Always,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LinkOpenTarget {
     InAppBrowser,
@@ -37,6 +53,20 @@ pub enum ReasoningEffort {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct DesktopConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirm_before_close: Option<ConfirmBeforeClose>,
+    #[serde(
+        rename = "preventSleepWhileRunning",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub prevent_sleep_while_running: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mac_menu_bar_enabled: Option<bool>,
+    #[serde(
+        rename = "composerEnterBehavior",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub composer_enter_behavior: Option<ComposerEnterBehavior>,
     /// 缺项继承命令默认值，空数组显式解除绑定。
     #[serde(
         default,
@@ -71,6 +101,16 @@ where
 }
 
 fn valid_binding(binding: &str) -> bool {
+    let compact = binding
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace(" +", "+")
+        .replace("+ ", "+");
+    !compact.is_empty() && compact.split_whitespace().all(valid_stroke)
+}
+
+fn valid_stroke(binding: &str) -> bool {
     let mut parts: Vec<_> = binding.split('+').map(str::trim).collect();
     let Some(key) = parts.pop() else {
         return false;
@@ -133,6 +173,120 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn close_confirmation_preserves_unset_and_round_trips_three_modes() {
+        let default: DesktopConfig = serde_json::from_value(json!({})).unwrap();
+        assert!(default.confirm_before_close.is_none());
+        assert!(serde_json::to_value(default)
+            .unwrap()
+            .get("confirm-before-close")
+            .is_none());
+        for mode in ["never", "keyboardOnly", "always"] {
+            let config: DesktopConfig =
+                serde_json::from_value(json!({"confirm-before-close": mode})).unwrap();
+            let restored: DesktopConfig =
+                serde_yaml::from_str(&serde_yaml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(config, restored);
+            assert_eq!(
+                serde_json::to_value(restored).unwrap()["confirm-before-close"],
+                mode
+            );
+        }
+        for invalid in [
+            json!("keyboard-only"),
+            json!(true),
+            json!(1),
+            json!([]),
+            json!({}),
+        ] {
+            assert!(serde_json::from_value::<DesktopConfig>(
+                json!({"confirm-before-close": invalid})
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn prevent_sleep_preserves_unset_and_round_trips_both_states() {
+        let default: DesktopConfig = serde_json::from_value(json!({})).unwrap();
+        assert!(default.prevent_sleep_while_running.is_none());
+        assert!(serde_json::to_value(default)
+            .unwrap()
+            .get("preventSleepWhileRunning")
+            .is_none());
+        for enabled in [true, false] {
+            let config: DesktopConfig =
+                serde_json::from_value(json!({"preventSleepWhileRunning": enabled})).unwrap();
+            let restored: DesktopConfig =
+                serde_yaml::from_str(&serde_yaml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(config, restored);
+            assert_eq!(restored.prevent_sleep_while_running, Some(enabled));
+        }
+        for invalid in [json!("false"), json!(0), json!([]), json!({})] {
+            assert!(serde_json::from_value::<DesktopConfig>(
+                json!({"preventSleepWhileRunning": invalid})
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn menu_bar_preference_preserves_unset_and_round_trips_both_states() {
+        let default: DesktopConfig = serde_json::from_value(json!({})).unwrap();
+        assert!(default.mac_menu_bar_enabled.is_none());
+        assert!(serde_json::to_value(default)
+            .unwrap()
+            .get("mac-menu-bar-enabled")
+            .is_none());
+        for enabled in [true, false] {
+            let config: DesktopConfig =
+                serde_json::from_value(json!({"mac-menu-bar-enabled": enabled})).unwrap();
+            let restored: DesktopConfig =
+                serde_yaml::from_str(&serde_yaml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(restored.mac_menu_bar_enabled, Some(enabled));
+            assert_eq!(config, restored);
+        }
+        for invalid in [json!("false"), json!(0), json!([]), json!({})] {
+            assert!(serde_json::from_value::<DesktopConfig>(
+                json!({"mac-menu-bar-enabled": invalid})
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn composer_enter_behavior_preserves_unset_and_round_trips_three_modes() {
+        let default: DesktopConfig = serde_json::from_value(json!({})).unwrap();
+        assert!(default.composer_enter_behavior.is_none());
+        assert!(serde_json::to_value(default)
+            .unwrap()
+            .get("composerEnterBehavior")
+            .is_none());
+        for mode in ["enter", "cmdIfMultiline", "cmdAlways"] {
+            let config: DesktopConfig =
+                serde_json::from_value(json!({"composerEnterBehavior": mode})).unwrap();
+            let restored: DesktopConfig =
+                serde_yaml::from_str(&serde_yaml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(config, restored);
+            assert_eq!(
+                serde_json::to_value(restored).unwrap()["composerEnterBehavior"],
+                mode
+            );
+        }
+        for invalid in [
+            json!("newline"),
+            json!("unknown"),
+            json!(true),
+            json!(1),
+            json!([]),
+        ] {
+            assert!(serde_json::from_value::<DesktopConfig>(
+                json!({"composerEnterBehavior": invalid})
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
     fn desktop_link_preferences_preserve_unconfigured_identity() {
         let config: DesktopConfig = serde_json::from_value(json!({})).unwrap();
         assert!(config.is_default());
@@ -188,7 +342,7 @@ mod tests {
     #[test]
     fn keyboard_shortcuts_round_trip_preserves_unbound_and_defaults() {
         let value = json!({"keyboard-shortcuts": {
-            "searchSettings": ["CommandOrControl+Shift+F", "Alt+F2"],
+            "searchSettings": ["CommandOrControl+Shift+F", "Alt+F2", "G G", "Control+K Control+S"],
             "showKeyboardShortcuts": []
         }});
         let config: DesktopConfig = serde_json::from_value(value.clone()).unwrap();
@@ -217,12 +371,23 @@ mod tests {
             json!({"search": ["CommandOrControl+Control+K"]}),
             json!({"search": ["F25"]}),
             json!({"search": ["F01"]}),
-            json!({"search": ["Control+K Control+S"]}),
+            json!({"search": ["Control+K Hyper+S"]}),
+            json!({"search": ["G Control"]}),
         ] {
             assert!(
                 serde_json::from_value::<DesktopConfig>(json!({"keyboard-shortcuts": value}))
                     .is_err()
             );
+        }
+    }
+
+    #[test]
+    fn keyboard_shortcuts_validate_every_stroke_without_using_tui_chord_limits() {
+        for binding in ["G G", "G Control+S", "Control + K Control + S", "A B C"] {
+            assert!(valid_binding(binding), "{binding}");
+        }
+        for binding in ["", "G Hyper+S", "G Control+Control+S", "G Control", "G +"] {
+            assert!(!valid_binding(binding), "{binding}");
         }
     }
 

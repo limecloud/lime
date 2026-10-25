@@ -124,7 +124,7 @@ export function serializeLocalEnvironment(
 
 export function defaultEnvironmentConfigPath(workspaceRoot: string): string {
   const separator = workspaceRoot.includes("\\") ? "\\" : "/";
-  return `${workspaceRoot.replace(/[\\/]+$/, "")}${separator}.codex${separator}environments${separator}environment.toml`;
+  return `${workspaceRoot.replace(/[\\/]+$/, "")}${separator}.lime${separator}environments${separator}environment.toml`;
 }
 
 export function nextEnvironmentConfigPath(
@@ -147,7 +147,7 @@ export function nextEnvironmentConfigPath(
 }
 
 export function environmentWorkspaceRoot(configPath: string): string {
-  return configPath.replace(/[\\/]\.codex[\\/]environments[\\/][^\\/]+$/, "");
+  return configPath.replace(/[\\/]\.lime[\\/]environments[\\/][^\\/]+$/, "");
 }
 
 export function partitionLocalEnvironments(

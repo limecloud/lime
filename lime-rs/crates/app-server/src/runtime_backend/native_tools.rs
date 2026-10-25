@@ -12,9 +12,20 @@ pub(crate) async fn register_current_native_tools_if_available(
     agent_state: &AgentRuntimeState,
     app_data_source: &RwLock<Option<Arc<dyn AppDataSource>>>,
     current_time_gateway: &RwLock<Option<Arc<dyn tool_runtime::current_time::CurrentTimeGateway>>>,
+    computer_use_gateway: &RwLock<Option<Arc<dyn tool_runtime::computer_use::ComputerUseGateway>>>,
 ) -> Result<(), RuntimeCoreError> {
     if !agent_state.is_initialized().await {
         return Ok(());
+    }
+    let computer_use_gateway = computer_use_gateway
+        .read()
+        .map_err(|_| RuntimeCoreError::Backend("Computer Use gateway lock poisoned".into()))?
+        .clone();
+    if let Some(gateway) = computer_use_gateway {
+        agent_state
+            .register_computer_use_tools(gateway)
+            .await
+            .map_err(RuntimeCoreError::Backend)?;
     }
     let current_time_gateway = current_time_gateway
         .read()

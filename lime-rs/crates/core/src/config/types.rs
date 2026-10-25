@@ -37,9 +37,9 @@ pub struct CredentialPoolConfig {
     /// Vertex AI 凭证列表
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub vertex_api_keys: Vec<VertexApiKeyEntry>,
-    /// Codex OAuth 凭证列表
+    /// Lime OAuth 凭证列表
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub codex: Vec<CredentialEntry>,
+    pub lime: Vec<CredentialEntry>,
 }
 
 // ============ ASR 语音服务配置类型 ============
@@ -283,7 +283,7 @@ fn default_auth_dir() -> String {
 /// 端点 Provider 配置
 ///
 /// 允许为不同的客户端端点配置不同的 Provider
-/// 例如：Cursor 使用 Qwen，Claude Code 使用 Kiro，Codex 使用 Codex
+/// 例如：Cursor 使用 Qwen，Claude Code 使用 Kiro，Lime 使用 Lime
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct EndpointProvidersConfig {
     /// Cursor 客户端使用的 Provider
@@ -294,10 +294,10 @@ pub struct EndpointProvidersConfig {
     /// 如果为空，则使用 default_provider
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claude_code: Option<String>,
-    /// Codex 客户端使用的 Provider
+    /// Lime 客户端使用的 Provider
     /// 如果为空，则使用 default_provider
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub codex: Option<String>,
+    pub lime: Option<String>,
     /// Windsurf 客户端使用的 Provider
     /// 如果为空，则使用 default_provider
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -316,7 +316,7 @@ impl EndpointProvidersConfig {
     /// 根据客户端类型获取配置的 Provider
     ///
     /// # 参数
-    /// - `client_type`: 客户端类型的配置键名（cursor, claude_code, codex, windsurf, kiro, other）
+    /// - `client_type`: 客户端类型的配置键名（cursor, claude_code, lime, windsurf, kiro, other）
     ///
     /// # 返回
     /// 如果配置了对应的 Provider，返回 Some(&String)；否则返回 None
@@ -324,7 +324,7 @@ impl EndpointProvidersConfig {
         match client_type {
             "cursor" => self.cursor.as_ref(),
             "claude_code" => self.claude_code.as_ref(),
-            "codex" => self.codex.as_ref(),
+            "lime" => self.lime.as_ref(),
             "windsurf" => self.windsurf.as_ref(),
             "kiro" => self.kiro.as_ref(),
             "other" => self.other.as_ref(),
@@ -335,7 +335,7 @@ impl EndpointProvidersConfig {
     /// 设置客户端类型的 Provider
     ///
     /// # 参数
-    /// - `client_type`: 客户端类型的配置键名（cursor, claude_code, codex, windsurf, kiro, other）
+    /// - `client_type`: 客户端类型的配置键名（cursor, claude_code, lime, windsurf, kiro, other）
     /// - `provider`: 要设置的 Provider 名称，None 或空字符串表示清除配置
     ///
     /// # 返回
@@ -351,8 +351,8 @@ impl EndpointProvidersConfig {
                 self.claude_code = provider;
                 true
             }
-            "codex" => {
-                self.codex = provider;
+            "lime" => {
+                self.lime = provider;
                 true
             }
             "windsurf" => {
@@ -408,10 +408,13 @@ pub struct Config {
     /// 仅工作区写入沙盒使用的网络权限。
     #[serde(default)]
     pub sandbox_workspace_write: super::SandboxWorkspaceWrite,
-    /// Codex-compatible default named permission profile.
+    /// Shell 子进程环境策略，与 Lime 配置语义一致。
+    #[serde(default, skip_serializing_if = "super::ShellEnvironmentPolicyToml::is_empty")]
+    pub shell_environment_policy: super::ShellEnvironmentPolicyToml,
+    /// Lime-compatible default named permission profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_permissions: Option<String>,
-    /// Codex-compatible named permission profiles loaded from YAML.
+    /// Lime-compatible named permission profiles loaded from YAML.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub permissions: BTreeMap<String, PermissionProfileConfig>,
     /// 项目信任只从用户配置读取，项目文件不能自行授予信任。
@@ -423,7 +426,7 @@ pub struct Config {
     /// Desktop 链接偏好；由同一 App Server 用户配置层持久化。
     #[serde(default, skip_serializing_if = "super::DesktopConfig::is_default")]
     pub desktop: super::DesktopConfig,
-    /// 与Codex共用的标准布尔feature键。
+    /// 与Lime共用的标准布尔feature键。
     #[serde(default, skip_serializing_if = "super::FeaturesToml::is_empty")]
     pub features: super::FeaturesToml,
     /// Git 工作流偏好；GUI 与 Agent 使用同一用户配置。
@@ -441,6 +444,13 @@ pub struct Config {
         deserialize_with = "super::browser_use_validation::deserialize"
     )]
     pub browser_use: Option<super::BrowserUseConfigToml>,
+    /// 应用访问策略；Desktop、CLI/TUI 共享，系统权限不从此配置推导。
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::computer_use_validation::deserialize"
+    )]
+    pub computer_use: Option<super::ComputerUseConfigToml>,
     /// 路由辅助配置
     #[serde(default)]
     pub routing: RoutingConfig,
@@ -472,7 +482,7 @@ pub struct Config {
     #[serde(default)]
     pub ampcode: AmpConfig,
     /// 端点 Provider 配置
-    /// 允许为不同的客户端端点（CC/Codex）配置不同的 Provider
+    /// 允许为不同的客户端端点（CC/Lime）配置不同的 Provider
     #[serde(default)]
     pub endpoint_providers: EndpointProvidersConfig,
     /// 关闭时最小化到托盘（而不是退出应用）
@@ -556,7 +566,7 @@ pub struct Config {
     pub channels: ChannelsConfig,
 }
 
-/// A named permission profile, matching the Codex profile vocabulary while
+/// A named permission profile, matching the Lime profile vocabulary while
 /// remaining owned by Lime's YAML configuration source.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct PermissionProfileConfig {
@@ -765,7 +775,7 @@ impl Default for NativeAgentConfig {
     }
 }
 
-/// Codex-compatible shared rollout budget configuration.
+/// Lime-compatible shared rollout budget configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RolloutBudgetConfig {
     pub limit_tokens: i64,
@@ -1193,7 +1203,7 @@ impl CredentialPoolConfig {
             && self.claude.is_empty()
             && self.gemini_api_keys.is_empty()
             && self.vertex_api_keys.is_empty()
-            && self.codex.is_empty()
+            && self.lime.is_empty()
     }
 }
 
@@ -2044,12 +2054,12 @@ impl Default for ModelsConfig {
             },
         );
 
-        // Codex - 模型列表从别名配置动态加载
+        // Lime - 模型列表从别名配置动态加载
         providers.insert(
-            "codex".to_string(),
+            "lime".to_string(),
             ProviderModelsConfig {
-                label: "Codex".to_string(),
-                models: vec![], // 从 aliases/codex.json 动态加载
+                label: "Lime".to_string(),
+                models: vec![], // 从 aliases/lime.json 动态加载
             },
         );
 
@@ -2159,6 +2169,7 @@ impl Default for Config {
             approval_policy: super::ApprovalPolicy::default(),
             sandbox_mode: super::SandboxMode::default(),
             sandbox_workspace_write: super::SandboxWorkspaceWrite::default(),
+            shell_environment_policy: super::ShellEnvironmentPolicyToml::default(),
             default_permissions: None,
             permissions: BTreeMap::new(),
             projects: BTreeMap::new(),
@@ -2169,6 +2180,7 @@ impl Default for Config {
             worktrees: super::WorktreeConfig::default(),
             browser: super::BrowserConfig::default(),
             browser_use: None,
+            computer_use: None,
             routing: RoutingConfig::default(),
             retry: RetrySettings::default(),
             logging: LoggingConfig::default(),
@@ -3264,7 +3276,7 @@ memory:
             claude: vec![],
             gemini_api_keys: vec![],
             vertex_api_keys: vec![],
-            codex: vec![],
+            lime: vec![],
         };
 
         let yaml = serde_yaml::to_string(&pool).unwrap();
@@ -3331,7 +3343,7 @@ memory:
         let config = EndpointProvidersConfig::default();
         assert!(config.cursor.is_none());
         assert!(config.claude_code.is_none());
-        assert!(config.codex.is_none());
+        assert!(config.lime.is_none());
         assert!(config.windsurf.is_none());
         assert!(config.kiro.is_none());
         assert!(config.other.is_none());
@@ -3342,7 +3354,7 @@ memory:
         let config = EndpointProvidersConfig {
             cursor: Some("qwen".to_string()),
             claude_code: Some("kiro".to_string()),
-            codex: Some("codex".to_string()),
+            lime: Some("lime".to_string()),
             windsurf: None,
             kiro: Some("gemini".to_string()),
             other: None,
@@ -3353,7 +3365,7 @@ memory:
             config.get_provider("claude_code"),
             Some(&"kiro".to_string())
         );
-        assert_eq!(config.get_provider("codex"), Some(&"codex".to_string()));
+        assert_eq!(config.get_provider("lime"), Some(&"lime".to_string()));
         assert_eq!(config.get_provider("windsurf"), None);
         assert_eq!(config.get_provider("kiro"), Some(&"gemini".to_string()));
         assert_eq!(config.get_provider("other"), None);
@@ -3371,8 +3383,8 @@ memory:
         assert!(config.set_provider("claude_code", Some("kiro".to_string())));
         assert_eq!(config.claude_code, Some("kiro".to_string()));
 
-        assert!(config.set_provider("codex", Some("codex".to_string())));
-        assert_eq!(config.codex, Some("codex".to_string()));
+        assert!(config.set_provider("lime", Some("lime".to_string())));
+        assert_eq!(config.lime, Some("lime".to_string()));
 
         assert!(config.set_provider("windsurf", Some("gemini".to_string())));
         assert_eq!(config.windsurf, Some("gemini".to_string()));
@@ -3392,7 +3404,7 @@ memory:
         let mut config = EndpointProvidersConfig {
             cursor: Some("qwen".to_string()),
             claude_code: Some("kiro".to_string()),
-            codex: None,
+            lime: None,
             windsurf: None,
             kiro: None,
             other: None,
@@ -3412,7 +3424,7 @@ memory:
         let config = EndpointProvidersConfig {
             cursor: Some("qwen".to_string()),
             claude_code: Some("kiro".to_string()),
-            codex: None,
+            lime: None,
             windsurf: None,
             kiro: None,
             other: None,
@@ -3422,7 +3434,7 @@ memory:
         assert!(yaml.contains("cursor: qwen"));
         assert!(yaml.contains("claude_code: kiro"));
         // None 值应该被跳过
-        assert!(!yaml.contains("codex"));
+        assert!(!yaml.contains("lime"));
         assert!(!yaml.contains("windsurf"));
         assert!(!yaml.contains("kiro:"));
         assert!(!yaml.contains("other"));
@@ -3436,7 +3448,7 @@ memory:
         let config = EndpointProvidersConfig {
             cursor: Some("qwen".to_string()),
             claude_code: None,
-            codex: Some("codex".to_string()),
+            lime: Some("lime".to_string()),
             windsurf: None,
             kiro: None,
             other: Some("openai".to_string()),

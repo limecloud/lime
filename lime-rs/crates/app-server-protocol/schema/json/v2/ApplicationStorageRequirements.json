@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Managed storage settings for new Desktop workspaces, not filesystem access restrictions.",
+  "properties": {
+    "defaultProjectParent": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "projectlessWorkspaceRoot": {
+      "type": [
+        "null",
+        "string"
+      ]
+    }
+  },
+  "title": "ApplicationStorageRequirements",
+  "type": "object"
+}

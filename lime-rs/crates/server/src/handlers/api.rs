@@ -1629,7 +1629,7 @@ async fn collect_provider_fallback_chain(state: &AppState, selected_provider: &s
     let endpoint_providers = state.endpoint_providers.read().await.clone();
     push_unique(&mut chain, &mut seen, endpoint_providers.cursor);
     push_unique(&mut chain, &mut seen, endpoint_providers.claude_code);
-    push_unique(&mut chain, &mut seen, endpoint_providers.codex);
+    push_unique(&mut chain, &mut seen, endpoint_providers.lime);
     push_unique(&mut chain, &mut seen, endpoint_providers.windsurf);
     push_unique(&mut chain, &mut seen, endpoint_providers.kiro);
     push_unique(&mut chain, &mut seen, endpoint_providers.other);

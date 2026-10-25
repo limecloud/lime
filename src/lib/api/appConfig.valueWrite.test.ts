@@ -268,7 +268,7 @@ describe("project configuration layers", () => {
             layers: [
               ...response.result.layers,
               {
-                name: { type: "project", dotCodexFolder: `${cwd}/.lime` },
+                name: { type: "project", dotLimeFolder: `${cwd}/.lime` },
                 config: { model_verbosity: projectValue },
                 version: projectVersion,
                 disabledReason,

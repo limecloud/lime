@@ -637,6 +637,18 @@ nul
 !.codex/skills/lime-design-language/agents/
 .codex/skills/lime-design-language/agents/*
 !.codex/skills/lime-design-language/agents/openai.yaml
+!.codex/skills/lime-replication/
+.codex/skills/lime-replication/*
+!.codex/skills/lime-replication/SKILL.md
+!.codex/skills/lime-replication/agents/
+.codex/skills/lime-replication/agents/*
+!.codex/skills/lime-replication/agents/openai.yaml
+!.codex/skills/lime-replication/references/
+.codex/skills/lime-replication/references/*
+!.codex/skills/lime-replication/references/*.md
+!.codex/skills/lime-replication/scripts/
+.codex/skills/lime-replication/scripts/*
+!.codex/skills/lime-replication/scripts/*.mjs
 !.codex/skills/lime-release-workflow/
 .codex/skills/lime-release-workflow/*
 !.codex/skills/lime-release-workflow/SKILL.md
@@ -695,3 +707,6 @@ internal/exec-plans/artifacts/release-v1.167.0/*
 !internal/exec-plans/artifacts/release-v1.168.0/
 internal/exec-plans/artifacts/release-v1.168.0/*
 !internal/exec-plans/artifacts/release-v1.168.0/*.json
+
+# Codex source alignment plan is a tracked repository fact source.
+!internal/exec-plans/codex-source-baseline-migration-20261025.md

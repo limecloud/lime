@@ -2,52 +2,22 @@ use rusqlite::Connection;
 
 use super::{is_true_setting, mark_true_setting};
 
-const MCP_LIME_ENABLED_MIGRATED_KEY: &str = "migrated_mcp_lime_enabled";
 const MCP_CREATED_AT_INTEGER_MIGRATED_KEY: &str = "migrated_mcp_created_at_to_integer";
 
-/// 修复历史 MCP 导入数据：补齐 enabled_lime
-///
-/// 早期版本从 Claude/Codex/Gemini 导入 MCP 时，默认写入 enabled_lime=0，
-/// 导致 Lime 本身不会使用这些服务器。
-///
-/// 迁移策略：
-/// - 仅处理 enabled_lime=0 的记录
-/// - 且至少在一个外部应用中启用（enabled_claude/codex/gemini 任一为 1）
-/// - 将 enabled_lime 设为 1
-pub fn migrate_mcp_lime_enabled(conn: &Connection) -> Result<usize, String> {
-    if is_true_setting(conn, MCP_LIME_ENABLED_MIGRATED_KEY) {
-        tracing::debug!("[迁移] MCP lime 启用状态已迁移过，跳过");
-        return Ok(0);
+/// 删除已经退役的跨应用同步列，保留本地服务器配置和启用状态。
+pub fn remove_mcp_sync_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
+    for column in ["enabled_claude", "enabled_codex", "enabled_gemini"] {
+        let exists = conn
+            .prepare("PRAGMA table_info(mcp_servers)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?
+            .iter()
+            .any(|name| name == column);
+        if exists {
+            conn.execute(&format!("ALTER TABLE mcp_servers DROP COLUMN {column}"), [])?;
+        }
     }
-
-    if !has_mcp_columns(
-        conn,
-        &[
-            "enabled_lime",
-            "enabled_claude",
-            "enabled_codex",
-            "enabled_gemini",
-        ],
-    )? {
-        tracing::info!("[迁移] mcp_servers 缺少 Lime 启用状态相关列，跳过 MCP lime 启用状态修复");
-        return Ok(0);
-    }
-
-    let updated = conn
-        .execute(
-            "UPDATE mcp_servers
-             SET enabled_lime = 1
-             WHERE enabled_lime = 0
-               AND (enabled_claude = 1 OR enabled_codex = 1 OR enabled_gemini = 1)",
-            [],
-        )
-        .map_err(|e| format!("修复 MCP enabled_lime 失败: {e}"))?;
-
-    mark_true_setting(conn, MCP_LIME_ENABLED_MIGRATED_KEY)?;
-
-    tracing::info!("[迁移] MCP lime 启用状态修复完成，更新 {} 条记录", updated);
-
-    Ok(updated)
+    Ok(())
 }
 
 /// 归一化 mcp_servers.created_at 字段为 INTEGER 时间戳
@@ -131,9 +101,6 @@ mod tests {
             CREATE TABLE mcp_servers (
                 id TEXT PRIMARY KEY,
                 enabled_lime INTEGER NOT NULL DEFAULT 0,
-                enabled_claude INTEGER NOT NULL DEFAULT 0,
-                enabled_codex INTEGER NOT NULL DEFAULT 0,
-                enabled_gemini INTEGER NOT NULL DEFAULT 0,
                 created_at
             );
             ",
@@ -143,43 +110,34 @@ mod tests {
     }
 
     #[test]
-    fn migrate_mcp_lime_enabled_updates_only_imported_rows() {
+    fn remove_sync_columns_preserves_servers_and_local_enablement() {
         let conn = setup_mcp_migration_db();
-
-        conn.execute(
-            "INSERT INTO mcp_servers (id, enabled_lime, enabled_claude) VALUES (?1, 0, 1)",
-            ["server-1"],
+        conn.execute_batch(
+            "ALTER TABLE mcp_servers ADD COLUMN enabled_claude INTEGER DEFAULT 0;
+            ALTER TABLE mcp_servers ADD COLUMN enabled_codex INTEGER DEFAULT 0;
+            ALTER TABLE mcp_servers ADD COLUMN enabled_gemini INTEGER DEFAULT 0;
+            INSERT INTO mcp_servers (id, enabled_lime, enabled_codex, created_at)
+                VALUES ('local', 0, 1, 123);",
         )
         .unwrap();
-        conn.execute(
-            "INSERT INTO mcp_servers (id, enabled_lime, enabled_claude) VALUES (?1, 0, 0)",
-            ["server-2"],
-        )
-        .unwrap();
-
-        let updated = migrate_mcp_lime_enabled(&conn).unwrap();
-        assert_eq!(updated, 1);
-
-        let enabled_lime: i64 = conn
+        remove_mcp_sync_columns(&conn).unwrap();
+        remove_mcp_sync_columns(&conn).unwrap();
+        let columns = conn
+            .prepare("PRAGMA table_info(mcp_servers)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(columns, ["id", "enabled_lime", "created_at"]);
+        let row: (String, bool, i64) = conn
             .query_row(
-                "SELECT enabled_lime FROM mcp_servers WHERE id = ?1",
-                ["server-1"],
-                |row| row.get(0),
+                "SELECT id, enabled_lime, created_at FROM mcp_servers",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!(enabled_lime, 1);
-
-        let untouched: i64 = conn
-            .query_row(
-                "SELECT enabled_lime FROM mcp_servers WHERE id = ?1",
-                ["server-2"],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(untouched, 0);
-
-        let updated_again = migrate_mcp_lime_enabled(&conn).unwrap();
-        assert_eq!(updated_again, 0);
+        assert_eq!(row, ("local".to_string(), false, 123));
     }
 
     #[test]
@@ -231,33 +189,5 @@ mod tests {
             )
             .unwrap();
         assert_eq!(invalid_type, "text");
-    }
-
-    #[test]
-    fn migrate_mcp_lime_enabled_skips_when_required_columns_are_missing() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            "
-            CREATE TABLE settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            CREATE TABLE mcp_servers (
-                id TEXT PRIMARY KEY,
-                enabled_claude INTEGER NOT NULL DEFAULT 0
-            );
-            ",
-        )
-        .unwrap();
-
-        conn.execute(
-            "INSERT INTO mcp_servers (id, enabled_claude) VALUES (?1, 1)",
-            ["server-legacy"],
-        )
-        .unwrap();
-
-        let updated = migrate_mcp_lime_enabled(&conn).unwrap();
-        assert_eq!(updated, 0);
-        assert!(!is_true_setting(&conn, MCP_LIME_ENABLED_MIGRATED_KEY));
     }
 }

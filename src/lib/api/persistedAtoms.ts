@@ -13,8 +13,12 @@ import type {
   PersistedAtomUpdateRequest,
   PersistedAtomUpdateResult,
 } from "@/lib/api/persistedAtomTypes";
-import { LOCAL_ENV_SELECTIONS_ATOM_KEY } from "@/lib/api/persistedAtomTypes";
+import {
+  LOCAL_ENV_SELECTIONS_ATOM_KEY,
+  LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY,
+} from "@/lib/api/persistedAtomTypes";
 import { parseLocalEnvironmentSelectionMutation } from "@/lib/api/localEnvironmentSelectionProtocol";
+import { parseLocalEnvironmentRecentActionMutation } from "@/lib/api/localEnvironmentRecentActionsProtocol";
 
 export const PERSISTED_ATOM_UPDATE_EVENT = "persisted-atom-update";
 
@@ -52,6 +56,11 @@ export async function sendPersistedAtomState(
 export async function updatePersistedAtomState(
   request: PersistedAtomUpdateRequest,
 ): Promise<PersistedAtomUpdateResult> {
+  if (request.key === LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY)
+    parseResponse(
+      () => parseLocalEnvironmentRecentActionMutation(request.mutation),
+      "invalid_request",
+    );
   if (request.key === LOCAL_ENV_SELECTIONS_ATOM_KEY)
     parseResponse(
       () => parseLocalEnvironmentSelectionMutation(request.mutation),

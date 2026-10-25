@@ -8,9 +8,6 @@ export interface McpServer {
   server_config: McpServerConfig;
   description?: string;
   enabled_lime: boolean;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
   created_at?: number;
 }
 
@@ -21,6 +18,7 @@ export type McpServerConfig =
       command: string;
       args?: string[];
       env?: Record<string, string>;
+      env_vars?: string[];
       cwd?: string;
       timeout?: number;
       startup_timeout?: number;
@@ -90,9 +88,6 @@ export interface McpServerInfo {
   server_info?: McpServerCapabilities;
   runtime_status?: McpServerRuntimeStatus;
   enabled_lime: boolean;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
 }
 
 export interface McpServerRuntimeStatus {
@@ -174,7 +169,6 @@ export interface McpToolResult {
 }
 
 export type McpPrepareRequestMethod =
-  | "mcpServer/importFromApp"
   | "mcpServer/start"
   | "mcpTool/listForContext";
 
@@ -188,7 +182,6 @@ export interface McpPrepareRequest {
 export interface McpPrepareResult {
   method: McpPrepareRequestMethod;
   status: "completed";
-  importedCount?: number;
   toolCount?: number;
   tools?: McpToolDefinition[];
 }

@@ -55,7 +55,7 @@ Orchestrator Skills/MCP Electron Gate B
 用途:
   通过真实 Electron/preload/App Server/runtime/provider/read model 验证远端 Skill
   discovery、skill_search、read_mcp_resource 与 GUI 最终文本；随后关闭
-  orchestrator.mcp，证明 codex_apps 工具隐藏而普通 MCP 工具仍可执行。
+  orchestrator.mcp，证明 lime_apps 工具隐藏而普通 MCP 工具仍可执行。
 
 边界:
   使用 localhost OpenAI-compatible provider 与临时 stdio MCP fixtures；不使用
@@ -101,9 +101,6 @@ export async function createAndStartMcpServer(
         tool_timeout: 60,
       },
       enabled_lime: true,
-      enabled_claude: false,
-      enabled_codex: false,
-      enabled_gemini: false,
       created_at: Date.now(),
     },
   });
@@ -404,7 +401,7 @@ export async function run() {
     scenarioId: "ORCHESTRATOR-01-remote-skill-and-mcp-boundary",
     proofLevel: "Gate B",
     claimBoundary:
-      "Real Electron/preload/IPC/App Server RuntimeCore provider turn proves session-owned codex_apps Skill discovery and bounded read, then config/batchWrite disables only the codex_apps MCP tool catalog while an ordinary MCP tool remains executable. Local deterministic fixtures do not claim live provider or remote network behavior.",
+      "Real Electron/preload/IPC/App Server RuntimeCore provider turn proves session-owned lime_apps Skill discovery and bounded read, then config/batchWrite disables only the lime_apps MCP tool catalog while an ordinary MCP tool remains executable. Local deterministic fixtures do not claim live provider or remote network behavior.",
     startedAt: new Date().toISOString(),
     completedAt: null,
     result: "fail",
@@ -561,7 +558,7 @@ export async function run() {
     );
     assert(
       enabledRequests[0].toolNames.includes(APPS_TOOL_NAME),
-      "启用时 codex_apps tool 未暴露",
+      "启用时 lime_apps tool 未暴露",
     );
     assert(
       enabledRequests[0].toolNames.includes(ORDINARY_TOOL_NAME),
@@ -654,7 +651,7 @@ export async function run() {
     );
     assert(
       !disabledRequests[0].toolNames.includes(APPS_TOOL_NAME),
-      "orchestrator.mcp=false 未隐藏 codex_apps tool",
+      "orchestrator.mcp=false 未隐藏 lime_apps tool",
     );
     const disabledReadModel = summarizeReadModel(
       disabledRead,
@@ -682,7 +679,7 @@ export async function run() {
     );
     assert(
       ledgerSummary.appsToolCallCount === 0,
-      "Gate B 不应调用 codex_apps probe tool",
+      "Gate B 不应调用 lime_apps probe tool",
     );
     assert(
       ledgerSummary.ordinaryToolCallCount === 1,

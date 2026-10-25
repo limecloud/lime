@@ -296,9 +296,9 @@ impl McpClientManager {
         thread_id: &str,
         origin: &crate::types::McpResourceOrigin,
     ) -> Result<McpResourceContent, McpError> {
-        if server_name != "codex_apps" {
+        if server_name != "lime_apps" {
             return Err(McpError::ConfigError(
-                "MCP resource origins are only valid for codex_apps".to_string(),
+                "MCP resource origins are only valid for lime_apps".to_string(),
             ));
         }
         let thread_id = thread_id.trim();

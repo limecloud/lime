@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexDiffArtifactSnapshotProjectionEvent,
-  extractCodexDiffArtifactProjectionSnapshot,
+  buildDiffArtifactSnapshotProjectionEvent,
+  extractDiffArtifactProjectionSnapshot,
 } from "../dist/index.js";
 
 const DIFF_ITEM_ID = "diff-item-1";
@@ -37,7 +37,12 @@ function diffSurface(surface, overrides = {}) {
   return {
     surface,
     diffItemId: DIFF_ITEM_ID,
-    fileChangeIds: ["change-add", "change-delete", "change-update", "change-rename"],
+    fileChangeIds: [
+      "change-add",
+      "change-delete",
+      "change-update",
+      "change-rename",
+    ],
     structuredDiffItem: true,
     lineNumbersVisible: true,
     gutterSignsVisible: true,
@@ -49,10 +54,7 @@ function diffSurface(surface, overrides = {}) {
 }
 
 function baseInput(overrides = {}) {
-  const longLine =
-    "const wrapped = " +
-    JSON.stringify("x".repeat(130)) +
-    ";";
+  const longLine = "const wrapped = " + JSON.stringify("x".repeat(130)) + ";";
   return {
     artifactId: "artifact-diff-1",
     diffItem: {
@@ -100,16 +102,13 @@ function baseInput(overrides = {}) {
 }
 
 test("diff artifact snapshot uses structured file changes across artifact, workbench and review", () => {
-  const event = buildCodexDiffArtifactSnapshotProjectionEvent(
-    baseInput(),
-    {
-      sessionId: "session-diff",
-      threadId: "thread-diff",
-      turnId: "turn-diff",
-      sequence: 331,
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildDiffArtifactSnapshotProjectionEvent(baseInput(), {
+    sessionId: "session-diff",
+    threadId: "thread-diff",
+    turnId: "turn-diff",
+    sequence: 331,
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -170,7 +169,7 @@ test("diff artifact snapshot uses structured file changes across artifact, workb
 });
 
 test("raw patch string input is rejected as the diff artifact source", () => {
-  const snapshot = extractCodexDiffArtifactProjectionSnapshot({
+  const snapshot = extractDiffArtifactProjectionSnapshot({
     rawPatch: "diff --git a/a.ts b/a.ts\n@@ -1 +1 @@\n-old\n+new",
     renderedSurfaces: [
       diffSurface("artifact_diff"),
@@ -187,7 +186,7 @@ test("raw patch string input is rejected as the diff artifact source", () => {
 });
 
 test("fake artifact cards cannot replace structured diff surfaces", () => {
-  const snapshot = extractCodexDiffArtifactProjectionSnapshot(
+  const snapshot = extractDiffArtifactProjectionSnapshot(
     baseInput({
       renderedSurfaces: [
         diffSurface("artifact_diff", {
@@ -201,13 +200,21 @@ test("fake artifact cards cannot replace structured diff surfaces", () => {
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "fake_artifact_card_rendered"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "shared_diff_item_missing"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "fake_artifact_card_rendered",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "shared_diff_item_missing",
+    ),
+  );
   assert.equal(snapshot.fakeArtifactCardRejected, false);
 });
 
 test("artifact, workbench and review surfaces must share the same diff item", () => {
-  const snapshot = extractCodexDiffArtifactProjectionSnapshot(
+  const snapshot = extractDiffArtifactProjectionSnapshot(
     baseInput({
       renderedSurfaces: [
         diffSurface("artifact_diff"),
@@ -217,12 +224,16 @@ test("artifact, workbench and review surfaces must share the same diff item", ()
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "shared_diff_item_missing"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "shared_diff_item_missing",
+    ),
+  );
   assert.equal(snapshot.sharedStructuredDiffItem, false);
 });
 
 test("line numbers, gutter signs and long-line wrapping are required evidence", () => {
-  const snapshot = extractCodexDiffArtifactProjectionSnapshot(
+  const snapshot = extractDiffArtifactProjectionSnapshot(
     baseInput({
       fileChanges: [
         fileChange("change-add", "add", "src/new-file.ts", [
@@ -252,7 +263,19 @@ test("line numbers, gutter signs and long-line wrapping are required evidence", 
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "line_numbers_missing"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "gutter_signs_missing"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "long_line_wrap_missing"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "line_numbers_missing",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "gutter_signs_missing",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "long_line_wrap_missing",
+    ),
+  );
 });

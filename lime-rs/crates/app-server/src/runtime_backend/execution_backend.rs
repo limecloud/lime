@@ -276,6 +276,16 @@ impl ExecutionBackend for RuntimeBackend {
         Ok(())
     }
 
+    fn set_computer_use_gateway(
+        &self,
+        gateway: Arc<dyn tool_runtime::computer_use::ComputerUseGateway>,
+    ) -> Result<(), RuntimeCoreError> {
+        *self.computer_use_gateway.write().map_err(|_| {
+            RuntimeCoreError::Backend("Computer Use gateway lock poisoned".into())
+        })? = Some(gateway);
+        Ok(())
+    }
+
     fn set_filesystem_gateway(
         &self,
         gateway: Arc<dyn tool_runtime::filesystem_gateway::RuntimeFileSystemGateway>,

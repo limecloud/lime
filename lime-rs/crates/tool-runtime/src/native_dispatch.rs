@@ -1,4 +1,7 @@
 use crate::apply_patch::{apply_patch_tool_definition, runtime_apply_patch_executor_handle};
+use crate::computer_use::{
+    computer_use_tool_definition, runtime_computer_use_executor_handle, ComputerUseGateway,
+};
 use crate::current_time::{
     current_time_tool_definition, runtime_current_time_executor_handle, CurrentTimeGateway,
     CLOCK_CURRENT_TIME_TOOL_NAME,
@@ -87,6 +90,14 @@ impl RuntimeNativeDispatchSurface {
 }
 
 impl NativeDispatchBuilder {
+    pub fn with_computer_use_gateway(self, gateway: Arc<dyn ComputerUseGateway>) -> Self {
+        self.register(
+            computer_use_tool_definition(),
+            runtime_computer_use_executor_handle(gateway),
+            &[],
+        )
+    }
+
     pub fn with_standard_tools(self) -> Self {
         let builder = self
             .register(

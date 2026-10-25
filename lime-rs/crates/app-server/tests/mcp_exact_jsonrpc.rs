@@ -35,7 +35,7 @@ async fn exact_mcp_methods_are_registered_and_fail_closed_on_invalid_identity() 
         3,
         METHOD_MCP_SERVER_RESOURCE_READ,
         json!({
-            "server": "codex_apps",
+            "server": "lime_apps",
             "uri": "ui://calendar/event",
             "originCallId": "item-calendar"
         }),
@@ -228,7 +228,7 @@ async fn mcp_event_stream_uses_public_transport_and_cleans_up_on_stop() {
     )
     .expect("decode resource metadata");
     assert_eq!(
-        resource_meta.pointer("/x-codex-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
+        resource_meta.pointer("/x-lime-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
         Some(&json!("calendar"))
     );
     assert_eq!(resource["result"]["originCallId"], Value::Null);
@@ -244,7 +244,7 @@ async fn mcp_event_stream_uses_public_transport_and_cleans_up_on_stop() {
                 "server": "events",
                 "subscriptionId": "subscription-1",
                 "name": "issue.updated",
-                "arguments": {"project": "codex"},
+                "arguments": {"project": "lime"},
                 "_meta": {"source": "desktop"}
             }
         }),
@@ -312,17 +312,17 @@ async fn mcp_event_stream_uses_public_transport_and_cleans_up_on_stop() {
 
 fn write_event_stream_plugin(temp: &TempDir) -> String {
     let root = temp.path().join("event-plugin");
-    std::fs::create_dir_all(root.join(".codex-plugin")).expect("plugin manifest directory");
+    std::fs::create_dir_all(root.join(".lime-plugin")).expect("plugin manifest directory");
     std::fs::write(
         root.join("plugin.json"),
         r#"{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"event-plugin","version":"1.0.0","description":"MCP event fixture"}"#,
     )
     .expect("plugin manifest");
     std::fs::write(
-        root.join(".codex-plugin/plugin.json"),
+        root.join(".lime-plugin/plugin.json"),
         r#"{"name":"event-plugin","version":"1.0.0"}"#,
     )
-    .expect("Codex plugin manifest");
+    .expect("Lime plugin manifest");
     std::fs::write(
         root.join("mcp.json"),
         r#"{

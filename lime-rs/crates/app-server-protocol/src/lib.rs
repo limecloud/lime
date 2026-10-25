@@ -20,7 +20,8 @@ pub use jsonrpc_lite::*;
 pub use protocol::app_server_method_catalog;
 pub use protocol::v0::*;
 pub use protocol::v2::{
-    AllowDenyRequirement, BrowserUseConfig, BrowserUseOriginPolicyConfig,
+    AllowDenyRequirement, ApplicationNetworkRequirements, ApplicationRequirements,
+    ApplicationStorageRequirements, BrowserUseConfig, BrowserUseOriginPolicyConfig,
     CollaborationModeListParams, CollaborationModeListResponse, CollaborationModeMask,
     ConfigBatchWriteParams, ConfigEdit, ConfigLayer, ConfigLayerMetadata, ConfigLayerSource,
     ConfigReadParams, ConfigReadResponse, ConfigRequirements, ConfigRequirementsReadParams,
@@ -32,7 +33,8 @@ pub use protocol::v2::{
     MemoryStatusResponse, MergeStrategy, Model, ModelAvailabilityNux, ModelListParams,
     ModelListResponse, ModelListUpdatedNotification, ModelProviderCapabilitiesReadParams,
     ModelProviderCapabilitiesReadResponse, ModelServiceTier, ModelUpgradeInfo, OverriddenMetadata,
-    PermissionProfileListParams, PermissionProfileListResponse, PermissionProfileSummary,
+    NetworkDomainPermission, PermissionProfileListParams, PermissionProfileListResponse,
+    PermissionProfileSummary,
     ReasoningEffortOption, RolloutCompressResponse, ScheduledTaskChange,
     ScheduledTaskChangedNotification, ScheduledTaskRunUpdatedNotification, WindowsSandboxReadiness,
     WindowsSandboxReadinessParams, WindowsSandboxReadinessResponse,

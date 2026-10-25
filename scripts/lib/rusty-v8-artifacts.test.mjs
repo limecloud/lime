@@ -159,6 +159,54 @@ version = "150.4.0"
     ).toThrow(/Invalid rusty_v8 checksum/u);
   });
 
+  it("uses the selected source workspace lock instead of the existing product lock", () => {
+    const repoRoot = temporaryDirectory();
+    const cacheRoot = temporaryDirectory();
+    const sourceRoot = path.join(repoRoot, "lime-rs", "upstream");
+    mkdirSync(sourceRoot, { recursive: true });
+    writeFileSync(
+      path.join(repoRoot, "lime-rs", "Cargo.lock"),
+      '[[package]]\nname = "v8"\nversion = "150.4.0"\n',
+    );
+    const cargoLockPath = path.join(sourceRoot, "Cargo.lock");
+    writeFileSync(
+      cargoLockPath,
+      '[[package]]\nname = "v8"\nversion = "152.2.0"\n',
+    );
+    const names = rustyV8ArtifactNames("aarch64-apple-darwin");
+    const archive = Buffer.from("selected source archive");
+    const binding = Buffer.from("selected source binding");
+    const downloads = new Map([
+      [
+        names.checksums,
+        Buffer.from(
+          `${sha256(archive)}  ${names.archive}\n${sha256(binding)}  ${names.binding}\n`,
+        ),
+      ],
+      [names.archive, archive],
+      [names.binding, binding],
+    ]);
+    const downloadUrls = [];
+    const env = resolveRustyV8CargoEnv({
+      env: {},
+      repoRoot,
+      cargoLockPath,
+      platform: "darwin",
+      arch: "arm64",
+      cacheRoot,
+      download(url, destination) {
+        downloadUrls.push(url);
+        writeFileSync(destination, downloads.get(path.basename(url)));
+      },
+    });
+    expect(downloadUrls).toHaveLength(3);
+    expect(
+      downloadUrls.every((url) => url.includes("rusty-v8-v152.2.0/")),
+    ).toBe(true);
+    expect(readFileSync(env.RUSTY_V8_ARCHIVE)).toEqual(archive);
+    expect(readFileSync(env.RUSTY_V8_SRC_BINDING_PATH)).toEqual(binding);
+  });
+
   it("downloads and verifies both artifacts before exposing Cargo env", () => {
     const repoRoot = temporaryDirectory();
     const cacheRoot = temporaryDirectory();

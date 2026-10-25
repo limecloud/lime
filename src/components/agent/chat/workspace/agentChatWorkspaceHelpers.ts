@@ -189,6 +189,8 @@ export function shouldAutoRefreshWorkspaceRightSurfacePending({
   const hasPendingListScope = Boolean(
     sessionId?.trim() || workspaceId?.trim() || workspaceRoot?.trim(),
   );
+  // Tools request visible surfaces while the turn is running, including approval waits.
+  if (sessionId?.trim()) return true;
   if (taskCenterHomeHotpathActive || sceneIsSending || sceneIsPreparingSend) {
     return false;
   }

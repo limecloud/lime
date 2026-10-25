@@ -256,6 +256,7 @@ async fn mock_backend_emits_public_runtime_event() {
                 skip_pre_submit_resume: false,
             },
             RuntimeHostContext {
+                connection_id: None,
                 client_name: Some("test-client".to_string()),
                 client_version: None,
             },

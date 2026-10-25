@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { extractCodexMultiAgentItemTaxonomySnapshot } from "../dist/index.js";
+import { extractMultiAgentItemTaxonomySnapshot } from "../dist/index.js";
 
 const EXPECTED_TOOLS = [
   "spawn_agent",
@@ -62,8 +62,8 @@ function baseInput(overrides = {}) {
   };
 }
 
-test("multi-agent item taxonomy covers Codex v2 team tools as structured items", () => {
-  const snapshot = extractCodexMultiAgentItemTaxonomySnapshot(baseInput());
+test("multi-agent item taxonomy covers current v2 team tools as structured items", () => {
+  const snapshot = extractMultiAgentItemTaxonomySnapshot(baseInput());
 
   assert.deepEqual(snapshot.validationIssues, []);
   assert.equal(snapshot.toolsCovered, true);
@@ -84,7 +84,7 @@ test("multi-agent item taxonomy covers Codex v2 team tools as structured items",
 });
 
 test("multi-agent taxonomy does not promote v1 tool names into v2 coverage", () => {
-  const snapshot = extractCodexMultiAgentItemTaxonomySnapshot(
+  const snapshot = extractMultiAgentItemTaxonomySnapshot(
     baseInput({
       taxonomyItems: [
         item("send_input", "running"),
@@ -127,7 +127,7 @@ test("multi-agent taxonomy does not promote v1 tool names into v2 coverage", () 
 });
 
 test("multi-agent taxonomy rejects legacy tools and missing lineage", () => {
-  const snapshot = extractCodexMultiAgentItemTaxonomySnapshot(
+  const snapshot = extractMultiAgentItemTaxonomySnapshot(
     baseInput({
       taxonomyItems: [
         item("SubAgentTask", "running", {
@@ -158,7 +158,7 @@ test("multi-agent taxonomy rejects legacy tools and missing lineage", () => {
 });
 
 test("multi-agent taxonomy requires spawn child lineage", () => {
-  const snapshot = extractCodexMultiAgentItemTaxonomySnapshot(
+  const snapshot = extractMultiAgentItemTaxonomySnapshot(
     baseInput({
       taxonomyItems: [
         item("spawn_agent", "completed", {
@@ -183,7 +183,7 @@ test("multi-agent taxonomy requires spawn child lineage", () => {
 });
 
 test("multi-agent taxonomy rejects text summaries and orphan agent histories", () => {
-  const snapshot = extractCodexMultiAgentItemTaxonomySnapshot(
+  const snapshot = extractMultiAgentItemTaxonomySnapshot(
     baseInput({
       legacyTextSummaries: [
         {
@@ -210,7 +210,7 @@ test("multi-agent taxonomy rejects text summaries and orphan agent histories", (
 });
 
 test("multi-agent taxonomy requires GUI surfaces to bind item ids", () => {
-  const snapshot = extractCodexMultiAgentItemTaxonomySnapshot(
+  const snapshot = extractMultiAgentItemTaxonomySnapshot(
     baseInput({
       surfaceBindings: [
         surface("team_transcript", ["spawn_agent-item"]),

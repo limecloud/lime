@@ -20,6 +20,9 @@ type OpenFilePreviewWindowResult = {
   title: string;
 };
 
+// Keep macOS IconServices reads and image conversion in the same serial queue.
+let fileIconQueue: Promise<void> = Promise.resolve();
+
 export class FileShellHost {
   readonly #preferences: FileTargetPreferences;
   readonly #nativeQuery?: NativeFileQuery;
@@ -171,15 +174,19 @@ export class FileShellHost {
   async getFileIconDataUrl(args: HostArgs): Promise<string | null> {
     const request = readRequest(args);
     const targetPath = readRequiredString(request, "path");
-    try {
-      const icon = await app.getFileIcon(targetPath, { size: "normal" });
-      if (icon.isEmpty()) {
+    const read = async () => {
+      try {
+        const icon = await app.getFileIcon(targetPath, { size: "normal" });
+        if (icon.isEmpty()) return null;
+        return icon.toDataURL() || null;
+      } catch {
         return null;
       }
-      return icon.toDataURL() || null;
-    } catch {
-      return null;
-    }
+    };
+    if (this.#platform !== "darwin") return read();
+    const pending = fileIconQueue.then(read);
+    fileIconQueue = pending.then(() => undefined);
+    return pending;
   }
 
   getHomeDir(): string {

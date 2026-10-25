@@ -75,7 +75,8 @@ const targets = [
     "general-file-target",
     "desktop.defaultFileTarget",
   ],
-  [SettingsTabs.General, "", "general-plugins", "desktop.plugins"],
+  // “Plugins” 优先进入同名管理页；使用真实偏好说明定位 General 的独立开关。
+  [SettingsTabs.General, "", "general-plugins", "desktop.pluginsDescription"],
   [SettingsTabs.Memory, "", "memory-enabled", "personalization.enabled"],
   [SettingsTabs.Memory, "", "memory-tools", "personalization.tools"],
   [SettingsTabs.Memory, "", "memory-delete", "personalization.delete"],

@@ -1,5 +1,10 @@
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
-import { assertBrowserHistoryMutationResult } from "./browserHistoryTypes";
+import {
+  assertBrowserHistoryMutationResult,
+  assertBrowserHistoryPage,
+  parseBrowserHistoryQuery,
+  type BrowserHistoryQuery,
+} from "./browserHistoryTypes";
 import {
   assertBrowserHistoryVisitsPage,
   parseBrowserHistoryVisitsQuery,
@@ -11,6 +16,15 @@ export type {
   BrowserHistoryEntry,
   BrowserHistoryPage,
 } from "./browserHistoryTypes";
+
+export async function listBrowserHistory(query: BrowserHistoryQuery = {}) {
+  const result = await safeInvoke<unknown>(
+    "browser_history_list",
+    parseBrowserHistoryQuery(query),
+  );
+  assertBrowserHistoryPage(result);
+  return result;
+}
 
 export async function listBrowserHistoryVisits(
   query: BrowserHistoryVisitsQuery = {},

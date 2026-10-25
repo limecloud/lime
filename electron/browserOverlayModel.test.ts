@@ -13,6 +13,51 @@ const presentation = (items: unknown) => ({
 });
 
 describe("trusted browser menu data boundary", () => {
+  it("accepts only flat bounded address suggestions without confirmation or nested controls", () => {
+    const value = {
+      ...presentation([
+        {
+          id: "docs",
+          label: "Docs",
+          shortcut: "https://example.com/",
+          checked: true,
+        },
+      ]),
+      mode: "address",
+    };
+    expect(readBrowserMenuPresentation(value).mode).toBe("address");
+    for (const override of [
+      { mode: "unknown" },
+      { confirmation: { title: "Title", description: "Description" } },
+      {
+        items: Array.from({ length: 9 }, (_, index) => ({
+          id: String(index),
+          label: "X",
+        })),
+      },
+      {
+        items: [
+          {
+            id: "parent",
+            label: "X",
+            submenu: [{ id: "child", label: "Child" }],
+          },
+        ],
+      },
+      {
+        items: [
+          {
+            id: "controls",
+            label: "X",
+            controls: [{ id: "child", label: "Child" }],
+          },
+        ],
+      },
+    ])
+      expect(() =>
+        readBrowserMenuPresentation({ ...value, ...override }),
+      ).toThrow();
+  });
   it("accepts only bounded, immutable cancel/confirm presentation data", () => {
     const value = {
       ...presentation([

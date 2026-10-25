@@ -2,6 +2,12 @@
 
 状态：active / partial。更新：2026-10-22。主目标仍是完整实现；局部回归通过不关闭整体差距。
 
+2026-10-25 执行口径更新：按用户要求以整目录复制提高 Codex 取样效率，保留 Lime 产品与
+目录品牌；先编译/解析依赖闭包，再迁移消费者，最后删除冲突重复实现。临时整树基线已经
+移除，8,984 项摘要和 168 包 metadata 只作为历史收据；现役代码必须直接落到
+`lime-rs/crates/**` 的唯一 owner，不能把整树副本或中转目录写入产品构建图。后续按
+[整树迁入计划](codex-source-baseline-migration-20261025.md)推进，停止旧目录逐文件手工搬运。
+
 当前批注入口迁移：Composer 重开已直接接入 Files，删除旧 Canvas opener 和全部出口/传递链；现有 draft-store focus 通过无状态标签导航 Context 定位，不重建编辑器。红回归 5 项失败后两组 180 项通过，包含同标签保稿、关闭冷开、隐藏实例与 SHA 就绪门控；旧路负向守卫同步。第一轮 types/lint 的接线变量和无用 import 已修正。新冻结 r1 在复制后被外部删除，父 timeline r3 同时缺文件，故该候选没有 GUI 成功证据；保留失败与修改前摘要，待隔离验证。见[本片执行计划](codex-annotation-files-20261022.md)。既有历史收据不作为新字节或已删除产物的当前验收；九类整体仍开放。
 
 默认本地门禁终态：冻结 Files 候选 npm run verify:local 已 exit0，最后续跑 601.197 秒；1935 个测试文件/141 批全部 passed，无 skipped/pending，版本、i18n、全局 lint、Renderer/Node types、contracts 和最后真实 GUI 24/24 均通过。此前祖先 .lime 误排、候选缺文档/清单及旧 website 测试不同步均保留失败原件；只补候选测试输入/同步根现有测试，未跳批、放宽期限或手改状态。完整门禁产品摘要与 Files r3 完全一致；后续 timeline/project-entry 的最终 r3 另有 67 项定向、types/lint、完整 GUI 和真实 XLSX 证据，不冒称它取得另一份完整 verify:local，也不认证共享 1.166.0 后端。[Files 最终收据](artifacts/codex-gui-followthrough-20261021/files-preview-owner/acceptance-r3.json)。九类整体仍 active / partial，无可信总百分比分母。

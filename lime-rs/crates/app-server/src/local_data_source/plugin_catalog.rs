@@ -9,7 +9,7 @@ use app_server_protocol::protocol::v2::{
     PluginSearchResult, PluginSearchScope, PluginSource, PluginSummary, PluginUninstallParams,
     PluginUninstallResponse, SkillSummary,
 };
-use lime_mcp::agent_plugin_config::parse_agent_plugin_mcp_config;
+use lime_mcp::parse_agent_plugin_mcp_config;
 use lime_mcp::{McpRuntimeServerSpec, McpServerConfig, McpServerTransport};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -18,8 +18,8 @@ use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 const STANDARD_MANIFEST_SCHEMA: &str = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
-const CODEX_EXTENSION_NAMESPACE: &str = "com.openai";
-const CODEX_EXTENSION_MANIFEST_PATH: &str = ".codex-plugin/plugin.json";
+const LIME_EXTENSION_NAMESPACE: &str = "com.lime";
+const LIME_EXTENSION_MANIFEST_PATH: &str = ".lime-plugin/plugin.json";
 const STANDARD_MANIFEST_FIELDS: &[&str] = &[
     "$schema",
     "name",

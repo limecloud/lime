@@ -12,7 +12,7 @@ const cliGateSource = readFileSync(
 );
 
 describe("CLI npm Gate B", () => {
-  it("stages the Codex-style npm layout around the real runtime payload", () => {
+  it("stages the Lime-style npm layout around the real runtime payload", () => {
     expect(source).toContain('"build_npm_package.py"');
     expect(source).toContain('"--vendor-src"');
     expect(source).toContain("`lime${suffix}`");

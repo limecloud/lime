@@ -51,7 +51,7 @@ describe("Plugin package current Electron fixture guard", () => {
     expect(gate).toContain('path.join(fixture.root, "mcp.json")');
     expect(gate).toContain('"skills",');
     expect(gate).toContain("PLUGIN_PACKAGE_SKILL_ID");
-    expect(gate).not.toContain(".codex-plugin/plugin.json");
+    expect(gate).not.toContain(".lime-plugin/plugin.json");
     expect(gate).not.toContain(".mcp.json");
     expect(gate).toContain("summary.standardManifestSeen");
     expect(gate).toContain("summary.standardMcpConfigSeen");

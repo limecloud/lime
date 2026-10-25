@@ -46,10 +46,10 @@ pub(super) fn config_path(value: &str) -> Result<PathBuf, JsonRpcError> {
         || parent
             .parent()
             .and_then(Path::file_name)
-            .is_none_or(|name| name != ".codex")
+            .is_none_or(|name| name != ".lime")
     {
         return Err(invalid_params(
-            "configPath must be a .toml file in .codex/environments",
+            "configPath must be a .toml file in .lime/environments",
         ));
     }
     let project = parent
@@ -63,7 +63,7 @@ pub(super) fn config_path(value: &str) -> Result<PathBuf, JsonRpcError> {
         ));
     }
     let path = project
-        .join(".codex")
+        .join(".lime")
         .join("environments")
         .join(path.file_name().unwrap());
     check_environment_directory(path.parent().unwrap())?;
@@ -101,7 +101,7 @@ pub(super) fn check_file(path: &Path) -> Result<(), JsonRpcError> {
 }
 
 pub(super) fn create_environment_directory(path: &Path) -> Result<(), JsonRpcError> {
-    let parent = path.parent().expect("validated .codex directory");
+    let parent = path.parent().expect("validated .lime directory");
     for directory in [parent, path] {
         match fs::create_dir(directory) {
             Ok(()) => {}

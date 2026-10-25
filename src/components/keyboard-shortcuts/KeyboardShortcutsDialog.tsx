@@ -5,23 +5,13 @@ import { useTranslation } from "react-i18next";
 import {
   getRegisteredCommands,
   subscribeCommands,
-  type CommandSection,
 } from "@/lib/commands/registry";
+import { keyboardShortcutSections } from "@/lib/commands/keyboard-shortcut-command-order";
 import {
   formatShortcutTokens,
+  formatShortcutStrokes,
   resolveHotkeyPlatform,
 } from "@/lib/hotkeys/platform";
-
-const sections: readonly CommandSection[] = [
-  "thread",
-  "navigation",
-  "panels",
-  "workspace",
-  "skills",
-  "configure",
-  "app",
-  "general",
-];
 
 export function KeyboardShortcutsDialog({
   open,
@@ -110,10 +100,10 @@ export function KeyboardShortcutsDialog({
                 {t(needle ? "help.noMatches" : "help.noShortcuts")}
               </p>
             ) : (
-              sections.map((section) => {
-                const group = matches
-                  .filter((command) => command.section === section)
-                  .sort((left, right) => left.id.localeCompare(right.id));
+              keyboardShortcutSections.map((section) => {
+                const group = matches.filter(
+                  (command) => command.section === section,
+                );
                 if (group.length === 0) return null;
                 return (
                   <section
@@ -143,20 +133,28 @@ export function KeyboardShortcutsDialog({
                             {command.bindings.map((binding) => (
                               <span
                                 key={binding}
-                                className="flex items-center gap-1"
+                                className="flex items-center gap-3"
                                 aria-label={formatShortcutTokens(
                                   binding,
                                   platform,
                                 ).join(" ")}
                               >
-                                {formatShortcutTokens(binding, platform).map(
-                                  (token, index) => (
-                                    <kbd
-                                      key={`${token}-${index}`}
-                                      className="min-w-5 rounded border border-border bg-muted px-1.5 py-0.5 text-center font-sans text-xs"
+                                {formatShortcutStrokes(binding, platform).map(
+                                  (stroke, index) => (
+                                    <span
+                                      key={index}
+                                      data-shortcut-stroke
+                                      className="flex items-center gap-1"
                                     >
-                                      {token}
-                                    </kbd>
+                                      {stroke.map((token, keyIndex) => (
+                                        <kbd
+                                          key={keyIndex}
+                                          className="min-w-5 rounded border border-border bg-muted px-1.5 py-0.5 text-center font-sans text-xs"
+                                        >
+                                          {token}
+                                        </kbd>
+                                      ))}
+                                    </span>
                                   ),
                                 )}
                               </span>

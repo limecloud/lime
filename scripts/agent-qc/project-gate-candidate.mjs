@@ -37,9 +37,9 @@ Project Gate Candidate Snapshot
 
 选项:
   --repo-root <path>          Git 仓库根目录，默认当前目录
-  --codex-reference-repo <path>
-                              干净的只读 Codex 仓库；生成 candidate 时必填
-  owner guard                默认要求 Codex import tracker 已 ready/completed
+  --reference-repo <path>
+                              干净的只读参考源码仓库；生成 candidate 时必填
+  owner guard                默认要求源码导入 tracker 已 ready/completed
   --output <path>             candidate JSON；必须位于 digest exclusion 内
   --verify-candidate <path>   重算当前 snapshot 并与既有 candidate 比较
   --interval-ms <ms>          两次 snapshot 间隔，默认 5000，最小 5000
@@ -56,7 +56,7 @@ Project Gate Candidate Snapshot
 function parseArgs(argv) {
   const options = {
     repoRoot: process.cwd(),
-    codexReferenceRepo: process.env.LIME_CODEX_REFERENCE_REPO ?? null,
+    referenceRepo: process.env.LIME_REFERENCE_REPO ?? null,
     output: null,
     verifyCandidate: null,
     intervalMs: 5_000,
@@ -80,8 +80,8 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
-    if (arg === "--codex-reference-repo" && next) {
-      options.codexReferenceRepo = next.trim();
+    if (arg === "--reference-repo" && next) {
+      options.referenceRepo = next.trim();
       index += 1;
       continue;
     }
@@ -149,8 +149,8 @@ function parseArgs(argv) {
     );
   }
   options.repoRoot = fs.realpathSync(path.resolve(options.repoRoot));
-  if (options.codexReferenceRepo) {
-    options.codexReferenceRepo = path.resolve(options.codexReferenceRepo);
+  if (options.referenceRepo) {
+    options.referenceRepo = path.resolve(options.referenceRepo);
   }
   if (options.output) {
     options.output = path.resolve(options.repoRoot, options.output);
@@ -251,9 +251,9 @@ async function main() {
   if (options.output) {
     assertOutputExcluded(options.repoRoot, options.output, options.excludes);
   }
-  if (!options.codexReferenceRepo && !options.snapshotOnly) {
+  if (!options.referenceRepo && !options.snapshotOnly) {
     throw new Error(
-      "生成 candidate 必须提供 --codex-reference-repo 或 LIME_CODEX_REFERENCE_REPO",
+      "生成 candidate 必须提供 --reference-repo 或 LIME_REFERENCE_REPO",
     );
   }
   const startedAt = new Date();
@@ -263,8 +263,8 @@ async function main() {
   const firstBlockingTrackers = options.snapshotOnly
     ? null
     : assertProjectGateTrackersReady({ repoRoot: options.repoRoot });
-  const firstCodexReferenceCommit = options.codexReferenceRepo
-    ? captureGitReferenceCommit(options.codexReferenceRepo)
+  const firstReferenceCommit = options.referenceRepo
+    ? captureGitReferenceCommit(options.referenceRepo)
     : null;
   const first = captureProjectGateSnapshot(options);
   if (options.snapshotOnly) {
@@ -286,12 +286,12 @@ async function main() {
   const secondBlockingTrackers = assertProjectGateTrackersReady({
     repoRoot: options.repoRoot,
   });
-  const secondCodexReferenceCommit = captureGitReferenceCommit(
-    options.codexReferenceRepo,
+  const secondReferenceCommit = captureGitReferenceCommit(
+    options.referenceRepo,
   );
   const comparison = compareProjectGateSnapshots(first, second);
-  const codexReferenceCommitMatches =
-    firstCodexReferenceCommit === secondCodexReferenceCommit;
+  const referenceCommitMatches =
+    firstReferenceCommit === secondReferenceCommit;
   const blockingTrackersMatch =
     JSON.stringify(firstBlockingTrackers) ===
     JSON.stringify(secondBlockingTrackers);
@@ -301,10 +301,10 @@ async function main() {
     ...comparison,
     stable:
       comparison.stable &&
-      codexReferenceCommitMatches &&
+      referenceCommitMatches &&
       blockingTrackersMatch &&
       surfaceContractMatches,
-    codexReferenceCommitMatches,
+    referenceCommitMatches,
     blockingTrackersMatch,
     surfaceContractMatches,
   };
@@ -355,7 +355,7 @@ async function main() {
     backendMode: options.backendMode,
     providerProtocol: options.providerProtocol,
     secretsPresent: options.secretsPresent,
-    codexReferenceCommit: secondCodexReferenceCommit,
+    referenceCommit: secondReferenceCommit,
     blockingTrackers: secondBlockingTrackers,
     surfaceContract: secondSurfaceContract,
   });
@@ -366,7 +366,7 @@ async function main() {
         status: "stable",
         run_id: runId,
         product_snapshot_digest: second.product_snapshot_digest,
-        codex_reference_commit: secondCodexReferenceCommit,
+        reference_commit: secondReferenceCommit,
         blocking_trackers: secondBlockingTrackers,
         surface_contract: secondSurfaceContract,
         changed_path_count: second.changed_paths.length,

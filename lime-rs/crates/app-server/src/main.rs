@@ -202,6 +202,7 @@ async fn build_app_server(config: &CliConfig) -> anyhow::Result<AppServer> {
         }
     }
     .with_app_data_source(app_data_source)
+    .with_native_computer_use()
     .with_account_store_root(&app_data_root)
     .with_primary_runtime_root(app_data_root.join("runtimes"))?;
     if let Some(storage_roots) = initialized.storage_roots {

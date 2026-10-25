@@ -4,7 +4,6 @@
 //! 使用 DynEmitter 进行事件发射，与具体桌面宿主解耦。
 
 mod active_time;
-pub mod agent_plugin_config;
 pub mod auth_status;
 pub mod bridge_client;
 mod client;
@@ -14,16 +13,18 @@ mod environment;
 pub mod events;
 pub mod extension_surface;
 pub mod manager;
+pub mod mcp_types;
 pub mod naming;
 pub mod oauth;
 pub mod oauth_store;
-pub mod plugin_config;
+mod plugin_config;
 mod stdio_launcher;
 mod stdio_process;
 mod streamable_http;
 pub mod tool_converter;
 pub mod tool_policy;
 pub mod types;
+mod utils;
 
 pub use auth_status::{McpServerAuthActionPlan, McpServerAuthStatus};
 pub use bridge_client::McpBridgeClient;
@@ -40,6 +41,11 @@ pub use extension_surface::{build_runtime_extension_surface, runtime_extension_n
 pub use manager::{McpBridgeSnapshot, McpClientManager, McpRuntimeOwner, McpRuntimeServerSpec};
 pub use naming::{config_key_for_server_name, is_valid_server_name, validate_server_name};
 pub use oauth::{McpOAuthLoginHandle, McpOAuthLoginParams, McpOAuthRegistry};
+pub use plugin_config::parse_agent_plugin_mcp_config;
+pub use plugin_config::parse_plugin_mcp_config;
+pub use plugin_config::parse_plugin_mcp_declarations;
+pub use plugin_config::PluginMcpConfigParseOutcome;
+pub use plugin_config::PluginMcpServerParseError;
 pub use tool_converter::ToolConverter;
 pub use types::{
     McpContent, McpError, McpManagerState, McpPromptArgument, McpPromptDefinition,

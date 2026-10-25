@@ -27,8 +27,8 @@ const invalid = (configPath: string): LocalEnvironmentResult => ({
 });
 const root = "/workspace";
 const key = localEnvironmentWorkspaceKey(root)!;
-const defaultPath = `${root}/.codex/environments/environment.toml`;
-const otherPath = `${root}/.codex/environments/environment-2.toml`;
+const defaultPath = `${root}/.lime/environments/environment.toml`;
+const otherPath = `${root}/.lime/environments/environment-2.toml`;
 const resolve = (
   options: Partial<Parameters<typeof resolveLocalEnvironmentSelection>[0]> = {},
 ) =>
@@ -122,7 +122,7 @@ describe("local environment selection resolution", () => {
     ).toBeNull();
   });
   it("returns the canonical listed path for an equivalent saved Windows path", () => {
-    const config = "C:/Work/Repo/.codex/environments/environment.toml";
+    const config = "C:/Work/Repo/.lime/environments/environment.toml";
     const selected = resolve({
       workspaceRoot: "C:/Work/Repo",
       environments: [success(config)],

@@ -51,7 +51,10 @@ impl ProviderCapabilities {
             && is_official_openai_host(base_url);
         Self {
             namespace_tools: false,
-            custom_tools: hosted_tools,
+            // Custom tools execute in the client host; their Responses wire support
+            // does not require an OpenAI hosted-service endpoint. Model declarations
+            // still decide which tools the runtime exposes.
+            custom_tools: protocol.uses_responses_api(),
             image_generation: hosted_tools,
             web_search: hosted_tools,
         }
@@ -120,6 +123,12 @@ mod tests {
             image_generation: true,
             web_search: true,
         });
+        let custom_only = ProviderCapabilities {
+            namespace_tools: false,
+            custom_tools: true,
+            image_generation: false,
+            web_search: false,
+        };
         assert_eq!(
             ProviderCapabilities::from_provider_route(
                 "openai-response",
@@ -139,18 +148,18 @@ mod tests {
                 "openai-response",
                 Some("https://gateway.example.com/v1"),
             ),
-            Some(ProviderCapabilities::NONE)
+            Some(custom_only)
         );
         assert_eq!(
             ProviderCapabilities::from_provider_route("ollama", Some("http://127.0.0.1:11434"),),
-            Some(ProviderCapabilities::NONE)
+            Some(custom_only)
         );
         assert_eq!(
             ProviderCapabilities::from_provider_route(
                 "azure-openai",
                 Some("https://resource.openai.azure.com"),
             ),
-            Some(ProviderCapabilities::NONE)
+            Some(custom_only)
         );
         assert_eq!(
             ProviderCapabilities::from_route(
@@ -174,13 +183,34 @@ mod tests {
                 &ProtocolKind::OpenaiResponses,
                 Some("https://api.openai.com/v1"),
             ),
-            ProviderCapabilities::NONE
+            custom_only
         );
         assert_eq!(
             ProviderCapabilities::from_route(
                 "azure-openai",
                 &ProtocolKind::OpenaiResponses,
                 Some("https://resource.openai.azure.com"),
+            ),
+            custom_only
+        );
+    }
+
+    #[test]
+    fn local_responses_custom_tools_do_not_enable_remote_hosted_services() {
+        let capabilities = ProviderCapabilities::from_provider_route(
+            "openai-response",
+            Some("http://127.0.0.1:43127/v1"),
+        )
+        .unwrap();
+        assert!(capabilities.custom_tools);
+        assert!(!capabilities.image_generation);
+        assert!(!capabilities.web_search);
+        assert!(!capabilities.namespace_tools);
+        assert_eq!(
+            ProviderCapabilities::from_route(
+                "gateway",
+                &ProtocolKind::OpenaiChat,
+                Some("http://127.0.0.1:43127/v1"),
             ),
             ProviderCapabilities::NONE
         );

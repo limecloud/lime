@@ -90,6 +90,8 @@ export type AppServerFsWatchResponse = protocol.FsWatchResponse;
 export type AppServerFsUnwatchParams = protocol.FsUnwatchParams;
 export type AppServerFsUnwatchResponse = protocol.FsUnwatchResponse;
 export type AppServerFsChangedNotification = protocol.FsChangedNotification;
+export type AppServerProjectGitWorktreeEnvironmentSetParams =
+  protocol.ProjectGitWorktreeEnvironmentSetParams;
 export type AppServerProjectGitStatusParams = protocol.ProjectGitStatusParams;
 export type AppServerProjectGitDiffBase = protocol.ProjectGitDiffBase;
 export type AppServerProjectGitDiffParams = protocol.ProjectGitDiffParams;
@@ -541,6 +543,16 @@ export type AppServerWorkspaceRightSurfacePendingChangedNotification =
   protocol.WorkspaceRightSurfacePendingChangedNotification;
 export type AppServerWindowsSandboxReadinessParams =
   protocol.WindowsSandboxReadinessParams;
+export type AppServerComputerUseStatusParams = protocol.ComputerUseStatusParams;
+export type AppServerComputerUseStatusResponse = protocol.ComputerUseStatusResponse;
+export type AppServerComputerUseSetupParams = protocol.ComputerUseSetupParams;
+export type AppServerComputerUseSetupResponse = protocol.ComputerUseSetupResponse;
+export type AppServerComputerUseRevokeParams = protocol.ComputerUseRevokeParams;
+export type AppServerComputerUseRevokeResponse = protocol.ComputerUseRevokeResponse;
+export type AppServerComputerUseLeaseAcquireParams = protocol.ComputerUseLeaseAcquireParams;
+export type AppServerComputerUseLeaseAcquireResponse = protocol.ComputerUseLeaseAcquireResponse;
+export type AppServerComputerUseLeaseReleaseParams = protocol.ComputerUseLeaseReleaseParams;
+export type AppServerComputerUseLeaseReleaseResponse = protocol.ComputerUseLeaseReleaseResponse;
 export type AppServerWindowsSandboxReadinessResponse =
   protocol.WindowsSandboxReadinessResponse;
 export type AppServerWindowsSandboxSetupStartParams =

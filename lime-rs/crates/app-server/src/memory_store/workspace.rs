@@ -53,7 +53,7 @@ pub(super) fn git(root: &Path, args: &[&str]) -> Result<String, RuntimeCoreError
 
 pub(super) async fn prepare(root: &Path) -> Result<(), RuntimeCoreError> {
     reject_symlink_chain(root, &root.join(".git"))?;
-    for name in [".codex", ".agents"] {
+    for name in [".lime", ".agents"] {
         reject_symlink_chain(root, &root.join(name))?;
         fs::create_dir_all(root.join(name)).map_err(io_error)?;
     }

@@ -27,7 +27,7 @@ fn bundle(name: &str) -> Vec<u8> {
     let mut archive = tar::Builder::new(encoder);
     for (path, content) in [
         (
-            ".codex-plugin/plugin.json",
+            ".lime-plugin/plugin.json",
             json!({"name":name}).to_string(),
         ),
         (".hidden", "package bytes".into()),
@@ -74,8 +74,8 @@ async fn checkout_rpc_cold_reuses_edits_and_saves_same_remote_id_without_install
     let marketplace = home.join(".agents/plugins/marketplace.json");
     assert_eq!(
         result,
-        json!({"remotePluginId":"opaque~1","pluginId":"research@codex-curated","pluginName":"research",
-        "pluginPath":path,"marketplaceName":"codex-curated","marketplacePath":marketplace,"remoteVersion":"1.2.3"})
+        json!({"remotePluginId":"opaque~1","pluginId":"research@lime-curated","pluginName":"research",
+        "pluginPath":path,"marketplaceName":"lime-curated","marketplacePath":marketplace,"remoteVersion":"1.2.3"})
     );
     assert!(!result.to_string().contains("checkout-secret"));
     assert_eq!(

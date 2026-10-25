@@ -3,6 +3,7 @@ use crate::credential_bridge::{
 };
 use crate::protocol::AgentActionRequiredScope;
 mod execution;
+mod computer_use;
 mod mcp_runtime;
 #[cfg(test)]
 mod mcp_runtime_tests;

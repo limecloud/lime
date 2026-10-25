@@ -499,7 +499,7 @@ pub(super) fn app_tool_authority_from_meta(
     let connector_id = meta.and_then(|meta| non_empty_meta_string(meta, "connector_id"));
     let link_id = meta.and_then(|meta| non_empty_meta_string(meta, "link_id"));
     let requires_explicit_link_id = meta
-        .and_then(|meta| meta.get("_codex_apps"))
+        .and_then(|meta| meta.get("_lime_apps"))
         .and_then(serde_json::Value::as_object)
         .and_then(|meta| meta.get("requires_explicit_link_id"))
         .and_then(serde_json::Value::as_bool)

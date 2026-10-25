@@ -1,0 +1,30 @@
+{
+  "$defs": {
+    "NetworkDomainPermission": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "domains": {
+      "additionalProperties": {
+        "$ref": "#/$defs/NetworkDomainPermission"
+      },
+      "type": "object"
+    },
+    "enabled": {
+      "description": "When enabled, only explicitly allowed exact domains may be contacted.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "domains",
+    "enabled"
+  ],
+  "title": "ApplicationNetworkRequirements",
+  "type": "object"
+}

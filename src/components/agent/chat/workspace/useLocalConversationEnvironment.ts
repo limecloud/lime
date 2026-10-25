@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LocalEnvironmentResult } from "../../../../../packages/app-server-client/src/protocol";
 import { useLocalEnvironmentSelection } from "@/hooks/useLocalEnvironmentSelection";
+import { useWorktreeEnvironmentSelection } from "@/hooks/useWorktreeEnvironmentSelection";
 import { localEnvironments } from "@/lib/api/localEnvironments";
 import type { ProjectGitStatus } from "@/lib/api/projectGit";
 
@@ -18,14 +19,19 @@ export function useLocalConversationEnvironment({
   failed: boolean;
   refresh: number;
 }) {
-  const selection = useLocalEnvironmentSelection({
+  const sourceSelection = useLocalEnvironmentSelection({
     workspaceRoot,
     selectDefaultEnvironment: true,
     enabled: !loading && !failed && Boolean(status) && !status?.isWorktree,
   });
-  const configPath = status?.isWorktree
-    ? (status.localEnvironmentConfigPath ?? null)
-    : selection.resolvedConfigPath;
+  const worktreeSelection = useWorktreeEnvironmentSelection({
+    workspaceRoot,
+    status,
+    enabled: !loading && !failed,
+    refresh,
+  });
+  const selection = status?.isWorktree ? worktreeSelection : sourceSelection;
+  const configPath = selection.repairConfigPath ?? selection.resolvedConfigPath;
   const key = JSON.stringify([workspaceRoot, configPath, refresh]);
   const [config, setConfig] = useState<{
     key: string;
@@ -53,18 +59,11 @@ export function useLocalConversationEnvironment({
     };
   }, [key, configPath, loading, failed]);
   const active = config?.key === key ? config : null;
-  const error =
-    failed ||
-    (!status?.isWorktree && selection.error) ||
-    Boolean(active?.error);
+  const error = failed || selection.error || Boolean(active?.error);
   const isLoading =
-    loading ||
-    (!status?.isWorktree && selection.isLoading) ||
-    Boolean(configPath && !active && !error);
+    loading || selection.isLoading || Boolean(configPath && !active && !error);
   return {
-    configPath: status?.isWorktree
-      ? configPath
-      : (selection.repairConfigPath ?? configPath),
+    configPath,
     environment:
       !isLoading && !error && active?.result?.type === "success"
         ? active.result
@@ -72,5 +71,11 @@ export function useLocalConversationEnvironment({
     loading: isLoading,
     error,
     reload: selection.reload,
+    selection,
+    canChangeEnvironment:
+      !failed &&
+      !loading &&
+      Boolean(status) &&
+      (!status?.isWorktree || Boolean(status.repositoryRoot)),
   };
 }

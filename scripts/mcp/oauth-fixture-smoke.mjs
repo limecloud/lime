@@ -272,9 +272,6 @@ export async function runMcpOAuthFixtureSmoke({
             scopes: ["fixture.read"],
           },
           enabled_lime: true,
-          enabled_claude: false,
-          enabled_codex: false,
-          enabled_gemini: false,
           created_at: Date.now(),
         },
       },
@@ -345,7 +342,10 @@ export async function runMcpOAuthFixtureSmoke({
       { name: serverName },
       entries,
     );
-    assert(logout?.removed === true, "mcpServer/oauth/logout did not remove credentials");
+    assert(
+      logout?.removed === true,
+      "mcpServer/oauth/logout did not remove credentials",
+    );
 
     return {
       serverId,

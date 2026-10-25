@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Laptop } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { PRODUCT_LINKS } from "@/lib/productLinks";
 import {
   SettingsAction,
   SettingsGroup,
@@ -89,7 +90,7 @@ export function MemorySettings({ initialTab }: { initialTab?: string }) {
       >
         <p className="mb-4 text-[12px] leading-4 text-muted-foreground">
           {t("settings.personalization.memoryDescription")}{" "}
-          <DocumentationLink href="https://developers.openai.com/codex/memories" />
+          <DocumentationLink href={PRODUCT_LINKS.userGuide} />
         </p>
         <SettingsGroup>
           <SettingsRow
@@ -154,7 +155,7 @@ export function MemorySettings({ initialTab }: { initialTab?: string }) {
             description={
               <>
                 {t("settings.personalization.instructionsDescription")}{" "}
-                <DocumentationLink href="https://developers.openai.com/codex/guides/agents-md" />
+                <DocumentationLink href={PRODUCT_LINKS.userGuide} />
               </>
             }
           >

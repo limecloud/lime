@@ -33,6 +33,7 @@ const {
   const webContentsState = {
     destroyed: false,
     isLoading: false,
+    audioMuted: false,
     title: "Example",
     url: "https://example.com/",
   };
@@ -60,6 +61,7 @@ const {
   const setSessionUserAgentMock = vi.fn();
   const sessionFromPartitionMock = vi.fn(() => ({
     webRequest: { onBeforeRequest: vi.fn() },
+    closeAllConnections: vi.fn(async () => {}),
     getUserAgent: getSessionUserAgentMock,
     on: vi.fn((eventName: string, handler: (...args: unknown[]) => void) => {
       const handlers = sessionEventHandlers.get(eventName) || [];
@@ -128,6 +130,10 @@ const {
         getZoomFactor: getZoomFactorMock,
         isDestroyed: () => webContentsState.destroyed,
         isLoading: () => webContentsState.isLoading,
+        isAudioMuted: () => webContentsState.audioMuted,
+        setAudioMuted: (muted: boolean) => {
+          webContentsState.audioMuted = muted;
+        },
         loadURL: loadUrlMock,
         navigationHistory: {
           canGoBack: () => false,
@@ -284,6 +290,7 @@ export function resetMocks() {
   webContentsViewCtorMock.mockClear();
   webContentsState.destroyed = false;
   webContentsState.isLoading = false;
+  webContentsState.audioMuted = false;
   webContentsState.title = "Example";
   webContentsState.url = "https://example.com/";
   sessionEventHandlers.clear();

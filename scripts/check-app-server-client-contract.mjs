@@ -1101,7 +1101,7 @@ const checks = [
       "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts",
     ],
     snippets: [
-      "pub enum CodexErrorInfo",
+      "pub enum LimeErrorInfo",
       '#[serde(rename = "httpStatusCode")]',
       '#[serde(rename = "turnKind")]',
       "pub struct ErrorNotification",
@@ -8184,7 +8184,7 @@ function checkOrchestratorHostBoundary() {
     "orchestrator.mcp.enabled",
     "discover_orchestrator_skills",
     "OrchestratorSkill",
-    "codex_apps",
+    "lime_apps",
   ];
   for (const root of roots) {
     if (!fs.existsSync(root)) continue;

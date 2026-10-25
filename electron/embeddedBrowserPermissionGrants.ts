@@ -83,11 +83,31 @@ interface DocumentGrants {
   viewId: string;
   revision: number;
   grants: Map<string, Set<string>>;
+  downloaded: boolean;
+  automaticDownloadsDenied: boolean;
 }
 
-/** Ephemeral grants belong to one native document; there is no persistent site store. */
+/** Ephemeral grants belong to one native document; persistent site rules live in their store. */
 export class EmbeddedBrowserPermissionGrants {
   readonly #documents = new Map<WebContents, DocumentGrants>();
+
+  takeDownloadSlot(
+    viewId: string,
+    source: PermissionSource,
+  ): "first" | "ask" | "blocked" {
+    if (!permissionSourceCurrent(source)) return "blocked";
+    const document = this.#document(viewId, source.webContents);
+    if (document.automaticDownloadsDenied) return "blocked";
+    if (document.downloaded) return "ask";
+    document.downloaded = true;
+    return "first";
+  }
+
+  denyAutomaticDownloads(viewId: string, source: PermissionSource): void {
+    if (permissionSourceCurrent(source))
+      this.#document(viewId, source.webContents).automaticDownloadsDenied =
+        true;
+  }
 
   capture(
     viewId: string,
@@ -100,7 +120,7 @@ export class EmbeddedBrowserPermissionGrants {
     const current = () =>
       document.revision === revision && permissionSourceCurrent(source);
     let settled = false;
-    return (allowed: boolean): boolean => {
+    const decide = (allowed: boolean): boolean => {
       if (settled) return false;
       settled = true;
       if (!allowed || !current()) return false;
@@ -111,6 +131,7 @@ export class EmbeddedBrowserPermissionGrants {
       document.grants.set(key, types);
       return true;
     };
+    return Object.assign(decide, { isCurrent: () => !settled && current() });
   }
 
   allows(
@@ -134,6 +155,7 @@ export class EmbeddedBrowserPermissionGrants {
       if (viewId && document.viewId !== viewId) continue;
       document.revision++;
       document.grants.clear();
+      document.automaticDownloadsDenied = false;
     }
   }
 
@@ -149,19 +171,32 @@ export class EmbeddedBrowserPermissionGrants {
   #document(viewId: string, webContents: WebContents): DocumentGrants {
     const existing = this.#documents.get(webContents);
     if (existing) return existing;
-    const document: DocumentGrants = { viewId, revision: 0, grants: new Map() };
+    const document: DocumentGrants = {
+      viewId,
+      revision: 0,
+      grants: new Map(),
+      downloaded: false,
+      automaticDownloadsDenied: false,
+    };
     this.#documents.set(webContents, document);
     const reset = () => {
       document.revision++;
       document.grants.clear();
     };
-    webContents.on("did-start-navigation", reset);
+    const navigation = reset;
+    const committed = () => {
+      document.downloaded = false;
+      document.automaticDownloadsDenied = false;
+    };
+    webContents.on("did-start-navigation", navigation);
+    webContents.on("did-navigate", committed);
     webContents.on("did-frame-navigate", reset);
     webContents.on("frame-created", reset);
     webContents.on("render-process-gone", reset);
     webContents.once("destroyed", () => {
       reset();
-      webContents.off("did-start-navigation", reset);
+      webContents.off("did-start-navigation", navigation);
+      webContents.off("did-navigate", committed);
       webContents.off("did-frame-navigate", reset);
       webContents.off("frame-created", reset);
       webContents.off("render-process-gone", reset);

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { clickNativeMenuItem } from "./browser-runtime-gate-a.mjs";
 import { assert, sanitizeText } from "./claw-chat-current-fixture-utils.mjs";
+import { runBrowserSiteSettingsControls } from "./browser-runtime-electron-site-settings.mjs";
 
 /** Real settings routes and native browser identity; no synthetic route or turn. */
 export async function runBrowserSettingsNavigationScenario({
@@ -32,6 +33,7 @@ export async function runBrowserSettingsNavigationScenario({
     );
   const messages = await load("browserManagement");
   const history = await load("browserHistory");
+  const settings = await load("settings");
   const label = (key) => messages[`browserManagement.${key}`];
   const list = () =>
     page.evaluate(
@@ -75,6 +77,17 @@ export async function runBrowserSettingsNavigationScenario({
       initial.length === 1 &&
         initial[0].webContentsId === guiBeforeTurn.webContentsId,
     );
+    const siteSettings = await runBrowserSiteSettingsControls({
+      app,
+      page,
+      options,
+      guiBeforeTurn,
+      header,
+      messages: settings,
+    });
+    Object.assign(assertions, siteSettings.assertions);
+    screenshots.push(...siteSettings.screenshots);
+    observations.siteSettings = { claimBoundary: siteSettings.claimBoundary };
     for (const kind of ["history", "downloads"]) {
       await page.getByTestId("browser-workspace-options").click();
       await clickNativeMenuItem(app, kind);

@@ -206,6 +206,11 @@ pub const METHOD_ITEM_FILE_CHANGE_REQUEST_APPROVAL: &str = "item/fileChange/requ
 pub const METHOD_ITEM_PERMISSIONS_REQUEST_APPROVAL: &str = "item/permissions/requestApproval";
 pub const METHOD_ITEM_TOOL_CALL: &str = "item/tool/call";
 pub const METHOD_ITEM_TOOL_REQUEST_USER_INPUT: &str = "item/tool/requestUserInput";
+pub const METHOD_COMPUTER_USE_STATUS: &str = "computerUse/status";
+pub const METHOD_COMPUTER_USE_SETUP: &str = "computerUse/setup";
+pub const METHOD_COMPUTER_USE_REVOKE: &str = "computerUse/revoke";
+pub const METHOD_COMPUTER_USE_LEASE_ACQUIRE: &str = "computerUse/lease/acquire";
+pub const METHOD_COMPUTER_USE_LEASE_RELEASE: &str = "computerUse/lease/release";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -474,6 +479,16 @@ pub enum Method {
     CommandExecResize,
     #[serde(rename = "command/exec/terminate")]
     CommandExecTerminate,
+    #[serde(rename = "computerUse/status")]
+    ComputerUseStatus,
+    #[serde(rename = "computerUse/setup")]
+    ComputerUseSetup,
+    #[serde(rename = "computerUse/revoke")]
+    ComputerUseRevoke,
+    #[serde(rename = "computerUse/lease/acquire")]
+    ComputerUseLeaseAcquire,
+    #[serde(rename = "computerUse/lease/release")]
+    ComputerUseLeaseRelease,
 }
 
 impl Method {
@@ -613,6 +628,11 @@ impl Method {
             Self::CommandExecWrite => METHOD_COMMAND_EXEC_WRITE,
             Self::CommandExecResize => METHOD_COMMAND_EXEC_RESIZE,
             Self::CommandExecTerminate => METHOD_COMMAND_EXEC_TERMINATE,
+            Self::ComputerUseStatus => METHOD_COMPUTER_USE_STATUS,
+            Self::ComputerUseSetup => METHOD_COMPUTER_USE_SETUP,
+            Self::ComputerUseRevoke => METHOD_COMPUTER_USE_REVOKE,
+            Self::ComputerUseLeaseAcquire => METHOD_COMPUTER_USE_LEASE_ACQUIRE,
+            Self::ComputerUseLeaseRelease => METHOD_COMPUTER_USE_LEASE_RELEASE,
         }
     }
 
@@ -756,6 +776,11 @@ impl Method {
             METHOD_COMMAND_EXEC_WRITE => Some(Self::CommandExecWrite),
             METHOD_COMMAND_EXEC_RESIZE => Some(Self::CommandExecResize),
             METHOD_COMMAND_EXEC_TERMINATE => Some(Self::CommandExecTerminate),
+            METHOD_COMPUTER_USE_STATUS => Some(Self::ComputerUseStatus),
+            METHOD_COMPUTER_USE_SETUP => Some(Self::ComputerUseSetup),
+            METHOD_COMPUTER_USE_REVOKE => Some(Self::ComputerUseRevoke),
+            METHOD_COMPUTER_USE_LEASE_ACQUIRE => Some(Self::ComputerUseLeaseAcquire),
+            METHOD_COMPUTER_USE_LEASE_RELEASE => Some(Self::ComputerUseLeaseRelease),
             _ => None,
         }
     }
@@ -893,6 +918,11 @@ pub const METHODS: &[&str] = &[
     METHOD_COMMAND_EXEC_WRITE,
     METHOD_COMMAND_EXEC_RESIZE,
     METHOD_COMMAND_EXEC_TERMINATE,
+    METHOD_COMPUTER_USE_STATUS,
+    METHOD_COMPUTER_USE_SETUP,
+    METHOD_COMPUTER_USE_REVOKE,
+    METHOD_COMPUTER_USE_LEASE_ACQUIRE,
+    METHOD_COMPUTER_USE_LEASE_RELEASE,
 ];
 
 pub const NOTIFICATION_METHODS: &[&str] = &[

@@ -1,7 +1,7 @@
 //! Offline composer editing used while the App Server connection is recovering.
 //!
 //! Enter and Tab retain the materialized draft without submitting. The runtime owns reconnect attempts;
-//! this module only provides the Codex-shaped editing boundary for a composer that is offline.
+//! this module only provides the Lime-native editing boundary for a composer that is offline.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 

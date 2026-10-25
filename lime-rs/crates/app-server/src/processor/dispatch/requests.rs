@@ -16,6 +16,11 @@ impl RequestProcessor {
         connection_request_id: Option<ConnectionRequestId>,
     ) -> BoxFuture<'a, Result<RpcDispatch, JsonRpcError>> {
         match method {
+            v2::METHOD_COMPUTER_USE_STATUS => self.handle_computer_use_status(params).boxed(),
+            v2::METHOD_COMPUTER_USE_SETUP => self.handle_computer_use_setup(params, connection_request_id).boxed(),
+            v2::METHOD_COMPUTER_USE_REVOKE => ready(self.handle_computer_use_revoke(params, connection_request_id)).boxed(),
+            v2::METHOD_COMPUTER_USE_LEASE_ACQUIRE => self.handle_computer_use_acquire(params, connection_request_id).boxed(),
+            v2::METHOD_COMPUTER_USE_LEASE_RELEASE => ready(self.handle_computer_use_release(params, connection_request_id)).boxed(),
             v2::METHOD_ROLLOUT_COMPRESS => self.handle_rollout_compress().boxed(),
             v2::METHOD_ACCOUNT_LOGIN_START => self.handle_account_login_start(params).boxed(),
             v2::METHOD_CLOUD_REQUEST => self.handle_cloud_request(params).boxed(),
@@ -472,12 +477,6 @@ impl RequestProcessor {
             METHOD_MCP_SERVER_ENABLED_SET => {
                 self.handle_mcp_server_enabled_set_impl(params).boxed()
             }
-            METHOD_MCP_SERVER_IMPORT_FROM_APP => {
-                self.handle_mcp_server_import_from_app_impl(params).boxed()
-            }
-            METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE => {
-                self.handle_mcp_server_sync_all_to_live_impl().boxed()
-            }
             METHOD_MCP_SERVER_OAUTH_LOGIN => {
                 self.handle_mcp_server_oauth_login_impl(params).boxed()
             }
@@ -506,9 +505,15 @@ impl RequestProcessor {
             v2::METHOD_MCP_SERVER_TOOL_CALL => {
                 self.handle_mcp_server_tool_call_impl(params).boxed()
             }
-            v2::METHOD_LOCAL_ENVIRONMENTS_LIST => self.handle_local_environments_list(params).boxed(),
-            v2::METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG => self.handle_local_environments_read_config(params).boxed(),
-            v2::METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG => self.handle_local_environments_save_config(params).boxed(),
+            v2::METHOD_LOCAL_ENVIRONMENTS_LIST => {
+                self.handle_local_environments_list(params).boxed()
+            }
+            v2::METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG => {
+                self.handle_local_environments_read_config(params).boxed()
+            }
+            v2::METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG => {
+                self.handle_local_environments_save_config(params).boxed()
+            }
             v2::METHOD_ENVIRONMENT_ADD => self.handle_environment_add_impl(params).boxed(),
             v2::METHOD_ENVIRONMENT_INFO => self.handle_environment_info_impl(params).boxed(),
             v2::METHOD_ENVIRONMENT_STATUS => self.handle_environment_status_impl(params).boxed(),

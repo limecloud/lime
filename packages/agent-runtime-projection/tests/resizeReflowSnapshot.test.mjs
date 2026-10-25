@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexResizeReflowSnapshotProjectionEvent,
-  extractCodexResizeReflowProjectionSnapshot,
+  buildResizeReflowSnapshotProjectionEvent,
+  extractResizeReflowProjectionSnapshot,
 } from "../dist/index.js";
 
 function frame(phase, width, height, overrides = {}) {
@@ -59,16 +59,13 @@ function baseInput(overrides = {}) {
 }
 
 test("resize reflow snapshot keeps message, inputbar and right surface anchors stable", () => {
-  const event = buildCodexResizeReflowSnapshotProjectionEvent(
-    baseInput(),
-    {
-      sessionId: "session-resize",
-      threadId: "thread-resize",
-      turnId: "turn-resize",
-      sequence: 341,
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildResizeReflowSnapshotProjectionEvent(baseInput(), {
+    sessionId: "session-resize",
+    threadId: "thread-resize",
+    turnId: "turn-resize",
+    sequence: 341,
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -115,7 +112,7 @@ test("resize reflow snapshot keeps message, inputbar and right surface anchors s
 });
 
 test("pageText-only resize assertions fail closed", () => {
-  const snapshot = extractCodexResizeReflowProjectionSnapshot(
+  const snapshot = extractResizeReflowProjectionSnapshot(
     baseInput({
       frames: [
         frame("before", 1280, 820),
@@ -137,13 +134,21 @@ test("pageText-only resize assertions fail closed", () => {
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "page_text_only_layout_oracle"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "message_anchor_lost"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "page_text_only_layout_oracle",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "message_anchor_lost",
+    ),
+  );
   assert.equal(snapshot.pageTextOnlyRejected, false);
 });
 
 test("resize guard rejects lost thread binding, sequence drift and layout item writes", () => {
-  const snapshot = extractCodexResizeReflowProjectionSnapshot(
+  const snapshot = extractResizeReflowProjectionSnapshot(
     baseInput({
       frames: [
         frame("before", 1280, 820),
@@ -159,14 +164,30 @@ test("resize guard rejects lost thread binding, sequence drift and layout item w
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "thread_turn_binding_lost"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "message_anchor_lost"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "item_sequence_drift"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "layout_state_written_to_item"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "thread_turn_binding_lost",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "message_anchor_lost",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "item_sequence_drift",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "layout_state_written_to_item",
+    ),
+  );
 });
 
 test("right surface owner and request must stay stable across resize", () => {
-  const snapshot = extractCodexResizeReflowProjectionSnapshot(
+  const snapshot = extractResizeReflowProjectionSnapshot(
     baseInput({
       frames: [
         frame("before", 1280, 820),
@@ -182,6 +203,10 @@ test("right surface owner and request must stay stable across resize", () => {
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "right_surface_anchor_lost"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "right_surface_anchor_lost",
+    ),
+  );
   assert.equal(snapshot.rightSurfaceAnchorStable, false);
 });

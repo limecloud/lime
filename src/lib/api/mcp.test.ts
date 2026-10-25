@@ -183,9 +183,6 @@ describe("mcp", () => {
         enabled: true,
       },
       enabled_lime: true,
-      enabled_claude: false,
-      enabled_codex: true,
-      enabled_gemini: false,
     };
     mockAppServerResult({
       data: [
@@ -252,9 +249,6 @@ describe("mcp", () => {
         scopes: ["search.read"],
       },
       enabled_lime: true,
-      enabled_claude: false,
-      enabled_codex: true,
-      enabled_gemini: false,
     };
     mockAppServerResult({ data: [], nextCursor: "page-2" });
     mockAppServerResult({
@@ -524,7 +518,7 @@ describe("mcp", () => {
     expect(safeInvoke).not.toHaveBeenCalled();
   });
 
-  it("MCP CRUD / import / sync 应通过 App Server current method 传递参数", async () => {
+  it("MCP CRUD / enabled 应通过 App Server current method 传递参数", async () => {
     const server = {
       id: "server-1",
       name: "docs",
@@ -533,15 +527,10 @@ describe("mcp", () => {
         args: ["server.js"],
       },
       enabled_lime: true,
-      enabled_claude: false,
-      enabled_codex: true,
-      enabled_gemini: false,
     };
     mockAppServerResult({ servers: [server] });
     mockAppServerResult({ servers: [server] });
     mockAppServerResult({ servers: [] });
-    mockAppServerResult({ servers: [server] });
-    mockAppServerResult({ importedCount: 2, servers: [server] });
     mockAppServerResult({ servers: [server] });
 
     await expect(mcpApi.addServer(server)).resolves.toBeUndefined();
@@ -560,30 +549,16 @@ describe("mcp", () => {
     });
 
     await expect(
-      mcpApi.toggleServer("server-1", "codex", true),
+      mcpApi.toggleServer("server-1", true),
     ).resolves.toBeUndefined();
     expect(appServerRequestMock).toHaveBeenLastCalledWith(
       "mcpServer/enabled/set",
       {
         id: "server-1",
-        appType: "codex",
         enabled: true,
       },
     );
 
-    await expect(mcpApi.importFromApp("codex")).resolves.toBe(2);
-    expect(appServerRequestMock).toHaveBeenLastCalledWith(
-      "mcpServer/importFromApp",
-      {
-        appType: "codex",
-      },
-    );
-
-    await expect(mcpApi.syncAllToLive()).resolves.toBeUndefined();
-    expect(appServerRequestMock).toHaveBeenLastCalledWith(
-      "mcpServer/syncAllToLive",
-      {},
-    );
     expect(safeInvoke).not.toHaveBeenCalled();
   });
 
@@ -594,21 +569,11 @@ describe("mcp", () => {
       description: "resolve",
       input_schema: {},
     };
-    mockAppServerResult({
-      importedCount: 1,
-      servers: [{ id: "codex-docs", name: "codex-docs" }],
-    });
     mockAppServerResult({});
     mockAppServerResult({ tools: [tool] });
 
     await expect(
       mcpApi.executePrepareRequests([
-        {
-          method: "mcpServer/importFromApp",
-          params: { appType: "codex" },
-          reason: "server_missing",
-          status: "candidate",
-        },
         {
           method: "mcpServer/start",
           params: { name: "context7" },
@@ -624,11 +589,6 @@ describe("mcp", () => {
       ]),
     ).resolves.toEqual([
       {
-        method: "mcpServer/importFromApp",
-        status: "completed",
-        importedCount: 1,
-      },
-      {
         method: "mcpServer/start",
         status: "completed",
       },
@@ -641,7 +601,6 @@ describe("mcp", () => {
     ]);
 
     expect(appServerRequestMock.mock.calls).toEqual([
-      ["mcpServer/importFromApp", { appType: "codex" }],
       ["mcpServer/start", { name: "context7" }],
       [
         "mcpTool/listForContext",

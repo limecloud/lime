@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexThreadForkLineageProjectionEvent,
-  extractCodexThreadForkLineageSnapshot,
+  buildThreadForkLineageProjectionEvent,
+  extractThreadForkLineageSnapshot,
 } from "../dist/index.js";
 
 function turn(id, itemIds) {
@@ -58,13 +58,10 @@ function forkLineageInput(overrides = {}) {
 }
 
 test("thread fork lineage keeps parent binding across read, sidebar, history and evidence", () => {
-  const event = buildCodexThreadForkLineageProjectionEvent(
-    forkLineageInput(),
-    {
-      sequence: 141,
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildThreadForkLineageProjectionEvent(forkLineageInput(), {
+    sequence: 141,
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -106,7 +103,7 @@ test("thread fork lineage keeps parent binding across read, sidebar, history and
 });
 
 test("thread fork lineage at lastTurnId keeps only the terminal prefix", () => {
-  const snapshot = extractCodexThreadForkLineageSnapshot(
+  const snapshot = extractThreadForkLineageSnapshot(
     forkLineageInput({
       forkRequest: {
         threadId: "thread-parent",
@@ -150,7 +147,7 @@ test("thread fork lineage at lastTurnId keeps only the terminal prefix", () => {
 });
 
 test("thread fork lineage fails when forkedFromId is missing or read model loses it", () => {
-  const missingForkedFrom = extractCodexThreadForkLineageSnapshot(
+  const missingForkedFrom = extractThreadForkLineageSnapshot(
     forkLineageInput({
       forkResponse: {
         thread: {
@@ -173,7 +170,7 @@ test("thread fork lineage fails when forkedFromId is missing or read model loses
     ["missing_forked_from_id", "parent_thread_id_confused_with_forked_from_id"],
   );
 
-  const readModelLost = extractCodexThreadForkLineageSnapshot(
+  const readModelLost = extractThreadForkLineageSnapshot(
     forkLineageInput({
       readResponse: {
         thread: {
@@ -190,7 +187,7 @@ test("thread fork lineage fails when forkedFromId is missing or read model loses
 });
 
 test("thread fork lineage fails when lastTurnId suffix leaks into the fork", () => {
-  const snapshot = extractCodexThreadForkLineageSnapshot(
+  const snapshot = extractThreadForkLineageSnapshot(
     forkLineageInput({
       forkRequest: {
         threadId: "thread-parent",
@@ -225,7 +222,7 @@ test("thread fork lineage fails when lastTurnId suffix leaks into the fork", () 
 });
 
 test("thread fork lineage requires sidebar and history surfaces", () => {
-  const snapshot = extractCodexThreadForkLineageSnapshot(
+  const snapshot = extractThreadForkLineageSnapshot(
     forkLineageInput({
       sidebarEntries: [],
       historyEvents: [],
@@ -245,7 +242,7 @@ test("thread fork lineage requires sidebar and history surfaces", () => {
 });
 
 test("thread fork lineage fails if source rollout mutates or parent item ids are lost", () => {
-  const snapshot = extractCodexThreadForkLineageSnapshot(
+  const snapshot = extractThreadForkLineageSnapshot(
     forkLineageInput({
       forkResponse: {
         thread: {

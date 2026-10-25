@@ -155,9 +155,7 @@ describe("StreamingRenderer WebSearch canonical rendering", () => {
     );
     expect(processGroupButton?.getAttribute("aria-expanded")).toBe("false");
     expect(processGroup?.getAttribute("data-process-kind")).toBe("web_search");
-    expect(processGroup?.getAttribute("data-visual-tone")).toBe(
-      "codex-activity",
-    );
+    expect(processGroup?.getAttribute("data-visual-tone")).toBe("activity");
     expect(
       processGroup?.querySelector(
         '[data-testid="streaming-process-status-bullet"]',

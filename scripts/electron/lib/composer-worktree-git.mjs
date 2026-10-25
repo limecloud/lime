@@ -108,7 +108,7 @@ export async function readComposerWorktreeEnvironment(rootPath) {
     "--file",
     configFile,
     "--get",
-    "codex.localEnvironmentConfigPath",
+    "lime.localEnvironmentConfigPath",
   ]).trim();
   const marker = await fs.readFile(
     path.join(rootPath, "local-environment-setup.txt"),

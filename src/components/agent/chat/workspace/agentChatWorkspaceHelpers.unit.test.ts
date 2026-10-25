@@ -310,6 +310,15 @@ describe("resolveHarnessRuntimeVisible", () => {
 });
 
 describe("shouldAutoRefreshWorkspaceRightSurfacePending", () => {
+  it("真实会话发送及审批等待期间继续接收工具的前台面板请求", () => {
+    for (const sceneIsSending of [false, true]) {
+      expect(shouldAutoRefreshWorkspaceRightSurfacePending({
+        sessionId: "thread-session", sceneIsSending, sceneIsPreparingSend: true,
+        taskCenterHomeHotpathActive: true, sceneLayoutMode: "chat",
+        manualRightSurfaceActive: false, pluginActivationActive: false,
+      })).toBe(true);
+    }
+  });
   const baseParams = {
     sessionId: null,
     workspaceId: null,
@@ -336,14 +345,14 @@ describe("shouldAutoRefreshWorkspaceRightSurfacePending", () => {
     ).toBe(true);
   });
 
-  it("发送准备或发送中应暂停 right surface pending 自动刷新", () => {
+  it("有会话的发送准备继续刷新，无会话的workspace发送热路径暂停", () => {
     expect(
       shouldAutoRefreshWorkspaceRightSurfacePending({
         ...baseParams,
         sessionId: "session-1",
         sceneIsPreparingSend: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldAutoRefreshWorkspaceRightSurfacePending({
         ...baseParams,
@@ -353,14 +362,14 @@ describe("shouldAutoRefreshWorkspaceRightSurfacePending", () => {
     ).toBe(false);
   });
 
-  it("任务中心首页和草稿发送热路径应暂停 right surface pending 自动刷新", () => {
+  it("已有会话时不受首页热路径标记抑制", () => {
     expect(
       shouldAutoRefreshWorkspaceRightSurfacePending({
         ...baseParams,
         sessionId: "session-1",
         taskCenterHomeHotpathActive: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("没有 session 和 workspace scope 时默认不刷新", () => {

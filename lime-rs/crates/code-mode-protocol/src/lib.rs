@@ -31,7 +31,7 @@ NEWLINE: /\r?\n/
 SOURCE: /[\s\S]+/
 "#;
 
-// Public protocol modules follow Codex's owner boundaries.
+// Public protocol modules follow Lime's current owner boundaries.
 pub use description::*;
 pub use runtime::*;
 pub use session::*;
@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn exec_parser_accepts_codex_pragma_and_rejects_unknown_fields() {
+    fn exec_parser_accepts_lime_pragma_and_rejects_unknown_fields() {
         let parsed = parse_code_mode_exec_source(
             "// @exec: {\"yield_time_ms\":250,\"max_output_tokens\":512}\ntext(42);",
         )

@@ -335,10 +335,10 @@ pub enum NonSteerableTurnKind {
     Compact,
 }
 
-/// Codex-compatible error classification exposed on the v2 wire.
+/// Lime error classification exposed on the v2 wire.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub enum CodexErrorInfo {
+pub enum LimeErrorInfo {
     ContextWindowExceeded,
     SessionBudgetExceeded,
     UsageLimitExceeded,
@@ -377,7 +377,7 @@ pub enum CodexErrorInfo {
 pub struct TurnError {
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub codex_error_info: Option<CodexErrorInfo>,
+    pub lime_error_info: Option<LimeErrorInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub additional_details: Option<String>,
 }

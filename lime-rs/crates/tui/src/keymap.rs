@@ -1,4 +1,4 @@
-//! Resolved keymap snapshot for Codex-shaped TUI interaction surfaces.
+//! Resolved keymap snapshot for Lime-native TUI interaction surfaces.
 
 mod agents;
 mod editor;

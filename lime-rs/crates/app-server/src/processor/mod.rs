@@ -7,6 +7,7 @@ mod background_terminal;
 mod client_context;
 mod collaboration_mode;
 mod command_exec;
+mod computer_use;
 mod config;
 mod config_warning;
 mod connect;

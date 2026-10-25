@@ -73,7 +73,7 @@ pub(super) fn read_manifest_with_name(
         Value::String("./mcp.json".to_string()),
     );
     let mut manifest = Value::Object(object);
-    apply_codex_manifest_extension(&root, &path, &mut manifest)?;
+    apply_lime_manifest_extension(&root, &path, &mut manifest)?;
     manifest_name(&manifest)?;
     manifest_version(&manifest)?;
     Ok(manifest)
@@ -125,7 +125,7 @@ pub(super) fn validate_standard_manifest_fields(
     Ok(())
 }
 
-pub(super) fn apply_codex_manifest_extension(
+pub(super) fn apply_lime_manifest_extension(
     package_root: &Path,
     manifest_path: &Path,
     manifest: &mut Value,
@@ -133,14 +133,14 @@ pub(super) fn apply_codex_manifest_extension(
     let inline_extension = manifest
         .get("extensions")
         .and_then(Value::as_object)
-        .and_then(|extensions| extensions.get(CODEX_EXTENSION_NAMESPACE))
+        .and_then(|extensions| extensions.get(LIME_EXTENSION_NAMESPACE))
         .and_then(|extension| {
             if extension.is_object() {
                 Some(extension.clone())
             } else {
                 tracing::warn!(
                     path = %manifest_path.display(),
-                    namespace = CODEX_EXTENSION_NAMESPACE,
+                    namespace = LIME_EXTENSION_NAMESPACE,
                     "忽略非 object 的 Agent Plugins client extension"
                 );
                 None
@@ -149,14 +149,14 @@ pub(super) fn apply_codex_manifest_extension(
     let extension = match inline_extension {
         Some(extension) => Some(extension),
         None => {
-            let overlay_path = package_root.join(CODEX_EXTENSION_MANIFEST_PATH);
+            let overlay_path = package_root.join(LIME_EXTENSION_MANIFEST_PATH);
             match fs::read_to_string(&overlay_path) {
                 Ok(contents) => Some(
                     serde_json::from_str(&contents)
-                        .map_err(|error| format!("解析 Codex Plugin extension 失败: {error}"))?,
+                        .map_err(|error| format!("解析 Lime Plugin extension 失败: {error}"))?,
                 ),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-                Err(error) => return Err(format!("读取 Codex Plugin extension 失败: {error}")),
+                Err(error) => return Err(format!("读取 Lime Plugin extension 失败: {error}")),
             }
         }
     };
@@ -165,10 +165,10 @@ pub(super) fn apply_codex_manifest_extension(
     };
     let extension = extension
         .as_object()
-        .ok_or_else(|| "Codex Plugin extension 必须是 object。".to_string())?;
+        .ok_or_else(|| "Lime Plugin extension 必须是 object。".to_string())?;
     if let Some(interface) = extension.get("interface") {
         if !interface.is_object() {
-            return Err("Codex Plugin extension interface 必须是 object。".to_string());
+            return Err("Lime Plugin extension interface 必须是 object。".to_string());
         }
         manifest
             .as_object_mut()
@@ -183,7 +183,7 @@ pub(super) fn apply_codex_manifest_extension(
     }
     if let Some(apps) = extension.get("apps") {
         if !apps.is_string() {
-            return Err("Codex Plugin extension apps 必须是包内相对路径。".to_string());
+            return Err("Lime Plugin extension apps 必须是包内相对路径。".to_string());
         }
         manifest
             .as_object_mut()
@@ -278,7 +278,7 @@ pub(super) fn find_manifest_path(root: &Path) -> Result<PathBuf, String> {
         Err(error) => return Err(format!("读取 Plugin manifest 失败: {error}")),
     }
     for relative in [
-        ".codex-plugin/plugin.json",
+        ".lime-plugin/plugin.json",
         ".claude-plugin/plugin.json",
         ".cursor-plugin/plugin.json",
     ] {
@@ -298,7 +298,7 @@ pub(super) fn find_manifest_path(root: &Path) -> Result<PathBuf, String> {
             Err(error) => return Err(format!("读取 Plugin manifest 失败: {error}")),
         }
     }
-    Err("未找到 Codex 支持的 Plugin manifest。".to_string())
+    Err("未找到 Lime 支持的 Plugin manifest。".to_string())
 }
 
 fn validate_native_manifest_fields(object: &serde_json::Map<String, Value>) -> Result<(), String> {

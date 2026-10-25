@@ -1,7 +1,7 @@
 //! Working-directory selection state shared by resume/fork flows.
 //!
 //! The interactive renderer and persisted `resume_cwd` preference are deferred until Lime has a
-//! matching trust/config contract. Keeping this Codex-shaped state machine separate prevents the
+//! matching trust/config contract. Keeping this Lime-native state machine separate prevents the
 //! eventual `/cd` implementation from adding another session owner.
 
 use std::path::Path;

@@ -27,7 +27,7 @@ describe("App Server typed error notification", () => {
       const notification = errorNotification({
         error: {
           additionalDetails: "provider request id: request-1",
-          codexErrorInfo: {
+          limeErrorInfo: {
             responseStreamDisconnected: { httpStatusCode: null },
           },
           message: "provider stream disconnected",
@@ -47,7 +47,7 @@ describe("App Server typed error notification", () => {
       const payload = projectAppServerAgentEventPayload(notification);
       expect(payload).toMatchObject({
         additional_details: "provider request id: request-1",
-        codex_error_info: {
+        lime_error_info: {
           responseStreamDisconnected: { httpStatusCode: null },
         },
         message: "provider stream disconnected",
@@ -60,7 +60,7 @@ describe("App Server typed error notification", () => {
       });
       expect(parseAgentEvent(payload)).toMatchObject({
         additional_details: "provider request id: request-1",
-        codex_error_info: {
+        lime_error_info: {
           responseStreamDisconnected: { httpStatusCode: null },
         },
         message: "provider stream disconnected",

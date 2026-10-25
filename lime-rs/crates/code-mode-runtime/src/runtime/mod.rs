@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 use crate::v8_init::ensure_v8_initialized;
 use crate::TaskFailureHandler;
 
-const EXIT_SENTINEL: &str = "__codex_code_mode_exit__";
+const EXIT_SENTINEL: &str = "__lime_code_mode_exit__";
 
 #[derive(Debug)]
 pub(crate) enum RuntimeCommand {

@@ -1,3 +1,5 @@
+import { BROWSER_SITE_SETTINGS_COMMANDS } from "../src/lib/api/browserSiteSettingsTypes";
+
 export const IPC_INVOKE_CHANNEL = "app:invoke";
 export const IPC_EMIT_CHANNEL = "app:emit";
 export const IPC_DIALOG_OPEN_CHANNEL = "app:dialog:open";
@@ -49,6 +51,7 @@ export const ELECTRON_HOST_COMMANDS = [
   "browser_history_list",
   "browser_history_remove",
   "browser_history_clear",
+  ...BROWSER_SITE_SETTINGS_COMMANDS,
   "browser_downloads_list",
   "browser_downloads_action",
   "browser_downloads_clear",

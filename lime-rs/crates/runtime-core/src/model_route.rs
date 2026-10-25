@@ -298,7 +298,7 @@ fn protocol_from_provider_type(provider_type: &str) -> ProtocolKind {
         Some("openai_response") | Some("openai_responses") | Some("responses") => {
             ProtocolKind::OpenaiResponses
         }
-        Some("codex") => ProtocolKind::CodexResponses,
+        Some("codex") => ProtocolKind::OpenaiResponses,
         Some("anthropic") | Some("anthropic_compatible") => ProtocolKind::AnthropicMessages,
         Some("gemini") => ProtocolKind::GeminiGenerateContent,
         Some("vertexai") | Some("vertex_ai") | Some("gcpvertexai") => ProtocolKind::VertexGemini,
@@ -355,7 +355,7 @@ pub fn protocol_from_provider_name(provider: &str) -> ProtocolKind {
         Some("openai_response") | Some("openai_responses") | Some("responses") => {
             ProtocolKind::OpenaiResponses
         }
-        Some("codex") => ProtocolKind::CodexResponses,
+        Some("codex") => ProtocolKind::OpenaiResponses,
         Some("anthropic") | Some("claude") | Some("anthropic_compatible") => {
             ProtocolKind::AnthropicMessages
         }
@@ -628,7 +628,7 @@ fn protocol_supported_for_task(task_kind: ModelTaskKind, protocol: &ProtocolKind
                 | ProtocolKind::AnthropicMessages
                 | ProtocolKind::GeminiGenerateContent
                 | ProtocolKind::VertexGemini
-                | ProtocolKind::CodexResponses
+                | ProtocolKind::OpenaiResponses
         ),
         ModelTaskKind::VideoGenerate => {
             matches!(protocol, ProtocolKind::Fal | ProtocolKind::XaiVideo)
@@ -637,7 +637,6 @@ fn protocol_supported_for_task(task_kind: ModelTaskKind, protocol: &ProtocolKind
             protocol,
             ProtocolKind::OpenaiImages
                 | ProtocolKind::OpenaiResponses
-                | ProtocolKind::CodexResponses
                 | ProtocolKind::GeminiGenerateContent
                 | ProtocolKind::Fal
         ),

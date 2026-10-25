@@ -12,6 +12,28 @@ const basePending: WorkspaceRightSurfacePendingRequest = {
 };
 
 describe("workspaceRightSurfaceBrowserIntent", () => {
+  it("身份分配不打开面板，工具前台请求选择已挂载页面且不再次导航", () => {
+    const identity = { ...basePending, reason: "browser_identity_tool" };
+    expect(
+      buildWorkspaceRightSurfacePendingBrowserIntent([identity]),
+    ).toBeNull();
+    expect(
+      buildWorkspaceRightSurfacePendingBrowserIntent([
+        identity,
+        {
+          ...basePending,
+          requestId: "reveal",
+          reason: "browser_tool",
+          metadata: { browser: { tabId: "primary" } },
+        },
+      ]),
+    ).toMatchObject({
+      sourceRequestId: "reveal",
+      priority: "foreground",
+      tabId: "primary",
+      launchUrl: null,
+    });
+  });
   it("应从 browser pending metadata 中解析可见浏览器 intent", () => {
     expect(
       buildWorkspaceRightSurfacePendingBrowserIntent([

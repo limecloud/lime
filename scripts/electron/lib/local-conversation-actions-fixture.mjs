@@ -1,4 +1,9 @@
 import assert from "node:assert/strict";
+import { runLocalEnvironmentDialogsScenario } from "./local-conversation-dialogs-fixture.mjs";
+import {
+  runEnvironmentSelectionScenario,
+  runSetupEnvironmentScenario,
+} from "./local-conversation-environment-fixture.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -16,9 +21,13 @@ import {
   launchElectronFixture,
   appServerCallFromPage,
   openSettings,
+  sanitizeText,
 } from "../mcp-config-fixture-smoke.mjs";
 import { reloadRendererDocument } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { captureMainProcessExit } from "./persisted-atom-fixture-driver.mjs";
+import {
+  captureMainProcessExit,
+  quitMainProcessNormally,
+} from "./persisted-atom-fixture-driver.mjs";
 import { settleFixtureResources } from "../../agent-runtime/claw-chat-current-fixture-teardown.mjs";
 import {
   parseSettingsAppearanceFixtureArgs,
@@ -49,6 +58,19 @@ if (options.help) {
 fs.mkdirSync(options.evidenceDir, { recursive: true });
 const sources = [
   "src/components/agent/chat/workspace/LocalConversationActions.tsx",
+  "src/components/agent/chat/workspace/EnvironmentActionIcon.tsx",
+  "src/components/agent/chat/workspace/LocalEnvironmentActionDialog.tsx",
+  "src/components/agent/chat/workspace/LocalEnvironmentSetupDialog.tsx",
+  "src/components/settings-v2/coding/local-environments/LocalEnvironmentFields.tsx",
+  "src/components/settings-v2/coding/local-environments/LocalEnvironmentEditor.tsx",
+  "src/components/settings-v2/coding/local-environments/LifecycleEditor.tsx",
+  "src/components/settings-v2/coding/local-environments/ActionsEditor.tsx",
+  "src/components/settings-v2/_layout/SettingsUnsavedChangesDialog.tsx",
+  "src/components/settings-v2/SettingsPrimitives.tsx",
+  "src/components/ui/button.tsx",
+  "src/index.css",
+  "src/lib/localEnvironments.ts",
+  "src/lib/api/localEnvironments.ts",
   "src/components/agent/chat/workspace/localConversationActionHelpers.ts",
   "src/components/agent/chat/workspace/useLocalConversationEnvironment.ts",
   "src/components/agent/chat/workspace/useWorkspaceRightSurfaceHostRuntime.ts",
@@ -56,20 +78,47 @@ const sources = [
   "src/components/agent/chat/workspace/useWorkspaceRightSurfaceLocalStateRuntime.ts",
   "src/components/agent/chat/workspace/WorkspaceRightSurfaceHostRuntime.tsx",
   "src/components/agent/chat/workspace/right-surface/threadSidePanelTabs.ts",
+  "src/components/agent/chat/workspace/right-surface/RightSurfaceTabStrip.tsx",
+  "src/components/app-shell/unifiedTabStripContext.ts",
+  "src/components/workspace/layout/LayoutTransition.tsx",
   "src/components/agent/chat/components/TerminalPanel.tsx",
   "src/components/agent/chat/components/TerminalTab.tsx",
   "src/lib/api/projectGit.ts",
   "src/lib/api/commandExec.ts",
   "src/lib/api/appServerEventBus.ts",
+  "src/hooks/useLocalEnvironmentRecentActions.ts",
+  "src/hooks/useWorktreeEnvironmentSelection.ts",
+  "src/hooks/useLocalEnvironmentSelection.ts",
+  "src/components/agent/chat/components/LocalEnvironmentMenuContent.tsx",
+  "src/components/agent/chat/components/WorktreeEnvironmentDropdown.tsx",
+  "src/lib/api/localEnvironmentRecentActionsProtocol.ts",
+  "src/lib/api/persistedAtomTypes.ts",
+  "src/lib/api/persistedAtomProtocol.ts",
+  "src/lib/api/persistedAtoms.ts",
+  "src/lib/dev-bridge/invokeDiagnostics.ts",
+  "electron/persistedAtomRecords.ts",
+  "electron/persistedAtomStore.ts",
+  "electron/persistedAtomHost.ts",
   "packages/app-server-client/src/protocol.ts",
   "packages/app-server-client/src/generated/protocol-types.ts",
   "lime-rs/crates/services/src/project_git_service.rs",
   "lime-rs/crates/services/src/project_git_service/status.rs",
+  "lime-rs/crates/services/src/project_git_service/worktrees.rs",
+  "lime-rs/crates/services/src/project_git_service/worktrees/shell_environment.rs",
+  "lime-rs/crates/app-server/src/runtime/local_environments/lifecycle.rs",
+  "lime-rs/crates/app-server/src/command_exec.rs",
+  "lime-rs/crates/app-server/src/processor/command_exec.rs",
   "lime-rs/crates/app-server-protocol/src/protocol/v0/project_git.rs",
   "lime-rs/crates/app-server/src/runtime/service_projection.rs",
+  "lime-rs/crates/app-server/src/runtime/project_git.rs",
+  "lime-rs/crates/app-server/src/processor/project_git.rs",
   "scripts/electron/lib/local-conversation-actions-fixture.mjs",
-  ...["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"].map(
-    (locale) => `src/i18n/resources/${locale}/agent.json`,
+  "scripts/electron/lib/local-conversation-environment-fixture.mjs",
+  "scripts/electron/lib/local-conversation-dialogs-fixture.mjs",
+  ...["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"].flatMap((locale) =>
+    ["agent", "settings"].map(
+      (namespace) => `src/i18n/resources/${locale}/${namespace}.json`,
+    ),
   ),
 ];
 const fingerprints = () =>
@@ -86,7 +135,7 @@ const summary = {
   startedAt: new Date().toISOString(),
   proofLevel: "Desktop Gate B controlled fixture",
   claimBoundary:
-    "Real Electron/preload/IPC/App Server Git-scoped environment selection and configuration read, canonical empty Thread navigation, real local command/exec output/exit/termination and GUI action/terminal identity. Agent backend unavailable; no Turn/provider execution, setup environment inheritance, recent ordering, Windows native or full-settings claim.",
+    "Real Electron/preload/IPC/App Server Git-scoped environment selection and configuration read, canonical empty Thread navigation, real local command/exec output/exit/termination, recent ordering, environment switching/None/search, setup environment capture, toolbar project setup/create-only CAS, Add action/revision conflict and action-terminal inheritance across same-profile cold restart. Agent backend unavailable; no Turn/provider execution, Thread shell policy inheritance, Windows native or full-settings claim.",
   assertions: {},
   consoleErrors: [],
   pageErrors: [],
@@ -101,6 +150,24 @@ const stage = (name) => {
   summary.stage = name;
   console.log(`[local-actions] ${name}`);
 };
+function observeMainProcessExit(app) {
+  const child = app.process();
+  let bytes = 0;
+  for (const stream of [child.stdout, child.stderr])
+    stream?.on("data", (chunk) => {
+      if (bytes >= 256 * 1024) return;
+      const output = Buffer.from(sanitizeText(chunk)).subarray(
+        0,
+        256 * 1024 - bytes,
+      );
+      bytes += output.length;
+      fs.appendFileSync(
+        path.join(options.evidenceDir, `main-${child.pid}.log`),
+        output,
+      );
+    });
+  return captureMainProcessExit(child);
+}
 async function rpc(method, params) {
   const response = await appServerCallFromPage(handle.page, method, params);
   check(
@@ -216,19 +283,26 @@ try {
     "Fixture",
   );
   git(source, "worktree", "add", "--detach", worktree);
+  const otherWorktree = path.join(runtime.tempRoot, "other-worktree");
+  git(source, "worktree", "add", "--detach", otherWorktree);
   const cwd = fs.realpathSync(path.join(worktree, "packages/app"));
-  const configPath = path.join(cwd, ".codex/environments/environment.toml");
+  const configPath = path.join(cwd, ".lime/environments/environment.toml");
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(
     configPath,
     `version=1\nname='Actions fixture'\n[setup]\nscript=''\n[[actions]]\nname='Verify cwd and exit'\nicon='test'\ncommand='''printf 'ACTION_OUTPUT:%s\\n' 'real-process'; pwd; exit 7'''\n[[actions]]\nname='Long running action'\nicon='run'\ncommand='''printf 'ACTION_RUNNING:%s\\n' 'real-process'; sleep 60'''\n[[actions]]\nname='Windows only action'\nplatform='win32'\ncommand='echo Windows'\n`,
+  );
+  const alternatePath = path.join(path.dirname(configPath), "alternate.toml");
+  fs.writeFileSync(
+    alternatePath,
+    "name='Alternate environment'\n[setup]\nscript='touch must-not-run'\n[[actions]]\nname='Alternate action'\ncommand=\"printf ALTERNATE_ACTION_OUTPUT; pwd\"\n",
   );
   git(
     worktree,
     "config",
     "--file",
     git(worktree, "rev-parse", "--git-path", "config.worktree"),
-    "codex.localEnvironmentConfigPath",
+    "lime.localEnvironmentConfigPath",
     configPath,
   );
   const appServerEnv = resolveElectronAppServerRuntimeEnv({
@@ -240,16 +314,28 @@ try {
     },
     repoRoot: process.cwd(),
   });
+  const launchMain = async () => {
+    handle = await launchElectronFixture({
+      options,
+      runtimeEnv: runtime,
+      appServerEnv,
+      consoleErrors: summary.consoleErrors,
+      pageErrors: summary.pageErrors,
+      backendMode: "unavailable",
+    });
+    mainExit = observeMainProcessExit(handle.app);
+  };
+  const restart = async () => {
+    const exit = await quitMainProcessNormally(
+      { app: handle.app, exit: mainExit },
+      30000,
+    );
+    handle = null;
+    await launchMain();
+    return exit;
+  };
   stage("launch-real-electron");
-  handle = await launchElectronFixture({
-    options,
-    runtimeEnv: runtime,
-    appServerEnv,
-    consoleErrors: summary.consoleErrors,
-    pageErrors: summary.pageErrors,
-    backendMode: "unavailable",
-  });
-  mainExit = captureMainProcessExit(handle.app.process());
+  await launchMain();
   handle.page.setDefaultTimeout(Math.min(options.timeoutMs, 30000));
   check(
     "realElectronAndPreload",
@@ -368,10 +454,17 @@ try {
       .locator('[data-testid="terminal-tab"]:visible')
       .getAttribute("data-session-id")) === summary.firstTerminalId,
   );
+  await handle.page.waitForFunction(() =>
+    document
+      .querySelector('[data-testid="local-conversation-primary-action"]')
+      ?.getAttribute("aria-label")
+      ?.includes("Long running action"),
+  );
+  check("recentActionBecomesPrimary", true);
   stage("configuration-deep-link");
   await handle.page.getByTestId("local-conversation-actions").click();
   await handle.page
-    .getByRole("menuitem", { name: /配置操作|Configure actions/ })
+    .getByRole("menuitem", { name: /环境设置|Environment settings/ })
     .click();
   await handle.page.getByTestId("settings-content").waitFor();
   const editor = handle.page.locator(
@@ -476,6 +569,132 @@ try {
   check("noMockFallback", summary.trace.mockFallbackHitCount === 0);
   check("noPageErrors", summary.pageErrors.length === 0);
   check("noConsoleErrors", summary.consoleErrors.length === 0);
+  stage("recent-action-cold-restart");
+  // Leave the second configured action most recent, then restart the actual Main process.
+  await handle.page.getByTestId("local-conversation-actions").click();
+  await handle.page
+    .getByTestId("local-conversation-action")
+    .filter({ hasText: "Long running action" })
+    .click();
+  await waitTerminalOutput("ACTION_RUNNING:real-process");
+  await handle.page
+    .locator(
+      '[data-testid="workspace-right-surface-tab-shell"][aria-selected="true"]',
+    )
+    .locator("..")
+    .getByTestId("workspace-right-surface-tab-close")
+    .click();
+  await handle.page.waitForFunction(
+    async (cwd) => {
+      const state = await window.electronAPI.invoke("persisted_atom_read", {
+        key: "local-env-recent-actions-by-key",
+        query: { kind: "recent-actions" },
+      });
+      return (
+        state.outcome === "ready" &&
+        state.persistence.state === "saved" &&
+        state.data.recentActions[cwd]?.[0] === "Long running action"
+      );
+    },
+    cwd,
+    { timeout: options.timeoutMs },
+  );
+  summary.firstMainExit = await quitMainProcessNormally(
+    { app: handle.app, exit: mainExit },
+    30000,
+  );
+  handle = null;
+  const saved = JSON.parse(
+    fs.readFileSync(
+      path.join(runtime.electronUserDataDir, "host-state.json"),
+      "utf8",
+    ),
+  );
+  check(
+    "recentActionsSavedByHost",
+    saved.atoms["local-env-recent-actions-by-key"][cwd]?.[0] ===
+      "Long running action",
+  );
+  await launchMain();
+  await openConversation(thread.sessionId);
+  await handle.page.waitForFunction(() =>
+    document
+      .querySelector('[data-testid="local-conversation-primary-action"]')
+      ?.getAttribute("aria-label")
+      ?.includes("Long running action"),
+  );
+  await handle.page.getByTestId("local-conversation-actions").click();
+  await handle.page.getByTestId("local-conversation-action").first().waitFor();
+  summary.coldActionOrder = await handle.page
+    .getByTestId("local-conversation-action")
+    .allTextContents();
+  check(
+    "recentOrderAfterColdRestart",
+    summary.coldActionOrder[0] === "Long running action",
+  );
+  await handle.page.screenshot({
+    path: path.join(options.evidenceDir, "actions-cold-restart.png"),
+    animations: "disabled",
+  });
+  summary.coldTrace = summarizeSettingsAppearanceTrace(
+    await handle.page.evaluate(() =>
+      localStorage.getItem("lime_invoke_trace_buffer_v1"),
+    ),
+  );
+  check(
+    "coldRestartNoMockFallback",
+    summary.coldTrace.mockFallbackHitCount === 0,
+  );
+  check(
+    "coldRestartNoErrors",
+    summary.pageErrors.length === 0 && summary.consoleErrors.length === 0,
+  );
+  stage("change-environment-real-git-scope");
+  await runEnvironmentSelectionScenario({
+    source,
+    git,
+    otherWorktree,
+    cwd,
+    alternatePath,
+    options,
+    summary,
+    rpc,
+    check,
+    waitTerminalOutput,
+    getHandle: () => handle,
+    openConversation: () => openConversation(thread.sessionId),
+    restart,
+  });
+  stage("setup-environment-cold-terminal-inheritance");
+  await runSetupEnvironmentScenario({
+    source,
+    git,
+    options,
+    summary,
+    rpc,
+    check,
+    waitTerminalOutput,
+    getHandle: () => handle,
+    openConversation,
+    restart,
+  });
+  stage("toolbar-dialogs-create-conflict-execute-cold-restart");
+  await runLocalEnvironmentDialogsScenario({
+    source,
+    tempRoot: runtime.tempRoot,
+    git,
+    options,
+    summary,
+    rpc,
+    check,
+    waitTerminalOutput,
+    getHandle: () => handle,
+    openConversation,
+    restart,
+  });
+  trace = await handle.page.evaluate(() =>
+    localStorage.getItem("lime_invoke_trace_buffer_v1"),
+  );
   summary.result = "pass";
 } catch (error) {
   failure = error;

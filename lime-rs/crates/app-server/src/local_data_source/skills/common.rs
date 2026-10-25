@@ -170,3 +170,24 @@ fn try_resolve_skill_package_dir(
 
     Ok(Some(canonical_skill_dir))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        SkillPackageApp, parse_skill_package_app, skill_package_app_root, skill_state_key,
+    };
+    use std::path::Path;
+
+    #[test]
+    fn codex_skill_packages_use_codex_user_directory() {
+        let app = parse_skill_package_app("codex").expect("Codex is a supported skill target");
+
+        assert_eq!(app, SkillPackageApp::Codex);
+        assert_eq!(skill_state_key(app, "example-skill"), "codex:example-skill");
+        assert!(
+            skill_package_app_root(app)
+                .expect("Codex skill root")
+                .ends_with(Path::new(".codex").join("skills"))
+        );
+    }
+}

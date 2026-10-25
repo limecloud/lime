@@ -2,7 +2,7 @@ use super::*;
 use std::path::PathBuf;
 
 fn config(project: &Path, file: &str) -> PathBuf {
-    project.join(".codex").join("environments").join(file)
+    project.join(".lime").join("environments").join(file)
 }
 
 fn raw(name: &str) -> String {
@@ -39,14 +39,14 @@ fn passive_reads_do_not_create_environment_directories() {
     assert_eq!(response.revision, None);
     assert_eq!(response.environment, None);
     assert_eq!(response.raw, None);
-    assert!(!temp.path().join(".codex").exists());
+    assert!(!temp.path().join(".lime").exists());
     let response = list(LocalEnvironmentsListParams {
         workspace_root: temp.path().to_string_lossy().into_owned(),
         host_id: None,
     })
     .unwrap();
     assert!(response.environments.is_empty());
-    assert!(!temp.path().join(".codex").exists());
+    assert!(!temp.path().join(".lime").exists());
 }
 
 #[test]
@@ -241,7 +241,7 @@ fn remote_relative_and_outside_paths_fail_without_creating_files() {
             .to_string_lossy()
             .into_owned(),
         format!(
-            "{}/.codex/environments/../wrong.toml",
+            "{}/.lime/environments/../wrong.toml",
             temp.path().display()
         ),
     ] {
@@ -256,7 +256,7 @@ fn remote_relative_and_outside_paths_fail_without_creating_files() {
     let mut params = save(&config(temp.path(), "environment.toml"), raw("X"), None);
     params.host_id = Some("remote".into());
     assert!(save_config(params).is_err());
-    assert!(!temp.path().join(".codex").exists());
+    assert!(!temp.path().join(".lime").exists());
 }
 
 #[cfg(unix)]
@@ -265,14 +265,14 @@ fn symlinked_directories_and_files_cannot_redirect_reads_or_writes() {
     let temp = tempfile::tempdir().unwrap();
     let project = temp.path().join("project");
     let outside = temp.path().join("outside");
-    fs::create_dir_all(project.join(".codex")).unwrap();
+    fs::create_dir_all(project.join(".lime")).unwrap();
     fs::create_dir_all(&outside).unwrap();
-    std::os::unix::fs::symlink(&outside, project.join(".codex/environments")).unwrap();
+    std::os::unix::fs::symlink(&outside, project.join(".lime/environments")).unwrap();
     let path = config(&project, "environment.toml");
     assert!(save_config(save(&path, raw("X"), None)).is_err());
     assert!(!outside.join("environment.toml").exists());
-    fs::remove_file(project.join(".codex/environments")).unwrap();
-    fs::create_dir(project.join(".codex/environments")).unwrap();
+    fs::remove_file(project.join(".lime/environments")).unwrap();
+    fs::create_dir(project.join(".lime/environments")).unwrap();
     let target = outside.join("environment.toml");
     fs::write(&target, raw("Original")).unwrap();
     std::os::unix::fs::symlink(&target, &path).unwrap();
@@ -290,5 +290,5 @@ fn oversized_documents_are_rejected_before_directory_creation() {
     let temp = tempfile::tempdir().unwrap();
     let path = config(temp.path(), "environment.toml");
     assert!(save_config(save(&path, " ".repeat(MAX_CONFIG_BYTES as usize + 1), None)).is_err());
-    assert!(!temp.path().join(".codex").exists());
+    assert!(!temp.path().join(".lime").exists());
 }

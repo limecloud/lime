@@ -881,7 +881,7 @@ describe("Codex TUI structure inventory", () => {
     }
   });
 
-  it("records the Codex-shaped TUI integration test trees", () => {
+  it("records the Lime-native TUI integration test trees", () => {
     for (const treeName of ["codex-rs/tui/tests", "lime-rs/crates/tui/tests"]) {
       expect(inventory.trees[treeName].fileCount).toBeGreaterThan(0);
     }
@@ -906,7 +906,7 @@ describe("Codex TUI structure inventory", () => {
     );
   });
 
-  it("locks Codex-shaped current TUI module and symbol names", () => {
+  it("locks Lime-native current TUI module and symbol names", () => {
     const files = new Set(inventory.trees["lime-rs/crates/tui/src"].files);
     expect(files).not.toContain("status_indicator_widget/timer.rs");
     expect(files).not.toContain("status_indicator_widget/timer_tests.rs");

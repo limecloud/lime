@@ -17,7 +17,7 @@ function downloadHarness(allowed: () => boolean | Promise<boolean>) {
     setSavePath: vi.fn(),
     setSaveDialogOptions: vi.fn(),
   });
-  const webContents = {};
+  const webContents = new EventEmitter();
   const emitted: unknown[] = [];
   installEmbeddedBrowserDownloadHandling(
     browserSession as never,
@@ -35,7 +35,7 @@ function downloadHarness(allowed: () => boolean | Promise<boolean>) {
     (_event, payload) => emitted.push(payload),
   );
   browserSession.emit("will-download", {}, item, webContents);
-  return { item, emitted };
+  return { item, emitted, webContents };
 }
 
 describe("native Browser download policy", () => {
@@ -76,7 +76,9 @@ describe("native Browser download policy", () => {
   });
   it("does not resume a download cancelled while the settings read was pending", async () => {
     let resolvePolicy!: (allowed: boolean) => void;
-    const policy = new Promise<boolean>(resolve => { resolvePolicy = resolve; });
+    const policy = new Promise<boolean>((resolve) => {
+      resolvePolicy = resolve;
+    });
     const { item } = downloadHarness(() => policy);
     item.emit("done", {}, "cancelled");
     resolvePolicy(true);
@@ -84,4 +86,18 @@ describe("native Browser download policy", () => {
     expect(item.resume).not.toHaveBeenCalled();
   });
 
+  it("aborts pending authorization at navigation and rejects a late allow", async () => {
+    let resolvePolicy!: (allowed: boolean) => void;
+    const policy = new Promise<boolean>((resolve) => {
+      resolvePolicy = resolve;
+    });
+    const f = downloadHarness(() => policy);
+    f.webContents.emit("did-start-navigation");
+    expect(f.item.cancel).toHaveBeenCalledOnce();
+    f.item.emit("done", {}, "cancelled");
+    resolvePolicy(true);
+    await policy;
+    expect(f.item.resume).not.toHaveBeenCalled();
+    expect(f.webContents.listenerCount("did-start-navigation")).toBe(0);
+  });
 });

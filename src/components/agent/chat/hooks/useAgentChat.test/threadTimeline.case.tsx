@@ -109,7 +109,9 @@ describe("useAgentChat thread timeline", () => {
         .reverse()
         .find((msg) => msg.role === "assistant");
 
-      expect(assistantMessage?.content).toContain("执行失败：429 rate limit");
+      expect(assistantMessage?.content).toBe(
+        "执行失败：当前模型通道请求受限（429），请稍后重试；如果持续失败，请检查服务商配额或切换其他可用模型。",
+      );
       expect(assistantMessage?.runtimeStatus).toMatchObject({
         phase: "failed",
         title: "当前处理失败",

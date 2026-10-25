@@ -1,10 +1,11 @@
 [package]
 name = "execpolicy"
 version.workspace = true
-edition.workspace = true
+edition = "2024"
 authors.workspace = true
 repository.workspace = true
-description = "Prefix-based execution policy parsing and command reporting."
+license = "Apache-2.0"
+description = "Prefix-based execution policy rules and evaluation."
 
 [lib]
 name = "execpolicy"
@@ -12,20 +13,21 @@ path = "src/lib.rs"
 doctest = false
 
 [[bin]]
-name = "execpolicy"
+name = "lime-execpolicy"
 path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
-multimap = "0.10.1"
+lime-utils-absolute-path.workspace = true
+multimap = "0.10.0"
 serde.workspace = true
 serde_json.workspace = true
-shlex = "1"
-starlark = "0.14.2"
+shlex.workspace = true
+starlark = { version = "0.14.2", default-features = false }
 tempfile.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
+thiserror = "2.0.17"
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt"] }
 
 [dev-dependencies]
 pretty_assertions.workspace = true

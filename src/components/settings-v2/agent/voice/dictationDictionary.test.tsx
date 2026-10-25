@@ -134,7 +134,7 @@ describe("dictation dictionary editing", () => {
     render([], save);
     edit(inputs()[0], "OpenAI");
     blur(inputs()[0]);
-    edit(inputs()[0], "OpenAI Codex");
+    edit(inputs()[0], "Lime Desktop");
     blur(inputs()[0]);
     expect(save).toHaveBeenCalledTimes(1);
     expect(inputs()[0].disabled).toBe(false);
@@ -142,9 +142,9 @@ describe("dictation dictionary editing", () => {
     await settle();
     expect(save.mock.calls.map(([entries]) => entries)).toEqual([
       ["OpenAI"],
-      ["OpenAI Codex"],
+      ["Lime Desktop"],
     ]);
-    expect(inputs()[0].value).toBe("OpenAI Codex");
+    expect(inputs()[0].value).toBe("Lime Desktop");
   });
   it("retains a failed draft and retries the latest edit once", async () => {
     const save = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);

@@ -2075,7 +2075,7 @@ async fn each_sampling_attempt_emits_independent_provider_phase_trace() {
                     output_tokens: 4,
                     cached_input_tokens: Some(2),
                     cache_creation_input_tokens: None,
-                    codex_rollout_budget_units: None,
+                    lime_rollout_budget_units: None,
                 }),
             ),
             (
@@ -2090,7 +2090,7 @@ async fn each_sampling_attempt_emits_independent_provider_phase_trace() {
                     output_tokens: 6,
                     cached_input_tokens: Some(5),
                     cache_creation_input_tokens: None,
-                    codex_rollout_budget_units: None,
+                    lime_rollout_budget_units: None,
                 }),
             ),
         ]

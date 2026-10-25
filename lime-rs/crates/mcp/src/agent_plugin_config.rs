@@ -1,19 +1,19 @@
-//! Agent Plugins v1 `mcp.json` parser and runtime lowering.
-//!
-//! The portable package format is deliberately parsed separately from the
-//! internal `McpServerConfig` shape. This keeps client-only runtime fields out
-//! of the package contract and makes path/security checks explicit.
-
-use crate::types::{McpServerConfig, McpServerTransport, DEFAULT_MCP_SERVER_ENVIRONMENT_ID};
+use super::PluginMcpConfigParseOutcome;
+use super::PluginMcpServerParseError;
+use crate::McpServerConfig;
 use serde::Deserialize;
-use serde_json::{Map as JsonMap, Value as JsonValue};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use serde_json::Map as JsonMap;
+use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use url::Host;
 
-pub const AGENT_PLUGIN_MCP_SCHEMA_URI: &str =
-    "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
+// Published Agent Plugins v1 MCP schema:
+// https://github.com/agentplugins/agent-plugins-spec/blob/main/schemas/1.0.0/mcp.schema.json
+const AGENT_PLUGIN_MCP_SCHEMA_URI: &str = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
+const SUPPORTED_AGENT_PLUGIN_MCP_SCHEMA_URIS: &[&str] = &[AGENT_PLUGIN_MCP_SCHEMA_URI];
 const PLUGIN_ROOT_VARIABLE: &str = "PLUGIN_ROOT";
 const PLUGIN_DATA_VARIABLE: &str = "PLUGIN_DATA";
 const CLIENT_OWNED_HTTP_HEADERS: &[&str] = &[
@@ -34,22 +34,6 @@ const CLIENT_OWNED_HTTP_HEADERS: &[&str] = &[
     "upgrade",
     "user-agent",
 ];
-
-#[derive(Debug, Clone)]
-pub struct AgentPluginMcpServerParseError {
-    pub name: String,
-    pub message: String,
-}
-
-#[cfg(test)]
-#[path = "agent_plugin_config_tests.rs"]
-mod agent_plugin_config_tests;
-
-#[derive(Debug, Default)]
-pub struct AgentPluginMcpConfigParseOutcome {
-    pub servers: BTreeMap<String, McpServerConfig>,
-    pub errors: Vec<AgentPluginMcpServerParseError>,
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -85,94 +69,109 @@ enum AgentPluginMcpServer {
     },
 }
 
-/// Parse a standard Agent Plugins v1 `mcp.json` and lower valid servers into
-/// Lime's internal MCP configuration. A malformed file rejects the component;
-/// a malformed sibling server is isolated in `errors`.
+/// Translates an Agent Plugins `mcp.json` into Codex MCP configuration.
 pub fn parse_agent_plugin_mcp_config(
     plugin_root: &Path,
     plugin_data_root: &Path,
     contents: &str,
-) -> Result<AgentPluginMcpConfigParseOutcome, String> {
+) -> Result<PluginMcpConfigParseOutcome, serde_json::Error> {
+    parse_agent_plugin_mcp_config_from(contents, plugin_root, plugin_data_root)
+}
+
+fn parse_agent_plugin_mcp_config_from(
+    contents: &str,
+    plugin_root: &Path,
+    plugin_data_root: &Path,
+) -> Result<PluginMcpConfigParseOutcome, serde_json::Error> {
     let AgentPluginMcpFile {
         schema,
         mcp_servers,
-    } = serde_json::from_str(contents)
-        .map_err(|error| format!("解析 Agent Plugins MCP 配置失败: {error}"))?;
-    if schema != AGENT_PLUGIN_MCP_SCHEMA_URI {
-        return Err(format!(
-            "不支持的 Agent Plugins MCP schema `{schema}`，仅支持 `{AGENT_PLUGIN_MCP_SCHEMA_URI}`。"
-        ));
+    } = serde_json::from_str(contents)?;
+    if !SUPPORTED_AGENT_PLUGIN_MCP_SCHEMA_URIS.contains(&schema.as_str()) {
+        return Err(plugin_mcp_json_error(format!(
+            "unsupported Agent Plugins MCP schema `{schema}`; supported schemas: {}",
+            SUPPORTED_AGENT_PLUGIN_MCP_SCHEMA_URIS.join(", ")
+        )));
     }
 
-    let root = absolute_plugin_path(plugin_root)?;
-    let data = absolute_plugin_path(plugin_data_root)?;
-
-    let mut outcome = AgentPluginMcpConfigParseOutcome::default();
+    let mut outcome = PluginMcpConfigParseOutcome::default();
     for (name, value) in mcp_servers {
-        match normalize_server(value, &root, &data) {
+        match normalize_agent_plugin_mcp_server(value, plugin_root, plugin_data_root) {
             Ok(config) => {
                 outcome.servers.insert(name, config);
             }
             Err(message) => outcome
                 .errors
-                .push(AgentPluginMcpServerParseError { name, message }),
+                .push(PluginMcpServerParseError { name, message }),
         }
     }
     Ok(outcome)
 }
 
-fn normalize_server(
+fn normalize_agent_plugin_mcp_server(
     value: JsonValue,
     plugin_root: &Path,
     plugin_data_root: &Path,
 ) -> Result<McpServerConfig, String> {
     let object = value
         .as_object()
-        .ok_or_else(|| "Agent Plugins MCP server 必须是 object。".to_string())?;
+        .ok_or_else(|| "Agent Plugins MCP server must be an object".to_string())?;
     match object.get("type").and_then(JsonValue::as_str) {
         Some("stdio") => reject_explicit_null(object, "cwd")?,
         Some("streamable-http" | "sse") => reject_explicit_null(object, "headers")?,
         _ => {}
     }
-    let server: AgentPluginMcpServer = serde_json::from_value(value)
-        .map_err(|error| format!("MCP server schema 无效: {error}"))?;
-    match server {
+    let server =
+        serde_json::from_value::<AgentPluginMcpServer>(value).map_err(|err| err.to_string())?;
+    let object = match server {
         AgentPluginMcpServer::Stdio {
             command,
             args,
             env,
             cwd,
-        } => normalize_stdio(command, args, env, cwd, plugin_root, plugin_data_root),
-        AgentPluginMcpServer::StreamableHttp { url, headers } => normalize_http(url, headers),
-        AgentPluginMcpServer::Sse { .. } => {
-            Err("Agent Plugins legacy SSE transport 不受支持。".to_string())
+        } => normalize_agent_plugin_stdio_server(
+            command,
+            args,
+            env,
+            cwd,
+            plugin_root,
+            plugin_data_root,
+        )?,
+        AgentPluginMcpServer::StreamableHttp { url, headers } => {
+            normalize_agent_plugin_http_server(url, headers)?
         }
-    }
+        AgentPluginMcpServer::Sse { .. } => {
+            return Err("Agent Plugins legacy SSE transport is not supported by Codex".to_string());
+        }
+    };
+    serde_json::from_value(JsonValue::Object(object)).map_err(|err| err.to_string())
 }
 
-fn normalize_stdio(
+fn normalize_agent_plugin_stdio_server(
     mut command: String,
     mut args: Vec<String>,
     mut env: BTreeMap<String, String>,
     cwd: Option<String>,
     plugin_root: &Path,
     plugin_data_root: &Path,
-) -> Result<McpServerConfig, String> {
+) -> Result<JsonMap<String, JsonValue>, String> {
     #[cfg(windows)]
-    let has_windows_prefix = matches!(
+    let has_windows_path_prefix = matches!(
         Path::new(&command).components().next(),
         Some(std::path::Component::Prefix(_))
     );
     #[cfg(not(windows))]
-    let has_windows_prefix = false;
-    let bare = !command.is_empty()
+    let has_windows_path_prefix = false;
+    let is_bare_command = !command.is_empty()
         && !command.contains('/')
         && !command.contains('\\')
-        && !has_windows_prefix;
-    let relative = command.starts_with("./") && is_portable_relative_path(&command);
-    if !bare && !relative {
+        && !has_windows_path_prefix;
+    let is_plugin_relative_command =
+        command.starts_with("./") && is_portable_relative_path(&command);
+    if !is_bare_command && !is_plugin_relative_command {
         return Err(
-            "Agent Plugins stdio command 必须是裸 executable 或包内 `./` 路径。".to_string(),
+            "Agent Plugins stdio command must be a bare executable name or a contained `./` path"
+                .to_string(),
         );
     }
     for reserved in [PLUGIN_ROOT_VARIABLE, PLUGIN_DATA_VARIABLE] {
@@ -181,115 +180,76 @@ fn normalize_stdio(
             .any(|name| environment_variable_names_match(name, reserved))
         {
             return Err(format!(
-                "Agent Plugins stdio env 不得覆盖保留变量 `{reserved}`。"
+                "Agent Plugins stdio `env` cannot override reserved variable `{reserved}`"
             ));
         }
     }
     #[cfg(windows)]
     {
-        let mut normalized = BTreeMap::new();
+        let mut normalized_env = BTreeMap::new();
         for (name, value) in env {
-            let name = name.to_ascii_uppercase();
-            if normalized.insert(name.clone(), value).is_some() {
-                return Err(format!("重复的大小写不敏感环境变量 `{name}`。"));
+            let normalized_name = name.to_ascii_uppercase();
+            if normalized_env.insert(normalized_name, value).is_some() {
+                return Err(format!(
+                    "duplicate case-insensitive Agent Plugins environment variable `{name}`"
+                ));
             }
         }
-        env = normalized;
+        env = normalized_env;
     }
 
-    let root = host_path_string(plugin_root);
-    let data = host_path_string(plugin_data_root);
-    if relative {
+    let root_path = absolute_plugin_path(plugin_root)?;
+    let data_root_path = absolute_plugin_path(plugin_data_root)?;
+    let root = host_path_string(&root_path);
+    let data_root = host_path_string(&data_root_path);
+    if command.starts_with("./") {
         command = host_path_string(&resolve_contained_host_path(
-            &command,
-            plugin_root,
-            plugin_root,
+            &command, &root_path, &root_path,
         )?);
     }
-    for value in &mut args {
-        *value = expand_placeholders(value, &root, &data);
+    for arg in &mut args {
+        *arg = expand_agent_plugin_placeholders(arg, &root, &data_root);
     }
     for value in env.values_mut() {
-        *value = expand_placeholders(value, &root, &data);
+        *value = expand_agent_plugin_placeholders(value, &root, &data_root);
     }
-    let configured_cwd = cwd.as_deref().unwrap_or("${PLUGIN_ROOT}");
-    let cwd_root = parse_cwd_root(configured_cwd).ok_or_else(|| {
-        "Agent Plugins stdio cwd 必须是包内 `./`、`${PLUGIN_ROOT}` 或 `${PLUGIN_DATA}` 路径。"
-            .to_string()
-    })?;
-    let expanded_cwd = expand_placeholders(configured_cwd, &root, &data);
-    let cwd_base = match cwd_root {
-        CwdRoot::Package => plugin_root,
-        CwdRoot::Data => plugin_data_root,
+
+    let cwd = cwd.as_deref().unwrap_or("${PLUGIN_ROOT}");
+    let Some(cwd_root) = parse_agent_plugin_cwd(cwd) else {
+        return Err(
+            "Agent Plugins stdio `cwd` must be a contained `./`, `${PLUGIN_ROOT}`, or `${PLUGIN_DATA}` path"
+                .to_string(),
+        );
     };
-    let cwd = host_path_string(&resolve_contained_host_path(
-        &expanded_cwd,
-        cwd_base,
-        cwd_base,
-    )?);
+    let cwd = expand_agent_plugin_placeholders(cwd, &root, &data_root);
+    let cwd_root = match cwd_root {
+        AgentPluginCwdRoot::Package => &root_path,
+        AgentPluginCwdRoot::Data => &data_root_path,
+    };
     env.insert(PLUGIN_ROOT_VARIABLE.to_string(), root);
-    env.insert(PLUGIN_DATA_VARIABLE.to_string(), data);
+    env.insert(PLUGIN_DATA_VARIABLE.to_string(), data_root);
 
-    Ok(McpServerConfig {
-        transport: McpServerTransport::Stdio {
-            command,
-            args,
-            env: env.into_iter().collect::<HashMap<_, _>>(),
-            cwd: Some(cwd),
-        },
-        environment_id: DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
-        enabled: true,
-        startup_timeout: 30,
-        tool_timeout: None,
-        enabled_tools: None,
-        disabled_tools: Vec::new(),
-        required: false,
-        supports_parallel_tool_calls: false,
-        scopes: None,
-        oauth: None,
-        oauth_resource: None,
-    })
-}
-
-fn normalize_http(
-    url: String,
-    mut headers: Option<BTreeMap<String, String>>,
-) -> Result<McpServerConfig, String> {
-    validate_url(&url)?;
-    if let Some(configured) = headers.as_mut() {
-        validate_headers(configured)?;
-        configured.retain(|name, _| {
-            !CLIENT_OWNED_HTTP_HEADERS
-                .iter()
-                .any(|owned| name.eq_ignore_ascii_case(owned))
-        });
-    }
-    Ok(McpServerConfig {
-        transport: McpServerTransport::StreamableHttp {
-            url,
-            bearer_token_env_var: None,
-            http_headers: headers
-                .filter(|values| !values.is_empty())
-                .map(|values| values.into_iter().collect()),
-            env_http_headers: None,
-        },
-        environment_id: DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
-        enabled: true,
-        startup_timeout: 30,
-        tool_timeout: None,
-        enabled_tools: None,
-        disabled_tools: Vec::new(),
-        required: false,
-        supports_parallel_tool_calls: false,
-        scopes: None,
-        oauth: None,
-        oauth_resource: None,
-    })
+    Ok(JsonMap::from_iter([
+        ("command".to_string(), JsonValue::String(command)),
+        (
+            "args".to_string(),
+            JsonValue::Array(args.into_iter().map(JsonValue::String).collect()),
+        ),
+        ("env".to_string(), string_map_value(env)),
+        (
+            "cwd".to_string(),
+            JsonValue::String(host_path_string(&resolve_contained_host_path(
+                &cwd, cwd_root, cwd_root,
+            )?)),
+        ),
+    ]))
 }
 
 fn reject_explicit_null(object: &JsonMap<String, JsonValue>, field: &str) -> Result<(), String> {
     if object.get(field).is_some_and(JsonValue::is_null) {
-        return Err(format!("Agent Plugins MCP `{field}` 必须使用声明的类型。"));
+        return Err(format!(
+            "Agent Plugins MCP `{field}` must use its declared type when present"
+        ));
     }
     Ok(())
 }
@@ -302,82 +262,116 @@ fn environment_variable_names_match(left: &str, right: &str) -> bool {
     }
 }
 
-fn validate_url(raw: &str) -> Result<(), String> {
-    if raw.is_empty() {
-        return Err("Agent Plugins HTTP server requires a non-empty url。".to_string());
+fn normalize_agent_plugin_http_server(
+    url: String,
+    mut headers: Option<BTreeMap<String, String>>,
+) -> Result<JsonMap<String, JsonValue>, String> {
+    validate_agent_plugin_url(&url)?;
+    if let Some(configured_headers) = headers.as_mut() {
+        validate_agent_plugin_headers(configured_headers)?;
+        configured_headers.retain(|name, _| {
+            !CLIENT_OWNED_HTTP_HEADERS
+                .iter()
+                .any(|owned| name.eq_ignore_ascii_case(owned))
+        });
     }
-    let parsed = url::Url::parse(raw).map_err(|error| format!("MCP URL 无效 `{raw}`: {error}"))?;
+    let mut object = JsonMap::from_iter([("url".to_string(), JsonValue::String(url))]);
+    if let Some(headers) = headers.filter(|headers| !headers.is_empty()) {
+        object.insert("http_headers".to_string(), string_map_value(headers));
+    }
+    Ok(object)
+}
+
+fn validate_agent_plugin_url(raw_url: &str) -> Result<(), String> {
+    if raw_url.is_empty() {
+        return Err("Agent Plugins HTTP server requires a non-empty `url`".to_string());
+    }
+    let parsed = url::Url::parse(raw_url)
+        .map_err(|err| format!("invalid Agent Plugins MCP URL `{raw_url}`: {err}"))?;
     if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-        return Err("Agent Plugins MCP URL 必须是绝对 HTTP/HTTPS 地址。".to_string());
+        return Err("Agent Plugins MCP URL must be absolute HTTP or HTTPS".to_string());
     }
     if !parsed.username().is_empty() || parsed.password().is_some() || parsed.fragment().is_some() {
-        return Err("Agent Plugins MCP URL 不得包含 userinfo 或 fragment。".to_string());
+        return Err(
+            "Agent Plugins MCP URL must not contain user information or a fragment".to_string(),
+        );
     }
-    let loopback = match parsed.host() {
-        Some(Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+    let is_loopback = match parsed.host() {
+        Some(Host::Domain(host)) => host == "localhost",
         Some(Host::Ipv4(address)) => address.is_loopback(),
         Some(Host::Ipv6(address)) => address.is_loopback(),
         None => false,
     };
-    if parsed.scheme() == "http" && !loopback {
-        return Err("非 loopback Agent Plugins MCP endpoint 必须使用 HTTPS。".to_string());
+    if parsed.scheme() == "http" && !is_loopback {
+        return Err("non-loopback Agent Plugins MCP endpoints must use HTTPS".to_string());
     }
     Ok(())
 }
 
-fn validate_headers(headers: &BTreeMap<String, String>) -> Result<(), String> {
-    let mut seen = HashSet::new();
+fn validate_agent_plugin_headers(headers: &BTreeMap<String, String>) -> Result<(), String> {
+    let mut seen = std::collections::HashSet::new();
     for (name, value) in headers {
         if !seen.insert(name.to_ascii_lowercase()) {
-            return Err(format!("重复的 HTTP header `{name}`。"));
+            return Err(format!(
+                "duplicate case-insensitive Agent Plugins HTTP header `{name}`"
+            ));
         }
-        if name.is_empty()
-            || !name
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte))
-        {
-            return Err(format!("HTTP header 名称无效 `{name}`。"));
+        if !is_valid_http_header_name(name) {
+            return Err(format!("invalid Agent Plugins HTTP header name `{name}`"));
         }
         if value
             .bytes()
             .any(|byte| (byte < 32 && byte != b'\t') || byte == 127)
         {
-            return Err(format!("HTTP header `{name}` 的值无效。"));
+            return Err(format!(
+                "invalid Agent Plugins HTTP header value for `{name}`"
+            ));
         }
     }
     Ok(())
 }
 
-#[derive(Clone, Copy)]
-enum CwdRoot {
+fn string_map_value(values: BTreeMap<String, String>) -> JsonValue {
+    JsonValue::Object(
+        values
+            .into_iter()
+            .map(|(name, value)| (name, JsonValue::String(value)))
+            .collect(),
+    )
+}
+
+#[derive(Clone, Copy, Debug)]
+enum AgentPluginCwdRoot {
     Package,
     Data,
 }
 
-fn parse_cwd_root(value: &str) -> Option<CwdRoot> {
-    if value == "./"
-        || value
-            .strip_prefix("./")
-            .is_some_and(is_portable_path_suffix)
-    {
-        return Some(CwdRoot::Package);
+fn parse_agent_plugin_cwd(value: &str) -> Option<AgentPluginCwdRoot> {
+    if value == "./" {
+        return Some(AgentPluginCwdRoot::Package);
+    }
+    if let Some(relative) = value.strip_prefix("./") {
+        if is_portable_path_suffix(relative) {
+            return Some(AgentPluginCwdRoot::Package);
+        }
     }
     for (placeholder, root) in [
-        ("${PLUGIN_ROOT}", CwdRoot::Package),
-        ("${PLUGIN_DATA}", CwdRoot::Data),
+        ("${PLUGIN_ROOT}", AgentPluginCwdRoot::Package),
+        ("${PLUGIN_DATA}", AgentPluginCwdRoot::Data),
     ] {
-        if value == placeholder
-            || value
-                .strip_prefix(&format!("{placeholder}/"))
-                .is_some_and(|suffix| suffix.is_empty() || is_portable_path_suffix(suffix))
-        {
+        if value == placeholder {
             return Some(root);
+        }
+        if let Some(relative) = value.strip_prefix(&format!("{placeholder}/")) {
+            if relative.is_empty() || is_portable_path_suffix(relative) {
+                return Some(root);
+            }
         }
     }
     None
 }
 
-fn expand_placeholders(value: &str, plugin_root: &str, plugin_data: &str) -> String {
+fn expand_agent_plugin_placeholders(value: &str, plugin_root: &str, plugin_data: &str) -> String {
     const ROOT: &str = "${PLUGIN_ROOT}";
     const DATA: &str = "${PLUGIN_DATA}";
     let mut output = String::with_capacity(value.len());
@@ -403,12 +397,12 @@ fn expand_placeholders(value: &str, plugin_root: &str, plugin_data: &str) -> Str
 
 fn absolute_plugin_path(path: &Path) -> Result<PathBuf, String> {
     let absolute = if path.is_absolute() {
-        path.to_path_buf()
+        Ok(path.to_path_buf())
     } else {
         std::env::current_dir()
             .map(|cwd| cwd.join(path))
-            .map_err(|error| format!("解析 Plugin 路径失败: {error}"))?
-    };
+            .map_err(|err| format!("failed to resolve plugin path: {err}"))
+    }?;
     resolve_existing_path_prefix(&absolute)
 }
 
@@ -417,17 +411,17 @@ fn resolve_contained_host_path(
     root: &Path,
     allowed_root: &Path,
 ) -> Result<PathBuf, String> {
-    let value_path = Path::new(value);
-    let path = if value_path.is_absolute() {
-        value_path.to_path_buf()
+    let value = Path::new(value);
+    let path = if value.is_absolute() {
+        value.to_path_buf()
     } else {
-        root.join(value_path)
+        root.join(value)
     };
     let path = resolve_existing_path_prefix(&path)?;
     if !path.starts_with(allowed_root) {
         return Err(format!(
-            "展开路径 `{}` 超出允许目录 `{}`。",
-            value,
+            "expanded path `{}` must remain within `{}`",
+            value.display(),
             allowed_root.display()
         ));
     }
@@ -436,40 +430,53 @@ fn resolve_contained_host_path(
 
 fn resolve_existing_path_prefix(path: &Path) -> Result<PathBuf, String> {
     let mut existing = path.to_path_buf();
-    let mut missing = Vec::<OsString>::new();
+    let mut missing_components = Vec::<OsString>::new();
     loop {
         match std::fs::canonicalize(&existing) {
             Ok(mut resolved) => {
-                for component in missing.iter().rev() {
+                for component in missing_components.iter().rev() {
                     resolved.push(component);
                 }
                 return Ok(lexical_normalize(&resolved));
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 if std::fs::symlink_metadata(&existing)
                     .is_ok_and(|metadata| metadata.file_type().is_symlink())
                 {
                     return Err(format!(
-                        "不允许通过 symlink 解析路径 `{}`。",
+                        "failed to resolve symlinked path `{}`",
                         path.display()
                     ));
                 }
                 let Some(component) = existing.components().next_back() else {
-                    return Err(format!("解析路径失败 `{}`: {error}", path.display()));
+                    return Err(format!(
+                        "failed to resolve path `{}`: {err}",
+                        path.display()
+                    ));
                 };
                 if matches!(
                     component,
                     std::path::Component::Prefix(_) | std::path::Component::RootDir
                 ) {
-                    return Err(format!("解析路径失败 `{}`: {error}", path.display()));
+                    return Err(format!(
+                        "failed to resolve path `{}`: {err}",
+                        path.display()
+                    ));
                 }
-                let component = component.as_os_str().to_os_string();
+                missing_components.push(component.as_os_str().to_os_string());
                 if !existing.pop() {
-                    return Err(format!("解析路径失败 `{}`: {error}", path.display()));
+                    return Err(format!(
+                        "failed to resolve path `{}`: {err}",
+                        path.display()
+                    ));
                 }
-                missing.push(component);
             }
-            Err(error) => return Err(format!("解析路径失败 `{}`: {error}", path.display())),
+            Err(err) => {
+                return Err(format!(
+                    "failed to resolve path `{}`: {err}",
+                    path.display()
+                ));
+            }
         }
     }
 }
@@ -486,24 +493,6 @@ fn host_path_string(path: &Path) -> String {
     rendered.into_owned()
 }
 
-#[cfg(test)]
-fn assert_same_existing_host_path(actual: &str, expected: &Path) {
-    #[cfg(windows)]
-    {
-        let actual = host_path_string(&std::fs::canonicalize(actual).unwrap());
-        let expected = host_path_string(&std::fs::canonicalize(expected).unwrap());
-        assert!(
-            actual.eq_ignore_ascii_case(&expected),
-            "paths refer to different Windows filesystem entries: actual={actual} expected={expected}"
-        );
-    }
-    #[cfg(not(windows))]
-    assert_eq!(
-        Path::new(actual),
-        std::fs::canonicalize(expected).unwrap().as_path()
-    );
-}
-
 fn is_portable_relative_path(value: &str) -> bool {
     value
         .strip_prefix("./")
@@ -512,6 +501,13 @@ fn is_portable_relative_path(value: &str) -> bool {
 
 fn is_portable_path_suffix(value: &str) -> bool {
     !value.is_empty() && !value.contains('\\')
+}
+
+fn is_valid_http_header_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte))
 }
 
 fn lexical_normalize(path: &Path) -> PathBuf {
@@ -528,78 +524,13 @@ fn lexical_normalize(path: &Path) -> PathBuf {
     normalized
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    fn roots() -> (TempDir, PathBuf, PathBuf) {
-        let temp = TempDir::new().unwrap();
-        let plugin_root = temp.path().join("plugin");
-        let data_root = temp.path().join("data");
-        std::fs::create_dir_all(&plugin_root).unwrap();
-        (temp, plugin_root, data_root)
-    }
-
-    #[test]
-    fn lowers_stdio_placeholders_and_injects_reserved_paths() {
-        let (_temp, root, data) = roots();
-        std::fs::create_dir_all(root.join("bin")).unwrap();
-        std::fs::create_dir_all(&data).unwrap();
-        let outcome = parse_agent_plugin_mcp_config(
-            &root,
-            &data,
-            &format!(
-                r#"{{"$schema":"{AGENT_PLUGIN_MCP_SCHEMA_URI}","mcpServers":{{"demo":{{"type":"stdio","command":"./bin/server","args":["${{PLUGIN_ROOT}}/x","${{PLUGIN_DATA}}/state"],"env":{{"VALUE":"${{PLUGIN_DATA}}/cache"}},"cwd":"${{PLUGIN_ROOT}}/bin"}}}}}}"#
-            ),
-        )
-        .unwrap();
-        let config = outcome.servers.get("demo").unwrap();
-        assert!(outcome.errors.is_empty());
-        assert_same_existing_host_path(config.env()["PLUGIN_ROOT"].as_str(), &root);
-        assert_same_existing_host_path(config.env()["PLUGIN_DATA"].as_str(), &data);
-        assert!(Path::new(config.command()).ends_with(Path::new("bin").join("server")));
-        assert!(config
-            .sanitized_cwd()
-            .unwrap()
-            .ends_with(Path::new("plugin").join("bin")));
-    }
-
-    #[test]
-    fn isolates_bad_siblings_and_rejects_reserved_env_and_http_insecure() {
-        let (_temp, root, data) = roots();
-        let outcome = parse_agent_plugin_mcp_config(
-            &root,
-            &data,
-            &format!(
-                r#"{{"$schema":"{AGENT_PLUGIN_MCP_SCHEMA_URI}","mcpServers":{{"good":{{"type":"stdio","command":"python"}},"reserved":{{"type":"stdio","command":"python","env":{{"PLUGIN_ROOT":"bad"}}}},"remote":{{"type":"streamable-http","url":"http://example.com"}}}}}}"#
-            ),
-        )
-        .unwrap();
-        assert!(outcome.servers.contains_key("good"));
-        assert_eq!(outcome.errors.len(), 2);
-    }
-
-    #[test]
-    fn rejects_legacy_schema_and_cwd_escape() {
-        let (_temp, root, data) = roots();
-        let error = parse_agent_plugin_mcp_config(
-            &root,
-            &data,
-            r#"{"$schema":"https://agent-plugins.org/schemas/2.0.0/mcp.schema.json","mcpServers":{}}"#,
-        )
-        .unwrap_err();
-        assert!(error.contains("不支持"));
-
-        let outcome = parse_agent_plugin_mcp_config(
-            &root,
-            &data,
-            &format!(
-                r#"{{"$schema":"{AGENT_PLUGIN_MCP_SCHEMA_URI}","mcpServers":{{"escape":{{"type":"stdio","command":"python","cwd":"${{PLUGIN_ROOT}}/../outside"}}}}}}"#
-            ),
-        )
-        .unwrap();
-        assert!(outcome.servers.is_empty());
-        assert_eq!(outcome.errors.len(), 1);
-    }
+fn plugin_mcp_json_error(message: impl Into<String>) -> serde_json::Error {
+    serde_json::Error::io(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        message.into(),
+    ))
 }
+
+#[cfg(test)]
+#[path = "agent_plugin_config_tests.rs"]
+mod tests;

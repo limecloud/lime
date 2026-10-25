@@ -34,7 +34,9 @@ const rules = [
       /(?:^|\/)tests\/(?:cloud_auth|cloud_config|exec_server|mcp_login|sandbox_cloud_config)\.rs$/u.test(
         relativePath,
       ) ||
-      /(?:^|_)(?:remote|exec_server|mcp_login|cloud_managed_permission_profiles?)(?:_|$)/u.test(testName),
+      /(?:^|_)(?:remote|exec_server|mcp_login|cloud_managed_permission_profiles?)(?:_|$)/u.test(
+        testName,
+      ),
   },
   {
     id: "retired-doctor-surface",
@@ -75,7 +77,9 @@ const rules = [
       /(?:^|\/)tests\/(?:login|marketplace_add|marketplace_remove|marketplace_upgrade|update|worktree)\.rs$/u.test(
         relativePath,
       ) ||
-      /(?:^|_)(?:marketplace|updater|chatgpt|worktree|manual_update)(?:_|$)/u.test(testName),
+      /(?:^|_)(?:marketplace|updater|chatgpt|worktree|manual_update)(?:_|$)/u.test(
+        testName,
+      ),
   },
   {
     id: "current-sandbox-parser",
@@ -120,9 +124,10 @@ const rules = [
     id: "current-execpolicy-check",
     classification: "contract",
     status: "covered",
-    limeOwner: "cli::ExecpolicyCommand -> execpolicy::ExecPolicyCheckCommand",
+    limeOwner:
+      "cli::ExecpolicyCommand -> codex_execpolicy::ExecPolicyCheckCommand",
     rationale:
-      "Lime exposes the Codex-shaped execpolicy check command with prefix-rule matching, strictest decision lowering, optional justification, and JSON/pretty output.",
+      "Lime exposes the Lime-native execpolicy check command with prefix-rule matching, strictest decision lowering, optional justification, and JSON/pretty output.",
     matches: ({ path: relativePath }) =>
       /(?:^|\/)tests\/execpolicy\.rs$/u.test(relativePath),
   },
@@ -167,7 +172,9 @@ const rules = [
       "The remaining Codex sandbox-state replay, managed network, and named-profile cases still need current-owner implementations and integration tests.",
     matches: ({ path: relativePath, testName }) =>
       /(?:^|\/)src\/debug_sandbox(?:\.rs|\/)/u.test(relativePath) ||
-      /(?:^|\/)tests\/(?:sandbox_network_proxy|sandbox_tty)\.rs$/u.test(relativePath) ||
+      /(?:^|\/)tests\/(?:sandbox_network_proxy|sandbox_tty)\.rs$/u.test(
+        relativePath,
+      ) ||
       /(?:^|_)sandbox_(?:parses|help|rejects)(?:_|$)/u.test(testName),
   },
   {
@@ -244,7 +251,7 @@ const rules = [
     status: "covered",
     limeOwner: "cli",
     rationale:
-      "The Codex-shaped parser behavior is directly covered by Lime's canonical clap command tree.",
+      "The Lime-native parser behavior is directly covered by Lime's canonical clap command tree.",
     matches: ({ testName }) =>
       /(?:^|_)(?:responses_subcommand_is_not_registered|plugin_(?:add|list|remove)_parses_under_plugin|features_(?:enable|disable)_parses_feature_name)(?:_|$)/u.test(
         testName,

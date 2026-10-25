@@ -105,6 +105,46 @@ afterEach(async () => {
 });
 const row = () =>
   container.querySelector<HTMLElement>('[data-command-id="searchSettings"]')!;
+
+it("设置列表沿用当前命令的参考顺序，重新挂载后保持稳定", async () => {
+  await act(async () => {
+    for (const id of ["openSideChat", "archiveThread", "newTask"])
+      releases.push(
+        registerCommand({
+          id,
+          titleKey: "commands.searchSettings.title",
+          section: "thread",
+          bindings: ["Control+J"],
+          handler: vi.fn(),
+        }),
+      );
+  });
+  const order = () =>
+    [...container.querySelectorAll<HTMLElement>("[data-command-id]")].map(
+      (node) => node.dataset.commandId,
+    );
+  const expected = [
+    "newTask",
+    "archiveThread",
+    "openSideChat",
+    "searchSettings",
+    "showKeyboardShortcuts",
+  ];
+  expect(order()).toEqual(expected);
+  await act(async () => {
+    releases.pop()!();
+    releases.push(
+      registerCommand({
+        id: "newTask",
+        titleKey: "commands.searchSettings.title",
+        section: "thread",
+        bindings: ["Control+J"],
+        handler: vi.fn(),
+      }),
+    );
+  });
+  expect(order()).toEqual(expected);
+});
 const writes = () =>
   request.mock.calls.filter(([method]) => method === "config/batchWrite");
 async function key(target: EventTarget, key: string, extra = {}) {
@@ -125,12 +165,19 @@ async function edit() {
   );
   return row().querySelector<HTMLInputElement>("input")!;
 }
-async function menu(label: string) {
-  await key(row().querySelector('[aria-haspopup="menu"]')!, "ArrowDown");
+async function action(label: string) {
   await act(async () => {
-    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-      .find((item) => item.textContent === label)!
-      .click();
+    if (label === "Add shortcut") {
+      row()
+        .querySelector("[data-binding-button]")!
+        .dispatchEvent(
+          new MouseEvent("click", { bubbles: true, shiftKey: true }),
+        );
+    } else {
+      [...row().querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.getAttribute("aria-label") === label)!
+        .click();
+    }
   });
 }
 
@@ -163,6 +210,7 @@ it("捕获冲突不保存或执行，Escape取消并恢复焦点", async () => {
   expect(document.activeElement).toBe(input);
   await key(input, "Escape");
   expect(row().querySelector("input")).toBeNull();
+  expect(row().querySelector("[role=alert]")).toBeNull();
   expect(document.activeElement).toBe(
     row().querySelector("[data-binding-button]"),
   );
@@ -192,12 +240,12 @@ it("保存失败保留旧有效键与捕获输入，随后可重试", async () =
 });
 
 it("清除解除实际按键但保留可恢复行，单项恢复使用默认键", async () => {
-  await menu("Clear shortcut");
+  await action("Clear shortcut");
   expect(row()).not.toBeNull();
   expect(row().textContent).toContain("Unassigned");
   await key(window, "f", { ctrlKey: true });
   expect(handler).not.toHaveBeenCalled();
-  await menu("Restore defaults");
+  await action("Restore defaults");
   await key(window, "f", { ctrlKey: true });
   expect(handler).toHaveBeenCalledOnce();
   expect(
@@ -225,8 +273,209 @@ it("按键搜索不执行命令，Escape恢复文字模式和完整列表", asyn
   expect(container.querySelectorAll("[data-command-id]")).toHaveLength(2);
 });
 
-it("菜单追加的第二键位获得焦点并执行同一handler，重复绑定被拒绝", async () => {
-  await menu("Add shortcut");
+it("裸首键显示待续且不保存，第二键持久化序列并派发同一handler", async () => {
+  const input = await edit();
+  await key(input, "g");
+  expect(input.value).toBe("G …");
+  expect(writes()).toHaveLength(0);
+  expect(handler).not.toHaveBeenCalled();
+  await key(input, "s");
+  expect(writes()).toHaveLength(1);
+  expect(
+    (persisted.desktop as Record<string, unknown>)["keyboard-shortcuts"],
+  ).toEqual({ searchSettings: ["G S"] });
+  expect(row().querySelectorAll("[data-shortcut-stroke]")).toHaveLength(2);
+  expect(document.activeElement).toBe(
+    row().querySelector("[data-binding-button]"),
+  );
+  await key(window, "g");
+  expect(handler).not.toHaveBeenCalled();
+  await key(window, "s");
+  expect(handler).toHaveBeenCalledOnce();
+});
+
+it.each(["composer.submit", "browser.toggleAnnotationMode"])(
+  "%s的捕获不等待续键",
+  async (id) => {
+    await act(async () => {
+      releases.push(
+        registerCommand({
+          id,
+          titleKey: "commands.showKeyboardShortcuts.title",
+          section: "thread",
+          bindings: ["Control+Enter"],
+          handler: vi.fn(),
+        }),
+      );
+    });
+    const target = container.querySelector<HTMLElement>(
+      `[data-command-id="${id}"]`,
+    )!;
+    await act(async () =>
+      target.querySelector<HTMLButtonElement>("[data-binding-button]")!.click(),
+    );
+    await key(target.querySelector("input")!, "g");
+    expect(writes()).toHaveLength(1);
+    expect(
+      getRegisteredCommands().find((command) => command.id === id)!.bindings,
+    ).toEqual(["G"]);
+  },
+);
+
+it("裸首键一秒后提交单键；超时前不写配置", async () => {
+  vi.useFakeTimers();
+  try {
+    const input = await edit();
+    await key(input, "g");
+    await act(async () => vi.advanceTimersByTime(999));
+    expect(writes()).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTime(1));
+    expect(writes()).toHaveLength(1);
+    expect(
+      getRegisteredCommands().find(
+        (command) => command.id === "searchSettings",
+      )!.bindings,
+    ).toEqual(["G"]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each(["Escape", "Tab", "blur", "unmount"])(
+  "%s取消待续，迟到timer不保存",
+  async (reason) => {
+    vi.useFakeTimers();
+    try {
+      const input = await edit();
+      await key(input, "g");
+      if (reason === "blur") await act(async () => input.blur());
+      else if (reason === "unmount")
+        await act(async () => root.render(<div />));
+      else await key(input, reason);
+      await act(async () => vi.advanceTimersByTime(1500));
+      expect(writes()).toHaveLength(0);
+      expect(
+        container.querySelector('[data-command-id="searchSettings"] input'),
+      ).toBeNull();
+      if (reason === "Escape")
+        expect(document.activeElement).toBe(
+          row().querySelector("[data-binding-button]"),
+        );
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);
+
+it("IME清除待续，重复按键不成为第二键", async () => {
+  const input = await edit();
+  await key(input, "g");
+  await key(input, "g", { repeat: true });
+  expect(input.value).toBe("G …");
+  await key(input, "Process", { isComposing: true });
+  expect(input.value).toBe("");
+  await key(input, "j", { ctrlKey: true });
+  expect(
+    getRegisteredCommands().find((command) => command.id === "searchSettings")!
+      .bindings,
+  ).toEqual(["Control+J"]);
+  expect(writes()).toHaveLength(1);
+});
+
+it("其他命令的长短前缀冲突都拒绝保存，公共首键不同续键允许", async () => {
+  await act(async () => {
+    releases.push(
+      registerCommand({
+        id: "otherSequence",
+        titleKey: "commands.showKeyboardShortcuts.title",
+        section: "thread",
+        bindings: ["G G"],
+        handler: vi.fn(),
+      }),
+    );
+  });
+  const input = await edit();
+  vi.useFakeTimers();
+  try {
+    await key(input, "g");
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(writes()).toHaveLength(0);
+    expect(row().querySelector("[role=alert]")).not.toBeNull();
+    await key(input, "g");
+    await key(input, "s");
+    expect(writes()).toHaveLength(1);
+  } finally {
+    vi.useRealTimers();
+  }
+  await act(async () => {
+    releases.push(
+      registerCommand({
+        id: "single",
+        titleKey: "commands.showKeyboardShortcuts.title",
+        section: "thread",
+        bindings: ["X"],
+        handler: vi.fn(),
+      }),
+    );
+  });
+  const replacement = await edit();
+  await key(replacement, "x");
+  await key(replacement, "s");
+  expect(writes()).toHaveLength(1);
+  expect(row().querySelector("[role=alert]")).not.toBeNull();
+});
+
+it("同一命令的替代绑定也拒绝前缀冲突", async () => {
+  await key(await edit(), "g");
+  const input = row().querySelector<HTMLInputElement>("input")!;
+  await key(input, "s");
+  await action("Add shortcut");
+  vi.useFakeTimers();
+  try {
+    await key(row().querySelector("input")!, "g");
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(writes()).toHaveLength(1);
+    expect(row().querySelector("[role=alert]")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("按键搜索先匹配首键，再缩小到续键，失配键替换query且不执行", async () => {
+  await key(await edit(), "g");
+  await key(row().querySelector("input")!, "s");
+  await act(async () => {
+    releases.push(
+      registerCommand({
+        id: "otherSequence",
+        titleKey: "commands.showKeyboardShortcuts.title",
+        section: "thread",
+        bindings: ["G G"],
+        handler: vi.fn(),
+      }),
+    );
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Search by keystrokes"]')!
+      .click();
+  });
+  const input = container.querySelector<HTMLInputElement>(
+    '[aria-label="Keystroke search capture"]',
+  )!;
+  await key(input, "g");
+  expect(container.querySelectorAll("[data-command-id]")).toHaveLength(2);
+  await key(input, "s");
+  expect(input.value).toBe("G S");
+  expect(container.querySelectorAll("[data-command-id]")).toHaveLength(1);
+  await key(input, "/", { ctrlKey: true });
+  expect(input.value).toBe("Ctrl /");
+  expect(container.querySelectorAll("[data-command-id]")).toHaveLength(1);
+  expect(row()).toBeNull();
+  expect(handler).not.toHaveBeenCalled();
+  expect(writes()).toHaveLength(1);
+});
+
+it("Shift追加的第二键位获得焦点并执行同一handler，重复绑定被拒绝", async () => {
+  await action("Add shortcut");
   await vi.waitFor(() => expect(row().querySelector("input")).not.toBeNull());
   const input = row().querySelector<HTMLInputElement>("input")!;
   expect(input).not.toBeNull();
@@ -239,11 +488,64 @@ it("菜单追加的第二键位获得焦点并执行同一handler，重复绑定
   await key(window, "f", { ctrlKey: true });
   await key(window, "j", { ctrlKey: true });
   expect(handler).toHaveBeenCalledTimes(2);
-  await menu("Add shortcut");
+  await action("Add shortcut");
   await vi.waitFor(() => expect(row().querySelector("input")).not.toBeNull());
   await key(row().querySelector("input")!, "j", { ctrlKey: true });
   expect(writes()).toHaveLength(1);
   expect(row().querySelector("[role=alert]")).not.toBeNull();
+});
+
+it("每个绑定直接清除，保留其它绑定；恢复按钮只出现在首个差异行", async () => {
+  await action("Add shortcut");
+  await key(row().querySelector("input")!, "j", { ctrlKey: true });
+  expect(row().querySelector('[aria-haspopup="menu"]')).toBeNull();
+  expect(row().querySelectorAll('[aria-label="Clear shortcut"]')).toHaveLength(
+    2,
+  );
+  const reset = row().querySelector('[aria-label="Restore defaults"]')!;
+  expect(reset.parentElement!.parentElement!.textContent).toContain("CtrlJ");
+  await act(async () =>
+    [
+      ...row().querySelectorAll<HTMLButtonElement>(
+        '[aria-label="Clear shortcut"]',
+      ),
+    ][1].click(),
+  );
+  expect(
+    getRegisteredCommands().find((command) => command.id === "searchSettings")!
+      .bindings,
+  ).toEqual(["CommandOrControl+F"]);
+  await key(window, "j", { ctrlKey: true });
+  expect(handler).not.toHaveBeenCalled();
+  await key(window, "f", { ctrlKey: true });
+  expect(handler).toHaveBeenCalledOnce();
+  expect(
+    row().querySelectorAll('[aria-label="Restore defaults"]'),
+  ).toHaveLength(1);
+  await action("Restore defaults");
+  expect(row().querySelector('[aria-label="Restore defaults"]')).toBeNull();
+  expect(document.activeElement).toBe(
+    row().querySelector("[data-binding-button]"),
+  );
+});
+
+it("Shift悬停提示追加，点击后新行获得焦点，取消回到原绑定", async () => {
+  const button = row().querySelector<HTMLButtonElement>(
+    "[data-binding-button]",
+  )!;
+  await act(async () =>
+    button.dispatchEvent(
+      new MouseEvent("mousemove", { bubbles: true, shiftKey: true }),
+    ),
+  );
+  expect(button.getAttribute("aria-label")).toBe("Add shortcut");
+  await action("Add shortcut");
+  expect(row().querySelectorAll("[data-binding-button]")).toHaveLength(1);
+  const input = row().querySelector<HTMLInputElement>("input")!;
+  expect(document.activeElement).toBe(input);
+  await key(input, "Escape");
+  expect(document.activeElement).toBe(button);
+  expect(writes()).toHaveLength(0);
 });
 
 it("全量恢复需要确认，保存失败留在弹窗，成功只重置键位偏好", async () => {

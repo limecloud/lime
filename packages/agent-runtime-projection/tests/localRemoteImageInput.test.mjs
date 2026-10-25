@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexLocalRemoteImageInputProjectionEvent,
-  extractCodexLocalRemoteImageInputSnapshot,
+  buildLocalRemoteImageInputProjectionEvent,
+  extractLocalRemoteImageInputSnapshot,
 } from "../dist/index.js";
 
 const DATA_URL = "data:image/png;base64,abc123";
@@ -66,7 +66,8 @@ function baseInput(overrides = {}) {
     remoteRejections: [
       {
         url: REMOTE_URL,
-        error: "remote image URLs are not supported; use an inline data URL instead",
+        error:
+          "remote image URLs are not supported; use an inline data URL instead",
       },
     ],
     visibleTranscriptItems: [],
@@ -75,16 +76,13 @@ function baseInput(overrides = {}) {
 }
 
 test("local/remote image input keeps local detail, data URL and restore/hydrate refs stable", () => {
-  const event = buildCodexLocalRemoteImageInputProjectionEvent(
-    baseInput(),
-    {
-      sequence: 271,
-      sessionId: "session-image",
-      threadId: "thread-image",
-      turnId: "turn-image",
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildLocalRemoteImageInputProjectionEvent(baseInput(), {
+    sequence: 271,
+    sessionId: "session-image",
+    threadId: "thread-image",
+    turnId: "turn-image",
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -143,7 +141,7 @@ test("local/remote image input keeps local detail, data URL and restore/hydrate 
 });
 
 test("custom local image detail original is preserved through submission", () => {
-  const snapshot = extractCodexLocalRemoteImageInputSnapshot(
+  const snapshot = extractLocalRemoteImageInputSnapshot(
     baseInput({
       draft: draft({
         localImages: [
@@ -193,7 +191,7 @@ test("custom local image detail original is preserved through submission", () =>
 });
 
 test("remote HTTP images must be rejected and never submitted to model input", () => {
-  const snapshot = extractCodexLocalRemoteImageInputSnapshot(
+  const snapshot = extractLocalRemoteImageInputSnapshot(
     baseInput({
       submittedInput: [
         {
@@ -226,7 +224,7 @@ test("remote HTTP images must be rejected and never submitted to model input", (
 });
 
 test("unsupported low detail and custom detail drift fail closed", () => {
-  const snapshot = extractCodexLocalRemoteImageInputSnapshot(
+  const snapshot = extractLocalRemoteImageInputSnapshot(
     baseInput({
       draft: draft({
         localImages: [
@@ -277,7 +275,7 @@ test("unsupported low detail and custom detail drift fail closed", () => {
 });
 
 test("restore order and placeholder map must stay attached to image refs", () => {
-  const snapshot = extractCodexLocalRemoteImageInputSnapshot(
+  const snapshot = extractLocalRemoteImageInputSnapshot(
     baseInput({
       restoredDraft: {
         localImages: [
@@ -309,7 +307,7 @@ test("restore order and placeholder map must stay attached to image refs", () =>
 });
 
 test("plain image placeholder text without structured refs cannot pass hydrate guard", () => {
-  const snapshot = extractCodexLocalRemoteImageInputSnapshot({
+  const snapshot = extractLocalRemoteImageInputSnapshot({
     visibleTranscriptItems: [
       {
         role: "user",

@@ -4,11 +4,12 @@ use super::{dispatch_result, parse_params, to_jsonrpc_error, RequestProcessor, R
 use app_server_protocol::{
     JsonRpcError, ProjectGitBranchCheckoutParams, ProjectGitBranchCreateParams,
     ProjectGitCommitListParams, ProjectGitDiffParams, ProjectGitStatusParams,
-    ProjectGitWorktreeCreateParams, ProjectGitWorktreeDeleteParams, ProjectGitWorktreeListParams,
+    ProjectGitWorktreeCreateParams, ProjectGitWorktreeDeleteParams,
+    ProjectGitWorktreeEnvironmentSetParams, ProjectGitWorktreeListParams,
     METHOD_PROJECT_GIT_BRANCH_CHECKOUT, METHOD_PROJECT_GIT_BRANCH_CREATE,
     METHOD_PROJECT_GIT_COMMITS_LIST, METHOD_PROJECT_GIT_DIFF, METHOD_PROJECT_GIT_STATUS,
     METHOD_PROJECT_GIT_WORKTREE_CREATE, METHOD_PROJECT_GIT_WORKTREE_DELETE,
-    METHOD_PROJECT_GIT_WORKTREE_LIST,
+    METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET, METHOD_PROJECT_GIT_WORKTREE_LIST,
 };
 use futures::{future::BoxFuture, FutureExt};
 use serde_json::Value;
@@ -22,6 +23,9 @@ impl RequestProcessor {
         connection_id: Option<app_server_transport::ConnectionId>,
     ) -> Option<BoxFuture<'a, Result<RpcDispatch, JsonRpcError>>> {
         let request = match method {
+            METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET => self
+                .handle_project_git_worktree_environment_set_impl(params.take())
+                .boxed(),
             METHOD_PROJECT_GIT_STATUS => self.handle_project_git_status_impl(params.take()).boxed(),
             METHOD_PROJECT_GIT_DIFF => self.handle_project_git_diff_impl(params.take()).boxed(),
             METHOD_PROJECT_GIT_COMMITS_LIST => self
@@ -45,6 +49,20 @@ impl RequestProcessor {
             _ => return None,
         };
         Some(request)
+    }
+
+    async fn handle_project_git_worktree_environment_set_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitWorktreeEnvironmentSetParams = parse_params(params)?;
+        dispatch_result(
+            self.runtime
+                .set_project_git_worktree_environment(params)
+                .await
+                .map_err(to_jsonrpc_error)?,
+        )
     }
 
     pub(super) async fn handle_project_git_status_impl(

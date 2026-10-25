@@ -174,13 +174,17 @@ describe("ComposerEditor link and code editing", () => {
   });
 
   it.each([false, true])(
-    "code Enter shift=%s inserts text newline and never submits",
+    "multiline mode code Enter shift=%s inserts text newline and never submits",
     (shiftKey) => {
       const controller = new ComposerController({
         editorDocument: codeDocument("x"),
       });
       const onSubmit = vi.fn();
-      const { element } = mount({ controller, onSubmit });
+      const { element } = mount({
+        controller,
+        onSubmit,
+        enterBehavior: "cmdIfMultiline",
+      });
       expect(key(element, "Enter", { shiftKey }).defaultPrevented).toBe(true);
       expect(controller.getDocument().text).toBe("x\n");
       expect(

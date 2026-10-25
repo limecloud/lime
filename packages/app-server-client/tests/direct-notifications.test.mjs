@@ -458,7 +458,7 @@ test("recognizes native v2 lifecycle and reasoning notifications", () => {
       params: {
         error: {
           message: "provider stream reconnecting",
-          codexErrorInfo: {
+          limeErrorInfo: {
             responseStreamDisconnected: { httpStatusCode: null },
           },
           additionalDetails: null,
@@ -719,7 +719,7 @@ test("fails closed for malformed typed error notifications", () => {
     {
       error: {
         message: "failed",
-        codexErrorInfo: "responseStreamDisconnected",
+        limeErrorInfo: "responseStreamDisconnected",
       },
       threadId,
       turnId,

@@ -15,7 +15,7 @@ const localHosts = new Set([
 ]);
 // 对齐安装包 MP 的可视化文件资格，避免把内部 visualization HTML 当作网站。
 const visualizationPath =
-  /(?:^|[\\/])(?:\.codex|(?:\.codex-workspaces|OpenAI[\\/]Codex[\\/]workspaces)(?:[\\/]instances[\\/][0-9a-f-]+)?)[\\/]visualizations[\\/]\d{4}[\\/]\d{2}[\\/]\d{2}[\\/]([a-zA-Z0-9_-]+)[\\/][a-z0-9]+(?:-[a-z0-9]+)*\.html$/;
+  /(?:^|[\\/])(?:\.lime|(?:\.lime-workspaces|OpenAI[\\/]Codex[\\/]workspaces)(?:[\\/]instances[\\/][0-9a-f-]+)?)[\\/]visualizations[\\/]\d{4}[\\/]\d{2}[\\/]\d{2}[\\/]([a-zA-Z0-9_-]+)[\\/][a-z0-9]+(?:-[a-z0-9]+)*\.html$/;
 
 function uniqueLocalWebsite(text: string): string | null {
   const urls = new Set<string>();

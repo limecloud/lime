@@ -21,7 +21,11 @@ export function buildWorkspaceRightSurfacePendingBrowserIntent(
   pendingRequests: readonly WorkspaceRightSurfacePendingRequest[],
 ): WorkspaceRightSurfaceBrowserIntent | null {
   for (const request of pendingRequests) {
-    if (request.status !== "pending" || request.surfaceKind !== "browser") {
+    if (
+      request.status !== "pending" ||
+      request.surfaceKind !== "browser" ||
+      request.reason?.startsWith("browser_identity_")
+    ) {
       continue;
     }
 

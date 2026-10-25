@@ -49,7 +49,7 @@ export function isExcludedOutputPath(
   path: string,
   cwd: string | null,
 ): boolean {
-  return ["work", ".codex_scratch"].some((root) =>
+  return ["work", ".lime_scratch"].some((root) =>
     isOutputPathWithin(path, root, cwd),
   );
 }

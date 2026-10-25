@@ -1,4 +1,4 @@
-//! Codex-shaped paste integration for the Lime composer.
+//! Lime-native paste integration for the Lime composer.
 //!
 //! Explicit bracketed pastes and terminals that emit a rapid key stream share one insertion
 //! path. The burst state is presentation-local: it never becomes part of the canonical turn

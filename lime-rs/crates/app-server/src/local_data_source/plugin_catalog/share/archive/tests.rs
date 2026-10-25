@@ -3,12 +3,12 @@ use flate2::read::GzDecoder;
 use std::io::Read;
 
 fn plugin(root: &Path, standard: bool) {
-    fs::create_dir_all(root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(root.join(".lime-plugin")).unwrap();
     if standard {
         fs::write(root.join("plugin.json"), r#"{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"fixture"}"#).unwrap();
     } else {
         // An omitted native name uses the directory/archive filename stem.
-        fs::write(root.join(".codex-plugin/plugin.json"), "{}").unwrap();
+        fs::write(root.join(".lime-plugin/plugin.json"), "{}").unwrap();
     }
     fs::create_dir_all(root.join("skills/guide")).unwrap();
     fs::write(

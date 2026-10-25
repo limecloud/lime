@@ -1,13 +1,15 @@
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::error::Error;
 use crate::error::Result;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Decision {
     /// Command may run without further approval.
     Allow,
-    /// Request explicit user approval.
+    /// Request explicit user approval; rejected outright when running with `approval_policy="never"`.
     Prompt,
     /// Command is blocked without further consideration.
     Forbidden,

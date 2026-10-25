@@ -111,7 +111,6 @@ i18n workflow、report、benchmark、检测脚本和测试已整体迁到 `scrip
 
 新增 i18n 脚本继续进入 `scripts/i18n/` 或复用现有 `i18n:*` npm scripts。
 
-
 ### App Server 脚本
 
 TUI 的绘制入口和 Ratatui 布局缓存由 `scripts/app-server/tui-render-scheduling.test.mjs`
@@ -246,7 +245,8 @@ macOS 上统一 Rust runner 会在调用者未设置时为 Cargo test worker 提
 
 启用 `v8_enable_sandbox` 的 Rust 构建必须使用 Codex 发布的
 `rusty-v8-v<version>` 资产。`scripts/lib/rusty-v8-artifacts.mjs` 从
-`lime-rs/Cargo.lock` 读取精确版本，下载匹配 target 的 archive、binding 和 checksum，
+`lime-rs/Cargo.lock` 读取精确版本；整树取样已删除，构建不得通过中转目录读取第二份
+锁文件，避免向 Lime current owner 供应旧版本的 V8。下载匹配 target 的 archive、binding 和 checksum，
 校验 SHA-256 后注入成对的 `RUSTY_V8_ARCHIVE` / `RUSTY_V8_SRC_BINDING_PATH`。
 默认缓存使用 macOS `~/Library/Caches/Lime/rusty-v8`、Windows
 `%LOCALAPPDATA%\Lime\Cache\rusty-v8` 和 Linux `XDG_CACHE_HOME/lime/rusty-v8`，
@@ -282,7 +282,6 @@ npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-web-search-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-profile-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-appearance-electron-fixture -- --run-id <run-id>
-npm run smoke:settings-developer-electron-fixture -- --run-id <run-id>
 npm run smoke:scheduled-tasks-electron-fixture -- --timeout-ms 180000
 npm run smoke:settings-execution-policy-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-mcp-lifecycle-electron-fixture -- --run-id <run-id>
@@ -300,7 +299,7 @@ npm run smoke:orchestrator-skills-gate-b
 `npm run smoke:mcp-oauth-notification-electron-fixture` 验证 OAuth callback completion 的 App Server typed notification 与 GUI 自动刷新；`npm run smoke:mcp-startup-notification-electron-fixture` 验证 MCP startup 的 `starting -> ready`、`starting -> failed` typed notification、Settings 连接态与终态 status/tool 刷新。两者都启动隔离的真实 Electron Desktop Host、preload/IPC 与 App Server runtime，不调用正式模型或 live Provider，并要求旧 MCP lifecycle Desktop event、renderer mock fallback 与 App Server mock backend 命中为零。
 `npm run smoke:mcp-event-stream-electron-gate-b` 验证 Codex current MCP event stream 的 `active -> event -> reconnect -> terminated` lifecycle：临时 stdio MCP server 通过真实 Thread 和 `mcpServer/event/stream/start` 发出 typed stream notification，Settings 运行状态页通过 `app_server_drain_events` 展示订阅 ID、最近事件、重连次数和终态。证据要求命中 Electron preload/IPC、`app_server_handle_json_lines`、`app_server_drain_events` 与 exact current methods，且 mock fallback、旧 MCP facade、invoke/console/page error 全部为零；该 Gate B 不调用模型或 live Provider。
 
-`npm run smoke:mcp-resource-origin-electron-gate-b` 使用 localhost provider 与临时 `codex_apps` stdio fixture，从真实模型回合生成带 canonical `appContext` 的 completed MCP Item；Workspace 通过该 Item 的 `originCallId` 打开用户可见 HTML resource。Gate B 还会用伪造 Renderer `connectorId` 证明服务端只信任 canonical connector/link authority，并重启 Electron 与 App Server，验证同一 Thread/Turn/Item 冷恢复后再次打开 resource，且不重跑 provider turn 或 MCP tool。证据要求真实 preload/IPC、`app_server_handle_json_lines`、`mcpServer/resource/read`、WebContentsView HTML load、零 legacy/mock/error；不调用正式模型或远端 connector。
+`npm run smoke:mcp-resource-origin-electron-gate-b` 使用 localhost provider 与临时 `lime_apps` stdio fixture，从真实模型回合生成带 canonical `appContext` 的 completed MCP Item；Workspace 通过该 Item 的 `originCallId` 打开用户可见 HTML resource。Gate B 还会用伪造 Renderer `connectorId` 证明服务端只信任 canonical connector/link authority，并重启 Electron 与 App Server，验证同一 Thread/Turn/Item 冷恢复后再次打开 resource，且不重跑 provider turn 或 MCP tool。证据要求真实 preload/IPC、`app_server_handle_json_lines`、`mcpServer/resource/read`、WebContentsView HTML load、零 legacy/mock/error；不调用正式模型或远端 connector。
 
 `npm run smoke:mcp-config-electron-fixture -- --run-id <run-id>` 是真实 Electron 设置页配置闭环 fixture：从桌面壳侧栏进入设置页，切到 MCP 配置管理，选择 Context7 preset，编辑 streamable HTTP URL 与 `env_http_headers` 环境变量名并保存，再通过 preload `app_server_handle_json_lines -> mcpServer/create|list` 验证 App Server current read model。显式 run-id 时证据写入 `.lime/qc/project-gates/<run-id>/settings-mcp-create-list/`，只有 Electron、preload、`electron-ipc`、current methods、GUI readback、零 legacy/mock/error 与截图全部成立才输出 `settingsScenarioProof={scenarioId:mcp-create-list,complete:true}`。该入口不启动 Context7、不调用真实 provider、不读取或写入真实 key，不走 App Server mock backend、renderer mock fallback 或旧 `mcp_*` Desktop facade。
 
@@ -342,7 +341,7 @@ Profile子场景由`electron/lib/settings-profile-navigation-scenario.mjs`承接
 
 `npm run smoke:settings-about-electron-fixture -- --run-id <run-id>` 在同一真实 Electron 窗口验证 About 与返回首页两个独立 Settings 场景：About 要求构建时 `VITE_APP_VERSION`、Desktop Host `app.getVersion()` 和用户可见版本一致，同时观察 `check_for_updates`、`get_update_install_session` 与 current App Server IPC；返回首页要求点击 `app-sidebar-nav-new-chat` 后 `home-composer-page` 可见、Settings header 消失。证据分别写入 `settings-about-fixture-summary.json` 和 `settings-about-fixture-home-summary.json`，两者各自带独立 `settingsScenarioProof`，不得互相代替。
 
-`npm run smoke:settings-local-environments-electron-fixture -- --run-id <run-id>` 验证环境设置经真实 Electron/preload/IPC 和 App Server `localEnvironments/list|readConfig|saveConfig` 发现、读取和保存 `.codex/environments/*.toml`；包含未保存保护、revision 冲突保稿、外部文件保护和冷启动读回。测试项目及脚本内容均为隔离夹具，不执行脚本或调用 live provider。
+`npm run smoke:settings-local-environments-electron-fixture -- --run-id <run-id>` 验证环境设置经真实 Electron/preload/IPC 和 App Server `localEnvironments/list|readConfig|saveConfig` 发现、读取和保存 `.lime/environments/*.toml`；包含未保存保护、revision 冲突保稿、外部文件保护和冷启动读回。测试项目及脚本内容均为隔离夹具，不执行脚本或调用 live provider。
 
 `npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>` 验证服务模型页经真实 `config/read`、`model/list`、`modelPreferences/list`、`modelSyncState/read` 与 `voice_models_list_catalog` 进入终态，并同时展示服务模型、图片、视频和语音四个 current 配置区域。隔离环境允许 Provider 清单为空，但配置控件必须可用，且证据不得记录 Provider 配置、模型 ID、凭证或本机路径；该场景不声称真实 Provider 生成请求成功。
 
@@ -353,8 +352,6 @@ Profile子场景由`electron/lib/settings-profile-navigation-scenario.mjs`承接
 `npm run smoke:settings-profile-electron-fixture -- --run-id <run-id>` 使用正式 window OEM runtime override 的 `enabled=false` 在隔离用户目录中进入 non-OEM local Profile，经 GUI 修改名称与简介并命中 App Server `config/read|config/batchWrite`。两次冷重启分别读回提交值和恢复值，完整配置保持/恢复由真实RPC读回核验；配置路径IO失败时分别验证名称与简介安全错误、保稿和重试，并由独立同preload/IPC/App Server边界RPC probe核验IO原因，probe不冒充GUI响应捕获。三次Main必须在原15秒内code0/signalnull正常退出，强制回收不计通过，finally后写最终summary。该场景不证明managed-account登录、参考Profile内容等价、工具执行或live provider；结构化evidence不记录资料值或完整config。
 
 `npm run smoke:settings-appearance-electron-fixture -- --run-id <run-id>` 同时验证 Appearance 的两个 current owner：主题模式写入 renderer localStorage，推荐行为写入 App Server `config/read|config/batchWrite`。fixture 在隔离用户目录中修改两者、冷重启读回、恢复两者并再次冷重启确认；结构化 evidence 不记录外观原值或完整 config。
-
-`npm run smoke:settings-developer-electron-fixture -- --run-id <run-id>` 从 Developer GUI 点击“复制纯 JSON”，真实采集 `config/read`、`log/list`、`log/persistedTail`、`diagnostics/server/read`、`diagnostics/logStorage/read`、`diagnostics/windowsStartup/read`、`modelProvider/list` 与 `mcpServerStatus/list`。fixture 只用显式 test-only renderer sink 替代最终系统剪贴板写入，不替换任何诊断采集或 bridge；JSON evidence 仅记录写入次数、文本长度、payload shape 布尔与 current method/command，不记录剪贴板正文、日志、配置、路径、Provider/MCP 数据或凭证，也不声称系统剪贴板交付已验证。
 
 主输入 fixture 统一使用 `[data-testid="composer-editor"][role="textbox"]`，要求同 session 唯一可见 EditorView。`scripts/lib/composer-editor-dom.mjs` 只读真实 DOM 的 paragraph/br/atom 与 token identity；输入用 Playwright contenteditable.fill、键盘和 Clipboard/Drop，不操作私有 React/ProseMirror API。普通设置 textarea 保留，不允许主输入 fallback、首元素匹配或测试 textarea adapter。
 
@@ -374,7 +371,7 @@ rich-input/Steer oracle 同时检查完整 typed input、UTF8 textElements、同
 
 `npm run smoke:mcp-elicitation-gate-b` 是 server-originated elicitation 的真实 Electron Gate B：临时 localhost OpenAI-compatible provider 先请求 `mcp__<server>__release_check`，临时 stdio MCP server 在 scoped tools/call 内发出 `elicitation/create`，App Server 将其转为 typed reverse JSON-RPC，Renderer 在当前 Thread 的 Composer 上方唯一表单提交 `{ confirmed: true }`，随后断言 MCP ledger 收到 accept、provider 第二次请求获得最终文本、表单在 `serverRequest/resolved` 后关闭且没有根部 Dialog。Gate B 还要求实际接受 elicitation 的 runtime stdio 连接以 MCP `2025-06-18` 广告精确 `{"elicitation": {}}`，management 连接保持 capability absent；该入口禁止以 `mcpTool/callWithCaller`、`agentSession/action/respond`、mock backend 或 renderer mock 作为成功路径。
 
-`npm run smoke:orchestrator-skills-gate-b` 是 Orchestrator-owned Skills/MCP 的真实 Electron Gate B：隔离环境创建固定名称 `codex_apps` 和一个普通 stdio MCP server，localhost provider 严格执行 `skill_search -> read_mcp_resource -> final text`，并断言 `skill://delivery/release-notes` 只在 Turn snapshot 发现一次、`SKILL.md` 通过 session-owned MCP 精确读取一次、Thread/Turn/Item 与 GUI 最终文本一致。随后脚本经 `config/read|config/batchWrite` 写入 `orchestrator.mcp.enabled=false`，新 Thread 的 provider catalog 必须隐藏 `mcp__codex_apps__apps_ping`，同时保留并成功执行 `mcp__ordinary_fixture__ordinary_ping`。该入口使用 `APP_SERVER_BACKEND_MODE=runtime`、真实 Electron/preload/IPC/App Server 与本地确定性 fixtures，不访问正式模型，不允许 App Server mock backend、renderer mock fallback 或 legacy MCP facade 充当成功证据。
+`npm run smoke:orchestrator-skills-gate-b` 是 Orchestrator-owned Skills/MCP 的真实 Electron Gate B：隔离环境创建固定名称 `lime_apps` 和一个普通 stdio MCP server，localhost provider 严格执行 `skill_search -> read_mcp_resource -> final text`，并断言 `skill://delivery/release-notes` 只在 Turn snapshot 发现一次、`SKILL.md` 通过 session-owned MCP 精确读取一次、Thread/Turn/Item 与 GUI 最终文本一致。随后脚本经 `config/read|config/batchWrite` 写入 `orchestrator.mcp.enabled=false`，新 Thread 的 provider catalog 必须隐藏 `mcp__lime_apps__apps_ping`，同时保留并成功执行 `mcp__ordinary_fixture__ordinary_ping`。该入口使用 `APP_SERVER_BACKEND_MODE=runtime`、真实 Electron/preload/IPC/App Server 与本地确定性 fixtures，不访问正式模型，不允许 App Server mock backend、renderer mock fallback 或 legacy MCP facade 充当成功证据。
 
 新增 MCP control-plane 脚本继续进入 `scripts/mcp/` 或复用现有 `smoke:mcp-current` npm script；涉及真实 Electron Desktop Host GUI 的 MCP fixture 进入 `scripts/electron/`。共享实现仍放在领域子目录或 `scripts/lib/`。
 
@@ -441,11 +438,15 @@ npm run harness:deepswe:batch:aggregate
 
 Agent QC report、GUI flow、qcloop、evidence、release summary 与 owner/checklist 入口已迁到 `scripts/agent-qc/`。对外继续使用 `package.json` 里的 `agent-qc:*` npm scripts，不直接依赖根目录脚本路径。
 
-`npm run agent-qc:project-gate-candidate -- --codex-reference-repo <path>` 连续两次计算 tracked、untracked 与删除项的完整产品快照，默认间隔 5 秒；只有 product digest、tracked diff digest、Git HEAD、changed paths、exclusion、干净 Codex reference HEAD、owner tracker 状态和 34-surface contract 全部一致，才会在 `.lime/qc/project-gates/<run-id>/candidate.json` 生成候选摘要。Codex import tracker 只接受 `ready`、`ready-for-gate`、`completed` 或 `closed`；`active`、缺失或未知状态全部 fail closed。`internal/test/project-gate-surfaces.manifest.json` 固定 `17` 个 P0、`17` 个 P1 及每个 surface 所需 proof level，并进入 product snapshot；摘要另外保存其 digest。摘要只保存 Codex commit hash、tracker 相对路径/状态和仓库内 contract 路径，不保存外部仓库路径。Gate 日志、可变执行计划和 `internal/research/refactor/v2/13-evidence/project-gates/` 下的 Gate 汇总被显式排除，其他未跟踪产品文件必须进入 digest；`--snapshot-only` 只用于冻结前诊断，不生成候选。也可用 `LIME_CODEX_REFERENCE_REPO` 提供 reference 路径。
+`npm run agent-qc:project-gate-candidate -- --reference-repo <path>` 连续两次计算 tracked、untracked 与删除项的完整产品快照，默认间隔 5 秒；只有 product digest、tracked diff digest、Git HEAD、changed paths、exclusion、干净 Codex reference HEAD、owner tracker 状态和 34-surface contract 全部一致，才会在 `.lime/qc/project-gates/<run-id>/candidate.json` 生成候选摘要。Codex import tracker 只接受 `ready`、`ready-for-gate`、`completed` 或 `closed`；`active`、缺失或未知状态全部 fail closed。`internal/test/project-gate-surfaces.manifest.json` 固定 `17` 个 P0、`17` 个 P1 及每个 surface 所需 proof level，并进入 product snapshot；摘要另外保存其 digest。摘要只保存 Codex commit hash、tracker 相对路径/状态和仓库内 contract 路径，不保存外部仓库路径。Gate 日志、可变执行计划和 `internal/research/refactor/v2/13-evidence/project-gates/` 下的 Gate 汇总被显式排除，其他未跟踪产品文件必须进入 digest；`--snapshot-only` 只用于冻结前诊断，不生成候选。也可用 `LIME_REFERENCE_REPO` 提供 reference 路径。
 
 `npm run agent-qc:project-gate-settings-a -- --run-id <run-id>` 是 `SETTINGS-01` 的专用 Gate A browser-mirror runner：通过稳定 `data-testid` 覆盖全部 current primary tabs、desktop/compact/narrow 三视口、五个 locale 的关键 tab、导航恢复、raw key、loading/error buffer、console/page error 和页面级横向溢出；同时用显式 test-only `agentSession/list` 网络夹具验证已归档对话的 loading、empty、error 与 retry 状态。证据写入 `.lime/qc/project-gates/<run-id>/settings-01-gate-a/`，三种组件态、截图和常规矩阵全部完成时才写 `surfaceProof.complete=true`；它仍明确不声明 Electron main/preload/IPC 或 Gate B。
 
-`npm run agent-qc:project-gate-settings-b -- --run-id <run-id> --source <kind>=<summary.json>...` 聚合同一 run-id 下的 SETTINGS-01 Gate B-F owner evidence。当前合同覆盖 15 个 primary tab 对应的 17 个稳定场景；source 必须位于 `.lime/qc/project-gates/<run-id>/`，且 candidateRunId、真实 Electron/preload/IPC、`app_server_handle_json_lines`、current method、零 legacy/mock 与 owner assertions 全部匹配。现有 `shell-memory` 只完成 `memory-ready`，不得冒充 Soul 持久化；Provider 只接受 current `provider-crud-model-auth` 场景，不再接受整库迁移证据。MCP、About/Home、Stats、Environment、Media Services、Web Search、Profile、Appearance、Developer、Automation 与 Execution Policy fixture 分别完成 `mcp-create-list`、`about-version-truth`、`home-navigation`、`stats-current-read`、`environment-current-read`、`media-services-readiness`、`web-search-route`、`profile-persistence`、`appearance-persistence`、`developer-current-diagnostics`、`automation-lifecycle` 与 `execution-policy-allow-deny-error`。其余场景继续使用 `settings-scenario` 结构化证据逐项补齐。聚合结果写入同一 run 的 `settings-01-gate-b-f/summary.json`，17 项未全部完成前 `surfaceProof.complete=false`。
+`npm run agent-qc:project-gate-settings-b -- --run-id <run-id> --source <kind>=<summary.json>...` 聚合同一 run-id 下的 SETTINGS-01 Gate B-F owner evidence。当前合同覆盖与 `settingsSections` 一致的 19 个页面、24 个必需场景；source 必须位于 `.lime/qc/project-gates/<run-id>/`，且 candidateRunId、真实 Electron/preload/IPC、`app_server_handle_json_lines`、current method、零 legacy/mock 与 owner assertions 全部匹配。统计、旧进程环境、自动化和开发者页面的退役场景不再接受；MCP 证据归属 `plugins-settings`，与插件管理共同完成该页；网络搜索归属 `configuration`，返回首页归属 `general`。
+
+现有 `shell-memory` 只完成 `memory-ready`，必须另有 `memory-personalization-persistence` 才完成个性化页；`web-search-route` 与 `home-navigation` 同样不能替代配置页与常规页的完整偏好验证。常规、语音、存储、配置、快捷键、浏览器、插件、本地环境、Hooks、Git 和 Worktrees 的场景必须逐项提供同 run 的 `settings-scenario` 证据，登记场景不代表已经实际运行或通过。聚合结果写入同一 run 的 `settings-01-gate-b-f/summary.json`，分别输出 `coverage.tabs` 与场景覆盖；场景或页面任一缺失时 `surfaceProof.complete=false`。新增页面若未登记场景也不得计为完成，回归会核对真实页面登记。
+
+`node scripts/electron/lib/settings-window-close-fixture.mjs --evidence-dir <path>` 验证真实 Electron 的关闭窗口三态、原生键盘、取消/Escape、冷恢复与“不再询问”配置写入；运行前要求现役 fixture 产物新鲜，首尾核对构建摘要，使用隔离用户目录并记录真实 Main 正常退出。它不宣称完整标签页关闭、Windows 或 General 整页完成。不要与会重建同一产物的 GUI smoke 同时运行。
 
 每个 Wave 结束后使用 `npm run agent-qc:project-gate-candidate -- --verify-candidate .lime/qc/project-gates/<run-id>/candidate.json` 重算当前 snapshot；Git HEAD、product digest、tracked diff digest、changed paths 或 exclusion 任一漂移都会非零退出，并只输出 digest、计数和最多 50 个路径差异，不输出文件正文。
 
@@ -469,7 +470,7 @@ Agent Runtime smoke 与 Service Skill 入口 smoke 已迁到 `scripts/agent-runt
 
 `npm run smoke:browser-runtime-locale-matrix` 顺序启动五个隔离的真实 Electron lifecycle Gate B（`zh-CN`、`zh-TW`、`en-US`、`ja-JP`、`ko-KR`），通过真实侧边栏语言菜单切换并断言 `document.documentElement.lang`，为 renderer loading/ready、Browser loaded、Agent control、user takeover、released、destroyed 采集 35 张截图，同时聚合 approval/artifact/cancel/disconnect/download/permission/user-control/window-close 行为矩阵。`--aggregate-only` 只重建汇总，不重新启动 Electron。证据写入 `.lime/qc/gui-evidence/browser-runtime-electron-gate-b/browser-runtime-locale-matrix-summary.json`；它不把普通 Chrome、mock 或单测当作 Gate B，也不扩大 open/reveal/clipboard/upload 的 Host 单测边界。
 
-`npm run smoke:hook-lifecycle-gate-b` 复用 Claw 的真实 Electron `turn-plan-update` provider/tool-call 场景，并在隔离 `CODEX_HOME` 中注册受信 `PreToolUse(update_plan)` command Hook。门禁要求 `hooks/list` 返回 trusted exact metadata、command 进程实际记录工具上下文、同一 run id 的 `hook/started -> hook/completed` 被 Electron recent-notification bridge 观察、public `thread/read(includeTurns:true)` 恢复 completed canonical Hook Item，且 GUI 出现 `timeline-hook`。该入口使用 localhost OpenAI-compatible fixture，不调用 live Provider、不使用 App Server mock backend，也不把通用 GUI smoke 冒充 Hook 闭环。
+`npm run smoke:hook-lifecycle-gate-b` 复用 Claw 的真实 Electron `turn-plan-update` provider/tool-call 场景，并在隔离 `LIME_HOME` 中注册受信 `PreToolUse(update_plan)` command Hook。门禁要求 `hooks/list` 返回 trusted exact metadata、command 进程实际记录工具上下文、同一 run id 的 `hook/started -> hook/completed` 被 Electron recent-notification bridge 观察、public `thread/read(includeTurns:true)` 恢复 completed canonical Hook Item，且 GUI 出现 `timeline-hook`。该入口使用 localhost OpenAI-compatible fixture，不调用 live Provider、不使用 App Server mock backend，也不把通用 GUI smoke 冒充 Hook 闭环。
 
 `npm run smoke:agent-runtime-soak-current-fixture` 在同一真实 Electron/App Server 生命周期连续运行 10 轮 AgentControl current fixture，并执行两次 cold restart。它逐轮读取 public JSON-RPC 的 Thread/Turn/Item、PID/RSS 和 terminal 状态，重启后比较所有 canonical identity，最后验证 6 条工具 row、4 条 SubAgent activity、零 invoke/console error 和全部进程退出。该入口使用 localhost controlled provider，只关闭 fixture 的 idle connection；active provider request 必须由 Lime 正常释放，因此不会用强制断连掩盖 SSE 生命周期缺陷。它证明本地 SOAK 实现合同，不替代 live Provider、冻结 RC 或真实平台长稳。
 

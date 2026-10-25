@@ -7,7 +7,10 @@ import {
 import { LoaderCircle, Plus, VolumeX, X } from "lucide-react";
 import { BrowserTabIcon } from "./browser/BrowserTabIcon";
 import { cn } from "@/lib/utils";
-import { useSidePanelTabActive } from "@/components/app-shell/unifiedTabStripContext";
+import {
+  useSidePanelActivation,
+  useSidePanelTabActive,
+} from "@/components/app-shell/unifiedTabStripContext";
 import type { ThreadSidePanelTab } from "./threadSidePanelTabs";
 import { WorkspaceFileContextMenu } from "./WorkspaceFileContextMenu";
 import type {
@@ -85,6 +88,10 @@ export function RightSurfaceTabStrip({
 }: RightSurfaceTabStripProps) {
   const { t } = useTranslation("agent");
   const panelActive = useSidePanelTabActive();
+  const activatePanel = useSidePanelActivation();
+  useEffect(() => {
+    if (activeTabId) activatePanel?.();
+  }, [activeTabId, activatePanel]);
   useEffect(() => {
     if (!panelActive || !isBrowserTabHostAvailable()) return;
     let disposed = false;

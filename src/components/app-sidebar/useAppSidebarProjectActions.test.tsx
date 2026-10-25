@@ -64,7 +64,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
 });
 
-it.each([null, "/source/.codex/environments/dev.toml"])(
+it.each([null, "/source/.lime/environments/dev.toml"])(
   "creates with the current environment %s and opens the checkout",
   async (localEnvironmentConfigPath) => {
     vi.mocked(readLocalEnvironmentSelection).mockResolvedValueOnce(

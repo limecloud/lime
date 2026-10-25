@@ -1,4 +1,5 @@
 import type { OpenDialogOptions } from "./desktop-host/dialogOptions";
+import type { WindowCloseConfirmationResponse } from "./desktop-host/windowCloseConfirmation";
 
 export type ElectronHostEvent<T = unknown> = {
   event: string;
@@ -31,7 +32,8 @@ export interface ElectronHostShortcutBridge {
 export interface ElectronHostWindowBridge {
   show(): Promise<void>;
   hide(): Promise<void>;
-  close(): Promise<void>;
+  close(keyboard?: boolean): Promise<void>;
+  confirmClose(response: WindowCloseConfirmationResponse): Promise<void>;
   minimize(): Promise<void>;
   maximize(): Promise<void>;
   unmaximize(): Promise<void>;

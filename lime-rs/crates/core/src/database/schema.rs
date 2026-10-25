@@ -144,9 +144,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             server_config TEXT NOT NULL,
             description TEXT,
             enabled_lime INTEGER DEFAULT 0,
-            enabled_claude INTEGER DEFAULT 0,
-            enabled_codex INTEGER DEFAULT 0,
-            enabled_gemini INTEGER DEFAULT 0,
             created_at INTEGER
         )",
         [],
@@ -157,19 +154,8 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         "ALTER TABLE mcp_servers ADD COLUMN enabled_lime INTEGER DEFAULT 0",
         [],
     );
-    let _ = conn.execute(
-        "ALTER TABLE mcp_servers ADD COLUMN enabled_claude INTEGER DEFAULT 0",
-        [],
-    );
-    let _ = conn.execute(
-        "ALTER TABLE mcp_servers ADD COLUMN enabled_codex INTEGER DEFAULT 0",
-        [],
-    );
-    let _ = conn.execute(
-        "ALTER TABLE mcp_servers ADD COLUMN enabled_gemini INTEGER DEFAULT 0",
-        [],
-    );
     let _ = conn.execute("ALTER TABLE mcp_servers ADD COLUMN created_at INTEGER", []);
+    super::migration::remove_mcp_sync_columns(conn)?;
 
     // Prompts 表
     conn.execute(
@@ -1244,8 +1230,9 @@ mod tests {
             .unwrap();
 
         assert!(column_names.iter().any(|name| name == "enabled_lime"));
-        assert!(column_names.iter().any(|name| name == "enabled_codex"));
-        assert!(column_names.iter().any(|name| name == "enabled_gemini"));
+        assert!(!column_names.iter().any(|name| name == "enabled_claude"));
+        assert!(!column_names.iter().any(|name| name == "enabled_codex"));
+        assert!(!column_names.iter().any(|name| name == "enabled_gemini"));
         assert!(column_names.iter().any(|name| name == "created_at"));
     }
 

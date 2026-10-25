@@ -50,19 +50,6 @@ impl McpAppDataSource for LocalAppDataSource {
         mcp::set_mcp_server_enabled(&self.db, params)
     }
 
-    async fn import_mcp_servers_from_app(
-        &self,
-        params: McpServerImportFromAppParams,
-    ) -> Result<McpServerImportFromAppResponse, RuntimeCoreError> {
-        mcp::import_mcp_servers_from_app(&self.db, params)
-    }
-
-    async fn sync_all_mcp_servers_to_live(
-        &self,
-    ) -> Result<McpServerListResponse, RuntimeCoreError> {
-        mcp::sync_all_mcp_servers_to_live(&self.db)
-    }
-
     async fn start_mcp_server(
         &self,
         params: McpServerStartParams,

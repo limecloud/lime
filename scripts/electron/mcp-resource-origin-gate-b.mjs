@@ -95,7 +95,7 @@ MCP Resource Origin Electron Gate B
 
 用途:
   通过真实 Electron/preload/App Server/RuntimeCore/provider/MCP/read model 验证
-  codex_apps canonical appContext、origin-scoped resource read 与冷恢复 GUI resource。
+  lime_apps canonical appContext、origin-scoped resource read 与冷恢复 GUI resource。
 
 边界:
   使用 localhost OpenAI-compatible provider 与临时 stdio MCP fixture；不调用
@@ -131,7 +131,7 @@ export function findMcpResourceOriginItems(value, items = []) {
 }
 
 function assertCanonicalOriginItem(item, runtime) {
-  assert(item, "canonical read model 缺少 codex_apps resource Item");
+  assert(item, "canonical read model 缺少 lime_apps resource Item");
   assert(item.id === `item_${TOOL_CALL_ID}`, "canonical Item identity 漂移");
   assert(item.status === "completed", "MCP origin Item 未完成");
   assert(item.tool === "apps_ping", "MCP origin tool identity 漂移");
@@ -403,7 +403,7 @@ export async function run() {
     scenarioId: "CODEX-ALIGN-mcp-resource-origin",
     proofLevel: "Gate B controlled fixture",
     claimBoundary:
-      "Real Electron/preload/IPC/App Server RuntimeCore provider turn produces a completed codex_apps canonical Item, Renderer opens its origin-scoped MCP App resource, and a second Electron/App Server process restores the same authority without rerunning the provider or tool. Local fixtures do not claim live provider, remote connector, compaction, Windows, or packaged behavior.",
+      "Real Electron/preload/IPC/App Server RuntimeCore provider turn produces a completed lime_apps canonical Item, Renderer opens its origin-scoped MCP App resource, and a second Electron/App Server process restores the same authority without rerunning the provider or tool. Local fixtures do not claim live provider, remote connector, compaction, Windows, or packaged behavior.",
     startedAt: new Date().toISOString(),
     completedAt: null,
     result: "fail",

@@ -1,6 +1,6 @@
 //! Application action dispatch for the TUI.
 //!
-//! This is the Codex-shaped owner for actions that require App Server state. Input decoding stays
+//! This is the Lime-native owner for actions that require App Server state. Input decoding stays
 //! in `input.rs`; terminal-specific actions remain in the runtime because they need the live
 //! terminal guard. The split keeps the central loop focused on event ordering and lifecycle.
 

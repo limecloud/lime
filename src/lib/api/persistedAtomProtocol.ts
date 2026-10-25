@@ -17,6 +17,7 @@ import type {
 } from "./persistedAtomTypes";
 import {
   LOCAL_ENV_SELECTIONS_ATOM_KEY,
+  LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY,
   PERSISTED_BOOLEAN_ATOM_KEYS,
   isPersistedBooleanAtomKey,
 } from "./persistedAtomTypes";
@@ -24,6 +25,10 @@ import {
   parseLocalEnvironmentSelectionMutation,
   parseLocalEnvironmentSelections,
 } from "./localEnvironmentSelectionProtocol";
+import {
+  parseLocalEnvironmentRecentActions,
+  parseLocalEnvironmentRecentActionMutation,
+} from "./localEnvironmentRecentActionsProtocol";
 
 export interface PersistedAtomLimits {
   readonly maxDraftBytes: number;
@@ -130,6 +135,11 @@ export function parsePersistedAtomReadRequest(
   value: unknown,
 ): PersistedAtomReadRequest {
   const request = exact(value, ["key", "query"]);
+  if (request.key === LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY) {
+    const query = exact(request.query, ["kind"]);
+    if (query.kind !== "recent-actions") reject();
+    return { key: request.key, query: { kind: "recent-actions" } };
+  }
   if (request.key === LOCAL_ENV_SELECTIONS_ATOM_KEY) {
     const query = exact(request.query, ["kind"]);
     if (query.kind !== "selections") reject();
@@ -260,6 +270,7 @@ function persistence(
 function metadata(value: Record<string, unknown>): PersistedAtomMetadata {
   const key = member(value.key, [
     "composer-drafts-v1",
+    LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY,
     LOCAL_ENV_SELECTIONS_ATOM_KEY,
     ...PERSISTED_BOOLEAN_ATOM_KEYS,
   ]);
@@ -427,8 +438,24 @@ export function parsePersistedAtomReadResult(
     "workspace-index",
     "value",
     "selections",
+    "recent-actions",
   ]);
   if (expected && queryKind !== expected.kind) reject();
+  if (meta.key === LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY) {
+    const data = exact(response.data, ["queryKind", "recentActions"]);
+    if (queryKind !== "recent-actions") reject();
+    return {
+      ...meta,
+      outcome,
+      data: {
+        queryKind,
+        recentActions: parseLocalEnvironmentRecentActions(
+          data.recentActions,
+          PERSISTED_ATOM_LIMITS.maxBindings,
+        ),
+      },
+    };
+  }
   if (meta.key === LOCAL_ENV_SELECTIONS_ATOM_KEY) {
     const data = exact(response.data, ["queryKind", "selections"]);
     if (queryKind !== "selections") reject();
@@ -449,7 +476,12 @@ export function parsePersistedAtomReadResult(
     if (queryKind !== "value" || typeof data.value !== "boolean") reject();
     return { ...meta, outcome, data: { queryKind, value: data.value } };
   }
-  if (queryKind === "value" || queryKind === "selections") reject();
+  if (
+    queryKind === "value" ||
+    queryKind === "selections" ||
+    queryKind === "recent-actions"
+  )
+    reject();
   if (queryKind === "workspace-index") {
     const data = exact(response.data, ["queryKind", "workspaceId", "items"]);
     const workspaceId =
@@ -495,6 +527,7 @@ export function parsePersistedAtomUpdateResult(
     context &&
     context.key !== "composer-drafts-v1" &&
     context.key !== LOCAL_ENV_SELECTIONS_ATOM_KEY &&
+    context.key !== LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY &&
     !isPersistedBooleanAtomKey(context.key)
   )
     reject();
@@ -502,7 +535,7 @@ export function parsePersistedAtomUpdateResult(
   const data = exact(
     value,
     ["key", "storeRevision", "persistence", "outcome", "changed", "entry"],
-    ["reason", "value", "selections"],
+    ["reason", "value", "selections", "recentActions"],
   );
   const meta = metadata(data),
     outcome = member(data.outcome, [
@@ -513,6 +546,46 @@ export function parsePersistedAtomUpdateResult(
     ]);
   const reason = optionalReason(data);
   if (context && meta.key !== context.key) reject();
+  if (meta.key === LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY) {
+    if (
+      typeof data.changed !== "boolean" ||
+      data.entry !== null ||
+      Object.hasOwn(data, "value") ||
+      Object.hasOwn(data, "selections") ||
+      (outcome !== "applied" && data.changed) ||
+      ((outcome === "invalid" || outcome === "conflict") && !reason.reason) ||
+      (outcome === "applied" &&
+        (reason.reason ||
+          !Object.hasOwn(data, "recentActions") ||
+          meta.persistence.state === "loading" ||
+          meta.persistence.state === "unavailable"))
+    )
+      reject();
+    const recentActions = Object.hasOwn(data, "recentActions")
+      ? parseLocalEnvironmentRecentActions(
+          data.recentActions,
+          PERSISTED_ATOM_LIMITS.maxBindings,
+        )
+      : undefined;
+    if (requestedMutation) {
+      const mutation =
+        parseLocalEnvironmentRecentActionMutation(requestedMutation);
+      if (
+        outcome === "applied" &&
+        recentActions?.[mutation.environmentKey]?.[0] !== mutation.actionName
+      )
+        reject();
+    }
+    return {
+      ...meta,
+      outcome,
+      changed: data.changed,
+      ...reason,
+      entry: null,
+      ...(recentActions ? { recentActions } : {}),
+    };
+  }
+  if (Object.hasOwn(data, "recentActions")) reject();
   if (meta.key === LOCAL_ENV_SELECTIONS_ATOM_KEY) {
     if (
       typeof data.changed !== "boolean" ||

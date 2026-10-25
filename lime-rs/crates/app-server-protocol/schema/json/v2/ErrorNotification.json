@@ -1,7 +1,7 @@
 {
   "$defs": {
-    "CodexErrorInfo": {
-      "description": "Codex-compatible error classification exposed on the v2 wire.",
+    "LimeErrorInfo": {
+      "description": "Lime error classification exposed on the v2 wire.",
       "oneOf": [
         {
           "enum": [
@@ -149,10 +149,10 @@
             "string"
           ]
         },
-        "codexErrorInfo": {
+        "limeErrorInfo": {
           "anyOf": [
             {
-              "$ref": "#/$defs/CodexErrorInfo"
+              "$ref": "#/$defs/LimeErrorInfo"
             },
             {
               "type": "null"

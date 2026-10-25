@@ -1,0 +1,59 @@
+{
+  "$defs": {
+    "AllowDenyRequirement": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "ComputerUseWindowsExeConfig": {
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        "binary_name": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "product_name": {
+          "type": "string"
+        },
+        "publisher_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "access",
+        "product_name",
+        "publisher_name"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "aumids": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AllowDenyRequirement"
+      },
+      "type": [
+        "null",
+        "object"
+      ]
+    },
+    "exes": {
+      "items": {
+        "$ref": "#/$defs/ComputerUseWindowsExeConfig"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "title": "ComputerUseWindowsConfig",
+  "type": "object"
+}

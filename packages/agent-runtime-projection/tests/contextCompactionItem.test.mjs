@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexContextCompactionItemProjectionEvent,
-  extractCodexContextCompactionItemSnapshot,
+  buildContextCompactionItemProjectionEvent,
+  extractContextCompactionItemSnapshot,
 } from "../dist/index.js";
 
 function compactionItem(id = "cmp-1") {
@@ -26,8 +26,12 @@ function itemNotification(method, threadId, item) {
 function baseInput(overrides = {}) {
   return {
     threadId: "thread-compact",
-    itemStarted: [itemNotification("item/started", "thread-compact", compactionItem())],
-    itemCompleted: [itemNotification("item/completed", "thread-compact", compactionItem())],
+    itemStarted: [
+      itemNotification("item/started", "thread-compact", compactionItem()),
+    ],
+    itemCompleted: [
+      itemNotification("item/completed", "thread-compact", compactionItem()),
+    ],
     expectedReplacementHistory: [
       { type: "message", role: "assistant", text: "COMPACT_SUMMARY" },
       compactionItem(),
@@ -54,15 +58,12 @@ function baseInput(overrides = {}) {
 }
 
 test("context compaction item preserves started/completed lifecycle and hydrated history", () => {
-  const event = buildCodexContextCompactionItemProjectionEvent(
-    baseInput(),
-    {
-      sequence: 231,
-      sessionId: "session-compact",
-      turnId: "turn-compact",
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildContextCompactionItemProjectionEvent(baseInput(), {
+    sequence: 231,
+    sessionId: "session-compact",
+    turnId: "turn-compact",
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -107,10 +108,16 @@ test("context compaction item preserves started/completed lifecycle and hydrated
 });
 
 test("context compaction item requires started and completed items with matching id", () => {
-  const snapshot = extractCodexContextCompactionItemSnapshot(
+  const snapshot = extractContextCompactionItemSnapshot(
     baseInput({
       itemStarted: [],
-      itemCompleted: [itemNotification("item/completed", "thread-compact", compactionItem("cmp-2"))],
+      itemCompleted: [
+        itemNotification(
+          "item/completed",
+          "thread-compact",
+          compactionItem("cmp-2"),
+        ),
+      ],
       readModelItems: [compactionItem("cmp-2")],
       followupModelInput: [compactionItem("cmp-2")],
     }),
@@ -125,7 +132,7 @@ test("context compaction item requires started and completed items with matching
 });
 
 test("context compaction item rejects deprecated thread compacted notification as only signal", () => {
-  const snapshot = extractCodexContextCompactionItemSnapshot({
+  const snapshot = extractContextCompactionItemSnapshot({
     threadId: "thread-compact",
     deprecatedCompactedNotification: [
       {
@@ -150,7 +157,7 @@ test("context compaction item rejects deprecated thread compacted notification a
 });
 
 test("context compaction item keeps replacement history verbatim and old item fingerprints stable", () => {
-  const snapshot = extractCodexContextCompactionItemSnapshot(
+  const snapshot = extractContextCompactionItemSnapshot(
     baseInput({
       actualReplacementHistory: [
         { type: "message", role: "assistant", text: "REWRITTEN_SUMMARY" },
@@ -171,7 +178,7 @@ test("context compaction item keeps replacement history verbatim and old item fi
 });
 
 test("context compaction item requires read model and follow-up model input to preserve compaction", () => {
-  const snapshot = extractCodexContextCompactionItemSnapshot(
+  const snapshot = extractContextCompactionItemSnapshot(
     baseInput({
       readModelItems: [{ type: "message", text: "summary only" }],
       followupModelInput: [{ type: "message", text: "summary only" }],
@@ -182,12 +189,15 @@ test("context compaction item requires read model and follow-up model input to p
   assert.equal(snapshot.followupHistoryContainsCompaction, false);
   assert.deepEqual(
     snapshot.validationIssues.map((item) => item.code),
-    ["compaction_missing_from_read_model", "followup_history_missing_compaction"],
+    [
+      "compaction_missing_from_read_model",
+      "followup_history_missing_compaction",
+    ],
   );
 });
 
 test("context compaction item keeps thread compact start response as empty ack", () => {
-  const snapshot = extractCodexContextCompactionItemSnapshot(
+  const snapshot = extractContextCompactionItemSnapshot(
     baseInput({
       compactStartResponse: {
         item: compactionItem(),

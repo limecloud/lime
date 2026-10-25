@@ -12,6 +12,21 @@ type AppServerClientRequestRunner = {
 
 declare module "./appServerClient" {
   interface AppServerClient {
+    readComputerUseStatus(
+      params?: appServer.AppServerComputerUseStatusParams,
+    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseStatusResponse>>;
+    setupComputerUse(
+      params: appServer.AppServerComputerUseSetupParams,
+    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseSetupResponse>>;
+    revokeComputerUse(
+      params: appServer.AppServerComputerUseRevokeParams,
+    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseRevokeResponse>>;
+    acquireComputerUseLease(
+      params: appServer.AppServerComputerUseLeaseAcquireParams,
+    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseLeaseAcquireResponse>>;
+    releaseComputerUseLease(
+      params: appServer.AppServerComputerUseLeaseReleaseParams,
+    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseLeaseReleaseResponse>>;
     requestCloud(
       params: appServer.AppServerCloudRequestParams,
     ): Promise<
@@ -286,6 +301,11 @@ declare module "./appServerClient" {
       params: appServer.AppServerFsUnwatchParams,
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerFsUnwatchResponse>
+    >;
+    setProjectGitWorktreeEnvironment(
+      params: appServer.AppServerProjectGitWorktreeEnvironmentSetParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitStatusResponse>
     >;
     readProjectGitStatus(
       params: appServer.AppServerProjectGitStatusParams,

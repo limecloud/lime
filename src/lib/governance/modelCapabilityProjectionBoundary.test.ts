@@ -53,7 +53,7 @@ const REGISTRY_POLICY_PROJECTION_FIELDS = [
   "native_tool_policy",
 ];
 
-const CODEX_POLICY_WIRE_FIELDS = [
+const UPSTREAM_POLICY_WIRE_FIELDS = [
   "tool_mode",
   "supports_search_tool",
   "web_search_tool_type",
@@ -81,7 +81,7 @@ const CODEX_POLICY_WIRE_FIELDS = [
 
 const SUMMARY_POLICY_FORBIDDEN_FIELDS = [
   ...REGISTRY_POLICY_PROJECTION_FIELDS,
-  ...CODEX_POLICY_WIRE_FIELDS,
+  ...UPSTREAM_POLICY_WIRE_FIELDS,
 ];
 
 const POLICY_OWNER_DEPENDENCY_TOKENS = [

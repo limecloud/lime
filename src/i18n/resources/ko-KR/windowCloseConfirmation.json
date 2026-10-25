@@ -1,0 +1,12 @@
+{
+  "settings.general.confirmBeforeClose.label": "창을 닫기 전에 확인",
+  "settings.general.confirmBeforeClose.shortcutDescription": "탭 닫기 단축키로 창이 닫히는 경우 경고합니다",
+  "settings.general.confirmBeforeClose.description": "창을 닫기 전에 경고할 시점을 선택하세요. Alt+F4와 닫기 버튼은 '항상'을 선택한 경우에만 경고합니다",
+  "settings.general.confirmBeforeClose.never": "안 함",
+  "settings.general.confirmBeforeClose.keyboardOnly": "닫기 단축키만",
+  "settings.general.confirmBeforeClose.always": "항상",
+  "desktop.windowCloseConfirmation.title": "창을 닫으시겠어요?",
+  "desktop.windowCloseConfirmation.doNotAskAgain": "다시 묻지 않기",
+  "desktop.windowCloseConfirmation.cancel": "취소",
+  "desktop.windowCloseConfirmation.confirm": "창 닫기"
+}

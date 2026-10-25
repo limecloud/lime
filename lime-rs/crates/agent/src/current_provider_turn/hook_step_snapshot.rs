@@ -29,11 +29,11 @@ pub(super) fn current_hook_step_snapshot_source(
     pending_input: Option<RuntimeSessionInputHandle>,
     cancel_token: Option<CancellationToken>,
 ) -> Option<RuntimeHookSnapshotSourceHandle> {
-    let codex_home = lime_core::app_paths::resolve_codex_home_dir()?;
+    let lime_home = lime_core::app_paths::resolve_lime_home_dir()?;
     Some(RuntimeHookSnapshotSourceHandle::new(Arc::new(
         CurrentHookStepSnapshotSource {
             input: HookDiscoveryInput {
-                codex_home,
+                lime_home,
                 cwd: working_directory,
                 plugins: Vec::new(),
             },

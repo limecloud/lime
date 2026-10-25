@@ -53,6 +53,12 @@ struct CommandExecSession {
     stdin_open: Arc<Mutex<bool>>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CommandExecEnvironment {
+    Host,
+    Worktree,
+}
+
 impl CommandExecServer {
     pub(crate) fn with_process_server(mut self, process_server: ExecutionProcessServer) -> Self {
         self.process_server = process_server;
@@ -78,8 +84,14 @@ impl CommandExecServer {
         params: CommandExecParams,
         granted_permissions: Option<GrantedPermissionProfile>,
     ) -> Result<CommandExecResponse, JsonRpcError> {
-        self.exec_cancellable(connection_id, params, granted_permissions, || false)
-            .await
+        self.exec_cancellable(
+            connection_id,
+            params,
+            granted_permissions,
+            CommandExecEnvironment::Worktree,
+            || false,
+        )
+        .await
     }
 
     pub(crate) async fn exec_cancellable(
@@ -87,6 +99,7 @@ impl CommandExecServer {
         connection_id: ConnectionId,
         params: CommandExecParams,
         granted_permissions: Option<GrantedPermissionProfile>,
+        environment_source: CommandExecEnvironment,
         is_cancelled: impl Fn() -> bool + Send + Sync,
     ) -> Result<CommandExecResponse, JsonRpcError> {
         if is_cancelled() {
@@ -123,6 +136,15 @@ impl CommandExecServer {
             crate::runtime_backend::current_agent_runtime_config_metadata().as_ref(),
         )?;
         let mut env = std::env::vars().collect::<HashMap<_, _>>();
+        if environment_source == CommandExecEnvironment::Worktree {
+            match lime_services::project_git_service::read_worktree_shell_environment(&cwd).await {
+                Ok(Some(environment)) => environment.apply_to(&mut env),
+                Ok(None) => {}
+                Err(_) => tracing::warn!(
+                    "Could not load worktree shell environment; using inherited environment"
+                ),
+            }
+        }
         if let Some(overrides) = &params.env {
             for (key, value) in overrides {
                 match value {
@@ -170,7 +192,7 @@ impl CommandExecServer {
             env,
             tty: params.tty,
             stdin: stream_stdin,
-            env_clear: false,
+            env_clear: true,
             pty_size: params.size.map(|size| (size.rows, size.cols)),
             sandbox,
         };

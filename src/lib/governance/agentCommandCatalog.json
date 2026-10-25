@@ -43,7 +43,10 @@
     "browser_downloads_clear",
     "browser_data_settings",
     "browser_data_summary",
-    "browser_data_clear"
+    "browser_data_clear",
+    "browser_site_settings_list",
+    "browser_site_settings_update",
+    "browser_site_settings_remove"
   ],
   "browserConnectorCommands": [
     "disconnect_browser_connector_session",

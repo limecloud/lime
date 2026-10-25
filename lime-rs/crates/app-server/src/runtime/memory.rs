@@ -3,7 +3,7 @@ use app_server_protocol::*;
 use std::path::Path;
 
 impl RuntimeCore {
-    /// Records Codex-style memory citation feedback after a completed assistant item.
+    /// Records Lime-style memory citation feedback after a completed assistant item.
     /// The citation is durable model output; usage writes are best-effort and never alter the
     /// current turn result when the auxiliary memory state is unavailable.
     pub(crate) async fn record_memory_citation_usage_for_event(
@@ -47,7 +47,7 @@ impl RuntimeCore {
         }
     }
 
-    /// Run Codex-style memory phase-1 using the session's current durable route.
+    /// Run Lime-style memory phase-1 using the session's current durable route.
     ///
     /// The route is resolved through the same backend admission path as a normal Turn so a
     /// model switch, credential rotation or provider readiness change is observed before any

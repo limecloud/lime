@@ -346,6 +346,7 @@ done
 "#;
     let mut config = create_test_config_with_command("/bin/sh", 5);
     config.transport = McpServerTransport::Stdio {
+        env_vars: Vec::new(),
         command: "/bin/sh".to_string(),
         args: vec!["-c".to_string(), script.to_string()],
         env: HashMap::from([(

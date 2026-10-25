@@ -28,7 +28,7 @@ use crate::text_formatting::{format_json_compact, truncate_text};
 use crate::width::display_width;
 use crate::wrapping::{word_wrap_line, RtOptions};
 
-const APPROVAL_META_KIND_KEY: &str = "codex_approval_kind";
+const APPROVAL_META_KIND_KEY: &str = "lime_approval_kind";
 const APPROVAL_META_KIND_MCP_TOOL_CALL: &str = "mcp_tool_call";
 const APPROVAL_META_KIND_TOOL_SUGGESTION: &str = "tool_suggestion";
 const APPROVAL_TOOL_PARAMS_KEY: &str = "tool_params";

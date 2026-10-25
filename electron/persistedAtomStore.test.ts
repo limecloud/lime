@@ -424,6 +424,7 @@ describe("persisted atom Main CAS and draft lifecycle", () => {
     expect(events.map((event) => event.key)).toEqual([
       "composer-drafts-v1",
       "local-env-selections-by-workspace",
+      "local-env-recent-actions-by-key",
       "app-shell-summary-panel-pinned",
       "app-shell-file-tree-open",
     ]);

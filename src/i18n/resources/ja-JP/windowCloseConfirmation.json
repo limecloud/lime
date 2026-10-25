@@ -1,0 +1,12 @@
+{
+  "settings.general.confirmBeforeClose.label": "ウィンドウを閉じる前に確認",
+  "settings.general.confirmBeforeClose.shortcutDescription": "タブを閉じるショートカットでウィンドウが閉じる場合に警告します",
+  "settings.general.confirmBeforeClose.description": "ウィンドウを閉じる前に警告するタイミングを選択します。Alt+F4 と閉じるボタンでは「常に」の場合のみ警告します",
+  "settings.general.confirmBeforeClose.never": "しない",
+  "settings.general.confirmBeforeClose.keyboardOnly": "閉じるショートカットのみ",
+  "settings.general.confirmBeforeClose.always": "常に",
+  "desktop.windowCloseConfirmation.title": "ウィンドウを閉じてもよろしいですか？",
+  "desktop.windowCloseConfirmation.doNotAskAgain": "今後は確認しない",
+  "desktop.windowCloseConfirmation.cancel": "キャンセル",
+  "desktop.windowCloseConfirmation.confirm": "ウィンドウを閉じる"
+}

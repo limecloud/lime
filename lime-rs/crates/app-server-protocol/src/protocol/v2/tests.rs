@@ -838,7 +838,7 @@ fn mcp_server_exact_methods_round_trip_codex_wire() {
         "method": "mcpServer/event/stream/start",
         "params": {
             "threadId": "thread_1",
-            "server": "codex_apps",
+            "server": "lime_apps",
             "subscriptionId": "subscription_1",
             "name": "updates",
             "arguments": {"scope": "thread"},
@@ -1365,7 +1365,7 @@ fn error_notification_round_trips_exact_codex_shape() {
         "params": {
             "error": {
                 "message": "provider stream timed out",
-                "codexErrorInfo": {
+                "limeErrorInfo": {
                     "responseStreamDisconnected": {
                         "httpStatusCode": null
                     }

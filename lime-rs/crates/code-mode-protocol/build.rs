@@ -5,6 +5,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .build_client(true)
         .build_server(true)
-        .compile_protos(&["src/grpc/codex.code_mode.v1.proto"], &["src/grpc"])?;
+        .compile_protos(&["src/grpc/lime.code_mode.v1.proto"], &["src/grpc"])?;
     Ok(())
 }

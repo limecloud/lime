@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexDynamicToolCallItemProjectionEvent,
-  extractCodexDynamicToolCallProjectionSnapshot,
+  buildDynamicToolCallItemProjectionEvent,
+  extractDynamicToolCallProjectionSnapshot,
 } from "../dist/index.js";
 
 const DATA_URL = "data:image/png;base64,abc123";
@@ -35,7 +35,7 @@ function namespaceTool(name, tools, overrides = {}) {
 
 function modelVisibleSpec() {
   return [
-    namespaceTool("codex_app", [functionTool("visible_dynamic_tool")]),
+    namespaceTool("lime_app", [functionTool("visible_dynamic_tool")]),
     namespaceTool("extension/", [functionTool("echo")]),
   ];
 }
@@ -43,7 +43,7 @@ function modelVisibleSpec() {
 function baseInput(overrides = {}) {
   return {
     dynamicTools: [
-      namespaceTool("codex_app", [
+      namespaceTool("lime_app", [
         functionTool("hidden_dynamic_tool", { deferLoading: true }),
         functionTool("visible_dynamic_tool"),
       ]),
@@ -70,7 +70,7 @@ function baseInput(overrides = {}) {
     ],
     item: {
       id: "dyn-call-1",
-      namespace: "codex_app",
+      namespace: "lime_app",
       tool: "visible_dynamic_tool",
       arguments: {
         path: "README.md",
@@ -94,7 +94,7 @@ function baseInput(overrides = {}) {
 }
 
 test("dynamic tool inventory preserves namespaces and hides deferred tools", () => {
-  const event = buildCodexDynamicToolCallItemProjectionEvent(baseInput(), {
+  const event = buildDynamicToolCallItemProjectionEvent(baseInput(), {
     sessionId: "session-dynamic",
     threadId: "thread-dynamic",
     turnId: "turn-dynamic",
@@ -139,15 +139,15 @@ test("dynamic tool inventory preserves namespaces and hides deferred tools", () 
 
   assert.deepEqual(event.payload.validationIssues, []);
   assert.deepEqual(event.payload.deferredToolRefs, [
-    "codex_app::hidden_dynamic_tool",
+    "lime_app::hidden_dynamic_tool",
   ]);
   assert.equal(event.payload.deferredToolsHidden, true);
   assert.deepEqual(event.payload.expectedModelVisibleToolRefs, [
-    "codex_app::visible_dynamic_tool",
+    "lime_app::visible_dynamic_tool",
     "extension/::echo",
   ]);
   assert.deepEqual(event.payload.observedModelVisibleToolRefs, [
-    "codex_app::visible_dynamic_tool",
+    "lime_app::visible_dynamic_tool",
     "extension/::echo",
   ]);
   assert.deepEqual(event.payload.call.contentItems, [
@@ -166,14 +166,14 @@ test("dynamic tool inventory preserves namespaces and hides deferred tools", () 
 
 test("extension dynamic tools must be both model-visible and dispatchable", () => {
   assert.deepEqual(
-    extractCodexDynamicToolCallProjectionSnapshot(baseInput()).validationIssues,
+    extractDynamicToolCallProjectionSnapshot(baseInput()).validationIssues,
     [],
   );
 
-  const snapshot = extractCodexDynamicToolCallProjectionSnapshot(
+  const snapshot = extractDynamicToolCallProjectionSnapshot(
     baseInput({
       modelVisibleSpecs: [
-        namespaceTool("codex_app", [functionTool("visible_dynamic_tool")]),
+        namespaceTool("lime_app", [functionTool("visible_dynamic_tool")]),
       ],
       dispatchableTools: [],
     }),
@@ -191,14 +191,14 @@ test("extension dynamic tools must be both model-visible and dispatchable", () =
 });
 
 test("same tool names may coexist across namespaces but duplicate namespace refs fail closed", () => {
-  const acrossNamespaces = extractCodexDynamicToolCallProjectionSnapshot(
+  const acrossNamespaces = extractDynamicToolCallProjectionSnapshot(
     baseInput({
       dynamicTools: [
-        namespaceTool("codex_app", [functionTool("search")]),
+        namespaceTool("lime_app", [functionTool("search")]),
         namespaceTool("project", [functionTool("search")]),
       ],
       modelVisibleSpecs: [
-        namespaceTool("codex_app", [functionTool("search")]),
+        namespaceTool("lime_app", [functionTool("search")]),
         namespaceTool("project", [functionTool("search")]),
         namespaceTool("extension/", [functionTool("echo")]),
       ],
@@ -213,21 +213,21 @@ test("same tool names may coexist across namespaces but duplicate namespace refs
   );
   assert.deepEqual(acrossNamespaces.validationIssues, []);
 
-  const duplicate = extractCodexDynamicToolCallProjectionSnapshot(
+  const duplicate = extractDynamicToolCallProjectionSnapshot(
     baseInput({
       dynamicTools: [
-        namespaceTool("codex_app", [
+        namespaceTool("lime_app", [
           functionTool("search"),
           functionTool("search"),
         ]),
       ],
       modelVisibleSpecs: [
-        namespaceTool("codex_app", [functionTool("search")]),
+        namespaceTool("lime_app", [functionTool("search")]),
         namespaceTool("extension/", [functionTool("echo")]),
       ],
       item: {
         id: "dyn-search",
-        namespace: "codex_app",
+        namespace: "lime_app",
         tool: "search",
         arguments: {},
         status: "in_progress",
@@ -241,7 +241,7 @@ test("same tool names may coexist across namespaces but duplicate namespace refs
 });
 
 test("naked tool-name matching is rejected for namespaced dynamic calls", () => {
-  const snapshot = extractCodexDynamicToolCallProjectionSnapshot(
+  const snapshot = extractDynamicToolCallProjectionSnapshot(
     baseInput({
       item: {
         id: "dyn-echo",
@@ -268,11 +268,11 @@ test("naked tool-name matching is rejected for namespaced dynamic calls", () => 
 });
 
 test("dynamic tool remote image output must be converted to a failed text response", () => {
-  const failedText = extractCodexDynamicToolCallProjectionSnapshot(
+  const failedText = extractDynamicToolCallProjectionSnapshot(
     baseInput({
       item: {
         id: "dyn-remote-image",
-        namespace: "codex_app",
+        namespace: "lime_app",
         tool: "visible_dynamic_tool",
         arguments: {},
         status: "failed",
@@ -297,11 +297,11 @@ test("dynamic tool remote image output must be converted to a failed text respon
     },
   ]);
 
-  const leakedRemoteImage = extractCodexDynamicToolCallProjectionSnapshot(
+  const leakedRemoteImage = extractDynamicToolCallProjectionSnapshot(
     baseInput({
       item: {
         id: "dyn-remote-image",
-        namespace: "codex_app",
+        namespace: "lime_app",
         tool: "visible_dynamic_tool",
         arguments: {},
         status: "completed",

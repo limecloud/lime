@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "kind": "codex-v2-thread-item-inventory",
+  "kind": "v2-thread-item-inventory",
   "upstream": {
     "repository": "/Users/coso/Documents/dev/rust/codex",
     "revision": "c4f42d161ae44a8d696ee9fb595709661979d187",
@@ -16,143 +16,143 @@
     {
       "method": "item/started",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/completed",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/autoApprovalReview/started",
       "kind": "notification",
-      "codex": "experimental",
+      "reference": "experimental",
       "lime": "current"
     },
     {
       "method": "item/autoApprovalReview/completed",
       "kind": "notification",
-      "codex": "experimental",
+      "reference": "experimental",
       "lime": "current"
     },
     {
       "method": "rawResponseItem/completed",
       "kind": "notification",
-      "codex": "internal",
+      "reference": "internal",
       "lime": "excluded"
     },
     {
       "method": "item/agentMessage/delta",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/plan/delta",
       "kind": "notification",
-      "codex": "experimental",
+      "reference": "experimental",
       "lime": "current"
     },
     {
       "method": "item/commandExecution/outputDelta",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/commandExecution/terminalInteraction",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/fileChange/outputDelta",
       "kind": "notification",
-      "codex": "deprecated",
+      "reference": "deprecated",
       "lime": "excluded"
     },
     {
       "method": "item/fileChange/patchUpdated",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/mcpToolCall/progress",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/reasoning/summaryTextDelta",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/reasoning/summaryPartAdded",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/reasoning/textDelta",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "serverRequest/resolved",
       "kind": "notification",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/commandExecution/requestApproval",
       "kind": "serverRequest",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/fileChange/requestApproval",
       "kind": "serverRequest",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/tool/requestUserInput",
       "kind": "serverRequest",
-      "codex": "experimental",
+      "reference": "experimental",
       "lime": "current"
     },
     {
       "method": "mcpServer/elicitation/request",
       "kind": "serverRequest",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/permissions/requestApproval",
       "kind": "serverRequest",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     },
     {
       "method": "item/tool/call",
       "kind": "serverRequest",
-      "codex": "current",
+      "reference": "current",
       "lime": "current"
     }
   ],
   "items": [
     {
       "type": "userMessage",
-      "codexFields": ["id", "clientId", "content"],
+      "referenceFields": ["id", "clientId", "content"],
       "limeFields": ["id", "clientId", "content"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "gap",
       "fieldNotes": [
@@ -161,19 +161,26 @@
     },
     {
       "type": "hookPrompt",
-      "codexFields": ["id", "fragments"],
+      "referenceFields": ["id", "fragments"],
       "limeFields": ["id", "fragments"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "aligned"
     },
     {
       "type": "agentMessage",
-      "codexFields": ["id", "text", "phase", "memoryCitation"],
-      "limeFields": ["delivery", "id", "text", "phase", "memoryCitation", "questions"],
+      "referenceFields": ["id", "text", "phase", "memoryCitation"],
+      "limeFields": [
+        "delivery",
+        "id",
+        "text",
+        "phase",
+        "memoryCitation",
+        "questions"
+      ],
       "statusful": false,
-      "codexStreamMethods": ["item/agentMessage/delta"],
+      "referenceStreamMethods": ["item/agentMessage/delta"],
       "limeStreamMethods": ["item/agentMessage/delta"],
       "shape": "gap",
       "fieldNotes": [
@@ -182,10 +189,10 @@
     },
     {
       "type": "plan",
-      "codexFields": ["id", "text"],
+      "referenceFields": ["id", "text"],
       "limeFields": ["id", "text"],
       "statusful": false,
-      "codexStreamMethods": ["item/plan/delta"],
+      "referenceStreamMethods": ["item/plan/delta"],
       "limeStreamMethods": ["item/plan/delta"],
       "shape": "aligned",
       "fieldNotes": [
@@ -194,10 +201,10 @@
     },
     {
       "type": "reasoning",
-      "codexFields": ["id", "summary", "content"],
+      "referenceFields": ["id", "summary", "content"],
       "limeFields": ["id", "summary", "content"],
       "statusful": false,
-      "codexStreamMethods": [
+      "referenceStreamMethods": [
         "item/reasoning/summaryTextDelta",
         "item/reasoning/summaryPartAdded",
         "item/reasoning/textDelta"
@@ -211,7 +218,7 @@
     },
     {
       "type": "commandExecution",
-      "codexFields": [
+      "referenceFields": [
         "id",
         "pluginId",
         "scriptPath",
@@ -241,7 +248,7 @@
         "terminalInteractions"
       ],
       "statusful": true,
-      "codexStreamMethods": [
+      "referenceStreamMethods": [
         "item/commandExecution/outputDelta",
         "item/commandExecution/terminalInteraction"
       ],
@@ -258,20 +265,20 @@
     },
     {
       "type": "fileChange",
-      "codexFields": ["id", "changes", "status"],
+      "referenceFields": ["id", "changes", "status"],
       "limeFields": ["id", "changes", "status"],
       "statusful": true,
-      "codexStreamMethods": ["item/fileChange/patchUpdated"],
+      "referenceStreamMethods": ["item/fileChange/patchUpdated"],
       "limeStreamMethods": ["item/fileChange/patchUpdated"],
       "shape": "aligned",
-      "codexDeprecatedMethods": ["item/fileChange/outputDelta"],
+      "referenceDeprecatedMethods": ["item/fileChange/outputDelta"],
       "fieldNotes": [
         "patchUpdated 复用 canonical itemId 与完整结构化 changes 快照；Codex 已停止发送 outputDelta，Lime 不实现该旧通知"
       ]
     },
     {
       "type": "mcpToolCall",
-      "codexFields": [
+      "referenceFields": [
         "id",
         "server",
         "tool",
@@ -300,7 +307,7 @@
         "durationMs"
       ],
       "statusful": true,
-      "codexStreamMethods": ["item/mcpToolCall/progress"],
+      "referenceStreamMethods": ["item/mcpToolCall/progress"],
       "limeStreamMethods": ["item/mcpToolCall/progress"],
       "shape": "gap",
       "fieldNotes": [
@@ -310,7 +317,7 @@
     },
     {
       "type": "dynamicToolCall",
-      "codexFields": [
+      "referenceFields": [
         "id",
         "namespace",
         "tool",
@@ -331,7 +338,7 @@
         "durationMs"
       ],
       "statusful": true,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "gap",
       "fieldNotes": [
@@ -340,7 +347,7 @@
     },
     {
       "type": "collabAgentToolCall",
-      "codexFields": [
+      "referenceFields": [
         "id",
         "tool",
         "status",
@@ -363,7 +370,7 @@
         "agentsStates"
       ],
       "statusful": true,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "gap",
       "fieldNotes": [
@@ -372,19 +379,19 @@
     },
     {
       "type": "subAgentActivity",
-      "codexFields": ["id", "kind", "agentThreadId", "agentPath"],
+      "referenceFields": ["id", "kind", "agentThreadId", "agentPath"],
       "limeFields": ["id", "kind", "agentThreadId", "agentPath"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "aligned"
     },
     {
       "type": "webSearch",
-      "codexFields": ["id", "query", "action", "results"],
+      "referenceFields": ["id", "query", "action", "results"],
       "limeFields": ["id", "query", "action"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "gap",
       "fieldNotes": [
@@ -393,10 +400,10 @@
     },
     {
       "type": "imageView",
-      "codexFields": ["id", "path"],
+      "referenceFields": ["id", "path"],
       "limeFields": ["id", "path"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "gap",
       "fieldNotes": [
@@ -405,63 +412,63 @@
     },
     {
       "type": "sleep",
-      "codexFields": ["id", "durationMs"],
+      "referenceFields": ["id", "durationMs"],
       "limeFields": ["id", "durationMs"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "gap",
       "fieldNotes": ["Codex durationMs 为必填，Lime 当前为 optional"]
     },
     {
       "type": "imageGeneration",
-      "codexFields": ["id", "status", "revisedPrompt", "result", "savedPath"],
-      "limeFields": [
+      "referenceFields": [
         "id",
         "status",
         "revisedPrompt",
         "result",
         "savedPath"
       ],
+      "limeFields": ["id", "status", "revisedPrompt", "result", "savedPath"],
       "statusful": true,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "aligned"
     },
     {
       "type": "enteredReviewMode",
-      "codexFields": ["id", "review"],
+      "referenceFields": ["id", "review"],
       "limeFields": ["id", "review"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "aligned"
     },
     {
       "type": "exitedReviewMode",
-      "codexFields": ["id", "review"],
+      "referenceFields": ["id", "review"],
       "limeFields": ["id", "review"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "aligned"
     },
     {
       "type": "contextCompaction",
-      "codexFields": ["id"],
+      "referenceFields": ["id"],
       "limeFields": ["id"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "aligned"
     },
     {
       "type": "memoryCitation",
       "location": "nested:agentMessage.memoryCitation",
-      "codexFields": ["entries", "threadIds"],
+      "referenceFields": ["entries", "threadIds"],
       "limeFields": ["entries", "threadIds"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "aligned",
       "fieldNotes": [
@@ -470,10 +477,10 @@
     },
     {
       "type": "unknownItem",
-      "codexFields": [],
+      "referenceFields": [],
       "limeFields": ["id", "upstreamType", "fieldNames"],
       "statusful": false,
-      "codexStreamMethods": [],
+      "referenceStreamMethods": [],
       "limeStreamMethods": [],
       "shape": "gap",
       "fieldNotes": [

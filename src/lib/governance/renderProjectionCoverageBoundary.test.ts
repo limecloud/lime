@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { describe, expect, it } from "vitest";
-import { listCodexV2NotificationMethods } from "@/lib/api/agentRuntime/appServerNotificationDrift";
+import { listV2NotificationMethods } from "@/lib/api/agentRuntime/appServerNotificationDrift";
 import { isAppServerV2NotificationMethod } from "@/lib/api/agentRuntime/appServerV2Notification";
 
 const REPO_ROOT = process.cwd();
@@ -80,7 +80,7 @@ interface ItemInventoryFixture {
   items: Array<{
     type: string;
     location?: string;
-    codexFields: string[];
+    referenceFields: string[];
   }>;
 }
 
@@ -201,7 +201,7 @@ function schemaSnapshot(
         .filter((item) => item.location === undefined)
         .map((item) => ({
           type: item.type,
-          fields: item.codexFields.toSorted(),
+          fields: item.referenceFields.toSorted(),
         }))
         .toSorted((left, right) => left.type.localeCompare(right.type)),
       notifications: coverage.notifications
@@ -230,7 +230,7 @@ function methodsByDirection(
     .toSorted();
 }
 
-describe("Codex render projection coverage boundary", () => {
+describe("render projection coverage boundary", () => {
   it("尚无current接线的通知保持诊断，planned能力不伪造投影或永久排除", () => {
     const coverage = readJson<CoverageFixture>(COVERAGE_PATH);
     const scope = readJson<MethodScopeFixture>(
@@ -339,7 +339,7 @@ describe("Codex render projection coverage boundary", () => {
       canonicalItemTypes,
     );
     expect(currentAdditions).toEqual(CURRENT_NOTIFICATION_ADDITIONS);
-    expect(listCodexV2NotificationMethods()).toEqual(currentNotifications);
+    expect(listV2NotificationMethods()).toEqual(currentNotifications);
     expect(
       coverage.serverRequests.map((entry) => entry.method).toSorted(),
     ).toEqual(methodsByDirection(methodScope, "serverRequest"));
@@ -392,11 +392,12 @@ describe("Codex render projection coverage boundary", () => {
       .toSorted((left, right) => left.type.localeCompare(right.type));
     const inventoriedItems = itemInventory.items
       .filter(
-        (item) => item.location === undefined && item.codexFields.length > 0,
+        (item) =>
+          item.location === undefined && item.referenceFields.length > 0,
       )
       .map((item) => ({
         type: item.type,
-        fields: item.codexFields.toSorted(),
+        fields: item.referenceFields.toSorted(),
       }))
       .toSorted((left, right) => left.type.localeCompare(right.type));
     expect(inventoriedItems).toEqual(upstreamItems);

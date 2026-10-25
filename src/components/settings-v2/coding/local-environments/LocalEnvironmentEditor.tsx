@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { localEnvironments } from "@/lib/api/localEnvironments";
@@ -16,8 +16,7 @@ import {
   SettingsPageBody,
   SettingsPageHeader,
 } from "../../SettingsPrimitives";
-import { ActionsEditor } from "./ActionsEditor";
-import { LifecycleEditor, environmentInputClass } from "./LifecycleEditor";
+import { LocalEnvironmentFields } from "./LocalEnvironmentFields";
 
 export function LocalEnvironmentEditor({
   configPath,
@@ -33,7 +32,6 @@ export function LocalEnvironmentEditor({
   onSaved: () => void;
 }) {
   const { t } = useTranslation("settings");
-  const id = useId();
   const [draft, setDraft] = useState<LocalEnvironmentDraft | null>(null);
   const [baseline, setBaseline] = useState("");
   const [canonicalPath, setCanonicalPath] = useState(configPath);
@@ -196,44 +194,11 @@ export function LocalEnvironmentEditor({
         </div>
       ) : null}
       {draft && !loading ? (
-        <>
-          <div className="space-y-2">
-            <label
-              htmlFor={`${id}-name`}
-              className="block text-[13px] font-medium"
-            >
-              {t("settings.localEnvironments.name")}
-            </label>
-            <input
-              id={`${id}-name`}
-              className={environmentInputClass}
-              value={draft.name}
-              disabled={saving}
-              aria-invalid={validation?.missingName}
-              onChange={(event) =>
-                setDraft({ ...draft, name: event.target.value })
-              }
-            />
-          </div>
-          <LifecycleEditor
-            type="setup"
-            draft={draft}
-            disabled={saving}
-            onChange={setDraft}
-          />
-          <LifecycleEditor
-            type="cleanup"
-            draft={draft}
-            disabled={saving}
-            onChange={setDraft}
-          />
-          <ActionsEditor
-            actions={draft.actions}
-            disabled={saving}
-            incomplete={validation?.incompleteActionIds ?? []}
-            onChange={(actions) => setDraft({ ...draft, actions })}
-          />
-        </>
+        <LocalEnvironmentFields
+          draft={draft}
+          disabled={saving}
+          onChange={setDraft}
+        />
       ) : null}
       <SettingsUnsavedChangesDialog
         pendingNavigation={discardOpen}

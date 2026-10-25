@@ -20,6 +20,11 @@ export class AppServerClient {
 }
 
 export interface AppServerClient {
+  readComputerUseStatus(params?: protocol.ComputerUseStatusParams): protocol.JsonRpcRequest;
+  setupComputerUse(params: protocol.ComputerUseSetupParams): protocol.JsonRpcRequest;
+  revokeComputerUse(params: protocol.ComputerUseRevokeParams): protocol.JsonRpcRequest;
+  acquireComputerUseLease(params: protocol.ComputerUseLeaseAcquireParams): protocol.JsonRpcRequest;
+  releaseComputerUseLease(params: protocol.ComputerUseLeaseReleaseParams): protocol.JsonRpcRequest;
   listLocalEnvironments(
     params: protocol.LocalEnvironmentsListParams,
   ): protocol.JsonRpcRequest;
@@ -338,10 +343,6 @@ export interface AppServerClient {
   setMcpServerEnabled(
     params: protocol.McpServerEnabledSetParams,
   ): protocol.JsonRpcRequest;
-  importMcpServersFromApp(
-    params: protocol.McpServerImportFromAppParams,
-  ): protocol.JsonRpcRequest;
-  syncAllMcpServersToLive(): protocol.JsonRpcRequest;
   loginMcpServerOauth(
     params: protocol.McpServerOauthLoginParams,
   ): protocol.JsonRpcRequest;
@@ -576,6 +577,9 @@ export interface AppServerClient {
   copy(params: protocol.FsCopyParams): protocol.JsonRpcRequest;
   watch(params: protocol.FsWatchParams): protocol.JsonRpcRequest;
   unwatch(params: protocol.FsUnwatchParams): protocol.JsonRpcRequest;
+  setProjectGitWorktreeEnvironment(
+    params: protocol.ProjectGitWorktreeEnvironmentSetParams,
+  ): protocol.JsonRpcRequest;
   readProjectGitStatus(
     params: protocol.ProjectGitStatusParams,
   ): protocol.JsonRpcRequest;

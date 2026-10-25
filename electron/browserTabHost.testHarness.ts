@@ -4,6 +4,7 @@ import {
 } from "../src/lib/api/browserSettingsTypes";
 import { vi } from "vitest";
 import process from "node:process";
+import os from "node:os";
 import { ElectronBrowserTabHost, type BrowserToolCall } from "./browserTabHost";
 import type { BrowserHistoryHost } from "./browserHistoryHost";
 export { isBrowserTabCommand } from "./browserTabHost";
@@ -33,6 +34,7 @@ vi.mock("./electronRuntime", async () => {
     );
   return {
     ...actual,
+    app: { ...actual.app, getPath: () => os.tmpdir() },
     clipboard: {
       ...actual.clipboard,
       readText: clipboardReadTextMock,
@@ -66,8 +68,19 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
   }));
   const embeddedHost = {
     setSettings: vi.fn(),
+    setApplicationNetworkRequirements: vi.fn(async () => {}),
+    setNetworkRequirementsProvider: vi.fn(),
+    setNetworkRequirementsChangedHandler:
+      vi.fn<(handler: (() => void) | null) => void>(),
     setPopupHandler: vi.fn(),
     setAgentPermissionResolver: vi.fn(),
+    setSitePermissionDecisionHandler: vi.fn<
+      (
+        handler: {
+          canUseSavedPermissions: (viewId: string) => boolean;
+        } | null,
+      ) => void
+    >(),
     setDownloadPermissionResolver: vi.fn(),
     takeBlockedNavigation: vi.fn(() => null),
     resolvePopupOpener: vi.fn(() => null),
@@ -83,7 +96,7 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
           window,
           viewId,
           nextWebContentsId++,
-          String(args?.url ?? "https://example.com/"),
+          String(args?.url ?? ""),
         );
         views.set(viewId, native);
       }
@@ -131,7 +144,11 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
   const browserHost = new ElectronBrowserTabHost(
     embeddedHost as never,
     (event, payload) => events.push({ event, payload }),
-    options,
+    {
+      ...options,
+      resolveWindow: (owner) =>
+        owner === window.webContents.id ? (window as never) : undefined,
+    },
   );
   browserHost.setArtifactWriter(artifactWriter);
   // Existing lifecycle fixtures explicitly allow browsing; permission scenarios opt into ask.

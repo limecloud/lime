@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Keyboard, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { captureBinding } from "@/lib/commands/bindings";
+import { bindingMatchesPrefix, captureBinding } from "@/lib/commands/bindings";
 import {
   formatShortcutTokens,
   type HotkeyPlatform,
@@ -13,12 +13,14 @@ export function ShortcutSearch({
   byKeys,
   onModeChange,
   platform,
+  bindings,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
   byKeys: boolean;
   onModeChange: (value: boolean) => void;
   platform: HotkeyPlatform;
+  bindings: readonly string[];
 }) {
   const { t } = useTranslation("settings");
   const input = useRef<HTMLInputElement>(null);
@@ -74,7 +76,16 @@ export function ShortcutSearch({
           )
             return;
           const binding = captureBinding(event);
-          if (binding) onQueryChange(binding);
+          if (binding) {
+            const sequence = query ? `${query} ${binding}` : binding;
+            onQueryChange(
+              bindings.some((candidate) =>
+                bindingMatchesPrefix(candidate, sequence, platform),
+              )
+                ? sequence
+                : binding,
+            );
+          }
         }}
       />
       <button

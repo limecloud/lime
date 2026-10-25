@@ -73,7 +73,7 @@ describe("workspacePluginSurfaceModel", () => {
     ).toEqual([]);
   });
 
-  it("应从 codex_apps canonical appContext 恢复无 Plugin identity 的资源面板", () => {
+  it("应从 lime_apps canonical appContext 恢复无 Plugin identity 的资源面板", () => {
     expect(
       buildWorkspacePluginSurfacesFromThreadItems([
         {
@@ -86,11 +86,11 @@ describe("workspacePluginSurfaceModel", () => {
           updated_at: "2026-08-04T00:00:01.000Z",
           completed_at: "2026-08-04T00:00:01.000Z",
           type: "tool_call",
-          tool_name: "mcp__codex_apps__calendar_search",
+          tool_name: "mcp__lime_apps__calendar_search",
           success: true,
           metadata: {
             canonical_type: "mcpToolCall",
-            server: "codex_apps",
+            server: "lime_apps",
             app_context: {
               connectorId: "calendar",
               appName: "Calendar",
@@ -107,7 +107,7 @@ describe("workspacePluginSurfaceModel", () => {
         mcpApp: {
           connectorId: "calendar",
           resourceUri: "ui://calendar/event.html",
-          serverName: "codex_apps",
+          serverName: "lime_apps",
           toolItemId: "item-app-calendar",
         },
       },
@@ -244,7 +244,7 @@ describe("workspacePluginSurfaceModel", () => {
       title: "Report",
       containerId: "mcp-app-item-report",
       mcpApp: {
-        serverName: "codex_apps",
+        serverName: "lime_apps",
         connectorId: "report",
         resourceUri: "ui://report/view.html",
         toolItemId: "item-report",
@@ -255,7 +255,7 @@ describe("workspacePluginSurfaceModel", () => {
       title: "Calendar",
       containerId: "mcp-app-item-calendar",
       mcpApp: {
-        serverName: "codex_apps",
+        serverName: "lime_apps",
         connectorId: "calendar",
         resourceUri: "ui://calendar/view.html",
         toolItemId: "item-calendar",

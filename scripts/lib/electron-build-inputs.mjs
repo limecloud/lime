@@ -33,6 +33,14 @@ export const HOST_PRELOAD_BUILD_ENTRIES = [
   },
 ];
 
+export const HOST_CLIENT_BUILD_ENTRIES = [
+  {
+    name: "browserClient",
+    source: "electron/browserNativePipeClient.ts",
+    output: "dist-electron/browser-client/client.mjs",
+  },
+];
+
 export function declaredBuildEntries(rootDir, entries) {
   // A product root declares the whole build graph; isolated fixtures may omit it.
   const declaresProduct = statFile(

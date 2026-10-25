@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "AllowDenyRequirement": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "ComputerUseMacosConfig": {
+      "properties": {
+        "bundle_ids": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AllowDenyRequirement"
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ComputerUseWindowsConfig": {
+      "properties": {
+        "aumids": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AllowDenyRequirement"
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "exes": {
+          "items": {
+            "$ref": "#/$defs/ComputerUseWindowsExeConfig"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ComputerUseWindowsExeConfig": {
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        "binary_name": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "product_name": {
+          "type": "string"
+        },
+        "publisher_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "access",
+        "product_name",
+        "publisher_name"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "default_app_access": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "macos": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComputerUseMacosConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "windows": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComputerUseWindowsConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "ComputerUseConfig",
+  "type": "object"
+}

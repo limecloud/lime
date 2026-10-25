@@ -78,6 +78,9 @@ function createResourceRoot({
   tmpRoots.push(root);
   const sidecarDir = path.join(root, "app-server", platformKey);
   const desktopAssetsDir = path.join(root, "desktop-assets");
+  const clientContent = "export const connect = () => {};\n";
+  mkdirSync(path.join(root, "browser-client"), { recursive: true });
+  writeFileSync(path.join(root, "browser-client", "client.mjs"), clientContent);
   mkdirSync(sidecarDir, { recursive: true });
   mkdirSync(desktopAssetsDir, { recursive: true });
   const executableSuffix = platformKey.startsWith("win32-") ? ".exe" : "";
@@ -111,6 +114,13 @@ function createResourceRoot({
     writeFileSync(path.join(desktopAssetsDir, name), name);
   }
   const resourceEntries = [
+    {
+      id: "browser-client",
+      kind: "helper",
+      path: "browser-client/client.mjs",
+      sha256: sha256(clientContent),
+      required: true,
+    },
     {
       id: "app-server",
       kind: "sidecar",
@@ -149,7 +159,7 @@ function createResourceRoot({
     applicationId: "com.limecloud.lime",
     version: "1.0.0",
     platform: platformKey.startsWith("win32-") ? "win32" : "darwin",
-    arch: platformKey.startsWith("win32-") ? "x64" : "arm64",
+    arch: platformKey.split("-")[1],
     platformKey,
     minimumOsVersion: platformKey.startsWith("darwin-") ? "13.0" : null,
     resources: resourceEntries,
@@ -328,6 +338,40 @@ describe("verify-electron-package-resources runtime bundles", () => {
 });
 
 describe("verify-electron-package-resources sidecar integrity", () => {
+  it.each(["darwin-arm64", "darwin-x64", "win32-x64"])(
+    "rejects missing, tampered, and redirected browser client resources on %s",
+    (platformKey) => {
+      const root = createResourceRoot({
+        appServer: "app-server",
+        codeModeHost: "code-mode-host",
+        manifestAppServer: "app-server",
+        manifestCodeModeHost: "code-mode-host",
+        manifestWindowsSandboxSetup: "signed windows-sandbox-setup",
+        manifestWindowsSandboxRunner: "signed windows-sandbox-runner",
+        platformKey,
+      });
+      const [platform, arch] = platformKey.split("-");
+      const options = { platform, arch };
+      expect(() => verifyResourceRoot(root, options)).not.toThrow();
+      const clientPath = path.join(root, "browser-client", "client.mjs");
+      const original = readFileSync(clientPath);
+      unlinkSync(clientPath);
+      expect(() => verifyResourceRoot(root, options)).toThrow(/missing/i);
+      writeFileSync(clientPath, "tampered client");
+      expect(() => verifyResourceRoot(root, options)).toThrow(
+        /sha256|integrity|hash/i,
+      );
+      writeFileSync(clientPath, original);
+      const manifestPath = path.join(root, "desktop-resources.manifest.json");
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      manifest.resources.find((entry) => entry.id === "browser-client").path =
+        "other-client.mjs";
+      writeFileSync(path.join(root, "other-client.mjs"), original);
+      writeFileSync(manifestPath, JSON.stringify(manifest));
+      expect(() => verifyResourceRoot(root, options)).toThrow(/path|resource/i);
+    },
+  );
+
   it("两个 sidecar 哈希一致时不调用 codesign", () => {
     const root = createResourceRoot({
       appServer: "app-server",
@@ -436,7 +480,7 @@ describe("verify-electron-package-resources sidecar integrity", () => {
     const manifestPath = path.join(root, "desktop-resources.manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     manifest.native.helper.bundleIdentifier =
-      "2DC432GLL2.com.openai.codex.notifications";
+      "2DC432GLL2.com.openai.lime.notifications";
     writeFileSync(manifestPath, JSON.stringify(manifest));
 
     expect(() =>
@@ -453,7 +497,7 @@ describe("verify-electron-package-resources sidecar integrity", () => {
     mkdirSync(bundlePath, { recursive: true });
     writeFileSync(
       path.join(bundlePath, "Info.plist"),
-      buildInfoPlist([["CFBundleIdentifier", "com.openai.codex.native-host"]]),
+      buildInfoPlist([["CFBundleIdentifier", "com.openai.lime.native-host"]]),
     );
     const manifestPath = path.join(root, "desktop-resources.manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -470,7 +514,7 @@ describe("verify-electron-package-resources sidecar integrity", () => {
     const manifestPath = path.join(root, "desktop-resources.manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     manifest.native.entitlements.applicationGroups = [
-      "2DC432GLL2.com.openai.codex.notifications",
+      "2DC432GLL2.com.openai.lime.notifications",
     ];
     writeFileSync(manifestPath, JSON.stringify(manifest));
 
@@ -507,7 +551,7 @@ describe("verify-electron-package-resources sidecar integrity", () => {
     const root = createResourceRoot();
     const manifestPath = path.join(root, "desktop-resources.manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    manifest.applicationId = "com.openai.codex";
+    manifest.applicationId = "com.openai.lime";
     writeFileSync(manifestPath, JSON.stringify(manifest));
 
     expect(() =>

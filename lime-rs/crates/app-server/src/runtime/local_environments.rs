@@ -23,7 +23,7 @@ pub(crate) fn list(
     let root = paths::workspace_root(&params.workspace_root)?;
     let mut files = Vec::new();
     for (distance, ancestor) in root.ancestors().enumerate() {
-        let directory = ancestor.join(".codex").join("environments");
+        let directory = ancestor.join(".lime").join("environments");
         paths::check_environment_directory(&directory)?;
         let entries = match fs::read_dir(&directory) {
             Ok(entries) => entries,

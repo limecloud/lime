@@ -34,6 +34,16 @@ export class BrowserTabPolicy {
     return this.#revision;
   }
 
+  /** Independent managed authority changes invalidate work using earlier policy. */
+  invalidate(): void {
+    this.#revision += 1;
+  }
+
+  assertCurrent(revision: number): void {
+    if (revision !== this.#revision)
+      throw new Error("Browser policy changed during tool execution");
+  }
+
   get historyAccess(): BrowserSettings["history_access"] {
     return this.#settings.history_access;
   }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
+import { setImmediate } from "node:timers";
 import type { Input, IpcMainEvent, Rectangle, WebContents } from "electron";
 import {
   ipcMain,
@@ -9,6 +10,7 @@ import {
   type BrowserWindow,
 } from "./electronRuntime";
 import { browserOverlayDocument } from "./browserOverlayDocument";
+import { browserAddressBounds } from "./browserAddressBounds";
 import {
   BrowserAnnotationEditorHost,
   type BrowserAnnotationEditorHostEvent,
@@ -163,7 +165,11 @@ export class BrowserOverlayHost {
     });
     view.setBackgroundColor("#00000000");
     const bounds = window.getContentBounds();
-    view.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height });
+    view.setBounds(
+      normalized.mode === "address"
+        ? browserAddressBounds(normalized, bounds)
+        : { x: 0, y: 0, width: bounds.width, height: bounds.height },
+    );
     view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     const preventNavigation = (event: { preventDefault(): void }) =>
       event.preventDefault();
@@ -177,6 +183,16 @@ export class BrowserOverlayHost {
         this.hideWindow(window.id, "owner");
     };
     const outside = () => this.hideWindow(window.id, "outside");
+    const pageFocused = () => {
+      setImmediate(() => {
+        if (
+          this.#entries.get(window.id) === entry &&
+          !view.webContents.isDestroyed() &&
+          !view.webContents.isFocused()
+        )
+          this.hideWindow(window.id, "outside");
+      });
+    };
     const input = (event: { preventDefault(): void }, input: Input) => {
       if (entry.presentation.confirmation) return;
       if (
@@ -200,6 +216,9 @@ export class BrowserOverlayHost {
     window.on("blur", outside);
     window.webContents.once("destroyed", ownerGone);
     window.webContents.on("did-start-navigation", navigation);
+    if (normalized.mode === "address") {
+      restoreFocus.on("blur", pageFocused);
+    }
     view.webContents.once("render-process-gone", overlayGone);
     view.webContents.once("destroyed", overlayGone);
     view.webContents.on("before-input-event", input);
@@ -220,6 +239,7 @@ export class BrowserOverlayHost {
         window.off("blur", outside);
         window.webContents.off("destroyed", ownerGone);
         window.webContents.off("did-start-navigation", navigation);
+        restoreFocus.off("blur", pageFocused);
         view.webContents.off("render-process-gone", overlayGone);
         view.webContents.off("destroyed", overlayGone);
         view.webContents.off("before-input-event", input);
@@ -234,7 +254,9 @@ export class BrowserOverlayHost {
       if (this.#entries.get(window.id) === entry && !window.isDestroyed()) {
         entry.ready = true;
         this.#sendUpdate(entry);
-        view.webContents.focus();
+        if (normalized.mode !== "address") view.webContents.focus();
+        else if (window.isFocused() && !restoreFocus.isDestroyed())
+          restoreFocus.focus();
       }
       return {
         menuId: normalized.menuId,
@@ -276,6 +298,10 @@ export class BrowserOverlayHost {
       items: update.items,
     });
     entry.presentation = presentation;
+    if (presentation.mode === "address")
+      entry.view.setBounds(
+        browserAddressBounds(presentation, entry.window.getContentBounds()),
+      );
     entry.actionIds = browserMenuActionIds(presentation.items);
     entry.persistentActionIds = browserMenuPersistentActionIds(
       presentation.items,
@@ -297,10 +323,18 @@ export class BrowserOverlayHost {
       });
   }
 
-  hideMenu(viewId: string, identity: { menuId: string; generation?: number }): void {
-    const entry = [...this.#entries.values()].find(entry => entry.viewId === viewId);
-    if (entry?.presentation.menuId === identity.menuId &&
-      (identity.generation === undefined || entry.generation === identity.generation))
+  hideMenu(
+    viewId: string,
+    identity: { menuId: string; generation?: number },
+  ): void {
+    const entry = [...this.#entries.values()].find(
+      (entry) => entry.viewId === viewId,
+    );
+    if (
+      entry?.presentation.menuId === identity.menuId &&
+      (identity.generation === undefined ||
+        entry.generation === identity.generation)
+    )
       this.hideWindow(entry.window.id, "hidden");
   }
 
@@ -322,6 +356,9 @@ export class BrowserOverlayHost {
     if (
       reason !== "owner" &&
       reason !== "replaced" &&
+      (entry.presentation.mode !== "address" ||
+        reason === "action" ||
+        reason === "escape") &&
       !entry.window.isDestroyed() &&
       entry.window.isFocused() &&
       !entry.restoreFocus.isDestroyed()

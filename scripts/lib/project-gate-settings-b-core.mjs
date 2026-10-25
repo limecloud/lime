@@ -1,10 +1,36 @@
+import { SETTINGS_GATE_A_TABS } from "./project-gate-settings-a-core.mjs";
+
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
-  { id: "home-navigation", tab: "home", owner: "settings" },
+  { id: "home-navigation", tab: "general", owner: "settings" },
+  {
+    id: "general-preferences-persistence",
+    tab: "general",
+    owner: "settings/desktop-host/app-server",
+  },
   { id: "profile-persistence", tab: "profile", owner: "settings" },
-  { id: "stats-current-read", tab: "stats", owner: "settings" },
   { id: "appearance-persistence", tab: "appearance", owner: "settings" },
+  {
+    id: "voice-preferences-persistence",
+    tab: "voice",
+    owner: "settings/desktop-host/app-server",
+  },
+  {
+    id: "storage-lifecycle",
+    tab: "storage",
+    owner: "settings/desktop-host/app-server",
+  },
+  {
+    id: "configuration-persistence",
+    tab: "configuration",
+    owner: "settings/app-server",
+  },
+  {
+    id: "keyboard-shortcuts-persistence",
+    tab: "keyboard-shortcuts",
+    owner: "settings/commands",
+  },
   { id: "memory-ready", tab: "memory", owner: "settings/app-server" },
   {
     id: "memory-personalization-persistence",
@@ -26,17 +52,31 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     tab: "media-services",
     owner: "settings/model-provider",
   },
-  { id: "mcp-create-list", tab: "mcp-server", owner: "settings/mcp" },
+  { id: "mcp-create-list", tab: "plugins-settings", owner: "settings/mcp" },
   {
     id: "mcp-lifecycle-recovery",
-    tab: "mcp-server",
+    tab: "plugins-settings",
     owner: "settings/mcp",
   },
-  { id: "web-search-route", tab: "web-search", owner: "settings" },
   {
-    id: "environment-current-read",
-    tab: "environment",
-    owner: "settings/desktop-host",
+    id: "plugins-lifecycle",
+    tab: "plugins-settings",
+    owner: "settings/plugins",
+  },
+  {
+    id: "web-search-route",
+    tab: "configuration",
+    owner: "settings/app-server",
+  },
+  {
+    id: "browser-preferences-persistence",
+    tab: "browser-use",
+    owner: "settings/desktop-host/app-server",
+  },
+  {
+    id: "local-environments-lifecycle",
+    tab: "local-environments",
+    owner: "settings/app-server",
   },
   {
     id: "execution-policy-allow-deny-error",
@@ -44,15 +84,16 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     owner: "settings/app-server",
   },
   {
-    id: "automation-lifecycle",
-    tab: "automation",
+    id: "hooks-lifecycle",
+    tab: "hooks",
     owner: "settings/app-server",
   },
   {
-    id: "developer-current-diagnostics",
-    tab: "developer",
-    owner: "settings/desktop-host/app-server",
+    id: "git-preferences-persistence",
+    tab: "git",
+    owner: "settings/app-server",
   },
+  { id: "worktrees-lifecycle", tab: "worktrees", owner: "settings/app-server" },
   {
     id: "about-version-truth",
     tab: "about",
@@ -155,8 +196,12 @@ function adaptSettingsScenario(summary, candidateRunId) {
   const bridge = summary.bridge ?? {};
   const errors = summary.errors ?? {};
   const scenarioId = proof?.scenarioId;
+  if (!SCENARIO_IDS.has(scenarioId)) {
+    throw new Error(
+      `${label}: unknown Settings scenario: ${String(scenarioId)}`,
+    );
+  }
   const valid =
-    SCENARIO_IDS.has(scenarioId) &&
     proof?.complete === true &&
     ["Gate B-F", "Gate B-R"].includes(summary.proofLevel) &&
     bridge.electron === true &&
@@ -241,7 +286,20 @@ export function buildSettingsGateBFEvidence({
   const missingScenarios = SETTINGS_GATE_B_SCENARIOS.filter(
     (scenario) => !completedSet.has(scenario.id),
   ).map((scenario) => scenario.id);
-  const complete = missingScenarios.length === 0;
+  const tabStatus = Object.fromEntries(
+    SETTINGS_GATE_A_TABS.map((tab) => {
+      const required = SETTINGS_GATE_B_SCENARIOS.filter(
+        (scenario) => scenario.tab === tab,
+      );
+      return [
+        tab,
+        required.length > 0 &&
+          required.every((scenario) => completedSet.has(scenario.id)),
+      ];
+    }),
+  );
+  const missingTabs = SETTINGS_GATE_A_TABS.filter((tab) => !tabStatus[tab]);
+  const complete = missingScenarios.length === 0 && missingTabs.length === 0;
 
   return {
     schemaVersion: 1,
@@ -258,14 +316,20 @@ export function buildSettingsGateBFEvidence({
     failureClass: null,
     nextAction: complete
       ? null
-      : `Complete the missing SETTINGS-01 Gate B-F scenarios: ${missingScenarios.join(", ")}`,
+      : `Complete the missing SETTINGS-01 Gate B-F scenarios: ${missingScenarios.join(", ")}; tabs: ${missingTabs.join(", ")}`,
     surfaceProof: {
       surfaceId: "SETTINGS-01",
       proof: "gate-b-f",
       complete,
     },
     missingScenarios,
+    missingTabs,
     coverage: {
+      tabs: {
+        total: SETTINGS_GATE_A_TABS.length,
+        completed: SETTINGS_GATE_A_TABS.length - missingTabs.length,
+        status: tabStatus,
+      },
       requiredScenarios: SETTINGS_GATE_B_SCENARIOS,
       completedScenarios,
       completed: completedScenarios.length,

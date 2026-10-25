@@ -1298,7 +1298,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         );
         assert!(
             visible_terminal_text(&output).contains("esc to interrupt"),
-            "Codex-style Escape interrupt hint was not rendered"
+            "Lime-style Escape interrupt hint was not rendered"
         );
     }
     if scenario == "queue-edit" {

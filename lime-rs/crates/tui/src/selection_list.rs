@@ -1,4 +1,4 @@
-//! Shared list-row formatting used by Codex-shaped TUI selectors.
+//! Shared list-row formatting used by Lime-native TUI selectors.
 //!
 //! The production TUI currently has several list surfaces backed by ratatui's
 //! `ListItem`. Keeping the numbering and selected/dim styles here prevents

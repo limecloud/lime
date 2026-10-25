@@ -136,7 +136,7 @@ try {
   await open(page);
   const before = await read();
   const prefix = page.locator("#git-branch-prefix-input");
-  check("defaultPrefix", (await prefix.inputValue()) === "codex/");
+  check("defaultPrefix", (await prefix.inputValue()) === "lime/");
   check(
     "defaultForcePush",
     (await page

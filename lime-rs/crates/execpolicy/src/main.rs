@@ -2,9 +2,9 @@ use anyhow::Result;
 use clap::Parser;
 use execpolicy::ExecPolicyCheckCommand;
 
-/// CLI for evaluating exec policies.
+/// CLI for evaluating exec policies
 #[derive(Parser)]
-#[command(name = "execpolicy")]
+#[command(name = "lime-execpolicy")]
 enum Cli {
     /// Evaluate a command against a policy.
     Check(ExecPolicyCheckCommand),

@@ -14,8 +14,8 @@ pub enum ClientType {
     Cursor,
     /// Claude Code 客户端
     ClaudeCode,
-    /// OpenAI Codex CLI
-    Codex,
+    /// Lime CLI
+    Lime,
     /// Windsurf 编辑器
     Windsurf,
     /// Kiro IDE
@@ -33,8 +33,8 @@ impl ClientType {
             ClientType::Cursor
         } else if ua_lower.contains("claude-code") || ua_lower.contains("claude_code") {
             ClientType::ClaudeCode
-        } else if ua_lower.contains("codex") {
-            ClientType::Codex
+        } else if ua_lower.contains("lime") {
+            ClientType::Lime
         } else if ua_lower.contains("windsurf") {
             ClientType::Windsurf
         } else if ua_lower.contains("kiro") {
@@ -49,7 +49,7 @@ impl ClientType {
         match self {
             ClientType::Cursor => "cursor",
             ClientType::ClaudeCode => "claude_code",
-            ClientType::Codex => "codex",
+            ClientType::Lime => "lime",
             ClientType::Windsurf => "windsurf",
             ClientType::Kiro => "kiro",
             ClientType::Other => "other",
@@ -61,7 +61,7 @@ impl ClientType {
         &[
             ClientType::Cursor,
             ClientType::ClaudeCode,
-            ClientType::Codex,
+            ClientType::Lime,
             ClientType::Windsurf,
             ClientType::Kiro,
             ClientType::Other,
@@ -73,7 +73,7 @@ impl ClientType {
         match key {
             "cursor" => Some(ClientType::Cursor),
             "claude_code" => Some(ClientType::ClaudeCode),
-            "codex" => Some(ClientType::Codex),
+            "lime" => Some(ClientType::Lime),
             "windsurf" => Some(ClientType::Windsurf),
             "kiro" => Some(ClientType::Kiro),
             "other" => Some(ClientType::Other),
@@ -134,6 +134,31 @@ mod tests {
     fn test_from_user_agent_other() {
         assert_eq!(ClientType::from_user_agent("Unknown"), ClientType::Other);
         assert_eq!(ClientType::from_user_agent(""), ClientType::Other);
+    }
+
+    #[test]
+    fn lime_client_detection_and_config_round_trip_share_one_identity() {
+        for user_agent in ["Lime/1.0", "lime-cli/1.0", "LIME CLI"] {
+            let client = ClientType::from_user_agent(user_agent);
+            assert_eq!(client, ClientType::Lime);
+            assert_eq!(
+                ClientType::from_config_key(client.config_key()),
+                Some(client)
+            );
+            assert_eq!(serde_json::to_value(client).unwrap(), "lime");
+            let providers = crate::config::EndpointProvidersConfig {
+                lime: Some("configured-provider".to_string()),
+                ..Default::default()
+            };
+            assert_eq!(
+                select_provider(
+                    client,
+                    providers.get_provider(client.config_key()),
+                    "default"
+                ),
+                "configured-provider"
+            );
+        }
     }
 
     #[test]

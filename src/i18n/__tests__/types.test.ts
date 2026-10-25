@@ -688,7 +688,7 @@ function assertI18nKeyTypes() {
   i18n.t("settings.profile.message.loadFailed", { ns: "settings" });
   i18n.t("settings.profile.message.saveFailed", { ns: "settings" });
   i18n.t("settings.profile.message.saved", { ns: "settings" });
-  i18n.t("settings.layout.loading.skills", { ns: "settings" });
+  i18n.t("settings.plugins.loading", { ns: "settings" });
   i18n.t("settings.about.version.label", {
     ns: "settings",
     version: "1.10.0",
@@ -789,8 +789,8 @@ function assertI18nKeyTypes() {
   });
   i18n.t("settings.userCenterSession.title", { ns: "settings" });
   i18n.t("settings.userCenterSession.login.google.title", { ns: "settings" });
-  i18n.t("settings.agent.skills.advancedEntry.title", { ns: "settings" });
-  i18n.t("settings.agent.skills.advancedEntry.tipAria", { ns: "settings" });
+  i18n.t("settings.plugins.subtitle", { ns: "settings" });
+  i18n.t("settings.plugins.browseDirectory", { ns: "settings" });
   i18n.t("settings.voice.model.action.download", { ns: "settings" });
   i18n.t("settings.voice.page.dictation", { ns: "settings" });
   i18n.t("settings.voice.media.title", { ns: "settings" });

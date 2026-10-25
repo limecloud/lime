@@ -1,4 +1,5 @@
 import type { WebContents } from "electron";
+import type { CdpEvent } from "./browserNativePipeProtocol";
 
 export interface BrowserCdpTarget {
   targetId?: string;
@@ -36,6 +37,8 @@ interface DebuggerListener {
   sessions: Map<string, string>;
   targets: Map<string, string>;
   parents: Map<string, string>;
+  events: Set<(event: CdpEvent) => void>;
+  detaches: Set<() => void>;
   listener: (
     event: unknown,
     method: string,
@@ -94,10 +97,32 @@ export class BrowserCdpSessions {
       sessions: new Map(),
       targets: new Map(),
       parents: new Map(),
+      events: new Set(),
+      detaches: new Set(),
       changed: onTargetChanged,
       listener: (_event, method, params, sessionId) => {
-        if (this.#listeners.get(tabId) === entry)
+        if (this.#listeners.get(tabId) === entry) {
           this.recordDebuggerTargetEvent(tabId, method, params, sessionId);
+          if (sessionId && !entry.targets.has(sessionId)) return;
+          if (
+            params !== undefined &&
+            (!params || typeof params !== "object" || Array.isArray(params))
+          )
+            return;
+          const event: CdpEvent = {
+            source: {
+              tabId,
+              ...(sessionId
+                ? { sessionId, targetId: entry.targets.get(sessionId)! }
+                : {}),
+            },
+            method,
+            ...(params !== undefined
+              ? { params: params as Record<string, unknown> }
+              : {}),
+          };
+          for (const listener of entry.events) listener(event);
+        }
       },
       detached: () => {
         if (this.#listeners.get(tabId) !== entry) return;
@@ -121,12 +146,42 @@ export class BrowserCdpSessions {
     if (!entry) return;
     this.#listeners.delete(tabId);
     this.forgetDebuggerTargetSessionsForTab(entry);
+    entry.events.clear();
+    for (const listener of entry.detaches) listener();
+    entry.detaches.clear();
     if (!entry.contents.isDestroyed()) {
       entry.contents.debugger.removeListener("message", entry.listener);
       entry.contents.debugger.removeListener("detach", entry.detached);
     }
     entry.contents.removeListener("destroyed", entry.destroyed);
     entry.contents.removeListener("render-process-gone", entry.detached);
+  }
+
+  addCdpEventListener(
+    tabId: string,
+    listener: (event: CdpEvent) => void,
+  ): () => void {
+    const entry = this.#require(tabId);
+    entry.events.add(listener);
+    return () => {
+      entry.events.delete(listener);
+    };
+  }
+
+  debuggerAttachmentGuard(tabId: string): () => void {
+    const entry = this.#require(tabId);
+    return () => {
+      if (this.#require(tabId) !== entry)
+        throw new Error("Browser CDP attachment is no longer active");
+    };
+  }
+
+  addCdpDetachListener(tabId: string, listener: () => void): () => void {
+    const entry = this.#require(tabId);
+    entry.detaches.add(listener);
+    return () => {
+      entry.detaches.delete(listener);
+    };
   }
 
   recordDebuggerTargetEvent(

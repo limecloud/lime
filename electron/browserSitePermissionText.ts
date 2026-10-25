@@ -23,6 +23,7 @@ const text = {
       "音频输出设备",
       "网站存储访问",
       "窗口管理",
+      "多文件下载",
     ],
   },
   "zh-TW": {
@@ -49,6 +50,7 @@ const text = {
       "音訊輸出裝置",
       "網站儲存空間存取",
       "視窗管理",
+      "多個檔案下載",
     ],
   },
   "en-US": {
@@ -75,6 +77,7 @@ const text = {
       "Audio output devices",
       "Site storage access",
       "Window management",
+      "Multiple file downloads",
     ],
   },
   "ja-JP": {
@@ -101,6 +104,7 @@ const text = {
       "音声出力デバイス",
       "サイトストレージへのアクセス",
       "ウィンドウ管理",
+      "複数ファイルのダウンロード",
     ],
   },
   "ko-KR": {
@@ -127,6 +131,7 @@ const text = {
       "오디오 출력 기기",
       "사이트 저장소 접근",
       "창 관리",
+      "여러 파일 다운로드",
     ],
   },
 } as const;
@@ -147,6 +152,7 @@ const names: Record<string, number> = {
   "storage-access": 14,
   "top-level-storage-access": 14,
   "window-management": 15,
+  "automatic-downloads": 16,
 };
 
 export function sitePermissionText(

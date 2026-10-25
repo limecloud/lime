@@ -3,9 +3,24 @@ import {
   availableEnvironmentActions,
   environmentActionCwd,
   environmentActionPlatform,
+  orderEnvironmentActions,
 } from "./localConversationActionHelpers";
 
 describe("local conversation action projection", () => {
+  it("ranks the first recent occurrence and preserves config identity and unranked order", () => {
+    const actions = [
+      { name: "Build", index: 0 },
+      { name: "Test", index: 1 },
+      { name: "Lint", index: 2 },
+      { name: "Test", index: 3 },
+    ];
+    expect(
+      orderEnvironmentActions(actions, ["Test", "Missing", "Build", "Test"]),
+    ).toEqual([actions[1], actions[3], actions[0], actions[2]]);
+    expect(orderEnvironmentActions(actions, [])).toEqual(actions);
+    expect(orderEnvironmentActions(actions, ["Removed"])).toEqual(actions);
+    expect(actions.map((action) => action.index)).toEqual([0, 1, 2, 3]);
+  });
   it("filters actions by platform without changing configured order or command", () => {
     const actions = [
       { name: "All", command: "printf 'a b'" },

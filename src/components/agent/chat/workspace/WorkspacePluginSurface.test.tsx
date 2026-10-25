@@ -336,7 +336,7 @@ describe("WorkspacePluginSurface", () => {
     ).not.toHaveProperty("url");
   });
 
-  it("codex_apps 资源不依赖本地 Plugin catalog", async () => {
+  it("lime_apps 资源不依赖本地 Plugin catalog", async () => {
     const appsSurface: WorkspacePluginSurfaceDescriptor = {
       appId: "calendar",
       title: "Calendar",
@@ -344,7 +344,7 @@ describe("WorkspacePluginSurface", () => {
       mcpApp: {
         connectorId: "calendar",
         resourceUri: "ui://calendar/event.html",
-        serverName: "codex_apps",
+        serverName: "lime_apps",
         toolItemId: "item-app-calendar",
       },
     };
@@ -361,7 +361,7 @@ describe("WorkspacePluginSurface", () => {
 
     expect(pluginCatalogMocks.listInstalledPlugins).not.toHaveBeenCalled();
     expect(mcpApiMocks.readResource).toHaveBeenCalledWith(
-      "codex_apps",
+      "lime_apps",
       "ui://calendar/event.html",
       {
         threadId: "thread-1",

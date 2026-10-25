@@ -1,0 +1,12 @@
+{
+  "settings.general.confirmBeforeClose.label": "關閉視窗前確認",
+  "settings.general.confirmBeforeClose.shortcutDescription": "當關閉分頁快捷鍵將關閉視窗時提醒",
+  "settings.general.confirmBeforeClose.description": "選擇何時在關閉視窗前提醒。只有選擇「一律」時，Alt+F4 和關閉按鈕才會提醒",
+  "settings.general.confirmBeforeClose.never": "永不",
+  "settings.general.confirmBeforeClose.keyboardOnly": "僅關閉快捷鍵",
+  "settings.general.confirmBeforeClose.always": "一律",
+  "desktop.windowCloseConfirmation.title": "確定要關閉視窗嗎？",
+  "desktop.windowCloseConfirmation.doNotAskAgain": "不再詢問",
+  "desktop.windowCloseConfirmation.cancel": "取消",
+  "desktop.windowCloseConfirmation.confirm": "關閉視窗"
+}

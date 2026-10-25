@@ -476,7 +476,7 @@ fn canonical_mcp_detail_preserves_app_context_for_cold_materialization() {
         status: ItemStatus::Completed,
         payload: ThreadItemPayload::McpToolCall {
             call_id: "mcp-read".to_string(),
-            server_name: "codex_apps".to_string(),
+            server_name: "lime_apps".to_string(),
             tool_name: "calendar_search".to_string(),
             app_context: Some(McpToolCallAppContext {
                 connector_id: "calendar".to_string(),
@@ -499,7 +499,7 @@ fn canonical_mcp_detail_preserves_app_context_for_cold_materialization() {
     let detail = canonical_item_to_agent_detail(&item);
 
     assert_eq!(detail["type"], "tool_call");
-    assert_eq!(detail["mcp_server"], "codex_apps");
+    assert_eq!(detail["mcp_server"], "lime_apps");
     assert_eq!(detail["app_context"]["connectorId"], "calendar");
     assert_eq!(detail["app_context"]["linkId"], "link-calendar");
     assert_eq!(detail["app_context"]["resourceUri"], "ui://calendar/event");

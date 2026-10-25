@@ -18,7 +18,7 @@ import {
   closeElectronFixture,
   createTempRuntimeEnv,
   launchElectronFixture,
-  openSettings,
+  openMcpConfigSettings,
   parseInvokeTraceRaw,
   parseJsonRpcRequestsFromInvokeTrace,
   sanitizeText,
@@ -32,13 +32,8 @@ const OAUTH_COMPLETED_METHOD = "mcpServer/oauthLogin/completed";
 const REQUIRED_POST_LOGIN_METHODS = [
   "mcpServer/oauth/login",
   "mcpServerStatus/list",
-  "mcpTool/list",
+  "mcpServer/list",
 ];
-const OAUTH_REQUIRED_COPY =
-  /需要授权|需要授權|Authorization required|認可が必要|인증 필요/i;
-const OAUTH_AUTHORIZED_COPY = /已授权|已授權|Authorized|認可済み|인증됨/i;
-const OAUTH_COMPLETED_COPY =
-  /授权已完成|授權已完成|authorization completed|認可が完了|인증이 완료/i;
 const EXTERNAL_URL_CAPTURE_KEY = "__limeMcpOauthExternalUrls";
 
 const DEFAULTS = {
@@ -109,36 +104,39 @@ async function waitForCapturedAuthorizationUrl(app, provider, options) {
   throw new Error("GUI 登录未通过 Electron open_external_url 打开授权地址");
 }
 
-async function openMcpRuntimeSettings(page, options) {
-  await openSettings(page, options);
-  await page.locator('[data-testid="settings-sidebar-tab-mcp-server"]').click();
-  const runtimeTab = page.locator('[data-testid="mcp-panel-tab-runtime"]');
-  await runtimeTab.waitFor({
-    state: "visible",
-    timeout: Math.min(45_000, options.timeoutMs),
-  });
-  await runtimeTab.click();
-}
-
 function serverCard(page, serverName) {
-  return page
-    .getByText(serverName, { exact: true })
-    .first()
-    .locator(
-      'xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " border ")][1]',
-    );
+  return page.getByTestId("mcp-config-server").filter({ hasText: serverName });
 }
 
-async function waitForServerState(page, serverName, copy, options) {
+async function waitForServerState(page, serverName, authStatus, options) {
   const card = serverCard(page, serverName);
   await card.waitFor({
     state: "visible",
     timeout: Math.min(45_000, options.timeoutMs),
   });
-  await card.getByText(copy).waitFor({
-    state: "visible",
-    timeout: Math.min(45_000, options.timeoutMs),
+  await card.locator('[data-testid="mcp-config-open-settings"]').waitFor();
+  await page.waitForFunction(
+    ({ serverName, authStatus }) =>
+      Array.from(
+        document.querySelectorAll('[data-testid="mcp-config-server"]'),
+      ).some(
+        (node) =>
+          node.textContent.includes(serverName) &&
+          node.dataset.mcpAuthStatus === authStatus,
+      ),
+    { serverName, authStatus },
+    { timeout: Math.min(45_000, options.timeoutMs) },
+  );
+  const authenticate = card.getByRole("button", {
+    name: /^(Authenticate|身份验证|驗證身分|認証|인증)$/,
   });
+  if (authStatus === "notLoggedIn")
+    await authenticate.waitFor({ state: "visible" });
+  else
+    assert(
+      (await authenticate.count()) === 0,
+      "Authenticated server still offers Authenticate",
+    );
   return card;
 }
 
@@ -146,17 +144,14 @@ async function clickOauthLogin(page, serverName, options) {
   const card = await waitForServerState(
     page,
     serverName,
-    OAUTH_REQUIRED_COPY,
+    "notLoggedIn",
     options,
   );
-  const loginButton = card
-    .getByRole("button")
-    .filter({ hasText: /登录|登入|Log in|ログイン|로그인/i });
-  await loginButton.waitFor({
-    state: "visible",
-    timeout: Math.min(45_000, options.timeoutMs),
-  });
-  await loginButton.click();
+  await card
+    .getByRole("button", {
+      name: /^(Authenticate|身份验证|驗證身分|認証|인증)$/,
+    })
+    .click();
 }
 
 async function clearInvokeEvidence(page) {
@@ -329,7 +324,7 @@ export async function run() {
     scenarioId: "MCP-OAUTH-01-typed-notification",
     proofLevel: "Gate B",
     claimBoundary:
-      "Real Electron/preload/IPC, App Server OAuth login and event drain, local OAuth provider callback, and automatic Renderer status/toast projection. System browser navigation is intercepted test-only and followed by the fixture process.",
+      "Real Electron/preload/IPC, App Server OAuth login and event drain, local OAuth provider callback, and automatic current MCP settings auth projection; no retired toast/badge claim. System browser navigation is intercepted test-only and followed by the fixture process.",
     testOnly: true,
     ok: false,
     startedAt: new Date().toISOString(),
@@ -341,7 +336,7 @@ export async function run() {
     electronPreloadBridge: false,
     oauthRequiredVisible: false,
     oauthAuthorizedVisible: false,
-    completionToastVisible: false,
+    completionNotificationObserved: false,
     provider: {
       host: new URL(provider.baseUrl).host,
       authorizeRequestCount: 0,
@@ -390,9 +385,6 @@ export async function run() {
           scopes: ["fixture.read"],
         },
         enabled_lime: true,
-        enabled_claude: false,
-        enabled_codex: false,
-        enabled_gemini: false,
         created_at: Date.now(),
       },
     });
@@ -402,8 +394,8 @@ export async function run() {
     );
 
     logStage("open-mcp-runtime-settings");
-    await openMcpRuntimeSettings(page, options);
-    await waitForServerState(page, serverName, OAUTH_REQUIRED_COPY, options);
+    await openMcpConfigSettings(page, options);
+    await waitForServerState(page, serverName, "notLoggedIn", options);
     summary.oauthRequiredVisible = true;
 
     await clearInvokeEvidence(page);
@@ -419,18 +411,9 @@ export async function run() {
     const authorizedState = waitForServerState(
       page,
       serverName,
-      OAUTH_AUTHORIZED_COPY,
+      "oAuth",
       options,
     );
-    const completionToast = page
-      .locator("[data-sonner-toast]")
-      .filter({ hasText: serverName })
-      .filter({ hasText: OAUTH_COMPLETED_COPY })
-      .waitFor({
-        state: "visible",
-        timeout: Math.min(45_000, options.timeoutMs),
-      });
-
     logStage("complete-provider-callback");
     const authResponse = await fetch(authorizationUrl, {
       redirect: "follow",
@@ -440,9 +423,25 @@ export async function run() {
       authResponse.ok,
       `OAuth callback 跳转失败: HTTP ${authResponse.status}`,
     );
-    await Promise.all([authorizedState, completionToast]);
+    await authorizedState;
+    const completion = await page.evaluate(async (method) => {
+      const response = await window.electronAPI.invoke(
+        "app_server_drain_events",
+        { request: { includeRecent: true, limit: 100 } },
+      );
+      return (response.result ?? response).lines
+        .map((line) => JSON.parse(line))
+        .filter((message) => message.method === method);
+    }, OAUTH_COMPLETED_METHOD);
+    assert(
+      completion.some(
+        (message) =>
+          message.params.name === serverName && message.params.success === true,
+      ),
+      "Missing successful typed OAuth completion notification",
+    );
     summary.oauthAuthorizedVisible = true;
-    summary.completionToastVisible = true;
+    summary.completionNotificationObserved = true;
 
     assertProviderEvidence(provider);
     summary.provider.authorizeRequestCount =

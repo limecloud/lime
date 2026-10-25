@@ -5,6 +5,7 @@ import {
   listProjectGitCommits,
   readProjectGitDiff,
   readProjectGitStatus,
+  setProjectGitWorktreeEnvironment,
   type ProjectGitAppServerClient,
 } from "./projectGit";
 import { AppServerRpcError } from "./appServer";
@@ -26,11 +27,51 @@ const client: ProjectGitAppServerClient = {
   checkoutProjectGitBranch: vi.fn(),
   createProjectGitBranch: vi.fn(),
   createProjectGitWorktree: vi.fn(),
+  setProjectGitWorktreeEnvironment: vi.fn(),
 };
 
 describe("projectGit API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each([null, "/tree/.lime/environments/environment.toml"])(
+    "confirms explicit worktree selection %s over the current App Server method",
+    async (configPath) => {
+      const result = {
+        rootPath: "/tree",
+        hasGitRepository: true,
+        isWorktree: true,
+        localEnvironmentConfigPath: configPath,
+        branches: [],
+        uncommittedFileCount: 0,
+      };
+      vi.mocked(client.setProjectGitWorktreeEnvironment).mockResolvedValueOnce(
+        appServerResult(result),
+      );
+      await expect(
+        setProjectGitWorktreeEnvironment("/tree", configPath, client),
+      ).resolves.toEqual(result);
+      expect(
+        client.setProjectGitWorktreeEnvironment,
+      ).toHaveBeenCalledExactlyOnceWith({ rootPath: "/tree", configPath });
+    },
+  );
+
+  it("rejects foreign or unconfirmed worktree selection receipts", async () => {
+    vi.mocked(client.setProjectGitWorktreeEnvironment).mockResolvedValue(
+      appServerResult({
+        rootPath: "/other",
+        hasGitRepository: true,
+        isWorktree: true,
+        localEnvironmentConfigPath: null,
+        branches: [],
+        uncommittedFileCount: 0,
+      }),
+    );
+    await expect(
+      setProjectGitWorktreeEnvironment("/tree", null, client),
+    ).rejects.toThrow("not confirmed");
   });
 
   it("keeps checkout identity and Git-scoped environment selection in the current response", async () => {
@@ -39,7 +80,7 @@ describe("projectGit API", () => {
       repositoryRoot: "/tree",
       hasGitRepository: true,
       isWorktree: true,
-      localEnvironmentConfigPath: "/tree/.codex/environments/environment.toml",
+      localEnvironmentConfigPath: "/tree/.lime/environments/environment.toml",
       branches: [],
       uncommittedFileCount: 0,
     };
@@ -69,7 +110,7 @@ describe("projectGit API", () => {
     },
   );
 
-  it.each([null, "/workspace/.codex/environments/dev.toml"])(
+  it.each([null, "/workspace/.lime/environments/dev.toml"])(
     "passes the explicit environment choice %s to the current worktree method",
     async (localEnvironmentConfigPath) => {
       vi.mocked(client.createProjectGitWorktree).mockResolvedValueOnce(

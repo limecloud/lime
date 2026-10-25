@@ -17,7 +17,7 @@ import type {
   BrowserToolResult,
 } from "./browserTabHost";
 
-interface CdpContext {
+export interface CdpContext {
   policy: BrowserTabPolicy;
   targets: BrowserCdpTargets;
   locale: string;
@@ -42,6 +42,7 @@ interface CdpContext {
   release: () => void;
   state: () => BrowserTabState;
   requestApproval: (reason: string) => BrowserToolResult;
+  subscribeEvents?: (assertActive: () => void) => Promise<unknown>;
 }
 
 const approvalText = {
@@ -56,11 +57,27 @@ const approvalText = {
 } as const;
 
 export const isBrowserCdpTool = (tool: string): boolean =>
-  ["executeCdpCommand", "attachTarget", "detachTarget"].includes(tool);
+  [
+    "executeCdpCommand",
+    "attachTarget",
+    "detachTarget",
+    "addCdpEventListener",
+  ].includes(tool);
 
 // Cross-origin cookies and other persistent debugger overrides still require
 // their own command scope. Target sessions inherit the current tab/turn lifetime.
 const pageCommands = new Set([
+  "Runtime.enable",
+  "Runtime.disable",
+  "Page.enable",
+  "Page.disable",
+  "Page.setLifecycleEventsEnabled",
+  "DOM.enable",
+  "DOM.disable",
+  "Network.enable",
+  "Network.disable",
+  "Log.enable",
+  "Log.disable",
   "Runtime.evaluate",
   "Page.navigate",
   "Page.navigateToHistoryEntry",
@@ -183,6 +200,8 @@ export async function executeCdpCommand(
   approved: boolean,
   context: CdpContext,
 ): Promise<BrowserToolResult> {
+  if (call.tool === "addCdpEventListener")
+    return subscribeCdpEvents(call, approved, context);
   const { method, params, timeoutMs, target, lifecycle } = readCommand(call);
   assertCurrentPageAllowed(context);
   assertNavigationAllowed(context, method, params);
@@ -323,4 +342,42 @@ export async function executeCdpCommand(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+async function subscribeCdpEvents(
+  call: BrowserToolCall,
+  approved: boolean,
+  context: CdpContext,
+): Promise<BrowserToolResult> {
+  if (Object.keys(call.arguments).some((key) => key !== "tabId"))
+    throw new Error("Browser event subscription cannot override its source");
+  assertCurrentPageAllowed(context);
+  const text = {
+    "zh-CN": "允许 Agent 在本回合持续接收当前网页的 CDP 事件",
+    "zh-TW": "允許 Agent 在此回合持續接收目前網頁的 CDP 事件",
+    "en-US":
+      "Allow the Agent to receive CDP events from the current page for this turn",
+    "ja-JP":
+      "このターンで Agent が現在のページの CDP イベントを継続して受信することを許可",
+    "ko-KR":
+      "이 턴에서 Agent가 현재 페이지의 CDP 이벤트를 계속 수신하도록 허용",
+  };
+  if (!approved)
+    return context.requestApproval(
+      text[context.locale as keyof typeof text] ?? text["en-US"],
+    );
+  if (!context.subscribeEvents)
+    throw new Error("Browser event client is unavailable");
+  const revision = context.policy.revision;
+  const url = context.url();
+  const assertActive = () => {
+    assertCurrentPageAllowed(context);
+    if (revision !== context.policy.revision || context.url() !== url)
+      throw new Error("Browser event subscription authorization changed");
+  };
+  await context.attach();
+  assertActive();
+  const data = await context.subscribeEvents(assertActive);
+  assertActive();
+  return { status: "completed", state: context.state(), data };
 }

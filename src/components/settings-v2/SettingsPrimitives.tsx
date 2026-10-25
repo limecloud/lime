@@ -243,6 +243,7 @@ export function SettingsValueMenu<T extends string>({
   described,
   value,
   options,
+  placeholder,
   disabled,
   onChange,
   align = "end",
@@ -252,12 +253,13 @@ export function SettingsValueMenu<T extends string>({
   value: T;
   options: readonly {
     value: T;
-    label: string;
+    label: ReactNode;
     description?: string;
     tooltip?: string;
     groupLabel?: string;
     disabled?: boolean;
   }[];
+  placeholder?: ReactNode;
   disabled: boolean;
   onChange: (value: T) => void;
   align?: "start" | "end";
@@ -274,7 +276,8 @@ export function SettingsValueMenu<T extends string>({
           aria-describedby={described ? `${targetId}-description` : undefined}
         >
           <span id={`${targetId}-value`} className="min-w-0 truncate">
-            {options.find((option) => option.value === value)?.label}
+            {options.find((option) => option.value === value)?.label ??
+              placeholder}
           </span>
           <ChevronDown aria-hidden="true" className="shrink-0" />
         </SettingsAction>
@@ -283,7 +286,7 @@ export function SettingsValueMenu<T extends string>({
         <Menu.Content
           align={align}
           sideOffset={4}
-          className="z-[70] min-w-44 rounded-xl border border-border bg-popover p-1 text-[13px] text-popover-foreground shadow-lg"
+          className="z-[70] max-h-80 min-w-44 overflow-y-auto rounded-xl border border-border bg-popover p-1 text-[13px] text-popover-foreground shadow-lg"
           onKeyDown={(event) => {
             // 焦点可能早于 Radix 注册最高层，已处理的 Escape 不重复关闭。
             if (event.key === "Escape" && !event.defaultPrevented) {

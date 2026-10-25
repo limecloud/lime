@@ -619,7 +619,7 @@ mod tests {
                 "turnId": "turn-1",
                 "serverName": "form-server",
                 "mode": "form",
-                "_meta": { "codex_approval_kind": "tool_suggestion" },
+                "_meta": { "lime_approval_kind": "tool_suggestion" },
                 "message": "Install a tool",
                 "requestedSchema": { "type": "object", "properties": {} }
             }

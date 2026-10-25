@@ -5,6 +5,8 @@ type KeyStroke = Pick<
   "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey"
 >;
 const modifiers = ["CommandOrControl", "Command", "Control", "Alt", "Shift"];
+// Desktop 捕获和派发共用的一秒序列窗口。
+export const KEY_SEQUENCE_TIMEOUT_MS = 1000;
 const namedKeys = [
   "Space",
   "Escape",
@@ -34,7 +36,7 @@ function keyName(key: string): string | null {
   );
 }
 
-export function normalizeBinding(binding: string): string | null {
+function normalizeStroke(binding: string): string | null {
   const parts = binding.split("+").map((part) => part.trim());
   const key = keyName(parts.pop() ?? "");
   const selected = parts.map((part) =>
@@ -54,6 +56,13 @@ export function normalizeBinding(binding: string): string | null {
   return [...modifiers.filter((name) => selected.includes(name)), key].join(
     "+",
   );
+}
+
+export function normalizeBinding(binding: string): string | null {
+  const input = binding.trim().replace(/\s*\+\s*/g, "+");
+  if (!input) return null;
+  const strokes = input.split(/\s+/).map(normalizeStroke);
+  return strokes.every((stroke) => stroke !== null) ? strokes.join(" ") : null;
 }
 
 export function captureBinding(event: KeyStroke): string | null {
@@ -76,20 +85,33 @@ export function bindingIdentity(
 ): string | null {
   const normalized = normalizeBinding(binding);
   if (!normalized) return null;
-  return normalized.replace(
+  return normalized.replaceAll(
     "CommandOrControl",
     platform === "mac" ? "Command" : "Control",
   );
 }
 
-export function matchesBinding(
-  event: KeyStroke,
+export function bindingMatchesPrefix(
   binding: string,
+  prefix: string,
   platform: HotkeyPlatform,
 ): boolean {
-  const captured = captureBinding(event);
+  const identity = bindingIdentity(binding, platform);
+  const start = bindingIdentity(prefix, platform);
   return (
-    captured !== null &&
-    bindingIdentity(captured, platform) === bindingIdentity(binding, platform)
+    identity !== null &&
+    start !== null &&
+    (identity === start || identity.startsWith(`${start} `))
+  );
+}
+
+export function bindingsConflict(
+  left: string,
+  right: string,
+  platform: HotkeyPlatform,
+): boolean {
+  return (
+    bindingMatchesPrefix(left, right, platform) ||
+    bindingMatchesPrefix(right, left, platform)
   );
 }

@@ -23,9 +23,6 @@ const server: McpServer = {
     args: ["server.js"],
   },
   enabled_lime: true,
-  enabled_claude: false,
-  enabled_codex: true,
-  enabled_gemini: false,
 };
 
 function mockAppServerResult(result: unknown): void {
@@ -38,7 +35,7 @@ describe("mcp App Server current API fail-closed", () => {
     appServerRequestMock.mockReset();
   });
 
-  it("MCP CRUD / import / sync 在 App Server 失败时应 fail closed 且不回退 legacy", async () => {
+  it("MCP CRUD / enabled 在 App Server 失败时应 fail closed 且不回退 legacy", async () => {
     const appServerError = new Error("App Server unavailable");
     const cases: Array<[string, unknown, () => Promise<unknown>]> = [
       ["mcpServer/create", { server }, () => mcpApi.addServer(server)],
@@ -50,15 +47,9 @@ describe("mcp App Server current API fail-closed", () => {
       ],
       [
         "mcpServer/enabled/set",
-        { id: "server-1", appType: "codex", enabled: true },
-        () => mcpApi.toggleServer("server-1", "codex", true),
+        { id: "server-1", enabled: true },
+        () => mcpApi.toggleServer("server-1", true),
       ],
-      [
-        "mcpServer/importFromApp",
-        { appType: "codex" },
-        () => mcpApi.importFromApp("codex"),
-      ],
-      ["mcpServer/syncAllToLive", {}, () => mcpApi.syncAllToLive()],
     ];
 
     for (const [method, params, action] of cases) {
@@ -70,7 +61,7 @@ describe("mcp App Server current API fail-closed", () => {
     expect(safeInvoke).not.toHaveBeenCalled();
   });
 
-  it("MCP CRUD / import / sync 收到 malformed current 响应时应 fail closed", async () => {
+  it("MCP CRUD / enabled 收到 malformed current 响应时应 fail closed", async () => {
     const cases: Array<[string, unknown, () => Promise<unknown>, string]> = [
       [
         "mcpServer/create",
@@ -93,20 +84,8 @@ describe("mcp App Server current API fail-closed", () => {
       [
         "mcpServer/enabled/set",
         { servers: null },
-        () => mcpApi.toggleServer("server-1", "codex", true),
+        () => mcpApi.toggleServer("server-1", true),
         "mcpServer/enabled/set did not return servers",
-      ],
-      [
-        "mcpServer/importFromApp",
-        { importedCount: 1 },
-        () => mcpApi.importFromApp("codex"),
-        "mcpServer/importFromApp did not return servers",
-      ],
-      [
-        "mcpServer/syncAllToLive",
-        {},
-        () => mcpApi.syncAllToLive(),
-        "mcpServer/syncAllToLive did not return servers",
       ],
     ];
 
@@ -272,6 +251,21 @@ describe("mcp App Server current API fail-closed", () => {
       ]),
     ).rejects.toThrow("mcpServer/start prepare params require name");
 
+    expect(appServerRequestMock).not.toHaveBeenCalled();
+    expect(safeInvoke).not.toHaveBeenCalled();
+  });
+
+  it("退役的跨应用 prepare 方法不发送任何请求", async () => {
+    for (const method of [
+      "mcpServer/importFromApp",
+      "mcpServer/syncAllToLive",
+    ]) {
+      await expect(
+        mcpApi.executePrepareRequests([
+          { method, params: { appType: "codex" }, status: "candidate" },
+        ]),
+      ).rejects.toThrow(`Unsupported MCP prepare request method: ${method}`);
+    }
     expect(appServerRequestMock).not.toHaveBeenCalled();
     expect(safeInvoke).not.toHaveBeenCalled();
   });

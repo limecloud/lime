@@ -21,9 +21,9 @@ fn item(id: &str, name: &str) -> Item {
 
 fn source(root: &Path, name: &str) -> PathBuf {
     let source = root.join("source").join(name);
-    fs::create_dir_all(source.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(source.join(".lime-plugin")).unwrap();
     fs::write(
-        source.join(".codex-plugin/plugin.json"),
+        source.join(".lime-plugin/plugin.json"),
         json!({"name":name}).to_string(),
     )
     .unwrap();
@@ -40,8 +40,8 @@ fn checkout_registers_discoverable_personal_marketplace_and_reuses_user_edits() 
     let target = select(&store, &identity, &item.id, &item.name).unwrap();
     let source = source(temp.path(), &item.name);
     let result = register(&store, &identity, &item, &target, Some(&source), || Ok(())).unwrap();
-    assert_eq!(result.plugin_id, "research@codex-curated");
-    assert_eq!(result.marketplace_name, "codex-curated");
+    assert_eq!(result.plugin_id, "research@lime-curated");
+    assert_eq!(result.marketplace_name, "lime-curated");
     assert_eq!(result.remote_version.as_deref(), Some("1.0.0"));
     assert!(!store.root.join("cache").exists());
     let paths = super::super::super::discovery::implicit_marketplace_paths(&store, None).unwrap();

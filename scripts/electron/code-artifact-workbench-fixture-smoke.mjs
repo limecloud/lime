@@ -1783,7 +1783,7 @@ function summarizeCodeArtifactRead(readResult, requests = []) {
       ? readResult.detail.thread_read.tool_calls.length
       : null,
     codingProjectionPersisted: hasCodingProjection(readResult),
-    codexFileChangeBatchPersisted: hasCodexFileChangeBatch(readResult),
+    limeFileChangeBatchPersisted: hasCodexFileChangeBatch(readResult),
     fileChangeBatches: summarizeFileChangeBatches(readResult),
     toolTimelineProjectionPersisted: hasToolTimelineProjection(readResult),
     fixtureToolCall: findFixtureToolCall(readResult) ?? null,
@@ -3403,8 +3403,8 @@ async function run() {
         summary.sessionCreation?.toolTimelineProjectionPersisted === true,
       codingProjectionPersisted:
         summary.sessionCreation?.codingProjectionPersisted === true,
-      codexFileChangeBatchPersisted:
-        summary.sessionCreation?.codexFileChangeBatchPersisted === true,
+      limeFileChangeBatchPersisted:
+        summary.sessionCreation?.limeFileChangeBatchPersisted === true,
       guiHydratedSession: hasHydratedSessionSnapshot(summary.sessionHydrated),
       threadChangesOpened:
         summary.threadChanges?.visible === true &&

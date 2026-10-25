@@ -33,5 +33,6 @@
   "browserChrome.presetIphone15Pro": "iPhone 15 Pro",
   "browserChrome.presetGalaxyS24Ultra": "Samsung Galaxy S24 Ultra",
   "browserChrome.presetIphoneSe": "iPhone SE",
-  "browserChrome.dimensions": "尺寸："
+  "browserChrome.dimensions": "尺寸：",
+  "browserChrome.addressSuggestions": "地址建议"
 }

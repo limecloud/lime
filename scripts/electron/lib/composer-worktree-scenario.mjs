@@ -329,7 +329,7 @@ export const worktreeSubmissionScenario = {
     );
     const configPath = path.join(
       workspace.rootPath,
-      ".codex",
+      ".lime",
       "environments",
       "environment.toml",
     );

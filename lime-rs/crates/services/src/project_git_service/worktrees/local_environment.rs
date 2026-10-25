@@ -3,7 +3,7 @@
 use super::super::{git_command_output_from, output_to_string, GIT_COMMAND_TIMEOUT};
 use std::path::Path;
 
-const CONFIG_KEY: &str = "codex.localEnvironmentConfigPath";
+const CONFIG_KEY: &str = "lime.localEnvironmentConfigPath";
 
 pub async fn save_local_environment_config_path(
     worktree: &Path,

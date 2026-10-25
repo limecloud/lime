@@ -243,7 +243,7 @@ export async function materializeThreadGoal(
     let objective = sections.join("\n\n");
     if (Array.from(objective).length > OBJECTIVE_LIMIT) {
       const path = joinPath(await getDirectory(), "goal-objective.md");
-      const reference = `Read the Codex goal objective file at ${path} before continuing.`;
+      const reference = `Read the Lime goal objective file at ${path} before continuing.`;
       if (Array.from(reference).length > OBJECTIVE_LIMIT)
         throw new Error(
           "Goal objective file reference exceeds the objective limit",

@@ -10,7 +10,7 @@ describe("skillConfig", () => {
     const states = [
       {
         name: "writer",
-        path: "/Users/lime/.codex/skills/writer/SKILL.md",
+        path: "/Users/lime/.lime/skills/writer/SKILL.md",
         enabled: true,
       },
       {
@@ -24,11 +24,11 @@ describe("skillConfig", () => {
       matchProtocolSkillEnabledState(
         {
           name: "writer",
-          localDirectoryPath: "/Users/lime/.codex/skills/writer",
+          localDirectoryPath: "/Users/lime/.lime/skills/writer",
         },
         states,
       )?.path,
-    ).toBe("/Users/lime/.codex/skills/writer/SKILL.md");
+    ).toBe("/Users/lime/.lime/skills/writer/SKILL.md");
     expect(
       matchProtocolSkillEnabledState(
         { name: "writer", localDirectoryPath: "/missing" },

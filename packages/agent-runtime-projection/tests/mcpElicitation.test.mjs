@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import * as publicProjection from "../dist/index.js";
-import { extractCodexMcpElicitationSnapshot } from "../dist/mcpElicitation.js";
+import { extractMcpElicitationSnapshot } from "../dist/mcpElicitation.js";
 
 function standardFormParams() {
   return {
     threadId: "thread-mcp",
     turnId: "turn-mcp",
-    serverName: "codex_apps",
+    serverName: "lime_apps",
     message: "Allow this request?",
     requestedSchema: {
       type: "object",
@@ -24,7 +24,7 @@ function standardFormParams() {
 }
 
 test("MCP form elicitation request binds request id, server, thread, turn and schema", () => {
-  const snapshot = extractCodexMcpElicitationSnapshot({
+  const snapshot = extractMcpElicitationSnapshot({
     requestId: "request-mcp-1",
     params: standardFormParams(),
   });
@@ -42,7 +42,7 @@ test("MCP form elicitation request binds request id, server, thread, turn and sc
     },
     {
       requestId: "request-mcp-1",
-      serverName: "codex_apps",
+      serverName: "lime_apps",
       threadId: "thread-mcp",
       turnId: "turn-mcp",
       mode: "form",
@@ -55,7 +55,7 @@ test("MCP form elicitation request binds request id, server, thread, turn and sc
 });
 
 test("MCP elicitation snapshot is not a public action projection surface", () => {
-  assert.equal("extractCodexMcpElicitationSnapshot" in publicProjection, false);
+  assert.equal("extractMcpElicitationSnapshot" in publicProjection, false);
   assert.equal(
     "buildCodexMcpElicitationRequiredEvent" in publicProjection,
     false,
@@ -67,7 +67,7 @@ test("MCP elicitation snapshot is not a public action projection surface", () =>
 });
 
 test("request id is accepted only from the outer App Server request envelope", () => {
-  const snapshot = extractCodexMcpElicitationSnapshot({
+  const snapshot = extractMcpElicitationSnapshot({
     params: {
       ...standardFormParams(),
       requestId: "forged-request-id",
@@ -80,7 +80,7 @@ test("request id is accepted only from the outer App Server request envelope", (
 });
 
 test("request without canonical thread scope fails closed", () => {
-  const snapshot = extractCodexMcpElicitationSnapshot({
+  const snapshot = extractMcpElicitationSnapshot({
     requestId: "request-unscoped",
     params: {
       ...standardFormParams(),
@@ -95,7 +95,7 @@ test("request without canonical thread scope fails closed", () => {
 });
 
 test("request allows nullable turn correlation", () => {
-  const snapshot = extractCodexMcpElicitationSnapshot({
+  const snapshot = extractMcpElicitationSnapshot({
     requestId: "request-no-turn",
     params: {
       ...standardFormParams(),
@@ -108,7 +108,7 @@ test("request allows nullable turn correlation", () => {
 });
 
 test("standard form accepted response records structured content and metadata keys", () => {
-  const snapshot = extractCodexMcpElicitationSnapshot({
+  const snapshot = extractMcpElicitationSnapshot({
     requestId: "request-standard-form",
     params: standardFormParams(),
     response: {
@@ -141,7 +141,7 @@ test("standard form accepted response records structured content and metadata ke
 });
 
 test("accepted MCP elicitation response without structured content fails closed", () => {
-  const snapshot = extractCodexMcpElicitationSnapshot({
+  const snapshot = extractMcpElicitationSnapshot({
     requestId: "request-empty-accept",
     params: standardFormParams(),
     response: {

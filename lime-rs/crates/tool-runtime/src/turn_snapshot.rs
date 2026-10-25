@@ -221,7 +221,7 @@ mod tests {
             timeout_sec: 30,
             status_message: None,
             additional_context_limit: None,
-            source_path: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".codex/hooks.json"),
+            source_path: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".lime/hooks.json"),
             source: RuntimeHookSource::Project,
             plugin_id: None,
             display_order,

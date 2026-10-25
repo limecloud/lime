@@ -21,6 +21,8 @@ import {
   resolveBrowserAddressValue,
 } from "./browserWorkspaceModel";
 import { useBrowserPreferences } from "@/hooks/useBrowserPreferences";
+import { useBrowserAddressSuggestions } from "./useBrowserAddressSuggestions";
+import { useBrowserAddressMenu } from "./useBrowserAddressMenu";
 
 export type BrowserTranslate = (
   key: string,
@@ -40,6 +42,7 @@ export function BrowserNavigationBar({
   actions,
   annotationAction,
   addressFocusRequest = 0,
+  active = true,
 }: {
   selected: BrowserTabState | null;
   translate: BrowserTranslate;
@@ -47,6 +50,7 @@ export function BrowserNavigationBar({
   actions?: ReactNode;
   annotationAction?: ReactNode;
   addressFocusRequest?: number;
+  active?: boolean;
 }) {
   const url = selected ? resolveBrowserAddressValue(selected.url) : "";
   const settings = useBrowserPreferences();
@@ -70,6 +74,24 @@ export function BrowserNavigationBar({
   const previous = useRef({ identity, url });
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
+  const suggestions = useBrowserAddressSuggestions({
+    value: address,
+    active: active && focused && Boolean(selected),
+    ownerKey: identity,
+    input: addressRef,
+    onChange: setAddress,
+  });
+  useBrowserAddressMenu({
+    selected,
+    input: addressRef,
+    entries: suggestions.entries,
+    selection: suggestions.selection,
+    onSelect: (value) => openAddress(value),
+    onDismiss: suggestions.dismiss,
+  });
+  useEffect(() => {
+    if (!active) addressRef.current?.blur();
+  }, [active]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -101,19 +123,23 @@ export function BrowserNavigationBar({
   }, [addressFocusRequest]);
   const submitAddress = (event: FormEvent) => {
     event.preventDefault();
+    openAddress(suggestions.submitValue);
+  };
+  const openAddress = (draft: string) => {
     if (
       !selected ||
+      !active ||
       composing.current ||
-      !address.trim() ||
+      !draft.trim() ||
       pendingTabs.current.has(selected.tabId)
     )
       return;
     const tab = selected;
-    const draft = address;
     pendingTabs.current.add(tab.tabId);
     void run(async () => {
       const target = normalizeBrowserAddress(draft);
       if (!target) return tab;
+      suggestions.dismiss();
       addressRef.current?.blur();
       setAddress(target);
       const generation = focusGeneration.current;
@@ -215,23 +241,30 @@ export function BrowserNavigationBar({
           className={`min-w-0 flex-1 bg-transparent text-xs text-[color:var(--lime-text-strong)] outline-none ${focused ? "text-left" : "text-center"}`}
           data-testid="browser-workspace-address"
           autoComplete="off"
+          role="combobox"
+          aria-autocomplete="both"
+          aria-expanded={suggestions.entries.length > 0}
+          aria-haspopup="listbox"
           dir="ltr"
-          disabled={!selected}
+          disabled={!selected || !active}
           onBlur={() => {
             edited.current = false;
             composing.current = false;
             setAddress(url);
             setFocused(false);
+            suggestions.dismiss();
           }}
           onChange={(event) => {
             edited.current = true;
-            setAddress(event.target.value);
+            suggestions.edit(event.target.value);
           }}
           onCompositionStart={() => {
             composing.current = true;
+            suggestions.compositionStart();
           }}
-          onCompositionEnd={() => {
+          onCompositionEnd={(event) => {
             composing.current = false;
+            suggestions.compositionEnd(event.currentTarget.value);
           }}
           onFocus={(event) => {
             focusGeneration.current += 1;
@@ -250,6 +283,7 @@ export function BrowserNavigationBar({
               if (event.key === "Enter") event.preventDefault();
               return;
             }
+            if (suggestions.keyDown(event)) return;
             if (event.key === "Escape") {
               event.preventDefault();
               setAddress(url);
@@ -268,7 +302,7 @@ export function BrowserNavigationBar({
             const caret = start + text.length;
             input.setSelectionRange(caret, caret);
             edited.current = true;
-            setAddress(value);
+            suggestions.edit(value, false);
           }}
           spellCheck={false}
           placeholder={translate(

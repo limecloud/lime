@@ -17,7 +17,7 @@ vi.mock("./persistedAtoms", () => ({
 vi.mock("./localEnvironments", () => ({
   localEnvironments: { list: vi.fn() },
 }));
-const configPath = "/repo/.codex/environments/environment.toml";
+const configPath = "/repo/.lime/environments/environment.toml";
 const ready = (selections: Record<string, string | null>) =>
   ({
     key,

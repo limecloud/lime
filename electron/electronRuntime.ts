@@ -18,6 +18,7 @@ export const {
   Notification,
   net,
   powerMonitor,
+  powerSaveBlocker,
   screen,
   session,
   shell,

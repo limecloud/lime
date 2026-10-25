@@ -1,4 +1,4 @@
-//! Codex-shaped previous-prompt browsing. Canonical history and mutation remain in App Server.
+//! Lime-native previous-prompt browsing. Canonical history and mutation remain in App Server.
 
 mod io;
 pub(crate) use io::BacktrackPage;

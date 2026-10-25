@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   HOST_PRELOAD_BUILD_ENTRIES,
+  HOST_CLIENT_BUILD_ENTRIES,
   HOST_SOURCE_DIRS,
   HOST_SOURCE_FILES,
   RENDERER_BUILD_ENTRIES,
@@ -38,6 +39,7 @@ function fixture() {
   for (const entry of [
     ...RENDERER_BUILD_ENTRIES,
     ...HOST_PRELOAD_BUILD_ENTRIES,
+    ...HOST_CLIENT_BUILD_ENTRIES,
   ])
     write(root, entry.source, "source entry");
   for (const output of electronFixtureBuildRequiredFiles({ rootDir: root }))

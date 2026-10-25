@@ -390,7 +390,7 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexThreadReadPageIsomorphicSnapshot(
+export function extractThreadReadPageIsomorphicSnapshot(
   input: AgentUiThreadReadPageIsomorphicProjectionInput,
 ): AgentUiThreadReadPageIsomorphicSnapshot {
   const readPage = pageSnapshot("threadRead", input.threadRead);
@@ -438,11 +438,11 @@ export function extractCodexThreadReadPageIsomorphicSnapshot(
   };
 }
 
-export function buildCodexThreadReadPageIsomorphicProjectionEvent(
+export function buildThreadReadPageIsomorphicProjectionEvent(
   input: AgentUiThreadReadPageIsomorphicProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexThreadReadPageIsomorphicSnapshot(input);
+  const snapshot = extractThreadReadPageIsomorphicSnapshot(input);
   const hasIssues = snapshot.validationIssues.length > 0;
   return compactProjectionFields({
     type: "context.changed",

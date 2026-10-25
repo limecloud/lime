@@ -255,9 +255,6 @@ async fn mcp_current_jsonrpc_starts_real_stdio_server_and_reads_resource() {
                     "timeout": 3
                 },
                 "enabled_lime": true,
-                "enabled_claude": false,
-                "enabled_codex": false,
-                "enabled_gemini": false,
                 "created_at": 1
             }
         }),

@@ -238,7 +238,7 @@ try {
   });
   check(
     "realProjectLayerAndOrigin",
-    initial.layers.at(-1).name.dotCodexFolder === path.dirname(projectFile) &&
+    initial.layers.at(-1).name.dotLimeFolder === path.dirname(projectFile) &&
       initial.origins.model_verbosity.name.type === "project" &&
       initial.config.model_verbosity === "high",
   );

@@ -266,7 +266,7 @@ describe("Composer link and code contracts", () => {
       ).text,
     ).toBe('[中😀](https://e.test "新标题")');
     const marker = linkDocument({
-      literalMarkdownSource: "[中😀](codex-text-link://https://e.test)",
+      literalMarkdownSource: "[中😀](lime-text-link://https://e.test)",
     });
     expect(
       serialize(composerDocumentFromJSON(marker), {

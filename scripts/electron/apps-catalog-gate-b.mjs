@@ -142,7 +142,7 @@ export function parseArgs(argv, defaults = DEFAULTS) {
 
 function preparePluginPackage(runtimeEnv) {
   const root = path.join(runtimeEnv.tempRoot, "apps-catalog-plugin");
-  const manifestDir = path.join(root, ".codex-plugin");
+  const manifestDir = path.join(root, ".lime-plugin");
   fs.mkdirSync(manifestDir, { recursive: true });
   fs.writeFileSync(
     path.join(root, "plugin.json"),

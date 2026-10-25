@@ -13,11 +13,11 @@ const DATABASE_FILE_NAME: &str = "lime.db";
 const LEGACY_DATABASE_FILE_NAME: &str = "proxycast.db";
 const LEGACY_PRODUCT_DATABASE_FILE_NAME: &str = "app.db";
 const USER_MEMORY_FILE_NAME: &str = "AGENTS.md";
-const CODEX_HOME_ENV: &str = "CODEX_HOME";
-const CODEX_HOME_DIR_NAME: &str = ".codex";
+const LIME_HOME_ENV: &str = "LIME_HOME";
+const LIME_HOME_DIR_NAME: &str = ".lime";
 const WORKSPACE_RUNTIME_DIR_NAME: &str = ".lime";
 const SKILL_PROVIDER_DIRS: &[&str] = &[
-    ".agents", ".warp", ".claude", ".codex", ".cursor", ".gemini", ".copilot", ".factory",
+    ".agents", ".warp", ".claude", ".lime", ".cursor", ".gemini", ".copilot", ".factory",
     ".github",
 ];
 
@@ -144,17 +144,17 @@ pub fn resolve_lime_skill_roots() -> Result<Vec<PathBuf>, String> {
     Ok(roots)
 }
 
-pub fn resolve_codex_home_dir() -> Option<PathBuf> {
-    std::env::var_os(CODEX_HOME_ENV)
+pub fn resolve_lime_home_dir() -> Option<PathBuf> {
+    std::env::var_os(LIME_HOME_ENV)
         .map(PathBuf::from)
-        .or_else(|| dirs::home_dir().map(|home| home.join(CODEX_HOME_DIR_NAME)))
+        .or_else(|| dirs::home_dir().map(|home| home.join(LIME_HOME_DIR_NAME)))
 }
 
-pub fn resolve_codex_agents_path() -> Option<PathBuf> {
-    resolve_codex_home_dir().map(|home| resolve_codex_agents_path_from_home(&home))
+pub fn resolve_lime_agents_path() -> Option<PathBuf> {
+    resolve_lime_home_dir().map(|home| resolve_lime_agents_path_from_home(&home))
 }
 
-fn resolve_codex_agents_path_from_home(home: &Path) -> PathBuf {
+fn resolve_lime_agents_path_from_home(home: &Path) -> PathBuf {
     home.join(USER_MEMORY_FILE_NAME)
 }
 
@@ -171,13 +171,13 @@ pub fn resolve_user_memory_path() -> Result<PathBuf, String> {
 /// 设置编辑器与运行时共用同一全局指令文件，不能各自猜测用户目录。
 pub fn resolve_user_instructions_path() -> Result<PathBuf, String> {
     Ok(select_user_instructions_path(
-        resolve_codex_home_dir().as_deref(),
+        resolve_lime_home_dir().as_deref(),
         &user_home_dir()?,
     ))
 }
 
-fn select_user_instructions_path(codex_home: Option<&Path>, lime_home: &Path) -> PathBuf {
-    if let Some(home) = codex_home {
+fn select_user_instructions_path(configured_home: Option<&Path>, lime_home: &Path) -> PathBuf {
+    if let Some(home) = configured_home {
         if home.join(USER_MEMORY_FILE_NAME).is_file() || home.join("AGENTS.override.md").is_file() {
             return home.join(USER_MEMORY_FILE_NAME);
         }
@@ -408,22 +408,22 @@ mod tests {
     #[test]
     fn user_instructions_follow_existing_global_base_or_override() {
         let temp = tempfile::tempdir().unwrap();
-        let codex = temp.path().join("codex");
+        let configured_home = temp.path().join("configured");
         let lime = temp.path().join("lime");
-        std::fs::create_dir_all(&codex).unwrap();
+        std::fs::create_dir_all(&configured_home).unwrap();
         assert_eq!(
-            super::select_user_instructions_path(Some(&codex), &lime),
+            super::select_user_instructions_path(Some(&configured_home), &lime),
             lime.join("AGENTS.md")
         );
-        std::fs::write(codex.join("AGENTS.override.md"), "override").unwrap();
+        std::fs::write(configured_home.join("AGENTS.override.md"), "override").unwrap();
         assert_eq!(
-            super::select_user_instructions_path(Some(&codex), &lime),
-            codex.join("AGENTS.md")
+            super::select_user_instructions_path(Some(&configured_home), &lime),
+            configured_home.join("AGENTS.md")
         );
-        std::fs::write(codex.join("AGENTS.md"), "base").unwrap();
+        std::fs::write(configured_home.join("AGENTS.md"), "base").unwrap();
         assert_eq!(
-            super::select_user_instructions_path(Some(&codex), &lime),
-            codex.join("AGENTS.md")
+            super::select_user_instructions_path(Some(&configured_home), &lime),
+            configured_home.join("AGENTS.md")
         );
         assert_eq!(
             super::select_user_instructions_path(None, &lime),
@@ -597,7 +597,7 @@ mod tests {
 
         assert_eq!(resolved.first(), Some(&cwd.join(".agents").join("skills")));
         assert!(resolved.contains(&cwd.join(".claude").join("skills")));
-        assert!(resolved.contains(&cwd.join(".codex").join("skills")));
+        assert!(resolved.contains(&cwd.join(".lime").join("skills")));
         assert!(resolved.contains(&cwd.join(".gemini").join("skills")));
     }
 
@@ -608,7 +608,7 @@ mod tests {
 
         assert_eq!(resolved.first(), Some(&home.join(".agents").join("skills")));
         assert!(resolved.contains(&home.join(".claude").join("skills")));
-        assert!(resolved.contains(&home.join(".codex").join("skills")));
+        assert!(resolved.contains(&home.join(".lime").join("skills")));
         assert!(resolved.contains(&home.join(".gemini").join("skills")));
     }
 
@@ -625,10 +625,10 @@ mod tests {
     }
 
     #[test]
-    fn resolve_codex_agents_path_uses_codex_home_namespace() {
-        let home = Path::new("/tmp/home/.codex");
+    fn resolve_lime_agents_path_uses_lime_home_namespace() {
+        let home = Path::new("/tmp/home/.lime");
         assert_eq!(
-            resolve_codex_agents_path_from_home(home),
+            resolve_lime_agents_path_from_home(home),
             home.join(USER_MEMORY_FILE_NAME)
         );
     }

@@ -2,7 +2,10 @@ import { build } from "vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
-import { HOST_PRELOAD_BUILD_ENTRIES } from "../lib/electron-build-inputs.mjs";
+import {
+  HOST_PRELOAD_BUILD_ENTRIES,
+  HOST_CLIENT_BUILD_ENTRIES,
+} from "../lib/electron-build-inputs.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../..");
@@ -69,10 +72,33 @@ export async function buildPreload(
     });
 }
 
+export async function buildBrowserClient(rootDir = repoRoot) {
+  await build({
+    configFile: false,
+    build: {
+      target: "node22",
+      ssr: path.resolve(rootDir, HOST_CLIENT_BUILD_ENTRIES[0].source),
+      outDir: path.dirname(
+        path.resolve(rootDir, HOST_CLIENT_BUILD_ENTRIES[0].output),
+      ),
+      emptyOutDir: true,
+      rollupOptions: {
+        external: [/^node:/],
+        output: {
+          entryFileNames: "client.mjs",
+          format: "es",
+          inlineDynamicImports: true,
+        },
+      },
+    },
+  });
+}
+
 if (
   process.argv[1] &&
   realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 ) {
   await buildMain();
   await buildPreload();
+  await buildBrowserClient();
 }

@@ -83,10 +83,11 @@ describe("NotionEditor actual command registration", () => {
       expect(element).not.toBeNull();
       return element!;
     });
-    expect(getRegisteredCommands().map((command) => command.id)).toEqual([
-      "saveDocument",
-      "cancelDocumentEditing",
-    ]);
+    expect(
+      getRegisteredCommands()
+        .map((command) => command.id)
+        .sort(),
+    ).toEqual(["cancelDocumentEditing", "saveDocument"]);
     await act(async () => {
       editor.dispatchEvent(
         new KeyboardEvent("keydown", {

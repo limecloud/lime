@@ -82,8 +82,6 @@ use app_server_protocol::McpResourceUnsubscribeParams;
 use app_server_protocol::McpServerCreateParams;
 use app_server_protocol::McpServerDeleteParams;
 use app_server_protocol::McpServerEnabledSetParams;
-use app_server_protocol::McpServerImportFromAppParams;
-use app_server_protocol::McpServerImportFromAppResponse;
 use app_server_protocol::McpServerLifecycleResponse;
 use app_server_protocol::McpServerListResponse;
 use app_server_protocol::McpServerStartParams;

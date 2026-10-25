@@ -48,21 +48,6 @@ impl RuntimeCore {
         self.app_data_source.set_mcp_server_enabled(params).await
     }
 
-    pub async fn import_mcp_servers_from_app(
-        &self,
-        params: McpServerImportFromAppParams,
-    ) -> Result<McpServerImportFromAppResponse, RuntimeCoreError> {
-        self.app_data_source
-            .import_mcp_servers_from_app(params)
-            .await
-    }
-
-    pub async fn sync_all_mcp_servers_to_live(
-        &self,
-    ) -> Result<McpServerListResponse, RuntimeCoreError> {
-        self.app_data_source.sync_all_mcp_servers_to_live().await
-    }
-
     pub async fn start_mcp_server(
         &self,
         params: McpServerStartParams,

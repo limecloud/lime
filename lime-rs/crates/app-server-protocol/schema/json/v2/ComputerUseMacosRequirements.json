@@ -1,0 +1,25 @@
+{
+  "$defs": {
+    "AllowDenyRequirement": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "bundleIds": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AllowDenyRequirement"
+      },
+      "type": [
+        "null",
+        "object"
+      ]
+    }
+  },
+  "title": "ComputerUseMacosRequirements",
+  "type": "object"
+}

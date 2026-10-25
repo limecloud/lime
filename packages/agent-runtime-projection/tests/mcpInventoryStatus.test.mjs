@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexMcpInventoryStatusProjectionEvent,
-  extractCodexMcpInventoryStatusSnapshot,
+  buildMcpInventoryStatusProjectionEvent,
+  extractMcpInventoryStatusSnapshot,
 } from "../dist/index.js";
 
 test("MCP inventory status preserves raw server and raw tool names", () => {
-  const snapshot = extractCodexMcpInventoryStatusSnapshot({
+  const snapshot = extractMcpInventoryStatusSnapshot({
     params: { detail: "full" },
     response: {
       data: [
@@ -45,7 +45,7 @@ test("MCP inventory status preserves raw server and raw tool names", () => {
 });
 
 test("toolsAndAuthOnly inventory is thread-scoped and does not load resources", () => {
-  const event = buildCodexMcpInventoryStatusProjectionEvent(
+  const event = buildMcpInventoryStatusProjectionEvent(
     {
       params: {
         detail: "toolsAndAuthOnly",
@@ -112,7 +112,7 @@ test("toolsAndAuthOnly inventory is thread-scoped and does not load resources", 
 });
 
 test("MCP inventory status keeps sanitized server-name collisions distinct", () => {
-  const snapshot = extractCodexMcpInventoryStatusSnapshot({
+  const snapshot = extractMcpInventoryStatusSnapshot({
     response: {
       data: [
         {
@@ -154,7 +154,7 @@ test("MCP inventory status keeps sanitized server-name collisions distinct", () 
 });
 
 test("toolsAndAuthOnly fails closed if resource inventory was loaded", () => {
-  const event = buildCodexMcpInventoryStatusProjectionEvent({
+  const event = buildMcpInventoryStatusProjectionEvent({
     params: { detail: "toolsAndAuthOnly" },
     response: {
       data: [
@@ -179,7 +179,7 @@ test("toolsAndAuthOnly fails closed if resource inventory was loaded", () => {
 });
 
 test("MCP inventory status rejects naked sanitized server__tool names", () => {
-  const event = buildCodexMcpInventoryStatusProjectionEvent({
+  const event = buildMcpInventoryStatusProjectionEvent({
     response: {
       data: [
         {

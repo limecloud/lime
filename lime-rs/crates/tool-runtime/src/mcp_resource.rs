@@ -96,7 +96,7 @@ impl RuntimeToolExecutor for RuntimeMcpResourceExecutor {
                         && !orchestrator_feature_enabled(request.turn_context, "mcp")
                     {
                         return Err(mcp_resource_error(
-                            "MCP server 'codex_apps' 已由 orchestrator.mcp.enabled 禁用",
+                            "MCP server 'lime_apps' 已由 orchestrator.mcp.enabled 禁用",
                             "orchestrator_mcp_disabled",
                         ));
                     }
@@ -145,7 +145,7 @@ impl RuntimeToolExecutor for RuntimeMcpResourceExecutor {
                         && !orchestrator_skill_resource_allowed(request.turn_context, uri)
                     {
                         return Err(mcp_resource_error(
-                            "MCP server 'codex_apps' 已由 orchestrator.mcp.enabled 禁用",
+                            "MCP server 'lime_apps' 已由 orchestrator.mcp.enabled 禁用",
                             "orchestrator_mcp_disabled",
                         ));
                     }
@@ -517,7 +517,7 @@ mod tests {
                         "interface": {
                             "display_name": "Release notes",
                             "execution_mode": "mcp_resource",
-                            "provider": "codex_apps",
+                            "provider": "lime_apps",
                             "model": null,
                             "argument_hint": null
                         },

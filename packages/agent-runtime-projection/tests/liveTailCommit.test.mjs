@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexLiveTailCommitProjectionEvent,
-  extractCodexLiveTailCommitProjectionSnapshot,
+  buildLiveTailCommitProjectionEvent,
+  extractLiveTailCommitProjectionSnapshot,
 } from "../dist/index.js";
 
 const ITEM_SEQUENCE = ["user-item-1", "assistant-history-1"];
@@ -53,16 +53,13 @@ function baseInput(overrides = {}) {
 }
 
 test("live tail commit keeps first output visible and commits without sequence drift", () => {
-  const event = buildCodexLiveTailCommitProjectionEvent(
-    baseInput(),
-    {
-      sessionId: "session-live-tail",
-      threadId: "thread-live-tail",
-      turnId: "turn-live-tail",
-      sequence: 351,
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildLiveTailCommitProjectionEvent(baseInput(), {
+    sessionId: "session-live-tail",
+    threadId: "thread-live-tail",
+    turnId: "turn-live-tail",
+    sequence: 351,
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -110,7 +107,7 @@ test("live tail commit keeps first output visible and commits without sequence d
 });
 
 test("first output must appear before overflow commit", () => {
-  const snapshot = extractCodexLiveTailCommitProjectionSnapshot(
+  const snapshot = extractLiveTailCommitProjectionSnapshot(
     baseInput({
       frames: [
         frame("overflow_commit", 1, {
@@ -129,12 +126,16 @@ test("first output must appear before overflow commit", () => {
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "first_output_after_commit"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "first_output_after_commit",
+    ),
+  );
   assert.equal(snapshot.firstOutputBeforeCommit, false);
 });
 
 test("overlay assistant buffer and pageText-only output fail closed", () => {
-  const snapshot = extractCodexLiveTailCommitProjectionSnapshot(
+  const snapshot = extractLiveTailCommitProjectionSnapshot(
     baseInput({
       frames: [
         frame("first_visible", 1, {
@@ -159,14 +160,22 @@ test("overlay assistant buffer and pageText-only output fail closed", () => {
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "overlay_buffer_used"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "page_text_only_live_tail_oracle"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "overlay_buffer_used",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "page_text_only_live_tail_oracle",
+    ),
+  );
   assert.equal(snapshot.overlayBufferRejected, false);
   assert.equal(snapshot.pageTextOnlyRejected, false);
 });
 
 test("live tail commit rejects history merge, scroll drift and missing table reflow", () => {
-  const snapshot = extractCodexLiveTailCommitProjectionSnapshot(
+  const snapshot = extractLiveTailCommitProjectionSnapshot(
     baseInput({
       frames: [
         frame("first_visible", 1, {
@@ -184,8 +193,24 @@ test("live tail commit rejects history merge, scroll drift and missing table ref
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "live_tail_history_not_separated"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "overflow_commit_sequence_drift"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "scroll_anchor_lost"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "table_tail_reflow_missing"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "live_tail_history_not_separated",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "overflow_commit_sequence_drift",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "scroll_anchor_lost",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "table_tail_reflow_missing",
+    ),
+  );
 });

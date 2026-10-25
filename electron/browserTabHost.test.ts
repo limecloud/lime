@@ -9,6 +9,29 @@ import {
 } from "./browserTabHost.testHarness";
 
 describe("ElectronBrowserTabHost", () => {
+  it("uses saved website allows only while the native tab is owned by the user", async () => {
+    const harness = createHarness();
+    const mounted = (await mount(harness)) as { viewId: string };
+    const handler =
+      harness.embeddedHost.setSitePermissionDecisionHandler.mock.calls[0][0]!;
+    expect(handler.canUseSavedPermissions(mounted.viewId)).toBe(true);
+    expect(handler.canUseSavedPermissions("foreign-view")).toBe(false);
+    await harness.host.executeTool({
+      arguments: {
+        pageRevision: 0,
+        tabId: "tab-1",
+        title: "Example",
+        url: "https://example.com/",
+      },
+      callId: "claim-site-permission",
+      ownerWebContentsId: 41,
+      threadId: "thread-1",
+      tool: "claimTab",
+      turnId: "turn-1",
+    });
+    expect(handler.canUseSavedPermissions(mounted.viewId)).toBe(false);
+  });
+
   it("keeps Renderer and Agent actions on the same native WebContents", async () => {
     const harness = createHarness();
     const mounted = (await mount(harness)) as {

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexThreadResumeRunningStreamProjectionEvent,
-  extractCodexThreadResumeRunningStreamSnapshot,
+  buildThreadResumeRunningStreamProjectionEvent,
+  extractThreadResumeRunningStreamSnapshot,
 } from "../dist/index.js";
 
 function runningResumeInput(overrides = {}) {
@@ -51,7 +51,7 @@ function runningResumeInput(overrides = {}) {
 }
 
 test("thread resume running stream keeps in-flight turn bound to the live stream", () => {
-  const event = buildCodexThreadResumeRunningStreamProjectionEvent(
+  const event = buildThreadResumeRunningStreamProjectionEvent(
     runningResumeInput(),
     {
       sequence: 111,
@@ -99,9 +99,8 @@ test("thread resume running stream keeps in-flight turn bound to the live stream
 });
 
 test("thread resume running stream keeps override model and cwd from replacing the running thread", () => {
-  const snapshot = extractCodexThreadResumeRunningStreamSnapshot(
-    runningResumeInput(),
-  );
+  const snapshot =
+    extractThreadResumeRunningStreamSnapshot(runningResumeInput());
 
   assert.equal(snapshot.resumeRequest.requestedModel, "not-the-running-model");
   assert.equal(snapshot.resumeResponse.effectiveModel, "gpt-5.4");
@@ -111,7 +110,7 @@ test("thread resume running stream keeps override model and cwd from replacing t
 });
 
 test("thread resume running stream fails closed if resume returns NotLoaded", () => {
-  const snapshot = extractCodexThreadResumeRunningStreamSnapshot(
+  const snapshot = extractThreadResumeRunningStreamSnapshot(
     runningResumeInput({
       resumeResponse: {
         thread: {
@@ -139,7 +138,7 @@ test("thread resume running stream fails closed if resume returns NotLoaded", ()
 });
 
 test("thread resume running stream fails closed if running turn is missing or completed in resume page", () => {
-  const missing = extractCodexThreadResumeRunningStreamSnapshot(
+  const missing = extractThreadResumeRunningStreamSnapshot(
     runningResumeInput({
       resumeResponse: {
         thread: {
@@ -158,7 +157,7 @@ test("thread resume running stream fails closed if running turn is missing or co
     ["running_turn_missing_from_resume_page"],
   );
 
-  const completed = extractCodexThreadResumeRunningStreamSnapshot(
+  const completed = extractThreadResumeRunningStreamSnapshot(
     runningResumeInput({
       resumeResponse: {
         thread: {
@@ -185,7 +184,7 @@ test("thread resume running stream fails closed if running turn is missing or co
 });
 
 test("thread resume running stream rejects history override while the turn is running", () => {
-  const snapshot = extractCodexThreadResumeRunningStreamSnapshot(
+  const snapshot = extractThreadResumeRunningStreamSnapshot(
     runningResumeInput({
       resumeRequest: {
         threadId: "thread-running",
@@ -207,7 +206,7 @@ test("thread resume running stream rejects history override while the turn is ru
 });
 
 test("thread resume running stream fails closed when live stream binding is absent or mismatched", () => {
-  const absent = extractCodexThreadResumeRunningStreamSnapshot(
+  const absent = extractThreadResumeRunningStreamSnapshot(
     runningResumeInput({
       streamBindings: [],
     }),
@@ -219,7 +218,7 @@ test("thread resume running stream fails closed when live stream binding is abse
     ["live_stream_not_bound"],
   );
 
-  const mismatched = extractCodexThreadResumeRunningStreamSnapshot(
+  const mismatched = extractThreadResumeRunningStreamSnapshot(
     runningResumeInput({
       streamBindings: [
         {
@@ -240,7 +239,7 @@ test("thread resume running stream fails closed when live stream binding is abse
 });
 
 test("thread resume running stream fails closed when resume creates a shadow session", () => {
-  const snapshot = extractCodexThreadResumeRunningStreamSnapshot(
+  const snapshot = extractThreadResumeRunningStreamSnapshot(
     runningResumeInput({
       shadowSessions: [
         {

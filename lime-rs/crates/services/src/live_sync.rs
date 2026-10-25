@@ -283,8 +283,8 @@ pub fn get_app_config_path(app_type: &AppType) -> Option<PathBuf> {
     match app_type {
         AppType::Claude => Some(home.join(".claude").join("settings.json")),
         AppType::Codex => Some(home.join(".codex")),
+        AppType::Lime => Some(home.join(".lime")),
         AppType::Gemini => Some(home.join(".gemini")),
-        AppType::Lime => None,
     }
 }
 
@@ -296,8 +296,8 @@ pub fn sync_to_live(
     match app_type {
         AppType::Claude => sync_claude_settings(provider),
         AppType::Codex => sync_codex_config(provider),
+        AppType::Lime => sync_lime_config(provider),
         AppType::Gemini => sync_gemini_config(provider),
-        AppType::Lime => Ok(()),
     }
 }
 
@@ -424,24 +424,45 @@ fn sync_claude_settings(
     Ok(())
 }
 
-/// Sync Codex config to ~/.codex/auth.json and ~/.codex/config.toml
-fn sync_codex_config(provider: &Provider) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+/// Sync Lime config to ~/.lime/auth.json and ~/.lime/config.toml
+fn sync_lime_config(provider: &Provider) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    let codex_dir = home.join(".codex");
+    let lime_dir = home.join(".lime");
 
     // Create directory if not exists
-    std::fs::create_dir_all(&codex_dir)?;
+    std::fs::create_dir_all(&lime_dir)?;
 
     if let Some(obj) = provider.settings_config.as_object() {
         // Write auth.json
         if let Some(auth) = obj.get("auth") {
-            let auth_path = codex_dir.join("auth.json");
+            let auth_path = lime_dir.join("auth.json");
             let content = serde_json::to_string_pretty(auth)?;
             std::fs::write(&auth_path, content)?;
         }
 
         // Write config.toml
         if let Some(config) = obj.get("config").and_then(|v| v.as_str()) {
+            let config_path = lime_dir.join("config.toml");
+            std::fs::write(&config_path, config)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Sync Codex config to ~/.codex/auth.json and ~/.codex/config.toml
+fn sync_codex_config(provider: &Provider) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let home = dirs::home_dir().ok_or("Cannot find home directory")?;
+    let codex_dir = home.join(".codex");
+    std::fs::create_dir_all(&codex_dir)?;
+
+    if let Some(obj) = provider.settings_config.as_object() {
+        if let Some(auth) = obj.get("auth") {
+            let auth_path = codex_dir.join("auth.json");
+            std::fs::write(&auth_path, serde_json::to_string_pretty(auth)?)?;
+        }
+
+        if let Some(config) = obj.get("config").and_then(|value| value.as_str()) {
             let config_path = codex_dir.join("config.toml");
             std::fs::write(&config_path, config)?;
         }
@@ -533,6 +554,24 @@ pub fn read_live_settings(
             let config_path = codex_dir.join("config.toml");
 
             let auth: Value = if auth_path.exists() {
+                serde_json::from_str(&std::fs::read_to_string(&auth_path)?)?
+            } else {
+                json!({})
+            };
+            let config = if config_path.exists() {
+                std::fs::read_to_string(&config_path)?
+            } else {
+                String::new()
+            };
+
+            Ok(json!({ "auth": auth, "config": config }))
+        }
+        AppType::Lime => {
+            let lime_dir = home.join(".lime");
+            let auth_path = lime_dir.join("auth.json");
+            let config_path = lime_dir.join("config.toml");
+
+            let auth: Value = if auth_path.exists() {
                 let content = std::fs::read_to_string(&auth_path)?;
                 serde_json::from_str(&content)?
             } else {
@@ -583,7 +622,6 @@ pub fn read_live_settings(
                 "config": config
             }))
         }
-        AppType::Lime => Ok(json!({})),
     }
 }
 

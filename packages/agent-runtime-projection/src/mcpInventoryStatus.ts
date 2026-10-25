@@ -74,18 +74,28 @@ function issue(
 }
 
 function sanitizeMcpName(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
-function paramsRecord(input: AgentUiMcpInventoryStatusProjectionInput): Record<string, unknown> {
+function paramsRecord(
+  input: AgentUiMcpInventoryStatusProjectionInput,
+): Record<string, unknown> {
   return readRecord(input.params) ?? {};
 }
 
-function responseRecord(input: AgentUiMcpInventoryStatusProjectionInput): Record<string, unknown> {
+function responseRecord(
+  input: AgentUiMcpInventoryStatusProjectionInput,
+): Record<string, unknown> {
   return readRecord(input.response) ?? {};
 }
 
-function responseData(input: AgentUiMcpInventoryStatusProjectionInput): Record<string, unknown>[] {
+function responseData(
+  input: AgentUiMcpInventoryStatusProjectionInput,
+): Record<string, unknown>[] {
   const response = responseRecord(input);
   const data = response.data ?? response.servers;
   return Array.isArray(data)
@@ -101,7 +111,9 @@ function normalizeDetail(value: string | undefined): AgentUiMcpInventoryDetail {
     : "full";
 }
 
-function toolRecords(server: Record<string, unknown>): Array<[string, Record<string, unknown>]> {
+function toolRecords(
+  server: Record<string, unknown>,
+): Array<[string, Record<string, unknown>]> {
   const tools = readRecord(server.tools);
   if (tools) {
     return Object.entries(tools)
@@ -139,7 +151,8 @@ function buildServerSnapshot(
 ): AgentUiMcpInventoryServerSnapshot | undefined {
   const rawName = readStringField(server, ["name"]);
   if (!rawName) return undefined;
-  const serverInfo = readRecord(server.serverInfo) ?? readRecord(server.server_info);
+  const serverInfo =
+    readRecord(server.serverInfo) ?? readRecord(server.server_info);
   const tools = toolRecords(server)
     .map(([name, record]) => buildToolSnapshot(name, record))
     .filter((item): item is AgentUiMcpInventoryToolSnapshot => Boolean(item));
@@ -160,10 +173,15 @@ function buildServerSnapshot(
   } satisfies AgentUiMcpInventoryServerSnapshot);
 }
 
-function collisionGroups(servers: AgentUiMcpInventoryServerSnapshot[]): Record<string, string[]> {
+function collisionGroups(
+  servers: AgentUiMcpInventoryServerSnapshot[],
+): Record<string, string[]> {
   const groups = new Map<string, string[]>();
   for (const server of servers) {
-    groups.set(server.collisionKey, [...(groups.get(server.collisionKey) ?? []), server.rawName]);
+    groups.set(server.collisionKey, [
+      ...(groups.get(server.collisionKey) ?? []),
+      server.rawName,
+    ]);
   }
   return Object.fromEntries(
     Array.from(groups.entries()).filter(([, names]) => names.length > 1),
@@ -176,7 +194,11 @@ function validateSnapshot(
   const issues: AgentUiMcpInventoryIssue[] = [];
   if (snapshot.serverCount === 0) {
     issues.push(
-      issue("missing_response_data", "$.response.data", "MCP inventory status requires response data."),
+      issue(
+        "missing_response_data",
+        "$.response.data",
+        "MCP inventory status requires response data.",
+      ),
     );
   }
   snapshot.servers.forEach((server, serverIndex) => {
@@ -225,11 +247,13 @@ function validateSnapshot(
   return issues;
 }
 
-function runtimeStatus(issues: readonly AgentUiMcpInventoryIssue[]): AgentUiRuntimeStatus {
+function runtimeStatus(
+  issues: readonly AgentUiMcpInventoryIssue[],
+): AgentUiRuntimeStatus {
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexMcpInventoryStatusSnapshot(
+export function extractMcpInventoryStatusSnapshot(
   input: AgentUiMcpInventoryStatusProjectionInput,
 ): AgentUiMcpInventoryStatusSnapshot {
   const params = paramsRecord(input);
@@ -244,7 +268,10 @@ export function extractCodexMcpInventoryStatusSnapshot(
     threadId,
     scopedToThread: Boolean(threadId),
     serverCount: servers.length,
-    toolCount: servers.reduce((count, server) => count + server.tools.length, 0),
+    toolCount: servers.reduce(
+      (count, server) => count + server.tools.length,
+      0,
+    ),
     authOnly: detail === "toolsAndAuthOnly",
     hasNameCollisions: Object.keys(groups).length > 0,
     collisionGroups: groups,
@@ -256,11 +283,11 @@ export function extractCodexMcpInventoryStatusSnapshot(
   };
 }
 
-export function buildCodexMcpInventoryStatusProjectionEvent(
+export function buildMcpInventoryStatusProjectionEvent(
   input: AgentUiMcpInventoryStatusProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexMcpInventoryStatusSnapshot(input);
+  const snapshot = extractMcpInventoryStatusSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",

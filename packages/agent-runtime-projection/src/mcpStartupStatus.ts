@@ -14,7 +14,11 @@ import {
   readStringField,
 } from "./normalization.js";
 
-export type AgentUiMcpStartupState = "starting" | "ready" | "failed" | "cancelled";
+export type AgentUiMcpStartupState =
+  | "starting"
+  | "ready"
+  | "failed"
+  | "cancelled";
 
 export type AgentUiMcpStartupEventKind =
   | "update"
@@ -132,11 +136,15 @@ function recordArray(value: unknown): Record<string, unknown>[] {
     .filter((item): item is Record<string, unknown> => Boolean(item));
 }
 
-function readExpectedServers(input: AgentUiMcpStartupStatusProjectionInput): string[] {
+function readExpectedServers(
+  input: AgentUiMcpStartupStatusProjectionInput,
+): string[] {
   return normalizeProjectionIdList(readStringArray(input.expectedServers));
 }
 
-function normalizeKind(value: string | undefined): AgentUiMcpStartupEventKind | undefined {
+function normalizeKind(
+  value: string | undefined,
+): AgentUiMcpStartupEventKind | undefined {
   switch (value) {
     case "mcp_startup_update":
     case "mcpServer/startupStatus/updated":
@@ -165,7 +173,9 @@ function normalizeKind(value: string | undefined): AgentUiMcpStartupEventKind | 
   }
 }
 
-function normalizeState(value: string | undefined): AgentUiMcpStartupState | undefined {
+function normalizeState(
+  value: string | undefined,
+): AgentUiMcpStartupState | undefined {
   const normalized = value?.trim().toLowerCase();
   switch (normalized) {
     case "starting":
@@ -182,11 +192,15 @@ function normalizeState(value: string | undefined): AgentUiMcpStartupState | und
   }
 }
 
-function readStatusRecord(record: Record<string, unknown>): Record<string, unknown> | undefined {
+function readStatusRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   return readRecord(record.status) ?? readRecord(record.state);
 }
 
-function readEventState(record: Record<string, unknown>): AgentUiMcpStartupState | undefined {
+function readEventState(
+  record: Record<string, unknown>,
+): AgentUiMcpStartupState | undefined {
   const statusRecord = readStatusRecord(record);
   return normalizeState(
     readStringField(statusRecord, ["state", "status"]) ??
@@ -194,15 +208,22 @@ function readEventState(record: Record<string, unknown>): AgentUiMcpStartupState
   );
 }
 
-function readFailureReason(record: Record<string, unknown>): string | undefined {
+function readFailureReason(
+  record: Record<string, unknown>,
+): string | undefined {
   const statusRecord = readStatusRecord(record);
   return (
-    readStringField(statusRecord, ["reason", "failureReason", "failure_reason"]) ??
-    readStringField(record, ["failureReason", "failure_reason", "reason"])
+    readStringField(statusRecord, [
+      "reason",
+      "failureReason",
+      "failure_reason",
+    ]) ?? readStringField(record, ["failureReason", "failure_reason", "reason"])
   );
 }
 
-function readFailureList(value: unknown): Array<{ server: string; error?: string }> {
+function readFailureList(
+  value: unknown,
+): Array<{ server: string; error?: string }> {
   const failures: Array<{ server: string; error?: string }> = [];
   for (const record of recordArray(value)) {
     const server = readStringField(record, ["server", "name"]);
@@ -217,9 +238,17 @@ function readFailureList(value: unknown): Array<{ server: string; error?: string
   return failures;
 }
 
-function normalizeEvent(record: Record<string, unknown>): AgentUiMcpStartupNormalizedEvent | undefined {
+function normalizeEvent(
+  record: Record<string, unknown>,
+): AgentUiMcpStartupNormalizedEvent | undefined {
   const kind = normalizeKind(
-    readStringField(record, ["kind", "type", "event", "eventClass", "event_class"]),
+    readStringField(record, [
+      "kind",
+      "type",
+      "event",
+      "eventClass",
+      "event_class",
+    ]),
   );
   if (!kind) return undefined;
   const statusRecord = readStatusRecord(record);
@@ -234,30 +263,45 @@ function normalizeEvent(record: Record<string, unknown>): AgentUiMcpStartupNorma
     failureReason: readFailureReason(record),
     ready: normalizeProjectionIdList(readStringArray(record.ready)),
     failed: readFailureList(record.failed),
-    cancelled: normalizeProjectionIdList(
-      [...readStringArray(record.cancelled), ...readStringArray(record.canceled)],
-    ),
+    cancelled: normalizeProjectionIdList([
+      ...readStringArray(record.cancelled),
+      ...readStringArray(record.canceled),
+    ]),
     roundId: readStringField(record, ["roundId", "round_id", "startupRoundId"]),
   } satisfies AgentUiMcpStartupNormalizedEvent);
 }
 
-function normalizeEvents(input: AgentUiMcpStartupStatusProjectionInput): AgentUiMcpStartupNormalizedEvent[] {
+function normalizeEvents(
+  input: AgentUiMcpStartupStatusProjectionInput,
+): AgentUiMcpStartupNormalizedEvent[] {
   return recordArray(input.events)
     .map(normalizeEvent)
-    .filter((event): event is AgentUiMcpStartupNormalizedEvent => Boolean(event));
+    .filter((event): event is AgentUiMcpStartupNormalizedEvent =>
+      Boolean(event),
+    );
 }
 
-function observedState(input: AgentUiMcpStartupStatusProjectionInput): AgentUiMcpStartupObservedState {
+function observedState(
+  input: AgentUiMcpStartupStatusProjectionInput,
+): AgentUiMcpStartupObservedState {
   const observed = readRecord(input.observed);
   return compactProjectionFields({
-    taskRunningAfterStartup: readBooleanField(observed, ["taskRunningAfterStartup"]),
+    taskRunningAfterStartup: readBooleanField(observed, [
+      "taskRunningAfterStartup",
+    ]),
     statusHeader: readStringField(observed, ["statusHeader", "header"]),
-    appliedOtherThreadUpdate: readBooleanField(observed, ["appliedOtherThreadUpdate"]),
-    reopenedFromStaleUpdate: readBooleanField(observed, ["reopenedFromStaleUpdate"]),
+    appliedOtherThreadUpdate: readBooleanField(observed, [
+      "appliedOtherThreadUpdate",
+    ]),
+    reopenedFromStaleUpdate: readBooleanField(observed, [
+      "reopenedFromStaleUpdate",
+    ]),
   } satisfies AgentUiMcpStartupObservedState);
 }
 
-function assistantItemCount(input: AgentUiMcpStartupStatusProjectionInput): number {
+function assistantItemCount(
+  input: AgentUiMcpStartupStatusProjectionInput,
+): number {
   return Array.isArray(input.assistantItems) ? input.assistantItems.length : 0;
 }
 
@@ -282,7 +326,9 @@ function serverSnapshots(
   );
 }
 
-function startupHeader(servers: readonly AgentUiMcpStartupServerSnapshot[]): string | undefined {
+function startupHeader(
+  servers: readonly AgentUiMcpStartupServerSnapshot[],
+): string | undefined {
   const starting = servers
     .filter((server) => server.state === "starting")
     .map((server) => server.server)
@@ -302,7 +348,10 @@ function addFailureWarning(
 ): void {
   const message = error ?? `MCP client for \`${server}\` failed to start`;
   const duplicate = warnings.some(
-    (warning) => !warning.summary && warning.server === server && warning.message === message,
+    (warning) =>
+      !warning.summary &&
+      warning.server === server &&
+      warning.message === message,
   );
   if (!duplicate) {
     warnings.push({ server, message, summary: false });
@@ -320,7 +369,8 @@ function finishStartup(
   for (const server of serverNames) {
     const state = states.get(server)?.state;
     if (state === "failed") failed.push(server);
-    if (state === "cancelled" || state === "starting" || !state) cancelled.push(server);
+    if (state === "cancelled" || state === "starting" || !state)
+      cancelled.push(server);
   }
   failed.sort();
   cancelled.sort();
@@ -400,18 +450,30 @@ function validateSnapshot(
   const issues: AgentUiMcpStartupIssue[] = [];
   if (!snapshot.activeThreadId) {
     issues.push(
-      issue("missing_active_thread", "$.activeThreadId", "MCP startup projection requires an active thread id."),
+      issue(
+        "missing_active_thread",
+        "$.activeThreadId",
+        "MCP startup projection requires an active thread id.",
+      ),
     );
   }
   snapshot.servers.forEach((server, serverIndex) => {
     if (!server.server) {
       issues.push(
-        issue("missing_startup_server", `$.servers[${serverIndex}].server`, "MCP startup update requires a server name."),
+        issue(
+          "missing_startup_server",
+          `$.servers[${serverIndex}].server`,
+          "MCP startup update requires a server name.",
+        ),
       );
     }
     if (!server.state) {
       issues.push(
-        issue("missing_startup_state", `$.servers[${serverIndex}].state`, "MCP startup update requires a startup state."),
+        issue(
+          "missing_startup_state",
+          `$.servers[${serverIndex}].state`,
+          "MCP startup update requires a startup state.",
+        ),
       );
     }
   });
@@ -444,7 +506,10 @@ function validateSnapshot(
       ),
     );
   }
-  if (snapshot.activeTurnRunning && snapshot.observed.taskRunningAfterStartup === false) {
+  if (
+    snapshot.activeTurnRunning &&
+    snapshot.observed.taskRunningAfterStartup === false
+  ) {
     issues.push(
       issue(
         "startup_complete_cleared_running_task",
@@ -506,7 +571,7 @@ function runtimeStatusForSnapshot(
   return "completed";
 }
 
-export function extractCodexMcpStartupStatusSnapshot(
+export function extractMcpStartupStatusSnapshot(
   input: AgentUiMcpStartupStatusProjectionInput,
 ): AgentUiMcpStartupStatusSnapshot {
   const activeThreadId = definedString(input.activeThreadId ?? undefined);
@@ -585,7 +650,11 @@ export function extractCodexMcpStartupStatusSnapshot(
     observed: observedState(input),
   };
   const validationIssues = validateSnapshot(base);
-  const runtimeStatus = runtimeStatusForSnapshot(startupActive, activeTurnRunning, validationIssues);
+  const runtimeStatus = runtimeStatusForSnapshot(
+    startupActive,
+    activeTurnRunning,
+    validationIssues,
+  );
   return {
     ...base,
     runtimeStatus,
@@ -593,33 +662,37 @@ export function extractCodexMcpStartupStatusSnapshot(
   };
 }
 
-export function buildCodexMcpStartupStatusProjectionEvent(
+export function buildMcpStartupStatusProjectionEvent(
   input: AgentUiMcpStartupStatusProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexMcpStartupStatusSnapshot(input);
+  const snapshot = extractMcpStartupStatusSnapshot(input);
   return compactProjectionFields({
     type: "context.changed",
     sourceType: "mcp_startup_status_projection",
     sequence: context.sequence,
     timestamp: definedString(input.timestamp ?? undefined) ?? context.timestamp,
     sessionId: definedString(context.sessionId ?? undefined),
-    threadId: snapshot.activeThreadId ?? definedString(context.threadId ?? undefined),
+    threadId:
+      snapshot.activeThreadId ?? definedString(context.threadId ?? undefined),
     runId: definedString(context.runId ?? undefined),
     turnId: definedString(context.turnId ?? undefined),
     owner: "runtime",
     scope: "thread",
-    phase: snapshot.validationIssues.length > 0
-      ? "failed"
-      : snapshot.startupActive
-        ? "preparing"
-        : "completed",
+    phase:
+      snapshot.validationIssues.length > 0
+        ? "failed"
+        : snapshot.startupActive
+          ? "preparing"
+          : "completed",
     surface: "runtime_status",
     persistence: "ephemeral_live",
     control: "open_detail",
     runtimeEntity: "agent_turn",
     runtimeStatus: snapshot.runtimeStatus,
-    latestTurnStatus: snapshot.activeTurnRunning ? "running" : snapshot.runtimeStatus,
+    latestTurnStatus: snapshot.activeTurnRunning
+      ? "running"
+      : snapshot.runtimeStatus,
     payload: {
       mcpStartupEvent: "status",
       activeThreadId: snapshot.activeThreadId,

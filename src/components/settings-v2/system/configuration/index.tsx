@@ -156,7 +156,7 @@ export function ConfigurationPanel() {
       if (kind === "config") {
         const cwd =
           selected?.name.type === "project"
-            ? selected.name.dotCodexFolder.replace(/[\\/]\.lime$/, "")
+            ? selected.name.dotLimeFolder.replace(/[\\/]\.lime$/, "")
             : state.cwd;
         const targets = await openIn.getTargets({
           path: file!,
@@ -238,7 +238,7 @@ export function ConfigurationPanel() {
                   value: configLayerScope(layer),
                   label:
                     layer.name.type === "project"
-                      ? (layer.name.dotCodexFolder
+                      ? (layer.name.dotLimeFolder
                           .replaceAll("\\", "/")
                           .split("/")
                           .at(-2) ??

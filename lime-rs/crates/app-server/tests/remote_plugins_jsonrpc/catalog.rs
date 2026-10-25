@@ -89,7 +89,7 @@ async fn catalog_remote_changes_override_stale_materialization_without_mutating_
     rpc(&app, "plugin/install", detail("opaque~install")).await;
     let manifest = temp
         .path()
-        .join("agent/plugins/cache/workspace-directory/research/.codex-remote-plugin-install.json");
+        .join("agent/plugins/cache/workspace-directory/research/.lime-remote-plugin-install.json");
     let bytes = std::fs::read(&manifest).unwrap();
     let before = rpc(&app, "plugin/installed", Some(json!({}))).await;
     assert_eq!(before["marketplaces"][0]["plugins"][0]["enabled"], true);

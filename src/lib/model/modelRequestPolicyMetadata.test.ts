@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildModelNativeToolPolicy } from "./modelNativeToolPolicy";
+import { buildModelInputModalityPolicy } from "./modelInputModalityPolicy";
 import {
   buildModelRequestPolicyMetadata,
   mergeModelRequestPolicyMetadata,
@@ -66,6 +67,7 @@ describe("modelRequestPolicyMetadata", () => {
 
   it("只把 selected registry model 的 policy 写入 request metadata", () => {
     const policyModel = modelFixture({
+      input_modality_policy: buildModelInputModalityPolicy(null),
       responses_policy: buildModelResponsesPolicy({
         use_responses_lite: true,
       }),
@@ -95,6 +97,15 @@ describe("modelRequestPolicyMetadata", () => {
       source: "model_registry",
       provider_id: "openai",
       model_id: "gpt-4.1",
+      input_modality_policy: {
+        input_modalities: ["text", "image"],
+        send_gate_modalities: ["text", "image"],
+        unknown_input_modalities: [],
+        supports_text_input: true,
+        supports_media_input: true,
+        supports_image_input: true,
+        source: "lime_default",
+      },
       responses_policy: {
         request_mode: "responses_lite",
         requires_responses_lite_header: true,

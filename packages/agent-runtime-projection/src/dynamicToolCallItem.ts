@@ -162,7 +162,12 @@ function parseFunctionSpec(
 ): ParsedToolSpec | undefined {
   const record = readRecord(value);
   if (!record) return undefined;
-  const name = readStringField(record, ["name", "tool", "toolName", "tool_name"]);
+  const name = readStringField(record, [
+    "name",
+    "tool",
+    "toolName",
+    "tool_name",
+  ]);
   if (!name) {
     return undefined;
   }
@@ -215,12 +220,15 @@ function parseDynamicToolSpecs(
         return parsed ? [parsed] : [];
       });
     }
-    if (record.namespace !== undefined || record.exposeToContext !== undefined) {
+    if (
+      record.namespace !== undefined ||
+      record.exposeToContext !== undefined
+    ) {
       issues.push(
         issue(
           "legacy_flat_dynamic_spec",
           entryPath,
-          "Lime dynamic tools must use Codex canonical function/namespace specs.",
+          "Lime dynamic tools must use canonical function/namespace specs.",
         ),
       );
     }
@@ -242,10 +250,9 @@ function parseExtensionExecutors(
       type: "function",
       name: readStringField(record, ["name", "tool", "toolName"]),
       description: readStringField(record, ["description"]) ?? "Extension tool",
-      inputSchema:
-        inputSchema(record) ?? {
-          type: "object",
-        },
+      inputSchema: inputSchema(record) ?? {
+        type: "object",
+      },
       deferLoading: readBooleanField(record, ["deferLoading", "defer_loading"]),
     };
     const parsed = parseFunctionSpec(
@@ -279,7 +286,12 @@ function dispatchableToolRefs(value: unknown): string[] {
         "serverId",
         "server_id",
       ]);
-      const name = readStringField(record, ["name", "tool", "toolName", "tool_name"]);
+      const name = readStringField(record, [
+        "name",
+        "tool",
+        "toolName",
+        "tool_name",
+      ]);
       return name ? toolRef(namespace, name) : undefined;
     })
     .filter((ref): ref is string => Boolean(ref));
@@ -299,11 +311,7 @@ function contentItem(
     } satisfies AgentUiDynamicToolContentItemSnapshot);
   }
   if (type === "inputImage" || type === "input_image") {
-    const imageUrl = readStringField(record, [
-      "imageUrl",
-      "image_url",
-      "url",
-    ]);
+    const imageUrl = readStringField(record, ["imageUrl", "image_url", "url"]);
     return compactProjectionFields({
       type: "input_image",
       imageUrl,
@@ -317,11 +325,7 @@ function contentItem(
 function itemRecord(
   input: AgentUiDynamicToolCallProjectionInput,
 ): Record<string, unknown> {
-  return (
-    readRecord(input.dynamicToolCallItem) ??
-    readRecord(input.item) ??
-    {}
-  );
+  return readRecord(input.dynamicToolCallItem) ?? readRecord(input.item) ?? {};
 }
 
 function responseRecord(
@@ -339,8 +343,8 @@ function callContentItems(
     ...readArray(response?.contentItems ?? response?.content_items),
   ]
     .map(contentItem)
-    .filter(
-      (entry): entry is AgentUiDynamicToolContentItemSnapshot => Boolean(entry),
+    .filter((entry): entry is AgentUiDynamicToolContentItemSnapshot =>
+      Boolean(entry),
     );
 }
 
@@ -529,7 +533,11 @@ function validateCall(
     const sameName = tools.filter((tool) => tool.name === call.tool);
     const hasTopLevel = sameName.some((tool) => !tool.namespace);
     const ref = call.toolRef;
-    if (!call.namespace && sameName.some((tool) => tool.namespace) && !hasTopLevel) {
+    if (
+      !call.namespace &&
+      sameName.some((tool) => tool.namespace) &&
+      !hasTopLevel
+    ) {
       issues.push(
         issue(
           "missing_call_namespace",
@@ -564,7 +572,9 @@ function validateCall(
   }
 
   if (
-    call.contentItems.some((entry) => entry.type === "input_image" && entry.isRemoteImage) &&
+    call.contentItems.some(
+      (entry) => entry.type === "input_image" && entry.isRemoteImage,
+    ) &&
     call.status !== "failed" &&
     call.success !== false
   ) {
@@ -609,7 +619,7 @@ function phaseForStatus(status: AgentUiDynamicToolCallStatus): AgentUiPhase {
   return "acting";
 }
 
-export function extractCodexDynamicToolCallProjectionSnapshot(
+export function extractDynamicToolCallProjectionSnapshot(
   input: AgentUiDynamicToolCallProjectionInput,
 ): AgentUiDynamicToolCallProjectionSnapshot {
   const issues: AgentUiDynamicToolIssue[] = [];
@@ -619,7 +629,10 @@ export function extractCodexDynamicToolCallProjectionSnapshot(
     "$.dynamicTools",
     issues,
   );
-  const extensionTools = parseExtensionExecutors(input.extensionToolExecutors, issues);
+  const extensionTools = parseExtensionExecutors(
+    input.extensionToolExecutors,
+    issues,
+  );
   const tools = [...dynamicTools, ...extensionTools];
   const toolSnapshots = tools.map((entry) => entry.tool);
   const observedVisible = parseDynamicToolSpecs(
@@ -658,7 +671,9 @@ export function extractCodexDynamicToolCallProjectionSnapshot(
     dispatchableToolRefs: dispatchableRefs,
     call,
     namespaceQualified: Boolean(call.namespace) || !call.tool,
-    deferredToolsHidden: !deferredToolRefs.some((ref) => observedVisible.includes(ref)),
+    deferredToolsHidden: !deferredToolRefs.some((ref) =>
+      observedVisible.includes(ref),
+    ),
     extensionExecutorsReady: !issues.some(
       (entry) =>
         entry.code === "extension_executor_not_model_visible" ||
@@ -672,11 +687,11 @@ export function extractCodexDynamicToolCallProjectionSnapshot(
   };
 }
 
-export function buildCodexDynamicToolCallItemProjectionEvent(
+export function buildDynamicToolCallItemProjectionEvent(
   input: AgentUiDynamicToolCallProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexDynamicToolCallProjectionSnapshot(input);
+  const snapshot = extractDynamicToolCallProjectionSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "dynamic_tool_call_item_projection" },

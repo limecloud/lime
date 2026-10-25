@@ -1,0 +1,7 @@
+interface:
+  display_name: "Lime 复刻工程"
+  short_description: "按整树复制、REA 证据和四端门禁复刻能力并保持 Lime 品牌"
+  default_prompt: "使用 $lime-replication，先冻结来源并建立复制账本，再把整树取样直接迁入 Lime 唯一 owner；完成品牌清理、删除 upstream 中转层，并验证 macOS、Windows、Desktop、CLI、Chrome 与 Office 的真实证据。"
+
+policy:
+  allow_implicit_invocation: true

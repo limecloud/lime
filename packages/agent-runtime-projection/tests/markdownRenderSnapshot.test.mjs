@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexMarkdownRenderSnapshotProjectionEvent,
-  extractCodexMarkdownRenderProjectionSnapshot,
+  buildMarkdownRenderSnapshotProjectionEvent,
+  extractMarkdownRenderProjectionSnapshot,
 } from "../dist/index.js";
 
 const RENDERER_OWNER = "agent-markdown-renderer";
@@ -28,7 +28,12 @@ function richFileLinkBlocks(...blocks) {
   };
 }
 
-function surface(surfaceName, sourceMarkdown, renderedSnapshot, overrides = {}) {
+function surface(
+  surfaceName,
+  sourceMarkdown,
+  renderedSnapshot,
+  overrides = {},
+) {
   return {
     surface: surfaceName,
     rendererOwner: RENDERER_OWNER,
@@ -55,7 +60,11 @@ function baseInput(overrides = {}) {
         ].join("\n"),
         richBlocks(
           { type: "heading", level: 1, text: "Result" },
-          { type: "table", headers: ["file", "status"], rows: [["src/components/MessageList.tsx", "ok"]] },
+          {
+            type: "table",
+            headers: ["file", "status"],
+            rows: [["src/components/MessageList.tsx", "ok"]],
+          },
           { type: "cjk_wrap", text: "混合 width wrap" },
           { type: "mixed_width_wrap", text: "ASCII 中文" },
         ),
@@ -69,12 +78,20 @@ function baseInput(overrides = {}) {
       surface(
         "tool_output",
         ["```ts", "export const ok = true;", "```"].join("\n"),
-        richBlocks({ type: "code_fence", language: "ts", text: "export const ok = true;" }),
+        richBlocks({
+          type: "code_fence",
+          language: "ts",
+          text: "export const ok = true;",
+        }),
       ),
       surface(
         "artifact_preview",
         "See [MessageList](src/components/MessageList.tsx:42:7) for the render owner.",
-        richFileLinkBlocks({ type: "file_link", path: "src/components/MessageList.tsx", line: 42 }),
+        richFileLinkBlocks({
+          type: "file_link",
+          path: "src/components/MessageList.tsx",
+          line: 42,
+        }),
       ),
     ],
     ...overrides,
@@ -82,16 +99,13 @@ function baseInput(overrides = {}) {
 }
 
 test("markdown snapshot uses one rich renderer across assistant, tool and artifact surfaces", () => {
-  const event = buildCodexMarkdownRenderSnapshotProjectionEvent(
-    baseInput(),
-    {
-      sessionId: "session-markdown",
-      threadId: "thread-markdown",
-      turnId: "turn-markdown",
-      sequence: 321,
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildMarkdownRenderSnapshotProjectionEvent(baseInput(), {
+    sessionId: "session-markdown",
+    threadId: "thread-markdown",
+    turnId: "turn-markdown",
+    sequence: 321,
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -148,11 +162,13 @@ test("markdown snapshot uses one rich renderer across assistant, tool and artifa
   ]);
   assert.equal(event.payload.fileLinksPreserved, true);
   assert.equal(event.payload.richSnapshotPresent, true);
-  assert.deepEqual(event.refs.artifactPaths, ["src/components/MessageList.tsx"]);
+  assert.deepEqual(event.refs.artifactPaths, [
+    "src/components/MessageList.tsx",
+  ]);
 });
 
 test("pageText-only markdown assertions fail closed", () => {
-  const snapshot = extractCodexMarkdownRenderProjectionSnapshot(
+  const snapshot = extractMarkdownRenderProjectionSnapshot(
     baseInput({
       surfaces: [
         surface("assistant_final_text", "# Result", undefined, {
@@ -163,13 +179,17 @@ test("pageText-only markdown assertions fail closed", () => {
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "page_text_only_snapshot"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "page_text_only_snapshot",
+    ),
+  );
   assert.equal(snapshot.pageTextOnlyRejected, false);
   assert.equal(snapshot.richSnapshotPresent, false);
 });
 
 test("raw markdown tables and code fences cannot replace rendered block snapshots", () => {
-  const snapshot = extractCodexMarkdownRenderProjectionSnapshot(
+  const snapshot = extractMarkdownRenderProjectionSnapshot(
     baseInput({
       surfaces: [
         surface(
@@ -179,9 +199,13 @@ test("raw markdown tables and code fences cannot replace rendered block snapshot
             blocks: [{ type: "paragraph", text: "| file | status |" }],
           },
         ),
-        surface("tool_output", ["```ts", "const ok = true;", "```"].join("\n"), {
-          blocks: [{ type: "paragraph", text: "```ts" }],
-        }),
+        surface(
+          "tool_output",
+          ["```ts", "const ok = true;", "```"].join("\n"),
+          {
+            blocks: [{ type: "paragraph", text: "```ts" }],
+          },
+        ),
         ...baseInput().surfaces.slice(2),
       ],
     }),
@@ -205,18 +229,22 @@ test("file links must preserve path and line metadata", () => {
       fileLinks: [{ path: "src/components/MessageList.tsx" }],
     },
   );
-  const snapshot = extractCodexMarkdownRenderProjectionSnapshot(
+  const snapshot = extractMarkdownRenderProjectionSnapshot(
     baseInput({
       surfaces: [...baseInput().surfaces.slice(0, 2), artifact],
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "file_link_metadata_lost"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "file_link_metadata_lost",
+    ),
+  );
   assert.equal(snapshot.fileLinksPreserved, false);
 });
 
 test("markdown renderer owner must be common across all surfaces", () => {
-  const snapshot = extractCodexMarkdownRenderProjectionSnapshot(
+  const snapshot = extractMarkdownRenderProjectionSnapshot(
     baseInput({
       surfaces: [
         baseInput().surfaces[0],
@@ -229,6 +257,10 @@ test("markdown renderer owner must be common across all surfaces", () => {
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "common_renderer_owner_missing"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "common_renderer_owner_missing",
+    ),
+  );
   assert.equal(snapshot.commonRendererOwner, false);
 });

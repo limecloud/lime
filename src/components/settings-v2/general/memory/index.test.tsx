@@ -86,10 +86,7 @@ it("projects two switches and instructions without the old dashboard", async () 
   expect(container.querySelector('[role="tablist"]')).toBeNull();
   expect(container.textContent).toContain("Custom instructions");
   expect([...container.querySelectorAll("a")].map((link) => link.href)).toEqual(
-    [
-      "https://developers.openai.com/codex/memories",
-      "https://developers.openai.com/codex/guides/agents-md",
-    ],
+    ["https://limecloud.github.io/lime/", "https://limecloud.github.io/lime/"],
   );
   expect(api.readInstructions).not.toHaveBeenCalled();
 });

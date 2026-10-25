@@ -132,7 +132,9 @@ const CONTRACTS: readonly AgentUiMultiAgentToolSchemaContract[] = [
   },
 ];
 
-const CONTRACT_BY_NAME = new Map(CONTRACTS.map((contract) => [contract.name, contract]));
+const CONTRACT_BY_NAME = new Map(
+  CONTRACTS.map((contract) => [contract.name, contract]),
+);
 
 const LEGACY_MULTI_AGENT_TOOL_NAMES = new Set([
   "Agent",
@@ -161,7 +163,9 @@ const LEGACY_MULTI_AGENT_TOOL_NAMES = new Set([
 
 const RUST_USIZE_MAX_DECIMAL = "18446744073709551615";
 
-function normalizedToolName(value: string | null | undefined): string | undefined {
+function normalizedToolName(
+  value: string | null | undefined,
+): string | undefined {
   return definedString(value);
 }
 
@@ -197,15 +201,17 @@ function issue(
   return { code, path, message };
 }
 
-export function listCodexMultiAgentToolSchemaContracts(): readonly AgentUiMultiAgentToolSchemaContract[] {
+export function listMultiAgentToolSchemaContracts(): readonly AgentUiMultiAgentToolSchemaContract[] {
   return CONTRACTS;
 }
 
-export function isCodexMultiAgentToolName(
+export function isMultiAgentToolName(
   toolName: string | null | undefined,
 ): toolName is AgentUiMultiAgentToolName {
   const normalized = normalizedToolName(toolName);
-  return Boolean(normalized && CONTRACT_BY_NAME.has(normalized as AgentUiMultiAgentToolName));
+  return Boolean(
+    normalized && CONTRACT_BY_NAME.has(normalized as AgentUiMultiAgentToolName),
+  );
 }
 
 export function isLegacyMultiAgentToolName(
@@ -215,7 +221,7 @@ export function isLegacyMultiAgentToolName(
   return Boolean(normalized && LEGACY_MULTI_AGENT_TOOL_NAMES.has(normalized));
 }
 
-export function getCodexMultiAgentToolSchemaContract(
+export function getMultiAgentToolSchemaContract(
   toolName: string | null | undefined,
 ): AgentUiMultiAgentToolSchemaContract | undefined {
   const normalized = normalizedToolName(toolName);
@@ -223,31 +229,33 @@ export function getCodexMultiAgentToolSchemaContract(
   return CONTRACT_BY_NAME.get(normalized as AgentUiMultiAgentToolName);
 }
 
-export function validateCodexMultiAgentToolSchema(
+export function validateMultiAgentToolSchema(
   input: AgentUiMultiAgentToolSchemaValidationInput,
 ): AgentUiMultiAgentToolSchemaIssue[] {
   const path = input.path ?? "$";
   const toolName = normalizedToolName(input.toolName);
   if (!toolName) {
-    return [issue("unknown_tool", `${path}.toolName`, "Team tool name is required.")];
+    return [
+      issue("unknown_tool", `${path}.toolName`, "Team tool name is required."),
+    ];
   }
   if (isLegacyMultiAgentToolName(toolName)) {
     return [
       issue(
         "legacy_tool_name",
         `${path}.toolName`,
-        `${toolName} is a legacy Lime/Agent team tool name; use Codex v2 multi-agent tools instead.`,
+        `${toolName} is a legacy Lime/Agent team tool name; use current v2 multi-agent tools instead.`,
       ),
     ];
   }
 
-  const contract = getCodexMultiAgentToolSchemaContract(toolName);
+  const contract = getMultiAgentToolSchemaContract(toolName);
   if (!contract) {
     return [
       issue(
         "unknown_tool",
         `${path}.toolName`,
-        `${toolName} is not a Codex v2 multi-agent tool.`,
+        `${toolName} is not a current v2 multi-agent tool.`,
       ),
     ];
   }
@@ -255,7 +263,11 @@ export function validateCodexMultiAgentToolSchema(
   const args = readRecord(input.input) ?? {};
   const issues: AgentUiMultiAgentToolSchemaIssue[] = [];
   for (const field of contract.requiredInputFields) {
-    if (args[field] === undefined || args[field] === null || args[field] === "") {
+    if (
+      args[field] === undefined ||
+      args[field] === null ||
+      args[field] === ""
+    ) {
       issues.push(
         issue(
           "missing_required_field",
@@ -358,7 +370,7 @@ function resolveStatus(
 function toolNameForProjection(
   input: AgentUiMultiAgentToolSchemaProjectionInput,
 ): AgentUiMultiAgentToolName | undefined {
-  return getCodexMultiAgentToolSchemaContract(input.toolName)?.name;
+  return getMultiAgentToolSchemaContract(input.toolName)?.name;
 }
 
 function projectionTargetId(
@@ -373,19 +385,20 @@ function projectionTargetId(
   );
 }
 
-export function buildCodexMultiAgentToolSchemaProjectionEvent(
+export function buildMultiAgentToolSchemaProjectionEvent(
   input: AgentUiMultiAgentToolSchemaProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent | undefined {
-  const contract = getCodexMultiAgentToolSchemaContract(input.toolName);
+  const contract = getMultiAgentToolSchemaContract(input.toolName);
   if (!contract) {
     return undefined;
   }
-  const validationIssues = validateCodexMultiAgentToolSchema({
+  const validationIssues = validateMultiAgentToolSchema({
     toolName: input.toolName,
     input: input.input,
   });
-  const runtimeStatus = validationIssues.length > 0 ? "failed" : resolveStatus(input);
+  const runtimeStatus =
+    validationIssues.length > 0 ? "failed" : resolveStatus(input);
   const taskId = projectionTargetId(input);
   const timestamp =
     definedString(input.timestamp ?? undefined) ?? context.timestamp;

@@ -14,6 +14,9 @@ use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
+#[path = "output.rs"]
+mod output;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RuntimeCodeModeCellId(String);
 
@@ -125,88 +128,8 @@ impl RuntimeCodeModeResponse {
     }
 
     pub fn into_tool_result_with_max_tokens(self, max: usize) -> RuntimeCodeModeToolResult {
-        let result = match self {
-            Self::Yielded {
-                cell_id,
-                content_items,
-                ..
-            } => RuntimeCodeModeToolResult {
-                output: format!(
-                    "Script running with cell ID {cell_id}\nOutput:\n{}",
-                    format_content_items(&content_items)
-                ),
-                cell_id,
-                success: true,
-                error: None,
-            },
-            Self::Terminated {
-                cell_id,
-                content_items,
-                ..
-            } => RuntimeCodeModeToolResult {
-                cell_id,
-                success: true,
-                output: format!(
-                    "Script terminated\nOutput:\n{}",
-                    format_content_items(&content_items)
-                ),
-                error: None,
-            },
-            Self::Result {
-                cell_id,
-                content_items,
-                error_text,
-                ..
-            } => {
-                let success = error_text.is_none();
-                RuntimeCodeModeToolResult {
-                    cell_id,
-                    success,
-                    output: format!(
-                        "Script {}\nOutput:\n{}{}",
-                        if success { "completed" } else { "failed" },
-                        format_content_items(&content_items),
-                        error_text
-                            .as_deref()
-                            .map(|error| format!("\nScript error:\n{error}"))
-                            .unwrap_or_default()
-                    ),
-                    error: error_text,
-                }
-            }
-        };
-        let limit = max.max(1).saturating_mul(4);
-        if result.output.chars().count() > limit {
-            RuntimeCodeModeToolResult {
-                output: format!(
-                    "{}\n[output truncated]",
-                    result.output.chars().take(limit).collect::<String>()
-                ),
-                ..result
-            }
-        } else {
-            result
-        }
+        output::tool_result(self, max)
     }
-}
-
-fn format_content_items(items: &[FunctionCallOutputContentItem]) -> String {
-    items
-        .iter()
-        .map(|item| match item {
-            FunctionCallOutputContentItem::InputText { text } => text.clone(),
-            FunctionCallOutputContentItem::InputImage { image_url, detail } => serde_json::json!({
-                "type": "input_image",
-                "image_url": image_url,
-                "detail": detail,
-            })
-            .to_string(),
-            FunctionCallOutputContentItem::InputAudio { audio_url } => {
-                serde_json::json!({"type": "input_audio", "audio_url": audio_url}).to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,16 +137,21 @@ pub struct RuntimeCodeModeToolResult {
     pub cell_id: RuntimeCodeModeCellId,
     pub success: bool,
     pub output: String,
+    pub content_items: Vec<FunctionCallOutputContentItem>,
     pub error: Option<String>,
 }
 
 impl RuntimeCodeModeToolResult {
     pub fn failure(cell_id: RuntimeCodeModeCellId, error: impl Into<String>) -> Self {
         let error = error.into();
+        let output = format!("Script failed\nOutput:\n\nScript error:\n{error}");
         Self {
             cell_id,
             success: false,
-            output: format!("Script failed\nOutput:\n\nScript error:\n{error}"),
+            content_items: vec![FunctionCallOutputContentItem::InputText {
+                text: output.clone(),
+            }],
+            output,
             error: Some(error),
         }
     }

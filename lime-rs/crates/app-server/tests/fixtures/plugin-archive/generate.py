@@ -80,7 +80,7 @@ def main():
         cases.append(case)
 
     end = bytes(1024)
-    path = ".codex-plugin/plugin.json"
+    path = ".lime-plugin/plugin.json"
     base = entry(path, native())
     standard = b'{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"example"}'
     add("native-root-dotfiles", entry("./", kind=b"5") + base + entry(".hidden", b"hidden") + end,
@@ -154,7 +154,7 @@ def main():
     add("depth-over-limit", pax_path("/".join(["a"] * 257), b"") + end, False)
     manifests = [
         ("root", "plugin.json"),
-        ("codex", ".codex-plugin/plugin.json"),
+        ("lime", ".lime-plugin/plugin.json"),
         ("claude", ".claude-plugin/plugin.json"),
         ("cursor", ".cursor-plugin/plugin.json"),
     ]

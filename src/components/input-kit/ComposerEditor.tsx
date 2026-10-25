@@ -10,6 +10,7 @@ import type { ComposerController } from "./ComposerController";
 import { handleComposerKeyDown, isComposerComposing } from "./composerKeymap";
 import type { ComposerSelection } from "./types";
 import { CodeBlockToolbars } from "./CodeBlockToolbar";
+import type { ComposerEnterBehavior } from "@/lib/api/appConfigTypes";
 
 export interface ComposerEditorHandle {
   getElement(): HTMLElement | null;
@@ -56,6 +57,7 @@ export interface ComposerEditorProps {
   onEscape?: () => boolean | void;
   onCompositionStateChange?: (composing: boolean) => void;
   sendOnEnter?: boolean;
+  enterBehavior?: ComposerEnterBehavior;
 }
 
 export function ComposerEditor(props: ComposerEditorProps) {
@@ -142,6 +144,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
           onSubmit: propsRef.current.onSubmit,
           onEscape: propsRef.current.onEscape,
           sendOnEnter: propsRef.current.sendOnEnter ?? true,
+          enterBehavior: propsRef.current.enterBehavior ?? "enter",
         });
       },
       handleDOMEvents: {

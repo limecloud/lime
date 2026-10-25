@@ -109,9 +109,13 @@ describe("MCP config Electron fixture smoke guard", () => {
     expect(evidenceCore).toContain('"mcpServer/list"');
     expect(content).toContain("MCP_CREATE_LIST_REQUIRED_METHODS");
     expect(content).not.toContain("[...REQUIRED_METHODS]");
-    expect(content).toContain("mcp-config-preset-context7");
+    expect(content).toContain("plugins-settings-tab-mcps");
+    expect(content).toContain('selectOption("streamable_http")');
     expect(content).toContain("mcp-config-connection-url");
-    expect(content).toContain("mcp-config-env-header-env-var");
+    expect(content).toContain("mcp-config-env-header-key");
+    expect(content).toContain("mcp-config-env-header-value");
+    expect(content).not.toContain("mcp-config-preset-context7");
+    expect(content).not.toContain("mcp-config-json");
     expect(content).toContain("mcp-config-save");
     expect(evidenceCore).toContain("LEGACY_MCP_COMMANDS");
     expect(content).not.toContain("mockPriorityCommands");

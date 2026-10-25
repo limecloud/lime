@@ -386,14 +386,14 @@ fn custom_responses_tools_preserve_freeform_history_and_fail_closed_elsewhere() 
 
     let mut gateway = official.clone();
     gateway.base_url = Some("https://gateway.example.com/v1".to_string());
-    let error = responses_request(
+    let gateway_responses = responses_request(
         &gateway,
         &request,
         &RuntimeReplyProviderRequestWireShape::default(),
         &BTreeMap::new(),
     )
-    .expect_err("gateway custom tools must fail closed");
-    assert!(error.message.contains("custom tool"));
+    .expect("client-side custom tools support third-party Responses endpoints");
+    assert_eq!(gateway_responses, responses);
     let error = chat_completions_request(
         &gateway,
         &request,

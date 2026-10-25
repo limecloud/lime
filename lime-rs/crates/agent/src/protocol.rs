@@ -85,10 +85,10 @@ pub struct AgentTokenUsage {
     pub cache_creation_input_tokens: Option<u32>,
     #[serde(
         default,
-        rename = "codex_rollout_budget_units",
+        rename = "lime_rollout_budget_units",
         skip_serializing_if = "Option::is_none"
     )]
-    pub codex_rollout_budget_units: Option<serde_json::Number>,
+    pub lime_rollout_budget_units: Option<serde_json::Number>,
 }
 
 pub type AgentContextTraceStep = agent_protocol::context_trace::ContextTraceStep;

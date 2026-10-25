@@ -172,7 +172,7 @@ describe("project Gate candidate snapshot", () => {
         schema_version: 3,
         run_id: "candidate-test",
         ...planOnly,
-        codex_reference_commit: "d".repeat(40),
+        reference_commit: "d".repeat(40),
         blocking_trackers: [
           {
             path: "internal/roadmap/codeximport/implementation-tracker.md",
@@ -211,7 +211,7 @@ describe("project Gate candidate snapshot", () => {
     expect(changed.snapshot_file_count).toBe(2);
   }, 45_000);
 
-  it("pins a clean Codex reference commit and rejects dirty reference state", () => {
+  it("pins a clean reference commit and rejects dirty reference state", () => {
     const referenceRoot = makeRepo();
     const expectedCommit = execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: referenceRoot,
@@ -225,9 +225,47 @@ describe("project Gate candidate snapshot", () => {
       "utf8",
     );
     expect(() => captureGitReferenceCommit(referenceRoot)).toThrow(
-      "Codex reference 仓库存在未提交改动",
+      "参考源码仓库存在未提交改动",
     );
   }, 20_000);
+
+  it.each(["flag", "env"])(
+    "%s selects the reference repository at the CLI boundary",
+    (source) => {
+      const root = makeRepo(),
+        reference = makeRepo();
+      const manifest = "internal/test/project-gate-surfaces.manifest.json";
+      fs.mkdirSync(path.dirname(path.join(root, manifest)), {
+        recursive: true,
+      });
+      fs.copyFileSync(path.resolve(manifest), path.join(root, manifest));
+      fs.writeFileSync(
+        path.join(reference, "dirty.txt"),
+        "uncommitted reference\n",
+      );
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.resolve("scripts/agent-qc/project-gate-candidate.mjs"),
+          "--repo-root",
+          root,
+          "--snapshot-only",
+          ...(source === "flag" ? ["--reference-repo", reference] : []),
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            LIME_REFERENCE_REPO: source === "env" ? reference : "",
+          },
+        },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("参考源码仓库存在未提交改动");
+      expect(result.stdout).toBe("");
+    },
+    20_000,
+  );
 
   it("blocks candidate generation until the import owner tracker is ready", () => {
     const root = makeRepo();
@@ -316,7 +354,7 @@ describe("project Gate candidate snapshot", () => {
         schema_version: 3,
         run_id: "candidate-test",
         ...snapshot,
-        codex_reference_commit: "d".repeat(40),
+        reference_commit: "d".repeat(40),
         blocking_trackers: [
           {
             path: "internal/roadmap/codeximport/implementation-tracker.md",

@@ -24,7 +24,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_GENERIC_WRITE,
 };
 
-const PROTECTED_METADATA_NAMES: [&str; 3] = [".git", ".codex", ".agents"];
+const PROTECTED_METADATA_NAMES: [&str; 3] = [".git", ".lime", ".agents"];
 #[derive(Debug)]
 pub(super) struct AclPlan {
     read_grants: Vec<PathBuf>,

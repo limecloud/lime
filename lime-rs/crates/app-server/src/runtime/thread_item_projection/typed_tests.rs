@@ -819,7 +819,7 @@ fn canonical_display_payloads_merge_create_update_and_terminal_fields() {
                     "id": "mcp-1",
                     "type": "mcp_tool_call",
                     "callId": "call-mcp",
-                    "serverName": "codex_apps",
+                    "serverName": "lime_apps",
                     "toolName": "search",
                     "appContext": {
                         "connectorId": "calendar",
@@ -841,7 +841,7 @@ fn canonical_display_payloads_merge_create_update_and_terminal_fields() {
                     "id": "mcp-1",
                     "type": "mcp_tool_call",
                     "callId": "call-mcp",
-                    "serverName": "codex_apps",
+                    "serverName": "lime_apps",
                     "toolName": "search",
                     "output": "done"
                 }}),
@@ -941,7 +941,7 @@ fn canonical_display_payloads_merge_create_update_and_terminal_fields() {
             app_context: Some(app_context),
             mcp_app_resource_uri: Some(resource_uri),
             ..
-        } if server_name == "codex_apps"
+        } if server_name == "lime_apps"
             && tool_name == "search"
             && app_context.connector_id == "calendar"
             && app_context.link_id.as_deref() == Some("link-calendar")

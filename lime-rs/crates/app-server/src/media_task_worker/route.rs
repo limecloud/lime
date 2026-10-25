@@ -458,7 +458,7 @@ fn image_generation_endpoint_from_route(route: &Value, protocol: &str) -> Option
                 .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
             Some(image_generation_endpoint_from_dashscope_base(&base_url))
         }
-        "openai_images" | "openai_responses" | "codex_responses" => {
+        "openai_images" | "openai_responses" => {
             let base_url = route
                 .get("endpoint")
                 .and_then(|endpoint| read_value_string(endpoint, &["baseUrl", "base_url"]))?;
@@ -646,7 +646,7 @@ fn image_executor_mode_from_route(route: &Value, protocol: &str) -> &'static str
     }
 
     match protocol {
-        "openai_responses" | "codex_responses" => "responses_image_generation",
+        "openai_responses" => "responses_image_generation",
         "gemini_generate_content" => "gemini_generate_content",
         _ => "images_api",
     }
@@ -658,7 +658,7 @@ fn image_request_body_format_from_route(
 ) -> ImageGenerationRequestBodyFormat {
     if matches!(
         protocol,
-        "openai_images" | "openai_responses" | "codex_responses"
+        "openai_images" | "openai_responses"
     ) && is_agnes_image_route(route)
     {
         return ImageGenerationRequestBodyFormat::AgnesImages;
@@ -777,14 +777,14 @@ fn is_agnes_image_model_id(model_id: &str) -> bool {
 fn is_zhipu_image_route_for_protocol(route: &Value, protocol: &str) -> bool {
     matches!(
         protocol,
-        "openai_images" | "openai_responses" | "codex_responses"
+        "openai_images" | "openai_responses"
     ) && is_zhipu_image_route(route)
 }
 
 fn is_dashscope_image_route_for_protocol(route: &Value, protocol: &str) -> bool {
     matches!(
         protocol,
-        "openai_images" | "openai_responses" | "codex_responses"
+        "openai_images" | "openai_responses"
     ) && is_dashscope_image_route(route)
 }
 

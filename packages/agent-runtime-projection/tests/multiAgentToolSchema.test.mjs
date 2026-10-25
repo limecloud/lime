@@ -2,17 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexMultiAgentToolSchemaProjectionEvent,
-  getCodexMultiAgentToolSchemaContract,
-  isCodexMultiAgentToolName,
+  buildMultiAgentToolSchemaProjectionEvent,
+  getMultiAgentToolSchemaContract,
+  isMultiAgentToolName,
   isLegacyMultiAgentToolName,
-  listCodexMultiAgentToolSchemaContracts,
-  validateCodexMultiAgentToolSchema,
+  listMultiAgentToolSchemaContracts,
+  validateMultiAgentToolSchema,
 } from "../dist/index.js";
 
-test("Codex v2 multi-agent schema contracts expose current tool names only", () => {
+test("Current v2 multi-agent schema contracts expose current tool names only", () => {
   assert.deepEqual(
-    listCodexMultiAgentToolSchemaContracts().map((contract) => contract.name),
+    listMultiAgentToolSchemaContracts().map((contract) => contract.name),
     [
       "spawn_agent",
       "send_message",
@@ -23,8 +23,8 @@ test("Codex v2 multi-agent schema contracts expose current tool names only", () 
     ],
   );
 
-  assert.equal(isCodexMultiAgentToolName("spawn_agent"), true);
-  assert.equal(isCodexMultiAgentToolName("Agent"), false);
+  assert.equal(isMultiAgentToolName("spawn_agent"), true);
+  assert.equal(isMultiAgentToolName("Agent"), false);
   assert.equal(isLegacyMultiAgentToolName("Agent"), true);
   assert.equal(isLegacyMultiAgentToolName("TeamCreate"), true);
   assert.equal(isLegacyMultiAgentToolName("multi_agent_v1.send_input"), true);
@@ -34,13 +34,13 @@ test("Codex v2 multi-agent schema contracts expose current tool names only", () 
     "wait",
     "close_agent",
   ]) {
-    assert.equal(isCodexMultiAgentToolName(legacyName), false);
+    assert.equal(isMultiAgentToolName(legacyName), false);
     assert.equal(isLegacyMultiAgentToolName(legacyName), true);
   }
 });
 
 test("spawn_agent exposes the implemented task/message/fork_turns contract", () => {
-  const contract = getCodexMultiAgentToolSchemaContract("spawn_agent");
+  const contract = getMultiAgentToolSchemaContract("spawn_agent");
   assert.deepEqual(contract?.requiredInputFields, ["task_name", "message"]);
   assert.deepEqual(contract?.optionalInputFields, ["fork_turns"]);
   assert.deepEqual(contract?.forbiddenInputFields, [
@@ -51,7 +51,7 @@ test("spawn_agent exposes the implemented task/message/fork_turns contract", () 
   assert.deepEqual(contract?.outputRequiredFields, ["task_name", "message_id"]);
 
   assert.deepEqual(
-    validateCodexMultiAgentToolSchema({
+    validateMultiAgentToolSchema({
       toolName: "spawn_agent",
       input: {
         task_name: "researcher",
@@ -79,7 +79,7 @@ test("spawn_agent exposes the implemented task/message/fork_turns contract", () 
   ];
   for (const fork_turns of validForkTurns) {
     assert.deepEqual(
-      validateCodexMultiAgentToolSchema({
+      validateMultiAgentToolSchema({
         toolName: "spawn_agent",
         input: {
           task_name: "researcher",
@@ -104,7 +104,7 @@ test("spawn_agent exposes the implemented task/message/fork_turns contract", () 
   ];
   for (const fork_turns of invalidForkTurns) {
     assert.deepEqual(
-      validateCodexMultiAgentToolSchema({
+      validateMultiAgentToolSchema({
         toolName: "spawn_agent",
         input: {
           task_name: "researcher",
@@ -117,7 +117,7 @@ test("spawn_agent exposes the implemented task/message/fork_turns contract", () 
   }
 
   assert.deepEqual(
-    validateCodexMultiAgentToolSchema({
+    validateMultiAgentToolSchema({
       toolName: "spawn_agent",
       input: {
         message: "Find the relevant files",
@@ -133,9 +133,9 @@ test("spawn_agent exposes the implemented task/message/fork_turns contract", () 
   );
 });
 
-test("spawn_agent rejects Codex options until the current runtime owner exists", () => {
+test("spawn_agent rejects unsupported options until the current runtime owner exists", () => {
   assert.deepEqual(
-    validateCodexMultiAgentToolSchema({
+    validateMultiAgentToolSchema({
       toolName: "spawn_agent",
       input: {
         task_name: "researcher",
@@ -155,16 +155,16 @@ test("spawn_agent rejects Codex options until the current runtime owner exists",
   );
 });
 
-test("message, wait, interrupt and list contracts match Codex v2 guardrails", () => {
+test("message, wait, interrupt and list contracts match current v2 guardrails", () => {
   assert.deepEqual(
-    validateCodexMultiAgentToolSchema({
+    validateMultiAgentToolSchema({
       toolName: "send_message",
       input: { target: "researcher", message: "Continue" },
     }),
     [],
   );
   assert.deepEqual(
-    validateCodexMultiAgentToolSchema({
+    validateMultiAgentToolSchema({
       toolName: "send_message",
       input: { target: "researcher", items: [] },
     }).map((item) => [item.code, item.path]),
@@ -174,19 +174,18 @@ test("message, wait, interrupt and list contracts match Codex v2 guardrails", ()
     ],
   );
   assert.deepEqual(
-    validateCodexMultiAgentToolSchema({
+    validateMultiAgentToolSchema({
       toolName: "wait_agent",
       input: { timeout_ms: -1 },
     }).map((item) => [item.code, item.path]),
     [["invalid_timeout", "$.input.timeout_ms"]],
   );
   assert.deepEqual(
-    getCodexMultiAgentToolSchemaContract("list_agents")?.outputRequiredFields,
+    getMultiAgentToolSchemaContract("list_agents")?.outputRequiredFields,
     ["agents"],
   );
   assert.deepEqual(
-    getCodexMultiAgentToolSchemaContract("interrupt_agent")
-      ?.outputRequiredFields,
+    getMultiAgentToolSchemaContract("interrupt_agent")?.outputRequiredFields,
     ["previous_status"],
   );
 });
@@ -200,7 +199,7 @@ test("legacy Lime/Agent team tool names fail closed before projection", () => {
     "close_agent",
   ]) {
     assert.deepEqual(
-      validateCodexMultiAgentToolSchema({
+      validateMultiAgentToolSchema({
         toolName,
         input: { name: "writers" },
       }).map((item) => item.code),
@@ -208,7 +207,7 @@ test("legacy Lime/Agent team tool names fail closed before projection", () => {
     );
   }
   assert.equal(
-    buildCodexMultiAgentToolSchemaProjectionEvent({
+    buildMultiAgentToolSchemaProjectionEvent({
       toolName: "TeamCreate",
       input: { name: "writers" },
     }),
@@ -216,8 +215,8 @@ test("legacy Lime/Agent team tool names fail closed before projection", () => {
   );
 });
 
-test("projection event binds Codex v2 tool schema to Team UI policy surface", () => {
-  const event = buildCodexMultiAgentToolSchemaProjectionEvent(
+test("projection event binds current v2 tool schema to Team UI policy surface", () => {
+  const event = buildMultiAgentToolSchemaProjectionEvent(
     {
       toolName: "spawn_agent",
       toolCallId: "tool-spawn-1",
@@ -259,22 +258,22 @@ test("projection event binds Codex v2 tool schema to Team UI policy surface", ()
       runtimeStatus: event?.runtimeStatus,
     },
     {
-    type: "task.changed",
-    sourceType: "multi_agent_tool_schema_projection",
-    sequence: 17,
-    sessionId: "session-root",
-    threadId: "thread-root",
-    turnId: "turn-root",
-    taskId: "researcher",
-    agentId: "researcher",
-    toolCallId: "tool-spawn-1",
-    owner: "task",
-    scope: "task",
-    surface: "team_policy",
-    control: "delegate",
-    topology: "coordinator_team",
-    runtimeEntity: "work_item",
-    runtimeStatus: "completed",
+      type: "task.changed",
+      sourceType: "multi_agent_tool_schema_projection",
+      sequence: 17,
+      sessionId: "session-root",
+      threadId: "thread-root",
+      turnId: "turn-root",
+      taskId: "researcher",
+      agentId: "researcher",
+      toolCallId: "tool-spawn-1",
+      owner: "task",
+      scope: "task",
+      surface: "team_policy",
+      control: "delegate",
+      topology: "coordinator_team",
+      runtimeEntity: "work_item",
+      runtimeStatus: "completed",
     },
   );
   assert.deepEqual(event?.payload?.requiredInputFields, [

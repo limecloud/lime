@@ -76,22 +76,35 @@ export function resolveHotkeyPlatform(
   return "other";
 }
 
+export function formatShortcutStrokes(
+  shortcut: string | undefined,
+  platform: HotkeyPlatform,
+): string[][] {
+  if (!shortcut?.trim()) {
+    return [[UNSET_SHORTCUT_TOKEN]];
+  }
+
+  const modifierMap = MODIFIER_LABEL_MAP[platform];
+  const strokes = shortcut
+    .trim()
+    .replace(/\s*\+\s*/g, "+")
+    .split(/\s+/)
+    .map((stroke) =>
+      stroke
+        .split("+")
+        .filter(Boolean)
+        .map((part) => modifierMap[part] ?? part.toUpperCase()),
+    );
+  return strokes.some((stroke) => stroke.length)
+    ? strokes
+    : [[UNSET_SHORTCUT_TOKEN]];
+}
+
 export function formatShortcutTokens(
   shortcut: string | undefined,
   platform: HotkeyPlatform,
 ): string[] {
-  if (!shortcut?.trim()) {
-    return [UNSET_SHORTCUT_TOKEN];
-  }
-
-  const modifierMap = MODIFIER_LABEL_MAP[platform];
-  const tokens = shortcut
-    .split("+")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => modifierMap[part] ?? part.toUpperCase());
-
-  return tokens.length > 0 ? tokens : [UNSET_SHORTCUT_TOKEN];
+  return formatShortcutStrokes(shortcut, platform).flat();
 }
 
 export function isInputLikeTarget(

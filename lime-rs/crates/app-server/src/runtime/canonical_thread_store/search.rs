@@ -22,7 +22,7 @@ use super::{decode_json, encode_cursor_with_inclusive, CursorKind, ProjectionSto
 
 const SNIPPET_CONTEXT_BEFORE_CHARS: usize = 48;
 const SNIPPET_CONTEXT_AFTER_CHARS: usize = 96;
-const CODEX_USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
+const IMPORTED_USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
 
 #[cfg(test)]
 mod tests;
@@ -625,9 +625,9 @@ fn is_final_agent_message(item: &ThreadItem) -> bool {
 }
 
 fn strip_user_message_prefix(text: &str) -> &str {
-    text.find(CODEX_USER_MESSAGE_BEGIN).map_or_else(
+    text.find(IMPORTED_USER_MESSAGE_BEGIN).map_or_else(
         || text.trim(),
-        |index| text[index + CODEX_USER_MESSAGE_BEGIN.len()..].trim(),
+        |index| text[index + IMPORTED_USER_MESSAGE_BEGIN.len()..].trim(),
     )
 }
 

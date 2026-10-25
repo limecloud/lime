@@ -7,10 +7,9 @@ use app_server_protocol::{
     ClientCapabilities, JsonRpcMessage, RequestId, METHOD_INITIALIZE, METHOD_INITIALIZED,
     METHOD_MCP_PROMPT_GET, METHOD_MCP_PROMPT_LIST, METHOD_MCP_RESOURCE_LIST,
     METHOD_MCP_RESOURCE_SUBSCRIBE, METHOD_MCP_RESOURCE_UNSUBSCRIBE, METHOD_MCP_SERVER_CREATE,
-    METHOD_MCP_SERVER_DELETE, METHOD_MCP_SERVER_ENABLED_SET, METHOD_MCP_SERVER_IMPORT_FROM_APP,
-    METHOD_MCP_SERVER_LIST, METHOD_MCP_SERVER_OAUTH_LOGIN, METHOD_MCP_SERVER_START,
-    METHOD_MCP_SERVER_STATUS_LIST, METHOD_MCP_SERVER_STOP, METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
-    METHOD_MCP_SERVER_UPDATE, METHOD_MCP_TOOL_LIST,
+    METHOD_MCP_SERVER_DELETE, METHOD_MCP_SERVER_ENABLED_SET, METHOD_MCP_SERVER_LIST,
+    METHOD_MCP_SERVER_OAUTH_LOGIN, METHOD_MCP_SERVER_START, METHOD_MCP_SERVER_STATUS_LIST,
+    METHOD_MCP_SERVER_STOP, METHOD_MCP_SERVER_UPDATE, METHOD_MCP_TOOL_LIST,
 };
 use app_server_protocol::{ClientInfo, InitializeParams};
 use async_trait::async_trait;
@@ -273,9 +272,6 @@ async fn mcp_runtime_methods_require_initialized_and_fail_closed_without_manager
                     "name": "docs",
                     "server_config": { "command": "node" },
                     "enabled_lime": true,
-                    "enabled_claude": false,
-                    "enabled_codex": true,
-                    "enabled_gemini": false,
                 }
             }),
         ),
@@ -288,9 +284,6 @@ async fn mcp_runtime_methods_require_initialized_and_fail_closed_without_manager
                     "name": "docs",
                     "server_config": { "command": "node" },
                     "enabled_lime": true,
-                    "enabled_claude": false,
-                    "enabled_codex": true,
-                    "enabled_gemini": false,
                 }
             }),
         ),
@@ -302,17 +295,7 @@ async fn mcp_runtime_methods_require_initialized_and_fail_closed_without_manager
         (
             RequestId::Integer(6),
             METHOD_MCP_SERVER_ENABLED_SET,
-            json!({ "id": "server-1", "appType": "codex", "enabled": true }),
-        ),
-        (
-            RequestId::Integer(7),
-            METHOD_MCP_SERVER_IMPORT_FROM_APP,
-            json!({ "appType": "codex" }),
-        ),
-        (
-            RequestId::Integer(8),
-            METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
-            json!({}),
+            json!({ "id": "server-1", "enabled": true }),
         ),
         (
             RequestId::Integer(9),

@@ -143,11 +143,15 @@ function readGeneration(value: unknown): string | undefined {
   return undefined;
 }
 
-function paramsRecord(input: AgentUiSkillsCatalogScopeProjectionInput): Record<string, unknown> {
+function paramsRecord(
+  input: AgentUiSkillsCatalogScopeProjectionInput,
+): Record<string, unknown> {
   return readRecord(input.params) ?? {};
 }
 
-function responseRecord(input: AgentUiSkillsCatalogScopeProjectionInput): Record<string, unknown> {
+function responseRecord(
+  input: AgentUiSkillsCatalogScopeProjectionInput,
+): Record<string, unknown> {
   return readRecord(input.response) ?? {};
 }
 
@@ -157,18 +161,28 @@ function runtimeRequestRecord(
   return readRecord(input.runtimeRequest) ?? {};
 }
 
-function environmentEnabled(input: AgentUiSkillsCatalogScopeProjectionInput): boolean {
-  if (typeof input.environmentEnabled === "boolean") return input.environmentEnabled;
+function environmentEnabled(
+  input: AgentUiSkillsCatalogScopeProjectionInput,
+): boolean {
+  if (typeof input.environmentEnabled === "boolean")
+    return input.environmentEnabled;
   const environment = readRecord(input.environment);
-  return readBooleanField(environment, ["enabled", "environmentEnabled"]) ?? true;
+  return (
+    readBooleanField(environment, ["enabled", "environmentEnabled"]) ?? true
+  );
 }
 
 function forceReload(input: AgentUiSkillsCatalogScopeProjectionInput): boolean {
   if (typeof input.forceReload === "boolean") return input.forceReload;
-  return readBooleanField(paramsRecord(input), ["forceReload", "force_reload"]) ?? false;
+  return (
+    readBooleanField(paramsRecord(input), ["forceReload", "force_reload"]) ??
+    false
+  );
 }
 
-function requestedCwdRoots(input: AgentUiSkillsCatalogScopeProjectionInput): string[] {
+function requestedCwdRoots(
+  input: AgentUiSkillsCatalogScopeProjectionInput,
+): string[] {
   const params = paramsRecord(input);
   return firstPathList(
     input.requestedCwdRoots,
@@ -183,7 +197,9 @@ function extraRoots(input: AgentUiSkillsCatalogScopeProjectionInput): string[] {
   return firstPathList(input.extraRoots, params.extraRoots, params.extra_roots);
 }
 
-function runtimeRequestRoots(input: AgentUiSkillsCatalogScopeProjectionInput): string[] {
+function runtimeRequestRoots(
+  input: AgentUiSkillsCatalogScopeProjectionInput,
+): string[] {
   const runtimeRequest = runtimeRequestRecord(input);
   return firstPathList(
     input.runtimeRequestRoots,
@@ -195,14 +211,18 @@ function runtimeRequestRoots(input: AgentUiSkillsCatalogScopeProjectionInput): s
   );
 }
 
-function responseData(input: AgentUiSkillsCatalogScopeProjectionInput): Record<string, unknown>[] {
+function responseData(
+  input: AgentUiSkillsCatalogScopeProjectionInput,
+): Record<string, unknown>[] {
   const response = responseRecord(input);
   const explicit = recordArray(input.catalogEntries);
   if (explicit.length > 0) return explicit;
   return recordArray(response.data);
 }
 
-function skillRecords(entry: Record<string, unknown>): Record<string, unknown>[] {
+function skillRecords(
+  entry: Record<string, unknown>,
+): Record<string, unknown>[] {
   const skills = entry.skills;
   if (Array.isArray(skills)) return recordArray(skills);
   const skillMap = readRecord(skills);
@@ -265,7 +285,9 @@ function buildSkillSnapshot(
     cwd,
     enabled: readBooleanField(record, ["enabled"]) ?? true,
     cacheScope: readStringField(record, ["cacheScope", "cache_scope"]),
-    cacheGeneration: readGeneration(record.cacheGeneration ?? record.cache_generation),
+    cacheGeneration: readGeneration(
+      record.cacheGeneration ?? record.cache_generation,
+    ),
   } satisfies AgentUiSkillsCatalogSkillSnapshot);
 }
 
@@ -274,7 +296,9 @@ function catalogEntriesForInput(
 ): AgentUiSkillsCatalogEntrySnapshot[] {
   return responseData(input)
     .map((entry) => {
-      const cwd = normalizePath(readStringField(entry, ["cwd", "root", "path"]));
+      const cwd = normalizePath(
+        readStringField(entry, ["cwd", "root", "path"]),
+      );
       if (!cwd) return undefined;
       const skills = skillRecords(entry)
         .map((skill) => readStringField(skill, ["name", "id"]))
@@ -285,7 +309,9 @@ function catalogEntriesForInput(
         errorCount: recordArray(entry.errors).length,
       } satisfies AgentUiSkillsCatalogEntrySnapshot;
     })
-    .filter((entry): entry is AgentUiSkillsCatalogEntrySnapshot => Boolean(entry));
+    .filter((entry): entry is AgentUiSkillsCatalogEntrySnapshot =>
+      Boolean(entry),
+    );
 }
 
 function skillsForInput(
@@ -319,17 +345,28 @@ function effectiveCwdRoots(
   );
 }
 
-function pathWithin(path: string | undefined, root: string | undefined): boolean {
+function pathWithin(
+  path: string | undefined,
+  root: string | undefined,
+): boolean {
   const normalizedPath = normalizePath(path);
   const normalizedRoot = normalizePath(root);
   if (!normalizedPath || !normalizedRoot) return false;
-  return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`);
+  return (
+    normalizedPath === normalizedRoot ||
+    normalizedPath.startsWith(`${normalizedRoot}/`)
+  );
 }
 
-function pathsEqual(left: readonly string[], right: readonly string[]): boolean {
+function pathsEqual(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
   return (
     left.length === right.length &&
-    left.every((value, index) => normalizePath(value) === normalizePath(right[index]))
+    left.every(
+      (value, index) => normalizePath(value) === normalizePath(right[index]),
+    )
   );
 }
 
@@ -350,7 +387,11 @@ function isRepoScopedSkill(skill: AgentUiSkillsCatalogSkillSnapshot): boolean {
 function isGlobalCacheSkill(skill: AgentUiSkillsCatalogSkillSnapshot): boolean {
   const source = skill.source?.toLowerCase();
   const cacheScope = skill.cacheScope?.toLowerCase();
-  return source === "global_cache" || source === "legacy_global_cache" || cacheScope === "global";
+  return (
+    source === "global_cache" ||
+    source === "legacy_global_cache" ||
+    cacheScope === "global"
+  );
 }
 
 function hasSkillProvenance(skill: AgentUiSkillsCatalogSkillSnapshot): boolean {
@@ -369,7 +410,10 @@ function validateSnapshot(
 ): AgentUiSkillsCatalogScopeIssue[] {
   const issues: AgentUiSkillsCatalogScopeIssue[] = [];
   const requestedRoots = snapshot.requestedCwdRoots;
-  const workspaceRoots = [...snapshot.requestedCwdRoots, ...snapshot.extraRoots];
+  const workspaceRoots = [
+    ...snapshot.requestedCwdRoots,
+    ...snapshot.extraRoots,
+  ];
 
   if (!snapshot.cwd && requestedRoots.length === 0) {
     issues.push(
@@ -384,7 +428,10 @@ function validateSnapshot(
   if (
     requestedRoots.length > 0 &&
     snapshot.catalogCwdRoots.length >= requestedRoots.length &&
-    !pathsEqual(snapshot.catalogCwdRoots.slice(0, requestedRoots.length), requestedRoots)
+    !pathsEqual(
+      snapshot.catalogCwdRoots.slice(0, requestedRoots.length),
+      requestedRoots,
+    )
   ) {
     issues.push(
       issue(
@@ -411,7 +458,8 @@ function validateSnapshot(
   }
 
   if (
-    (snapshot.effectiveCwdRoots.length > 0 || snapshot.runtimeRequestRoots.length > 0) &&
+    (snapshot.effectiveCwdRoots.length > 0 ||
+      snapshot.runtimeRequestRoots.length > 0) &&
     !pathsEqual(snapshot.runtimeRequestRoots, snapshot.effectiveCwdRoots)
   ) {
     issues.push(
@@ -424,7 +472,11 @@ function validateSnapshot(
   }
 
   snapshot.extraRoots.forEach((root, rootIndex) => {
-    if (!snapshot.effectiveCwdRoots.some((effectiveRoot) => pathWithin(effectiveRoot, root))) {
+    if (
+      !snapshot.effectiveCwdRoots.some((effectiveRoot) =>
+        pathWithin(effectiveRoot, root),
+      )
+    ) {
       issues.push(
         issue(
           "extra_root_missing_from_catalog",
@@ -492,11 +544,13 @@ function validateSnapshot(
   return issues;
 }
 
-function runtimeStatus(issues: readonly AgentUiSkillsCatalogScopeIssue[]): AgentUiRuntimeStatus {
+function runtimeStatus(
+  issues: readonly AgentUiSkillsCatalogScopeIssue[],
+): AgentUiRuntimeStatus {
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexSkillsCatalogScopeSnapshot(
+export function extractSkillsCatalogScopeSnapshot(
   input: AgentUiSkillsCatalogScopeProjectionInput,
 ): AgentUiSkillsCatalogScopeSnapshot {
   const params = paramsRecord(input);
@@ -509,7 +563,9 @@ export function extractCodexSkillsCatalogScopeSnapshot(
   const catalogEntries = catalogEntriesForInput(input);
   const catalogCwdRoots = catalogEntries.map((entry) => entry.cwd);
   const cacheGeneration = readGeneration(
-    input.cacheGeneration ?? response.cacheGeneration ?? response.cache_generation,
+    input.cacheGeneration ??
+      response.cacheGeneration ??
+      response.cache_generation,
   );
   const base = {
     workspaceId,
@@ -533,11 +589,11 @@ export function extractCodexSkillsCatalogScopeSnapshot(
   };
 }
 
-export function buildCodexSkillsCatalogScopeProjectionEvent(
+export function buildSkillsCatalogScopeProjectionEvent(
   input: AgentUiSkillsCatalogScopeProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexSkillsCatalogScopeSnapshot(input);
+  const snapshot = extractSkillsCatalogScopeSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",

@@ -159,6 +159,7 @@ export function useWorkspaceRightSurfacePendingRuntime({
       epoch: 0,
       listRevision: 0,
       changeRevision: 0,
+      errorRevision: 0,
     }),
     [enabled, scopeKey],
   );
@@ -219,8 +220,10 @@ export function useWorkspaceRightSurfacePendingRuntime({
     if (!isCurrent(epoch)) return;
     const listRevision = ++scope.listRevision;
     const changeRevision = scope.changeRevision;
+    const errorRevision = scope.errorRevision;
     const canApply = () =>
       isCurrent(epoch) &&
+      currentBrowserOwner.current === browserOwner &&
       scope.listRevision === listRevision &&
       scope.changeRevision === changeRevision;
     if (!enabled || !listParams || !isBridgeAvailable()) {
@@ -229,14 +232,38 @@ export function useWorkspaceRightSurfacePendingRuntime({
     }
 
     try {
-      const response = await listPending(listParams);
+      const [response, browserResponse] = await Promise.all([
+        listPending(listParams),
+        normalizedSessionId && !listParams.sessionId
+          ? listPending({
+              sessionId: normalizedSessionId,
+              surfaceKind: "browser",
+              limit: listParams.limit,
+            })
+          : Promise.resolve({ pending: [] }),
+      ]);
       if (!canApply()) return;
       updateSnapshot(epoch, (current) =>
         canApply()
           ? {
               ...current,
-              pendingRequests: response.pending ?? [],
-              lastError: null,
+              pendingRequests: [
+                ...new Map(
+                  [
+                    ...(response.pending ?? []),
+                    ...(browserResponse.pending ?? []).filter((request) =>
+                      matchesSessionBrowserRequest(
+                        request,
+                        normalizedSessionId,
+                      ),
+                    ),
+                  ].map((request) => [request.requestId, request]),
+                ).values(),
+              ],
+              lastError:
+                scope.errorRevision === errorRevision
+                  ? null
+                  : current.lastError,
             }
           : current,
       );
@@ -250,6 +277,8 @@ export function useWorkspaceRightSurfacePendingRuntime({
     }
   }, [
     emptySnapshot,
+    browserOwner,
+    normalizedSessionId,
     enabled,
     isBridgeAvailable,
     isCurrent,
@@ -445,6 +474,7 @@ export function useWorkspaceRightSurfacePendingRuntime({
                 current.pendingRequests,
                 changes,
                 listParams,
+                normalizedSessionId,
               ),
               lastError: null,
             }
@@ -461,6 +491,7 @@ export function useWorkspaceRightSurfacePendingRuntime({
         {
           onChanges: applyChanges,
           onError: (error) => {
+            if (isActive()) scope.errorRevision += 1;
             updateSnapshot(epoch, (current) =>
               isActive() ? { ...current, lastError: asError(error) } : current,
             );
@@ -493,6 +524,7 @@ export function useWorkspaceRightSurfacePendingRuntime({
         }
         applyChanges(changes);
       } catch (error) {
+        if (isActive()) scope.errorRevision += 1;
         updateSnapshot(epoch, (current) =>
           isActive() ? { ...current, lastError: asError(error) } : current,
         );
@@ -519,6 +551,7 @@ export function useWorkspaceRightSurfacePendingRuntime({
     isBridgeAvailable,
     isCurrent,
     listParams,
+    normalizedSessionId,
     scope,
     subscribePendingChanges,
     updateSnapshot,
@@ -581,6 +614,7 @@ export function applyWorkspaceRightSurfacePendingChanges(
   currentRequests: readonly WorkspaceRightSurfacePendingRequest[],
   changes: readonly WorkspaceRightSurfacePendingChangedParams[],
   listParams?: WorkspaceRightSurfacePendingListParams | null,
+  browserSessionId?: string | null,
 ): WorkspaceRightSurfacePendingRequest[] {
   let nextRequests = [...currentRequests];
 
@@ -590,7 +624,8 @@ export function applyWorkspaceRightSurfacePendingChanges(
       for (const request of change.pending ?? []) {
         if (
           request.status !== "pending" ||
-          !matchesPendingListParams(request, listParams)
+          (!matchesPendingListParams(request, listParams) &&
+            !matchesSessionBrowserRequest(request, browserSessionId))
         ) {
           continue;
         }
@@ -616,6 +651,19 @@ export function applyWorkspaceRightSurfacePendingChanges(
   }
 
   return nextRequests;
+}
+
+function matchesSessionBrowserRequest(
+  request: WorkspaceRightSurfacePendingRequest,
+  sessionId?: string | null,
+): boolean {
+  return Boolean(
+    sessionId &&
+    request.surfaceKind === "browser" &&
+    request.sessionId === sessionId &&
+    !request.workspaceId &&
+    !request.workspaceRoot,
+  );
 }
 
 export function buildWorkspaceRightSurfacePendingFileTarget(

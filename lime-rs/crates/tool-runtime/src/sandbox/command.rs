@@ -7,7 +7,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 const MACOS_SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
-const PROTECTED_METADATA_NAMES: [&str; 3] = [".git", ".codex", ".agents"];
+const PROTECTED_METADATA_NAMES: [&str; 3] = [".git", ".lime", ".agents"];
 
 const SEATBELT_BASE_POLICY: &str = r#"
 (version 1)

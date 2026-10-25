@@ -1200,7 +1200,7 @@ fn vim_normal_up_and_down_do_not_replace_the_draft_with_history() {
 }
 
 #[test]
-fn codex_style_effort_and_permission_shortcuts_are_not_inserted_into_draft() {
+fn lime_style_effort_and_permission_shortcuts_are_not_inserted_into_draft() {
     let mut app = App::default();
     app.chat_widget.bottom_pane.insert_str("draft");
     assert_eq!(

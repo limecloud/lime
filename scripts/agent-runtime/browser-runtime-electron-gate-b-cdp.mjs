@@ -3,6 +3,7 @@ import path from "node:path";
 import { CDP_CASES } from "./browser-cdp-provider.mjs";
 import { CDP_TARGET_CASES } from "./browser-cdp-target-provider.mjs";
 import { runBrowserCdpTargetScenario } from "./browser-runtime-electron-gate-b-cdp-targets.mjs";
+import { runBrowserCdpEventScenario } from "./browser-runtime-electron-gate-b-cdp-events.mjs";
 import {
   appServerCallFromPage,
   readConfigFromPage,
@@ -38,6 +39,10 @@ export async function runBrowserCdpScenario(ctx) {
     diagnostics: {},
   };
   const directory = path.dirname(options.output);
+  const screenshotDirectory = path.join(
+    directory,
+    path.basename(options.output, ".json") + "-screenshots",
+  );
   const check = (name, value) => {
     assert(value, name);
     evidence.checks.push(name);
@@ -48,7 +53,7 @@ export async function runBrowserCdpScenario(ctx) {
   };
   const click = (locator) => locator.evaluate((node) => node.click());
   const snapshot = async (name) => {
-    const file = path.join(directory, `cdp-${name}.png`);
+    const file = path.join(screenshotDirectory, `cdp-${name}.png`);
     const base64 = await (
       await app.browserWindow(page)
     ).evaluate(async (window) =>
@@ -96,6 +101,7 @@ export async function runBrowserCdpScenario(ctx) {
       return read();
     });
   await fs.mkdir(directory, { recursive: true });
+  await fs.mkdir(screenshotDirectory, { recursive: true });
   let count = 0;
   let previousPrompt = null;
   const turnIds = new Set();
@@ -305,6 +311,7 @@ export async function runBrowserCdpScenario(ctx) {
         guiTerminal: gui.completionScope,
       });
     }
+    await runBrowserCdpEventScenario(ctx, evidence, check, snapshot);
     await runBrowserCdpTargetScenario(ctx, evidence, check, snapshot);
     const traces = ctx.readInvokeTrace();
     const calls = parseJsonRpcRequestsFromInvokeTrace(JSON.stringify(traces));
@@ -354,7 +361,7 @@ export async function runBrowserCdpScenario(ctx) {
           call.params.threadId === identity.threadId &&
           call.status === "success",
       ).length ===
-        CDP_CASES.length + CDP_TARGET_CASES.length,
+        CDP_CASES.length + CDP_TARGET_CASES.length + 1,
     );
     check(
       "no-production-mock-fallback",
@@ -363,7 +370,7 @@ export async function runBrowserCdpScenario(ctx) {
     check(
       "real-runtime-provider-requests",
       providerFixture.requests.length >=
-        (CDP_CASES.length + CDP_TARGET_CASES.length) * 4,
+        (CDP_CASES.length + CDP_TARGET_CASES.length + 1) * 4,
     );
     evidence.host = await app.evaluate(
       () => globalThis.__browserDesignHostEvidence,
@@ -376,7 +383,7 @@ export async function runBrowserCdpScenario(ctx) {
     evidence.status = "pass";
     evidence.failedAssertions = [];
     evidence.claimBoundary =
-      "真实 runtime/provider 工具请求、九个 GUI 回合、单次批准/拒绝/关闭/同回合配置撤权/重新启用、原生 mutation 和终态 detach；Target 当前身份/会话内列表/实际跨站 frame/关闭及原生销毁；frame 的 attach/targetId与sessionId执行/detach/旧session拒绝、仅子框架mutation与终态listener清理。隐藏窗口使用合成 DOM 输入；第二配置写者不是设置 GUI。不是完整 CDP、外部事件transport、WebMCP、物理输入或双平台打包证据。";
+      "真实 runtime/provider 工具请求、十个 GUI 回合、单次批准/拒绝/关闭/同回合配置撤权/重新启用、原生 mutation 和终态 detach；Target 身份/实际跨站 frame/关闭与 session 生命周期；独立审批的持久事件能力、实际原生 console 事件经本地 pipe 到独立 Node 进程、canonical 终态断线与拒绝重放。隐藏窗口使用合成 DOM 输入；第二配置写者不是设置 GUI。不是完整 CDP、完整事件域、WebMCP、物理输入或双平台打包证据。";
     return evidence;
   } catch (error) {
     evidence.error = String(error);

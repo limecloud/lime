@@ -195,8 +195,12 @@ function readDraft(value: unknown): AgentUiSkillMentionDraftSnapshot {
         .filter((token): token is string => Boolean(token)),
     ),
     localImagePaths: readImagePaths(record.localImages ?? record.local_images),
-    remoteImageUrls: readImagePaths(record.remoteImageUrls ?? record.remote_image_urls),
-    mentionBindings: recordArray(record.mentionBindings ?? record.mention_bindings)
+    remoteImageUrls: readImagePaths(
+      record.remoteImageUrls ?? record.remote_image_urls,
+    ),
+    mentionBindings: recordArray(
+      record.mentionBindings ?? record.mention_bindings,
+    )
       .map(buildBinding)
       .filter((binding): binding is AgentUiSkillMentionBindingSnapshot =>
         Boolean(binding),
@@ -205,7 +209,8 @@ function readDraft(value: unknown): AgentUiSkillMentionDraftSnapshot {
 }
 
 function itemType(record: Record<string, unknown>): string {
-  const raw = readStringField(record, ["type", "kind", "itemType", "item_type"]) ?? "";
+  const raw =
+    readStringField(record, ["type", "kind", "itemType", "item_type"]) ?? "";
   return raw.replace(/^UserInput::/, "").toLowerCase();
 }
 
@@ -366,7 +371,10 @@ function validateSnapshot(
 
   if (snapshot.restoredDraft) {
     snapshot.draft.mentionBindings.forEach((binding, bindingIndex) => {
-      const restored = matchingRestoredBinding(binding, snapshot.restoredDraft!);
+      const restored = matchingRestoredBinding(
+        binding,
+        snapshot.restoredDraft!,
+      );
       if (!restored) {
         issues.push(
           issue(
@@ -435,11 +443,13 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexSkillMentionInputRestoreSnapshot(
+export function extractSkillMentionInputRestoreSnapshot(
   input: AgentUiSkillMentionInputRestoreProjectionInput,
 ): AgentUiSkillMentionInputRestoreSnapshot {
   const draft = readDraft(input.draft ?? input.originalDraft);
-  const restored = input.restoredDraft ? readDraft(input.restoredDraft) : undefined;
+  const restored = input.restoredDraft
+    ? readDraft(input.restoredDraft)
+    : undefined;
   const submittedItems = readSubmittedItems(input.submittedItems);
   const availableSkills = readAvailableSkills(input.availableSkills);
   const duplicates = duplicateSkillNames(availableSkills);
@@ -456,7 +466,10 @@ export function extractCodexSkillMentionInputRestoreSnapshot(
     ).length,
     bindingsStable: true,
     structuredMentionsStable: true,
-  } satisfies Omit<AgentUiSkillMentionInputRestoreSnapshot, "validationIssues">);
+  } satisfies Omit<
+    AgentUiSkillMentionInputRestoreSnapshot,
+    "validationIssues"
+  >);
   const validationIssues = validateSnapshot(base);
   return {
     ...base,
@@ -468,11 +481,11 @@ export function extractCodexSkillMentionInputRestoreSnapshot(
   };
 }
 
-export function buildCodexSkillMentionInputRestoreProjectionEvent(
+export function buildSkillMentionInputRestoreProjectionEvent(
   input: AgentUiSkillMentionInputRestoreProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexSkillMentionInputRestoreSnapshot(input);
+  const snapshot = extractSkillMentionInputRestoreSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",

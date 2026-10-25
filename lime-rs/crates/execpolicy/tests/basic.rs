@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
-use execpolicy::blocking_append_allow_prefix_rule;
 use execpolicy::Decision;
 use execpolicy::Error;
 use execpolicy::Evaluation;
@@ -19,6 +18,8 @@ use execpolicy::PrefixPattern;
 use execpolicy::PrefixRule;
 use execpolicy::RuleMatch;
 use execpolicy::RuleRef;
+use execpolicy::blocking_append_allow_prefix_rule;
+use lime_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
@@ -34,8 +35,8 @@ fn prompt_all(_: &[String]) -> Decision {
     Decision::Prompt
 }
 
-fn absolute_path(path: &str) -> PathBuf {
-    PathBuf::from(path)
+fn absolute_path(path: &str) -> AbsolutePathBuf {
+    AbsolutePathBuf::try_from(path.to_string()).expect("path should be absolute")
 }
 
 fn host_absolute_path(segments: &[&str]) -> String {
@@ -239,9 +240,10 @@ prefix_rule(
     let err = parser
         .parse("test.rules", policy_src)
         .expect_err("expected parse error");
-    assert!(err
-        .to_string()
-        .contains("invalid rule: justification cannot be empty"));
+    assert!(
+        err.to_string()
+            .contains("invalid rule: justification cannot be empty")
+    );
 }
 
 #[test]
@@ -702,9 +704,10 @@ host_executable(name = "git", paths = ["git"])
     let err = parser
         .parse("test.rules", policy_src)
         .expect_err("expected parse error");
-    assert!(err
-        .to_string()
-        .contains("host_executable paths must be absolute"));
+    assert!(
+        err.to_string()
+            .contains("host_executable paths must be absolute")
+    );
 }
 
 #[test]
@@ -717,9 +720,10 @@ fn host_executable_rejects_name_with_path_separator() {
     let err = parser
         .parse("test.rules", &policy_src)
         .expect_err("expected parse error");
-    assert!(err
-        .to_string()
-        .contains("host_executable name must be a bare executable name"));
+    assert!(
+        err.to_string()
+            .contains("host_executable name must be a bare executable name")
+    );
 }
 
 #[test]

@@ -129,9 +129,9 @@ async fn output_delta_keeps_code_mode_call_and_cell_correlation() {
 fn exact_snapshot_route_projects_mcp_item() {
     let routes = McpToolRoutes::default();
     routes.replace_for_test([tool_runtime::mcp_connection::McpStepRouteIdentity {
-        server_name: "codex_apps".to_string(),
+        server_name: "lime_apps".to_string(),
         tool_name: "search".to_string(),
-        runtime_tool_name: "codex_apps__search".to_string(),
+        runtime_tool_name: "lime_apps__search".to_string(),
         app_context: Some(tool_runtime::mcp_connection::McpStepRouteAppContext {
             connector_id: "calendar".to_string(),
             link_id: Some("link-calendar".to_string()),
@@ -155,7 +155,7 @@ fn exact_snapshot_route_projects_mcp_item() {
         .project(ToolLifecycleEvent {
             turn_id: "turn-1".to_string(),
             call_id: "mcp-call-1".to_string(),
-            tool_name: "codex_apps__search".to_string(),
+            tool_name: "lime_apps__search".to_string(),
             arguments: serde_json::json!({ "query": "lime" }),
             provider_metadata: serde_json::Value::Null,
             environments: vec![ToolEnvironment::new("local", PathBuf::from("/workspace"))],
@@ -177,7 +177,7 @@ fn exact_snapshot_route_projects_mcp_item() {
             ref mcp_app_resource_uri,
             ref plugin_id,
             ..
-        } if server_name == "codex_apps"
+        } if server_name == "lime_apps"
             && tool_name == "search"
             && app_context.as_ref().is_some_and(|context|
                 context.connector_id == "calendar"

@@ -569,7 +569,7 @@ export interface AgentEventError {
   type: "error";
   message: string;
   will_retry?: boolean;
-  codex_error_info?: unknown;
+  lime_error_info?: unknown;
   additional_details?: string | null;
 }
 

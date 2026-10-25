@@ -27,6 +27,25 @@ export function availableEnvironmentActions(
   );
 }
 
+/** Packaged Desktop wS: first recent name wins, unranked config order is stable. */
+export function orderEnvironmentActions<T extends { name: string }>(
+  actions: readonly T[],
+  recentNames: readonly string[],
+): T[] {
+  const ranks = new Map<string, number>();
+  recentNames.forEach((name, index) => {
+    if (!ranks.has(name)) ranks.set(name, index);
+  });
+  return actions
+    .map((action, index) => ({
+      action,
+      index,
+      rank: ranks.get(action.name) ?? Infinity,
+    }))
+    .sort((a, b) => (a.rank === b.rank ? a.index - b.index : a.rank - b.rank))
+    .map(({ action }) => action);
+}
+
 /** 与安装包 xS 相同：配置相对路径基于当前 Git root，不能基于源配置的绝对路径。 */
 export function environmentActionCwd({
   relativePath,

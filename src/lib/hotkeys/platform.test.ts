@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatShortcutTokens,
+  formatShortcutStrokes,
   hasPrimaryModifier,
   isInputLikeTarget,
   normalizeHotkeyKey,
@@ -40,6 +41,23 @@ describe("hotkey platform helpers", () => {
       formatShortcutTokens("CommandOrControl+Alt+Escape", "windows"),
     ).toEqual(["Ctrl", "Alt", "Esc"]);
     expect(formatShortcutTokens("", "other")).toEqual([UNSET_SHORTCUT_TOKEN]);
+    expect(formatShortcutTokens("+", "other")).toEqual([UNSET_SHORTCUT_TOKEN]);
+  });
+
+  it("逐stroke保留序列分组，并对每个stroke使用相同平台显示", () => {
+    expect(
+      formatShortcutStrokes("Control + K CommandOrControl + S", "mac"),
+    ).toEqual([
+      ["Ctrl", "K"],
+      ["⌘", "S"],
+    ]);
+    expect(formatShortcutStrokes("G G", "windows")).toEqual([["G"], ["G"]]);
+    expect(formatShortcutTokens("Control+K Control+S", "windows")).toEqual([
+      "Ctrl",
+      "K",
+      "Ctrl",
+      "S",
+    ]);
   });
 
   it("应识别输入类目标", () => {

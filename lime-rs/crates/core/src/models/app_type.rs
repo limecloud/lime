@@ -39,3 +39,18 @@ impl std::fmt::Display for AppType {
         write!(f, "{}", self.as_str())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::AppType;
+
+    #[test]
+    fn codex_remains_a_supported_external_app_target() {
+        let app = "codex"
+            .parse::<AppType>()
+            .expect("Codex is a supported target");
+
+        assert_eq!(app, AppType::Codex);
+        assert_eq!(app.as_str(), "codex");
+    }
+}

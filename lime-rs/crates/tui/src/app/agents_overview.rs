@@ -1,4 +1,4 @@
-//! Codex-shaped Agents Overview state and canonical thread projection.
+//! Lime-native Agents Overview state and canonical thread projection.
 
 use super::agents_overview_view::{AgentsOverviewGroup, AgentsOverviewRow, AgentsOverviewView};
 use crate::app_server_session::AppServerSession;

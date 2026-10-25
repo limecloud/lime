@@ -48,7 +48,7 @@ async fn status_reads_worktree_selection_without_inheriting_source_or_sibling() 
         &["worktree", "add", "--detach", second.to_str().unwrap()],
     );
     let config = first
-        .join(".codex/environments/environment.toml")
+        .join(".lime/environments/environment.toml")
         .to_string_lossy()
         .into_owned();
     save_local_environment_config_path(&source, Some("/source-only.toml"))

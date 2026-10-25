@@ -1071,5 +1071,6 @@
   "agentChat.runtimeWarning.skillLoadFailed": "선택한 Skill을 불러오지 못했습니다.",
   "agentChat.runtimeWarning.mentionNotAvailable": "선택한 Mention을 확인할 수 없습니다.",
   "agentChat.runtimeWarning.unknownNotification": "현재 버전에서 실행 알림 {{method}}을(를) 인식할 수 없습니다. 프로토콜 진단을 기록했습니다.",
-  "agentChat.runtimeWarning.unprojectedNotification": "실행 알림 {{method}}은(는) 현재 화면에 아직 연결되지 않았습니다. 프로토콜 진단을 기록했습니다."
+  "agentChat.runtimeWarning.unprojectedNotification": "실행 알림 {{method}}은(는) 현재 화면에 아직 연결되지 않았습니다. 프로토콜 진단을 기록했습니다.",
+  "agentChat.runtimeError.providerRateLimit": "모델 제공업체가 요청을 제한하고 있습니다(429). 잠시 후 다시 시도하세요. 문제가 계속되면 제공업체 할당량을 확인하거나 사용 가능한 다른 모델을 선택하세요."
 }

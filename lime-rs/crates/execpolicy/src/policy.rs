@@ -2,7 +2,6 @@ use crate::decision::Decision;
 use crate::error::Error;
 use crate::error::Result;
 use crate::executable_name::executable_path_lookup_key;
-use crate::rule::normalize_network_rule_host;
 use crate::rule::NetworkRule;
 use crate::rule::NetworkRuleProtocol;
 use crate::rule::PatternToken;
@@ -10,11 +9,12 @@ use crate::rule::PrefixPattern;
 use crate::rule::PrefixRule;
 use crate::rule::RuleMatch;
 use crate::rule::RuleRef;
+use crate::rule::normalize_network_rule_host;
+use lime_utils_absolute_path::AbsolutePathBuf;
 use multimap::MultiMap;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 type HeuristicsFallback<'a> = Option<&'a dyn Fn(&[String]) -> Decision>;
@@ -28,7 +28,7 @@ pub struct MatchOptions {
 pub struct Policy {
     rules_by_program: MultiMap<String, RuleRef>,
     network_rules: Vec<NetworkRule>,
-    host_executables_by_name: HashMap<String, Arc<[PathBuf]>>,
+    host_executables_by_name: HashMap<String, Arc<[AbsolutePathBuf]>>,
 }
 
 /// A requirements-owned execution policy with order-independent equality.
@@ -76,7 +76,7 @@ impl Policy {
     pub fn from_parts(
         rules_by_program: MultiMap<String, RuleRef>,
         network_rules: Vec<NetworkRule>,
-        host_executables_by_name: HashMap<String, Arc<[PathBuf]>>,
+        host_executables_by_name: HashMap<String, Arc<[AbsolutePathBuf]>>,
     ) -> Self {
         Self {
             rules_by_program,
@@ -97,7 +97,7 @@ impl Policy {
         &self.network_rules
     }
 
-    pub fn host_executables(&self) -> &HashMap<String, Arc<[PathBuf]>> {
+    pub fn host_executables(&self) -> &HashMap<String, Arc<[AbsolutePathBuf]>> {
         &self.host_executables_by_name
     }
 
@@ -155,12 +155,12 @@ impl Policy {
         justification: Option<String>,
     ) -> Result<()> {
         let host = normalize_network_rule_host(host)?;
-        if let Some(raw) = justification.as_deref() {
-            if raw.trim().is_empty() {
-                return Err(Error::InvalidRule(
-                    "justification cannot be empty".to_string(),
-                ));
-            }
+        if let Some(raw) = justification.as_deref()
+            && raw.trim().is_empty()
+        {
+            return Err(Error::InvalidRule(
+                "justification cannot be empty".to_string(),
+            ));
         }
         self.network_rules.push(NetworkRule {
             host,
@@ -171,7 +171,7 @@ impl Policy {
         Ok(())
     }
 
-    pub fn set_host_executable_paths(&mut self, name: String, paths: Vec<PathBuf>) {
+    pub fn set_host_executable_paths(&mut self, name: String, paths: Vec<AbsolutePathBuf>) {
         self.host_executables_by_name.insert(name, paths.into());
     }
 
@@ -319,15 +319,13 @@ impl Policy {
             })
             .unwrap_or_default();
 
-        if matched_rules.is_empty() {
-            if let Some(heuristics_fallback) = heuristics_fallback {
-                vec![RuleMatch::HeuristicsRuleMatch {
-                    command: cmd.to_vec(),
-                    decision: heuristics_fallback(cmd),
-                }]
-            } else {
-                matched_rules
-            }
+        if matched_rules.is_empty()
+            && let Some(heuristics_fallback) = heuristics_fallback
+        {
+            vec![RuleMatch::HeuristicsRuleMatch {
+                command: cmd.to_vec(),
+                decision: heuristics_fallback(cmd),
+            }]
         } else {
             matched_rules
         }
@@ -347,17 +345,19 @@ impl Policy {
         let Some(first) = cmd.first() else {
             return Vec::new();
         };
-        let program = PathBuf::from(first);
+        let Ok(program) = AbsolutePathBuf::try_from(first.clone()) else {
+            return Vec::new();
+        };
         let Some(basename) = executable_path_lookup_key(program.as_path()) else {
             return Vec::new();
         };
         let Some(rules) = self.rules_by_program.get_vec(&basename) else {
             return Vec::new();
         };
-        if let Some(paths) = self.host_executables_by_name.get(&basename) {
-            if !paths.iter().any(|path| path == &program) {
-                return Vec::new();
-            }
+        if let Some(paths) = self.host_executables_by_name.get(&basename)
+            && !paths.iter().any(|path| path == &program)
+        {
+            return Vec::new();
         }
 
         let basename_command = std::iter::once(basename)

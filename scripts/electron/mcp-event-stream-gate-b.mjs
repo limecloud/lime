@@ -19,13 +19,15 @@ import {
   closeElectronFixture,
   createTempRuntimeEnv,
   launchElectronFixture,
-  openSettings,
   parseInvokeTraceRaw,
   parseJsonRpcRequestsFromInvokeTrace,
   sanitizeText,
-  waitForPageCondition,
+  sleep,
 } from "./mcp-config-fixture-smoke.mjs";
-import { parseMcpConfigFixtureArgs } from "./lib/mcp-config-fixture-evidence.mjs";
+import {
+  parseMcpConfigFixtureArgs,
+  isObservedPreloadAppServerResponse,
+} from "./lib/mcp-config-fixture-evidence.mjs";
 
 export const MCP_EVENT_STREAM_NOTIFICATION_METHOD =
   "mcpServer/event/stream/notification";
@@ -59,8 +61,8 @@ function printHelp() {
 MCP Event Stream Electron Gate B
 
 用途:
-  通过真实 Electron Settings MCP 运行状态页验证 MCP event stream 的
-  active、event、reconnect 和 terminated lifecycle 消费。
+  通过真实 Electron preload/App Server 验证同一 MCP event stream 订阅的
+  active、event、重复 active 和 terminated 协议，不证明设置 UI 或网络重连。
 
 边界:
   使用临时 stdio MCP server 与真实 App Server runtime；不调用模型、不使用
@@ -125,17 +127,6 @@ rl.on("line", (line) => {
   );
 }
 
-async function openMcpRuntimeSettings(page, options) {
-  await openSettings(page, options);
-  await page.locator('[data-testid="settings-sidebar-tab-mcp-server"]').click();
-  const runtimeTab = page.locator('[data-testid="mcp-panel-tab-runtime"]');
-  await runtimeTab.waitFor({
-    state: "visible",
-    timeout: Math.min(45_000, options.timeoutMs),
-  });
-  await runtimeTab.click();
-}
-
 async function createMcpServer(page, server, fixturePath, fixtureRoot) {
   return appServerCallFromPage(page, "mcpServer/create", {
     server: {
@@ -151,9 +142,6 @@ async function createMcpServer(page, server, fixturePath, fixtureRoot) {
         enabled: true,
       },
       enabled_lime: true,
-      enabled_claude: false,
-      enabled_codex: true,
-      enabled_gemini: false,
       created_at: Date.now(),
     },
   });
@@ -280,14 +268,18 @@ function summarizeTrace(traceRaw, setupRequests = []) {
 
 export function summarizeMcpEventStreamEvidence({
   traceRaw,
-  dom,
+  subscriptionId,
   notifications,
   setupRequests = [],
 }) {
   const trace = summarizeTrace(traceRaw, setupRequests);
-  const methods = notifications.map(
-    (notification) => notification?.params?.notification?.method,
-  );
+  const methods = notifications
+    .filter(
+      (message) =>
+        message?.method === MCP_EVENT_STREAM_NOTIFICATION_METHOD &&
+        message?.params?.subscriptionId === subscriptionId,
+    )
+    .map((notification) => notification?.params?.notification?.method);
   const streamNotificationMethods = Array.from(new Set(methods));
   const activeCount = methods.filter(
     (method) => method === EVENT_STREAM_ACTIVE_METHOD,
@@ -304,10 +296,12 @@ export function summarizeMcpEventStreamEvidence({
       eventCount,
       terminatedCount,
       methods: streamNotificationMethods,
-      activeVisible: dom?.phase === "active" || dom?.phase === "terminated",
-      reconnectVisible: dom?.reconnectVisible === true,
-      terminatedVisible: dom?.phase === "terminated",
-      subscriptionId: dom?.subscriptionId || "",
+      repeatedActiveObserved: activeCount > 1,
+      orderedLifecycle:
+        methods[0] === EVENT_STREAM_ACTIVE_METHOD &&
+        methods.at(-1) === EVENT_STREAM_TERMINATED_METHOD &&
+        methods.indexOf(EVENT_STREAM_SERVER_METHOD) > 0,
+      subscriptionId,
     },
     bridge: trace,
     ok:
@@ -320,36 +314,21 @@ export function summarizeMcpEventStreamEvidence({
       trace.mockFallbackHitCount === 0 &&
       trace.failedInvokeCount === 0 &&
       trace.legacyMcpCommandsSeen.length === 0 &&
-      dom?.activeVisible === true &&
-      dom?.reconnectVisible === true &&
-      dom?.terminatedVisible === true,
+      activeCount > 1 &&
+      methods[0] === EVENT_STREAM_ACTIVE_METHOD &&
+      methods.at(-1) === EVENT_STREAM_TERMINATED_METHOD &&
+      methods.indexOf(EVENT_STREAM_SERVER_METHOD) > 0,
   };
 }
 
-async function readDom(page) {
-  return page.evaluate(() => {
-    const status = document.querySelector(
-      '[data-testid="mcp-event-stream-status"]',
-    );
-    const card = status?.querySelector(
-      "[data-mcp-event-stream-subscription-id]",
-    );
-    const text = status?.textContent || "";
-    return {
-      activeVisible: Boolean(status),
-      reconnectVisible: /重连|重新連線|reconnect|再接続|재연결/iu.test(text),
-      terminatedVisible: /结束|結束|terminated|終了|종료/iu.test(text),
-      phase: card?.getAttribute("data-mcp-event-stream-phase") || "",
-      subscriptionId:
-        card?.getAttribute("data-mcp-event-stream-subscription-id") || "",
-      text,
-      traceRaw: window.localStorage.getItem("lime_invoke_trace_buffer_v1"),
-      errorRaw: window.localStorage.getItem("lime_invoke_error_buffer_v1"),
-      locale: document.documentElement.lang,
-      electron: window.__LIME_ELECTRON__ === true,
-      hasInvokeBridge: typeof window.electronAPI?.invoke === "function",
-    };
-  });
+async function readRendererBridge(page) {
+  return page.evaluate(() => ({
+    traceRaw: localStorage.getItem("lime_invoke_trace_buffer_v1"),
+    errorRaw: localStorage.getItem("lime_invoke_error_buffer_v1"),
+    locale: document.documentElement.lang,
+    electron: window.__LIME_ELECTRON__ === true,
+    hasInvokeBridge: typeof window.electronAPI?.invoke === "function",
+  }));
 }
 
 export function assertEvidence(evidence) {
@@ -379,9 +358,18 @@ export function assertEvidence(evidence) {
   );
   assert(evidence.bridge.mockFallbackHitCount === 0, "观察到 mock fallback");
   assert(evidence.bridge.failedInvokeCount === 0, "观察到 invoke error");
-  assert(evidence.lifecycle.activeVisible, "active lifecycle 不可见");
-  assert(evidence.lifecycle.reconnectVisible, "reconnect lifecycle 不可见");
-  assert(evidence.lifecycle.terminatedVisible, "terminated lifecycle 不可见");
+  assert(
+    evidence.bridge.legacyMcpCommandsSeen.length === 0,
+    "观察到已退役 MCP 命令",
+  );
+  assert(
+    evidence.lifecycle.repeatedActiveObserved,
+    "缺少同一订阅的重复 active 通知",
+  );
+  assert(
+    evidence.lifecycle.orderedLifecycle,
+    "同一订阅的 active/event/terminated 顺序错误",
+  );
 }
 
 async function cleanupServer(page, server) {
@@ -430,9 +418,9 @@ export async function run() {
   const summary = {
     schemaVersion: 1,
     scenarioId: "CODEX-ALIGN-mcp-event-stream",
-    proofLevel: "Gate B controlled fixture",
+    proofLevel: "Electron IPC / App Server event protocol",
     claimBoundary:
-      "Real Electron MCP event stream active/event/reconnect/terminated projection through preload, App Server JSON-RPC and GUI. It does not prove a live provider.",
+      "Real Electron/preload/App Server MCP event protocol and canonical Thread subscription, filtered by the exact subscription identity. No settings lifecycle UI, network reconnect, live provider or packaged behavior claim.",
     ok: false,
     checkedAt: new Date().toISOString(),
     identity: { threadId: null, subscriptionId: null },
@@ -478,8 +466,6 @@ export async function run() {
     await createMcpServer(page, server, fixturePath, fixtureRoot);
     await appServerCallFromPage(page, "mcpServer/start", { name: server.name });
     const route = await createFixtureProvider(page, providerFixture);
-    logStage("open-mcp-runtime-settings");
-    await openMcpRuntimeSettings(page, options);
     logStage("start-canonical-thread");
     const started = await appServerCallFromPage(page, "thread/start", {
       model: route.model,
@@ -491,72 +477,55 @@ export async function run() {
     });
     threadId = String(started.result?.thread?.id || "").trim();
     assert(threadId, "thread/start 未返回 canonical Thread ID");
-    setupRequests.push(started);
+    assert(
+      isObservedPreloadAppServerResponse(
+        started.ipcObservation,
+        "thread/start",
+      ),
+      "thread/start requires the matching real preload IPC response",
+    );
+    setupRequests.push(started.ipcObservation);
     const subscriptionId = `event-stream-${Date.now()}`;
     logStage("start-event-stream");
-    await appServerCallFromPage(page, MCP_EVENT_STREAM_START_METHOD, {
-      threadId,
-      server: server.name,
-      subscriptionId,
-      name: "issue.updated",
-      arguments: {},
-      _meta: { source: "electron-gate-b" },
-    });
-    setupRequests.push({
-      method: MCP_EVENT_STREAM_START_METHOD,
-      command: APP_SERVER_HANDLE_JSON_LINES_COMMAND,
-      transport: "electron-ipc",
-      status: "success",
-    });
-    await waitForPageCondition(
+    const streamStarted = await appServerCallFromPage(
       page,
-      options,
-      ({ expectedSubscriptionId }) => {
-        const card = document.querySelector(
-          `[data-mcp-event-stream-subscription-id="${expectedSubscriptionId}"]`,
-        );
-        return Boolean(
-          card && card.getAttribute("data-mcp-event-stream-phase"),
-        );
+      MCP_EVENT_STREAM_START_METHOD,
+      {
+        threadId,
+        server: server.name,
+        subscriptionId,
+        name: "issue.updated",
+        arguments: {},
+        _meta: { source: "electron-gate-b" },
       },
-      "MCP event stream lifecycle card 未出现",
-      { expectedSubscriptionId: subscriptionId },
     );
-    await waitForPageCondition(
-      page,
-      options,
-      ({ expectedSubscriptionId }) => {
-        const card = document.querySelector(
-          `[data-mcp-event-stream-subscription-id="${expectedSubscriptionId}"]`,
-        );
-        return Boolean(
-          card &&
-          /重连|重新連線|reconnect|再接続|재연결/iu.test(
-            document.querySelector('[data-testid="mcp-event-stream-status"]')
-              ?.textContent || "",
-          ),
-        );
-      },
-      "MCP event stream reconnect lifecycle 未出现",
-      { expectedSubscriptionId: subscriptionId },
+    assert(
+      isObservedPreloadAppServerResponse(
+        streamStarted.ipcObservation,
+        MCP_EVENT_STREAM_START_METHOD,
+      ),
+      "event subscription requires the matching real preload IPC response",
     );
-    await waitForPageCondition(
-      page,
-      options,
-      ({ expectedSubscriptionId }) =>
-        document
-          .querySelector(
-            `[data-mcp-event-stream-subscription-id="${expectedSubscriptionId}"]`,
-          )
-          ?.getAttribute("data-mcp-event-stream-phase") === "terminated",
-      "MCP event stream terminated lifecycle 未出现",
-      { expectedSubscriptionId: subscriptionId },
-    );
-    const notifications = await readRecentStreamNotifications(page);
-    const observed = await readDom(page);
+    setupRequests.push(streamStarted.ipcObservation);
+    const deadline = Date.now() + options.timeoutMs;
+    let notifications = [];
+    while (Date.now() < deadline) {
+      notifications = await readRecentStreamNotifications(page);
+      if (
+        notifications.some(
+          (message) =>
+            message.params?.subscriptionId === subscriptionId &&
+            message.params?.notification?.method ===
+              EVENT_STREAM_TERMINATED_METHOD,
+        )
+      )
+        break;
+      await sleep(options.intervalMs);
+    }
+    const observed = await readRendererBridge(page);
     const evidence = summarizeMcpEventStreamEvidence({
       traceRaw: observed.traceRaw,
-      dom: observed,
+      subscriptionId,
       notifications,
       setupRequests,
     });

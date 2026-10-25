@@ -171,6 +171,11 @@ export class BrowserSitePermissionPrompt {
     }
   }
 
+  cancelRequest(requestId: string): void {
+    for (const pending of this.#pending.values())
+      if (pending.requestId === requestId) this.#finish(pending, false);
+  }
+
   #target(viewId: string): BrowserSitePermissionTarget | null {
     try {
       const target = this.options.target(viewId);

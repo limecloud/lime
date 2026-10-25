@@ -496,13 +496,6 @@ declare module "./connection.js" {
       params: protocol.McpServerEnabledSetParams,
       options?: AppServerRequestOptions,
     ): Promise<AppServerRequestResult<protocol.McpServerListResponse>>;
-    importMcpServersFromApp(
-      params: protocol.McpServerImportFromAppParams,
-      options?: AppServerRequestOptions,
-    ): Promise<AppServerRequestResult<protocol.McpServerImportFromAppResponse>>;
-    syncAllMcpServersToLive(
-      options?: AppServerRequestOptions,
-    ): Promise<AppServerRequestResult<protocol.McpServerListResponse>>;
     loginMcpServerOauth(
       params: protocol.McpServerOauthLoginParams,
       options?: AppServerRequestOptions,
@@ -926,6 +919,10 @@ declare module "./connection.js" {
       params: protocol.FsUnwatchParams,
       options?: AppServerRequestOptions,
     ): Promise<AppServerRequestResult<protocol.FsUnwatchResponse>>;
+    setProjectGitWorktreeEnvironment(
+      params: protocol.ProjectGitWorktreeEnvironmentSetParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.ProjectGitStatusResponse>>;
     readProjectGitStatus(
       params: protocol.ProjectGitStatusParams,
       options?: AppServerRequestOptions,

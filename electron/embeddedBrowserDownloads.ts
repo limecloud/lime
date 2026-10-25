@@ -40,7 +40,12 @@ export interface EmbeddedBrowserDownloadController {
   onCompletedDownload?: (downloadId: string, savePath: string) => void;
   resolveSavePath?: (filename: string) => string | null;
   resolveSaveDialogOptions?: (filename: string) => SaveDialogOptions | null;
-  canDownload?: (viewId: string, url: string) => boolean | Promise<boolean>;
+  canDownload?: (
+    viewId: string,
+    url: string,
+    recovered?: boolean,
+    signal?: AbortSignal,
+  ) => boolean | Promise<boolean>;
   onDownload?: (
     item: DownloadItem,
     event: EmbeddedBrowserDownloadEvent,
@@ -61,6 +66,7 @@ export function installEmbeddedBrowserDownloadHandling(
   dispose(): void;
 } {
   let accepting = true;
+  const shutdown = new AbortController();
   const recovery = new BrowserDownloadRecovery(
     browserSession,
     (item, request, current) =>
@@ -71,6 +77,7 @@ export function installEmbeddedBrowserDownloadHandling(
         emit,
         request.id,
         () => accepting && current(),
+        shutdown.signal,
       ),
   );
   const listener = (
@@ -94,6 +101,7 @@ export function installEmbeddedBrowserDownloadHandling(
         emit,
         undefined,
         () => accepting,
+        shutdown.signal,
       ).catch(() => undefined);
   };
   browserSession.on("will-download", listener);
@@ -104,10 +112,12 @@ export function installEmbeddedBrowserDownloadHandling(
         : Promise.reject(new Error("Browser downloads are shutting down")),
     prepareShutdown: () => {
       accepting = false;
+      shutdown.abort();
       recovery.dispose();
     },
     dispose: () => {
       accepting = false;
+      shutdown.abort();
       browserSession.removeListener("will-download", listener);
       recovery.dispose();
     },
@@ -121,6 +131,7 @@ async function attachEmbeddedBrowserDownload(
   emit: HostEventEmitter,
   recoveredId?: string,
   current: () => boolean = () => true,
+  shutdown?: AbortSignal,
 ): Promise<void> {
   if (recoveredId) downloadIds.set(item, recoveredId);
   if (!recoveredId) {
@@ -135,6 +146,24 @@ async function attachEmbeddedBrowserDownload(
   }
   let finished = false;
   let controllable = false;
+  let invalidated = false;
+  const authorization = new AbortController();
+  const invalidatePending = () => {
+    invalidated = true;
+    authorization.abort();
+    if (!finished && !controllable) item.cancel();
+  };
+  const contents = entry.webContents;
+  shutdown?.addEventListener("abort", invalidatePending, { once: true });
+  contents?.on("did-start-navigation", invalidatePending);
+  contents?.on("destroyed", invalidatePending);
+  contents?.on("render-process-gone", invalidatePending);
+  const removePendingListeners = () => {
+    shutdown?.removeEventListener("abort", invalidatePending);
+    contents?.off("did-start-navigation", invalidatePending);
+    contents?.off("destroyed", invalidatePending);
+    contents?.off("render-process-gone", invalidatePending);
+  };
   const emitDownload = (state: EmbeddedBrowserDownloadState) => {
     const payload = readDownloadEvent(entry, item, state);
     controller.onDownload?.(item, payload, finished, controllable);
@@ -146,6 +175,8 @@ async function attachEmbeddedBrowserDownload(
   });
   item.once("done", (_event, state) => {
     finished = true;
+    authorization.abort();
+    removePendingListeners();
     const finalState =
       state === "completed"
         ? "completed"
@@ -162,10 +193,15 @@ async function attachEmbeddedBrowserDownload(
     emitDownload(finalState);
   });
   try {
-    const allowed = controller.canDownload?.(entry.viewId, item.getURL());
+    const allowed = controller.canDownload?.(
+      entry.viewId,
+      item.getURL(),
+      !!recoveredId,
+      authorization.signal,
+    );
     if (allowed instanceof Promise) {
       item.pause();
-      if (!(await allowed) || finished || !current()) {
+      if (!(await allowed) || finished || invalidated || !current()) {
         if (!finished) item.cancel();
         if (recoveredId)
           throw new Error(
@@ -175,7 +211,7 @@ async function attachEmbeddedBrowserDownload(
       }
       controllable = true;
       item.resume();
-    } else if (allowed === false || !current()) {
+    } else if (allowed === false || invalidated || !current()) {
       item.cancel();
       if (recoveredId)
         throw new Error(
@@ -195,6 +231,9 @@ async function attachEmbeddedBrowserDownload(
   } catch (error) {
     if (!finished) item.cancel();
     if (recoveredId) throw error;
+  } finally {
+    authorization.abort();
+    removePendingListeners();
   }
 }
 

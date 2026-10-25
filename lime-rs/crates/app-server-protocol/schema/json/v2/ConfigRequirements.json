@@ -7,6 +7,68 @@
       ],
       "type": "string"
     },
+    "ApplicationNetworkRequirements": {
+      "properties": {
+        "domains": {
+          "additionalProperties": {
+            "$ref": "#/$defs/NetworkDomainPermission"
+          },
+          "type": "object"
+        },
+        "enabled": {
+          "description": "When enabled, only explicitly allowed exact domains may be contacted.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "domains",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "ApplicationRequirements": {
+      "properties": {
+        "network": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApplicationNetworkRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "storage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApplicationStorageRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ApplicationStorageRequirements": {
+      "description": "Managed storage settings for new Desktop workspaces, not filesystem access restrictions.",
+      "properties": {
+        "defaultProjectParent": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "projectlessWorkspaceRoot": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "BrowserUseAccessApprovalLifetime": {
       "enum": [
         "thread",
@@ -157,6 +219,115 @@
       },
       "type": "object"
     },
+    "ComputerUseMacosRequirements": {
+      "properties": {
+        "bundleIds": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AllowDenyRequirement"
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ComputerUseRequirements": {
+      "properties": {
+        "allowLockedComputerUse": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowPersistentApproval": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "defaultAppAccess": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "macos": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerUseMacosRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "windows": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerUseWindowsRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ComputerUseWindowsExeRequirement": {
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        "binaryName": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "productName": {
+          "type": "string"
+        },
+        "publisherName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "access",
+        "productName",
+        "publisherName"
+      ],
+      "type": "object"
+    },
+    "ComputerUseWindowsRequirements": {
+      "properties": {
+        "aumids": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AllowDenyRequirement"
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "exes": {
+          "items": {
+            "$ref": "#/$defs/ComputerUseWindowsExeRequirement"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "InAppBrowserRequirements": {
       "properties": {
         "allowExternalBrowserSettingsImport": {
@@ -167,6 +338,13 @@
         }
       },
       "type": "object"
+    },
+    "NetworkDomainPermission": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
     },
     "RequestHeader": {
       "properties": {
@@ -220,10 +398,30 @@
         "null"
       ]
     },
+    "application": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplicationRequirements"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "browserUse": {
       "anyOf": [
         {
           "$ref": "#/$defs/BrowserUseRequirements"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "computerUse": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComputerUseRequirements"
         },
         {
           "type": "null"

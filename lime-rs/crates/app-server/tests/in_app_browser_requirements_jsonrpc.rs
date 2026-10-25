@@ -66,6 +66,7 @@ async fn import_requirement_preserves_unset_and_explicit_values_on_public_read()
         (
             "allowed_sandbox_modes = ['read-only']\n[in_app_browser]",
             json!({"requirements":{
+                "application":null,
                 "allowedApprovalPolicies":null,
                 "allowedSandboxModes":["read-only"],
                 "allowedWebSearchModes":null,
@@ -149,6 +150,7 @@ async fn malformed_managed_import_policy_fails_closed_and_can_be_repaired() {
 
 fn projected(value: Option<bool>) -> Value {
     json!({"requirements":{
+        "application":null,
         "allowedApprovalPolicies":null,
         "allowedSandboxModes":null,
         "allowedWebSearchModes":null,

@@ -190,7 +190,7 @@ fn project_usage(usage: Usage) -> AgentTokenUsage {
         output_tokens: count(usage.output_tokens.unwrap_or_default()),
         cached_input_tokens: usage.cache_read_input_tokens.map(count),
         cache_creation_input_tokens: usage.cache_write_input_tokens.map(count),
-        codex_rollout_budget_units: usage.codex_rollout_budget_units,
+        lime_rollout_budget_units: usage.lime_rollout_budget_units,
     }
 }
 

@@ -488,6 +488,19 @@ pub enum ClientRequest {
     PrimaryRuntimeResetDependencies { id: RequestId, params: RunUpdateNowParams },
     #[serde(rename = "primaryRuntime/cancelInstall")]
     PrimaryRuntimeCancelInstall { id: RequestId, params: CancelInstallParams },
+    #[serde(rename = "computerUse/status")]
+    ComputerUseStatus {
+        id: RequestId,
+        params: super::ComputerUseStatusParams,
+    },
+    #[serde(rename = "computerUse/setup")]
+    ComputerUseSetup { id: RequestId, params: super::ComputerUseSetupParams },
+    #[serde(rename = "computerUse/revoke")]
+    ComputerUseRevoke { id: RequestId, params: super::ComputerUseRevokeParams },
+    #[serde(rename = "computerUse/lease/acquire")]
+    ComputerUseLeaseAcquire { id: RequestId, params: super::ComputerUseLeaseAcquireParams },
+    #[serde(rename = "computerUse/lease/release")]
+    ComputerUseLeaseRelease { id: RequestId, params: super::ComputerUseLeaseReleaseParams },
     #[serde(rename = "config/read")]
     ConfigRead {
         id: RequestId,
@@ -849,6 +862,11 @@ impl ClientRequest {
             | Self::PrimaryRuntimeResetDependencies { id, .. }
             | Self::PrimaryRuntimeCancelInstall { id, .. }
             | Self::ConfigRead { id, .. }
+            | Self::ComputerUseStatus { id, .. }
+            | Self::ComputerUseSetup { id, .. }
+            | Self::ComputerUseRevoke { id, .. }
+            | Self::ComputerUseLeaseAcquire { id, .. }
+            | Self::ComputerUseLeaseRelease { id, .. }
             | Self::ConfigRequirementsRead { id, .. }
             | Self::ConfigValueWrite { id, .. }
             | Self::ConfigBatchWrite { id, .. }
@@ -990,6 +1008,11 @@ impl ClientRequest {
             Self::PrimaryRuntimeResetDependencies { .. } => Method::PrimaryRuntimeResetDependencies,
             Self::PrimaryRuntimeCancelInstall { .. } => Method::PrimaryRuntimeCancelInstall,
             Self::ConfigRead { .. } => Method::ConfigRead,
+            Self::ComputerUseStatus { .. } => Method::ComputerUseStatus,
+            Self::ComputerUseSetup { .. } => Method::ComputerUseSetup,
+            Self::ComputerUseRevoke { .. } => Method::ComputerUseRevoke,
+            Self::ComputerUseLeaseAcquire { .. } => Method::ComputerUseLeaseAcquire,
+            Self::ComputerUseLeaseRelease { .. } => Method::ComputerUseLeaseRelease,
             Self::ConfigRequirementsRead { .. } => Method::ConfigRequirementsRead,
             Self::ConfigValueWrite { .. } => Method::ConfigValueWrite,
             Self::ConfigBatchWrite { .. } => Method::ConfigBatchWrite,

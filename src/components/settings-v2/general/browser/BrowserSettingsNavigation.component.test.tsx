@@ -45,6 +45,13 @@ vi.mock("./BrowserDownloadsPage", () => ({
     </button>
   ),
 }));
+vi.mock("./BrowserSiteSettingsPage", () => ({
+  BrowserSiteSettingsPage: ({ onBack }: { onBack: () => void }) => (
+    <button data-testid="site-settings-page" onClick={onBack}>
+      Return
+    </button>
+  ),
+}));
 
 const owner = {
   runtimeSessionId: "session",
@@ -101,12 +108,12 @@ afterEach(async () => {
   await changeLimeLocale("zh-CN");
 });
 
-const manage = (page: "history" | "downloads") =>
+const manage = (page: "history" | "downloads" | "site-settings") =>
   container.querySelector<HTMLButtonElement>(
-    `#browser-${page === "history" ? "history" : "download-history"} button`,
+    `#browser-${page === "history" ? "history" : page === "downloads" ? "download-history" : "site-settings"} button`,
   )!;
 
-it.each(["history", "downloads"] as const)(
+it.each(["history", "downloads", "site-settings"] as const)(
   "uses the application route for %s, returns focus and supports reopening",
   async (page) => {
     await act(async () => root.render(<Harness />));
@@ -118,7 +125,9 @@ it.each(["history", "downloads"] as const)(
     });
     await act(async () =>
       container
-        .querySelector<HTMLButtonElement>(`[data-testid=${page}-page]`)!
+        .querySelector<HTMLButtonElement>(
+          `[data-testid=${page === "site-settings" ? "site-settings" : page}-page]`,
+        )!
         .click(),
     );
     expect(route.browserPage).toBeUndefined();
@@ -145,7 +154,7 @@ it("returns a directly opened subpage through the same application route", async
       <Harness
         initial={{
           tab: SettingsTabs.Browser,
-          browserPage: "history",
+          browserPage: "site-settings",
           browserReturnOwner: owner,
         }}
       />,
@@ -153,12 +162,12 @@ it("returns a directly opened subpage through the same application route", async
   );
   await act(async () =>
     container
-      .querySelector<HTMLButtonElement>("[data-testid=history-page]")!
+      .querySelector<HTMLButtonElement>("[data-testid=site-settings-page]")!
       .click(),
   );
   expect(route.browserPage).toBeUndefined();
   expect(route.browserReturnOwner).toEqual(owner);
-  expect(document.activeElement).toBe(manage("history"));
+  expect(document.activeElement).toBe(manage("site-settings"));
 });
 
 it("preserves the established return owner across Settings routes and rejects a replacement", async () => {
@@ -182,12 +191,12 @@ it("does not invent a return owner when ordinary Settings has none", async () =>
   await act(async () =>
     navigation.navigateFromBrowser("settings", {
       tab: SettingsTabs.Browser,
-      browserPage: "downloads",
+      browserPage: "site-settings",
       browserReturnOwner: owner,
     }),
   );
   expect(route).toEqual({
     tab: SettingsTabs.Browser,
-    browserPage: "downloads",
+    browserPage: "site-settings",
   });
 });

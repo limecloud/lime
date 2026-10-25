@@ -260,7 +260,7 @@
       "counterpartRule": "same-name",
       "evidence": [
         "lime-rs/crates/app-server/src/processor/mcp.rs",
-        "src/hooks/useMcpEvents.ts",
+        "lime-rs/crates/app-server-protocol/src/protocol/v0/mcp.rs",
         "scripts/electron/mcp-event-stream-gate-b.mjs"
       ],
       "methods": ["mcpServer/event/stream/start", "mcpServer/event/stream/stop"]
@@ -689,7 +689,7 @@
       "counterpartRule": "none",
       "evidence": [
         "internal/refactor/v1/08-third-audit-gap-register.md",
-        "src/lib/governance/codexMethodProductScopeBoundary.test.ts",
+        "src/lib/governance/upstreamMethodProductScopeBoundary.test.ts",
         "internal/exec-plans/codex-method-scope-reassessment.md"
       ],
       "methods": [
@@ -1309,11 +1309,11 @@
       "productArea": "mcp",
       "status": "implemented",
       "priority": "P1",
-      "owner": "app-server MCP event stream processor + session-owned McpThreadRuntime + Desktop MCP runtime",
+      "owner": "app-server MCP event stream processor + session-owned McpThreadRuntime + typed client notification decoder",
       "counterpartRule": "same-name",
       "evidence": [
         "lime-rs/crates/app-server/src/processor/mcp.rs",
-        "src/hooks/useMcpEvents.ts",
+        "packages/app-server-client/src/server-notifications.ts",
         "scripts/electron/mcp-event-stream-gate-b.mjs"
       ],
       "methods": ["mcpServer/event/stream/notification"]

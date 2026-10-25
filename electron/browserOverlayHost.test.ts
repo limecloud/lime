@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { EventEmitter } from "node:events";
 import process from "node:process";
+import { setImmediate } from "node:timers";
 import type { Input } from "electron";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -17,6 +18,7 @@ interface TestContents extends EventEmitter {
   id: number;
   mainFrame: object;
   isDestroyed: () => boolean;
+  isFocused: () => boolean;
   focus: ReturnType<typeof vi.fn>;
   loadURL: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
@@ -25,6 +27,7 @@ interface TestContents extends EventEmitter {
 interface TestView {
   webContents: TestContents;
   options: { webPreferences: { additionalArguments: string[] } };
+  setBounds: ReturnType<typeof vi.fn>;
 }
 const native = vi.hoisted(() => ({
   views: [] as TestView[],
@@ -47,6 +50,7 @@ vi.mock("./electronRuntime", async () => {
           id: native.views.length + 100,
           mainFrame: {},
           isDestroyed: () => destroyed,
+          isFocused: () => false,
           focus: vi.fn(),
           setWindowOpenHandler: vi.fn(),
           send: vi.fn(),
@@ -167,6 +171,51 @@ afterEach(() => {
 });
 
 describe("trusted native browser menu lifecycle", () => {
+  it("keeps address input focus, resizes suggestions, and preserves page focus on outside dismissal", async () => {
+    const f = fixture();
+    const receipt = await f.host.show(
+      f.window as never,
+      "view-1",
+      {
+        menuId: "address-1",
+        mode: "address",
+        anchor: { x: 100, y: 8, width: 450, height: 28 },
+        items: [
+          { id: "docs", label: "Docs" },
+          { id: "other", label: "Other" },
+        ],
+      },
+      f.owner as never,
+    );
+    const view = native.views.at(-1)!;
+    expect(view.setBounds).toHaveBeenLastCalledWith({
+      x: 100,
+      y: 39,
+      width: 450,
+      height: 98,
+    });
+    expect(view.webContents.focus).not.toHaveBeenCalled();
+    expect(f.owner.focus).toHaveBeenCalledOnce();
+    f.host.update("view-1", {
+      menuId: receipt.menuId,
+      generation: receipt.generation,
+      items: [{ id: "docs", label: "Docs", checked: true }],
+    });
+    expect(view.setBounds).toHaveBeenLastCalledWith({
+      x: 100,
+      y: 39,
+      width: 450,
+      height: 54,
+    });
+    f.host.hideMenu("view-1", { menuId: "stale-menu" });
+    expect(view.webContents.close).not.toHaveBeenCalled();
+    f.owner.emit("blur");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(view.webContents.close).toHaveBeenCalledOnce();
+    expect(f.owner.focus).toHaveBeenCalledOnce();
+    expect(f.events.at(-1)?.reason).toBe("outside");
+    f.host.dispose();
+  });
   it("keeps confirmation actions finite, ignores page shortcuts and rejects dynamic updates", async () => {
     const onCommand = vi.fn();
     const f = fixture(1, onCommand);

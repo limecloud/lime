@@ -159,6 +159,7 @@ export function defaultRustyV8CacheRoot({
 export function resolveRustyV8CargoEnv({
   env = process.env,
   repoRoot = process.cwd(),
+  cargoLockPath = path.resolve(repoRoot, "lime-rs", "Cargo.lock"),
   platform = process.platform,
   arch = process.arch,
   cacheRoot,
@@ -177,9 +178,7 @@ export function resolveRustyV8CargoEnv({
   }
 
   const target = resolveRustyV8Target({ env, platform, arch });
-  const version = resolveV8CrateVersion(
-    readFileSync(path.resolve(repoRoot, "lime-rs", "Cargo.lock"), "utf8"),
-  );
+  const version = resolveV8CrateVersion(readFileSync(cargoLockPath, "utf8"));
   const names = rustyV8ArtifactNames(target);
   const releaseUrl = `${RUSTY_V8_RELEASE_BASE_URL}/rusty-v8-v${version}`;
   const resolvedCacheRoot =

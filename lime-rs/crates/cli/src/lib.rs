@@ -11,7 +11,7 @@ pub use debug_sandbox::run_command_under_windows_sandbox;
 
 #[derive(Debug, Default, Args)]
 pub struct SandboxStateArgs {
-    /// JSON value from `codex/sandbox-state-meta` to apply directly.
+    /// JSON value from `lime/sandbox-state-meta` to apply directly.
     #[arg(
         long = "sandbox-state-json",
         value_name = "JSON",

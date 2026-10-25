@@ -5,10 +5,14 @@
 
 #![allow(unused_imports)]
 
+mod application_requirements;
+mod application_storage_requirements;
 mod browser;
 mod browser_computer_use_requirements;
 mod browser_use;
 mod browser_use_validation;
+mod computer_use;
+mod computer_use_validation;
 mod desktop;
 mod export;
 mod features;
@@ -22,6 +26,7 @@ pub mod managed;
 mod output;
 mod path_utils;
 mod permissions;
+mod shell_environment_policy;
 mod persistence;
 mod plugins;
 mod tool_execution;
@@ -31,16 +36,28 @@ mod types;
 mod worktrees;
 mod yaml;
 
+pub use application_requirements::{
+    ApplicationNetworkRequirementsToml, ApplicationRequirementsToml,
+};
+pub use application_storage_requirements::ApplicationStorageRequirementsToml;
 pub use browser::{
     BrowserAnnotationScreenshot, BrowserApprovalMode, BrowserConfig, BrowserHistoryAccess,
 };
 pub use browser_computer_use_requirements::{
     AllowDenyRequirementToml, BrowserUseAccessApprovalLifetimeToml,
     BrowserUseExtensionRequirementsToml, BrowserUseOriginPolicyToml, BrowserUseRequirementsToml,
+    ComputerUseMacosRequirementsToml, ComputerUseRequirementsToml,
+    ComputerUseWindowsExeRequirementToml, ComputerUseWindowsRequirementsToml,
     RequestHeaderToml,
 };
 pub use browser_use::{BrowserUseConfigToml, BrowserUseOriginPolicyConfigToml};
-pub use desktop::{DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget, ReasoningEffort};
+pub use computer_use::{
+    ComputerUseConfigToml, ComputerUseMacosConfigToml, ComputerUseWindowsConfigToml,
+    ComputerUseWindowsExeConfigToml,
+};
+pub use desktop::{
+    ComposerEnterBehavior, DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget, ReasoningEffort,
+};
 pub use export::{ExportBundle, ExportOptions, ExportService, REDACTED_PLACEHOLDER};
 pub use file_lock::config_file_lock;
 pub use git::{GitConfig, PullRequestMergeMethod, ReviewDeliveryPreference};
@@ -53,6 +70,7 @@ pub use in_app_browser_requirements::InAppBrowserRequirementsToml;
 pub use output::{ModelVerbosity, ReasoningSummary};
 pub use path_utils::{collapse_tilde, contains_tilde, expand_tilde};
 pub use permissions::{ApprovalPolicy, SandboxMode, SandboxWorkspaceWrite};
+pub use shell_environment_policy::ShellEnvironmentPolicyToml;
 pub use plugins::{
     MarketplaceConfig, MarketplaceSourceType, PluginConfig, PluginsConfig, PluginsDefaultConfig,
 };

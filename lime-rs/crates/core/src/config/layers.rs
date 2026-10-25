@@ -18,6 +18,7 @@ pub const PROJECT_DEFAULT_KEYS: &[&str] = &[
     "model_reasoning_effort",
     "default_permissions",
     "permissions",
+    "shell_environment_policy",
 ];
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -73,11 +74,11 @@ impl ConfigLayers {
             .unwrap_or_default();
         for project in &projects {
             if project.disabled_reason.is_none() {
-                merge_defaults(&mut effective, &project.config);
+                merge_defaults(&mut effective, &project.config)?;
             }
         }
         if let Some(managed) = &managed {
-            merge_value(&mut effective, &managed.config);
+            merge_value(&mut effective, &managed.config)?;
         }
         let effective = serde_json::from_value(effective).map_err(parse_error)?;
         Ok(Self {
@@ -172,22 +173,43 @@ pub fn parse_project(source: &str) -> Result<Value, ConfigError> {
     toml_edit::de::from_str(source).map_err(parse_error)
 }
 
-pub fn merge_defaults(effective: &mut Value, overlay: &Value) {
+pub fn merge_defaults(effective: &mut Value, overlay: &Value) -> Result<(), ConfigError> {
     for key in PROJECT_DEFAULT_KEYS {
         if let Some(value) = overlay.get(key) {
-            merge_value(&mut effective[*key], value);
+            merge_field(effective, key, value)?;
         }
     }
+    Ok(())
 }
 
-fn merge_value(target: &mut Value, source: &Value) {
-    if let (Some(target), Some(source)) = (target.as_object_mut(), source.as_object()) {
+fn merge_field(target: &mut Value, key: &str, source: &Value) -> Result<(), ConfigError> {
+    if key == "shell_environment_policy" {
+        let overlay: super::ShellEnvironmentPolicyToml =
+            serde_json::from_value(source.clone()).map_err(parse_error)?;
+        let mut policy: super::ShellEnvironmentPolicyToml = target
+            .get(key)
+            .filter(|value| !value.is_null())
+            .map(|value| serde_json::from_value(value.clone()))
+            .transpose()
+            .map_err(parse_error)?
+            .unwrap_or_default();
+        policy.merge(overlay);
+        target[key] = serde_json::to_value(policy).map_err(parse_error)?;
+        return Ok(());
+    }
+    merge_value(&mut target[key], source)
+}
+
+fn merge_value(target: &mut Value, source: &Value) -> Result<(), ConfigError> {
+    if target.is_object() && source.is_object() {
+        let source = source.as_object().expect("object checked");
         for (key, value) in source {
-            merge_value(target.entry(key.clone()).or_insert(Value::Null), value);
+            merge_field(target, key, value)?;
         }
     } else {
         *target = source.clone();
     }
+    Ok(())
 }
 
 /// 仅修改配置页支持的键；不重排、归一化或丢弃文件内其他字段。

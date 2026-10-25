@@ -1,3 +1,6 @@
+pub mod json_lines_transport;
+pub mod provider_fixture;
+
 use app_server::{AppServerRuntimeFactory, ProjectionStore, RuntimeCore};
 use chrono::Utc;
 use lime_core::database::dao::api_key_provider::{
@@ -58,6 +61,23 @@ pub fn runtime_core_with_chat_providers_and_output_at(
     let conn = Connection::open_in_memory().expect("open in-memory product db");
     create_tables(&conn).expect("create product schema");
     let db = Arc::new(Mutex::new(conn));
+    seed_chat_providers(&db, providers, output_support);
+    let projection_store = Arc::new(
+        ProjectionStore::initialize(temp.path().join("projection.sqlite"))
+            .expect("initialize projection store"),
+    );
+
+    AppServerRuntimeFactory::runtime_backend_core_with_db(db)
+        .with_projection_store(projection_store)
+}
+
+/// 同一 provider 数据合同可用于内存 runtime 与真实 stdio 子进程。
+#[allow(dead_code)]
+pub fn seed_chat_providers(
+    db: &lime_core::database::DbConnection,
+    providers: &[(&str, &str, ApiProviderType, &str, &str)],
+    output_support: bool,
+) {
     let now = Utc::now();
     for &(provider_id, model, provider_type, api_host, api_key) in providers {
         let provider = ApiKeyProvider {
@@ -115,11 +135,4 @@ pub fn runtime_core_with_chat_providers_and_output_at(
             ApiKeyProviderDao::insert_api_key(&conn, &key).expect("insert chat provider api key");
         }
     }
-    let projection_store = Arc::new(
-        ProjectionStore::initialize(temp.path().join("projection.sqlite"))
-            .expect("initialize projection store"),
-    );
-
-    AppServerRuntimeFactory::runtime_backend_core_with_db(db)
-        .with_projection_store(projection_store)
 }

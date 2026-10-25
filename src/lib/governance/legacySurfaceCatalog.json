@@ -118,7 +118,7 @@
         "scripts/electron/local-history-import-real-sample-visual-audit-smoke.test.mjs",
         "scripts/electron/local-history-import-visual-audit-smoke.mjs",
         "scripts/electron/local-history-import-visual-audit-smoke.test.mjs",
-        "src/components/agent/chat/components/MessageList.importedHistory.codexImport.test.tsx",
+        "src/components/agent/chat/components/MessageList.importedHistory.limeImport.test.tsx",
         "src/components/agent/chat/components/MessageList.importedHistory.test.tsx",
         "src/components/agent/chat/components/StreamingRenderer.importedHistory.test.tsx",
         "src/components/agent/chat/components/StreamingRenderer.webSearch.imported.test.tsx",

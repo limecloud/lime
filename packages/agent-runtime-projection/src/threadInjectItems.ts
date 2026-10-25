@@ -119,7 +119,9 @@ function stableSignature(value: unknown, ignoreMetadata = false): string {
   return JSON.stringify(stableValue(value, ignoreMetadata));
 }
 
-function responseItemRecord(value: unknown): Record<string, unknown> | undefined {
+function responseItemRecord(
+  value: unknown,
+): Record<string, unknown> | undefined {
   const record = readRecord(value);
   if (!record) return undefined;
   const direct =
@@ -156,13 +158,17 @@ function responseItemRecords(value: unknown): Record<string, unknown>[] {
   return direct && isValidResponseItem(direct) ? [direct] : [];
 }
 
-function requestItems(input: AgentUiThreadInjectItemsProjectionInput): unknown[] {
+function requestItems(
+  input: AgentUiThreadInjectItemsProjectionInput,
+): unknown[] {
   const request = readRecord(input.injectRequest);
   const requestItems = rawArray(request?.items);
   return requestItems.length > 0 ? requestItems : rawArray(input.items);
 }
 
-function readThreadId(input: AgentUiThreadInjectItemsProjectionInput): string | undefined {
+function readThreadId(
+  input: AgentUiThreadInjectItemsProjectionInput,
+): string | undefined {
   const request = readRecord(input.injectRequest);
   const response = readRecord(input.injectResponse);
   return definedString(
@@ -203,7 +209,9 @@ function itemId(record: Record<string, unknown>): string | undefined {
   ]);
 }
 
-function contentRecords(record: Record<string, unknown>): Record<string, unknown>[] {
+function contentRecords(
+  record: Record<string, unknown>,
+): Record<string, unknown>[] {
   return recordArray(record.content).concat(recordArray(record.output));
 }
 
@@ -212,7 +220,11 @@ function textFragments(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(textFragments);
   const record = readRecord(value);
   if (!record) return [];
-  const directText = readStringField(record, ["text", "inputText", "outputText"]);
+  const directText = readStringField(record, [
+    "text",
+    "inputText",
+    "outputText",
+  ]);
   return [
     directText,
     ...textFragments(record.content),
@@ -229,8 +241,12 @@ function contentKinds(record: Record<string, unknown>): string[] {
 
 function metadataKeyList(record: Record<string, unknown>): string[] {
   const metadata = readRecord(record.metadata);
-  const passthrough = readRecord(record.internal_chat_message_metadata_passthrough);
-  const camelPassthrough = readRecord(record.internalChatMessageMetadataPassthrough);
+  const passthrough = readRecord(
+    record.internal_chat_message_metadata_passthrough,
+  );
+  const camelPassthrough = readRecord(
+    record.internalChatMessageMetadataPassthrough,
+  );
   return Array.from(
     new Set([
       ...metadataKeys(metadata),
@@ -240,13 +256,15 @@ function metadataKeyList(record: Record<string, unknown>): string[] {
   ).sort();
 }
 
-function isValidResponseItem(record: Record<string, unknown> | undefined): boolean {
+function isValidResponseItem(
+  record: Record<string, unknown> | undefined,
+): boolean {
   if (!record) return false;
   return Boolean(
     itemType(record) ||
-      itemRole(record) ||
-      Array.isArray(record.content) ||
-      readStringField(record, ["callId", "call_id", "name", "arguments"]),
+    itemRole(record) ||
+    Array.isArray(record.content) ||
+    readStringField(record, ["callId", "call_id", "name", "arguments"]),
   );
 }
 
@@ -278,7 +296,9 @@ function buildItemSnapshot(
   } satisfies AgentUiInjectedResponseItemSnapshot);
 }
 
-function exactSignatures(records: readonly Record<string, unknown>[]): string[] {
+function exactSignatures(
+  records: readonly Record<string, unknown>[],
+): string[] {
   return records.map((record) => stableSignature(record));
 }
 
@@ -287,7 +307,9 @@ function containsAllExact(
   expected: readonly Record<string, unknown>[],
 ): boolean {
   const containerSignatures = new Set(exactSignatures(container));
-  return expected.every((record) => containerSignatures.has(stableSignature(record)));
+  return expected.every((record) =>
+    containerSignatures.has(stableSignature(record)),
+  );
 }
 
 function containsAnyExact(
@@ -295,7 +317,9 @@ function containsAnyExact(
   expected: readonly Record<string, unknown>[],
 ): boolean {
   const containerSignatures = new Set(exactSignatures(container));
-  return expected.some((record) => containerSignatures.has(stableSignature(record)));
+  return expected.some((record) =>
+    containerSignatures.has(stableSignature(record)),
+  );
 }
 
 function orderIsStable(
@@ -334,7 +358,9 @@ function hydrationViolations(
 ): AgentUiThreadInjectItemsIssue[] {
   const issues: AgentUiThreadInjectItemsIssue[] = [];
   const itemIds = new Set(
-    injectedItems.map((item) => item.itemId).filter((item): item is string => Boolean(item)),
+    injectedItems
+      .map((item) => item.itemId)
+      .filter((item): item is string => Boolean(item)),
   );
   hydratedItems.forEach((item, index) => {
     const sourceItemId = readStringField(item, [
@@ -347,7 +373,11 @@ function hydrationViolations(
     ]);
     const sourceMatches = sourceItemId ? itemIds.has(sourceItemId) : true;
     if (!sourceMatches) return;
-    const role = readStringField(item, ["role", "projectionRole", "projection_role"]);
+    const role = readStringField(item, [
+      "role",
+      "projectionRole",
+      "projection_role",
+    ]);
     const type = readStringField(item, ["type", "kind"]);
     const surface = readStringField(item, ["surface"]);
     const finalLike =
@@ -477,7 +507,10 @@ function validateSnapshot(
   }
 
   issues.push(
-    ...hydrationViolations(recordArray(input.hydratedItems), snapshot.injectedItems),
+    ...hydrationViolations(
+      recordArray(input.hydratedItems),
+      snapshot.injectedItems,
+    ),
   );
   return issues;
 }
@@ -488,28 +521,46 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexThreadInjectItemsSnapshot(
+export function extractThreadInjectItemsSnapshot(
   input: AgentUiThreadInjectItemsProjectionInput,
 ): AgentUiThreadInjectItemsSnapshot {
   const rawItems = requestItems(input);
   const validRequestItems = rawItems
     .map(responseItemRecord)
-    .filter((record): record is Record<string, unknown> => isValidResponseItem(record));
+    .filter((record): record is Record<string, unknown> =>
+      isValidResponseItem(record),
+    );
   const persistedHistory = responseItemRecords(input.persistedHistory);
   const nextModelInput = responseItemRecords(input.nextModelRequestInput);
-  const previousModelInput = responseItemRecords(input.previousModelRequestInput);
+  const previousModelInput = responseItemRecords(
+    input.previousModelRequestInput,
+  );
   const injectedItems = rawItems
     .map(buildItemSnapshot)
-    .filter((item): item is AgentUiInjectedResponseItemSnapshot => Boolean(item));
+    .filter((item): item is AgentUiInjectedResponseItemSnapshot =>
+      Boolean(item),
+    );
 
-  const persistedHistoryMatches = containsAllExact(persistedHistory, validRequestItems);
-  const nextModelInputMatches = containsAllExact(nextModelInput, validRequestItems);
+  const persistedHistoryMatches = containsAllExact(
+    persistedHistory,
+    validRequestItems,
+  );
+  const nextModelInputMatches = containsAllExact(
+    nextModelInput,
+    validRequestItems,
+  );
   const previousModelInputClean = !containsAnyExact(
     previousModelInput,
     validRequestItems,
   );
-  const persistedOrderStable = orderIsStable(persistedHistory, validRequestItems);
-  const modelInputOrderStable = orderIsStable(nextModelInput, validRequestItems);
+  const persistedOrderStable = orderIsStable(
+    persistedHistory,
+    validRequestItems,
+  );
+  const modelInputOrderStable = orderIsStable(
+    nextModelInput,
+    validRequestItems,
+  );
   const rawMetadataPreserved = metadataPreserved(
     persistedHistory,
     validRequestItems,
@@ -528,7 +579,8 @@ export function extractCodexThreadInjectItemsSnapshot(
     rawMetadataPreserved,
     remoteImageUrlsBlocked: !rawItems.some(hasRemoteImageUrl),
     hydratedAsContextOnly:
-      hydrationViolations(recordArray(input.hydratedItems), injectedItems).length === 0,
+      hydrationViolations(recordArray(input.hydratedItems), injectedItems)
+        .length === 0,
   };
   return {
     ...base,
@@ -536,11 +588,11 @@ export function extractCodexThreadInjectItemsSnapshot(
   };
 }
 
-export function buildCodexThreadInjectItemsProjectionEvent(
+export function buildThreadInjectItemsProjectionEvent(
   input: AgentUiThreadInjectItemsProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexThreadInjectItemsSnapshot(input);
+  const snapshot = extractThreadInjectItemsSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",
@@ -550,7 +602,8 @@ export function buildCodexThreadInjectItemsProjectionEvent(
     sessionId: definedString(context.sessionId ?? undefined),
     threadId: snapshot.threadId ?? definedString(context.threadId ?? undefined),
     runId: definedString(context.runId ?? undefined),
-    turnId: snapshot.injectionTurnId ?? definedString(context.turnId ?? undefined),
+    turnId:
+      snapshot.injectionTurnId ?? definedString(context.turnId ?? undefined),
     owner: "context",
     scope: "thread",
     phase: status === "failed" ? "failed" : "completed",

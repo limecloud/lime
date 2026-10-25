@@ -103,6 +103,41 @@ function collectSourceFiles(root) {
 }
 
 export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
+  if (
+    fs.existsSync(
+      path.join(repoRoot, "lime-rs/crates/services/src/mcp_sync.rs"),
+    )
+  ) {
+    failures.push("MCP app sync is retired: mcp_sync.rs must not be restored");
+  }
+  for (const file of [
+    "lime-rs/crates/services/src/mcp_service.rs",
+    "lime-rs/crates/services/src/lib.rs",
+    "lime-rs/crates/core/src/models/mcp_model.rs",
+    "lime-rs/crates/core/src/database/dao/mcp.rs",
+    "lime-rs/crates/mcp/src/types.rs",
+    "lime-rs/crates/mcp/src/mcp_types.rs",
+    "src/lib/api/mcpTypes.ts",
+    "src/lib/crashDiagnostic.ts",
+  ]) {
+    const content = fs.readFileSync(path.join(repoRoot, file), "utf8");
+    for (const snippet of [
+      "enabled_claude",
+      "enabled_codex",
+      "enabled_gemini",
+      "crate::mcp_sync",
+      "pub mod mcp_sync",
+      "pub fn sync_all_to_live",
+      "pub fn import_from_app",
+      "McpServerConfigTyped",
+    ]) {
+      if (content.includes(snippet)) {
+        failures.push(
+          `MCP app sync is retired: forbidden ${JSON.stringify(snippet)} in ${file}`,
+        );
+      }
+    }
+  }
   const requiredByFile = new Map([
     [
       "lime-rs/crates/app-server-protocol/src/protocol/v0/method_names.rs",
@@ -111,8 +146,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         'pub const METHOD_MCP_SERVER_UPDATE: &str = "mcpServer/update"',
         'pub const METHOD_MCP_SERVER_DELETE: &str = "mcpServer/delete"',
         'pub const METHOD_MCP_SERVER_ENABLED_SET: &str = "mcpServer/enabled/set"',
-        'pub const METHOD_MCP_SERVER_IMPORT_FROM_APP: &str = "mcpServer/importFromApp"',
-        'pub const METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE: &str = "mcpServer/syncAllToLive"',
         'pub const METHOD_MCP_SERVER_OAUTH_LOGIN: &str = "mcpServer/oauth/login"',
         'pub const METHOD_MCP_SERVER_OAUTH_LOGOUT: &str = "mcpServer/oauth/logout"',
         'pub const METHOD_MCP_SERVER_START: &str = "mcpServer/start"',
@@ -132,8 +165,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "pub struct McpServerUpdateParams",
         "pub struct McpServerDeleteParams",
         "pub struct McpServerEnabledSetParams",
-        "pub struct McpServerImportFromAppParams",
-        "pub struct McpServerImportFromAppResponse",
         "pub struct McpServerOauthLoginParams",
         "pub struct McpServerOauthLoginResponse",
         "pub struct McpServerOauthLogoutParams",
@@ -181,8 +212,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "pub async fn update_mcp_server(",
         "pub async fn delete_mcp_server(",
         "pub async fn set_mcp_server_enabled(",
-        "pub async fn import_mcp_servers_from_app(",
-        "pub async fn sync_all_mcp_servers_to_live(",
         "pub async fn login_mcp_server_oauth(",
         "pub async fn call_mcp_server_tool(",
         "pub async fn get_mcp_prompt(",
@@ -194,8 +223,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "self.app_data_source.update_mcp_server(params).await",
         "self.app_data_source.delete_mcp_server(params).await",
         "self.app_data_source.set_mcp_server_enabled(params).await",
-        ".import_mcp_servers_from_app(params)",
-        "self.app_data_source.sync_all_mcp_servers_to_live().await",
         "self.app_data_source.login_mcp_server_oauth(params).await",
         "self.app_data_source.get_mcp_prompt(params).await",
         "self.app_data_source.list_mcp_resources().await",
@@ -220,10 +247,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "McpService::delete(db, &params.id)",
         "fn set_mcp_server_enabled(",
         "McpService::toggle_enabled(",
-        "fn import_mcp_servers_from_app(",
-        "McpService::import_from_app(db, &params.app_type)",
-        "fn sync_all_mcp_servers_to_live(",
-        "McpService::sync_all_to_live(db)",
         "async fn login_mcp_server_oauth(",
         ".start_oauth_login(",
         ".get_prompt(&params.server, &params.name, params.arguments)",
@@ -259,9 +282,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "METHOD_MCP_SERVER_DELETE => self.handle_mcp_server_delete_impl(params).await",
         "METHOD_MCP_SERVER_ENABLED_SET =>",
         "self.handle_mcp_server_enabled_set_impl(params).boxed()",
-        "METHOD_MCP_SERVER_IMPORT_FROM_APP =>",
-        "METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE =>",
-        "self.handle_mcp_server_sync_all_to_live_impl().await",
         "METHOD_MCP_SERVER_OAUTH_LOGIN =>",
         "self.handle_mcp_server_oauth_login_impl(params).await",
         "METHOD_MCP_SERVER_OAUTH_LOGOUT =>",
@@ -278,7 +298,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "let params: McpServerUpdateParams = parse_params(params)?",
         "let params: McpServerDeleteParams = parse_params(params)?",
         "let params: McpServerEnabledSetParams = parse_params(params)?",
-        "let params: McpServerImportFromAppParams = parse_params(params)?",
         "let params: McpServerOauthLoginParams = parse_params(params)?",
         "let params: McpServerOauthLogoutParams = parse_params(params)?",
         "let params: V2McpServerToolCallParams = parse_params(params)?",
@@ -296,8 +315,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         'export const METHOD_MCP_SERVER_UPDATE = "mcpServer/update"',
         'export const METHOD_MCP_SERVER_DELETE = "mcpServer/delete"',
         'export const METHOD_MCP_SERVER_ENABLED_SET = "mcpServer/enabled/set"',
-        'export const METHOD_MCP_SERVER_IMPORT_FROM_APP = "mcpServer/importFromApp"',
-        'export const METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE = "mcpServer/syncAllToLive"',
         'export const METHOD_MCP_SERVER_OAUTH_LOGIN = "mcpServer/oauth/login"',
         'export const METHOD_MCP_SERVER_OAUTH_LOGOUT = "mcpServer/oauth/logout"',
         'export const METHOD_MCP_SERVER_TOOL_CALL = "mcpServer/tool/call"',
@@ -310,8 +327,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "export type McpServerUpdateParams",
         "export type McpServerDeleteParams",
         "export type McpServerEnabledSetParams",
-        "export type McpServerImportFromAppParams",
-        "export type McpServerImportFromAppResponse",
         "export type McpServerOauthLoginParams",
         "export type McpServerOauthLoginResponse",
         "export type McpServerOauthLogoutParams",
@@ -335,8 +350,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "updateMcpServer(params: McpServerUpdateParams): JsonRpcRequest",
         "deleteMcpServer(params: McpServerDeleteParams): JsonRpcRequest",
         "setMcpServerEnabled(params: McpServerEnabledSetParams): JsonRpcRequest",
-        "importMcpServersFromApp(",
-        "syncAllMcpServersToLive(): JsonRpcRequest",
         "loginMcpServerOauth(params: McpServerOauthLoginParams): JsonRpcRequest",
         "logoutMcpServerOauth(params: McpServerOauthLogoutParams): JsonRpcRequest",
         "callMcpServerTool(",
@@ -358,8 +371,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "METHOD_MCP_SERVER_UPDATE",
         "METHOD_MCP_SERVER_DELETE",
         "METHOD_MCP_SERVER_ENABLED_SET",
-        "METHOD_MCP_SERVER_IMPORT_FROM_APP",
-        "METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE",
         "METHOD_MCP_SERVER_OAUTH_LOGIN",
         "METHOD_MCP_SERVER_TOOL_CALL",
         "METHOD_MCP_PROMPT_GET",
@@ -379,8 +390,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "updateServer: (server: McpServer): Promise<void> =>",
         "deleteServer: (id: string): Promise<void> =>",
         "toggleServer: (",
-        "importFromApp: (appType: string): Promise<number> =>",
-        "syncAllToLive: (): Promise<void> =>",
         "loginOAuthServer: (",
       ],
     ],
@@ -437,16 +446,13 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
       ],
     ],
     [
-      "src/hooks/useMcpEvents.ts",
+      "src/components/settings-v2/integrations/plugins/useMcpSettings.ts",
       [
-        'import { safeListen } from "@/lib/api/bridgeEvents"',
         'import { subscribeAppServerNotifications } from "@/lib/api/appServerEventBus"',
         "mcpServerOauthLoginCompletedServerNotification",
         "mcpServerStatusUpdatedServerNotification",
-        "export async function setupMcpEventListeners(",
-        '"mcp:tools_updated"',
-        '"mcp:resources_updated"',
-        '"mcp:resource_updated"',
+        "export function useMcpSettings(",
+        "listAllMcpServerStatuses",
         "subscribeAppServerNotifications({",
       ],
     ],
@@ -458,8 +464,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         '"mcpServer/update"',
         '"mcpServer/delete"',
         '"mcpServer/enabled/set"',
-        '"mcpServer/importFromApp"',
-        '"mcpServer/syncAllToLive"',
         '"mcpServer/oauth/login"',
         '"mcpServer/tool/call"',
         '"mcpPrompt/get"',
@@ -480,8 +484,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         '"mcpServer/update"',
         '"mcpServer/delete"',
         '"mcpServer/enabled/set"',
-        '"mcpServer/importFromApp"',
-        '"mcpServer/syncAllToLive"',
         '"mcpServer/oauth/login"',
         '"mcpServer/tool/call"',
         '"mcpPrompt/get"',
@@ -536,8 +538,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
         "`mcpServer/update`",
         "`mcpServer/delete`",
         "`mcpServer/enabled/set`",
-        "`mcpServer/importFromApp`",
-        "`mcpServer/syncAllToLive`",
         "`mcpServer/oauth/login`",
         "`mcpServer/oauthLogin/completed`",
         "`mcpServer/start`",
@@ -594,11 +594,23 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
   }
 
   const retiredJsonRpcMethods = [
+    "mcpServer/importFromApp",
+    "mcpServer/syncAllToLive",
     "mcpTool/call",
     "mcpTool/callWithCaller",
     "mcpResource/read",
   ];
   const currentMcpBoundaryFiles = [
+    "lime-rs/crates/app-server-protocol/src/protocol/v0/mcp.rs",
+    "lime-rs/crates/app-server-protocol/src/protocol/v0/schema_types.rs",
+    "lime-rs/crates/app-server-protocol/src/schema_export/registry.rs",
+    "lime-rs/crates/app-server-protocol/schema/json/app_server_protocol.schemas.json",
+    "lime-rs/crates/app-server-protocol/schema/json/manifest.json",
+    "lime-rs/crates/app-server/src/local_data_source/mcp.rs",
+    "lime-rs/crates/app-server/src/local_data_source/impls/mcp.rs",
+    "lime-rs/crates/app-server/src/runtime/app_data/mcp.rs",
+    "packages/app-server-client/src/protocol.ts",
+    appServerGeneratedProtocolFile,
     "lime-rs/crates/app-server-protocol/src/protocol/v0/method_names.rs",
     "lime-rs/crates/app-server-protocol/src/protocol/v0/client_request.rs",
     "lime-rs/crates/app-server-protocol/src/protocol/v0/catalog.rs",
@@ -664,7 +676,10 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
   }
 
   const eventBridgeContent = fs.readFileSync(
-    path.join(repoRoot, "src/hooks/useMcpEvents.ts"),
+    path.join(
+      repoRoot,
+      "src/components/settings-v2/integrations/plugins/useMcpSettings.ts",
+    ),
     "utf8",
   );
   const forbiddenEventBridgeSnippets = [
@@ -677,7 +692,7 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
   for (const snippet of forbiddenEventBridgeSnippets) {
     if (eventBridgeContent.includes(snippet)) {
       failures.push(
-        `MCP runtime events must stay on safeListen current bridge without mock fallback: forbidden ${JSON.stringify(
+        `MCP settings events must stay on the typed App Server bridge without mock fallback: forbidden ${JSON.stringify(
           snippet,
         )}`,
       );

@@ -46,8 +46,8 @@ pub(super) async fn configure_form(session: &AppServerSession, cwd: &std::path::
             "args": [std::env::var("LIME_TEST_MCP_ELICITATION_FIXTURE").unwrap(), ledger_path],
             "cwd": cwd, "timeout": 10, "tool_timeout": 30
         },
-        "enabled_lime": true, "enabled_claude": false, "enabled_codex": false,
-        "enabled_gemini": false, "created_at": 1
+        "enabled_lime": true,
+        "created_at": 1
     }})).await.unwrap();
     provider_id
 }

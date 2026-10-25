@@ -22,7 +22,7 @@ async fn keyboard_shortcuts_persist_and_invalid_batches_preserve_the_file() {
         json!({"includeLayers": true}),
     )
     .await;
-    let desktop = json!({"keyboard-shortcuts": {"searchSettings": ["Control+J", "Alt+F2"], "showKeyboardShortcuts": []}, "open-local-url-in-target-preference": "external-browser"});
+    let desktop = json!({"keyboard-shortcuts": {"searchSettings": ["Control+J", "Alt+F2", "G G", "Control+K Control+S"], "showKeyboardShortcuts": []}, "open-local-url-in-target-preference": "external-browser"});
     let saved = request(
         &server,
         3,
@@ -37,7 +37,7 @@ async fn keyboard_shortcuts_persist_and_invalid_batches_preserve_the_file() {
     let config = ConfigManager::load(&config_path).unwrap();
     assert_eq!(
         config.config().desktop.keyboard_shortcuts["searchSettings"],
-        vec!["Control+J", "Alt+F2"]
+        vec!["Control+J", "Alt+F2", "G G", "Control+K Control+S"]
     );
     assert_eq!(
         config.config().desktop.keyboard_shortcuts["showKeyboardShortcuts"],
@@ -47,7 +47,7 @@ async fn keyboard_shortcuts_persist_and_invalid_batches_preserve_the_file() {
     for invalid in [
         json!({"searchSettings": ["Hyper+J"]}),
         json!({"searchSettings": null}),
-        json!({"searchSettings": ["Control+J Control+S"]}),
+        json!({"searchSettings": ["Control+J Hyper+S"]}),
     ] {
         let rejected = raw_request(&server, 4, METHOD_CONFIG_BATCH_WRITE, json!({"edits": [
             {"keyPath": "language", "value": "ja-JP", "mergeStrategy": "replace"},

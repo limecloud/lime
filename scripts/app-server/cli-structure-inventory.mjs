@@ -40,7 +40,10 @@ async function main() {
       path.join(limeRustRoot, "src/exec"),
       "rust",
     ),
-    "lime-rs/crates/execpolicy": await inspectTree(limeExecpolicyRoot, "rust"),
+    "lime-rs/crates/execpolicy": await inspectTree(
+      limeExecpolicyRoot,
+      "rust",
+    ),
     "packages/cli": await inspectTree(limeNpmRoot, "node"),
   };
   const inventory = {
@@ -109,10 +112,14 @@ async function main() {
       ),
       execpolicySymbolNamesMissingInLime: difference(
         trees["codex-rs/execpolicy"].symbols.map((symbol) => symbol.name),
-        trees["lime-rs/crates/execpolicy"].symbols.map((symbol) => symbol.name),
+        trees["lime-rs/crates/execpolicy"].symbols.map(
+          (symbol) => symbol.name,
+        ),
       ),
       execpolicySymbolNamesOnlyInLime: difference(
-        trees["lime-rs/crates/execpolicy"].symbols.map((symbol) => symbol.name),
+        trees["lime-rs/crates/execpolicy"].symbols.map(
+          (symbol) => symbol.name,
+        ),
         trees["codex-rs/execpolicy"].symbols.map((symbol) => symbol.name),
       ),
       npmSymbolNamesMissingInLime: difference(

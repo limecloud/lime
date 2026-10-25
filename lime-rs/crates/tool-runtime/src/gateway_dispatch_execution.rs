@@ -40,6 +40,7 @@ pub struct RuntimeGatewayDispatchToolRequest<'a> {
     pub params: &'a Value,
     pub working_directory: PathBuf,
     pub session_id: String,
+    pub tool_identity: Option<crate::tool_executor::RuntimeToolExecutionIdentity>,
     pub cancel_token: Option<CancellationToken>,
     pub turn_context: Option<&'a RuntimeToolTurnContext>,
 }
@@ -161,12 +162,15 @@ pub async fn execute_runtime_gateway_dispatch_tool(
         )));
     }
 
-    let runtime_context = RuntimeToolExecutionContext::new(RuntimeToolExecutionContextInput {
+    let mut runtime_context = RuntimeToolExecutionContext::new(RuntimeToolExecutionContextInput {
         working_directory: request.working_directory,
         session_id: request.session_id,
         cancel_token: request.cancel_token,
         workspace_sandbox: None,
     });
+    if let Some(identity) = request.tool_identity {
+        runtime_context = runtime_context.with_tool_identity(identity);
+    }
     let result = registration
         .executor
         .execute(RuntimeToolExecutionRequest {
@@ -178,17 +182,21 @@ pub async fn execute_runtime_gateway_dispatch_tool(
         .await;
 
     Some(match result {
-        Ok(result) => Ok(runtime_tool_result_to_call_tool_result(
-            RuntimeToolResultParts {
+        Ok(result) => {
+            let mut projection = runtime_tool_result_to_call_tool_result(RuntimeToolResultParts {
                 success: result.success,
                 output: Some(result.output),
                 error: result.error,
                 metadata: result.metadata,
-            },
-        )),
+            });
+            if let Some(content) = result.structured_content {
+                projection.structured_content = Some(content);
+            }
+            Ok(projection)
+        }
         Err(error) => Err(runtime_gateway_dispatch_error(
             error.message().to_string(),
-            true,
+            error.handler_executed(),
         )),
     })
 }
@@ -288,6 +296,7 @@ mod tests {
                 params: &json!({ "query": "browser" }),
                 working_directory: PathBuf::from("."),
                 session_id: "session-gateway-1".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -321,6 +330,7 @@ mod tests {
                 params: &json!({ "path": "../MEMORY.md" }),
                 working_directory: PathBuf::from("."),
                 session_id: "session-gateway-2".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -349,6 +359,7 @@ mod tests {
                 params: &json!({ "command": "echo hi" }),
                 working_directory: PathBuf::from("."),
                 session_id: "session-gateway-3".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -401,6 +412,7 @@ mod tests {
                 params: &json!({ "query": "browser" }),
                 working_directory: PathBuf::from("."),
                 session_id: "session-gateway-4".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },

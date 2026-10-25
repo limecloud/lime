@@ -1,8 +1,7 @@
-use crate::mcp_sync;
 use lime_core::database::dao::mcp::McpDao;
 use lime_core::database::DbConnection;
 use lime_core::models::mcp_model::ConfigValidationError;
-use lime_core::models::{AppType, McpServer};
+use lime_core::models::McpServer;
 
 pub struct McpService;
 
@@ -67,10 +66,6 @@ impl McpService {
         let conn = db.lock().map_err(|e| e.to_string())?;
         McpDao::insert(&conn, &server).map_err(|e| e.to_string())?;
 
-        // Sync to enabled apps
-        let servers = McpDao::get_all(&conn).map_err(|e| e.to_string())?;
-        mcp_sync::sync_all_mcp_to_live(&servers).map_err(|e| e.to_string())?;
-
         Ok(())
     }
 
@@ -85,10 +80,6 @@ impl McpService {
         let conn = db.lock().map_err(|e| e.to_string())?;
         McpDao::update(&conn, &server).map_err(|e| e.to_string())?;
 
-        // Sync to enabled apps
-        let servers = McpDao::get_all(&conn).map_err(|e| e.to_string())?;
-        mcp_sync::sync_all_mcp_to_live(&servers).map_err(|e| e.to_string())?;
-
         Ok(())
     }
 
@@ -96,74 +87,61 @@ impl McpService {
         let conn = db.lock().map_err(|e| e.to_string())?;
         McpDao::delete(&conn, id).map_err(|e| e.to_string())?;
 
-        // Remove from all apps
-        mcp_sync::remove_mcp_from_all_apps(id).map_err(|e| e.to_string())?;
-
         Ok(())
     }
 
-    pub fn toggle_enabled(
-        db: &DbConnection,
-        id: &str,
-        app_type: &str,
-        enabled: bool,
-    ) -> Result<(), String> {
+    pub fn toggle_enabled(db: &DbConnection, id: &str, enabled: bool) -> Result<(), String> {
         let conn = db.lock().map_err(|e| e.to_string())?;
-        McpDao::toggle_enabled(&conn, id, app_type, enabled).map_err(|e| e.to_string())?;
-
-        // Get the server and sync
-        let servers = McpDao::get_all(&conn).map_err(|e| e.to_string())?;
-        let server = servers.iter().find(|s| s.id == id);
-
-        if let Some(_server) = server {
-            let app = app_type.parse::<AppType>().map_err(|e| e.to_string())?;
-            if enabled {
-                // Sync server to the app
-                mcp_sync::sync_mcp_to_app(&app, &servers).map_err(|e| e.to_string())?;
-            } else {
-                // Remove server from the app
-                mcp_sync::remove_mcp_from_app(&app, id).map_err(|e| e.to_string())?;
-            }
-        }
+        McpDao::toggle_enabled(&conn, id, enabled).map_err(|e| e.to_string())?;
 
         Ok(())
     }
+}
 
-    /// Sync all enabled MCP servers to all apps
-    pub fn sync_all_to_live(db: &DbConnection) -> Result<(), String> {
-        let conn = db.lock().map_err(|e| e.to_string())?;
-        let servers = McpDao::get_all(&conn).map_err(|e| e.to_string())?;
-        mcp_sync::sync_all_mcp_to_live(&servers).map_err(|e| e.to_string())
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+    use serde_json::json;
+    use std::sync::{Arc, Mutex};
 
-    /// Import MCP servers from an app
-    pub fn import_from_app(db: &DbConnection, app_type: &str) -> Result<usize, String> {
-        let app = app_type.parse::<AppType>().map_err(|e| e.to_string())?;
-        let conn = db.lock().map_err(|e| e.to_string())?;
-
-        // Get existing servers
-        let existing = McpDao::get_all(&conn).map_err(|e| e.to_string())?;
-        let existing_ids: std::collections::HashSet<String> =
-            existing.iter().map(|s| s.id.clone()).collect();
-
-        // Import from app
-        let imported = mcp_sync::import_mcp_from_app(&app).map_err(|e| e.to_string())?;
-
-        let mut count = 0;
-        for server in imported {
-            if existing_ids.contains(&server.id) {
-                // Update existing server's enabled status for this app
-                if McpDao::toggle_enabled(&conn, &server.id, app_type, true).is_ok() {
-                    count += 1;
-                }
-            } else {
-                // Insert new server
-                if McpDao::insert(&conn, &server).is_ok() {
-                    count += 1;
-                }
-            }
-        }
-
-        Ok(count)
+    #[test]
+    fn crud_and_enablement_use_only_local_server_state() {
+        let db = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
+        db.lock()
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE mcp_servers (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                server_config TEXT NOT NULL,
+                description TEXT,
+                enabled_lime INTEGER DEFAULT 0,
+                created_at INTEGER
+            );",
+            )
+            .unwrap();
+        let mut server = McpServer::new(
+            "docs-id".into(),
+            "docs".into(),
+            json!({
+                "command": "node", "args": ["server.js"], "env": {"TOKEN": " value "}
+            }),
+        );
+        server.enabled_lime = true;
+        McpService::add(&db, server.clone()).unwrap();
+        assert!(McpService::add(&db, server.clone()).is_err());
+        server.description = Some("updated".into());
+        server.server_config["args"] = json!(["updated.js"]);
+        McpService::update(&db, server.clone()).unwrap();
+        McpService::toggle_enabled(&db, &server.id, false).unwrap();
+        let saved = McpService::get_by_name(&db, "docs").unwrap().unwrap();
+        assert!(!saved.enabled_lime);
+        assert_eq!(saved.server_config, server.server_config);
+        assert_eq!(saved.description.as_deref(), Some("updated"));
+        McpService::toggle_enabled(&db, &server.id, true).unwrap();
+        assert!(McpService::get_all(&db).unwrap()[0].enabled_lime);
+        McpService::delete(&db, &server.id).unwrap();
+        assert!(McpService::get_all(&db).unwrap().is_empty());
     }
 }

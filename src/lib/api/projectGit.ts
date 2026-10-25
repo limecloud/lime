@@ -7,6 +7,7 @@ import {
   APP_SERVER_METHOD_PROJECT_GIT_DIFF,
   APP_SERVER_METHOD_PROJECT_GIT_STATUS,
   APP_SERVER_METHOD_PROJECT_GIT_WORKTREE_CREATE,
+  APP_SERVER_METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
   type AppServerProjectGitDiffBase,
   type AppServerProjectGitCommitListResponse,
   type AppServerProjectGitBranchCheckoutResponse,
@@ -40,6 +41,7 @@ export type ProjectGitAppServerClient = Pick<
   | "checkoutProjectGitBranch"
   | "createProjectGitBranch"
   | "createProjectGitWorktree"
+  | "setProjectGitWorktreeEnvironment"
 >;
 
 function createProjectGitAppServerClient(): ProjectGitAppServerClient {
@@ -113,6 +115,28 @@ export async function readProjectGitStatus(
 ): Promise<ProjectGitStatus> {
   const response = await client.readProjectGitStatus({ rootPath });
   assertProjectGitStatus(APP_SERVER_METHOD_PROJECT_GIT_STATUS, response.result);
+  return response.result;
+}
+
+export async function setProjectGitWorktreeEnvironment(
+  rootPath: string,
+  configPath: string | null,
+  client: ProjectGitAppServerClient = createProjectGitAppServerClient(),
+): Promise<ProjectGitStatus> {
+  const response = await client.setProjectGitWorktreeEnvironment({
+    rootPath,
+    configPath,
+  });
+  assertProjectGitStatus(
+    APP_SERVER_METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
+    response.result,
+  );
+  if (
+    !response.result.isWorktree ||
+    response.result.rootPath !== rootPath ||
+    (response.result.localEnvironmentConfigPath ?? null) !== configPath
+  )
+    throw new Error("Worktree environment selection was not confirmed");
   return response.result;
 }
 

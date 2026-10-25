@@ -108,7 +108,7 @@ pub struct InjectionChangeEvent {
 pub struct EndpointProvidersChangeEvent {
     pub cursor: Option<String>,
     pub claude_code: Option<String>,
-    pub codex: Option<String>,
+    pub lime: Option<String>,
     pub windsurf: Option<String>,
     pub kiro: Option<String>,
     pub other: Option<String>,

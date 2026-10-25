@@ -20,6 +20,8 @@ export interface BrowserMenuPresentation {
   items: BrowserMenuItem[];
   appearance?: "light" | "dark";
   confirmation?: { title: string; description: string };
+  /** A bounded popup keeps keyboard focus in the address input. */
+  mode?: "address";
 }
 
 export type BrowserOverlayCloseReason =
@@ -33,7 +35,7 @@ export type BrowserOverlayCloseReason =
 export const BROWSER_OVERLAY_ACTION_CHANNEL = "browser-overlay:action";
 export const BROWSER_OVERLAY_UPDATE_CHANNEL = "browser-overlay:update";
 
-/** Menus carry finite presentation data. No URLs, HTML or executable callbacks cross IPC. */
+/** Menus carry finite presentation data. Address details are inert text; HTML and executable callbacks never cross IPC. */
 export function readBrowserMenuPresentation(
   value: unknown,
 ): BrowserMenuPresentation {
@@ -44,8 +46,11 @@ export function readBrowserMenuPresentation(
     "items",
     "appearance",
     "confirmation",
+    "mode",
   ]);
   const menuId = readIdentifier(record.menuId);
+  if (record.mode !== undefined && record.mode !== "address")
+    throw new Error("Browser menu mode is invalid");
   const anchor = readRecord(record.anchor);
   assertKeys(anchor, ["x", "y", "width", "height"]);
   const coordinate = (key: string) => {
@@ -163,6 +168,13 @@ export function readBrowserMenuPresentation(
     });
   };
   const items = readItems(record.items, 1);
+  if (
+    record.mode === "address" &&
+    (record.confirmation !== undefined ||
+      items.length > 8 ||
+      items.some((item) => item.separator || item.submenu || item.controls))
+  )
+    throw new Error("Browser address suggestions must be a flat bounded list");
   let confirmation: BrowserMenuPresentation["confirmation"];
   if (record.confirmation !== undefined) {
     const dialog = readRecord(record.confirmation);
@@ -194,6 +206,7 @@ export function readBrowserMenuPresentation(
       ? { appearance: record.appearance as "light" | "dark" }
       : {}),
     ...(confirmation ? { confirmation } : {}),
+    ...(record.mode === "address" ? { mode: "address" as const } : {}),
   };
 }
 

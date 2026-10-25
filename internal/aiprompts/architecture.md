@@ -18,6 +18,17 @@ Codex 是唯一主对标。Agent loop、Thread/Turn/Item、App Server、状态�
 
 ## 2. 仓库目录地图
 
+2026-10-25 用户确认以整目录复制提高取样效率，同时保留 Lime 品牌与产品边界。整树只作为
+一次性迁移输入，临时复制目录已经移除，不进入 Lime workspace、构建图或产品导航。Rust
+迁移代码必须按许可证和真实消费者的最小依赖闭包直接落在 `lime-rs/crates/**` 的唯一
+领域 owner；能力接入后删除重复实现，不启动第二 runtime，也不再向中转目录逐文件搬运。
+产品根、对外入口、主题、多模型/多协议、服务端协议与发布产物继续由 Lime current owner
+负责，Codex 登录、Cloud、账号、遥测、计费和发布服务不纳入。
+Architecture impact: major / migration in progress；用户已明确上述顺序，责任 root。
+第一条已收敛的消费者为 `lime execpolicy check -> execpolicy::ExecPolicyCheckCommand ->
+lime-rs/crates/execpolicy`；其余 Agent 主链切换单独验收。逐项收据、切换和退出条件见
+[整树迁入计划](../exec-plans/codex-source-baseline-migration-20261025.md)。
+
 | 目录                                  | 类型                      | Owner / 职责                                                             | 禁止放入                                                             |
 | ------------------------------------- | ------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
 | `src/`                                | Renderer                  | React 产品 UI、view model、renderer gateway、i18n、局部显示状态          | Rust 业务实现、Electron main 逻辑、provider wire、生产 mock fallback |
@@ -32,7 +43,7 @@ Codex 是唯一主对标。Agent loop、Thread/Turn/Item、App Server、状态�
 | `internal/research/`                  | 研究证据                  | 对照、审计、外部实现分析                                                 | 生产代码或 current 架构定义                                          |
 | `internal/test/`、`internal/testing/` | 测试设计                  | 场景、质量矩阵、测试规范                                                 | 产品实现                                                             |
 | `docs/`                               | 对外文档站                | 站点内容、配置、静态资源                                                 | 内部工程规则、执行计划、私有 evidence                                |
-| `.codex/`                             | Codex 项目配置            | 可复用 skill、项目级 agent 配置                                          | 产品业务实现或第二套架构事实源                                       |
+| `.codex/`                             | Lime 项目配置             | 可复用 skill、项目级 agent 配置                                          | 产品业务实现或第二套架构事实源                                       |
 | `extensions/`                         | 独立扩展                  | Chrome extension 等独立宿主实现                                          | Renderer/Agent runtime 的共享业务 owner                              |
 
 根目录的 `package.json`、`forge.config.mjs`、`vite.config.*`、`tsconfig*.json`、`eslint.config.*` 和 `lime-rs/Cargo.toml` 是构建与发布边界。变更它们必须同步锁文件、相关验证和架构图中受影响的边界。
@@ -1299,7 +1310,11 @@ Architecture impact: major（Renderer owner/data flow 接线）；责任开发�
 
 Electron 负责窗口、托盘、Dock、系统文件选择、权限、外部链接、自动更新和 sidecar 生命周期。它不得保存业务 session、解释 provider response、执行模型工具、拼 Thread/Turn/Item 或提供业务 mock fallback。
 
+任务防休眠沿 `App Server canonical Thread/Turn -> DesktopPreferencesHost -> PowerSaveHost -> Electron powerSaveBlocker` 投影。`desktop.preventSleepWhileRunning` 仍由唯一 ConfigManager 保存，缺省 false；非 Windows 的 General 与搜索消费同一偏好。Main 只持有原生资源 ID 和活动 identity：多个活动线程共用一个 `prevent-app-suspension` 资源，最后活动结束、偏好关闭、连接断开或退出时释放。投影消费 `thread/status/changed`、Thread 读取、`turn/start` 成功回执和 `turn/started`、`turn/completed` 通知；终态只接受 canonical completed/failed/interrupted，不由计时器或 legacy event 合成。同线程旧 Turn 完成不释放较新活动，终态后迟到的开始回执和读取不复活资源；连接代际阻止旧连接回写。真实连接缺少 started/status 通知的共享 runtime 缺口独立登记，资源投影不替代通知 owner。不新增 RPC、IPC、持久化或 runtime authority。REA 方法名 `updatePowerSaveBlocker` / `syncPowerSaveBlocker` 及必要宿主适配见[执行计划](../exec-plans/settings-prevent-sleep-20261025.md)。架构影响 minor，root 于 2026-10-25 确认 owner、依赖方向与资源生命周期；原生平台和整页验收按计划独立记录。
+
 主窗口尺寸由 `electron/main.ts#createMainWindow` 唯一持有：按指定 Codex 安装包完整 `createWindow/getPrimaryMinimumSize` 与常量声明证据，primary 初始1280×820、最小480×600；屏幕workArea仍约束实际尺寸。真实Electron fixture读取生产minimum并测量contentSize，不通过修改minimum或仅模拟viewport绕过产品限制。证据与退出条件见[侧栏计划](../exec-plans/codex-sidebar-cleanup-20261020.md)。本次仅调整既有Host presentation选项，root确认不改变业务owner、协议或架构依赖方向。
+
+关闭窗口确认沿 `General -> ConfigManager -> DesktopPreferencesHost -> WindowCloseConfirmation -> 现役 window IPC -> AppShell WindowCloseConfirmationDialog` 接线。`desktop.confirm-before-close` 缺省 `keyboardOnly`，`never`/`keyboardOnly`/`always` 共用现有用户配置；Host 只持有可丢弃偏好、原窗口身份和单次响应令牌。确认前保留窗口，取消/重载/销毁/退出撤销请求；“不再询问”先成功写入配置再关闭。Main 继续拥有窗口原有隐藏行为，应用退出不经过该偏好。共享命令优先委托 `closeTab` 的既有未保存内容确认路径，再申请关闭窗口；右侧标签注册缺口明确留在[执行计划](../exec-plans/settings-close-confirmation-20261025.md)，不新增旁路关闭或第二份存储。架构影响 minor；root 于 2026-10-25 确认上述 owner、依赖方向和生命周期。当前证据只覆盖 macOS 窗口/配置切片，不等于完整标签页或 General 整页验收。
 
 新增 Electron 命令前先判断是否只是已有 `app_server_handle_json_lines` 的转发。只有系统宿主能力才新增 IPC；业务能力一律优先新增 App Server JSON-RPC。
 
@@ -1586,6 +1601,10 @@ config.worktree selection，源 checkout 使用 Host preference，None 不跨 sc
 `projectGit/status` 的 `isWorktree/localEnvironmentConfigPath` 经 schema 生成同一 TS 合同。
 按平台筛选后的 action 由当前 Git root 加配置相对目录确定 cwd，再委托现役 right-surface
 coordinator/local-state 创建独立 `TerminalTab -> TerminalPanel`，继续走同一 `command/exec`。
+窄窗的可见主面板仍归 `LayoutTransition`。`RightSurfaceTabStrip` 仅在 canonical activeTabId
+改变时，经标题栏节点内的 `SidePanelActivationContext` 请求显示侧面板；返回聊天后的普通重绘
+不重新抢占面板，不复制 tab store 或终端进程。该 context 是 Lime 共享壳的必要接线适配，
+不冒称安装包中的原始符号。xterm viewport 使用现役 surface token，整行渲染后的余高不露出默认黑底。
 最近动作排序、会话菜单环境切换及 setup 环境差异继承仍未接线；配置保存不等于完整产品验收。
 
 ```mermaid
@@ -3512,6 +3531,17 @@ tabs / selected / URL / native view 的唯一事实源；App Server 仍分配 ca
 不符拒绝。重挂载恢复完整 snapshot，合并查询期间的 select / close 事件，以 view tombstone 防止
 已关闭标签回流；非空不重建 primary。单调 epoch 隔离迟到 snapshot / mount / bounds，隐藏
 bootstrap 只能由当前 workspace 显示。此合同不提供跨 Electron 重启的 native process 持久化。
+首次 `browser.newTab` 无 native tab 时，`BrowserToolWorkspace` 通过
+`BrowserAppServerBridge -> workspaceRightSurface/request(browser_identity_tool, open)`
+取得同一 canonical identity，消费内部请求后先在原 Host 注册无 URL 的空白 WCV。
+随后发布 `browser_tool` foreground pending（只含 identity，不含 launchUrl），由既有
+Right Surface coordinator 自动展开；hydration 恢复该 WCV，不能额外加载默认搜索页。
+workspace pending读取合并同一canonical session的无workspace browser请求，通知使用相同
+scope规则；跨session与其他surface不穿透workspace过滤，切换session使旧read失效。
+真实 WCV 是原 `BrowserPermissions` 的审批锚点，批准后在同一页导航目标；拒绝目标在
+分配前拦截。turn terminal、断线、原窗口失效、route 关闭或策略变化使迟到 bootstrap 失效。
+已有标签仍走原 newTab 创建路径，并通过相同 foreground pending 展开折叠面板。
+架构图确认：root，2026-10-25；新增为短宿主编排委托，未新增 RPC、IPC、store 或执行体。
 架构图确认：root，2026-10-14；已复核 scoped 接线、选择/关闭、availability、snapshot 和 epoch
 owner，未增加 browser/artifact store、业务后端或 App Server 协议。真实证据只按实际执行范围
 记入当前计划。
@@ -5420,16 +5450,18 @@ catalog/direct provider config 只接受 `direct / code_mode / code_mode_only` �
 `coding/tools/streaming`，只有最终选中的 profile slot 才能追加 `custom_tools`；review/fast/local 等未选中
 slot 只保留诊断展示，fallback 后按最终 slot 重算。模型侧必须在 authoritative `runtime_features` 显式声明
 `custom_tools`。当前只有 Codex 上游同样声明 freeform tool 的精确 canonical 映射 `openai/gpt-5.2` 带该 capability，
-但该模型没有 `tool_mode` 声明，因此仍按 `Direct` 执行；capability 不能反向开启 CodeMode。resolved route 再与实际 provider protocol/host 求交集：仅官方 OpenAI
-Responses route 保留该 feature；Chat Completions、Anthropic、Gemini、Azure、Ollama 和第三方 Responses
-均从 effective snapshot 移除，若选中 slot 要求该能力则以不可重试的
+但该模型没有 `tool_mode` 声明，因此仍按 `Direct` 执行；capability 不能反向开启 CodeMode。resolved route 再与实际 provider wire 求交集：Responses 与 AzureResponses 保留显式声明的本地 custom-tool
+能力，包括 Lime 自有或第三方 endpoint；Chat Completions、Anthropic、Gemini 等不支持该 wire 的路由
+从 effective snapshot 移除，若选中 slot 要求该能力则以不可重试的
 `capability_gap / capability:custom_tools` 在 sampling 前失败。普通聊天没有该额外 requirement，不受影响。
 
 `model-provider` 已建立 provider-neutral `ToolDefinition::Custom`、`FreeformToolFormat`、
-`CustomToolCall/CustomToolResult` canonical contract，并只在官方 OpenAI Responses route 的显式
+`CustomToolCall/CustomToolResult` canonical contract，并在支持 Responses wire 的 route 与显式
 `custom_tools` capability 下 lowering 为原生 `type: "custom"`、`custom_tool_call` 和
-`custom_tool_call_output`；Chat Completions、Anthropic、Gemini、第三方 Responses route 与无 capability
-历史均在发网前 fail closed。失败 custom output lowering 必须优先保留格式化 runtime output，不得只发送裸 error。
+`custom_tool_call_output`；Chat Completions、Anthropic、Gemini 与无 capability
+历史均在发网前 fail closed。本地 custom tool 不受官方域名限制；远端 hosted search/image
+继续独立检查服务条件，不能因 custom tool 可用而自动启用。失败 custom output lowering
+必须优先保留格式化 runtime output，不得只发送裸 error。
 
 `agent-runtime::session_loop` 现已成为 canonical thread-owned CodeMode lifecycle owner。actor 创建必须同时绑定
 `session_id + thread_id`；同一 session 的 thread identity 漂移直接 fail closed，不保留旧单参数入口。provider
@@ -5502,7 +5534,8 @@ cell 跨 Turn、nested tool/wait 关联，并在 Turn failed/canceled 时关闭�
 ID，`model_visible_call_id` 保留 provider call ID。Gate B 通过 `diagnostics/trace/read` 真实 Electron bridge 读取该
 trace，证明 reducer 是生产 consumer 而不是 dead code。
 
-V8 build 输入固定从 `lime-rs/Cargo.lock` 读取精确 crate version，`scripts/lib/rusty-v8-artifacts.mjs` 只接受
+V8 build 输入从 `lime-rs/Cargo.lock` 读取精确 crate version；整树取样已删除，不允许再从
+中转目录读取锁文件或构建依赖，禁止混用第二份锁文件的 V8。`scripts/lib/rusty-v8-artifacts.mjs` 只接受
 Codex `ptrcomp_sandbox_release` 的受支持 platform target，下载 archive/binding/checksum manifest 后逐项校验 SHA-256，
 再向 Rust test、local CI 和 App Server sidecar build 注入成对的 `RUSTY_V8_ARCHIVE` /
 `RUSTY_V8_SRC_BINDING_PATH`。默认缓存使用各平台稳定的用户缓存目录，并对 curl 下载设置有限重试和超时；
@@ -5612,6 +5645,8 @@ flowchart LR
   VIEWPORT --> HANDLES[BrowserDeviceViewport / 原生区域外五个手柄]
   HANDLES --> GW
   HOST --> OVERLAY[BrowserOverlayHost / 可信 sandbox preload]
+  TABS --> ADDRESS[地址输入 / 同一历史查询与补全]
+  ADDRESS --> OVERLAY
   PAGE --> SITE_REQUEST[Session permission request / check]
   SITE_REQUEST --> HOST
   HOST --> SITE_PROMPT[BrowserSitePermissionPrompt / 用户文档确认]
@@ -5701,6 +5736,29 @@ Settings clear data -> existing BrowserDataHost -> same history owner
 Agent 控制时仍只走原 `grantPermission` canonical 回合审批，不弹用户网站确认或复用用户 grant。
 public permission event 的 isMainFrame/mediaTypes 由原生 API 生成，两种 Renderer listener 复用同一校验器；
 网页仍无应用 IPC。该切片不替代 S14 的完整原生网站设置/持久规则及 OS 权限管理。
+
+网站持久规则的唯一 owner 为 `BrowserSiteSettingsStore`，摄像头、麦克风、位置、通知、剪贴板、声音、自动多文件下载共用
+`browserSiteSettingsTypes` 的封闭键清单。设置页经既有 typed gateway/IPC 的
+`browser_site_settings_list/update/remove` 进入 BrowserTabHost；同一原生 Session 的
+request/check handler 消费权限规则，未知权限不借用媒体许可。可用的请求类权限全局默认为 ask，站点 ask 为独立规则，
+持久 allow 只在用户拥有且无 active turn 的原生标签生效；Agent 仍需原 canonical 回合 grant，block 对两者生效。
+仅 null 表示继承默认；原 v1/v2/v3 文件在同一 store 读取时升级为 v4，下一次保存使用 v4 原子替换。
+受保护内容 ID 已保留类别与 `mediaKeySystem` 映射；当前版本缺少可用内容 ID 服务，UI 明确不可用，
+Store 拒绝对应更新且实际决策固定 block，不将静态 handler 接线或 EME 不支持当作 DRM 播放完成。
+剪贴板将原生 `clipboard-read`/`clipboard-sanitized-write` 映射为同一 `clipboard` 规则，
+临时 grant 仍分别绑定原生 permission、frame 与文档，不能互相借用或成为 Agent 的持久授权。
+声音默认 allow，仅接纳 allow/block；短 `EmbeddedBrowserSiteAudio` 把站点规则与标签手动静音叠加，
+导航开始先静音，提交/失败后按真实最终 origin 重算。Store ready、保存及清理后同步刷新现有 WCV，
+用户解除标签静音不能绕过网站 block，网站改为 allow 不能取消用户标签静音。没有异步音频规则回调或第二存储。
+自动多文件下载由原 DownloadItem → 原下载权限/Agent policy → 原 Session permission handler → 同一 Store
+执行。短 `embeddedBrowserAutomaticDownloads` 仅聚合同一文档的并发询问，复用 PermissionGrants 文档 revision
+与首文件 slot；各 item 的 AbortSignal 独立，最后一个消费者离开才取消共享请求。原生暂停/恢复、导航/关闭取消
+与 shutdown 委托原下载 owner，不新增 Session、IPC、Profile 或权限 authority。slot 仅在主文档 commit 重置，
+恢复下载不重复计数。stock DownloadItem 缺 initiator，存在子 frame 的多文件请求保守拒绝；Chrome 的完整
+gesture/reset/批量节流、DRM 模块和跨平台真实进程另行验收。will-download 后暂停不保证零网络/磁盘副作用。
+成功保存或清理后同步撤销临时 grants 及待确认提示；异步读取前固定文档 revision，导航、进程退出、
+撤权后的迟到读取不得授权或创建新提示。root 确认 minor 接线沿唯一 Session/Profile，
+不新增 runtime、命令或业务后端；操作系统授权、正在运行的媒体流终止以及其余内容设置仍单独验收。
 
 浏览器准入沿 Codex 同名 `config/browser_use.rs` 与公共 `v2/browser_use_config.rs`，
 由根 `browser_use` 持有 allow_history_access/default_origin_policy/origins。
@@ -5928,6 +5986,24 @@ SHA-256 `75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af`；其
 approval token、清空 active turn，并把 `controlOwner` 投影为 `user`。随后到达的旧 `approvedExecute` 必须 fail closed，
 不得重放 mutation。Agent 经 CDP 发出的 click/fill/press 必须在 Host 的 agent-input 抑制作用域内执行，不能被 Electron
 input event 误判成人工接管；Renderer 也不能通过合成 DOM 事件伪造 native user control。
+
+`hover` / `scroll` 继续经 frozen Browser dynamic tools → 原 `item/tool/call` → BrowserTabHost →
+短 `browserPageInput` → 同一 WebContents 的 isolated world/CDP input。隔离世界只检查主文档目标和
+可见命中位置，原 Host 持有 snapshot、route、turn、browse receipt 和 policy authority。
+每个异步步骤前后重新校验；导航开始即撤销旧 snapshot。输入抑制只包住实际派发，等待期间保留人工接管。
+节点滚入视口后可悬停或对容器滚动；无节点滚动使用 viewport 中心，原生命中子 frame 时拒绝。
+本片 root 于 2026-10-25 确认 owner/数据流/权限不变，无新 IPC、Profile、runtime 或后端；
+不据此结算跨 frame、drag/select 或完整 actionability。
+
+`select` / `drag` 复用上述输入执行上下文与现役 canonical 一次性审批。`browserSelect` 在同一主文档
+的原生 HTML select 上按 value/label/index 选择，批准前后比较目标/完整 options 指纹，提交时再次检查，
+使用真实 DOM 值变化和合成 input/change，立即 readback；事件处理器改写选择或值时返回 outcome unknown。
+`browserDrag` 同时绑定同一最新 snapshot 内的源与目标，批准后使用 CDP pointer 或捕获的 HTML5 drag data，
+拒绝本地文件；drop/release 前重验目的地命中与坐标，导航、接管、策略变化、终态或超时停止后续动作。
+同一 WCV 的这些输入操作互斥；未获取操作权的请求不能使正在执行者的 snapshot 失效。拖动 finally
+恢复 interceptor/pressed 状态及监听器，不向新的 debugger attachment 清理。两端须能同时进入视口，
+不宣称跨 frame、自动滚动长距离拖动、完整 actionability 或双平台包验收。root 于 2026-10-25
+确认这仍是同一 Browser owner、同一审批 authority，无新 RPC、Profile、runtime 或业务后端。
 
 Tab lifecycle 由 BrowserTabHost 与 canonical turn 共同驱动：Agent tab 在 `turnEnded` 默认 close，User/Claimed tab 默认
 release，Handoff/Deliverable mark 只在当前 turn 有效。`turnEnded` 必须清理 debugger、clipboard、download grant、
@@ -6737,3 +6813,110 @@ Architecture impact: minor；Responsible developer confirmation: root, 2026-10-2
 
 Architecture impact: major；Responsible developer confirmation: root, 2026-10-24；已核对目录归属、数据流、
 唯一 Host、独立管理员 authority、协议/配置边界和验证门禁。验收与剩余项归 browser-enterprise-policy-plan.md。
+
+## Computer Use 应用策略配置接线（2026-10-25）
+
+```text
+Desktop / CLI / TUI
+  -> existing App Server config/read, config/value/write, config/batchWrite
+  -> core::config::Config.computer_use / ConfigManager / existing lock + CAS
+  -> one user configuration (macOS bundle_ids / Windows aumids + signed-product exes)
+
+system requirements.toml / forced administrator preferences
+  -> core::config::requirements + managed composition
+  -> existing configRequirements/read -> ComputerUseRequirements
+```
+
+`computer_use.rs` 与 `computer_use_config.rs` 直接取自上游 revision
+`970111f6cb62cc02fe36a82ea7d71b37a2889c97`；保留原类型与字段，配置实现文件逐字一致。
+管理员 Computer Use 类型来自上游 `browser_computer_use_requirements.rs` 和协议 `config.rs`。
+唯一配置 owner 仍是 `core::config`；`lime-config` 目前依赖 core，不能反向依赖而形成循环，
+也不为源树前缀另建配置数据库。用户配置不提供 `allow_persistent_approval` 等管理员 authority，
+项目层不能覆写 `computer_use`。持久化边界拒绝未知嵌套授权字段；显式 false 与空值保留语义。
+
+此处为配置切片记录；准入和 native 工具接线见下节。不从用户 allow 配置推导系统授权、
+连接就绪或动作成功；Chrome/Office transport 仍未完成。四端三通道 Gate B 仍为 0/12。
+源码复制收据与后续交付跟踪见 [实施记录](../exec-plans/native-computer-use-implementation-20261025.md)。
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-25；确认沿用现役
+配置锁、CAS、管理员 authority 和协议生成链，无第二 runtime、服务端控制面或授权库。
+
+## Computer Use 准入与连接租约（2026-10-25）
+
+```mermaid
+flowchart LR
+  Surface[Desktop / CLI / TUI] --> Transport[现役 IPC / stdio transport]
+  Transport --> Envelope[v2 typed Computer Use envelope]
+  Envelope --> Processor[App Server processor]
+  Processor --> Runtime[RuntimeCore: canonical Thread / Turn 校验]
+  Runtime --> Admission[tool-runtime: ComputerUseService]
+  Runtime --> Bound[根回合接纳: 绑定可信 transport connection]
+  Bound --> Tools[模型 / Code Mode: 现役 tool lifecycle]
+  Tools --> Gateway[NativeDispatch gateway: canonical session / turn / call]
+  Gateway --> Admission
+  Config[core::config: 用户策略 + 管理员 requirements] --> Admission
+  Host[可信 host composition] --> Driver[适配器 snapshot / setup]
+  Resources[Lime 资源清单: 同产品 App Server 与 helper hash] --> Driver
+  Driver --> IPC[独立 JSON-lines NativeHost]
+  IPC --> Helper[现役 Swift / C++ helper]
+  Driver --> Admission
+  Admission --> Grant[连接与目标绑定的 grant]
+  Grant --> Lease[Thread / Turn / epoch / 30 秒 lease]
+  Gateway --> AutoLease[按回合发起连接选 grant: 单动作 acquire / execute / release]
+  AutoLease --> Lease
+  Lease --> Lock[tool-runtime: 每用户 desktop OS lock + 持久 fence]
+  Lock --> Action[动作持有 lease 引用直至停止]
+  Action --> IPC
+  Helper --> Fence[macOS: 目标 / 权限 / 焦点 / OS 锁与持久 fence 复验]
+  Revoke[撤销 / 断连 / 策略变化 / 目标变化] --> Cancel[取消 lease]
+  Terminal[interrupt / canonical turn terminal] --> Cancel
+  Lease --> Cancel
+```
+
+协议、生成 schema/TS、Rust RequestHandle、共享 TS request client 与 renderer gateway 共用
+现役 App Server 边界。应用策略以复制的配置类型为源；native identity 来自适配器观察，RPC
+不能提供 publisher、consent 或 readiness。管理员拒绝、用户拒绝、锁屏限制与 persistent
+approval 限制在 setup/acquire/动作前复验；策略加载失败使已有 lease 失效。配置写入成功后
+立即取消旧授权；共享同一 RuntimeCore 的克隆共用状态与取消 token，不新增 transcript。
+
+这部分是公开源码缺失时的 Lime 宿主适配，不登记为 Codex 原始源码。当前只支持 native
+应用策略准入；Chrome/Office 专属 policy driver 尚未接入，不能取得 grant。App Server main
+组合根已注册独立 NativeAdapter；从自身产品资源清单解析并验证 helper，不通过 Electron、
+PATH 或 renderer 提供的路径。资源缺失为 `not_installed`，Windows helper 的执行驱动仍
+明确 `unavailable`，macOS 依据 OS 权限/锁屏/签名窗口报告真实状态。测试 adapter 仅由 fixture
+composition 注入；普通 RuntimeCore::default 不隐式启动平台进程。
+native 租约通过 `tool-runtime::computer_use::broker` 使用每用户平台数据目录下同一
+`computer-use/desktop.lock`；路径不随 workspace、配置路径或 AgentRuntimeRoot 改变。
+独立 App Server 的文件句柄锁互斥，持有锁时递增并同步持久 fence；锁文件不删除/替换，
+损坏或耗尽时拒绝而不重置。撤销/过期先取消动作；已有动作持有的 lease 引用释放后才
+关闭锁句柄，避免宣称取消成功时旧动作尚未停止而交出控制。空闲租约过期由定时任务清理，
+不依赖下一次 RPC。测试只注入隔离控制目录，RPC 不得配置该路径。
+
+macOS 动作执行前复验 OS 锁仍被占用、磁盘 fence、issuer 父进程和准确目标；输入还复验
+焦点、窗口几何和 secure input。内部 `ComputerUseService::execute` 按每个动作的租约能力
+准入，以独立任务持有 lease；调用 future 被丢弃也先取消 helper 动作。原生 stdin 取消帧
+绕过主线程动作队列，拖拽 defer 释放鼠标；Rust 等待有界停止并 kill/wait helper 后才释放
+动作引用。helper 只报告 `submitted`，文字应用成功必须由独立 readback 证明，不自动重试
+结果未知的输入。坏帧/会话重启/过期 generation 使旧授权失效。
+
+模型与 Code Mode 共用 `computer_use` 工具、NativeDispatch 和现役工具生命周期；gateway
+保留可信 tool identity，在 App Server 核对 canonical 活动 session/turn/call。transport 连接
+来自 host context，根回合接纳时绑定于 ComputerUseService；不从 clientInfo、模型 JSON 或
+runtime metadata 推导。逐动作按发起连接选择既有 grant，取得并自动释放 lease；在途准入
+完成后再次核对回合连接，防止取消后再产生动作。终态、断连与 admission rollback 移除绑定。
+模型缺 consent 时直接失败，不自动 setup；只读 status 可发现目标和真实 readiness。
+截图复用 canonical image content，经 gateway 与 Agent 投影保留图片，不输出 base64 文本。
+Code Mode 的 nested 返回值保留去除 PNG transport data 的结构化业务结果，不能让
+`tool_family` 等 metadata 取代目标、readiness 或 observation；含图片时由现役 MCP 投影
+提供 `content` 和 `structuredContent`，内部 metadata 不进入 JS。真实 host 的 `image(...)`
+输出保持为 typed content；Responses lowering 消费同一 canonical 工具结果的 content 数组，
+保留 call identity、相对顺序与失败前部分结果。共享 provider result/history 接线仍需按实施记录
+验收，不能以这两个叶子转换当作完整截图闭环。结果仍经过同一 gateway，不建立媒体旁路。
+gateway 持 RuntimeCoreEventAppender 与配置路径，不反向持有 backend，不形成所有权循环；
+canonical 校验在控制状态锁外执行，lease 准入通过已绑定回合与取消 token 复验。
+
+已有 helper 实进程与 stdio status 证据；模型工具接线的验证结果单独记录，不能升级既有证据。
+Windows 驱动、CLI 原生载荷、签名发布与 Chrome/Office transport 仍未完成。
+仅 helper 级动作回读和准入状态不能计为完整 Desktop/CLI 或平台 Gate B。
+
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-25；已核对上图、
+现役 owner、typed ingress、可信配置 authority、连接/回合边界与取消路径；不新增业务后端。

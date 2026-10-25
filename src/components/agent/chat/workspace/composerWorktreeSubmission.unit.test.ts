@@ -75,12 +75,12 @@ describe("submit-time Worktree resource identity", () => {
   it("resolves the selected environment before creating and does not create after a late navigation", async () => {
     const h = setup();
     h.readEnvironment.mockResolvedValueOnce(
-      "/a/.codex/environments/environment.toml",
+      "/a/.lime/environments/environment.toml",
     );
     await h.owner.submit(request, () => true, h.execute);
     expect(h.createWorktree).toHaveBeenCalledExactlyOnceWith("/a", {
       baseBranch: "main",
-      localEnvironmentConfigPath: "/a/.codex/environments/environment.toml",
+      localEnvironmentConfigPath: "/a/.lime/environments/environment.toml",
     });
     const other = setup(),
       selection = deferred<string | null>();

@@ -17,7 +17,7 @@ vi.mock("@/lib/api/localEnvironmentSelection", () => ({
   selectLocalEnvironment: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
-const configPath = "/project/.codex/environments/environment.toml";
+const configPath = "/project/.lime/environments/environment.toml";
 const existing = {
   configPath,
   exists: true,

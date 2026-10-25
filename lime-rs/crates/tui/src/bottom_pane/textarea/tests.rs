@@ -24,7 +24,7 @@ fn line_navigation_stays_inside_the_current_logical_line() {
 }
 
 #[test]
-fn codex_cursor_pos_api_keeps_cursor_visible_in_a_scrolled_viewport() {
+fn lime_cursor_pos_api_keeps_cursor_visible_in_a_scrolled_viewport() {
     let mut textarea = TextArea::new();
     textarea.insert_str("abcdefghij");
     textarea.set_cursor(textarea.text().len());
@@ -39,7 +39,7 @@ fn codex_cursor_pos_api_keeps_cursor_visible_in_a_scrolled_viewport() {
 }
 
 #[test]
-fn codex_buffer_replacement_preserves_cursor_only_at_valid_boundaries() {
+fn lime_buffer_replacement_preserves_cursor_only_at_valid_boundaries() {
     let mut textarea = TextArea::new();
     textarea.insert_str("ab");
     textarea.set_cursor(1);
@@ -67,7 +67,7 @@ fn stateful_render_clears_rows_outside_the_current_draft() {
 }
 
 #[test]
-fn codex_word_delete_and_line_kill_preserve_unicode_boundaries() {
+fn lime_word_delete_and_line_kill_preserve_unicode_boundaries() {
     let mut textarea = TextArea::new();
     textarea.insert_str("alpha 你👍 beta");
     textarea.set_cursor(textarea.text().len());
@@ -84,7 +84,7 @@ fn codex_word_delete_and_line_kill_preserve_unicode_boundaries() {
 }
 
 #[test]
-fn codex_input_dispatches_emacs_style_editor_bindings() {
+fn lime_input_dispatches_emacs_style_editor_bindings() {
     let mut textarea = TextArea::new();
     textarea.input(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
     textarea.input(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
@@ -97,7 +97,7 @@ fn codex_input_dispatches_emacs_style_editor_bindings() {
 }
 
 #[test]
-fn codex_control_h_deletes_and_control_m_inserts_newline() {
+fn lime_control_h_deletes_and_control_m_inserts_newline() {
     let mut textarea = TextArea::new();
     textarea.insert_str("ab");
     textarea.input(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL));
@@ -134,7 +134,7 @@ fn vertical_motion_preserves_display_column_for_wide_graphemes() {
 }
 
 #[test]
-fn codex_word_boundaries_handle_cjk_and_separator_runs() {
+fn lime_word_boundaries_handle_cjk_and_separator_runs() {
     let mut textarea = TextArea::new();
     textarea.insert_str("你好::world");
     textarea.set_cursor(textarea.text().len());

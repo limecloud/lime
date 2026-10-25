@@ -142,7 +142,12 @@ function normalizeSurface(
 
 function blockType(value: unknown): string | undefined {
   const record = readRecord(value);
-  const raw = readStringField(record, ["type", "kind", "blockType", "block_type"]);
+  const raw = readStringField(record, [
+    "type",
+    "kind",
+    "blockType",
+    "block_type",
+  ]);
   if (!raw) return undefined;
   return raw
     .replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`)
@@ -179,7 +184,9 @@ function hasAscii(value: string | undefined): boolean {
   return /[A-Za-z0-9]/.test(value ?? "");
 }
 
-function sourceFeatures(markdown: string | undefined): AgentUiMarkdownRenderFeature[] {
+function sourceFeatures(
+  markdown: string | undefined,
+): AgentUiMarkdownRenderFeature[] {
   const features: AgentUiMarkdownRenderFeature[] = [];
   if (!markdown) return features;
   if (/^#{1,6}\s+\S/m.test(markdown)) features.push("heading");
@@ -195,7 +202,9 @@ function sourceFeatures(markdown: string | undefined): AgentUiMarkdownRenderFeat
   return uniqSorted(features);
 }
 
-function featureFromBlockType(type: string): AgentUiMarkdownRenderFeature | undefined {
+function featureFromBlockType(
+  type: string,
+): AgentUiMarkdownRenderFeature | undefined {
   switch (type) {
     case "heading":
     case "title":
@@ -234,9 +243,11 @@ function renderedFeatures(
     .map((type) => (type ? featureFromBlockType(type) : undefined))
     .filter((entry): entry is AgentUiMarkdownRenderFeature => Boolean(entry));
   if (fileLinks.length > 0) features.push("file_link");
-  const wrap = wrapRecord(surfaceRecord.wrapEvidence) ?? wrapRecord(surfaceRecord);
+  const wrap =
+    wrapRecord(surfaceRecord.wrapEvidence) ?? wrapRecord(surfaceRecord);
   if (
-    readBooleanField(wrap, ["cjk", "cjkWrap", "cjk_wrap", "cjkWrapCovered"]) === true
+    readBooleanField(wrap, ["cjk", "cjkWrap", "cjk_wrap", "cjkWrapCovered"]) ===
+    true
   ) {
     features.push("cjk_wrap");
   }
@@ -259,18 +270,29 @@ function fileLinkFromRecord(
 ): AgentUiMarkdownFileLinkSnapshot | undefined {
   const record = readRecord(value);
   if (!record) return undefined;
-  const path = readStringField(record, ["path", "filePath", "file_path", "href"]);
+  const path = readStringField(record, [
+    "path",
+    "filePath",
+    "file_path",
+    "href",
+  ]);
   const line = readNumberField(record, ["line", "lineNumber", "line_number"]);
   if (!path || line === undefined) return undefined;
   return compactProjectionFields({
     path,
     line,
-    column: readNumberField(record, ["column", "columnNumber", "column_number"]),
+    column: readNumberField(record, [
+      "column",
+      "columnNumber",
+      "column_number",
+    ]),
     label: readStringField(record, ["label", "text", "title"]),
   } satisfies AgentUiMarkdownFileLinkSnapshot);
 }
 
-function renderedFileLinks(record: Record<string, unknown>): AgentUiMarkdownFileLinkSnapshot[] {
+function renderedFileLinks(
+  record: Record<string, unknown>,
+): AgentUiMarkdownFileLinkSnapshot[] {
   const rendered =
     readRecord(record.renderedSnapshot) ??
     readRecord(record.rendered_snapshot) ??
@@ -284,7 +306,9 @@ function renderedFileLinks(record: Record<string, unknown>): AgentUiMarkdownFile
   ];
   return values
     .map(fileLinkFromRecord)
-    .filter((entry): entry is AgentUiMarkdownFileLinkSnapshot => Boolean(entry));
+    .filter((entry): entry is AgentUiMarkdownFileLinkSnapshot =>
+      Boolean(entry),
+    );
 }
 
 function hasRawMarkdownOnly(
@@ -345,7 +369,8 @@ function parseSurface(
     sourceFeatures: sourceFeatureSet,
     renderedFeatures: renderedFeatureSet,
     hasRichBlocks: blocks.length > 0,
-    pageTextOnly: Boolean(pageText) && blocks.length === 0 && fileLinks.length === 0,
+    pageTextOnly:
+      Boolean(pageText) && blocks.length === 0 && fileLinks.length === 0,
     rawMarkdownOnly: hasRawMarkdownOnly(sourceFeatureSet, renderedFeatureSet),
   } satisfies AgentUiMarkdownSurfaceSnapshot);
 }
@@ -354,7 +379,9 @@ function validateMarkdownSnapshot(
   snapshot: Omit<AgentUiMarkdownRenderProjectionSnapshot, "validationIssues">,
 ): AgentUiMarkdownRenderIssue[] {
   const issues: AgentUiMarkdownRenderIssue[] = [];
-  const surfaceSet = new Set(snapshot.surfaces.map((surface) => surface.surface));
+  const surfaceSet = new Set(
+    snapshot.surfaces.map((surface) => surface.surface),
+  );
   for (const surface of REQUIRED_SURFACES) {
     if (!surfaceSet.has(surface)) {
       issues.push(
@@ -381,7 +408,7 @@ function validateMarkdownSnapshot(
         issue(
           "missing_markdown_feature",
           `$.features.${feature}`,
-          "Codex-derived markdown snapshots must cover headings, tables, file links, code fences and CJK/mixed-width wrapping.",
+          "source-derived markdown snapshots must cover headings, tables, file links, code fences and CJK/mixed-width wrapping.",
         ),
       );
     }
@@ -449,7 +476,7 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexMarkdownRenderProjectionSnapshot(
+export function extractMarkdownRenderProjectionSnapshot(
   input: AgentUiMarkdownRenderSnapshotInput,
 ): AgentUiMarkdownRenderProjectionSnapshot {
   const defaultOwner = definedString(
@@ -476,13 +503,17 @@ export function extractCodexMarkdownRenderProjectionSnapshot(
     requiredSurfacesCovered: REQUIRED_SURFACES.every((surface) =>
       surfaces.some((entry) => entry.surface === surface),
     ),
-    commonRendererOwner: rendererOwners.length === 1 && rendererOwners[0].length > 0,
+    commonRendererOwner:
+      rendererOwners.length === 1 && rendererOwners[0].length > 0,
     sourceFeaturesCovered,
     renderedFeaturesCovered,
     fileLinksPreserved: fileLinks.some((entry) => entry.path && entry.line > 0),
-    richSnapshotPresent: surfaces.length > 0 && surfaces.every((surface) => surface.hasRichBlocks),
+    richSnapshotPresent:
+      surfaces.length > 0 && surfaces.every((surface) => surface.hasRichBlocks),
     pageTextOnlyRejected: !surfaces.some((surface) => surface.pageTextOnly),
-    rawMarkdownOnlyRejected: !surfaces.some((surface) => surface.rawMarkdownOnly),
+    rawMarkdownOnlyRejected: !surfaces.some(
+      (surface) => surface.rawMarkdownOnly,
+    ),
   };
 
   return {
@@ -491,11 +522,11 @@ export function extractCodexMarkdownRenderProjectionSnapshot(
   };
 }
 
-export function buildCodexMarkdownRenderSnapshotProjectionEvent(
+export function buildMarkdownRenderSnapshotProjectionEvent(
   input: AgentUiMarkdownRenderSnapshotInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexMarkdownRenderProjectionSnapshot(input);
+  const snapshot = extractMarkdownRenderProjectionSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "markdown_render_snapshot_projection" },

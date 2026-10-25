@@ -43,6 +43,48 @@ afterEach(() => {
 });
 
 describe("实际 UI command 注册", () => {
+  it("按参考分组与置顶顺序展示，重新挂载和重绑不改变列表顺序", () => {
+    mountCommand({ id: "zzGeneral", section: "general" });
+    mountCommand({ id: "zzApp", section: "app" });
+    mountCommand({ id: "zzConfigure", section: "configure" });
+    mountCommand({ id: "zzSkills", section: "skills" });
+    mountCommand({ id: "zzWorkspace", section: "workspace" });
+    mountCommand({ id: "zzPanels", section: "panels" });
+    mountCommand({ id: "zzNavigation", section: "navigation" });
+    const ordinary = mountCommand({ id: "aaaThread", section: "thread" });
+    for (const id of [
+      "openSideChat",
+      "newProjectlessTask",
+      "archiveThread",
+      "temporaryChat",
+      "newTask",
+    ])
+      mountCommand({ id, section: "thread" });
+    mountCommand({ id: "zzzThread", section: "thread" });
+    const expected = [
+      "newTask",
+      "temporaryChat",
+      "archiveThread",
+      "newProjectlessTask",
+      "openSideChat",
+      "aaaThread",
+      "zzzThread",
+      "zzNavigation",
+      "zzPanels",
+      "zzWorkspace",
+      "zzSkills",
+      "zzConfigure",
+      "zzApp",
+      "zzGeneral",
+    ];
+    const ids = () => getRegisteredCommands().map((command) => command.id);
+    expect(ids()).toEqual(expected);
+    ordinary.release();
+    mountCommand({ id: "aaaThread", section: "thread" });
+    setCommandBindingOverrides({ newTask: [] });
+    expect(ids()).toEqual(expected);
+  });
+
   it("重绑立即改变现有handler，清除仍可在列表恢复，取消投影恢复默认值", () => {
     const { handler } = mountCommand();
     setCommandBindingOverrides({ testSearch: ["Control+J"] });

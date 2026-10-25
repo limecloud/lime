@@ -1,9 +1,13 @@
 use super::*;
+
+mod computer_use;
+use computer_use::computer_requirements;
 use app_server_protocol::protocol::v2::{
-    AllowDenyRequirement, BrowserUseAccessApprovalLifetime, BrowserUseExtensionRequirements,
-    BrowserUseOriginPolicy, BrowserUseRequirements, ConfigRequirements,
-    ConfigRequirementsReadParams, ConfigRequirementsReadResponse, InAppBrowserRequirements,
-    RequestHeader,
+    AllowDenyRequirement, ApplicationNetworkRequirements, ApplicationRequirements,
+    ApplicationStorageRequirements, BrowserUseAccessApprovalLifetime,
+    BrowserUseExtensionRequirements, BrowserUseOriginPolicy, BrowserUseRequirements,
+    ConfigRequirements, ConfigRequirementsReadParams, ConfigRequirementsReadResponse,
+    InAppBrowserRequirements, NetworkDomainPermission, RequestHeader,
 };
 
 impl RequestProcessor {
@@ -18,6 +22,22 @@ impl RequestProcessor {
             .read_config_requirements()
             .map_err(super::super::to_jsonrpc_error)?
             .map(|requirements| ConfigRequirements {
+                application: requirements.application.map(|application| ApplicationRequirements {
+                    network: application.network.map(|network| ApplicationNetworkRequirements {
+                        enabled: network.enabled,
+                        domains: network.domains.into_iter().map(|(domain, permission)| {
+                            use lime_core::config::requirements::NetworkDomainPermissionToml;
+                            (domain, match permission {
+                                NetworkDomainPermissionToml::Allow => NetworkDomainPermission::Allow,
+                                NetworkDomainPermissionToml::Deny => NetworkDomainPermission::Deny,
+                            })
+                        }).collect(),
+                    }),
+                    storage: application.storage.map(|storage| ApplicationStorageRequirements {
+                        default_project_parent: storage.default_project_parent.map(|path| path.to_string_lossy().into_owned()),
+                        projectless_workspace_root: storage.projectless_workspace_root.map(|path| path.to_string_lossy().into_owned()),
+                    }),
+                }),
                 allowed_approval_policies: requirements.allowed_approval_policies.map(|values| {
                     values
                         .into_iter()
@@ -45,6 +65,7 @@ impl RequestProcessor {
                         .collect()
                 }),
                 allow_browser_and_computer_use: requirements.allow_browser_and_computer_use,
+                computer_use: requirements.computer_use.map(computer_requirements),
                 browser_use: requirements
                     .browser_use
                     .map(|browser| BrowserUseRequirements {

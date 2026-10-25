@@ -1,41 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-
-/// MCP 服务器配置（类型化）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct McpServerConfigTyped {
-    /// 启动命令
-    pub command: String,
-    /// 命令参数
-    #[serde(default)]
-    pub args: Vec<String>,
-    /// 环境变量
-    #[serde(default)]
-    pub env: HashMap<String, String>,
-    /// 工作目录
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-    /// 超时时间（秒）
-    #[serde(default = "default_timeout")]
-    pub timeout: u64,
-}
-
-fn default_timeout() -> u64 {
-    30
-}
-
-impl Default for McpServerConfigTyped {
-    fn default() -> Self {
-        Self {
-            command: String::new(),
-            args: Vec::new(),
-            env: HashMap::new(),
-            cwd: None,
-            timeout: 30,
-        }
-    }
-}
 
 /// 配置验证错误
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,12 +17,6 @@ pub struct McpServer {
     pub description: Option<String>,
     #[serde(default)]
     pub enabled_lime: bool,
-    #[serde(default)]
-    pub enabled_claude: bool,
-    #[serde(default)]
-    pub enabled_codex: bool,
-    #[serde(default)]
-    pub enabled_gemini: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<i64>,
 }
@@ -72,59 +30,8 @@ impl McpServer {
             server_config,
             description: None,
             enabled_lime: false,
-            enabled_claude: false,
-            enabled_codex: false,
-            enabled_gemini: false,
             created_at: Some(chrono::Utc::now().timestamp()),
         }
-    }
-
-    /// 解析 server_config 为类型化配置
-    ///
-    /// 将 JSON Value 解析为 McpServerConfigTyped 结构。
-    /// 如果解析失败，返回默认配置并尝试提取基本字段。
-    pub fn parse_config(&self) -> McpServerConfigTyped {
-        serde_json::from_value(self.server_config.clone()).unwrap_or_else(|_| {
-            // 尝试手动提取字段
-            McpServerConfigTyped {
-                command: self
-                    .server_config
-                    .get("command")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                args: self
-                    .server_config
-                    .get("args")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                env: self
-                    .server_config
-                    .get("env")
-                    .and_then(|v| v.as_object())
-                    .map(|obj| {
-                        obj.iter()
-                            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                cwd: self
-                    .server_config
-                    .get("cwd")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                timeout: self
-                    .server_config
-                    .get("timeout")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(30),
-            }
-        })
     }
 
     /// 验证服务器配置
@@ -164,6 +71,21 @@ impl McpServer {
                         field: "command".to_string(),
                         message: "启动命令不能为空".to_string(),
                     });
+                }
+                if let Some(value) = config.get("env_vars") {
+                    let valid = value.as_array().is_some_and(|names| {
+                        names.iter().all(|name| {
+                            name.as_str().is_some_and(|name| {
+                                !name.trim().is_empty() && !name.contains(['=', '\0'])
+                            })
+                        })
+                    });
+                    if !valid {
+                        errors.push(ConfigValidationError {
+                            field: "env_vars".to_string(),
+                            message: "环境变量透传必须为有效本地变量名组成的数组".to_string(),
+                        });
+                    }
                 }
                 if config.contains_key("oauth")
                     || config.contains_key("oauth_resource")
@@ -319,9 +241,6 @@ mod tests {
             server_config,
             description: None,
             enabled_lime: true,
-            enabled_claude: false,
-            enabled_codex: false,
-            enabled_gemini: false,
             created_at: None,
         }
     }
@@ -398,5 +317,35 @@ mod tests {
 
         let errors = server.validate_config();
         assert!(errors.iter().any(|error| error.field == "bearer_token"));
+    }
+    #[test]
+    fn stdio_passthrough_requires_local_names_and_preserves_explicit_values() {
+        let server = McpServer::new(
+            "docs".into(),
+            "docs".into(),
+            serde_json::json!({
+                "command": "node", "env_vars": ["TOKEN"], "env": {"TOKEN":" literal "}
+            }),
+        );
+        assert!(server.validate_config().is_empty());
+        assert_eq!(
+            server.server_config["env_vars"],
+            serde_json::json!(["TOKEN"])
+        );
+        assert_eq!(server.server_config["env"]["TOKEN"], " literal ");
+        for value in [
+            serde_json::json!("TOKEN"),
+            serde_json::json!(["A=B"]),
+            serde_json::json!(["A\0B"]),
+            serde_json::json!([""]),
+            serde_json::json!([{"name":"TOKEN", "source":"remote"}]),
+        ] {
+            let mut invalid = server.clone();
+            invalid.server_config["env_vars"] = value;
+            assert!(invalid
+                .validate_config()
+                .iter()
+                .any(|error| error.field == "env_vars"));
+        }
     }
 }

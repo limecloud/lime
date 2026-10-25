@@ -1778,17 +1778,7 @@ export type McpServerDeleteParams = {
 
 export type McpServerEnabledSetParams = {
   id: string;
-  appType: string;
   enabled: boolean;
-};
-
-export type McpServerImportFromAppParams = {
-  appType: string;
-};
-
-export type McpServerImportFromAppResponse = {
-  importedCount: number;
-  servers: unknown[];
 };
 
 export type McpServerOauthLoginParams = {

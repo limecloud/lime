@@ -4,6 +4,7 @@ import { TextSelection } from "@tiptap/pm/state";
 import { EditorView } from "@tiptap/pm/view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ComposerController } from "./ComposerController";
+import { composerSchema } from "./composerSchema";
 import {
   ComposerEditor,
   type ComposerEditorHandle,
@@ -38,6 +39,7 @@ afterEach(() => {
     container.remove();
   }
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   for (const [name, descriptor] of rangeDescriptors) {
     if (descriptor) Object.defineProperty(Range.prototype, name, descriptor);
     else Reflect.deleteProperty(Range.prototype, name);
@@ -100,6 +102,137 @@ function paste(element: HTMLElement, text: string) {
 }
 
 describe("ComposerEditor", () => {
+  const enterModes = ["enter", "cmdIfMultiline", "cmdAlways"] as const;
+  const drafts = ["single", "paragraphs", "hard_break", "code"] as const;
+  const createEnterDraft = (kind: (typeof drafts)[number]) => {
+    const { nodes } = composerSchema;
+    const text = (value: string) => composerSchema.text(value);
+    const paragraph = () => nodes.paragraph.create(null, text("prompt"));
+    return nodes.doc.create(
+      null,
+      kind === "code"
+        ? [nodes.code_block.create(null, text("code"))]
+        : kind === "paragraphs"
+          ? [paragraph(), paragraph()]
+          : kind === "hard_break"
+            ? [
+                nodes.paragraph.create(null, [
+                  text("a"),
+                  nodes.hard_break.create(),
+                  text("b"),
+                ]),
+              ]
+            : [paragraph()],
+    );
+  };
+
+  it.each(
+    enterModes.flatMap((mode) => drafts.map((draft) => ({ mode, draft }))),
+  )("$mode / $draft 的普通 Enter 使用已配置的发送规则", ({ mode, draft }) => {
+    const onSubmit = vi.fn();
+    const { controller, element } = mount({ enterBehavior: mode, onSubmit });
+    act(() =>
+      controller.applyTransaction(
+        controller
+          .getEditorState()
+          .tr.replaceWith(
+            0,
+            controller.getEditorState().doc.content.size,
+            createEnterDraft(draft).content,
+          ),
+      ),
+    );
+    const before = controller.getDocument().text;
+    const submits =
+      mode === "enter" || (mode === "cmdIfMultiline" && draft === "single");
+    key(element, "Enter");
+    expect(onSubmit).toHaveBeenCalledTimes(submits ? 1 : 0);
+    expect(controller.getDocument().text === before).toBe(submits);
+  });
+
+  it.each(
+    ["MacIntel", "Win32"].flatMap((platform) =>
+      enterModes.map((mode) => ({ platform, mode })),
+    ),
+  )(
+    "$platform / $mode 使用平台主修饰键；代码块仅默认模式移到下一段",
+    ({ platform, mode }) => {
+      vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+      vi.spyOn(navigator, "userAgent", "get").mockReturnValue(platform);
+      const onSubmit = vi.fn();
+      const { controller, element } = mount({ enterBehavior: mode, onSubmit });
+      const options =
+        platform === "MacIntel" ? { metaKey: true } : { ctrlKey: true };
+      key(
+        element,
+        "Enter",
+        platform === "MacIntel" ? { ctrlKey: true } : { metaKey: true },
+      );
+      expect(onSubmit).not.toHaveBeenCalled();
+      key(element, "Enter", options);
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      act(() =>
+        controller.applyTransaction(
+          controller
+            .getEditorState()
+            .tr.replaceWith(
+              0,
+              controller.getEditorState().doc.content.size,
+              createEnterDraft("code").content,
+            ),
+        ),
+      );
+      onSubmit.mockClear();
+      key(element, "Enter", options);
+      expect(onSubmit).toHaveBeenCalledTimes(mode === "enter" ? 0 : 1);
+      if (mode === "enter") {
+        expect(controller.getEditorState().doc.childCount).toBe(2);
+        expect(
+          controller.getEditorState().selection.$from.parent.type.name,
+        ).toBe("paragraph");
+      }
+    },
+  );
+
+  it.each(enterModes)(
+    "%s 不在 IME 确认或禁用键盘提交时发送",
+    (enterBehavior) => {
+      const onSubmit = vi.fn();
+      const { element, controller, root } = mount({ enterBehavior, onSubmit });
+      key(element, "Enter", { isComposing: true });
+      expect(controller.getDocument().text).toBe("中😀");
+      act(() =>
+        root.render(
+          <ComposerEditor
+            controller={controller}
+            enterBehavior={enterBehavior}
+            onSubmit={onSubmit}
+            sendOnEnter={false}
+          />,
+        ),
+      );
+      key(element, "Enter");
+      key(element, "Enter", { ctrlKey: true });
+      expect(onSubmit).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["MacIntel", "Win32"])(
+    "%s 的粗指针普通 Enter 按平台规则处理",
+    (platform) => {
+      vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+      vi.spyOn(navigator, "userAgent", "get").mockReturnValue(platform);
+      vi.stubGlobal(
+        "matchMedia",
+        vi.fn().mockReturnValue({ matches: true } as MediaQueryList),
+      );
+      const onSubmit = vi.fn();
+      const { element } = mount({ onSubmit });
+      key(element, "Enter");
+      expect(onSubmit).toHaveBeenCalledTimes(platform === "Win32" ? 1 : 0);
+    },
+  );
+
   it("真实 EditorView 显示 canonical 文档，并跟随 Controller 原子更新", () => {
     const { controller, element, container, editorRef } = mount({
       sessionId: "thread-1",

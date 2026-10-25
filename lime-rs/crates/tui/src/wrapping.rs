@@ -1,4 +1,4 @@
-//! Codex-shaped terminal line wrapping with URL-aware heuristics.
+//! Lime-native terminal line wrapping with URL-aware heuristics.
 //!
 //! Wrapping remains a render concern: the canonical Thread/Turn/Item model is
 //! never rewritten. The module preserves ratatui span styles while ensuring

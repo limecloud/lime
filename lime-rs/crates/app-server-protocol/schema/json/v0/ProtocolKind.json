@@ -3,7 +3,6 @@
   "enum": [
     "anthropic_messages",
     "bedrock_converse",
-    "codex_responses",
     "fal",
     "gemini_generate_content",
     "openai_audio_speech",

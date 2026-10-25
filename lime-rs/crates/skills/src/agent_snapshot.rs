@@ -649,7 +649,7 @@ mod tests {
             .any(|root| root.path == working.join(".agents/skills")));
         assert!(roots
             .iter()
-            .any(|root| root.path == workspace.path().join(".codex/skills")));
+            .any(|root| root.path == workspace.path().join(".lime/skills")));
         assert!(roots
             .iter()
             .filter(|root| root.scope == AgentSkillScope::Project)

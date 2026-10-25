@@ -32,6 +32,7 @@ export class BrowserDataHost {
     private readonly owners: {
       history: Pick<BrowserHistoryHost, "summarizeData" | "invoke">;
       downloads: Pick<BrowserDownloadsHost, "summarizeData" | "clearData">;
+      siteSettings: { count(): Promise<number>; clear(): Promise<unknown> };
       session: () => DataSession;
       now?: () => number;
     },
@@ -52,7 +53,7 @@ export class BrowserDataHost {
         (this.owners.now ?? Date.now)(),
       );
       const native = this.owners.session();
-      const [history, siteData, cache, downloads] = await Promise.all([
+      const [history, siteData, cache, downloads, siteSettings] = await Promise.all([
         this.owners.history.summarizeData(since),
         optional(async () => ({
           siteCount: new Set(
@@ -68,12 +69,14 @@ export class BrowserDataHost {
           return { sizeBytes };
         }),
         optional(() => this.owners.downloads.summarizeData(since)),
+        optional(async () => ({ siteCount: await this.owners.siteSettings.count() })),
       ]);
       return {
         history,
         siteData,
         cache,
         downloads,
+        siteSettings,
       } satisfies BrowserDataSummary;
     }
     const request = parseBrowserDataRequest(input);
@@ -113,6 +116,8 @@ export class BrowserDataHost {
             });
           else if (type === "downloads")
             await this.owners.downloads.clearData(since);
+          else if (type === "siteSettings")
+            await this.owners.siteSettings.clear();
           else if (type === "siteData") {
             // Stock Electron supports these masks only for all time. Never pass a timeRange it ignores.
             await native!.clearData({
@@ -164,7 +169,7 @@ export class BrowserDataHost {
         siteData: ["allTime"],
         cache: ["allTime"],
         formData: [],
-        siteSettings: [],
+        siteSettings: ["allTime"],
       },
     };
   }

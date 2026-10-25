@@ -38,7 +38,7 @@ pub(super) fn configured_plugins(
                 continue;
             }
         };
-        // Curated bundles are refreshed through the remote reconcile owner in Codex.
+        // Curated bundles are refreshed through the remote reconcile owner in Lime.
         if matches!(
             market.name.as_str(),
             "openai-curated" | "openai-api-curated"

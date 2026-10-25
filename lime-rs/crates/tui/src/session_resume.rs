@@ -1,7 +1,7 @@
 //! Shared resume-session path semantics.
 //!
 //! App Server owns persisted session metadata and returns the effective working directory.
-//! This module only provides the Codex-shaped, side-effect-free path comparison used when a
+//! This module only provides the Lime-native, side-effect-free path comparison used when a
 //! caller needs to decide whether an explicit cwd differs from the resumed session cwd.
 
 use std::path::{Component, Path, PathBuf};

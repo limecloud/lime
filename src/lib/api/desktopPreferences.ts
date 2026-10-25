@@ -2,12 +2,14 @@ import { getConfig, updateConfig } from "./appConfig";
 import type { DesktopConfig } from "./appConfigTypes";
 
 export const DEFAULT_DESKTOP_PREFERENCES = {
+  composerEnterBehavior: "enter",
   "open-link-in-target-preference": "external-browser",
   "open-local-url-in-target-preference": "in-app-browser",
   "external-browser-link-shortcut": "primary",
 } as const satisfies Required<
   Pick<
     DesktopConfig,
+    | "composerEnterBehavior"
     | "open-link-in-target-preference"
     | "open-local-url-in-target-preference"
     | "external-browser-link-shortcut"
@@ -16,6 +18,9 @@ export const DEFAULT_DESKTOP_PREFERENCES = {
 
 export function effectiveDesktopPreferences(config?: DesktopConfig) {
   return {
+    composerEnterBehavior:
+      config?.composerEnterBehavior ??
+      DEFAULT_DESKTOP_PREFERENCES.composerEnterBehavior,
     "open-link-in-target-preference":
       config?.["open-link-in-target-preference"] ??
       DEFAULT_DESKTOP_PREFERENCES["open-link-in-target-preference"],

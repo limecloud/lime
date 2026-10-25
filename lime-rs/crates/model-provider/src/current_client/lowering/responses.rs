@@ -14,14 +14,14 @@ pub(in crate::current_client) fn responses_message(
                 } => Some(json!({
                     "type": "function_call_output",
                     "call_id": id,
-                    "output": tool_result_text(result, error.as_deref()),
+                    "output": tool_output(result, error.as_deref(), media_payloads, false),
                 })),
                 ContentPart::CustomToolResult {
                     id, result, error, ..
                 } => Some(json!({
                     "type": "custom_tool_call_output",
                     "call_id": id,
-                    "output": custom_tool_result_text(result, error.as_deref()),
+                    "output": tool_output(result, error.as_deref(), media_payloads, true),
                 })),
                 _ => None,
             })
@@ -85,6 +85,32 @@ pub(in crate::current_client) fn responses_message(
     }
 }
 
+fn tool_output(
+    result: &ToolResultValue,
+    error: Option<&str>,
+    media_payloads: &BTreeMap<String, String>,
+    custom: bool,
+) -> Value {
+    let ToolResultValue::Content { value } = result else {
+        return Value::String(if custom {
+            custom_tool_result_text(result, error)
+        } else {
+            tool_result_text(result, error)
+        });
+    };
+    // A failed script can still have useful image output from its completed actions.
+    let mut content = responses_input_content(value, media_payloads);
+    if let Some(error) = error.filter(|error| !error.trim().is_empty()) {
+        if !value
+            .iter()
+            .any(|part| matches!(part, ContentPart::Text { text, .. } if text.contains(error)))
+        {
+            content.push(json!({ "type": "input_text", "text": error }));
+        }
+    }
+    Value::Array(content)
+}
+
 // Codex prepares a copy for requests; persisted producer identities stay intact.
 fn request_item(original: &Value) -> Value {
     let mut item = original.clone();
@@ -106,6 +132,102 @@ fn assistant_text(text: String) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn typed_tool_media_keeps_call_identity_order_and_partial_failure() {
+        let payloads = BTreeMap::from([(
+            "sidecar://tool-image".to_string(),
+            "data:image/png;base64,aGVsbG8=".to_string(),
+        )]);
+        for custom in [false, true] {
+            let result = ToolResultValue::Content {
+                value: vec![
+                    ContentPart::text("before"),
+                    ContentPart::media_with_detail(
+                        "sidecar://tool-image",
+                        "image/png",
+                        Some(ImageDetail::High),
+                    )
+                    .unwrap(),
+                    ContentPart::text("after"),
+                ],
+            };
+            let part = if custom {
+                ContentPart::CustomToolResult {
+                    id: "call_image".to_string(),
+                    name: "exec".to_string(),
+                    result,
+                    error: Some("window disappeared".to_string()),
+                    metadata: Default::default(),
+                }
+            } else {
+                ContentPart::ToolResult {
+                    id: "call_image".to_string(),
+                    name: "computer_use".to_string(),
+                    result,
+                    error: Some("window disappeared".to_string()),
+                    provider_executed: Some(false),
+                    metadata: Default::default(),
+                }
+            };
+            let message = runtime_core::CanonicalMessage {
+                id: None,
+                role: CanonicalRole::Tool,
+                content: vec![part],
+                metadata: Default::default(),
+            };
+            let wire = responses_message(&message, &payloads);
+            assert_eq!(wire.len(), 1);
+            assert_eq!(wire[0]["call_id"], "call_image");
+            assert_eq!(
+                wire[0]["type"],
+                if custom {
+                    "custom_tool_call_output"
+                } else {
+                    "function_call_output"
+                }
+            );
+            assert_eq!(
+                wire[0]["output"],
+                json!([
+                    {"type":"input_text","text":"before"},
+                    {"type":"input_image","image_url":"data:image/png;base64,aGVsbG8=","detail":"high"},
+                    {"type":"input_text","text":"after"},
+                    {"type":"input_text","text":"window disappeared"},
+                ])
+            );
+            assert!(!text_from_parts(match &message.content[0] {
+                ContentPart::ToolResult {
+                    result: ToolResultValue::Content { value },
+                    ..
+                }
+                | ContentPart::CustomToolResult {
+                    result: ToolResultValue::Content { value },
+                    ..
+                } => value,
+                _ => unreachable!(),
+            })
+            .contains("base64"));
+        }
+    }
+
+    #[test]
+    fn text_output_preserves_wire_string_and_script_error_is_not_duplicated() {
+        let result = ToolResultValue::Error {
+            value: json!({"output":"partial output\nScript error: failed","error":"failed"}),
+        };
+        assert_eq!(
+            tool_output(&result, Some("failed"), &BTreeMap::new(), true),
+            "partial output\nScript error: failed"
+        );
+        let typed = ToolResultValue::Content {
+            value: vec![ContentPart::text("Script error: failed")],
+        };
+        assert_eq!(
+            tool_output(&typed, Some("failed"), &BTreeMap::new(), true),
+            json!([{"type":"input_text","text":"Script error: failed"}])
+        );
+    }
 
     #[test]
     fn request_copy_removes_only_non_prefixed_ids() {

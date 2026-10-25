@@ -1,0 +1,23 @@
+[package]
+name = "lime-utils-absolute-path"
+version.workspace = true
+edition = "2024"
+authors.workspace = true
+repository.workspace = true
+license = "Apache-2.0"
+description = "Normalized absolute path types for Lime runtime boundaries."
+
+[lib]
+doctest = false
+
+[dependencies]
+dirs = "6"
+dunce = "1.0.4"
+schemars = "0.8.22"
+serde = { version = "1", features = ["derive", "rc"] }
+ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"
+serde_json = "1"
+tempfile = "3.23.0"

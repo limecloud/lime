@@ -32,7 +32,7 @@ async fn remote_mutation_posts_opaque_identity_attempt_and_then_commits() {
     let body: Value = serde_json::from_str(requests[3].split("\r\n\r\n").nth(1).unwrap()).unwrap();
     assert_eq!(body, json!({"install_attempt_id":"attempt-42"}));
     assert!(base(temp.path())
-        .join("1.2.3/.codex-plugin/plugin.json")
+        .join("1.2.3/.lime-plugin/plugin.json")
         .is_file());
 }
 
@@ -43,7 +43,7 @@ async fn remote_mutation_failure_preserves_old_package_and_config() {
     let server = server(temp.path()).await;
     rpc(&server, "account/login/start", Some(login(&issuer.url))).await;
     rpc(&server, "plugin/install", install_params(None)).await;
-    let manifest = base(temp.path()).join("1.2.3/.codex-plugin/plugin.json");
+    let manifest = base(temp.path()).join("1.2.3/.lime-plugin/plugin.json");
     let before_package = std::fs::read(&manifest).unwrap();
     let before_config = std::fs::read(temp.path().join("config.yaml")).unwrap();
     for (status, response) in [
@@ -143,7 +143,7 @@ async fn remote_gate_holds_staging_until_confirmation_and_serializes_peer_remova
     let peer = super::support::server(temp.path()).await;
     rpc(&server, "account/login/start", Some(login(&issuer.url))).await;
     rpc(&server, "plugin/install", install_params(None)).await;
-    let before = std::fs::read(base(temp.path()).join("1.2.3/.codex-plugin/plugin.json")).unwrap();
+    let before = std::fs::read(base(temp.path()).join("1.2.3/.lime-plugin/plugin.json")).unwrap();
     let (started, ready) = tokio::sync::oneshot::channel();
     let (release, released) = tokio::sync::oneshot::channel();
     *issuer.mutation_gate.lock().unwrap() = Some((started, released));
@@ -163,7 +163,7 @@ async fn remote_gate_holds_staging_until_confirmation_and_serializes_peer_remova
             fs2::lock_contended_error().raw_os_error()
         );
         assert_eq!(
-            std::fs::read(base(temp.path()).join("1.2.3/.codex-plugin/plugin.json")).unwrap(),
+            std::fs::read(base(temp.path()).join("1.2.3/.lime-plugin/plugin.json")).unwrap(),
             before
         );
         let removing = raw(
@@ -182,7 +182,7 @@ async fn remote_gate_holds_staging_until_confirmation_and_serializes_peer_remova
     let (installed, ()) = tokio::join!(first, second);
     assert!(installed.get("error").is_some());
     assert_eq!(
-        std::fs::read(base(temp.path()).join("1.2.3/.codex-plugin/plugin.json")).unwrap(),
+        std::fs::read(base(temp.path()).join("1.2.3/.lime-plugin/plugin.json")).unwrap(),
         before
     );
 }

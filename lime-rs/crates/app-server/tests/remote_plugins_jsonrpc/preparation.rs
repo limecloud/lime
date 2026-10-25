@@ -52,7 +52,7 @@ async fn global_preparation_overwrites_native_version_and_preserves_complete_app
         "future":{"nested":[1,2]}}},"future":["top-level",null]});
     issuer.plugin.lock().unwrap()["release"]["app_manifest"] = apps.clone();
     *issuer.bundle.lock().unwrap() = archive(&[
-        (".codex-plugin/plugin.json", manifest.to_string().as_bytes()),
+        (".lime-plugin/plugin.json", manifest.to_string().as_bytes()),
         (".app.json", br#"{"apps":{"old":{"id":"old"}}}"#),
     ]);
     let result = install(&server, GLOBAL).await;
@@ -61,7 +61,7 @@ async fn global_preparation_overwrites_native_version_and_preserves_complete_app
     let root = root(temp.path(), GLOBAL);
     let mut expected = manifest;
     expected["version"] = json!("1.2.3");
-    assert_eq!(read_json(&root.join(".codex-plugin/plugin.json")), expected);
+    assert_eq!(read_json(&root.join(".lime-plugin/plugin.json")), expected);
     assert_eq!(read_json(&root.join("nested/connectors.json")), apps);
     assert!(std::fs::read(root.join("nested/connectors.json"))
         .unwrap()
@@ -83,7 +83,7 @@ async fn global_preparation_keeps_portable_manifest_bytes_and_resolves_inline_or
             "future":{"keep":"original bytes"}});
         let extension = json!({"apps":"./custom/apps.json"});
         if inline {
-            manifest["extensions"] = json!({"com.openai":extension});
+            manifest["extensions"] = json!({"com.lime":extension});
         } else {
             manifest.as_object_mut().unwrap().remove("version");
         }
@@ -91,7 +91,7 @@ async fn global_preparation_keeps_portable_manifest_bytes_and_resolves_inline_or
         let overlay = extension.to_string();
         let mut files = vec![("plugin.json", original.as_bytes())];
         if !inline {
-            files.push((".codex-plugin/plugin.json", overlay.as_bytes()));
+            files.push((".lime-plugin/plugin.json", overlay.as_bytes()));
         }
         *issuer.bundle.lock().unwrap() = archive(&files);
         let result = install(&server, GLOBAL).await;
@@ -103,7 +103,7 @@ async fn global_preparation_keeps_portable_manifest_bytes_and_resolves_inline_or
         );
         if !inline {
             assert_eq!(
-                std::fs::read(root.join(".codex-plugin/plugin.json")).unwrap(),
+                std::fs::read(root.join(".lime-plugin/plugin.json")).unwrap(),
                 overlay.as_bytes()
             );
         }
@@ -130,7 +130,7 @@ async fn global_preparation_distinguishes_missing_null_and_explicit_empty_apps()
         let (temp, issuer, server) = setup("GLOBAL").await;
         let bundled = br#"{"apps":{"Bundled":{"id":"bundled-app"}},"future":true}"#;
         *issuer.bundle.lock().unwrap() = archive(&[
-            (".codex-plugin/plugin.json", br#"{"name":"research"}"#),
+            (".lime-plugin/plugin.json", br#"{"name":"research"}"#),
             (".app.json", bundled),
         ]);
         {
@@ -167,14 +167,14 @@ async fn non_global_preparation_preserves_bundled_version_and_apps() {
         let manifest = br#"{"name":"research","version":"bundled","apps":"./nested/apps.json"}"#;
         let apps = br#"{"apps":{"Bundled":{"id":"bundled-app"}},"unknown":true}"#;
         *issuer.bundle.lock().unwrap() = archive(&[
-            (".codex-plugin/plugin.json", manifest),
+            (".lime-plugin/plugin.json", manifest),
             ("nested/apps.json", apps),
         ]);
         let result = install(&server, marketplace).await;
         assert!(result.get("error").is_none(), "{scope}: {result}");
         let root = root(temp.path(), marketplace);
         assert_eq!(
-            std::fs::read(root.join(".codex-plugin/plugin.json")).unwrap(),
+            std::fs::read(root.join(".lime-plugin/plugin.json")).unwrap(),
             manifest
         );
         assert_eq!(std::fs::read(root.join("nested/apps.json")).unwrap(), apps);
@@ -201,7 +201,7 @@ async fn global_preparation_ignores_escaping_apps_paths_and_uses_default() {
         let (temp, issuer, server) = setup("GLOBAL").await;
         let manifest = json!({"name":"research","apps":apps_path});
         *issuer.bundle.lock().unwrap() =
-            archive(&[(".codex-plugin/plugin.json", manifest.to_string().as_bytes())]);
+            archive(&[(".lime-plugin/plugin.json", manifest.to_string().as_bytes())]);
         let result = install(&server, GLOBAL).await;
         assert!(result.get("error").is_none(), "{apps_path}: {result}");
         assert_eq!(
@@ -218,11 +218,11 @@ async fn global_preparation_failure_preserves_previous_cache_config_and_apps() {
     let (temp, issuer, server) = setup("GLOBAL").await;
     assert!(install(&server, GLOBAL).await.get("error").is_none());
     let before = rpc(&server, "plugin/installed", Some(json!({}))).await;
-    let path = root(temp.path(), GLOBAL).join(".codex-plugin/plugin.json");
+    let path = root(temp.path(), GLOBAL).join(".lime-plugin/plugin.json");
     let manifest_before = std::fs::read(&path).unwrap();
     for files in [
-        vec![(".codex-plugin/plugin.json", br#"{"name":"research","apps":"./blocked/apps.json"}"#.as_slice()), ("blocked", b"file".as_slice())],
-        vec![(".codex-plugin/plugin.json", br#"{"name":"research","apps":"./.codex-plugin/plugin.json"}"#.as_slice())],
+        vec![(".lime-plugin/plugin.json", br#"{"name":"research","apps":"./blocked/apps.json"}"#.as_slice()), ("blocked", b"file".as_slice())],
+        vec![(".lime-plugin/plugin.json", br#"{"name":"research","apps":"./.lime-plugin/plugin.json"}"#.as_slice())],
         vec![("plugin.json", br#"{"$schema":"https://agent-plugins.org/schemas/9.0.0/plugin.schema.json","name":"research"}"#.as_slice())],
     ] {
         *issuer.bundle.lock().unwrap() = archive(&files);
@@ -264,7 +264,7 @@ async fn global_preparation_real_stdio_peers_consume_same_version_apps_and_unins
         "app-1"
     );
     assert_eq!(
-        read_json(&root(temp.path(), GLOBAL).join(".codex-plugin/plugin.json"))["version"],
+        read_json(&root(temp.path(), GLOBAL).join(".lime-plugin/plugin.json"))["version"],
         "1.2.3"
     );
     peer.rpc(

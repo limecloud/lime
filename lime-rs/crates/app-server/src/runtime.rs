@@ -89,6 +89,7 @@ pub(crate) use prompt_history::PromptHistoryStore;
 #[doc(hidden)]
 pub use provider_history::ProviderTurnHistory;
 mod config_requirements;
+mod computer_use;
 mod queued_turn_intent;
 mod read_model;
 mod read_model_turn_usage;
@@ -229,6 +230,8 @@ use value_fields::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeHostContext {
+    /// Transport-owned identity; never decoded from clientInfo or runtime metadata.
+    pub connection_id: Option<String>,
     pub client_name: Option<String>,
     pub client_version: Option<String>,
 }
@@ -237,6 +240,7 @@ impl From<Option<ClientInfo>> for RuntimeHostContext {
     fn from(client_info: Option<ClientInfo>) -> Self {
         match client_info {
             Some(client_info) => Self {
+                connection_id: None,
                 client_name: Some(client_info.name),
                 client_version: client_info.version,
             },
@@ -318,6 +322,7 @@ pub struct ToolInventoryReadRequest {
 
 #[derive(Clone)]
 pub struct RuntimeCore {
+    pub(crate) computer_use: Arc<tool_runtime::computer_use::ComputerUseService>,
     pub(in crate::runtime) state: Arc<Mutex<RuntimeCoreState>>,
     pub(in crate::runtime) session_loops: RuntimeSessionRegistry,
     session_shutdown_changed: Arc<tokio::sync::Notify>,
@@ -355,6 +360,7 @@ pub struct RuntimeCore {
 
 #[derive(Clone)]
 pub struct RuntimeCoreEventAppender {
+    computer_use: Arc<tool_runtime::computer_use::ComputerUseService>,
     state: Arc<Mutex<RuntimeCoreState>>,
     file_checkpoint_snapshot_store: Arc<dyn FileCheckpointSnapshotStore>,
     output_snapshot_store: Arc<dyn OutputSnapshotStore>,
@@ -440,6 +446,7 @@ impl RuntimeCore {
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(RuntimeCoreState::default())),
+            computer_use: Arc::new(tool_runtime::computer_use::ComputerUseService::default()),
             session_loops: RuntimeSessionRegistry::default(),
             session_shutdown_changed: Arc::new(tokio::sync::Notify::new()),
             turn_driver_completions: turn_execution::RuntimeTurnDriverCompletions::default(),
@@ -605,6 +612,7 @@ impl RuntimeCore {
 
     pub fn event_appender(&self) -> RuntimeCoreEventAppender {
         RuntimeCoreEventAppender {
+            computer_use: self.computer_use.clone(),
             state: self.state.clone(),
             file_checkpoint_snapshot_store: self.file_checkpoint_snapshot_store.clone(),
             output_snapshot_store: self.output_snapshot_store.clone(),

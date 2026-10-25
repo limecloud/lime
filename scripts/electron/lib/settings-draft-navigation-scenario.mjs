@@ -20,10 +20,13 @@ export const SETTINGS_DRAFT_FIXTURE_SOURCES = [
   "scripts/electron/lib/persisted-atom-fixture-driver.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-teardown.mjs",
   "scripts/lib/electron-fixture-build.mjs",
-  "src/components/mcp/useMcpPageEditorState.ts",
-  "src/components/mcp/McpPage.tsx",
-  "src/components/mcp/McpPageEditor.tsx",
-  "src/components/mcp/McpPanel.tsx",
+  "src/components/settings-v2/integrations/plugins/index.tsx",
+  "src/components/settings-v2/integrations/plugins/McpServerManager.tsx",
+  "src/components/settings-v2/integrations/plugins/McpServerDetail.tsx",
+  "src/components/settings-v2/integrations/plugins/McpServerFields.tsx",
+  "src/components/settings-v2/integrations/plugins/mcpServerConfig.ts",
+  "src/components/settings-v2/integrations/plugins/useMcpSettings.ts",
+  "src/lib/api/mcp.ts",
   "src/components/settings-v2/_layout/SettingsUnsavedChangesDialog.tsx",
   "src/components/settings-v2/_layout/useSettingsDraft.ts",
   "src/lib/api/appConfig.ts",
@@ -56,8 +59,6 @@ export function observeSettingsDraftReadback(response, method) {
 export function settingsDraftNavigationChecks(kind, proof) {
   assert.ok(kind === "mcp", "known draft scenario");
   const required = [
-    "sameNodeAcrossTabs",
-    "tabDraftRetained",
     "sectionKeep",
     "sectionDiscard",
     "keepDefaultFocus",
@@ -208,27 +209,10 @@ export async function runMcpDraftNavigationScenario({
       "same MCP server remains unchanged before GUI save",
     );
   };
-  const field = page.getByTestId("mcp-config-description");
-  const changed = "settings-mcp-unsaved-fixture";
+  const field = page.getByTestId("mcp-config-connection-url");
+  const changed = "https://draft.invalid/unsaved";
   await selectServer();
   await field.fill(changed);
-  const originalNode = await field.elementHandle();
-  await page.getByTestId("mcp-panel-tab-runtime").click();
-  assert.equal(await field.isVisible(), false);
-  assert.equal(
-    await originalNode.evaluate((element) => element.isConnected),
-    true,
-  );
-  await page.getByTestId("mcp-panel-tab-config").click();
-  assert.equal(
-    await field.evaluate(
-      (element, previous) => element === previous,
-      originalNode,
-    ),
-    true,
-  );
-  await originalNode.dispose();
-  assert.equal(await field.inputValue(), changed);
   await keepThenDiscard({
     page,
     field,
@@ -238,7 +222,7 @@ export async function runMcpDraftNavigationScenario({
   });
   await field.waitFor({ state: "detached" });
   await selectServer();
-  assert.equal(await field.inputValue(), server.description ?? "");
+  assert.equal(await field.inputValue(), server.server_config.url);
   await field.fill(changed);
   await keepThenDiscard({
     page,
@@ -250,10 +234,8 @@ export async function runMcpDraftNavigationScenario({
   await assertAbout(page, options);
   await openMcpConfigSettings(page, options);
   await selectServer();
-  assert.equal(await field.inputValue(), server.description ?? "");
+  assert.equal(await field.inputValue(), server.server_config.url);
   return {
-    sameNodeAcrossTabs: true,
-    tabDraftRetained: true,
     sectionKeep: true,
     sectionDiscard: true,
     keepDefaultFocus: true,

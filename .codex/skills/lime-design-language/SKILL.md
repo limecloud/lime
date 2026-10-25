@@ -25,7 +25,7 @@ description: 对齐 Lime GUI 的布局、交互、组件结构与命名；以 Co
 
 在执行计划记录“参考模块/符号 → Lime current owner → 行为和数据合同 → 迁移/删除项 → 验证”，再按独立切片直接替换。需要截图、安装包分析或源码才能成立的结论分别标明来源；静态分析不证明运行效果。
 
-已确认的模块、类型、类和函数名称尽量直接对齐，并一次迁移调用者、export、测试与 fixture。保持平台语言惯例；不要把压缩变量、chunk hash 或猜测名称当成上游源码名称，不为同名无同义的函数保留 alias。
+Codex 只作源码和行为事实来源。仅迁入许可证允许、属于 Lime 产品且有现役消费者的最小完整依赖闭包；不整仓复制，不创建 `lime-rs/upstream/` 镜像目录。迁入现役 Lime owner 后，Lime 自有路径、文件、模块、符号、命令、协议方法、环境变量、配置目录、文案和产物清除 Codex 产品标识。只有法律署名和有消费者及协议证据的不可变外部值可以保留。同步迁移调用者、测试与 fixture，并删除无消费者的上游专属代码和重复实现。不要把压缩变量、chunk hash 或猜测名称当成源码事实。
 
 GUI 只消费 canonical projection。显示状态可在 surface 内维护，业务状态、审批 authority、工具执行和持久化仍属于 App Server 与既有领域 owner。长历史、审批和 diff 必须复用同一 thread/turn/item identity。
 

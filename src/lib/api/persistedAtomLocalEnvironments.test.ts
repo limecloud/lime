@@ -11,7 +11,7 @@ vi.mock("@/lib/dev-bridge", () => ({
   safeListen: vi.fn(),
 }));
 const workspaceKey = "local:/workspace/project";
-const configPath = "/workspace/project/.codex/environments/environment.toml";
+const configPath = "/workspace/project/.lime/environments/environment.toml";
 const metadata = {
   key,
   storeRevision: 1,

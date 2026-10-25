@@ -28,7 +28,7 @@ const { connectAppServerSidecar, stdioSidecar } = await import(
   pathToFileURL(path.resolve("packages/app-server-client/dist/index.js")).href
 );
 const temp = await mkdtemp(path.join(tmpdir(), "plugin-hooks-"));
-const codexHome = path.join(temp, "codex");
+const codexHome = path.join(temp, "lime");
 const market = path.join(temp, "market/.agents/plugins/marketplace.json");
 const plugin = path.join(temp, "market/demo");
 const journal = path.join(temp, "hooks.jsonl");
@@ -72,7 +72,7 @@ async function start() {
       ],
       env: {
         ...terminalGateRuntimeEnvironment({ appServerBinaryPath: binary }),
-        CODEX_HOME: codexHome,
+        LIME_HOME: codexHome,
       },
       initializeTimeoutMs: 30_000,
     },
@@ -115,7 +115,7 @@ async function trust() {
 async function publish(version) {
   const command = `${quote(process.execPath)} "$PLUGIN_ROOT/record.mjs" ${quote(version)}`;
   await writeFile(
-    path.join(plugin, ".codex-plugin/plugin.json"),
+    path.join(plugin, ".lime-plugin/plugin.json"),
     JSON.stringify({
       name: "demo",
       version,
@@ -261,12 +261,12 @@ async function rows(file) {
 
 try {
   await mkdir(path.dirname(market), { recursive: true });
-  await mkdir(path.join(plugin, ".codex-plugin"), { recursive: true });
-  await mkdir(path.join(temp, "market/other/.codex-plugin"), {
+  await mkdir(path.join(plugin, ".lime-plugin"), { recursive: true });
+  await mkdir(path.join(temp, "market/other/.lime-plugin"), {
     recursive: true,
   });
   await writeFile(
-    path.join(temp, "market/other/.codex-plugin/plugin.json"),
+    path.join(temp, "market/other/.lime-plugin/plugin.json"),
     JSON.stringify({ name: "other", version: "1.0.0" }),
   );
   await mkdir(codexHome, { recursive: true });

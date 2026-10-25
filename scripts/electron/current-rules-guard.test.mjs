@@ -16,7 +16,7 @@ function expectNoBrandPrefixRule(content, label) {
   );
   expect(content, label).toMatch(/品牌前缀|新增命名|新命名/);
   expect(content, label).toMatch(
-    /不得添加|不要加|禁止把|使用领域名|current 事实源命名|直接使用领域名/,
+    /不得添加|不要加|禁止把|使用领域名|current 事实源命名|直接使用领域名|无品牌名称保持上游原名，新命名使用短的领域词/,
   );
 }
 

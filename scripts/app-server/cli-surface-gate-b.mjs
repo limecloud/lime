@@ -211,7 +211,7 @@ async function main() {
     }
 
     const pluginRoot = path.join(tempDir, "plugin-source");
-    await mkdir(path.join(pluginRoot, ".codex-plugin"), { recursive: true });
+    await mkdir(path.join(pluginRoot, ".lime-plugin"), { recursive: true });
     await writeFile(
       path.join(pluginRoot, "plugin.json"),
       JSON.stringify({
@@ -223,7 +223,7 @@ async function main() {
       "utf8",
     );
     await writeFile(
-      path.join(pluginRoot, ".codex-plugin/plugin.json"),
+      path.join(pluginRoot, ".lime-plugin/plugin.json"),
       JSON.stringify({ interface: { displayName: "CLI Surface Plugin" } }),
       "utf8",
     );

@@ -18,7 +18,8 @@ import {
   closeElectronFixture,
   createTempRuntimeEnv,
   launchElectronFixture,
-  openSettings,
+  openMcpConfigSettings,
+  waitForPageCondition,
   parseInvokeTraceRaw,
   parseJsonRpcRequestsFromInvokeTrace,
   sanitizeText,
@@ -27,11 +28,7 @@ import { parseMcpConfigFixtureArgs } from "./lib/mcp-config-fixture-evidence.mjs
 
 const APP_SERVER_DRAIN_EVENTS_COMMAND = "app_server_drain_events";
 const STARTUP_NOTIFICATION_METHOD = "mcpServer/startupStatus/updated";
-const REQUIRED_REFRESH_METHODS = ["mcpServerStatus/list", "mcpTool/list"];
-const STARTING_COPY = /启动中|啟動中|Starting|起動中|시작 중/i;
-const RUNNING_COPY = /运行中|執行中|Running|実行中|실행 중/i;
-const LATEST_ERROR_COPY =
-  /最近错误|最近錯誤|Latest error|最新エラー|최근 오류/i;
+const REQUIRED_REFRESH_METHODS = ["mcpServerStatus/list", "mcpServer/list"];
 
 const DEFAULTS = {
   runId: process.env.LIME_GATE_RUN_ID?.trim() || null,
@@ -55,7 +52,7 @@ MCP Startup Notification Electron Fixture Smoke
 
 用途:
   在真实 Electron Settings MCP 页面验证 App Server typed notification
-  mcpServer/startupStatus/updated 的 starting -> ready / failed 投影。
+  mcpServer/startupStatus/updated 的 starting -> ready / failed 通知及设置重读。
 
 边界:
   使用临时 stdio MCP server 和临时失败配置，不调用正式模型或 live provider，
@@ -75,23 +72,45 @@ function logStage(stage) {
 }
 
 function serverCard(page, serverName) {
-  return page
-    .getByText(serverName, { exact: true })
-    .first()
-    .locator(
-      'xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " border ")][1]',
-    );
+  return page.getByTestId("mcp-config-server").filter({ hasText: serverName });
 }
 
-async function openMcpRuntimeSettings(page, options) {
-  await openSettings(page, options);
-  await page.locator('[data-testid="settings-sidebar-tab-mcp-server"]').click();
-  const runtimeTab = page.locator('[data-testid="mcp-panel-tab-runtime"]');
-  await runtimeTab.waitFor({
-    state: "visible",
-    timeout: Math.min(45_000, options.timeoutMs),
-  });
-  await runtimeTab.click();
+async function waitForSettingsRefresh(page, options, previousCount) {
+  return waitForPageCondition(
+    page,
+    options,
+    ({ previousCount }) => {
+      const entries = JSON.parse(
+        localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]",
+      );
+      const count = entries
+        .flatMap((entry) => entry.args_preview?.request?.lines || [])
+        .filter((line) => {
+          try {
+            return JSON.parse(line).method === "mcpServerStatus/list";
+          } catch {
+            return false;
+          }
+        }).length;
+      return (
+        count > previousCount &&
+        !document.querySelector(
+          '[data-testid="mcp-config-page"][aria-busy="true"]',
+        )
+      );
+    },
+    "Typed notification did not refresh the current MCP settings status",
+    { previousCount },
+  );
+}
+
+async function statusReadCount(page) {
+  const raw = await page.evaluate(() =>
+    localStorage.getItem("lime_invoke_trace_buffer_v1"),
+  );
+  return parseJsonRpcRequestsFromInvokeTrace(raw).filter(
+    (request) => request.method === "mcpServerStatus/list",
+  ).length;
 }
 
 async function createServer(page, { id, name, description, serverConfig }) {
@@ -102,9 +121,6 @@ async function createServer(page, { id, name, description, serverConfig }) {
       description,
       server_config: serverConfig,
       enabled_lime: true,
-      enabled_claude: false,
-      enabled_codex: false,
-      enabled_gemini: false,
       created_at: Date.now(),
     },
   });
@@ -284,9 +300,10 @@ export async function run() {
     notificationMethod: STARTUP_NOTIFICATION_METHOD,
     backendMode: "runtime",
     electronPreloadBridge: false,
-    startingVisible: false,
-    readyVisible: false,
-    failedVisible: false,
+    lifecycleNotificationsObserved: false,
+    settingsRefreshObserved: false,
+    claimBoundary:
+      "Real Electron/preload/App Server MCP lifecycle notifications and automatic settings configuration/status rereads. Lifecycle is protocol evidence; no retired statistics panel or visible status-label claim.",
     notificationSequences: null,
     trace: null,
     consoleErrors,
@@ -340,7 +357,7 @@ export async function run() {
     });
 
     logStage("open-mcp-runtime-settings");
-    await openMcpRuntimeSettings(page, options);
+    await openMcpConfigSettings(page, options);
     const readyCard = serverCard(page, readyServer.name);
     const failedCard = serverCard(page, failedServer.name);
     await Promise.all([
@@ -353,22 +370,14 @@ export async function run() {
     });
 
     logStage("start-ready-server");
-    const readyRequest = appServerCallFromPage(page, "mcpServer/start", {
+    const readyReads = await statusReadCount(page);
+    await appServerCallFromPage(page, "mcpServer/start", {
       name: readyServer.name,
     });
-    await readyCard.getByText(STARTING_COPY).waitFor({
-      state: "visible",
-      timeout: Math.min(30_000, options.timeoutMs),
-    });
-    summary.startingVisible = true;
-    await readyRequest;
-    await readyCard.getByText(RUNNING_COPY).waitFor({
-      state: "visible",
-      timeout: Math.min(30_000, options.timeoutMs),
-    });
-    summary.readyVisible = true;
+    await waitForSettingsRefresh(page, options, readyReads);
 
     logStage("start-failed-server");
+    const failedReads = await statusReadCount(page);
     const failedResult = await appServerCallFromPage(page, "mcpServer/start", {
       name: failedServer.name,
     }).then(
@@ -381,11 +390,8 @@ export async function run() {
       }),
     );
     assert(failedResult.failed, "失败 MCP server 意外启动成功");
-    await failedCard.getByText(LATEST_ERROR_COPY).waitFor({
-      state: "visible",
-      timeout: Math.min(30_000, options.timeoutMs),
-    });
-    summary.failedVisible = true;
+    await waitForSettingsRefresh(page, options, failedReads);
+    summary.settingsRefreshObserved = true;
 
     logStage("read-recent-typed-notifications");
     const notifications = await readRecentNotifications(page);
@@ -407,6 +413,7 @@ export async function run() {
         failedTerminal.params.error.length > 0,
       "failed notification 缺少 error",
     );
+    summary.lifecycleNotificationsObserved = true;
     summary.notificationSequences = {
       [readyServer.name]: readySequence.statuses,
       [failedServer.name]: failedSequence.statuses,

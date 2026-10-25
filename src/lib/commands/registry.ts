@@ -2,7 +2,14 @@ import {
   isInputLikeTarget,
   resolveHotkeyPlatform,
 } from "@/lib/hotkeys/platform";
-import { matchesBinding, normalizeBinding } from "./bindings";
+import {
+  bindingIdentity,
+  bindingMatchesPrefix,
+  captureBinding,
+  KEY_SEQUENCE_TIMEOUT_MS,
+  normalizeBinding,
+} from "./bindings";
+import { compareKeyboardShortcutCommands } from "./keyboard-shortcut-command-order";
 
 export type CommandSection =
   | "thread"
@@ -26,6 +33,7 @@ export interface CommandRegistration {
   capture?: boolean;
   allowInInput?: boolean;
   allowInDialog?: boolean;
+  allowRepeat?: boolean;
 }
 
 export type RegisteredCommand = Pick<
@@ -35,6 +43,16 @@ export type RegisteredCommand = Pick<
 
 type Entry = CommandRegistration & { target: EventTarget };
 const entries = new Set<Entry>();
+type KeyScope = {
+  target: EventTarget;
+  capture: boolean;
+  prefix: string | null;
+  pendingTarget: EventTarget | null;
+  timer: ReturnType<typeof setTimeout> | null;
+  handleKeyDown: (event: Event) => void;
+  reset: () => void;
+};
+const keyScopes = new Set<KeyScope>();
 const subscribers = new Set<() => void>();
 let snapshot: readonly RegisteredCommand[] = [];
 let bindingOverrides: Record<string, readonly string[]> = {};
@@ -57,6 +75,7 @@ export function setCommandBindingOverrides(
   );
   if (JSON.stringify(bindingOverrides) === JSON.stringify(next)) return;
   bindingOverrides = next;
+  for (const scope of keyScopes) scope.reset();
   publish();
 }
 
@@ -78,7 +97,7 @@ function publish() {
       });
     }
   }
-  snapshot = [...active.values()];
+  snapshot = [...active.values()].sort(compareKeyboardShortcutCommands);
   for (const subscriber of subscribers) subscriber();
 }
 
@@ -92,14 +111,7 @@ export function getRegisteredCommands(): readonly RegisteredCommand[] {
 }
 
 function acceptsEvent(entry: Entry, event: KeyboardEvent) {
-  if (
-    entry.enabled === false ||
-    !effectiveBindings(entry).some((binding) =>
-      matchesBinding(event, binding, resolveHotkeyPlatform(navigator)),
-    )
-  ) {
-    return false;
-  }
+  if (entry.enabled === false) return false;
   const target = event.target;
   if (target instanceof Element) {
     if (target.closest("[data-shortcut-capture]")) return false;
@@ -120,6 +132,99 @@ function acceptsEvent(entry: Entry, event: KeyboardEvent) {
   return true;
 }
 
+function keyScope(target: EventTarget, capture: boolean): KeyScope {
+  const existing = [...keyScopes].find(
+    (scope) => scope.target === target && scope.capture === capture,
+  );
+  if (existing) return existing;
+  const scope: KeyScope = {
+    target,
+    capture,
+    prefix: null,
+    pendingTarget: null,
+    timer: null,
+    reset: () => {
+      if (scope.timer !== null) clearTimeout(scope.timer);
+      scope.timer = null;
+      scope.prefix = null;
+      scope.pendingTarget = null;
+    },
+    handleKeyDown: (rawEvent) => {
+      const event = rawEvent as KeyboardEvent;
+      if (
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.keyCode === 229
+      ) {
+        scope.reset();
+        return;
+      }
+      const stroke = captureBinding(event);
+      if (!stroke) {
+        if (
+          !["Control", "Meta", "Alt", "AltGraph", "Shift", "Fn"].includes(
+            event.key,
+          )
+        )
+          scope.reset();
+        return;
+      }
+      if (scope.prefix && scope.pendingTarget !== event.target) scope.reset();
+      if (event.repeat && scope.prefix) {
+        event.preventDefault();
+        return;
+      }
+      const candidates = [...entries]
+        .reverse()
+        .filter(
+          (entry) =>
+            entry.target === target &&
+            Boolean(entry.capture) === capture &&
+            (!event.repeat || entry.allowRepeat === true) &&
+            acceptsEvent(entry, event),
+        );
+      const platform = resolveHotkeyPlatform(navigator);
+      const dispatch = (sequence: string) => {
+        const identity = bindingIdentity(sequence, platform);
+        const winner = candidates.find((entry) =>
+          effectiveBindings(entry).some(
+            (binding) => bindingIdentity(binding, platform) === identity,
+          ),
+        );
+        if (winner) {
+          scope.reset();
+          event.preventDefault();
+          winner.handler();
+          return true;
+        }
+        if (
+          candidates.some((entry) =>
+            effectiveBindings(entry).some((binding) =>
+              bindingMatchesPrefix(binding, sequence, platform),
+            ),
+          )
+        ) {
+          scope.prefix = sequence;
+          scope.pendingTarget = event.target;
+          scope.timer = setTimeout(scope.reset, KEY_SEQUENCE_TIMEOUT_MS);
+          event.preventDefault();
+          return true;
+        }
+        return false;
+      };
+      const prefix = scope.prefix;
+      scope.reset();
+      if (prefix && dispatch(`${prefix} ${stroke}`)) return;
+      dispatch(stroke);
+    },
+  };
+  keyScopes.add(scope);
+  target.addEventListener("keydown", scope.handleKeyDown, capture);
+  target.addEventListener("blur", scope.reset);
+  target.addEventListener("focusout", scope.reset);
+  return scope;
+}
+
 export function runCommand(id: string): boolean {
   const entry = [...entries]
     .reverse()
@@ -134,27 +239,24 @@ export function registerCommand(command: CommandRegistration): () => void {
   const target = command.target === undefined ? window : command.target;
   if (!target) return () => {};
   const entry: Entry = { ...command, target };
-  const handleKeyDown = (rawEvent: Event) => {
-    const event = rawEvent as KeyboardEvent;
-    if (event.defaultPrevented || event.isComposing || event.keyCode === 229)
-      return;
-    const winner = [...entries]
-      .reverse()
-      .find(
-        (candidate) =>
-          candidate.target === target &&
-          Boolean(candidate.capture) === Boolean(entry.capture) &&
-          acceptsEvent(candidate, event),
-      );
-    if (winner !== entry) return;
-    event.preventDefault();
-    entry.handler();
-  };
   entries.add(entry);
-  target.addEventListener("keydown", handleKeyDown, command.capture);
+  const scope = keyScope(target, Boolean(command.capture));
+  scope.reset();
   publish();
   return () => {
-    target.removeEventListener("keydown", handleKeyDown, command.capture);
-    if (entries.delete(entry)) publish();
+    if (!entries.delete(entry)) return;
+    scope.reset();
+    if (
+      ![...entries].some(
+        (entry) =>
+          entry.target === target && Boolean(entry.capture) === scope.capture,
+      )
+    ) {
+      target.removeEventListener("keydown", scope.handleKeyDown, scope.capture);
+      target.removeEventListener("blur", scope.reset);
+      target.removeEventListener("focusout", scope.reset);
+      keyScopes.delete(scope);
+    }
+    publish();
   };
 }

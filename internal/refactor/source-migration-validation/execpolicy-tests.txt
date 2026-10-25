@@ -1,0 +1,155 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on artifact directory
+   Compiling serde_core v1.0.228
+   Compiling smallvec v1.15.1
+   Compiling syn v2.0.117
+   Compiling aho-corasick v1.1.4
+   Compiling serde_json v1.0.149
+   Compiling memchr v2.8.1
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.0
+   Compiling crossbeam-epoch v0.9.20
+   Compiling lock_api v0.4.14
+   Compiling parking_lot_core v0.9.12
+   Compiling cc v1.2.55
+   Compiling either v1.15.0
+   Compiling regex-automata v0.4.13
+   Compiling stable_deref_trait v1.2.1
+   Compiling crossbeam-deque v0.8.6
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling parking_lot v0.12.5
+   Compiling num-integer v0.1.46
+   Compiling once_cell v1.21.4
+   Compiling subtle v2.6.1
+   Compiling blake3 v1.8.2
+   Compiling rustix v1.1.4
+   Compiling lock_free_hashtable v0.1.4
+   Compiling digest v0.10.7
+   Compiling rayon-core v1.13.0
+   Compiling itertools v0.14.0
+   Compiling errno v0.3.14
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.0
+   Compiling dashmap v6.1.0
+   Compiling regex v1.12.3
+   Compiling fancy-regex v0.16.2
+   Compiling env_filter v1.0.0
+   Compiling logos-codegen v0.15.1
+   Compiling env_logger v0.11.9
+   Compiling Inflector v0.11.4
+   Compiling quickcheck v1.1.0
+   Compiling erased-serde v0.4.10
+   Compiling serde_derive v1.0.228
+   Compiling thiserror-impl v2.0.18
+   Compiling ref-cast-impl v1.0.25
+   Compiling dupe_derive v0.9.1
+   Compiling ref-cast v1.0.25
+   Compiling allocative_derive v0.3.6
+   Compiling strong_hash_derive v0.1.0
+   Compiling dupe v0.9.1
+   Compiling serde_repr v0.1.20
+   Compiling bytemuck_derive v1.10.2
+   Compiling strong_hash v0.1.0
+   Compiling thiserror v2.0.18
+   Compiling sorted_vector_map v0.2.1
+   Compiling pagable_derive v0.4.1
+   Compiling async-trait v0.1.89
+   Compiling static_interner v0.1.2
+   Compiling derive_more-impl v1.0.0
+   Compiling logos-derive v0.15.1
+   Compiling serde_derive_internals v0.29.1
+   Compiling cobs v0.3.0
+   Compiling nix v0.28.0
+   Compiling nibble_vec v0.1.0
+   Compiling ts-rs-macros v11.1.0
+   Compiling radix_trie v0.2.1
+   Compiling bytemuck v1.25.0
+   Compiling logos v0.15.1
+   Compiling fd-lock v4.0.4
+   Compiling display_container v0.9.0
+   Compiling clap_derive v4.5.55
+   Compiling schemars_derive v0.8.22
+   Compiling starlark_derive v0.14.2
+   Compiling tokio-macros v2.7.0
+   Compiling serde v1.0.228
+   Compiling ts-rs v11.1.0
+   Compiling rustyline v14.0.0
+   Compiling heapless v0.7.17
+   Compiling num-bigint v0.4.6
+   Compiling schemafy_core v0.5.2
+   Compiling triomphe v0.1.15
+   Compiling schemafy_lib v0.5.2
+   Compiling postcard v1.1.3
+   Compiling lsp-types v0.97.0
+   Compiling schemars v0.8.22
+   Compiling erased-serde v0.3.31
+   Compiling allocative v0.3.6
+   Compiling schemafy v0.5.2
+   Compiling fastrand v2.5.0
+   Compiling derive_more v1.0.0
+   Compiling tokio v1.52.3
+   Compiling tempfile v3.27.0
+   Compiling debugserver-types v0.5.0
+   Compiling clap v4.5.58
+   Compiling pagable v0.4.1
+   Compiling multimap v0.10.1
+   Compiling codex-utils-absolute-path v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/utils/absolute-path)
+   Compiling starlark_map v0.14.2
+   Compiling starlark_syntax v0.14.2
+   Compiling starlark v0.14.2
+   Compiling codex-execpolicy v0.0.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/upstream/execpolicy)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 18s
+     Running unittests src/lib.rs (lime-rs/target/debug/deps/codex_execpolicy-0e1b180f872c0b6d)
+
+running 7 tests
+test amend::tests::rejects_wildcard_network_rule_host ... ok
+test amend::tests::appends_rule_without_duplicate_newline ... ok
+test amend::tests::appends_network_rule ... ok
+test amend::tests::appends_rule_and_creates_directories ... ok
+test amend::tests::appends_prefix_and_network_rules ... ok
+test amend::tests::inserts_newline_when_missing_before_append ... ok
+test sandbox_migration::tests::removes_banned_allow_rules_once ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (lime-rs/target/debug/deps/codex_execpolicy-766d1a2854dbfe90)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/basic.rs (lime-rs/target/debug/deps/basic-585018e7c157e575)
+
+running 27 tests
+test add_prefix_rule_rejects_empty_prefix ... ok
+test heuristics_match_is_returned_when_no_policy_matches ... ok
+test add_prefix_rule_extends_policy ... ok
+test append_allow_prefix_rule_dedupes_existing_rule ... ok
+test host_executable_resolution_falls_back_without_mapping ... ok
+test basic_match ... ok
+test host_executable_rejects_name_with_path_separator ... ok
+test host_executable_rejects_non_absolute_path ... ok
+test host_executable_resolution_ignores_path_not_in_allowlist ... ok
+test host_executable_resolution_does_not_override_exact_match ... ok
+test host_executable_rejects_path_with_wrong_basename ... ok
+test host_executable_last_definition_wins ... ok
+test justification_can_be_used_with_allow_decision ... ok
+test justification_is_attached_to_forbidden_matches ... ok
+test host_executable_resolution_uses_basename_rule_when_allowed ... ok
+test host_executable_resolution_respects_explicit_empty_allowlist ... ok
+test justification_cannot_be_empty ... ok
+test network_rules_compile_into_domain_lists ... ok
+test only_first_token_alias_expands_to_multiple_rules ... ok
+test match_and_not_match_examples_are_enforced ... ok
+test network_rule_rejects_wildcard_hosts ... ok
+test parses_multiple_policy_files ... ok
+test parses_host_executable_paths ... ok
+test strictest_decision_across_multiple_commands ... ok
+test strictest_decision_wins_across_matches ... ok
+test tail_aliases_are_not_cartesian_expanded ... ok
+test prefix_rule_examples_honor_host_executable_resolution ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

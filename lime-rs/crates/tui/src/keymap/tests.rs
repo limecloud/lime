@@ -15,7 +15,7 @@ fn many(specs: &[&str]) -> KeybindingsSpec {
 }
 
 #[test]
-fn codex_transcript_defaults_and_hints_share_one_owner() {
+fn lime_transcript_defaults_and_hints_share_one_owner() {
     let keymap = RuntimeKeymap::default();
     let transcript = keymap.transcript();
     assert!(transcript.open_transcript(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL,)));
@@ -102,7 +102,7 @@ fn conflicts_and_plain_chord_prefixes_fail_closed() {
 }
 
 #[test]
-fn codex_agents_defaults_are_stable() {
+fn lime_agents_defaults_are_stable() {
     let keymap = RuntimeKeymap::default();
     let agents = keymap.agents();
     assert!(agents.resume(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE,)));
@@ -120,7 +120,7 @@ fn codex_agents_defaults_are_stable() {
 }
 
 #[test]
-fn codex_editor_control_aliases_are_routed_to_textarea() {
+fn lime_editor_control_aliases_are_routed_to_textarea() {
     let keymap = RuntimeKeymap::default();
     for character in [
         'a', 'b', 'e', 'f', 'h', 'j', 'k', 'm', 'n', 'p', 'u', 'w', 'y',

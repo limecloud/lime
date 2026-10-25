@@ -1,5 +1,8 @@
+/* global NodeJS */
+import process from "node:process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  AppServerClient,
   decodeMessage,
   encodeMessage,
   type JsonRpcMessage,
@@ -216,6 +219,7 @@ const {
       capabilities: {},
     },
     connection: fakeConnection,
+    client: new AppServerClient(),
     sidecar: { child: fakeSidecarChild },
   });
 
@@ -458,6 +462,189 @@ describe("ElectronAppServerHost", () => {
     }
   });
 
+  it("Desktop 偏好经过初始化和两种配置写入入口回读，停止时隔离迟到读取", async () => {
+    const { ElectronAppServerHost } = await import("./appServerHost");
+    const { DesktopPreferencesHost } = await import("./desktopPreferencesHost");
+    const apply = vi.fn();
+    let enabled = true;
+    let delayRead = false;
+    let release!: () => void;
+    const delayedRead = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let markReadReady!: () => void;
+    const readReady = new Promise<void>((resolve) => {
+      markReadReady = resolve;
+    });
+    const preferences = new DesktopPreferencesHost({
+      platform: "darwin",
+      request: async <T>(method: string, params: unknown) => {
+        await host.request(method, params);
+        if (delayRead) {
+          markReadReady();
+          await delayedRead;
+        }
+        return {
+          config: { desktop: { "mac-menu-bar-enabled": enabled } },
+        } as T;
+      },
+      setMacMenuBarEnabled: apply,
+    });
+    const host: InstanceType<typeof ElectronAppServerHost> =
+      new ElectronAppServerHost(null, preferences);
+    await host.warmup();
+    expect(apply.mock.calls).toEqual([[true]]);
+    enabled = false;
+    await host.request("config/batchWrite", { edits: [] });
+    expect(apply.mock.calls).toEqual([[true], [false]]);
+    enabled = true;
+    const result = await host.handleJsonLines({
+      lines: [
+        encodeMessage({
+          id: 42,
+          method: "config/value/write",
+          params: {
+            keyPath: "desktop.mac-menu-bar-enabled",
+            value: true,
+            mergeStrategy: "replace",
+          },
+        }),
+      ],
+    });
+    expect(result.lines.map(decodeMessage)).toContainEqual(
+      expect.objectContaining({ id: 42 }),
+    );
+    expect(apply.mock.calls).toEqual([[true], [false], [true]]);
+    expect(
+      recordedRequests.filter((request) => request.method === "config/read"),
+    ).toHaveLength(3);
+    delayRead = true;
+    const pending = preferences.refresh();
+    await readReady;
+    await host.stop();
+    release();
+    await pending;
+    expect(apply.mock.calls).toEqual([[true], [false], [true]]);
+  });
+
+  it("真实Host委托canonical活动和断线，旧连接通知不能重新申请电源资源", async () => {
+    const { ElectronAppServerHost } = await import("./appServerHost");
+    const { DesktopPreferencesHost } = await import("./desktopPreferencesHost");
+    const { PowerSaveHost } = await import("./powerSaveHost");
+    const start = vi.fn(() => 9);
+    const stop = vi.fn();
+    const preferences = new DesktopPreferencesHost({
+      platform: "darwin",
+      request: async <T>() =>
+        ({ config: { desktop: { preventSleepWhileRunning: true } } }) as T,
+      setMacMenuBarEnabled: vi.fn(),
+      powerSaveHost: new PowerSaveHost({ platform: "darwin", start, stop }),
+    });
+    const host = new ElectronAppServerHost(null, preferences);
+    const startSidecar = vi.spyOn(
+      FakeAppServerSidecarLifecycle.prototype,
+      "start",
+    );
+    await host.warmup();
+    const notification: JsonRpcNotification = {
+      method: "thread/status/changed",
+      params: {
+        threadId: "power-thread",
+        status: { type: "active", activeFlags: [] },
+      },
+    };
+    emitFakeNotification(notification);
+    expect(start).toHaveBeenCalledExactlyOnceWith("prevent-app-suspension");
+    const stale = notificationObservers.at(-1)!;
+    type ReadResult = Awaited<ReturnType<typeof fakeConnection.request>>;
+    let releaseRead!: (value: ReadResult) => void;
+    fakeConnection.request.mockImplementationOnce(
+      async () =>
+        await new Promise<ReadResult>((resolve) => {
+          releaseRead = resolve;
+        }),
+    );
+    const lateRead = host.request("thread/read", { threadId: "power-thread" });
+    await vi.waitFor(() => expect(releaseRead).toBeTypeOf("function"));
+    lifecycleOptions.at(-1)!.onExit!({
+      attempt: 1,
+      code: 1,
+      signal: null,
+      stderrLines: [],
+    });
+    expect(stop).toHaveBeenCalledExactlyOnceWith(9);
+    stale(notification);
+    expect(start).toHaveBeenCalledTimes(1);
+    const lateResult = {
+      result: {
+        ok: true,
+        thread: { id: "power-thread", status: { type: "active" } },
+      },
+      messages: [],
+    };
+    releaseRead(lateResult);
+    await lateRead;
+    expect(start).toHaveBeenCalledTimes(1);
+    const restarted = createFakeConnected();
+    const lifecycle = startSidecar.mock.contexts[0] as InstanceType<
+      typeof FakeAppServerSidecarLifecycle
+    >;
+    lifecycle.connected = restarted;
+    lifecycleOptions.at(-1)!.onRestarted!(restarted);
+    emitFakeNotification(notification);
+    expect(start).toHaveBeenCalledTimes(2);
+    await host.stop();
+    expect(stop).toHaveBeenCalledTimes(2);
+    emitFakeNotification(notification);
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["request", "json-lines"])(
+    "%s入口将turn/start回执和原threadId投影到电源资源",
+    async (entry) => {
+      const { ElectronAppServerHost } = await import("./appServerHost");
+      const { DesktopPreferencesHost } =
+        await import("./desktopPreferencesHost");
+      const { PowerSaveHost } = await import("./powerSaveHost");
+      const start = vi.fn(() => 9);
+      const stop = vi.fn();
+      const preferences = new DesktopPreferencesHost({
+        platform: "darwin",
+        request: async <T>() =>
+          ({ config: { desktop: { preventSleepWhileRunning: true } } }) as T,
+        setMacMenuBarEnabled: vi.fn(),
+        powerSaveHost: new PowerSaveHost({ platform: "darwin", start, stop }),
+      });
+      const host = new ElectronAppServerHost(null, preferences);
+      await host.warmup();
+      fakeConnection.request.mockImplementationOnce(async (request) => {
+        const result = {
+          ok: true,
+          internalId: request.id,
+          method: request.method,
+          turn: { id: "power-turn", status: "inProgress" },
+        };
+        return { result, messages: [{ id: request.id, result }] };
+      });
+      const params = { threadId: "power-thread", input: [] };
+      if (entry === "request") await host.request("turn/start", params);
+      else
+        await host.handleJsonLines({
+          lines: [encodeMessage({ id: 42, method: "turn/start", params })],
+        });
+      expect(start).toHaveBeenCalledExactlyOnceWith("prevent-app-suspension");
+      emitFakeNotification({
+        method: "turn/completed",
+        params: {
+          threadId: "power-thread",
+          turn: { id: "power-turn", status: "completed" },
+        },
+      });
+      expect(stop).toHaveBeenCalledExactlyOnceWith(9);
+      await host.stop();
+    },
+  );
+
   it("启动 App Server 时应显式传入 Electron userData 下的 dataDir", async () => {
     const { ElectronAppServerHost } = await import("./appServerHost");
     const host = new ElectronAppServerHost();
@@ -478,6 +665,8 @@ describe("ElectronAppServerHost", () => {
       capabilities: {
         eventMethods: expect.arrayContaining([
           "thread/started",
+          "thread/status/changed",
+          "thread/closed",
           "turn/started",
           "turn/completed",
           "item/started",

@@ -916,7 +916,7 @@ describe("i18n namespace loader", () => {
         ),
       ).toEqual([]);
       expect(resources[locale].settings).toHaveProperty(
-        "settings.layout.loading.skills",
+        "settings.plugins.loading",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.about.version.label",
@@ -1043,10 +1043,10 @@ describe("i18n namespace loader", () => {
         "settings.userCenterSession.login.google.title",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.agent.skills.advancedEntry.title",
+        "settings.plugins.subtitle",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.agent.skills.advancedEntry.tipAria",
+        "settings.plugins.browseDirectory",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.voice.model.action.download",
@@ -1347,15 +1347,13 @@ describe("i18n namespace loader", () => {
       ],
     ).toBe("显示继承的环境（{{count}}）");
     expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.agent.skills.advancedEntry.title"
-      ],
-    ).toBe("高级技能入口");
+      loadNamespaceResource("fr-FR", "settings")["settings.plugins.subtitle"],
+    ).toBe("管理插件、技能和 MCP");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.agent.skills.advancedEntry.tipAria"
+        "settings.plugins.browseDirectory"
       ],
-    ).toBe("高级技能入口说明");
+    ).toBe("浏览目录");
     expect(
       loadNamespaceResource("fr-FR", "agent")["skills.repoManager.title"],
     ).toBe("仓库管理");

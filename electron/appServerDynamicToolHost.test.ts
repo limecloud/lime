@@ -39,6 +39,72 @@ function call(overrides: Record<string, unknown> = {}): JsonRpcMessage {
 }
 
 describe("AppServerDynamicToolHost", () => {
+  it.each([
+    null,
+    [{}],
+    [{ index: -1 }],
+    [{ value: 1 }],
+    [{ value: "x", unknown: true }],
+  ])(
+    "rejects malformed select choices before invoking the native owner: %j",
+    async (options) => {
+      const browserHost = { executeTool: vi.fn(), turnEnded: vi.fn() };
+      const host = new AppServerDynamicToolHost(
+        undefined,
+        browserHost as never,
+      );
+      const transport = connection();
+      host.observeClientResult(
+        "thread/start",
+        { thread: { id: "thread-1" } },
+        { ownerWebContentsId: 41 },
+      );
+      await host.tryHandle(
+        transport,
+        call({
+          namespace: "browser",
+          tool: "select",
+          arguments: { snapshotId: "snapshot", backendNodeId: 11, options },
+        }),
+      );
+      expect(browserHost.executeTool).not.toHaveBeenCalled();
+      expect(transport.rejectServerRequest).toHaveBeenCalledWith(
+        "request-1",
+        expect.objectContaining({ code: -32602 }),
+      );
+    },
+  );
+  it.each(["bad", null, 10001, -10001, Infinity])(
+    "rejects invalid scroll delta %s before invoking the native owner",
+    async (deltaY) => {
+      const browserHost = { executeTool: vi.fn(), turnEnded: vi.fn() };
+      const host = new AppServerDynamicToolHost(
+        undefined,
+        browserHost as never,
+      );
+      const transport = connection();
+      host.observeClientResult(
+        "thread/start",
+        { thread: { id: "thread-1" } },
+        { ownerWebContentsId: 41 },
+      );
+      await host.tryHandle(
+        transport,
+        call({
+          namespace: "browser",
+          tool: "scroll",
+          arguments: { snapshotId: "snapshot", deltaY },
+        }),
+      );
+      expect(browserHost.executeTool).not.toHaveBeenCalled();
+      expect(transport.rejectServerRequest).toHaveBeenCalledWith(
+        "request-1",
+        expect.objectContaining({
+          message: expect.stringContaining("finite number"),
+        }),
+      );
+    },
+  );
   it.each(["thread/start", "thread/resume"])(
     "overrides untrusted %s dynamicTools with the immutable desktop registry",
     (method) => {

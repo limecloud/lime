@@ -200,9 +200,6 @@ try {
         tool_timeout: 90,
       },
       enabled_lime: true,
-      enabled_claude: false,
-      enabled_codex: false,
-      enabled_gemini: false,
       created_at: 1,
     },
   });

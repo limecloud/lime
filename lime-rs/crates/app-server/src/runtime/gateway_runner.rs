@@ -48,6 +48,7 @@ impl GatewayAgentRunner for RuntimeGatewayAgentRunner {
                     skip_pre_submit_resume: false,
                 },
                 RuntimeHostContext {
+                    connection_id: None,
                     client_name: Some(format!("gateway-{}", request.channel)),
                     client_version: None,
                 },

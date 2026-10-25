@@ -11,7 +11,7 @@ export interface GitPreferences {
 }
 
 export const DEFAULT_GIT_PREFERENCES: Readonly<GitPreferences> = {
-  "branch-prefix": "codex/",
+  "branch-prefix": "lime/",
   "always-force-push": false,
   "create-draft-pull-requests": true,
   "pull-request-merge-method": "merge",

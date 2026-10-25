@@ -11,13 +11,13 @@ src/hooks/
 ├── index.ts                # 导出入口
 ├── useConfiguredProviders.ts # 已配置 Provider 读取
 ├── useFlowEvents.ts        # 流量事件
-├── useMcpServers.ts        # MCP 服务器
 ├── useDeepLink.ts          # Deep Link 处理
 └── useSound.ts             # 音效管理
 ```
 
 ## 治理约束
 
+- MCP 设置的配置/status 与 typed notification 由 `src/components/settings-v2/integrations/plugins/useMcpSettings.ts` 消费；不恢复旧独立 MCP 页面及其私有 Hook。
 - 新的前端能力优先落在 `src/lib/api/*`，再由 Hook 或组件消费。
 - 历史桌面宿主兼容聚合层已删除，不要重新引入新的“大一统 API Hook”。
 - Agent 工作台统一走 `src/components/agent/chat/hooks/index.ts` 暴露的 `useAgentChatUnified`，底层实现委托 `useAgentChat`。

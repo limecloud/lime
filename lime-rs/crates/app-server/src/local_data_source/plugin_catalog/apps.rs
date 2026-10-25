@@ -147,15 +147,15 @@ pub(super) fn declared_app_capabilities(
     }
     let relative = path
         .strip_prefix(package_root)
-        .map_err(|_| "Codex Plugin Apps 路径越界。".to_string())?;
+        .map_err(|_| "Lime Plugin Apps 路径越界。".to_string())?;
     let path = resource_path(package_root, &relative.to_string_lossy())?;
-    let content = fs::read_to_string(&path).map_err(io_error("读取 Codex Plugin Apps 配置失败"))?;
+    let content = fs::read_to_string(&path).map_err(io_error("读取 Lime Plugin Apps 配置失败"))?;
     let value: Value = serde_json::from_str(&content)
-        .map_err(|error| format!("解析 Codex Plugin Apps 配置失败: {error}"))?;
+        .map_err(|error| format!("解析 Lime Plugin Apps 配置失败: {error}"))?;
     let apps = value
         .get("apps")
         .and_then(Value::as_object)
-        .ok_or_else(|| "Codex Plugin Apps 配置必须包含 apps object。".to_string())?;
+        .ok_or_else(|| "Lime Plugin Apps 配置必须包含 apps object。".to_string())?;
     let mut capabilities = Vec::new();
     for (name, config) in apps {
         let id = config
@@ -163,13 +163,13 @@ pub(super) fn declared_app_capabilities(
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|id| !id.is_empty())
-            .ok_or_else(|| format!("Codex Plugin App `{name}` 缺少合法 id。"))?;
+            .ok_or_else(|| format!("Lime Plugin App `{name}` 缺少合法 id。"))?;
         if config
             .get("category")
             .is_some_and(|category| !category.is_null() && !category.is_string())
         {
             return Err(format!(
-                "Codex Plugin App `{name}` 的 category 必须是 string。"
+                "Lime Plugin App `{name}` 的 category 必须是 string。"
             ));
         }
         capabilities.push(AppSummary {

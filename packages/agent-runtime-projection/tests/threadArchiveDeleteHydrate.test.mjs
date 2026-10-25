@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexThreadArchiveDeleteHydrateProjectionEvent,
-  extractCodexThreadArchiveDeleteHydrateSnapshot,
+  buildThreadArchiveDeleteHydrateProjectionEvent,
+  extractThreadArchiveDeleteHydrateSnapshot,
 } from "../dist/index.js";
 
 function notification(method, threadId) {
@@ -46,7 +46,7 @@ function baseInput(overrides = {}) {
     archiveNotification: [notification("thread/archived", "thread-archive")],
     archivedReadResponse: {
       thread: thread("thread-archive", {
-        path: "/repo/.codex/archived_sessions/rollout-thread-archive.jsonl",
+        path: "/repo/.lime/archived_sessions/rollout-thread-archive.jsonl",
       }),
     },
     activeListAfterArchive: [],
@@ -54,10 +54,12 @@ function baseInput(overrides = {}) {
     unarchiveResponse: {
       thread: thread("thread-archive", {
         status: "not_loaded",
-        path: "/repo/.codex/sessions/rollout-thread-archive.jsonl",
+        path: "/repo/.lime/sessions/rollout-thread-archive.jsonl",
       }),
     },
-    unarchiveNotification: [notification("thread/unarchived", "thread-archive")],
+    unarchiveNotification: [
+      notification("thread/unarchived", "thread-archive"),
+    ],
     activeListAfterUnarchive: [thread("thread-archive")],
     deleteNotifications: [
       notification("thread/deleted", "thread-grandchild"),
@@ -83,14 +85,11 @@ function baseInput(overrides = {}) {
 }
 
 test("thread archive delete hydrate keeps metadata state consistent across read, list and restore", () => {
-  const event = buildCodexThreadArchiveDeleteHydrateProjectionEvent(
-    baseInput(),
-    {
-      sequence: 161,
-      sessionId: "session-thread",
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildThreadArchiveDeleteHydrateProjectionEvent(baseInput(), {
+    sequence: 161,
+    sessionId: "session-thread",
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -134,7 +133,7 @@ test("thread archive delete hydrate keeps metadata state consistent across read,
 });
 
 test("thread archive delete hydrate rejects archive list drift", () => {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot(
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot(
     baseInput({
       activeListAfterArchive: [thread("thread-archive")],
       archivedListAfterArchive: [],
@@ -149,7 +148,7 @@ test("thread archive delete hydrate rejects archive list drift", () => {
 });
 
 test("thread archive delete hydrate requires archive and unarchive notifications", () => {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot(
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot(
     baseInput({
       archiveNotification: [],
       unarchiveNotification: [],
@@ -169,7 +168,7 @@ test("thread archive delete hydrate requires archive and unarchive notifications
 });
 
 test("thread archive delete hydrate requires archived thread read by id", () => {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot(
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot(
     baseInput({
       archivedReadResponse: {
         thread: thread("other-thread"),
@@ -185,7 +184,7 @@ test("thread archive delete hydrate requires archived thread read by id", () => 
 });
 
 test("thread archive delete hydrate requires delete notifications and deleted fail-closed read/resume", () => {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot(
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot(
     baseInput({
       deleteNotifications: [notification("thread/deleted", "thread-archive")],
       readAfterDelete: {
@@ -211,7 +210,7 @@ test("thread archive delete hydrate requires delete notifications and deleted fa
 });
 
 test("thread archive delete hydrate rejects item mutation and sidebar-only archive", () => {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot(
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot(
     baseInput({
       itemFingerprintAfter: {
         turns: [
@@ -237,7 +236,7 @@ test("thread archive delete hydrate rejects item mutation and sidebar-only archi
 });
 
 test("thread archive delete hydrate checks storage path transitions", () => {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot(
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot(
     baseInput({
       pathState: {
         activePathExistsAfterArchive: true,
@@ -261,7 +260,7 @@ test("thread archive delete hydrate checks storage path transitions", () => {
 });
 
 test("thread archive delete hydrate requires a thread id", () => {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot({
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot({
     archiveNotification: [],
     archivedReadResponse: {},
     archivedListAfterArchive: [],

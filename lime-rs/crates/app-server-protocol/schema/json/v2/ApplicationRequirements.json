@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "ApplicationNetworkRequirements": {
+      "properties": {
+        "domains": {
+          "additionalProperties": {
+            "$ref": "#/$defs/NetworkDomainPermission"
+          },
+          "type": "object"
+        },
+        "enabled": {
+          "description": "When enabled, only explicitly allowed exact domains may be contacted.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "domains",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "ApplicationStorageRequirements": {
+      "description": "Managed storage settings for new Desktop workspaces, not filesystem access restrictions.",
+      "properties": {
+        "defaultProjectParent": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "projectlessWorkspaceRoot": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "NetworkDomainPermission": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "network": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplicationNetworkRequirements"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "storage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplicationStorageRequirements"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "ApplicationRequirements",
+  "type": "object"
+}

@@ -33,11 +33,11 @@ export enum SettingsTabs {
 
   // 智能体
   Providers = "providers",
-  Skills = "skills",
+  Plugins = "plugins-settings",
   MediaServices = "media-services",
 
   // 系统
-  McpServer = "mcp-server",
+  Hooks = "hooks",
   LocalEnvironments = "local-environments",
   Git = "git",
   Worktrees = "worktrees",

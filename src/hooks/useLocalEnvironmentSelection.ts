@@ -230,3 +230,19 @@ export function useLocalEnvironmentSelection({
     reload,
   };
 }
+
+export type LocalEnvironmentSelection = Pick<
+  ReturnType<typeof useLocalEnvironmentSelection>,
+  | "ready"
+  | "isLoading"
+  | "error"
+  | "updating"
+  | "environments"
+  | "resolvedConfigPath"
+  | "repairConfigPath"
+  | "savedConfigPath"
+  | "defaultEnvironment"
+  | "availableEnvironments"
+  | "updateSelection"
+  | "reload"
+> & { resetSelection?: () => Promise<boolean> };

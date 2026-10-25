@@ -1,4 +1,5 @@
 use super::*;
+use crate::McpServerTransport;
 use tempfile::TempDir;
 
 fn roots() -> (TempDir, PathBuf, PathBuf) {
@@ -253,7 +254,7 @@ fn rejects_missing_descendant_below_escaping_symlink() {
     assert!(outcome.servers.is_empty());
     assert_eq!(outcome.errors.len(), 1);
     assert_eq!(outcome.errors[0].name, "escape");
-    assert!(outcome.errors[0].message.contains("超出允许目录"));
+    assert!(outcome.errors[0].message.contains("must remain within"));
 }
 
 #[cfg(windows)]
@@ -456,6 +457,101 @@ fn rejects_missing_descendant_below_escaping_junction() {
             .iter()
             .find(|error| error.name == name)
             .unwrap();
-        assert!(error.message.contains("超出允许目录"));
+        assert!(error.message.contains("must remain within"));
+    }
+}
+
+fn assert_same_existing_host_path(actual: &str, expected: &Path) {
+    #[cfg(windows)]
+    {
+        let actual = host_path_string(&std::fs::canonicalize(actual).unwrap());
+        let expected = host_path_string(&std::fs::canonicalize(expected).unwrap());
+        assert!(
+            actual.eq_ignore_ascii_case(&expected),
+            "paths refer to different Windows filesystem entries: actual={actual} expected={expected}"
+        );
+    }
+    #[cfg(not(windows))]
+    assert_eq!(
+        Path::new(actual),
+        std::fs::canonicalize(expected).unwrap().as_path()
+    );
+}
+
+#[cfg(test)]
+mod regression {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn roots() -> (TempDir, PathBuf, PathBuf) {
+        let temp = TempDir::new().unwrap();
+        let plugin_root = temp.path().join("plugin");
+        let data_root = temp.path().join("data");
+        std::fs::create_dir_all(&plugin_root).unwrap();
+        (temp, plugin_root, data_root)
+    }
+
+    #[test]
+    fn lowers_stdio_placeholders_and_injects_reserved_paths() {
+        let (_temp, root, data) = roots();
+        std::fs::create_dir_all(root.join("bin")).unwrap();
+        std::fs::create_dir_all(&data).unwrap();
+        let outcome = parse_agent_plugin_mcp_config(
+            &root,
+            &data,
+            &format!(
+                r#"{{"$schema":"{AGENT_PLUGIN_MCP_SCHEMA_URI}","mcpServers":{{"demo":{{"type":"stdio","command":"./bin/server","args":["${{PLUGIN_ROOT}}/x","${{PLUGIN_DATA}}/state"],"env":{{"VALUE":"${{PLUGIN_DATA}}/cache"}},"cwd":"${{PLUGIN_ROOT}}/bin"}}}}}}"#
+            ),
+        )
+        .unwrap();
+        let config = outcome.servers.get("demo").unwrap();
+        assert!(outcome.errors.is_empty());
+        assert_same_existing_host_path(config.env()["PLUGIN_ROOT"].as_str(), &root);
+        assert_same_existing_host_path(config.env()["PLUGIN_DATA"].as_str(), &data);
+        assert!(Path::new(config.command()).ends_with(Path::new("bin").join("server")));
+        assert!(config
+            .sanitized_cwd()
+            .unwrap()
+            .ends_with(Path::new("plugin").join("bin")));
+    }
+
+    #[test]
+    fn isolates_bad_siblings_and_rejects_reserved_env_and_http_insecure() {
+        let (_temp, root, data) = roots();
+        let outcome = parse_agent_plugin_mcp_config(
+            &root,
+            &data,
+            &format!(
+                r#"{{"$schema":"{AGENT_PLUGIN_MCP_SCHEMA_URI}","mcpServers":{{"good":{{"type":"stdio","command":"python"}},"reserved":{{"type":"stdio","command":"python","env":{{"PLUGIN_ROOT":"bad"}}}},"remote":{{"type":"streamable-http","url":"http://example.com"}}}}}}"#
+            ),
+        )
+        .unwrap();
+        assert!(outcome.servers.contains_key("good"));
+        assert_eq!(outcome.errors.len(), 2);
+    }
+
+    #[test]
+    fn rejects_legacy_schema_and_cwd_escape() {
+        let (_temp, root, data) = roots();
+        let error = parse_agent_plugin_mcp_config(
+            &root,
+            &data,
+            r#"{"$schema":"https://agent-plugins.org/schemas/2.0.0/mcp.schema.json","mcpServers":{}}"#,
+        )
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("unsupported Agent Plugins MCP schema"));
+
+        let outcome = parse_agent_plugin_mcp_config(
+            &root,
+            &data,
+            &format!(
+                r#"{{"$schema":"{AGENT_PLUGIN_MCP_SCHEMA_URI}","mcpServers":{{"escape":{{"type":"stdio","command":"python","cwd":"${{PLUGIN_ROOT}}/../outside"}}}}}}"#
+            ),
+        )
+        .unwrap();
+        assert!(outcome.servers.is_empty());
+        assert_eq!(outcome.errors.len(), 1);
     }
 }

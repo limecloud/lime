@@ -97,7 +97,7 @@ function isMcpContent(value: unknown): value is McpContent {
   return false;
 }
 
-function lowerCodexMcpContent(value: unknown): McpContent | null {
+function lowerMcpContent(value: unknown): McpContent | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -144,7 +144,7 @@ export function assertMcpServerToolResult(
   if (!Array.isArray(record.content)) {
     throw new Error(`${method} did not return tool result`);
   }
-  const content = record.content.map(lowerCodexMcpContent);
+  const content = record.content.map(lowerMcpContent);
   if (content.some((item): item is null => item === null)) {
     throw new Error(`${method} did not return canonical MCP content`);
   }

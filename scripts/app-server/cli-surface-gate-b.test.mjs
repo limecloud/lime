@@ -8,7 +8,7 @@ const source = readFileSync(
 );
 
 describe("CLI surface Gate B", () => {
-  it("covers current Codex-shaped management surfaces through App Server", () => {
+  it("covers current Lime-native management surfaces through App Server", () => {
     for (const required of [
       '"mcp", "list", "--json"',
       '"features", "list", "--json"',

@@ -2,6 +2,144 @@
 
 更新时间：2026-10-25
 
+### P0 首次直接打开浏览器（2026-10-25，用户截图回归，实施中）
+
+- 上轮自动下载为progress。用户真实截图暴露newTab在零原生route时错误要求先有可见tab；现有Gate B总先手工挂载页面，缺少首次工具打开路径。本刀优先完成“正常聊天→browser.newTab→自动展开内置浏览器→原生导航”，弹窗设置与已发现的guest adoption缺陷暂列后续，未对其修改产品。
+- 窄写集：原BrowserTabHost/BrowserAppServerBridge的委托与短BrowserToolWorkspace、原identity pending到Renderer的意图过滤、harness/首次打开专项及必要runner、本计划和architecture/commands对应段。设置/下载、原生引擎、共享Rust/provider/通用聊天与发布只读，不新建Agent/目录镜像/第二运行时。
+- Verification Contract：root/P0。零tab时沿现有workspaceRightSurface/request取得canonical identity，先建立无URL空白原生页面作审批锚点，沿foreground pending投影自动展开。identity-only请求不作为产品打开意图；实际目标导航仍需原browse批准，持久allow/deny及管理员网络策略照常生效。首次批准后复用该页面，不能为初始化多出Google/占位页；当前owner/turn结束/断线/窗口销毁/途中策略变化使迟到identity和navigation失效。已有tab时保留原newTab语义。无新IPC/RPC/schema/业务后端。
+- 先补零tab红测，再Host/bridge/Renderer意图定向、types/contracts与真实Electron/App Server/RuntimeCore动态工具首个newTab专项，至少证明没有提前手动挂载、实际网页/地址/可见WCV和canonical工具结果；补默认GUI smoke，失败保留。架构minor由root按唯一Session/route/审批owner确认，超大Host只接短模块委托。
+- 已实现短 `BrowserToolWorkspace` 的空白原生审批锚点、同页批准导航、已有标签自动展开、同scope初始化串行和turn/connection/window/policy失效；Host仅接线。公开Codex core/app-server限定检索未提供Desktop newTab执行器，沿既有REA证据接原Host，不冒称新增模块为可copy上游符号。
+- 第一轮真实进程证明newTab/mark已完成，但面板没展开：原pending查询优先workspace，而内部canonical请求只有session。已在原 `useWorkspaceRightSurfacePendingRuntime` 同时读取同session browser pending并合并；通知只允许同session且无workspace的browser补充，其他session/surface不穿透。新增53项pending/race回归通过，补修异步list不得清除较新事件错误；无新store、RPC或IPC。
+- Computer Use实测：在真实 `com.limecloud.lime.dev` 重启加载当前Host，通过GUI发送打开百度新闻请求；现有Agnes flash先前429，pro实测鉴权失败，未修改凭证或绕过服务商。随后用同一Lime侧边面板地址框导航 `https://news.baidu.com/`，AX显示第二个原生HTML文档、标题“百度新闻——海量中文资讯平台”、热点要闻与新闻图片，截图已复核，页面保持打开。证据 `computer-use-baidu-news.png` / `computer-use-baidu-news-ax.txt` 在本P0目录；此为真实手动GUI打开，不冒充模型自动打开验收。
+- 当前验证：Host/bridge/权限/命令125项通过；新增pending/race53项通过（计数有重复）；contracts、Renderer/Node/Electron types、限定lint已通过首轮，最终增补检查进行中。默认GUI smoke首轮24/24，run `standalone-shell-01-20261025053932-48192`。真实first-open仍待补充通过：r1夹具snapshot缺scope已修；r2暴露真实workspace过滤问题已修；approval首轮启动截图超时，原日志保留，使用同一真实进程入口重跑。
+- 聚合门禁未全绿：`verify:local`在第71批的非本写集 `computer_use/broker.rs` 新增 `preferred_data_dir` storage root守卫失败；`smoke:agent-runtime-current-fixture`已通过unknown Item/home/Workbench等前置，停在既有inputbar rich draft restore cancel超时。未改这些并行owner，也不将它们结算为浏览器通过。完整目标仍active；P0自动工具打开需真实Gate B通过后收口。
+
+### S14 功能续行：受保护内容与自动下载（2026-10-25，自动下载已落地，受保护内容仍有缺口）
+
+- 上轮select/drag为progress；完整目标及G01–G12保持不变。本刀认领网站设置types/store/page、原PermissionGrants/Permissions/Downloads及Host窄装配、五语设置/提示、相关测试与原生专项、本计划及architecture/commands对应段。原生引擎、Rust、通用聊天、Provider与发布并行写集只读，不新增委派。
+- REA沿用设置Evidence `ev_23e2987270c066ef8f6679cb31b5531124df01736c3468ad2caae68425ece395` 及17类设置标签模块；公开Codex core/protocol限定搜索没有Desktop执行器可复制，新增为同一Electron宿主适配。Chromium锁定revision的download_request_limiter原件/URL/hash保存至 `.lime/qc/browser-site-download-protected-20261025/chromium-source.json`，不把标签证据当参考运行或原生实现copy。
+- Verification Contract：root / P1 / budget:normal。原Store原位升级v4保留v1–v3用户规则；protectedContent接原生mediaKeySystem检查/请求；automaticDownloads首个文件使用一次文档slot，后续按网站规则或同文档临时批准，所有Agent请求沿canonical审批，持久allow不能授予Agent。真实DownloadItem先pause后审批，拒绝/导航/撤权/关闭/终态禁止迟到resume，不能由设置UI手工合成下载成功。共享同一Session/Store/权限owner，无新IPC/RPC/后端。
+- 退出：迁移、五语、原生权限、真实多文件暂停/准许/拒绝及终态清理、重启保留/继承；定向tests/types/contracts/GUI smoke和实际当前Electron。stock DownloadItem缺request_initiator，跨frame归因、完整Chrome user-gesture/reset/batch语义和DRM模块可用性须分别记录边界；不因新增开关结算完整S14、N0–N6或双平台包。架构minor，root确认同一Browser owner及审批authority，短模块复用原文档生命周期与下载句柄落实DRY/SOLID。
+- 功能进展：原Store已升级v4并严格迁入v1/v2/v3；自动多文件下载默认ask，后续文件共用原权限询问和DownloadItem暂停/恢复。独立取消不撤销兄弟、最后消费者取消撤prompt、旧group清理竞态、导航/设置变更/关闭迟到批准、恢复下载不重复计slot均在原owner处理。持久allow不授予Agent，首文件slot只在真实主文档commit重置。五语设置、原生提示、原IPC/gateway消费者同步，无新权限authority或后端。
+- 原生探测暴露受保护内容尚无可验收的内容ID能力：ClearKey/Widevine在本次distinctiveIdentifier=required尝试均返回NotSupportedError，不能由此证明权限handler执行、完整CDM能力或DRM播放。已将该类别明确禁用、五语说明不可用，Store拒绝写入并固定实际decision=block；保留原生mediaKeySystem映射的单元覆盖，未将其算作可用功能。禁止通过可保存但不生效的开关补足类别。
+- 当前验证：10文件170/170，追加同文档拒绝不重复询问34/34；Renderer/Node/Electron类型、限定lint/格式通过。test:contracts首轮在并行变化的rendererEventPolicy守卫失败，未改该写集；当前源码重跑完整命令exit0，原失败日志保留。真实Electron42.3.3/Chromium148/macOS arm64最终native-denial 14/14：实际下载落盘、并发暂停/同prompt批准、拒绝整批/后续不重复prompt、兄弟取消、导航与shutdown清理、磁盘v4均通过；native overlay截图已查看。明确thread/config为fixture，无真实App Server/RuntimeCore/provider，不冒充完整Gate B/Windows/包验收。
+- 失败保留：native-final在最后shutdown准备时未弹prompt，因为此前受保护内容写入被正确拒绝、同值ask保存没有撤销既有临时grant；夹具已显式block→ask产生真实规则变化再验证，未改变产品去迎合测试。native-first/旧delivery及失败日志全部保留。正式GUI smoke已从原目录重建Renderer/Host，当前在构建Rust侧车；真实设置页专项须绑定本次产物，尚不提前计通过。
+- 分类：current为原Store/Session/PermissionGrants/Downloads及短聚合委托，test-only为fixture与原生脚本；无新compat/deprecated、产品删除或品牌入口。网站设置实际接通7/17类（约41%，类别分母，不是浏览器整体完成率），本刀2项计划能力落地1项；受保护内容、其余网站设置、完整CDP/WebMCP、企业存量WS撤销、N0–N6与双平台包继续未完成，goal保持active。证据目录 `.lime/qc/browser-site-download-protected-20261025/`。
+- 集成收口：正式 `npm run verify:gui-smoke` exit0、24/24，run `standalone-shell-01-20261025051450-7959`，从原目录重建Renderer/Host/App Server/code-mode侧车。随后中文/英文真实settings-navigation各45/45、exit0，实际保存自动下载block/ask、验证受保护内容禁用、重开设置与原Session/网页身份、继承和导航均通过；两张最终设置PNG与原生prompt图已查看。真实设置专项初始化App Server identity但没有Agent turn，不能结算完整RuntimeCore Gate B、Windows或包。22个本刀源码输入最终复核零漂移；`verification.json`记录分层证据及失败轮。默认local/current-fixture保留前刀聊天429与inputbar-rich-restore失败，本刀未改对应owner，不无差别重跑或冒称全仓通过。架构minor由root按同一Store/Session/原canonical权限owner确认，超大Host只保留窄装配，后续拆分职责的退出条件不变。
+
+### B14 功能续行：下拉选择与拖拽（2026-10-25，功能已落地）
+
+- 延续完整浏览器目标，认领 `browserPageInput` 及短 select/drag helper、原 immutable registry、BrowserActionApprovals 与 BrowserTabHost 必要委托、对应 integration/native fixture、本计划与架构/命令的输入段。既有悬停/滚动为同一任务写集；共享设置资源、通用聊天、Rust/runtime、Computer Use与发布迁移只读。公开 Codex 没有 Desktop action executor；继续沿用 B14/CDP 既有 REA 来源，新宿主适配不冒称上游源码/原名。
+- Verification Contract：root / P1 / budget:normal。`select` 对最新snapshot内主文档原生select按value/label/index选择，支持multiple与清空，拒绝disabled/未知/歧义选项，复用canonical一次性审批；批准后重验目标和option状态。DOM selection按浏览器自动化语义触发input/change，明确是脚本事件，不冒称可信OS输入。`drag` 对同一snapshot内源/目标走真实CDP pointer/HTML5 drag；批准前不产生输入。拖动中的导航、接管、策略变化与终态停止后续事件并清理拦截/拖动；不允许夹带本地文件。共用当前性校验、隔离世界和10秒截止，不增加IPC/RPC、Session、权限或后端。
+- 退出：定向回归覆盖审批/参数篡改/重放、选项变化、下拉选择readback、原生pointer与HTML5拖放、撤销与清理；types/contracts、真实WCV专项及正式GUI smoke，默认local/current fixture按现状记录。完整actionability/跨frame、UI设置、原生引擎与平台包仍按主计划继续，不能用本刀结算整体。
+- 架构影响minor；root确认唯一Browser owner与canonical审批/投影不变，超大Host只装配委托。DRY通过复用输入执行上下文和deadline；KISS/SOLID通过短selection/drag模块隔离DOM与原生拖动职责。
+
+- 已实现：`select` 支持 value/label/index、multiple 与清空，审批前只读、批准后及提交前重验完整 options 指纹，拒绝禁用/缺失/歧义/重复选择；合成 input/change 后立即 readback，handler 改写选中项或值返回 outcome unknown。`drag` 绑定同一快照双端，真实 pointer 与 HTML5 intercepted data，经批准才派发；准备结束重验双端指纹，drop/release 前检查目的地可见命中与坐标，不接受本地文件。两端必须能同时可见，长距离自动滚动与跨 frame 仍未提供。
+- 输入共用10秒deadline、每步 route/turn/snapshot/browse/policy 当前性检查和同WCV互斥；导航、接管、撤权、终态停止后续动作。修复并发请求拒绝后误使在途snapshot失效，只有已获取输入操作权且可能修改页面的请求才撤销快照。拖动finally逐步检查原debugger attachment，恢复拦截/pressed/监听器；清理失败释放控制，不能向新attachment发送release。原 registry 抽出原有 schema builder 与短输入工具目录，旧定义不保留双轨，未增加IPC/RPC/schema、依赖或Session。
+- 来源仍为公开Desktop执行器 `source-unavailable` 与 B14 CDP Evidence `ev_ee3644f25fca281172c84ebaa3a3a517ff74fa37906bc5ff4d34f246ee8662f4`，ASAR/成员hash见原reference-manifest；本刀是现役Electron宿主适配，未冒称Codex源码copy或原名。静态合同和真实运行分开记账。
+- 最终定向 **7文件121/121**，Electron types、限定lint/11文件格式、contracts、scripts/docs与diff-check通过。真实 macOS arm64 / Electron42.3.3 / Chromium148 的 Browser owner 专项 **16/16**：registry反向调用、选择/清空/readback、禁用/重复/选项变化、handler改写unknown、可信pointer/HTML5数据、目标中途被遮挡取消以及清理后再次拖放均通过；一张原生页面截图已实际审阅。thread/turn/config及reverse request为显式fixture，无完整preload/App Server/RuntimeCore或Windows/包等价声明。
+- 最终正式 `npm run verify:gui-smoke` exit0，**24/24**，run `standalone-shell-01-20261025044314-30489`；只证明正式壳/原IPC/App Server/Workbench及设置路由范围，不把它与native专项拼成新工具RuntimeCore Gate B。未重跑此前已记录的全仓local与聚合current-fixture失败，旧失败继续保留；本刀未修改相关聊天/Composer或并行治理写集，不声明全仓门禁通过。
+- 失败收据保留：初轮fixture取到同名AX标签并把审批envelope误当工具失败；修正为控件role与真实approval响应。原生实测还发现Chromium对all-operations发送 `dragOperationsMask=-1`；已按实测修正有界整数解析并补-1回归，未通过改fixture的effectAllowed绕开。readback探针曾返回不可克隆函数，已使测试脚本返回void。所有失败轮、最终日志、源码hash、16项native收据与GUI summary引用见 `.lime/qc/browser-select-drag-20261025/verification.json`。
+- 分类：current为原registry/BrowserTabHost及短input/select/drag owner；新回归/native脚本与仓内收据为test-only；无新增compat/deprecated、第二后端或品牌入口，无产品删除。切片2/2功能落地（100%）；完整G01–G12关闭仍0/12（0%，仅完整验收组分母，非代码实现比例），整体继续active。剩余完整设置、WebMCP/CDP、企业存量WS撤销、原生N0–N6和双平台包按原计划继续。
+
+### B14 功能续行：原生悬停与双轴滚动（2026-10-25，功能已落地）
+
+- 目标：优先交付 `hover`、`scroll`，接入原 dynamic tool registry → App Server reverse request → BrowserTabHost → 同一 WebContents；不增加 IPC/RPC、Session、权限或 runtime。认领短 `browserPageInput` owner/测试、原 registry 与 Host 的窄委托、独立 Host integration/native fixture、本计划与架构/命令的对应段。其余 Rust、语言资源、通用导航与未知并行变更只读避让。
+- 来源：公开 Codex 源码仅提供 browser 配置/协议，无 Desktop 输入执行器可复制；沿用 B14 main IAB backend 范围与 CDP Evidence `ev_ee3644f25fca281172c84ebaa3a3a517ff74fa37906bc5ff4d34f246ee8662f4`。新增短模块属于 Lime 宿主适配，不把模块名或实现冒称上游原名，不结算完整 actionability、drag/select 或完整 B14。
+- Verification Contract：root / P1 / budget:normal。工具只作用于已 claim 的同一可见标签；hover 必须携带最新 snapshot/node，scroll 必须携带最新 snapshot，可选 snapshot 内节点。原生 isolated world 检查同一主文档、可见命中目标；拒绝遮挡/脱离/跨 frame 目标。每次异步原生命令前后核对 snapshot、route、turn、权限与 policy revision；接管/导航/撤权/turn 结束不能继续派发输入。目标滚入视口和工具结束后旧快照失效；双轴 wheel 走原输入观察器，不伪造 DOM 事件。
+- 验证：定向 Host/registry 回归、Electron types/contracts、真实 Electron WCV 的 hover/嵌套滚动/主页面滚动/陈旧拒绝、GUI smoke 和默认 local。原生专项只证明真实 Browser owner，完整 RuntimeCore Gate B、Windows 和包验收另记，不冒用。
+- 架构影响 minor：唯一 Browser owner、输入观察器和授权边界不变；超大 BrowserTabHost 只新增窄委托，业务放短模块；退出条件为该 owner 后续独立拆分。root 确认 KISS/DRY/SOLID：一个执行器、共享当前性校验、不新增平行权限或后端。
+- 实现：`hover` / `scroll` 进入原 immutable registry、reverse request 和同一 WCV；支持主文档/open shadow 命中、离屏滚入、嵌套容器与 viewport 双轴 wheel。隔离世界不执行网页自定义脚本，不派发合成 DOM 事件。校验完整 route/selected/visible、turn、snapshot、browse receipt 与 policy revision；准备期间不抑制用户输入；原生派发才进入 Agent input 作用域。导航开始撤销 snapshot；10秒截止释放控制、detach debugger，迟到准备不能继续发输入。registry 同步严格验证有限 delta，未新增协议/schema/IPC。
+- 定向结果：7文件 **92/92**（Host/registry/权限/网络/CDP sessions及新增15项指针回归）；Electron types、限定 lint/format、`npm run test:contracts`、脚本治理与 diff check 均通过。正式最终 `verify:gui-smoke` exit0，run `standalone-shell-01-20261025041450-65557`；只证明原正式壳范围，不冒称新工具完整 RuntimeCore Gate B。
+- 最终真实原生：`native-delivery` **12/12**、exit0，Electron42.3.3/Chromium148/macOS arm64。实际通过 registry→同一 BrowserTabHost/WCV 的可信 hover/wheel，容器 scrollLeft=80/scrollTop=120、root=0；viewport wheel、离屏滚入hover、遮挡/child-frame/超限/旧快照拒绝、同页同控制权及turn终态撤销均通过。三张测试页面PNG已人工审阅；这是 Browser owner native integration，thread/turn/config/reverse request 为显式fixture，无完整 preload/IPC/App Server/RuntimeCore、Windows、安装包或参考像素等价声明。
+- 失败保留：首轮缺少 current network settings 接线导致真实导航被阻断；修 fixture 复用原 BrowserAppServerBridge。隐藏窗口原生 wheel 无法结束，测试增加45秒硬截止并迁真实可见窗口；产品也有10秒 deadline及失效防护。离屏原生命中失败定位为 DOM document coordinates 与 Input viewport coordinates 不同，按锁定 Chromium `e1d853ded38ac7d1c5a4c83f3e30dfbf76b10c34` 的 InspectorDOMAgent 源码与实测修正；原件摘要/URL/节选保留。原生初版还暴露准备阶段整个 input 豁免导致人工输入被忽略，已缩到单次实际派发并补中断红测。所有失败轮保留，不用重试吞掉错误。
+- 默认local exit1：通过i18n、lint、types与此前resume批次后，在批次20/149 `useAgentChat.test.tsx` 的429错误文案断言失败（185通过/1失败）。属并行聊天写集，未修改或放宽断言；执行后该test source又有外部变化，不能将旧local结果充当当前全仓通过。
+- `smoke:agent-runtime-current-fixture` 聚合exit1：先通过371项选定单元/guard（另61跳过），并实际通过unknown Item、两个首页热路径、Coding/Right Surface原生命周期、两个图片入口、stop/continue及4类approval Electron场景；在 `inputbar-rich-restore` 的准备阶段，代码块按Enter后等待正文/结构匹配超时（`claw-chat-current-fixture-composer-marks.mjs:452`）。当时right surface=false、未开始本次Browser操作；无invoke/console错误，正常退出清理成功。确切产品/fixture根因未查明，不改窄写集外代码或放宽断言，不把其余未执行场景记通过。摘要与原件hash保存在 `current-fixture-failure.json`，完整日志保留。
+- 分类：current 为原 dynamic registry/BrowserTabHost及短 `browserPageInput`；新增 native runner/测试/证据为 test-only；无新 compat/deprecated、第二后端、品牌入口或产品删除。本刀2/2功能落地（100%），完整B14、G01–G12（完整关闭仍0/12）与设置、WebMCP、企业存量WS撤销、N0–N6和双平台包仍未完成；此分母不表示整体代码百分比。记录入口 `.lime/qc/browser-page-input-20261025/verification.json`。下一刀继续由current Browser owner补drag/select与其权限/真实提交闭环。
+
+### S14 功能续行：剪贴板与声音（2026-10-25，实施中）
+
+- 用户要求优先快速实现功能。本刀直接扩展现役网站设置、Store、原生权限 handler 和短音频控制模块；写集为这些文件、对应回归、五语 settings 文案、BrowserTabHost/EmbeddedBrowserHost 的窄委托与本计划/架构/命令记录。已存在的浏览器改动按同一任务续行；其他 runtime、Computer Use、Provider、依赖和发布任务只读，不覆盖并行修改。
+- 来源沿用 `browser-settings-subpages-contract.md` 和 Evidence `ev_23e2987270c066ef8f6679cb31b5531124df01736c3468ad2caae68425ece395`，ASAR SHA `130145706a912db74e4d260ad7538f10f1e05e88af955f9afba42cdf01e64606`。公开 Codex 无 Desktop 网站设置实现；`clipboard`/`sound` 为观察到的类别，新增宿主适配不冒称上游源码。复用既有 Store、权限及 Session，不新增 Profile/RPC/后端。
+- Verification Contract：用户设置 → typed gateway/原 IPC → 同一原子 Store → 同一原生 Session。剪贴板 read/sanitized-write 映射同一个 clipboard 设置，默认 ask，持久 allow 不授予 Agent；撤权、导航和迟到请求继续由原 grants 生命周期拒绝。声音仅 allow/block，默认 allow，禁止保存 ask；加载/导航/规则修改即时调用真实 setAudioMuted，策略阻断与手动标签静音叠加，放行网站不能取消用户静音。旧 v1/v2 原位升级且损坏文件 fail closed。
+- 退出条件：迁移/保存/继承、权限请求/check、Agent 隔离、声音导航/规则变化/手动静音、五语与控件回归；types/contracts、真实原生场景、一次正式 GUI smoke，默认本地门禁按实际状态记录。完整 G01–G12、其余网站设置和原生双平台包继续未验收。
+- 架构影响 minor，root 确认同一 Browser owner、Store 与 Session，音频短模块只持有标签展示状态和调用原生 API；KISS/DRY 通过共享 permission 清单/可选值、原子持久化与原 grants 体现，不增加权限 authority。
+- 功能已接入：剪贴板原生 read/sanitized-write、声音默认与站点例外、旧 v1/v2→v3 原位升级、显式继承、五语控件。声音遵守当前页面/导航生命周期及手动标签静音，MCP App HTML 不受网站声音规则影响。首轮 88/88，最终受影响 11 文件 175/175；Renderer/Node/Electron 类型、contracts、限定 lint/格式、docs/scripts/diff 通过。正式 `verify:gui-smoke` exit0、24/24；中文真实网站设置及既有导航场景 43/43，原生剪贴板仅查 permission 状态、没有读写用户内容，也未播放音频，不冒称 Agent/RuntimeCore 或 packaged 验收。
+- 英文追加验证在进入浏览器前停在旧 `#general-language select` fixture：现役 LanguagePicker 已变为 Command Popover。扩展窄写集为原浏览器 locale fixture，直接迁至当前 button/CommandItem，不添加旧控件 fallback；不改语言设置产品实现，保留首轮失败日志。当前整体门禁 `verify:local` exit1，续跑批次151/153中90通过、3失败：上游 method scope 的 evidence 仍指旧文件名、input modality 常量已变更、responses header 函数已迁出。均属未触碰的源码迁移/治理写集，不用旧证据结算整树全绿。
+- 收口：语言 fixture 迁移后英文真实场景 exit0、43/43；中文43/43、正式 GUI smoke24/24、定向175/175均有独立原始日志。中英设置截图已实际审阅；英文计数 `1 websites` 改为无单复数歧义的 `Websites: {{count}}`，仅文案，追加既有组件/gateway复验11/11，不重复原生语义测试。最终21个源码输入中16个非资源文件无漂移；五个共享settings资源整体摘要均受并行修改影响，已停止写入，新增剪贴板/声音标签及英文计数只读复核仍一致，不能声称完整源码零漂移。两处纯格式调整、文案修改与共享资源漂移分别保留前后摘要。并行sidecar准备输出过 duplicate LC_RPATH，最终构建和真实场景仍exit0，不作为打包验收。
+- current 为同一站点设置/Session owner 与短音频适配；test-only 为定向回归及原浏览器场景/语言fixture，无新增 compat/deprecated 或产品删除。规则复用、音频状态单一职责与严格解析分别落实 DRY/SOLID/KISS。网站类别现接入6/17（约35%，只表示类别接线）；完整G01–G12仍0/12，不是整体实现比例。密码/Autofill/扩展/资料导入、其余内容设置、企业存量连接完全撤销及双平台包继续未完成。下一刀仍在现役 Browser owner 补可执行内容设置与原生服务闭包，不建立第二浏览器。
+- 证据入口：`.lime/qc/browser-clipboard-sound-20261025/verification.json`；原生中文/英文分别为 `settings-gui-summary.json` / `settings-gui-en-summary.json`，已失败的旧语言fixture保留在 `settings-gui-final.log`；本轮只改浏览器窄写集，未知 Rust/runtime、Computer Use、Provider、发布改动未覆盖。架构 minor 接线图/字段合同已同步 `architecture.md` / `commands.md`，由 root 确认。
+
+### B03 功能续行：地址历史建议与行内补全（2026-10-25，实施中）
+
+- 主目标仍为完整会话浏览器。认领地址栏/新标签地址组件与共享短 hook、history typed gateway、BrowserOverlay model/document/Host 的建议模式及对应回归、五语 browserChrome 文案和本计划。已脏的 Rust/runtime、企业网络、原生服务与其他 UI 文件只读；Host 复用原 show/update/hide menu 命令，不增加浏览器/Profile/业务后端。
+- 公开 Codex 源码没有 Desktop 地址栏实现，继续复用本计划已有 B03 安装包证据；新增 hook/类型为 Lime 宿主适配，不冒称上游原始符号。Verification Contract：用户编辑→原 history list 汇总→有限历史候选→同一地址导航命令；新标签保留原草稿 owner。上下键选择、Enter 提交、Esc 取消、鼠标选择、行内选中后缀、退格/IME、异步迟到与切 tab 失效均需回归。
+- 网页地址候选通过既有可信原生浮层的非抢焦点建议模式展示，不能仅放 DOM z-index；新标签复用相同候选逻辑与 DOM listbox。原页签/窗口/导航身份与 generation 检查继续生效。退出为定向功能回归、types/contracts、真实 Electron 焦点/层叠证据、一次 GUI smoke 与默认本地门禁按实际结果记录。
+- 架构影响 minor：同一 history authority、BrowserTabHost 和原生 Overlay owner 内扩展有限展示数据；root 确认，不改变业务主链。KISS/DRY：共享建议模型，复用现有 IPC、原生生命周期与导航权限。完整 G01–G12 和原生双平台验收仍未完成。
+
+- 功能已在原目录实现：历史 URL 汇总查询、最多8条候选、按前缀/访问次数/最近访问排序、选中后缀补全、上下键循环与恢复原查询、Enter/鼠标导航；HTTP 原目标不会因地址展示去协议后变成 HTTPS。退格不重新插入后缀，IME 不补全或提交，旧查询/旧原生身份/卸载不能回写；历史变更刷新候选。新标签保留原草稿 owner，普通网页使用原可信 WebContentsView 浮层，窗口导航/隐藏及切换失效，过期菜单清理按 identity 不会关闭新菜单/选区编辑器。BrowserWorkspace 只传 active，不新增业务逻辑。
+- 当前验证：11文件152/152；Renderer/Node/Electron类型、限定lint、格式与diff检查通过。真实Electron42.3.3/Chromium148的原生专项12/12，实际展示层叠、原网页bounds、输入/光标、更新高度、鼠标preload/IPC回传、过期关闭与网页焦点。r1/r2精确失败在展示后原生焦点丢失；现役Host在load完成后恢复原输入WebContents焦点，r3及最终源码专项通过。不能把此原生owner证据说成产品App Server/RuntimeCore Gate B或Windows包验收。
+- 默认local首轮在前一刀网站设置动态文案键识别处exit1，已在原页面改为显式键映射，五语未引用键检查0。GUI首轮构建期间输入仍在修改，freshness正确拒绝；最终稳定源Renderer/Host已构建，Rust/GUI及默认local重验尚在执行，结果另记。证据入口 `.lime/qc/browser-address-suggestions-20261025/`（含失败、最终原生摘要/截图、152项回归、源码哈希）。上游只确认地址建议组件的输入/回调合同：保存的 tab-content 模块调用地址组件并传 addressValue/currentAddress/providers/allowEmptySuggestions/onNavigate；8条排序与原生浮层是Lime当前适配，不冒称私有源码逐字复制或完整B03验收。
+- 正式GUI重验已exit0，24/24：`standalone-shell-01-20261025031744-70626`，从原源码重建Renderer/Host/App Server与code-mode侧车，无二进制覆盖变量。默认local第二次通过i18n、全仓lint、types后，在既有resume批次146/152中exit1：Inputbar的Browser annotation additionalContent组件2失败/该批202通过；本轮没有改该输入发送链，不修改未知并行代码或削弱断言。新增历史候选的真实新标签导航场景沿既有runner继续验收；首次等待外部构建锁，当前已获得锁并重建新变动的依赖，不绕过freshness。
+- 最终真实新标签场景exit0、28/28：原生网页提交访问→同一HistoryStore→真实history IPC→前缀后缀补全→上下键恢复原查询/选择→鼠标点击→替换原新标签并打开同Session/thread的新WCV；无手工种历史、native preload错误或mock命中。截图已审阅。该场景初始化真实App Server identity并消费read model，但没有Agent turn，不称完整RuntimeCore Gate B。fixture runner正确Vitest回归15/15；首次误用Node test runner的失败日志保留，不更改测试迎合runner。
+- 收口：本轮地址候选实现/既定切片回归100%，完整B03和G01–G12仍未验收（完整组0/12，非整体代码实现百分比）。current为原地址/历史/Overlay owner；新增脚本/测试/证据为test-only，无新增compat/deprecated或产品删除。27项源输入收尾零漂移，`verification.json`为分层结果入口；完整设置、CDP/WebMCP、企业网络存量连接撤销、原生N0–N6与macOS/Windows包仍继续推进，不用本轮通过率代替完整目标。
+
+### 网站设置功能续行：独立询问、继承、位置与通知（功能已落地，整体集成未验收）
+
+- 用户要求快速优先实现功能。本轮认领原网站设置 types/store/gateway hook/page、原生 PermissionGrants/Permissions 及定向测试、五语 settings 文案、architecture/commands 的网站设置段与本计划；BrowserTabHost/EmbeddedBrowserHost 仅追加既有权限 handler 的装配和 view ownership 委托，超大 Host 不追加新的存储或权限业务 owner，退出为后续独立拆分原 Host。其余网络、协议生成物、运行时和原生引擎代码只读，不覆盖已有修改。直接在现役 owner 完善，不新增 Profile、Session、命令或后端。
+- 实现：站点 `ask` 为独立规则，`null` 才恢复全局默认；全局不接受 `null`。保存文件直接升级到 v2，将 v1 只含摄像头/麦克风的数据一次迁入同一 store。依据已保存设置子页 REA Evidence `ev_23e2987270c066ef8f6679cb31b5531124df01736c3468ad2caae68425ece395` 及17类标签模块中 camera/microphone/location/notifications，接入 Electron 原生支持的位置与通知权限；公开 config 源码不含 Desktop 站点管理页，不冒充源码复制。
+- Verification Contract：用户设置 → 原 typed gateway/IPC → BrowserSiteSettingsStore → 同一原生 Session request/check handler；旧异步读取不能在导航/撤权后创建授权，新规则 block/ask 不能被旧临时 allow 绕过。退出为四类权限保存/重载/继承、原生请求/检查、失败与迟到回调、五语设置交互的定向回归通过；再跑 types/contracts 和一次正式 GUI smoke，源码漂移时按实际失败收口，不重复制作隔离开发副本。
+- 架构影响 minor，root 确认唯一 Browser owner 和共享 Session 不变。KISS/DRY：复用同一权限键清单、原文档 grant 生命周期和原子文件 IO；禁止把未实现的其余网站设置做成可保存但无效的开关。
+- 实际交付：四类权限均经同一 store 和 request/check handler 生效；站点 ask 与 null 继承可独立保存、重载。成功写入后撤销临时 grants 与待确认提示，异步读前捕获文档 revision，阻止导航/进程退出/撤权后的迟到 allow/ask。用户持久 allow 不授予 Agent 回合权限，block 同时限制用户/Agent；媒体提示只用于 media，不能为其他权限授权。页面五语已同步，离页后保存结果不再清输入。
+- 验证：先保存 Store 3项、原生 handler 6项真实失败，再在现役文件修复。最终10文件151/151（Store、原生 handler/Host、BrowserTabHost、Prompt、gateway、页面、设置导航及浏览器五语资源）通过。限定 lint、格式、diff检查通过；Renderer/Node typecheck、contracts本轮执行 exit0，原始命令目录册、preload allowlist仍复用同一共享命令清单。直接 `node scripts/electron/build-host.mjs` exit0，构建 main、全部 preload 及浏览器客户端；不将该 transpile 结果当作 Electron 交互或 packaged。
+- 集成限制：正式 GUI smoke 一次 exit1，编译期间 Renderer 输入变化，停在 freshness 保护，未进入 GUI断言。Electron typecheck 初次通过；后续受并行入口修改影响先出现 main.ts 循环类型推导，读取时该处已由并行修改添加 annotation；最终执行只剩 `electron/desktopPreferencesHost.test.ts:13` 的 mock `Promise<unknown>` 不满足 generic `Request`，exit2，其后的链式测试未执行，已独立重跑上述151项。未修改这些并行入口/测试，不能记为最终全工作树类型通过。默认 verify:local 和真实设备/平台验收本轮未执行，按用户先功能、定向验证优先，不扩大到已知不稳定全工作树。
+- 分类：current 为现役网站设置及原生权限 owner，test-only 为回归；无新增 compat/deprecated/dead owner、第二 Profile 或 runtime，本轮未删产品文件。17类网站设置现接入4类（按类别约24%，不是整体浏览器完成率）；完整UI/UX、其余13类、原生密码/Autofill/扩展/导入、企业网络全撤销及双平台包仍未完成。下一刀继续复用同一 Session 的其余内容设置及原生服务闭包；不能以无效开关补足类别。日志与来源hash在 `.lime/qc/browser-site-settings-functional-20261025/`。
+
+### S14 续行：摄像头与麦克风网站设置（实施中）
+
+- 目标仍为完整复刻 Codex 会话内置浏览器，用户给出的设置截图是完整验收基线；本刀仅完成网站设置中的摄像头/麦克风持久权限与设置子页，不缩减 S01–S19、N0–N6 或 G01–G12。
+- current owner：Electron BrowserTabHost 负责用户站点设置命令与持久化；同一个 `EmbeddedBrowserHost` Session handler 消费权限；Renderer 仅经 `src/lib/api/` typed gateway 呈现。文件写集限定为新站点设置类型/store/gateway/页面/hook/测试，以及 `browserTabHost`、`browserTabCommands`、`ipcChannels`、`BrowserDataHost`、Browser 设置路由、五语资源、命令目录册、本计划与 architecture Browser 段。先检查写集现有差异，避免覆盖并行改动。
+- REA 当前安装包 SHA-256=`130145706a912db74e4d260ad7538f10f1e05e88af955f9afba42cdf01e64606`，设置模块定向证据 `ev_23e2987270c066ef8f6679cb31b5531124df01736c3468ad2caae68425ece395`，原件路径、静态边界与完整性限制记在 `.lime/qc/browser-settings-rea-20261025.json`；网站设置沿 Codex 独立管理页语义。源码选择分析只覆盖七个模块，不冒充运行证据；密码/Autofill、扩展与资料导入依然依赖未实现的同 Profile 原生引擎服务。
+- Verification Contract：`user settings -> typed gateway -> app:invoke -> Electron BrowserTabHost -> BrowserSiteSettingsStore`；导航/权限请求沿同一 `persist:embedded-browser` Session，经原生 frame identity 取得真实 origin 后查站点 override 与默认值。默认 `ask`；`allow`/`block` 对当前 Profile 的 camera/microphone 生效；`ask` 保留现有一次性原生提示；屏幕注入的 origin、页面来源及 Agent 浏览/CDP 权限均无权写此设置。损坏或不可读的站点文件只可拒绝媒体权限，不能放行；清理数据的 `siteSettings` 只支持确实实现的 all-time 删除。
+- 先补 origin/schema 与持久化红测，再补 native request/check handler、站点权限 UI、IPC/catalog 和 clear-data 协调，最终跑相关 Store/permission/Host/component 测试、五语/i18n、Electron typecheck、`npm run test:contracts` 与 diff check。设置子页 GUI smoke 的执行及真实摄像头/麦克风设备授权依本机 OS 可用能力记录，不把 Store/DOM 测试说成平台 Gate B。
+- 架构影响 minor：不增加 Profile、Session、权限 authority 或业务后端，只在现有 Browser Host 同步站点偏好；Responsible developer confirmation：root，核对 BrowserTabHost/EmbeddedBrowserHost 同一 Session 与 fail-closed 依赖后确认。KISS/DRY：沿用原 permission handlers、AppDataRoot 原子文件 IO 与 data-clear owner，不创建第二权限通道。
+
+- 2026-10-25 状态复核：当前原目录 `npm run typecheck`（Renderer/Node）与 `npm run typecheck:electron` 均 exit0，恢复摘要中的权限下拉联合类型错误当前已不存在。两组定向回归合计 9 文件、89/89：站点设置 gateway/页面/store、设置路由、BrowserDataHost、请求/原生权限处理、BrowserTabHost 与五语浏览器资源；`npm run test:contracts` exit0，执行时全工作树 `git diff --check` exit0。以上属于类型、合同及定向测试证据，不等于完整网站设置、真实设备授权或平台验收。
+- 本轮两次 `npm run verify:gui-smoke` 均 exit1：Vite 编译结束后，`completeRendererBuild` 检测到编译期间 Renderer 输入变化，报 `Renderer build inputs changed during compilation`；两次均未进入 Host 构建或 Electron GUI 断言，不计 GUI smoke 通过，不绕过输入哈希保护，也不借用历史快照结算本轮。默认 `verify:local` 本轮未运行，当前工作树持续存在其他源码修改，最终集成验证需要稳定输入。
+- 收尾分类：站点设置生产代码归既有 current Browser owner；新增回归为 test-only，无新增 compat/deprecated、第二 Profile 或后端，本次状态复核未删除产品文件。完整 UI/UX（含密码/Autofill、扩展、资料导入与其余网站设置）、完整 CDP/WebMCP、企业网络全撤销及代理/PAC、N0–N6 原生服务与 macOS/Windows packaged 仍未验收。完整 G01–G12 保持 0/12 组（0%，分母是完整验收组，不是代码实现比例）；不宣称完整复刻完成。下一刀先核对网站权限继承语义及真实设备失败路径，再以稳定源码完成 GUI 集成，继续原生引擎依赖闭包和双平台产物。
+
+### 企业应用网络续行（2026-10-25，实施中）
+
+- 恢复续行：本轮先补同一 Session 网络策略变化时同步撤销旧浏览批准、站点许可、pending approval、Debugger 与事件 capability；不变化的受管配置重读不得撤权，不合成用户物理接管。窄写集仅既有 applicationNetworkPolicy、embeddedBrowserHost、browserTabHost、对应回归/fixture 与本计划/专属证据；共享 registry/生成物与架构合并仍待窗口。复用命令边界、质量与 REA 已有证据，不新增 Agent。超大 Host 仅增加装配与既有撤销块复用，新增状态判断留短 policy owner，后续仍需按既有职责拆分退出。
+- 最小交付：独立 `application.network` 管理员目的地约束，沿既有 managed requirements、`configRequirements/read`、BrowserAppServerBridge 和同一原生 Session 接线。该约束同时适用于用户/Agent，不以 browser_use origin 批准代替，不改变 provider/Agent 网络 owner。
+- 认领干净的 core/config/application_requirements 与 requirements/managed/mod、公共 v2/application 与 v2/config 的定点接线、processor/config/requirements、Browser Bridge、原生请求 owner 与独立网络模块/测试；本计划与 enterprise-network-20261025 专属证据。已经脏的 schema registry、协议生成物、architecture/commands 与工作台改动只读；先产出最窄可审阅补丁，等待共享合并窗口，不覆盖既有改动。
+- 上游为 Codex HEAD `970111f6cb62cc02fe36a82ea7d71b37a2889c97` 的 config/application_requirements.rs 与 protocol/v2/application.rs。保留已确认类型/模块/字段名称和精确域名规则，记录原件与必要适配。上游 application.storage 依赖完整 Workspace 路径 owner；本刀保留对应字段的严格解析，但在管理员读取入口明确拒绝任何 storage 表，不将未接线配置当作生效，不结算存储服务复用。
+- Verification Contract：root / P1 / budget:normal。network 表存在时缺省 enabled=true，启用后拒绝未列入或 deny 的精确 ASCII 域名；TOML 层按显式 enabled 与逐域覆盖，空高层不抹去低层。每层先严格校验，普通用户配置/RPC 参数不提供 authority。Host 在读取失败/断线时关闭网络，网页不得修改 policy。复用唯一 Session webRequest listener，检查子资源、frame、无 WebContents 的 worker、重定向及 WebSocket 握手；策略变更与正在执行请求的终态另做真实原生验证。
+- 先解析/合并与请求门禁红测，再受影响 Rust/公共 JSON-RPC、Host/domain integration、类型/contracts、真实原生网络与 GUI。共享生成物/架构未合并、Windows 未运行或动态连接撤销未证明时不结算完整企业网络；完整 UI/UX、N0–N6 与双平台包继续保留。
+- 架构影响 major：仍是管理员配置 authority → 只读公共 projection → 同一 Browser Session 的 Host 执行，无新 runtime/Profile/Renderer authority。完整架构图确认及 G01–G12 均保持未完成，不用本切片通过率代替整体进度。
+
+- 撤权续行结果：native policy 仅在实际变化时同步回调；原 BrowserTabHost 撤销块统一清 browse receipt、pending action/device approval、临时站点 grant、debugger 和持久事件 capability，不合成人工接管。窄写集补原 BrowserTabPolicy 的 revision 失效/校验与两个 test-only native probes。首次三个撤权红测复现；又实测复现自动允许浏览时迟到 CDP、observe、screenshot 内容返回，已在原 policy/工具返回边界及 observe 写入前拒绝旧 revision。试验性全设置 snapshot 失效使13项既有用例失败，已移除该扩张，保留原 grant 错误优先级，未修改旧测试迁就实现。
+- 最终浏览器相关74文件729/729、Electron类型、限定lint、14文件格式及diff-check通过；contracts exit0仅证明当前checked-in schema/client自洽，新Application Rust类型的registry/schema/TS同步仍待共享窗口。原生Browser owner真WCV/debugger/event client 9/9、exit0；独立原生网络11个准入/明确拒绝断言通过，但存量WS关闭退出条件仍false，status partial/exit2。两者均用明确config/requirements fixture，不冒充真实App Server/GUI/RuntimeCore Gate B。
+- Rust core config 175/175；扩大过的App Server聚合实际exit101（MCP event JSON-RPC timeout），目标application/in-app requirements两个target分别3/3与4/4通过。此前终止尝试选中0进程，不能叫“已中断”，记录已纠正并保留previousReport；后一次直接Cargo在V8 150.4.0预编译资源HTTP404处exit101，目标未运行。不改并行MCP/catalog测试或依赖冒领修复。
+- 正式GUI smoke构建了Renderer/Host，Rust侧车先等共享Cargo锁、后开始部分编译；磁盘余量降至约2.4 GiB时只终止本刀可证实的Cargo子进程，入口exit1、未进入Electron GUI断言。不清缓存、不删快照、不影响外部构建，不借旧r4 GUI/Gate B结算新网络代码。后续并行磁盘压力曾导致本计划写入截断，已用仓内冻结正文与本任务精确历史读取/补丁恢复，并改为fsync+atomic replace；产品代码未受该失败影响，恢复记录见plan-recovery.json。
+- current：原管理员读链、同一Session请求门禁、原Browser权限与事件撤销；test-only：回归、native fixtures及仓内证据；无新增compat/deprecated、第二Profile/backend或dead恢复。KISS/DRY/SOLID：一个authority、一个Session listener、短policy/refresh owner、复用撤权。共享registry/生成物、事件与网络architecture/commands窄补丁仅供审阅，未夹写。完整G01–G12仍0/12（完整验收组，非实现百分比），完整UI/UX、N0–N6、全网络撤销及双平台包未验收。原件SHA/适配、失败记录与源码/进程审计见enterprise-network-20261025/README.md和verification.json。
+
+
+### G10 续行：持久 CDP 事件客户端（2026-10-25，实施中）
+
+- 恢复后已实际读到原仓库与 Codex 源码，上一轮 macOS 文件访问阻塞解除。完整目标继续包括持久事件、完整 UI/UX、企业网络策略、原生服务与 darwin/win32 包，不以本切片缩减验收分母。
+- 本轮窄写集：`electron/browserCdpSessions.ts` 的事件订阅委托、新 `electron/browserNativePipe*.ts` / 客户端模块、`electron/browserCdp.ts` / `browserTabHost.ts` / `appServerDynamicToolHost.ts` 的最小接线、现役 Host 构建/资源输入及对应测试、本计划与专属证据。已脏的统一页签、TerminalPanel、LayoutTransition、会话 fixture 与 architecture 文件暂只读。超大 Host 仅装配与委托，新业务放在短模块。
+- 合同：沿现有 canonical `item/tool/call` 完成浏览许可和独立 full-CDP 审批后，签发当前 connection/thread/turn/tab/native attachment 的单次客户端能力；只读本地持久 pipe 交付原件 `onCDPEvent` / `onCDPDetach` 形状，真实 Node 客户端消费，无轮询工具、Renderer 广播或第二浏览器业务后端。客户端不具备执行 CDP 命令的入口；命令继续走原 canonical 工具与审批。
+- Verification Contract：root / P1 / normal。认证前无内容，单次 token 不可重放，跨 tab/回合/原生代不可串流；客户端断线、人工接管、策略变化、回合终态、App Server 断线、导航与 native detach 撤销。frame 来源沿原 session/target owner 验证；内容权限在交付时检查。帧大小、握手/连接超时、待发送字节与并发连接有界，迟到事件不能恢复能力。客户端作为真实构建资源交付，开发/最终资源路径一致可追溯。
+- 原件依据复用已核 hash 的 `cdp-events-20261024/reference-transport.json` 与 REA Evidence。`addCdpEventListener`、`sendCdpEvent`、`sendCdpDetach` 与通知名为可确认原名；Lime 的 canonical 工具审批、能力 token 及事件内容门禁属于必要适配，不能冒称上游原开发目录/类型。公开 Codex 源码没有此 Desktop native pipe owner。
+- 验证顺序：保存认证/来源/撤销红测 → 定向 owner/Host/客户端测试 → types/contracts/资源校验 → 实际 Electron 事件和真实客户端消费 → GUI smoke。只有真实完整链结果才能结算对应子链；Windows 实际运行、原生 N0–N6 和完整 G01–G12 仍需独立证据。架构变更需在共享 architecture 的窄合并窗口补同一 Host/授权边界，不提前结算架构或 release。
+- 续行结果（2026-10-25，仍在验证）：独立客户端/异步 provider 夹具17项通过。补充来源门禁红测3项实际失败后，现役代码增加 session 内 requestId→原生frame/URL 的有界关联、跨源重定向粘性拒绝、未知域/无context内容拒绝、对话框开关来源配对；Network ExtraInfo 未有已验证请求时直接丢弃，Log 仅交付能关联网络请求的条目。Runtime/Page 的明确事件合同及 Network 子集是当前可交付集合，DOM 内容/WebSocket/未知域尚未开放，不能写为完整 CDP 事件域。
+- 修复两类生命周期缺口：原生来源读取10秒超时及撤销立即中断，移除每次读取的 abort listener，避免持久订阅累积处理器；内部拥塞/客户端断线清理与 owner 主动撤销区分，旧代清理不得 detach 新代。订阅绑定原生 navigationRevision/attachment，而非每次 CDP 命令都会失效的 snapshot pageRevision；独立 full-CDP 审批 token 仍绑定原操作的 pageRevision，未放宽原 action 审批。
+- 本轮定向13文件208项通过，包含五语独立订阅审批、来源替换拒绝、真实 Node socket、悬挂来源读取与迟到回调、三平台资源缺失/篡改/路径拒绝。初次资源回归有2个夹具失败（darwin-x64错误声明arm64、Windows旧签名测试值不一致），仅修正测试夹具，最终41项资源验证通过。限定 lint 初次发现 Node global 未显式导入，已在原目录修正，后继结果单列，不把首次失败记成通过。
+- 原目录真实场景未进入交互：Renderer 编译期间共享源码改变，freshness 正确拒收。已复核旧 coherent snapshot 的10662源文件零漂移，仅复制现役浏览器切片至仓内 r1/r2 验证快照；所有产品修改均先落原目录，无副本开发/回写。明确复用未改 Rust 的旧 sidecar SHA 3a5896cb1fa0943fed5d726201025a5965e86ca489a54c9c084b21940fe508ed，不声称本轮 Rust 重建或整树 release。r1真实链完成订阅及两次命令的独立审批/执行，75项断言后未收到事件而exit1；该失败对应修复前 pageRevision 绑定，不以旧通过覆盖。r2将从修复后的现役源码重建并复验。
+- 证据目录：artifacts/codex-in-app-browser-20261022/cdp-event-client-20261025。当前限定 types、contracts、默认 verify:local 和最终真实 GUI/Gate B 仍按实际终态记录；共享 architecture/commands 的浏览器段补丁已异步申请窄合并窗口，尚未夹写。31GiB为本轮最新磁盘快照，不复用旧空间估算；N0所需完整工具链/源码与 Windows 实际构建条件仍未就绪，完整G01–G12继续未验收。
+- 最终 r4 收尾：13文件208项、contracts、三套types、限定lint、正式GUI smoke与资源/freshness校验通过。真实Electron专项156项、10个GUI回合、47次scripted provider请求，通过原生事件→独立Node客户端、独立审批、canonical terminal detach/连接关闭及stale capability拒绝。r4正式运行Cargo build入口并利用缓存，资源 app-server SHA 为37c43e3254a6a409b7c28eae4b85535cf6bc58a1306aaf4e2efdd679f779b5c2，不沿用r1/r2旧侧车口径。收尾10676冻结源与32原目录切片零漂移、该快照运行进程0；状态入口为本刀verification.json。默认verify:local正在后续Rust阶段，不提前结算；独立Node消费者不等于canonical exec/code-mode消费证明，完整事件域/WebMCP/共享架构/原生/双平台仍未完成。
+
 ### G10 续行：父子 CDP 会话撤销（2026-10-25，子链验证通过；完整事件transport未完成）
 
 - 最小交付：沿原`BrowserCdpSessions`消费debugger message第四参数，父frame会话断开/重映射时清理全部后代，旧父会话的迟到attach不能恢复子控制权。完整外部native pipe transport仍未实施，此刀不新增客户端、轮询、广播、RPC/IPC或后端。
@@ -1449,3 +1587,17 @@ Agent action.turnId           == active turnId
 - Gate B：核心 identity/dynamic-tool round trip、同一 `WebContentsView`、用户地址栏导航同 tab、用户导航和 native 点击后的 stale snapshot/token 拒绝、重新 claim/observe、Browser action `allow_once/decline` 的 mutation 安全性、cancel/disconnect debugger detach/release、window-close、permission block、download cancel 和 renderer-process-gone route cleanup 已有真实证据；`user-control` 为 12/12 pass，最新 approval 为 15/15 pass。
 - 通用门禁：Host/Gate 定向回归、Electron typecheck、contracts、scripts governance、legacy report、GUI smoke、Browser lifecycle/artifact Gate B、五语言矩阵、Agent current fixture 与 Bridge health 均取得退出码 `0`；跨平台打包与 live provider 不在本轮 claim boundary。
 - 后续只保留能力扩展：open/reveal/clipboard/upload 继续保持 Host 定向单测 claim boundary，不能扩大为未执行的 live provider 或 packaged 跨平台证据；旧 owner 与旧正向 mock 不得恢复。
+
+## 2026-10-25 持久 CDP WebSocket 事件来源校验
+
+- 为持久事件通道增加 `Network.webSocketCreated`、握手、帧、错误和关闭事件过滤；事件必须关联到 native frame 或当前 debugger target URL，并在同一 CDP session、相同目标来源及仍有效的域名策略下继续投递。WebSocket URL 按 HTTP(S) 域名规则规范化；未知来源、跨 session、目标导航及已关闭 socket 的迟到事件均 fail closed。
+- 更新 Browser 动态工具说明，明确消费者需单独审批 `Network.enable` 才会收到 Network/WebSocket 事件。
+- 验证：`npx vitest run electron/browserCdpEventAccess.test.ts electron/browserCdpEvents.integration.test.ts`，25 tests 通过；`npm run typecheck:electron` 与 scoped `git diff --check` 通过。
+- 证据边界：本轮测试覆盖安全投影和本机事件管道的定向集成，不是生产 Electron Gate B WebSocket 握手/双向帧证据；WebMCP、其余 CDP 域、网络传输完整撤销、企业代理/PAC 与跨平台打包仍未完成。
+
+### 2026-10-25 真实 Electron WebSocket 事件子链验收
+
+- 修正 Gate B fixture 中 WebSocket 消息数组的延迟注入读取，并加回归；`scripts/agent-runtime/browser-cdp-event-provider.test.mjs` 2/2 通过。
+- `npm run smoke:browser-runtime-electron-gate-b -- --scenario cdp --timeout-ms 120000 --interval-ms 500` 真实 Electron Gate B 通过，172 项断言、0 项失败。summary：`.lime/qc/gui-evidence/browser-runtime-electron-gate-b/browser-runtime-electron-gate-b-cdp-summary.json`。
+- 该场景中 `Network.enable` 单独获批后，外部 Node 进程在同一 native tab、同一 WebSocket requestId 上收到 created、握手请求/响应、浏览器发送帧、服务器响应帧与 closed；本机服务端也记录到请求帧。事件消费端在 turn 终态后关闭，debugger 已撤销，token 不可重放。该证据仅覆盖受控 localhost fixture；`liveProvider=false`、`physicalInput=false`。
+- 本次不代表全部 CDP 域、WebMCP、活跃 WebSocket 遇到网络策略变更时的完整撤销、企业代理/PAC 或 Windows 打包已完成；完整浏览器复刻仍未验收。

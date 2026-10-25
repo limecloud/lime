@@ -132,6 +132,7 @@ mod tests {
     ) -> McpServerConfig {
         McpServerConfig {
             transport: McpServerTransport::Stdio {
+                env_vars: Vec::new(),
                 command: "node".to_string(),
                 args: Vec::new(),
                 env: HashMap::new(),

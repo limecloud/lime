@@ -118,7 +118,9 @@ function readParams(record: Record<string, unknown>): Record<string, unknown> {
   return readRecord(record.params) ?? record;
 }
 
-function readTokenCount(record: Record<string, unknown> | undefined): AgentUiTokenUsageCounts {
+function readTokenCount(
+  record: Record<string, unknown> | undefined,
+): AgentUiTokenUsageCounts {
   return compactProjectionFields({
     inputTokens: readNumberField(record, ["inputTokens", "input_tokens"]),
     cachedInputTokens: readNumberField(record, [
@@ -144,8 +146,12 @@ function readTokenUsage(value: unknown): AgentUiTokenUsageSnapshot {
     readRecord(record?.token_usage) ??
     record;
   return {
-    total: readTokenCount(readRecord(usage?.total) ?? readRecord(usage?.totalTokenUsage)),
-    last: readTokenCount(readRecord(usage?.last) ?? readRecord(usage?.lastTokenUsage)),
+    total: readTokenCount(
+      readRecord(usage?.total) ?? readRecord(usage?.totalTokenUsage),
+    ),
+    last: readTokenCount(
+      readRecord(usage?.last) ?? readRecord(usage?.lastTokenUsage),
+    ),
     modelContextWindow: readNumberField(usage, [
       "modelContextWindow",
       "model_context_window",
@@ -158,10 +164,10 @@ function isTokenUsageNotification(record: Record<string, unknown>): boolean {
   const params = readParams(record);
   return Boolean(
     method === "thread/tokenUsage/updated" ||
-      method === "thread_token_usage_updated" ||
-      method === "thread.tokenUsage.updated" ||
-      params.tokenUsage ||
-      params.token_usage,
+    method === "thread_token_usage_updated" ||
+    method === "thread.tokenUsage.updated" ||
+    params.tokenUsage ||
+    params.token_usage,
   );
 }
 
@@ -187,9 +193,9 @@ function readTokenUsageNotifications(
 function hasUsageTotals(usage: AgentUiTokenUsageSnapshot | undefined): boolean {
   return Boolean(
     usage &&
-      typeof usage.total.totalTokens === "number" &&
-      typeof usage.last.totalTokens === "number" &&
-      typeof usage.modelContextWindow === "number",
+    typeof usage.total.totalTokens === "number" &&
+    typeof usage.last.totalTokens === "number" &&
+    typeof usage.modelContextWindow === "number",
   );
 }
 
@@ -198,22 +204,31 @@ function orderBeforeNextTurn(value: unknown): boolean {
     .map((record) => readStringField(record, ["method", "event", "type"]))
     .filter((item): item is string => Boolean(item));
   if (order.length === 0) return true;
-  const usageIndex = order.findIndex((item) => item === "thread/tokenUsage/updated");
+  const usageIndex = order.findIndex(
+    (item) => item === "thread/tokenUsage/updated",
+  );
   const nextTurnIndex = order.findIndex(
     (item) => item === "turn/started" || item === "turn.started",
   );
   return usageIndex >= 0 && (nextTurnIndex < 0 || usageIndex < nextTurnIndex);
 }
 
-function isTokenUsageProjectionRecord(record: Record<string, unknown>): boolean {
+function isTokenUsageProjectionRecord(
+  record: Record<string, unknown>,
+): boolean {
   const method = readMethod(record);
-  const type = readStringField(record, ["type", "kind", "sourceType", "source_type"]);
+  const type = readStringField(record, [
+    "type",
+    "kind",
+    "sourceType",
+    "source_type",
+  ]);
   return Boolean(
     isTokenUsageNotification(record) ||
-      method === "thread/tokenUsage/updated" ||
-      type === "token_usage" ||
-      type === "thread_token_usage" ||
-      type === "token_usage_replay_projection",
+    method === "thread/tokenUsage/updated" ||
+    type === "token_usage" ||
+    type === "thread_token_usage" ||
+    type === "token_usage_replay_projection",
   );
 }
 
@@ -235,7 +250,11 @@ function contextWindowSurfaceMatches(
     "modelContextWindow",
     "model_context_window",
   ]);
-  const totalTokens = readNumberField(record, ["totalTokens", "total_tokens", "usedTokens"]);
+  const totalTokens = readNumberField(record, [
+    "totalTokens",
+    "total_tokens",
+    "usedTokens",
+  ]);
   return (
     modelContextWindow === usage.modelContextWindow &&
     (totalTokens === undefined || totalTokens === usage.total.totalTokens)
@@ -358,13 +377,14 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexTokenUsageReplaySnapshot(
+export function extractTokenUsageReplaySnapshot(
   input: AgentUiTokenUsageReplayProjectionInput,
 ): AgentUiTokenUsageReplaySnapshot {
   const notifications = readTokenUsageNotifications(input);
   const latest = notifications[notifications.length - 1];
   const threadId =
-    definedString(input.threadId ?? undefined) ?? notifications.find((item) => item.threadId)?.threadId;
+    definedString(input.threadId ?? undefined) ??
+    notifications.find((item) => item.threadId)?.threadId;
   const expectedTurnId = definedString(input.expectedTurnId ?? undefined);
   const staleTailTurnId = definedString(input.staleTailTurnId ?? undefined);
   const excludeTurns = input.excludeTurns === true;
@@ -375,14 +395,19 @@ export function extractCodexTokenUsageReplaySnapshot(
     tokenUsageNotifications: notifications,
     replayNotificationSeen: notifications.length > 0,
     replaySkippedForExcludeTurns: excludeTurns && notifications.length === 0,
-    threadScoped: notifications.every((item) => !threadId || item.threadId === threadId),
+    threadScoped: notifications.every(
+      (item) => !threadId || item.threadId === threadId,
+    ),
     turnAttributionMatchesExpected:
-      !expectedTurnId || notifications.every((item) => item.turnId === expectedTurnId),
+      !expectedTurnId ||
+      notifications.every((item) => item.turnId === expectedTurnId),
     staleTailIgnored:
-      !staleTailTurnId || notifications.every((item) => item.turnId !== staleTailTurnId),
+      !staleTailTurnId ||
+      notifications.every((item) => item.turnId !== staleTailTurnId),
     tokenUsageHasTotals: hasUsageTotals(latest?.tokenUsage),
     replayBeforeNextTurn: orderBeforeNextTurn(input.notificationOrder),
-    connectionScoped: recordArray(input.otherConnectionNotifications).length === 0,
+    connectionScoped:
+      recordArray(input.otherConnectionNotifications).length === 0,
     transcriptClean: leakIndexes(input.transcriptItems).length === 0,
     readModelClean: leakIndexes(input.readModelItems).length === 0,
     contextWindowSurfaceUpdated: contextWindowSurfaceMatches(
@@ -397,15 +422,17 @@ export function extractCodexTokenUsageReplaySnapshot(
   };
 }
 
-function runtimeStatus(issues: readonly AgentUiTokenUsageReplayIssue[]): AgentUiRuntimeStatus {
+function runtimeStatus(
+  issues: readonly AgentUiTokenUsageReplayIssue[],
+): AgentUiRuntimeStatus {
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function buildCodexTokenUsageReplayProjectionEvent(
+export function buildTokenUsageReplayProjectionEvent(
   input: AgentUiTokenUsageReplayProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexTokenUsageReplaySnapshot(input);
+  const snapshot = extractTokenUsageReplaySnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "metric.changed",
@@ -415,7 +442,8 @@ export function buildCodexTokenUsageReplayProjectionEvent(
     sessionId: definedString(context.sessionId ?? undefined),
     threadId: snapshot.threadId ?? definedString(context.threadId ?? undefined),
     runId: definedString(context.runId ?? undefined),
-    turnId: snapshot.expectedTurnId ?? definedString(context.turnId ?? undefined),
+    turnId:
+      snapshot.expectedTurnId ?? definedString(context.turnId ?? undefined),
     owner: "diagnostics",
     scope: "thread",
     phase: status === "failed" ? "failed" : "completed",

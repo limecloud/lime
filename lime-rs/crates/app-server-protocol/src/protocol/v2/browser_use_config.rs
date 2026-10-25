@@ -1,3 +1,4 @@
+use super::AllowDenyRequirement;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
@@ -18,11 +19,4 @@ pub struct BrowserUseOriginPolicyConfig {
     pub downloads: Option<AllowDenyRequirement>,
     pub uploads: Option<AllowDenyRequirement>,
     pub full_cdp_access: Option<AllowDenyRequirement>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum AllowDenyRequirement {
-    Allow,
-    Deny,
 }

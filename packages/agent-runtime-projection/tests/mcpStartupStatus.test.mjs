@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexMcpStartupStatusProjectionEvent,
-  extractCodexMcpStartupStatusSnapshot,
+  buildMcpStartupStatusProjectionEvent,
+  extractMcpStartupStatusSnapshot,
 } from "../dist/index.js";
 
 test("MCP startup status update is thread-scoped and ignores other-thread updates", () => {
-  const snapshot = extractCodexMcpStartupStatusSnapshot({
+  const snapshot = extractMcpStartupStatusSnapshot({
     activeThreadId: "thread-1",
     expectedServers: ["sentry"],
     activeTurnRunning: true,
@@ -42,7 +42,7 @@ test("MCP startup status update is thread-scoped and ignores other-thread update
 });
 
 test("MCP startup status projects an active runtime header instead of assistant output", () => {
-  const event = buildCodexMcpStartupStatusProjectionEvent(
+  const event = buildMcpStartupStatusProjectionEvent(
     {
       activeThreadId: "thread-1",
       expectedServers: ["alpha"],
@@ -98,7 +98,7 @@ test("MCP startup status projects an active runtime header instead of assistant 
 });
 
 test("MCP startup completion does not clear the running turn and restores the running header", () => {
-  const snapshot = extractCodexMcpStartupStatusSnapshot({
+  const snapshot = extractMcpStartupStatusSnapshot({
     activeThreadId: "thread-1",
     expectedServers: ["alpha", "beta"],
     activeTurnRunning: true,
@@ -154,7 +154,7 @@ test("MCP startup completion does not clear the running turn and restores the ru
 });
 
 test("MCP startup completion clearing a running turn fails closed", () => {
-  const event = buildCodexMcpStartupStatusProjectionEvent({
+  const event = buildMcpStartupStatusProjectionEvent({
     activeThreadId: "thread-1",
     expectedServers: ["schaltwerk"],
     activeTurnRunning: true,
@@ -188,7 +188,7 @@ test("MCP startup completion clearing a running turn fails closed", () => {
 });
 
 test("MCP startup ignores late updates from a completed round and fails if they reopen startup", () => {
-  const snapshot = extractCodexMcpStartupStatusSnapshot({
+  const snapshot = extractMcpStartupStatusSnapshot({
     activeThreadId: "thread-1",
     expectedServers: ["alpha", "beta"],
     observed: {
@@ -240,7 +240,11 @@ test("MCP startup ignores late updates from a completed round and fails if they 
 
   assert.equal(snapshot.startupActive, false);
   assert.deepEqual(
-    snapshot.ignoredUpdates.map((update) => [update.server, update.state, update.reason]),
+    snapshot.ignoredUpdates.map((update) => [
+      update.server,
+      update.state,
+      update.reason,
+    ]),
     [
       ["beta", "starting", "stale_completed_round"],
       ["beta", "ready", "stale_completed_round"],
@@ -253,7 +257,7 @@ test("MCP startup ignores late updates from a completed round and fails if they 
 });
 
 test("MCP startup status requires thread scope and must not become assistant text", () => {
-  const snapshot = extractCodexMcpStartupStatusSnapshot({
+  const snapshot = extractMcpStartupStatusSnapshot({
     activeThreadId: "thread-1",
     expectedServers: ["alpha"],
     assistantItems: [{ text: "Booting MCP server: alpha" }],

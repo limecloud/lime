@@ -9,20 +9,77 @@ import {
 } from "./agentRuntimeErrorPresentation";
 
 describe("agentRuntimeErrorPresentation", () => {
-  it("503 中的 model_not_found 应提示更新模型选择，并覆盖五语言", async () => {
+  it("429 限流应覆盖重复的后端错误前缀，并提供五语言提示", async () => {
     const copy = {
-      "zh-CN": "当前模型在此服务商账户下不可用，请刷新模型列表并选择其他可用模型。",
-      "zh-TW": "目前模型在此服務商帳戶下無法使用，請重新整理模型清單並選擇其他可用模型。",
-      "en-US": "This model is unavailable for this provider account. Refresh the model list and choose another available model.",
-      "ja-JP": "このモデルは現在のプロバイダーアカウントでは利用できません。モデル一覧を更新し、利用可能な別のモデルを選択してください。",
-      "ko-KR": "현재 제공업체 계정에서 이 모델을 사용할 수 없습니다. 모델 목록을 새로 고친 후 사용 가능한 다른 모델을 선택하세요.",
+      "zh-CN":
+        "当前模型通道请求受限（429），请稍后重试；如果持续失败，请检查服务商配额或切换其他可用模型。",
+      "zh-TW":
+        "目前模型通道的請求受限（429），請稍後重試；若持續失敗，請檢查服務商配額或切換其他可用模型。",
+      "en-US":
+        "The model provider is rate limiting requests (429). Try again later. If this continues, check the provider quota or choose another available model.",
+      "ja-JP":
+        "モデルプロバイダーがリクエストを制限しています（429）。しばらくしてから再試行してください。解消しない場合は、利用枠を確認するか、利用可能な別のモデルを選択してください。",
+      "ko-KR":
+        "모델 제공업체가 요청을 제한하고 있습니다(429). 잠시 후 다시 시도하세요. 문제가 계속되면 제공업체 할당량을 확인하거나 사용 가능한 다른 모델을 선택하세요.",
     };
     try {
       for (const [locale, message] of Object.entries(copy)) {
-        await changeLimeLocale(locale as Parameters<typeof changeLimeLocale>[0]);
-        expect(resolveAgentRuntimeErrorPresentation(
-          "execution backend error: Provider 请求失败 (503 Service Unavailable): model_not_found",
-        )).toEqual({ displayMessage: message, toastMessage: message });
+        await changeLimeLocale(
+          locale as Parameters<typeof changeLimeLocale>[0],
+        );
+        for (const raw of [
+          "execution backend error: execution backend error: Provider 请求失败 (429 Too Many Requests)",
+          "Provider returned throttling_error",
+          "Provider rate limit exceeded",
+        ]) {
+          expect(resolveAgentRuntimeErrorPresentation(raw)).toEqual({
+            displayMessage: message,
+            toastMessage: message,
+          });
+          expect(resolveAgentRuntimeSubmitErrorMessage(raw)).toBe(message);
+        }
+      }
+    } finally {
+      await changeLimeLocale("zh-CN");
+    }
+  });
+
+  it("429 的明确额度错误保留额度提示，普通编号不误判为限流", () => {
+    expect(
+      resolveAgentRuntimeErrorPresentation("HTTP 429: insufficient_quota")
+        .displayMessage,
+    ).toContain("额度类错误");
+    expect(
+      resolveAgentRuntimeErrorPresentation("request 14290 failed"),
+    ).toEqual({
+      displayMessage: "request 14290 failed",
+      toastMessage: "响应错误: request 14290 failed",
+    });
+  });
+
+  it("503 中的 model_not_found 应提示更新模型选择，并覆盖五语言", async () => {
+    const copy = {
+      "zh-CN":
+        "当前模型在此服务商账户下不可用，请刷新模型列表并选择其他可用模型。",
+      "zh-TW":
+        "目前模型在此服務商帳戶下無法使用，請重新整理模型清單並選擇其他可用模型。",
+      "en-US":
+        "This model is unavailable for this provider account. Refresh the model list and choose another available model.",
+      "ja-JP":
+        "このモデルは現在のプロバイダーアカウントでは利用できません。モデル一覧を更新し、利用可能な別のモデルを選択してください。",
+      "ko-KR":
+        "현재 제공업체 계정에서 이 모델을 사용할 수 없습니다. 모델 목록을 새로 고친 후 사용 가능한 다른 모델을 선택하세요.",
+    };
+    try {
+      for (const [locale, message] of Object.entries(copy)) {
+        await changeLimeLocale(
+          locale as Parameters<typeof changeLimeLocale>[0],
+        );
+        expect(
+          resolveAgentRuntimeErrorPresentation(
+            "execution backend error: Provider 请求失败 (503 Service Unavailable): model_not_found",
+          ),
+        ).toEqual({ displayMessage: message, toastMessage: message });
       }
     } finally {
       await changeLimeLocale("zh-CN");

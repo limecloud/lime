@@ -10,12 +10,13 @@
 3. **GUI 改动优先看质量链路** - Lime 是 GUI 桌面产品，先看 `quality-workflow.md` 与 `playwright-e2e.md`
 4. **新旧并存问题先看治理文档** - 避免在 compat / deprecated 路径上继续长新表面
 5. **Agent 重构按领域选择事实源** - Thread / Turn / Item、App Server、runtime、tool lifecycle、MCP、Skills、Multi-Agent、history hydrate、projection、测试护栏和命名按 `/Users/coso/Documents/dev/rust/codex` 收敛；多模型 catalog/default/switch、provider capability/readiness、retry/circuit breaker 与多模态 sampling 按 `/Users/coso/Documents/dev/rust/grok-build` 收敛；OpenCode 仅辅助 provider wire、canonical content 与媒体 lowering；已退役 runtime 没有迁移路线，能力缺口只能在 current owner 重建
-6. **新增命名不要加品牌前缀** - 新程序、目录、crate/package、Electron IPC channel、App Server 方法、API 网关、类型、模块和脚本默认使用简洁领域名，不要加 `Lime` / `lime_` / `lime-`，也不要把已退役 runtime 名称或 `agent_runtime_*` 带入 current API；只有对外品牌、历史兼容或生态固定命名才例外，并在计划里说明
-7. **新增 Agent 逻辑默认走 App Server** - 新 AI Agent、runtime、host integration、跨 App 复用能力先落到 `app-server` crates、JSON-RPC 协议、client 与 RuntimeCore；Electron 只作为 Desktop Host bridge，负责 IPC 和桌面壳能力，不是第二套后端或业务 adapter；旧 `agent_runtime_*` 只允许作为 retired guard / 历史 evidence，已退役 runtime 不得恢复为受控迁移残留
-8. `lime-rs/src/**` 已删除，不得恢复 - 业务逻辑、领域服务、runtime 分支、API adapter、数据访问或跨 App 复用能力一律进入 `lime-rs/crates/**` 下的 App Server / RuntimeCore / services / core / agent / 协议 client crates，桌面壳能力进 Electron Desktop Host
-9. `lime-rs/src/commands/**` 已删除，不得恢复旧 wrapper - 该目录不再承接新的业务逻辑、API adapter、runtime 分支、领域服务实现、compat wrapper 或退场 stub；新增后端能力进 App Server crates / RuntimeCore / services，桌面壳能力进 Electron Desktop Host
-10. 超过 `1000` 行的非生成代码先拆分 - 接近 `800` 行进入预警；触碰前优先按领域、职责、数据边界或协议边界拆小，并复用项目已有模块化模式；无法本轮拆分时，必须在执行计划登记 blocker、风险和退出条件，不继续追加新业务逻辑
-11. `src/lib/dev-bridge/**` 按职责治理 - `safeInvoke`、HTTP client、`app_server_handle_json_lines`、bridge availability / event listener capability 是 current renderer bridge；旧命令 policy / mock fallback 是迁移期 `compat / deprecated`；清命令时先收缩 policy、mock、旧 smoke 和 contract guard，不要把整目录删除当作默认动作；跨命令组长期残留必须回挂 `../exec-plans/tech-debt-tracker.md` 的 `CCD-012`
+6. **源码迁移以 Lime 为产品边界** - 只迁移许可证允许、属于 Lime 产品且有现役消费者的最小依赖闭包；Lime 自有路径与符号清除上游产品品牌，不复制整树或上游专属产品能力。具体准则见 `codex-source-alignment.md`
+7. **新增命名不要加品牌前缀** - 新程序、目录、crate/package、Electron IPC channel、App Server 方法、API 网关、类型、模块和脚本默认使用简洁领域名，不要加 `Lime` / `lime_` / `lime-`，也不要把已退役 runtime 名称或 `agent_runtime_*` 带入 current API；只有对外品牌、历史兼容或生态固定命名才例外，并在计划里说明
+8. **新增 Agent 逻辑默认走 App Server** - 新 AI Agent、runtime、host integration、跨 App 复用能力先落到 `app-server` crates、JSON-RPC 协议、client 与 RuntimeCore；Electron 只作为 Desktop Host bridge，负责 IPC 和桌面壳能力，不是第二套后端或业务 adapter；旧 `agent_runtime_*` 只允许作为 retired guard / 历史 evidence，已退役 runtime 不得恢复为受控迁移残留
+9. `lime-rs/src/**` 已删除，不得恢复 - 业务逻辑、领域服务、runtime 分支、API adapter、数据访问或跨 App 复用能力一律进入 `lime-rs/crates/**` 下的 App Server / RuntimeCore / services / core / agent / 协议 client crates，桌面壳能力进 Electron Desktop Host
+10. `lime-rs/src/commands/**` 已删除，不得恢复旧 wrapper - 该目录不再承接新的业务逻辑、API adapter、runtime 分支、领域服务实现、compat wrapper 或退场 stub；新增后端能力进 App Server crates / RuntimeCore / services，桌面壳能力进 Electron Desktop Host
+11. 超过 `1000` 行的非生成代码先拆分 - 接近 `800` 行进入预警；触碰前优先按领域、职责、数据边界或协议边界拆小，并复用项目已有模块化模式；无法本轮拆分时，必须在执行计划登记 blocker、风险和退出条件，不继续追加新业务逻辑
+12. `src/lib/dev-bridge/**` 按职责治理 - `safeInvoke`、HTTP client、`app_server_handle_json_lines`、bridge availability / event listener capability 是 current renderer bridge；旧命令 policy / mock fallback 是迁移期 `compat / deprecated`；清命令时先收缩 policy、mock、旧 smoke 和 contract guard，不要把整目录删除当作默认动作；跨命令组长期残留必须回挂 `../exec-plans/tech-debt-tracker.md` 的 `CCD-012`
 
 ## 按场景导航
 
@@ -33,6 +34,7 @@
 - `persistence-map.md` - Runtime 文件快照持久化主链、artifact sidecar/version/checkpoint 边界
 - `state-history-telemetry.md` - State / History / Telemetry current 主链、session/thread/request/evidence/history 边界与 current/compat 分类
 - `governance.md` - 新旧并存治理、迁移收口、禁止回流
+- `codex-source-alignment.md` - Codex 源码整目录复制、消费者依赖闭包迁移与 Lime 品牌边界
 - `parallel-agent-collaboration.md` - 多 Agent / 多终端并行开发时的写集声明、避让和冲突处理协议
 - `harness-engine-governance.md` - Harness Engine 事实源、evidence pack、replay / analysis / review 治理规范
 - `quality-workflow.md` - 本地校验、GUI smoke、契约检查、CI 门禁
@@ -107,6 +109,7 @@
 ## 对应 Codex Skills
 
 - **治理收口**：`.codex/skills/lime-governance/`
+- **Codex 源码复制对齐**：先读 `codex-source-alignment.md`，并按其要求记录上游完整性和消费者迁移证据
 - **GUI 设计语言**：`.codex/skills/lime-design-language/`
 - **工程质量 / 交付判断**：`.codex/skills/lime-quality-workflow/`
 - **命令边界 / 契约同步**：`.codex/skills/lime-command-boundary/`

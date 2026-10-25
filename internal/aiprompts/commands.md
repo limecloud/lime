@@ -63,7 +63,7 @@ params 只有 path/method/body，无 caller URL/headers/token。禁止 redirect/
 
 ## Desktop persisted atom
 
-桌面未发送 UI 草稿与 Summary 固定偏好只允许：
+桌面未发送 UI 草稿、面板偏好、本地环境选择和最近动作只允许：
 
 ```text
 Renderer -> src/lib/api/persistedAtoms.ts
@@ -76,7 +76,9 @@ Renderer -> src/lib/api/persistedAtoms.ts
 
 Summary 固定偏好复用同两个命令和同一文件：key 为 `app-shell-summary-panel-pinned`，read query 为 `{kind:"value"}`，ready data 为 `{queryKind:"value",value:boolean}`；update mutation 仅为 `{op:"set",value:boolean}`，applied 结果为 `entry:null,value:boolean`。默认 true，文件缺失该 atom 时亦为 true；存在但类型错误须拒绝，不能强转或静默重置。宽 pane 的 toggle 写入该偏好，overlay toggle 仅开关 popover。它是 Desktop UI 偏好，不是 Thread/Turn/Item 字段。
 
-read/update 结果与 `persisted-atom-update` notification 必须经过同一纯 JSON parser，并核对请求 key 与 query/mutation。两个 atom 共用 storeRevision/savedRevision、串行保存与 backup；每次广播两个 key 的 revision / persistence metadata，不含草稿正文或偏好值。草稿协调器忽略其他 key；Summary 拒绝较旧 revision 回读。Renderer emit/send 与 Main IPC handler 拒绝伪造该事件。旧 scope-only/top-level view 已直接删除。
+最近动作使用安装包同名 key `local-env-recent-actions-by-key`，read query 为 `{kind:"recent-actions"}`，ready data 为 `{queryKind:"recent-actions",recentActions:Record<string,string[]>}`。update 只接收 `{op:"record",environmentKey,actionName}`，由 Host 对该环境名称列表 prepend/去重，保留相邻环境和配置原始顺序；不允许 Renderer 用全量 map 覆盖并发选择。环境键为当前 Git root 与配置相对目录解析出的执行 cwd，缺失时才回退 configPath。展示按最近名称的首次位置稳定排序，primary 为首项；不改变配置索引或命令。预算超限明确拒绝，不截断历史。该 atom 只承接 Desktop 展示偏好，执行仍走唯一 `command/exec`。
+
+read/update 结果与 `persisted-atom-update` notification 必须经过同一纯 JSON parser，并核对请求 key 与 query/mutation。所有 atom 共用 storeRevision/savedRevision、串行保存与 backup；每次广播各 key 的 revision / persistence metadata，不含草稿正文或偏好值。消费者忽略其他 key，拒绝较旧 revision 和先前作用域的迟到回读。Renderer emit/send 与 Main IPC handler 拒绝伪造该事件。旧 scope-only/top-level view 已直接删除。
 
 `PersistedAtomStore` 为唯一 CAS/binding owner，`PersistedAtomFile` 为唯一原子保存/backup owner。typed gateway 之外禁止裸 invoke/listen；catalog、preload 白名单、实际 handler、ESLint restriction 与 command guard 同批同步。safeInvoke 与 HTTP 诊断由同一 `invokeDiagnostics` 承接，保存参数和任意原始错误正文不进入 trace/console。
 
@@ -499,7 +501,7 @@ MCP 管理、发现和调用只允许走：
 
 `src/lib/api/mcp.ts -> AppServerClient.request(...) -> app_server_handle_json_lines -> App Server JSON-RPC -> lime-rs/crates/mcp`
 
-current method 为 `mcpServer/list`、`mcpServerStatus/list`、`mcpServer/create`、`mcpServer/update`、`mcpServer/delete`、`mcpServer/enabled/set`、`mcpServer/importFromApp`、`mcpServer/syncAllToLive`、`mcpServer/oauth/login`、`mcpServer/oauthLogin/completed`、`mcpServer/startupStatus/updated`、`mcpServer/start`、`mcpServer/stop`、`mcpServer/resource/read`、`mcpServer/tool/call`、`mcpTool/list`、`mcpTool/listForContext`、`mcpTool/search`、`mcpPrompt/list`、`mcpPrompt/get`、`mcpResource/list`、`mcpResource/subscribe` 与 `mcpResource/unsubscribe`。`mcpServerStatus/list` 只接受 Codex v2 `{ data, nextCursor }` 分页响应；Renderer 和 current smoke 必须遍历 opaque cursor，旧 `{ servers }` status response 为 `dead / forbidden-to-restore`。`mcpServer/tool/call` 强制真实 `threadId` 并经 Session-owned `McpThreadRuntime` 执行；Settings 没有 Thread owner，只允许浏览工具。`mcpServer/resource/read` 可做 management read，也可携带真实 `threadId` 读取同一 runtime；MCP App 从 canonical tool Item 传 `originCallId`，从 `appContext.connectorId` 传 `connectorId`，`sessionId` 不进入 exact wire。旧 `mcpTool/call`、`mcpTool/callWithCaller` 与 `mcpResource/read` 已从 protocol catalog、schema、App Server、typed clients、Renderer、smoke 和正向测试物理删除，分类为 `dead / deleted / forbidden-to-restore`，只能出现在负向回流守卫或历史 evidence。OAuth 完成态只允许由 App Server v2 typed notification `mcpServer/oauthLogin/completed` 投影给 Renderer；MCP startup lifecycle 只允许由 `mcpServer/startupStatus/updated` 投影连接态并触发终态刷新。旧 `mcp:oauth_completed`、`mcp:server_started`、`mcp:server_stopped`、`mcp:server_error` 均为 `dead / deleted / forbidden-to-restore`。事件 `mcp:resources_updated` 和 `mcp:resource_updated` 必须经真实 MCP manager / Desktop Host event bridge 投影；浏览器模式不得静默回退 mock event fallback。
+current method 为 `mcpServer/list`、`mcpServerStatus/list`、`mcpServer/create`、`mcpServer/update`、`mcpServer/delete`、`mcpServer/enabled/set`、`mcpServer/oauth/login`、`mcpServer/oauthLogin/completed`、`mcpServer/startupStatus/updated`、`mcpServer/start`、`mcpServer/stop`、`mcpServer/resource/read`、`mcpServer/tool/call`、`mcpTool/list`、`mcpTool/listForContext`、`mcpTool/search`、`mcpPrompt/list`、`mcpPrompt/get`、`mcpResource/list`、`mcpResource/subscribe` 与 `mcpResource/unsubscribe`。`mcpServerStatus/list` 只接受 Codex v2 `{ data, nextCursor }` 分页响应；Renderer 和 current smoke 必须遍历 opaque cursor，旧 `{ servers }` status response 为 `dead / forbidden-to-restore`。`mcpServer/tool/call` 强制真实 `threadId` 并经 Session-owned `McpThreadRuntime` 执行；Settings 没有 Thread owner，只管理插件和 MCP 配置；工具调用仍由真实 Thread owner 承接。`mcpServer/resource/read` 可做 management read，也可携带真实 `threadId` 读取同一 runtime；MCP App 从 canonical tool Item 传 `originCallId`，从 `appContext.connectorId` 传 `connectorId`，`sessionId` 不进入 exact wire。旧 `mcpTool/call`、`mcpTool/callWithCaller` 与 `mcpResource/read` 已从 protocol catalog、schema、App Server、typed clients、Renderer、smoke 和正向测试物理删除，分类为 `dead / deleted / forbidden-to-restore`，只能出现在负向回流守卫或历史 evidence。OAuth 完成态只允许由 App Server v2 typed notification `mcpServer/oauthLogin/completed` 投影给 Renderer；MCP startup lifecycle 只允许由 `mcpServer/startupStatus/updated` 投影连接态并触发终态刷新。旧 `mcp:oauth_completed`、`mcp:server_started`、`mcp:server_stopped`、`mcp:server_error` 均为 `dead / deleted / forbidden-to-restore`。事件 `mcp:resources_updated` 和 `mcp:resource_updated` 必须经真实 MCP manager / Desktop Host event bridge 投影；浏览器模式不得静默回退 mock event fallback。
 
 Thread-owned `mcpServer/resource/read` 收到 `originCallId` 时必须先命中已加载 Thread；无 `threadId` 时 fail closed。只有 `server=codex_apps` 才消费该字段，并要求来源是已完成、resource URI 一致的 canonical MCP tool Item；其它 server 按 Codex 语义忽略 `originCallId`。MCP tool lifecycle 必须从同一次冻结的 step route 把 `connectorId/linkId/resourceUri/appName/actionName` 写入 canonical `appContext`；materializer、read model、history merge 与冷恢复继续消费同一 Item，不允许 Renderer 或 live catalog 补写 authority。
 
@@ -713,14 +715,42 @@ Codex experimental `fuzzyFileSearch/sessionStart|sessionUpdate|sessionStop` 与
 
 ## Browser Workspace 主链
 
+地址建议复用 `browser_history_list` 默认 URL 汇总视图（`query/cursor/limit`），逐次访问管理继续使用
+`view: "visits"`。`browser_tab_show_menu` 的可选 `mode: "address"` 仅接受最多8个平面候选；
+沿既有 `update_menu` 和当前原生身份/generation 更新，地址文本保持焦点。`browser_tab_hide_overlay`
+可携带 `menuId/generation` 只关闭对应菜单，迟到清理不得关闭新的选区编辑器或菜单。候选详情是纯文本，
+实际目标 URL 留在 Renderer 的已校验历史结果中，经原 navigate/open 链校验和导航；不新增历史 authority。
+
 浏览数据设置使用 `src/lib/api/browserData.ts` → `browser_data_settings/summary/clear` →
 同一 `BrowserTabHost` 的 `BrowserDataHost`。这是浏览器 Profile 的 Desktop Host 操作，
 不增加 App Server runtime 或持久化 owner。严格六类/五时段，最近4周为28天；删除前整体
 校验能力，不支持组合零删除。history/downloads 委托原 owner，按 visit/开始时间清理终态记录；
 下载文件、附件和 artifact 保留。Cookie domain/cache 摘要为当前总量，可选读取失败为 null。
 只操作 `persist:embedded-browser`；stock native mask 仅允许全时段 siteData/cache，
-formData/siteSettings 与原生范围绑定仍待完成，不把被忽略的 timeRange 或未知类型传给 Electron。
+formData 与原生范围绑定仍待完成；siteSettings 仅全时段委托同一站点设置 store 清理，
+不把被忽略的 timeRange 或未知类型传给 Electron。
 失败结果区分已完成、可能部分生效的失败类与尚未执行类；不声称跨 store 事务或回滚。
+
+网站权限管理沿 `browserSiteSettings` typed gateway → 原 preload allowlist/app:invoke →
+BrowserTabHost → BrowserSiteSettingsStore，不新增 App Server method。现有
+`browser_site_settings_list/update/remove` 接纳摄像头、麦克风、位置、通知、剪贴板、声音与自动多文件下载；update 的
+`{ origin, permission, setting }` 中 origin=null 表示全局（声音仅 allow/block，其余 ask/allow/block），
+站点 origin 必须为规范 HTTP(S) origin，setting=null 才移除该权限 override；ask 是独立规则。
+list/更新返回同一严格 snapshot，网站字段 null 表示继承；页面不能传任意路径或 Profile。
+修改/清理成功后撤销既有文档临时 grants 与待确认提示，设备权限与 Agent 操作审批仍各归原 owner。
+Store v1/v2/v3 原位升级至 v4，不新增文件或命令。受保护内容 ID 保留设置类别和原生
+`mediaKeySystem` 映射，但当前引擎没有可用的内容 ID 服务，页面禁用、update 拒绝，实际 decision 固定 block；
+未将保存规则或 EME 的 NotSupportedError 计为 DRM 能力验收。剪贴板 read/sanitized-write 消费同一站点规则；
+声音沿现有原生 setAudioMuted 生效，并与 `browser_tab_set_audio_muted` 的手动标签状态叠加。
+设置更新、ready 与导航刷新现有网页，站点允许不能清除手动静音，标签解除静音不能绕过站点阻断。
+
+自动多文件下载复用同一原生 DownloadItem：每个主文档的首文件消耗一次 slot，后续按原网站规则和
+文档临时批准执行；并发文件共享一次 pending 权限请求，各自取消不误撤销兄弟。审批中暂停原 item，
+准许恢复、拒绝取消；导航、关闭、终态及最后一个消费者取消会撤销 pending 请求，迟到批准不得 resume。
+只有真实主文档 commit 重置首文件 slot，设置变化/子 frame 事件不返还。恢复原下载不消耗新 slot。
+持久 allow 不授予 Agent，仍沿原 canonical 审批。stock DownloadItem 不提供 request_initiator，
+多文件请求遇到子 frame 时保守拒绝，未实现 Chrome 完整 gesture/reset/批量节流语义；will-download
+已经发生网络请求，暂停不代表审批前零网络字节或磁盘痕迹。
 
 Browser 只有一个网页执行体：Right Surface 中用户可见的 Electron `WebContentsView`。用户操作与 Agent 动作分别从以下两条控制路径进入同一个 `BrowserTabHost` route：
 
@@ -764,6 +794,24 @@ Electron start/resume 注入自己的不可变 catalog，断连同时撤销本�
 公开 schema/generated client 和真实双 Host fixture 同步该合同，不增加 IPC method 或 renderer 执行入口。
 
 App Server 持有 Thread/Turn、动态工具生命周期、Browser read model 与 canonical identity；Electron 只持有 native view、window、`webContents.debugger`、下载和权限等宿主状态；Renderer 只消费 projection 并发送用户意图。Agent action 必须按 connection/thread/turn/session/tab/view/WebContents owner 精确路由，用户操作或 turn terminal 必须使旧控制权失效。
+
+`browser__hover` / `browser__scroll` 沿同一 frozen dynamic tool registry 与 `item/tool/call`；无新 IPC/RPC。
+两者要求最新 `snapshotId`，hover 必须携带其中的 `backendNodeId`，scroll 可选该节点以定位滚动容器，
+省略时使用 viewport 中心。scroll 的 `deltaX` / `deltaY` 为有限 CSS px、每轴 ±10000，至少一轴非零。
+短 `browserPageInput` 在同一 WCV 的隔离世界检查主文档、可见几何和命中目标，拒绝遮挡与子 frame；
+实际输入使用 CDP mouseMoved/mouseWheel，只有派发步骤进入原 Agent input 豁免。每次异步命令前后
+重验 route/turn/snapshot/权限/policy，导航开始立即使旧 snapshot 失效；操作后必须重新 observe。
+截止10秒仍未完成时释放控制并detach debugger，迟到命令结果不能触发后续输入。
+这里不开放任意脚本、frame/context、原生权限或完整 CDP 权限，也不表示 drag/select 与完整 actionability 已完成。
+
+`browser__select` / `browser__drag` 同样走原 registry 和 `item/tool/call`，始终先请求 canonical 一次性操作审批。
+select 必填 `snapshotId`、`backendNodeId`、`options`；options 最多100项，按 value/label/index 的所有给定字段
+精确匹配，index 从0开始，多选受原生 multiple 限制，空数组清空。拒绝缺失、歧义、禁用和重复项。
+批准后重验 options 指纹，DOM 赋值后派发合成 input/change，返回即时 `values`；handler 改写结果时明确 unknown。
+drag 必填同一 snapshot 的源 `backendNodeId` 与不同的 `targetBackendNodeId`，返回 pointer/html5 模式和
+`dispatched`；该字段只证明输入派发，业务效果需重新 observe。两端须在同一主文档且能同时可见，
+HTML5 payload 拒绝本地文件，drop/release 前复验目的地。共用10秒截止、每步 authority 校验和同 WCV 输入互斥，
+不增加 RPC/IPC 或另一套权限；跨 frame 与长距离自动滚动拖动尚未提供。
 
 `browser__executeCdpCommand`、`browser__attachTarget`、`browser__detachTarget` 复用 frozen Browser namespace
 与原 `item/tool/call` 多阶段合同，不新增 IPC/RPC。execute 输入为必填 `method`、可选对象 `commandParams`、
@@ -826,6 +874,17 @@ Host 从实际 IPC sender 派生 window / ownerWebContents，并校验 browserSe
 不能用 App Server 分配的 primary tab id 代替当前 native selected，或复活已关闭 primary。
 `useBrowserWorkspaceHydration` 是唯一恢复接线，使用单调 epoch、事件合并与 close tombstone 拒绝
 ABA、迟到 snapshot / event / mount；它只持有显示投影，不增加 tab store 或网页执行体。
+
+首次 `browser__newTab` 不要求用户预先打开浏览器。Host 的 `BrowserToolWorkspace` 沿
+既有 `workspaceRightSurface/request` 的 `browser_identity_tool/open` 分配并消费 canonical
+identity，在原 BrowserTabHost 注册无 URL 空白 WCV，再发 `browser_tool` foreground pending。
+内部 `browser_identity_*` pending 不投影为产品打开意图；foreground 请求只指定现有 tab，
+不带 launchUrl，避免 Renderer 在批准前导航或新建默认搜索页。原 browse approval 获准后
+在原pending读取器合并同session的无workspace browser请求，并按同一规则应用通知；
+不可把其他session/surface或显式其他workspace请求当成当前会话打开。批准后
+复用该空白 WCV；已有标签仍沿原 newTab 执行路径创建新页。无新增 public method、IPC、
+preload allowlist、catalog、schema 或 gateway；原 canonical thread owner 与 turn/connection
+生命周期约束所有异步 bootstrap，策略拒绝在分配前生效。
 
 Browser 设置继续走 `updateConfig` 队列与 `config/batchWrite(expectedVersion)`。`updateBrowserSetting`
 必须携带界面看到的字段旧值，并在队列内部比较规范化结果；即使 cache 已刷新到新版本，也不能用旧权限矩阵覆盖。
@@ -1128,14 +1187,96 @@ name/command/icon/platform。旧 `get_environment_preview` 为 retired guard-onl
 选择记录只写 Git 返回的 config.worktree 文件；delete 冷读取同一记录，cleanup失败/取消保留工作树和未归档聊天。
 执行复用同一 CommandExecServer、当前权限/requirements与现有cancelRequest，不新增Host执行器。
 
+setup wrapper 在同一 shell 捕获执行前后环境，仅成功时将 version=1 的 set/exclude 差异写入
+Git `rev-parse --git-path codex-shell-environment.json` 返回的位置。噪声变量、注入的源/工作树路径、
+shell 状态和多行值不进入差异；Windows key 按大小写不敏感比较。成功无差异或捕获失败清除旧差异，
+失败、取消与 cleanup 保留最近确认值。唯一存储 owner 是 project_git_service/worktrees/shell_environment；
+原子写入，诊断不记录环境值。Desktop 参考是当前安装包 REA ev_dcb8f63f3a77069221bdd3fe712a296df9aa8cbfd06eda8ce9d1e344fb80f2e3，
+不是公开 Rust 已有的 schema。
+
+普通 `command/exec` 从实际 cwd 读取该 Git scope 差异，再应用显式 env；完整环境交给现役进程 owner，
+不允许 exclude 被其下一层继承补回。setup/cleanup 显式使用 Host 环境，避免把旧差异当作新 capture 基线。
+Thread start/resume 的 shell_environment_policy 已在原仓库接入共享协议算法、有效配置、显式覆盖与
+Git 差异，最终策略冻结到同一 canonical Thread；resume 只持久化原始显式覆盖，重新读取全局/项目配置
+与该 checkout 的差异。配置层与 Thread 覆盖复用 core/config 的同一策略合并，filters 按大小写无关键
+叠加，单层无效或混用表示直接拒绝。工具 Turn 与用户 shell 命令均向既有 ExecutionProcessServer 传递
+冻结策略，由 Codex create_env 算法生成完整环境并 env_clear；不可继承的启动凭证在覆盖后再次清理。
+当前协议算法7项、项目/配置5项通过；App Server 和真实 provider/stdio 新测试尚未通过执行，
+Rust 编译因磁盘空间不足中断。不得以旧终端/Electron r22或新增测试源码代表该消费链已验证。
+
+2026-10-25 的环境差异切片验证：services 6项、lifecycle 5项、command 16项、公开JSON-RPC/真实
+stdio冷进程9项通过；真实Electron r22为60/60，证明setup后正常重启Main的GUI动作终端继承set/exclude，
+source checkout不受污染。证据与失败原件在 `.lime/verification/settings-actions-20261025/`；Windows
+仅有key/wrapper合同回归，未取得原生运行证据。后继线程策略的Desktop静态证据为
+`ev_d393a28a9013fa8c22785bca53b662f8788278be80a2de582cc3e6335b6df89c`。
+
 workspace selection 已经由现役 Host persisted atom 持久化，并由三个工作树创建入口传入同一请求。
 `projectGit/status` 返回 generated `isWorktree` 与 `localEnvironmentConfigPath`：linked worktree 只读 Git 返回的
 config.worktree；源 checkout 仍用上述 Host selection，显式 None 不跨 scope 回落。Renderer Git状态类型来自
 generated schema，不再手写遮蔽协议字段。
 
+`projectGit/worktree/environment/set` 是 Desktop `set-config-value` worktree 选择语义的领域适配，
+不是公开 Codex 方法。请求 `{rootPath, configPath:string|null}`，响应复用 `ProjectGitStatusResponse`；
+必须已初始化且目标为 linked checkout。现役 RuntimeCore 锁定 worktree 操作、验证环境文件，再调用
+project_git_service 的唯一 Git scope 写入；None 写 `__none__`，不改源 Host atom，不运行脚本。
+前端通过 typed gateway 确认同一路径/选择回执；Actions 子菜单与创建前选择器共用菜单组件，
+Host 与 Git 仍分别拥有 source/linked 选择权威，失败保留已确认值并可重试。
+
 会话页头 `LocalConversationActions` 按当前平台筛选配置 actions，cwd 由当前 Git root 与配置相对目录决定；
 `useLocalConversationEnvironment` 拒绝失败/迟到配置，不运行跨会话旧结果。运行交给已有 right-surface
 coordinator/local-state 创建独立 shell tab，再经 `TerminalTab -> TerminalPanel -> command/exec` 展示真实输出、
 退出码与关闭取消；隐藏不重启。配置入口 deep-link 回同一 Local Environments owner，不增加 executor。
-最近动作排序、会话菜单环境切换、setup env diff继承和原生Windows仍未完成；真实桌面验证逐次记录于
+最近动作排序与会话菜单环境切换已通过真实冷启动验收；setup env diff的终端消费正在验证，Thread策略继承和原生Windows仍未完成；真实桌面验证逐次记录于
 `internal/exec-plans/settings-alignment-20261022.md`，不能把配置成功或后端显式参数测试当成完整环境设置交付。
+
+### Computer Use 配置（2026-10-25）
+
+应用授权偏好复用 `config/read`、`config/value/write` 与 `config/batchWrite`，根键为
+`computer_use`，保持上游 snake_case 配置：`default_app_access`、`macos.bundle_ids`、
+`windows.aumids`、`windows.exes[{publisher_name,product_name,binary_name,access}]`。
+拒绝未知嵌套字段；现役配置锁与 expectedVersion/CAS 负责原子保存和并发冲突。移除字段用 null，
+撤销应用允许可写对应 deny 或移除本地 override；不得把配置保存成功视为系统权限已授予。
+
+管理员只读约束由 `configRequirements/read` 的 `computerUse` 投影，wire 为 camelCase，
+来源仅系统 requirements 与强制管理员 preferences；用户/项目配置及 RPC 参数不能注入该 authority。
+schema 与 generated TS 来自同一 Rust protocol。
+
+`computerUse/status`、`computerUse/setup`、`computerUse/revoke`、
+`computerUse/lease/acquire`、`computerUse/lease/release` 经过 v2 typed envelope、processor、
+RuntimeCore 与 `tool-runtime::computer_use::ComputerUseService`，不新增 Electron IPC。
+Rust RequestHandle、共享 TS request client 与 renderer typed gateway 使用同一 DTO。
+请求拒绝客户端提供的 consent/readiness 等 authority；target 字段使用 camelCase。
+lease/acquire 必须提供 `threadId`、`turnId` 与 grant，RuntimeCore 在适配器调用前后核对
+canonical 活动回合；授权与 lease 绑定连接，断连、撤销、Computer Use 配置写入、策略/目标
+变化或过期时失效，interrupt/terminal 取消该回合的活动 lease。
+
+适配器只能通过可信 host composition 注册。App Server main 已注册 native driver，按自身
+资源清单解析同产品 helper，校验版本/平台/精确 server 路径和双方 digest，不接受客户端
+提交 helper 路径。资源缺失是 `not_installed`，setup 不产生 grant；Windows 执行动作驱动
+仍为 `unavailable`，Chrome/Office 未注册。macOS 的权限、锁屏与签名目标来自真实 helper。
+native 应用策略已消费
+上游配置与管理员约束。native 租约已使用每用户平台数据目录的同一 OS 文件锁与持久
+fence 排斥独立 App Server；锁路径不来自 RPC、workspace 或配置。取消后已有动作持有
+lease 引用直到停止，最后一个引用释放才交出资源。内部 execute 已校验能力并向 macOS
+helper 转发观察/截图/点击/文字/按键/滚动/拖拽，helper 复验 fence、精确目标和焦点。
+取消帧让在途拖拽退出，进程 kill/wait 后才释放动作引用；输入结果是 submitted，需后续
+readback 才能确定应用成功。这里不新增执行 RPC；模型与 Code Mode 使用同一 `computer_use`
+工具及现役工具生命周期。`operation.action=status` 只读发现适配器和目标；窗口动作只接受
+target 与 operation，不能提交 connection、grant、lease、epoch、fence 或 consent。
+App Server 在根回合接纳时绑定真实 transport 连接，gateway 从可信 session/tool identity
+核对 canonical 活动 turn，再按该连接选择既有 grant，逐动作 acquire/execute/release。
+没有授权时直接失败，不在模型调用中触发 setup；断连、终态或中断移除回合授权绑定。
+截图沿用 canonical image content 投影，base64 不进入文本结果。接线验证见实施记录，
+不能把测试 gateway 或适配器 fixture 当作真实模型/平台 Gate B。
+Chrome/Office 专属策略、Windows 动作、CLI helper 载荷和平台 Gate B 仍由实施计划跟踪。
+
+Code Mode 调用走真实 `code-mode-host` 与同一 nested executor/gateway，不另设 RPC 或授权。
+模型 catalog 必须显式声明 `tool_mode` 和 `custom_tools`，并与 Responses/AzureResponses
+wire 支持求交集；本地 custom tool 不要求官方域名，也不因此开放远端 hosted search/image。
+Computer Use 的结构化业务结果须保留目标与 observation，不能以工具 metadata 替代；
+含图片的 nested 结果复用现役 MCP `content` 与 `structuredContent`，由脚本使用 `image(...)`
+输出图片；不把内部 metadata 透传给脚本。Code Mode 的 typed content 必须保留到同一 call
+的 canonical 工具结果与 provider wire，失败前已取得的图片也不能被错误文本覆盖。
+Responses 的 typed tool output 使用原生 content 数组，纯文本结果继续使用字符串。
+共享 provider result/history 的接线状态以实施记录为准，不以单个转换叶子通过证明截图闭环。
+取消和终态继续复用同一回合的租约与工具生命周期。

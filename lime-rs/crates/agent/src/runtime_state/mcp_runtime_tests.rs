@@ -20,6 +20,7 @@ fn stdio_server_spec(
         plugin_id: None,
         config: McpServerConfig {
             transport: McpServerTransport::Stdio {
+                env_vars: Vec::new(),
                 command,
                 args,
                 env: HashMap::new(),

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "epoch": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "released": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "epoch",
+    "released"
+  ],
+  "title": "ComputerUseLeaseReleaseResponse",
+  "type": "object"
+}

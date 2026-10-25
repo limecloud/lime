@@ -529,6 +529,7 @@ mod tests {
                     skip_pre_submit_resume: false,
                 },
                 RuntimeHostContext {
+                    connection_id: None,
                     client_name: Some("content-studio".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 },
@@ -785,6 +786,7 @@ mod tests {
                 skip_pre_submit_resume: false,
             },
             RuntimeHostContext {
+                connection_id: None,
                 client_name: Some("content-studio".to_string()),
                 client_version: Some("0.1.0".to_string()),
             },
@@ -823,6 +825,7 @@ mod tests {
                     skip_pre_submit_resume: false,
                 },
                 RuntimeHostContext {
+                    connection_id: None,
                     client_name: Some("content-studio".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 },

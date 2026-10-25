@@ -1,4 +1,4 @@
-//! Codex-shaped modal bindings. Printable chords are confined to Vim contexts.
+//! Lime-native modal bindings. Printable chords are confined to Vim contexts.
 
 use super::*;
 use lime_core::config::{

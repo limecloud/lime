@@ -87,7 +87,9 @@ function readArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function normalizeStage(value: string | null | undefined): AgentUiImageInputStage {
+function normalizeStage(
+  value: string | null | undefined,
+): AgentUiImageInputStage {
   switch (value) {
     case "restore":
     case "queued_restore":
@@ -204,7 +206,9 @@ function sameOrdered(
   actual: readonly AgentUiImageInputRef[],
 ): boolean {
   if (expected.length !== actual.length) return false;
-  return expected.every((image, index) => signature(image) === signature(actual[index]));
+  return expected.every(
+    (image, index) => signature(image) === signature(actual[index]),
+  );
 }
 
 function samePlaceholders(
@@ -213,11 +217,14 @@ function samePlaceholders(
 ): boolean {
   if (expected.length !== actual.length) return false;
   return expected.every(
-    (image, index) => placeholderSignature(image) === placeholderSignature(actual[index]),
+    (image, index) =>
+      placeholderSignature(image) === placeholderSignature(actual[index]),
   );
 }
 
-function acceptedDraftImages(images: readonly AgentUiImageInputRef[]): AgentUiImageInputRef[] {
+function acceptedDraftImages(
+  images: readonly AgentUiImageInputRef[],
+): AgentUiImageInputRef[] {
   return images.filter((image) => image.kind !== "remote");
 }
 
@@ -232,7 +239,9 @@ function textContainsLegacyPlaceholder(value: unknown): boolean {
   });
 }
 
-function detailMap(images: readonly AgentUiImageInputRef[]): Map<string, string> {
+function detailMap(
+  images: readonly AgentUiImageInputRef[],
+): Map<string, string> {
   return new Map(images.map((image) => [image.source, image.detail]));
 }
 
@@ -246,7 +255,9 @@ function localDetailStable(
     .every((image) => submittedDetails.get(image.source) === image.detail);
 }
 
-function hasUnsupportedLowDetail(images: readonly AgentUiImageInputRef[]): boolean {
+function hasUnsupportedLowDetail(
+  images: readonly AgentUiImageInputRef[],
+): boolean {
   return images.some((image) => image.detail === "low");
 }
 
@@ -264,7 +275,11 @@ function validateSnapshot(
   ];
   if (allImages.length === 0) {
     issues.push(
-      issue("missing_image_input", "$", "Image input guard requires at least one image ref."),
+      issue(
+        "missing_image_input",
+        "$",
+        "Image input guard requires at least one image ref.",
+      ),
     );
   }
   if (hasUnsupportedLowDetail(allImages)) {
@@ -272,7 +287,7 @@ function validateSnapshot(
       issue(
         "unsupported_low_detail",
         "$.detail",
-        "Codex image detail low is unsupported; use high, original, or auto.",
+        "Image detail low is unsupported; use high, original, or auto.",
       ),
     );
   }
@@ -282,7 +297,9 @@ function validateSnapshot(
   const submittedDetails = detailMap(snapshot.submittedImages);
   if (
     localDraftWithoutDetail.some(
-      (image) => submittedDetails.has(image.source) && submittedDetails.get(image.source) !== "high",
+      (image) =>
+        submittedDetails.has(image.source) &&
+        submittedDetails.get(image.source) !== "high",
     )
   ) {
     issues.push(
@@ -315,9 +332,13 @@ function validateSnapshot(
       ),
     );
   }
-  const draftRemote = snapshot.draftImages.filter((image) => image.kind === "remote");
+  const draftRemote = snapshot.draftImages.filter(
+    (image) => image.kind === "remote",
+  );
   if (
-    draftRemote.some((image) => !snapshot.remoteRejectedUrls.includes(image.source))
+    draftRemote.some(
+      (image) => !snapshot.remoteRejectedUrls.includes(image.source),
+    )
   ) {
     issues.push(
       issue(
@@ -327,12 +348,18 @@ function validateSnapshot(
       ),
     );
   }
-  const dataDraft = snapshot.draftImages.filter((image) => image.kind === "data");
+  const dataDraft = snapshot.draftImages.filter(
+    (image) => image.kind === "data",
+  );
   if (
     dataDraft.some(
       (image) =>
-        !snapshot.submittedImages.some((submitted) => submitted.source === image.source) &&
-        !snapshot.modelRequestImages.some((submitted) => submitted.source === image.source),
+        !snapshot.submittedImages.some(
+          (submitted) => submitted.source === image.source,
+        ) &&
+        !snapshot.modelRequestImages.some(
+          (submitted) => submitted.source === image.source,
+        ),
     )
   ) {
     issues.push(
@@ -382,7 +409,10 @@ function validateSnapshot(
       ),
     );
   }
-  if (snapshot.draftImages.length === 0 && textContainsLegacyPlaceholder(input.visibleTranscriptItems)) {
+  if (
+    snapshot.draftImages.length === 0 &&
+    textContainsLegacyPlaceholder(input.visibleTranscriptItems)
+  ) {
     issues.push(
       issue(
         "legacy_text_placeholder_only",
@@ -394,7 +424,7 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexLocalRemoteImageInputSnapshot(
+export function extractLocalRemoteImageInputSnapshot(
   input: AgentUiImageInputProjectionInput,
 ): AgentUiImageInputSnapshot {
   const stage = normalizeStage(input.stage ?? undefined);
@@ -415,18 +445,28 @@ export function extractCodexLocalRemoteImageInputSnapshot(
     localDetailStable: localDetailStable(draft, submitted),
     remoteHttpRejected: draft
       .filter((image) => image.kind === "remote")
-      .every((image) => remoteRejectedUrls(input.remoteRejections).includes(image.source)),
+      .every((image) =>
+        remoteRejectedUrls(input.remoteRejections).includes(image.source),
+      ),
     dataUrlsAccepted: draft
       .filter((image) => image.kind === "data")
       .every(
         (image) =>
-          submitted.some((submittedImage) => submittedImage.source === image.source) ||
-          modelRequest.some((submittedImage) => submittedImage.source === image.source),
+          submitted.some(
+            (submittedImage) => submittedImage.source === image.source,
+          ) ||
+          modelRequest.some(
+            (submittedImage) => submittedImage.source === image.source,
+          ),
       ),
     restoreStable: restored.length === 0 || sameOrdered(draft, restored),
-    hydrateStable: hydrated.length === 0 || accepted.every((image) =>
-      hydrated.some((hydratedImage) => signature(hydratedImage) === signature(image)),
-    ),
+    hydrateStable:
+      hydrated.length === 0 ||
+      accepted.every((image) =>
+        hydrated.some(
+          (hydratedImage) => signature(hydratedImage) === signature(image),
+        ),
+      ),
     placeholderMapStable:
       restored.length === 0 || samePlaceholders(draft, restored),
   };
@@ -436,15 +476,17 @@ export function extractCodexLocalRemoteImageInputSnapshot(
   };
 }
 
-function runtimeStatus(snapshot: AgentUiImageInputSnapshot): AgentUiRuntimeStatus {
+function runtimeStatus(
+  snapshot: AgentUiImageInputSnapshot,
+): AgentUiRuntimeStatus {
   return snapshot.validationIssues.length > 0 ? "failed" : "completed";
 }
 
-export function buildCodexLocalRemoteImageInputProjectionEvent(
+export function buildLocalRemoteImageInputProjectionEvent(
   input: AgentUiImageInputProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexLocalRemoteImageInputSnapshot(input);
+  const snapshot = extractLocalRemoteImageInputSnapshot(input);
   const status = runtimeStatus(snapshot);
   const base = buildAgentUiProjectionBase(
     { sourceType: "local_remote_image_input_projection" },
@@ -468,7 +510,9 @@ export function buildCodexLocalRemoteImageInputProjectionEvent(
     payload: {
       imageInputEvent: "local_remote_image_input",
       preview: truncateText(
-        snapshot.draftImages.map((image) => image.placeholder ?? image.source).join("\n"),
+        snapshot.draftImages
+          .map((image) => image.placeholder ?? image.source)
+          .join("\n"),
       ),
       ...snapshot,
     },

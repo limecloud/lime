@@ -21,18 +21,26 @@ import {
 import { readBrowserMenuPresentation } from "./browserOverlayModel";
 import { BrowserTabPolicy } from "./browserTabPolicy";
 import {
+  BrowserToolWorkspace,
+  type BrowserToolWorkspaceHandler,
+} from "./browserToolWorkspace";
+import {
   BrowserActionApprovals,
   type PendingBrowserApproval,
 } from "./browserActionApprovals";
 import { BrowserHistoryTool } from "./browserHistoryTool";
 import { executeCdpCommand, isBrowserCdpTool } from "./browserCdp";
 import { BrowserCdpSessions } from "./browserCdpSessions";
+import { BrowserCdpEvents } from "./browserCdpEvents";
+import { subscribeCdpEvents } from "./browserCdpEventSubscription";
 import {
   BrowserPermissions,
   type BrowserPermissionAnchor,
   type PendingBrowseApproval,
 } from "./browserPermissions";
 import { BrowserSitePermissionPrompt } from "./browserSitePermissionPrompt";
+import { BrowserSiteSettingsStore } from "./browserSiteSettingsStore";
+import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { createAnnotationEditorRelay } from "./browserAnnotationEditorRelay";
 import {
   adoptBrowserTabPopup,
@@ -79,13 +87,19 @@ import { selectBrowserRoutes } from "./browserTabSelection";
 import { focusBrowserTabPage } from "./browserTabFocus";
 import process from "node:process";
 import { statSync } from "node:fs";
-import type { BrowserWindow } from "./electronRuntime";
-import { clipboard, shell } from "./electronRuntime";
+import { app, clipboard, shell, type BrowserWindow } from "./electronRuntime";
+import {
+  BROWSER_SITE_SETTINGS_COMMANDS,
+  type BrowserSiteSettingsCommand,
+} from "../src/lib/api/browserSiteSettingsTypes";
 import {
   browserNodeCenter,
   describeBrowserNode,
   observeBrowserPage,
 } from "./browserTabObservation";
+import { executeBrowserPointerAction } from "./browserPageInput";
+import { executeBrowserSelect } from "./browserSelect";
+import { executeBrowserDrag } from "./browserDrag";
 import {
   observeBrowserTabUserControl,
   type BrowserTabUserControlObserver,
@@ -226,6 +240,7 @@ export class ElectronBrowserTabHost {
   readonly #tabIdsByViewId = new Map<string, string>();
   readonly #actionApprovals = new BrowserActionApprovals();
   readonly #cdpSessions = new BrowserCdpSessions();
+  readonly #cdpEvents = new BrowserCdpEvents();
   readonly #pendingPermissions = new Map<string, PendingBrowserPermission>();
   readonly #artifactsByRef = new Map<string, BrowserArtifactRecord>();
   readonly #userControlObserversByViewId = new Map<
@@ -236,11 +251,13 @@ export class ElectronBrowserTabHost {
   #artifactWriter: BrowserArtifactWriter | null = null;
   readonly #policy = new BrowserTabPolicy();
   readonly #permissions = new BrowserPermissions(this.#policy);
+  readonly #toolWorkspace: BrowserToolWorkspace;
   readonly #overlay: BrowserOverlayHost;
   readonly #sitePermissions: BrowserSitePermissionPrompt;
   readonly #history: BrowserHistoryHost;
   readonly #historyTool: BrowserHistoryTool;
   readonly #downloads: BrowserDownloadsHost;
+  readonly #siteSettings: BrowserSiteSettingsStore;
   readonly #data: BrowserDataHost;
   readonly #annotations: BrowserAnnotationHost;
   #annotationScreenshotMode: "always" | "necessary" = "always";
@@ -249,10 +266,32 @@ export class ElectronBrowserTabHost {
   constructor(
     embeddedHost: ElectronEmbeddedBrowserHost,
     emit: HostEventEmitter = () => undefined,
-    options: { history?: BrowserHistoryHost } = {},
+    options: {
+      history?: BrowserHistoryHost;
+      siteSettings?: BrowserSiteSettingsStore;
+      resolveWindow?: (owner: number) => BrowserWindow | undefined;
+    } = {},
   ) {
     this.#embeddedHost = embeddedHost;
     this.#emit = emit;
+    this.#toolWorkspace = new BrowserToolWorkspace({
+      embeddedHost,
+      resolveWindow: options.resolveWindow,
+      findRoute: (call) =>
+        this.#routesForThread(call.threadId, call.ownerWebContentsId).find(
+          (route) => route.selected,
+        ),
+      hasRoute: (route) => this.#routesByTabId.get(route.tabId) === route,
+      register: (route) => {
+        if (this.#routesByTabId.has(route.tabId))
+          throw new Error("Browser tab identity is already in use");
+        this.#routesByTabId.set(route.tabId, route);
+        this.#tabIdsByViewId.set(route.viewId, route.tabId);
+      },
+      observe: (route) => this.#observeNativeUserControl(route),
+      emit: (route) => this.#emitState(route),
+      close: (route) => this.#close(route, "first-open-cancelled"),
+    });
     this.#annotations = new BrowserAnnotationHost({
       resolveTarget: (tabId) => {
         const route = this.#routesByTabId.get(tabId);
@@ -315,6 +354,36 @@ export class ElectronBrowserTabHost {
       new BrowserHistoryHost((revision) =>
         this.#emit("browser-history-changed", { revision }),
       );
+    this.#siteSettings =
+      options.siteSettings ??
+      new BrowserSiteSettingsStore(
+        resolveCurrentDesktopStorageRoots(app.getPath("userData")).appDataRoot,
+        {
+          changed: () => {
+            this.#embeddedHost.revokePermissionGrants();
+            this.#sitePermissions.cancelView();
+            this.#embeddedHost.refreshSiteSettings?.();
+          },
+        },
+      );
+    this.#embeddedHost.setSitePermissionDecisionHandler?.({
+      canUseSavedPermissions: (viewId) => {
+        const tabId = this.#tabIdsByViewId.get(viewId);
+        const route = tabId ? this.#routesByTabId.get(tabId) : null;
+        return (
+          !!route &&
+          route.controlOwner !== "agent" &&
+          route.activeTurnId === null
+        );
+      },
+      decision: (origin, permission) =>
+        this.#siteSettings.decision(origin, permission),
+      resolveDecision: (origin, permission) =>
+        this.#siteSettings.resolveDecision(origin, permission),
+    });
+    void this.#siteSettings.ready
+      .then(() => this.#embeddedHost.refreshSiteSettings?.())
+      .catch(() => undefined);
     this.#historyTool = new BrowserHistoryTool({
       history: this.#history,
       policy: this.#policy,
@@ -329,6 +398,7 @@ export class ElectronBrowserTabHost {
     this.#data = new BrowserDataHost({
       history: this.#history,
       downloads: this.#downloads,
+      siteSettings: this.#siteSettings,
       session: () => this.#embeddedHost.getBrowsingDataSession(),
     });
     this.#embeddedHost.setDownloadObserver?.((...args) =>
@@ -400,6 +470,10 @@ export class ElectronBrowserTabHost {
       await this.#refreshSettings();
       return this.#policy.allows("download", url);
     });
+    this.#embeddedHost.setNetworkRequirementsChangedHandler(() => {
+      this.#policy.invalidate();
+      this.#revokeBrowserPermissions();
+    });
   }
 
   setSettings(settings: BrowserSettings, locale?: string): void {
@@ -411,19 +485,33 @@ export class ElectronBrowserTabHost {
     this.#embeddedHost.setSettings(settings);
     this.#annotationScreenshotMode = settings.annotation_screenshot;
     if (!this.#policy.setSettings(settings)) return;
-    this.#sitePermissions.cancelView();
-    this.#embeddedHost.revokePermissionGrants?.();
-    this.#permissions.revoke();
-    for (const route of this.#routesByTabId.values()) this.#detachDebugger(route);
+    this.#revokeBrowserPermissions();
     if (!this.#policy.enabled) {
       for (const route of this.#routesByTabId.values())
         this.#takeUserControl(route);
     }
+  }
+
+  #revokeBrowserPermissions(): void {
+    this.#sitePermissions.cancelView();
+    this.#embeddedHost.revokePermissionGrants?.();
+    this.#permissions.revoke();
+    this.#clearPendingPermissions(() => true);
+    this.#embeddedHost.clearPendingPermissions?.();
+    for (const route of this.#routesByTabId.values())
+      this.#detachDebugger(route);
     this.#clearPendingApprovals(() => true);
   }
 
   setSettingsProvider(provider: () => Promise<BrowserSettings>): void {
     this.#settingsProvider = provider;
+    this.#embeddedHost.setNetworkRequirementsProvider(async () => {
+      await provider();
+    });
+  }
+
+  setApplicationNetworkRequirements(requirements: unknown): Promise<void> {
+    return this.#embeddedHost.setApplicationNetworkRequirements(requirements);
   }
 
   async #refreshSettings(): Promise<void> {
@@ -490,6 +578,10 @@ export class ElectronBrowserTabHost {
     this.#interruptTurn = handler;
   }
 
+  setToolWorkspaceHandler(handler: BrowserToolWorkspaceHandler | null): void {
+    this.#toolWorkspace.setHandler(handler);
+  }
+
   setArtifactWriter(writer: BrowserArtifactWriter | null): void {
     this.#artifactWriter = writer;
   }
@@ -505,6 +597,12 @@ export class ElectronBrowserTabHost {
     if (!window || window.isDestroyed()) {
       throw new Error("Browser tab owner window is unavailable");
     }
+    if (
+      BROWSER_SITE_SETTINGS_COMMANDS.includes(
+        command as BrowserSiteSettingsCommand,
+      )
+    )
+      return this.#siteSettings.invoke(command, args);
     if (isBrowserHistoryCommand(command))
       return this.#history.invoke(command, args);
     if (isBrowserDownloadsCommand(command))
@@ -604,7 +702,21 @@ export class ElectronBrowserTabHost {
       }
       case "browser_tab_hide_overlay": {
         const route = this.#routeForRenderer(window, args);
-        this.#overlay.hide(route.viewId);
+        const record = asRecord(args);
+        if (record?.menuId !== undefined) {
+          if (
+            typeof record.menuId !== "string" ||
+            !record.menuId.trim() ||
+            (record.generation !== undefined &&
+              (!Number.isSafeInteger(record.generation) ||
+                Number(record.generation) < 1))
+          )
+            throw new Error("Browser menu identity is invalid");
+          this.#overlay.hideMenu(route.viewId, {
+            menuId: record.menuId,
+            generation: record.generation as number | undefined,
+          });
+        } else this.#overlay.hide(route.viewId);
         return {};
       }
       case "browser_tab_update_menu": {
@@ -633,6 +745,8 @@ export class ElectronBrowserTabHost {
   }
 
   async executeTool(call: BrowserToolCall): Promise<BrowserToolResult> {
+    const current =
+      call.tool === "newTab" ? this.#toolWorkspace.checkpoint(call) : () => {};
     if (
       call.tool === "releaseTab" &&
       call.phase === "preflight" &&
@@ -651,7 +765,26 @@ export class ElectronBrowserTabHost {
       return { status: "completed", state: this.#emitState(route) };
     }
     await this.#refreshSettings();
+    current();
     this.#policy.assertTool(call);
+    const revision = this.#policy.revision;
+    if (
+      call.tool === "newTab" &&
+      call.phase === "preflight" &&
+      call.approvalToken === undefined
+    ) {
+      this.#policy.assertTool(call, readHttpUrl(call.arguments.url));
+      await this.#toolWorkspace.prepare(call, () => {
+        current();
+        this.#policy.assertCurrent(revision);
+      });
+    }
+    const result = await this.#executeToolPhase(call);
+    this.#policy.assertCurrent(revision);
+    return result;
+  }
+
+  async #executeToolPhase(call: BrowserToolCall): Promise<BrowserToolResult> {
     if (call.phase === "approvedExecute") {
       if (this.#permissions.hasPending(call)) {
         const route = this.#permissionRoute(call);
@@ -792,7 +925,9 @@ export class ElectronBrowserTabHost {
     }
 
     const native = this.#nativeRoute(route);
+    const revision = this.#policy.revision;
     await this.#attachDebugger(route);
+    this.#policy.assertCurrent(revision);
     for (const target of targets)
       this.#permissions.assertAllowed(
         this.#permissionAnchor(route, call.turnId),
@@ -827,6 +962,7 @@ export class ElectronBrowserTabHost {
           this.#permissionAnchor(route, call.turnId),
           this.#readState(route).url,
         );
+        this.#policy.assertCurrent(revision);
         route.latestSnapshotId = snapshotId;
         route.latestSnapshotNodeIds = new Set(
           observation.nodes
@@ -865,6 +1001,11 @@ export class ElectronBrowserTabHost {
           imageBase64,
         };
       }
+      case "hover":
+      case "scroll":
+      case "select":
+      case "drag":
+        return this.#pageInput(route, call);
       case "click":
         this.#assertSnapshot(route, call.arguments, true);
         return await this.#click(route, call);
@@ -911,6 +1052,8 @@ export class ElectronBrowserTabHost {
       if (event === "embedded-browser-view-destroyed")
         this.#history.forget(viewId);
       if (event === "embedded-browser-view-navigation-started" && route) {
+        this.#invalidateSnapshot(route);
+        this.#cdpEvents.revoke(route.tabId);
         this.#annotations.cancelView(route.viewId, "navigation");
         this.#overlay.hide(route.viewId, "navigation");
         return;
@@ -1006,6 +1149,7 @@ export class ElectronBrowserTabHost {
           }
         } else if (requestId) {
           this.#pendingPermissions.delete(requestId);
+          this.#sitePermissions.cancelRequest(requestId);
         }
       }
       if (
@@ -1030,6 +1174,7 @@ export class ElectronBrowserTabHost {
   }
 
   turnEnded(threadId: string, turnId: string): void {
+    this.#toolWorkspace.turnEnded(threadId, turnId);
     this.#permissions.turnEnded(threadId, turnId);
     this.#clearPendingPermissions(
       (permission) =>
@@ -1197,6 +1342,7 @@ export class ElectronBrowserTabHost {
   }
 
   connectionLost(reason = "app-server-disconnected"): void {
+    this.#toolWorkspace.reset();
     this.#sitePermissions.cancelView();
     this.#embeddedHost.revokePermissionGrants?.();
     this.#permissions.revoke();
@@ -1231,6 +1377,7 @@ export class ElectronBrowserTabHost {
   }
 
   dispose(): void {
+    this.#toolWorkspace.reset();
     this.#sitePermissions.cancelView();
     this.#permissions.revoke();
     this.#annotations.dispose();
@@ -1404,6 +1551,8 @@ export class ElectronBrowserTabHost {
     call: BrowserToolCall,
     base: BrowserRoute,
   ): Promise<BrowserTabState> {
+    const first = await this.#toolWorkspace.navigateBlank(call, base);
+    if (first) return first;
     const native = this.#nativeRoute(base);
     const tabId = call.callId;
     const route: BrowserRoute = {
@@ -1641,6 +1790,101 @@ export class ElectronBrowserTabHost {
     }
   }
 
+  async #pageInput(
+    route: BrowserRoute,
+    call: BrowserToolCall,
+    expectedDescription: string | null = null,
+  ): Promise<BrowserToolResult> {
+    const native = this.#nativeRoute(route);
+    const revision = this.#policy.revision;
+    let started = false;
+    const context = {
+      onStart: () => {
+        started = true;
+      },
+      assertCurrent: () => {
+        this.#policy.assertCurrent(revision);
+        this.#assertAgentControl(route, call.turnId);
+        this.#assertSnapshot(
+          route,
+          call.arguments,
+          call.tool !== "scroll" || call.arguments.backendNodeId !== undefined,
+        );
+        if (call.tool === "drag")
+          this.#assertSnapshot(
+            route,
+            {
+              ...call.arguments,
+              backendNodeId: call.arguments.targetBackendNodeId,
+            },
+            true,
+          );
+        this.#permissions.assertAllowed(
+          this.#permissionAnchor(route, call.turnId),
+          this.#readState(route).url,
+        );
+        const current = this.#nativeRoute(route);
+        if (
+          this.#resolveToolRoute(call) !== route ||
+          current.view.webContents !== native.view.webContents ||
+          native.view.webContents.isDestroyed() ||
+          !route.selected ||
+          !current.view.getVisible()
+        )
+          throw new Error("Browser native input route changed");
+      },
+      runAgentInput: <T>(action: () => Promise<T>) =>
+        this.#runAgentInput(route, action),
+      releaseControl: () => this.#takeUserControl(route),
+    };
+    context.assertCurrent();
+    const mutates =
+      !["select", "drag"].includes(call.tool) || expectedDescription !== null;
+    let data: unknown;
+    try {
+      if (call.tool === "select" || call.tool === "drag") {
+        const execute =
+          call.tool === "select" ? executeBrowserSelect : executeBrowserDrag;
+        const result = await execute(native.view.webContents, call.arguments, {
+          ...context,
+          expectedDescription,
+          requestApproval: (description) =>
+            this.#requireApproval(
+              route,
+              call,
+              call.tool === "select"
+                ? "Changing a form selection can trigger page actions"
+                : "Dragging page content can trigger page actions",
+              call.tool === "select" ? "form_selection" : "drag_and_drop",
+              description,
+            ),
+        });
+        if ("status" in result) return result;
+        data = result;
+      } else
+        await executeBrowserPointerAction(
+          native.view.webContents,
+          call.tool as "hover" | "scroll",
+          call.arguments,
+          context,
+        );
+      await this.#refreshSettings();
+      context.assertCurrent();
+    } finally {
+      if (
+        started &&
+        mutates &&
+        route.latestSnapshotId === call.arguments.snapshotId
+      )
+        this.#invalidateSnapshot(route);
+    }
+    return {
+      status: "completed",
+      state: this.#emitState(route),
+      ...(data === undefined ? {} : { data }),
+    };
+  }
+
   async #click(
     route: BrowserRoute,
     call: BrowserToolCall,
@@ -1838,11 +2082,20 @@ export class ElectronBrowserTabHost {
       },
       attach: () => this.#attachDebugger(route),
       sendDebuggerCommand: (method, params, target) =>
-        this.#cdpSessions.sendDebuggerCommand(route.tabId, method, params, target),
+        this.#cdpSessions.sendDebuggerCommand(
+          route.tabId,
+          method,
+          params,
+          target,
+        ),
       resolveTarget: (target) =>
         this.#cdpSessions.resolveTarget(route.tabId, target),
       attachTarget: (targetId, assertActive) =>
-        this.#cdpSessions.attachDebuggerTarget(route.tabId, targetId, assertActive),
+        this.#cdpSessions.attachDebuggerTarget(
+          route.tabId,
+          targetId,
+          assertActive,
+        ),
       detachTarget: (targetId) =>
         this.#cdpSessions.detachDebuggerTarget(route.tabId, targetId),
       detach: () => this.#detachDebugger(route),
@@ -1853,6 +2106,21 @@ export class ElectronBrowserTabHost {
       state: () => this.#emitState(route),
       requestApproval: (reason) =>
         this.#requireApproval(route, call, reason, "full_cdp"),
+      subscribeEvents: (assertActive) =>
+        subscribeCdpEvents({
+          sessions: this.#cdpSessions,
+          events: this.#cdpEvents,
+          policy: this.#policy,
+          state: () => this.#readState(route),
+          assertActive,
+          refreshSettings: () => this.#refreshSettings(),
+          assertBrowseAllowed: (url) =>
+            this.#permissions.assertAllowed(
+              this.#permissionAnchor(route, call.turnId),
+              url,
+            ),
+          onDisconnected: () => this.#detachDebugger(route),
+        }),
     });
   }
 
@@ -1886,7 +2154,7 @@ export class ElectronBrowserTabHost {
       this.#assertSnapshot(
         route,
         call.arguments,
-        call.tool === "click" || call.tool === "fill",
+        ["click", "fill", "select", "drag"].includes(call.tool),
       );
       if (
         readRequiredString(call.arguments, "snapshotId") !== pending.snapshotId
@@ -1916,11 +2184,15 @@ export class ElectronBrowserTabHost {
       case "executeCdpCommand":
       case "attachTarget":
       case "detachTarget":
+      case "addCdpEventListener":
         return this.#executeCdpCommand(route, call, true);
       case "click":
         return await this.#click(route, call, pending.targetDescription);
       case "fill":
         return await this.#fill(route, call, pending.targetDescription);
+      case "select":
+      case "drag":
+        return this.#pageInput(route, call, pending.targetDescription);
       case "press":
         return await this.#press(route, call, true);
       case "readClipboard":

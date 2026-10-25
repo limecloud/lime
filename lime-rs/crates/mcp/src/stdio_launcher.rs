@@ -1,6 +1,6 @@
-use crate::environment::process_environment;
 use crate::stdio_process::StdioProcessHandle;
 use crate::types::McpServerConfig;
+use crate::utils::create_env_for_mcp_server;
 use rmcp::transport::TokioChildProcess;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -26,7 +26,16 @@ impl LocalStdioLauncher {
             .args(config.args())
             .kill_on_drop(true)
             .env_clear()
-            .envs(process_environment(config.env()));
+            .envs(create_env_for_mcp_server(
+                Some(
+                    config
+                        .env()
+                        .iter()
+                        .map(|(name, value)| (name.into(), value.into()))
+                        .collect(),
+                ),
+                config.env_vars(),
+            )?);
 
         if let Some(cwd) = config.sanitized_cwd() {
             command.current_dir(cwd);

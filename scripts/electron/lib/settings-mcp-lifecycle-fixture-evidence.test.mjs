@@ -63,8 +63,6 @@ function passingFacts() {
     buildFreshness: { before: { ready: true }, after: { ready: true } },
     sourceManifest: { before: sources, after: structuredClone(sources) },
     mcpDraft: {
-      sameNodeAcrossTabs: true,
-      tabDraftRetained: true,
       sectionKeep: true,
       sectionDiscard: true,
       keepDefaultFocus: true,
@@ -152,8 +150,6 @@ describe("Settings MCP lifecycle Gate B evidence", () => {
   });
 
   it.each([
-    "sameNodeAcrossTabs",
-    "tabDraftRetained",
     "sectionKeep",
     "sectionDiscard",
     "keepDefaultFocus",

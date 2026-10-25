@@ -1,4 +1,4 @@
-//! Drives Codex-shaped resize/reflow scenarios through Lime's real PTY host.
+//! Drives Lime-native resize/reflow scenarios through Lime's real PTY host.
 //!
 //! These cases use portable-pty for signaled window-size changes. Actual tmux
 //! and lost-SIGWINCH recovery are exercised separately in `tmux_resize`.

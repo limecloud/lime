@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "enum": [
+    "blocked",
+    "busy",
+    "connecting",
+    "disabled",
+    "disconnected",
+    "not_installed",
+    "permission_required",
+    "ready",
+    "unavailable",
+    "update_required"
+  ],
+  "title": "ComputerUseReadiness",
+  "type": "string"
+}

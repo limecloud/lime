@@ -10,6 +10,7 @@ doctest = false
 
 [dependencies]
 lime-core.workspace = true
+agent-protocol.workspace = true
 tool-runtime.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -18,7 +19,6 @@ tokio-util.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
-glob.workspace = true
 rmcp.workspace = true
 dirs.workspace = true
 reqwest.workspace = true

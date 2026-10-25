@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "ComputerUseAdapterKind": {
+      "enum": [
+        "chrome",
+        "native",
+        "office"
+      ],
+      "type": "string"
+    },
+    "ComputerUseGrantScope": {
+      "enum": [
+        "persistent",
+        "session"
+      ],
+      "type": "string"
+    },
+    "ComputerUseTargetIdentity": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "appId": {
+              "type": "string"
+            },
+            "processId": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "type": {
+              "const": "native",
+              "type": "string"
+            },
+            "windowId": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "appId",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "origin": {
+              "type": "string"
+            },
+            "profileId": {
+              "type": "string"
+            },
+            "tabId": {
+              "type": "string"
+            },
+            "type": {
+              "const": "chrome",
+              "type": "string"
+            },
+            "url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "origin",
+            "profileId",
+            "tabId",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "sessionId": {
+              "type": "string"
+            },
+            "type": {
+              "const": "office",
+              "type": "string"
+            },
+            "workbookId": {
+              "type": "string"
+            },
+            "workbookName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "host",
+            "sessionId",
+            "type",
+            "workbookId"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "$ref": "#/$defs/ComputerUseAdapterKind"
+    },
+    "grantScope": {
+      "$ref": "#/$defs/ComputerUseGrantScope",
+      "default": "session"
+    },
+    "target": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComputerUseTargetIdentity"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "adapter"
+  ],
+  "title": "ComputerUseSetupParams",
+  "type": "object"
+}

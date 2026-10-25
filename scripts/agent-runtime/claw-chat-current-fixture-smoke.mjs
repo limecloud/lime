@@ -335,7 +335,7 @@ function canonicalJson(value) {
 }
 
 function createHookFixture(runtimeEnv) {
-  const codexHome = path.join(runtimeEnv.tempRoot, "codex-home");
+  const codexHome = path.join(runtimeEnv.tempRoot, "lime-home");
   const configPath = path.join(codexHome, "config.toml");
   const hookScriptPath = path.join(runtimeEnv.tempRoot, "hook-gate-b.mjs");
   const markerPath = path.join(runtimeEnv.tempRoot, "hook-gate-b.jsonl");
@@ -407,7 +407,7 @@ function createHookFixture(runtimeEnv) {
       "",
     ].join("\n"),
   );
-  runtimeEnv.env.CODEX_HOME = codexHome;
+  runtimeEnv.env.LIME_HOME = codexHome;
   return {
     codexHome,
     configPath,

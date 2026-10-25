@@ -9,6 +9,9 @@ const PROVIDER_AUTH_ERROR_MESSAGE =
 const PROVIDER_QUOTA_ERROR_MESSAGE =
   "当前模型通道返回了计费或额度类错误，请检查该 Provider/模型通道的计费、配额或授权状态，或切换到其他可用模型后重试。";
 
+const PROVIDER_RATE_LIMIT_ERROR_MESSAGE =
+  "当前模型通道请求受限（429），请稍后重试；如果持续失败，请检查服务商配额或切换其他可用模型。";
+
 const PROVIDER_SESSION_EXPIRED_ERROR_MESSAGE =
   "当前模型通道返回了不兼容的工具 schema，请前往设置 -> AI 服务商检查 Provider 配置或切换模型后重试。";
 
@@ -40,7 +43,7 @@ function normalizeRuntimeErrorMessage(errorMessage: string): string {
 
 function looksLikeHttpStatus(
   message: string,
-  status: "401" | "402" | "403" | "404" | "503",
+  status: "401" | "402" | "403" | "404" | "429" | "503",
 ): boolean {
   return new RegExp(`(^|\\D)${status}(\\D|$)`).test(message);
 }
@@ -117,6 +120,17 @@ function isLikelyProviderQuotaError(message: string): boolean {
       "余额已用尽",
       "额度已用尽",
       "请充值",
+    ])
+  );
+}
+
+function isLikelyProviderRateLimitError(message: string): boolean {
+  return (
+    looksLikeHttpStatus(message, "429") ||
+    includesAny(message, [
+      "too many requests",
+      "rate limit",
+      "throttling_error",
     ])
   );
 }
@@ -291,6 +305,14 @@ export function resolveAgentRuntimeErrorPresentation(errorMessage: string): {
       displayMessage: message,
       toastMessage: message,
     };
+  }
+
+  if (isLikelyProviderRateLimitError(lowerMessage)) {
+    const message = readAgentRuntimeCopy(
+      "agentChat.runtimeError.providerRateLimit",
+      PROVIDER_RATE_LIMIT_ERROR_MESSAGE,
+    );
+    return { displayMessage: message, toastMessage: message };
   }
 
   if (isLikelyProviderAuthError(lowerMessage)) {

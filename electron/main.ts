@@ -18,6 +18,13 @@ import {
   resolveCurrentDesktopStorageRoots,
 } from "./appDataPaths";
 import { ElectronAppServerHost } from "./appServerHost";
+import { DesktopPreferencesHost } from "./desktopPreferencesHost";
+import {
+  WindowCloseConfirmation,
+  WindowCloseConfirmationHost,
+  installWindowCloseShortcut,
+} from "./windowCloseConfirmation";
+import { PowerSaveHost } from "./powerSaveHost";
 import { buildAgentRootArgument } from "./agentRoot";
 import { installAppQuitLifecycle } from "./appQuitLifecycle";
 import {
@@ -62,6 +69,7 @@ import {
   nativeImage,
   net,
   powerMonitor,
+  powerSaveBlocker,
   screen,
   session,
   safeStorage,
@@ -103,7 +111,41 @@ const browserTabHost = new ElectronBrowserTabHost(
   broadcast,
 );
 browserTabHostRef.current = browserTabHost;
-const appServerHost = new ElectronAppServerHost(browserTabHost);
+const desktopPreferencesHost = new DesktopPreferencesHost({
+  platform: process.platform,
+  request: (method, params) => appServerHost.request(method, params),
+  setMacMenuBarEnabled,
+  powerSaveHost: new PowerSaveHost({
+    platform: process.platform,
+    start: (type) => powerSaveBlocker.start(type),
+    stop: (id) => powerSaveBlocker.stop(id),
+  }),
+});
+const appServerHost: ElectronAppServerHost = new ElectronAppServerHost(
+  browserTabHost,
+  desktopPreferencesHost,
+);
+const windowCloseConfirmationHost = new WindowCloseConfirmationHost();
+const windowCloseConfirmation = new WindowCloseConfirmation<BrowserWindow>({
+  getPreference: () => desktopPreferencesHost.confirmBeforeClose,
+  confirm: (window) => windowCloseConfirmationHost.confirm(window),
+  disableConfirmation: async () => {
+    await appServerHost.request("config/batchWrite", {
+      edits: [
+        {
+          keyPath: "desktop.confirm-before-close",
+          value: "never",
+          mergeStrategy: "replace",
+        },
+      ],
+    });
+  },
+  onError: (error) =>
+    console.warn(
+      "[electron-host] Window close confirmation unavailable",
+      error,
+    ),
+});
 powerMonitor.on("resume", () => {
   void appServerHost.recoverAfterSystemResume().catch(() => {
     const diagnostics = appServerHost.getDiagnostics();
@@ -311,9 +353,14 @@ function createMainWindow(): BrowserWindow {
     if (isQuitting || process.env.LIME_ELECTRON_SMOKE === "1") {
       return;
     }
+    if (windowCloseConfirmation.shouldPreventClose(window)) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     window.hide();
   });
+  installWindowCloseShortcut(window, process.platform);
 
   mainWindow = window;
   return window;
@@ -691,6 +738,17 @@ function isAllowedMainWindowNavigation(
     return allowedOrigin !== null && url.origin === allowedOrigin;
   } catch {
     return false;
+  }
+}
+
+function setMacMenuBarEnabled(enabled: boolean): void {
+  if (process.platform !== "darwin") return;
+  if (enabled) {
+    tray ??= createTray();
+    if (!tray) throw new Error("macOS menu bar icon is unavailable");
+  } else {
+    tray?.destroy();
+    tray = null;
   }
 }
 
@@ -1094,6 +1152,10 @@ function registerIpcHandlers(): void {
       if (!window) {
         return null;
       }
+      if (command === "confirmClose") {
+        windowCloseConfirmationHost.respond(window, event.sender.id, args[0]);
+        return null;
+      }
       return handleWindowCommand(window, command, args);
     },
   );
@@ -1192,7 +1254,9 @@ function handleWindowCommand(
       window.hide();
       return null;
     case "close":
-      window.close();
+      if (window === mainWindow)
+        windowCloseConfirmation.requestClose(window, args[0] === true);
+      else window.close();
       return null;
     case "minimize":
       window.minimize();
@@ -1475,7 +1539,7 @@ if (isWindowsSquirrelStartup) {
     });
     registerIpcHandlers();
     devHttpBridge = startDevHttpBridge();
-    tray = createTray();
+    if (process.platform !== "darwin") tray = createTray();
     void warmupAppServer();
     createMainWindow();
   });
@@ -1496,6 +1560,8 @@ app.on("activate", () => {
 installAppQuitLifecycle(app, {
   prepare() {
     isQuitting = true;
+    windowCloseConfirmationHost.dispose();
+    desktopPreferencesHost.reset();
     globalShortcut.unregisterAll();
     tray?.destroy();
     tray = null;

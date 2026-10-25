@@ -27,7 +27,7 @@ fn model_request_policy_from_metadata_reads_snake_case_harness_policy() {
             "model_request_policy": {
                 "source": "model_registry",
                 "provider_id": "openai",
-                "model_id": "gpt-5-codex",
+                "model_id": "fixture-model",
                 "responses_policy": {
                     "use_responses_lite": true
                 },
@@ -40,7 +40,7 @@ fn model_request_policy_from_metadata_reads_snake_case_harness_policy() {
                     "supports_text_input": true,
                     "supports_media_input": true,
                     "supports_image_input": true,
-                    "source": "codex_default"
+                    "source": "lime_default"
                 },
                 "context_policy": {
                     "context_window": 273000,
@@ -72,7 +72,7 @@ fn model_request_policy_from_metadata_reads_snake_case_harness_policy() {
 
     assert_eq!(policy.source.as_deref(), Some("model_registry"));
     assert_eq!(policy.provider_id.as_deref(), Some("openai"));
-    assert_eq!(policy.model_id.as_deref(), Some("gpt-5-codex"));
+    assert_eq!(policy.model_id.as_deref(), Some("fixture-model"));
     assert_eq!(
         policy.responses_policy,
         Some(ModelResponsesPolicySnapshot {
@@ -101,7 +101,7 @@ fn model_request_policy_from_metadata_reads_snake_case_harness_policy() {
             supports_text_input: true,
             supports_media_input: true,
             supports_image_input: true,
-            source: "codex_default".into(),
+            source: "lime_default".into(),
         })
     );
     assert_eq!(
@@ -285,7 +285,7 @@ fn input_modality_policy_allows_images_only_when_selected_model_supports_image()
 }
 
 #[test]
-fn context_policy_follows_codex_context_window_and_auto_compact_rules() {
+fn context_policy_applies_context_window_and_auto_compact_limits() {
     let metadata = json!({
         "model_request_policy": {
             "context_policy": {
@@ -522,7 +522,7 @@ fn canonical_shell_policy_preserves_explicit_tool_opt_out() {
 }
 
 #[test]
-fn native_tool_policy_disallowed_tools_follow_codex_model_gates() {
+fn native_tool_policy_disallowed_tools_follow_model_capabilities() {
     let unified_exec_metadata = json!({
         "model_request_policy": {
             "native_tool_policy": {
@@ -586,7 +586,7 @@ fn model_request_policy_from_turn_context_reads_runtime_options_first() {
 }
 
 #[test]
-fn invalid_truncation_policy_falls_back_to_codex_default_bytes() {
+fn invalid_truncation_policy_falls_back_to_default_bytes() {
     let metadata = json!({
         "model_request_policy": {
             "truncation_policy": {

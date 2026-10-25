@@ -1,4 +1,4 @@
-//! Codex-shaped title selection; preview and managed OSC consume the same real facts.
+//! Lime-native title selection; preview and managed OSC consume the same real facts.
 
 use super::multi_select_picker::{
     MultiSelectAction, MultiSelectItem, MultiSelectPicker, MultiSelectPickerView,

@@ -703,7 +703,7 @@ pub(super) fn responses_usage(value: &Value) -> Usage {
             .pointer("/input_tokens_details/cached_tokens")
             .and_then(Value::as_u64),
         total_tokens: number("total_tokens"),
-        codex_rollout_budget_units: value
+        lime_rollout_budget_units: value
             .get("codex_rollout_budget_units")
             .and_then(Value::as_number)
             .cloned(),

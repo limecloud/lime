@@ -8,7 +8,6 @@ import type {
 import {
   compactProjectionFields,
   definedString,
-  readBooleanField,
   readRecord,
   readStringArray,
   readStringField,
@@ -93,8 +92,13 @@ function recordArray(value: unknown): Record<string, unknown>[] {
     .filter((item): item is Record<string, unknown> => Boolean(item));
 }
 
-function normalizeStatus(value: string | undefined): AgentUiThreadRuntimeStatus {
-  const normalized = value?.trim().toLowerCase().replace(/[_\s-]+/g, "_");
+function normalizeStatus(
+  value: string | undefined,
+): AgentUiThreadRuntimeStatus {
+  const normalized = value
+    ?.trim()
+    .toLowerCase()
+    .replace(/[_\s-]+/g, "_");
   switch (normalized) {
     case "active":
       return "active";
@@ -149,7 +153,8 @@ function runtimeStatusForThreadStatus(
   switch (status) {
     case "active":
       return activeFlags.some(
-        (flag) => flag === "waiting_on_approval" || flag === "waiting_on_user_input",
+        (flag) =>
+          flag === "waiting_on_approval" || flag === "waiting_on_user_input",
       )
         ? "waiting"
         : "running";
@@ -185,7 +190,11 @@ function phaseForRuntimeStatus(status: AgentUiRuntimeStatus): AgentUiPhase {
 function notificationRecords(
   input: AgentUiThreadStatusRuntimeUpdateProjectionInput,
 ): Record<string, unknown>[] {
-  for (const value of [input.notifications, input.statusUpdates, input.events]) {
+  for (const value of [
+    input.notifications,
+    input.statusUpdates,
+    input.events,
+  ]) {
     const records = recordArray(value);
     if (records.length > 0) return records;
   }
@@ -240,14 +249,19 @@ function isThreadStatusMethod(value: string | undefined): boolean {
 }
 
 function isStatusProjectionRecord(record: Record<string, unknown>): boolean {
-  const type = readStringField(record, ["type", "kind", "sourceType", "source_type"]);
+  const type = readStringField(record, [
+    "type",
+    "kind",
+    "sourceType",
+    "source_type",
+  ]);
   const method = readStringField(record, ["method"]);
   return Boolean(
     isThreadStatusMethod(method) ||
-      type === "thread_status" ||
-      type === "thread_status_changed" ||
-      type === "runtime_status" ||
-      type === "status_update",
+    type === "thread_status" ||
+    type === "thread_status_changed" ||
+    type === "runtime_status" ||
+    type === "status_update",
   );
 }
 
@@ -282,7 +296,11 @@ function surfaceScopeIssues(
   recordArray(surfaces).forEach((record, index) => {
     const surfaceThreadId = readStringField(record, ["threadId", "thread_id"]);
     const surface = readStringField(record, ["surface", "target"]);
-    const source = readStringField(record, ["source", "statusSource", "status_source"]);
+    const source = readStringField(record, [
+      "source",
+      "statusSource",
+      "status_source",
+    ]);
     if (surface && threadId && surfaceThreadId !== threadId) {
       issues.push(
         issue(
@@ -292,7 +310,11 @@ function surfaceScopeIssues(
         ),
       );
     }
-    if (source === "dom_text" || source === "text_regex" || source === "message_text") {
+    if (
+      source === "dom_text" ||
+      source === "text_regex" ||
+      source === "message_text"
+    ) {
       issues.push(
         issue(
           "status_derived_from_dom_text",
@@ -359,7 +381,11 @@ function validateSnapshot(
     }
   }
   snapshot.statusUpdates.forEach((update) => {
-    if (update.status === "active" && update.rawActiveFlagCount > 0 && update.activeFlags.length === 0) {
+    if (
+      update.status === "active" &&
+      update.rawActiveFlagCount > 0 &&
+      update.activeFlags.length === 0
+    ) {
       issues.push(
         issue(
           "active_flags_lost",
@@ -391,7 +417,7 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexThreadStatusRuntimeUpdateSnapshot(
+export function extractThreadStatusRuntimeUpdateSnapshot(
   input: AgentUiThreadStatusRuntimeUpdateProjectionInput,
 ): AgentUiThreadStatusRuntimeUpdateSnapshot {
   const statusUpdates = notificationRecords(input).map(readStatusUpdate);
@@ -399,7 +425,9 @@ export function extractCodexThreadStatusRuntimeUpdateSnapshot(
     definedString(input.threadId ?? undefined) ??
     statusUpdates.find((update) => update.threadId)?.threadId;
   const scopedUpdates = threadId
-    ? statusUpdates.filter((update) => !update.threadId || update.threadId === threadId)
+    ? statusUpdates.filter(
+        (update) => !update.threadId || update.threadId === threadId,
+      )
     : statusUpdates;
   let sawActiveUpdate = false;
   let sawInactiveAfterActive = false;
@@ -442,11 +470,11 @@ export function extractCodexThreadStatusRuntimeUpdateSnapshot(
   };
 }
 
-export function buildCodexThreadStatusRuntimeUpdateProjectionEvent(
+export function buildThreadStatusRuntimeUpdateProjectionEvent(
   input: AgentUiThreadStatusRuntimeUpdateProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexThreadStatusRuntimeUpdateSnapshot(input);
+  const snapshot = extractThreadStatusRuntimeUpdateSnapshot(input);
   const hasIssues = snapshot.validationIssues.length > 0;
   const runtimeStatus = hasIssues ? "failed" : snapshot.latestRuntimeStatus;
   return compactProjectionFields({
@@ -463,7 +491,10 @@ export function buildCodexThreadStatusRuntimeUpdateProjectionEvent(
     phase: hasIssues ? "failed" : phaseForRuntimeStatus(runtimeStatus),
     surface: "runtime_status",
     persistence: "ephemeral_live",
-    control: runtimeStatus === "running" || runtimeStatus === "waiting" ? "stop" : "none",
+    control:
+      runtimeStatus === "running" || runtimeStatus === "waiting"
+        ? "stop"
+        : "none",
     runtimeEntity: "agent_turn",
     runtimeStatus,
     latestTurnStatus: runtimeStatus,

@@ -1,4 +1,4 @@
-//! Codex-shaped JSONL output contract, separate from App Server transport DTOs.
+//! Lime-native JSONL output contract, separate from App Server transport DTOs.
 
 use std::collections::HashMap;
 

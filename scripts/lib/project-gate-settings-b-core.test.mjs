@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { settingsSections } from "../../src/components/settings-v2/sections";
 
 import {
   SETTINGS_GATE_B_SCENARIOS,
@@ -95,13 +96,67 @@ function build(sourceRecords) {
 }
 
 describe("project Gate SETTINGS-01 Gate B-F evidence", () => {
+  it("covers every current page and rejects retired page evidence", () => {
+    expect(
+      [
+        ...new Set(SETTINGS_GATE_B_SCENARIOS.map((scenario) => scenario.tab)),
+      ].sort(),
+    ).toEqual(settingsSections.map((section) => section.key).sort());
+    for (const retired of [
+      "stats-current-read",
+      "environment-current-read",
+      "automation-lifecycle",
+      "developer-current-diagnostics",
+    ]) {
+      expect(() =>
+        build([source("settings-scenario", genericScenarioSummary(retired))]),
+      ).toThrow(/unknown.*scenario/i);
+    }
+  });
+
+  it("configuration search and shell readiness do not complete their entire pages", () => {
+    const evidence = build([
+      source("shell-memory", shellMemorySummary()),
+      source(
+        "settings-scenario",
+        genericScenarioSummary("web-search-route"),
+        1,
+      ),
+    ]);
+    expect(evidence.coverage.tabs.status.memory).toBe(false);
+    expect(evidence.coverage.tabs.status.configuration).toBe(false);
+    expect(evidence.coverage.tabs.completed).toBe(0);
+    expect(evidence.surfaceProof.complete).toBe(false);
+  });
+
+  it.each(settingsSections.map((section) => section.key))(
+    "keeps the surface incomplete when %s page evidence is missing",
+    (tab) => {
+      const sourceRecords = SETTINGS_GATE_B_SCENARIOS.filter(
+        (scenario) => scenario.tab !== tab,
+      ).map((scenario, index) =>
+        source("settings-scenario", genericScenarioSummary(scenario.id), index),
+      );
+      const evidence = build(sourceRecords);
+
+      expect(evidence.surfaceProof.complete).toBe(false);
+      expect(evidence.missingTabs).toEqual([tab]);
+      expect(evidence.coverage.tabs.status[tab]).toBe(false);
+      expect(evidence.coverage.tabs.completed).toBe(
+        settingsSections.length - 1,
+      );
+    },
+  );
+
   it("aggregates only the exact claims proven by existing owner evidence", () => {
     const evidence = build([source("shell-memory", shellMemorySummary())]);
 
     expect(evidence.result).toBe("pass");
     expect(evidence.surfaceProof.complete).toBe(false);
     expect(evidence.coverage.completedScenarios).toEqual(["memory-ready"]);
-    expect(evidence.missingScenarios).toContain("memory-personalization-persistence");
+    expect(evidence.missingScenarios).toContain(
+      "memory-personalization-persistence",
+    );
     expect(evidence.missingScenarios).toContain("provider-crud-model-auth");
   });
 
@@ -113,6 +168,11 @@ describe("project Gate SETTINGS-01 Gate B-F evidence", () => {
 
     expect(evidence.surfaceProof.complete).toBe(true);
     expect(evidence.missingScenarios).toEqual([]);
+    expect(evidence.missingTabs).toEqual([]);
+    expect(evidence.coverage.tabs).toMatchObject({
+      completed: settingsSections.length,
+      total: settingsSections.length,
+    });
     expect(evidence.assertions).toMatchObject({
       total: SETTINGS_GATE_B_SCENARIOS.length,
       passed: SETTINGS_GATE_B_SCENARIOS.length,

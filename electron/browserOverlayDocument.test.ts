@@ -14,12 +14,14 @@ let updateItems: (update: {
 function mount(
   items: BrowserMenuPresentation["items"],
   confirmation?: BrowserMenuPresentation["confirmation"],
+  mode?: BrowserMenuPresentation["mode"],
 ) {
   const html = browserOverlayDocument({
     menuId: "more-1",
     anchor: { x: 900, y: 20, width: 24, height: 24 },
     items,
     ...(confirmation ? { confirmation } : {}),
+    ...(mode ? { mode } : {}),
   });
   const parsed = new DOMParser().parseFromString(html, "text/html");
   document.body.innerHTML = parsed.body.innerHTML;
@@ -63,6 +65,39 @@ afterEach(() => {
 });
 
 describe("trusted browser menu document", () => {
+  it("renders safe address options without moving focus and updates the keyboard selection", () => {
+    mount(
+      [
+        {
+          id: "docs",
+          label: "</script><img>",
+          shortcut: "https://example.com/",
+          checked: true,
+        },
+      ],
+      undefined,
+      "address",
+    );
+    expect(document.activeElement).toBe(document.body);
+    expect(
+      document.querySelector("[role=option]")?.getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(document.querySelector("img")).toBeNull();
+    updateItems({
+      menuId: "more-1",
+      items: [{ id: "other", label: "Other", checked: false }],
+    });
+    const option = document.querySelector<HTMLButtonElement>("[role=option]")!;
+    const down = new MouseEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+    });
+    option.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(document.body);
+    option.click();
+    expect(select).toHaveBeenCalledExactlyOnceWith("more-1", "other");
+  });
   it("renders a modal confirmation with cancel focused, a focus loop, safe text and one-shot actions", () => {
     mount(
       [

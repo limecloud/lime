@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-25",
+  "snapshot": "before-source-flattening-and-full-Lime-brand-adaptation",
+  "upstreamRevision": "970111f6cb62cc02fe36a82ea7d71b37a2889c97",
+  "latestUserConstraint": {
+    "destinationRoot": "lime-rs",
+    "removeIntermediateDirectory": "upstream",
+    "brand": "Lime",
+    "includesInternalBrandNames": true
+  },
+  "coordination": {
+    "sourcePathAndBrandWrites": "stopped-after-user-reported-parallel-process",
+    "legacyExecpolicyDeleted": false,
+    "sourceMigrationComplete": false
+  },
+  "integrity": {
+    "root": "lime-rs/upstream",
+    "recordedEntries": 8984,
+    "mismatches": [],
+    "matchesOriginalCopy": true
+  },
+  "validation": [
+    {
+      "id": "mcp-check",
+      "manifest": "lime-rs/upstream/Cargo.toml",
+      "packages": ["codex-mcp"],
+      "result": "passed",
+      "exitCode": 0,
+      "level": "compile"
+    },
+    {
+      "id": "product-check",
+      "manifest": "lime-rs/upstream/Cargo.toml",
+      "packages": ["codex-app-server", "codex-cli", "codex-tui"],
+      "result": "passed",
+      "exitCode": 0,
+      "level": "compile"
+    },
+    {
+      "id": "string-tests",
+      "manifest": "lime-rs/upstream/Cargo.toml",
+      "packages": ["codex-utils-string"],
+      "result": "passed",
+      "exitCode": 0,
+      "passed": 24,
+      "level": "unit"
+    },
+    {
+      "id": "execpolicy-tests",
+      "manifest": "lime-rs/upstream/Cargo.toml",
+      "packages": ["codex-execpolicy"],
+      "result": "passed",
+      "exitCode": 0,
+      "unitPassed": 7,
+      "integrationPassed": 27,
+      "level": "crate-tests"
+    },
+    {
+      "id": "script-tests",
+      "result": "passed",
+      "exitCode": 0,
+      "filesPassed": 4,
+      "passed": 15,
+      "level": "unit-and-inventory"
+    },
+    {
+      "id": "script-governance",
+      "result": "passed",
+      "exitCode": 0,
+      "level": "static"
+    },
+    {
+      "id": "app-version",
+      "result": "passed",
+      "exitCode": 0,
+      "version": "1.169.0",
+      "level": "static"
+    },
+    {
+      "id": "cli-consumer-check",
+      "manifest": "lime-rs/Cargo.toml",
+      "packages": ["cli"],
+      "result": "blocked",
+      "exitCode": 101,
+      "blocker": "current app-server-protocol missing AllowDenyRequirement (E0432/E0425, 4 errors)",
+      "copiedExecpolicyLibraryChecked": true
+    }
+  ],
+  "v8": {
+    "version": "152.2.0",
+    "cargoLockPath": "lime-rs/upstream/Cargo.lock",
+    "officialArtifactsVerified": true,
+    "assets": [
+      {
+        "environmentKey": "RUSTY_V8_ARCHIVE",
+        "filename": "librusty_v8_ptrcomp_sandbox_release_aarch64-apple-darwin.a.gz",
+        "bytes": 24581993,
+        "sha256": "feab9ae0384bebaa99c1d000654462c9d42123d587185c7876aaeef7d76ff749"
+      },
+      {
+        "environmentKey": "RUSTY_V8_SRC_BINDING_PATH",
+        "filename": "src_binding_ptrcomp_sandbox_release_aarch64-apple-darwin.rs",
+        "bytes": 40056,
+        "sha256": "b9d5652ebca515eb2bf4c2ee4a6551b2567117b5aa720f430d2032616dd7e3b5"
+      }
+    ]
+  },
+  "notProven": [
+    "flattened/renamed workspace compilation",
+    "current CLI execpolicy process integration",
+    "main Agent consumer migration",
+    "Desktop/CLI/TUI Gate B",
+    "Windows/packaged behavior"
+  ],
+  "evidence": {
+    "mcp-check": {
+      "path": "internal/refactor/source-migration-validation/mcp-check.txt",
+      "sha256": "ae18d46eb74486acbdb31a8d46eaa90a8ff663a6e4d858fb910f08a36f592fe5"
+    },
+    "product-check": {
+      "path": "internal/refactor/source-migration-validation/product-check.txt",
+      "sha256": "c6eca478291ce46b2cd084a5090f07e65482b7c9992fe7a248176e0fbf00b659"
+    },
+    "string-tests": {
+      "path": "internal/refactor/source-migration-validation/string-tests.txt",
+      "sha256": "44134f26648f0f3864553fd41b4cdce591033402aef7692a611c9d7fe68b8dd0"
+    },
+    "execpolicy-tests": {
+      "path": "internal/refactor/source-migration-validation/execpolicy-tests.txt",
+      "sha256": "9e0225b1100a27c1be825556ba766a69c4aff7738f594d4c84a3dda4dc967d0a"
+    },
+    "cli-consumer-check": {
+      "path": "internal/refactor/source-migration-validation/cli-consumer-check.txt",
+      "sha256": "486b75d5a6f35a5452f30bdcaa683c9bccdd29e8752df8c0cef57a0fc5707e18"
+    },
+    "script-tests": {
+      "path": "internal/refactor/source-migration-validation/script-tests.txt",
+      "sha256": "f046261e44e4f287738048f759f16b3f959ef5b093d90052aa1d86bba261fd3d"
+    },
+    "script-governance": {
+      "path": "internal/refactor/source-migration-validation/script-governance.txt",
+      "sha256": "d5ecc9ce397dd07745cefd4f527fa18ed03e20b874bf848304edb1f5c2448f7d"
+    },
+    "app-version": {
+      "path": "internal/refactor/source-migration-validation/app-version.txt",
+      "sha256": "e7e858597859e107e94c2794025046d4f58a042a0ef1e5c87d8666088186976e"
+    }
+  }
+}

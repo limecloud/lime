@@ -493,7 +493,7 @@ fn usage_units(
     usage: &AgentTokenUsage,
     config: &RolloutBudgetConfig,
 ) -> Result<f64, RuntimeCoreError> {
-    if let Some(units) = usage.codex_rollout_budget_units.as_ref() {
+    if let Some(units) = usage.lime_rollout_budget_units.as_ref() {
         let units = units
             .as_f64()
             .ok_or_else(|| RuntimeCoreError::InvalidRolloutBudgetUnits)?;
@@ -532,7 +532,7 @@ mod tests {
             output_tokens: output,
             cached_input_tokens: None,
             cache_creation_input_tokens: None,
-            codex_rollout_budget_units: None,
+            lime_rollout_budget_units: None,
         }
     }
 
@@ -638,7 +638,7 @@ mod tests {
     fn provider_units_are_validated_and_override_tokens() {
         let budget = RolloutBudget::new(Some(config())).expect("valid config");
         let mut value = usage(1, 1);
-        value.codex_rollout_budget_units = Some(json!(40.5).as_number().unwrap().clone());
+        value.lime_rollout_budget_units = Some(json!(40.5).as_number().unwrap().clone());
         budget
             .record_usage("tree", "root", "turn", 1, 1, &value)
             .unwrap();
@@ -649,7 +649,7 @@ mod tests {
                 .remaining_tokens,
             59
         );
-        value.codex_rollout_budget_units = Some(json!(-1).as_number().unwrap().clone());
+        value.lime_rollout_budget_units = Some(json!(-1).as_number().unwrap().clone());
         assert!(matches!(
             budget.record_usage("tree", "root", "turn", 1, 2, &value),
             Err(RuntimeCoreError::InvalidRolloutBudgetUnits)

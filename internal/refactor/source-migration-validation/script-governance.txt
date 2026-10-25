@@ -1,0 +1,22 @@
+
+> lime@1.169.0 governance:scripts
+> node scripts/check-scripts-governance.mjs
+
+[scripts-governance] ok rootFiles=84 directories=10 retiredRoot=0 retiredDirs=0 untrackedRoot=0 untrackedDirs=0 ignoredLocalFiles=0
+[scripts-governance] policy: The scripts root and first-level script domains are frozen legacy governance surfaces. New executable scripts must live under an existing scripts/<domain>/, scripts/lib/, or the owning package. Add a new scripts/<domain>/ only when the domain is documented and baseline-approved. Shrink this baseline when root scripts are migrated.
+[scripts-governance] root buckets:
+- governance: 5
+- misc: 25
+- quality: 32
+- smoke: 22
+[scripts-governance] first-level directories:
+- scripts/agent-qc: files=24 .mjs:24
+- scripts/agent-runtime: files=259 .md:1, .mjs:258
+- scripts/app-server: files=60 .mjs:60
+- scripts/electron: files=311 .json:1, .mjs:309, .swift:1
+- scripts/governance: files=7 .mjs:7
+- scripts/harness: files=28 .mjs:28
+- scripts/i18n: files=41 .mjs:4, .py:3, .ts:34
+- scripts/lib: files=125 .mjs:92, .mts:1, .ps1:1, .ts:31
+- scripts/mcp: files=8 .mjs:8
+- scripts/smoke: files=2 .mjs:2

@@ -449,6 +449,17 @@ pub fn check_runtime_gateway_tool_permissions(
     turn_context: Option<&RuntimeToolTurnContext>,
 ) -> RuntimeNativePermissionDecision {
     match tool_name {
+        crate::computer_use::COMPUTER_USE_TOOL_NAME => {
+            // Consent and canonical turn authority are checked by the shared gateway.
+            match serde_json::from_value::<crate::computer_use::ComputerUseToolInput>(
+                params.clone(),
+            ) {
+                Ok(_) => RuntimeNativePermissionDecision::allow(),
+                Err(error) => RuntimeNativePermissionDecision::deny(format!(
+                    "Invalid Computer Use arguments: {error}"
+                )),
+            }
+        }
         MEMORY_LIST_TOOL_NAME
         | MEMORY_READ_TOOL_NAME
         | MEMORY_SEARCH_TOOL_NAME

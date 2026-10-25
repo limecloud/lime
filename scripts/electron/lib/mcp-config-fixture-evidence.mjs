@@ -10,7 +10,7 @@ export const MCP_CREATE_LIST_REQUIRED_METHODS = [
   "mcpServer/create",
   "mcpServer/list",
 ];
-export const CONTEXT7_PRESET_NAME = "Context7";
+export const CONTEXT7_SERVER_NAME = "Context7";
 export const CONTEXT7_CONFIG_URL = "https://mcp.context7.com/v1/mcp";
 export const CONTEXT7_HEADER_NAME = "CONTEXT7_API_KEY";
 export const CONTEXT7_ENV_VAR_NAME = "CONTEXT7_API_KEY_LIVE";

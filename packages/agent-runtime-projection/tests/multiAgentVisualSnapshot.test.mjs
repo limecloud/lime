@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { extractCodexMultiAgentVisualSnapshot } from "../dist/index.js";
+import { extractMultiAgentVisualSnapshot } from "../dist/index.js";
 
 function spawnItem(overrides = {}) {
   return {
@@ -106,8 +106,8 @@ function baseInput(overrides = {}) {
   };
 }
 
-test("multi-agent visual snapshot is derived from Codex collabToolCall items", () => {
-  const snapshot = extractCodexMultiAgentVisualSnapshot(baseInput());
+test("multi-agent visual snapshot is derived from collabToolCall items", () => {
+  const snapshot = extractMultiAgentVisualSnapshot(baseInput());
 
   assert.deepEqual(snapshot.validationIssues, []);
   assert.equal(snapshot.collabItemCount, 2);
@@ -148,12 +148,9 @@ test("multi-agent visual snapshot is derived from Codex collabToolCall items", (
 });
 
 test("legacy plain transcript rows fail closed as visual evidence", () => {
-  const snapshot = extractCodexMultiAgentVisualSnapshot({
+  const snapshot = extractMultiAgentVisualSnapshot({
     threadId: "thread-root",
-    legacyTranscriptRows: [
-      "Spawned Robie with gpt-5 high",
-      "Finished waiting",
-    ],
+    legacyTranscriptRows: ["Spawned Robie with gpt-5 high", "Finished waiting"],
   });
 
   assert.equal(snapshot.legacyTranscriptOnly, true);
@@ -164,7 +161,7 @@ test("legacy plain transcript rows fail closed as visual evidence", () => {
 });
 
 test("collab item lineage requires sender and receiver thread ids", () => {
-  const snapshot = extractCodexMultiAgentVisualSnapshot(
+  const snapshot = extractMultiAgentVisualSnapshot(
     baseInput({
       collabToolCallItems: [
         spawnItem({
@@ -185,15 +182,12 @@ test("collab item lineage requires sender and receiver thread ids", () => {
   assert.equal(snapshot.lineageStable, false);
   assert.deepEqual(
     snapshot.validationIssues.map((item) => item.code),
-    [
-      "missing_sender_thread_id",
-      "spawn_missing_new_thread_id",
-    ],
+    ["missing_sender_thread_id", "spawn_missing_new_thread_id"],
   );
 });
 
 test("wait and list snapshots do not require receiver thread lineage", () => {
-  const snapshot = extractCodexMultiAgentVisualSnapshot({
+  const snapshot = extractMultiAgentVisualSnapshot({
     threadId: "thread-root",
     collabToolCallItems: [
       {
@@ -227,8 +221,8 @@ test("wait and list snapshots do not require receiver thread lineage", () => {
   assert.deepEqual(snapshot.validationIssues, []);
 });
 
-test("followup and interrupt keep Codex v2 names in visual snapshots", () => {
-  const snapshot = extractCodexMultiAgentVisualSnapshot({
+test("followup and interrupt keep current v2 names in visual snapshots", () => {
+  const snapshot = extractMultiAgentVisualSnapshot({
     threadId: "thread-root",
     collabToolCallItems: [
       {
@@ -249,15 +243,9 @@ test("followup and interrupt keep Codex v2 names in visual snapshots", () => {
       },
     ],
     observedSnapshot: {
-      teamTranscriptRows: [
-        { itemId: "followup-1" },
-        { itemId: "interrupt-1" },
-      ],
+      teamTranscriptRows: [{ itemId: "followup-1" }, { itemId: "interrupt-1" }],
       teamRosterCards: [],
-      delegationEdges: [
-        { itemId: "followup-1" },
-        { itemId: "interrupt-1" },
-      ],
+      delegationEdges: [{ itemId: "followup-1" }, { itemId: "interrupt-1" }],
       workerNotifications: [],
     },
   });
@@ -270,7 +258,7 @@ test("followup and interrupt keep Codex v2 names in visual snapshots", () => {
 });
 
 test("observed GUI snapshot must preserve transcript, roster, graph and worker ids", () => {
-  const snapshot = extractCodexMultiAgentVisualSnapshot(
+  const snapshot = extractMultiAgentVisualSnapshot(
     baseInput({
       observedSnapshot: {
         teamTranscriptRows: [{ itemId: "spawn-1", title: "Spawned Robie" }],
@@ -294,7 +282,7 @@ test("observed GUI snapshot must preserve transcript, roster, graph and worker i
 });
 
 test("legacy Lime/Agent team tool names are rejected before visual projection", () => {
-  const snapshot = extractCodexMultiAgentVisualSnapshot(
+  const snapshot = extractMultiAgentVisualSnapshot(
     baseInput({
       collabToolCallItems: [
         {

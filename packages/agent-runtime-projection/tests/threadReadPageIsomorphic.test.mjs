@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexThreadReadPageIsomorphicProjectionEvent,
-  extractCodexThreadReadPageIsomorphicSnapshot,
+  buildThreadReadPageIsomorphicProjectionEvent,
+  extractThreadReadPageIsomorphicSnapshot,
 } from "../dist/index.js";
 
 function turn(id, itemIds, overrides = {}) {
@@ -60,7 +60,7 @@ function threadReadInput(overrides = {}) {
 }
 
 test("thread read/list/resume pages stay isomorphic for hydrate", () => {
-  const event = buildCodexThreadReadPageIsomorphicProjectionEvent(
+  const event = buildThreadReadPageIsomorphicProjectionEvent(
     threadReadInput(),
     {
       sequence: 131,
@@ -115,7 +115,7 @@ test("thread read page detects turn order drift across turns/list and resume", (
     turn("turn-2", ["item-2-user", "item-2-assistant"]),
     turn("turn-1", ["item-1-user", "item-1-assistant"]),
   ];
-  const snapshot = extractCodexThreadReadPageIsomorphicSnapshot(
+  const snapshot = extractThreadReadPageIsomorphicSnapshot(
     threadReadInput({
       turnsListPage: {
         threadId: "thread-read",
@@ -140,7 +140,7 @@ test("thread read page detects turn order drift across turns/list and resume", (
 });
 
 test("thread read page rejects live content that cannot hydrate from read model item ids", () => {
-  const snapshot = extractCodexThreadReadPageIsomorphicSnapshot(
+  const snapshot = extractThreadReadPageIsomorphicSnapshot(
     threadReadInput({
       liveContentParts: [
         { turnId: "turn-1", itemId: "item-1-user" },
@@ -158,7 +158,7 @@ test("thread read page rejects live content that cannot hydrate from read model 
 });
 
 test("thread read pagination fails closed on duplicate or legacy paginated history source", () => {
-  const snapshot = extractCodexThreadReadPageIsomorphicSnapshot(
+  const snapshot = extractThreadReadPageIsomorphicSnapshot(
     threadReadInput({
       paginationPages: [
         {
@@ -185,7 +185,7 @@ test("thread read pagination fails closed on duplicate or legacy paginated histo
 });
 
 test("thread read page requires thread scoped read/list/resume pages", () => {
-  const snapshot = extractCodexThreadReadPageIsomorphicSnapshot(
+  const snapshot = extractThreadReadPageIsomorphicSnapshot(
     threadReadInput({
       turnsListPage: {
         threadId: "thread-other",

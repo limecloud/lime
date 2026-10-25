@@ -218,9 +218,9 @@ fn same_name_in_two_marketplaces_has_independent_cache_and_enablement() {
 fn native_plugin_resources_and_namespace_reach_the_turn_snapshot() {
     let temp = TempDir::new().unwrap();
     let source = temp.path().join("native");
-    fs::create_dir_all(source.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(source.join(".lime-plugin")).unwrap();
     fs::write(
-        source.join(".codex-plugin/plugin.json"),
+        source.join(".lime-plugin/plugin.json"),
         r#"{
         "name":"native-tools", "skills":["./instructions","./more"],
         "mcpServers":{"native":{"command":"node","args":["server.js"]}}
@@ -260,9 +260,9 @@ fn native_plugin_resources_and_namespace_reach_the_turn_snapshot() {
 fn unsupported_standard_manifest_never_falls_back_to_native() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    fs::create_dir_all(root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(root.join(".lime-plugin")).unwrap();
     fs::write(
-        root.join(".codex-plugin/plugin.json"),
+        root.join(".lime-plugin/plugin.json"),
         r#"{"name":"native"}"#,
     )
     .unwrap();

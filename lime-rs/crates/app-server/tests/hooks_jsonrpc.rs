@@ -105,11 +105,11 @@ async fn hook_lifecycle_stays_out_of_public_thread_history() {
 
 #[tokio::test]
 async fn hooks_list_returns_codex_metadata_over_public_jsonrpc() {
-    let codex_home = TempDir::new().expect("codex home");
+    let lime_home = TempDir::new().expect("codex home");
     let cwd = TempDir::new().expect("project cwd");
-    fs::create_dir_all(cwd.path().join(".codex")).expect("project config directory");
+    fs::create_dir_all(cwd.path().join(".lime")).expect("project config directory");
     fs::write(
-        cwd.path().join(".codex/config.toml"),
+        cwd.path().join(".lime/config.toml"),
         r#"[hooks]
 
 [[hooks.PreToolUse]]
@@ -125,15 +125,15 @@ additionalContextLimit = 4096
     )
     .expect("project hook config");
 
-    let previous_codex_home = std::env::var_os("CODEX_HOME");
-    let _restore_codex_home = scopeguard::guard(previous_codex_home, |value| {
+    let previous_lime_home = std::env::var_os("LIME_HOME");
+    let _restore_lime_home = scopeguard::guard(previous_lime_home, |value| {
         if let Some(value) = value {
-            std::env::set_var("CODEX_HOME", value);
+            std::env::set_var("LIME_HOME", value);
         } else {
-            std::env::remove_var("CODEX_HOME");
+            std::env::remove_var("LIME_HOME");
         }
     });
-    std::env::set_var("CODEX_HOME", codex_home.path());
+    std::env::set_var("LIME_HOME", lime_home.path());
 
     let connection = Connection::open_in_memory().expect("product db");
     create_tables(&connection).expect("product schema");
@@ -193,7 +193,7 @@ additionalContextLimit = 4096
 async fn plugin_hook_declarations_list_enablement_upgrade_and_cold_restart_share_one_owner() {
     let temp = TempDir::new().unwrap();
     let root = temp.path().join("market");
-    let native = root.join("demo/.codex-plugin");
+    let native = root.join("demo/.lime-plugin");
     fs::create_dir_all(&native).unwrap();
     fs::create_dir_all(root.join(".agents/plugins")).unwrap();
     let market = root.join(".agents/plugins/marketplace.json");

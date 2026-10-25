@@ -244,9 +244,6 @@ async fn run_add(args: AddArgs) -> Result<String> {
         "description": "",
         "server_config": server_config,
         "enabled_lime": true,
-        "enabled_claude": false,
-        "enabled_codex": false,
-        "enabled_gemini": false,
         "created_at": 0,
     });
     let response = request(

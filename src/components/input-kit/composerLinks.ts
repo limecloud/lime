@@ -51,11 +51,7 @@ export function matchesComposerLiteralLink(
   attrs: ComposerLinkAttributes,
 ): boolean {
   const source = attrs.literalMarkdownSource;
-  if (
-    source === null ||
-    attrs.literalMarkdownOccurrenceId === null ||
-    source.includes("codex-text-link://")
-  )
+  if (source === null || attrs.literalMarkdownOccurrenceId === null)
     return false;
   const tokens = Lexer.lexInline(source, { gfm: false });
   if (

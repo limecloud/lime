@@ -24,6 +24,10 @@ function fixture() {
     summarizeData: vi.fn(async () => ({ count: 3 })),
     clearData: vi.fn(async () => undefined),
   };
+  const siteSettings = {
+    count: vi.fn(async () => 2),
+    clear: vi.fn(async () => undefined),
+  };
   const native = {
     cookies: {
       get: vi.fn(async () => [
@@ -39,9 +43,16 @@ function fixture() {
   return {
     history,
     downloads,
+    siteSettings,
     native,
     session,
-    host: new BrowserDataHost({ history, downloads, session, now: () => now }),
+    host: new BrowserDataHost({
+      history,
+      downloads,
+      siteSettings,
+      session,
+      now: () => now,
+    }),
   };
 }
 
@@ -71,7 +82,7 @@ describe("Browser data current-owner coordinator", () => {
     );
     expect(settings.supportedTimeRanges.siteData).toEqual(["allTime"]);
     expect(settings.supportedTimeRanges.formData).toEqual([]);
-    expect(settings.supportedTimeRanges.siteSettings).toEqual([]);
+    expect(settings.supportedTimeRanges.siteSettings).toEqual(["allTime"]);
     expect(f.session).not.toHaveBeenCalled();
   });
   it.each(BROWSER_DATA_TIME_RANGES)(
@@ -133,6 +144,7 @@ describe("Browser data current-owner coordinator", () => {
       siteData: { siteCount: 2 },
       cache: { sizeBytes: 1234 },
       downloads: { count: 3 },
+      siteSettings: { siteCount: 2 },
     });
     expect(f.history.summarizeData).toHaveBeenCalledExactlyOnceWith(
       now - 28 * 86_400_000,
@@ -154,6 +166,7 @@ describe("Browser data current-owner coordinator", () => {
       siteData: null,
       cache: null,
       downloads: null,
+      siteSettings: { siteCount: 2 },
     });
     f.history.summarizeData.mockRejectedValue(new Error("history unavailable"));
     await expect(

@@ -1,5 +1,5 @@
 use app_server_protocol::protocol::v2::{
-    CodexErrorInfo, ErrorNotification, ServerNotification, TurnError,
+    LimeErrorInfo, ErrorNotification, ServerNotification, TurnError,
 };
 use app_server_protocol::AgentEvent;
 use serde_json::Value;
@@ -40,7 +40,7 @@ pub(super) fn project(
         notification: ServerNotification::Error(ErrorNotification {
             error: TurnError {
                 message,
-                codex_error_info: codex_error_info_from_code(code.as_deref()),
+                lime_error_info: lime_error_info_from_code(code.as_deref()),
                 additional_details,
             },
             will_retry,
@@ -52,7 +52,7 @@ pub(super) fn project(
     })
 }
 
-pub(crate) fn codex_error_info_from_code(code: Option<&str>) -> Option<CodexErrorInfo> {
+pub(crate) fn lime_error_info_from_code(code: Option<&str>) -> Option<LimeErrorInfo> {
     let code = code?;
     let normalized = code
         .chars()
@@ -60,29 +60,29 @@ pub(crate) fn codex_error_info_from_code(code: Option<&str>) -> Option<CodexErro
         .flat_map(char::to_lowercase)
         .collect::<String>();
     Some(match normalized.as_str() {
-        "contextwindowexceeded" => CodexErrorInfo::ContextWindowExceeded,
-        "sessionbudgetexceeded" => CodexErrorInfo::SessionBudgetExceeded,
-        "usagelimitexceeded" => CodexErrorInfo::UsageLimitExceeded,
-        "serveroverloaded" => CodexErrorInfo::ServerOverloaded,
-        "cyberpolicy" => CodexErrorInfo::CyberPolicy,
-        "httpconnectionfailed" => CodexErrorInfo::HttpConnectionFailed {
+        "contextwindowexceeded" => LimeErrorInfo::ContextWindowExceeded,
+        "sessionbudgetexceeded" => LimeErrorInfo::SessionBudgetExceeded,
+        "usagelimitexceeded" => LimeErrorInfo::UsageLimitExceeded,
+        "serveroverloaded" => LimeErrorInfo::ServerOverloaded,
+        "cyberpolicy" => LimeErrorInfo::CyberPolicy,
+        "httpconnectionfailed" => LimeErrorInfo::HttpConnectionFailed {
             http_status_code: None,
         },
-        "responsestreamconnectionfailed" => CodexErrorInfo::ResponseStreamConnectionFailed {
+        "responsestreamconnectionfailed" => LimeErrorInfo::ResponseStreamConnectionFailed {
             http_status_code: None,
         },
-        "internalservererror" => CodexErrorInfo::InternalServerError,
-        "unauthorized" => CodexErrorInfo::Unauthorized,
-        "badrequest" => CodexErrorInfo::BadRequest,
-        "threadrollbackfailed" => CodexErrorInfo::ThreadRollbackFailed,
-        "sandboxerror" => CodexErrorInfo::SandboxError,
-        "responsestreamdisconnected" => CodexErrorInfo::ResponseStreamDisconnected {
+        "internalservererror" => LimeErrorInfo::InternalServerError,
+        "unauthorized" => LimeErrorInfo::Unauthorized,
+        "badrequest" => LimeErrorInfo::BadRequest,
+        "threadrollbackfailed" => LimeErrorInfo::ThreadRollbackFailed,
+        "sandboxerror" => LimeErrorInfo::SandboxError,
+        "responsestreamdisconnected" => LimeErrorInfo::ResponseStreamDisconnected {
             http_status_code: None,
         },
-        "responsetoomanyfailedattempts" => CodexErrorInfo::ResponseTooManyFailedAttempts {
+        "responsetoomanyfailedattempts" => LimeErrorInfo::ResponseTooManyFailedAttempts {
             http_status_code: None,
         },
-        _ => CodexErrorInfo::Other,
+        _ => LimeErrorInfo::Other,
     })
 }
 

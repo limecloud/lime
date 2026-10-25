@@ -57,7 +57,7 @@ afterEach(async () => {
 });
 
 describe("useSettingsCategory", () => {
-  it("智能体导航应包含技能设置", () => {
+  it("集成导航应包含插件设置", () => {
     let groups: CategoryGroup[] = [];
 
     renderHookProbe((nextGroups) => {
@@ -68,11 +68,11 @@ describe("useSettingsCategory", () => {
       (group) => group.key === SettingsGroupKey.Integrations,
     );
     const skillsItem = agentGroup?.items.find(
-      (item) => item.key === SettingsTabs.Skills,
+      (item) => item.key === SettingsTabs.Plugins,
     );
 
-    expect(skillsItem?.label).toBe("Skills");
-    expect(skillsItem?.label).not.toContain("settings.tab.skills");
+    expect(skillsItem?.label).toBe("Plugins");
+    expect(skillsItem?.label).not.toContain("settings.desktop.plugins");
   });
 
   it("通用导航应包含已归档对话入口", () => {
@@ -136,6 +136,7 @@ describe("current settings navigation translations", () => {
           SettingsTabs.Browser,
           SettingsTabs.KeyboardShortcuts,
           SettingsTabs.Git,
+          SettingsTabs.Hooks,
           SettingsTabs.Worktrees,
         ]),
       );

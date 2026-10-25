@@ -34,8 +34,9 @@ use tool_runtime::sandbox::{
 use tool_runtime::shell::{is_shell_tool_name, shell_command_text_from_argv};
 use tool_runtime::shell_permission::{check_shell_command_permission, ShellPermissionDecision};
 
-mod sandbox;
 mod primary_runtime;
+mod sandbox;
+mod shell_environment;
 mod terminal;
 use sandbox::orchestrated_sandbox;
 
@@ -48,7 +49,14 @@ const OUTPUT_BYTE_CAP: usize = 4 * 1024 * 1024;
 pub struct ExecutionProcessServer {
     inner: Arc<Mutex<ExecutionProcessState>>,
     environment_registry: Arc<std::sync::RwLock<Option<Arc<EnvironmentRegistry>>>>,
-    primary_runtime: Arc<std::sync::RwLock<Option<(Arc<tool_runtime::primary_runtime::PrimaryRuntimeService>, std::path::PathBuf)>>>,
+    primary_runtime: Arc<
+        std::sync::RwLock<
+            Option<(
+                Arc<tool_runtime::primary_runtime::PrimaryRuntimeService>,
+                std::path::PathBuf,
+            )>,
+        >,
+    >,
 }
 
 #[derive(Debug)]
@@ -294,8 +302,12 @@ impl ExecutionProcessServer {
                 request.runtime_metadata.as_ref(),
             )?,
         };
-        let mut environment = request.env;
-        self.expose_primary_runtime(&mut environment)?;
+        let (environment, env_clear) = self.build_shell_environment(
+            request.env,
+            request.runtime_metadata.as_ref(),
+            thread_scope.map(|(thread_id, _)| thread_id),
+            &request.tool_id,
+        )?;
         let process_id = request.process_id.clone();
         let background = thread_scope.map(|(thread_id, display_command)| BackgroundTerminalEntry {
             thread_id: thread_id.to_string(),
@@ -342,7 +354,7 @@ impl ExecutionProcessServer {
             env: environment,
             tty: request.tty,
             stdin: true,
-            env_clear: false,
+            env_clear,
             pty_size: None,
             sandbox,
         };

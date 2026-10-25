@@ -43,6 +43,7 @@ describe.each(SUPPORTED_LOCALES)("browser tool presentation / %s", (locale) => {
       "attachTarget",
       "detachTarget",
       "executeCdpCommand",
+      "addCdpEventListener",
       "getTabs",
       "read",
     ]) {

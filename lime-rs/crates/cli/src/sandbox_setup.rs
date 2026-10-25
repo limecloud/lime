@@ -33,7 +33,7 @@ pub(crate) struct SandboxSetupCommand {
         long = "user",
         value_name = "USER",
         conflicts_with = "current_user",
-        requires = "codex_home"
+        requires = "lime_home"
     )]
     user: Option<String>,
 
@@ -45,9 +45,9 @@ pub(crate) struct SandboxSetupCommand {
     )]
     current_user: bool,
 
-    /// CODEX_HOME for the managed user. Required with --user.
-    #[arg(long = "codex-home", value_name = "DIR")]
-    codex_home: Option<PathBuf>,
+    /// LIME_HOME for the managed user. Required with --user.
+    #[arg(long = "lime-home", value_name = "DIR")]
+    lime_home: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +95,7 @@ async fn run_elevated(
     config_profile: Option<String>,
 ) -> anyhow::Result<()> {
     let identity = resolve_sandbox_setup_identity(&cmd)?;
-    let _ = (&identity.real_user, &identity.codex_home);
+    let _ = (&identity.real_user, &identity.lime_home);
     let _ = config_profile;
     bail!("Windows elevated sandbox setup is only available on Windows")
 }
@@ -175,14 +175,14 @@ async fn run_elevated(
     println!(
         "Windows elevated sandbox setup completed for {} at {}.",
         identity.real_user,
-        identity.codex_home.display()
+        identity.lime_home.display()
     );
     Ok(())
 }
 
 struct SandboxSetupIdentity {
     real_user: String,
-    codex_home: PathBuf,
+    lime_home: PathBuf,
 }
 
 fn resolve_sandbox_setup_identity(
@@ -194,13 +194,13 @@ fn resolve_sandbox_setup_identity(
             .map_err(|error| {
                 anyhow::anyhow!("failed to determine current user from environment: {error}")
             })?;
-        let codex_home = match cmd.codex_home.clone() {
-            Some(codex_home) => codex_home,
+        let lime_home = match cmd.lime_home.clone() {
+            Some(lime_home) => lime_home,
             None => std::env::current_dir().context("failed to resolve current directory")?,
         };
         return Ok(SandboxSetupIdentity {
             real_user,
-            codex_home,
+            lime_home,
         });
     }
 
@@ -208,13 +208,13 @@ fn resolve_sandbox_setup_identity(
         .user
         .clone()
         .ok_or_else(|| anyhow::anyhow!("--user or --current-user is required"))?;
-    let codex_home = cmd
-        .codex_home
+    let lime_home = cmd
+        .lime_home
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("--codex-home is required with --user"))?;
+        .ok_or_else(|| anyhow::anyhow!("--lime-home is required with --user"))?;
     Ok(SandboxSetupIdentity {
         real_user,
-        codex_home,
+        lime_home,
     })
 }
 
@@ -229,8 +229,8 @@ mod tests {
             "--elevated",
             "--user",
             "DOMAIN\\alice",
-            "--codex-home",
-            r"C:\Users\alice\.codex",
+            "--lime-home",
+            r"C:\Users\alice\.lime",
         ])
         .expect("parse");
 
@@ -238,8 +238,8 @@ mod tests {
         assert_eq!(command.user.as_deref(), Some(r"DOMAIN\alice"));
         assert!(!command.current_user);
         assert_eq!(
-            command.codex_home.as_deref(),
-            Some(std::path::Path::new(r"C:\Users\alice\.codex"))
+            command.lime_home.as_deref(),
+            Some(std::path::Path::new(r"C:\Users\alice\.lime"))
         );
     }
 
@@ -255,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn requires_codex_home_for_managed_user() {
+    fn requires_lime_home_for_managed_user() {
         let error =
             SandboxSetupCommand::try_parse_from(["setup", "--elevated", "--user", "DOMAIN\\alice"])
                 .expect_err("parse should fail");
@@ -273,8 +273,8 @@ mod tests {
             "--elevated".to_string(),
             "--user".to_string(),
             r"DOMAIN\alice".to_string(),
-            "--codex-home".to_string(),
-            r"C:\Users\alice\.codex".to_string(),
+            "--lime-home".to_string(),
+            r"C:\Users\alice\.lime".to_string(),
         ])
         .expect("parse")
         .expect("setup command");

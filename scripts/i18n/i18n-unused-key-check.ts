@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
 import { flattenResource } from "./detect-missing-translations";
+import { collectPluralKeyReferences } from "./i18n-plural-key-references";
 
 export interface UnusedI18nKey {
   key: string;
@@ -773,6 +774,15 @@ function collectKeyReferences(filePath: string): {
     ) {
       const firstArg = node.arguments[0];
       if (firstArg) {
+        collectPluralKeyReferences(
+          node,
+          resolvePossibleStaticStringExpressions(
+            firstArg,
+            constStrings,
+            constInitializers,
+          ),
+          constInitializers,
+        ).forEach((key) => addLiteralReference(literals, key));
         const pattern = createDynamicKeyPattern(
           filePath,
           sourceFile,

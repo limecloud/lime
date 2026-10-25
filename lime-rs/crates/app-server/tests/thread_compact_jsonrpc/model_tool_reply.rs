@@ -1,6 +1,29 @@
 use super::{json, Value, Wire};
 
 impl Wire {
+    pub(super) fn custom_tool_response(self, call_id: &str, name: &str, input: &str) -> String {
+        assert!(
+            matches!(self, Self::Responses),
+            "custom tools require Responses"
+        );
+        let id = format!("custom-{call_id}");
+        let item = json!({"type":"custom_tool_call","id":id,"call_id":call_id,
+            "name":name,"input":input,"status":"completed"});
+        [
+            json!({"type":"response.output_item.added","output_index":0,
+                "item":{"type":"custom_tool_call","id":id,"call_id":call_id,"name":name,"input":""}}),
+            json!({"type":"response.custom_tool_call_input.delta","item_id":id,
+                "output_index":0,"delta":input}),
+            json!({"type":"response.custom_tool_call_input.done","item_id":id,
+                "output_index":0,"input":input}),
+            json!({"type":"response.output_item.done","output_index":0,"item":item}),
+            json!({"type":"response.completed","response":{"id":"custom-step","output":[item]}}),
+        ]
+        .iter()
+        .map(|event| format!("data: {event}\n\n"))
+        .collect()
+    }
+
     pub(super) fn tool_response(self, call_id: &str, name: &str, arguments: &Value) -> String {
         let args = serde_json::to_string_pretty(arguments).unwrap();
         let events = match self {

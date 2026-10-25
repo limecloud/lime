@@ -283,7 +283,7 @@ pub(crate) fn image_executor_mode_from_route_protocol(
     protocol: Option<&str>,
 ) -> Option<&'static str> {
     match normalized_token(protocol)?.as_str() {
-        "openai_responses" | "codex_responses" => Some("responses_image_generation"),
+        "openai_responses" => Some("responses_image_generation"),
         "gemini_generate_content" => Some("gemini_generate_content"),
         "dashscope_multimodal_generation" => Some("dashscope_images"),
         "openai_images" | "fal" => Some("images_api"),
@@ -297,7 +297,6 @@ pub(crate) fn supports_image_generation_route_protocol(protocol: Option<&str>) -
         None | Some(
             "openai_images"
                 | "openai_responses"
-                | "codex_responses"
                 | "fal"
                 | "gemini_generate_content"
                 | "dashscope_multimodal_generation"

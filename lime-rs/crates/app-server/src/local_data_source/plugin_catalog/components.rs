@@ -117,15 +117,18 @@ fn parse_mcp_server_descriptors(
             };
             let content = fs::read_to_string(path).map_err(io_error("读取 Plugin MCP 配置失败"))?;
             if standard {
-                parse_agent_plugin_mcp_config(&package_root, &data_root, &content)?
+                parse_agent_plugin_mcp_config(&package_root, &data_root, &content)
+                    .map_err(|error| error.to_string())?
             } else {
-                lime_mcp::plugin_config::parse_plugin_mcp_config(&package_root, &content)?
+                lime_mcp::parse_plugin_mcp_config(&package_root, &content)
+                    .map_err(|error| error.to_string())?
             }
         }
-        Value::Object(servers) if !standard => lime_mcp::plugin_config::parse_plugin_mcp_config(
+        Value::Object(servers) if !standard => lime_mcp::parse_plugin_mcp_config(
             &package_root,
             &Value::Object(servers.clone()).to_string(),
-        )?,
+        )
+        .map_err(|error| error.to_string())?,
         _ => return Ok(Vec::new()),
     };
     let has_stdio = standard
@@ -188,7 +191,7 @@ pub(super) fn build_capability_detail(
             tracing::warn!(
                 path = %package_root.display(),
                 %error,
-                "禁用包含非法配置的 Codex Plugin Apps 组件"
+                "禁用包含非法配置的 Lime Plugin Apps 组件"
             );
             Vec::new()
         }

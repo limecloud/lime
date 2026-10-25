@@ -33,5 +33,6 @@
   "browserChrome.presetIphone15Pro": "iPhone 15 Pro",
   "browserChrome.presetGalaxyS24Ultra": "Samsung Galaxy S24 Ultra",
   "browserChrome.presetIphoneSe": "iPhone SE",
-  "browserChrome.dimensions": "Dimensions:"
+  "browserChrome.dimensions": "Dimensions:",
+  "browserChrome.addressSuggestions": "Address suggestions"
 }

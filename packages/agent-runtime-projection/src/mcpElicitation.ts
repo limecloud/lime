@@ -231,7 +231,7 @@ function validateResponseSnapshot(
   return [];
 }
 
-export function extractCodexMcpElicitationSnapshot(
+export function extractMcpElicitationSnapshot(
   input: AgentUiMcpElicitationProjectionInput,
 ): AgentUiMcpElicitationSnapshot | undefined {
   const request = buildRequestSnapshot(input);

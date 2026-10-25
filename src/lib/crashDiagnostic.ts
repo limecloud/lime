@@ -118,18 +118,12 @@ export interface McpServerEntrySummary {
   name: string;
   is_running: boolean;
   enabled_lime: boolean;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
 }
 
 export interface McpDiagnosticSummary {
   total_servers: number;
   running_servers: number;
   enabled_lime: number;
-  enabled_claude: number;
-  enabled_codex: number;
-  enabled_gemini: number;
   servers: McpServerEntrySummary[];
 }
 
@@ -330,20 +324,12 @@ function buildMcpSummary(servers: McpServerInfo[]): McpDiagnosticSummary {
     name: server.name,
     is_running: server.is_running,
     enabled_lime: server.enabled_lime,
-    enabled_claude: server.enabled_claude,
-    enabled_codex: server.enabled_codex,
-    enabled_gemini: server.enabled_gemini,
   }));
 
   return {
     total_servers: serverSummaries.length,
     running_servers: serverSummaries.filter((item) => item.is_running).length,
     enabled_lime: serverSummaries.filter((item) => item.enabled_lime).length,
-    enabled_claude: serverSummaries.filter((item) => item.enabled_claude)
-      .length,
-    enabled_codex: serverSummaries.filter((item) => item.enabled_codex).length,
-    enabled_gemini: serverSummaries.filter((item) => item.enabled_gemini)
-      .length,
     servers: serverSummaries,
   };
 }

@@ -1061,7 +1061,7 @@ mod tests {
     }
 
     #[test]
-    fn collab_agent_state_matches_codex_app_server_wire() {
+    fn collab_agent_state_matches_lime_app_server_wire() {
         let statuses = [
             (CollabAgentStatus::PendingInit, "pendingInit"),
             (CollabAgentStatus::Running, "running"),

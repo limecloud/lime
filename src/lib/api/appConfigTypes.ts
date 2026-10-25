@@ -146,7 +146,7 @@ export interface ToolExecutionNetworkRuleConfig {
 }
 
 export interface ToolExecutionPolicyConfig {
-  /** Codex-compatible checklist tool exposure; disabled unless explicitly enabled. */
+  /** Checklist tool exposure; disabled unless explicitly enabled. */
   update_plan_enabled?: boolean;
   tool_overrides?: Record<string, ToolExecutionOverrideConfig>;
   shell_command_rules?: ToolExecutionCommandRuleConfig[];
@@ -250,7 +250,15 @@ export type ExternalBrowserLinkShortcut =
   | "alt"
   | "primary-shift";
 
+export type ComposerEnterBehavior = "enter" | "cmdIfMultiline" | "cmdAlways";
+export type ConfirmBeforeClose =
+  import("../desktop-host/windowCloseConfirmation").ConfirmBeforeClose;
+
 export interface DesktopConfig {
+  "confirm-before-close"?: ConfirmBeforeClose | null;
+  preventSleepWhileRunning?: boolean | null;
+  "mac-menu-bar-enabled"?: boolean | null;
+  composerEnterBehavior?: ComposerEnterBehavior | null;
   "enabled-reasoning-efforts"?:
     | import("@/lib/model/modelReasoningPolicy").KnownModelReasoningEffort[]
     | null;
@@ -260,7 +268,19 @@ export interface DesktopConfig {
   "external-browser-link-shortcut"?: ExternalBrowserLinkShortcut;
 }
 
+/** Shell policy; execution and validation are owned by App Server. */
+export interface ShellEnvironmentPolicyToml {
+  inherit?: "all" | "core" | "none";
+  ignore_default_excludes?: boolean;
+  exclude?: string[];
+  set?: Record<string, string>;
+  include_only?: string[];
+  filters?: Record<string, "include" | "exclude">;
+  experimental_use_profile?: boolean;
+}
+
 export interface Config {
+  shell_environment_policy?: ShellEnvironmentPolicyToml;
   features?: Record<string, boolean>;
   tools?: {
     experimental_request_user_input?: { enabled?: boolean };

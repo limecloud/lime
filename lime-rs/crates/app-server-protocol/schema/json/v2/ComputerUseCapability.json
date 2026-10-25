@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "enum": [
+    "chart_read",
+    "chart_write",
+    "click",
+    "dom_read",
+    "download",
+    "drag",
+    "formula_read",
+    "formula_write",
+    "key",
+    "navigate",
+    "observe",
+    "range_read",
+    "range_write",
+    "raw_cdp",
+    "screenshot",
+    "scroll",
+    "sheet_read",
+    "sheet_write",
+    "table_read",
+    "table_write",
+    "type",
+    "upload",
+    "workbook_read",
+    "workbook_write"
+  ],
+  "title": "ComputerUseCapability",
+  "type": "string"
+}

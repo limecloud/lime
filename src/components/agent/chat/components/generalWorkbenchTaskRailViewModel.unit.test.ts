@@ -1411,7 +1411,7 @@ describe("buildGeneralWorkbenchTaskRailProjection", () => {
       sourceClient: "codex",
       sourceThreadId: "thread-codex-20260617abcdef",
       sourcePath:
-        "/Users/coso/.codex/sessions/2026/06/17/rollout-thread-codex-20260617abcdef.jsonl",
+        "/Users/coso/.lime/sessions/2026/06/17/rollout-thread-codex-20260617abcdef.jsonl",
       sourceEventType: "response_item",
       payloadType: "function_call",
       callId: "call-shell",
@@ -1550,7 +1550,7 @@ describe("buildGeneralWorkbenchTaskRailProjection", () => {
       (item) => item.id === "sources",
     );
     expect(sourcesItem?.title).not.toContain("codex");
-    expect(sourcesItem?.title).not.toContain(".codex");
+    expect(sourcesItem?.title).not.toContain(".lime");
     expect(sourcesItem?.title).not.toContain("rollout-thread");
 
     const runControlProjection =

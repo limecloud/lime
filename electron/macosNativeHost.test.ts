@@ -248,7 +248,7 @@ describe("MacOSNativeHostClient", () => {
             protocolVersion: 99,
             helperId: "foreign-helper",
             platform: "darwin",
-            applicationId: "com.openai.codex.native-host",
+            applicationId: "com.openai.lime.native-host",
           },
         }) + "\\n");
       });

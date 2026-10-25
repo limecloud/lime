@@ -128,6 +128,7 @@ function renderSettingsContent(
   const section = resolveSettingsSection(tab);
   const content = section.render({
     onNavigate,
+    searchTarget: params.searchFocus?.targetId,
     searchPath: getSettingsSearchDocument(
       tab,
       params.searchFocus?.targetId,

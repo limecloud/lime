@@ -40,7 +40,7 @@ export interface InjectionChangeEvent {
 export interface EndpointProvidersChangeEvent {
   cursor?: string;
   claude_code?: string;
-  codex?: string;
+  lime?: string;
   windsurf?: string;
   other?: string;
   [provider: string]: string | undefined;

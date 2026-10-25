@@ -12,7 +12,7 @@ import {
 import { LOCAL_ENV_SELECTIONS_ATOM_KEY as key } from "./persistedAtomTypes";
 
 const workspaceKey = "local:/workspace/project";
-const configPath = "/workspace/project/.codex/environments/environment.toml";
+const configPath = "/workspace/project/.lime/environments/environment.toml";
 const metadata = {
   key,
   storeRevision: 2,
@@ -26,7 +26,7 @@ describe("local environment selection transport", () => {
       {
         [workspaceKey]: null,
         "remote:/workspace/project": configPath,
-        "local:C:/Workspace": "C:\\Workspace\\.codex\\environment.toml",
+        "local:C:/Workspace": "C:\\Workspace\\.lime\\environment.toml",
         "local://server/share/project": "\\\\server\\share\\environment.toml",
       },
       4,

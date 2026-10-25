@@ -534,7 +534,7 @@ function validateSnapshot(
       issue(
         "goal_status_unmapped",
         "$.goalSetResponses.goal.status",
-        "Goal status must map Codex wire statuses such as budgetLimited/usageLimited.",
+        "Goal status must map wire statuses such as budgetLimited/usageLimited.",
       ),
     );
   }
@@ -658,7 +658,7 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexGoalLifecycleHydrateSnapshot(
+export function extractGoalLifecycleHydrateSnapshot(
   input: AgentUiGoalLifecycleHydrateProjectionInput,
 ): AgentUiGoalLifecycleHydrateSnapshot {
   const goalSnapshots = readGoalSnapshots(input.goalSetResponses);
@@ -756,11 +756,11 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function buildCodexGoalLifecycleHydrateProjectionEvent(
+export function buildGoalLifecycleHydrateProjectionEvent(
   input: AgentUiGoalLifecycleHydrateProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexGoalLifecycleHydrateSnapshot(input);
+  const snapshot = extractGoalLifecycleHydrateSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "state.snapshot",

@@ -9,7 +9,7 @@ impl McpDao {
     pub fn get_all(conn: &Connection) -> Result<Vec<McpServer>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT id, name, server_config, description, enabled_lime,
-                    enabled_claude, enabled_codex, enabled_gemini, created_at
+                    created_at
              FROM mcp_servers ORDER BY created_at",
         )?;
 
@@ -17,7 +17,7 @@ impl McpDao {
             let config_str: String = row.get(2)?;
             let server_config: JsonValue =
                 serde_json::from_str(&config_str).unwrap_or(JsonValue::Null);
-            let created_at_raw: Option<SqlValue> = row.get(8)?;
+            let created_at_raw: Option<SqlValue> = row.get(5)?;
 
             Ok(McpServer {
                 id: row.get(0)?,
@@ -25,9 +25,6 @@ impl McpDao {
                 server_config,
                 description: row.get(3)?,
                 enabled_lime: row.get::<_, i32>(4)? == 1,
-                enabled_claude: row.get::<_, i32>(5)? == 1,
-                enabled_codex: row.get::<_, i32>(6)? == 1,
-                enabled_gemini: row.get::<_, i32>(7)? == 1,
                 created_at: created_at_raw.and_then(normalize_created_at),
             })
         })?;
@@ -38,18 +35,14 @@ impl McpDao {
     pub fn insert(conn: &Connection, server: &McpServer) -> Result<(), rusqlite::Error> {
         conn.execute(
             "INSERT INTO mcp_servers (id, name, server_config, description,
-                                     enabled_lime, enabled_claude, enabled_codex,
-                                     enabled_gemini, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                                     enabled_lime, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 server.id,
                 server.name,
                 serde_json::to_string(&server.server_config).unwrap_or_default(),
                 server.description,
                 if server.enabled_lime { 1 } else { 0 },
-                if server.enabled_claude { 1 } else { 0 },
-                if server.enabled_codex { 1 } else { 0 },
-                if server.enabled_gemini { 1 } else { 0 },
                 server.created_at,
             ],
         )?;
@@ -59,16 +52,13 @@ impl McpDao {
     pub fn update(conn: &Connection, server: &McpServer) -> Result<(), rusqlite::Error> {
         conn.execute(
             "UPDATE mcp_servers SET name = ?1, server_config = ?2, description = ?3,
-             enabled_lime = ?4, enabled_claude = ?5, enabled_codex = ?6, enabled_gemini = ?7
-             WHERE id = ?8",
+             enabled_lime = ?4
+             WHERE id = ?5",
             params![
                 server.name,
                 serde_json::to_string(&server.server_config).unwrap_or_default(),
                 server.description,
                 if server.enabled_lime { 1 } else { 0 },
-                if server.enabled_claude { 1 } else { 0 },
-                if server.enabled_codex { 1 } else { 0 },
-                if server.enabled_gemini { 1 } else { 0 },
                 server.id,
             ],
         )?;
@@ -83,23 +73,10 @@ impl McpDao {
     pub fn toggle_enabled(
         conn: &Connection,
         id: &str,
-        app_type: &str,
         enabled: bool,
     ) -> Result<(), rusqlite::Error> {
-        let column = match app_type {
-            "lime" => "enabled_lime",
-            "claude" => "enabled_claude",
-            "codex" => "enabled_codex",
-            "gemini" => "enabled_gemini",
-            _ => {
-                return Err(rusqlite::Error::InvalidParameterName(format!(
-                    "Invalid app_type: {app_type}"
-                )))
-            }
-        };
-
-        let sql = format!("UPDATE mcp_servers SET {column} = ? WHERE id = ?");
-        conn.execute(&sql, params![if enabled { 1 } else { 0 }, id])?;
+        let sql = "UPDATE mcp_servers SET enabled_lime = ? WHERE id = ?";
+        conn.execute(sql, params![if enabled { 1 } else { 0 }, id])?;
         Ok(())
     }
 }
@@ -143,9 +120,6 @@ mod tests {
                 server_config TEXT NOT NULL,
                 description TEXT,
                 enabled_lime INTEGER DEFAULT 0,
-                enabled_claude INTEGER DEFAULT 0,
-                enabled_codex INTEGER DEFAULT 0,
-                enabled_gemini INTEGER DEFAULT 0,
                 created_at
             )",
             [],
@@ -160,8 +134,8 @@ mod tests {
         conn.execute(
             "INSERT INTO mcp_servers (
                 id, name, server_config, description,
-                enabled_lime, enabled_claude, enabled_codex, enabled_gemini, created_at
-            ) VALUES (?1, ?2, ?3, ?4, 1, 0, 0, 0, ?5)",
+                enabled_lime, created_at
+            ) VALUES (?1, ?2, ?3, ?4, 1, ?5)",
             rusqlite::params![
                 "srv-int",
                 "int-server",
@@ -183,8 +157,8 @@ mod tests {
         conn.execute(
             "INSERT INTO mcp_servers (
                 id, name, server_config, description,
-                enabled_lime, enabled_claude, enabled_codex, enabled_gemini, created_at
-            ) VALUES (?1, ?2, ?3, ?4, 1, 0, 0, 0, ?5)",
+                enabled_lime, created_at
+            ) VALUES (?1, ?2, ?3, ?4, 1, ?5)",
             rusqlite::params![
                 "srv-text",
                 "text-server",

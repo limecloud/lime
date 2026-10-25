@@ -5,6 +5,7 @@ mod inject_items;
 mod lifecycle;
 mod output_defaults;
 pub(super) mod projection;
+mod shell_environment;
 
 use super::v2_notifications::{project_events, V2NotificationProjector};
 use super::{
@@ -611,6 +612,17 @@ fn validate_thread_resume_params(params: &ThreadResumeParams) -> Result<(), Json
         ));
     }
 
+    if let Some(config) = params.config.as_ref() {
+        if let Some(key) = config
+            .keys()
+            .find(|key| !shell_environment::is_shell_environment_policy_override(key))
+        {
+            return Err(invalid_request(format!(
+                "thread/resume config {key} override is not implemented by the current runtime boundary"
+            )));
+        }
+        shell_environment::merged_shell_environment_overrides(None, Some(config))?;
+    }
     let unsupported = [
         (params.model.is_some(), "model"),
         (params.model_provider.is_some(), "modelProvider"),
@@ -624,7 +636,6 @@ fn validate_thread_resume_params(params: &ThreadResumeParams) -> Result<(), Json
         (params.approvals_reviewer.is_some(), "approvalsReviewer"),
         (params.sandbox.is_some(), "sandbox"),
         (params.permissions.is_some(), "permissions"),
-        (params.config.is_some(), "config"),
         (params.base_instructions.is_some(), "baseInstructions"),
         (
             params.developer_instructions.is_some(),

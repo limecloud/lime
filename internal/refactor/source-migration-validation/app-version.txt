@@ -1,0 +1,5 @@
+
+> lime@1.169.0 verify:app-version
+> node scripts/check-app-version-consistency.mjs
+
+[lime] 版本一致性检查通过: 1.169.0

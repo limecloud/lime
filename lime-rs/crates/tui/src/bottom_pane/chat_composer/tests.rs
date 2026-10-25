@@ -278,7 +278,7 @@ fn editor_word_and_kill_shortcuts_share_textarea_semantics() {
 }
 
 #[test]
-fn codex_control_newline_and_multiline_navigation_stay_in_composer_editor() {
+fn lime_control_newline_and_multiline_navigation_stay_in_composer_editor() {
     let mut composer = ChatComposer::default();
     composer.insert("ab\ncdef");
     composer.draft.textarea.set_cursor(2);

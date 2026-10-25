@@ -32,6 +32,8 @@ use tool_runtime::tool_lifecycle::{
 };
 use tool_runtime::tool_result_projection::NormalizedToolOutput;
 
+mod output;
+
 pub(super) enum PendingProviderToolCall {
     Function(CurrentProviderToolCall),
     Custom(CurrentProviderCustomToolCall),
@@ -593,9 +595,7 @@ impl RuntimeCodeModeSessionDelegate for RuntimeCodeModeNestedToolDelegate {
                 ));
             }
             if output.success {
-                Ok(output
-                    .structured_content
-                    .unwrap_or_else(|| serde_json::Value::String(output.text)))
+                Ok(output::code_mode_result(output))
             } else {
                 Err(output.error.unwrap_or(output.text))
             }

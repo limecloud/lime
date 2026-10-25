@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexSelectedCapabilityStackProjectionEvent,
-  extractCodexSelectedCapabilityStackSnapshot,
+  buildSelectedCapabilityStackProjectionEvent,
+  extractSelectedCapabilityStackSnapshot,
 } from "../dist/index.js";
 
 const selectedRoot = {
@@ -18,7 +18,10 @@ const selectedRoot = {
 const selectedCapabilities = {
   selectedSkills: ["executor-demo:deploy"],
   selectedMcpServers: ["executor_probe"],
-  selectedPluginTools: ["mcp__executor_probe.echo", "app__calendar.create_event"],
+  selectedPluginTools: [
+    "mcp__executor_probe.echo",
+    "app__calendar.create_event",
+  ],
 };
 
 function stackInput(overrides = {}) {
@@ -31,7 +34,7 @@ function stackInput(overrides = {}) {
 }
 
 test("selected capability stack suppresses selected tools while the environment is unavailable", () => {
-  const event = buildCodexSelectedCapabilityStackProjectionEvent(
+  const event = buildSelectedCapabilityStackProjectionEvent(
     stackInput({
       environmentStates: [
         {
@@ -97,7 +100,7 @@ test("selected capability stack suppresses selected tools while the environment 
 });
 
 test("selected capability stack injects skills, MCP servers and plugin tools after attach", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       environmentStates: [
         {
@@ -125,7 +128,9 @@ test("selected capability stack injects skills, MCP servers and plugin tools aft
   assert.deepEqual(snapshot.samples[0].selectedSkillNames, [
     "executor-demo:deploy",
   ]);
-  assert.deepEqual(snapshot.samples[0].selectedMcpServerNames, ["executor_probe"]);
+  assert.deepEqual(snapshot.samples[0].selectedMcpServerNames, [
+    "executor_probe",
+  ]);
   assert.deepEqual(snapshot.samples[0].selectedPluginToolNames, [
     "mcp__executor_probe.echo",
     "app__calendar.create_event",
@@ -134,7 +139,7 @@ test("selected capability stack injects skills, MCP servers and plugin tools aft
 });
 
 test("selected capability stack clears injected tools when resume sees the environment unavailable", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       resumeSessionId: "resume-1",
       environmentStates: [
@@ -172,7 +177,7 @@ test("selected capability stack clears injected tools when resume sees the envir
 });
 
 test("selected capability stack restores selected tools with a new generation after reattach", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       resumeSessionId: "resume-1",
       environmentStates: [
@@ -204,12 +209,14 @@ test("selected capability stack restores selected tools with a new generation af
 
   assert.equal(snapshot.injectionStable, true);
   assert.equal(snapshot.samples[0].environmentGeneration, "env-g4");
-  assert.deepEqual(snapshot.samples[0].selectedMcpServerNames, ["executor_probe"]);
+  assert.deepEqual(snapshot.samples[0].selectedMcpServerNames, [
+    "executor_probe",
+  ]);
   assert.deepEqual(snapshot.validationIssues, []);
 });
 
 test("selected capability stack resamples in the same turn when capabilities become available", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       environmentStates: [
         {
@@ -276,7 +283,7 @@ test("selected capability stack resamples in the same turn when capabilities bec
 });
 
 test("selected capability stack fails closed when unavailable samples inject selected tools", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       environmentStates: [
         {
@@ -304,7 +311,7 @@ test("selected capability stack fails closed when unavailable samples inject sel
 });
 
 test("selected capability stack fails closed when resume reuses an old available generation", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       resumed: true,
       environmentStates: [
@@ -339,7 +346,7 @@ test("selected capability stack fails closed when resume reuses an old available
 });
 
 test("selected capability stack fails closed when same-turn availability is not resampled", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       environmentStates: [
         {
@@ -387,7 +394,7 @@ test("selected capability stack fails closed when same-turn availability is not 
 });
 
 test("selected capability stack fails closed when availability rewrites historical samples", () => {
-  const snapshot = extractCodexSelectedCapabilityStackSnapshot(
+  const snapshot = extractSelectedCapabilityStackSnapshot(
     stackInput({
       environmentStates: [
         {

@@ -40,7 +40,7 @@ describe("Orchestrator Skills/MCP Electron Gate B guard", () => {
   it("proves the disabled Apps boundary without hiding ordinary MCP", () => {
     const content = readGateB();
 
-    expect(content).toContain('APPS_SERVER_NAME = "codex_apps"');
+    expect(content).toContain('APPS_SERVER_NAME = "lime_apps"');
     expect(content).toContain('ORDINARY_SERVER_NAME = "ordinary_fixture"');
     expect(content).toContain('"config/read"');
     expect(content).toContain('"config/batchWrite"');

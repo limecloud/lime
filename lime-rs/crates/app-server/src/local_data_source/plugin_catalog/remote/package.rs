@@ -45,7 +45,7 @@ pub(super) async fn prepare(
             &version,
             &item.release,
         )?;
-        // Root discovery deliberately matches Codex: nested package roots are rejected.
+        // Root discovery deliberately matches Lime: nested package roots are rejected.
         manifest::read_manifest_with_name(extracted.path(), Some(&id.name))?;
         install::prepare_remote(&store, extracted.path(), &id, &version, &metadata)
     })

@@ -2,23 +2,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexSkillsCatalogScopeProjectionEvent,
-  extractCodexSkillsCatalogScopeSnapshot,
+  buildSkillsCatalogScopeProjectionEvent,
+  extractSkillsCatalogScopeSnapshot,
 } from "../dist/index.js";
 
 const cwd = "/workspaces/current";
 const otherCwd = "/workspaces/other";
 const homeSkill = {
   name: "home-skill",
-  path: "/home/codex/skills/home-skill/SKILL.md",
+  path: "/home/lime/skills/home-skill/SKILL.md",
   scope: "User",
   source: "user",
-  root: "/home/codex/skills",
+  root: "/home/lime/skills",
   enabled: true,
 };
 
 test("Skills catalog scope skips cwd roots when environment is disabled", () => {
-  const snapshot = extractCodexSkillsCatalogScopeSnapshot({
+  const snapshot = extractSkillsCatalogScopeSnapshot({
     workspaceId: "workspace-current",
     params: {
       cwds: [cwd],
@@ -26,8 +26,8 @@ test("Skills catalog scope skips cwd roots when environment is disabled", () => 
     },
     environmentEnabled: false,
     cacheGeneration: "home-only:v1",
-    effectiveCwdRoots: ["/home/codex/skills"],
-    runtimeRequestRoots: ["/home/codex/skills"],
+    effectiveCwdRoots: ["/home/lime/skills"],
+    runtimeRequestRoots: ["/home/lime/skills"],
     response: {
       data: [
         {
@@ -43,20 +43,23 @@ test("Skills catalog scope skips cwd roots when environment is disabled", () => 
   assert.equal(snapshot.forceReload, true);
   assert.deepEqual(snapshot.requestedCwdRoots, [cwd]);
   assert.deepEqual(snapshot.catalogCwdRoots, [cwd]);
-  assert.deepEqual(snapshot.effectiveCwdRoots, ["/home/codex/skills"]);
-  assert.deepEqual(snapshot.runtimeRequestRoots, ["/home/codex/skills"]);
-  assert.deepEqual(snapshot.skills.map((skill) => skill.name), ["home-skill"]);
+  assert.deepEqual(snapshot.effectiveCwdRoots, ["/home/lime/skills"]);
+  assert.deepEqual(snapshot.runtimeRequestRoots, ["/home/lime/skills"]);
+  assert.deepEqual(
+    snapshot.skills.map((skill) => skill.name),
+    ["home-skill"],
+  );
   assert.deepEqual(snapshot.validationIssues, []);
 });
 
 test("Skills catalog scope fails closed if disabled environment still loads cwd skill roots", () => {
-  const event = buildCodexSkillsCatalogScopeProjectionEvent({
+  const event = buildSkillsCatalogScopeProjectionEvent({
     workspaceId: "workspace-current",
     params: { cwds: [cwd] },
     environmentEnabled: false,
     cacheGeneration: "leaked:v1",
-    effectiveCwdRoots: [`${cwd}/.codex/skills`],
-    runtimeRequestRoots: [`${cwd}/.codex/skills`],
+    effectiveCwdRoots: [`${cwd}/.lime/skills`],
+    runtimeRequestRoots: [`${cwd}/.lime/skills`],
     response: {
       data: [
         {
@@ -64,10 +67,10 @@ test("Skills catalog scope fails closed if disabled environment still loads cwd 
           skills: [
             {
               name: "repo-skill",
-              path: `${cwd}/.codex/skills/repo-skill/SKILL.md`,
+              path: `${cwd}/.lime/skills/repo-skill/SKILL.md`,
               scope: "Repo",
               source: "repo",
-              root: `${cwd}/.codex/skills`,
+              root: `${cwd}/.lime/skills`,
               enabled: true,
             },
           ],
@@ -89,7 +92,7 @@ test("Skills catalog scope fails closed if disabled environment still loads cwd 
 });
 
 test("Skills catalog scope preserves requested cwd order", () => {
-  const event = buildCodexSkillsCatalogScopeProjectionEvent(
+  const event = buildSkillsCatalogScopeProjectionEvent(
     {
       workspaceId: "workspace-current",
       params: {
@@ -147,7 +150,7 @@ test("Skills catalog scope preserves requested cwd order", () => {
 });
 
 test("Skills catalog scope fails closed when response reorders requested cwds", () => {
-  const snapshot = extractCodexSkillsCatalogScopeSnapshot({
+  const snapshot = extractSkillsCatalogScopeSnapshot({
     workspaceId: "workspace-current",
     params: {
       cwds: [cwd, otherCwd],
@@ -169,7 +172,7 @@ test("Skills catalog scope fails closed when response reorders requested cwds", 
 
 test("Skills extra roots update catalog and runtime request roots together", () => {
   const extraRoot = "/tmp/runtime-skill-root/skills";
-  const snapshot = extractCodexSkillsCatalogScopeSnapshot({
+  const snapshot = extractSkillsCatalogScopeSnapshot({
     workspaceId: "workspace-current",
     params: { cwds: [cwd] },
     extraRoots: [extraRoot],
@@ -199,13 +202,16 @@ test("Skills extra roots update catalog and runtime request roots together", () 
   assert.deepEqual(snapshot.extraRoots, [extraRoot]);
   assert.deepEqual(snapshot.effectiveCwdRoots, [extraRoot]);
   assert.deepEqual(snapshot.runtimeRequestRoots, [extraRoot]);
-  assert.deepEqual(snapshot.skills.map((skill) => skill.name), ["runtime-skill"]);
+  assert.deepEqual(
+    snapshot.skills.map((skill) => skill.name),
+    ["runtime-skill"],
+  );
   assert.deepEqual(snapshot.validationIssues, []);
 });
 
 test("Skills catalog scope fails closed when runtime request roots drift from catalog roots", () => {
   const extraRoot = "/tmp/runtime-skill-root/skills";
-  const snapshot = extractCodexSkillsCatalogScopeSnapshot({
+  const snapshot = extractSkillsCatalogScopeSnapshot({
     workspaceId: "workspace-current",
     params: { cwds: [cwd] },
     extraRoots: [extraRoot],
@@ -239,11 +245,11 @@ test("Skills catalog scope fails closed when runtime request roots drift from ca
 });
 
 test("Skills catalog scope rejects workspace skills from legacy global cache", () => {
-  const snapshot = extractCodexSkillsCatalogScopeSnapshot({
+  const snapshot = extractSkillsCatalogScopeSnapshot({
     workspaceId: "workspace-current",
     params: { cwds: [cwd] },
     cacheGeneration: "global-cache:v1",
-    runtimeRequestRoots: [`${cwd}/.codex/skills`],
+    runtimeRequestRoots: [`${cwd}/.lime/skills`],
     response: {
       data: [
         {
@@ -251,10 +257,10 @@ test("Skills catalog scope rejects workspace skills from legacy global cache", (
           skills: [
             {
               name: "repo-skill",
-              path: `${cwd}/.codex/skills/repo-skill/SKILL.md`,
+              path: `${cwd}/.lime/skills/repo-skill/SKILL.md`,
               scope: "Repo",
               source: "global_cache",
-              root: `${cwd}/.codex/skills`,
+              root: `${cwd}/.lime/skills`,
               cacheScope: "global",
               enabled: true,
             },
@@ -272,7 +278,7 @@ test("Skills catalog scope rejects workspace skills from legacy global cache", (
 });
 
 test("Skills catalog scope requires skill provenance and cache generation", () => {
-  const snapshot = extractCodexSkillsCatalogScopeSnapshot({
+  const snapshot = extractSkillsCatalogScopeSnapshot({
     workspaceId: "workspace-current",
     params: { cwds: [cwd] },
     response: {

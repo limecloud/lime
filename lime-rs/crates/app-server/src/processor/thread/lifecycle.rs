@@ -11,7 +11,7 @@ impl RequestProcessor {
         let params: ThreadStartParams = parse_params(params)?;
         let cwd = crate::RuntimeCore::resolve_working_directory(params.cwd.as_deref())
             .map_err(to_jsonrpc_error)?;
-        let (thread_defaults, thread_config) = defaults::read_thread_defaults(
+        let (mut thread_defaults, thread_config) = defaults::read_thread_defaults(
             self.runtime.app_config_path(),
             Path::new(&cwd),
             params.config.as_ref(),
@@ -20,6 +20,18 @@ impl RequestProcessor {
                 .map_err(to_jsonrpc_error)?
                 .as_ref(),
         )?;
+        let shell_policy = super::shell_environment::read_shell_environment_policy(
+            &thread_config,
+            Path::new(&cwd),
+            None,
+            params.config.as_ref(),
+        )
+        .await?;
+        thread_defaults.insert(
+            "shellEnvironmentPolicy".into(),
+            serde_json::to_value(shell_policy)
+                .map_err(|error| invalid_params(error.to_string()))?,
+        );
         validate_dynamic_tools(params.dynamic_tools.as_deref())?;
         let host_connection = dynamic_tools::host_connection(
             params.dynamic_tools.as_deref(),
@@ -316,7 +328,47 @@ impl RequestProcessor {
             } else {
                 (None, None)
             };
-        let metadata = thread.extra.as_ref().unwrap_or(&serde_json::Value::Null);
+        let persisted_config: Option<std::collections::HashMap<String, serde_json::Value>> = thread
+            .extra
+            .as_ref()
+            .and_then(|metadata| metadata.get("config"))
+            .filter(|value| !value.is_null())
+            .map(|value| {
+                serde_json::from_value(value.clone()).map_err(|error| {
+                    invalid_request(format!("invalid persisted thread config: {error}"))
+                })
+            })
+            .transpose()?;
+        let (_, effective_config) = defaults::read_thread_defaults(
+            self.runtime.app_config_path(),
+            &thread.cwd,
+            None,
+            self.runtime
+                .read_config_requirements()
+                .map_err(to_jsonrpc_error)?
+                .as_ref(),
+        )?;
+        let shell_policy = super::shell_environment::read_shell_environment_policy(
+            &effective_config,
+            &thread.cwd,
+            persisted_config.as_ref(),
+            params.config.as_ref(),
+        )
+        .await?;
+        let overrides = super::shell_environment::merged_shell_environment_overrides(
+            persisted_config.as_ref(),
+            params.config.as_ref(),
+        )?;
+        thread.extra = Some(
+            self.runtime
+                .set_thread_shell_environment_policy(&thread_id, shell_policy, overrides)
+                .await
+                .map_err(to_jsonrpc_error)?,
+        );
+        let metadata = thread
+            .extra
+            .as_ref()
+            .expect("updated thread policy metadata");
         let model = required_metadata_string(metadata, &["modelName", "model"], "model")?;
         let model_provider = required_thread_resume_value(&thread.model_provider, "modelProvider")?;
         let environments =

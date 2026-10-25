@@ -266,6 +266,7 @@ export default {
       "dist-electron/plugins",
       "dist-electron/app-server.release.json",
       "dist-electron/app-server",
+      "dist-electron/browser-client",
     ],
     protocols: [
       {

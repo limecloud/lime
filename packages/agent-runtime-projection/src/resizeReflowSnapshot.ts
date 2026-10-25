@@ -124,8 +124,14 @@ function viewportFromRecord(
 ): AgentUiResizeViewportSnapshot {
   const viewport = readRecord(record.viewport);
   return {
-    width: readNumberField(viewport, ["width", "w"]) ?? readNumberField(record, ["width", "viewportWidth"]) ?? 0,
-    height: readNumberField(viewport, ["height", "h"]) ?? readNumberField(record, ["height", "viewportHeight"]) ?? 0,
+    width:
+      readNumberField(viewport, ["width", "w"]) ??
+      readNumberField(record, ["width", "viewportWidth"]) ??
+      0,
+    height:
+      readNumberField(viewport, ["height", "h"]) ??
+      readNumberField(record, ["height", "viewportHeight"]) ??
+      0,
   };
 }
 
@@ -175,7 +181,11 @@ function rightSurfaceFromRecord(
     readRecord(record.sidePanel);
   return compactProjectionFields({
     visible: readBooleanField(rightSurface, ["visible", "isVisible"]) !== false,
-    owner: readStringField(rightSurface, ["owner", "activeOwner", "active_owner"]),
+    owner: readStringField(rightSurface, [
+      "owner",
+      "activeOwner",
+      "active_owner",
+    ]),
     requestId: readStringField(rightSurface, [
       "requestId",
       "request_id",
@@ -231,7 +241,9 @@ function parseFrame(
 }
 
 function uniqueDefined(values: Array<string | undefined>): string[] {
-  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
 }
 
 function sameNonEmpty(values: Array<string | undefined>): boolean {
@@ -239,7 +251,9 @@ function sameNonEmpty(values: Array<string | undefined>): boolean {
   return unique.length === 1;
 }
 
-function sameSequence(frames: readonly AgentUiResizeReflowFrameSnapshot[]): boolean {
+function sameSequence(
+  frames: readonly AgentUiResizeReflowFrameSnapshot[],
+): boolean {
   const sequences = frames
     .map((frame) => frame.itemSequence)
     .filter((sequence) => sequence.length > 0)
@@ -250,7 +264,8 @@ function sameSequence(frames: readonly AgentUiResizeReflowFrameSnapshot[]): bool
 
 function maxDelta(values: Array<number | undefined>): number {
   const numbers = values.filter(
-    (value): value is number => typeof value === "number" && Number.isFinite(value),
+    (value): value is number =>
+      typeof value === "number" && Number.isFinite(value),
   );
   if (numbers.length <= 1) return 0;
   return Math.max(...numbers) - Math.min(...numbers);
@@ -341,28 +356,42 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexResizeReflowProjectionSnapshot(
+export function extractResizeReflowProjectionSnapshot(
   input: AgentUiResizeReflowSnapshotInput,
 ): AgentUiResizeReflowProjectionSnapshot {
   const frames = (input.frames ?? input.snapshots ?? [])
     .map(parseFrame)
-    .filter((frame): frame is AgentUiResizeReflowFrameSnapshot => Boolean(frame));
+    .filter((frame): frame is AgentUiResizeReflowFrameSnapshot =>
+      Boolean(frame),
+    );
   const expectedThreadId = input.activeThreadId ?? input.threadId;
   const expectedTurnId = input.activeTurnId ?? input.turnId;
-  const visibleRightSurfaces = frames.filter((frame) => frame.rightSurface.visible);
+  const visibleRightSurfaces = frames.filter(
+    (frame) => frame.rightSurface.visible,
+  );
   const partialSnapshot = {
     frames,
     viewportSizes: Array.from(
-      new Set(frames.map((frame) => `${frame.viewport.width}x${frame.viewport.height}`)),
+      new Set(
+        frames.map(
+          (frame) => `${frame.viewport.width}x${frame.viewport.height}`,
+        ),
+      ),
     ),
     resizePairCovered:
       frames.some((frame) => frame.phase === "before") &&
       frames.some((frame) => frame.phase === "after") &&
-      new Set(frames.map((frame) => `${frame.viewport.width}x${frame.viewport.height}`)).size > 1,
+      new Set(
+        frames.map(
+          (frame) => `${frame.viewport.width}x${frame.viewport.height}`,
+        ),
+      ).size > 1,
     threadTurnBindingPreserved:
       frames.length > 0 &&
-      (!expectedThreadId || frames.every((frame) => frame.threadId === expectedThreadId)) &&
-      (!expectedTurnId || frames.every((frame) => frame.turnId === expectedTurnId)),
+      (!expectedThreadId ||
+        frames.every((frame) => frame.threadId === expectedThreadId)) &&
+      (!expectedTurnId ||
+        frames.every((frame) => frame.turnId === expectedTurnId)),
     messageAnchorStable:
       frames.length > 0 &&
       frames.every((frame) => Boolean(frame.messageList.anchorItemId)) &&
@@ -374,11 +403,15 @@ export function extractCodexResizeReflowProjectionSnapshot(
       maxDelta(frames.map((frame) => frame.inputbar.bottomPx)) <= 8,
     rightSurfaceAnchorStable:
       visibleRightSurfaces.length === 0 ||
-      (sameNonEmpty(visibleRightSurfaces.map((frame) => frame.rightSurface.owner)) &&
+      (sameNonEmpty(
+        visibleRightSurfaces.map((frame) => frame.rightSurface.owner),
+      ) &&
         sameNonEmpty(
           visibleRightSurfaces.map((frame) => frame.rightSurface.requestId),
         ) &&
-        visibleRightSurfaces.every((frame) => (frame.rightSurface.width ?? 1) > 0)),
+        visibleRightSurfaces.every(
+          (frame) => (frame.rightSurface.width ?? 1) > 0,
+        )),
     itemSequenceStable: sameSequence(frames),
     layoutStateKeptOutOfItems: !frames.some(
       (frame) => frame.layoutStateWrittenToItem,
@@ -391,11 +424,11 @@ export function extractCodexResizeReflowProjectionSnapshot(
   };
 }
 
-export function buildCodexResizeReflowSnapshotProjectionEvent(
+export function buildResizeReflowSnapshotProjectionEvent(
   input: AgentUiResizeReflowSnapshotInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexResizeReflowProjectionSnapshot(input);
+  const snapshot = extractResizeReflowProjectionSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "resize_reflow_snapshot_projection" },

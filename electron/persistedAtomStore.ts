@@ -8,6 +8,8 @@ import type {
   DraftIdentity,
   LocalEnvironmentSelections,
   LocalEnvironmentSelectionMutation,
+  LocalEnvironmentRecentActions,
+  LocalEnvironmentRecentActionMutation,
   PersistedAtomEnvelope,
   PersistedAtomMetadata,
   PersistedAtomKey,
@@ -21,12 +23,18 @@ import type {
 } from "../src/lib/api/persistedAtomTypes";
 import {
   LOCAL_ENV_SELECTIONS_ATOM_KEY,
+  LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY,
   PERSISTED_BOOLEAN_ATOM_KEYS,
   PERSISTED_BOOLEAN_DEFAULTS,
   isPersistedBooleanAtomKey,
   type PersistedBooleanAtomKey,
 } from "../src/lib/api/persistedAtomTypes";
 import { parseLocalEnvironmentSelectionMutation } from "../src/lib/api/localEnvironmentSelectionProtocol";
+import {
+  parseLocalEnvironmentRecentActionMutation,
+  parseLocalEnvironmentRecentActions,
+  recordLocalEnvironmentAction,
+} from "../src/lib/api/localEnvironmentRecentActionsProtocol";
 import { areLocalEnvironmentWorkspaceKeysEqual } from "../src/lib/localEnvironmentSelection";
 import {
   PersistedAtomFile,
@@ -77,6 +85,7 @@ export class PersistedAtomStore {
   readonly #listeners = new Set<(metadata: PersistedAtomMetadata) => void>();
   #storeRevision = 0;
   #localEnvironmentSelections: LocalEnvironmentSelections = {};
+  #localEnvironmentRecentActions: LocalEnvironmentRecentActions = {};
   #booleans: Record<PersistedBooleanAtomKey, boolean> = {
     ...PERSISTED_BOOLEAN_DEFAULTS,
   };
@@ -118,6 +127,83 @@ export class PersistedAtomStore {
     return () => {
       this.#listeners.delete(listener);
     };
+  }
+
+  sendLocalEnvironmentRecentActions(): PersistedAtomReadResult {
+    const metadata = this.metadata(LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY);
+    if (!this.#available || this.#closed)
+      return {
+        ...metadata,
+        outcome: "unavailable",
+        data: null,
+        ...(this.#closed ? { reason: "closed" as const } : {}),
+      };
+    return {
+      ...metadata,
+      outcome: "ready",
+      data: {
+        queryKind: "recent-actions",
+        recentActions: detached(this.#localEnvironmentRecentActions),
+      },
+    };
+  }
+
+  recordLocalEnvironmentAction(value: unknown): PersistedAtomUpdateResult {
+    const result = (
+      outcome: PersistedAtomUpdateResult["outcome"],
+      changed = false,
+      reason?: PersistedAtomReason,
+    ): PersistedAtomUpdateResult => ({
+      ...this.metadata(LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY),
+      outcome,
+      changed,
+      entry: null,
+      recentActions: detached(this.#localEnvironmentRecentActions),
+      ...(reason ? { reason } : {}),
+    });
+    if (!this.#available || this.#closed)
+      return result("unavailable", false, this.#closed ? "closed" : undefined);
+    let mutation: LocalEnvironmentRecentActionMutation;
+    try {
+      mutation = parseLocalEnvironmentRecentActionMutation(value);
+    } catch {
+      return result("invalid", false, "invalid_request");
+    }
+    const current =
+      this.#localEnvironmentRecentActions[mutation.environmentKey];
+    if (
+      current?.[0] === mutation.actionName &&
+      current.filter((name) => name === mutation.actionName).length === 1
+    ) {
+      if (this.#persistence.state === "error") this.#schedule();
+      return result("applied");
+    }
+    const recentActions = recordLocalEnvironmentAction(
+      this.#localEnvironmentRecentActions,
+      mutation,
+    );
+    try {
+      parseLocalEnvironmentRecentActions(
+        recentActions,
+        this.#limits.maxBindings,
+      );
+    } catch {
+      return result("invalid", false, "capacity_exceeded");
+    }
+    if (
+      this.#storeRevision === Number.MAX_SAFE_INTEGER ||
+      !this.#fits(undefined, undefined, recentActions)
+    )
+      return result("invalid", false, "capacity_exceeded");
+    this.#localEnvironmentRecentActions = recentActions;
+    this.#storeRevision += 1;
+    this.#persistence = {
+      state: "pending",
+      savedRevision: this.#persistence.savedRevision,
+    };
+    this.#broadcastPersistedAtomUpdate();
+    this.#schedule();
+    return result("applied", true);
   }
 
   sendLocalEnvironmentSelections(): PersistedAtomReadResult {
@@ -508,6 +594,7 @@ export class PersistedAtomStore {
   #fits(
     plan?: MutationPlan,
     selections = this.#localEnvironmentSelections,
+    recentActions = this.#localEnvironmentRecentActions,
   ): boolean {
     const snapshot = this.#snapshot();
     const atom = snapshot.atoms[COMPOSER_ATOM_KEY];
@@ -553,6 +640,7 @@ export class PersistedAtomStore {
             atoms: {
               ...snapshot.atoms,
               [LOCAL_ENV_SELECTIONS_ATOM_KEY]: selections,
+              [LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY]: recentActions,
               ...Object.fromEntries(
                 PERSISTED_BOOLEAN_ATOM_KEYS.map((key) => [key, false]),
               ),
@@ -590,6 +678,8 @@ export class PersistedAtomStore {
       atoms: {
         ...this.#booleans,
         [LOCAL_ENV_SELECTIONS_ATOM_KEY]: this.#localEnvironmentSelections,
+        [LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY]:
+          this.#localEnvironmentRecentActions,
         [COMPOSER_ATOM_KEY]: {
           bindings: Object.fromEntries(this.#bindings),
           entries: Object.fromEntries(this.#entries),
@@ -604,6 +694,8 @@ export class PersistedAtomStore {
       if (envelope) {
         this.#localEnvironmentSelections =
           envelope.atoms[LOCAL_ENV_SELECTIONS_ATOM_KEY] ?? {};
+        this.#localEnvironmentRecentActions =
+          envelope.atoms[LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY] ?? {};
         for (const key of PERSISTED_BOOLEAN_ATOM_KEYS)
           this.#booleans[key] =
             envelope.atoms[key] ?? PERSISTED_BOOLEAN_DEFAULTS[key];
@@ -649,6 +741,7 @@ export class PersistedAtomStore {
       for (const key of [
         COMPOSER_ATOM_KEY,
         LOCAL_ENV_SELECTIONS_ATOM_KEY,
+        LOCAL_ENV_RECENT_ACTIONS_ATOM_KEY,
         ...PERSISTED_BOOLEAN_ATOM_KEYS,
       ] as const) {
         try {

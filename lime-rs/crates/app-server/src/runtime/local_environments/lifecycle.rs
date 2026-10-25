@@ -41,11 +41,11 @@ pub(crate) async fn setup(
         .unwrap_or(Path::new(""));
     let environment = HashMap::from([
         (
-            "CODEX_SOURCE_TREE_PATH".into(),
+            "LIME_SOURCE_TREE_PATH".into(),
             Some(source_workspace.to_string_lossy().into_owned()),
         ),
         (
-            "CODEX_WORKTREE_PATH".into(),
+            "LIME_WORKTREE_PATH".into(),
             Some(
                 worktree
                     .join(relative_workspace)
@@ -195,6 +195,9 @@ async fn run(
     };
     let script = platform_script(lifecycle);
     if script.is_empty() {
+        if !cleanup && !is_cancelled() {
+            store_shell_environment(worktree, None).await;
+        }
         return None;
     }
     let cwd = worktree.join(cwd_relative_to_git_root);
@@ -247,7 +250,13 @@ async fn run(
             .map_err(|error| error.to_string())?;
         let response = match runtime
             .command_exec
-            .exec_cancellable(connection_id, params, grants, is_cancelled)
+            .exec_cancellable(
+                connection_id,
+                params,
+                grants,
+                crate::command_exec::CommandExecEnvironment::Host,
+                is_cancelled,
+            )
             .await
         {
             Ok(response) => response,
@@ -275,6 +284,19 @@ async fn run(
                 response.exit_code
             ));
         }
+        if !cleanup && !is_cancelled() {
+            let captured = std::fs::read_to_string(directory.path().join("before_env.txt"))
+                .and_then(|before| {
+                    std::fs::read_to_string(directory.path().join("captured_env.txt"))
+                        .map(|after| git::WorktreeShellEnvironment::from_captures(&before, &after))
+                });
+            if captured.is_err() {
+                tracing::warn!("Failed to capture setup shell environment");
+            }
+            if !is_cancelled() {
+                store_shell_environment(worktree, captured.ok().flatten()).await;
+            }
+        }
         Ok::<(), String>(())
     }
     .await;
@@ -284,6 +306,19 @@ async fn run(
     }
     result.finished_at = chrono::Utc::now().timestamp_millis();
     Some(result)
+}
+
+async fn store_shell_environment(
+    worktree: &Path,
+    environment: Option<git::WorktreeShellEnvironment>,
+) {
+    let result = match environment {
+        Some(environment) => git::write_worktree_shell_environment(worktree, &environment).await,
+        None => git::remove_worktree_shell_environment(worktree).await,
+    };
+    if result.is_err() {
+        tracing::warn!("Failed to store worktree shell environment");
+    }
 }
 
 fn write_script(
@@ -296,9 +331,17 @@ fn write_script(
         let path = directory.join("setup_script.sh");
         let wrapper = directory.join("setup_wrapper.sh");
         let quoted = path.to_string_lossy().replace('\'', "'\\''");
+        let before = directory
+            .join("before_env.txt")
+            .to_string_lossy()
+            .replace('\'', "'\\''");
+        let after = directory
+            .join("captured_env.txt")
+            .to_string_lossy()
+            .replace('\'', "'\\''");
         (
             path,
-            format!("set -xeo pipefail\n. '{quoted}'\n"),
+            format!("set -xeo pipefail\ncapture_path='{after}'\nbefore_capture_path='{before}'\nenv > \"$before_capture_path\"\ntrap 'code=$?; if [ \"$code\" -eq 0 ]; then env > \"$capture_path\"; fi' EXIT\n. '{quoted}'\n"),
             vec!["bash".into(), wrapper.to_string_lossy().into_owned()],
         )
     };
@@ -306,8 +349,7 @@ fn write_script(
     let (path, wrapper, command) = {
         if let Some(shell) = tool_runtime::shell_runtime::detect_powershell_executable() {
             let path = directory.join("setup_script.ps1");
-            let quoted = path.to_string_lossy().replace('\'', "''");
-            let wrapper = format!("$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n& '{quoted}'\nif ($null -ne $LASTEXITCODE) {{ exit $LASTEXITCODE }}\nif (-not $?) {{ exit 1 }}\n");
+            let wrapper = powershell_wrapper(&path, directory);
             (
                 path,
                 wrapper,
@@ -322,10 +364,7 @@ fn write_script(
             )
         } else {
             let path = directory.join("setup_script.cmd");
-            let wrapper = format!(
-                "@echo off\r\ncall \"{}\"\r\nexit /b %ERRORLEVEL%\r\n",
-                path.display()
-            );
+            let wrapper = cmd_wrapper(&path, directory);
             (
                 path,
                 wrapper,
@@ -345,3 +384,25 @@ fn write_script(
         .map_err(|error| error.to_string())?;
     Ok((command, path))
 }
+
+#[cfg(any(target_os = "windows", test))]
+fn powershell_wrapper(script: &Path, directory: &Path) -> String {
+    let quoted = script.to_string_lossy().replace('\'', "''");
+    let capture = |name: &str| {
+        let path = directory.join(name).to_string_lossy().replace('\'', "''");
+        format!("Get-ChildItem Env: | Sort-Object Name | ForEach-Object {{ '{{0}}={{1}}' -f $_.Name, $_.Value }} | Set-Content -LiteralPath '{path}' -Encoding utf8")
+    };
+    format!("$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n$exitCode = 0\n{}\ntry {{\n  & '{quoted}'\n}} finally {{\n  $exitCode = if ($null -eq $LASTEXITCODE) {{\n    if ($?) {{ 0 }} else {{ 1 }}\n  }} else {{\n    [int]$LASTEXITCODE\n  }}\n  if ($exitCode -eq 0) {{\n    {}\n  }}\n}}\nexit $exitCode\n", capture("before_env.txt"), capture("captured_env.txt"))
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn cmd_wrapper(script: &Path, directory: &Path) -> String {
+    let quote = |path: &Path| format!("\"{}\"", path.to_string_lossy().replace('"', "\"\""));
+    format!(
+        "@echo off\r\nset > {}\r\ncall {}\r\nset LIME_SETUP_EXIT_CODE=%ERRORLEVEL%\r\nif \"%LIME_SETUP_EXIT_CODE%\"==\"0\" set > {}\r\nexit /b %LIME_SETUP_EXIT_CODE%\r\n",
+        quote(&directory.join("before_env.txt")), quote(script), quote(&directory.join("captured_env.txt"))
+    )
+}
+
+#[cfg(test)]
+mod tests;

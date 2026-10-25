@@ -1,5 +1,6 @@
 import { assert } from "./claw-chat-current-fixture-utils.mjs";
 import { createBrowserCdpTargetResponses } from "./browser-cdp-target-provider.mjs";
+import { createBrowserCdpEventResponses } from "./browser-cdp-event-provider.mjs";
 
 export const CDP_CASES = [
   { name: "approved", enabled: true, decision: "allow_once", success: true },
@@ -89,5 +90,9 @@ export function createBrowserCdpResponses(scenario, helpers) {
       return { type: "text", content: `BROWSER_CDP_DONE_${entry.name}` };
     },
   ]);
-  return [...responses, ...createBrowserCdpTargetResponses(scenario, helpers)];
+  return [
+    ...responses,
+    ...createBrowserCdpEventResponses(scenario, helpers),
+    ...createBrowserCdpTargetResponses(scenario, helpers),
+  ];
 }

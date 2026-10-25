@@ -79,13 +79,6 @@ fn run_provider_id_migration(conn: &Connection) {
 fn run_mcp_startup_migrations(conn: &Connection) {
     run_nonfatal_count_migration(
         conn,
-        "MCP Lime 启用状态修复失败",
-        migration::migrate_mcp_lime_enabled,
-        |_, count| format!("[数据库] 已修复 {} 条 MCP Lime 启用状态", count),
-    );
-
-    run_nonfatal_count_migration(
-        conn,
         "MCP created_at 归一化失败",
         migration::migrate_mcp_created_at_to_integer,
         |_, count| format!("[数据库] 已归一化 {} 条 MCP created_at 字段", count),

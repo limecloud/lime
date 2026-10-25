@@ -517,7 +517,7 @@ describe("Right Surface 本地显示状态", () => {
           containerId: "old-plugin",
           title: "Old plugin",
           mcpApp: {
-            serverName: "codex_apps",
+            serverName: "lime_apps",
             connectorId: "demo",
             resourceUri: "ui://demo/view.html",
             toolItemId: "item-demo",

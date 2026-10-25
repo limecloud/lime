@@ -339,7 +339,7 @@ try {
       ],
       env: {
         ...terminalGateRuntimeEnvironment({ appServerBinaryPath: binaryPath }),
-        CODEX_HOME: hooksHome,
+        LIME_HOME: hooksHome,
       },
       initializeTimeoutMs: 60_000,
     },

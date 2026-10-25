@@ -19,7 +19,6 @@ import {
   closeElectronFixture,
   createTempRuntimeEnv,
   launchElectronFixture,
-  openSettings,
   parseInvokeTraceRaw,
   parseJsonRpcRequestsFromInvokeTrace,
   sanitizeText,
@@ -33,7 +32,10 @@ import {
   startRuntimeTurn,
   waitForTurnCompletion,
 } from "./orchestrator-skills-gate-b.mjs";
-import { parseMcpConfigFixtureArgs } from "./lib/mcp-config-fixture-evidence.mjs";
+import {
+  parseMcpConfigFixtureArgs,
+  isObservedPreloadAppServerResponse,
+} from "./lib/mcp-config-fixture-evidence.mjs";
 
 const LOG_PREFIX = "[smoke:mcp-list-changed-gate-b]";
 const SERVER_NAME = "list-changed-gate-b";
@@ -134,107 +136,111 @@ rl.on("line", (line) => {
   return { markerPath, serverPath };
 }
 
-async function waitForDynamicCatalog(page, options) {
-  if (!(await page.locator('[data-testid="mcp-config-page"]').isVisible().catch(() => false))) {
-    await openSettings(page, options);
-  }
-  await page.locator('[data-testid="settings-sidebar-tab-mcp-server"]').click();
-  const tabs = {
-    tools: page.locator('[data-testid="mcp-panel-tab-tools"]'),
-    prompts: page.locator('[data-testid="mcp-panel-tab-prompts"]'),
-    resources: page.locator('[data-testid="mcp-panel-tab-resources"]'),
-  };
+export async function waitForDynamicCatalog(
+  page,
+  options,
+  call = invokeAppServerFromPage,
+) {
   const startedAt = Date.now();
-  const latest = { tools: "", prompts: "", resources: "" };
   while (Date.now() - startedAt < options.timeoutMs) {
-    await tabs.tools.click();
-    await expandMcpServerGroup(page);
-    latest.tools = await page.locator("body").innerText();
-    await tabs.prompts.click();
-    await expandMcpServerGroup(page);
-    latest.prompts = await page.locator("body").innerText();
-    await tabs.resources.click();
-    await expandMcpServerGroup(page);
-    latest.resources = await page.locator("body").innerText();
+    const [tools, prompts, resources] = await Promise.all([
+      call(page, "mcpTool/list", {}),
+      call(page, "mcpPrompt/list", {}),
+      call(page, "mcpResource/list", {}),
+    ]);
+    for (const [response, method] of [
+      [tools, "mcpTool/list"],
+      [prompts, "mcpPrompt/list"],
+      [resources, "mcpResource/list"],
+    ])
+      assert(
+        isObservedPreloadAppServerResponse(response.ipcObservation, method),
+        "catalogue readback requires the matching real preload IPC response",
+      );
     if (
-      latest.tools.includes(DYNAMIC_TOOL_NAME) &&
-      latest.prompts.includes(DYNAMIC_PROMPT_NAME) &&
-      latest.resources.includes(DYNAMIC_RESOURCE_URI)
+      tools.result?.tools?.some(
+        (item) =>
+          item.server_name === SERVER_NAME &&
+          item.name === `mcp__${SERVER_NAME}__${DYNAMIC_TOOL_NAME}`,
+      ) &&
+      prompts.result?.prompts?.some(
+        (item) =>
+          item.server_name === SERVER_NAME && item.name === DYNAMIC_PROMPT_NAME,
+      ) &&
+      resources.result?.resources?.some(
+        (item) =>
+          item.server_name === SERVER_NAME && item.uri === DYNAMIC_RESOURCE_URI,
+      )
     ) {
-      return { ...latest, dynamicCatalogVisible: true };
+      return {
+        dynamicCatalogReadback: true,
+        proofLevel: "Electron IPC / App Server protocol",
+        settingsCatalogUi: false,
+      };
     }
     await sleep(options.intervalMs);
   }
-  throw new Error(`MCP dynamic catalog 未刷新: ${JSON.stringify(latest)}`);
+  throw new Error(
+    "MCP dynamic catalogue did not refresh through the canonical methods",
+  );
 }
 
-async function expandMcpServerGroup(page) {
-  const group = page
-    .locator("button")
-    .filter({ hasText: SERVER_NAME })
-    .last();
-  if (await group.isVisible().catch(() => false)) {
-    const expanded = await group
-      .locator("svg")
-      .evaluateAll((icons) =>
-        icons.some((icon) => icon.classList.contains("lucide-chevron-down")),
-      )
-      .catch(() => false);
-    if (!expanded) {
-      await group.click();
-    }
-  }
-}
-
-function summarizeBridge(page, recentMessages = [], directAppServerCallCount = 0) {
-  return page.evaluate(() => {
-    const traceRaw = localStorage.getItem("lime_invoke_trace_buffer_v1") || "";
-    const trace = JSON.parse(traceRaw || "[]");
-    const requests = trace.flatMap((entry) => {
-      if (entry?.command !== "app_server_handle_json_lines") return [];
-      const lines = entry?.args_preview?.request?.lines;
-      if (!Array.isArray(lines)) return [];
-      return lines.flatMap((line) => {
-        try {
-          const parsed = JSON.parse(String(line));
-          return parsed && typeof parsed === "object" ? [parsed] : [];
-        } catch {
-          return [];
-        }
+function summarizeBridge(
+  page,
+  recentMessages = [],
+  directAppServerCallCount = 0,
+) {
+  return page
+    .evaluate(() => {
+      const traceRaw =
+        localStorage.getItem("lime_invoke_trace_buffer_v1") || "";
+      const trace = JSON.parse(traceRaw || "[]");
+      const requests = trace.flatMap((entry) => {
+        if (entry?.command !== "app_server_handle_json_lines") return [];
+        const lines = entry?.args_preview?.request?.lines;
+        if (!Array.isArray(lines)) return [];
+        return lines.flatMap((line) => {
+          try {
+            const parsed = JSON.parse(String(line));
+            return parsed && typeof parsed === "object" ? [parsed] : [];
+          } catch {
+            return [];
+          }
+        });
       });
-    });
-    const methods = Array.from(
-      new Set(requests.map((request) => request.method).filter(Boolean)),
-    );
-    return {
-      electron: window.__LIME_ELECTRON__ === true,
-      hasInvokeBridge: typeof window.electronAPI?.invoke === "function",
-      appServerHandleJsonLinesSeen: trace.some(
-        (entry) =>
-          entry?.command === "app_server_handle_json_lines" &&
-          entry?.transport === "electron-ipc" &&
-          entry?.status === "success",
-      ),
-      mockFallbackHitCount: trace.filter(
-        (entry) =>
-          entry?.command === "app_server_handle_json_lines" &&
-          entry?.transport !== "electron-ipc",
-      ).length,
-      failedInvokeCount: trace.filter((entry) => entry?.status !== "success")
-        .length,
-      methods,
-      traceRaw,
-    };
-  }).then((bridge) => ({
-    ...bridge,
-    appServerHandleJsonLinesSeen:
-      bridge.appServerHandleJsonLinesSeen || directAppServerCallCount > 0,
-    directAppServerCallCount,
-    listChangedProgressKinds: recentMessages
-      .filter((message) => message?.method === "item/mcpToolCall/progress")
-      .map((message) => message.params?.notificationKind)
-      .filter(Boolean),
-  }));
+      const methods = Array.from(
+        new Set(requests.map((request) => request.method).filter(Boolean)),
+      );
+      return {
+        electron: window.__LIME_ELECTRON__ === true,
+        hasInvokeBridge: typeof window.electronAPI?.invoke === "function",
+        appServerHandleJsonLinesSeen: trace.some(
+          (entry) =>
+            entry?.command === "app_server_handle_json_lines" &&
+            entry?.transport === "electron-ipc" &&
+            entry?.status === "success",
+        ),
+        mockFallbackHitCount: trace.filter(
+          (entry) =>
+            entry?.command === "app_server_handle_json_lines" &&
+            entry?.transport !== "electron-ipc",
+        ).length,
+        failedInvokeCount: trace.filter((entry) => entry?.status !== "success")
+          .length,
+        methods,
+        traceRaw,
+      };
+    })
+    .then((bridge) => ({
+      ...bridge,
+      appServerHandleJsonLinesSeen:
+        bridge.appServerHandleJsonLinesSeen || directAppServerCallCount > 0,
+      directAppServerCallCount,
+      listChangedProgressKinds: recentMessages
+        .filter((message) => message?.method === "item/mcpToolCall/progress")
+        .map((message) => message.params?.notificationKind)
+        .filter(Boolean),
+    }));
 }
 
 async function drainRecentMessages(page) {
@@ -283,9 +289,7 @@ async function drainRecentMessages(page) {
         hasInvoke: true,
         responseType: typeof response,
         responseKeys:
-          response && typeof response === "object"
-            ? Object.keys(response)
-            : [],
+          response && typeof response === "object" ? Object.keys(response) : [],
         linesType: typeof lines,
         linesLength: lines.length,
         methods: messages.map((message) => message?.method).filter(Boolean),
@@ -359,7 +363,7 @@ export async function run() {
     scenarioId: "CODEX-ALIGN-mcp-list-changed",
     proofLevel: "Gate B controlled fixture",
     claimBoundary:
-      "Real Electron/preload/App Server/runtime MCP server notifications refresh the current GUI tools, prompts and resources catalogs. Local fixtures do not claim live provider or packaged behavior.",
+      "Real Electron/preload/App Server/runtime Agent tool turn and list_changed notifications; tools/prompts/resources are verified through canonical protocol readback, not a settings catalogue UI. No live provider or packaged claim.",
     ok: false,
     backendMode: "runtime",
     identity: { threadId: null, turnId: null, itemId: null },
@@ -400,9 +404,6 @@ export async function run() {
           tool_timeout: 60,
         },
         enabled_lime: true,
-        enabled_claude: false,
-        enabled_codex: false,
-        enabled_gemini: false,
         created_at: Date.now(),
       },
     });
@@ -427,14 +428,6 @@ export async function run() {
       observedMethods,
     );
     await openRuntimeThreadInGui(page, runtime, options);
-    await openSettings(page, options);
-    await page
-      .locator('[data-testid="settings-sidebar-tab-mcp-server"]')
-      .click();
-    await page
-      .locator('[data-testid="mcp-panel-tab-runtime"]')
-      .waitFor({ state: "visible", timeout: options.timeoutMs });
-    await page.locator('[data-testid="mcp-panel-tab-runtime"]').click();
     const turn = await startRuntimeTurn(
       page,
       runtime,
@@ -457,7 +450,11 @@ export async function run() {
       itemId: "item_call-list-changed-probe",
     };
     logStage("verify-dynamic-catalog-refresh");
-    summary.catalog = await waitForDynamicCatalog(page, options);
+    summary.catalog = await waitForDynamicCatalog(
+      page,
+      options,
+      appServerCallFromPage,
+    );
     const drained = await drainRecentMessages(page);
     const recentMessages = drained.messages;
     const bridge = await summarizeBridge(

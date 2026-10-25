@@ -163,7 +163,9 @@ function camelToSnake(value: string): string {
     .toLowerCase();
 }
 
-function normalizeTool(value: string | undefined): AgentUiMultiAgentVisualTool | undefined {
+function normalizeTool(
+  value: string | undefined,
+): AgentUiMultiAgentVisualTool | undefined {
   const normalized = value ? camelToSnake(value) : undefined;
   switch (normalized) {
     case "spawn_agent":
@@ -223,13 +225,17 @@ function runtimeStatus(value: string | undefined): AgentUiRuntimeStatus {
   }
 }
 
-function normalizeAgentStateMap(value: unknown): Record<string, Record<string, unknown>> {
+function normalizeAgentStateMap(
+  value: unknown,
+): Record<string, Record<string, unknown>> {
   const record = readRecord(value);
   if (!record) return {};
   return Object.fromEntries(
     Object.entries(record)
       .map(([threadId, state]) => [threadId, readRecord(state)])
-      .filter((entry): entry is [string, Record<string, unknown>] => Boolean(entry[1])),
+      .filter((entry): entry is [string, Record<string, unknown>] =>
+        Boolean(entry[1]),
+      ),
   );
 }
 
@@ -240,18 +246,29 @@ function metadataForThread(
   return readRecord(metadata?.[threadId]);
 }
 
-function normalizeCollabItem(value: unknown, path: string): NormalizedCollabItem | undefined {
+function normalizeCollabItem(
+  value: unknown,
+  path: string,
+): NormalizedCollabItem | undefined {
   const record = readRecord(value);
   if (!record) return undefined;
   const type = readStringField(record, ["type", "itemType", "kind"]);
   const rawTool = readStringField(record, ["tool", "toolName", "name"]);
   const tool = normalizeTool(rawTool);
-  if (type && type !== "collabToolCall" && type !== "CollabAgentToolCall" && !tool) {
+  if (
+    type &&
+    type !== "collabToolCall" &&
+    type !== "CollabAgentToolCall" &&
+    !tool
+  ) {
     return undefined;
   }
 
   const receiverThreadIds = [
-    ...readStringArrayField(record, ["receiverThreadIds", "receiver_thread_ids"]),
+    ...readStringArrayField(record, [
+      "receiverThreadIds",
+      "receiver_thread_ids",
+    ]),
     ...readStringArrayField(record, ["receiverThreadId", "receiver_thread_id"]),
   ];
   const newThreadId = readStringField(record, ["newThreadId", "new_thread_id"]);
@@ -265,23 +282,35 @@ function normalizeCollabItem(value: unknown, path: string): NormalizedCollabItem
     tool,
     rawTool,
     status: readStringField(record, ["status"]) ?? "unknown",
-    senderThreadId: readStringField(record, ["senderThreadId", "sender_thread_id"]),
+    senderThreadId: readStringField(record, [
+      "senderThreadId",
+      "sender_thread_id",
+    ]),
     receiverThreadIds,
     newThreadId,
     prompt: readStringField(record, ["prompt", "message"]),
-    requestedModel: readStringField(record, ["requestedModel", "requested_model", "model"]),
+    requestedModel: readStringField(record, [
+      "requestedModel",
+      "requested_model",
+      "model",
+    ]),
     reasoningEffort: readStringField(record, [
       "reasoningEffort",
       "reasoning_effort",
       "effort",
     ]),
-    agentsStates: normalizeAgentStateMap(record.agentsStates ?? record.agents_states),
+    agentsStates: normalizeAgentStateMap(
+      record.agentsStates ?? record.agents_states,
+    ),
   };
 }
 
-function collectCollabItems(input: AgentUiMultiAgentVisualSnapshotInput): NormalizedCollabItem[] {
-  const explicitItems = readArray(input.collabToolCallItems).map((item, index) =>
-    normalizeCollabItem(item, `$.collabToolCallItems[${index}]`),
+function collectCollabItems(
+  input: AgentUiMultiAgentVisualSnapshotInput,
+): NormalizedCollabItem[] {
+  const explicitItems = readArray(input.collabToolCallItems).map(
+    (item, index) =>
+      normalizeCollabItem(item, `$.collabToolCallItems[${index}]`),
   );
   const threadItems = readArray(input.threadItems).map((item, index) =>
     normalizeCollabItem(item, `$.threadItems[${index}]`),
@@ -335,13 +364,22 @@ function buildRosterCards(
             "agentNickname",
             "agent_nickname",
           ]),
-          role: readStringField(threadMetadata, ["role", "agentRole", "agent_role"]),
-          messagePreview: truncateText(readStringField(state, ["message", "summary"]), 240),
+          role: readStringField(threadMetadata, [
+            "role",
+            "agentRole",
+            "agent_role",
+          ]),
+          messagePreview: truncateText(
+            readStringField(state, ["message", "summary"]),
+            240,
+          ),
         } satisfies AgentUiMultiAgentVisualRosterCard),
       );
     }
   }
-  return [...rows.values()].sort((left, right) => left.threadId.localeCompare(right.threadId));
+  return [...rows.values()].sort((left, right) =>
+    left.threadId.localeCompare(right.threadId),
+  );
 }
 
 function buildDelegationEdges(
@@ -392,7 +430,12 @@ function hasObservedRequestedModelEffort(
   return rows.some((row) => {
     const record = readRecord(row);
     if (!record) return false;
-    const itemId = readStringField(record, ["itemId", "collabItemId", "toolCallId", "id"]);
+    const itemId = readStringField(record, [
+      "itemId",
+      "collabItemId",
+      "toolCallId",
+      "id",
+    ]);
     if (itemId !== expected.itemId) return false;
     const model =
       readStringField(record, ["requestedModel", "model"]) ??
@@ -402,7 +445,9 @@ function hasObservedRequestedModelEffort(
       readStringField(record, ["text", "label", "title"]);
     return Boolean(
       model?.includes(expected.requestedModel ?? "") &&
-        effort?.toLowerCase().includes((expected.reasoningEffort ?? "").toLowerCase()),
+      effort
+        ?.toLowerCase()
+        .includes((expected.reasoningEffort ?? "").toLowerCase()),
     );
   });
 }
@@ -418,7 +463,7 @@ function validateSnapshot(
       issue(
         "missing_collab_tool_call_item",
         "$.collabToolCallItems",
-        "Codex multi-agent visual snapshots must be derived from collabToolCall ThreadItem values.",
+        "Multi-agent visual snapshots must be derived from collabToolCall ThreadItem values.",
       ),
     );
   }
@@ -443,7 +488,11 @@ function validateSnapshot(
   for (const item of items) {
     if (item.rawTool && isLegacyMultiAgentToolName(item.rawTool)) {
       issues.push(
-        issue("legacy_tool_name", `${item.path}.tool`, `${item.rawTool} is not a Codex collab item tool.`),
+        issue(
+          "legacy_tool_name",
+          `${item.path}.tool`,
+          `${item.rawTool} is not a collab item tool.`,
+        ),
       );
     }
     if (!item.senderThreadId) {
@@ -490,7 +539,9 @@ function validateSnapshot(
     "toolCallId",
     "id",
   ]);
-  const expectedTranscriptIds = snapshot.teamTranscriptRows.map((row) => row.itemId);
+  const expectedTranscriptIds = snapshot.teamTranscriptRows.map(
+    (row) => row.itemId,
+  );
   if (
     expectedTranscriptIds.length > 0 &&
     !expectedTranscriptIds.every((id) => transcriptIds.has(id))
@@ -563,11 +614,14 @@ function validateSnapshot(
   }
 
   const spawnRows = snapshot.teamTranscriptRows.filter(
-    (row) => row.tool === "spawn_agent" && row.requestedModel && row.reasoningEffort,
+    (row) =>
+      row.tool === "spawn_agent" && row.requestedModel && row.reasoningEffort,
   );
   if (
     spawnRows.length > 0 &&
-    !spawnRows.every((row) => hasObservedRequestedModelEffort(transcriptRows, row))
+    !spawnRows.every((row) =>
+      hasObservedRequestedModelEffort(transcriptRows, row),
+    )
   ) {
     issues.push(
       issue(
@@ -581,7 +635,7 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexMultiAgentVisualSnapshot(
+export function extractMultiAgentVisualSnapshot(
   input: AgentUiMultiAgentVisualSnapshotInput,
 ): AgentUiMultiAgentVisualSnapshot {
   const items = collectCollabItems(input);
@@ -598,7 +652,8 @@ export function extractCodexMultiAgentVisualSnapshot(
     delegationEdges,
     workerNotifications,
     requestedModelEffortVisible: teamTranscriptRows.some(
-      (row) => row.tool === "spawn_agent" && row.requestedModel && row.reasoningEffort,
+      (row) =>
+        row.tool === "spawn_agent" && row.requestedModel && row.reasoningEffort,
     ),
     lineageStable: items.every(
       (item) =>

@@ -162,7 +162,7 @@ export interface SettingsPageParams {
   executionPolicyFocus?: ExecutionPolicyFocusContext;
   searchFocus?: SettingsSearchFocusContext;
   localEnvironmentFocus?: LocalEnvironmentFocusContext;
-  browserPage?: "history" | "downloads";
+  browserPage?: "history" | "downloads" | "site-settings";
   browserReturnOwner?: BrowserHistoryReturnOwner;
 }
 

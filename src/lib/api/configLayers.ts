@@ -21,7 +21,7 @@ export function configLayerScope(layer: ConfigLayer): string {
   )
     return source.file;
   if (source.type === "project")
-    return `${source.dotCodexFolder.replace(/[\\/]$/, "")}/config.toml`;
+    return `${source.dotLimeFolder.replace(/[\\/]$/, "")}/config.toml`;
   if (source.type === "mdm")
     return JSON.stringify([source.type, source.domain, source.key]);
   if (source.type === "enterpriseManaged")

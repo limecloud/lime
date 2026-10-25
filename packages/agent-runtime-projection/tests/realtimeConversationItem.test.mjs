@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexRealtimeConversationProjectionEvent,
-  extractCodexRealtimeConversationSnapshot,
+  buildRealtimeConversationProjectionEvent,
+  extractRealtimeConversationSnapshot,
 } from "../dist/index.js";
 
 function currentEvents() {
@@ -125,7 +125,7 @@ function currentInput(overrides = {}) {
 }
 
 test("realtime remains explicitly not-current when no owner or events are present", () => {
-  const event = buildCodexRealtimeConversationProjectionEvent(
+  const event = buildRealtimeConversationProjectionEvent(
     {
       featureStatus: "not_current",
       events: [],
@@ -179,7 +179,7 @@ test("realtime remains explicitly not-current when no owner or events are presen
 });
 
 test("not-current realtime events fail closed if they leak to transcript or tool output", () => {
-  const snapshot = extractCodexRealtimeConversationSnapshot({
+  const snapshot = extractRealtimeConversationSnapshot({
     featureStatus: "not_current",
     events: [
       {
@@ -212,7 +212,7 @@ test("not-current realtime events fail closed if they leak to transcript or tool
 });
 
 test("current realtime projection preserves thread-scoped items, append-only text and nonblocking audio", () => {
-  const snapshot = extractCodexRealtimeConversationSnapshot(currentInput());
+  const snapshot = extractRealtimeConversationSnapshot(currentInput());
 
   assert.deepEqual(snapshot.validationIssues, []);
   assert.equal(snapshot.featureStatus, "current");
@@ -248,7 +248,7 @@ test("current realtime projection preserves thread-scoped items, append-only tex
 });
 
 test("current realtime guard catches missing lifecycle, projection, append-only and sideband regressions", () => {
-  const snapshot = extractCodexRealtimeConversationSnapshot(
+  const snapshot = extractRealtimeConversationSnapshot(
     currentInput({
       events: [
         {

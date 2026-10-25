@@ -7,8 +7,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::decision::Decision;
-use crate::rule::normalize_network_rule_host;
 use crate::rule::NetworkRuleProtocol;
+use crate::rule::normalize_network_rule_host;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -91,12 +91,12 @@ pub fn blocking_append_network_rule(
 ) -> Result<(), AmendError> {
     let host = normalize_network_rule_host(host)
         .map_err(|err| AmendError::InvalidNetworkRule(err.to_string()))?;
-    if let Some(raw) = justification {
-        if raw.trim().is_empty() {
-            return Err(AmendError::InvalidNetworkRule(
-                "justification cannot be empty".to_string(),
-            ));
-        }
+    if let Some(raw) = justification
+        && raw.trim().is_empty()
+    {
+        return Err(AmendError::InvalidNetworkRule(
+            "justification cannot be empty".to_string(),
+        ));
     }
 
     let host = serde_json::to_string(&host)
@@ -326,7 +326,7 @@ network_rule(host="api.github.com", protocol="https", decision="allow", justific
             "*.example.com",
             NetworkRuleProtocol::Https,
             Decision::Allow,
-            None,
+            /*justification*/ None,
         )
         .expect_err("wildcards should be rejected");
         assert_eq!(

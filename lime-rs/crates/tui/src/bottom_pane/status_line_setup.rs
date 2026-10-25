@@ -1,4 +1,4 @@
-//! Codex-shaped status-line selection. Preview and the passive footer share real facts.
+//! Lime-native status-line selection. Preview and the passive footer share real facts.
 
 use super::multi_select_picker::{
     MultiSelectAction, MultiSelectItem, MultiSelectPicker, MultiSelectPickerView,

@@ -22,6 +22,12 @@ import {
 } from "../components/contextualSuggestions.testFixtures";
 import { useInputbarSend } from "./useInputbarSend";
 
+const config = vi.hoisted(() => ({ getConfig: vi.fn() }));
+vi.mock("@/lib/api/appConfig", () => ({
+  getConfig: config.getConfig,
+  subscribeAppConfigChanged: () => () => {},
+}));
+
 const copy = buildInputbarCoreCopy((key) => key);
 const suggestions = createContextualSuggestionsFixture();
 let root: Root;
@@ -137,14 +143,14 @@ function Harness({
   );
 }
 
-function render(props: Parameters<typeof Harness>[0] = {}) {
-  act(() =>
+async function render(props: Parameters<typeof Harness>[0] = {}) {
+  await act(async () => {
     root.render(
       <Provider store={atoms}>
         <Harness {...props} />
       </Provider>,
-    ),
-  );
+    );
+  });
 }
 function editor() {
   return container.querySelector<HTMLElement>(
@@ -156,7 +162,10 @@ function sendButton() {
     '[data-testid="send-btn"]',
   )!;
 }
-async function submit(source: "button" | "enter") {
+async function submit(
+  source: "button" | "enter",
+  options: NonNullable<ConstructorParameters<typeof KeyboardEvent>[1]> = {},
+) {
   await act(async () => {
     if (source === "button") sendButton().click();
     else
@@ -165,6 +174,7 @@ async function submit(source: "button" | "enter") {
           key: "Enter",
           bubbles: true,
           cancelable: true,
+          ...options,
         }),
       );
   });
@@ -172,6 +182,9 @@ async function submit(source: "button" | "enter") {
 
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  config.getConfig.mockResolvedValue({ desktop: {} });
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Windows");
   stubSuggestionGeometry();
   store = new BrowserAnnotationDraftStore();
   atoms = createStore();
@@ -193,12 +206,53 @@ afterEach(() => {
 });
 
 describe("Inputbar main submission with Browser annotation content", () => {
+  it.each(["pending", "failed"])(
+    "%s preferences preserve Browser drafts until an explicit button submission",
+    async (state) => {
+      if (state === "pending")
+        config.getConfig.mockReturnValue(new Promise(() => {}));
+      else config.getConfig.mockRejectedValue(new Error("config unavailable"));
+      createDraft("own", "Retain this comment");
+      await render();
+      await submit("enter");
+      await submit("enter", { ctrlKey: true });
+      expect(onSend).not.toHaveBeenCalled();
+      expect(store.get("own")).toMatchObject({
+        body: "Retain this comment",
+        pending: false,
+        failure: false,
+      });
+      expect(sendButton().disabled).toBe(false);
+      await submit("button");
+      expect(onSend).toHaveBeenCalledOnce();
+      expect(store.get("own")).toBeUndefined();
+    },
+  );
+
+  it("requires the primary modifier for Browser-only content when cmdAlways is configured", async () => {
+    config.getConfig.mockResolvedValue({
+      desktop: { composerEnterBehavior: "cmdAlways" },
+    });
+    createDraft("own", "Comment with modifier");
+    await render();
+    await submit("enter");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(store.get("own")?.body).toBe("Comment with modifier");
+    await submit("enter", { ctrlKey: true });
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(onSend.mock.calls[0][0]?.textOverride).toContain(
+      "User comment:\nComment with modifier",
+    );
+    expect(store.get("own")).toBeUndefined();
+    expect(onComposerCommitted).not.toHaveBeenCalled();
+  });
+
   it.each(["button", "enter"] as const)(
     "%s sends a Browser-only draft through the existing text/image adapter without consuming the empty main Composer",
     async (source) => {
       createDraft("own", "Make the heading larger");
       const commit = vi.spyOn(controller, "commit");
-      render();
+      await render();
       expect(sendButton().disabled).toBe(false);
       expect(editor().textContent).toBe("");
       await submit(source);
@@ -234,7 +288,7 @@ describe("Inputbar main submission with Browser annotation content", () => {
     createDraft("whitespace", " \n ");
     createDraft("other-session", "Foreign session", "session-2");
     createDraft("other-thread", "Foreign thread", "session-1", "thread-2");
-    render();
+    await render();
     expect(sendButton().disabled).toBe(true);
     await submit("enter");
     expect(onSend).not.toHaveBeenCalled();
@@ -242,18 +296,18 @@ describe("Inputbar main submission with Browser annotation content", () => {
       store.update("empty", "Current content", 2);
     });
     expect(sendButton().disabled).toBe(false);
-    render({ sessionId: null });
+    await render({ sessionId: null });
     expect(sendButton().disabled).toBe(true);
-    render({ threadId: null });
+    await render({ threadId: null });
     expect(sendButton().disabled).toBe(true);
-    render({ sessionId: "session-3", threadId: "thread-3" });
+    await render({ sessionId: "session-3", threadId: "thread-3" });
     expect(sendButton().disabled).toBe(true);
   });
 
   it("continues to settle a nonempty main Composer when it is sent together with Browser annotations", async () => {
     createDraft("own", "Browser comment");
     controller.setText("Main request");
-    render();
+    await render();
     await submit("button");
     expect(onSend.mock.calls[0][0]?.textOverride).toContain("Main request");
     expect(onSend.mock.calls[0][0]?.textOverride).toContain(
@@ -267,7 +321,7 @@ describe("Inputbar main submission with Browser annotation content", () => {
 
   it("respects disabled state even when Browser content exists", async () => {
     createDraft("own", "Comment");
-    render({ disabled: true });
+    await render({ disabled: true });
     expect(sendButton().disabled).toBe(true);
     await submit("enter");
     expect(onSend).not.toHaveBeenCalled();
@@ -277,7 +331,7 @@ describe("Inputbar main submission with Browser annotation content", () => {
     createDraft("own", "Retain this comment");
     controller.setText("  ");
     onSend.mockResolvedValueOnce({ kind: "rejected" });
-    render();
+    await render();
     await submit("enter");
     expect(store.get("own")).toMatchObject({
       body: "Retain this comment",
@@ -304,7 +358,7 @@ describe("Inputbar main submission with Browser annotation content", () => {
           complete = resolve;
         }),
     );
-    render();
+    await render();
     await submit("button");
     expect(store.get("own")?.pending).toBe(true);
     expect(sendButton().disabled).toBe(true);
@@ -327,7 +381,7 @@ describe("Inputbar main submission with Browser annotation content", () => {
   it("forwards the explicit queue target from the main loading action for Browser-only content", async () => {
     createDraft("own", "Queue this comment");
     onSend.mockResolvedValueOnce({ kind: "rejected" });
-    render({ isLoading: true });
+    await render({ isLoading: true });
     const queue = container.querySelector<HTMLButtonElement>(
       `button[aria-label="${copy.action.queue}"]`,
     )!;

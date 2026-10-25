@@ -340,7 +340,7 @@ export function TerminalPanel({
       <div className="min-h-0 flex-1 overflow-hidden ps-4 pt-2 pb-3 tracking-normal">
         <div
           ref={terminalContainerRef}
-          className="h-full w-full overflow-hidden [&_.xterm-screen]:outline-none [&_.xterm]:h-full [&_.xterm]:w-full"
+          className="h-full w-full overflow-hidden [&_.xterm-screen]:outline-none [&_.xterm_.xterm-viewport]:bg-[color:var(--lime-surface)] [&_.xterm]:h-full [&_.xterm]:w-full"
           data-testid="terminal-xterm"
         />
       </div>

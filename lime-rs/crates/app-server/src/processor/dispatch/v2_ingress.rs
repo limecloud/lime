@@ -209,6 +209,11 @@ pub(super) fn into_parts(
         ClientRequest::PrimaryRuntimeRunUpdateNow { id, params } => parts(id, Method::PrimaryRuntimeRunUpdateNow, params),
         ClientRequest::PrimaryRuntimeResetDependencies { id, params } => parts(id, Method::PrimaryRuntimeResetDependencies, params),
         ClientRequest::PrimaryRuntimeCancelInstall { id, params } => parts(id, Method::PrimaryRuntimeCancelInstall, params),
+        ClientRequest::ComputerUseStatus { id, params } => parts(id, Method::ComputerUseStatus, params),
+        ClientRequest::ComputerUseSetup { id, params } => parts(id, Method::ComputerUseSetup, params),
+        ClientRequest::ComputerUseRevoke { id, params } => parts(id, Method::ComputerUseRevoke, params),
+        ClientRequest::ComputerUseLeaseAcquire { id, params } => parts(id, Method::ComputerUseLeaseAcquire, params),
+        ClientRequest::ComputerUseLeaseRelease { id, params } => parts(id, Method::ComputerUseLeaseRelease, params),
         ClientRequest::ConfigRead { id, params } => parts(id, Method::ConfigRead, params),
         ClientRequest::ConfigRequirementsRead { id, params } => {
             parts(id, Method::ConfigRequirementsRead, params)

@@ -47,7 +47,7 @@ export async function runSettingsLocalEnvironmentsNavigationScenario({
   });
   const configPath = path.join(
     workspaceRoot,
-    ".codex",
+    ".lime",
     "environments",
     "environment.toml",
   );

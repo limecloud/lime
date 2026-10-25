@@ -24,7 +24,7 @@ import {
   openMcpConfigSettings,
   parseInvokeTraceRaw,
 } from "./mcp-config-fixture-smoke.mjs";
-import { CONTEXT7_PRESET_NAME } from "./lib/mcp-config-fixture-evidence.mjs";
+import { CONTEXT7_SERVER_NAME } from "./lib/mcp-config-fixture-evidence.mjs";
 import {
   MCP_LIFECYCLE_REQUIRED_METHODS,
   applyFailedSettingsMcpLifecycleEvidence,
@@ -44,7 +44,7 @@ const DEFAULTS = {
 };
 const FIXTURE_URL = "http://127.0.0.1:9/mcp";
 const FIXTURE_ENV_VAR = "SETTINGS_MCP_FIXTURE_TOKEN";
-const UPDATED_DESCRIPTION = "settings-mcp-lifecycle-updated";
+const UPDATED_URL = "http://127.0.0.1:9/updated";
 
 function printHelp() {
   console.log(`
@@ -85,7 +85,7 @@ async function waitForFixtureServer(
     const servers = Array.isArray(lastCall.result?.servers)
       ? lastCall.result.servers
       : [];
-    const server = servers.find((item) => item?.name === CONTEXT7_PRESET_NAME);
+    const server = servers.find((item) => item?.name === CONTEXT7_SERVER_NAME);
     if (server && expectedId !== null)
       assert.equal(
         server.id === expectedId,
@@ -109,13 +109,13 @@ async function waitForFixtureServer(
 async function selectFixtureServer(page, options) {
   const row = page
     .locator('[data-testid="mcp-config-server"]')
-    .filter({ hasText: CONTEXT7_PRESET_NAME });
+    .filter({ hasText: CONTEXT7_SERVER_NAME });
   await row.waitFor({
     state: "visible",
     timeout: Math.min(options.timeoutMs, 45_000),
   });
-  await row.click();
-  await page.locator('[data-testid="mcp-config-description"]').waitFor({
+  await row.getByTestId("mcp-config-open-settings").click();
+  await page.locator('[data-testid="mcp-config-connection-url"]').waitFor({
     state: "visible",
     timeout: Math.min(options.timeoutMs, 30_000),
   });
@@ -221,20 +221,24 @@ async function run() {
       selectServer: () => selectFixtureServer(page, options),
     });
     await page
-      .locator('[data-testid="mcp-config-description"]')
-      .fill(UPDATED_DESCRIPTION);
-    await page.locator('[data-testid="mcp-config-enabled-lime"]').uncheck();
+      .locator('[data-testid="mcp-config-connection-url"]')
+      .fill(UPDATED_URL);
     await page.locator('[data-testid="mcp-config-save"]').click();
     await waitForFixtureServer(
       page,
       options,
-      (server) =>
-        server?.description === UPDATED_DESCRIPTION &&
-        server?.enabled_lime === false,
+      (server) => server?.server_config?.url === UPDATED_URL,
       "MCP Settings update was not persisted",
       serverId,
     );
-    await page.locator('[data-testid="mcp-config-cancel"]').click();
+    await page.getByTestId("mcp-config-server").getByRole("switch").click();
+    await waitForFixtureServer(
+      page,
+      options,
+      (server) => server?.enabled_lime === false,
+      "MCP toggle was not persisted",
+      serverId,
+    );
     await page.screenshot({ path: updatedScreenshotPath, fullPage: true });
     const updatedBuffers = await readInvokeBuffers(page);
     traceRaws.push(updatedBuffers.traceRaw);
@@ -257,29 +261,27 @@ async function run() {
       page,
       options,
       (server) =>
-        server?.description === UPDATED_DESCRIPTION &&
+        server?.server_config?.url === UPDATED_URL &&
         server?.enabled_lime === false,
       "MCP Settings restart did not recover the updated server",
       serverId,
     );
     await selectFixtureServer(page, options);
-    const recoveredDescription = await page
-      .locator('[data-testid="mcp-config-description"]')
+    const recoveredUrl = await page
+      .locator('[data-testid="mcp-config-connection-url"]')
       .inputValue();
+    await page.getByTestId("mcp-config-cancel").click();
     const recoveredEnabled = await page
-      .locator('[data-testid="mcp-config-enabled-lime"]')
+      .getByTestId("mcp-config-server")
+      .getByRole("switch")
       .isChecked();
-    if (
-      recoveredDescription !== UPDATED_DESCRIPTION ||
-      recoveredEnabled !== false
-    ) {
+    if (recoveredUrl !== UPDATED_URL || recoveredEnabled !== false) {
       throw new Error("MCP Settings GUI did not recover the updated values");
     }
-    await page.locator('[data-testid="mcp-config-cancel"]').click();
     await page.screenshot({ path: recoveredScreenshotPath, fullPage: true });
     await selectFixtureServer(page, options);
     await page.locator('[data-testid="mcp-config-delete"]').click();
-    await page.locator('[data-testid="confirm-dialog-confirm"]').click();
+    await page.getByRole("alertdialog").getByRole("button").last().click();
     await waitForFixtureServer(
       page,
       options,
@@ -311,12 +313,10 @@ async function run() {
       "MCP Settings final restart restored a deleted server",
       serverId,
     );
-    await page
-      .locator('[data-testid="mcp-config-empty-create-server"]')
-      .waitFor({
-        state: "visible",
-        timeout: Math.min(options.timeoutMs, 30_000),
-      });
+    await page.locator('[data-testid="mcp-config-create-server"]').waitFor({
+      state: "visible",
+      timeout: Math.min(options.timeoutMs, 30_000),
+    });
     await page.screenshot({ path: finalScreenshotPath, fullPage: true });
     const finalBuffers = await readInvokeBuffers(page);
     traceRaws.push(finalBuffers.traceRaw);

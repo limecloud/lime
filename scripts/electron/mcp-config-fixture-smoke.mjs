@@ -18,7 +18,7 @@ import {
   CONTEXT7_CONFIG_URL,
   CONTEXT7_ENV_VAR_NAME,
   CONTEXT7_HEADER_NAME,
-  CONTEXT7_PRESET_NAME,
+  CONTEXT7_SERVER_NAME,
   MCP_CREATE_LIST_REQUIRED_METHODS,
   applyFailedMcpSettingsScenarioEvidence,
   applyPassingMcpSettingsScenarioEvidence,
@@ -276,12 +276,14 @@ export async function waitForPageCondition(
 
 export async function openMcpConfigSettings(page, options) {
   await openSettings(page, options);
-  await page.locator('[data-testid="settings-sidebar-tab-mcp-server"]').click();
-  await page.locator('[data-testid="mcp-panel-tab-config"]').waitFor({
+  await page
+    .locator('[data-testid="settings-sidebar-tab-plugins-settings"]')
+    .click();
+  await page.locator('[data-testid="plugins-settings-tab-mcps"]').waitFor({
     state: "visible",
     timeout: Math.min(45_000, options.timeoutMs),
   });
-  await page.locator('[data-testid="mcp-panel-tab-config"]').click();
+  await page.locator('[data-testid="plugins-settings-tab-mcps"]').click();
   await page.locator('[data-testid="mcp-config-page"]').waitFor({
     state: "visible",
     timeout: Math.min(45_000, options.timeoutMs),
@@ -302,32 +304,31 @@ export async function createContext7ConfigFromGui(
   { configUrl = CONTEXT7_CONFIG_URL, envVarName = CONTEXT7_ENV_VAR_NAME } = {},
 ) {
   await page.locator('[data-testid="mcp-config-create-server"]').click();
-  await page.locator('[data-testid="mcp-config-preset-context7"]').click();
+  await page.getByTestId("mcp-config-name").fill(CONTEXT7_SERVER_NAME);
+  await page
+    .getByTestId("mcp-config-transport")
+    .selectOption("streamable_http");
   await page
     .locator('[data-testid="mcp-config-connection-url"]')
     .fill(configUrl);
+  await page.getByTestId("mcp-config-env-header-add").click();
   await page
-    .locator('[data-testid="mcp-config-env-header-env-var"]')
-    .first()
-    .fill(envVarName);
+    .getByTestId("mcp-config-env-header-key")
+    .fill(CONTEXT7_HEADER_NAME);
+  await page.getByTestId("mcp-config-env-header-value").fill(envVarName);
 
   const formSnapshot = await page.evaluate(() => ({
     name: document.querySelector('[data-testid="mcp-config-name"]')?.value,
     url: document.querySelector('[data-testid="mcp-config-connection-url"]')
       ?.value,
     envVars: Array.from(
-      document.querySelectorAll(
-        '[data-testid="mcp-config-env-header-env-var"]',
-      ),
+      document.querySelectorAll('[data-testid="mcp-config-env-header-value"]'),
     ).map((input) => input.value),
-    json: document.querySelector('[data-testid="mcp-config-json"]')?.value,
-    text: document.querySelector('[data-testid="mcp-config-page"]')
-      ?.textContent,
   }));
 
   assert(
-    formSnapshot.name === CONTEXT7_PRESET_NAME,
-    `Context7 preset 名称不正确: ${formSnapshot.name}`,
+    formSnapshot.name === CONTEXT7_SERVER_NAME,
+    `Context7 名称未写入表单: ${formSnapshot.name}`,
   );
   assert(
     formSnapshot.url === configUrl,
@@ -336,11 +337,6 @@ export async function createContext7ConfigFromGui(
   assert(
     formSnapshot.envVars.includes(envVarName),
     "Context7 env_http_headers 环境变量名未写入结构化表单",
-  );
-  assert(
-    String(formSnapshot.json || "").includes(configUrl) &&
-      String(formSnapshot.json || "").includes(envVarName),
-    "Context7 JSON 配置未随结构化表单同步",
   );
 
   await page.locator('[data-testid="mcp-config-save"]').click();
@@ -484,7 +480,7 @@ export async function waitForContext7Server(page, options) {
   while (Date.now() - startedAt < Math.min(45_000, options.timeoutMs)) {
     lastResult = await appServerCallFromPage(page, "mcpServer/list", {});
     const server = (lastResult.result?.servers ?? []).find(
-      (item) => item?.name === CONTEXT7_PRESET_NAME,
+      (item) => item?.name === CONTEXT7_SERVER_NAME,
     );
     if (server) {
       return { listResult: lastResult, server };
@@ -555,7 +551,7 @@ export async function run() {
       ? appServerBinary
       : path.basename(appServerBinary),
     context7Preset: {
-      serverName: CONTEXT7_PRESET_NAME,
+      serverName: CONTEXT7_SERVER_NAME,
       urlHost: new URL(CONTEXT7_CONFIG_URL).host,
       envHttpHeaderNames: [CONTEXT7_HEADER_NAME],
       envHttpHeaderEnvVars: [CONTEXT7_ENV_VAR_NAME],

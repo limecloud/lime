@@ -537,7 +537,7 @@ try {
     );
     const native = JSON.parse(
       fs.readFileSync(
-        path.join(packageRoot, ".codex-plugin/plugin.json"),
+        path.join(packageRoot, ".lime-plugin/plugin.json"),
         "utf8",
       ),
     );

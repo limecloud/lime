@@ -485,7 +485,7 @@ test("real Git fixture and inventory readback handle spaces and a genuine detach
       "config",
       "--file",
       configFile,
-      "codex.localEnvironmentConfigPath",
+      "lime.localEnvironmentConfigPath",
       configPath,
     ],
     { cwd: canonicalTarget },

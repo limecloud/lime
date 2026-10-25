@@ -1,4 +1,4 @@
-//! Codex-shaped viewport state for the inline TUI surface.
+//! Lime-native viewport state for the inline TUI surface.
 //!
 //! The full Codex terminal owns scrollback and buffer diffing in
 //! `custom_terminal::Terminal`. Lime currently keeps ratatui's terminal as its renderer, so this

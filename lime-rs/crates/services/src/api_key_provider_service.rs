@@ -1924,7 +1924,7 @@ impl ApiKeyProviderService {
             let result = match effective_provider_type {
                 // Codex 协议直接走 /responses 端点
                 ApiProviderType::Codex => {
-                    self.test_codex_responses_endpoint(
+                    self.test_openai_responses_endpoint(
                         api_key.as_deref(),
                         &provider.api_host,
                         test_model,
@@ -2351,7 +2351,7 @@ impl ApiKeyProviderService {
     }
 
     /// 测试 Codex /responses 端点（用于不支持 messages 参数的上游）
-    async fn test_codex_responses_endpoint(
+    async fn test_openai_responses_endpoint(
         &self,
         api_key: Option<&str>,
         api_host: &str,
@@ -3851,7 +3851,7 @@ impl ApiKeyProviderService {
                 if Self::looks_like_openai_image_model(&test_model) {
                     Err("当前 model-provider 不支持图片连接探测".to_string())
                 } else {
-                    self.test_codex_responses_endpoint(
+                    self.test_openai_responses_endpoint(
                         api_key.as_deref(),
                         &provider.api_host,
                         &test_model,

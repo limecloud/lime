@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, LoaderCircle, Search } from "lucide-react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { ArrowRight, History, LoaderCircle, Search } from "lucide-react";
 import { normalizeBrowserAddress } from "./browserWorkspaceModel";
 import type { BrowserTranslate } from "./BrowserNavigationBar";
+import { useBrowserAddressSuggestions } from "./useBrowserAddressSuggestions";
 
 export function BrowserNewTabAddress({
   sourceTabId,
@@ -24,6 +25,15 @@ export function BrowserNewTabAddress({
   const composing = useRef(false);
   const submitting = useRef(false);
   const alive = useRef(false);
+  const [focused, setFocused] = useState(false);
+  const listId = useId();
+  const suggestions = useBrowserAddressSuggestions({
+    value: draft,
+    active: active && focused && !pending,
+    ownerKey: sourceTabId,
+    input,
+    onChange: onDraftChange,
+  });
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -54,10 +64,13 @@ export function BrowserNewTabAddress({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    await openAddress(suggestions.submitValue);
+  };
+  const openAddress = async (address: string) => {
     if (!active || submitting.current || composing.current) return;
     let url: string;
     try {
-      url = normalizeBrowserAddress(draft);
+      url = normalizeBrowserAddress(address);
     } catch {
       setFailed(true);
       return;
@@ -66,6 +79,7 @@ export function BrowserNewTabAddress({
     submitting.current = true;
     setPending(true);
     setFailed(false);
+    suggestions.dismiss();
     try {
       await onOpenAddress(sourceTabId, url);
     } catch {
@@ -102,21 +116,39 @@ export function BrowserNewTabAddress({
             "agentChat.browserWorkspace.addressPlaceholder",
           )}
           autoComplete="off"
+          role="combobox"
+          aria-autocomplete="both"
+          aria-expanded={suggestions.entries.length > 0}
+          aria-controls={suggestions.entries.length ? listId : undefined}
+          aria-activedescendant={
+            suggestions.selection >= 0 && suggestions.entries.length
+              ? `${listId}-${suggestions.selection}`
+              : undefined
+          }
+          aria-haspopup="listbox"
           autoCapitalize="off"
           spellCheck={false}
           inputMode="url"
           data-testid="browser-new-tab-address"
           onChange={(event) => {
-            onDraftChange(event.target.value);
+            suggestions.edit(event.target.value);
             setFailed(false);
           }}
           onCompositionStart={() => {
             composing.current = true;
+            suggestions.compositionStart();
           }}
-          onCompositionEnd={() => {
+          onCompositionEnd={(event) => {
             composing.current = false;
+            suggestions.compositionEnd(event.currentTarget.value);
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            suggestions.dismiss();
           }}
           onKeyDown={(event) => {
+            if (suggestions.keyDown(event)) return;
             if (
               event.key === "Enter" &&
               (composing.current ||
@@ -159,6 +191,44 @@ export function BrowserNewTabAddress({
           )}
         </button>
       </form>
+      {suggestions.entries.length ? (
+        <div
+          id={listId}
+          role="listbox"
+          aria-label={translate("browserChrome.addressSuggestions")}
+          className="mt-1 overflow-hidden rounded-lg border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-1 shadow-md"
+        >
+          {suggestions.entries.map((entry, index) => (
+            <button
+              key={entry.id}
+              id={`${listId}-${index}`}
+              type="button"
+              role="option"
+              tabIndex={-1}
+              aria-selected={suggestions.selection === index}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => void openAddress(entry.url)}
+              className={`flex h-11 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-[color:var(--lime-chrome-tab-hover)] ${suggestions.selection === index ? "bg-[color:var(--lime-chrome-tab-hover)]" : ""}`}
+            >
+              <History
+                className="size-3.5 shrink-0 text-[color:var(--lime-text-muted)]"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs text-[color:var(--lime-text-strong)]">
+                  {entry.title || entry.url}
+                </span>
+                <span
+                  className="block truncate text-[11px] text-[color:var(--lime-text-muted)]"
+                  dir="ltr"
+                >
+                  {entry.url}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       {failed ? (
         <p
           role="alert"

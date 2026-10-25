@@ -463,7 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn responses_usage_preserves_codex_rollout_budget_units() {
+    fn responses_usage_maps_provider_budget_extension() {
         let usage = responses_usage(&json!({
             "input_tokens": 21,
             "output_tokens": 8,
@@ -472,7 +472,7 @@ mod tests {
         }));
 
         assert_eq!(
-            usage.codex_rollout_budget_units,
+            usage.lime_rollout_budget_units,
             json!(12.75).as_number().cloned()
         );
     }

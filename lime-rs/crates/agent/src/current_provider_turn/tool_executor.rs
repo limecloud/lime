@@ -578,6 +578,14 @@ pub(super) fn project_call_result(
     if let Some(meta) = result.meta.clone() {
         metadata.insert("meta".to_string(), Value::Object(meta.0));
     }
+    if let Some(image) = result.content.iter().find_map(|content| content.as_image()) {
+        metadata.insert("model_visible_image".into(), json!(true));
+        metadata.insert(
+            "image_url".into(),
+            json!(format!("data:{};base64,{}", image.mime_type, image.data)),
+        );
+        metadata.insert("mime_type".into(), json!(image.mime_type));
+    }
     let output = call_result_text(&result);
     let success = !result.is_error.unwrap_or(false);
     let error = (!success)
@@ -658,6 +666,9 @@ fn request_user_input_is_blocking(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod image_projection_tests;
 
 #[cfg(test)]
 mod async_user_input_tests;

@@ -30,7 +30,7 @@ fn bundle_extracts_into_private_directory_and_preserves_file_bytes() {
     let bytes = archive(&[
         ("./", tar::EntryType::Directory, b""),
         (
-            ".codex-plugin/plugin.json",
+            ".lime-plugin/plugin.json",
             tar::EntryType::Regular,
             b"{\"name\":\"example\"}",
         ),

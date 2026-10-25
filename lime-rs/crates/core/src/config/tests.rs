@@ -1242,7 +1242,7 @@ fn arb_credential_pool_config() -> impl Strategy<Value = CredentialPoolConfig> {
                 claude,
                 gemini_api_keys: vec![],
                 vertex_api_keys: vec![],
-                codex: vec![],
+                lime: vec![],
             },
         )
 }
@@ -2091,7 +2091,7 @@ proptest! {
 // Property 1: Legacy Credential Config Read Boundary
 // ============================================================================
 
-/// 生成随机的 OAuth 凭证条目（用于 Codex/iFlow）
+/// 生成随机的 OAuth 凭证条目（用于 Lime/iFlow）
 fn arb_oauth_credential_entry() -> impl Strategy<Value = CredentialEntry> {
     (
         "[a-z]{3,10}-[0-9]{1,5}".prop_map(|s| s),
@@ -2175,7 +2175,7 @@ fn arb_extended_credential_pool_config() -> impl Strategy<Value = CredentialPool
         proptest::collection::vec(arb_credential_entry(), 0..3),
     )
         .prop_map(
-            |(kiro, gemini, qwen, openai, claude, gemini_api_keys, vertex_api_keys, codex)| {
+            |(kiro, gemini, qwen, openai, claude, gemini_api_keys, vertex_api_keys, lime)| {
                 CredentialPoolConfig {
                     kiro,
                     gemini,
@@ -2184,7 +2184,7 @@ fn arb_extended_credential_pool_config() -> impl Strategy<Value = CredentialPool
                     claude,
                     gemini_api_keys,
                     vertex_api_keys,
-                    codex,
+                    lime,
                 }
             },
         )
@@ -2299,7 +2299,7 @@ fn arb_provider_name() -> impl Strategy<Value = String> {
         Just("qwen".to_string()),
         Just("openai".to_string()),
         Just("claude".to_string()),
-        Just("codex".to_string()),
+        Just("lime".to_string()),
     ]
 }
 
@@ -2318,11 +2318,11 @@ fn arb_endpoint_providers_config() -> impl Strategy<Value = EndpointProvidersCon
         arb_optional_provider(),
         arb_optional_provider(),
     )
-        .prop_map(|(cursor, claude_code, codex, windsurf, kiro, other)| {
+        .prop_map(|(cursor, claude_code, lime, windsurf, kiro, other)| {
             EndpointProvidersConfig {
                 cursor,
                 claude_code,
-                codex,
+                lime,
                 windsurf,
                 kiro,
                 other,
@@ -2358,9 +2358,9 @@ proptest! {
             "claude_code 字段往返不一致"
         );
         prop_assert_eq!(
-            config.codex,
-            parsed.codex,
-            "codex 字段往返不一致"
+            config.lime,
+            parsed.lime,
+            "lime 字段往返不一致"
         );
         prop_assert_eq!(
             config.windsurf,
@@ -2447,7 +2447,7 @@ fn arb_valid_provider_type() -> impl Strategy<Value = String> {
         Just("claude".to_string()),
         Just("vertex".to_string()),
         Just("gemini_api_key".to_string()),
-        Just("codex".to_string()),
+        Just("lime".to_string()),
         Just("claude_oauth".to_string()),
         Just("anthropic".to_string()),
         Just("anthropic_compatible".to_string()),
@@ -2473,7 +2473,7 @@ fn arb_valid_client_type() -> impl Strategy<Value = String> {
     prop_oneof![
         Just("cursor".to_string()),
         Just("claude_code".to_string()),
-        Just("codex".to_string()),
+        Just("lime".to_string()),
         Just("windsurf".to_string()),
         Just("kiro".to_string()),
         Just("other".to_string()),
@@ -2486,7 +2486,7 @@ fn arb_invalid_client_type() -> impl Strategy<Value = String> {
     "[a-z]{3,15}".prop_filter("排除有效的客户端类型", |s| {
         !matches!(
             s.as_str(),
-            "cursor" | "claude_code" | "codex" | "windsurf" | "kiro" | "other"
+            "cursor" | "claude_code" | "lime" | "windsurf" | "kiro" | "other"
         )
     })
 }

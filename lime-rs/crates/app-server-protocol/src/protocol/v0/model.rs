@@ -250,7 +250,6 @@ pub enum ProtocolKind {
     XaiVideo,
     BedrockConverse,
     VertexGemini,
-    CodexResponses,
     Unknown,
 }
 

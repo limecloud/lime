@@ -559,6 +559,12 @@ func openPath(path: String) throws -> [String: Any] {
 
 func handle(method: String, params: [String: Any]) throws -> [String: Any] {
     switch method {
+    case "computerUse.snapshot":
+        return computerUseSnapshot()
+    case "computerUse.setup":
+        return try computerUseSetup(params: params)
+    case "computerUse.execute":
+        return try computerUseExecute(params: params)
     case "capabilities.read":
         return readCapabilities()
     case "accessibility.read":
@@ -748,7 +754,8 @@ struct NativeHostMain {
             DispatchQueue.global(qos: .userInitiated).async {
                 while let line = readLine() {
                     let normalizedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                    DispatchQueue.main.sync {
+                    if computerUseCancelLine(normalizedLine) { continue }
+                    DispatchQueue.main.async {
                         processRequestLine(normalizedLine)
                     }
                 }

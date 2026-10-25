@@ -247,7 +247,7 @@ fn runtime_error_is_terminal_even_when_legacy_retryable_is_true_and_is_not_dupli
     let params = runtime_error.params.as_ref().expect("runtime error params");
     assert_eq!(runtime_error.method, "error");
     assert_eq!(params["willRetry"], false);
-    assert_eq!(params["error"]["codexErrorInfo"], "other");
+    assert_eq!(params["error"]["limeErrorInfo"], "other");
 
     let completion = project_event_notifications_jsonrpc(
         &mut projector,

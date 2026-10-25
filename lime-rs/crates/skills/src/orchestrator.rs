@@ -11,7 +11,7 @@ use crate::{
     AgentSkillPolicy, AgentSkillScope, AgentSkillSource,
 };
 
-pub const APPS_MCP_SERVER_NAME: &str = "codex_apps";
+pub const APPS_MCP_SERVER_NAME: &str = "lime_apps";
 const ORCHESTRATOR_SKILL_MIME_TYPE: &str = "mcp/skill";
 const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(10);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);

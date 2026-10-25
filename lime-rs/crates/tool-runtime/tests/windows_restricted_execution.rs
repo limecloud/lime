@@ -206,13 +206,13 @@ async fn workspace_write_allows_workspace_and_denies_metadata_and_external_paths
     let workspace = fixture.path().join("workspace");
     let outside = fixture.path().join("outside.txt");
     std::fs::create_dir(&workspace).expect("workspace directory");
-    for name in [".git", ".codex", ".agents"] {
+    for name in [".git", ".lime", ".agents"] {
         std::fs::create_dir(workspace.join(name)).expect("metadata directory");
     }
     let acl_baselines = [
         workspace.clone(),
         workspace.join(".git"),
-        workspace.join(".codex"),
+        workspace.join(".lime"),
         workspace.join(".agents"),
     ]
     .map(|path| {
@@ -292,7 +292,7 @@ async fn workspace_write_allows_workspace_and_denies_metadata_and_external_paths
 
     for (label, target) in [
         ("git", workspace.join(".git").join("blocked.txt")),
-        ("codex", workspace.join(".codex").join("blocked.txt")),
+        ("codex", workspace.join(".lime").join("blocked.txt")),
         ("agents", workspace.join(".agents").join("blocked.txt")),
         ("outside", outside.clone()),
     ] {

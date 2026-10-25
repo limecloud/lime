@@ -74,7 +74,7 @@ describe("useExpertWorkspaceSkillRuntime model", () => {
         key: "workspace_skill:report_writer",
         name: "研报写手",
         directory: "report_writer",
-        registered_skill_directory: "/repo/.codex/skills/report_writer",
+        registered_skill_directory: "/repo/.lime/skills/report_writer",
       }),
     ];
 

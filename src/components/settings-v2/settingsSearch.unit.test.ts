@@ -92,6 +92,175 @@ const mediaTargets = [
 
 describe("current settings search projection", () => {
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s close confirmation is localized and searchable on every platform",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      for (const key of [
+        "label",
+        "shortcutDescription",
+        "description",
+        "never",
+        "keyboardOnly",
+        "always",
+      ]) {
+        const message = `settings.general.confirmBeforeClose.${key}`;
+        expect(t(message)).not.toBe(message);
+        for (const platform of ["mac", "windows", "other"] as const) {
+          expect(
+            searchSettings(t(message), groups, t, true, platform),
+          ).toContainEqual(
+            expect.objectContaining({
+              section: SettingsTabs.General,
+              targetId: "general-confirm-before-close",
+            }),
+          );
+        }
+      }
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s 带网站限定词的权限搜索定位现有网站设置入口",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      for (const permission of [
+        "camera",
+        "microphone",
+        "geolocation",
+        "notifications",
+      ]) {
+        const query = t(`browserSiteSettings.${permission}`);
+        expect(query).not.toBe(`browserSiteSettings.${permission}`);
+        expect(
+          searchSettings(
+            `${t("browserSiteSettings.title")} ${query}`,
+            groups,
+            t,
+            true,
+          ),
+        ).toContainEqual(
+          expect.objectContaining({
+            section: SettingsTabs.Browser,
+            targetId: "browser-site-settings",
+          }),
+        );
+      }
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s 防休眠搜索只定位非Windows的可见设置",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      const query = t("settings.desktop.preventSleepWhileRunning");
+      for (const platform of ["mac", "other"] as const) {
+        expect(searchSettings(query, groups, t, true, platform)).toContainEqual(
+          expect.objectContaining({
+            section: SettingsTabs.General,
+            targetId: "general-prevent-sleep",
+          }),
+        );
+        expect(
+          isSettingsSearchTarget(
+            SettingsTabs.General,
+            "general-prevent-sleep",
+            true,
+            platform,
+          ),
+        ).toBe(true);
+      }
+      expect(searchSettings(query, groups, t, true, "windows")).toEqual([]);
+      expect(
+        isSettingsSearchTarget(
+          SettingsTabs.General,
+          "general-prevent-sleep",
+          true,
+          "windows",
+        ),
+      ).toBe(false);
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s 菜单栏搜索只定位 macOS 的可见设置",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      const query = t("settings.desktop.macMenuBar");
+      expect(query).toContain("Lime");
+      expect(searchSettings(query, groups, t, true, "mac")).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.General,
+          targetId: "general-menu-bar",
+        }),
+      );
+      for (const platform of ["windows", "other"] as const) {
+        expect(searchSettings(query, groups, t, true, platform)).toEqual([]);
+        expect(
+          isSettingsSearchTarget(
+            SettingsTabs.General,
+            "general-menu-bar",
+            true,
+            platform,
+          ),
+        ).toBe(false);
+        expect(
+          getSettingsSearchDocument(
+            SettingsTabs.General,
+            "general-menu-bar",
+            true,
+            platform,
+          ),
+        ).toBeUndefined();
+      }
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s routes Auto detect language to the searchable language picker",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      expect(
+        searchSettings(
+          t("settings.desktop.autoDetectLanguage"),
+          groups,
+          t,
+          true,
+        ),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.General,
+          targetId: "general-language",
+        }),
+      );
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds the Enter behavior control and its multiline choice",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      for (const key of ["enterBehavior", "cmdIfMultiline"]) {
+        const message = t(`settings.desktop.${key}`);
+        expect(message).not.toBe(`settings.desktop.${key}`);
+        expect(searchSettings(message, groups, t, true)).toContainEqual(
+          expect.objectContaining({
+            section: SettingsTabs.General,
+            targetId: "general-enter-behavior",
+          }),
+        );
+      }
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s routes installed skill searches to the Skills management group",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      expect(
+        searchSettings(t("settings.plugins.skills.title"), groups, t, true),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.Plugins,
+          targetId: "plugins-skills",
+        }),
+      );
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s finds Configuration defaults and routes conditional network search to its sandbox parent",
     (locale) => {
       const { t, groups } = localize(locale);
@@ -232,7 +401,13 @@ describe("current settings search projection", () => {
         expect(t(document.labelKey)).not.toBe(document.labelKey);
         for (const key of document.termKeys) expect(t(key)).not.toBe(key);
         expect(
-          searchSettings(t(document.labelKey), groups, t, true),
+          searchSettings(
+            t(document.labelKey),
+            groups,
+            t,
+            true,
+            document.platform,
+          ),
         ).toContainEqual(
           expect.objectContaining({
             section: document.section,
@@ -300,3 +475,44 @@ describe("current settings search projection", () => {
     }
   });
 });
+
+it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+  "%s resolves marketplace controls to the PluginsSettings Marketplace tab",
+  (locale) => {
+    const { t, groups } = localize(locale);
+    expect(
+      searchSettings(t("settings.plugins.marketplace.title"), groups, t, true),
+    ).toContainEqual(
+      expect.objectContaining({
+        section: SettingsTabs.Plugins,
+        targetId: "plugins-marketplace",
+      }),
+    );
+    expect(
+      isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-marketplace", true),
+    ).toBe(true);
+  },
+);
+
+it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+  "%s resolves MCP fields to the sole PluginsSettings MCP tab",
+  (locale) => {
+    const { t, groups } = localize(locale);
+    for (const key of ["addServer", "authenticate", "envVars"]) {
+      expect(
+        searchSettings(t("settings.plugins.mcp." + key), groups, t, true),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.Plugins,
+          targetId: "plugins-mcps",
+        }),
+      );
+    }
+    expect(
+      isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-mcps", true),
+    ).toBe(true);
+    expect(searchSettings("fixture-secret-mcp-token", groups, t, true)).toEqual(
+      [],
+    );
+  },
+);

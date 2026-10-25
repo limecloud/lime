@@ -2,15 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexSkillMentionInputRestoreProjectionEvent,
-  extractCodexSkillMentionInputRestoreSnapshot,
+  buildSkillMentionInputRestoreProjectionEvent,
+  extractSkillMentionInputRestoreSnapshot,
 } from "../dist/index.js";
 
 const repoSkillPath = "/tmp/repo/figma/SKILL.md";
 const userSkillPath = "/tmp/user/figma/SKILL.md";
 
 test("skill mention submission preserves the selected duplicate skill path", () => {
-  const event = buildCodexSkillMentionInputRestoreProjectionEvent(
+  const event = buildSkillMentionInputRestoreProjectionEvent(
     {
       stage: "submit",
       draft: {
@@ -88,7 +88,7 @@ test("skill mention submission preserves the selected duplicate skill path", () 
 });
 
 test("blocked image restore preserves mention bindings, text elements and local images", () => {
-  const snapshot = extractCodexSkillMentionInputRestoreSnapshot({
+  const snapshot = extractSkillMentionInputRestoreSnapshot({
     stage: "blocked_image_restore",
     draft: {
       text: "[Image #1] check $file",
@@ -120,14 +120,15 @@ test("blocked image restore preserves mention bindings, text elements and local 
   assert.equal(snapshot.bindingsStable, true);
   assert.equal(snapshot.structuredMentionsStable, true);
   assert.deepEqual(snapshot.draft.localImagePaths, ["/tmp/blocked.png"]);
-  assert.deepEqual(snapshot.restoredDraft.mentionBindings.map((item) => item.path), [
-    "/tmp/skills/file/SKILL.md",
-  ]);
+  assert.deepEqual(
+    snapshot.restoredDraft.mentionBindings.map((item) => item.path),
+    ["/tmp/skills/file/SKILL.md"],
+  );
   assert.deepEqual(snapshot.validationIssues, []);
 });
 
 test("plugin mention bindings submit structured Mention items", () => {
-  const snapshot = extractCodexSkillMentionInputRestoreSnapshot({
+  const snapshot = extractSkillMentionInputRestoreSnapshot({
     stage: "submit",
     draft: {
       text: "$sample",
@@ -170,7 +171,7 @@ test("plugin mention bindings submit structured Mention items", () => {
 });
 
 test("skill mention submission fails closed when binding degrades to plain text", () => {
-  const snapshot = extractCodexSkillMentionInputRestoreSnapshot({
+  const snapshot = extractSkillMentionInputRestoreSnapshot({
     stage: "submit",
     draft: {
       text: "please use $figma now",
@@ -211,7 +212,7 @@ test("skill mention submission fails closed when binding degrades to plain text"
 });
 
 test("blocked image restore fails closed when mention binding path or image is lost", () => {
-  const event = buildCodexSkillMentionInputRestoreProjectionEvent({
+  const event = buildSkillMentionInputRestoreProjectionEvent({
     stage: "blocked_image_restore",
     draft: {
       text: "[Image #1] check $file",
@@ -252,7 +253,7 @@ test("blocked image restore fails closed when mention binding path or image is l
 });
 
 test("plugin mention binding fails closed without structured Mention item", () => {
-  const snapshot = extractCodexSkillMentionInputRestoreSnapshot({
+  const snapshot = extractSkillMentionInputRestoreSnapshot({
     stage: "submit",
     draft: {
       text: "$sample",

@@ -1,4 +1,4 @@
-//! Codex-shaped transcript cells backed by Lime's canonical projection.
+//! Lime-native transcript cells backed by Lime's canonical projection.
 //!
 //! A history cell owns terminal presentation for one canonical `ThreadItem`. It never owns
 //! session state, persistence, provider output, or a second transcript model.
@@ -177,7 +177,7 @@ pub(crate) trait HistoryCell: std::fmt::Debug + Send + Sync + Any {
     }
 }
 
-/// Adapter from the canonical projection to the Codex-shaped cell interface.
+/// Adapter from the canonical projection to the Lime-native cell interface.
 #[derive(Clone, Debug)]
 pub(crate) struct TranscriptHistoryCell {
     entry: TranscriptEntry,

@@ -8,10 +8,8 @@ import {
   METHOD_MCP_SERVER_CREATE,
   METHOD_MCP_SERVER_DELETE,
   METHOD_MCP_SERVER_ENABLED_SET,
-  METHOD_MCP_SERVER_IMPORT_FROM_APP,
   METHOD_MCP_SERVER_LIST,
   METHOD_MCP_SERVER_OAUTH_LOGIN,
-  METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
   METHOD_MCP_SERVER_START,
   METHOD_MCP_SERVER_STATUS_LIST,
   METHOD_MCP_SERVER_STOP,
@@ -26,7 +24,6 @@ import {
   type McpResourceListResponse as AppServerMcpResourceListResponse,
   type McpServerResourceReadResponse as AppServerMcpServerResourceReadResponse,
   type McpResourceSubscriptionResponse as AppServerMcpResourceSubscriptionResponse,
-  type McpServerImportFromAppResponse as AppServerMcpServerImportFromAppResponse,
   type McpServerLifecycleResponse as AppServerMcpServerLifecycleResponse,
   type McpServerListResponse as AppServerMcpServerListResponse,
   type McpServerOauthLoginResponse as AppServerMcpServerOauthLoginResponse,
@@ -182,7 +179,7 @@ function lowerMcpServerAuthStatus(
   }
 }
 
-async function listAllMcpServerStatuses(): Promise<
+export async function listAllMcpServerStatuses(): Promise<
   AppServerMcpServerStatusListV2Response["data"]
 > {
   const statuses: AppServerMcpServerStatusListV2Response["data"] = [];
@@ -266,44 +263,15 @@ export const mcpApi = {
       return undefined;
     }),
 
-  toggleServer: (
-    id: string,
-    appType: string,
-    enabled: boolean,
-  ): Promise<void> =>
+  toggleServer: (id: string, enabled: boolean): Promise<void> =>
     requestMcpAppServer<AppServerMcpServerListResponse>(
       METHOD_MCP_SERVER_ENABLED_SET,
       {
         id,
-        appType,
         enabled,
       },
     ).then((response) => {
       assertServerListResponse(METHOD_MCP_SERVER_ENABLED_SET, response);
-      return undefined;
-    }),
-
-  /** 从外部应用导入 MCP 配置 */
-  importFromApp: (appType: string): Promise<number> =>
-    requestMcpAppServer<AppServerMcpServerImportFromAppResponse>(
-      METHOD_MCP_SERVER_IMPORT_FROM_APP,
-      { appType },
-    ).then((response) => {
-      if (typeof response.importedCount !== "number") {
-        throw new Error(
-          `${METHOD_MCP_SERVER_IMPORT_FROM_APP} did not return importedCount`,
-        );
-      }
-      assertServerListResponse(METHOD_MCP_SERVER_IMPORT_FROM_APP, response);
-      return response.importedCount;
-    }),
-
-  /** 同步所有 MCP 配置到实际配置文件 */
-  syncAllToLive: (): Promise<void> =>
-    requestMcpAppServer<AppServerMcpServerListResponse>(
-      METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
-    ).then((response) => {
-      assertServerListResponse(METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE, response);
       return undefined;
     }),
 
@@ -657,16 +625,6 @@ async function executeMcpPrepareRequest(
   request: McpPrepareRequest,
 ): Promise<McpPrepareResult> {
   assertPrepareCandidate(request);
-  if (request.method === METHOD_MCP_SERVER_IMPORT_FROM_APP) {
-    const params = getPrepareParams(request.method, request.params);
-    const appType = readStringPrepareParam(request.method, params, "appType");
-    const importedCount = await mcpApi.importFromApp(appType);
-    return {
-      method: METHOD_MCP_SERVER_IMPORT_FROM_APP,
-      status: "completed",
-      importedCount,
-    };
-  }
   if (request.method === METHOD_MCP_SERVER_START) {
     const params = getPrepareParams(request.method, request.params);
     const name = readStringPrepareParam(request.method, params, "name");

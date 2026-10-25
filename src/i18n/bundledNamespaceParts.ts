@@ -25,6 +25,7 @@ export const BUNDLED_NAMESPACE_RESOURCE_PARTS = {
   workspace: ["workspace", "scheduledTasks"],
   settings: [
     "settings",
+    "windowCloseConfirmation",
     "browserHistory",
     "browserDownloads",
     "browserData",

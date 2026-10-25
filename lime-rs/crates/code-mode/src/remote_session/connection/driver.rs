@@ -1,7 +1,7 @@
 //! Process-host connection driver owners.
 //!
 //! The V1 transport is intentionally small, but its state is split by
-//! responsibility to keep the Codex-shaped layout meaningful: commands admit
+//! responsibility to keep the Lime-native layout meaningful: commands admit
 //! caller work, responses route host messages, request tracking owns promises,
 //! session registry owns live cells, and delegate runtime owns callbacks.
 

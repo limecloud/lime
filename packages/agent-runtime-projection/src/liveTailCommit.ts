@@ -128,7 +128,8 @@ function tableTailReflowed(record: Record<string, unknown>): boolean {
       "stable_after_commit",
     ]) === true &&
     (readNumberField(table, ["rowCount", "row_count", "rows"]) ?? 0) > 0 &&
-    (readNumberField(table, ["columnCount", "column_count", "columns"]) ?? 0) > 0
+    (readNumberField(table, ["columnCount", "column_count", "columns"]) ?? 0) >
+      0
   );
 }
 
@@ -152,7 +153,9 @@ function parseFrame(
     "text_content",
   ]);
   const itemSequence = itemSequenceFromRecord(record);
-  const phase = normalizePhase(readStringField(record, ["phase", "kind", "step"]));
+  const phase = normalizePhase(
+    readStringField(record, ["phase", "kind", "step"]),
+  );
   const firstOutputVisible =
     readBooleanField(record, [
       "firstOutputVisible",
@@ -215,7 +218,9 @@ function sameNonEmpty(values: Array<string | undefined>): boolean {
   return unique.length === 1;
 }
 
-function stableSequence(frames: readonly AgentUiLiveTailFrameSnapshot[]): boolean {
+function stableSequence(
+  frames: readonly AgentUiLiveTailFrameSnapshot[],
+): boolean {
   const sequences = frames
     .map((frame) => frame.itemSequence)
     .filter((sequence) => sequence.length > 0)
@@ -227,7 +232,9 @@ function firstSequence(
   frames: readonly AgentUiLiveTailFrameSnapshot[],
   predicate: (frame: AgentUiLiveTailFrameSnapshot) => boolean,
 ): number | undefined {
-  const frame = frames.filter(predicate).sort((left, right) => left.sequence - right.sequence)[0];
+  const frame = frames
+    .filter(predicate)
+    .sort((left, right) => left.sequence - right.sequence)[0];
   return frame?.sequence;
 }
 
@@ -316,13 +323,16 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexLiveTailCommitProjectionSnapshot(
+export function extractLiveTailCommitProjectionSnapshot(
   input: AgentUiLiveTailCommitSnapshotInput,
 ): AgentUiLiveTailCommitProjectionSnapshot {
   const frames = (input.frames ?? input.snapshots ?? [])
     .map(parseFrame)
     .filter((frame): frame is AgentUiLiveTailFrameSnapshot => Boolean(frame));
-  const firstVisibleSequence = firstSequence(frames, (frame) => frame.firstOutputVisible);
+  const firstVisibleSequence = firstSequence(
+    frames,
+    (frame) => frame.firstOutputVisible,
+  );
   const commitSequence = firstSequence(
     frames,
     (frame) => frame.overflowCommitted || frame.phase === "completed",
@@ -356,11 +366,11 @@ export function extractCodexLiveTailCommitProjectionSnapshot(
   };
 }
 
-export function buildCodexLiveTailCommitProjectionEvent(
+export function buildLiveTailCommitProjectionEvent(
   input: AgentUiLiveTailCommitSnapshotInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexLiveTailCommitProjectionSnapshot(input);
+  const snapshot = extractLiveTailCommitProjectionSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "live_tail_commit_projection" },

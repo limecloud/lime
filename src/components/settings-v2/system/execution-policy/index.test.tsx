@@ -341,9 +341,15 @@ describe("ExecutionPolicySettings", () => {
     const container = renderComponent();
     await waitForLoad();
 
-    expect(container.querySelector('button[aria-label="启用工作区沙箱"]')).toBeNull();
-    expect(container.querySelector('button[aria-label="启用严格工作区沙箱"]')).toBeNull();
-    expect(container.querySelector('button[aria-label="启用沙箱回退提醒"]')).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="启用工作区沙箱"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="启用严格工作区沙箱"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="启用沙箱回退提醒"]'),
+    ).toBeNull();
     await setSelectValue(
       findSelectByValue(container, "none"),
       "shell_command_risk",
@@ -398,7 +404,7 @@ describe("ExecutionPolicySettings", () => {
     expect(container.textContent).toContain("执行策略已保存");
   });
 
-  it("保存时应按 Codex opt-in 语义写入 update_plan 开关", async () => {
+  it("保存时应按显式启用语义写入 update_plan 开关", async () => {
     const container = renderComponent();
     await waitForLoad();
 

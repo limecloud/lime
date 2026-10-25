@@ -45,7 +45,7 @@ use ratatui::text::Span;
 /// keep its existing ratatui host while sharing Codex's scrollback algorithm with PTY fixtures.
 /// Terminal capabilities required by history insertion.
 ///
-/// This is public so the Codex-shaped integration suite can exercise the same
+/// This is public so the Lime-native integration suite can exercise the same
 /// scrollback algorithm with a VT100-backed terminal without depending on the
 /// concrete interactive terminal owner.
 pub trait HistoryTerminal {

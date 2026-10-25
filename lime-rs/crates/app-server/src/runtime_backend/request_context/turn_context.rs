@@ -77,6 +77,15 @@ pub(in crate::runtime_backend) fn turn_context_from_request(
     if let Some(config_metadata) = config_metadata.as_ref() {
         metadata.insert("config".to_string(), config_metadata.clone());
     }
+    if let Some(policy) = request
+        .session
+        .business_object_ref
+        .as_ref()
+        .and_then(|reference| reference.metadata.as_ref())
+        .and_then(|metadata| metadata.get("shellEnvironmentPolicy"))
+    {
+        metadata.insert("shell_environment_policy".into(), policy.clone());
+    }
     let world_state = world_state_from_request(
         request,
         host_request,

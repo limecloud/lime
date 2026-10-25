@@ -117,7 +117,9 @@ function threadRecord(value: unknown): Record<string, unknown> | undefined {
   return readRecord(record?.thread) ?? record;
 }
 
-function threadIdFromRecord(record: Record<string, unknown> | undefined): string | undefined {
+function threadIdFromRecord(
+  record: Record<string, unknown> | undefined,
+): string | undefined {
   return readStringField(record, ["id", "threadId", "thread_id"]);
 }
 
@@ -156,7 +158,9 @@ function stableValue(value: unknown): unknown {
 
 function stableEqual(left: unknown, right: unknown): boolean {
   if (right === undefined || right === null) return true;
-  return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
+  return (
+    JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right))
+  );
 }
 
 function readPathState(value: unknown): AgentUiThreadStoragePathState {
@@ -193,15 +197,23 @@ function resultBlocked(value: unknown): boolean {
   if (value === undefined || value === null) return true;
   const record = readRecord(value);
   if (!record) return false;
-  if (readBooleanField(record, ["blocked", "failed", "notFound", "not_found"]) === true) {
+  if (
+    readBooleanField(record, ["blocked", "failed", "notFound", "not_found"]) ===
+    true
+  ) {
     return true;
   }
   const status = readStringField(record, ["status", "error", "code"]);
   return Boolean(
     status &&
-      ["not_found", "deleted", "error", "failed", "notloaded", "not_loaded"].includes(
-        status.trim().toLowerCase(),
-      ),
+    [
+      "not_found",
+      "deleted",
+      "error",
+      "failed",
+      "notloaded",
+      "not_loaded",
+    ].includes(status.trim().toLowerCase()),
   );
 }
 
@@ -376,7 +388,7 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexThreadArchiveDeleteHydrateSnapshot(
+export function extractThreadArchiveDeleteHydrateSnapshot(
   input: AgentUiThreadArchiveDeleteHydrateProjectionInput,
 ): AgentUiThreadArchiveDeleteHydrateSnapshot {
   const archivedThread = threadRecord(input.archivedReadResponse);
@@ -386,15 +398,27 @@ export function extractCodexThreadArchiveDeleteHydrateSnapshot(
     threadIdFromRecord(archivedThread) ??
     threadIdFromRecord(unarchivedThread);
   const archivedNotificationIds = notificationIds(input.archiveNotification);
-  const unarchivedNotificationIds = notificationIds(input.unarchiveNotification);
+  const unarchivedNotificationIds = notificationIds(
+    input.unarchiveNotification,
+  );
   const deletedNotificationIds = notificationIds(input.deleteNotifications);
-  const activeListAfterArchiveIds = threadIdsFromList(input.activeListAfterArchive);
-  const archivedListAfterArchiveIds = threadIdsFromList(input.archivedListAfterArchive);
-  const activeListAfterUnarchiveIds = threadIdsFromList(input.activeListAfterUnarchive);
+  const activeListAfterArchiveIds = threadIdsFromList(
+    input.activeListAfterArchive,
+  );
+  const archivedListAfterArchiveIds = threadIdsFromList(
+    input.archivedListAfterArchive,
+  );
+  const activeListAfterUnarchiveIds = threadIdsFromList(
+    input.activeListAfterUnarchive,
+  );
   const rendered = readRecord(input.renderedState);
-  const sidebarHidden = readBooleanField(rendered, ["sidebarHidden", "sidebar_hidden"]) === true;
+  const sidebarHidden =
+    readBooleanField(rendered, ["sidebarHidden", "sidebar_hidden"]) === true;
   const readModelStillActive =
-    readBooleanField(rendered, ["readModelStillActive", "read_model_still_active"]) === true;
+    readBooleanField(rendered, [
+      "readModelStillActive",
+      "read_model_still_active",
+    ]) === true;
   const base = {
     threadId,
     descendantThreadIds: idList(input.descendantThreadIds),
@@ -415,11 +439,16 @@ export function extractCodexThreadArchiveDeleteHydrateSnapshot(
     archivedListConsistent:
       archivedListAfterArchiveIds.includes(threadId ?? "") &&
       !activeListAfterArchiveIds.includes(threadId ?? ""),
-    unarchiveNotificationSeen: unarchivedNotificationIds.includes(threadId ?? ""),
+    unarchiveNotificationSeen: unarchivedNotificationIds.includes(
+      threadId ?? "",
+    ),
     unarchiveRestored:
       threadIdFromRecord(unarchivedThread) === threadId ||
       activeListAfterUnarchiveIds.includes(threadId ?? ""),
-    deleteNotificationsComplete: [threadId, ...idList(input.descendantThreadIds)]
+    deleteNotificationsComplete: [
+      threadId,
+      ...idList(input.descendantThreadIds),
+    ]
       .filter((item): item is string => Boolean(item))
       .every((item) => deletedNotificationIds.includes(item)),
     deletedReadBlocked: resultBlocked(input.readAfterDelete),
@@ -433,11 +462,11 @@ export function extractCodexThreadArchiveDeleteHydrateSnapshot(
   };
 }
 
-export function buildCodexThreadArchiveDeleteHydrateProjectionEvent(
+export function buildThreadArchiveDeleteHydrateProjectionEvent(
   input: AgentUiThreadArchiveDeleteHydrateProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexThreadArchiveDeleteHydrateSnapshot(input);
+  const snapshot = extractThreadArchiveDeleteHydrateSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",

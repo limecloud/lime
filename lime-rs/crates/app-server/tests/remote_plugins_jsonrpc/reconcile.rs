@@ -412,7 +412,7 @@ async fn remote_reconcile_update_reports_components_removed_from_new_bundle() {
     reconcile(&server).await;
     issuer.plugin.lock().unwrap()["release"]["version"] = json!("2.0.0");
     *issuer.bundle.lock().unwrap() = super::install::archive(&[(
-        ".codex-plugin/plugin.json",
+        ".lime-plugin/plugin.json",
         br#"{"name":"research","version":"2.0.0"}"#,
     )]);
     issuer.plugin.lock().unwrap()["release"]["skills"] = json!([]);

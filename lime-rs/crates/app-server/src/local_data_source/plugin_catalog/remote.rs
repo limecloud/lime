@@ -6,7 +6,7 @@ use crate::plugin_remote::{
 use app_server_protocol::protocol::v2::{Account, GetAccountParams};
 use serde::{Deserialize, Serialize};
 
-const METADATA_FILE: &str = ".codex-remote-plugin-install.json";
+const METADATA_FILE: &str = ".lime-remote-plugin-install.json";
 const MAX_METADATA_BYTES: u64 = 16 * 1024;
 
 pub(super) mod gate;

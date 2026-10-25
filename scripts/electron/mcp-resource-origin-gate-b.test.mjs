@@ -19,7 +19,7 @@ function readGateB() {
 }
 
 describe("MCP resource origin Electron Gate B", () => {
-  it("finds only the exact codex_apps canonical resource item", () => {
+  it("finds only the exact lime_apps canonical resource item", () => {
     const matching = {
       type: "mcpToolCall",
       id: "item_call-mcp-resource-origin",

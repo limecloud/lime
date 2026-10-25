@@ -7,9 +7,13 @@ import {
   type Config,
 } from "@/lib/api/appConfig";
 import { changeLimeLocale } from "@/i18n/createI18n";
+import type {
+  ComposerEnterBehavior,
+  ConfirmBeforeClose,
+  DesktopConfig,
+} from "@/lib/api/appConfigTypes";
 import { useI18nPatch } from "@/i18n/legacy-patch/I18nPatchProvider";
 import {
-  UI_LOCALE_OPTIONS,
   normalizeLocalePreference,
   toLegacyPatchLanguage,
   type LocalePreference,
@@ -75,6 +79,30 @@ export function useGeneralSettings() {
     }
   };
 
+  const handleDesktopPreferenceChange = async <K extends keyof DesktopConfig>(
+    key: K,
+    value: NonNullable<DesktopConfig[K]>,
+  ) => {
+    if (!config || saving.current) return;
+    saving.current = true;
+    ++revision.current;
+    try {
+      const saved = await updateConfig((current) => ({
+        ...current,
+        desktop: { ...current.desktop, [key]: value },
+      }));
+      if (alive.current) {
+        setConfig(saved);
+        setError(null);
+      }
+    } catch {
+      await loadConfig();
+      if (alive.current) setError(t("settings.desktop.saveError"));
+    } finally {
+      saving.current = false;
+    }
+  };
+
   return {
     loading,
     config: Boolean(config),
@@ -82,7 +110,20 @@ export function useGeneralSettings() {
     error,
     loadConfig,
     language: normalizeLocalePreference(config?.language),
-    languageOptions: UI_LOCALE_OPTIONS,
     handleLanguageChange,
+    handleEnterBehaviorChange: (value: ComposerEnterBehavior) =>
+      handleDesktopPreferenceChange("composerEnterBehavior", value),
+    handleMacMenuBarEnabledChange: (value: boolean) =>
+      handleDesktopPreferenceChange("mac-menu-bar-enabled", value),
+    handlePreventSleepWhileRunningChange: (value: boolean) =>
+      handleDesktopPreferenceChange("preventSleepWhileRunning", value),
+    handleConfirmBeforeCloseChange: (value: ConfirmBeforeClose) =>
+      handleDesktopPreferenceChange("confirm-before-close", value),
+    confirmBeforeClose:
+      config?.desktop?.["confirm-before-close"] ?? "keyboardOnly",
+    preventSleepWhileRunning:
+      config?.desktop?.preventSleepWhileRunning === true,
+    macMenuBarEnabled: config?.desktop?.["mac-menu-bar-enabled"] !== false,
+    enterBehavior: config?.desktop?.composerEnterBehavior ?? "enter",
   };
 }

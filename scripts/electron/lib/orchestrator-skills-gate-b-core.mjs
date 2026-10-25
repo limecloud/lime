@@ -11,9 +11,9 @@ import {
   parseJsonRpcRequestsFromInvokeTrace,
 } from "../mcp-config-fixture-smoke.mjs";
 
-export const APPS_SERVER_NAME = "codex_apps";
+export const APPS_SERVER_NAME = "lime_apps";
 export const ORDINARY_SERVER_NAME = "ordinary_fixture";
-export const APPS_TOOL_NAME = "mcp__codex_apps__apps_ping";
+export const APPS_TOOL_NAME = "mcp__lime_apps__apps_ping";
 export const ORDINARY_TOOL_NAME = "mcp__ordinary_fixture__ordinary_ping";
 export const APPS_CONNECTOR_ID = "calendar";
 export const APPS_LINK_ID = "link-calendar";
@@ -189,7 +189,7 @@ rl.on("line", (line) => {
             connector_name: "Calendar",
             link_id: appLinkId,
             ui: { resourceUri: appResourceUri },
-            _codex_apps: {
+            _lime_apps: {
               resource_uri: "/calendar/" + appLinkId + "/apps_ping",
               requires_explicit_link_id: true,
             },

@@ -44,6 +44,11 @@ function context() {
     refreshSettings: vi.fn(async () => undefined),
     invalidateSnapshot: vi.fn(),
     release: vi.fn(),
+    subscribeEvents: vi.fn(async (_assertActive: () => void) => ({
+      protocolVersion: 1,
+      pipePath: "/test/events",
+      token: "test-token",
+    })),
     state: vi.fn(() => ({ tabId: "tab-1" }) as BrowserTabState),
     requestApproval: vi.fn((reason: string) => ({
       status: "approval_required" as const,
@@ -53,6 +58,58 @@ function context() {
 }
 
 afterEach(() => vi.useRealTimers());
+
+it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+  "requires independent event approval before issuing a capability: %s",
+  async (locale) => {
+    const c = context();
+    c.locale = locale;
+    const request = { ...call(), tool: "addCdpEventListener", arguments: {} };
+    await expect(executeCdpCommand(request, false, c)).resolves.toMatchObject({
+      status: "approval_required",
+      data: { reason: expect.stringContaining("CDP") },
+    });
+    expect(c.attach).not.toHaveBeenCalled();
+    expect(c.subscribeEvents).not.toHaveBeenCalled();
+    await expect(executeCdpCommand(request, true, c)).resolves.toMatchObject({
+      status: "completed",
+      data: { protocolVersion: 1 },
+    });
+    expect(c.attach).toHaveBeenCalledOnce();
+    expect(c.subscribeEvents).toHaveBeenCalledOnce();
+    expect(c.invalidateSnapshot).not.toHaveBeenCalled();
+    const guard = c.subscribeEvents.mock.calls[0][0];
+    c.policy.setSettings(
+      effectiveBrowserSettings({ fullCdpAccessEnabled: false }),
+    );
+    expect(guard).toThrow(/denied|changed/);
+  },
+);
+
+it.each([
+  { source: { tabId: "other" } },
+  { target: { sessionId: "other" } },
+  { url: "https://other.test/" },
+])(
+  "rejects caller-selected event sources before approval or attachment: %j",
+  async (arguments_) => {
+    const c = context();
+    await expect(
+      executeCdpCommand(
+        {
+          ...call(),
+          tool: "addCdpEventListener",
+          arguments: arguments_,
+        },
+        false,
+        c,
+      ),
+    ).rejects.toThrow("override");
+    expect(c.requestApproval).not.toHaveBeenCalled();
+    expect(c.attach).not.toHaveBeenCalled();
+    expect(c.subscribeEvents).not.toHaveBeenCalled();
+  },
+);
 
 it.each([
   { autoAttach: true, flatten: true, waitForDebuggerOnStart: false },

@@ -142,7 +142,7 @@ async fn server(temp: &TempDir) -> AppServer {
 }
 
 fn write_plugin(root: &std::path::Path, name: &str, display_name: &str) {
-    fs::create_dir_all(root.join(".codex-plugin")).expect("create plugin manifest directory");
+    fs::create_dir_all(root.join(".lime-plugin")).expect("create plugin manifest directory");
     fs::write(
         root.join("plugin.json"),
         serde_json::to_vec_pretty(&json!({
@@ -155,7 +155,7 @@ fn write_plugin(root: &std::path::Path, name: &str, display_name: &str) {
     )
     .expect("write standard plugin manifest");
     fs::write(
-        root.join(".codex-plugin/plugin.json"),
+        root.join(".lime-plugin/plugin.json"),
         serde_json::to_vec_pretty(&json!({
             "name": name,
             "version": "1.0.0",

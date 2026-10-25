@@ -24,7 +24,7 @@ export function annotationSpacePressed(
           (editable !== null &&
             editable.getAttribute("contenteditable") !== "false") ||
           element.closest(
-            "input,textarea,select,[role='textbox'],[data-codex-composer],[data-codex-terminal]",
+            "input,textarea,select,[role='textbox'],[data-lime-composer],[data-lime-terminal]",
           ) !== null
         );
       })

@@ -33,7 +33,7 @@ impl RuntimeProviderProtocol {
     pub fn from_route_protocol(protocol: &ProtocolKind) -> Option<Self> {
         match protocol {
             ProtocolKind::OpenaiChat => Some(Self::ChatCompletions),
-            ProtocolKind::OpenaiResponses | ProtocolKind::CodexResponses => Some(Self::Responses),
+            ProtocolKind::OpenaiResponses => Some(Self::Responses),
             ProtocolKind::AnthropicMessages => Some(Self::AnthropicMessages),
             ProtocolKind::GeminiGenerateContent => Some(Self::GeminiGenerateContent),
             ProtocolKind::VertexGemini => Some(Self::VertexGemini),
@@ -68,14 +68,14 @@ impl RuntimeProviderProtocol {
         if matches!(normalized.as_str(), "azure" | "azure_openai") {
             return matches!(
                 protocol,
-                ProtocolKind::OpenaiResponses | ProtocolKind::CodexResponses
+                ProtocolKind::OpenaiResponses
             )
             .then_some(Self::AzureResponses);
         }
         if normalized == "ollama"
             && !matches!(
                 protocol,
-                ProtocolKind::OpenaiResponses | ProtocolKind::CodexResponses
+                ProtocolKind::OpenaiResponses
             )
         {
             return None;
@@ -184,10 +184,6 @@ mod tests {
         );
         assert_eq!(
             RuntimeProviderProtocol::from_route_protocol(&ProtocolKind::OpenaiResponses),
-            Some(RuntimeProviderProtocol::Responses)
-        );
-        assert_eq!(
-            RuntimeProviderProtocol::from_route_protocol(&ProtocolKind::CodexResponses),
             Some(RuntimeProviderProtocol::Responses)
         );
         assert_eq!(

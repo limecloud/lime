@@ -34,7 +34,7 @@ pub(super) fn read_layers_from_stack(
     for project in stack.projects {
         let metadata = ConfigLayerMetadata {
             name: ConfigLayerSource::Project {
-                dot_codex_folder: project.folder.to_string_lossy().into_owned(),
+                dot_lime_folder: project.folder.to_string_lossy().into_owned(),
             },
             version: source_version(&project.source),
         };
@@ -143,13 +143,14 @@ pub(super) fn write_project_edits(
         .take(stack.projects.len().saturating_sub(1))
     {
         if layer.disabled_reason.is_none() {
-            merge_defaults(&mut effective, &layer.config);
+            merge_defaults(&mut effective, &layer.config).map_err(config_runtime_error)?;
         }
     }
     merge_defaults(
         &mut effective,
         &parse_project(&source).map_err(config_runtime_error)?,
-    );
+    )
+    .map_err(config_runtime_error)?;
     serde_json::from_value::<Config>(effective).map_err(|error| {
         config_write_error(
             ConfigWriteErrorCode::ConfigValidationError,

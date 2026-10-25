@@ -149,7 +149,7 @@ fn successful(stdout: &str) -> HookCommandOutput {
 }
 
 #[test]
-fn codex_pre_tool_output_can_block_rewrite_or_add_context() {
+fn lime_pre_tool_output_can_block_rewrite_or_add_context() {
     let hook = discovered("true", 5);
     assert_eq!(
         report_from_output(

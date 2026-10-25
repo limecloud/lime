@@ -17,6 +17,11 @@ export type AppServerRequestClientMethodSpec = {
 
 export const APP_SERVER_REQUEST_CLIENT_METHODS: readonly AppServerRequestClientMethodSpec[] =
   [
+    { name: "readComputerUseStatus", method: protocol.METHOD_COMPUTER_USE_STATUS, kind: "request", params: "optional-empty" },
+    { name: "setupComputerUse", method: protocol.METHOD_COMPUTER_USE_SETUP, kind: "request", params: "required" },
+    { name: "revokeComputerUse", method: protocol.METHOD_COMPUTER_USE_REVOKE, kind: "request", params: "required" },
+    { name: "acquireComputerUseLease", method: protocol.METHOD_COMPUTER_USE_LEASE_ACQUIRE, kind: "request", params: "required" },
+    { name: "releaseComputerUseLease", method: protocol.METHOD_COMPUTER_USE_LEASE_RELEASE, kind: "request", params: "required" },
     {
       name: "listLocalEnvironments",
       method: protocol.METHOD_LOCAL_ENVIRONMENTS_LIST,
@@ -786,18 +791,6 @@ export const APP_SERVER_REQUEST_CLIENT_METHODS: readonly AppServerRequestClientM
       params: "required",
     },
     {
-      name: "importMcpServersFromApp",
-      method: protocol.METHOD_MCP_SERVER_IMPORT_FROM_APP,
-      kind: "request",
-      params: "required",
-    },
-    {
-      name: "syncAllMcpServersToLive",
-      method: protocol.METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
-      kind: "request",
-      params: "none",
-    },
-    {
       name: "loginMcpServerOauth",
       method: protocol.METHOD_MCP_SERVER_OAUTH_LOGIN,
       kind: "request",
@@ -1400,6 +1393,12 @@ export const APP_SERVER_REQUEST_CLIENT_METHODS: readonly AppServerRequestClientM
     {
       name: "unwatch",
       method: protocol.METHOD_FS_UNWATCH,
+      kind: "request",
+      params: "required",
+    },
+    {
+      name: "setProjectGitWorktreeEnvironment",
+      method: protocol.METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
       kind: "request",
       params: "required",
     },

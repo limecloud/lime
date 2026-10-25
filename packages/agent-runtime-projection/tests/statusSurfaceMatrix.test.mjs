@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexStatusSurfaceMatrixProjectionEvent,
-  extractCodexStatusSurfaceMatrixProjectionSnapshot,
+  buildStatusSurfaceMatrixProjectionEvent,
+  extractStatusSurfaceMatrixProjectionSnapshot,
 } from "../dist/index.js";
 
 const OWNER = "agent-status-surface-presenter";
@@ -44,16 +44,13 @@ function baseInput(overrides = {}) {
 }
 
 test("status surface matrix uses one structured presentation owner", () => {
-  const event = buildCodexStatusSurfaceMatrixProjectionEvent(
-    baseInput(),
-    {
-      sessionId: "session-status",
-      threadId: "thread-status",
-      turnId: "turn-status",
-      sequence: 361,
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildStatusSurfaceMatrixProjectionEvent(baseInput(), {
+    sessionId: "session-status",
+    threadId: "thread-status",
+    turnId: "turn-status",
+    sequence: 361,
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -108,18 +105,24 @@ test("status surface matrix uses one structured presentation owner", () => {
 });
 
 test("status matrix requires every expected status surface", () => {
-  const snapshot = extractCodexStatusSurfaceMatrixProjectionSnapshot(
+  const snapshot = extractStatusSurfaceMatrixProjectionSnapshot(
     baseInput({
-      surfaces: baseInput().surfaces.filter((entry) => entry.surface !== "goal"),
+      surfaces: baseInput().surfaces.filter(
+        (entry) => entry.surface !== "goal",
+      ),
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "missing_status_surface"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "missing_status_surface",
+    ),
+  );
   assert.equal(snapshot.requiredSurfacesCovered, false);
 });
 
 test("status surfaces reject split presentation owners and thread drift", () => {
-  const snapshot = extractCodexStatusSurfaceMatrixProjectionSnapshot(
+  const snapshot = extractStatusSurfaceMatrixProjectionSnapshot(
     baseInput({
       surfaces: [
         ...baseInput().surfaces.slice(0, 2),
@@ -133,14 +136,22 @@ test("status surfaces reject split presentation owners and thread drift", () => 
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "presentation_owner_split"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "thread_session_binding_lost"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "presentation_owner_split",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "thread_session_binding_lost",
+    ),
+  );
   assert.equal(snapshot.sharedPresentationOwner, false);
   assert.equal(snapshot.threadSessionBindingPreserved, false);
 });
 
 test("status matrix requires model, reasoning, goal, title, runtime and rate limit facts", () => {
-  const snapshot = extractCodexStatusSurfaceMatrixProjectionSnapshot(
+  const snapshot = extractStatusSurfaceMatrixProjectionSnapshot(
     baseInput({
       surfaces: [
         surface("footer", {}),
@@ -155,16 +166,28 @@ test("status matrix requires model, reasoning, goal, title, runtime and rate lim
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "metadata_fact_missing"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "runtime_status_missing"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "rate_limit_fact_missing"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "metadata_fact_missing",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "runtime_status_missing",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "rate_limit_fact_missing",
+    ),
+  );
   assert.equal(snapshot.metadataFactsPresent, false);
   assert.equal(snapshot.runtimeStatusPresent, false);
   assert.equal(snapshot.rateLimitFactsPresent, false);
 });
 
 test("natural language status inference and local component naming fail closed", () => {
-  const snapshot = extractCodexStatusSurfaceMatrixProjectionSnapshot(
+  const snapshot = extractStatusSurfaceMatrixProjectionSnapshot(
     baseInput({
       surfaces: [
         {
@@ -180,8 +203,16 @@ test("natural language status inference and local component naming fail closed",
     }),
   );
 
-  assert(snapshot.validationIssues.some((issue) => issue.code === "natural_language_status_inference"));
-  assert(snapshot.validationIssues.some((issue) => issue.code === "duplicate_component_naming"));
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "natural_language_status_inference",
+    ),
+  );
+  assert(
+    snapshot.validationIssues.some(
+      (issue) => issue.code === "duplicate_component_naming",
+    ),
+  );
   assert.equal(snapshot.naturalLanguageInferenceRejected, false);
   assert.equal(snapshot.duplicateNamingRejected, false);
 });

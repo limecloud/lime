@@ -68,6 +68,8 @@ import {
   type ContextualSuggestionsConfig,
 } from "./ContextualSuggestions";
 import { useInputbarDictation } from "../hooks/useInputbarDictation";
+import { useDesktopPreferences } from "@/hooks/useDesktopPreferences";
+import { effectiveDesktopPreferences } from "@/lib/api/desktopPreferences";
 
 const INTERACTIVE_TARGET_SELECTOR =
   "button, a, input, textarea, select, option, [role='button'], [contenteditable=''], [contenteditable='true'], [contenteditable='plaintext-only']";
@@ -183,6 +185,10 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   contextualSuggestions,
 }) => {
   const { t } = useTranslation("agent");
+  const { configured: desktopPreferences } = useDesktopPreferences();
+  const { composerEnterBehavior } = effectiveDesktopPreferences(
+    desktopPreferences ?? undefined,
+  );
   const [fallbackController] = useState(
     () => externalController ?? new ComposerController({ text }),
   );
@@ -299,6 +305,8 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       disabled={composerDisabled}
       onPaste={onPaste}
       onKeyDown={onKeyDown}
+      sendOnEnter={desktopPreferences !== null}
+      enterBehavior={composerEnterBehavior}
       isFullscreen={isFullscreen}
       fillHeightWhenFullscreen
       hasAdditionalContent={

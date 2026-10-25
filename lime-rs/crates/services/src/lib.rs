@@ -22,7 +22,6 @@
 //! - `voice_recording_service` - 录音状态与设备服务
 //! - `machine_id_service` - 机器 ID 服务
 //! - `live_sync` - 实时同步
-//! - `mcp_sync` - MCP 同步
 //! - `prompt_sync` - Prompt 同步
 //! - `skill_service` - 技能服务
 //! - `backup_service` - 备份服务
@@ -48,7 +47,6 @@ pub mod voice_recording_service;
 // 依赖 models 的服务
 pub mod live_sync;
 pub mod machine_id_service;
-pub mod mcp_sync;
 pub mod prompt_sync;
 pub mod skill_service;
 

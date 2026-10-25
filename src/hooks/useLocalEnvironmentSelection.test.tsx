@@ -23,7 +23,7 @@ vi.mock("@/lib/api/persistedAtoms", () => ({
 vi.mock("@/lib/api/localEnvironments", () => ({
   localEnvironments: { list: mocks.list },
 }));
-const configPath = "/a/.codex/environments/environment.toml";
+const configPath = "/a/.lime/environments/environment.toml";
 const entry = {
   type: "success",
   configPath,

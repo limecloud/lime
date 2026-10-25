@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexTokenUsageReplayProjectionEvent,
-  extractCodexTokenUsageReplaySnapshot,
+  buildTokenUsageReplayProjectionEvent,
+  extractTokenUsageReplaySnapshot,
 } from "../dist/index.js";
 
 function tokenUsageNotification(threadId, turnId, tokenUsage = usage()) {
@@ -63,14 +63,11 @@ function baseInput(overrides = {}) {
 }
 
 test("token usage replay projects restored usage before the next turn", () => {
-  const event = buildCodexTokenUsageReplayProjectionEvent(
-    baseInput(),
-    {
-      sequence: 221,
-      sessionId: "session-token",
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildTokenUsageReplayProjectionEvent(baseInput(), {
+    sequence: 221,
+    sessionId: "session-token",
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -113,7 +110,7 @@ test("token usage replay projects restored usage before the next turn", () => {
 });
 
 test("token usage replay skips notification when turns are excluded", () => {
-  const snapshot = extractCodexTokenUsageReplaySnapshot({
+  const snapshot = extractTokenUsageReplaySnapshot({
     threadId: "thread-token",
     excludeTurns: true,
     tokenUsageNotification: [],
@@ -122,7 +119,7 @@ test("token usage replay skips notification when turns are excluded", () => {
   assert.equal(snapshot.replaySkippedForExcludeTurns, true);
   assert.deepEqual(snapshot.validationIssues, []);
 
-  const unexpected = extractCodexTokenUsageReplaySnapshot(
+  const unexpected = extractTokenUsageReplaySnapshot(
     baseInput({
       excludeTurns: true,
     }),
@@ -134,7 +131,7 @@ test("token usage replay skips notification when turns are excluded", () => {
 });
 
 test("token usage replay fails closed on wrong thread or wrong turn attribution", () => {
-  const snapshot = extractCodexTokenUsageReplaySnapshot(
+  const snapshot = extractTokenUsageReplaySnapshot(
     baseInput({
       tokenUsageNotification: [
         tokenUsageNotification("other-thread", "turn-stale-tail"),
@@ -156,7 +153,7 @@ test("token usage replay fails closed on wrong thread or wrong turn attribution"
 });
 
 test("token usage replay requires totals and context window surface", () => {
-  const snapshot = extractCodexTokenUsageReplaySnapshot(
+  const snapshot = extractTokenUsageReplaySnapshot(
     baseInput({
       tokenUsageNotification: [
         tokenUsageNotification("thread-token", "turn-owner", {
@@ -182,7 +179,7 @@ test("token usage replay requires totals and context window surface", () => {
 });
 
 test("token usage replay must happen before next turn and stay connection-scoped", () => {
-  const snapshot = extractCodexTokenUsageReplaySnapshot(
+  const snapshot = extractTokenUsageReplaySnapshot(
     baseInput({
       notificationOrder: [
         { method: "thread/resume.response" },
@@ -207,7 +204,7 @@ test("token usage replay must happen before next turn and stay connection-scoped
 });
 
 test("token usage replay must not become transcript or read-model items", () => {
-  const snapshot = extractCodexTokenUsageReplaySnapshot(
+  const snapshot = extractTokenUsageReplaySnapshot(
     baseInput({
       transcriptItems: [
         {

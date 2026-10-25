@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexStructuredOutputMessageProjectionEvent,
-  extractCodexStructuredOutputMessageSnapshot,
+  buildStructuredOutputMessageProjectionEvent,
+  extractStructuredOutputMessageSnapshot,
 } from "../dist/index.js";
 
 const OUTPUT_SCHEMA = {
@@ -20,15 +20,15 @@ const OUTPUT_SCHEMA = {
 };
 
 const STRUCTURED_PAYLOAD = {
-  answer: "Use Codex typed output guards.",
-  citations: ["codex-output-schema"],
+  answer: "Use Lime typed output guards.",
+  citations: ["lime-output-schema"],
 };
 
 function modelRequest(schema = OUTPUT_SCHEMA) {
   return {
     text: {
       format: {
-        name: "codex_output_schema",
+        name: "json_schema",
         type: "json_schema",
         strict: true,
         schema,
@@ -149,16 +149,13 @@ function baseInput(overrides = {}) {
 }
 
 test("structured output message keeps output_schema request, typed payload and tool output shapes", () => {
-  const event = buildCodexStructuredOutputMessageProjectionEvent(
-    baseInput(),
-    {
-      sessionId: "session-structured",
-      threadId: "thread-structured",
-      turnId: "turn-structured",
-      sequence: 311,
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildStructuredOutputMessageProjectionEvent(baseInput(), {
+    sessionId: "session-structured",
+    threadId: "thread-structured",
+    turnId: "turn-structured",
+    sequence: 311,
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -227,8 +224,8 @@ test("structured output message keeps output_schema request, typed payload and t
   );
 });
 
-test("output schema must use Codex json_schema format and stay per-turn", () => {
-  const snapshot = extractCodexStructuredOutputMessageSnapshot(
+test("output schema must use json_schema format and stay per-turn", () => {
+  const snapshot = extractStructuredOutputMessageSnapshot(
     baseInput({
       modelRequest: {
         text: {
@@ -253,7 +250,7 @@ test("output schema must use Codex json_schema format and stay per-turn", () => 
 });
 
 test("structured assistant result cannot degrade to markdown text or string copy/export", () => {
-  const snapshot = extractCodexStructuredOutputMessageSnapshot(
+  const snapshot = extractStructuredOutputMessageSnapshot(
     baseInput({
       projectedMessage: projectedMessage({
         renderKind: "markdown",
@@ -280,7 +277,7 @@ test("structured assistant result cannot degrade to markdown text or string copy
 });
 
 test("function/custom tool output type, content items and structuredContent fail closed on drift", () => {
-  const snapshot = extractCodexStructuredOutputMessageSnapshot(
+  const snapshot = extractStructuredOutputMessageSnapshot(
     baseInput({
       toolOutputs: [
         {
@@ -338,7 +335,7 @@ test("function/custom tool output type, content items and structuredContent fail
 });
 
 test("invalid assistant JSON cannot masquerade as structured output", () => {
-  const snapshot = extractCodexStructuredOutputMessageSnapshot(
+  const snapshot = extractStructuredOutputMessageSnapshot(
     baseInput({
       assistantMessage: assistantMessage({
         content: [

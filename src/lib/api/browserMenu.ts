@@ -43,8 +43,11 @@ export async function showBrowserTabMenu(
   return receipt;
 }
 
-export async function hideBrowserTabOverlay(tabId: string): Promise<void> {
-  await safeInvoke("browser_tab_hide_overlay", { tabId });
+export async function hideBrowserTabOverlay(
+  tabId: string,
+  identity?: { menuId: string; generation?: number },
+): Promise<void> {
+  await safeInvoke("browser_tab_hide_overlay", { tabId, ...identity });
 }
 
 export async function updateBrowserTabMenu(

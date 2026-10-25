@@ -372,7 +372,7 @@ export const StreamingProcessGroup: React.FC<{
       data-testid="streaming-process-group"
       data-process-kind={processKind}
       data-process-running={descriptor?.hasRunning ? "yes" : "no"}
-      data-visual-tone={isWebSearchProcess ? "codex-activity" : "neutral"}
+      data-visual-tone={isWebSearchProcess ? "activity" : "neutral"}
     >
       <button
         type="button"

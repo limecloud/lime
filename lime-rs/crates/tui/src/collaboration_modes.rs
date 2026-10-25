@@ -1,4 +1,4 @@
-//! Codex-shaped collaboration mode discovery and selection helpers.
+//! Lime-native collaboration mode discovery and selection helpers.
 
 use agent_protocol::{CollaborationMode, CollaborationModeSettings, ModeKind};
 use app_server_protocol::protocol::v2::CollaborationModeMask;

@@ -19,8 +19,10 @@ function deferred<T>() {
 function setup() {
   const host = {
     setSettings: vi.fn(),
+    setApplicationNetworkRequirements: vi.fn(async () => {}),
     setSettingsProvider: vi.fn(),
     setPopupIdentityHandler: vi.fn(),
+    setToolWorkspaceHandler: vi.fn(),
   };
   const request = vi.fn();
   const policyRequest = vi.fn().mockResolvedValue({ requirements: null });
@@ -56,6 +58,140 @@ const identity = {
 };
 
 describe("Browser App Server bridge", () => {
+  it("allocates a first-tool canonical identity, consumes its private intent, then reveals without a launch URL", async () => {
+    const { bridge, host, request } = setup();
+    await bridge.observeResult(
+      "thread/start",
+      {},
+      { thread: { id: "thread-1", sessionId: "session-1" } },
+      41,
+    );
+    const input = {
+      ownerWebContentsId: 41,
+      threadId: "thread-1",
+      assertCurrent: vi.fn(),
+    };
+    request
+      .mockResolvedValueOnce(identity)
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ ...identity, requestId: "reveal" });
+    const workspace = await bridge.openToolWorkspace(input);
+    await bridge.revealToolWorkspace({ ...input, ...workspace });
+    expect(host.setToolWorkspaceHandler).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      "workspaceRightSurface/request",
+      expect.objectContaining({
+        priority: "background",
+        reason: "browser_identity_tool",
+        sessionId: "session-1",
+        metadata: { browser: { action: "open", threadId: "thread-1" } },
+      }),
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      "workspaceRightSurface/pending/consume",
+      { requestId: "request-1" },
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      3,
+      "workspaceRightSurface/request",
+      expect.objectContaining({
+        priority: "foreground",
+        reason: "browser_tool",
+        metadata: { browser: { threadId: "thread-1", ...workspace } },
+      }),
+    );
+  });
+
+  it("consumes a late first-tool identity after disconnect and never authorizes reveal", async () => {
+    const { bridge, request } = setup();
+    await bridge.observeResult(
+      "thread/start",
+      {},
+      { thread: { id: "thread-1", sessionId: "session-1" } },
+      41,
+    );
+    const pending = deferred<typeof identity>();
+    request.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({});
+    const operation = bridge.openToolWorkspace({
+      ownerWebContentsId: 41,
+      threadId: "thread-1",
+      assertCurrent: () => {},
+    });
+    const rejected = expect(operation).rejects.toThrow("owner");
+    bridge.reset();
+    pending.resolve(identity);
+    await rejected;
+    expect(request).toHaveBeenLastCalledWith(
+      "workspaceRightSurface/pending/consume",
+      { requestId: "request-1" },
+    );
+  });
+
+  it("allows the renderer to hydrate the same canonical workspace during foreground reveal", async () => {
+    const { bridge, request } = setup();
+    await bridge.observeResult(
+      "workspaceRightSurface/request",
+      ownerInput,
+      identity,
+      41,
+    );
+    request.mockImplementationOnce(async () => {
+      await bridge.observeResult(
+        "workspaceRightSurface/request",
+        ownerInput,
+        identity,
+        41,
+      );
+      return { ...identity, requestId: "reveal" };
+    });
+    await expect(
+      bridge.revealToolWorkspace({
+        ownerWebContentsId: 41,
+        threadId: "thread-1",
+        browserSessionId: "browser-1",
+        tabId: "popup",
+        assertCurrent: () => {},
+      }),
+    ).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it("uses only independent managed requirements for native application destinations", async () => {
+    const { bridge, host, request, policyRequest } = setup();
+    request.mockResolvedValue({
+      config: { application: { network: { enabled: false } } },
+    });
+    const requirements = {
+      application: {
+        network: { enabled: true, domains: { "example.com": "deny" } },
+        storage: null,
+      },
+    };
+    policyRequest.mockResolvedValue({ requirements });
+    await bridge.refreshSettings();
+    expect(host.setApplicationNetworkRequirements).toHaveBeenLastCalledWith(
+      requirements,
+    );
+    policyRequest.mockResolvedValueOnce({
+      requirements: {
+        application: { network: { enabled: "false", domains: {} } },
+      },
+    });
+    await expect(bridge.refreshSettings()).rejects.toThrow(
+      "Invalid managed application network requirements",
+    );
+    expect(host.setApplicationNetworkRequirements).toHaveBeenLastCalledWith(
+      undefined,
+    );
+    expect(host.setSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    bridge.reset();
+    expect(host.setApplicationNetworkRequirements).toHaveBeenLastCalledWith(
+      undefined,
+    );
+  });
   it("reads independent enterprise authority on every refresh and rejects an unavailable or malformed policy", async () => {
     const { bridge, host, request, policyRequest } = setup();
     request.mockResolvedValue({ config: {} });

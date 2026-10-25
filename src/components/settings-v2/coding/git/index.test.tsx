@@ -54,9 +54,10 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-it("shows the reference defaults and seven searchable real preferences", async () => {
+it("shows Lime defaults and seven searchable real preferences", async () => {
   await mount();
-  expect(input("git-branch-prefix").value).toBe("codex/");
+  expect(input("git-branch-prefix").value).toBe("lime/");
+  expect(input("git-branch-prefix").getAttribute("placeholder")).toBe("lime/");
   const switches = container.querySelectorAll('[role="switch"]');
   expect(
     [...switches].map((node) => node.getAttribute("aria-checked")),

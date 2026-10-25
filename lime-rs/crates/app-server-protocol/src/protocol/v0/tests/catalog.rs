@@ -16,6 +16,7 @@ fn app_server_method_catalog_keeps_all_method_kinds_together() {
             METHOD_INITIALIZED,
             METHOD_CAPABILITY_LIST,
             METHOD_ARTIFACT_READ,
+            METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
             METHOD_PROJECT_GIT_STATUS,
             METHOD_PROJECT_GIT_DIFF,
             METHOD_PROJECT_GIT_COMMITS_LIST,
@@ -155,8 +156,6 @@ fn app_server_method_catalog_keeps_all_method_kinds_together() {
             METHOD_MCP_SERVER_UPDATE,
             METHOD_MCP_SERVER_DELETE,
             METHOD_MCP_SERVER_ENABLED_SET,
-            METHOD_MCP_SERVER_IMPORT_FROM_APP,
-            METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
             METHOD_MCP_SERVER_OAUTH_LOGIN,
             METHOD_MCP_SERVER_OAUTH_LOGOUT,
             METHOD_MCP_SERVER_START,
@@ -462,4 +461,27 @@ fn app_server_request_access_keeps_shared_reads_in_the_catalog() {
         app_server_request_access(METHOD_TURN_START),
         AppServerRequestAccess::Exclusive
     );
+}
+
+#[test]
+fn retired_mcp_app_sync_methods_are_not_public_requests() {
+    for method in ["mcpServer/importFromApp", "mcpServer/syncAllToLive"] {
+        assert!(!is_app_server_request_method(method), "{method}");
+        assert!(AppServerRequestMethod::parse(method).is_none());
+        assert!(
+            serde_json::from_value::<AppServerClientRequest>(serde_json::json!({
+                "id": 1, "method": method, "params": {}
+            }))
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn mcp_enablement_rejects_external_app_targets() {
+    let local = serde_json::json!({ "id": "docs", "enabled": true });
+    assert!(serde_json::from_value::<McpServerEnabledSetParams>(local.clone()).is_ok());
+    let mut external = local;
+    external["appType"] = serde_json::json!("codex");
+    assert!(serde_json::from_value::<McpServerEnabledSetParams>(external).is_err());
 }

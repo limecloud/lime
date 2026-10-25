@@ -122,16 +122,26 @@ export function invokeArgsPreview(
   const candidateKey = ownDataValue(args, "key");
   const key =
     candidateKey === "composer-drafts-v1" ||
-    candidateKey === "app-shell-summary-panel-pinned"
+    candidateKey === "app-shell-summary-panel-pinned" ||
+    candidateKey === "app-shell-file-tree-open" ||
+    candidateKey === "local-env-selections-by-workspace" ||
+    candidateKey === "local-env-recent-actions-by-key"
       ? candidateKey
       : "unknown";
   if (command === "persisted_atom_read") return { key };
   const candidate = ownDataValue(ownDataValue(args, "mutation"), "op");
   const op =
     typeof candidate === "string" &&
-    (key === "app-shell-summary-panel-pinned"
+    (key === "app-shell-summary-panel-pinned" ||
+    key === "app-shell-file-tree-open"
       ? ["set"]
-      : ["put", "promote", "consume", "clear"]
+      : key === "local-env-selections-by-workspace"
+        ? ["set", "delete"]
+        : key === "local-env-recent-actions-by-key"
+          ? ["record"]
+          : key === "composer-drafts-v1"
+            ? ["put", "promote", "consume", "clear"]
+            : []
     ).includes(candidate)
       ? candidate
       : "unknown";

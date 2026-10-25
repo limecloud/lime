@@ -19,9 +19,9 @@ fn shared(id: &str, name: &str) -> Value {
 
 fn package(root: &std::path::Path) -> std::path::PathBuf {
     let path = root.join("editor");
-    std::fs::create_dir_all(path.join(".codex-plugin")).unwrap();
+    std::fs::create_dir_all(path.join(".lime-plugin")).unwrap();
     std::fs::write(
-        path.join(".codex-plugin/plugin.json"),
+        path.join(".lime-plugin/plugin.json"),
         r#"{"name":"research"}"#,
     )
     .unwrap();
@@ -128,7 +128,7 @@ async fn share_rpc_saves_real_archive_lists_cold_paths_updates_and_deletes() {
         .unwrap()
         .map(|entry| entry.unwrap().path().unwrap().into_owned())
         .collect::<Vec<_>>();
-    assert!(paths.contains(&".codex-plugin/plugin.json".into()));
+    assert!(paths.contains(&".lime-plugin/plugin.json".into()));
     assert!(paths.contains(&".hidden".into()));
     assert!(requests[3]
         .headers

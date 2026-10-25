@@ -188,13 +188,11 @@ const {
   METHOD_MCP_SERVER_CREATE,
   METHOD_MCP_SERVER_DELETE,
   METHOD_MCP_SERVER_ENABLED_SET,
-  METHOD_MCP_SERVER_IMPORT_FROM_APP,
   METHOD_MCP_SERVER_LIST,
   METHOD_MCP_SERVER_OAUTH_LOGIN,
   METHOD_MCP_SERVER_OAUTH_LOGOUT,
   METHOD_MCP_SERVER_ELICITATION_REQUEST,
   METHOD_MCP_SERVER_RESOURCE_READ,
-  METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE,
   METHOD_MCP_SERVER_START,
   METHOD_MCP_SERVER_STATUS_LIST,
   METHOD_MCP_SERVER_STOP,
@@ -1431,9 +1429,6 @@ test("builds app data surface requests with current methods", () => {
     name: "filesystem",
     server_config: { command: "node", args: ["server.js"] },
     enabled_lime: true,
-    enabled_claude: false,
-    enabled_codex: true,
-    enabled_gemini: false,
   };
   const mcpServerCreate = client.createMcpServer({
     server: mcpServer,
@@ -1446,13 +1441,8 @@ test("builds app data surface requests with current methods", () => {
   });
   const mcpServerEnabled = client.setMcpServerEnabled({
     id: "server-1",
-    appType: "codex",
     enabled: true,
   });
-  const mcpServerImport = client.importMcpServersFromApp({
-    appType: "codex",
-  });
-  const mcpServerSync = client.syncAllMcpServersToLive();
   const mcpServerOAuthLogin = client.loginMcpServerOauth({
     name: "filesystem",
     scopes: ["files.read"],
@@ -1743,15 +1733,8 @@ test("builds app data surface requests with current methods", () => {
   assert.equal(mcpServerEnabled.method, METHOD_MCP_SERVER_ENABLED_SET);
   assert.deepEqual(mcpServerEnabled.params, {
     id: "server-1",
-    appType: "codex",
     enabled: true,
   });
-  assert.equal(mcpServerImport.method, METHOD_MCP_SERVER_IMPORT_FROM_APP);
-  assert.deepEqual(mcpServerImport.params, {
-    appType: "codex",
-  });
-  assert.equal(mcpServerSync.method, METHOD_MCP_SERVER_SYNC_ALL_TO_LIVE);
-  assert.deepEqual(mcpServerSync.params, {});
   assert.equal(mcpServerOAuthLogin.method, METHOD_MCP_SERVER_OAUTH_LOGIN);
   assert.deepEqual(mcpServerOAuthLogin.params, {
     name: "filesystem",

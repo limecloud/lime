@@ -4,6 +4,7 @@ import {
   HOST_SOURCE_DIRS,
   HOST_SOURCE_FILES,
   HOST_PRELOAD_BUILD_ENTRIES,
+  HOST_CLIENT_BUILD_ENTRIES,
   RENDERER_BUILD_ENTRIES,
   RENDERER_SOURCE_DIRS,
   RENDERER_SOURCE_FILES,
@@ -54,6 +55,10 @@ function electronFixtureBuildSegments({ rootDir }) {
     rootDir,
     HOST_PRELOAD_BUILD_ENTRIES,
   );
+  const clientEntries = declaredBuildEntries(rootDir, [
+    HOST_PRELOAD_BUILD_ENTRIES[0],
+    ...HOST_CLIENT_BUILD_ENTRIES,
+  ]).slice(1);
   return [
     {
       id: "renderer",
@@ -80,6 +85,7 @@ function electronFixtureBuildSegments({ rootDir }) {
       requiredFiles: [
         path.join(rootDir, "dist-electron", "main", "main.js"),
         ...preloadEntries.map((entry) => path.join(rootDir, entry.output)),
+        ...clientEntries.map((entry) => path.join(rootDir, entry.output)),
         path.join(
           rootDir,
           "dist-electron",
@@ -90,9 +96,9 @@ function electronFixtureBuildSegments({ rootDir }) {
           "marketplace.json",
         ),
       ],
-      entrySources: preloadEntries
-        .slice(1)
-        .map((entry) => path.join(rootDir, entry.source)),
+      entrySources: [...preloadEntries.slice(1), ...clientEntries].map(
+        (entry) => path.join(rootDir, entry.source),
+      ),
       sourceDirs: HOST_SOURCE_DIRS,
       sourceFiles: HOST_SOURCE_FILES,
       buildSteps: [

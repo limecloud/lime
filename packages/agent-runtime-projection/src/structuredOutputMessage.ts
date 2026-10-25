@@ -143,7 +143,9 @@ function parseJsonText(value: string | undefined): unknown {
   }
 }
 
-function payloadKind(value: unknown): "object" | "array" | "scalar" | "missing" {
+function payloadKind(
+  value: unknown,
+): "object" | "array" | "scalar" | "missing" {
   if (value === undefined) return "missing";
   if (Array.isArray(value)) return "array";
   if (value && typeof value === "object") return "object";
@@ -181,18 +183,11 @@ function textFormatRecord(value: unknown): Record<string, unknown> | undefined {
   );
 }
 
-function requestSchema(value: unknown): unknown {
-  return textFormatRecord(value)?.schema;
-}
-
-function outputSchemaFormatValid(
-  schema: unknown,
-  request: unknown,
-): boolean {
+function outputSchemaFormatValid(schema: unknown, request: unknown): boolean {
   const format = textFormatRecord(request);
   if (!format || schema === undefined) return false;
   return (
-    readStringField(format, ["name"]) === "codex_output_schema" &&
+    readStringField(format, ["name"]) === "json_schema" &&
     readStringField(format, ["type"]) === "json_schema" &&
     readBooleanField(format, ["strict"]) === true &&
     sameJson(format.schema, schema)
@@ -202,7 +197,12 @@ function outputSchemaFormatValid(
 function outputTextFromContent(value: unknown): string | undefined {
   const record = readRecord(value);
   if (!record) return undefined;
-  const direct = readStringField(record, ["text", "message", "outputText", "output_text"]);
+  const direct = readStringField(record, [
+    "text",
+    "message",
+    "outputText",
+    "output_text",
+  ]);
   if (direct) return direct;
   const content = readArray(record.content);
   const text = content
@@ -239,7 +239,9 @@ function projectedPayload(value: unknown): unknown {
   );
 }
 
-function normalizeRenderKind(value: string | undefined): AgentUiStructuredOutputRenderKind {
+function normalizeRenderKind(
+  value: string | undefined,
+): AgentUiStructuredOutputRenderKind {
   switch (value) {
     case "json":
     case "table":
@@ -254,14 +256,18 @@ function normalizeRenderKind(value: string | undefined): AgentUiStructuredOutput
   }
 }
 
-function projectedRenderKind(value: unknown): AgentUiStructuredOutputRenderKind {
+function projectedRenderKind(
+  value: unknown,
+): AgentUiStructuredOutputRenderKind {
   const record = readRecord(value);
   return normalizeRenderKind(
     readStringField(record, ["renderKind", "render_kind", "renderer", "kind"]),
   );
 }
 
-function messageId(input: AgentUiStructuredOutputMessageProjectionInput): string | undefined {
+function messageId(
+  input: AgentUiStructuredOutputMessageProjectionInput,
+): string | undefined {
   const message = readRecord(input.assistantMessage);
   const projected = readRecord(input.projectedMessage);
   return (
@@ -291,7 +297,9 @@ function assistantSnapshot(
   };
 }
 
-function expectedToolKind(value: string | undefined): AgentUiStructuredToolOutputKind {
+function expectedToolKind(
+  value: string | undefined,
+): AgentUiStructuredToolOutputKind {
   switch (value) {
     case "function":
     case "function_call_output":
@@ -310,12 +318,20 @@ function expectedToolKind(value: string | undefined): AgentUiStructuredToolOutpu
   }
 }
 
-function toolKind(record: Record<string, unknown>): AgentUiStructuredToolOutputKind {
+function toolKind(
+  record: Record<string, unknown>,
+): AgentUiStructuredToolOutputKind {
   return expectedToolKind(readStringField(record, ["type", "kind"]));
 }
 
-function outputRecord(record: Record<string, unknown>): Record<string, unknown> | undefined {
-  return readRecord(record.output) ?? readRecord(record.result) ?? readRecord(record.payload);
+function outputRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  return (
+    readRecord(record.output) ??
+    readRecord(record.result) ??
+    readRecord(record.payload)
+  );
 }
 
 function outputBodyValue(record: Record<string, unknown>): unknown {
@@ -345,8 +361,13 @@ function contentItems(record: Record<string, unknown>): unknown[] {
   ];
 }
 
-function bodyKind(record: Record<string, unknown>): AgentUiStructuredToolOutputBodyKind {
-  if (structuredContent(record) !== undefined && structuredContent(record) !== null) {
+function bodyKind(
+  record: Record<string, unknown>,
+): AgentUiStructuredToolOutputBodyKind {
+  if (
+    structuredContent(record) !== undefined &&
+    structuredContent(record) !== null
+  ) {
     return "structured_content";
   }
   if (contentItems(record).length > 0) return "content_items";
@@ -355,7 +376,9 @@ function bodyKind(record: Record<string, unknown>): AgentUiStructuredToolOutputB
   return "unknown";
 }
 
-function projectedToolRecord(record: Record<string, unknown>): Record<string, unknown> | undefined {
+function projectedToolRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   return readRecord(record.projected) ?? readRecord(record.projection);
 }
 
@@ -373,7 +396,10 @@ function projectedBodyKind(
   ) {
     return explicit;
   }
-  if (projected.structuredContent !== undefined || projected.structured_content !== undefined) {
+  if (
+    projected.structuredContent !== undefined ||
+    projected.structured_content !== undefined
+  ) {
     return "structured_content";
   }
   if (
@@ -382,7 +408,10 @@ function projectedBodyKind(
   ) {
     return "content_items";
   }
-  if (typeof projected.text === "string" || typeof projected.output === "string") {
+  if (
+    typeof projected.text === "string" ||
+    typeof projected.output === "string"
+  ) {
     return "text";
   }
   return undefined;
@@ -415,7 +444,12 @@ function toolOutputSnapshot(
   if (!record) return undefined;
   const output = outputRecord(record);
   const expectedKind = expectedToolKind(
-    readStringField(record, ["expectedKind", "expected_kind", "expectedType", "expected_type"]),
+    readStringField(record, [
+      "expectedKind",
+      "expected_kind",
+      "expectedType",
+      "expected_type",
+    ]),
   );
   const actualKind = toolKind(record);
   const body = bodyKind(record);
@@ -457,7 +491,7 @@ function validateOutputSchema(
       issue(
         "output_schema_format_drift",
         "$.modelRequest.text.format",
-        "Structured output request must use Codex codex_output_schema json_schema strict format.",
+        "Structured output request must use Responses json_schema json_schema strict format.",
       ),
     );
   }
@@ -565,7 +599,7 @@ function validateTools(
         issue(
           "tool_output_type_drift",
           `${path}.type`,
-          "Function and custom tool outputs must keep their Codex ResponseInputItem type.",
+          "Function and custom tool outputs must keep their ResponseInputItem type.",
         ),
       );
     }
@@ -627,15 +661,15 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexStructuredOutputMessageSnapshot(
+export function extractStructuredOutputMessageSnapshot(
   input: AgentUiStructuredOutputMessageProjectionInput,
 ): AgentUiStructuredOutputMessageSnapshot {
   const schema = schemaFromInput(input);
   const assistant = assistantSnapshot(input);
   const toolOutputs = readArray(input.toolOutputs)
     .map(toolOutputSnapshot)
-    .filter(
-      (entry): entry is AgentUiStructuredToolOutputSnapshot => Boolean(entry),
+    .filter((entry): entry is AgentUiStructuredToolOutputSnapshot =>
+      Boolean(entry),
     );
   const validationIssues = [
     ...validateOutputSchema(input, schema),
@@ -645,7 +679,8 @@ export function extractCodexStructuredOutputMessageSnapshot(
   return {
     outputSchemaRequested: schema !== undefined,
     outputSchemaFormatValid:
-      schema === undefined || outputSchemaFormatValid(schema, input.modelRequest),
+      schema === undefined ||
+      outputSchemaFormatValid(schema, input.modelRequest),
     outputSchemaPerTurnScoped: !textFormatRecord(input.nextModelRequest),
     assistant,
     toolOutputs,
@@ -654,11 +689,11 @@ export function extractCodexStructuredOutputMessageSnapshot(
   };
 }
 
-export function buildCodexStructuredOutputMessageProjectionEvent(
+export function buildStructuredOutputMessageProjectionEvent(
   input: AgentUiStructuredOutputMessageProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexStructuredOutputMessageSnapshot(input);
+  const snapshot = extractStructuredOutputMessageSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "structured_output_message_projection" },

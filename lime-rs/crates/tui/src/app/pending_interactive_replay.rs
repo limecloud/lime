@@ -1,4 +1,4 @@
-//! Pending interactive request state used by Codex-shaped thread event replay.
+//! Pending interactive request state used by Lime-native thread event replay.
 //!
 //! Only the exact unresolved JSON-RPC request may replay. Item IDs classify lifecycle events;
 //! they are not response identities and must not revive a resolved or evicted request.

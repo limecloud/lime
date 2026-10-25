@@ -123,11 +123,15 @@ function recordArray(value: unknown): Record<string, unknown>[] {
     .filter((item): item is Record<string, unknown> => Boolean(item));
 }
 
-function readThreadId(record: Record<string, unknown> | undefined): string | undefined {
+function readThreadId(
+  record: Record<string, unknown> | undefined,
+): string | undefined {
   return readStringField(record, ["threadId", "thread_id", "id"]);
 }
 
-function rootRecords(record: Record<string, unknown> | undefined): Record<string, unknown>[] {
+function rootRecords(
+  record: Record<string, unknown> | undefined,
+): Record<string, unknown>[] {
   if (!record) return [];
   return [
     ...recordArray(record.selectedCapabilityRoots),
@@ -144,7 +148,12 @@ function readNameList(value: unknown): string[] {
     value.map((item) => {
       if (typeof item === "string") return item;
       const record = readRecord(item);
-      return readStringField(record, ["name", "server", "serverName", "server_name"]);
+      return readStringField(record, [
+        "name",
+        "server",
+        "serverName",
+        "server_name",
+      ]);
     }),
   );
 }
@@ -168,7 +177,10 @@ function selectedThreadIdForInput(
 ): string | undefined {
   const explicit = definedString(input.selectedThreadId ?? undefined);
   if (explicit) return explicit;
-  for (const thread of [...recordArray(input.threads), ...recordArray(input.threadInventories)]) {
+  for (const thread of [
+    ...recordArray(input.threads),
+    ...recordArray(input.threadInventories),
+  ]) {
     if (rootRecords(thread).length > 0) return readThreadId(thread);
   }
   return undefined;
@@ -178,14 +190,21 @@ function buildSelectedRoot(
   record: Record<string, unknown>,
   threadId: string | undefined,
 ): AgentUiMcpSelectedRootSnapshot | undefined {
-  const id = readStringField(record, ["id", "selectedRootId", "selected_root_id"]);
+  const id = readStringField(record, [
+    "id",
+    "selectedRootId",
+    "selected_root_id",
+  ]);
   if (!id) return undefined;
   const location = readRecord(record.location);
   return compactProjectionFields({
     id,
     threadId,
     locationType: readStringField(location, ["type"]),
-    environmentId: readStringField(location, ["environmentId", "environment_id"]),
+    environmentId: readStringField(location, [
+      "environmentId",
+      "environment_id",
+    ]),
     path: readStringField(location, ["path", "uri"]),
   } satisfies AgentUiMcpSelectedRootSnapshot);
 }
@@ -199,7 +218,10 @@ function selectedRootsForInput(
     const snapshot = buildSelectedRoot(root, selectedThreadId);
     if (snapshot) roots.push(snapshot);
   }
-  for (const thread of [...recordArray(input.threads), ...recordArray(input.threadInventories)]) {
+  for (const thread of [
+    ...recordArray(input.threads),
+    ...recordArray(input.threadInventories),
+  ]) {
     const threadId = readThreadId(thread);
     for (const root of rootRecords(thread)) {
       const snapshot = buildSelectedRoot(root, threadId);
@@ -215,7 +237,9 @@ function selectedRootsForInput(
   });
 }
 
-function contributionRecords(input: AgentUiMcpThreadScopeProjectionInput): Record<string, unknown>[] {
+function contributionRecords(
+  input: AgentUiMcpThreadScopeProjectionInput,
+): Record<string, unknown>[] {
   return [
     ...recordArray(input.mcpServerContributions),
     ...recordArray(input.selectedPluginServers),
@@ -226,13 +250,23 @@ function isSelectedPluginContribution(
   record: Record<string, unknown>,
   selectedRootIds: ReadonlySet<string>,
 ): boolean {
-  const kind = readStringField(record, ["kind", "type", "contributionType", "contribution_type"]);
+  const kind = readStringField(record, [
+    "kind",
+    "type",
+    "contributionType",
+    "contribution_type",
+  ]);
   const pluginId = readStringField(record, ["pluginId", "plugin_id"]);
-  const selectedRootId = readStringField(record, ["selectedRootId", "selected_root_id"]);
+  const selectedRootId = readStringField(record, [
+    "selectedRootId",
+    "selected_root_id",
+  ]);
   return (
     kind === "SelectedPlugin" ||
     kind === "selected_plugin" ||
-    Boolean(pluginId && (selectedRootIds.size === 0 || selectedRootIds.has(pluginId))) ||
+    Boolean(
+      pluginId && (selectedRootIds.size === 0 || selectedRootIds.has(pluginId)),
+    ) ||
     Boolean(selectedRootId && selectedRootIds.has(selectedRootId))
   );
 }
@@ -240,7 +274,12 @@ function isSelectedPluginContribution(
 function buildSelectedPluginServer(
   record: Record<string, unknown>,
 ): AgentUiMcpSelectedPluginServerSnapshot | undefined {
-  const name = readStringField(record, ["name", "server", "serverName", "server_name"]);
+  const name = readStringField(record, [
+    "name",
+    "server",
+    "serverName",
+    "server_name",
+  ]);
   if (!name) return undefined;
   const pluginId = readStringField(record, ["pluginId", "plugin_id"]);
   return compactProjectionFields({
@@ -251,8 +290,12 @@ function buildSelectedPluginServer(
       "plugin_display_name",
     ]),
     selectedRootId:
-      readStringField(record, ["selectedRootId", "selected_root_id"]) ?? pluginId,
-    selectionOrder: readNumberField(record, ["selectionOrder", "selection_order"]),
+      readStringField(record, ["selectedRootId", "selected_root_id"]) ??
+      pluginId,
+    selectionOrder: readNumberField(record, [
+      "selectionOrder",
+      "selection_order",
+    ]),
     environmentId: readStringField(record, ["environmentId", "environment_id"]),
     ownerThreadId: readStringField(record, [
       "ownerThreadId",
@@ -272,7 +315,9 @@ function selectedPluginServersForInput(
   const servers = contributionRecords(input)
     .filter((record) => isSelectedPluginContribution(record, selectedRootSet))
     .map(buildSelectedPluginServer)
-    .filter((item): item is AgentUiMcpSelectedPluginServerSnapshot => Boolean(item));
+    .filter((item): item is AgentUiMcpSelectedPluginServerSnapshot =>
+      Boolean(item),
+    );
   const seen = new Set<string>();
   return servers.filter((server) => {
     const key = `${server.name}:${server.pluginId ?? ""}:${server.selectedRootId ?? ""}`;
@@ -287,12 +332,17 @@ function buildThreadInventory(
   selectedServerNames: ReadonlySet<string>,
 ): AgentUiMcpThreadInventorySnapshot | undefined {
   const serverNames = inventoryServerNames(record);
-  const selectedPluginServerNames = serverNames.filter((name) => selectedServerNames.has(name));
+  const selectedPluginServerNames = serverNames.filter((name) =>
+    selectedServerNames.has(name),
+  );
   const threadId = readThreadId(record);
   const selectedRootIds = rootRecords(record)
-    .map((root) => readStringField(root, ["id", "selectedRootId", "selected_root_id"]))
+    .map((root) =>
+      readStringField(root, ["id", "selectedRootId", "selected_root_id"]),
+    )
     .filter((id): id is string => Boolean(id));
-  if (!threadId && serverNames.length === 0 && selectedRootIds.length === 0) return undefined;
+  if (!threadId && serverNames.length === 0 && selectedRootIds.length === 0)
+    return undefined;
   return compactProjectionFields({
     threadId,
     scopedToThread: Boolean(threadId),
@@ -317,14 +367,21 @@ function buildToolCall(
   record: Record<string, unknown>,
   selectedThreadId: string | undefined,
 ): AgentUiMcpThreadScopedToolCallSnapshot | undefined {
-  const server = readStringField(record, ["server", "serverName", "server_name", "name"]);
+  const server = readStringField(record, [
+    "server",
+    "serverName",
+    "server_name",
+    "name",
+  ]);
   if (!server) return undefined;
   const threadId = readStringField(record, ["threadId", "thread_id"]);
   return compactProjectionFields({
     server,
     tool: readStringField(record, ["tool", "toolName", "tool_name"]),
     threadId,
-    scopedToOwnerThread: Boolean(selectedThreadId && threadId === selectedThreadId),
+    scopedToOwnerThread: Boolean(
+      selectedThreadId && threadId === selectedThreadId,
+    ),
   } satisfies AgentUiMcpThreadScopedToolCallSnapshot);
 }
 
@@ -332,14 +389,21 @@ function buildOAuthNotification(
   record: Record<string, unknown>,
   selectedThreadId: string | undefined,
 ): AgentUiMcpThreadScopedOAuthSnapshot | undefined {
-  const server = readStringField(record, ["server", "serverName", "server_name", "name"]);
+  const server = readStringField(record, [
+    "server",
+    "serverName",
+    "server_name",
+    "name",
+  ]);
   if (!server) return undefined;
   const threadId = readStringField(record, ["threadId", "thread_id"]);
   return compactProjectionFields({
     server,
     threadId,
     success: readBooleanField(record, ["success"]),
-    scopedToOwnerThread: Boolean(selectedThreadId && threadId === selectedThreadId),
+    scopedToOwnerThread: Boolean(
+      selectedThreadId && threadId === selectedThreadId,
+    ),
   } satisfies AgentUiMcpThreadScopedOAuthSnapshot);
 }
 
@@ -365,28 +429,47 @@ function buildLeaks(
 }
 
 function validateSnapshot(
-  snapshot: Omit<AgentUiMcpThreadScopeSnapshot, "scopeStable" | "validationIssues">,
+  snapshot: Omit<
+    AgentUiMcpThreadScopeSnapshot,
+    "scopeStable" | "validationIssues"
+  >,
 ): AgentUiMcpThreadScopeIssue[] {
   const issues: AgentUiMcpThreadScopeIssue[] = [];
-  const enabledSelectedServers = snapshot.selectedPluginServers.filter((server) => server.enabled);
-  const selectedServerNames = new Set(enabledSelectedServers.map((server) => server.name));
+  const enabledSelectedServers = snapshot.selectedPluginServers.filter(
+    (server) => server.enabled,
+  );
+  const selectedServerNames = new Set(
+    enabledSelectedServers.map((server) => server.name),
+  );
   const selectedThreadInventory = snapshot.threadInventories.find(
     (inventory) => inventory.threadId === snapshot.selectedThreadId,
   );
 
   if (!snapshot.selectedThreadId) {
     issues.push(
-      issue("missing_selected_thread", "$.selectedThreadId", "MCP thread scope requires the selected thread id."),
+      issue(
+        "missing_selected_thread",
+        "$.selectedThreadId",
+        "MCP thread scope requires the selected thread id.",
+      ),
     );
   }
   if (snapshot.selectedRoots.length === 0) {
     issues.push(
-      issue("missing_selected_root", "$.selectedCapabilityRoots", "Selected executor/plugin MCP scope requires selected capability roots."),
+      issue(
+        "missing_selected_root",
+        "$.selectedCapabilityRoots",
+        "Selected executor/plugin MCP scope requires selected capability roots.",
+      ),
     );
   }
   if (enabledSelectedServers.length === 0) {
     issues.push(
-      issue("missing_plugin_server", "$.mcpServerContributions", "Selected executor/plugin MCP scope requires selected plugin server contributions."),
+      issue(
+        "missing_plugin_server",
+        "$.mcpServerContributions",
+        "Selected executor/plugin MCP scope requires selected plugin server contributions.",
+      ),
     );
   }
   enabledSelectedServers.forEach((server, serverIndex) => {
@@ -410,7 +493,10 @@ function validateSnapshot(
     );
   }
   enabledSelectedServers.forEach((server) => {
-    if (selectedThreadInventory && !selectedThreadInventory.serverNames.includes(server.name)) {
+    if (
+      selectedThreadInventory &&
+      !selectedThreadInventory.serverNames.includes(server.name)
+    ) {
       issues.push(
         issue(
           "selected_thread_missing_server",
@@ -423,7 +509,9 @@ function validateSnapshot(
   snapshot.leaks.forEach((leak) => {
     issues.push(
       issue(
-        leak.threadId ? "selected_server_leaked_to_thread" : "selected_server_unscoped",
+        leak.threadId
+          ? "selected_server_leaked_to_thread"
+          : "selected_server_unscoped",
         leak.path,
         leak.threadId
           ? `Selected plugin MCP server ${leak.server} leaked into thread ${leak.threadId}.`
@@ -441,7 +529,10 @@ function validateSnapshot(
           "Selected plugin MCP tool calls must carry the owning thread id.",
         ),
       );
-    } else if (snapshot.selectedThreadId && call.threadId !== snapshot.selectedThreadId) {
+    } else if (
+      snapshot.selectedThreadId &&
+      call.threadId !== snapshot.selectedThreadId
+    ) {
       issues.push(
         issue(
           "tool_call_wrong_thread",
@@ -461,7 +552,10 @@ function validateSnapshot(
           "Selected plugin MCP OAuth notifications must carry the owning thread id.",
         ),
       );
-    } else if (snapshot.selectedThreadId && notification.threadId !== snapshot.selectedThreadId) {
+    } else if (
+      snapshot.selectedThreadId &&
+      notification.threadId !== snapshot.selectedThreadId
+    ) {
       issues.push(
         issue(
           "oauth_notification_wrong_thread",
@@ -474,28 +568,44 @@ function validateSnapshot(
   return issues;
 }
 
-function runtimeStatus(issues: readonly AgentUiMcpThreadScopeIssue[]): AgentUiRuntimeStatus {
+function runtimeStatus(
+  issues: readonly AgentUiMcpThreadScopeIssue[],
+): AgentUiRuntimeStatus {
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexMcpThreadScopeSnapshot(
+export function extractMcpThreadScopeSnapshot(
   input: AgentUiMcpThreadScopeProjectionInput,
 ): AgentUiMcpThreadScopeSnapshot {
   const selectedThreadId = selectedThreadIdForInput(input);
   const selectedRoots = selectedRootsForInput(input, selectedThreadId);
-  const selectedRootIds = normalizeProjectionIdList(selectedRoots.map((root) => root.id));
-  const selectedPluginServers = selectedPluginServersForInput(input, selectedRootIds);
+  const selectedRootIds = normalizeProjectionIdList(
+    selectedRoots.map((root) => root.id),
+  );
+  const selectedPluginServers = selectedPluginServersForInput(
+    input,
+    selectedRootIds,
+  );
   const selectedPluginServerNames = normalizeProjectionIdList(
-    selectedPluginServers.filter((server) => server.enabled).map((server) => server.name),
+    selectedPluginServers
+      .filter((server) => server.enabled)
+      .map((server) => server.name),
   );
   const selectedServerNameSet = new Set(selectedPluginServerNames);
-  const threadInventories = threadInventoriesForInput(input, selectedServerNameSet);
+  const threadInventories = threadInventoriesForInput(
+    input,
+    selectedServerNameSet,
+  );
   const toolCalls = recordArray(input.toolCalls)
     .map((record) => buildToolCall(record, selectedThreadId))
-    .filter((item): item is AgentUiMcpThreadScopedToolCallSnapshot => Boolean(item));
+    .filter((item): item is AgentUiMcpThreadScopedToolCallSnapshot =>
+      Boolean(item),
+    );
   const oauthNotifications = recordArray(input.oauthNotifications)
     .map((record) => buildOAuthNotification(record, selectedThreadId))
-    .filter((item): item is AgentUiMcpThreadScopedOAuthSnapshot => Boolean(item));
+    .filter((item): item is AgentUiMcpThreadScopedOAuthSnapshot =>
+      Boolean(item),
+    );
   const allServerNames = normalizeProjectionIdList(
     threadInventories.flatMap((inventory) => inventory.serverNames),
   );
@@ -506,7 +616,9 @@ export function extractCodexMcpThreadScopeSnapshot(
     selectedRoots,
     selectedPluginServerNames,
     selectedPluginServers,
-    globalServerNames: allServerNames.filter((name) => !selectedServerNameSet.has(name)),
+    globalServerNames: allServerNames.filter(
+      (name) => !selectedServerNameSet.has(name),
+    ),
     threadInventories,
     toolCalls,
     oauthNotifications,
@@ -520,11 +632,11 @@ export function extractCodexMcpThreadScopeSnapshot(
   };
 }
 
-export function buildCodexMcpThreadScopeProjectionEvent(
+export function buildMcpThreadScopeProjectionEvent(
   input: AgentUiMcpThreadScopeProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexMcpThreadScopeSnapshot(input);
+  const snapshot = extractMcpThreadScopeSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",
@@ -532,7 +644,8 @@ export function buildCodexMcpThreadScopeProjectionEvent(
     sequence: context.sequence,
     timestamp: definedString(input.timestamp ?? undefined) ?? context.timestamp,
     sessionId: definedString(context.sessionId ?? undefined),
-    threadId: snapshot.selectedThreadId ?? definedString(context.threadId ?? undefined),
+    threadId:
+      snapshot.selectedThreadId ?? definedString(context.threadId ?? undefined),
     runId: definedString(context.runId ?? undefined),
     turnId: definedString(context.turnId ?? undefined),
     owner: "context",

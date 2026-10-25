@@ -464,7 +464,7 @@ mod tests {
         };
         let previous = ThreadItemPayload::McpToolCall {
             call_id: "call-1".to_string(),
-            server_name: "codex_apps".to_string(),
+            server_name: "lime_apps".to_string(),
             tool_name: "calendar_search".to_string(),
             app_context: Some(context.clone()),
             mcp_app_resource_uri: Some("ui://calendar/event".to_string()),
@@ -474,7 +474,7 @@ mod tests {
         };
         let next = ThreadItemPayload::McpToolCall {
             call_id: "call-1".to_string(),
-            server_name: "codex_apps".to_string(),
+            server_name: "lime_apps".to_string(),
             tool_name: "calendar_search".to_string(),
             app_context: None,
             mcp_app_resource_uri: None,

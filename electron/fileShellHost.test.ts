@@ -255,6 +255,39 @@ describe("FileShellHost", () => {
     });
   });
 
+  it("系统图标读取跨 Host 串行化，原生失败后继续处理下一个请求", async () => {
+    let rejectFirst!: (error: Error) => void;
+    let markFirstReady!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      markFirstReady = resolve;
+    });
+    getFileIconMock.mockImplementationOnce(() => {
+      markFirstReady();
+      return new Promise((_resolve, reject) => {
+        rejectFirst = reject;
+      });
+    });
+    getFileIconMock.mockResolvedValueOnce({
+      isEmpty: () => false,
+      toDataURL: () => "data:image/png;base64,next",
+    });
+    const first = new FileShellHost({ platform: "darwin" }).getFileIconDataUrl({
+      path: "/Applications/First.app",
+    });
+    const next = new FileShellHost({ platform: "darwin" }).getFileIconDataUrl({
+      path: "/Applications/Next.app",
+    });
+    await ready;
+    expect(getFileIconMock).toHaveBeenCalledTimes(1);
+    rejectFirst(new Error("native icon unavailable"));
+    await expect(first).resolves.toBeNull();
+    await expect(next).resolves.toBe("data:image/png;base64,next");
+    expect(getFileIconMock.mock.calls).toEqual([
+      ["/Applications/First.app", { size: "normal" }],
+      ["/Applications/Next.app", { size: "normal" }],
+    ]);
+  });
+
   it("getFileIconDataUrl 在系统图标不可用时返回 null", async () => {
     getFileIconMock.mockResolvedValueOnce({
       isEmpty: () => true,

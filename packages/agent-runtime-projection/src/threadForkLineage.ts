@@ -100,7 +100,9 @@ function idList(value: unknown): string[] {
   const strings = readStringArray(value);
   if (strings.length > 0) return strings;
   return recordArray(value)
-    .map((record) => readStringField(record, ["id", "turnId", "turn_id", "itemId", "item_id"]))
+    .map((record) =>
+      readStringField(record, ["id", "turnId", "turn_id", "itemId", "item_id"]),
+    )
     .filter((item): item is string => Boolean(item));
 }
 
@@ -109,19 +111,27 @@ function threadRecord(value: unknown): Record<string, unknown> | undefined {
   return readRecord(record?.thread) ?? record;
 }
 
-function threadId(record: Record<string, unknown> | undefined): string | undefined {
+function threadId(
+  record: Record<string, unknown> | undefined,
+): string | undefined {
   return readStringField(record, ["id", "threadId", "thread_id"]);
 }
 
-function forkedFromId(record: Record<string, unknown> | undefined): string | undefined {
+function forkedFromId(
+  record: Record<string, unknown> | undefined,
+): string | undefined {
   return readStringField(record, ["forkedFromId", "forked_from_id"]);
 }
 
-function parentThreadId(record: Record<string, unknown> | undefined): string | undefined {
+function parentThreadId(
+  record: Record<string, unknown> | undefined,
+): string | undefined {
   return readStringField(record, ["parentThreadId", "parent_thread_id"]);
 }
 
-function turnSnapshots(thread: Record<string, unknown> | undefined): AgentUiForkedTurnSnapshot[] {
+function turnSnapshots(
+  thread: Record<string, unknown> | undefined,
+): AgentUiForkedTurnSnapshot[] {
   return recordArray(thread?.turns).flatMap((turn) => {
     const id = readStringField(turn, ["id", "turnId", "turn_id"]);
     if (!id) return [];
@@ -174,7 +184,9 @@ function sourceRolloutUnchanged(
   ]);
 }
 
-function requestedLastTurnId(input: AgentUiThreadForkLineageProjectionInput): string | undefined {
+function requestedLastTurnId(
+  input: AgentUiThreadForkLineageProjectionInput,
+): string | undefined {
   const request = readRecord(input.forkRequest);
   return readStringField(request, ["lastTurnId", "last_turn_id"]);
 }
@@ -334,7 +346,7 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexThreadForkLineageSnapshot(
+export function extractThreadForkLineageSnapshot(
   input: AgentUiThreadForkLineageProjectionInput,
 ): AgentUiThreadForkLineageSnapshot {
   const request = readRecord(input.forkRequest);
@@ -364,8 +376,14 @@ export function extractCodexThreadForkLineageSnapshot(
     copiedTurnIds: turns.map((turn) => turn.id),
     parentItemIds: copiedParentItemIds,
     sourceTurnOrder: idList(input.sourceTurnOrder),
-    sidebarLineage: firstSurfaceLineage(recordArray(input.sidebarEntries), forkThreadId),
-    historyLineage: firstSurfaceLineage(recordArray(input.historyEvents), forkThreadId),
+    sidebarLineage: firstSurfaceLineage(
+      recordArray(input.sidebarEntries),
+      forkThreadId,
+    ),
+    historyLineage: firstSurfaceLineage(
+      recordArray(input.historyEvents),
+      forkThreadId,
+    ),
     sourceRolloutUnchanged: sourceRolloutUnchanged(input),
     renderedPlainThread: Boolean(input.renderedPlainThread),
     lineageComplete: false,
@@ -378,21 +396,24 @@ export function extractCodexThreadForkLineageSnapshot(
   };
 }
 
-export function buildCodexThreadForkLineageProjectionEvent(
+export function buildThreadForkLineageProjectionEvent(
   input: AgentUiThreadForkLineageProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexThreadForkLineageSnapshot(input);
+  const snapshot = extractThreadForkLineageSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",
     sourceType: "thread_fork_lineage_projection",
     sequence: context.sequence,
     timestamp: definedString(input.timestamp ?? undefined) ?? context.timestamp,
-    sessionId: snapshot.sessionId ?? definedString(context.sessionId ?? undefined),
-    threadId: snapshot.forkThreadId ?? definedString(context.threadId ?? undefined),
+    sessionId:
+      snapshot.sessionId ?? definedString(context.sessionId ?? undefined),
+    threadId:
+      snapshot.forkThreadId ?? definedString(context.threadId ?? undefined),
     runId: definedString(context.runId ?? undefined),
-    turnId: snapshot.forkedAtTurnId ?? definedString(context.turnId ?? undefined),
+    turnId:
+      snapshot.forkedAtTurnId ?? definedString(context.turnId ?? undefined),
     owner: "context",
     scope: "thread",
     phase: status === "failed" ? "failed" : "completed",

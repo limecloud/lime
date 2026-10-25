@@ -19,7 +19,7 @@ const DEFAULT_ADDITIONAL_CONTEXT_LIMIT: usize = 2_500;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HookDiscoveryInput {
-    pub codex_home: PathBuf,
+    pub lime_home: PathBuf,
     pub cwd: PathBuf,
     pub plugins: Vec<PluginHookSource>,
 }
@@ -100,8 +100,8 @@ struct LoadedSource {
 
 pub fn discover_hooks(input: &HookDiscoveryInput) -> HookDiscoveryReport {
     let mut report = HookDiscoveryReport::default();
-    let user_path = input.codex_home.join("config.toml");
-    let project_path = input.cwd.join(".codex/config.toml");
+    let user_path = input.lime_home.join("config.toml");
+    let project_path = input.cwd.join(".lime/config.toml");
 
     let user_config = load_toml_config(&user_path, &mut report);
     let project_config = load_toml_config(&project_path, &mut report);

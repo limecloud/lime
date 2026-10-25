@@ -639,7 +639,7 @@ function issueFree(
   return !issues.some((entry) => codes.includes(entry.code));
 }
 
-export function extractCodexHistoryReplayVisualSnapshot(
+export function extractHistoryReplayVisualSnapshot(
   input: AgentUiHistoryReplayVisualProjectionInput,
 ): AgentUiHistoryReplayVisualSnapshot {
   const replayedItems = recordArray(input.replayedItems)
@@ -723,11 +723,11 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function buildCodexHistoryReplayVisualProjectionEvent(
+export function buildHistoryReplayVisualProjectionEvent(
   input: AgentUiHistoryReplayVisualProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexHistoryReplayVisualSnapshot(input);
+  const snapshot = extractHistoryReplayVisualSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "state.snapshot",

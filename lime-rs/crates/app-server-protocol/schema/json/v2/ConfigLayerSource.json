@@ -82,7 +82,7 @@
     },
     {
       "properties": {
-        "dotCodexFolder": {
+        "dotLimeFolder": {
           "type": "string"
         },
         "type": {
@@ -91,7 +91,7 @@
         }
       },
       "required": [
-        "dotCodexFolder",
+        "dotLimeFolder",
         "type"
       ],
       "type": "object"

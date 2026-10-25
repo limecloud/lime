@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import { UnifiedTabStrip } from "@/components/app-shell/AppShell";
 import { HeaderToolbar } from "@/components/app-shell/HeaderToolbar";
+import { SidePanelActivationContext } from "@/components/app-shell/unifiedTabStripContext";
 import { LayoutMode } from "@/lib/workspace/workflowTypes";
 import { useLayoutTransition, TransitionConfig } from "./useLayoutTransition";
 import { getDefaultContentPaneWidth } from "./contentPaneWidth";
@@ -241,6 +242,7 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
     >(null);
     const [resizingChatPanel, setResizingChatPanel] = useState(false);
     const hasCanvasContent = React.Children.count(canvasContent) > 0;
+    const hasSidePanelTabs = React.Children.count(sidePanelTabStrip) > 0;
     const effectiveMode: LayoutMode = hasCanvasContent ? mode : "chat";
     const effectiveChatPanelWidth = useMemo(
       () =>
@@ -249,7 +251,13 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
           : contentPaneDefaultWidth !== undefined && paneBounds?.totalWidth
             ? `${Math.max(320, paneBounds.totalWidth - paneBounds.gap - getDefaultContentPaneWidth(paneBounds.totalWidth, paneBounds.shellHeight, contentPaneDefaultWidth))}px`
             : chatPanelWidth,
-      [chatPanelWidth, contentPaneDefaultWidth, paneBounds, effectiveMode, resizedChatPanelWidth],
+      [
+        chatPanelWidth,
+        contentPaneDefaultWidth,
+        paneBounds,
+        effectiveMode,
+        resizedChatPanelWidth,
+      ],
     );
     const { isCanvasVisible, getTransitionStyles } = useLayoutTransition(
       effectiveMode,
@@ -265,6 +273,10 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
       "chat" | "canvas"
     >(effectiveMode === "canvas" ? "canvas" : "chat");
     const [fullWidthRequested, setFullWidthRequested] = useState(false);
+    const activateSidePanel = useCallback(
+      () => setCompactPrimaryPanel("canvas"),
+      [],
+    );
 
     const chatStyles = getTransitionStyles("chat");
     const canvasStyles = getTransitionStyles("canvas");
@@ -298,7 +310,8 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
       if (
         wasChatHidden.current === chatHidden &&
         wasCompactChatCanvas.current === isCompactChatCanvas
-      ) return;
+      )
+        return;
       wasChatHidden.current = chatHidden;
       wasCompactChatCanvas.current = isCompactChatCanvas;
       if (chatHidden) {
@@ -519,11 +532,13 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
       };
     }, [effectiveMode]);
 
-    useEffect(() => {
-      if (compactChatCanvasLayout || effectiveMode === "canvas") {
-        setCompactPrimaryPanel(effectiveMode === "canvas" ? "canvas" : "chat");
+    useLayoutEffect(() => {
+      if (effectiveMode === "canvas") {
+        setCompactPrimaryPanel("canvas");
+      } else if (compactChatCanvasLayout && !hasSidePanelTabs) {
+        setCompactPrimaryPanel("chat");
       }
-    }, [effectiveMode, compactChatCanvasLayout]);
+    }, [effectiveMode, compactChatCanvasLayout, hasSidePanelTabs]);
 
     useEffect(() => {
       if (!forceOpenChatPanel || !isCompactChatCanvas) {
@@ -641,7 +656,11 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
                   setCompactPrimaryPanel("canvas");
               }}
             >
-              {sidePanelTabStrip ?? (
+              {sidePanelTabStrip ? (
+                <SidePanelActivationContext.Provider value={activateSidePanel}>
+                  {sidePanelTabStrip}
+                </SidePanelActivationContext.Provider>
+              ) : (
                 <button
                   type="button"
                   role="tab"

@@ -45,6 +45,52 @@ function Harness({
 }
 
 describe("KeyboardShortcutsDialog", () => {
+  it("序列按stroke分组，修饰键不会跨stroke合并", () => {
+    releases.push(
+      registerCommand({
+        id: "sequence",
+        titleKey: "commands.searchSettings.title",
+        section: "thread",
+        bindings: ["Control+K Control+S"],
+        handler: vi.fn(),
+      }),
+    );
+    act(() =>
+      root.render(<KeyboardShortcutsDialog open onOpenChange={() => {}} />),
+    );
+    const strokes = document.querySelectorAll(
+      '[data-command-id="sequence"] [data-shortcut-stroke]',
+    );
+    expect(strokes).toHaveLength(2);
+    expect(
+      [...strokes[0].querySelectorAll("kbd")].map((node) => node.textContent),
+    ).toEqual(["Ctrl", "K"]);
+    expect(
+      [...strokes[1].querySelectorAll("kbd")].map((node) => node.textContent),
+    ).toEqual(["Ctrl", "S"]);
+  });
+
+  it("帮助弹窗保留注册快照的置顶顺序，不再单独按字母重排", () => {
+    for (const id of ["openSideChat", "archiveThread", "newTask"])
+      releases.push(
+        registerCommand({
+          id,
+          titleKey: "commands.searchSettings.title",
+          section: "thread",
+          bindings: ["CommandOrControl+J"],
+          handler: vi.fn(),
+        }),
+      );
+    act(() =>
+      root.render(<KeyboardShortcutsDialog open onOpenChange={() => {}} />),
+    );
+    expect(
+      [...document.querySelectorAll<HTMLElement>("[data-command-id]")].map(
+        (node) => node.dataset.commandId,
+      ),
+    ).toEqual(["newTask", "archiveThread", "openSideChat"]);
+  });
+
   it("列表与真实 enabled handler 同步，无消费者命令不凭空出现", async () => {
     const handler = vi.fn();
     act(() => root.render(<Harness enabled handler={handler} />));

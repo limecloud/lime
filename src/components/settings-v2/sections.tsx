@@ -10,13 +10,13 @@ import {
   Brain,
   Mic,
   Image,
-  Plug,
   Puzzle,
   ShieldCheck,
   Variable,
   Info,
   GitBranch,
   SlidersHorizontal,
+  Webhook,
   type LucideIcon,
 } from "lucide-react";
 import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
@@ -36,6 +36,7 @@ export interface SettingsSectionContext {
   providerFocus?: ProviderSettingsFocusContext | null;
   executionPolicyFocus?: ExecutionPolicyFocusContext | null;
   searchPath?: string;
+  searchTarget?: string;
   browserPage?: SettingsPageParams["browserPage"];
   localEnvironmentFocus?: SettingsPageParams["localEnvironmentFocus"];
 }
@@ -118,9 +119,9 @@ const MediaServicesSettings = lazy(() =>
   })),
 );
 
-const loadSkills = () => import("./agent/skills");
-const ExtensionsSettings = lazy(() =>
-  loadSkills().then((module) => ({ default: module.ExtensionsSettings })),
+const loadPlugins = () => import("./integrations/plugins");
+const PluginsSettings = lazy(() =>
+  loadPlugins().then((module) => ({ default: module.PluginsSettings })),
 );
 
 const loadProfile = () => import("./account/profile");
@@ -140,11 +141,6 @@ const CloudProviderSettings = lazy(() =>
   loadProviders().then((module) => ({ default: module.CloudProviderSettings })),
 );
 
-const loadMcp = () => import("@/components/mcp");
-const McpPanel = lazy(() =>
-  loadMcp().then((module) => ({ default: module.McpPanel })),
-);
-
 const loadLocalEnvironments = () =>
   import("./coding/local-environments/LocalEnvironmentsSettings");
 const LocalEnvironmentsSettings = lazy(() =>
@@ -154,6 +150,10 @@ const LocalEnvironmentsSettings = lazy(() =>
 );
 
 const loadExecutionPolicy = () => import("./system/execution-policy");
+const loadHooks = () => import("./coding/hooks");
+const HooksSettings = lazy(() =>
+  loadHooks().then((module) => ({ default: module.HooksSettings })),
+);
 const ExecutionPolicySettings = lazy(() =>
   loadExecutionPolicy().then((module) => ({
     default: module.ExecutionPolicySettings,
@@ -273,22 +273,26 @@ export const settingsSections: readonly SettingsSection[] = [
       ),
   },
   {
-    key: SettingsTabs.Skills,
+    key: SettingsTabs.Plugins,
     group: SettingsGroupKey.Integrations,
-    labelKey: "settings.tab.skills",
+    labelKey: "settings.desktop.plugins",
     icon: Puzzle,
-    loadingKey: "settings.layout.loading.skills",
-    preload: loadSkills,
-    render: () => <ExtensionsSettings />,
-  },
-  {
-    key: SettingsTabs.McpServer,
-    group: SettingsGroupKey.Integrations,
-    labelKey: "settings.tab.mcpServer",
-    icon: Plug,
-    loadingKey: "settings.layout.loading.mcpServer",
-    preload: loadMcp,
-    render: () => <McpPanel hideHeader />,
+    loadingKey: "settings.plugins.loading",
+    preload: loadPlugins,
+    render: (context) => (
+      <PluginsSettings
+        onNavigate={context.onNavigate}
+        initialManageTab={
+          context.searchTarget === "plugins-mcps"
+            ? "mcps"
+            : context.searchTarget === "plugins-skills"
+              ? "skills"
+              : context.searchTarget === "plugins-marketplace"
+                ? "marketplace"
+                : "plugins"
+        }
+      />
+    ),
   },
   {
     key: SettingsTabs.Browser,
@@ -309,6 +313,15 @@ export const settingsSections: readonly SettingsSection[] = [
     render: (context) => (
       <ExecutionPolicySettings focus={context.executionPolicyFocus ?? null} />
     ),
+  },
+  {
+    key: SettingsTabs.Hooks,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.hooks.title",
+    icon: Webhook,
+    loadingKey: "settings.hooks.loading",
+    preload: loadHooks,
+    render: () => <HooksSettings />,
   },
   {
     key: SettingsTabs.Git,

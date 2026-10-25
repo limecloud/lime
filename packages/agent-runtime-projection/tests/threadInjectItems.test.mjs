@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexThreadInjectItemsProjectionEvent,
-  extractCodexThreadInjectItemsSnapshot,
+  buildThreadInjectItemsProjectionEvent,
+  extractThreadInjectItemsSnapshot,
 } from "../dist/index.js";
 
 function messageItem(id, text, metadata = undefined) {
@@ -99,7 +99,7 @@ function injectInput(overrides = {}) {
 }
 
 test("thread inject items preserves raw response order and model-visible history", () => {
-  const event = buildCodexThreadInjectItemsProjectionEvent(injectInput(), {
+  const event = buildThreadInjectItemsProjectionEvent(injectInput(), {
     sequence: 121,
     sessionId: "session-thread",
     timestamp: "2026-07-09T00:00:00.000Z",
@@ -148,7 +148,7 @@ test("thread inject items preserves raw response order and model-visible history
 
 test("thread inject items after a turn only appears in the follow-up request", () => {
   const injected = messageItem("msg-after-turn", "Injected after first turn");
-  const snapshot = extractCodexThreadInjectItemsSnapshot(
+  const snapshot = extractThreadInjectItemsSnapshot(
     injectInput({
       turnId: "turn-after-first",
       injectRequest: {
@@ -156,7 +156,10 @@ test("thread inject items after a turn only appears in the follow-up request", (
         items: [injected],
       },
       persistedHistory: [userPrompt("First turn"), { responseItem: injected }],
-      previousModelRequestInput: [environmentContext(), userPrompt("First turn")],
+      previousModelRequestInput: [
+        environmentContext(),
+        userPrompt("First turn"),
+      ],
       nextModelRequestInput: [
         environmentContext(),
         userPrompt("First turn"),
@@ -180,7 +183,7 @@ test("thread inject items after a turn only appears in the follow-up request", (
 });
 
 test("thread inject items fails closed if rollout history or next model input drops the item", () => {
-  const snapshot = extractCodexThreadInjectItemsSnapshot(
+  const snapshot = extractThreadInjectItemsSnapshot(
     injectInput({
       persistedHistory: [],
       nextModelRequestInput: [environmentContext(), userPrompt("Hello")],
@@ -201,7 +204,7 @@ test("thread inject items flags order drift and raw metadata loss", () => {
   });
   const second = messageItem("msg-b", "B");
   const firstWithoutMetadata = messageItem("msg-a", "A");
-  const snapshot = extractCodexThreadInjectItemsSnapshot(
+  const snapshot = extractThreadInjectItemsSnapshot(
     injectInput({
       injectRequest: {
         threadId: "thread-inject",
@@ -222,7 +225,7 @@ test("thread inject items flags order drift and raw metadata loss", () => {
 
 test("thread inject items rejects premature input use and transcript hydrate leaks", () => {
   const first = messageItem("msg-leak", "Leaked injected context");
-  const snapshot = extractCodexThreadInjectItemsSnapshot(
+  const snapshot = extractThreadInjectItemsSnapshot(
     injectInput({
       injectRequest: {
         threadId: "thread-inject",
@@ -270,7 +273,7 @@ test("thread inject items requires a loaded thread, a turn linkage and inline im
       },
     ],
   };
-  const snapshot = extractCodexThreadInjectItemsSnapshot({
+  const snapshot = extractThreadInjectItemsSnapshot({
     injectRequest: {
       items: [remoteImageItem],
     },
@@ -289,7 +292,7 @@ test("thread inject items requires a loaded thread, a turn linkage and inline im
 });
 
 test("thread inject items rejects empty and non-response-item payloads", () => {
-  const empty = extractCodexThreadInjectItemsSnapshot({
+  const empty = extractThreadInjectItemsSnapshot({
     threadId: "thread-inject",
     turnId: "turn-inject",
     injectRequest: {
@@ -302,7 +305,7 @@ test("thread inject items rejects empty and non-response-item payloads", () => {
     ["empty_injected_items"],
   );
 
-  const invalid = extractCodexThreadInjectItemsSnapshot({
+  const invalid = extractThreadInjectItemsSnapshot({
     threadId: "thread-inject",
     turnId: "turn-inject",
     injectRequest: {

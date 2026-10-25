@@ -1,7 +1,7 @@
 //! Lime 运行时 AGENTS 指令加载
 //!
 //! 仅用于 Lime 应用运行时会话：
-//! - 全局：优先既有 CODEX_HOME 指令，否则使用 Lime 用户目录；同目录非空 AGENTS.override.md 优先
+//! - 全局：优先既有 LIME_HOME 指令，否则使用 Lime 用户目录；同目录非空 AGENTS.override.md 优先
 //! - 工作区：从项目根到当前工作目录，优先标准 `AGENTS.override.md` / `AGENTS.md`，
 //!   缺失时回退 `.lime/AGENTS.override.md` / `.lime/AGENTS.md`
 

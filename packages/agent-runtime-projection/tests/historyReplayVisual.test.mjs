@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexHistoryReplayVisualProjectionEvent,
-  extractCodexHistoryReplayVisualSnapshot,
+  buildHistoryReplayVisualProjectionEvent,
+  extractHistoryReplayVisualSnapshot,
 } from "../dist/index.js";
 
 const RENDERER_OWNER = "agent-history-replay-renderer";
@@ -98,7 +98,7 @@ function baseInput(overrides = {}) {
 }
 
 test("history replay visual keeps user images, reasoning and active MCP rows isomorphic", () => {
-  const event = buildCodexHistoryReplayVisualProjectionEvent(baseInput(), {
+  const event = buildHistoryReplayVisualProjectionEvent(baseInput(), {
     sessionId: "session-history",
     sequence: 441,
     timestamp: "2026-07-09T00:00:00.000Z",
@@ -157,7 +157,7 @@ test("history replay visual keeps user images, reasoning and active MCP rows iso
 
 test("replayed user images cannot degrade into placeholder-only page text", () => {
   const items = [userItem(), assistantItem(), reasoningItem(), mcpItem()];
-  const snapshot = extractCodexHistoryReplayVisualSnapshot(
+  const snapshot = extractHistoryReplayVisualSnapshot(
     baseInput({
       replayedItems: items,
       hydratedItems: items,
@@ -187,7 +187,7 @@ test("replayed user images cannot degrade into placeholder-only page text", () =
 
 test("replayed in-progress MCP calls stay active instead of completed history", () => {
   const items = [userItem(), assistantItem(), reasoningItem(), mcpItem()];
-  const snapshot = extractCodexHistoryReplayVisualSnapshot(
+  const snapshot = extractHistoryReplayVisualSnapshot(
     baseInput({
       replayedItems: items,
       hydratedItems: [...items.slice(0, 3), mcpItem({ status: "completed" })],
@@ -215,7 +215,7 @@ test("replayed in-progress MCP calls stay active instead of completed history", 
 
 test("live reasoning summary completion must not render a duplicate replay row", () => {
   const items = [userItem(), assistantItem(), reasoningItem(), mcpItem()];
-  const snapshot = extractCodexHistoryReplayVisualSnapshot(
+  const snapshot = extractHistoryReplayVisualSnapshot(
     baseInput({
       replayedItems: items,
       hydratedItems: items,
@@ -237,7 +237,7 @@ test("live reasoning summary completion must not render a duplicate replay row",
 
 test("live and hydrate renderers cannot split or rely on pageText-only oracle", () => {
   const items = [userItem(), assistantItem(), reasoningItem(), mcpItem()];
-  const snapshot = extractCodexHistoryReplayVisualSnapshot(
+  const snapshot = extractHistoryReplayVisualSnapshot(
     baseInput({
       liveRendererOwner: "live-history-renderer",
       hydrateRendererOwner: "hydrate-history-renderer",

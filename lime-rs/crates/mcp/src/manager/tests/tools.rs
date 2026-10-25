@@ -13,7 +13,7 @@ fn app_tool_authority_uses_exact_connector_link_and_account_requirement() {
         serde_json::json!({
             "connector_id": " calendar ",
             "link_id": "link-calendar",
-            "_codex_apps": { "requires_explicit_link_id": true }
+            "_lime_apps": { "requires_explicit_link_id": true }
         })
         .as_object()
         .expect("tool metadata")

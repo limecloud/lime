@@ -166,8 +166,8 @@ export function validateProjectGateCandidateDescriptor(value) {
   if (!/^[a-f0-9]{40,64}$/.test(value.git_head ?? "")) {
     throw new Error("candidate git_head 非法");
   }
-  if (!/^[a-f0-9]{40,64}$/.test(value.codex_reference_commit ?? "")) {
-    throw new Error("candidate codex_reference_commit 非法");
+  if (!/^[a-f0-9]{40,64}$/.test(value.reference_commit ?? "")) {
+    throw new Error("candidate reference_commit 非法");
   }
   if (
     !Array.isArray(value.blocking_trackers) ||
@@ -297,11 +297,11 @@ export function captureGitReferenceCommit(referenceRepo) {
   assertGitRepository(root);
   const status = runGitText(root, ["status", "--porcelain=v1"]);
   if (status) {
-    throw new Error("Codex reference 仓库存在未提交改动，不能冻结基线");
+    throw new Error("参考源码仓库存在未提交改动，不能冻结基线");
   }
   const commit = runGitText(root, ["rev-parse", "HEAD"]);
   if (!/^[a-f0-9]{40,64}$/.test(commit)) {
-    throw new Error("Codex reference HEAD 非法");
+    throw new Error("参考源码 HEAD 非法");
   }
   return commit;
 }
@@ -368,7 +368,7 @@ export function buildProjectGateCandidateDescriptor({
   backendMode = "unavailable",
   providerProtocol = "none",
   secretsPresent = false,
-  codexReferenceCommit,
+  referenceCommit,
   blockingTrackers,
   surfaceContract,
 }) {
@@ -377,7 +377,7 @@ export function buildProjectGateCandidateDescriptor({
     schema_version: 3,
     run_id: runId,
     ...snapshot,
-    codex_reference_commit: codexReferenceCommit,
+    reference_commit: referenceCommit,
     blocking_trackers: blockingTrackers,
     surface_contract: surfaceContract,
     pnpm_lock_digest: digestFileOrNull(path.join(root, "pnpm-lock.yaml")),

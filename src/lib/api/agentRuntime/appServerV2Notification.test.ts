@@ -192,7 +192,7 @@ describe("App Server v2 direct notifications", () => {
       id: "hook-run-v2",
       scope: "turn",
       source: "project",
-      sourcePath: "/workspace/.codex/hooks/check.sh",
+      sourcePath: "/workspace/.lime/hooks/check.sh",
       startedAt: 1_783_814_400_900,
       status: "completed",
       statusMessage: "检查完成",

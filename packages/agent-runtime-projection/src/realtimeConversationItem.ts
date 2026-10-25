@@ -107,7 +107,9 @@ function readArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function featureStatus(value: string | null | undefined): AgentUiRealtimeFeatureStatus {
+function featureStatus(
+  value: string | null | undefined,
+): AgentUiRealtimeFeatureStatus {
   return value === "current" ? "current" : "not_current";
 }
 
@@ -162,11 +164,15 @@ function normalizeKind(method: string): AgentUiRealtimeEventKind {
   }
 }
 
-function paramsRecord(record: Record<string, unknown>): Record<string, unknown> {
+function paramsRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> {
   return readRecord(record.params) ?? record;
 }
 
-function itemRecord(record: Record<string, unknown>): Record<string, unknown> | undefined {
+function itemRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   const params = paramsRecord(record);
   return readRecord(params.item) ?? readRecord(record.item);
 }
@@ -199,7 +205,10 @@ function responseIdOf(record: Record<string, unknown>): string | undefined {
   );
 }
 
-function eventSnapshot(value: unknown, index: number): AgentUiRealtimeEventSnapshot | undefined {
+function eventSnapshot(
+  value: unknown,
+  index: number,
+): AgentUiRealtimeEventSnapshot | undefined {
   const record = readRecord(value);
   if (!record) return undefined;
   const item = itemRecord(record);
@@ -220,7 +229,9 @@ function eventSnapshot(value: unknown, index: number): AgentUiRealtimeEventSnaps
   } satisfies AgentUiRealtimeEventSnapshot);
 }
 
-function appendKind(record: Record<string, unknown>): "text" | "audio" | "speech" | "unknown" {
+function appendKind(
+  record: Record<string, unknown>,
+): "text" | "audio" | "speech" | "unknown" {
   const kind = readStringField(record, ["kind", "type", "method"]);
   if (!kind) return "unknown";
   if (kind.includes("audio")) return "audio";
@@ -278,7 +289,9 @@ function eventCounts(
 function hasRealtimeLeak(value: unknown): boolean {
   return readArray(value).some((entry) => {
     if (typeof entry === "string") {
-      return /realtime|conversation\.item|response\.output_|thread\/realtime/i.test(entry);
+      return /realtime|conversation\.item|response\.output_|thread\/realtime/i.test(
+        entry,
+      );
     }
     const record = readRecord(entry);
     if (!record) return false;
@@ -286,11 +299,18 @@ function hasRealtimeLeak(value: unknown): boolean {
     const text = [
       type,
       readStringField(record, ["text", "title", "label", "body"]),
-      readStringField(readRecord(record.payload), ["text", "title", "label", "body"]),
+      readStringField(readRecord(record.payload), [
+        "text",
+        "title",
+        "label",
+        "body",
+      ]),
     ]
       .filter(Boolean)
       .join(" ");
-    return /realtime|conversation\.item|response\.output_|thread\/realtime/i.test(text);
+    return /realtime|conversation\.item|response\.output_|thread\/realtime/i.test(
+      text,
+    );
   });
 }
 
@@ -337,7 +357,10 @@ function validateSnapshot(
       ),
     );
   }
-  if (snapshot.featureStatus === "not_current" && hasRealtimeLeak(input.visibleTranscriptItems)) {
+  if (
+    snapshot.featureStatus === "not_current" &&
+    hasRealtimeLeak(input.visibleTranscriptItems)
+  ) {
     issues.push(
       issue(
         "realtime_event_leaked_to_transcript",
@@ -346,7 +369,10 @@ function validateSnapshot(
       ),
     );
   }
-  if (snapshot.featureStatus === "not_current" && hasRealtimeLeak(input.toolOutputs)) {
+  if (
+    snapshot.featureStatus === "not_current" &&
+    hasRealtimeLeak(input.toolOutputs)
+  ) {
     issues.push(
       issue(
         "realtime_event_leaked_to_tool",
@@ -440,7 +466,7 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexRealtimeConversationSnapshot(
+export function extractRealtimeConversationSnapshot(
   input: AgentUiRealtimeConversationProjectionInput,
 ): AgentUiRealtimeConversationSnapshot {
   const status = featureStatus(input.featureStatus ?? undefined);
@@ -450,8 +476,8 @@ export function extractCodexRealtimeConversationSnapshot(
     .filter((entry): entry is AgentUiRealtimeEventSnapshot => Boolean(entry));
   const appendRequests = readArray(input.appendRequests)
     .map(appendSnapshot)
-    .filter(
-      (entry): entry is AgentUiRealtimeAppendRequestSnapshot => Boolean(entry),
+    .filter((entry): entry is AgentUiRealtimeAppendRequestSnapshot =>
+      Boolean(entry),
     );
   const counts = eventCounts(events);
   const threadScoped = events.every(
@@ -495,11 +521,11 @@ export function extractCodexRealtimeConversationSnapshot(
   };
 }
 
-export function buildCodexRealtimeConversationProjectionEvent(
+export function buildRealtimeConversationProjectionEvent(
   input: AgentUiRealtimeConversationProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexRealtimeConversationSnapshot(input);
+  const snapshot = extractRealtimeConversationSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "realtime_conversation_item_projection" },

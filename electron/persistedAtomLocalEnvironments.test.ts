@@ -21,7 +21,7 @@ import {
 
 afterEach(cleanup);
 const workspaceKey = "local:/workspace/project";
-const configPath = "/workspace/project/.codex/environments/environment.toml";
+const configPath = "/workspace/project/.lime/environments/environment.toml";
 const read = { key, query: { kind: "selections" } } as const;
 const set = (workspaceKey: string, configPath: string | null) => ({
   op: "set" as const,

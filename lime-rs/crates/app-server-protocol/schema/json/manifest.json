@@ -136,6 +136,26 @@
     },
     {
       "kind": "request",
+      "method": "computerUse/lease/acquire"
+    },
+    {
+      "kind": "request",
+      "method": "computerUse/lease/release"
+    },
+    {
+      "kind": "request",
+      "method": "computerUse/revoke"
+    },
+    {
+      "kind": "request",
+      "method": "computerUse/setup"
+    },
+    {
+      "kind": "request",
+      "method": "computerUse/status"
+    },
+    {
+      "kind": "request",
       "method": "config/batchWrite"
     },
     {
@@ -548,10 +568,6 @@
     },
     {
       "kind": "request",
-      "method": "mcpServer/importFromApp"
-    },
-    {
-      "kind": "request",
       "method": "mcpServer/list"
     },
     {
@@ -581,10 +597,6 @@
     {
       "kind": "request",
       "method": "mcpServer/stop"
-    },
-    {
-      "kind": "request",
-      "method": "mcpServer/syncAllToLive"
     },
     {
       "kind": "request",
@@ -957,6 +969,10 @@
     {
       "kind": "request",
       "method": "projectGit/worktree/delete"
+    },
+    {
+      "kind": "request",
+      "method": "projectGit/worktree/environment/set"
     },
     {
       "kind": "request",
@@ -1978,8 +1994,6 @@
       "McpServerCreateParams",
       "McpServerDeleteParams",
       "McpServerEnabledSetParams",
-      "McpServerImportFromAppParams",
-      "McpServerImportFromAppResponse",
       "McpServerLifecycleResponse",
       "McpServerListResponse",
       "McpServerOauthLoginParams",
@@ -2091,6 +2105,7 @@
       "ProjectGitWorktreeCreateResponse",
       "ProjectGitWorktreeDeleteParams",
       "ProjectGitWorktreeDeleteResponse",
+      "ProjectGitWorktreeEnvironmentSetParams",
       "ProjectGitWorktreeListParams",
       "ProjectGitWorktreeListResponse",
       "ProjectGitWorktreeThread",
@@ -2318,6 +2333,9 @@
       "AppTemplateSummary",
       "AppTemplateUnavailableReason",
       "AppToolSummary",
+      "ApplicationNetworkRequirements",
+      "ApplicationRequirements",
+      "ApplicationStorageRequirements",
       "AppsInstalledParams",
       "AppsInstalledResponse",
       "AppsListParams",
@@ -2343,7 +2361,6 @@
       "CloudRequestMethod",
       "CloudRequestParams",
       "CloudRequestResponse",
-      "CodexErrorInfo",
       "CollabAgentState",
       "CollabAgentStatus",
       "CollabAgentTool",
@@ -2371,6 +2388,31 @@
       "CommandExecutionStatus",
       "CommandExecutionTerminalInteraction",
       "CommandExecutionTerminalInteractionNotification",
+      "ComputerUseAdapterKind",
+      "ComputerUseAdapterStatus",
+      "ComputerUseCapability",
+      "ComputerUseConfig",
+      "ComputerUseGrant",
+      "ComputerUseGrantScope",
+      "ComputerUseLeaseAcquireParams",
+      "ComputerUseLeaseAcquireResponse",
+      "ComputerUseLeaseReleaseParams",
+      "ComputerUseLeaseReleaseResponse",
+      "ComputerUseMacosConfig",
+      "ComputerUseMacosRequirements",
+      "ComputerUseReadiness",
+      "ComputerUseRequirements",
+      "ComputerUseRevokeParams",
+      "ComputerUseRevokeResponse",
+      "ComputerUseSetupParams",
+      "ComputerUseSetupResponse",
+      "ComputerUseStatusParams",
+      "ComputerUseStatusResponse",
+      "ComputerUseTargetIdentity",
+      "ComputerUseWindowsConfig",
+      "ComputerUseWindowsExeConfig",
+      "ComputerUseWindowsExeRequirement",
+      "ComputerUseWindowsRequirements",
       "ConfigBatchWriteParams",
       "ConfigEdit",
       "ConfigLayer",
@@ -2477,6 +2519,7 @@
       "ItemGuardianApprovalReviewCompletedNotification",
       "ItemGuardianApprovalReviewStartedNotification",
       "ItemStartedNotification",
+      "LimeErrorInfo",
       "ListMcpServerStatusParams",
       "ListMcpServerStatusResponse",
       "LocalEnvironment",
@@ -2564,6 +2607,7 @@
       "NetworkAccess",
       "NetworkApprovalContext",
       "NetworkApprovalProtocol",
+      "NetworkDomainPermission",
       "NonSteerableTurnKind",
       "OverriddenMetadata",
       "PatchApplyStatus",

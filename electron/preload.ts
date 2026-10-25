@@ -97,7 +97,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   window: {
     show: () => invokeWindow("show"),
     hide: () => invokeWindow("hide"),
-    close: () => invokeWindow("close"),
+    close: (keyboard = false) => invokeWindow("close", keyboard),
+    confirmClose: (response: unknown) => invokeWindow("confirmClose", response),
     minimize: () => invokeWindow("minimize"),
     maximize: () => invokeWindow("maximize"),
     unmaximize: () => invokeWindow("unmaximize"),

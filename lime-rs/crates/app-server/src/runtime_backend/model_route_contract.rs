@@ -279,7 +279,7 @@ fn model_ref_source(source: &str) -> ModelRefSource {
 
 fn model_provider_protocol_from_route_protocol(protocol: &ProtocolKind) -> ModelProviderProtocol {
     match protocol {
-        ProtocolKind::OpenaiResponses | ProtocolKind::CodexResponses => {
+        ProtocolKind::OpenaiResponses => {
             ModelProviderProtocol::Responses
         }
         ProtocolKind::OpenaiChat => ModelProviderProtocol::ChatCompletions,
@@ -303,7 +303,6 @@ fn route_protocol_name(protocol: &ProtocolKind) -> &'static str {
         ProtocolKind::XaiVideo => "xai_video",
         ProtocolKind::BedrockConverse => "bedrock_converse",
         ProtocolKind::VertexGemini => "vertex_gemini",
-        ProtocolKind::CodexResponses => "codex_responses",
         ProtocolKind::Unknown => "unknown",
     }
 }

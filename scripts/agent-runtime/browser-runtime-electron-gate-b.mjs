@@ -4,6 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import electronPath from "electron";
+import {
+  createBrowserFirstOpenResponses,
+  runBrowserFirstOpenScenario,
+} from "./browser-runtime-electron-gate-b-first-open.mjs";
 import { _electron as electron } from "playwright";
 import { startOpenAiCompatibleFixtureServer } from "../lib/openai-compatible-fixture-server.mjs";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
@@ -123,6 +127,8 @@ const DEFAULT_PROJECTION_OUTPUT = path.resolve(
   ".lime/qc/gui-evidence/browser-runtime-gate-a/browser-runtime-gate-a-summary.json",
 );
 const SCENARIOS = new Set([
+  "first-open",
+  "first-open-approval",
   "projection",
   "history",
   "browser-data",
@@ -177,6 +183,7 @@ export function parseArgs(argv) {
     scenario: "lifecycle",
     locale: "zh-CN",
     screenshotDir: "",
+    targetUrl: "",
   };
   let outputExplicit = false;
   for (let index = 0; index < argv.length; index += 1) {
@@ -212,6 +219,14 @@ export function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (arg === "--target-url" && next) {
+      const target = new URL(next);
+      if (!["http:", "https:"].includes(target.protocol))
+        throw new Error("--target-url requires HTTP(S)");
+      options.targetUrl = target.href;
+      index += 1;
+      continue;
+    }
     if (arg === "--keep-temp") {
       options.keepTemp = true;
       continue;
@@ -236,7 +251,7 @@ export function parseArgs(argv) {
   }
   if (!SCENARIOS.has(options.scenario)) {
     throw new Error(
-      `--scenario 必须是 projection、history、browser-data、site-permissions、device、device-annotation、address-input、new-tab-address、settings-navigation、history-management、history-access、cdp、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
+      `--scenario 不支持: ${options.scenario || "<empty>"}；请查看 --help`,
     );
   }
   if (!SUPPORTED_LOCALES.has(options.locale)) {
@@ -452,6 +467,7 @@ function toolResultFromRequest(body) {
 }
 
 async function createBrowserProviderFixture({
+  firstOpenScenario = false,
   cdpScenario = false,
   historyAccessScenario = false,
   annotationScenario = false,
@@ -495,30 +511,35 @@ async function createBrowserProviderFixture({
       scenario.receiptTurns?.forEach((turn) => turn.release());
     },
   };
-  const scriptedResponses = cdpScenario
-    ? createBrowserCdpResponses(scenario, {
+  const scriptedResponses = firstOpenScenario
+    ? createBrowserFirstOpenResponses(scenario, {
         extractBrowserState,
         toolResultFromRequest,
       })
-    : historyAccessScenario
-      ? createBrowserHistoryAccessResponses(scenario, toolResultFromRequest)
-      : annotationScenario
-        ? createBrowserAnnotationActiveResponses(scenario, {
-            extractBrowserState,
-            extractBrowserObservation,
-            toolResultFromRequest,
-          })
-        : approvalScenario
-          ? createBrowserApprovalResponses(scenario, {
-              userControl: userControlScenario,
+    : cdpScenario
+      ? createBrowserCdpResponses(scenario, {
+          extractBrowserState,
+          toolResultFromRequest,
+        })
+      : historyAccessScenario
+        ? createBrowserHistoryAccessResponses(scenario, toolResultFromRequest)
+        : annotationScenario
+          ? createBrowserAnnotationActiveResponses(scenario, {
+              extractBrowserState,
+              extractBrowserObservation,
+              toolResultFromRequest,
             })
-          : artifactScenario
-            ? createBrowserArtifactResponses(scenario)
-            : createBrowserLifecycleResponses(
-                scenario,
-                userNavigationCompleted,
-                finalResponseAllowed,
-              );
+          : approvalScenario
+            ? createBrowserApprovalResponses(scenario, {
+                userControl: userControlScenario,
+              })
+            : artifactScenario
+              ? createBrowserArtifactResponses(scenario)
+              : createBrowserLifecycleResponses(
+                  scenario,
+                  userNavigationCompleted,
+                  finalResponseAllowed,
+                );
   if (browseApprovalScenario)
     scriptedResponses.push(
       ...createBrowserReceiptResponses(scenario, {
@@ -1487,6 +1508,7 @@ export async function run(options) {
   const runtimeEnv = createTempRuntimeEnv();
   runtimeEnv.writeFixtureConfig({ language: options.locale });
   const providerFixture = await createBrowserProviderFixture({
+    firstOpenScenario: options.scenario.startsWith("first-open"),
     cdpScenario: options.scenario === "cdp",
     historyAccessScenario: options.scenario === "history-access",
     annotationScenario,
@@ -1521,6 +1543,11 @@ export async function run(options) {
   const fixturePages = await startBrowserFixturePages({
     annotationFrames: options.scenario === "annotation-frames",
   });
+  if (options.scenario === "cdp") {
+    providerFixture.scenario.cdp.websocketUrl = fixturePages.webSocketUrl;
+    providerFixture.scenario.cdp.webSocketMessages =
+      fixturePages.webSocketMessages;
+  }
   try {
     const historyManagementSeed =
       options.scenario === "history-management"
@@ -1700,6 +1727,36 @@ export async function run(options) {
     invokeTraceCollector = startInvokeTraceEvidenceCollector(page, {
       intervalMs: options.intervalMs,
     });
+    if (options.scenario.startsWith("first-open")) {
+      const evidence = await runBrowserFirstOpenScenario({
+        app,
+        page,
+        identity,
+        options,
+        providerFixture,
+        requestLog,
+        targetUrl: options.targetUrl || fixturePages.initialUrl,
+        readBrowserWorkspaceState,
+        waitForBrowserSurface,
+        waitForNativeBrowserCommit,
+        waitForScenarioValue,
+        waitForTerminalThread,
+        captureBrowserScreenshot,
+        readInvokeTrace: () => invokeTraceCollector.snapshot(),
+      });
+      evidence.diagnostics = { consoleErrors, pageErrors };
+      fs.writeFileSync(
+        options.output,
+        `${JSON.stringify(evidence, null, 2)}\n`,
+      );
+      assert(
+        evidence.status === "pass" &&
+          consoleErrors.length === 0 &&
+          pageErrors.length === 0,
+        "First-open renderer errors",
+      );
+      return evidence;
+    }
     await invokeAppServerFromPage(
       page,
       "workspaceRightSurface/request",

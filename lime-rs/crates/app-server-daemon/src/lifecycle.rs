@@ -168,7 +168,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn state_paths_follow_codex_daemon_layout_without_codex_home() {
+    fn state_paths_follow_codex_daemon_layout_without_lime_home() {
         let paths = DaemonStatePaths::new(Path::new("/base"));
 
         assert_eq!(

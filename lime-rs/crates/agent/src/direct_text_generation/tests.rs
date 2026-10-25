@@ -73,7 +73,7 @@ async fn single_sample_waits_for_terminal_and_preserves_usage() {
         output_tokens: Some(12),
         cache_read_input_tokens: Some(7),
         cache_write_input_tokens: Some(3),
-        codex_rollout_budget_units: Some(2.into()),
+        lime_rollout_budget_units: Some(2.into()),
         ..Default::default()
     };
     let result = collect(vec![
@@ -96,7 +96,7 @@ async fn single_sample_waits_for_terminal_and_preserves_usage() {
             output_tokens: 12,
             cached_input_tokens: Some(7),
             cache_creation_input_tokens: Some(3),
-            codex_rollout_budget_units: Some(2.into()),
+            lime_rollout_budget_units: Some(2.into()),
         })
     );
 }

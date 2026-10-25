@@ -9,6 +9,7 @@ describe("renderer event broadcast authority", () => {
   it("allows existing renderer events and rejects Main persistence notifications", () => {
     expect(canBroadcastRendererEvent("config-changed")).toBe(true);
     expect(canBroadcastRendererEvent("persisted-atom-update")).toBe(false);
+    expect(canBroadcastRendererEvent("window-close-confirmation")).toBe(false);
   });
 
   it("does not coerce malformed IPC names or execute their getters", () => {
@@ -28,6 +29,9 @@ describe("renderer event broadcast authority", () => {
       persistence: { state: "saved" },
     });
     handler({ sender: { id: 42 } }, null, "malformed");
+    handler({ sender: { id: 42 } }, "window-close-confirmation", {
+      requestId: "forged",
+    });
     expect(broadcast).not.toHaveBeenCalled();
     handler({ sender: { id: 42 } }, "config-changed", { theme: "dark" });
     expect(broadcast).toHaveBeenCalledExactlyOnceWith("config-changed", {

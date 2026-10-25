@@ -1,4 +1,3 @@
-use super::AllowDenyRequirement;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -23,8 +22,8 @@ pub enum ConfigLayerSource {
         profile: Option<String>,
     },
     Project {
-        #[serde(rename = "dotCodexFolder")]
-        dot_codex_folder: String,
+        #[serde(rename = "dotLimeFolder")]
+        dot_lime_folder: String,
     },
     SessionFlags,
     LegacyManagedConfigTomlFromFile {
@@ -147,12 +146,22 @@ pub struct ConfigBatchWriteParams {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigRequirements {
+    pub application: Option<super::ApplicationRequirements>,
     pub allowed_approval_policies: Option<Vec<String>>,
     pub allowed_sandbox_modes: Option<Vec<String>>,
     pub allowed_web_search_modes: Option<Vec<String>>,
     pub allow_browser_and_computer_use: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_use: Option<ComputerUseRequirements>,
     pub browser_use: Option<super::BrowserUseRequirements>,
     pub in_app_browser: Option<InAppBrowserRequirements>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkDomainPermission {
+    Allow,
+    Deny,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
@@ -205,6 +214,13 @@ pub struct BrowserUseOriginPolicy {
     pub auto_review: Option<AllowDenyRequirement>,
     pub persistent_approval: Option<bool>,
     pub access_approval_lifetime: Option<BrowserUseAccessApprovalLifetime>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum AllowDenyRequirement {
+    Allow,
+    Deny,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
@@ -315,4 +331,36 @@ pub struct ConfigWarningNotification {
     /// Optional range for the error location inside the config file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<TextRange>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ComputerUseRequirements {
+    pub allow_locked_computer_use: Option<bool>,
+    pub allow_persistent_approval: Option<bool>,
+    pub default_app_access: Option<AllowDenyRequirement>,
+    pub macos: Option<ComputerUseMacosRequirements>,
+    pub windows: Option<ComputerUseWindowsRequirements>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ComputerUseMacosRequirements {
+    pub bundle_ids: Option<BTreeMap<String, AllowDenyRequirement>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ComputerUseWindowsRequirements {
+    pub aumids: Option<BTreeMap<String, AllowDenyRequirement>>,
+    pub exes: Option<Vec<ComputerUseWindowsExeRequirement>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ComputerUseWindowsExeRequirement {
+    pub publisher_name: String,
+    pub product_name: String,
+    pub binary_name: Option<String>,
+    pub access: AllowDenyRequirement,
 }

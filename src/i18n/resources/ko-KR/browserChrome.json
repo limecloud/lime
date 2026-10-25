@@ -33,5 +33,6 @@
   "browserChrome.presetIphone15Pro": "iPhone 15 Pro",
   "browserChrome.presetGalaxyS24Ultra": "Samsung Galaxy S24 Ultra",
   "browserChrome.presetIphoneSe": "iPhone SE",
-  "browserChrome.dimensions": "크기:"
+  "browserChrome.dimensions": "크기:",
+  "browserChrome.addressSuggestions": "주소 추천"
 }

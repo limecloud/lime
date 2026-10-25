@@ -5,6 +5,9 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::Value;
 use std::path::Path;
 
+mod computer_use;
+use computer_use::merge_computer_use_requirements;
+
 #[cfg(target_os = "macos")]
 mod macos;
 
@@ -72,6 +75,22 @@ pub(super) fn compose_requirements(
         }
     }
     if let Some(explicit) = explicit {
+        if let Some(application) = explicit.application {
+            let current = result.application.get_or_insert_default();
+            if let Some(mut network) = application.network {
+                if let Some(target) = current.network.as_mut() {
+                    if explicit.application_network_enabled.is_some() {
+                        target.enabled = network.enabled;
+                    }
+                    target.domains.append(&mut network.domains);
+                } else {
+                    current.network = Some(network);
+                }
+            }
+            if explicit.application_network_enabled.is_some() {
+                result.application_network_enabled = explicit.application_network_enabled;
+            }
+        }
         if explicit.allowed_approval_policies.is_some() {
             result.allowed_approval_policies = explicit.allowed_approval_policies;
         }
@@ -83,6 +102,9 @@ pub(super) fn compose_requirements(
         }
         if explicit.allow_browser_and_computer_use.is_some() {
             result.allow_browser_and_computer_use = explicit.allow_browser_and_computer_use;
+        }
+        if let Some(computer) = explicit.computer_use {
+            merge_computer_use_requirements(result.computer_use.get_or_insert_default(), computer);
         }
         if let Some(browser) = explicit.browser_use {
             let current = result.browser_use.get_or_insert_default();

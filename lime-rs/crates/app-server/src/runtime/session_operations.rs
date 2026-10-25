@@ -36,15 +36,40 @@ enum SessionMetadataMutation {
     },
     MemoryMode(ThreadMemoryMode),
     WorkingDirectory,
+    ShellEnvironmentPolicy {
+        policy: lime_core::config::ShellEnvironmentPolicyToml,
+        overrides: lime_core::config::ShellEnvironmentPolicyToml,
+    },
 }
 
 enum SessionMetadataMutationResult {
     ThreadSettings(ThreadSettings),
     MemoryMode,
     WorkingDirectory,
+    ShellEnvironmentPolicy(Value),
 }
 
 impl RuntimeCore {
+    pub(crate) async fn set_thread_shell_environment_policy(
+        &self,
+        thread_id: &str,
+        policy: lime_core::config::ShellEnvironmentPolicyToml,
+        overrides: lime_core::config::ShellEnvironmentPolicyToml,
+    ) -> Result<Value, RuntimeCoreError> {
+        match self
+            .dispatch_session_metadata_mutation(
+                thread_id,
+                SessionMetadataMutation::ShellEnvironmentPolicy { policy, overrides },
+            )
+            .await?
+        {
+            SessionMetadataMutationResult::ShellEnvironmentPolicy(metadata) => Ok(metadata),
+            _ => Err(RuntimeCoreError::Backend(
+                "shell environment policy operation returned an invalid result".into(),
+            )),
+        }
+    }
+
     pub(crate) fn current_permission_profile_policy(
         &self,
         cwd: Option<&str>,
@@ -220,6 +245,7 @@ impl RuntimeCore {
         match result {
             SessionMetadataMutationResult::ThreadSettings(settings) => Ok(settings),
             SessionMetadataMutationResult::MemoryMode
+            | SessionMetadataMutationResult::ShellEnvironmentPolicy(_)
             | SessionMetadataMutationResult::WorkingDirectory => Err(RuntimeCoreError::Backend(
                 "thread settings operation returned an invalid result".to_string(),
             )),
@@ -280,6 +306,7 @@ impl RuntimeCore {
         match result {
             SessionMetadataMutationResult::MemoryMode => Ok(ThreadMemoryModeSetResponse {}),
             SessionMetadataMutationResult::ThreadSettings(_)
+            | SessionMetadataMutationResult::ShellEnvironmentPolicy(_)
             | SessionMetadataMutationResult::WorkingDirectory => Err(RuntimeCoreError::Backend(
                 "memory mode operation returned an invalid result".to_string(),
             )),
@@ -377,6 +404,7 @@ impl RuntimeCore {
         });
         let operation = match mutation {
             SessionMetadataMutation::ThreadSettings { .. }
+            | SessionMetadataMutation::ShellEnvironmentPolicy { .. }
             | SessionMetadataMutation::WorkingDirectory => {
                 RuntimeSessionOperation::ThreadSettings { handler }
             }
@@ -513,6 +541,26 @@ fn apply_session_metadata_mutation(
         .cloned()
         .ok_or_else(|| "thread metadata must be a JSON object".to_string())?;
     let result = match mutation {
+        SessionMetadataMutation::ShellEnvironmentPolicy { policy, overrides } => {
+            let mut config = metadata
+                .get("config")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            config.retain(|key, _| {
+                key != "shell_environment_policy" && !key.starts_with("shell_environment_policy.")
+            });
+            config.insert(
+                "shell_environment_policy".into(),
+                serde_json::to_value(overrides).map_err(|error| error.to_string())?,
+            );
+            metadata.insert("config".into(), Value::Object(config));
+            metadata.insert(
+                "shellEnvironmentPolicy".into(),
+                serde_json::to_value(policy).map_err(|error| error.to_string())?,
+            );
+            SessionMetadataMutationResult::ShellEnvironmentPolicy(Value::Object(metadata.clone()))
+        }
         SessionMetadataMutation::ThreadSettings {
             params,
             permission_profile,

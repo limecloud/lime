@@ -59,14 +59,14 @@ pub(super) fn prepare(home: &Path, plugin_path: &Path, item: &Item) -> Result<Up
         .transpose()
         .map_err(|_| "invalid personal marketplace JSON")?
         .unwrap_or_else(
-            || json!({"name":"codex-curated","interface":{"displayName":"Personal"},"plugins":[]}),
+            || json!({"name":"lime-curated","interface":{"displayName":"Personal"},"plugins":[]}),
         );
     let object = value
         .as_object_mut()
         .ok_or("personal marketplace must be an object")?;
     let name = object
         .entry("name")
-        .or_insert_with(|| json!("codex-curated"))
+        .or_insert_with(|| json!("lime-curated"))
         .as_str()
         .ok_or("personal marketplace name must be a string")?
         .to_string();

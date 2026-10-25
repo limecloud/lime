@@ -28,6 +28,7 @@ export interface BrowserDataSummary {
   siteData: { siteCount: number } | null;
   cache: { sizeBytes: number } | null;
   downloads: { count: number } | null;
+  siteSettings: { siteCount: number } | null;
 }
 export type BrowserDataClearResult =
   | { status: "completed"; dataTypes: BrowserDataType[] }
@@ -128,6 +129,7 @@ export function assertBrowserDataSummary(
     "siteData",
     "cache",
     "downloads",
+    "siteSettings",
   ]);
   const history = browserDataRecord(record.history, ["firstSite", "siteCount"]);
   const count = (number: unknown) =>
@@ -145,6 +147,7 @@ export function assertBrowserDataSummary(
     ["siteData", "siteCount"],
     ["cache", "sizeBytes"],
     ["downloads", "count"],
+    ["siteSettings", "siteCount"],
   ] as const) {
     if (record[type] === null) continue;
     if (!count(browserDataRecord(record[type], [field])[field]))

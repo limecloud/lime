@@ -42,7 +42,7 @@ lime exec review --base main
 lime exec review --commit <sha> --title "commit subject"
 lime exec review "check error handling"
 
-# Codex-shaped approval/sandbox controls (also accepted before exec/resume)
+# Lime-native approval/sandbox controls (also accepted before exec/resume)
 lime exec --sandbox workspace-write "review this diff"
 lime exec --ask-for-approval on-request "run the checks"
 lime exec --approve-for-me "apply the safe fixes"

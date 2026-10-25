@@ -101,6 +101,56 @@ const browserPendingRequest: WorkspaceRightSurfacePendingRequest = {
   },
 };
 
+describe("session-owned browser pending in a workspace", () => {
+  it("合并同一会话的无工作区浏览器请求，同时保留工作区请求", async () => {
+    const browser = {
+      ...browserPendingRequest,
+      workspaceId: undefined,
+      workspaceRoot: undefined,
+    };
+    const listPending = vi.fn(async (params: { sessionId?: string }) => ({
+      pending: params.sessionId ? [browser] : [pendingRequest],
+    }));
+    const hook = renderHook({ listPending });
+    await hook.render();
+    expect(hook.getValue().pendingBrowserIntent?.sourceRequestId).toBe(
+      browser.requestId,
+    );
+    expect(hook.getValue().pendingRequests).toHaveLength(2);
+    expect(listPending).toHaveBeenCalledWith({
+      sessionId: "session-main",
+      surfaceKind: "browser",
+      limit: 50,
+    });
+  });
+
+  it("通知接受当前会话的浏览器打开，拒绝其他会话与其他 surface", () => {
+    const browser = {
+      ...browserPendingRequest,
+      workspaceId: undefined,
+      workspaceRoot: undefined,
+    };
+    const next = applyWorkspaceRightSurfacePendingChanges(
+      [],
+      [
+        {
+          changeType: "requested",
+          pending: [
+            browser,
+            { ...browser, requestId: "other", sessionId: "other-session" },
+            { ...browser, requestId: "files", surfaceKind: "files" },
+          ],
+        },
+      ],
+      { workspaceId: "workspace-main" },
+      "session-main",
+    );
+    expect(next.map((request) => request.requestId)).toEqual([
+      browser.requestId,
+    ]);
+  });
+});
+
 function renderHook(props?: Partial<HookProps>) {
   const container = document.createElement("div");
   document.body.appendChild(container);

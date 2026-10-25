@@ -55,7 +55,7 @@ impl Fixture {
             .save()
             .unwrap();
         let store = Arc::new(ProjectionStore::initialize(root.join("projection.sqlite")).unwrap());
-        let environment = workspace.join(".codex/environments/environment.toml");
+        let environment = workspace.join(".lime/environments/environment.toml");
         let server = server(&config, store.clone()).await;
         Self {
             temp,
@@ -151,6 +151,152 @@ fn quote(path: &Path) -> String {
 }
 
 #[tokio::test]
+async fn setup_environment_diff_reaches_public_command_exec_after_restart_without_cross_checkout_leaks(
+) {
+    let fixture = Fixture::new().await;
+    let mut workspaces = Vec::new();
+    for value in ["first", "second"] {
+        fixture.save(&fixture.environment, &format!("name='Environment'\n[setup]\nscript='''export LIME_SETUP_TEST={value}\nunset HOME'''\n")).await;
+        let created = fixture.create(value, json!({})).await;
+        assert!(created.get("error").is_none(), "{created}");
+        assert_eq!(created["result"]["setupResult"]["status"], "succeeded");
+        let root = PathBuf::from(created["result"]["worktreePath"].as_str().unwrap());
+        let metadata = PathBuf::from(git(
+            &root,
+            &["rev-parse", "--git-path", "lime-shell-environment.json"],
+        ));
+        let saved: Value =
+            serde_json::from_str(&std::fs::read_to_string(metadata).unwrap()).unwrap();
+        assert_eq!(saved["version"], 1);
+        assert_eq!(saved["set"]["LIME_SETUP_TEST"], value);
+        assert!(saved["exclude"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("HOME")));
+        for key in [
+            "LIME_SOURCE_TREE_PATH",
+            "LIME_WORKTREE_PATH",
+            "PWD",
+            "SHLVL",
+        ] {
+            assert!(
+                saved["set"].get(key).is_none(),
+                "Wrapper noise {key} must not persist"
+            );
+        }
+        workspaces.push(root.join("packages/api"));
+    }
+    use std::process::Stdio;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_app-server"))
+        .args(["--stdio", "--backend", "unavailable", "--app-data-dir"])
+        .arg(fixture.temp.path().join("restarted-app"))
+        .arg("--data-dir")
+        .arg(fixture.temp.path().join("restarted-agent"))
+        .env("LIME_CONFIG_PATH", &fixture.config)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    async fn call(
+        input: &mut tokio::process::ChildStdin,
+        lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+        id: i64,
+        method: &str,
+        params: Value,
+    ) -> Value {
+        input
+            .write_all(
+                format!(
+                    "{}\n",
+                    json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let message: Value = serde_json::from_str(
+                    &lines.next_line().await.unwrap().expect("stdio response"),
+                )
+                .unwrap();
+                if message["id"] == id {
+                    return message;
+                }
+                assert!(
+                    message.get("id").is_none(),
+                    "unexpected response: {message}"
+                );
+            }
+        })
+        .await
+        .expect("bounded setup environment command RPC")
+    }
+    let initialized = call(
+        &mut input,
+        &mut lines,
+        200,
+        "initialize",
+        json!({"clientInfo":{"name":"setup-environment-restart-test","version":"1"}}),
+    )
+    .await;
+    assert!(initialized.get("error").is_none(), "{initialized}");
+    input
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"initialized\"}\n")
+        .await
+        .unwrap();
+    let command = [
+        "/bin/sh",
+        "-c",
+        "printf '%s|%s' \"${LIME_SETUP_TEST-missing}\" \"${HOME-missing}\"",
+    ];
+    for (workspace, value) in workspaces.iter().zip(["first", "second"]) {
+        let response = call(
+            &mut input,
+            &mut lines,
+            210,
+            "command/exec",
+            json!({"command":command,"cwd":workspace,"timeoutMs":5000}),
+        )
+        .await;
+        assert!(response.get("error").is_none(), "{response}");
+        assert_eq!(response["result"]["exitCode"], 0);
+        assert_eq!(response["result"]["stdout"], format!("{value}|missing"));
+    }
+    let overridden = call(&mut input, &mut lines, 211, "command/exec", json!({"command":command,"cwd":workspaces[0],"env":{"LIME_SETUP_TEST":"explicit","HOME":"explicit-home"}})).await;
+    assert_eq!(
+        overridden["result"]["stdout"], "explicit|explicit-home",
+        "{overridden}"
+    );
+    let source = call(
+        &mut input,
+        &mut lines,
+        212,
+        "command/exec",
+        json!({"command":command,"cwd":fixture.workspace}),
+    )
+    .await;
+    assert!(
+        source["result"]["stdout"]
+            .as_str()
+            .unwrap()
+            .starts_with("missing|"),
+        "{source}"
+    );
+    drop(input);
+    assert!(tokio::time::timeout(Duration::from_secs(15), child.wait())
+        .await
+        .unwrap()
+        .unwrap()
+        .success());
+}
+
+#[tokio::test]
 async fn selected_setup_uses_platform_and_subdirectory_cleanup_survives_restart_and_failure_preserves_chat(
 ) {
     let fixture = Fixture::new().await;
@@ -158,7 +304,7 @@ async fn selected_setup_uses_platform_and_subdirectory_cleanup_survives_restart_
     let marker = std::fs::canonicalize(fixture.temp.path())
         .unwrap()
         .join("cleanup-done");
-    let setup = "printf '%s\\n%s\\n' \"$CODEX_SOURCE_TREE_PATH\" \"$CODEX_WORKTREE_PATH\" > setup-paths.txt";
+    let setup = "printf '%s\\n%s\\n' \"$LIME_SOURCE_TREE_PATH\" \"$LIME_WORKTREE_PATH\" > setup-paths.txt";
     let raw = format!("name='API'\n[setup]\nscript='exit 41'\n[setup.darwin]\nscript='''{setup}'''\n[setup.linux]\nscript='''{setup}'''\n[cleanup]\nscript='exit 23'\n");
     fixture.save(&fixture.environment, &raw).await;
     let created = fixture.create("selected", json!({})).await;
@@ -190,12 +336,12 @@ async fn selected_setup_uses_platform_and_subdirectory_cleanup_survives_restart_
             "--file",
             &git(&root, &["rev-parse", "--git-path", "config.worktree"]),
             "--get",
-            "codex.localEnvironmentConfigPath",
+            "lime.localEnvironmentConfigPath",
         ],
     ));
     assert_eq!(
         selected,
-        workspace.join(".codex/environments/environment.toml")
+        workspace.join(".lime/environments/environment.toml")
     );
     let thread: Thread = serde_json::from_value(json!({"threadId":"cleanup-chat","sessionId":"cleanup-chat","status":{"type":"idle"},"createdAtMs":1,"updatedAtMs":2,"archived":false,"metadata":{"workingDir":workspace}})).unwrap();
     fixture
@@ -286,7 +432,7 @@ async fn setup_failure_has_recovery_path_allow_failure_and_explicit_none_skips_s
                 "--file",
                 &git(&root, &["rev-parse", "--git-path", "config.worktree"]),
                 "--get",
-                "codex.localEnvironmentConfigPath"
+                "lime.localEnvironmentConfigPath"
             ]
         ),
         "__none__"
@@ -376,7 +522,7 @@ async fn cancel_cleanup_keeps_checkout_and_releases_operation_for_retry() {
             "--file",
             &git(&root, &["rev-parse", "--git-path", "config.worktree"]),
             "--get",
-            "codex.localEnvironmentConfigPath",
+            "lime.localEnvironmentConfigPath",
         ],
     ));
     let server = fixture.server.clone();

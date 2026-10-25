@@ -554,6 +554,7 @@ mod tests {
     fn test_client_wrapper_creation() {
         let config = super::super::types::McpServerConfig {
             transport: super::super::types::McpServerTransport::Stdio {
+                env_vars: Vec::new(),
                 command: "test-command".to_string(),
                 args: vec!["--arg1".to_string()],
                 env: std::collections::HashMap::new(),

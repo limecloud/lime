@@ -4,6 +4,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { LayoutMode } from "@/lib/workspace/workflowTypes";
 import { LayoutTransition } from "./LayoutTransition";
+import { RightSurfaceTabStrip } from "@/components/agent/chat/workspace/right-surface/RightSurfaceTabStrip";
 import {
   cleanupMountedRoots,
   clickElement,
@@ -564,6 +565,72 @@ describe("LayoutTransition", () => {
     });
 
     expect(root?.getAttribute("data-compact-primary-panel")).toBe("chat");
+  });
+
+  it("窄窗新动作应激活现役侧面板，返回聊天后普通重绘不抢焦点", () => {
+    window.innerWidth = 900;
+    function ActionsHarness({ activeTabId }: { activeTabId: string | null }) {
+      return (
+        <AppShell>
+          <AppShellHeader />
+          <LayoutTransition
+            mode={activeTabId ? "chat-canvas" : "chat"}
+            chatContent={<textarea defaultValue="retained action draft" />}
+            canvasContent={<div>action output</div>}
+            sidePanelTabStrip={
+              activeTabId ? (
+                <RightSurfaceTabStrip
+                  definitions={[{ kind: "shell", render: () => null }]}
+                  tabs={[{ kind: "shell", tabId: activeTabId }]}
+                  activeTabId={activeTabId}
+                  onNewTab={() => undefined}
+                  onSelectTab={() => undefined}
+                  onCloseTab={() => undefined}
+                  previewTabId={null}
+                  idPrefix="actions"
+                />
+              ) : undefined
+            }
+          />
+        </AppShell>
+      );
+    }
+    const { container, rerender } = mountHarness(
+      ActionsHarness,
+      { activeTabId: null as string | null },
+      mountedRoots,
+    );
+    const draft = container.querySelector("textarea");
+    const panel = container.querySelector(
+      '[data-testid="layout-canvas-panel"]',
+    );
+    const layout = container.querySelector(
+      '[data-testid="layout-transition-root"]',
+    );
+
+    rerender({ activeTabId: "first-action" });
+    expect(layout?.getAttribute("data-compact-primary-panel")).toBe("canvas");
+    expect(panel?.getAttribute("aria-hidden")).toBe("false");
+    expect(panel?.hasAttribute("inert")).toBe(false);
+    expect(
+      container
+        .querySelector('[data-testid="workspace-right-surface-tab-shell"]')
+        ?.getAttribute("aria-selected"),
+    ).toBe("true");
+
+    act(() =>
+      clickElement(container.querySelector('[data-testid="layout-main-tab"]')),
+    );
+    expect(layout?.getAttribute("data-compact-primary-panel")).toBe("chat");
+    rerender({ activeTabId: "first-action" });
+    expect(layout?.getAttribute("data-compact-primary-panel")).toBe("chat");
+    expect(container.querySelector("textarea")).toBe(draft);
+    expect(draft?.value).toBe("retained action draft");
+
+    rerender({ activeTabId: "second-action" });
+    expect(layout?.getAttribute("data-compact-primary-panel")).toBe("canvas");
+    expect(panel?.getAttribute("aria-hidden")).toBe("false");
+    expect(container.querySelector("textarea")).toBe(draft);
   });
 
   it("应按实际工作区容器宽度切换单面板，而不是只看窗口宽度", async () => {

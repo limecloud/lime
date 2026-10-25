@@ -1,4 +1,4 @@
-//! Cursor pagination state for the Codex-shaped resume picker.
+//! Cursor pagination state for the Lime-native resume picker.
 //!
 //! The App Server owns the persisted thread index. This module only tracks
 //! picker-local request ordering and scan progress so stale pages cannot

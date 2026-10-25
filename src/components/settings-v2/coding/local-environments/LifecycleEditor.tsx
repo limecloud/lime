@@ -15,11 +15,13 @@ export function LifecycleEditor({
   draft,
   disabled,
   onChange,
+  simpleSetup = false,
 }: {
   type: "setup" | "cleanup";
   draft: LocalEnvironmentDraft;
   disabled: boolean;
   onChange: (draft: LocalEnvironmentDraft) => void;
+  simpleSetup?: boolean;
 }) {
   const { t } = useTranslation("settings");
   const id = useId();
@@ -34,38 +36,55 @@ export function LifecycleEditor({
     <SettingsSection
       title={label}
       actions={
-        <span>
-          <span className="sr-only" id={`${id}-label`}>
-            {t("settings.localEnvironments.scriptPlatform", { script: label })}
+        !simpleSetup ? (
+          <span>
+            <span className="sr-only" id={`${id}-label`}>
+              {t("settings.localEnvironments.scriptPlatform", {
+                script: label,
+              })}
+            </span>
+            <SettingsValueMenu
+              targetId={id}
+              value={platform}
+              options={["default" as const, ...environmentPlatforms].map(
+                (value) => ({
+                  value,
+                  label: t(`settings.localEnvironments.platform.${value}`),
+                }),
+              )}
+              onChange={setPlatform}
+              disabled={disabled}
+            />
           </span>
-          <SettingsValueMenu
-            targetId={id}
-            value={platform}
-            options={["default" as const, ...environmentPlatforms].map(
-              (value) => ({
-                value,
-                label: t(`settings.localEnvironments.platform.${value}`),
-              }),
-            )}
-            onChange={setPlatform}
-            disabled={disabled}
-          />
-        </span>
+        ) : undefined
       }
     >
-      <p
-        id={`${id}-description`}
-        className="mb-3 text-[12px] text-muted-foreground"
-      >
-        {t(`settings.localEnvironments.${type}Description`)}
-      </p>
+      {!simpleSetup ? (
+        <p
+          id={`${id}-description`}
+          className="mb-3 text-[12px] text-muted-foreground"
+        >
+          {t(`settings.localEnvironments.${type}Description`)}
+        </p>
+      ) : null}
       <textarea
-        aria-label={`${label} · ${t(`settings.localEnvironments.platform.${platform}`)}`}
-        aria-describedby={`${id}-description`}
+        aria-label={
+          simpleSetup
+            ? label
+            : `${label} · ${t(`settings.localEnvironments.platform.${platform}`)}`
+        }
+        aria-describedby={simpleSetup ? undefined : `${id}-description`}
+        rows={6}
         className={`${environmentInputClass} min-h-32 resize-y font-mono`}
         spellCheck={false}
         value={value}
-        placeholder={platform !== "default" ? draft[`${type}Script`] : ""}
+        placeholder={
+          simpleSetup
+            ? t("settings.localEnvironments.simpleSetupPlaceholder")
+            : platform !== "default"
+              ? draft[`${type}Script`]
+              : ""
+        }
         disabled={disabled}
         onChange={(event) =>
           onChange(

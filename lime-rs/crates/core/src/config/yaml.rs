@@ -299,6 +299,8 @@ fn normalize_retired_nested_default_provider_yaml_value(value: &mut serde_yaml::
     true
 }
 
+mod retired_web_search;
+
 fn parse_yaml_config_with_legacy_tracking(yaml: &str) -> Result<(Config, bool), ConfigError> {
     let mut value: serde_yaml::Value =
         serde_yaml::from_str(yaml).map_err(|e| ConfigError::ParseError(e.to_string()))?;
@@ -306,11 +308,12 @@ fn parse_yaml_config_with_legacy_tracking(yaml: &str) -> Result<(Config, bool), 
         normalize_legacy_workspace_preferences_yaml_value(&mut value);
     let migrated_default_provider =
         normalize_retired_nested_default_provider_yaml_value(&mut value);
+    let migrated_web_search = retired_web_search::normalize(&mut value);
     let config =
         serde_yaml::from_value(value).map_err(|e| ConfigError::ParseError(e.to_string()))?;
     Ok((
         config,
-        migrated_workspace_preferences || migrated_default_provider,
+        migrated_workspace_preferences || migrated_default_provider || migrated_web_search,
     ))
 }
 

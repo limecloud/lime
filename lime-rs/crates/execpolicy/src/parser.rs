@@ -1,3 +1,4 @@
+use lime_utils_absolute_path::AbsolutePathBuf;
 use multimap::MultiMap;
 use starlark::any::ProvidesStaticType;
 use starlark::codemap::FileSpan;
@@ -7,15 +8,14 @@ use starlark::eval::Evaluator;
 use starlark::starlark_module;
 use starlark::syntax::AstModule;
 use starlark::syntax::Dialect;
+use starlark::values::Value;
 use starlark::values::list::ListRef;
 use starlark::values::list::UnpackList;
 use starlark::values::none::NoneType;
-use starlark::values::Value;
 use std::cell::RefCell;
 use std::cell::RefMut;
 use std::collections::HashMap;
 use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::decision::Decision;
@@ -26,14 +26,14 @@ use crate::error::TextPosition;
 use crate::error::TextRange;
 use crate::executable_name::executable_lookup_key;
 use crate::executable_name::executable_path_lookup_key;
-use crate::rule::validate_match_examples;
-use crate::rule::validate_not_match_examples;
 use crate::rule::NetworkRule;
 use crate::rule::NetworkRuleProtocol;
 use crate::rule::PatternToken;
 use crate::rule::PrefixPattern;
 use crate::rule::PrefixRule;
 use crate::rule::RuleRef;
+use crate::rule::validate_match_examples;
+use crate::rule::validate_not_match_examples;
 
 pub struct PolicyParser {
     builder: RefCell<PolicyBuilder>,
@@ -87,7 +87,7 @@ impl PolicyParser {
 struct PolicyBuilder {
     rules_by_program: MultiMap<String, RuleRef>,
     network_rules: Vec<NetworkRule>,
-    host_executables_by_name: HashMap<String, Arc<[PathBuf]>>,
+    host_executables_by_name: HashMap<String, Arc<[AbsolutePathBuf]>>,
     pending_example_validations: Vec<PendingExampleValidation>,
 }
 
@@ -110,7 +110,7 @@ impl PolicyBuilder {
         self.network_rules.push(rule);
     }
 
-    fn add_host_executable(&mut self, name: String, paths: Vec<PathBuf>) {
+    fn add_host_executable(&mut self, name: String, paths: Vec<AbsolutePathBuf>) {
         self.host_executables_by_name.insert(name, paths.into());
     }
 
@@ -220,14 +220,15 @@ fn parse_examples<'v>(examples: UnpackList<Value<'v>>) -> Result<Vec<Vec<String>
     examples.items.into_iter().map(parse_example).collect()
 }
 
-fn parse_literal_absolute_path(raw: &str) -> Result<PathBuf> {
+fn parse_literal_absolute_path(raw: &str) -> Result<AbsolutePathBuf> {
     if !Path::new(raw).is_absolute() {
         return Err(Error::InvalidRule(format!(
             "host_executable paths must be absolute (got {raw})"
         )));
     }
 
-    Ok(PathBuf::from(raw))
+    AbsolutePathBuf::try_from(raw.to_string())
+        .map_err(|error| Error::InvalidRule(format!("invalid absolute path `{raw}`: {error}")))
 }
 
 fn validate_host_executable_name(name: &str) -> Result<()> {

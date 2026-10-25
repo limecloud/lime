@@ -7,6 +7,9 @@ impl AppServer {
     }
 
     pub fn with_runtime(runtime: RuntimeCore) -> Self {
+        if let Err(error) = runtime.install_computer_use_gateway() {
+            tracing::warn!(%error, "runtime backend rejected Computer Use gateway injection");
+        }
         let (outbound_messages, _) = broadcast::channel(OUTBOUND_MESSAGE_CAPACITY);
         let runtime_event_receiver = Arc::new(Mutex::new(runtime.take_event_receiver()));
         let environment_registry_path = runtime.environment_registry_path();

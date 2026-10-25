@@ -73,10 +73,10 @@ fn read_params(source: &Path) -> PluginReadParams {
 fn native_omitted_name_keeps_install_identity_after_cache_copy() {
     let temp = TempDir::new().unwrap();
     let source = temp.path().join("source-name");
-    fs::create_dir_all(source.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(source.join(".lime-plugin")).unwrap();
     fs::create_dir_all(source.join("skills/write")).unwrap();
     fs::write(
-        source.join(".codex-plugin/plugin.json"),
+        source.join(".lime-plugin/plugin.json"),
         r#"{"skills":"./skills"}"#,
     )
     .unwrap();
@@ -101,13 +101,13 @@ fn native_omitted_name_keeps_install_identity_after_cache_copy() {
         "plugin:source-name@test-marketplace:write"
     );
     assert_eq!(
-        fs::read_to_string(source.join(".codex-plugin/plugin.json")).unwrap(),
+        fs::read_to_string(source.join(".lime-plugin/plugin.json")).unwrap(),
         r#"{"skills":"./skills"}"#
     );
 }
 
 #[test]
-fn installs_standard_manifest_into_codex_cache() {
+fn installs_standard_manifest_into_lime_cache() {
     let temp = TempDir::new().unwrap();
     let source = temp.path().join("source");
     fixture(&source);
@@ -220,9 +220,9 @@ fn rejects_manifest_without_standard_schema_and_parent_paths() {
 fn native_manifest_is_discoverable_and_standard_skills_are_direct_children() {
     let temp = TempDir::new().unwrap();
     let root = temp.path().join("source");
-    fs::create_dir_all(root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(root.join(".lime-plugin")).unwrap();
     fs::write(
-        root.join(".codex-plugin/plugin.json"),
+        root.join(".lime-plugin/plugin.json"),
         r#"{"name":"legacy","version":"1.0.0"}"#,
     )
     .unwrap();
@@ -240,13 +240,13 @@ fn native_manifest_is_discoverable_and_standard_skills_are_direct_children() {
 }
 
 #[test]
-fn manifest_matches_codex_agent_plugin_validation_and_extension_precedence() {
+fn manifest_matches_lime_agent_plugin_validation_and_extension_precedence() {
     let temp = TempDir::new().unwrap();
     let root = temp.path().join("source");
-    fs::create_dir_all(root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(root.join(".lime-plugin")).unwrap();
     fs::write(
-        root.join(".codex-plugin/plugin.json"),
-        r#"{"interface":{"displayName":"Legacy Codex"}}"#,
+        root.join(".lime-plugin/plugin.json"),
+        r#"{"interface":{"displayName":"Legacy Lime"}}"#,
     )
     .unwrap();
     fs::write(
@@ -256,7 +256,7 @@ fn manifest_matches_codex_agent_plugin_validation_and_extension_precedence() {
           "name":"acme.tools",
           "futureField":true,
           "extensions":{
-            "com.openai":{"interface":{"displayName":"Inline Codex"}},
+            "com.lime":{"interface":{"displayName":"Inline Lime"}},
             "com.example.unimplemented":{"future":true}
           }
         }"#,
@@ -268,7 +268,7 @@ fn manifest_matches_codex_agent_plugin_validation_and_extension_precedence() {
     assert!(manifest.get("futureField").is_none());
     assert_eq!(
         interface_string(&manifest, "displayName").as_deref(),
-        Some("Inline Codex")
+        Some("Inline Lime")
     );
 
     fs::write(
@@ -279,7 +279,7 @@ fn manifest_matches_codex_agent_plugin_validation_and_extension_precedence() {
     let manifest = read_manifest(&root).unwrap();
     assert_eq!(
         interface_string(&manifest, "displayName").as_deref(),
-        Some("Legacy Codex")
+        Some("Legacy Lime")
     );
 }
 
@@ -287,20 +287,20 @@ fn manifest_matches_codex_agent_plugin_validation_and_extension_precedence() {
 fn portable_apps_extension_is_metadata_without_enabling_apps() {
     let temp = TempDir::new().unwrap();
     let root = temp.path().join("source");
-    fs::create_dir_all(root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(root.join(".lime-plugin")).unwrap();
     fs::write(
         root.join("plugin.json"),
         r#"{
           "$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
           "name":"acme.tools",
           "extensions":{
-            "com.openai":{"apps":"./apps.json"}
+            "com.lime":{"apps":"./apps.json"}
           }
         }"#,
     )
     .unwrap();
     fs::write(
-        root.join(".codex-plugin/plugin.json"),
+        root.join(".lime-plugin/plugin.json"),
         r#"{"apps":"./legacy-apps.json"}"#,
     )
     .unwrap();
@@ -332,7 +332,7 @@ fn portable_apps_extension_is_metadata_without_enabling_apps() {
         r#"{
           "$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
           "name":"acme.tools",
-          "extensions":{"com.openai":{"apps":"apps.json"}}
+          "extensions":{"com.lime":{"apps":"apps.json"}}
         }"#,
     )
     .unwrap();
@@ -347,7 +347,7 @@ fn portable_apps_extension_is_metadata_without_enabling_apps() {
         r#"{
           "$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
           "name":"acme.tools",
-          "extensions":{"com.openai":{"apps":{"inline":true}}}
+          "extensions":{"com.lime":{"apps":{"inline":true}}}
         }"#,
     )
     .unwrap();
@@ -394,7 +394,7 @@ fn manifest_rejects_symlinked_root_file() {
 }
 
 #[test]
-fn resolves_codex_marketplace_sources_from_marketplace_root() {
+fn resolves_lime_marketplace_sources_from_marketplace_root() {
     let temp = TempDir::new().unwrap();
     let marketplace_root = temp.path().join("openai-bundled");
     let package_root = marketplace_root.join("plugins/browser");

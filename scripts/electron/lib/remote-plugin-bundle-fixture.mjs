@@ -4,7 +4,7 @@ import { gzipSync } from "node:zlib";
 export function remotePluginBundle(index, version = "1.0.0") {
   const entries = [
     [
-      ".codex-plugin/plugin.json",
+      ".lime-plugin/plugin.json",
       JSON.stringify({
         name: `research-${index}`,
         version,

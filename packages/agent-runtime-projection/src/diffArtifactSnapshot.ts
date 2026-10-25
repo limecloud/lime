@@ -197,9 +197,15 @@ function lineFromRecord(value: unknown): AgentUiDiffLineSnapshot | undefined {
       : typeof record.gutter === "string"
         ? record.gutter
         : undefined;
-  const normalizedSign = sign === "+" || sign === "-" || sign === " " ? sign : undefined;
+  const normalizedSign =
+    sign === "+" || sign === "-" || sign === " " ? sign : undefined;
   const text = readStringField(record, ["text", "content"]);
-  if (oldLine === undefined && newLine === undefined && !normalizedSign && !text) {
+  if (
+    oldLine === undefined &&
+    newLine === undefined &&
+    !normalizedSign &&
+    !text
+  ) {
     return undefined;
   }
   return compactProjectionFields({
@@ -221,7 +227,10 @@ function collectLines(value: unknown): AgentUiDiffLineSnapshot[] {
     .filter((entry): entry is AgentUiDiffLineSnapshot => Boolean(entry));
 }
 
-function hasLongLineWrap(value: unknown, lines: readonly AgentUiDiffLineSnapshot[]): boolean {
+function hasLongLineWrap(
+  value: unknown,
+  lines: readonly AgentUiDiffLineSnapshot[],
+): boolean {
   const record = readRecord(value);
   const wrap =
     readRecord(record?.wrapEvidence) ??
@@ -234,8 +243,7 @@ function hasLongLineWrap(value: unknown, lines: readonly AgentUiDiffLineSnapshot
       "longLineWrap",
       "long_line_wrap",
       "longLineWrapVisible",
-    ]) === true ||
-    lines.some((line) => (line.textPreview?.length ?? 0) >= 100)
+    ]) === true || lines.some((line) => (line.textPreview?.length ?? 0) >= 100)
   );
 }
 
@@ -245,14 +253,27 @@ function parseFileChange(
 ): AgentUiFileChangeSnapshot | undefined {
   const record = readRecord(value);
   if (!record) return undefined;
-  const path = readStringField(record, ["path", "filePath", "file_path", "newPath"]);
+  const path = readStringField(record, [
+    "path",
+    "filePath",
+    "file_path",
+    "newPath",
+  ]);
   if (!path) return undefined;
-  const oldPath = readStringField(record, ["oldPath", "old_path", "previousPath"]);
+  const oldPath = readStringField(record, [
+    "oldPath",
+    "old_path",
+    "previousPath",
+  ]);
   const kind = normalizeChangeKind(
     readStringField(record, ["kind", "changeKind", "change_kind", "status"]),
   );
   const inferredKind =
-    kind !== "unknown" ? kind : oldPath && oldPath !== path ? "rename" : "unknown";
+    kind !== "unknown"
+      ? kind
+      : oldPath && oldPath !== path
+        ? "rename"
+        : "unknown";
   const lines = collectLines(record);
   const hasLineNumbers = lines.some(
     (line) => line.oldLine !== undefined || line.newLine !== undefined,
@@ -272,11 +293,15 @@ function parseFileChange(
   } satisfies AgentUiFileChangeSnapshot);
 }
 
-function diffItemRecord(input: AgentUiDiffArtifactSnapshotInput): Record<string, unknown> | undefined {
+function diffItemRecord(
+  input: AgentUiDiffArtifactSnapshotInput,
+): Record<string, unknown> | undefined {
   return readRecord(input.diffItem) ?? readRecord(input.sharedDiffItem);
 }
 
-function fileChangesFromInput(input: AgentUiDiffArtifactSnapshotInput): unknown[] {
+function fileChangesFromInput(
+  input: AgentUiDiffArtifactSnapshotInput,
+): unknown[] {
   const item = diffItemRecord(input);
   const direct = input.fileChanges ?? input.changes;
   if (direct) return [...direct];
@@ -289,10 +314,18 @@ function fileChangesFromInput(input: AgentUiDiffArtifactSnapshotInput): unknown[
 }
 
 function surfaceRawPatchRendered(record: Record<string, unknown>): boolean {
-  if (typeof record.rawPatch === "string" || typeof record.raw_patch === "string") {
+  if (
+    typeof record.rawPatch === "string" ||
+    typeof record.raw_patch === "string"
+  ) {
     return true;
   }
-  const text = readStringField(record, ["text", "content", "pageText", "page_text"]);
+  const text = readStringField(record, [
+    "text",
+    "content",
+    "pageText",
+    "page_text",
+  ]);
   return Boolean(text?.includes("@@ ") || text?.includes("diff --git"));
 }
 
@@ -306,17 +339,25 @@ function parseSurface(
   const surface = normalizeSurface(
     readStringField(record, ["surface", "kind", "target"]) ?? fallbackSurface,
   );
-  const fileChangeIds = readArray(record.fileChangeIds ?? record.file_change_ids)
-    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  const fileChangeIds = readArray(
+    record.fileChangeIds ?? record.file_change_ids,
+  ).filter(
+    (entry): entry is string =>
+      typeof entry === "string" && entry.trim().length > 0,
+  );
   const wrap =
     readRecord(record.wrapEvidence) ??
     readRecord(record.wrap_evidence) ??
     record;
   const fakeArtifactCardRendered =
-    readBooleanField(record, ["fakeArtifactCard", "fake_artifact_card"]) === true ||
-    normalizeSurface(readStringField(record, ["type"])) === "artifact_diff" &&
+    readBooleanField(record, ["fakeArtifactCard", "fake_artifact_card"]) ===
+      true ||
+    (normalizeSurface(readStringField(record, ["type"])) === "artifact_diff" &&
       fileChangeIds.length === 0 &&
-      readBooleanField(record, ["structuredDiffItem", "structured_diff_item"]) !== true;
+      readBooleanField(record, [
+        "structuredDiffItem",
+        "structured_diff_item",
+      ]) !== true);
 
   return {
     surface,
@@ -369,7 +410,9 @@ function renderedSurfacesFromInput(
           { value: input.reviewDiff, fallback: "review_diff" as const },
         ];
   return values
-    .map((entry) => parseSurface(entry.value, entry.fallback, defaultDiffItemId))
+    .map((entry) =>
+      parseSurface(entry.value, entry.fallback, defaultDiffItemId),
+    )
     .filter((entry): entry is AgentUiDiffSurfaceSnapshot => Boolean(entry));
 }
 
@@ -412,7 +455,7 @@ function validateDiffSnapshot(
       issue(
         "multi_file_diff_missing",
         "$.fileChanges",
-        "Codex-derived diff snapshots must cover multiple files.",
+        "source-derived diff snapshots must cover multiple files.",
       ),
     );
   }
@@ -443,7 +486,9 @@ function validateDiffSnapshot(
       ),
     );
   }
-  const surfaceSet = new Set(snapshot.surfaces.map((surface) => surface.surface));
+  const surfaceSet = new Set(
+    snapshot.surfaces.map((surface) => surface.surface),
+  );
   for (const surface of REQUIRED_SURFACES) {
     if (!surfaceSet.has(surface)) {
       issues.push(
@@ -493,11 +538,15 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexDiffArtifactProjectionSnapshot(
+export function extractDiffArtifactProjectionSnapshot(
   input: AgentUiDiffArtifactSnapshotInput,
 ): AgentUiDiffArtifactProjectionSnapshot {
   const diffItem = diffItemRecord(input);
-  const diffItemId = readStringField(diffItem, ["id", "diffItemId", "diff_item_id"]);
+  const diffItemId = readStringField(diffItem, [
+    "id",
+    "diffItemId",
+    "diff_item_id",
+  ]);
   const fileChanges = fileChangesFromInput(input)
     .map(parseFileChange)
     .filter((entry): entry is AgentUiFileChangeSnapshot => Boolean(entry));
@@ -522,7 +571,8 @@ export function extractCodexDiffArtifactProjectionSnapshot(
     requiredChangeKindsCovered: REQUIRED_CHANGE_KINDS.every((kind) =>
       changeKindsCovered.includes(kind),
     ),
-    multiFileCovered: new Set(fileChanges.map((change) => change.path)).size > 1,
+    multiFileCovered:
+      new Set(fileChanges.map((change) => change.path)).size > 1,
     lineNumbersPreserved:
       fileChanges.length > 0 &&
       fileChanges.every((change) => change.hasLineNumbers) &&
@@ -541,7 +591,8 @@ export function extractCodexDiffArtifactProjectionSnapshot(
       (!diffItemId || surfaceDiffIds[0] === diffItemId) &&
       surfaces.every((surface) => surface.structuredDiffItem),
     rawPatchRejected:
-      !rawPatchInputPresent && !surfaces.some((surface) => surface.rawPatchRendered),
+      !rawPatchInputPresent &&
+      !surfaces.some((surface) => surface.rawPatchRendered),
     fakeArtifactCardRejected: !surfaces.some(
       (surface) => surface.fakeArtifactCardRendered,
     ),
@@ -549,15 +600,18 @@ export function extractCodexDiffArtifactProjectionSnapshot(
 
   return {
     ...partialSnapshot,
-    validationIssues: validateDiffSnapshot(partialSnapshot, rawPatchInputPresent),
+    validationIssues: validateDiffSnapshot(
+      partialSnapshot,
+      rawPatchInputPresent,
+    ),
   };
 }
 
-export function buildCodexDiffArtifactSnapshotProjectionEvent(
+export function buildDiffArtifactSnapshotProjectionEvent(
   input: AgentUiDiffArtifactSnapshotInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexDiffArtifactProjectionSnapshot(input);
+  const snapshot = extractDiffArtifactProjectionSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "diff_artifact_snapshot_projection" },

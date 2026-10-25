@@ -1,4 +1,5 @@
 import { SettingsTabs } from "@/types/settings";
+import type { HotkeyPlatform } from "@/lib/hotkeys/platform";
 
 interface SettingsSearchDocument {
   section: SettingsTabs;
@@ -7,10 +8,87 @@ interface SettingsSearchDocument {
   termKeys: readonly string[];
   localProfile?: boolean;
   path?: string;
+  platform?: HotkeyPlatform;
+  excludePlatform?: HotkeyPlatform;
 }
 
 // 只登记 current 页面上的静态消息；不索引用户资料、配置值或凭证。
 export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
+  {
+    section: SettingsTabs.General,
+    targetId: "general-confirm-before-close",
+    labelKey: "settings.general.confirmBeforeClose.label",
+    termKeys: [
+      "settings.general.confirmBeforeClose.shortcutDescription",
+      "settings.general.confirmBeforeClose.description",
+      "settings.general.confirmBeforeClose.never",
+      "settings.general.confirmBeforeClose.keyboardOnly",
+      "settings.general.confirmBeforeClose.always",
+    ],
+  },
+  {
+    section: SettingsTabs.General,
+    targetId: "general-prevent-sleep",
+    labelKey: "settings.desktop.preventSleepWhileRunning",
+    termKeys: ["settings.desktop.preventSleepWhileRunningDescription"],
+    excludePlatform: "windows",
+  },
+  {
+    section: SettingsTabs.Plugins,
+    targetId: "plugins-marketplace",
+    labelKey: "settings.plugins.marketplace.title",
+    termKeys: [
+      "settings.plugins.marketplace.upgrade",
+      "settings.plugins.marketplace.remove",
+    ],
+  },
+  {
+    section: SettingsTabs.Plugins,
+    targetId: "plugins-skills",
+    labelKey: "settings.plugins.skills.title",
+    termKeys: ["settings.plugins.skills.title"],
+  },
+  {
+    section: SettingsTabs.Plugins,
+    targetId: "plugins-mcps",
+    labelKey: "settings.plugins.mcp.servers",
+    termKeys: [
+      "settings.plugins.mcp.addServer",
+      "settings.plugins.mcp.authenticate",
+      "settings.plugins.mcp.titleNew",
+      "settings.plugins.mcp.envVars",
+    ],
+  },
+  {
+    section: SettingsTabs.Plugins,
+    targetId: "plugins-installed",
+    labelKey: "settings.plugins.subtitle",
+    termKeys: ["settings.plugins.subtitle", "settings.plugins.browseDirectory"],
+  },
+  {
+    section: SettingsTabs.Hooks,
+    targetId: "hooks-sources",
+    labelKey: "settings.hooks.description",
+    termKeys: [
+      "settings.hooks.description",
+      "settings.hooks.trust",
+      "settings.hooks.trustAll",
+      "settings.hooks.matcher",
+      "settings.hooks.group.plugins",
+    ],
+  },
+  {
+    section: SettingsTabs.Browser,
+    targetId: "browser-site-settings",
+    labelKey: "browserSiteSettings.title",
+    termKeys: [
+      "browserSiteSettings.description",
+      "browserSiteSettings.camera",
+      "browserSiteSettings.microphone",
+      "browserSiteSettings.geolocation",
+      "browserSiteSettings.notifications",
+    ],
+  },
   {
     section: SettingsTabs.Browser,
     targetId: "browser-browsing-data",
@@ -104,8 +182,34 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     section: SettingsTabs.General,
     targetId: `general-${field}`,
     labelKey: `settings.desktop.${label}`,
-    termKeys: [`settings.desktop.${description}`],
+    termKeys: [
+      `settings.desktop.${description}`,
+      ...(field === "language"
+        ? [
+            "settings.desktop.autoDetectLanguage",
+            "settings.desktop.searchLanguages",
+          ]
+        : []),
+    ],
   })),
+  {
+    section: SettingsTabs.General,
+    targetId: "general-menu-bar",
+    labelKey: "settings.desktop.macMenuBar",
+    termKeys: ["settings.desktop.macMenuBarDescription"],
+    platform: "mac",
+  },
+  {
+    section: SettingsTabs.General,
+    targetId: "general-enter-behavior",
+    labelKey: "settings.desktop.enterBehavior",
+    termKeys: [
+      "settings.desktop.enterBehaviorDescription",
+      "settings.desktop.enter",
+      "settings.desktop.cmdIfMultiline",
+      "settings.desktop.cmdAlways",
+    ],
+  },
   ...(
     [
       ["enabled", "enabledDescription"],

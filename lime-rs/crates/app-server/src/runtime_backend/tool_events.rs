@@ -343,7 +343,7 @@ mod tests {
                 output_tokens: 30,
                 cached_input_tokens: Some(20),
                 cache_creation_input_tokens: None,
-                codex_rollout_budget_units: None,
+                lime_rollout_budget_units: None,
             }),
         })
         .expect("provider step should emit");
@@ -365,7 +365,7 @@ mod tests {
                 output_tokens: 30,
                 cached_input_tokens: Some(20),
                 cache_creation_input_tokens: None,
-                codex_rollout_budget_units: None,
+                lime_rollout_budget_units: None,
             },
         })
         .expect("provider usage should emit");

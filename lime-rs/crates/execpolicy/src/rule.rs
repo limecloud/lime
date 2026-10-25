@@ -3,13 +3,12 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::policy::MatchOptions;
 use crate::policy::Policy;
+use lime_utils_absolute_path::AbsolutePathBuf;
 use serde::Deserialize;
 use serde::Serialize;
 use shlex::try_join;
 use std::any::Any;
 use std::fmt::Debug;
-use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Matches a single command token, either a fixed string or one of several allowed alternatives.
@@ -68,7 +67,7 @@ pub enum RuleMatch {
         matched_prefix: Vec<String>,
         decision: Decision,
         #[serde(rename = "resolvedProgram", skip_serializing_if = "Option::is_none")]
-        resolved_program: Option<PathBuf>,
+        resolved_program: Option<AbsolutePathBuf>,
         /// Optional rationale for why this rule exists.
         ///
         /// This can be supplied for any decision and may be surfaced in different contexts
@@ -90,7 +89,7 @@ impl RuleMatch {
         }
     }
 
-    pub fn with_resolved_program(self, resolved_program: &Path) -> Self {
+    pub fn with_resolved_program(self, resolved_program: &AbsolutePathBuf) -> Self {
         match self {
             Self::PrefixRuleMatch {
                 matched_prefix,
@@ -100,7 +99,7 @@ impl RuleMatch {
             } => Self::PrefixRuleMatch {
                 matched_prefix,
                 decision,
-                resolved_program: Some(resolved_program.to_path_buf()),
+                resolved_program: Some(resolved_program.clone()),
                 justification,
             },
             other => other,
@@ -183,13 +182,13 @@ pub(crate) fn normalize_network_rule_host(raw: &str) -> Result<String> {
             )));
         }
         host = inside;
-    } else if host.matches(':').count() == 1 {
-        if let Some((candidate, port)) = host.rsplit_once(':') {
-            if !candidate.is_empty() && !port.is_empty() && port.chars().all(|c| c.is_ascii_digit())
-            {
-                host = candidate;
-            }
-        }
+    } else if host.matches(':').count() == 1
+        && let Some((candidate, port)) = host.rsplit_once(':')
+        && !candidate.is_empty()
+        && !port.is_empty()
+        && port.chars().all(|c| c.is_ascii_digit())
+    {
+        host = candidate;
     }
 
     let normalized = host.trim_end_matches('.').trim().to_ascii_lowercase();

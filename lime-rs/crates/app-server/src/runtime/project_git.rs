@@ -3,11 +3,58 @@ use super::service_projection::{
     project_git_status_from_service, project_git_worktree_from_service,
 };
 use super::{RuntimeCore, RuntimeCoreError};
+use app_server_protocol::protocol::v2::{
+    LocalEnvironmentResult, LocalEnvironmentsReadConfigParams,
+};
 use app_server_protocol::*;
 
 mod worktrees;
 
 impl RuntimeCore {
+    pub async fn set_project_git_worktree_environment(
+        &self,
+        params: ProjectGitWorktreeEnvironmentSetParams,
+    ) -> Result<ProjectGitStatusResponse, RuntimeCoreError> {
+        let _guard = self.worktree_operations.lock().await;
+        let status = lime_services::project_git_service::read_status(&params.root_path)
+            .await
+            .map_err(RuntimeCoreError::Backend)?;
+        if !status.is_worktree {
+            return Err(RuntimeCoreError::InvalidRequest(
+                "Environment selection requires a linked worktree".into(),
+            ));
+        }
+        if let Some(path) = params.config_path.as_deref() {
+            let config =
+                super::local_environments::read_config(LocalEnvironmentsReadConfigParams {
+                    config_path: path.into(),
+                    host_id: None,
+                })
+                .map_err(|error| RuntimeCoreError::InvalidRequest(error.message))?;
+            if !matches!(
+                config.environment,
+                Some(LocalEnvironmentResult::Success { .. })
+            ) {
+                return Err(RuntimeCoreError::InvalidRequest(
+                    "Environment config is missing or invalid".into(),
+                ));
+            }
+        }
+        let root = status.repository_root.as_deref().ok_or_else(|| {
+            RuntimeCoreError::InvalidRequest("Worktree root is unavailable".into())
+        })?;
+        lime_services::project_git_service::save_local_environment_config_path(
+            std::path::Path::new(root),
+            params.config_path.as_deref(),
+        )
+        .await
+        .map_err(RuntimeCoreError::Backend)?;
+        self.read_project_git_status(ProjectGitStatusParams {
+            root_path: params.root_path,
+        })
+        .await
+    }
+
     pub async fn read_project_git_status(
         &self,
         params: ProjectGitStatusParams,

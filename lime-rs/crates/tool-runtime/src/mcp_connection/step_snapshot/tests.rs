@@ -118,11 +118,11 @@ async fn snapshot_generation_is_stable_and_monotonic_across_registry_mutations()
 #[tokio::test]
 async fn without_server_filters_tool_definitions_and_dispatch_routes() {
     let registry = McpConnectionRegistry::new();
-    register_named(&registry, "codex_apps", DiscoveryMode::Ready).await;
+    register_named(&registry, "lime_apps", DiscoveryMode::Ready).await;
     register_named(&registry, "docs", DiscoveryMode::Ready).await;
     let captured = snapshot(&registry, HashSet::new(), Duration::from_secs(1)).await;
 
-    let filtered = captured.without_server("codex_apps");
+    let filtered = captured.without_server("lime_apps");
 
     assert!(filtered
         .tools()
@@ -131,10 +131,10 @@ async fn without_server_filters_tool_definitions_and_dispatch_routes() {
     assert!(!filtered
         .tools()
         .iter()
-        .any(|tool| tool.name == "codex_apps__search"));
+        .any(|tool| tool.name == "lime_apps__search"));
     assert!(filtered
         .dispatch(
-            call("codex_apps__search"),
+            call("lime_apps__search"),
             scope(),
             CancellationToken::default(),
         )
@@ -567,7 +567,7 @@ async fn assistant_snapshot_filters_and_rechecks_per_tool_caller_policy() {
 }
 
 #[test]
-fn codex_apps_route_context_comes_from_trusted_tool_metadata() {
+fn lime_apps_route_context_comes_from_trusted_tool_metadata() {
     let mut tool = tool("calendar_search", None);
     tool.meta = Some(Meta(
         serde_json::json!({
@@ -575,7 +575,7 @@ fn codex_apps_route_context_comes_from_trusted_tool_metadata() {
             "connector_name": "Calendar",
             "link_id": "link-calendar",
             "ui": { "resourceUri": "ui://calendar/event" },
-            "_codex_apps": {
+            "_lime_apps": {
                 "resource_uri": "/calendar/link-calendar/calendar_search"
             }
         })
@@ -585,7 +585,7 @@ fn codex_apps_route_context_comes_from_trusted_tool_metadata() {
     ));
 
     assert_eq!(
-        mcp_app_context("codex_apps", &tool, mcp_app_resource_uri(&tool),),
+        mcp_app_context("lime_apps", &tool, mcp_app_resource_uri(&tool),),
         Some(McpStepRouteAppContext {
             connector_id: "calendar".to_string(),
             link_id: Some("link-calendar".to_string()),

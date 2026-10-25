@@ -158,7 +158,7 @@ fn typed_warning_and_error_notifications_keep_distinct_visual_kinds() {
     projection.apply(ServerNotification::Error(ErrorNotification {
         error: TurnError {
             message: "401 Unauthorized".to_string(),
-            codex_error_info: None,
+            lime_error_info: None,
             additional_details: None,
         },
         will_retry: false,

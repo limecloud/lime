@@ -46,7 +46,7 @@ impl ServerHandler for ExactTargetResourceServer {
                 "connector_name": "Calendar",
                 "link_id": "link-calendar",
                 "ui": {"resourceUri": "ui://calendar/event"},
-                "_codex_apps": {
+                "_lime_apps": {
                     "resource_uri": "/calendar/link-calendar/calendar_search",
                     "requires_explicit_link_id": true
                 }
@@ -342,7 +342,7 @@ async fn resource_read_preserves_request_meta_on_the_mcp_wire() {
 #[tokio::test]
 async fn origin_resource_read_revalidates_current_tool_authority_and_scopes_wire_meta() {
     let manager = McpClientManager::new(None);
-    let (_, _, read_meta, server) = add_exact_target_server(&manager, "codex_apps").await;
+    let (_, _, read_meta, server) = add_exact_target_server(&manager, "lime_apps").await;
     let origin = crate::types::McpResourceOrigin {
         call_id: "item-calendar".to_string(),
         turn_id: Some("turn-1".to_string()),
@@ -354,7 +354,7 @@ async fn origin_resource_read_revalidates_current_tool_authority_and_scopes_wire
     };
 
     manager
-        .read_resource_for_origin("codex_apps", "thread-1", &origin)
+        .read_resource_for_origin("lime_apps", "thread-1", &origin)
         .await
         .expect("origin-scoped resource read");
     let observed = read_meta.lock().await;
@@ -372,7 +372,7 @@ async fn origin_resource_read_revalidates_current_tool_authority_and_scopes_wire
     let mut stale = origin.clone();
     stale.link_id = Some("link-other".to_string());
     let error = manager
-        .read_resource_for_origin("codex_apps", "thread-1", &stale)
+        .read_resource_for_origin("lime_apps", "thread-1", &stale)
         .await
         .expect_err("stale account authority must fail closed");
     assert!(error.to_string().contains("link does not match"));
@@ -381,7 +381,7 @@ async fn origin_resource_read_revalidates_current_tool_authority_and_scopes_wire
     let mut stale_connector = origin.clone();
     stale_connector.connector_id = "mail".to_string();
     let error = manager
-        .read_resource_for_origin("codex_apps", "thread-1", &stale_connector)
+        .read_resource_for_origin("lime_apps", "thread-1", &stale_connector)
         .await
         .expect_err("stale connector authority must fail closed");
     assert!(error.to_string().contains("connector does not match"));
@@ -389,7 +389,7 @@ async fn origin_resource_read_revalidates_current_tool_authority_and_scopes_wire
     let mut ambiguous = origin.clone();
     ambiguous.ambiguous_account = true;
     let error = manager
-        .read_resource_for_origin("codex_apps", "thread-1", &ambiguous)
+        .read_resource_for_origin("lime_apps", "thread-1", &ambiguous)
         .await
         .expect_err("ambiguous account must fail closed");
     assert!(error.to_string().contains("ambiguous account"));
@@ -398,14 +398,14 @@ async fn origin_resource_read_revalidates_current_tool_authority_and_scopes_wire
         .read_resource_for_origin("docs", "thread-1", &origin)
         .await
         .expect_err("non-app origin must fail closed");
-    assert!(error.to_string().contains("only valid for codex_apps"));
+    assert!(error.to_string().contains("only valid for lime_apps"));
     assert_eq!(read_meta.lock().await.len(), 1);
 
     manager
-        .stop_server("codex_apps")
+        .stop_server("lime_apps")
         .await
-        .expect("stop codex_apps");
-    server.await.expect("join codex_apps");
+        .expect("stop lime_apps");
+    server.await.expect("join lime_apps");
 }
 
 #[tokio::test]
@@ -413,7 +413,7 @@ async fn origin_resource_read_rejects_tools_disabled_in_current_catalog() {
     let manager = McpClientManager::new(None);
     let (_, _, read_meta, server) = add_exact_target_server_with_disabled_tools(
         &manager,
-        "codex_apps",
+        "lime_apps",
         vec!["calendar_search".to_string()],
     )
     .await;
@@ -428,17 +428,17 @@ async fn origin_resource_read_rejects_tools_disabled_in_current_catalog() {
     };
 
     let error = manager
-        .read_resource_for_origin("codex_apps", "thread-1", &origin)
+        .read_resource_for_origin("lime_apps", "thread-1", &origin)
         .await
         .expect_err("disabled current tool must fail closed");
     assert!(error.to_string().contains("calendar_search"));
     assert!(read_meta.lock().await.is_empty());
 
     manager
-        .stop_server("codex_apps")
+        .stop_server("lime_apps")
         .await
-        .expect("stop codex_apps");
-    server.await.expect("join codex_apps");
+        .expect("stop lime_apps");
+    server.await.expect("join lime_apps");
 }
 
 #[test]

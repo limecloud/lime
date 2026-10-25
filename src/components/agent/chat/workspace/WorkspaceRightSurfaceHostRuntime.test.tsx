@@ -194,14 +194,14 @@ describe("Recents production Host routing", () => {
     );
     act(() =>
       actionsProbe.render.mock.lastCall?.[0].onConfigureActions(
-        "/project/.codex/environments/environment.toml",
+        "/project/.lime/environments/environment.toml",
       ),
     );
     expect(navigate).toHaveBeenCalledExactlyOnceWith("settings", {
       tab: SettingsTabs.LocalEnvironments,
       localEnvironmentFocus: {
         workspaceRoot: "/project",
-        configPath: "/project/.codex/environments/environment.toml",
+        configPath: "/project/.lime/environments/environment.toml",
         requestKey: expect.any(Number),
       },
     });

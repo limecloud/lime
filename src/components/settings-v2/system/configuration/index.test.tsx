@@ -26,10 +26,10 @@ vi.mock("@/lib/api/appConfig", () => ({
   configLayerFile: (
     layer:
       | AppConfigSnapshot["layer"]
-      | { name: { type: "project"; dotCodexFolder: string } },
+      | { name: { type: "project"; dotLimeFolder: string } },
   ) =>
     layer.name.type === "project"
-      ? `${layer.name.dotCodexFolder}/config.toml`
+      ? `${layer.name.dotLimeFolder}/config.toml`
       : layer.name.file,
 }));
 vi.mock("@/lib/api/primaryRuntime", async (importOriginal) => ({
@@ -201,7 +201,7 @@ function scopedSnapshot(
     layers: [
       user.layer,
       {
-        name: { type: "project", dotCodexFolder: "/workspace/repo/.lime" },
+        name: { type: "project", dotLimeFolder: "/workspace/repo/.lime" },
         version: "project-v1",
         config: project,
         disabledReason,

@@ -2,6 +2,7 @@ import type { EmbeddedBrowserCommand } from "./embeddedBrowserHost";
 import { BROWSER_DATA_COMMANDS } from "./browserDataHost";
 import { BROWSER_HISTORY_COMMANDS } from "./browserHistoryHost";
 import { BROWSER_DOWNLOADS_COMMANDS } from "./browserDownloadsHost";
+import { BROWSER_SITE_SETTINGS_COMMANDS } from "../src/lib/api/browserSiteSettingsTypes";
 import { BROWSER_ANNOTATION_EDITOR_COMMANDS } from "./browserTabAnnotationEditor";
 import { BROWSER_ANNOTATION_COMMANDS } from "./browserAnnotationModel";
 
@@ -47,6 +48,7 @@ export const BROWSER_TAB_COMMANDS = [
   ...BROWSER_ANNOTATION_EDITOR_COMMANDS,
   ...BROWSER_HISTORY_COMMANDS,
   ...BROWSER_DOWNLOADS_COMMANDS,
+  ...BROWSER_SITE_SETTINGS_COMMANDS,
   ...BROWSER_ANNOTATION_COMMANDS,
   "browser_tab_list",
   "browser_tab_mount",

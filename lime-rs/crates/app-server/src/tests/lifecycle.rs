@@ -115,7 +115,7 @@ async fn mcp_event_stream_is_gated_by_connection_experimental_capability() {
             app_server_protocol::protocol::v2::METHOD_MCP_SERVER_EVENT_STREAM_START,
             Some(json!({
                 "threadId": "thread_1",
-                "server": "codex_apps",
+                "server": "lime_apps",
                 "subscriptionId": "subscription_1",
                 "name": "updates",
                 "arguments": {}

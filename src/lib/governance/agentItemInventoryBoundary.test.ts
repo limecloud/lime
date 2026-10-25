@@ -18,10 +18,11 @@ const SERVER_REQUEST_SCHEMA_PATH =
 interface ItemInventoryEntry {
   type: string;
   location?: string;
+  referenceFields: string[];
   limeFields: string[];
   statusful: boolean;
-  codexStreamMethods: string[];
-  codexDeprecatedMethods?: string[];
+  referenceStreamMethods: string[];
+  referenceDeprecatedMethods?: string[];
   limeStreamMethods: string[];
   shape: "aligned" | "gap";
   fieldNotes?: string[];
@@ -30,7 +31,7 @@ interface ItemInventoryEntry {
 interface ItemAdjacentMethod {
   method: string;
   kind: "notification" | "serverRequest";
-  codex: "current" | "experimental" | "deprecated" | "internal";
+  reference: "current" | "experimental" | "deprecated" | "internal";
   lime: "current" | "gap" | "excluded";
 }
 
@@ -175,7 +176,7 @@ function schemaConstStrings(relativePath: string): Set<string> {
   return constants;
 }
 
-describe("Codex v2 Item inventory boundary", () => {
+describe("v2 Item inventory boundary", () => {
   it("inventory 顶层 variant 必须与 runtime client canonical 列表一致", () => {
     const inventory = readInventory();
     const rustSchema = readThreadItemSchema();
@@ -219,7 +220,7 @@ describe("Codex v2 Item inventory boundary", () => {
     ]);
     for (const item of inventory.items) {
       expect(typeof item.statusful).toBe("boolean");
-      expect(Array.isArray(item.codexStreamMethods)).toBe(true);
+      expect(Array.isArray(item.referenceStreamMethods)).toBe(true);
       expect(Array.isArray(item.limeStreamMethods)).toBe(true);
       expect(["aligned", "gap"]).toContain(item.shape);
       if (item.shape === "gap") {
@@ -227,7 +228,7 @@ describe("Codex v2 Item inventory boundary", () => {
       }
       expect(
         item.limeStreamMethods.every((method) =>
-          item.codexStreamMethods.includes(method),
+          item.referenceStreamMethods.includes(method),
         ),
       ).toBe(true);
     }
@@ -252,16 +253,16 @@ describe("Codex v2 Item inventory boundary", () => {
       expect(limeMethods.has(entry.method), entry.method).toBe(
         entry.lime === "current",
       );
-      if (entry.codex === "deprecated" || entry.codex === "internal") {
+      if (entry.reference === "deprecated" || entry.reference === "internal") {
         expect(entry.lime).toBe("excluded");
       }
     }
 
     for (const item of inventory.items) {
-      for (const method of item.codexStreamMethods) {
+      for (const method of item.referenceStreamMethods) {
         expect(classifiedMethods.has(method)).toBe(true);
       }
-      for (const method of item.codexDeprecatedMethods ?? []) {
+      for (const method of item.referenceDeprecatedMethods ?? []) {
         expect(classifiedMethods.has(method)).toBe(true);
       }
     }

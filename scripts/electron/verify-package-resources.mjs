@@ -451,7 +451,7 @@ function verifyDesktopResourceManifest(
     }
   }
 
-  const requiredIds = ["app-server", "code-mode-host"];
+  const requiredIds = ["app-server", "code-mode-host", "browser-client"];
   if (platform === "win32") {
     requiredIds.push(
       "windows-sandbox-setup",
@@ -640,6 +640,8 @@ function desktopResourceLabel(id) {
 function expectedDesktopResourcePath(id, key, platform) {
   const suffix = platform === "win32" ? ".exe" : "";
   switch (id) {
+    case "browser-client":
+      return "browser-client/client.mjs";
     case "app-server":
       return `app-server/${key}/app-server${suffix}`;
     case "code-mode-host":

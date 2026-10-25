@@ -453,6 +453,7 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
         />
       ) : (
         <BrowserNavigationBar
+          active={active}
           selected={selected}
           translate={translate}
           run={run}

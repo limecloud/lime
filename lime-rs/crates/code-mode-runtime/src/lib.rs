@@ -1,7 +1,7 @@
 //! Code Mode V8 执行 runtime。
 //!
 //! V8 cell actor/session runtime 的实现仍复用已经经过 Lime Gate B 验证的实现，
-//! 但通过独立 crate 暴露，构建图和职责与 Codex 对齐。
+//! 并通过独立 crate 暴露，保持构建图与职责边界清晰。
 
 #![allow(hidden_glob_reexports)]
 
@@ -21,7 +21,7 @@ pub fn initialize_v8() -> Result<(), String> {
     v8_init::ensure_v8_initialized()
 }
 
-/// V8 初始化模式占位类型，保留 Codex runtime 的显式扩展点。
+/// V8 初始化模式占位类型，保留显式扩展点。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum V8JitMode {
     #[default]

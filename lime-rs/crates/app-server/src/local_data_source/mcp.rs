@@ -18,8 +18,6 @@ use app_server_protocol::McpResourceUnsubscribeParams;
 use app_server_protocol::McpServerCreateParams;
 use app_server_protocol::McpServerDeleteParams;
 use app_server_protocol::McpServerEnabledSetParams;
-use app_server_protocol::McpServerImportFromAppParams;
-use app_server_protocol::McpServerImportFromAppResponse;
 use app_server_protocol::McpServerLifecycleResponse;
 use app_server_protocol::McpServerListResponse;
 use app_server_protocol::McpServerOauthLoginParams;
@@ -209,27 +207,7 @@ pub(crate) fn set_mcp_server_enabled(
     db: &DbConnection,
     params: McpServerEnabledSetParams,
 ) -> Result<McpServerListResponse, RuntimeCoreError> {
-    McpService::toggle_enabled(db, &params.id, &params.app_type, params.enabled)
-        .map_err(data_error)?;
-    list_mcp_servers(db)
-}
-
-pub(crate) fn import_mcp_servers_from_app(
-    db: &DbConnection,
-    params: McpServerImportFromAppParams,
-) -> Result<McpServerImportFromAppResponse, RuntimeCoreError> {
-    let imported_count = McpService::import_from_app(db, &params.app_type).map_err(data_error)?;
-    let servers = list_mcp_servers(db)?.servers;
-    Ok(McpServerImportFromAppResponse {
-        imported_count,
-        servers,
-    })
-}
-
-pub(crate) fn sync_all_mcp_servers_to_live(
-    db: &DbConnection,
-) -> Result<McpServerListResponse, RuntimeCoreError> {
-    McpService::sync_all_to_live(db).map_err(data_error)?;
+    McpService::toggle_enabled(db, &params.id, params.enabled).map_err(data_error)?;
     list_mcp_servers(db)
 }
 

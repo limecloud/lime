@@ -196,7 +196,7 @@ describe("project Gate coverage", () => {
           product_snapshot_digest: "a".repeat(64),
           git_diff_digest: "b".repeat(64),
           git_head: "c".repeat(40),
-          codex_reference_commit: "d".repeat(40),
+          reference_commit: "d".repeat(40),
           blocking_trackers: [{ path: "tracker.md", status: "ready" }],
           surface_contract: surfaceContract,
           changed_paths: [],

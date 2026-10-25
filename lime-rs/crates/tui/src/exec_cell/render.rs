@@ -1,4 +1,4 @@
-//! Rendering helpers for Codex-shaped command execution cells.
+//! Rendering helpers for Lime-native command execution cells.
 
 use crate::locale::Locale;
 

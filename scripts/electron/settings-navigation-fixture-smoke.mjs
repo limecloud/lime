@@ -61,6 +61,7 @@ import { readSettingsNavigationSurface as surface } from "./lib/settings-navigat
 
 export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
   assert.match(runId, /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
+  fs.mkdirSync(path.dirname(evidenceDir), { recursive: true });
   fs.mkdirSync(evidenceDir, { recursive: false });
   const options = { timeoutMs: 120_000, intervalMs: 200 };
   const runtimeEnv = createTempRuntimeEnv();
@@ -74,7 +75,7 @@ export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
     limitations: [
       "Controlled external backend bypasses the production runtime backend and provider execution; only the declared Browser/Keyboard shortcuts save/reload and Memory/Web Search/Environment/Execution Policy/Profile configuration and note scenarios are covered. Profile uses a non-OEM test override. Search covers only the declared 36 content targets/current section titles. No live search/provider/tool execution, auth, Windows, reference runtime or full-settings claim.",
       "Website launch uses the public Electron open-url event; OS URL dispatch is not exercised.",
-      "Current Settings replaces the root rail. Draft GUI navigation covers section/back; Home/Root/New guard authority is separate component evidence, not Desktop clicks.",
+      "Current Settings keeps the global icon rail and hides the conversation sidebar. Draft GUI navigation covers section/back; Home/Root/New guard authority is separate component evidence, not Desktop clicks.",
     ],
     rounds: [],
     navigationObservations: [],
@@ -363,7 +364,36 @@ export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
         surface: await surface(page, options, sessionId),
       });
       await openSettings(page, options);
-      assert.equal(await page.getByTestId("app-sidebar").count(), 0);
+      await waitForPageCondition(
+        page,
+        options,
+        () => {
+          const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+          const rail = document.querySelector(
+            '[data-testid="app-sidebar-rail"]',
+          );
+          const contextual = document.querySelector(
+            '[data-testid="app-sidebar-contextual"]',
+          );
+          const settings = document.querySelector(
+            '[data-testid="settings-navigation"]',
+          );
+          return (
+            sidebar?.getAttribute("data-collapsed") === "true" &&
+            rail instanceof HTMLElement &&
+            rail.getClientRects().length > 0 &&
+            contextual instanceof HTMLElement &&
+            contextual.getClientRects().length === 0 &&
+            settings instanceof HTMLElement &&
+            settings.getClientRects().length > 0 &&
+            Math.abs(
+              sidebar.getBoundingClientRect().width -
+                rail.getBoundingClientRect().width,
+            ) <= 1
+          );
+        },
+        "Settings keeps only the global icon rail beside its contextual navigation",
+      );
       for (const section of ["about", "appearance", "providers"]) {
         await page.getByTestId(`settings-sidebar-tab-${section}`).click();
         await waitForPageCondition(

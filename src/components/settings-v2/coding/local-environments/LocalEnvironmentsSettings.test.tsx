@@ -31,7 +31,7 @@ const project = {
   rootPath: "/repo/project",
   isArchived: false,
 } as Project;
-const configPath = "/repo/project/.codex/environments/environment.toml";
+const configPath = "/repo/project/.lime/environments/environment.toml";
 const entry = {
   type: "success" as const,
   configPath,
@@ -124,7 +124,7 @@ describe("LocalEnvironmentsSettings", () => {
         entry,
         {
           ...entry,
-          configPath: "/repo/.codex/environments/shared.toml",
+          configPath: "/repo/.lime/environments/shared.toml",
           environment: { ...entry.environment, name: "Inherited shared" },
         },
       ],

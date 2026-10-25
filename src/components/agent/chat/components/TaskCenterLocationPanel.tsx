@@ -1,9 +1,7 @@
 import {
   ArrowLeftRight,
   Check,
-  CloudCog,
   CloudOff,
-  ExternalLink,
   Monitor,
 } from "lucide-react";
 import { PopoverContent } from "@/components/ui/popover";
@@ -11,7 +9,6 @@ import { PopoverContent } from "@/components/ui/popover";
 export interface TaskCenterLocationPanelProps {
   canOpenLocal: boolean;
   onOpenLocal: () => void;
-  onOpenCodexWeb: () => void;
   canCreateWorktree: boolean;
   onCreateWorktree: () => void;
   translate: (key: string, options?: Record<string, unknown>) => unknown;
@@ -28,7 +25,6 @@ function text(
 export function TaskCenterLocationPanel({
   canOpenLocal,
   onOpenLocal,
-  onOpenCodexWeb,
   canCreateWorktree,
   onCreateWorktree,
   translate,
@@ -67,23 +63,6 @@ export function TaskCenterLocationPanel({
           {text(translate, "agentChat.navbar.appSwitcher.local", "在本地处理")}
         </span>
         <Check className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]" />
-      </button>
-
-      <button
-        type="button"
-        className="flex w-full min-w-0 items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-[13px] leading-4 transition hover:bg-[color:var(--lime-surface-hover)]"
-        onClick={onOpenCodexWeb}
-        data-testid="task-center-location-codex-web"
-      >
-        <CloudCog className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]" />
-        <span className="min-w-0 flex-1 truncate">
-          {text(
-            translate,
-            "agentChat.navbar.appSwitcher.codexWeb",
-            "关联 Codex web",
-          )}
-        </span>
-        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]" />
       </button>
 
       <button

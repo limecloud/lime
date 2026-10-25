@@ -1,7 +1,7 @@
 import type { AgentUiRuntimeStatus } from "@limecloud/agent-ui-contracts";
 
 import {
-  getCodexMultiAgentToolSchemaContract,
+  getMultiAgentToolSchemaContract,
   isLegacyMultiAgentToolName,
   type AgentUiMultiAgentToolName,
 } from "./multiAgentToolSchema.js";
@@ -367,13 +367,13 @@ function validateSnapshot(
       );
     } else if (
       !item.toolName ||
-      !getCodexMultiAgentToolSchemaContract(item.toolName)
+      !getMultiAgentToolSchemaContract(item.toolName)
     ) {
       issues.push(
         issue(
           "unknown_tool",
           `${path}.toolName`,
-          "Multi-agent item tool must map to Codex v2 taxonomy.",
+          "Multi-agent item tool must map to the v2 taxonomy.",
         ),
       );
     }
@@ -465,7 +465,7 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexMultiAgentItemTaxonomySnapshot(
+export function extractMultiAgentItemTaxonomySnapshot(
   input: AgentUiMultiAgentItemTaxonomyInput,
 ): AgentUiMultiAgentItemTaxonomySnapshot {
   const items = readTaxonomyItems(input);

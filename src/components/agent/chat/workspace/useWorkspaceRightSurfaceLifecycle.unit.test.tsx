@@ -60,7 +60,7 @@ const plugin: WorkspacePluginSurfaceDescriptor = {
   containerId: "container-a",
   title: "App A",
   mcpApp: {
-    serverName: "codex_apps",
+    serverName: "lime_apps",
     connectorId: "demo",
     resourceUri: "ui://demo/view.html",
     toolItemId: "item-demo",

@@ -1,7 +1,7 @@
 //! Active-turn interruption policy for the TUI app.
 //!
 //! Interactive request queues remain owned by `BottomPane` and `pending_interactive_replay`.
-//! This module only owns the Codex-shaped decision that an Esc event may interrupt the active
+//! This module only owns the Lime-native decision that an Esc event may interrupt the active
 //! canonical turn.
 
 use super::App;

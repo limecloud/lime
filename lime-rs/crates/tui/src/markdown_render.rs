@@ -248,7 +248,7 @@ fn valid_followup_attributes(attributes: &str) -> bool {
     has_prompt
 }
 
-/// Codex-shaped markdown rendering entry point backed by Lime's canonical renderer.
+/// Lime-native markdown rendering entry point backed by Lime's canonical renderer.
 pub(crate) fn render_markdown_lines_with_width(
     input: &str,
     base_style: Style,

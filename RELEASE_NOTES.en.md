@@ -1,48 +1,39 @@
-## Lime v1.169.0
+## Lime v1.170.0
 
 Simplified Chinese release notes are the primary version.
 
 ### Features
 
-- Add browser device presets, custom viewport dimensions and zoom controls; improve page search, new-tab address drafts, and page focus handoff.
-- Add grouped browser visits, search and bulk deletion, with settings for download directories, site permissions, and Agent browser admission.
-- Add user and project configuration layers, managed sources and requirements, and version-checked writes to editable configuration.
-- Add local environment file editing for project configuration, platform-specific setup/cleanup scripts and actions, preserving drafts on revision conflicts.
-- Persist local environment choices per workspace and apply them when creating worktrees from chat, the sidebar, and the task center, with recovery actions after script failures.
-- Add current-page CDP command execution governed by site permissions and per-action approval.
-- Add reasoning effort defaults and enabled effort choices for new chats, respecting model capabilities and configuration scope.
-- Add bulk cleanup of archived chats and diagnostic, installation, and cancellation interfaces for Node/Python tool runtimes.
+- Consolidate plugins, Skills, and MCP management in plugin settings; add Hooks configuration with matching settings search and navigation.
+- Add message send key preferences, window close confirmation, and sleep prevention during active tasks; improve language selection and shortcut sequence editing.
+- Add conversation environment selection, recent actions, setup editing, and local environment action entry points.
+- Extend the browser with address suggestions and menus, site settings, page input, selection and dragging, and persistent CDP events.
+- Add shared Computer Use configuration, adapter status, grants, revocation, and execution leases; complete platform capabilities remain subject to their dedicated acceptance plans.
 
 ### Fixes
 
-- Capture the modified page on the first save or send of a design annotation, preserving screenshot and draft identity and editor event ordering while rejecting stale results.
-- Validate page, origin, tab, and control identity for native site permission requests; revoke pending grants on navigation or control changes.
-- Serialize configuration writes while preserving user and project version conflict checks to prevent stale views from overwriting newer settings.
-- Preserve process exit events and captured output during command cancellation, and keep worktrees recoverable when environment scripts are cancelled.
-- Keep the source workspace and directory paired during the first worktree send, then open the accepted target conversation.
-- Resume the same macOS notarization submission after status polling timeouts, avoiding repeated packaging and uploads while still requiring Apple acceptance and ticket validation.
-- Register Skills watches for loaded threads and extra roots to avoid scanning every default root during startup.
-- Restore translated fallback titles and MIME type labels in file previews across all five languages.
-- Unify disabled, cached, and live web search access policies and enforce network and sandbox constraints before tool execution.
+- Repair workspace and native page setup on the first browser open; strengthen CDP event origin checks, site permissions, and application network policies.
+- Improve shell environment inheritance, execution state, and conversation action wiring for local environments.
+- Enable local custom tools according to explicit model capabilities and actual Responses wire support, including Lime endpoints; validate remote hosted services independently.
+- Consolidate model protocol identifiers and error type names while preserving supported third-party app configuration and Skills installation targets.
 
 ### Improvements and Refactoring
 
-- Remove the standalone knowledge and resource management surfaces, retired statistics and developer settings, and the creative context injection chain; keep image outputs on the existing workspace preview path.
-- Remove unused gallery and standalone material surfaces, dedicated storage, and APIs while retaining current image and video tasks, workspace files, and previews.
-- Remove unused project writing personas and platform publishing configuration; stop creating their retired tables in new databases while preserving existing data.
-- Reuse current configuration, App Server, and tool owners for browser admission, requirements, and tool runtimes; synchronize protocols, generated clients, and five-language resources.
+- Integrate execution policy and its required absolute path dependency into current Lime Rust owners, retaining source and license records.
+- Reorganize plugin, MCP, Hooks, and local environment components; remove replaced entry points and synchronize App Server schemas and generated clients.
+- Update Simplified Chinese, Traditional Chinese, English, Japanese, and Korean interface resources.
 
 ### Tests and Quality
 
-- Extend targeted regressions and real-process fixtures for browser devices, annotation captures, visits, native permissions, configuration layers, reasoning defaults, and tool runtimes.
-- This release ships implemented increments; complete native browser capabilities, visual parity, and packaged validation on both platforms remain subject to dedicated acceptance plans.
+- Extend targeted tests and real-process fixtures for the browser, window preferences, shortcuts, local environments, Computer Use, and model protocols.
+- See this release's execution plan for local checks and outstanding platform, packaged, and GUI validation; these notes do not claim complete Computer Use or cross-platform acceptance.
 
 ### Documentation
 
-- Update architecture diagrams, command boundaries, the browser implementation plan, and release execution records.
+- Update architecture, command boundaries, source migration records, and related execution plans.
 
 ### Other
 
-- Align app, CLI, and Rust workspace versions to 1.169.0.
+- Align app, CLI, and Rust workspace versions to 1.170.0.
 
-**Full changes**: `v1.168.0` -> `v1.169.0`
+**Full changes**: `v1.169.0` -> `v1.170.0`

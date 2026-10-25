@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCodexThreadStatusRuntimeUpdateProjectionEvent,
-  extractCodexThreadStatusRuntimeUpdateSnapshot,
+  buildThreadStatusRuntimeUpdateProjectionEvent,
+  extractThreadStatusRuntimeUpdateSnapshot,
 } from "../dist/index.js";
 
 function statusNotification(threadId, status) {
@@ -57,15 +57,12 @@ function statusInput(overrides = {}) {
 }
 
 test("thread status runtime update projects active then idle outside the transcript", () => {
-  const event = buildCodexThreadStatusRuntimeUpdateProjectionEvent(
-    statusInput(),
-    {
-      sequence: 131,
-      sessionId: "session-thread",
-      turnId: "turn-status",
-      timestamp: "2026-07-09T00:00:00.000Z",
-    },
-  );
+  const event = buildThreadStatusRuntimeUpdateProjectionEvent(statusInput(), {
+    sequence: 131,
+    sessionId: "session-thread",
+    turnId: "turn-status",
+    timestamp: "2026-07-09T00:00:00.000Z",
+  });
 
   assert.deepEqual(
     {
@@ -107,10 +104,13 @@ test("thread status runtime update projects active then idle outside the transcr
 });
 
 test("thread status runtime update maps waiting active flags to waiting runtime status", () => {
-  const snapshot = extractCodexThreadStatusRuntimeUpdateSnapshot(
+  const snapshot = extractThreadStatusRuntimeUpdateSnapshot(
     statusInput({
       notifications: [
-        statusNotification("thread-status", activeStatus(["waitingOnApproval"])),
+        statusNotification(
+          "thread-status",
+          activeStatus(["waitingOnApproval"]),
+        ),
       ],
     }),
   );
@@ -125,7 +125,7 @@ test("thread status runtime update maps waiting active flags to waiting runtime 
 });
 
 test("thread status runtime update can be opted out without requiring notifications", () => {
-  const snapshot = extractCodexThreadStatusRuntimeUpdateSnapshot({
+  const snapshot = extractThreadStatusRuntimeUpdateSnapshot({
     threadId: "thread-status",
     optOutNotificationMethods: ["thread/status/changed"],
     notifications: [],
@@ -139,7 +139,7 @@ test("thread status runtime update can be opted out without requiring notificati
 });
 
 test("thread status runtime update fails if opted-out notifications still arrive", () => {
-  const snapshot = extractCodexThreadStatusRuntimeUpdateSnapshot(
+  const snapshot = extractThreadStatusRuntimeUpdateSnapshot(
     statusInput({
       optOutNotificationMethods: ["thread/status/changed"],
       notifications: [statusNotification("thread-status", activeStatus([]))],
@@ -153,7 +153,7 @@ test("thread status runtime update fails if opted-out notifications still arrive
 });
 
 test("thread status runtime update fails closed without active or inactive edge", () => {
-  const missingActive = extractCodexThreadStatusRuntimeUpdateSnapshot(
+  const missingActive = extractThreadStatusRuntimeUpdateSnapshot(
     statusInput({
       notifications: [statusNotification("thread-status", idleStatus())],
     }),
@@ -163,7 +163,7 @@ test("thread status runtime update fails closed without active or inactive edge"
     ["missing_active_update"],
   );
 
-  const missingInactive = extractCodexThreadStatusRuntimeUpdateSnapshot(
+  const missingInactive = extractThreadStatusRuntimeUpdateSnapshot(
     statusInput({
       notifications: [statusNotification("thread-status", activeStatus([]))],
     }),
@@ -175,7 +175,7 @@ test("thread status runtime update fails closed without active or inactive edge"
 });
 
 test("thread status runtime update rejects transcript and read-model item leaks", () => {
-  const snapshot = extractCodexThreadStatusRuntimeUpdateSnapshot(
+  const snapshot = extractThreadStatusRuntimeUpdateSnapshot(
     statusInput({
       transcriptItems: [
         {
@@ -205,7 +205,7 @@ test("thread status runtime update rejects transcript and read-model item leaks"
 });
 
 test("thread status runtime update rejects unscoped surfaces and DOM text status inference", () => {
-  const snapshot = extractCodexThreadStatusRuntimeUpdateSnapshot(
+  const snapshot = extractThreadStatusRuntimeUpdateSnapshot(
     statusInput({
       observedSurfaces: [
         {
@@ -226,7 +226,7 @@ test("thread status runtime update rejects unscoped surfaces and DOM text status
 });
 
 test("thread status runtime update requires thread id and preserves active flags", () => {
-  const snapshot = extractCodexThreadStatusRuntimeUpdateSnapshot({
+  const snapshot = extractThreadStatusRuntimeUpdateSnapshot({
     notifications: [
       {
         method: "thread/status/changed",
@@ -242,10 +242,6 @@ test("thread status runtime update requires thread id and preserves active flags
 
   assert.deepEqual(
     snapshot.validationIssues.map((item) => item.code),
-    [
-      "missing_thread_id",
-      "missing_inactive_after_active",
-      "active_flags_lost",
-    ],
+    ["missing_thread_id", "missing_inactive_after_active", "active_flags_lost"],
   );
 });

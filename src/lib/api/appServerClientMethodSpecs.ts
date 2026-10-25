@@ -13,6 +13,31 @@ export type AppServerClientMethodSpec = {
 
 export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
   {
+    name: "readComputerUseStatus",
+    method: constants.APP_SERVER_METHOD_COMPUTER_USE_STATUS,
+    params: "optional-empty",
+  },
+  {
+    name: "setupComputerUse",
+    method: constants.APP_SERVER_METHOD_COMPUTER_USE_SETUP,
+    params: "required",
+  },
+  {
+    name: "revokeComputerUse",
+    method: constants.APP_SERVER_METHOD_COMPUTER_USE_REVOKE,
+    params: "required",
+  },
+  {
+    name: "acquireComputerUseLease",
+    method: constants.APP_SERVER_METHOD_COMPUTER_USE_LEASE_ACQUIRE,
+    params: "required",
+  },
+  {
+    name: "releaseComputerUseLease",
+    method: constants.APP_SERVER_METHOD_COMPUTER_USE_LEASE_RELEASE,
+    params: "required",
+  },
+  {
     name: "requestCloud",
     method: constants.APP_SERVER_METHOD_CLOUD_REQUEST,
     params: "required",
@@ -250,6 +275,11 @@ export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
   {
     name: "unwatch",
     method: constants.APP_SERVER_METHOD_FS_UNWATCH,
+    params: "required",
+  },
+  {
+    name: "setProjectGitWorktreeEnvironment",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
     params: "required",
   },
   {

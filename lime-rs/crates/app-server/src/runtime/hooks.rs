@@ -10,8 +10,8 @@ impl RuntimeCore {
         &self,
         params: HooksListParams,
     ) -> Result<HooksListResponse, RuntimeCoreError> {
-        let codex_home = lime_core::app_paths::resolve_codex_home_dir()
-            .ok_or_else(|| RuntimeCoreError::Backend("cannot resolve CODEX_HOME".to_string()))?;
+        let lime_home = lime_core::app_paths::resolve_lime_home_dir()
+            .ok_or_else(|| RuntimeCoreError::Backend("cannot resolve LIME_HOME".to_string()))?;
         let cwds = if params.cwds.is_empty() {
             vec![std::env::current_dir().map_err(|error| {
                 RuntimeCoreError::Backend(format!("cannot resolve current directory: {error}"))
@@ -23,19 +23,19 @@ impl RuntimeCore {
 
         let data = cwds
             .into_iter()
-            .map(|cwd| list_hooks_for_cwd(codex_home.clone(), cwd, &plugins))
+            .map(|cwd| list_hooks_for_cwd(lime_home.clone(), cwd, &plugins))
             .collect();
         Ok(HooksListResponse { data })
     }
 }
 
 fn list_hooks_for_cwd(
-    codex_home: PathBuf,
+    lime_home: PathBuf,
     cwd: PathBuf,
     plugins: &tool_runtime::hook_source::PluginHookLoadOutcome,
 ) -> HooksListEntry {
     let mut report = discover_hooks(&HookDiscoveryInput {
-        codex_home,
+        lime_home,
         cwd: cwd.clone(),
         plugins: plugins.sources.clone(),
     });

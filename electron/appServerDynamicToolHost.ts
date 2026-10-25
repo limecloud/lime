@@ -18,6 +18,9 @@ import type {
   ElectronBrowserTabHost,
 } from "./browserTabHost";
 import process from "node:process";
+import { tool, stringProperty, integerProperty } from "./dynamicToolSchema";
+import { BROWSER_INPUT_TOOLS } from "./browserInputTools";
+import { readBrowserSelectOptions } from "./browserSelect";
 import {
   DynamicToolCalls,
   type DynamicToolCallAttempt,
@@ -138,8 +141,13 @@ const BROWSER_TOOL_DEFINITIONS = Object.freeze([
     tabId: stringProperty("Claimed tab id; defaults to the selected tab."),
   }),
   tool(
+    "addCdpEventListener",
+    "Subscribe to CDP events from the claimed visible tab for this turn after full CDP approval. Returns a one-use local pipe capability and clientModulePath. In a Node process import clientModulePath, call connect(result, {onCDPEvent, onCDPDetach}), and await client.closed or dispose(). Delivery covers origin-verified Runtime context/console/exception/binding, Page lifecycle/dialog, DOM.documentUpdated, correlated Network request/response/data/loading events, and WebSocket creation/handshake/frame/error/close events tied to an allowed native target. The Agent must separately approve Network.enable before network and WebSocket events are produced. Log entries require a verified network request. Unknown or unattributed content and early uncorrelated network extra-info are omitted. No replay or polling. Connection loss, user takeover, navigation, policy changes and turn completion revoke the subscription. CDP commands still require executeCdpCommand approval.",
+    { tabId: stringProperty("Claimed tab id; defaults to the selected tab.") },
+  ),
+  tool(
     "executeCdpCommand",
-    "Execute an approved CDP command: Runtime.evaluate; Page.navigate/navigateToHistoryEntry/getNavigationHistory/reload/stopLoading/getLayoutMetrics/captureScreenshot; Input.dispatchMouseEvent/dispatchKeyEvent/insertText; Target.getTargetInfo/getTargets/closeTarget/setAutoAttach. Use attachTarget for a discovered frame before selecting its targetId or sessionId. Target info and close address only the current logical page. Requires full CDP access for the page and frame origins. Other commands and bare frame/context overrides are unavailable.",
+    "Execute an approved CDP command: Runtime.enable/disable/evaluate; Page.enable/disable/setLifecycleEventsEnabled/navigate/navigateToHistoryEntry/getNavigationHistory/reload/stopLoading/getLayoutMetrics/captureScreenshot; DOM.enable/disable; Network.enable/disable; Log.enable/disable; Input.dispatchMouseEvent/dispatchKeyEvent/insertText; Target.getTargetInfo/getTargets/closeTarget/setAutoAttach. Use addCdpEventListener for events and attachTarget for a discovered frame before selecting its targetId or sessionId. Target info and close address only the current logical page. Requires full CDP access for the page and frame origins. Other commands and bare frame/context overrides are unavailable.",
     {
       method: stringProperty(
         "CDP domain and command, such as Runtime.evaluate.",
@@ -178,6 +186,7 @@ const BROWSER_TOOL_DEFINITIONS = Object.freeze([
       ["targetId"],
     ),
   ),
+  ...BROWSER_INPUT_TOOLS,
   tool(
     "click",
     "Click an actionable node from the latest observe result. Sensitive targets hand control to the user.",
@@ -606,8 +615,23 @@ function validateArguments(
       return `${binding.runtimeName} requires argument: ${key}`;
     }
   }
+  if (binding.tool === "select") {
+    try {
+      readBrowserSelectOptions(args.options);
+    } catch (error) {
+      return errorMessage(error);
+    }
+  }
   for (const [key, value] of Object.entries(args)) {
     const schema = asRecord(properties[key]);
+    if (
+      schema?.type === "number" &&
+      (typeof value !== "number" ||
+        !Number.isFinite(value) ||
+        (typeof schema.minimum === "number" && value < schema.minimum) ||
+        (typeof schema.maximum === "number" && value > schema.maximum))
+    )
+      return `${binding.runtimeName}.${key} must be a finite number within its supported range`;
     if (
       schema?.type === "string" &&
       (typeof value !== "string" ||
@@ -679,40 +703,6 @@ function dynamicToolCallPhase(value: unknown): DynamicToolCallPhase | null {
 
 function exactNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
-}
-
-function tool(
-  name: string,
-  description: string,
-  properties: Record<string, unknown>,
-  required: string[] = [],
-) {
-  return Object.freeze({
-    type: "function" as const,
-    name,
-    description,
-    inputSchema: Object.freeze({
-      type: "object",
-      properties: Object.freeze(properties),
-      ...(required.length > 0 ? { required: Object.freeze(required) } : {}),
-      additionalProperties: false,
-    }),
-  });
-}
-
-function stringProperty(
-  description: string,
-  options: { allowEmpty?: boolean } = {},
-) {
-  return Object.freeze({
-    type: "string",
-    description,
-    ...(options.allowEmpty === true ? { allowEmpty: true } : {}),
-  });
-}
-
-function integerProperty(description: string) {
-  return Object.freeze({ type: "integer", minimum: 1, description });
 }
 
 function nonNegativeIntegerProperty(description: string) {

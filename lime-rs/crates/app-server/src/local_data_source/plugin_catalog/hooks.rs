@@ -55,7 +55,7 @@ fn load_from_manifest(
     prepare_data: bool,
 ) -> PluginHookLoadOutcome {
     let mut outcome = PluginHookLoadOutcome::default();
-    // Codex's AgentPlugin load scope excludes Hooks, including client extensions.
+    // Lime's AgentPlugin load scope excludes Hooks, including client extensions.
     if manifest::is_standard_manifest(manifest) {
         return outcome;
     }

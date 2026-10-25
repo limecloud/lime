@@ -10,12 +10,12 @@ fn package(
     declaration: Option<Value>,
 ) -> (PluginStore, PathBuf, PluginId, Value) {
     let root = fs::canonicalize(temp.path()).unwrap().join("package");
-    fs::create_dir_all(root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(root.join(".lime-plugin")).unwrap();
     let mut manifest = json!({"name":"demo","version":"1.0.0"});
     if let Some(declaration) = declaration {
         manifest["hooks"] = declaration;
     }
-    fs::write(root.join(".codex-plugin/plugin.json"), manifest.to_string()).unwrap();
+    fs::write(root.join(".lime-plugin/plugin.json"), manifest.to_string()).unwrap();
     let store = PluginStore::new(temp.path().join("plugins"), temp.path().join("config.yaml"));
     (
         store,
@@ -107,7 +107,7 @@ fn inline_objects_and_lists_use_manifest_source_without_default_fallback() {
     assert!(outcome.warnings.is_empty());
     assert_eq!(outcome.sources.len(), 2);
     for (index, source) in outcome.sources.iter().enumerate() {
-        assert_eq!(source.source_path, root.join(".codex-plugin/plugin.json"));
+        assert_eq!(source.source_path, root.join(".lime-plugin/plugin.json"));
         assert_eq!(
             source.source_relative_path,
             format!("plugin.json#hooks[{index}]")
@@ -127,7 +127,7 @@ fn standard_agent_plugins_do_not_admit_hook_extensions_or_default_files() {
     write(
         &root,
         "plugin.json",
-        json!({"$schema":STANDARD_MANIFEST_SCHEMA,"name":"demo","extensions":{"com.openai":{"hooks":hooks("echo extension")}}}),
+        json!({"$schema":STANDARD_MANIFEST_SCHEMA,"name":"demo","extensions":{"com.lime":{"hooks":hooks("echo extension")}}}),
     );
     write(&root, "hooks/hooks.json", hooks("echo default"));
     let manifest = manifest::read_manifest(&root).unwrap();

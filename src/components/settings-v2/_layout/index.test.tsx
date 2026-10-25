@@ -61,8 +61,10 @@ vi.mock("../general/archived-conversations", () => ({
 vi.mock("../system/about", () => ({
   AboutSection: () => <div>about</div>,
 }));
-vi.mock("../agent/skills", () => ({
-  ExtensionsSettings: () => <div>skills</div>,
+vi.mock("../integrations/plugins", () => ({
+  PluginsSettings: ({ initialManageTab }: { initialManageTab: string }) => (
+    <div data-manage-tab={initialManageTab}>plugins</div>
+  ),
 }));
 vi.mock("../agent/media-services", () => ({
   MediaServicesSettings: () => <div>media-services</div>,
@@ -84,9 +86,6 @@ vi.mock("../agent/providers", () => ({
     mockCloudProviderSettings(props);
     return <div>providers</div>;
   },
-}));
-vi.mock("@/components/mcp", () => ({
-  McpPanel: () => <div>mcp</div>,
 }));
 vi.mock("../coding/local-environments/LocalEnvironmentsSettings", () => ({
   LocalEnvironmentsSettings: () => <div>local-environments</div>,
@@ -243,12 +242,56 @@ describe("SettingsPage Profile Tab", () => {
   );
 });
 
-describe("SettingsPage Skills Tab", () => {
-  it("技能页应从设置导航进入现有高级技能入口", async () => {
-    const container = renderComponent(SettingsTabs.Skills);
+describe("SettingsPage Plugins Tab", () => {
+  it("MCP 搜索直达插件组合页的 MCP 分组，插件搜索恢复插件分组", async () => {
+    const container = renderComponent(SettingsTabs.Plugins);
+    await flushEffects();
+    const select = (targetId: string) =>
+      act(() => {
+        const sidebar = mockSettingsSidebar.mock.calls.at(
+          -1,
+        )![0] as SidebarNavigation;
+        sidebar.onSearchSelect({
+          section: SettingsTabs.Plugins,
+          targetId,
+          label: "MCP",
+          panelLabel: "Plugins",
+        });
+      });
+    select("plugins-mcps");
+    await flushEffects();
+    expect(
+      container
+        .querySelector("[data-manage-tab]")
+        ?.getAttribute("data-manage-tab"),
+    ).toBe("mcps");
+    select("plugins-skills");
+    await flushEffects();
+    expect(
+      container
+        .querySelector("[data-manage-tab]")
+        ?.getAttribute("data-manage-tab"),
+    ).toBe("skills");
+    select("plugins-marketplace");
+    await flushEffects();
+    expect(
+      container
+        .querySelector("[data-manage-tab]")
+        ?.getAttribute("data-manage-tab"),
+    ).toBe("marketplace");
+    select("plugins-installed");
+    await flushEffects();
+    expect(
+      container
+        .querySelector("[data-manage-tab]")
+        ?.getAttribute("data-manage-tab"),
+    ).toBe("plugins");
+  });
+  it("插件设置应通过唯一登记渲染现役管理入口", async () => {
+    const container = renderComponent(SettingsTabs.Plugins);
     await flushEffects();
 
-    expect(container.textContent).toContain("skills");
+    expect(container.textContent).toContain("plugins");
   });
 });
 
@@ -504,9 +547,8 @@ describe("SettingsPage current sections", () => {
     [SettingsTabs.Memory, "memory"],
     [SettingsTabs.ArchivedConversations, "archived-conversations"],
     [SettingsTabs.Providers, "providers"],
-    [SettingsTabs.Skills, "skills"],
+    [SettingsTabs.Plugins, "plugins"],
     [SettingsTabs.MediaServices, "media-services"],
-    [SettingsTabs.McpServer, "mcp"],
     [SettingsTabs.LocalEnvironments, "local-environments"],
     [SettingsTabs.ExecutionPolicy, "execution-policy"],
     [SettingsTabs.About, "about"],

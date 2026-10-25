@@ -85,7 +85,8 @@ function recordArray(value: unknown): Record<string, unknown>[] {
   }
   const record = readRecord(value);
   if (!record) return [];
-  const nested = record.data ?? record.items ?? record.notifications ?? record.input;
+  const nested =
+    record.data ?? record.items ?? record.notifications ?? record.input;
   if (nested !== undefined) return recordArray(nested);
   return [record];
 }
@@ -104,7 +105,9 @@ function stableValue(value: unknown): unknown {
 
 function stableEqual(left: unknown, right: unknown): boolean {
   if (left === undefined || right === undefined) return true;
-  return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
+  return (
+    JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right))
+  );
 }
 
 function method(record: Record<string, unknown>): string | undefined {
@@ -115,12 +118,21 @@ function params(record: Record<string, unknown>): Record<string, unknown> {
   return readRecord(record.params) ?? record;
 }
 
-function itemRecord(record: Record<string, unknown>): Record<string, unknown> | undefined {
+function itemRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   const base = params(record);
-  return readRecord(base.item) ?? readRecord(base.threadItem) ?? readRecord(base.thread_item) ?? base;
+  return (
+    readRecord(base.item) ??
+    readRecord(base.threadItem) ??
+    readRecord(base.thread_item) ??
+    base
+  );
 }
 
-function itemType(record: Record<string, unknown> | undefined): string | undefined {
+function itemType(
+  record: Record<string, unknown> | undefined,
+): string | undefined {
   return readStringField(record, ["type", "kind", "itemType", "item_type"]);
 }
 
@@ -129,19 +141,22 @@ function isContextCompactionRecord(record: Record<string, unknown>): boolean {
   const type = itemType(item);
   return Boolean(
     type === "contextCompaction" ||
-      type === "context_compaction" ||
-      type === "ContextCompaction",
+    type === "context_compaction" ||
+    type === "ContextCompaction",
   );
 }
 
-function readLifecycleItem(record: Record<string, unknown>): AgentUiContextCompactionLifecycleItem {
+function readLifecycleItem(
+  record: Record<string, unknown>,
+): AgentUiContextCompactionLifecycleItem {
   const base = params(record);
   const item = itemRecord(record);
   return {
     id: readStringField(item, ["id", "itemId", "item_id"]),
     threadId: readStringField(base, ["threadId", "thread_id"]),
     method: method(record),
-    status: readStringField(base, ["status"]) ?? readStringField(item, ["status"]),
+    status:
+      readStringField(base, ["status"]) ?? readStringField(item, ["status"]),
   };
 }
 
@@ -150,9 +165,14 @@ function lifecycleItems(
   phase: "started" | "completed",
 ): AgentUiContextCompactionLifecycleItem[] {
   const direct = phase === "started" ? input.itemStarted : input.itemCompleted;
-  const expectedMethod = phase === "started" ? "item/started" : "item/completed";
-  const records = [...recordArray(direct), ...recordArray(input.notifications)].filter(
-    (record) => method(record) === expectedMethod && isContextCompactionRecord(record),
+  const expectedMethod =
+    phase === "started" ? "item/started" : "item/completed";
+  const records = [
+    ...recordArray(direct),
+    ...recordArray(input.notifications),
+  ].filter(
+    (record) =>
+      method(record) === expectedMethod && isContextCompactionRecord(record),
   );
   return records.map(readLifecycleItem);
 }
@@ -162,12 +182,16 @@ function hasDeprecatedCompactedOnly(
   hasCurrentItem: boolean,
 ): boolean {
   if (hasCurrentItem) return false;
-  return [...recordArray(input.deprecatedCompactedNotification), ...recordArray(input.notifications)].some(
-    (record) => method(record) === "thread/compacted",
-  );
+  return [
+    ...recordArray(input.deprecatedCompactedNotification),
+    ...recordArray(input.notifications),
+  ].some((record) => method(record) === "thread/compacted");
 }
 
-function containsContextCompaction(value: unknown, expectedId?: string): boolean {
+function containsContextCompaction(
+  value: unknown,
+  expectedId?: string,
+): boolean {
   const records = recordArray(value);
   return records.some((record) => {
     if (!isContextCompactionRecord(record)) return false;
@@ -191,7 +215,11 @@ function validateSnapshot(
   const issues: AgentUiContextCompactionItemIssue[] = [];
   if (!snapshot.threadId) {
     issues.push(
-      issue("missing_thread_id", "$.threadId", "Context compaction item requires a thread id."),
+      issue(
+        "missing_thread_id",
+        "$.threadId",
+        "Context compaction item requires a thread id.",
+      ),
     );
   }
   if (!snapshot.startedSeen) {
@@ -278,7 +306,7 @@ function validateSnapshot(
   return issues;
 }
 
-export function extractCodexContextCompactionItemSnapshot(
+export function extractContextCompactionItemSnapshot(
   input: AgentUiContextCompactionItemProjectionInput,
 ): AgentUiContextCompactionItemSnapshot {
   const startedItems = lifecycleItems(input, "started");
@@ -298,7 +326,9 @@ export function extractCodexContextCompactionItemSnapshot(
     compactionItemId,
     startedSeen: startedItems.length > 0,
     completedSeen: completedItems.length > 0,
-    itemIdsMatch: Boolean(startedId && completedId && startedId === completedId),
+    itemIdsMatch: Boolean(
+      startedId && completedId && startedId === completedId,
+    ),
     deprecatedOnly: hasDeprecatedCompactedOnly(input, hasCurrentItem),
     replacementHistoryVerbatim: stableEqual(
       input.expectedReplacementHistory,
@@ -309,7 +339,8 @@ export function extractCodexContextCompactionItemSnapshot(
       input.oldItemFingerprintAfter,
     ),
     readModelContainsCompaction:
-      input.readModelItems === undefined || containsContextCompaction(input.readModelItems, compactionItemId),
+      input.readModelItems === undefined ||
+      containsContextCompaction(input.readModelItems, compactionItemId),
     followupHistoryContainsCompaction:
       input.followupModelInput === undefined ||
       containsContextCompaction(input.followupModelInput, compactionItemId),
@@ -321,15 +352,17 @@ export function extractCodexContextCompactionItemSnapshot(
   };
 }
 
-function runtimeStatus(issues: readonly AgentUiContextCompactionItemIssue[]): AgentUiRuntimeStatus {
+function runtimeStatus(
+  issues: readonly AgentUiContextCompactionItemIssue[],
+): AgentUiRuntimeStatus {
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function buildCodexContextCompactionItemProjectionEvent(
+export function buildContextCompactionItemProjectionEvent(
   input: AgentUiContextCompactionItemProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexContextCompactionItemSnapshot(input);
+  const snapshot = extractContextCompactionItemSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",
@@ -358,7 +391,8 @@ export function buildCodexContextCompactionItemProjectionEvent(
       replacementHistoryVerbatim: snapshot.replacementHistoryVerbatim,
       oldItemsStable: snapshot.oldItemsStable,
       readModelContainsCompaction: snapshot.readModelContainsCompaction,
-      followupHistoryContainsCompaction: snapshot.followupHistoryContainsCompaction,
+      followupHistoryContainsCompaction:
+        snapshot.followupHistoryContainsCompaction,
       contextCompactionItem: snapshot,
       validationIssues: snapshot.validationIssues,
     },

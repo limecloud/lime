@@ -7,8 +7,10 @@ export async function setBrowserFixtureLocale(page, options) {
     return;
   await page.getByTestId("app-sidebar-nav-settings").click();
   await page.getByTestId("settings-sidebar-tab-general").click();
-  const language = page.locator("#general-language select");
-  await language.selectOption(options.locale, { timeout: options.timeoutMs });
+  await page.locator("#general-language button").click();
+  await page
+    .locator(`[cmdk-item][data-value="${options.locale}"]`)
+    .click({ timeout: options.timeoutMs });
   await page.waitForFunction(
     (expected) => document.documentElement.lang === expected,
     options.locale,

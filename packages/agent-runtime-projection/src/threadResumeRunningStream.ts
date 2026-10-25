@@ -109,19 +109,20 @@ function recordArray(value: unknown): Record<string, unknown>[] {
 }
 
 function normalizeStatus(value: string | undefined): string | undefined {
-  return value?.trim().toLowerCase().replace(/[_\s-]+/g, "_") || undefined;
+  return (
+    value
+      ?.trim()
+      .toLowerCase()
+      .replace(/[_\s-]+/g, "_") || undefined
+  );
 }
 
 function normalizeItemsView(value: string | undefined): string | undefined {
-  return value?.trim().toLowerCase().replace(/[_\s-]+/g, "_") || undefined;
-}
-
-function isRunningStatus(status: string | undefined): boolean {
   return (
-    status === "in_progress" ||
-    status === "running" ||
-    status === "streaming" ||
-    status === "active"
+    value
+      ?.trim()
+      .toLowerCase()
+      .replace(/[_\s-]+/g, "_") || undefined
   );
 }
 
@@ -140,7 +141,9 @@ function readTurn(value: unknown): AgentUiRunningTurnSnapshot | undefined {
   if (!id) return undefined;
   return compactProjectionFields({
     id,
-    status: normalizeStatus(readStringField(record, ["status", "turnStatus", "turn_status"])),
+    status: normalizeStatus(
+      readStringField(record, ["status", "turnStatus", "turn_status"]),
+    ),
     itemsView: normalizeItemsView(
       readStringField(record, ["itemsView", "items_view"]),
     ),
@@ -152,11 +155,28 @@ function readResumeRequest(
 ): AgentUiThreadResumeRequestSnapshot {
   const record = readRecord(input.resumeRequest) ?? {};
   return {
-    threadId: readStringField(record, ["threadId", "thread_id"]) ?? input.threadId ?? undefined,
-    requestedModel: readStringField(record, ["model", "requestedModel", "requested_model"]),
-    requestedCwd: readStringField(record, ["cwd", "path", "requestedCwd", "requested_cwd"]),
-    historyOverride: Boolean(record.history) || readBooleanField(record, ["historyOverride", "history_override"]) === true,
-    initialTurnsRequested: Boolean(record.initialTurnsPage ?? record.initial_turns_page),
+    threadId:
+      readStringField(record, ["threadId", "thread_id"]) ??
+      input.threadId ??
+      undefined,
+    requestedModel: readStringField(record, [
+      "model",
+      "requestedModel",
+      "requested_model",
+    ]),
+    requestedCwd: readStringField(record, [
+      "cwd",
+      "path",
+      "requestedCwd",
+      "requested_cwd",
+    ]),
+    historyOverride:
+      Boolean(record.history) ||
+      readBooleanField(record, ["historyOverride", "history_override"]) ===
+        true,
+    initialTurnsRequested: Boolean(
+      record.initialTurnsPage ?? record.initial_turns_page,
+    ),
   };
 }
 
@@ -165,35 +185,53 @@ function readResumeResponse(
 ): AgentUiThreadResumeResponseSnapshot {
   const record = readRecord(input.resumeResponse) ?? {};
   const thread = readRecord(record.thread) ?? record;
-  const status = normalizeStatus(readStringField(thread, ["status", "threadStatus", "thread_status"]));
+  const status = normalizeStatus(
+    readStringField(thread, ["status", "threadStatus", "thread_status"]),
+  );
   return {
     threadId:
       readStringField(thread, ["id", "threadId", "thread_id"]) ??
       readStringField(record, ["threadId", "thread_id"]),
     status,
-    effectiveModel: readStringField(record, ["model", "effectiveModel", "effective_model"]),
-    effectiveCwd: readStringField(record, ["cwd", "effectiveCwd", "effective_cwd"]),
+    effectiveModel: readStringField(record, [
+      "model",
+      "effectiveModel",
+      "effective_model",
+    ]),
+    effectiveCwd: readStringField(record, [
+      "cwd",
+      "effectiveCwd",
+      "effective_cwd",
+    ]),
     notLoaded: status === "not_loaded" || status === "notloaded",
   };
 }
 
-function readPageTurns(input: AgentUiThreadResumeRunningStreamProjectionInput): AgentUiResumePageTurnSnapshot[] {
+function readPageTurns(
+  input: AgentUiThreadResumeRunningStreamProjectionInput,
+): AgentUiResumePageTurnSnapshot[] {
   const explicit = recordArray(input.initialTurnsPage);
   const response = readRecord(input.resumeResponse);
-  const responsePage = readRecord(response?.initialTurnsPage ?? response?.initial_turns_page);
-  const records = explicit.length > 0 ? explicit : recordArray(responsePage?.data);
+  const responsePage = readRecord(
+    response?.initialTurnsPage ?? response?.initial_turns_page,
+  );
+  const records =
+    explicit.length > 0 ? explicit : recordArray(responsePage?.data);
   return records
     .map(readTurn)
     .filter((turn): turn is AgentUiResumePageTurnSnapshot => Boolean(turn));
 }
 
-function readStreamBindings(input: AgentUiThreadResumeRunningStreamProjectionInput): AgentUiLiveStreamBindingSnapshot[] {
+function readStreamBindings(
+  input: AgentUiThreadResumeRunningStreamProjectionInput,
+): AgentUiLiveStreamBindingSnapshot[] {
   return recordArray(input.streamBindings).map((record) =>
     compactProjectionFields({
       bindingId: readStringField(record, ["bindingId", "binding_id", "id"]),
       threadId: readStringField(record, ["threadId", "thread_id"]),
       turnId: readStringField(record, ["turnId", "turn_id"]),
-      active: readBooleanField(record, ["active", "bound", "listening"]) ?? false,
+      active:
+        readBooleanField(record, ["active", "bound", "listening"]) ?? false,
       source: readStringField(record, ["source", "client", "owner"]),
     } satisfies AgentUiLiveStreamBindingSnapshot),
   );
@@ -201,7 +239,15 @@ function readStreamBindings(input: AgentUiThreadResumeRunningStreamProjectionInp
 
 function readShadowSessionIds(value: unknown): string[] {
   return recordArray(value)
-    .map((record) => readStringField(record, ["id", "sessionId", "session_id", "threadId", "thread_id"]))
+    .map((record) =>
+      readStringField(record, [
+        "id",
+        "sessionId",
+        "session_id",
+        "threadId",
+        "thread_id",
+      ]),
+    )
     .filter((id): id is string => Boolean(id));
 }
 
@@ -233,7 +279,9 @@ function validateSnapshot(
     );
   }
 
-  const resumedTurn = snapshot.resumePageTurns.find((turn) => turn.id === runningTurn.id);
+  const resumedTurn = snapshot.resumePageTurns.find(
+    (turn) => turn.id === runningTurn.id,
+  );
   if (!resumedTurn) {
     issues.push(
       issue(
@@ -252,7 +300,10 @@ function validateSnapshot(
         ),
       );
     }
-    if (resumedTurn.itemsView === "full" || resumedTurn.itemsView === "loaded") {
+    if (
+      resumedTurn.itemsView === "full" ||
+      resumedTurn.itemsView === "loaded"
+    ) {
       issues.push(
         issue(
           "running_turn_items_fully_loaded",
@@ -275,7 +326,8 @@ function validateSnapshot(
 
   if (
     snapshot.resumeRequest.requestedModel &&
-    snapshot.resumeResponse.effectiveModel === snapshot.resumeRequest.requestedModel
+    snapshot.resumeResponse.effectiveModel ===
+      snapshot.resumeRequest.requestedModel
   ) {
     issues.push(
       issue(
@@ -298,7 +350,9 @@ function validateSnapshot(
     );
   }
 
-  const activeBindings = snapshot.streamBindings.filter((binding) => binding.active);
+  const activeBindings = snapshot.streamBindings.filter(
+    (binding) => binding.active,
+  );
   if (activeBindings.length === 0) {
     issues.push(
       issue(
@@ -348,7 +402,7 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexThreadResumeRunningStreamSnapshot(
+export function extractThreadResumeRunningStreamSnapshot(
   input: AgentUiThreadResumeRunningStreamProjectionInput,
 ): AgentUiThreadResumeRunningStreamSnapshot {
   const runningTurn = readTurn(input.runningTurn);
@@ -374,7 +428,8 @@ export function extractCodexThreadResumeRunningStreamSnapshot(
         (!runningTurn || binding.turnId === runningTurn.id),
     ),
     resumeUsesRunningThread:
-      Boolean(threadId && resumeResponse.threadId === threadId) && !resumeResponse.notLoaded,
+      Boolean(threadId && resumeResponse.threadId === threadId) &&
+      !resumeResponse.notLoaded,
     historyOverrideBlocked: !resumeRequest.historyOverride,
   };
   return {
@@ -383,11 +438,11 @@ export function extractCodexThreadResumeRunningStreamSnapshot(
   };
 }
 
-export function buildCodexThreadResumeRunningStreamProjectionEvent(
+export function buildThreadResumeRunningStreamProjectionEvent(
   input: AgentUiThreadResumeRunningStreamProjectionInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexThreadResumeRunningStreamSnapshot(input);
+  const snapshot = extractThreadResumeRunningStreamSnapshot(input);
   const status = runtimeStatus(snapshot.validationIssues);
   return compactProjectionFields({
     type: "context.changed",
@@ -397,7 +452,8 @@ export function buildCodexThreadResumeRunningStreamProjectionEvent(
     sessionId: definedString(context.sessionId ?? undefined),
     threadId: snapshot.threadId ?? definedString(context.threadId ?? undefined),
     runId: definedString(context.runId ?? undefined),
-    turnId: snapshot.runningTurn?.id ?? definedString(context.turnId ?? undefined),
+    turnId:
+      snapshot.runningTurn?.id ?? definedString(context.turnId ?? undefined),
     owner: "context",
     scope: "thread",
     phase: snapshot.validationIssues.length > 0 ? "failed" : "producing",

@@ -14,9 +14,9 @@ use app_server_protocol::protocol::v2::{
 use app_server_protocol::{
     JsonRpcError, McpPromptGetParams, McpResourceSubscribeParams, McpResourceUnsubscribeParams,
     McpServerCreateParams, McpServerDeleteParams, McpServerEnabledSetParams,
-    McpServerImportFromAppParams, McpServerOauthLoginParams, McpServerOauthLoginResponse,
-    McpServerOauthLogoutParams, McpServerStartParams, McpServerStopParams, McpServerUpdateParams,
-    McpToolListForContextParams, McpToolSearchParams,
+    McpServerOauthLoginParams, McpServerOauthLoginResponse, McpServerOauthLogoutParams,
+    McpServerStartParams, McpServerStopParams, McpServerUpdateParams, McpToolListForContextParams,
+    McpToolSearchParams,
 };
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -174,32 +174,6 @@ impl RequestProcessor {
         let response = self
             .runtime
             .set_mcp_server_enabled(params)
-            .await
-            .map_err(to_jsonrpc_error)?;
-        dispatch_result(response)
-    }
-
-    pub(super) async fn handle_mcp_server_import_from_app_impl(
-        &self,
-        params: Option<serde_json::Value>,
-    ) -> Result<RpcDispatch, JsonRpcError> {
-        self.ensure_initialized()?;
-        let params: McpServerImportFromAppParams = parse_params(params)?;
-        let response = self
-            .runtime
-            .import_mcp_servers_from_app(params)
-            .await
-            .map_err(to_jsonrpc_error)?;
-        dispatch_result(response)
-    }
-
-    pub(super) async fn handle_mcp_server_sync_all_to_live_impl(
-        &self,
-    ) -> Result<RpcDispatch, JsonRpcError> {
-        self.ensure_initialized()?;
-        let response = self
-            .runtime
-            .sync_all_mcp_servers_to_live()
             .await
             .map_err(to_jsonrpc_error)?;
         dispatch_result(response)

@@ -211,9 +211,9 @@ async fn install_plugin(
     app_id: &str,
 ) {
     let source = temp.path().join(plugin_id);
-    fs::create_dir_all(source.join(".codex-plugin")).expect("plugin manifest directory");
+    fs::create_dir_all(source.join(".lime-plugin")).expect("plugin manifest directory");
     fs::write(
-        source.join(".codex-plugin/plugin.json"),
+        source.join(".lime-plugin/plugin.json"),
         serde_json::to_vec_pretty(&json!({
             "name": plugin_id,
             "version": "1.0.0",

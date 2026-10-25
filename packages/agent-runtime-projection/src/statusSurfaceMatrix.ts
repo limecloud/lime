@@ -98,10 +98,6 @@ function issue(
   return { code, path, message };
 }
 
-function readArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
 function normalizeSurface(value: string | undefined): AgentUiStatusSurface {
   switch (value) {
     case "footer":
@@ -158,7 +154,9 @@ function parseSurface(
     readRecord(record.rateLimit) ??
     readRecord(record.rate_limit);
   return compactProjectionFields({
-    surface: normalizeSurface(readStringField(record, ["surface", "kind", "target"])),
+    surface: normalizeSurface(
+      readStringField(record, ["surface", "kind", "target"]),
+    ),
     presentationOwner: readStringField(record, [
       "presentationOwner",
       "presentation_owner",
@@ -214,7 +212,9 @@ function parseSurface(
 }
 
 function uniqueDefined(values: Array<string | undefined>): string[] {
-  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
 }
 
 function sameExpected(
@@ -240,7 +240,10 @@ function rowFor(
 }
 
 function validateStatusMatrix(
-  snapshot: Omit<AgentUiStatusSurfaceMatrixProjectionSnapshot, "validationIssues">,
+  snapshot: Omit<
+    AgentUiStatusSurfaceMatrixProjectionSnapshot,
+    "validationIssues"
+  >,
 ): AgentUiStatusSurfaceIssue[] {
   const issues: AgentUiStatusSurfaceIssue[] = [];
   for (const surface of REQUIRED_SURFACES) {
@@ -326,7 +329,7 @@ function runtimeStatus(
   return issues.length > 0 ? "failed" : "completed";
 }
 
-export function extractCodexStatusSurfaceMatrixProjectionSnapshot(
+export function extractStatusSurfaceMatrixProjectionSnapshot(
   input: AgentUiStatusSurfaceMatrixInput,
 ): AgentUiStatusSurfaceMatrixProjectionSnapshot {
   const surfaces = (input.rows ?? input.surfaces ?? [])
@@ -336,7 +339,9 @@ export function extractCodexStatusSurfaceMatrixProjectionSnapshot(
     new Set(
       surfaces
         .map((row) => row.surface)
-        .filter((surface): surface is AgentUiStatusSurface => surface !== "unknown"),
+        .filter(
+          (surface): surface is AgentUiStatusSurface => surface !== "unknown",
+        ),
     ),
   ).sort();
   const presentationOwners = uniqueDefined(
@@ -356,10 +361,18 @@ export function extractCodexStatusSurfaceMatrixProjectionSnapshot(
     ),
     threadSessionBindingPreserved:
       surfaces.length > 0 &&
-      sameExpected(input.threadId, surfaces.map((row) => row.threadId)) &&
-      sameExpected(input.sessionId, surfaces.map((row) => row.sessionId)),
+      sameExpected(
+        input.threadId,
+        surfaces.map((row) => row.threadId),
+      ) &&
+      sameExpected(
+        input.sessionId,
+        surfaces.map((row) => row.sessionId),
+      ),
     sharedPresentationOwner:
-      surfaces.length > 0 && presentationOwners.length === 1 && Boolean(presentationOwners[0]),
+      surfaces.length > 0 &&
+      presentationOwners.length === 1 &&
+      Boolean(presentationOwners[0]),
     metadataFactsPresent:
       Boolean(title?.title) &&
       Boolean(model?.model) &&
@@ -372,7 +385,9 @@ export function extractCodexStatusSurfaceMatrixProjectionSnapshot(
     naturalLanguageInferenceRejected: !surfaces.some(
       (row) => row.naturalLanguageInferred,
     ),
-    duplicateNamingRejected: !surfaces.some((row) => row.duplicateComponentNaming),
+    duplicateNamingRejected: !surfaces.some(
+      (row) => row.duplicateComponentNaming,
+    ),
   };
   return {
     ...partialSnapshot,
@@ -380,11 +395,11 @@ export function extractCodexStatusSurfaceMatrixProjectionSnapshot(
   };
 }
 
-export function buildCodexStatusSurfaceMatrixProjectionEvent(
+export function buildStatusSurfaceMatrixProjectionEvent(
   input: AgentUiStatusSurfaceMatrixInput,
   context: AgentUiProjectionContext = {},
 ): AgentUiProjectionEvent {
-  const snapshot = extractCodexStatusSurfaceMatrixProjectionSnapshot(input);
+  const snapshot = extractStatusSurfaceMatrixProjectionSnapshot(input);
   return {
     ...buildAgentUiProjectionBase(
       { sourceType: "status_surface_matrix_projection" },
@@ -408,7 +423,8 @@ export function buildCodexStatusSurfaceMatrixProjectionEvent(
       metadataFactsPresent: snapshot.metadataFactsPresent,
       runtimeStatusPresent: snapshot.runtimeStatusPresent,
       rateLimitFactsPresent: snapshot.rateLimitFactsPresent,
-      naturalLanguageInferenceRejected: snapshot.naturalLanguageInferenceRejected,
+      naturalLanguageInferenceRejected:
+        snapshot.naturalLanguageInferenceRejected,
       duplicateNamingRejected: snapshot.duplicateNamingRejected,
       validationIssues: snapshot.validationIssues,
     },

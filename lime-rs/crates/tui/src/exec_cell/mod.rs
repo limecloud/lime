@@ -1,4 +1,4 @@
-//! Codex-shaped command execution cells backed by Lime's canonical transcript projection.
+//! Lime-native command execution cells backed by Lime's canonical transcript projection.
 
 mod live_output;
 mod model;

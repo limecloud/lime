@@ -4,10 +4,10 @@
     {
       "id": "native-root-dotfiles",
       "file": "native-root-dotfiles.tar.gz",
-      "sha256": "5a59156e99dfd1c84fed6f986454b98fdac35ac001ae7b3418ea86271e5a8e91",
+      "sha256": "7a877585e2a4d661e4e1ce88f02244cecca0aac97358f3919ccc6093c27e250a",
       "archiveAccepted": true,
       "manifestAccepted": true,
-      "manifestPath": ".codex-plugin/plugin.json",
+      "manifestPath": ".lime-plugin/plugin.json",
       "manifestHash": "20a68fe1cb7ea4f7d208648a86bfdddd6b93e188245a620c4268afeef7d4cffe",
       "files": {
         ".hidden": "e564b4081d7a9ea4b00dada53bdae70c99b87b6fce869f0c3dd4d2bfa1e53e1c"
@@ -16,7 +16,7 @@
     {
       "id": "standard-priority",
       "file": "standard-priority.tar.gz",
-      "sha256": "608cb79e05bde30f6b8b879b4ec0187fe839ff515460635b9bc65f079b06145b",
+      "sha256": "c70bb8d398bb201476fe96bd52fa1ce165eccd87cfdf73a48aaf09230122c370",
       "archiveAccepted": true,
       "manifestAccepted": true,
       "manifestPath": "plugin.json",
@@ -25,19 +25,19 @@
     {
       "id": "unrelated-root",
       "file": "unrelated-root.tar.gz",
-      "sha256": "33c6c628bfbceaceaa430a9d6a9a0bde02607a178c359238d4ca33759a4e2a36",
+      "sha256": "492b3391281a69c09d71c2cefedc0fedea3f84f3cbce4b1cd8177f2118330c75",
       "archiveAccepted": true,
       "manifestAccepted": true,
-      "manifestPath": ".codex-plugin/plugin.json",
+      "manifestPath": ".lime-plugin/plugin.json",
       "manifestHash": "20a68fe1cb7ea4f7d208648a86bfdddd6b93e188245a620c4268afeef7d4cffe"
     },
     {
       "id": "native-priority",
       "file": "native-priority.tar.gz",
-      "sha256": "c17991ac9f07217291b62a85433ee87bf6353ee88d736f7935b56e83e7395602",
+      "sha256": "a6a9223846039e9494ae022fdecfef75db19880e43e805ca643026e61614b5f1",
       "archiveAccepted": true,
       "manifestAccepted": true,
-      "manifestPath": ".codex-plugin/plugin.json",
+      "manifestPath": ".lime-plugin/plugin.json",
       "manifestHash": "20a68fe1cb7ea4f7d208648a86bfdddd6b93e188245a620c4268afeef7d4cffe"
     },
     {
@@ -52,53 +52,53 @@
     {
       "id": "unsupported-standard",
       "file": "unsupported-standard.tar.gz",
-      "sha256": "be70a510c1bf42f34cd8c8ea189117df1245ac9820ac6fa0078220e7d1c768ab",
+      "sha256": "1e360b5244c857df24281dbd16c4ad278b44e028d77ecd54810fc81fc1a1db2b",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
       "id": "invalid-selected-manifest",
       "file": "invalid-selected-manifest.tar.gz",
-      "sha256": "1639abdd1476c1af5e34bdad255e59eab09b3a417d32bc5e3694771500499f93",
+      "sha256": "8aeb28b89d3dd80b94f0ff715373af387c12a316550cf9f1746abfa4e52fbb4e",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
       "id": "manifest-limit",
       "file": "manifest-limit.tar.gz",
-      "sha256": "38668b8e573c14503162fdddcae1437873f21bb96eda9d46cade7248009036b3",
+      "sha256": "1bedf5d9f8a02b63776ce6b7eab069fbac7aba059af510685d84a00b53653253",
       "archiveAccepted": true,
       "manifestAccepted": true,
-      "manifestPath": ".codex-plugin/plugin.json",
+      "manifestPath": ".lime-plugin/plugin.json",
       "manifestHash": "231f3a5aa0e61bb68a0063a9ac47c4e093c8548801aec9c74b1d29c06835ec45"
     },
     {
       "id": "manifest-over-limit",
       "file": "manifest-over-limit.tar.gz",
-      "sha256": "d929c2c1fffcef46668161a213713937ce087d66022be2d6f070a4413bde2a1f",
+      "sha256": "3eb14776d556b085a94071aef99854c01e993f8ac4f6a4b3fe7da679fa8ea2ef",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
       "id": "unused-manifest-over-limit",
       "file": "unused-manifest-over-limit.tar.gz",
-      "sha256": "6fccff3c4baa9d97cc3e81af529ad838d7c3f81fe4142b57f281b781d1e01669",
+      "sha256": "c44f94c18a0a671b9cae7a2285e09cef2963af7f564b24aa4924062f7d75b696",
       "archiveAccepted": true,
       "manifestAccepted": true,
-      "manifestPath": ".codex-plugin/plugin.json",
+      "manifestPath": ".lime-plugin/plugin.json",
       "manifestHash": "20a68fe1cb7ea4f7d208648a86bfdddd6b93e188245a620c4268afeef7d4cffe"
     },
     {
       "id": "root-over-limit-no-fallback",
       "file": "root-over-limit-no-fallback.tar.gz",
-      "sha256": "3e1d6c5085d073401d88f89e94933a1c2b4544e46502854f634b10e3de2f82dd",
+      "sha256": "67174cd8af72293dafbd519f507292989e6db9daca1715885b53b264bbc3e4fa",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
       "id": "pax-long-name",
       "file": "pax-long-name.tar.gz",
-      "sha256": "c160101f01f55af5eb0874f40bf35d166a9f034b5eee85899454c598b47f03aa",
+      "sha256": "63c98134f0f747fef27760979c2ac641b8c98ea3929f987664bca315f5249fb2",
       "archiveAccepted": true,
       "files": {
         "segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/file": "fc66f021c67d064c1490a12b5a4d4d2f5167ca692a16ca12f1f3a4cda29a6fa9"
@@ -107,7 +107,7 @@
     {
       "id": "gnu-long-name",
       "file": "gnu-long-name.tar.gz",
-      "sha256": "0b02e402b69acb0933ee7c317adccd77f293010ee96b3e465fad5ad0eb27c51e",
+      "sha256": "013163e645a81212c67d5a812dc219aea476ec04d0d5b8806b659f3c9b71e7a8",
       "archiveAccepted": true,
       "files": {
         "segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/segment/file": "fc66f021c67d064c1490a12b5a4d4d2f5167ca692a16ca12f1f3a4cda29a6fa9"
@@ -275,7 +275,7 @@
     {
       "id": "nonzero-tail",
       "file": "nonzero-tail.tar.gz",
-      "sha256": "3967018b999e30650c691cd73c4b80820cd04792263e6e0ecf903ab415b9ed91",
+      "sha256": "0c42fbc45ae445e33e0175581c7908ad8a7141bfb4729a63fa48c6df8aadf48e",
       "archiveAccepted": false
     },
     {
@@ -299,25 +299,25 @@
     {
       "id": "bad-gzip-crc",
       "file": "bad-gzip-crc.tar.gz",
-      "sha256": "e64db38b4453892f0691da93d5c115ddd33b69eb901d01988bf47e042ca5b5cf",
+      "sha256": "308b0573656c1e02cabbfa9216c689bd474bb2cf075e0354bf74ed84b04d0373",
       "archiveAccepted": false
     },
     {
       "id": "truncated-gzip",
       "file": "truncated-gzip.tar.gz",
-      "sha256": "03b5097b35fadc1d3dd30656a902356b6b41afa7c56beda1104feac1291fa8f4",
+      "sha256": "4c131fd44ee971aa872d3c7cebc5f2f4d89cd25d738c5ed449854fd6a4a02b6b",
       "archiveAccepted": false
     },
     {
       "id": "multiple-gzip-streams",
       "file": "multiple-gzip-streams.tar.gz",
-      "sha256": "eb64d9c61389bb6caef859f6c0698cc20653230000da421a82b6399691f963c2",
+      "sha256": "c033fa6acd16c85616a5e78b4af5d27002e63d5f92fd879151f56cff4f2492d7",
       "archiveAccepted": false
     },
     {
       "id": "compressed-junk",
       "file": "compressed-junk.tar.gz",
-      "sha256": "9040e871098f00864fcdf3364ff715cd95adff9b2b73f56d07c7f67c6d119947",
+      "sha256": "8b17c74a297dc271dfe73dc3c7a4e281716912b8a28c8fdab7cae09ee2906200",
       "archiveAccepted": false
     },
     {
@@ -384,21 +384,21 @@
     {
       "id": "manifest-root-directory",
       "file": "manifest-root-directory.tar.gz",
-      "sha256": "79c6cde28f929ce870b9986b209c5a2fe604fcfd41cc02e6edcff26c2f10cd6b",
+      "sha256": "98c207e57b8bb45286fe2ba4a8753f320b38c6290978a58d537e6e05231f01c6",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
       "id": "manifest-root-implicit-file",
       "file": "manifest-root-implicit-file.tar.gz",
-      "sha256": "443670f6ba95e5836c3b9a161d104a4e6024d2e8347b8437cbafa2aec9190fdc",
+      "sha256": "f3ba58e356d8d3b67a33abfb7be4ad8c2cba3af837123a1f767de89f916f3b82",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
       "id": "manifest-root-implicit-directory",
       "file": "manifest-root-implicit-directory.tar.gz",
-      "sha256": "1b055d7d3b45d75f81a0f5e44962bcebf2b9548228f92205209501e639ad031e",
+      "sha256": "427f92796e0744dd7c82b557d0a445e77c1ec14ccd7bdf506674c85144991685",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
@@ -412,40 +412,40 @@
       "manifestHash": "934b22f66a15191a02051a134aa356071b14853de995bc2117a4ccf9a115f189"
     },
     {
-      "id": "manifest-codex-directory",
-      "file": "manifest-codex-directory.tar.gz",
-      "sha256": "c2cfa56727d2042b561240fdc4b23c7abfb2c9e84fe060002311c5f8c86f8a34",
+      "id": "manifest-lime-directory",
+      "file": "manifest-lime-directory.tar.gz",
+      "sha256": "92e84f9943a05659e69bab9877e66c6d9bfd789b6b7ffdee928f7706be84175e",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
-      "id": "manifest-codex-implicit-file",
-      "file": "manifest-codex-implicit-file.tar.gz",
-      "sha256": "0dcdc03836aa9708823507c835447bcc384e09f069bdd2df14ce26c08c5808a5",
+      "id": "manifest-lime-implicit-file",
+      "file": "manifest-lime-implicit-file.tar.gz",
+      "sha256": "b77900c9f6791aaf10497fcd8c1c2cf86f080c2e296a0f155292d2dee5a7b49d",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
-      "id": "manifest-codex-implicit-directory",
-      "file": "manifest-codex-implicit-directory.tar.gz",
-      "sha256": "9e536fe0f7e8dfd0390a8ee52ce444594a0c6c423cd6109cb4966ae8311ca4be",
+      "id": "manifest-lime-implicit-directory",
+      "file": "manifest-lime-implicit-directory.tar.gz",
+      "sha256": "8287c55b8b6b07270e6ac45549c64b52a255198336e92716cd970a7a2130e355",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
-      "id": "manifest-codex-parent-file",
-      "file": "manifest-codex-parent-file.tar.gz",
-      "sha256": "ea72937e73d69ebc55aa01ccf7acd6441358fd6889edcc77f4246d0bef4bd635",
+      "id": "manifest-lime-parent-file",
+      "file": "manifest-lime-parent-file.tar.gz",
+      "sha256": "16f407dbaff3bdbdcce4ebd52a55492db5ca478a6570996f457cdf6fb778452b",
       "archiveAccepted": true,
       "manifestAccepted": false
     },
     {
-      "id": "manifest-valid-codex",
-      "file": "manifest-valid-codex.tar.gz",
-      "sha256": "0c54c50981b91af82c754a6fd2d6186531b8f06ac8b4d6a8fe0f6b8c317f81f0",
+      "id": "manifest-valid-lime",
+      "file": "manifest-valid-lime.tar.gz",
+      "sha256": "b29f433023860cd5a7d2aefc7072a14f55e4d50f76adf2473526acefb2cb96f3",
       "archiveAccepted": true,
       "manifestAccepted": true,
-      "manifestPath": ".codex-plugin/plugin.json",
+      "manifestPath": ".lime-plugin/plugin.json",
       "manifestHash": "20a68fe1cb7ea4f7d208648a86bfdddd6b93e188245a620c4268afeef7d4cffe"
     },
     {

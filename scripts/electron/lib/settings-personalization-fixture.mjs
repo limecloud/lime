@@ -149,7 +149,7 @@ try {
     logPrefix: "settings-personalization-fixture",
   });
   runtime = createTempRuntimeEnv();
-  runtime.env.CODEX_HOME = path.join(runtime.tempRoot, "codex");
+  runtime.env.LIME_HOME = path.join(runtime.tempRoot, "lime");
   runtime.appServerEnv = resolveElectronAppServerRuntimeEnv({
     env: {
       ...runtime.env,

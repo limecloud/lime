@@ -11,7 +11,7 @@ const INVALID_IMAGE_URL_ERROR: &str =
     "Tool call failed: invalid image output. Pass a base64 data URI instead";
 const INVALID_AUDIO_URL_ERROR: &str =
     "Tool call failed: invalid audio output. Pass a base64 data URI instead";
-const CODEX_IMAGE_DETAIL_META_KEY: &str = "codex/imageDetail";
+const LIME_IMAGE_DETAIL_META_KEY: &str = "lime/imageDetail";
 
 pub(super) fn serialize_output_text(
     scope: &mut v8::PinScope<'_, '_>,
@@ -166,7 +166,7 @@ fn parse_mcp_output_image(
     let detail = result
         .get("_meta")
         .and_then(JsonValue::as_object)
-        .and_then(|meta| meta.get(CODEX_IMAGE_DETAIL_META_KEY))
+        .and_then(|meta| meta.get(LIME_IMAGE_DETAIL_META_KEY))
         .and_then(JsonValue::as_str)
         .filter(|detail| matches!(*detail, "auto" | "low" | "high" | "original"))
         .map(str::to_string);

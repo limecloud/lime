@@ -44,10 +44,14 @@ export class BrowserActionApprovals {
     const key = browserToolCallKey(call);
     if (this.#pending.has(key))
       throw new Error("Browser action approval is already pending");
-    const snapshotId = ["click", "fill", "press"].includes(call.tool)
+    const snapshotId = ["click", "fill", "press", "select", "drag"].includes(
+      call.tool,
+    )
       ? readRequiredString(call.arguments, "snapshotId")
       : readString(call.arguments, "snapshotId");
-    const backendNodeId = ["click", "fill"].includes(call.tool)
+    const backendNodeId = ["click", "fill", "select", "drag"].includes(
+      call.tool,
+    )
       ? readPositiveInteger(call.arguments.backendNodeId)
       : null;
     const pending: PendingBrowserApproval = {

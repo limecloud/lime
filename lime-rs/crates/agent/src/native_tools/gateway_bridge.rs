@@ -1,5 +1,6 @@
 use crate::native_tools::NativeRegistration;
 use std::sync::Arc;
+use tool_runtime::computer_use::ComputerUseGateway;
 use tool_runtime::current_time::CurrentTimeGateway;
 use tool_runtime::gateway_dispatch_execution::RuntimeGatewayToolExecutionRegistration;
 use tool_runtime::image_task::ImageTaskGateway;
@@ -9,6 +10,16 @@ use tool_runtime::native_dispatch::NativeDispatch;
 use tool_runtime::tool_executor::RuntimeToolExecutorHandle;
 use tool_runtime::tool_search::ToolSearchGateway;
 use tool_runtime::video_task::VideoTaskGateway;
+
+pub(crate) fn create_computer_use_tools(
+    gateway: Arc<dyn ComputerUseGateway>,
+) -> Vec<NativeRegistration> {
+    create_gateway_tools(
+        NativeDispatch::builder()
+            .with_computer_use_gateway(gateway)
+            .build(),
+    )
+}
 
 pub(crate) fn create_memory_tools(gateway: Arc<dyn MemoryStoreGateway>) -> Vec<NativeRegistration> {
     create_gateway_tools(
@@ -276,6 +287,7 @@ mod tests {
                 params: &denied_params,
                 working_directory: dir.path().to_path_buf(),
                 session_id: "test-session".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -290,6 +302,7 @@ mod tests {
                 params: &params,
                 working_directory: dir.path().to_path_buf(),
                 session_id: "test-session".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -332,6 +345,7 @@ mod tests {
                 params: &denied_params,
                 working_directory: workspace.path().to_path_buf(),
                 session_id: "test-session".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -367,6 +381,7 @@ mod tests {
                 params: &params,
                 working_directory: workspace.path().to_path_buf(),
                 session_id: "test-session".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -414,6 +429,7 @@ mod tests {
                 params: &params,
                 working_directory: workspace.path().to_path_buf(),
                 session_id: "session-video-1".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },
@@ -454,6 +470,7 @@ mod tests {
                 params: &params,
                 working_directory: dir.path().to_path_buf(),
                 session_id: "test-session".to_string(),
+                tool_identity: None,
                 cancel_token: None,
                 turn_context: None,
             },

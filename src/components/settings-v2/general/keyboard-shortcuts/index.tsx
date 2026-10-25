@@ -5,7 +5,11 @@ import {
   subscribeCommands,
 } from "@/lib/commands/registry";
 import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
-import { bindingIdentity } from "@/lib/commands/bindings";
+import {
+  bindingIdentity,
+  bindingMatchesPrefix,
+  bindingsConflict,
+} from "@/lib/commands/bindings";
 import {
   resetCommandBindings,
   updateCommandBinding,
@@ -66,10 +70,8 @@ export function KeyboardShortcutsSettings() {
   const description = t("settings.keyboardShortcuts.externalLinkDescription");
   const filtered = commands.filter((command) =>
     byKeys && query
-      ? command.bindings.some(
-          (binding) =>
-            bindingIdentity(binding, platform) ===
-            bindingIdentity(query, platform),
+      ? command.bindings.some((binding) =>
+          bindingMatchesPrefix(binding, query, platform),
         )
       : matches(
           `${command.id} ${navigation(command.titleKey)} ${command.descriptionKey ? navigation(command.descriptionKey) : ""}`,
@@ -109,12 +111,18 @@ export function KeyboardShortcutsSettings() {
       (other) =>
         other.id !== command.id &&
         other.bindings.some((binding) =>
-          ids.includes(bindingIdentity(binding, platform)),
+          next.some((candidate) =>
+            bindingsConflict(binding, candidate, platform),
+          ),
         ),
     );
     if (
       conflict ||
-      new Set(ids).size !== ids.length ||
+      next.some((binding, index) =>
+        next
+          .slice(index + 1)
+          .some((other) => bindingsConflict(binding, other, platform)),
+      ) ||
       ids.some((id) => id === null)
     ) {
       setRowError({
@@ -162,6 +170,7 @@ export function KeyboardShortcutsSettings() {
         byKeys={byKeys}
         onModeChange={setByKeys}
         platform={platform}
+        bindings={commands.flatMap((command) => command.bindings)}
       />
       {error ? (
         <div role="alert" className="text-sm text-destructive">
@@ -190,6 +199,11 @@ export function KeyboardShortcutsSettings() {
             disabled={disabled}
             error={rowError?.id === command.id ? rowError.text : undefined}
             onUpdate={(bindings) => changeBinding(command, bindings)}
+            onCancelCapture={() =>
+              setRowError((current) =>
+                current?.id === command.id ? null : current,
+              )
+            }
           />
         ))}
         {showExternal ? (

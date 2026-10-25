@@ -12,7 +12,8 @@ export async function configureBrowserFixturePermissions(
   options,
   requestLog,
 ) {
-  if (options.scenario === "browse-approval") return;
+  if (["browse-approval", "first-open-approval"].includes(options.scenario))
+    return;
   await updateConfigFromPage(
     page,
     (config) => ({

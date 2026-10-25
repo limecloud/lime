@@ -10,7 +10,7 @@ use tokio::net::TcpStream;
 #[path = "model_tool_reply.rs"]
 mod tool_reply;
 
-type ToolScript = Box<dyn FnMut(&Capture) -> Option<(String, String, Value)> + Send>;
+type ToolScript = Box<dyn FnMut(&Capture) -> Option<String> + Send>;
 
 type SamplingGate = (
     tokio::sync::oneshot::Sender<()>,
@@ -199,7 +199,7 @@ impl ModelFixture {
             Box::new(move |_| {
                 first_tool
                     .take()
-                    .map(|(name, args)| ("origin-tool".to_string(), name, args))
+                    .map(|(name, args)| wire.tool_response("origin-tool", &name, &args))
             }),
         )
         .await
@@ -208,9 +208,35 @@ impl ModelFixture {
     pub(super) async fn start_with_script(
         wire: Wire,
         catalog: Value,
-        script: impl FnMut(&Capture) -> Option<(String, String, Value)> + Send + 'static,
+        mut script: impl FnMut(&Capture) -> Option<(String, String, Value)> + Send + 'static,
     ) -> Self {
-        Self::start_scripted(wire, Some(catalog), Box::new(script)).await
+        Self::start_scripted(
+            wire,
+            Some(catalog),
+            Box::new(move |capture| {
+                script(capture).map(|(id, name, args)| wire.tool_response(&id, &name, &args))
+            }),
+        )
+        .await
+    }
+
+    pub(super) async fn start_with_custom_tool(
+        wire: Wire,
+        catalog: Value,
+        name: &'static str,
+        source: String,
+    ) -> Self {
+        let mut source = Some(source);
+        Self::start_scripted(
+            wire,
+            Some(catalog),
+            Box::new(move |_| {
+                source
+                    .take()
+                    .map(|source| wire.custom_tool_response("custom-tool", name, &source))
+            }),
+        )
+        .await
     }
 
     async fn start_scripted(wire: Wire, catalog: Option<Value>, mut script: ToolScript) -> Self {
@@ -279,9 +305,7 @@ impl ModelFixture {
                 } else {
                     "MODEL-ASSISTANT-NOTE: observed project state".to_string()
                 };
-                let events = tool
-                    .map(|(id, name, args)| wire.tool_response(&id, &name, &args))
-                    .unwrap_or_else(|| wire.response(&text, mode));
+                let events = tool.unwrap_or_else(|| wire.response(&text, mode));
                 let headers = if mode == 2 {
                     "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n".to_string()
                 } else {

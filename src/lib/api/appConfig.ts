@@ -370,7 +370,7 @@ export function configLayerFile(layer: ConfigLayer): string | null {
   )
     return layer.name.file;
   if (layer.name.type === "project")
-    return `${layer.name.dotCodexFolder.replace(/[\\/]$/, "")}/config.toml`;
+    return `${layer.name.dotLimeFolder.replace(/[\\/]$/, "")}/config.toml`;
   return null;
 }
 

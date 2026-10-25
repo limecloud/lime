@@ -559,6 +559,12 @@ class NativeHost {
   std::string dispatch(const std::string& method, const std::string& request,
                        std::string* errorCode, std::string* errorMessage,
                        HRESULT* errorStatus) {
+    if (method == "computerUse.snapshot") {
+      return "{\"generation\":1,\"readiness\":\"unavailable\",\"targets\":[],\"reason\":\"windows_control_driver_not_implemented\",\"setupSteps\":[]}";
+    }
+    if (method == "computerUse.setup") {
+      return "{\"outcome\":{\"accepted\":false,\"approvedTarget\":null,\"generation\":1},\"snapshot\":{\"generation\":1,\"readiness\":\"unavailable\",\"targets\":[],\"reason\":\"windows_control_driver_not_implemented\",\"setupSteps\":[]}}";
+    }
     if (method == "windows.uiAutomation.capabilities") {
       return "{\"uiAutomation\":\"" +
              std::string(automation_ ? "ready" : "unavailable") +

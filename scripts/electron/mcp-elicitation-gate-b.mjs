@@ -1885,9 +1885,6 @@ export async function run({ pluginPackage = false } = {}) {
             tool_timeout: 60,
           },
           enabled_lime: true,
-          enabled_claude: false,
-          enabled_codex: false,
-          enabled_gemini: false,
           created_at: Date.now(),
         },
       });

@@ -7,6 +7,13 @@ pub struct ProjectGitStatusParams {
     pub root_path: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectGitWorktreeEnvironmentSetParams {
+    pub root_path: String,
+    pub config_path: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectGitDiffParams {

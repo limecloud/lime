@@ -1,7 +1,7 @@
 //! Thread settings and collaboration-mode projection for `ChatWidget`.
 //!
 //! App Server remains the canonical settings authority. This module only owns the ChatWidget
-//! snapshot and the Codex-shaped model/collaboration derivation used by the TUI surface.
+//! snapshot and the Lime-native model/collaboration derivation used by the TUI surface.
 
 use super::ChatWidget;
 use crate::app_server_session::ThreadSettingsPatch;
