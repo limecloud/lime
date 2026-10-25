@@ -32,6 +32,8 @@ use tokio::sync::RwLock;
 #[cfg(test)]
 mod agnes_tests;
 mod managed_model_fetch_access;
+mod model_info;
+pub use model_info::BASE_INSTRUCTIONS;
 mod output_metadata;
 mod runtime_metadata;
 #[cfg(test)]
@@ -42,7 +44,7 @@ pub use runtime_metadata::{
 
 const PROVIDER_MODELS_CACHE_KEY_PREFIX: &str = "provider_models_fetch_cache:";
 const PROVIDER_MODELS_CACHE_TTL_SECONDS: i64 = 10 * 24 * 60 * 60;
-const PROVIDER_MODELS_CACHE_TAXONOMY_VERSION: u32 = 5;
+const PROVIDER_MODELS_CACHE_TAXONOMY_VERSION: u32 = 7;
 const XIAOMI_MODEL_FETCH_HOST_KEYWORDS: &[&str] = &["xiaomimimo.com"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3391,9 +3393,10 @@ impl ModelRegistryService {
                 .to_string()
         });
         let canonical_model = maybe_get_canonical_model(canonical_provider_id, &model.id);
+        let has_explicit_capabilities = api_model_has_explicit_capability_snapshot(&model);
         let capability_provenance = if canonical_model.is_some() {
             ModelCapabilityProvenance::Canonical
-        } else if api_model_has_explicit_capability_snapshot(&model) {
+        } else if has_explicit_capabilities {
             ModelCapabilityProvenance::ProviderExplicit
         } else {
             ModelCapabilityProvenance::InferredHint
@@ -3490,7 +3493,7 @@ impl ModelRegistryService {
                 .as_ref()
                 .and_then(|model| model.tool_mode.as_deref())
         }));
-        EnhancedModelMetadata {
+        let mut metadata = EnhancedModelMetadata {
             id: model.id.clone(),
             display_name,
             provider_id: provider_id.to_string(),
@@ -3535,7 +3538,11 @@ impl ModelRegistryService {
             source: ModelSource::Api,
             created_at: now,
             updated_at: now,
+        };
+        if !has_explicit_capabilities {
+            model_info::apply_model_info(&mut metadata);
         }
+        metadata
     }
 
     fn build_provider_declared_model(
@@ -3612,11 +3619,11 @@ impl ModelRegistryService {
         self.build_provider_declared_model(model, provider_id, chrono::Utc::now().timestamp())
     }
 
-    /// 使用受信任的 endpoint-specific canonical Provider 身份构建声明模型元数据。
+    /// 使用 endpoint-specific Provider 身份与内置模型目录构建声明模型元数据。
     ///
     /// 自定义 Provider 可以接入官方上游 endpoint（例如 Agnes 的 OpenAI 兼容 API）。只有
-    /// `canonical_provider_id_for_api_host` 能识别的 endpoint 才能授权无 capability 的模型；
-    /// 任意未知 custom host 仍保持为 inferred hint。
+    /// endpoint 只用于识别 Provider 身份。精确匹配的内置模型描述与域名无关；
+    /// 未知模型保留 inferred hint，由路由使用基础聊天协议默认值。
     pub fn build_declared_model_metadata_for_endpoint(
         &self,
         provider_id: &str,

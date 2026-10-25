@@ -13,7 +13,7 @@ const {
   mockSkillExecutionGetDetail,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 自动引导", { timeout: 20_000 }, () => {
   it("工作区编排日志应支持继续加载更早的会话历史", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({

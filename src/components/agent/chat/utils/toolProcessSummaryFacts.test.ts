@@ -22,47 +22,7 @@ describe("toolProcessSummary facts", () => {
     await changeLimeLocale("zh-CN");
   });
 
-  it("应把工具生命周期 Soul metadata 透传到过程 narrative", () => {
-    const narrative = resolveToolProcessNarrative(
-      createToolCall({
-        metadata: {
-          soul_lifecycle: {
-            surface: "tool_lifecycle",
-            phase: "before_tool",
-            status: "running",
-            styleLevel: "L1",
-            riskLevel: "normal",
-            toneVariant: "cheeky_sassy",
-            profileId: "cheeky_sassy_executor",
-            packId: "com.lime.soul.cheeky-sassy-executor",
-          },
-          soul_surface: "tool_lifecycle",
-          soul_phase: "before_tool",
-          style_level: "L1",
-          risk_level: "normal",
-          tone_variant: "cheeky_sassy",
-          profile_id: "cheeky_sassy_executor",
-          pack_id: "com.lime.soul.cheeky-sassy-executor",
-        },
-      }),
-    );
 
-    expect(narrative).toEqual(
-      expect.objectContaining({
-        soulLifecycle: expect.objectContaining({
-          phase: "before_tool",
-          surface: "tool_lifecycle",
-        }),
-        soulSurface: "tool_lifecycle",
-        soulPhase: "before_tool",
-        styleLevel: "L1",
-        riskLevel: "normal",
-        toneVariant: "cheeky_sassy",
-        profileId: "cheeky_sassy_executor",
-        packId: "com.lime.soul.cheeky-sassy-executor",
-      }),
-    );
-  });
 
   it("应优先使用工具 metadata 中的结构化过程摘要 descriptor", async () => {
     await changeLimeLocale("en-US");

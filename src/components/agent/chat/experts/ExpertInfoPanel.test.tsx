@@ -770,7 +770,6 @@ describe("ExpertInfoPanel", () => {
         target: "project",
         directory: "project-report",
         name: "project-report",
-        sourceExcerpt: "workspace_skill:project-report@1.0.0",
       }),
     });
     expect(

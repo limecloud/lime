@@ -1,6 +1,11 @@
 import { parseJsonRpcRequestsFromInvokeTrace } from "../electron/lib/mcp-config-fixture-evidence.mjs";
 import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
 import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { openFixtureSessionFromSidebar } from "./claw-chat-current-fixture-session.mjs";
+import {
+  reloadRendererDocument,
+  waitForRendererReady,
+} from "./claw-chat-current-fixture-rpc.mjs";
 import {
   waitForApprovalPrompt,
   clickApprovalDecision,
@@ -186,6 +191,65 @@ export async function runBrowserFirstOpenScenario(ctx) {
       JSON.stringify(items).includes("newTab") &&
         JSON.stringify(items).includes(opened.tabId),
     );
+    const sessionOptions = {
+      ...options,
+      sessionId: identity.sessionId,
+      threadId: identity.threadId,
+    };
+    await page.getByRole("button", { name: "新聊天", exact: true }).click();
+    await page.waitForFunction(
+      () => !document.querySelector('[data-testid="browser-workspace"]'),
+    );
+    const hidden = await app.evaluate(
+      ({ BrowserWindow }, id) =>
+        BrowserWindow.getAllWindows()
+          .flatMap((window) => window.contentView.children)
+          .find((view) => view.webContents?.id === id)
+          ?.getVisible(),
+      opened.webContentsId,
+    );
+    check("native-browser-hidden-in-other-conversation", hidden === false);
+    await openFixtureSessionFromSidebar(page, sessionOptions, requestLog);
+    evidence.reopened = await ctx.waitForBrowserSurface(page, options);
+    check(
+      "reopening-restores-same-native-browser",
+      evidence.reopened.webContentsId === opened.webContentsId &&
+        evidence.reopened.tabId === opened.tabId,
+    );
+    evidence.preferencesBeforeReload = await page.evaluate(() => Object.fromEntries(
+      Object.keys(localStorage).filter((key) => key.startsWith("browser-presentation:")).map((key) => [key, localStorage.getItem(key)])));
+    console.log("[browser-first-open] stage=renderer-reload");
+    await reloadRendererDocument(page, options);
+    await waitForRendererReady(page, options);
+    await openFixtureSessionFromSidebar(page, sessionOptions, requestLog);
+    evidence.preferencesAfterReload = await page.evaluate(() => Object.fromEntries(
+      Object.keys(localStorage).filter((key) => key.startsWith("browser-presentation:")).map((key) => [key, localStorage.getItem(key)])));
+    evidence.reloaded = await ctx.waitForBrowserSurface(page, options);
+    check(
+      "renderer-reload-restores-same-native-browser",
+      evidence.reloaded.webContentsId === opened.webContentsId &&
+        evidence.reloaded.tabId === opened.tabId,
+    );
+    await ctx.waitForNativeBrowserCommit(
+      app,
+      options,
+      opened.webContentsId,
+      ctx.targetUrl,
+    );
+    await ctx.captureBrowserScreenshot(page, options, "browser-reopened");
+    await page
+      .getByRole("button", { name: "关闭侧边面板", exact: true })
+      .click();
+    await page.waitForFunction(
+      () => !document.querySelector('[data-testid="browser-workspace"]'),
+    );
+    await reloadRendererDocument(page, options);
+    await waitForRendererReady(page, options);
+    await openFixtureSessionFromSidebar(page, sessionOptions, requestLog);
+    check(
+      "explicit-collapse-survives-reload",
+      (await page.locator('[data-testid="browser-workspace"]').count()) === 0,
+    );
     const calls = parseJsonRpcRequestsFromInvokeTrace(
       JSON.stringify(ctx.readInvokeTrace()),
     );
@@ -219,6 +283,8 @@ export async function runBrowserFirstOpenScenario(ctx) {
     evidence.status = "pass";
     return evidence;
   } catch (error) {
+    evidence.preferencesAtFailure = await page.evaluate(() => Object.fromEntries(
+      Object.keys(localStorage).filter((key) => key.startsWith("browser-presentation:")).map((key) => [key, localStorage.getItem(key)]))).catch(() => null);
     evidence.status = "fail";
     evidence.error = String(error);
     evidence.guiAtFailure = await ctx

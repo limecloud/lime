@@ -179,7 +179,7 @@ export function useWorkspaceInitialSessionNavigation({
     if (shouldPauseForLocalDraftTransition) {
       pausedInitialSessionIdRef.current = normalizedInitialSessionId;
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.paused",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -216,7 +216,7 @@ export function useWorkspaceInitialSessionNavigation({
     ) {
       appliedInitialSessionIdRef.current = `${normalizedInitialSessionId}:cancelled-after-current-session-change`;
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.cancelledAfterCurrentSessionChange",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -234,7 +234,7 @@ export function useWorkspaceInitialSessionNavigation({
       consumeExplicitNavigationRequest();
       appliedInitialSessionIdRef.current = `${normalizedInitialSessionId}:skipped`;
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.skipped",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -268,7 +268,7 @@ export function useWorkspaceInitialSessionNavigation({
       )
     ) {
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.preserveCurrent",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -294,7 +294,7 @@ export function useWorkspaceInitialSessionNavigation({
       failedInitialSessionIdRef.current === normalizedInitialSessionId
     ) {
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.skipFailedSession",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -313,7 +313,7 @@ export function useWorkspaceInitialSessionNavigation({
       consumeExplicitNavigationRequest();
       appliedInitialSessionIdRef.current = appliedNavigationKey;
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.reuseInFlight",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -334,7 +334,7 @@ export function useWorkspaceInitialSessionNavigation({
 
     if (resolvedSwitchOptions?.waitForResolution) {
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.waitForResolution",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -374,7 +374,7 @@ export function useWorkspaceInitialSessionNavigation({
       consumeExplicitNavigationRequest();
       appliedInitialSessionIdRef.current = appliedNavigationKey;
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "initialSessionNavigation.deduped",
         {
           currentSessionId: normalizedCurrentSessionId,
@@ -394,7 +394,7 @@ export function useWorkspaceInitialSessionNavigation({
     pausedInitialSessionIdRef.current = null;
     switchTopicStarts.set(dedupeKey, startedAt);
     switchTopicStarts.set(sessionDedupeKey, startedAt);
-    logAgentDebug("AgentChatPage", "initialSessionNavigation.start", {
+    logAgentDebug("LocalConversationPage", "initialSessionNavigation.start", {
       currentSessionId: normalizedCurrentSessionId,
       forceRefresh:
         hasExplicitNavigationRequest ||
@@ -441,7 +441,7 @@ export function useWorkspaceInitialSessionNavigation({
         if (result === "error") {
           failedInitialSessionIdRef.current = normalizedInitialSessionId;
           logAgentDebug(
-            "AgentChatPage",
+            "LocalConversationPage",
             "initialSessionNavigation.error",
             {
               initialSessionId: normalizedInitialSessionId,
@@ -463,7 +463,7 @@ export function useWorkspaceInitialSessionNavigation({
         switchTopicStarts.delete(dedupeKey);
         externalNavigationStartsBySessionId.delete(normalizedInitialSessionId);
         logAgentDebug(
-          "AgentChatPage",
+          "LocalConversationPage",
           "initialSessionNavigation.error",
           {
             error,
@@ -471,7 +471,7 @@ export function useWorkspaceInitialSessionNavigation({
           },
           { level: "error" },
         );
-        console.error("[AgentChatPage] 恢复初始会话失败:", error);
+        console.error("[LocalConversationPage] 恢复初始会话失败:", error);
       })
       .finally(() => {
         if (

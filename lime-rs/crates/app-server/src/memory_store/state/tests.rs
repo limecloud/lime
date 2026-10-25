@@ -243,12 +243,13 @@ fn citation_usage_resolves_exported_source_thread_identity() {
     let temp = tempfile::tempdir().unwrap();
     let store = MemoryStateStore::new(temp.path());
     let content = "# rollout\n\n- threadId: `thread-1`\n";
+    let source_updated_at = test_now_seconds().to_string();
     store
         .register_rollout(
             "global",
             "rollout.md",
             content,
-            &test_now_seconds().to_string(),
+            &source_updated_at,
         )
         .unwrap();
     assert!(store
@@ -262,7 +263,7 @@ fn citation_usage_resolves_exported_source_thread_identity() {
             StageOneOutputSnapshot {
                 source_path: "rollout.md".into(),
                 content_hash: hash_content(content),
-                source_updated_at: test_now_seconds().to_string(),
+                source_updated_at,
                 raw_memory: Some("fact".into()),
                 rollout_summary: "summary".into(),
                 rollout_slug: None,

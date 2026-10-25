@@ -99,7 +99,7 @@ interface UseGeneralWorkbenchInitialDispatchRuntimeParams {
   queuedTurnsLength: number;
   sessionId?: string | null;
   setInput: Dispatch<SetStateAction<string>>;
-  setSoulArtifactVoiceEnabledForTurn: Dispatch<SetStateAction<boolean>>;
+
   shouldUseCompactGeneralWorkbench: boolean;
 }
 
@@ -144,7 +144,7 @@ export function useGeneralWorkbenchInitialDispatchRuntime({
   queuedTurnsLength,
   sessionId,
   setInput,
-  setSoulArtifactVoiceEnabledForTurn,
+
   shouldUseCompactGeneralWorkbench,
 }: UseGeneralWorkbenchInitialDispatchRuntimeParams): GeneralWorkbenchInitialDispatchRuntime {
   const hasTriggeredGuideRef = useRef(false);
@@ -441,13 +441,11 @@ export function useGeneralWorkbenchInitialDispatchRuntime({
       if (boundary.shouldDismissGeneralWorkbenchEntryPrompt) {
         clearGeneralWorkbenchEntryPrompt();
       }
-      setSoulArtifactVoiceEnabledForTurn(true);
     },
     [
       clearGeneralWorkbenchEntryPrompt,
       consumeInitialPrompt,
       initialDispatchKey,
-      setSoulArtifactVoiceEnabledForTurn,
     ],
   );
 
@@ -502,7 +500,6 @@ interface UseGeneralWorkbenchInitialAutoGuideRuntimeParams {
   setInput: Dispatch<SetStateAction<string>>;
   shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt: boolean;
   shouldUseCompactGeneralWorkbench: boolean;
-  systemPrompt?: string;
   consumedInitialPromptRef: MutableRefObject<string | null>;
   triggerAIGuideRef: MutableRefObject<() => void>;
 }
@@ -531,7 +528,6 @@ export function useGeneralWorkbenchInitialAutoGuideRuntime({
   setInput,
   shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
   shouldUseCompactGeneralWorkbench,
-  systemPrompt,
   consumedInitialPromptRef,
   triggerAIGuideRef,
 }: UseGeneralWorkbenchInitialAutoGuideRuntimeParams): void {
@@ -553,7 +549,6 @@ export function useGeneralWorkbenchInitialAutoGuideRuntime({
       !contentId ||
       messagesLength > 0 ||
       !hasProject ||
-      !systemPrompt ||
       isSending ||
       !canvasEmpty
     ) {
@@ -588,7 +583,7 @@ export function useGeneralWorkbenchInitialAutoGuideRuntime({
       consumedInitialPromptRef.current = initialDispatchKey;
       hasTriggeredGuideRef.current = true;
       if (import.meta.env.MODE !== "test") {
-        console.log("[AgentChatPage] 自动发送首条创作意图消息");
+        console.log("[LocalConversationPage] 自动发送首条创作意图消息");
       }
 
       void (async () => {
@@ -645,7 +640,7 @@ export function useGeneralWorkbenchInitialAutoGuideRuntime({
 
       hasTriggeredGuideRef.current = true;
       if (import.meta.env.MODE !== "test") {
-        console.log("[AgentChatPage] 工作区上下文：触发 AI 引导");
+        console.log("[LocalConversationPage] 工作区上下文：触发 AI 引导");
       }
       triggerAIGuideRef.current();
       return;
@@ -653,7 +648,7 @@ export function useGeneralWorkbenchInitialAutoGuideRuntime({
 
     hasTriggeredGuideRef.current = true;
     if (import.meta.env.MODE !== "test") {
-      console.log("[AgentChatPage] 自动触发 AI 创作引导");
+      console.log("[LocalConversationPage] 自动触发 AI 创作引导");
     }
     triggerAIGuideRef.current();
   }, [
@@ -676,7 +671,6 @@ export function useGeneralWorkbenchInitialAutoGuideRuntime({
     setInput,
     shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
     shouldUseCompactGeneralWorkbench,
-    systemPrompt,
     consumedInitialPromptRef,
     hasTriggeredGuideRef,
     triggerAIGuideRef,

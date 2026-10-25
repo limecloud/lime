@@ -3,10 +3,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { LIME_THEME_STORAGE_KEY } from "@/lib/appearance/themeMode";
-import {
-  LIME_COLOR_SCHEME_STORAGE_KEY,
-  LIME_COLOR_SCHEMES,
-} from "@/lib/appearance/colorSchemes";
 import { AppearanceSettings } from "./index";
 
 let root: Root;
@@ -78,36 +74,38 @@ describe("AppearanceSettings", () => {
     expect(window.localStorage.getItem(LIME_THEME_STORAGE_KEY)).toBe("system");
   });
 
-  it("皮肤列表应保留全部真实预设并持久化选择", () => {
+  it("忽略旧皮肤偏好，外观页只提供系统、浅色和深色模式", () => {
+    localStorage.setItem("lime.appearance.skin", "dream-blossom");
     act(() => root.render(<AppearanceSettings />));
-    const select = container.querySelector<HTMLSelectElement>("select")!;
-    expect(select.options).toHaveLength(LIME_COLOR_SCHEMES.length);
-    const next = LIME_COLOR_SCHEMES.find((skin) => skin.id !== select.value)!;
-    act(() => {
-      select.value = next.id;
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(window.localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
-      next.id,
-    );
+    expect(container.querySelector("select")).toBeNull();
+    expect(
+      container.querySelector('[data-settings-target="appearance-skin"]'),
+    ).toBeNull();
+    expect(container.querySelectorAll('[role="radio"]')).toHaveLength(3);
+    expect(document.documentElement.dataset.limeSkin).toBeUndefined();
+    expect(
+      document.documentElement.style.getPropertyValue("--lime-app-bg"),
+    ).toBe("");
   });
 
-  it("随机操作应切换到另一个真实皮肤", () => {
+  it("另一个窗口修改外观模式后应同步当前选项和根节点", () => {
     act(() => root.render(<AppearanceSettings />));
-    const previous =
-      container.querySelector<HTMLSelectElement>("select")!.value;
-    act(() =>
+    act(() => {
+      localStorage.setItem(LIME_THEME_STORAGE_KEY, "dark");
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: LIME_THEME_STORAGE_KEY }),
+      );
+    });
+    expect(
       container
-        .querySelector<HTMLButtonElement>('button[aria-label="随机"]')!
-        .click(),
-    );
-    const next = window.localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY);
-    expect(next).not.toBe(previous);
-    expect(LIME_COLOR_SCHEMES.some((skin) => skin.id === next)).toBe(true);
+        .querySelector('[role="radio"][aria-label="深色"]')
+        ?.getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
 
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-    "%s 的模式和皮肤均有可访问名称",
+    "%s 的三种外观模式均有可访问名称",
     async (locale) => {
       await changeLimeLocale(locale);
       act(() => root.render(<AppearanceSettings />));
@@ -120,9 +118,7 @@ describe("AppearanceSettings", () => {
           ?.getAttribute("aria-label"),
       ).toBeTruthy();
       expect(container.querySelectorAll('[role="radio"]')).toHaveLength(3);
-      expect(
-        container.querySelector("select")?.getAttribute("aria-label"),
-      ).toBeTruthy();
+      expect(container.querySelector("select")).toBeNull();
       expect(container.textContent).not.toContain("settings.");
     },
   );

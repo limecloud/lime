@@ -189,9 +189,10 @@ export function shouldAutoRefreshWorkspaceRightSurfacePending({
   const hasPendingListScope = Boolean(
     sessionId?.trim() || workspaceId?.trim() || workspaceRoot?.trim(),
   );
+  if (sceneIsPreparingSend) return false;
   // Tools request visible surfaces while the turn is running, including approval waits.
   if (sessionId?.trim()) return true;
-  if (taskCenterHomeHotpathActive || sceneIsSending || sceneIsPreparingSend) {
+  if (taskCenterHomeHotpathActive || sceneIsSending) {
     return false;
   }
 
@@ -234,7 +235,7 @@ export function shouldPauseTaskCenterInitialSessionNavigation({
   draftSurfaceActive: boolean;
   hasHomeHotpathPending: boolean;
 }): boolean {
-  if (agentEntry !== "claw" && agentEntry !== "new-task") {
+  if (agentEntry !== "conversation" && agentEntry !== "new-task") {
     return false;
   }
 
@@ -273,7 +274,7 @@ export function resolveTaskCenterHomeSurfaceState({
   const shouldProtectInitialSessionRoute =
     hasInitialSessionRoute && !draftSurfaceActive;
   const shouldRenderEmbeddedHome = Boolean(
-    agentEntry === "claw" &&
+    agentEntry === "conversation" &&
     !sessionSwitchPending &&
     !shouldProtectInitialSessionRoute &&
     !hasConversationActivity &&

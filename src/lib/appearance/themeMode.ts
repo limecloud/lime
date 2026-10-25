@@ -1,39 +1,13 @@
-import { applyLimeColorScheme, loadLimeColorSchemeId } from "./colorSchemes";
-
 export const LIME_THEME_STORAGE_KEY = "theme";
 export const LIME_THEME_CHANGED_EVENT = "lime-theme-changed";
 
 export type LimeThemeMode = "light" | "dark" | "system";
 export type LimeEffectiveThemeMode = "light" | "dark";
 
-export interface LimeThemeModeOption {
-  id: LimeThemeMode;
-  label: string;
-  description: string;
-}
-
 export interface LimeThemeChangedEventDetail {
   themeMode: LimeThemeMode;
   effectiveThemeMode: LimeEffectiveThemeMode;
 }
-
-export const LIME_THEME_MODE_OPTIONS: readonly LimeThemeModeOption[] = [
-  {
-    id: "light",
-    label: "浅色",
-    description: "适合白天和高亮环境。",
-  },
-  {
-    id: "dark",
-    label: "深色",
-    description: "降低夜间使用时的眩光。",
-  },
-  {
-    id: "system",
-    label: "跟随系统",
-    description: "自动同步系统外观。",
-  },
-];
 
 const themeModes = new Set<LimeThemeMode>(["light", "dark", "system"]);
 let systemThemeCleanup: (() => void) | null = null;
@@ -83,7 +57,6 @@ export function applyLimeThemeMode(themeMode: string): LimeEffectiveThemeMode {
     );
     document.documentElement.dataset.limeTheme = resolvedThemeMode;
     document.documentElement.dataset.limeThemeEffective = effectiveThemeMode;
-    applyLimeColorScheme(loadLimeColorSchemeId(), { effectiveThemeMode });
   }
 
   return effectiveThemeMode;

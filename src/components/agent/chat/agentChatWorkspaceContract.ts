@@ -37,7 +37,7 @@ export interface AgentChatWorkspaceProps {
   initialRequestMetadata?: Record<string, unknown>;
   initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
-  agentEntry?: "new-task" | "claw";
+  agentEntry?: "new-task" | "conversation";
   immersiveHome?: boolean;
   theme?: string;
   initialCreationMode?: CreationMode;

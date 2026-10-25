@@ -1,7 +1,6 @@
 import React from "react";
 import { agentText } from "./harnessPanelText";
 import { LIME_THEME_CHANGED_EVENT } from "@/lib/appearance/themeMode";
-import { LIME_COLOR_SCHEME_CHANGED_EVENT } from "@/lib/appearance/colorSchemes";
 import { readTerminalTheme } from "./terminalTheme";
 import { handleTerminalKeyEvent } from "./terminalKeyboard";
 import {
@@ -313,10 +312,8 @@ export function TerminalPanel({
       if (terminal.rows > 0) terminal.refresh(0, terminal.rows - 1);
     };
     window.addEventListener(LIME_THEME_CHANGED_EVENT, updateTheme);
-    window.addEventListener(LIME_COLOR_SCHEME_CHANGED_EVENT, updateTheme);
     return () => {
       window.removeEventListener(LIME_THEME_CHANGED_EVENT, updateTheme);
-      window.removeEventListener(LIME_COLOR_SCHEME_CHANGED_EVENT, updateTheme);
     };
   }, []);
 

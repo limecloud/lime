@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClawAgentParams, buildHomeAgentParams } from "./navigation";
+import { buildConversationParams, buildHomeAgentParams } from "./navigation";
 
 describe("buildHomeAgentParams", () => {
   it("应返回 general 主题且解锁", () => {
@@ -42,51 +42,51 @@ describe("buildHomeAgentParams", () => {
   });
 });
 
-describe("buildClawAgentParams", () => {
+describe("buildConversationParams", () => {
   it("应返回 Claw 生成页参数", () => {
-    const params = buildClawAgentParams();
+    const params = buildConversationParams();
 
-    expect(params.agentEntry).toBe("claw");
+    expect(params.agentEntry).toBe("conversation");
     expect(params.theme).toBe("general");
     expect(params.lockTheme).toBe(false);
     expect(params.immersiveHome).toBe(false);
   });
 
   it("应允许透传项目上下文，但不覆盖核心字段", () => {
-    const params = buildClawAgentParams({
+    const params = buildConversationParams({
       projectId: "proj-2",
       immersiveHome: true,
     });
 
     expect(params.projectId).toBe("proj-2");
-    expect(params.agentEntry).toBe("claw");
+    expect(params.agentEntry).toBe("conversation");
     expect(params.immersiveHome).toBe(true);
     expect(params.theme).toBe("general");
   });
 
   it("应允许显式透传初始主题", () => {
-    const params = buildClawAgentParams({
+    const params = buildConversationParams({
       theme: "general",
     });
 
-    expect(params.agentEntry).toBe("claw");
+    expect(params.agentEntry).toBe("conversation");
     expect(params.theme).toBe("general");
     expect(params.lockTheme).toBe(false);
   });
 
   it("应允许显式锁定主题，避免被项目工作区主题覆盖", () => {
-    const params = buildClawAgentParams({
+    const params = buildConversationParams({
       theme: "general",
       lockTheme: true,
     });
 
-    expect(params.agentEntry).toBe("claw");
+    expect(params.agentEntry).toBe("conversation");
     expect(params.theme).toBe("general");
     expect(params.lockTheme).toBe(true);
   });
 
   it("应透传首页壳提交后的首条上下文参数", () => {
-    const params = buildClawAgentParams({
+    const params = buildConversationParams({
       projectId: "proj-3",
       initialUserPrompt: "整理成 notebook 工作方式",
       initialCreationMode: "framework",
@@ -99,7 +99,7 @@ describe("buildClawAgentParams", () => {
       openBrowserAssistOnMount: true,
     });
 
-    expect(params.agentEntry).toBe("claw");
+    expect(params.agentEntry).toBe("conversation");
     expect(params.projectId).toBe("proj-3");
     expect(params.initialUserPrompt).toBe("整理成 notebook 工作方式");
     expect(params.initialCreationMode).toBe("framework");
@@ -113,12 +113,12 @@ describe("buildClawAgentParams", () => {
   });
 
   it("应允许首页壳透传新会话时间戳", () => {
-    const params = buildClawAgentParams({
+    const params = buildConversationParams({
       projectId: "proj-4",
       newChatAt: 1234567890,
     });
 
-    expect(params.agentEntry).toBe("claw");
+    expect(params.agentEntry).toBe("conversation");
     expect(params.projectId).toBe("proj-4");
     expect(params.newChatAt).toBe(1234567890);
   });

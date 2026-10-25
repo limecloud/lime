@@ -35,6 +35,7 @@ export interface PendingBrowseApproval extends BrowserPermissionAnchor {
 interface BrowseGrant extends BrowserPermissionScope {
   accessApprovalLifetime: "turn" | "thread";
   policyRevision: number;
+  fullAccess?: boolean;
 }
 
 const threadApprovalText = {
@@ -93,10 +94,46 @@ export class BrowserPermissions {
   readonly #policy: BrowserTabPolicy;
   readonly #grants = new Map<string, BrowseGrant>();
   readonly #pending = new Map<string, PendingBrowseApproval>();
+  readonly #fullAccessThreads = new Set<string>();
   #locale: keyof typeof threadApprovalText = "en-US";
 
   constructor(policy: BrowserTabPolicy) {
     this.#policy = policy;
+  }
+
+  /** Only accepted App Server settings may update conversation access. */
+  setThreadAccess(
+    ownerWebContentsId: number,
+    threadId: string,
+    settings: unknown,
+  ): void {
+    const value =
+      settings && typeof settings === "object"
+        ? (settings as Record<string, unknown>)
+        : {};
+    const fullAccess =
+      value.approvalPolicy === "never" &&
+      (value.sandboxPolicy === "danger-full-access" ||
+        value.sandboxPolicy === "dangerFullAccess" ||
+        (value.sandboxPolicy &&
+          typeof value.sandboxPolicy === "object" &&
+          (value.sandboxPolicy as Record<string, unknown>).type ===
+            "dangerFullAccess"));
+    const key = JSON.stringify([ownerWebContentsId, threadId]);
+    if (this.#fullAccessThreads.has(key) === Boolean(fullAccess)) return;
+    if (fullAccess) this.#fullAccessThreads.add(key);
+    else this.#fullAccessThreads.delete(key);
+    this.revoke(
+      (scope) =>
+        scope.ownerWebContentsId === ownerWebContentsId &&
+        scope.threadId === threadId &&
+        Boolean((scope as BrowseGrant).fullAccess),
+    );
+  }
+
+  clearThreadAccess(): void {
+    this.#fullAccessThreads.clear();
+    this.revoke();
   }
 
   setLocale(locale: string): void {
@@ -117,9 +154,11 @@ export class BrowserPermissions {
       return false;
     }
     const decision = this.#policy.decision("browse", url);
-    const grant = this.#grants.get(
-      scopeKey(scope, origin, this.#policy.accessApprovalLifetime(url)),
-    );
+    const grant =
+      this.#grants.get(scopeKey(scope, origin, "turn")) ??
+      this.#grants.get(
+        scopeKey(scope, origin, this.#policy.accessApprovalLifetime(url)),
+      );
     return (
       decision === "allow" ||
       (decision === "ask" && grant?.policyRevision === this.#policy.revision)
@@ -135,6 +174,20 @@ export class BrowserPermissions {
     if (this.#policy.decision("browse", url) === "deny")
       throw new Error(`Browser Agent browsing is denied for ${origin}`);
     if (this.allows(anchor, url)) return null;
+    if (
+      this.#fullAccessThreads.has(
+        JSON.stringify([anchor.ownerWebContentsId, anchor.threadId]),
+      ) &&
+      !this.#policy.requiresBrowseApproval(url)
+    ) {
+      this.#grants.set(scopeKey(anchor, origin, "turn"), {
+        ...anchor,
+        accessApprovalLifetime: "turn",
+        policyRevision: this.#policy.revision,
+        fullAccess: true,
+      });
+      return null;
+    }
     const lifetime = this.#policy.accessApprovalLifetime(url);
     const key = browserToolCallKey(call);
     if (this.#pending.has(key))

@@ -1,4 +1,5 @@
 use super::*;
+use std::path::PathBuf;
 
 #[test]
 fn loads_native_inline_map_and_file_wrapper_and_isolates_invalid_sibling() {

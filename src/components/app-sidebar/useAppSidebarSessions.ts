@@ -44,7 +44,7 @@ interface UseAppSidebarSessionsParams {
   sidebarSearchOpen: boolean;
   sidebarSearchQuery: string;
   isNewTaskHome: boolean;
-  isClawTaskCenter: boolean;
+  isConversation: boolean;
   activeAgentStreaming?: boolean;
   conversationUntitledLabel: string;
 }
@@ -93,7 +93,7 @@ export function useAppSidebarSessions({
   sidebarSearchOpen,
   sidebarSearchQuery,
   isNewTaskHome,
-  isClawTaskCenter,
+  isConversation,
   activeAgentStreaming = false,
   conversationUntitledLabel,
 }: UseAppSidebarSessionsParams) {
@@ -492,7 +492,7 @@ export function useAppSidebarSessions({
       };
     }
 
-    if (isClawTaskCenter && hasCachedCurrentSessionSidebarEntry) {
+    if (isConversation && hasCachedCurrentSessionSidebarEntry) {
       return scheduleMinimumDelayIdleTask(
         () => {
           void loadRecentSidebarSessionsRef.current();
@@ -507,7 +507,7 @@ export function useAppSidebarSessions({
     void loadRecentSidebarSessionsRef.current();
   }, [
     hasCachedCurrentSessionSidebarEntry,
-    isClawTaskCenter,
+    isConversation,
     isNewTaskHome,
     activeProjectIdsKey,
     openedProjectCwdsKey,

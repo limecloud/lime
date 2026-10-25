@@ -18,11 +18,20 @@ Codex 是唯一主对标。Agent loop、Thread/Turn/Item、App Server、状态�
 
 ## 2. 仓库目录地图
 
+会话入口为 `LocalConversationPage`（Desktop REA 已确认名称），使用既有
+`ComposerController -> useWorkspaceSendActions -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item`
+主链。Renderer 不根据自然句创建海报、翻译、发布等专用任务，不本地代答技能安装结果，
+未接受提交只展示真实用户输入；工具和思考仅消费 runtime Item。空态使用中央 Lime icon、简短标题与底部统一 Composer。自定义皮肤、侧栏快速换肤、
+首页装饰和创作 Banner 已删除，仅保留固定明暗外观。Browser 完全访问只消费 App Server 已接受
+的会话设置，企业 deny/强制审批继续由原 Browser policy owner 裁决。
+Architecture impact: major / consumer migration；责任 root 已确认上述主链，实际验收边界见
+[浏览器与会话收口计划](../exec-plans/browser-runtime-right-surface-plan.md)。
+
 2026-10-25 用户确认以整目录复制提高取样效率，同时保留 Lime 品牌与产品边界。整树只作为
 一次性迁移输入，临时复制目录已经移除，不进入 Lime workspace、构建图或产品导航。Rust
 迁移代码必须按许可证和真实消费者的最小依赖闭包直接落在 `lime-rs/crates/**` 的唯一
 领域 owner；能力接入后删除重复实现，不启动第二 runtime，也不再向中转目录逐文件搬运。
-产品根、对外入口、主题、多模型/多协议、服务端协议与发布产物继续由 Lime current owner
+产品根、对外入口、多模型/多协议、服务端协议与发布产物继续由 Lime current owner
 负责，Codex 登录、Cloud、账号、遥测、计费和发布服务不纳入。
 Architecture impact: major / migration in progress；用户已明确上述顺序，责任 root。
 第一条已收敛的消费者为 `lime execpolicy check -> execpolicy::ExecPolicyCheckCommand ->
@@ -1143,7 +1152,7 @@ flowchart LR
   Gateway --> Server["App Server → canonical Thread/Turn/Item"]
 ```
 
-`sidebar-width` 仅存用户的显示偏好，默认340；Shell 包含52px图标栏，展开最小290、最大520，折叠只收起上下文列。PageSurface44px标题栏与52px上下文页头来自同包分支；图标控件36px及两侧8px形成固有宽度。设置范围240..520，两者都受主区空间约束；不存业务状态。设置用同一宽度owner，返回委托既有navigation guard，不再持有全局rail或独立窄窗口浮层。首页 Banner 由 EmptyStateHero presentation 持有；Composer 在 EmptyStateLayout 独立下部区域，单侧24px留白、最大48rem。删除旧13任务入口、Guide/Drawer/Manager及专用状态和Workspace接线；没有真实 ambient 投影时不渲染伪建议。后台会话只由 useWorkspaceBackgroundSessionRuntime 投影 canonical identity/status 给既有侧栏。首页不再计算无人消费的任务卡或注入 Memory/Channels 回调，ConversationScene 直接消费唯一 landingSurface；删除无效 creation selector，主题装饰不预留Composer内部宽度。主题、多模型、Banner仍归既有owner。架构图由责任root确认；无业务后端/协议owner迁移。
+`sidebar-width` 仅存用户的显示偏好，默认340；Shell 包含52px图标栏，展开最小290、最大520，折叠只收起上下文列。PageSurface44px标题栏与52px上下文页头来自同包分支；图标控件36px及两侧8px形成固有宽度。设置范围240..520，两者都受主区空间约束；不存业务状态。设置用同一宽度owner，返回委托既有navigation guard，不再持有全局rail或独立窄窗口浮层。首页 Banner 由 EmptyStateHero presentation 持有；Composer 在 EmptyStateLayout 独立下部区域，单侧24px留白、最大48rem。删除旧13任务入口、Guide/Drawer/Manager及专用状态和Workspace接线；没有真实 ambient 投影时不渲染伪建议。后台会话只由 useWorkspaceBackgroundSessionRuntime 投影 canonical identity/status 给既有侧栏。首页不再计算无人消费的任务卡或注入 Memory/Channels 回调，ConversationScene 直接消费唯一 landingSurface；删除无效 creation selector，主题装饰不预留Composer内部宽度。多模型、Banner仍归既有owner。架构图由责任root确认；无业务后端/协议owner迁移。
 
 共享页头采用同包已证 `HeaderAction` 的当前 scope、首次注册顺序、order 排序及实例身份清理。侧栏开关注册 left/order=1，由唯一窗口 renderer 呈现。`Header` 将页面 children/metadata 注册到同一 renderer，`MainContentLayout` 为 primary → fallback → default 两级选择，无旧页面恢复栈。`AppShellContent` 测量实际主区，页头避让共享左右动作；会话页头不再在工作区内占一行，不再保留46px宿主/inset或侧栏折叠专用补位变量。页头仅消费当前线程身份和操作，不再派生独立状态、工作目录或重复Home/设置导航；普通线程标题与无标题分支以实际安装包合同区分，不能从rail布局推断。AppShell/AppShellHeader/AppShellContent 是本地owner名称；当前没有过渡context，按已证立即清理分支实现。统一工作区其他槽、完整fade分支及原线程开发名称仍待证，不声明全壳等价。实现与产品验证分别由[共享页头计划](../exec-plans/codex-shared-page-header-20261018.md)持有。责任root确认依赖方向与业务owner未变；未新增backend/read model或兼容层。
 
@@ -1374,8 +1383,9 @@ macOS 的 Application Group、Input Monitoring、HID、Computer Use、PIP 等能
 Accessibility/Input Monitoring、Apple Events 授权查询/consent request、Screen Recording、Launch Services、security-scoped bookmark、CGWindow/NSScreen、IOHID
 （含拓扑变化事件）、bare modifier、LocalAuthentication 和 Secure Enclave device-key 的结构化结果；
 Screen Recording 还支持在 helper 内生成受权限保护的全屏、显示器或窗口 PNG 快照；Chronicle/ScreenCaptureKit
-媒体管线、PIP 以及 Computer Use 控制注入仍保持 `not_configured`。helper 已提供受 Accessibility 授权保护的只读
-`accessibilityTree.read` 观察结果（有界深度、节点数和文本长度），以及 CoreGraphics `display.watch.start/stop` 拓扑事件，但不注入鼠标/键盘事件。窗口控制还支持 Accessibility AX raise、窗口所属应用
+媒体管线与 PIP 仍保持 `not_configured`。Computer Use 的受控输入由下文同一工具 owner 的
+目标授权、lease/fence 与 helper 校验承接，不开放通用无授权输入。helper 另提供受 Accessibility 授权保护的只读
+`accessibilityTree.read` 观察结果（有界深度、节点数和文本长度），以及 CoreGraphics `display.watch.start/stop` 拓扑事件。窗口控制还支持 Accessibility AX raise、窗口所属应用
 hide/unhide、按锚点定位、显式堆叠顺序和带原始可见性恢复的 hide-for-task lease（通过 AX
 `kAXHiddenAttribute` 设置目标应用可见性）；这组接口不冒充私有 overlay
 或 Remote Hosted PIP。Application Group 仍不申请或复制 OpenAI Team ID，
@@ -1579,7 +1589,7 @@ flowchart LR
 
 未保存保护继续使用 `useAppNavigation` 的唯一请求/提交状态：表单经 `useSettingsDraft -> SettingsDraftContext` 注册自身 dirty/saving 投影；pending target 不改变 canonical 参数、requestId、来处或恢复存储。所有设置与根导航动作均进入该入口。确认只提供继续编辑和放弃；关闭清除 pending，放弃提交最后一次目标且不隐式保存；saving 时拒绝放弃，取消后迟到保存不会发起导航。注册按独立 token 清理，不让旧表单的 cleanup 清除另一表单的报告。
 
-首批只有 Memory 接入。`general/memory/useMemorySettingsDraft.ts` 唯一拥有其加载、draft/snapshot、保存和取消；`memoryConfig.ts` 承接原纯规范化函数，删除页面内联副本。成功保存只确认已提交 snapshot，若用户在途编辑则保留新 draft；失败保留输入，卸载后结果不通知新表单。SOUL 未应用文本仍属页面局部输入，导航保护覆盖它；Apply 消费该输入，Cancel 清理它，Save 不代为应用。持久化继续调用既有 getConfig 与串行 updateConfig -> saveConfig，只合并 Memory 到最新配置，避免旧整份快照覆盖其他修改；不增加协议、后端 store 或 dirty 业务副本。参考外部 dirty registry 尚未恢复，当前实现不宣称是原始内部类型。架构影响为既有 renderer 导航的表单状态接线；图已同步，责任 root 于 2026-10-15 确认目录、数据流、依赖与验证边界。其他表单不因共享 gateway 自动获得保护。
+首批只有 Memory 接入。`general/memory/useMemorySettingsDraft.ts` 唯一拥有其加载、draft/snapshot、保存和取消；`memoryConfig.ts` 承接原纯规范化函数，删除页面内联副本。成功保存只确认已提交 snapshot，若用户在途编辑则保留新 draft；失败保留输入，卸载后结果不通知新表单。持久化继续调用既有 getConfig 与串行 updateConfig -> saveConfig，只合并 Memory 到最新配置，避免旧整份快照覆盖其他修改；不增加协议、后端 store 或 dirty 业务副本。参考外部 dirty registry 尚未恢复，当前实现不宣称是原始内部类型。架构影响为既有 renderer 导航的表单状态接线；图已同步，责任 root 于 2026-10-15 确认目录、数据流、依赖与验证边界。其他表单不因共享 gateway 自动获得保护。
 
 页内修正笔记由 `general/memory/MemoryNoteEditor.tsx` 独立拥有输入版本、保存锁和 dirty/saving 投影，仍向同一 SettingsDraftContext 注册；原 MemoryStoreStatusPanel 内联表单与保存逻辑删除。持久化只走既有 memoryStore/addNote；成功仅消费提交版本，失败与在途新编辑保留，卸载后不刷新/通知新 owner。配置保存/取消与笔记登记互不代替。Memory 的局部页签仅隐藏日常面板，保留唯一实例及其草稿，避免切页签绕过保护；真正离开设置仍由根导航决定。保存后的健康刷新在卸载后忽略结果；其他维护操作不因此宣称已取得在途/迟到验收。此为上图 Existing settings page owners 的职责拆分与生命周期修复，非重大架构；root 于 2026-10-15 确认 owner、依赖、数据流与验证边界，无新协议、runtime 或业务 authority。
 
@@ -1736,7 +1746,7 @@ outer JSON-RPC id 只负责 App Server 到客户端的响应关联，domain toke
 
 Composer 的唯一 Renderer 文档 owner 是 `input-kit::ComposerController`，持有 ProseMirror `EditorState` 与附件/路径/能力资源。`ComposerEditor` 只持有 `EditorView`，引用该 state 并把 Transaction 交回 Controller；`applyTransaction` 消费 appended transactions 后原子发布 revision/snapshot。严格 JSON schema 接收 doc/paragraph/code_block/text/hard_break/mention/paste/text_element 与 link mark；code_block 仅容纳无 mark 的 text，保留 language 与 autoDetectLanguage。link 保存 href/title/sourceAppId、literal source、flags 与有限数值 occurrence；普通链接仅接受 HTTP/HTTPS/mailto，能力提及协议由独立 owner 处理。文本、选择区、mention 与 pending paste 由同一文档派生，不建第二份 React/TipTap document store。主输入 DOM 为 `[data-testid="composer-editor"][role="textbox"]`，file/skill/plugin/paste/element 均为不可编辑 atom；普通表单 textarea 不受影响。提及检测与选择动作统一通过同一PM投影的atom-aware候选解析；不可编辑标签和跨atom的查询不能打开菜单或拦截历史方向键，可编辑正文中的新触发字符仍有效。
 
-Composer 路径附件只消费既有上下文资源与移除/发送动作；独立 KnowledgePack 页面、选择/导入/编译、专用 Skill executor、knowledge crate 与八条知识 RPC 已删除。普通文件打开/预览继续消费 canonical identity；专家广场的资料整理专家使用实际 bundled personal-ip Skill，交付工作区 Markdown，并沿现役工具权限执行。历史用户文档不删除。不存在知识平台兼容 owner、后台编译或第二套上下文状态；图片任务的通用 persona metadata 与全局 Soul owner 继续保留，专用 persona-pack 提示注入已删除。
+Composer 路径附件只消费既有上下文资源与移除/发送动作；独立 KnowledgePack 页面、选择/导入/编译、专用 Skill executor、knowledge crate 与八条知识 RPC 已删除。普通文件打开/预览继续消费 canonical identity；专家广场的资料整理专家使用实际 bundled personal-ip Skill，交付工作区 Markdown，并沿现役工具权限执行。历史用户文档不删除。不存在知识平台兼容 owner、后台编译或第二套上下文状态；专用 persona-pack 提示注入和全局 Soul 已删除。
 
 ```mermaid
 flowchart LR
@@ -1857,7 +1867,7 @@ production `ProjectionStore` 通过显式 `AgentRoot` 注入 `RolloutStore`：�
 
 flat EventLog 仍是 `deprecated / bounded diagnostics`，旧 `runtime/projection_1.sqlite` 是 `deprecated / frozen-for-removal` read model；二者不得新增 transcript payload、第二 canonical writer或长期兼容读取。启动期 queued recovery 禁止扫描 raw EventLog；projection 中的 queued row 只有在 `(session_id, thread_id)` 能 join current `canonical_threads`，且 production Thread 有非空 `rollout_path` 时才可恢复。启用 rollout 的生产实例不再允许 raw EventLog 重写 canonical ThreadStore；旧 `canonical_threads.rollout_path IS NULL` 行也拒绝继续 append，不导入旧 session/event/DB。Codex v2 `thread/archive` / `thread/unarchive`、macOS JSON-RPC/Gate B 和三库物理 inventory 已完成；P1 仍受 projection reader 退役、`last_sequence` owner 收口、旧 source exact-path cleanup guard 与 Windows Gate B 阻塞，不得标成完成。`sessionFile/*` 生成文件归 `AgentRoot/artifacts/sessions/<session-id>`；bounded text diagnostics 固定为 `AgentRoot/observability/log/lime.log`。其他旧数据只进入 exact-path cleanup manifest；允许迁移的只有模型控制面小型语义状态（provider、加密 key ciphertext、UI state、model preference、active tab）与已下载模型文件。模型控制面 source 只读并按 WAL 事务选取，不复制整库；`HostUserData / HostSessionData / AppDataRoot / AgentRoot / UserHome / Workspace` 的逐路径决策以 `internal/exec-plans/codex-lime-storage-alignment-plan.md` 与 `internal/refactor/data/03-one-to-one-storage-alignment-plan.md` 为准，责任开发者架构确认仍为 `pending`。
 
-P0 的 current 组合根链固定为 `Electron appDataPaths -> APP_SERVER_APP_DATA_DIR + AgentRoot -> App Server StorageRoots/LocalAppDataSource -> domain root`。Windows `HostUserData` 保持 roaming，`HostSessionData` 固定到 `<AppDataRoot>/host-session`；portable/E2E override 必须同时显式注入 AppDataRoot 与 AgentRoot，禁止从 `AgentRoot.parent()` 反推。Product DB 只写 `AgentRoot/lime.db`；diagnostics、support bundle、Soul style-pack 与 MCP OAuth 不得自行解析平台默认根。旧 Product DB 整库复制、通用 migration manifest、启动 cleanup，以及 managed project/workspace/session path 启动迁移均为 `dead / deleted / forbidden-to-restore`；Windows 真机证据与责任开发者确认完成前，P0 继续保持 `in_progress`。
+P0 的 current 组合根链固定为 `Electron appDataPaths -> APP_SERVER_APP_DATA_DIR + AgentRoot -> App Server StorageRoots/LocalAppDataSource -> domain root`。Windows `HostUserData` 保持 roaming，`HostSessionData` 固定到 `<AppDataRoot>/host-session`；portable/E2E override 必须同时显式注入 AppDataRoot 与 AgentRoot，禁止从 `AgentRoot.parent()` 反推。Product DB 只写 `AgentRoot/lime.db`；diagnostics、support bundle 与 MCP OAuth 不得自行解析平台默认根。旧 Product DB 整库复制、通用 migration manifest、启动 cleanup，以及 managed project/workspace/session path 启动迁移均为 `dead / deleted / forbidden-to-restore`；Windows 真机证据与责任开发者确认完成前，P0 继续保持 `in_progress`。
 
 Message、Reasoning 与 Plan 必须遵循 Codex 的 canonical Item lifecycle。用户输入在 `message.created` 时直接形成带 `completed_at_ms` 的 completed UserMessage；provider text/reasoning 的 Start/Delta/End 必须以 canonical Turn + sampling attempt scoped Item identity 贯穿 `model-provider -> agent-runtime -> agent -> App Server`，同一 Turn 的后续 sampling 或同一 Thread 的后续 Turn 均不得复用前一 Item。assistant 的流式展示在出现真实正文时启动 AgentMessage；已提交模型历史的原生 message 完成快照可独立建立同一 canonical Item（包括显式空正文），并由对应 End/`message.completed` 进入 completed，取消或中断映射为 `Interrupted`；terminal Item 拒绝 late delta。Plan 是独立的 `ThreadItemPayload::Plan`，`plan.delta` 与 `plan.final` 必须按 `(turn_id, revision_id)` 共享稳定 Item identity；delta 只表达流式过程，completed `plan.final` snapshot 是恢复和 GUI 决策绑定的权威内容。Plan parser 按 source Message Item 隔离 buffer，Plan 只记录 `sourceItemId` 而不复用 Message identity。Plan 前的纯空白按 Codex `leading_whitespace_by_item` 语义暂存：后续出现正文时随正文发出，Plan-only 输出则丢弃，因此不得创建空白 AgentMessage 或伪造 `message.completed`。历史恢复、live notification 与 read model 必须保留同一 revision identity、Plan steps/status 与 terminal timestamp，禁止用 `update_plan` Tool Item 或 Renderer 本地状态替代。
 
@@ -2071,6 +2081,17 @@ provider config + configured-provider readiness + ModelRegistry metadata
   -> RuntimeCore model/list Codex v2 picker fields + authoritative catalog snapshot
   -> Renderer typed gateway / Electron recovery projection
 ```
+
+配置 Provider 的地址、凭证、协议和模型即可聊天，GUI 不设手工编辑/保存模型能力的前置流程。
+`services/model_registry_service/model_info.rs` 消费从 Codex `models-manager/models.json` 复制的运行描述字段；
+精确匹配的模型自动提供推理档位、摘要参数和输入模态，外部模型 ID 不因代理域名而变化。
+已配置的未知 Chat 模型由 `runtime-core/model_route::chat_protocol_defaults` 提供 text→text、流式和标准
+function tool 默认值；`model/list` 与最终路由复用同一构造函数，来源明确为 `protocol_default`，不把
+`inferred_hint` 伪装成 Provider 明确声明。媒体、任意推理档位、custom tools 和托管服务均不在默认值内；
+canonical/provider-explicit 描述不被默认值覆盖，Provider readiness、协议兼容与工具权限仍由原 owner 校验。
+Renderer 保留模型/任务筛选及 Provider 选择，不再另按能力来源隐藏已配置聊天模型。推理强度仍在 Composer
+原模型控件中选择，经原 Thread/Turn 参数下传，无第二配置或 runtime。Architecture impact: minor；
+root 确认上述目录→统一默认值→现役选择/路由→Composer 接线，2026-10-25。验证范围见当前浏览器执行计划。
 
 `ProviderModelCatalog` 是 App Server 内部 read projection，不是第二个 provider network owner；
 `CandidateModelSet` 是当前 turn 的控制面候选事实，不是全量 catalog，也不承接 provider HTTP；它由
@@ -4618,7 +4639,7 @@ Desktop Settings
 `memory/reset` 对齐 Codex 的无参数全局动作：omitted、`null` 和空对象 params 可接受，其他字段 fail closed；响应恒为
 空对象。`LocalMemoryBackend` 仍是唯一文件删除 owner，只清理 global memory root 并立即重建摘要、memory、notes、
 skills 与 index 等受管布局。ThreadStore、Thread/Turn/Item projection、event log、session history 和 memory root 外的
-soul 配置不在该删除边界内。
+用户配置不在 memory store 删除边界内。
 
 v2 protocol/schema、App Server handler、RuntimeCore/AppDataSource 委托、Rust/TypeScript typed client、Renderer
 Settings 消费与 public JSON-RPC durable isolation test 为 `current`。旧 `memoryStore/reset`、scoped params、富计数
@@ -5578,6 +5599,8 @@ evidence owner，公开 ThreadItem/GUI card/第二套 RuntimeEvent 属于 `dead 
 `deprecated` 路径。
 
 ## 45. Browser Workspace 同 Tab Owner
+
+2026-10-25 恢复补接（root确认，minor）：Renderer只持久保存所选标签和HTTP(S)导航提示，不持久保存BrowserTabState或权限。会话历史可从同Thread成功的markDeliverable/markHandoff canonical Item提取URL；Host有网页则复用，没有网页则经原App Server open identity发新身份，再通过同一BrowserTabHost mount。主动收起的显式null优先于历史提示；过期响应、跨Thread结果不得改变当前面板。网页身份、turn、grant和控制权仍只归原owner，数据流与本节图一致。
 
 导航前的 New tab 地址草稿只归既有 `useWorkspaceRightSurfaceLocalStateRuntime` 的 `ThreadSidePanelTab.addressDraft`，输入为受控呈现，经原 navigation context 更新。更新复用 owner/version 检查，且仅接收仍存活的 workspace-new-tab；组件重建读取同一 tab 字段，关闭或原位替换即丢弃，首次 canonical owner 接管沿原 stateForOwner 迁移。Esc 清空草稿并退出编辑，IME 确认不取消。没有新增持久化或普通网页地址草稿缓存；提交继续走原 handleOpenBrowserAddress 到同一 BrowserTabHost/Session/WCV。架构影响 minor，root 于2026-10-24确认沿本节唯一 owner 与数据流。
 
@@ -6835,7 +6858,7 @@ system requirements.toml / forced administrator preferences
 项目层不能覆写 `computer_use`。持久化边界拒绝未知嵌套授权字段；显式 false 与空值保留语义。
 
 此处为配置切片记录；准入和 native 工具接线见下节。不从用户 allow 配置推导系统授权、
-连接就绪或动作成功；Chrome/Office transport 仍未完成。四端三通道 Gate B 仍为 0/12。
+连接就绪或动作成功；Chrome/WPS transport 当前进展见下节。四端三通道 Gate B 仍为 0/12。
 源码复制收据与后续交付跟踪见 [实施记录](../exec-plans/native-computer-use-implementation-20261025.md)。
 Architecture impact: minor；Responsible developer confirmation: root, 2026-10-25；确认沿用现役
 配置锁、CAS、管理员 authority 和协议生成链，无第二 runtime、服务端控制面或授权库。
@@ -6878,9 +6901,9 @@ flowchart LR
 approval 限制在 setup/acquire/动作前复验；策略加载失败使已有 lease 失效。配置写入成功后
 立即取消旧授权；共享同一 RuntimeCore 的克隆共用状态与取消 token，不新增 transcript。
 
-这部分是公开源码缺失时的 Lime 宿主适配，不登记为 Codex 原始源码。当前只支持 native
-应用策略准入；Chrome/Office 专属 policy driver 尚未接入，不能取得 grant。App Server main
-组合根已注册独立 NativeAdapter；从自身产品资源清单解析并验证 helper，不通过 Electron、
+这部分是公开源码缺失时的 Lime 宿主适配，不登记为 Codex 原始源码。App Server main
+组合根注册 NativeAdapter、Chrome ExtensionAdapter 与 OfficeAdapter；连接目标显式会话授权、
+Chrome origin 策略与 WPS 已验证应用策略由同一准入 owner 执行。从自身产品资源清单解析并验证 helper，不通过 Electron、
 PATH 或 renderer 提供的路径。资源缺失为 `not_installed`，Windows helper 的执行驱动仍
 明确 `unavailable`，macOS 依据 OS 权限/锁屏/签名窗口报告真实状态。测试 adapter 仅由 fixture
 composition 注入；普通 RuntimeCore::default 不隐式启动平台进程。
@@ -6915,8 +6938,120 @@ gateway 持 RuntimeCoreEventAppender 与配置路径，不反向持有 backend�
 canonical 校验在控制状态锁外执行，lease 准入通过已绑定回合与取消 token 复验。
 
 已有 helper 实进程与 stdio status 证据；模型工具接线的验证结果单独记录，不能升级既有证据。
-Windows 驱动、CLI 原生载荷、签名发布与 Chrome/Office transport 仍未完成。
+Windows 驱动、CLI 原生载荷、签名发布与完整各 Host Gate B 仍未完成。
 仅 helper 级动作回读和准入状态不能计为完整 Desktop/CLI 或平台 Gate B。
 
 Architecture impact: minor；Responsible developer confirmation: root, 2026-10-25；已核对上图、
 现役 owner、typed ingress、可信配置 authority、连接/回合边界与取消路径；不新增业务后端。
+
+## Computer Use 浏览器与办公适配（2026-10-25）
+
+用户指定的 Lime 品牌指针由现役原生输入支线显示，不接管输入授权或会话状态：
+
+```mermaid
+flowchart LR
+  Action[现役 helper 验证后的鼠标坐标] --> HUD[非交互原生指针叠层]
+  Logo[现役 Lime Logo 渐变] --> Generator[指针资源生成器]
+  Generator --> Frames[生成 Swift PNG 帧，编入 macOS helper]
+  Frames --> HUD
+  Generator --> ANI[Windows 多 DPI ANI 与静态 CUR]
+  HUD --> Motion[固定热点，光晕呼吸与轻摆]
+  HUD --> Restore[用户接管/取消/锁屏/空闲恢复普通指针]
+```
+
+macOS 使用 AppKit 非激活透明面板和 Core Animation，跟随减少动态效果设置；资源直接
+编入同一个受清单校验的 helper，Desktop 与 CLI 无独立图片路径或第二显示服务。
+Windows 动态资源已生成，运行接入及实机验收仍开放。此为用户明确要求的 Lime 品牌
+适配，不声明为上游资源复制。架构影响 minor；root，2026-10-25，确认现有唯一业务
+主链、权限、租约和 Thread/Turn/Item owner 不变。
+
+```mermaid
+flowchart LR
+  Settings[设置: 原生 / Chrome / WPS 独立开关] --> RPC[现役 App Server JSON-RPC]
+  RPC --> Service[同一 ComputerUseService]
+  Tools[canonical 模型工具 / Code Mode] --> Service
+  Service --> Native[NativeAdapter]
+  Service --> Chrome[Chrome ExtensionAdapter]
+  Service --> Office[OfficeAdapter]
+  Native --> Helper[manifest 校验的原生 helper]
+  Office --> WPS[WPS: 已验证 bundle / PID / window / helper session]
+  WPS --> Helper
+  Office --> Excel[Excel: 可选 Office.js 连接]
+  Chrome --> Mailbox[per-user 私有有界消息传输]
+  Excel --> HTTPS[loopback HTTPS transport]
+  HTTPS --> Mailbox
+  Mailbox --> NativeHost[同产品 App Server 的 transport-only 模式]
+  NativeHost --> MV3[Chrome MV3 Native Messaging]
+  NativeHost --> Pane[Excel task pane]
+  Helper --> Desktop[真实 OS 窗口与输入]
+```
+
+旧 Chrome 扩展的 WebSocket、URL key、通用 CDP 转发和旧页面已删除，产物使用五语言
+MV3 扩展。setup 导出编译时嵌入的资源并注册 per-user Native Messaging host；扩展允许列表
+固定为 Lime 扩展 origin。扩展安装与用户网页会话授权分开，导航、断连和 TTL 过期撤销目标。
+adapter mailbox 只承载 IPC，UUID 路径、大小、权限和 heartbeat 受限；不拥有 runtime、
+Thread/Turn/Item、策略或授权库。Chrome origin deny 和管理员 deny 优先于会话确认。
+
+Chrome 原生任务分组：扩展内 `tab-groups.js` 复用发货 bundle 的分组管理代码，
+`browser-session.js` 接 popup 创建、模型 name_session/create_tab/mark_tab 和任务子页入组；用户已有分组不移动。Chrome local/session
+storage 仅保存组标题/颜色关联与任务页归属，不提供授权，动作仍由共享 App Server 的
+profile/tab/origin/generation/grant/fence 校验。线程/回合归属由 lease 的可信 owner 提供，
+终态/断线沿既有 ComputerUseService hook 发送有界清理消息；未标记任务页关闭、交付页
+移出任务组、handoff 下轮重新标记，用户页保留。仅旧目标完全不变且 Chrome 原始
+generation 稳定的新增目标发现保留原授权；新页单独授权，导航/刷新/断线仍失效。见
+[分组执行记录](../exec-plans/native-computer-use-chrome-groups-20261025.md)。
+Architecture impact: minor；责任 root，2026-10-25，确认主链不变，无新增业务后端。
+
+本机办公宿主是 WPS 12.1.26046。WPS 复用同一 NativeAdapter 实现和严格资源校验，
+Office target 从已验证 bundle、进程、窗口与 helper session 映射；会话重启或窗口消失不能
+复用旧授权。office_use 独立于 computer_use，但应用 deny、管理员策略、锁屏、焦点、
+secure input、控制锁/fence 与取消均继续执行。WPS 只声明真实原生观察、截图与输入能力，
+不宣称 Office.js Range API。可选 Excel task pane 提供范围/公式能力，不能冒充 WPS 加载项。
+Excel TLS 证书不自动加入系统信任；配对凭证和私钥不进入导出的安装目录或日志。
+
+macOS 鼠标和滚动走真实 HID 事件，先移动系统指针并用 AX hit test 核对准确获批窗口；
+键盘保留定向进程投递。已按下按钮在取消或弹窗后仍释放。持久 fence 验证成功后才更新
+helper 高水位，错误请求不能阻断后续合法动作。WPS 的 canonical 写入/公式/保存回读、
+provider 截图与撤销，以及 helper 真实拖拽选择/滚动视口已有独立实机证据；不替代完整 Host 验收。
+
+CLI 自包含资源发布复用同一清单生成器：
+
+```mermaid
+flowchart LR
+  Build[CLI / App Server / code-mode-host / loader libraries] --> Stage[platform vendor target/bin]
+  Generator[现役 native helper 与资源清单生成器] --> Stage
+  Stage --> Validate[版本 / 平台 / 包含路径 / SHA256 / bundle 身份]
+  Validate --> Pack[npm root + optional platform tarballs]
+  Pack --> Launcher[Node launcher]
+  Launcher --> CLI[真实 lime exec / TUI]
+  CLI --> Server[sibling App Server]
+  Server --> Helper[同包 manifest 校验 helper]
+  Helper --> WPS[真实 WPS]
+```
+
+platform 打包必须校验完整 runtime 与 macOS/Windows helper 闭包；不依赖 Electron 安装。
+验证安装从实际 tarball 解包，不能仅用 staging 目录、假 executable 或源字符串当发布成功。
+Architecture impact: major（CLI 发布闭包）；Responsible developer confirmation: root,
+2026-10-25；确认唯一 CLI/npm owner、资源生成与工具 authority，不新增 runtime/协议入口。
+
+dev sidecar 与打包资源复用同一 helper 编译和清单生成器。Cargo 二进制邻接清单解决开发
+启动时找不到 helper 的问题，未降低产品身份、包含路径或 SHA256 检查。
+
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-25；
+确认复用现役工具、协议、持久化和权限 owner。运行证据与平台缺口见实施记录；Windows
+WPS 原生驱动和完整 Desktop/CLI/TUI Gate B 尚未验收。
+
+
+## 2026-10-25 旧个性化退出
+
+```mermaid
+flowchart LR
+  Surface[Desktop / CLI / TUI] --> RPC[App Server JSON-RPC]
+  RPC --> Context[模型目录指令 + AGENTS + Memory]
+  Context --> Runtime[RuntimeCore]
+  Runtime --> Projection[Thread / Turn / Item]
+```
+
+Soul、style-pack RPC 与全局创作声线注入退出 current 主链。模型基础指令取自当前模型目录，不再由 memory.soul 控制口吻、进展或失败；Codex 原有 personality 与自定义指令语义保留。前端默认角色、执行车道、Browser Assist、创作模式与结构化创作记忆提示词构造链物理删除；GUI 不再传入隐式 systemPrompt。共享导出文案迁回 exports owner，不随 Soul 删除而丢失。root 确认此图与既有单一主链一致；验证与删除闭包见浏览器执行计划，未通过前不进入 release evidence。
+
+本地 nickname/bio 资料表单与 user_profile 配置也已删除。真正账号会话由原 Account Center owner 承接，仅 OEM 运行时可用；非 OEM 不再显示或回退到本地资料。设置搜索直接消费同一现役章节与 Memory 指令目标，没有新增身份存储或兼容服务。root 确认，2026-10-25。

@@ -43,15 +43,15 @@ const loadExpertPlazaPage = () =>
   import("./experts").then((module) => ({
     default: module.ExpertPlazaPage,
   }));
-const loadAgentChatPage = () =>
+const loadLocalConversationPage = () =>
   import("./agent/chat").then((module) => ({
-    default: module.AgentChatPage,
+    default: module.LocalConversationPage,
   }));
 
 const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
 const PluginsPage = lazy(loadPluginsPage);
 const ExpertPlazaPage = lazy(loadExpertPlazaPage);
-const AgentChatPage = lazy(loadAgentChatPage);
+const LocalConversationPage = lazy(loadLocalConversationPage);
 
 interface AppPageContentProps {
   currentPage: Page;
@@ -184,7 +184,7 @@ export function AppPageContent({
 
     return (
       <div style={columnPageStyle}>
-        <AgentChatPage
+        <LocalConversationPage
           onNavigate={onNavigate}
           projectId={agentPageParams.projectId}
           contentId={agentPageParams.contentId}

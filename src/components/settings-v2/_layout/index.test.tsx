@@ -19,7 +19,6 @@ const {
   mockGeneralSettings,
   mockArchivedConversationsSettings,
   mockExecutionPolicySettings,
-  mockProfileSettings,
   mockUserCenterSessionSettings,
 } = vi.hoisted(() => ({
   mockSettingsSidebar: vi.fn(),
@@ -27,7 +26,6 @@ const {
   mockGeneralSettings: vi.fn(),
   mockArchivedConversationsSettings: vi.fn(),
   mockExecutionPolicySettings: vi.fn(),
-  mockProfileSettings: vi.fn(),
   mockUserCenterSessionSettings: vi.fn(),
 }));
 
@@ -69,12 +67,7 @@ vi.mock("../integrations/plugins", () => ({
 vi.mock("../agent/media-services", () => ({
   MediaServicesSettings: () => <div>media-services</div>,
 }));
-vi.mock("../account/profile", () => ({
-  ProfileSettings: () => {
-    mockProfileSettings();
-    return <div>PROFILE_SETTINGS</div>;
-  },
-}));
+
 vi.mock("../account/user-center-session", () => ({
   UserCenterSessionSettings: () => {
     mockUserCenterSessionSettings();
@@ -220,12 +213,11 @@ describe("SettingsPage Profile Tab", () => {
     expect(text).toContain("USER_CENTER_SESSION");
     expect(text).not.toContain("PROFILE_SETTINGS");
     expect(mockUserCenterSessionSettings).toHaveBeenCalled();
-    expect(mockProfileSettings).not.toHaveBeenCalled();
     expect(text).not.toContain("账号与资料");
   });
 
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-    "%s 非 OEM 资料页只挂载本地编辑器，不启动账户组件",
+    "%s 非 OEM 资料页回到常规页，不提供本地资料编辑器",
     async (locale) => {
       await changeLimeLocale(locale);
       mockResolveOemCloudRuntimeContext.mockReturnValue(null);
@@ -235,8 +227,8 @@ describe("SettingsPage Profile Tab", () => {
       const text = container.textContent ?? "";
 
       expect(text).not.toContain("USER_CENTER_SESSION");
-      expect(text).toContain("PROFILE_SETTINGS");
-      expect(mockProfileSettings).toHaveBeenCalled();
+      expect(text).not.toContain("PROFILE_SETTINGS");
+      expect(mockGeneralSettings).toHaveBeenCalled();
       expect(mockUserCenterSessionSettings).not.toHaveBeenCalled();
     },
   );

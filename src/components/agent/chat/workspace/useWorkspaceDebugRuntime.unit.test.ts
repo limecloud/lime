@@ -28,11 +28,11 @@ describe("workspaceDebugRuntime", () => {
   it("mount context 应把可选字段归一为 null", () => {
     expect(
       buildWorkspaceDebugMountContext({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         lockTheme: false,
       }),
     ).toEqual({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       contentId: null,
       externalProjectId: null,
       initialCreationMode: null,

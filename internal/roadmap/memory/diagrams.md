@@ -1,6 +1,7 @@
 # Lime 记忆与上下文治理图谱
+> 2026-10-25：本文件仅保留历史实施证据，不再约束产品。旧 Soul、风格包及创作声线已删除；现役边界以 [记忆与上下文](../../aiprompts/memory-compaction.md) 和 [执行计划](../../exec-plans/browser-runtime-right-surface-plan.md) 为准。下文原有保留要求和未完成清单均已失效。
 
-> 状态：current diagrams
+> 状态：historical / superseded
 > 更新时间：2026-06-19
 > 目标：用图固定文件化记忆、上下文防腐、上下文压缩、多模型预算、summary 注入、工具读取、Soul 配置、显式整理和旧路径清理边界。
 

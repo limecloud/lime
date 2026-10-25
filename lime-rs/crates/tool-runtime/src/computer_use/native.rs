@@ -34,6 +34,55 @@ impl Default for NativeAdapter {
 }
 
 impl NativeAdapter {
+    pub(super) fn session_id(&self) -> ComputerUseResult<u64> {
+        self.state
+            .lock()
+            .map_err(|_| denied("Native adapter state unavailable"))?
+            .last
+            .as_ref()
+            .map(|(session, _)| *session)
+            .ok_or_else(|| denied("Native helper session is unavailable"))
+    }
+
+    pub(super) async fn execute_target(
+        &self,
+        target: &ComputerUseTargetIdentity,
+        fence: u64,
+        action: ComputerUseAction,
+        cancel: tokio_util::sync::CancellationToken,
+    ) -> ComputerUseResult<serde_json::Value> {
+        let (session, generation) = {
+            let state = self
+                .state
+                .lock()
+                .map_err(|_| denied("Native adapter state unavailable"))?;
+            let (session, snapshot) = state
+                .last
+                .as_ref()
+                .ok_or_else(|| denied("Native helper snapshot is not available"))?;
+            if !snapshot
+                .targets
+                .iter()
+                .any(|entry| same_target(&entry.identity, target))
+            {
+                return Err(denied("Native action target is not present"));
+            }
+            (*session, snapshot.generation)
+        };
+        let Some((response_session, value)) = self.host.invoke_cancel(
+            "computerUse.execute",
+            json!({"target": target, "generation": generation, "fence": fence, "operation": action}),
+            cancel,
+            Some(session),
+        ).await? else {
+            return Err(denied("Native helper is not installed"));
+        };
+        if response_session != session {
+            return Err(denied("Native helper restarted before action execution"));
+        }
+        Ok(value)
+    }
+
     fn observe(
         &self,
         session: u64,
@@ -134,38 +183,13 @@ impl ComputerUseAdapter for NativeAdapter {
         action: ComputerUseAction,
         cancel: tokio_util::sync::CancellationToken,
     ) -> ComputerUseResult<serde_json::Value> {
-        let (session, generation) = {
-            let state = self
-                .state
-                .lock()
-                .map_err(|_| denied("Native adapter state unavailable"))?;
-            state
-                .last
-                .as_ref()
-                .map(|(session, snapshot)| (*session, snapshot.generation))
-                .ok_or_else(|| denied("Native helper snapshot is not available"))?
-        };
-        let Some((response_session, value)) = self
-            .host
-            .invoke_cancel(
-                "computerUse.execute",
-                json!({
-                    "target":lease.response.target,
-                    "generation":generation,
-                    "fence":lease.control_fence(),
-                    "operation":action,
-                }),
-                cancel,
-                Some(session),
-            )
-            .await?
-        else {
-            return Err(denied("Native helper is not installed"));
-        };
-        if response_session != session {
-            return Err(denied("Native helper restarted before action execution"));
-        }
-        Ok(value)
+        self.execute_target(
+            &lease.response.target,
+            lease.control_fence(),
+            action,
+            cancel,
+        )
+        .await
     }
 }
 

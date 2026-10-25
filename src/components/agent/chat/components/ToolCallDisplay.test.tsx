@@ -3,53 +3,7 @@ import { describe, expect, it } from "vitest";
 import { renderTool, renderToolList } from "./ToolCallDisplay.testFixtures";
 
 describe("ToolCallDisplay", () => {
-  it("工具行应消费 Soul lifecycle descriptor metadata", () => {
-    const { container } = renderTool({
-      id: "tool-soul-lifecycle-display-1",
-      name: "WebSearch",
-      arguments: JSON.stringify({ query: "Lime Soul lifecycle" }),
-      status: "running",
-      metadata: {
-        soul_lifecycle: {
-          surface: "tool_lifecycle",
-          phase: "before_tool",
-          status: "running",
-          styleLevel: "L1",
-          riskLevel: "normal",
-          toneVariant: "cheeky_sassy",
-          profileId: "cheeky_sassy_executor",
-          packId: "com.lime.soul.cheeky-sassy-executor",
-        },
-        soul_surface: "tool_lifecycle",
-        soul_phase: "before_tool",
-        style_level: "L1",
-        risk_level: "normal",
-        tone_variant: "cheeky_sassy",
-        profile_id: "cheeky_sassy_executor",
-        pack_id: "com.lime.soul.cheeky-sassy-executor",
-      },
-      startTime: new Date("2026-07-06T12:00:00.000Z"),
-    });
 
-    const row = container.querySelector('[data-testid="tool-call-row"]');
-    expect(row?.getAttribute("data-tool-call-id")).toBe(
-      "tool-soul-lifecycle-display-1",
-    );
-    expect(row?.getAttribute("data-tool-name")).toBe("WebSearch");
-    expect(row?.getAttribute("data-tool-status")).toBe("running");
-    expect(row?.getAttribute("data-soul-lifecycle")).toBe("yes");
-    expect(row?.getAttribute("data-soul-surface")).toBe("tool_lifecycle");
-    expect(row?.getAttribute("data-soul-phase")).toBe("before_tool");
-    expect(row?.getAttribute("data-soul-style-level")).toBe("L1");
-    expect(row?.getAttribute("data-soul-risk-level")).toBe("normal");
-    expect(row?.getAttribute("data-soul-tone-variant")).toBe("cheeky_sassy");
-    expect(row?.getAttribute("data-soul-profile-id")).toBe(
-      "cheeky_sassy_executor",
-    );
-    expect(row?.getAttribute("data-soul-pack-id")).toBe(
-      "com.lime.soul.cheeky-sassy-executor",
-    );
-  });
 
   it("WebSearch 工具结果应在 AI 对话区展示搜索列表并支持悬浮预览", async () => {
     const { container } = renderTool({

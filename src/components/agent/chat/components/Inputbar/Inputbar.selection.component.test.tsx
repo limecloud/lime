@@ -260,7 +260,7 @@ describe("Inputbar selection current integration", () => {
       setProviderType: vi.fn(),
       model: "gpt-5.4",
       setModel: vi.fn(),
-      accessMode: "default",
+      accessMode: "full-access",
       setAccessMode: vi.fn(),
       toolStates: { plan: true },
     });

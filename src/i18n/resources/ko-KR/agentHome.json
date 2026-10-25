@@ -6,9 +6,7 @@
   "agentChat.serviceSkills.badge.customScene": "사용자 지정 시나리오",
   "agentChat.serviceSkills.catalogSource.seeded": "시작용 방법",
   "agentChat.serviceSkills.catalogSource.synced": "동기화된 방법",
-  "agentChat.home.composer.placeholder": "이번 라운드에서 하고 싶은 일을 먼저 적어 주세요. 목표, 대상, 제약을 함께 쓰면 좋습니다.",
+  "agentChat.home.composer.placeholder": "무엇이든 입력하세요",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "이 파일이나 폴더를 확인해 주세요.",
-  "agentChat.home.hero.eyebrow": "제작",
-  "agentChat.home.hero.slogan": "Lime에게 말하면 아이디어가 시작됩니다",
-  "agentChat.home.hero.description": "목표를 한마디로 말하면 Lime이 이어서 도와드립니다."
+  "agentChat.home.title": "무엇을 만들어 볼까요?"
 }

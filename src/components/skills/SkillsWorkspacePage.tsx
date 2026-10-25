@@ -20,8 +20,6 @@ import { resolveServiceSkillLaunchPrefill } from "@/components/agent/chat/servic
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import { useServiceSkills } from "@/components/agent/chat/service-skills/useServiceSkills";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
-import { buildSkillScaffoldCreationReplayRequestMetadata } from "@/components/agent/chat/utils/creationReplayMetadata";
-import { recordSlashEntryUsage } from "@/components/agent/chat/skill-selection/slashEntryUsage";
 import { useOfficialSkillMarketplace } from "@/hooks/useOfficialSkillMarketplace";
 import { installOfficialMarketplaceSkill } from "@/lib/api/officialSkillMarketplace";
 import {
@@ -49,10 +47,6 @@ import { useSkillsWorkspaceLocalSkillActions } from "./useSkillsWorkspaceLocalSk
 import { useProtocolSkillEnabled } from "./useProtocolSkillEnabled";
 import { SkillScaffoldDialog } from "./SkillScaffoldDialog";
 import { SkillPackageInstallDialog } from "./SkillPackageInstallDialog";
-import {
-  buildSkillScaffoldCreationSeed,
-  buildSkillScaffoldReplayText,
-} from "./skillScaffoldCreationSeed";
 import { buildWorkspaceSkillRuntimeLaunchParams } from "./workspaceSkillRuntimeLaunch";
 
 interface SkillsWorkspacePageProps {
@@ -131,9 +125,6 @@ export function SkillsWorkspacePage({
     optimisticallyHiddenSkillDirectories,
     setOptimisticallyHiddenSkillDirectories,
   ] = useState<Set<string>>(() => new Set());
-  const [consumedScaffoldRequestKey, setConsumedScaffoldRequestKey] = useState<
-    number | null
-  >(null);
   const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
   const lastHandledSkillPackageRequestKeyRef = useRef<number | string | null>(
     null,
@@ -248,19 +239,6 @@ export function SkillsWorkspacePage({
     () => [...recentServiceSkills, ...nonRecentServiceSkills],
     [nonRecentServiceSkills, recentServiceSkills],
   );
-  const scaffoldCreationReplay = useMemo(() => {
-    if (!pageParams?.initialScaffoldDraft) {
-      return undefined;
-    }
-
-    return buildSkillScaffoldCreationReplayRequestMetadata(
-      pageParams.initialScaffoldDraft,
-      {
-        projectId: creationProjectId,
-      },
-    ).harness.creation_replay;
-  }, [creationProjectId, pageParams?.initialScaffoldDraft]);
-
   useEffect(() => {
     if (
       pageParams?.initialView === "manage" ||
@@ -437,17 +415,6 @@ export function SkillsWorkspacePage({
       count: visibleUserInstalledSkills.length,
     },
   ];
-  const activeScaffoldDraft =
-    pageParams?.initialScaffoldRequestKey === consumedScaffoldRequestKey
-      ? null
-      : (pageParams?.initialScaffoldDraft ?? null);
-  const activeScaffoldTitle = useMemo(
-    () =>
-      activeScaffoldDraft?.name?.trim() ||
-      t("skills.workspace.scaffold.defaultTitle"),
-    [activeScaffoldDraft, t],
-  );
-
   const handleRefreshAll = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -472,7 +439,6 @@ export function SkillsWorkspacePage({
     (skill: ServiceSkillHomeItem) => {
       const prefill = resolveServiceSkillLaunchPrefill({
         skill,
-        creationReplay: scaffoldCreationReplay,
         copy: serviceSkillLaunchPrefillCopy,
       });
       onNavigate("agent", {
@@ -491,7 +457,6 @@ export function SkillsWorkspacePage({
     [
       creationProjectId,
       onNavigate,
-      scaffoldCreationReplay,
       serviceSkillLaunchPrefillCopy,
     ],
   );
@@ -520,25 +485,6 @@ export function SkillsWorkspacePage({
       onNavigate("agent", params);
     },
     [creationProjectId, currentProjectState.rootPath, onNavigate, t],
-  );
-
-  const handleBringScaffoldToCreation = useCallback(
-    (draft: SkillScaffoldDraft) => {
-      const seed = buildSkillScaffoldCreationSeed(draft);
-      onNavigate(
-        "agent",
-        buildHomeAgentParams({
-          projectId: creationProjectId,
-          initialUserPrompt: seed.initialUserPrompt,
-          entryBannerMessage: seed.entryBannerMessage,
-          initialRequestMetadata:
-            buildSkillScaffoldCreationReplayRequestMetadata(draft, {
-              projectId: creationProjectId,
-            }),
-        }),
-      );
-    },
-    [creationProjectId, onNavigate],
   );
 
   const handleOpenScaffoldDialog = useCallback(() => {
@@ -698,10 +644,6 @@ export function SkillsWorkspacePage({
 
   const handleScaffoldCreated = useCallback(
     async (skill: Skill) => {
-      const scaffoldReplayText = pageParams?.initialScaffoldDraft
-        ? buildSkillScaffoldReplayText(pageParams.initialScaffoldDraft)
-        : undefined;
-
       setOptimisticallyHiddenSkillDirectories((previous) => {
         if (!previous.has(skill.directory)) {
           return previous;
@@ -721,35 +663,19 @@ export function SkillsWorkspacePage({
         );
       }
 
-      if (scaffoldReplayText) {
-        recordSlashEntryUsage({
-          kind: "skill",
-          entryId: skill.key,
-          replayText: scaffoldReplayText,
-        });
-      }
-
       setSearchQuery("");
       setHighlightedInstalledSkillDirectory(skill.directory);
       setActiveView("installed");
       if (skill.catalogSource === "project") {
         setRegisteredSkillsRefreshSignal((value) => value + 1);
       }
-      setConsumedScaffoldRequestKey(
-        pageParams?.initialScaffoldRequestKey ?? null,
-      );
       toast.success(
         t("skills.workspace.scaffold.created", {
           name: skill.name,
         }),
       );
     },
-    [
-      pageParams?.initialScaffoldDraft,
-      pageParams?.initialScaffoldRequestKey,
-      refreshLocalSkills,
-      t,
-    ],
+    [refreshLocalSkills, t],
   );
 
   const handleCreateScaffold = useCallback(
@@ -855,8 +781,6 @@ export function SkillsWorkspacePage({
   return (
     <>
       <SkillsWorkspacePageView
-        activeScaffoldDraft={activeScaffoldDraft}
-        activeScaffoldTitle={activeScaffoldTitle}
         activeView={activeView}
         currentProjectState={currentProjectState}
         detailContentState={detailContentState}
@@ -893,7 +817,6 @@ export function SkillsWorkspacePage({
         visibleStoreItems={visibleStoreItems}
         visibleUserInstalledSkills={visibleUserInstalledSkills}
         onActiveViewChange={setActiveView}
-        onBringScaffoldToCreation={handleBringScaffoldToCreation}
         onEnableRegisteredSkillRuntime={handleEnableRegisteredSkillRuntime}
         onExportLocalSkillPackage={(skill) =>
           void handleExportLocalSkillPackage(skill)
@@ -936,8 +859,6 @@ export function SkillsWorkspacePage({
         creating={scaffoldCreating}
         allowProjectTarget={Boolean(creationProjectId)}
         initialValues={scaffoldDialogDraft}
-        sourceHint={scaffoldDialogDraft?.sourceExcerpt ?? null}
-        onBringBackToCreation={handleBringScaffoldToCreation}
       />
 
       <SkillPackageInstallDialog

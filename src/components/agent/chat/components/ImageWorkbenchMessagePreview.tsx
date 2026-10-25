@@ -83,7 +83,7 @@ export const ImageWorkbenchMessagePreview: React.FC<
     (preview.status === "failed" || preview.status === "cancelled") &&
     preview.retryable !== false;
   const canOpenPreview = Boolean(onOpen);
-  const soulMetadata = preview.soulMetadata;
+
 
   const openPreview = (selection?: MessageImageWorkbenchPreviewSelection) => {
     if (!onOpen) {
@@ -107,16 +107,14 @@ export const ImageWorkbenchMessagePreview: React.FC<
       <div
         onClick={canOpenPreview ? () => openPreview() : undefined}
         data-testid={`image-workbench-message-preview-${preview.taskId}`}
-        data-soul-surface={soulMetadata?.surface ?? "image_generation"}
-        data-soul-phase={soulMetadata?.phase ?? ""}
-        data-soul-style-level={soulMetadata?.styleLevel ?? ""}
-        data-soul-risk-level={soulMetadata?.riskLevel ?? ""}
-        data-soul-profile-id={soulMetadata?.profileId ?? ""}
-        data-soul-pack-id={soulMetadata?.packId ?? ""}
-        data-soul-tone-variant={soulMetadata?.toneVariant ?? ""}
-        data-generation-brief-boundary={
-          soulMetadata?.formalArtifactVoiceSource ?? ""
-        }
+
+
+
+
+
+
+
+
         className={`group block w-full text-left ${
           canOpenPreview ? "cursor-pointer" : ""
         }`}
@@ -124,14 +122,10 @@ export const ImageWorkbenchMessagePreview: React.FC<
         <div
           data-testid={`image-workbench-message-preview-toolbar-${preview.taskId}`}
           data-model-id={modelId}
-          data-soul-surface={soulMetadata?.surface ?? "image_generation"}
-          data-soul-style-level={soulMetadata?.runningStatusStyleLevel ?? ""}
-          data-media-artifact-style-level={
-            soulMetadata?.mediaArtifactStyleLevel ?? ""
-          }
-          data-generation-brief-boundary={
-            soulMetadata?.formalArtifactVoiceSource ?? ""
-          }
+
+
+
+
           className="mb-3 flex min-h-10 w-full max-w-full items-center gap-2 rounded-[10px] border border-[#d9ded6] bg-[#eef0ec] px-4 text-[13px] font-medium leading-5 text-[#435d2e]"
         >
           <Leaf className="h-3.5 w-3.5 shrink-0 fill-[#496631]/15 text-[#496631]" />

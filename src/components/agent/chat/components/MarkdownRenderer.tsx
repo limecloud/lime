@@ -30,6 +30,7 @@ import { MarkdownImageWithFallback } from "./MarkdownImageWithFallback";
 import { MarkdownLink } from "./MarkdownLink";
 import { markdownElements } from "./MarkdownElements";
 import { remarkPromptLinks } from "./remarkPromptLinks";
+import { remarkCjkAutolinks } from "./remarkCjkAutolinks";
 import {
   CODE_FONT_FAMILY,
   CodeBlockContainer,
@@ -164,8 +165,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
     const remarkPlugins = React.useMemo(
       () =>
         useLightweightMarkdownRender
-          ? [remarkGfm, remarkPromptLinks]
-          : [remarkGfm, remarkMath, remarkPromptLinks],
+          ? [remarkGfm, remarkPromptLinks, remarkCjkAutolinks]
+          : [remarkGfm, remarkMath, remarkPromptLinks, remarkCjkAutolinks],
       [useLightweightMarkdownRender],
     );
 

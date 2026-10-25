@@ -486,11 +486,11 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
         runtimeStripCollaborationFacts,
         "collaborationKind",
       )}
-      data-soul-style-level={runtimeStripCollaboration?.styleLevel}
-      data-soul-risk-level={runtimeStripCollaboration?.riskLevel}
-      data-soul-tone-variant={runtimeStripCollaboration?.toneVariant}
-      data-soul-profile-id={runtimeStripCollaboration?.profileId}
-      data-soul-pack-id={runtimeStripCollaboration?.packId}
+
+
+
+
+
       className={
         variant === "embedded"
           ? "rounded-xl border border-border/70 bg-[linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.35))] px-4 py-3"
@@ -550,8 +550,8 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
             runtimeStripCollaborationFacts,
             "collaborationKind",
           )}
-          data-soul-style-level={runtimeStripCollaboration?.styleLevel}
-          data-soul-risk-level={runtimeStripCollaboration?.riskLevel}
+
+
         >
           <span className="font-medium text-foreground">
             {translate("agentChat.runtimeStrip.team.title")}

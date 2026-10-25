@@ -134,26 +134,15 @@ afterEach(async () => {
 });
 
 describe("ModelSelector", () => {
-  it("打开选择器时应读取并展示当前 provider 的能力快照", async () => {
+  it("打开选择器只加载模型选择所需的数据，不请求运行能力面板", () => {
     const { container } = renderModelSelector();
-
     clickModelSelectorTrigger(container);
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(mockReadModelProviderCapabilities).toHaveBeenCalledTimes(1);
+    expect(mockReadModelProviderCapabilities).not.toHaveBeenCalled();
     expect(
-      document.body.querySelector(
-        '[data-testid="model-selector-provider-capability-panel"]',
-      ),
+      document.body.querySelector('[data-model-selector-popover="true"]'),
     ).not.toBeNull();
-    const capabilityBadges = document.body.querySelector(
-      '[data-testid="model-provider-capabilities"]',
-    );
-    expect(capabilityBadges?.textContent).toContain("工具命名空间");
-    expect(capabilityBadges?.textContent).toContain("网页搜索");
-    expect(capabilityBadges?.textContent).toContain("无图片生成");
+    expect(getBodyText()).not.toContain("无图片生成");
+    expect(getBodyText()).not.toContain("工具命名空间");
   });
 
   it("应暴露稳定的禁用触发器供工作区验证", () => {
@@ -169,10 +158,10 @@ describe("ModelSelector", () => {
     expect(trigger?.disabled).toBe(true);
   });
 
-  it("Agnes 目录只应允许切换 RuntimeCore 可执行模型", () => {
+  it("实时目录中的聊天模型不应因缺少完整能力声明而被隐藏", () => {
     const setModel = vi.fn();
     mockUseProviderModels.mockReturnValue({
-      modelIds: ["agnes-2.0-flash", "agnes-2.5-flash", "agnes-video-v2.0"],
+      modelIds: ["agnes-2.0-flash", "agnes-2.5-flash", "unknown-chat-model"],
       models: [
         createModelMetadata("agnes-2.0-flash", {
           capability_provenance: "canonical",
@@ -180,7 +169,7 @@ describe("ModelSelector", () => {
         createModelMetadata("agnes-2.5-flash", {
           capability_provenance: "canonical",
         }),
-        createModelMetadata("agnes-video-v2.0", {
+        createModelMetadata("unknown-chat-model", {
           capability_provenance: "inferred_hint",
         }),
       ],
@@ -196,7 +185,7 @@ describe("ModelSelector", () => {
     clickModelSelectorTrigger(container);
 
     expect(getBodyText()).toContain("agnes-2.5-flash");
-    expect(getBodyText()).not.toContain("agnes-video-v2.0");
+    expect(getBodyText()).toContain("unknown-chat-model");
 
     clickBodyButtonByText("agnes-2.5-flash");
 
@@ -914,7 +903,7 @@ describe("ModelSelector", () => {
     const pageText = getBodyText();
     expect(pageText).toContain("支持思考");
     expect(pageText).toContain("支持多模态");
-    expect(pageText).toContain("无多模态");
+    expect(pageText).not.toContain("无多模态");
   });
 
   it("接口声明支持 reasoning_effort 时应展示强度选择并保持浮层打开", () => {
@@ -959,7 +948,7 @@ describe("ModelSelector", () => {
       '[data-testid="model-selector-reasoning-effort"]',
     );
     expect(panel?.textContent).toContain("推理强度");
-    expect(panel?.textContent).toContain("接口声明");
+    expect(panel?.textContent).not.toContain("接口声明");
 
     clickBodyButtonByText("高");
 
@@ -1177,18 +1166,26 @@ describe("ModelSelector", () => {
     clickModelSelectorTrigger(container);
 
     const pageText = getBodyText();
-    expect(pageText).toContain("Model selection");
-    expect(pageText).toContain("Currently organized by General chat");
-    expect(pageText).toContain("Providers");
-    expect(pageText).toContain("Model list");
+    expect(
+      document.body
+        .querySelector('[data-model-selector-popover="true"]')
+        ?.getAttribute("aria-label"),
+    ).toBe("Model selection");
+    expect(pageText).not.toContain("Currently organized by General chat");
+    expect(
+      document.body.querySelector('[role="group"][aria-label="Providers"]'),
+    ).not.toBeNull();
+    expect(
+      document.body.querySelector('[role="group"][aria-label="Model list"]'),
+    ).not.toBeNull();
     expect(pageText).toContain("Supports reasoning");
-    expect(pageText).toContain("No multimodal");
+    expect(pageText).not.toContain("No multimodal");
     expect(pageText).toContain("Manage providers");
     expect(pageText).not.toContain("模型选择");
     expect(pageText).not.toContain("支持思考");
   });
 
-  it("展开后应把 Lime 云端模型与本地供应商分组显示", () => {
+  it("展开后应按配置顺序展示服务商与模型", () => {
     mockUseConfiguredProviders.mockReturnValue({
       providers: [
         {
@@ -1229,8 +1226,8 @@ describe("ModelSelector", () => {
     clickModelSelectorTrigger(container);
 
     const pageText = getBodyText();
-    expect(pageText).toContain("云端模型");
-    expect(pageText).toContain("本地与自定义");
+    expect(pageText).not.toContain("云端模型");
+    expect(pageText).not.toContain("本地与自定义");
     expect(pageText).toContain("Lime 云端");
     expect(pageText).toContain("Local CLI Custom");
     expect(pageText).toContain("gpt-5.5");
@@ -1286,10 +1283,9 @@ describe("ModelSelector", () => {
     );
 
     const pageText = getBodyText();
-    expect(pageText).toContain("云端模型");
+    expect(pageText).not.toContain("云端模型");
     expect(pageText).toContain("Lime 云端");
     expect(pageText).toContain("需要登录");
-    expect(pageText).toContain("登录后会自动同步 Lime Hub 的可用模型");
     expect(pageText).toContain("去登录");
     expect(pageText).not.toContain("gpt-5.5");
     expect(pageText).not.toContain("gpt-5.4");
@@ -1299,7 +1295,7 @@ describe("ModelSelector", () => {
     expect(onManageProviders).toHaveBeenCalledTimes(1);
   });
 
-  it("未知 anthropic-compatible Provider 应在选择器中展示显式缓存提示", () => {
+  it("自定义协议模型可以直接选择，不要求用户处理缓存协议提示", () => {
     mockUseConfiguredProviders.mockReturnValue({
       providers: [
         {
@@ -1321,95 +1317,11 @@ describe("ModelSelector", () => {
       error: null,
     });
 
+    const setModel = vi.fn();
     const { container } = renderModelSelector({
       providerType: "custom-anthropic-compatible",
       model: "glm-5.1",
-    });
-
-    clickModelSelectorTrigger(container);
-
-    const pageText = getBodyText();
-    expect(pageText).toContain("显式缓存");
-    expect(pageText).toContain("未声明自动 Prompt Cache");
-    expect(pageText).toContain("cache_control");
-  });
-
-  it.each([
-    {
-      label: "GLM Anthropic",
-      apiHost: "https://open.bigmodel.cn/api/anthropic",
-      model: "glm-5.1",
-    },
-    {
-      label: "Z.AI Anthropic",
-      apiHost: "https://api.z.ai/api/anthropic",
-      model: "glm-4.7",
-    },
-    {
-      label: "Kimi Anthropic",
-      apiHost: "https://api.moonshot.cn/anthropic",
-      model: "kimi-k2.5",
-    },
-    {
-      label: "Kimi Global Anthropic",
-      apiHost: "https://api.moonshot.ai/anthropic",
-      model: "kimi-k2.5",
-    },
-    {
-      label: "Kimi Code Subscription",
-      apiHost: "https://api.kimi.com/coding/",
-      model: "k2p5",
-    },
-    {
-      label: "MiniMax Anthropic",
-      apiHost: "https://api.minimaxi.com/anthropic",
-      model: "minimax-m1",
-    },
-    {
-      label: "MiniMax Global Anthropic",
-      apiHost: "https://api.minimax.io/anthropic",
-      model: "minimax-m1",
-    },
-    {
-      label: "Alibaba Coding Anthropic",
-      apiHost: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-      model: "qwen3-coder-plus",
-    },
-    {
-      label: "Alibaba Global Coding Anthropic",
-      apiHost: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
-      model: "qwen3-coder-plus",
-    },
-    {
-      label: "MiMo Anthropic",
-      apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
-      model: "mimo-v2-flash",
-    },
-  ])("$label 不应在选择器中误报显式缓存提示", ({ label, apiHost, model }) => {
-    mockUseConfiguredProviders.mockReturnValue({
-      providers: [
-        {
-          key: "custom-anthropic-compatible",
-          label,
-          registryId: "custom-anthropic-compatible",
-          fallbackRegistryId: "anthropic",
-          type: "anthropic-compatible",
-          providerId: "custom-anthropic-compatible",
-          apiHost,
-        },
-      ],
-      loading: false,
-    });
-    mockUseProviderModels.mockReturnValue({
-      modelIds: [model],
-      models: [createReasoningModelMetadata(model)],
-      loading: false,
-      error: null,
-    });
-
-    const { container } = renderModelSelector({
-      providerType: "custom-anthropic-compatible",
-      model,
+      setModel,
     });
 
     clickModelSelectorTrigger(container);
@@ -1417,41 +1329,15 @@ describe("ModelSelector", () => {
     const pageText = getBodyText();
     expect(pageText).not.toContain("显式缓存");
     expect(pageText).not.toContain("未声明自动 Prompt Cache");
-  });
-
-  it("显式声明 automatic 的 anthropic-compatible Provider 不应在选择器中误报显式缓存提示", () => {
-    mockUseConfiguredProviders.mockReturnValue({
-      providers: [
-        {
-          key: "custom-anthropic-compatible",
-          label: "GLM Anthropic Automatic",
-          registryId: "custom-anthropic-compatible",
-          fallbackRegistryId: "anthropic",
-          type: "anthropic-compatible",
-          providerId: "custom-anthropic-compatible",
-          apiHost: "https://open.bigmodel.cn/api/anthropic",
-          promptCacheMode: "automatic",
-        },
-      ],
-      loading: false,
-    });
-    mockUseProviderModels.mockReturnValue({
-      modelIds: ["glm-5.1"],
-      models: [createReasoningModelMetadata("glm-5.1")],
-      loading: false,
-      error: null,
-    });
-
-    const { container } = renderModelSelector({
-      providerType: "custom-anthropic-compatible",
-      model: "glm-5.1",
-    });
-
-    clickModelSelectorTrigger(container);
-
-    const pageText = getBodyText();
-    expect(pageText).not.toContain("显式缓存");
-    expect(pageText).not.toContain("未声明自动 Prompt Cache");
+    expect(pageText).not.toContain("cache_control");
+    const modelButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        '[data-model-selector-popover="true"] button',
+      ),
+    ).find((button) => button.textContent?.includes("glm-5.1"));
+    expect(modelButton).toBeTruthy();
+    act(() => modelButton!.click());
+    expect(setModel).toHaveBeenCalledWith("glm-5.1");
   });
 
   it("无 Provider 引导关闭后应隐藏，并在重新挂载时保持关闭状态", () => {
@@ -1471,12 +1357,12 @@ describe("ModelSelector", () => {
       model: "",
     });
 
-    expect(firstRender.container.textContent).toContain("工具模型未配置");
+    expect(firstRender.container.textContent).toContain("尚未配置服务商");
 
     clickNoProviderGuideDismissButton(firstRender.container);
 
     expect(firstRender.container.textContent ?? "").not.toContain(
-      "工具模型未配置",
+      "尚未配置服务商",
     );
     expect(
       window.localStorage.getItem(
@@ -1490,7 +1376,7 @@ describe("ModelSelector", () => {
     });
 
     expect(secondRender.container.textContent ?? "").not.toContain(
-      "工具模型未配置",
+      "尚未配置服务商",
     );
   });
 });

@@ -67,7 +67,7 @@ describe("chatLayoutVisibility", () => {
   it("任务中心新建空标签可内嵌首页空态", () => {
     expect(
       shouldShowChatLayout({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         preferEmptyStateForFreshTaskCenterTab: true,
         hasDisplayMessages: false,
         hasPendingA2UIForm: false,
@@ -83,7 +83,7 @@ describe("chatLayoutVisibility", () => {
   it("任务中心新建空标签有会话活动时仍应进入对话布局", () => {
     expect(
       shouldShowChatLayout({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         preferEmptyStateForFreshTaskCenterTab: true,
         hasDisplayMessages: true,
         hasPendingA2UIForm: false,
@@ -99,7 +99,7 @@ describe("chatLayoutVisibility", () => {
   it("任务中心切换历史会话时应进入对话布局", () => {
     expect(
       shouldShowChatLayout({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         preferEmptyStateForFreshTaskCenterTab: true,
         hasSession: true,
         hasDisplayMessages: false,

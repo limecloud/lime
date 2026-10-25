@@ -6,9 +6,7 @@
   "agentChat.serviceSkills.badge.customScene": "Custom scenario",
   "agentChat.serviceSkills.catalogSource.seeded": "Starter playbooks",
   "agentChat.serviceSkills.catalogSource.synced": "Synced playbooks",
-  "agentChat.home.composer.placeholder": "Start with what you want to do this round. Goals, audience, and constraints all help.",
+  "agentChat.home.composer.placeholder": "Ask anything",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "Please review these files or folders.",
-  "agentChat.home.hero.eyebrow": "Creation",
-  "agentChat.home.hero.slogan": "Ask Lime, spark the idea",
-  "agentChat.home.hero.description": "Say the goal and Lime will keep going with you."
+  "agentChat.home.title": "What should we build?"
 }

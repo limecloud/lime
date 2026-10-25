@@ -18,7 +18,7 @@ import {
 const { mockInputbar, mockSkillsGetAll, mockUseAgentChatUnified } =
   getIndexTestMocks();
 
-describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
   it("用户手动关闭侧面板后，同一轮重渲染不应再次抢焦点", async () => {
     localStorage.setItem(
       "lime.chat.team_selection.v1.general",

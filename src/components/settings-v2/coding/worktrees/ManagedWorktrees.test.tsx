@@ -214,7 +214,7 @@ it("opens a linked chat using its canonical session identity", async () => {
     "agent",
     expect.objectContaining({
       initialSessionId: "session-existing",
-      agentEntry: "claw",
+      agentEntry: "conversation",
     }),
   );
   expect(api.createAgentRuntimeSession).not.toHaveBeenCalled();

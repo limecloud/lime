@@ -43,7 +43,7 @@ function Harness({
   clearEmbeddedHomeSession = () => undefined,
 }: HarnessProps) {
   latestRuntime = useTaskCenterHomeChromeRuntime({
-    agentEntry: "claw",
+    agentEntry: "conversation",
     sessionId,
     detachedTopicId,
     transitionTopicId,

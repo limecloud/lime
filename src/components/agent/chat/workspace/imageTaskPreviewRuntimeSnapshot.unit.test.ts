@@ -189,17 +189,9 @@ describe("imageTaskPreviewRuntimeSnapshot", () => {
             },
             generationBriefBoundary: {
               formalArtifactVoiceSource: "generation_brief_only",
-              productSoulDefault: "interaction_only",
+
             },
-            soul_lifecycle: {
-              surface: "image_generation",
-              phase: "image_generation_presentation",
-              styleLevel: "L2",
-              riskLevel: "normal",
-              profileId: "cheeky_sassy_executor",
-              packId: "com.lime.soul.cheeky-sassy-executor",
-              toneVariant: "cheeky_sassy",
-            },
+
           },
           modality_contract_key: "image_generation",
           routing_slot: "primary-image",
@@ -339,29 +331,9 @@ describe("imageTaskPreviewRuntimeSnapshot", () => {
         modelSupportsImageGeneration: true,
         limecorePolicyDecision: "allow",
       },
-      soulMetadata: {
-        surface: "image_generation",
-        phase: "image_generation_presentation",
-        styleLevel: "L2",
-        riskLevel: "normal",
-        profileId: "cheeky_sassy_executor",
-        packId: "com.lime.soul.cheeky-sassy-executor",
-        toneVariant: "cheeky_sassy",
-        runningStatusStyleLevel: "L1",
-        assistantIntroStyleLevel: "L2",
-        completionCaptionStyleLevel: "L2",
-        mediaArtifactStyleLevel: "L3",
-        formalArtifactVoiceSource: "generation_brief_only",
-        productSoulDefault: "interaction_only",
-      },
+
     });
-    expect(snapshot?.task.soulMetadata).toMatchObject({
-      profileId: "cheeky_sassy_executor",
-      packId: "com.lime.soul.cheeky-sassy-executor",
-      toneVariant: "cheeky_sassy",
-      mediaArtifactStyleLevel: "L3",
-      formalArtifactVoiceSource: "generation_brief_only",
-    });
+    expect(snapshot?.task).not.toHaveProperty("soulMetadata");
   });
 
   it("应将 succeeded 或 partial 但无输出的图片任务继续视为 running", () => {

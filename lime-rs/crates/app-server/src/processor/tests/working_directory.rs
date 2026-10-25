@@ -124,6 +124,8 @@ async fn working_directory_legacy_resume_migrates_once_and_survives_cold_reopen(
         if legacy.get("runtimeWorkspaceRoots").is_some() {
             assert_eq!(first["runtimeWorkspaceRoots"], json!([expected]));
         }
+        let conn = rusqlite::Connection::open(store.path()).unwrap();
+        conn.execute_batch("CREATE TRIGGER resume_no_rewrite BEFORE UPDATE ON canonical_threads BEGIN SELECT RAISE(ABORT, 'repeat resume must not write'); END;").unwrap();
         let second = request(
             &processor,
             "thread/resume",
@@ -134,6 +136,8 @@ async fn working_directory_legacy_resume_migrates_once_and_survives_cold_reopen(
             second["thread"]["updatedAt"], first["thread"]["updatedAt"],
             "repeat resume must not rewrite metadata"
         );
+        conn.execute_batch("DROP TRIGGER resume_no_rewrite")
+            .unwrap();
         let runtime_request = run_turn(&processor, &backend, json!({}), 1).await;
         assert_eq!(
             runtime_request.working_dir.as_deref(),

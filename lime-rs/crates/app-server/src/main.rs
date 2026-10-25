@@ -35,6 +35,12 @@ struct InitializedDatabase {
 }
 
 fn main() -> anyhow::Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("--computer-use-document-host") {
+        return tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(tool_runtime::computer_use::run_document_host()).map_err(anyhow::Error::msg);
+    }
+    if std::env::args().nth(1).as_deref() == Some(tool_runtime::computer_use::CHROME_EXTENSION_ORIGIN) {
+        return tool_runtime::computer_use::run_native_messaging_host().map_err(anyhow::Error::msg);
+    }
     if std::env::args_os().nth(1).as_deref()
         == Some(std::ffi::OsStr::new(
             tool_runtime::filesystem_helper::FILESYSTEM_HELPER_ARG,
@@ -148,9 +154,6 @@ async fn build_app_server(config: &CliConfig) -> anyhow::Result<AppServer> {
                 .map_err(|error| anyhow::anyhow!("failed to resolve AgentRoot: {error}"))?,
         ),
     };
-    // 组合根一次性注入产品资产根，soul style pack 消费链不再解析平台默认目录。
-    app_server::install_style_pack_data_root(&app_data_root)
-        .map_err(|error| anyhow::anyhow!("failed to install style pack data root: {error}"))?;
     let mut app_data_source =
         LocalAppDataSource::initialize_with_roots(db.clone(), app_data_root.clone(), data_root)
             .await

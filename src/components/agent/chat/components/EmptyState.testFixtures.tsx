@@ -108,6 +108,7 @@ vi.mock("@/lib/dev-bridge", () => ({
 vi.mock("@/lib/api/appServer", () => ({ AppServerClient: vi.fn() }));
 
 vi.mock("@/lib/api/appConfig", () => ({
+  subscribeAppConfigChanged: () => () => {},
   getConfig: mockGetConfig,
 }));
 

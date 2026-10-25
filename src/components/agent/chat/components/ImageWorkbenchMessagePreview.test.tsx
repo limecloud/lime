@@ -97,54 +97,7 @@ describe("ImageWorkbenchMessagePreview", () => {
     expect(container.textContent).not.toContain("当前任务未提供提示词");
   });
 
-  it("renders Soul metadata as stable image generation evidence attributes", () => {
-    const { container } = renderPreview({
-      taskId: "image-preview-soul",
-      prompt: "生成青柠主视觉",
-      mode: "generate",
-      status: "complete",
-      imageUrl: "data:image/png;base64,aW1hZ2U=",
-      imageCount: 1,
-      soulMetadata: {
-        surface: "image_generation",
-        phase: "image_generation_presentation",
-        styleLevel: "L2",
-        riskLevel: "normal",
-        profileId: "cheeky_sassy_executor",
-        packId: "com.lime.soul.cheeky-sassy-executor",
-        toneVariant: "cheeky_sassy",
-        runningStatusStyleLevel: "L1",
-        mediaArtifactStyleLevel: "L3",
-        formalArtifactVoiceSource: "generation_brief_only",
-      },
-    });
 
-    const previewCard = container.querySelector(
-      '[data-testid="image-workbench-message-preview-image-preview-soul"]',
-    );
-    const toolbar = container.querySelector(
-      '[data-testid="image-workbench-message-preview-toolbar-image-preview-soul"]',
-    );
-
-    expect(previewCard?.getAttribute("data-soul-surface")).toBe(
-      "image_generation",
-    );
-    expect(previewCard?.getAttribute("data-soul-style-level")).toBe("L2");
-    expect(previewCard?.getAttribute("data-soul-profile-id")).toBe(
-      "cheeky_sassy_executor",
-    );
-    expect(previewCard?.getAttribute("data-soul-pack-id")).toBe(
-      "com.lime.soul.cheeky-sassy-executor",
-    );
-    expect(previewCard?.getAttribute("data-soul-tone-variant")).toBe(
-      "cheeky_sassy",
-    );
-    expect(previewCard?.getAttribute("data-generation-brief-boundary")).toBe(
-      "generation_brief_only",
-    );
-    expect(toolbar?.getAttribute("data-soul-style-level")).toBe("L1");
-    expect(toolbar?.getAttribute("data-media-artifact-style-level")).toBe("L3");
-  });
 
   it("does not invent a completion caption when the preview has none", () => {
     const { container } = renderPreview({

@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { constants } from "node:fs";
+import { createHash } from "node:crypto";
+import { constants, createReadStream } from "node:fs";
 import {
   access,
   copyFile,
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
+  writeFile,
   rm,
-  symlink,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { prepareLocalComputerUseResources } from "../lib/electron-desktop-resources.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(__filename), "../..");
@@ -26,6 +29,16 @@ const PLATFORM = resolvePlatform();
 async function main() {
   const tempDir = await mkdtemp(path.join(tmpdir(), "cli-npm-gate-b-"));
   try {
+    const version = JSON.parse(
+      await readFile(path.join(rootDir, "package.json"), "utf8"),
+    ).version;
+    const scenarios = (
+      process.env.LIME_CLI_NPM_GATE_SCENARIOS || "cli,tui"
+    ).split(",");
+    if (
+      !scenarios.every((scenario) => ["cli", "tui", "wps"].includes(scenario))
+    )
+      throw new Error("Unknown npm Gate B scenario");
     const profileDir = path.resolve(
       process.env.LIME_CLI_GATE_B_PROFILE_DIR ||
         path.join(rootDir, "lime-rs", "target", "debug"),
@@ -37,25 +50,31 @@ async function main() {
 
     const rootStage = path.join(tempDir, "root-stage");
     const platformStage = path.join(tempDir, "platform-stage");
+    const rootArchive = path.join(tempDir, "lime.tgz");
+    const platformArchive = path.join(tempDir, "platform.tgz");
     await run("python3", [
       buildScript,
       "--package",
       "lime",
       "--version",
-      "0.0.0-gate-b",
+      version,
       "--staging-dir",
       rootStage,
+      "--pack-output",
+      rootArchive,
     ]);
     await run("python3", [
       buildScript,
       "--package",
       PLATFORM.package,
       "--version",
-      "0.0.0-gate-b",
+      version,
       "--staging-dir",
       platformStage,
       "--vendor-src",
       vendorRoot,
+      "--pack-output",
+      platformArchive,
     ]);
 
     const installScope = path.join(
@@ -67,8 +86,8 @@ async function main() {
     const installedRoot = path.join(installScope, "lime");
     const installedPlatform = path.join(installScope, PLATFORM.aliasName);
     await mkdir(installScope, { recursive: true });
-    await copyPackageRoot(rootStage, installedRoot);
-    await symlink(platformStage, installedPlatform, "junction");
+    await extractPackedPackage(rootArchive, installedRoot);
+    await extractPackedPackage(platformArchive, installedPlatform);
 
     const executableSuffix = process.platform === "win32" ? ".exe" : "";
     const launcherPath = path.join(installedRoot, "bin", "lime.js");
@@ -77,37 +96,104 @@ async function main() {
       "installed exec event schema",
     );
     const packagedAppServer = path.join(
-      platformStage,
+      installedPlatform,
       "vendor",
       PLATFORM.targetTriple,
       "bin",
       `app-server${executableSuffix}`,
     );
-    await run(
-      process.execPath,
-      [path.join(rootDir, "scripts", "app-server", "cli-gate-b.mjs")],
-      {
-        APP_SERVER_BIN: packagedAppServer,
-        LIME_CLI_BIN: launcherPath,
-        LIME_CLI_GATE_B_USE_SIBLING_APP_SERVER: "1",
-      },
-    );
-    await run(
-      process.execPath,
-      [path.join(rootDir, "scripts", "app-server", "tui-gate-b.mjs")],
-      {
-        APP_SERVER_BIN: packagedAppServer,
-        LIME_CLI_BIN: launcherPath,
-        LIME_TUI_GATE_B_SCENARIOS: "complete,user-input",
-      },
-    );
+    if (scenarios.includes("cli"))
+      await run(
+        process.execPath,
+        [path.join(rootDir, "scripts", "app-server", "cli-gate-b.mjs")],
+        {
+          APP_SERVER_BIN: packagedAppServer,
+          LIME_CLI_BIN: launcherPath,
+          LIME_CLI_GATE_B_USE_SIBLING_APP_SERVER: "1",
+        },
+      );
+    if (scenarios.includes("tui"))
+      await run(
+        process.execPath,
+        [path.join(rootDir, "scripts", "app-server", "tui-gate-b.mjs")],
+        {
+          APP_SERVER_BIN: packagedAppServer,
+          LIME_CLI_BIN: launcherPath,
+          LIME_TUI_GATE_B_SCENARIOS: "complete,user-input",
+        },
+      );
+    if (scenarios.includes("wps"))
+      await run(
+        process.execPath,
+        [path.join(rootDir, "scripts/app-server/computer-use-wps-fixture.mjs")],
+        {
+          APP_SERVER_BIN: packagedAppServer,
+          LIME_CLI_BIN: launcherPath,
+          LIME_COMPUTER_USE_HOST: "cli",
+          LIME_WPS_USE_PACKAGED_RESOURCES: "1",
+        },
+      );
+
+    if (scenarios.includes("wps")) {
+      const evidenceDir = path.join(
+        rootDir,
+        ".lime/qc/computer-use-integrations-20261025",
+      );
+      const wps = JSON.parse(
+        await readFile(path.join(evidenceDir, "wps-cli.json"), "utf8"),
+      );
+      if (wps.result !== "pass") throw new Error("packaged WPS receipt failed");
+      const manifest = JSON.parse(
+        await readFile(
+          path.join(
+            path.dirname(packagedAppServer),
+            "desktop-resources.manifest.json",
+          ),
+          "utf8",
+        ),
+      );
+      await writeFile(
+        path.join(evidenceDir, "wps-cli-package.json"),
+        JSON.stringify(
+          {
+            result: "pass",
+            checkedAt: new Date().toISOString(),
+            platform: process.platform,
+            arch: process.arch,
+            version,
+            claimBoundary:
+              "Local npm tarballs installed into isolated optional platform package; real Node launcher, sibling lime/App Server/helper and WPS; HTTP model fixture, no release signature or other-platform claim",
+            rootArchiveSha256: await digest(rootArchive),
+            platformArchiveSha256: await digest(platformArchive),
+            cliSha256: await digest(
+              path.join(
+                path.dirname(packagedAppServer),
+                `lime${executableSuffix}`,
+              ),
+            ),
+            appServerSha256: await digest(packagedAppServer),
+            manifest,
+            wpsReceipt: "wps-cli.json",
+            threadId: wps.turns[0].threadId,
+          },
+          null,
+          2,
+        ) + "\n",
+      );
+    }
 
     console.log(
-      `[smoke:cli-npm-gate-b] ok target=${PLATFORM.targetTriple} launcher=${launcherPath} appServer=sibling tui=complete,user-input`,
+      `[smoke:cli-npm-gate-b] ok target=${PLATFORM.targetTriple} launcher=${launcherPath} appServer=sibling scenarios=${scenarios.join(",")} installedFrom=npm-tarballs`,
     );
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function digest(file) {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest("hex");
 }
 
 function resolvePlatform() {
@@ -166,23 +252,32 @@ async function stageRuntimePayload(profileDir, vendorBin) {
     await assertFile(source, name);
     await copyFile(source, destination, constants.COPYFILE_FICLONE);
   }
+  if (["darwin", "win32"].includes(process.platform)) {
+    prepareLocalComputerUseResources({
+      binaryPath: path.join(vendorBin, `app-server${suffix}`),
+    });
+  }
 }
 
-async function copyPackageRoot(source, destination) {
-  await mkdir(path.join(destination, "bin"), { recursive: true });
-  await Promise.all([
-    copyFile(
-      path.join(source, "package.json"),
-      path.join(destination, "package.json"),
-    ),
-    copyFile(
-      path.join(source, "bin", "lime.js"),
-      path.join(destination, "bin", "lime.js"),
-    ),
-    copyFile(
-      path.join(source, "exec-events.schema.json"),
-      path.join(destination, "exec-events.schema.json"),
-    ),
+async function extractPackedPackage(archive, destination) {
+  await run("python3", [
+    "-c",
+    `import pathlib,sys,tarfile
+root=pathlib.Path(sys.argv[2]);root.mkdir(parents=True)
+with tarfile.open(sys.argv[1],"r:gz") as archive:
+ for member in archive:
+  name=pathlib.PurePosixPath(member.name)
+  if not name.parts or name.parts[0]!="package" or ".." in name.parts: raise RuntimeError("invalid npm archive member")
+  target=root.joinpath(*name.parts[1:])
+  if member.isdir(): target.mkdir(parents=True,exist_ok=True)
+  elif member.isfile():
+   target.parent.mkdir(parents=True,exist_ok=True)
+   with archive.extractfile(member) as source, target.open("wb") as output:
+    import shutil;shutil.copyfileobj(source,output)
+   target.chmod(member.mode & 0o777)
+  else: raise RuntimeError("unexpected npm archive member type")`,
+    archive,
+    destination,
   ]);
 }
 

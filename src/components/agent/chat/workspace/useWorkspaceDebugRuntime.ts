@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { logAgentDebug } from "@/lib/agentDebug";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 
-const AGENT_CHAT_DEBUG_COMPONENT = "AgentChatPage";
+const AGENT_CHAT_DEBUG_COMPONENT = "LocalConversationPage";
 
 export interface WorkspaceDebugMountContext {
   agentEntry: string;

@@ -826,13 +826,6 @@ export function resolveMessageListItemProjection({
       : ("standard" as const);
   const canQuoteMessage = Boolean(actionContent);
   const canCopyMessage = Boolean(actionContent);
-  const canSaveMessageAsSkill = Boolean(
-    message.role === "assistant" &&
-    !message.imageWorkbenchPreview &&
-    !message.isThinking &&
-    actionContent &&
-    actionContent.length >= 24,
-  );
   const {
     hasArticleArtifactFrame,
 
@@ -942,8 +935,6 @@ export function resolveMessageListItemProjection({
     arePrimaryTimelineDetailsDeferred,
     canCopyMessage,
     canQuoteMessage,
-
-    canSaveMessageAsSkill,
     displayContent,
     hasAssistantBodyContent,
     hasImageWorkbenchLeadContent,

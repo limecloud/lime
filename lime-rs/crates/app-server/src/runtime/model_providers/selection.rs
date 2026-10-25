@@ -357,7 +357,7 @@ fn find_catalog_model<'a>(
         .and_then(|catalog| {
             catalog.models.iter().find(|metadata| {
                 metadata.visibility != ModelVisibility::None
-                    && metadata.capability_provenance != ModelCapabilityProvenance::InferredHint
+                    && is_executable_chat_model(metadata)
                     && (effective_provider_model_id(metadata) == model
                         || metadata.id == model
                         || metadata.canonical_model_id.as_deref() == Some(model))
@@ -390,10 +390,6 @@ fn normalize_optional_thread_start_value(
 }
 
 pub(in crate::runtime) fn is_executable_chat_model(metadata: &EnhancedModelMetadata) -> bool {
-    if metadata.capability_provenance == ModelCapabilityProvenance::InferredHint {
-        return false;
-    }
-
     let input_modalities = chat_wire_input_modalities(metadata);
     let snapshot = chat_wire_capability_snapshot(metadata, &input_modalities);
     runtime_core::route_capability_gap(&chat_task_request(metadata), &snapshot).is_none()
@@ -422,6 +418,9 @@ fn chat_task_request(metadata: &EnhancedModelMetadata) -> ModelTaskRequest {
 }
 
 fn chat_wire_input_modalities(metadata: &EnhancedModelMetadata) -> Vec<ModelModality> {
+    if metadata.capability_provenance == ModelCapabilityProvenance::InferredHint {
+        return vec![ModelModality::Text];
+    }
     metadata
         .input_modalities
         .iter()
@@ -434,6 +433,13 @@ fn chat_wire_capability_snapshot(
     metadata: &EnhancedModelMetadata,
     input_modalities: &[ModelModality],
 ) -> CapabilitySnapshot {
+    if metadata.capability_provenance == ModelCapabilityProvenance::InferredHint
+        && metadata
+            .task_families
+            .contains(&lime_core::models::model_registry::ModelTaskFamily::Chat)
+    {
+        return runtime_core::chat_protocol_defaults(None).expect("chat catalog defaults");
+    }
     let mut snapshot =
         runtime_core::capability_snapshot_from_model_capabilities(&serde_json::json!({
             "taskFamilies": &metadata.task_families,
@@ -804,7 +810,7 @@ mod tests {
     }
 
     #[test]
-    fn model_list_excludes_inferred_and_non_chat_models_even_when_hidden_requested() {
+    fn model_list_includes_configured_chat_defaults_and_excludes_non_chat_or_explicit_denials() {
         let mut inferred = model("openai", "inferred", ModelVisibility::List);
         inferred.capability_provenance = ModelCapabilityProvenance::InferredHint;
         let mut image = model("openai", "image", ModelVisibility::List);
@@ -837,9 +843,15 @@ mod tests {
                 .iter()
                 .map(|model| model.model.as_str())
                 .collect::<Vec<_>>(),
-            vec!["chat"]
+            vec!["inferred", "chat"]
         );
-        assert!(response.data[0].hidden);
+        assert!(!response.data[0].hidden);
+        assert_eq!(
+            response.data[0].capability_snapshot.source.as_deref(),
+            Some("protocol_default")
+        );
+        assert!(response.data[0].supported_reasoning_efforts.is_empty());
+        assert!(response.data[1].hidden);
     }
 
     #[test]

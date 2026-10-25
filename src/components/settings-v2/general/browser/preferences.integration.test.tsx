@@ -140,7 +140,7 @@ function SearchResult({
   targetId: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  useSettingsSearchTarget(ref, section, { targetId, requestKey: 1 }, true);
+  useSettingsSearchTarget(ref, section, { targetId, requestKey: 1 });
   return (
     <div ref={ref}>
       {section === SettingsTabs.Browser ? (
@@ -718,7 +718,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
       /(?:settings|browserDownloads)\./u,
     );
     for (const target of ["browser-web-target", "browser-local-target"]) {
-      expect(isSettingsSearchTarget(SettingsTabs.Browser, target, true)).toBe(
+      expect(isSettingsSearchTarget(SettingsTabs.Browser, target)).toBe(
         true,
       );
       expect(container.querySelector(`#${target}`)).not.toBeNull();
@@ -729,7 +729,6 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
       isSettingsSearchTarget(
         SettingsTabs.KeyboardShortcuts,
         "keyboard-external-browser-link",
-        true,
       ),
     ).toBe(true);
     expect(

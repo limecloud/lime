@@ -14,7 +14,7 @@ import type { AgentAccessMode } from "./agentChatStorage";
 import type { ActiveStreamState } from "./agentStreamSubmissionLifecycle";
 import type { ActionRequired, Message } from "../types";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 
 export type AppendThinkingToPartsFn = (
   parts: NonNullable<Message["contentParts"]>,
@@ -65,7 +65,7 @@ export interface AgentStreamPreparedSendEnv {
   ) => void;
   executionRuntime?: AgentSessionExecutionRuntime | null;
 
-  soulCopy?: SoulInteractionCopy;
+
   setActiveStream: (nextActive: ActiveStreamState | null) => void;
   clearActiveStreamIfMatch: (eventName: string) => boolean;
   setMessages: Dispatch<SetStateAction<Message[]>>;

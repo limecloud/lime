@@ -181,10 +181,10 @@ export function ensureAgentUiPerformanceTraceMetadata(
     requestId:
       existingTrace?.requestId ??
       normalizeString(options.requestId) ??
-      createTraceId("claw_request"),
-    runId: existingTrace?.runId ?? createTraceId("claw_run"),
+      createTraceId("conversation_request"),
+    runId: existingTrace?.runId ?? createTraceId("conversation_run"),
     sessionId: existingTrace?.sessionId ?? normalizeString(options.sessionId),
-    traceId: existingTrace?.traceId ?? createTraceId("claw_trace"),
+    traceId: existingTrace?.traceId ?? createTraceId("conversation_trace"),
     turnId: existingTrace?.turnId ?? null,
     workspaceId:
       existingTrace?.workspaceId ?? normalizeString(options.workspaceId),

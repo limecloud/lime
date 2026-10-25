@@ -14,7 +14,6 @@ export const DragHandle = styled.div`
   cursor: row-resize;
   color: var(--muted-foreground);
   opacity: 0;
-  transition: opacity 0.2s;
   z-index: 10;
 
   &:hover {
@@ -42,73 +41,32 @@ export const Container = styled.div`
 `;
 
 export const InputBarContainer = styled.div`
+  container: composer / inline-size;
+  min-width: 0;
   position: relative;
-  border: 1px solid var(--lime-composer-border, rgba(110, 231, 183, 0.84));
-  border-radius: 22px;
+  border: 0.5px solid var(--lime-surface-border-strong);
+  border-radius: 18px;
   padding: 8px 8px 0;
-  background: var(
-    --lime-composer-surface,
-    var(--lime-surface, hsl(var(--card)))
-  );
-  box-shadow:
-    0 10px 28px var(--lime-shadow-color),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.2s ease;
+  background: var(--lime-surface);
 
   &:focus-within {
-    border-color: var(--lime-composer-border-focus, rgba(74, 222, 128, 0.7));
-    background: var(--lime-composer-surface-focus);
-    box-shadow:
-      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
-      0 14px 32px var(--lime-shadow-color),
-      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    border-color: var(--lime-brand-strong);
   }
 
   &.file-dragging {
-    border: 2px dashed var(--lime-brand, #10b981);
-    background-color: var(--lime-brand-soft, #ecfdf5);
+    border-style: dashed;
+    border-color: var(--lime-brand-strong);
+    background: var(--lime-brand-soft);
   }
 
   &.floating-composer {
-    border-radius: 18px;
     padding: 12px 8px 0;
-    background: var(
-      --lime-composer-surface-floating,
-      var(--lime-surface, hsl(var(--card)))
-    );
-    border-color: var(--lime-composer-border, rgba(110, 231, 183, 0.84));
-    box-shadow:
-      0 28px 56px -38px var(--lime-shadow-color),
-      inset 0 1px 0 rgba(255, 255, 255, 0.88);
   }
 
-  &.floating-composer.context-connected {
+  &.context-connected {
     border-bottom-right-radius: 0;
     border-bottom-left-radius: 0;
     border-bottom-color: transparent;
-    box-shadow:
-      0 18px 42px -36px var(--lime-shadow-color),
-      inset 0 1px 0 rgba(255, 255, 255, 0.88);
-  }
-
-  &.floating-composer:focus-within {
-    background: var(--lime-composer-surface-focus);
-    border-color: var(--lime-composer-border-focus, rgba(74, 222, 128, 0.7));
-    box-shadow:
-      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
-      0 28px 56px -34px var(--lime-shadow-color),
-      inset 0 1px 0 rgba(255, 255, 255, 0.88);
-  }
-
-  &.floating-composer.context-connected:focus-within {
-    border-bottom-color: transparent;
-    box-shadow:
-      0 0 0 3px rgba(74, 222, 128, 0.1),
-      0 22px 48px -38px var(--lime-shadow-color),
-      inset 0 1px 0 rgba(255, 255, 255, 0.88);
   }
 `;
 
@@ -139,7 +97,7 @@ export const DictationRecordingWaveform = styled.span`
 
   &::before {
     content: "••••••";
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1;
     letter-spacing: 1px;
   }
@@ -149,7 +107,7 @@ export const DictationRecordingDuration = styled.span`
   display: inline-flex;
   width: 36px;
   justify-content: flex-start;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -160,7 +118,7 @@ export const DictationRecordingDuration = styled.span`
 export const DictationLiveTranscript = styled.div`
   margin-top: 4px;
   color: hsl(var(--muted-foreground));
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
   word-break: break-word;
   opacity: 0.86;
@@ -180,18 +138,16 @@ export const StyledComposerEditor = styled(ComposerEditor)`
   outline: none;
   line-height: 1.5;
   font-family: inherit;
-  font-size: 16px;
+  font-size: 14px;
   color: hsl(var(--foreground));
-  /* Codex's adaptive footer keeps a generous editing surface above the
-   * controls row.  The previous 88px floor made the workspace composer
-   * visibly shorter than the home composer and collapsed the lower surface
-   * on smaller windows. */
-  min-height: 120px;
+  /* 普通草稿保留紧凑文本区，长内容随原编辑器增长或展开。 */
+  min-height: 44px;
+  overflow-wrap: anywhere;
 
   &.floating-composer {
-    font-size: 17px;
-    line-height: 1.78;
-    min-height: 136px;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 44px;
   }
 
   [data-testid="inputbar-core-container"]:has([data-composer-expand-toggle]) & {
@@ -231,6 +187,10 @@ export const StyledComposerEditor = styled(ComposerEditor)`
     content: attr(data-placeholder);
     position: absolute;
     pointer-events: none;
+    inset-inline: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   [data-composer-token="paste"],
   [data-composer-token="element"] {

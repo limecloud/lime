@@ -57,6 +57,7 @@ function deferred<T>() {
 }
 function setup() {
   const browser = {
+    setThreadAccess: vi.fn(),
     executeTool: vi
       .fn<(call: BrowserToolCall) => Promise<BrowserToolResult>>()
       .mockResolvedValue({ status: "completed" }),

@@ -203,7 +203,7 @@ describe("AppSidebar search", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-target",
         initialSessionName: "目标历史会话",
@@ -240,7 +240,7 @@ describe("AppSidebar search", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-project-current",
       } as AgentPageParams,
@@ -271,7 +271,7 @@ describe("AppSidebar search", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         initialSessionId: "session-standalone-search",
       }),
     );
@@ -405,7 +405,7 @@ describe("AppSidebar search", () => {
       expect(onNavigate).toHaveBeenCalledWith(
         "agent",
         expect.objectContaining({
-          agentEntry: "claw",
+          agentEntry: "conversation",
           projectId: "project-1",
           initialSessionId: "session-click-search",
         }),

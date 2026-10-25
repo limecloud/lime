@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../types";
-import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import {
   clearAgentUiPerformanceMetrics,
   getAgentUiPerformanceMetrics,
@@ -66,52 +66,7 @@ describe("agentStreamSubmitDraft browser paint boundary", () => {
     expect(isSending).toBe(true);
   });
 
-  it("普通 assistant 草稿初始运行态应保持 neutral 文案并携带 Soul metadata", () => {
-    let messages: Message[] = [];
-    let isSending = false;
-    const soulCopy = resolveSoulInteractionCopy({
-      soul: {
-        enabled: true,
-        style_profile_id: "cheeky_sassy_executor",
-      },
-    });
 
-    prepareAgentStreamSubmitDraft({
-      content: "整理资料",
-      images: [],
-      skipUserMessage: false,
-      assistantMsgId: "assistant-soul",
-      userMsgId: "user-soul",
-      effectiveExecutionStrategy: "react",
-      soulCopy,
-      setMessages: createStateSetter(
-        () => messages,
-        (value) => {
-          messages = value;
-        },
-      ),
-      setIsSending: createStateSetter(
-        () => isSending,
-        (value) => {
-          isSending = value;
-        },
-      ),
-    });
-
-    expect(messages[1]?.runtimeStatus).toMatchObject({
-      title: "正在准备处理",
-      detail: "正在理解你的需求并准备当前阶段。",
-      metadata: {
-        soul_surface: "initial_runtime_status",
-        soul_phase: "preparing",
-        style_level: "L1",
-        risk_level: "normal",
-        tone_variant: "cheeky_sassy",
-        profile_id: "cheeky_sassy_executor",
-        pack_id: "com.lime.soul.cheeky-sassy-executor",
-      },
-    });
-  });
 
   it("跳过 user message 时只注入 assistant draft，并保留自定义初始内容", () => {
     let messages: Message[] = [];

@@ -1,3 +1,4 @@
+mod locale_copy;
 mod builders;
 mod files;
 mod metrics;
@@ -6,7 +7,7 @@ mod rollout;
 use self::builders::*;
 use self::files::*;
 use self::metrics::*;
-use super::soul::locale_copy::runtime_export_copy;
+use self::locale_copy::runtime_export_copy;
 use super::timestamp;
 use super::RuntimeCore;
 use super::RuntimeCoreError;

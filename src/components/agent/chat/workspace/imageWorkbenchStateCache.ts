@@ -354,7 +354,7 @@ export function buildSessionImageWorkbenchStateFromMessages(
       createdAt,
       failureMessage: preview.statusMessage ?? undefined,
       workflowRun: preview.workflowRun ?? null,
-      soulMetadata: preview.soulMetadata ?? null,
+
       hookImageIds: outputs.map((output) => output.hookImageId),
       applyTarget: null,
       taskFilePath: preview.taskFilePath ?? null,

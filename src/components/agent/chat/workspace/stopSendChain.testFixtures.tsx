@@ -94,6 +94,8 @@ function createDefaultHarnessPanelBaseProps(
   };
 }
 
+
+
 export function createSceneProps(
   overrides: HookPropsOverrides = {},
 ): HookProps {
@@ -161,9 +163,9 @@ export function createSceneProps(
     setChatToolPreferences: noop,
     handleNavigateToSkillSettings: noop,
     handleRefreshSkills: noop,
-    soulArtifactVoiceGenerationBrief: null,
-    soulArtifactVoiceEnabledForTurn: true,
-    onSoulArtifactVoiceEnabledForTurnChange: noop,
+
+
+
     generalWorkbenchEntryPrompt: null,
     handleRestartGeneralWorkbenchEntryPrompt: noop,
     handleContinueGeneralWorkbenchEntryPrompt: noop,

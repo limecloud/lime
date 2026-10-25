@@ -97,7 +97,21 @@ export function readUnknownItemRecoveryEvidence(value) {
 }
 
 export async function collectUnknownItemScenarioEvidence({ page, readModel }) {
-  const unsupportedItem = page.locator(
+  const item = readUnknownItemRecoveryEvidence(readModel);
+  if (!item?.turn_id)
+    throw new Error("Unknown Item has no canonical Turn identity");
+  const turn = page.locator(
+    `[data-testid="conversation-turn-timeline"][data-runtime-turn-id=${JSON.stringify(item.turn_id)}]`,
+  );
+  const processDetails = turn.locator(
+    '[data-testid="conversation-turn-process-segment"] details[data-details-available="true"]',
+  );
+  for (const block of await processDetails.all()) {
+    if ((await block.getAttribute("open")) === null) {
+      await block.locator(":scope > summary").click();
+    }
+  }
+  const unsupportedItem = turn.locator(
     '[data-testid="timeline-unsupported-item"]',
     { hasText: UNKNOWN_ITEM_UPSTREAM_TYPE },
   );
@@ -152,7 +166,6 @@ export async function collectUnknownItemScenarioEvidence({ page, readModel }) {
   );
   await unsupportedItem.locator("summary").click();
   await diagnostics.waitFor({ state: "hidden" });
-  const item = readUnknownItemRecoveryEvidence(readModel);
   const serializedReadModel = JSON.stringify(readModel || {});
   return {
     gui: { ...gui, diagnostics: expanded },

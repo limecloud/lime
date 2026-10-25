@@ -34,7 +34,7 @@ import {
   RIGHT_SURFACE_VISUAL_MATRIX_SCENARIO,
   THREAD_SUMMARY_PANEL_SCENARIO,
   SESSION_ID,
-  SOUL_STYLE_SCENARIO,
+
   TERMINAL_CANCELED_AFTER_ANSWER_SCENARIO,
   TERMINAL_FAILED_AFTER_ANSWER_SCENARIO,
   TERMINAL_STALE_GUARD_SCENARIO,
@@ -119,7 +119,7 @@ import {
   waitForBackendLedgerEntry,
   waitForBackendLedgerTurnStart,
 } from "./claw-chat-current-fixture-backend-ledger.mjs";
-import { resolveSoulStyleFixtureExpectedTexts } from "./claw-chat-current-fixture-soul-style.mjs";
+
 import { logStage, sanitizeJson } from "./claw-chat-current-fixture-utils.mjs";
 
 function collectReadModelThreadItems(readModel) {
@@ -844,15 +844,11 @@ export async function executeScenarioFlow({
     options.scenario !== CONTENT_FACTORY_ARTICLE_WORKSPACE_SCENARIO &&
     options.scenario !== CONTENT_FACTORY_INLINE_IMAGE_ARTICLE_WORKSPACE_SCENARIO
   ) {
-    const soulStyleExpectedTexts =
-      options.scenario === SOUL_STYLE_SCENARIO
-        ? resolveSoulStyleFixtureExpectedTexts(summary.soulStyleExpectation)
-        : null;
+
     const defaultSummaryText = "今日国际新闻简要整理";
     const summaryText =
-      soulStyleExpectedTexts?.summaryText ?? defaultSummaryText;
+      defaultSummaryText;
     const completionWaitOptions =
-      soulStyleExpectedTexts ??
       (options.scenario === "complete"
         ? { dedupeGuardTexts: STREAM_PARSER_BOUNDARY_DEDUPE_GUARDS }
         : undefined);
@@ -902,7 +898,7 @@ export async function executeScenarioFlow({
       );
     }
 
-    if (options.scenario !== SOUL_STYLE_SCENARIO) {
+    {
       logStage("probe-direct-v2-event-read");
       summary.eventReadProbe = await runEventReadProbe(
         page,

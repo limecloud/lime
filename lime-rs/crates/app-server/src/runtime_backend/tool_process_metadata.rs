@@ -56,20 +56,12 @@ pub(crate) enum ToolProcessStatus {
     Failed,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct SoulStyleMetadata {
-    pub(crate) profile_id: Option<String>,
-    pub(crate) pack_id: Option<String>,
-    pub(crate) tone_variant: Option<String>,
-}
-
 pub(crate) struct ToolProcessMetadataInput<'a> {
     pub(crate) tool_id: &'a str,
     pub(crate) tool_name: Option<&'a str>,
     pub(crate) status: ToolProcessStatus,
     pub(crate) arguments: Option<&'a Value>,
     pub(crate) result: Option<&'a AgentToolResult>,
-    pub(crate) soul_style: Option<&'a SoulStyleMetadata>,
 }
 
 pub(crate) fn build_tool_process_metadata(
@@ -78,9 +70,6 @@ pub(crate) fn build_tool_process_metadata(
     let mut lifecycle = tool_lifecycle_descriptor(input.status);
     let risk = classify_tool_process_risk(&input);
     risk.apply_to_lifecycle(&mut lifecycle);
-    if let Some(soul_style) = input.soul_style {
-        soul_style.insert_lifecycle_fields(&mut lifecycle);
-    }
     let mut metadata = Map::new();
     metadata.insert(
         "tool_process_facts".to_string(),
@@ -89,23 +78,6 @@ pub(crate) fn build_tool_process_metadata(
     if let Some(summary) = tool_process_summary_descriptor(&input) {
         metadata.insert("tool_process_summary".to_string(), summary);
     }
-    metadata.insert(
-        "soul_lifecycle".to_string(),
-        Value::Object(lifecycle.clone()),
-    );
-    metadata.insert(
-        "soul_surface".to_string(),
-        Value::String("tool_lifecycle".to_string()),
-    );
-    if let Some(phase) = lifecycle.get("phase").and_then(Value::as_str) {
-        metadata.insert("soul_phase".to_string(), Value::String(phase.to_string()));
-    }
-    if let Some(style_level) = lifecycle.get("styleLevel").and_then(Value::as_str) {
-        metadata.insert(
-            "style_level".to_string(),
-            Value::String(style_level.to_string()),
-        );
-    }
     if let Some(risk_level) = lifecycle.get("riskLevel").and_then(Value::as_str) {
         metadata.insert(
             "risk_level".to_string(),
@@ -113,135 +85,17 @@ pub(crate) fn build_tool_process_metadata(
         );
     }
     risk.insert_metadata_fields(&mut metadata);
-    if let Some(soul_style) = input.soul_style {
-        soul_style.insert_top_level_fields(&mut metadata);
-    }
     metadata
 }
 
-impl SoulStyleMetadata {
-    pub(crate) fn from_config_metadata(config_metadata: Option<&Value>) -> Option<Self> {
-        let config_metadata = config_metadata?;
-        [
-            "/memory/soul/styleProfile",
-            "/memory_soul_prompt_context/styleProfile",
-            "/memorySoulPromptContext/styleProfile",
-            "/config/memory/soul/styleProfile",
-        ]
-        .into_iter()
-        .filter_map(|pointer| config_metadata.pointer(pointer))
-        .find_map(Self::from_style_profile_value)
-    }
-
-    pub(crate) fn from_payload_object(payload: &Map<String, Value>) -> Option<Self> {
-        let mut style = Self::default();
-        style.merge_record(payload);
-        if let Some(metadata) = payload.get("metadata").and_then(Value::as_object) {
-            style.merge_record(metadata);
-        }
-        if let Some(result_metadata) = payload
-            .get("result")
-            .and_then(Value::as_object)
-            .and_then(|result| result.get("metadata"))
-            .and_then(Value::as_object)
-        {
-            style.merge_record(result_metadata);
-        }
-        style.into_option()
-    }
-
-    pub(crate) fn merge_with_fallback(mut self, fallback: Option<&Self>) -> Option<Self> {
-        if let Some(fallback) = fallback {
-            if self.profile_id.is_none() {
-                self.profile_id = fallback.profile_id.clone();
-            }
-            if self.pack_id.is_none() {
-                self.pack_id = fallback.pack_id.clone();
-            }
-            if self.tone_variant.is_none() {
-                self.tone_variant = fallback.tone_variant.clone();
-            }
-        }
-        self.into_option()
-    }
-
-    pub(crate) fn insert_lifecycle_fields(&self, target: &mut Map<String, Value>) {
-        insert_optional_owned_string(target, "profileId", self.profile_id.as_deref());
-        insert_optional_owned_string(target, "packId", self.pack_id.as_deref());
-        insert_optional_owned_string(target, "toneVariant", self.tone_variant.as_deref());
-    }
-
-    pub(crate) fn insert_fact_fields(&self, target: &mut Map<String, Value>) {
-        insert_optional_owned_string(target, "profileId", self.profile_id.as_deref());
-        insert_optional_owned_string(target, "packId", self.pack_id.as_deref());
-        insert_optional_owned_string(target, "toneVariant", self.tone_variant.as_deref());
-    }
-
-    pub(crate) fn insert_top_level_fields(&self, target: &mut Map<String, Value>) {
-        insert_optional_owned_string(target, "profile_id", self.profile_id.as_deref());
-        insert_optional_owned_string(target, "pack_id", self.pack_id.as_deref());
-        insert_optional_owned_string(target, "tone_variant", self.tone_variant.as_deref());
-    }
-
-    fn from_style_profile_value(value: &Value) -> Option<Self> {
-        let profile = value.as_object()?;
-        let mut style = Self::default();
-        style.merge_style_profile_record(profile);
-        style.into_option()
-    }
-
-    fn merge_record(&mut self, record: &Map<String, Value>) {
-        if self.profile_id.is_none() {
-            self.profile_id = read_string_field(record, &["profileId", "profile_id"]);
-        }
-        if self.pack_id.is_none() {
-            self.pack_id = read_string_field(record, &["packId", "pack_id"]);
-        }
-        if self.tone_variant.is_none() {
-            self.tone_variant = read_string_field(record, &["toneVariant", "tone_variant"]);
-        }
-        if let Some(style_profile) = record.get("styleProfile").and_then(Value::as_object) {
-            self.merge_style_profile_record(style_profile);
-        }
-        for key in [
-            "soul_lifecycle",
-            "soulLifecycle",
-            "tool_process_facts",
-            "toolProcessFacts",
-        ] {
-            if let Some(nested) = record.get(key).and_then(Value::as_object) {
-                self.merge_record(nested);
-            }
-        }
-    }
-
-    fn merge_style_profile_record(&mut self, profile: &Map<String, Value>) {
-        if self.profile_id.is_none() {
-            self.profile_id = read_string_field(profile, &["id", "profileId", "profile_id"]);
-        }
-        if self.pack_id.is_none() {
-            self.pack_id = read_string_field(profile, &["packId", "pack_id"]);
-        }
-        if self.tone_variant.is_none() {
-            self.tone_variant =
-                read_string_field(profile, &["toneVariant", "tone_variant", "tone"]);
-        }
-    }
-
-    fn into_option(self) -> Option<Self> {
-        (self.profile_id.is_some() || self.pack_id.is_some() || self.tone_variant.is_some())
-            .then_some(self)
-    }
-}
-
 fn tool_lifecycle_descriptor(status: ToolProcessStatus) -> Map<String, Value> {
-    let (phase, status_name, style_level) = match status {
-        ToolProcessStatus::Started => ("before_tool", "started", "L1"),
-        ToolProcessStatus::InputDelta => ("before_tool", "input_delta", "L1"),
-        ToolProcessStatus::Progress => ("tool_progress", "progress", "L1"),
-        ToolProcessStatus::OutputDelta => ("tool_progress", "output_delta", "L1"),
-        ToolProcessStatus::Completed => ("after_tool_success", "completed", "L2"),
-        ToolProcessStatus::Failed => ("after_tool_failure", "failed", "L2"),
+    let (phase, status_name) = match status {
+        ToolProcessStatus::Started => ("before_tool", "started"),
+        ToolProcessStatus::InputDelta => ("before_tool", "input_delta"),
+        ToolProcessStatus::Progress => ("tool_progress", "progress"),
+        ToolProcessStatus::OutputDelta => ("tool_progress", "output_delta"),
+        ToolProcessStatus::Completed => ("after_tool_success", "completed"),
+        ToolProcessStatus::Failed => ("after_tool_failure", "failed"),
     };
     Map::from_iter([
         (
@@ -250,10 +104,6 @@ fn tool_lifecycle_descriptor(status: ToolProcessStatus) -> Map<String, Value> {
         ),
         ("phase".to_string(), Value::String(phase.to_string())),
         ("status".to_string(), Value::String(status_name.to_string())),
-        (
-            "styleLevel".to_string(),
-            Value::String(style_level.to_string()),
-        ),
         ("riskLevel".to_string(), Value::String("normal".to_string())),
     ])
 }
@@ -284,12 +134,6 @@ fn tool_process_facts_with_risk(
     if let Some(phase) = lifecycle.get("phase").and_then(Value::as_str) {
         facts.insert("phase".to_string(), Value::String(phase.to_string()));
     }
-    if let Some(style_level) = lifecycle.get("styleLevel").and_then(Value::as_str) {
-        facts.insert(
-            "styleLevel".to_string(),
-            Value::String(style_level.to_string()),
-        );
-    }
     if let Some(risk_level) = lifecycle.get("riskLevel").and_then(Value::as_str) {
         facts.insert(
             "riskLevel".to_string(),
@@ -297,9 +141,6 @@ fn tool_process_facts_with_risk(
         );
     }
     risk.insert_fact_fields(&mut facts);
-    if let Some(soul_style) = input.soul_style {
-        soul_style.insert_fact_fields(&mut facts);
-    }
     if let Some(subject) = tool_process_subject(input.arguments, input.tool_name) {
         facts.insert("subject".to_string(), Value::String(subject));
     }
@@ -621,7 +462,7 @@ fn merge_tool_process_metadata_into(
         if key == "tool_process_summary" && has_tool_process_summary(target) {
             continue;
         }
-        if matches!(key.as_str(), "tool_process_facts" | "soul_lifecycle") {
+        if matches!(key.as_str(), "tool_process_facts") {
             merge_object_field_into(target, key, value);
             continue;
         }
@@ -727,18 +568,6 @@ fn shorten_value(value: &str, max_chars: usize) -> String {
     shortened
 }
 
-fn read_string_field(record: &Map<String, Value>, keys: &[&str]) -> Option<String> {
-    keys.iter()
-        .find_map(|key| record.get(*key)?.as_str().and_then(non_empty_str))
-        .map(str::to_string)
-}
-
-fn insert_optional_owned_string(target: &mut Map<String, Value>, key: &str, value: Option<&str>) {
-    if let Some(value) = value.and_then(non_empty_str) {
-        target.insert(key.to_string(), Value::String(value.to_string()));
-    }
-}
-
 pub(crate) fn tool_failure_category(result: &AgentToolResult) -> String {
     result
         .metadata
@@ -760,67 +589,4 @@ pub(crate) fn tool_failure_category(result: &AgentToolResult) -> String {
 fn non_empty_str(value: &str) -> Option<&str> {
     let value = value.trim();
     (!value.is_empty()).then_some(value)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn soul_style_metadata_extracts_active_style_profile_from_config_metadata() {
-        let metadata = json!({
-            "memory": {
-                "soul": {
-                    "schema": "memory_soul_prompt_context.v2",
-                    "styleProfile": {
-                        "id": "cool_confident_operator",
-                        "packId": "com.lime.soul.cool-confident-operator",
-                        "tone": "cool_confident"
-                    }
-                }
-            }
-        });
-
-        let style =
-            SoulStyleMetadata::from_config_metadata(Some(&metadata)).expect("style metadata");
-
-        assert_eq!(style.profile_id.as_deref(), Some("cool_confident_operator"));
-        assert_eq!(
-            style.pack_id.as_deref(),
-            Some("com.lime.soul.cool-confident-operator")
-        );
-        assert_eq!(style.tone_variant.as_deref(), Some("cool_confident"));
-    }
-
-    #[test]
-    fn soul_style_metadata_prefers_payload_fields_and_fills_fallback_gaps() {
-        let payload = json!({
-            "metadata": {
-                "soul_lifecycle": {
-                    "profileId": "warm_supportive_companion"
-                }
-            }
-        });
-        let payload = payload.as_object().expect("payload object");
-        let fallback = SoulStyleMetadata {
-            profile_id: Some("cool_confident_operator".to_string()),
-            pack_id: Some("com.lime.soul.cool-confident-operator".to_string()),
-            tone_variant: Some("cool_confident".to_string()),
-        };
-
-        let style = SoulStyleMetadata::from_payload_object(payload)
-            .unwrap_or_default()
-            .merge_with_fallback(Some(&fallback))
-            .expect("style metadata");
-
-        assert_eq!(
-            style.profile_id.as_deref(),
-            Some("warm_supportive_companion")
-        );
-        assert_eq!(
-            style.pack_id.as_deref(),
-            Some("com.lime.soul.cool-confident-operator")
-        );
-        assert_eq!(style.tone_variant.as_deref(), Some("cool_confident"));
-    }
 }

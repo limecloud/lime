@@ -16,10 +16,8 @@ const messages = JSON.parse(
 );
 const targets = [
   ["general-language", "settings.desktop.language"],
-  ["profile-displayName", "settings.profile.field.displayName.label"],
-  ["profile-bio", "settings.profile.field.bio.label"],
   ["local-environments-projects", "settings.localEnvironments.projects"],
-  ...["workspace", "plan", "shell", "network"].map((field) => [
+  ...["plan", "shell", "network"].map((field) => [
     `execution-policy-${field}`,
     `settings.executionPolicy.${field}.title`,
   ]),
@@ -31,14 +29,14 @@ const targets = [
     `memory-${field}`,
     `settings.personalization.${field}`,
   ]),
-  ...[
-    ["theme", "theme"],
-    ["skin", "colorScheme"],
-  ].map(([field, message]) => [
-    `appearance-${field}`,
-    `settings.appearance.${message}.title`,
-  ]),
+  ["appearance-theme", "settings.appearance.theme.title"],
 ];
+for (const [id, key] of targets)
+  assert.equal(
+    typeof messages[key],
+    "string",
+    `Missing search label for ${id}`,
+  );
 
 export async function runSettingsSearchScenario({
   page,
@@ -107,13 +105,28 @@ export async function runSettingsSearchScenario({
   const search = async (id, query, input = desktop) => {
     await input.fill(query);
     const label = messages[targets.find(([targetId]) => targetId === id)[1]];
-    await page
-      .getByRole("option")
+    const results = page.getByRole("option");
+    await results
       .filter({ hasText: label })
       .first()
       .waitFor({ state: "visible" });
+    const matches = await results.evaluateAll(
+      (nodes, label) =>
+        nodes.flatMap((node, index) => {
+          const text = [...node.childNodes]
+            .filter((child) => child.nodeType === Node.TEXT_NODE)
+            .map((child) => child.textContent)
+            .join("")
+            .trim();
+          return text === label ? [index] : [];
+        }),
+      label,
+    );
+    assert.equal(matches.length, 1, `Expected one exact result for ${id}`);
     await input.press("ArrowDown");
     await input.press("ArrowUp");
+    for (let index = 0; index < matches[0]; index += 1)
+      await input.press("ArrowDown");
     await input.press("Enter");
     return locate(id);
   };
@@ -129,49 +142,6 @@ export async function runSettingsSearchScenario({
     "local-environments-projects",
     messages["settings.localEnvironments.projects"],
   );
-  stage("settings-search-dirty-keep-and-discard");
-  await search("profile-bio", messages["settings.profile.field.bio.label"]);
-  await page.getByRole("button", { name: "编辑显示名称", exact: true }).click();
-  const name = page.locator("#profile-field-displayName");
-  await name.fill("search fixture unsaved draft");
-  const beforeRequest = await page.evaluate(() =>
-    sessionStorage.getItem("lime.appNavigation.restore.v1"),
-  );
-  await desktop.fill(messages["settings.localEnvironments.title"]);
-  await desktop.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  assert.equal(
-    await page.evaluate(() =>
-      sessionStorage.getItem("lime.appNavigation.restore.v1"),
-    ),
-    beforeRequest,
-  );
-  await page.screenshot({
-    path: path.join(evidenceDir, "search-unsaved-dialog.png"),
-  });
-  await keep.click();
-  await dialog.waitFor({ state: "detached" });
-  await waitForPageCondition(
-    page,
-    options,
-    () =>
-      document.activeElement?.getAttribute("data-testid") ===
-      "settings-sidebar-search",
-    "keep restores search focus",
-  );
-  assert.equal(await name.inputValue(), "search fixture unsaved draft");
-  await desktop.fill(messages["settings.profile.field.bio.label"]);
-  await desktop.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  await discard.click();
-  await locate("profile-bio");
-  assert.equal(await name.count(), 0);
-  assert.equal(
-    isDeepStrictEqual(await read(), initial),
-    true,
-    "search/discard never writes configuration",
-  );
-
   stage("settings-search-web-search-mode");
   await search(
     "configuration-web_search",
@@ -191,7 +161,9 @@ export async function runSettingsSearchScenario({
     "memory-instructions",
     messages["settings.personalization.instructions"],
   );
-  await page.getByTestId("settings-instructions-open").click();
+  await page
+    .getByTestId("settings-instructions-open")
+    .click({ position: { x: 12, y: 12 } });
   const imported = page.locator(
     '[data-testid="settings-instructions-editor"] textarea',
   );
@@ -258,13 +230,13 @@ export async function runSettingsSearchScenario({
     stage(`settings-search-theme-${mode}-${system || "explicit"}`);
     await page.emulateMedia({ colorScheme: system });
     await chooseTheme(mode);
-    await desktop.fill(messages["settings.profile.field.bio.label"]);
+    await desktop.fill(messages["settings.personalization.instructions"]);
     if (mode === "light")
       await page.screenshot({
         path: path.join(evidenceDir, "search-results-light.png"),
       });
     await desktop.press("Enter");
-    const observation = await locate("profile-bio");
+    const observation = await locate("memory-instructions");
     await search(
       "configuration-web_search",
       messages["settings.configuration.fields.web_search.label"],
@@ -300,7 +272,7 @@ export async function runSettingsSearchScenario({
   await page.emulateMedia({ colorScheme: null });
   await chooseTheme(originalTheme);
 
-  stage("settings-search-narrow-dirty-navigation");
+  stage("settings-search-narrow-navigation");
   const viewport = await page.evaluate(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -313,36 +285,11 @@ export async function runSettingsSearchScenario({
     await narrowSearch.evaluate((node) => node === document.activeElement),
     true,
   );
-  await search(
-    "profile-bio",
-    messages["settings.profile.field.bio.label"],
+  const narrow = await search(
+    "local-environments-projects",
+    messages["settings.localEnvironments.projects"],
     narrowSearch,
   );
-  await page.getByRole("button", { name: "编辑个人简介", exact: true }).click();
-  const bio = page.locator("#profile-field-bio");
-  await bio.fill("narrow search unsaved draft");
-  await page.keyboard.press(searchShortcut);
-  await narrowSearch.fill(messages["settings.localEnvironments.title"]);
-  await page.screenshot({
-    path: path.join(evidenceDir, "search-narrow-results.png"),
-  });
-  await narrowSearch.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  await keep.click();
-  await dialog.waitFor({ state: "detached" });
-  assert.equal(await bio.inputValue(), "narrow search unsaved draft");
-  await waitForPageCondition(
-    page,
-    options,
-    () =>
-      document.activeElement?.getAttribute("data-testid") ===
-      "settings-sidebar-search",
-    "narrow keep restores search focus",
-  );
-  await narrowSearch.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  await discard.click();
-  const narrow = await locate("local-environments-projects");
   await page.screenshot({
     path: path.join(evidenceDir, "search-narrow-target.png"),
   });
@@ -363,7 +310,9 @@ export async function runSettingsSearchScenario({
     messages["settings.personalization.instructions"],
     narrowSearch,
   );
-  await page.getByTestId("settings-instructions-open").click();
+  await page
+    .getByTestId("settings-instructions-open")
+    .click({ position: { x: 12, y: 12 } });
   await imported.fill("narrow search fixture private instruction draft");
   await page.keyboard.press(searchShortcut);
   await narrowSearch.fill(messages["settings.desktop.language"]);
@@ -410,19 +359,13 @@ export async function runSettingsSearchScenario({
     memoryAppearance: {
       targets: 7,
       memoryTargets: 4,
-      appearanceTargets: 3,
+      appearanceTargets: 1,
       pendingSearchRetainsInstructionDraft: true,
       discardRemountsWithoutWrite: true,
       repeatFocusesRow: true,
       memoryInstructions,
       appearance,
       narrowAppearance,
-    },
-    desktopDirty: {
-      keptDraft: true,
-      canonicalUnchangedUntilDiscard: true,
-      sameSectionDiscard: true,
-      noConfigWrite: true,
     },
     narrow: {
       viewport: { width: 600, height: 900 },
@@ -435,6 +378,6 @@ export async function runSettingsSearchScenario({
     themes,
     originalConfigRestored: true,
     limitations:
-      "Current registered content targets and section titles only; non-OEM fixture/external backend. Current skin, media-emulated system theme and emulated narrow viewport. No reference runtime, production RuntimeBackend/provider, live auth/search, Windows or packaged claim.",
+      "Current registered content targets and section titles only; non-OEM fixture/external backend. Fixed neutral colors, media-emulated system theme and emulated narrow viewport. No reference runtime, production RuntimeBackend/provider, live auth/search, Windows or packaged claim.",
   };
 }

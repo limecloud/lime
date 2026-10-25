@@ -196,7 +196,7 @@ export function handleTurnStreamEvent({
   setCurrentTurnId,
   setExecutionRuntime,
   setIsSending,
-  soulCopy,
+
 }: HandleTurnStreamEventOptions): void {
   const {
     activateStream,
@@ -253,9 +253,6 @@ export function handleTurnStreamEvent({
       runId: eventName,
       messageId: assistantMsgId,
     },
-    {
-      soulCopy,
-    },
   );
   if (projectionEvents.length > 0) {
     requestState.agentUiEventSequence =
@@ -299,7 +296,7 @@ export function handleTurnStreamEvent({
     setThreadItems,
     setThreadTurns,
     surfaceThinkingDeltas,
-    soulCopy,
+
   });
   const runtimeStateSetters = {
     getThreadItems,
@@ -827,7 +824,7 @@ export function handleTurnStreamEvent({
           firstRuntimeStatusAt: requestState.firstRuntimeStatusAt,
           stage: data.stage,
           updatedAt: new Date().toISOString(),
-          soulCopy,
+
         });
       if (runtimeStatusPlan) {
         requestState.firstRuntimeStatusAt = Date.now();
@@ -1561,7 +1558,7 @@ export function handleTurnStreamEvent({
       const typedErrorPlan = buildAgentStreamTypedErrorPlan({
         event: data,
         executionStrategy: effectiveExecutionStrategy,
-        soulCopy,
+
       });
       if (typedErrorPlan) {
         activateStream();
@@ -1678,7 +1675,7 @@ export function handleTurnStreamEvent({
                   accumulatedContent: requestState.accumulatedContent,
                   previousContent: msg.content,
                   previousContentParts: msg.contentParts,
-                  soulCopy,
+
                 }),
               }
             : msg,

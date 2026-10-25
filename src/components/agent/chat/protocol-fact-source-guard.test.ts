@@ -84,7 +84,7 @@ const FORBIDDEN_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   },
   {
     label: "Agent Chat route shell 重建 key 序列化",
-    pattern: /serializeAgentChatPageInstanceKey/,
+    pattern: /serializeLocalConversationPageInstanceKey/,
   },
   {
     label: "Agent Chat 内部工作区强制重挂载 key",

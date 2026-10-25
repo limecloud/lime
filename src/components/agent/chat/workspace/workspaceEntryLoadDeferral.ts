@@ -54,7 +54,7 @@ export function resolveWorkspaceEntryLoadDeferral({
   const shouldPrioritizeInitialSessionEntry =
     normalizedInitialSessionId !== null && !contentId;
   const shouldPrioritizeInitialPromptEntry =
-    agentEntry === "claw" &&
+    agentEntry === "conversation" &&
     !contentId &&
     normalizedEntryTheme === "general" &&
     Boolean(initialUserPrompt?.trim()) &&

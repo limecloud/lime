@@ -95,7 +95,7 @@ export async function registerAgentStreamTurnEventBinding(
     setCurrentTurnId,
     setExecutionRuntime,
     setIsSending,
-    soulCopy,
+
   } = options;
 
   startAgentStreamRequest({
@@ -433,7 +433,7 @@ export async function registerAgentStreamTurnEventBinding(
       setCurrentTurnId,
       setExecutionRuntime,
       setIsSending,
-      soulCopy,
+
     });
   };
   const dispatchSyntheticError = (message: string) => {
@@ -728,7 +728,7 @@ export async function registerAgentStreamTurnEventBinding(
         setCurrentTurnId,
         setExecutionRuntime,
         setIsSending,
-        soulCopy,
+
       });
       if (
         data.type === "text_delta" ||

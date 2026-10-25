@@ -463,6 +463,7 @@ fn tui_options(
     let permission_settings = permission_settings(&args)?;
     let cwd = args.workspace_cwd()?;
     Ok(TuiOptions {
+        computer_use_targets: args.computer_use_targets,
         app_server_bin: resolve_app_server_bin(args.app_server),
         app_server_args: args.app_server_args,
         remote,

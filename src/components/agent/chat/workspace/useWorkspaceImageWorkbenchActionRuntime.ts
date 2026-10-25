@@ -277,7 +277,7 @@ export function useWorkspaceImageWorkbenchActionRuntime({
             1,
           usage:
             readTaskPayloadString(payload, ["usage"]) ||
-            (requestedTarget === "cover" ? "cover" : "claw-image-workbench"),
+            (requestedTarget === "cover" ? "cover" : "image-workbench"),
           slotId,
           anchorHint,
           anchorSectionTitle,

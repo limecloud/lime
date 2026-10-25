@@ -1,6 +1,4 @@
-use crate::runtime::memory_prompt::{
-    append_memory_context_to_system_prompt, append_soul_context_to_system_prompt,
-};
+use crate::runtime::memory_prompt::append_memory_context_to_system_prompt;
 use crate::runtime::PluginTurnSnapshot;
 use crate::ExecutionRequest;
 use agent_runtime::reply_loop::DEFAULT_MAX_REPLY_TURNS;
@@ -16,7 +14,6 @@ use super::{
     turn_context_from_request, RuntimeModelSelection, RuntimeRequest, RuntimeSessionScope,
 };
 
-const DEFAULT_SESSION_SYSTEM_PROMPT: &str = "你是 Lime 桌面端中的 AI 助手。交互口吻、问候、自我介绍、工具进展和失败恢复由当前会话的 `memory.soul` 上下文控制；如果没有 `memory.soul` 上下文，保持清晰、准确、可执行。";
 const HARNESS_MAX_PROVIDER_STEPS_POINTER: &str = "/harness/provider_budget/max_provider_steps";
 const HARNESS_PROVIDER_TOKEN_BUDGET_POINTER: &str = "/harness/provider_budget/token_budget";
 
@@ -64,10 +61,7 @@ pub(in crate::runtime_backend) fn session_config_from_request_with_plugins_and_o
     let turn_tool_surface = super::turn_tool_surface_for_request(request);
     let runtime_metadata = request.runtime_metadata();
     let (system_prompt, skill_snapshot) = if turn_tool_surface.uses_light_session_prompt() {
-        let system_prompt = append_soul_context_to_system_prompt(
-            Some(request_system_prompt(request)),
-            config_metadata.as_ref(),
-        );
+        let system_prompt = request_system_prompt(request);
         (
             append_model_owned_instructions(
                 system_prompt,
@@ -78,7 +72,7 @@ pub(in crate::runtime_backend) fn session_config_from_request_with_plugins_and_o
         )
     } else {
         let system_prompt = merge_system_prompt_with_runtime_agents_for_project(
-            Some(request_system_prompt(request)),
+            request_system_prompt(request),
             workspace_scope.working_dir.as_deref(),
             workspace_scope.project_root.as_deref(),
         );
@@ -97,8 +91,6 @@ pub(in crate::runtime_backend) fn session_config_from_request_with_plugins_and_o
         } else {
             append_memory_context_to_system_prompt(skills_context.system_prompt, runtime_metadata)
         };
-        let system_prompt =
-            append_soul_context_to_system_prompt(system_prompt, config_metadata.as_ref());
         (
             merge_system_prompt_with_request_tool_policy(
                 append_model_owned_instructions(
@@ -188,11 +180,7 @@ fn append_model_owned_instructions(
                 personality_from_runtime_metadata(runtime_metadata),
             )
         })
-        .map(|instructions| instructions.trim().to_string())
-        .filter(|instructions| !instructions.is_empty());
-    let Some(instructions) = instructions else {
-        return system_prompt;
-    };
+        .unwrap_or_else(|| lime_services::model_registry_service::BASE_INSTRUCTIONS.to_string());
     Some(match system_prompt {
         Some(system_prompt) if !system_prompt.trim().is_empty() => {
             format!("{instructions}\n\n{system_prompt}")
@@ -290,8 +278,6 @@ fn harness_provider_token_budget(runtime_metadata: Option<&Value>) -> Option<u64
         .filter(|value| *value > 0)
 }
 
-fn request_system_prompt(request: &ExecutionRequest) -> String {
-    runtime_request_from_request(request)
-        .and_then(|host| host_system_prompt(&host))
-        .unwrap_or_else(|| DEFAULT_SESSION_SYSTEM_PROMPT.to_string())
+fn request_system_prompt(request: &ExecutionRequest) -> Option<String> {
+    runtime_request_from_request(request).and_then(|host| host_system_prompt(&host))
 }

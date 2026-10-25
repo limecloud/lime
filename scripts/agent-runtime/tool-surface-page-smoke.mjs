@@ -278,7 +278,6 @@ function buildHarnessBootstrapScript() {
   return `(() => {
     localStorage.setItem("lime_onboarding_complete", "true");
     localStorage.setItem("lime_onboarding_version", ${JSON.stringify(ONBOARDING_VERSION)});
-    localStorage.setItem("lime_user_profile", "developer");
     localStorage.setItem(
       ${JSON.stringify(WORKSPACE_HARNESS_DEBUG_OVERRIDE_KEY)},
       "true"

@@ -21,7 +21,7 @@ const {
   mockUseAgentChatUnified,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 自动引导", { timeout: 20_000 }, () => {
   it("general 空文稿应预填通用引导词且不自动发送", async () => {
     renderPage({
       projectId: "project-social",

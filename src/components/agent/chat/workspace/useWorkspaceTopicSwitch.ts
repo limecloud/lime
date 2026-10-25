@@ -163,7 +163,7 @@ export function useWorkspaceTopicSwitch({
             }
           : undefined;
       const startedAt = Date.now();
-      logAgentDebug("AgentChatPage", "runTopicSwitch.start", {
+      logAgentDebug("LocalConversationPage", "runTopicSwitch.start", {
         allowDetachedSession: options?.allowDetachedSession === true,
         currentProjectId: projectId ?? null,
         forceRefresh: options?.forceRefresh === true,
@@ -179,7 +179,7 @@ export function useWorkspaceTopicSwitch({
           : await originalSwitchTopic(topicId);
         if (hydrationResult !== undefined && hydrationResult !== "success") {
           logAgentDebug(
-            "AgentChatPage",
+            "LocalConversationPage",
             "runTopicSwitch.error",
             {
               allowDetachedSession: options?.allowDetachedSession === true,
@@ -215,7 +215,7 @@ export function useWorkspaceTopicSwitch({
             source.navigationEpoch,
           );
         }
-        logAgentDebug("AgentChatPage", "runTopicSwitch.success", {
+        logAgentDebug("LocalConversationPage", "runTopicSwitch.success", {
           allowDetachedSession: options?.allowDetachedSession === true,
           durationMs: Date.now() - startedAt,
           forceRefresh: options?.forceRefresh === true,
@@ -224,7 +224,7 @@ export function useWorkspaceTopicSwitch({
         return "success" as const;
       } catch (error) {
         logAgentDebug(
-          "AgentChatPage",
+          "LocalConversationPage",
           "runTopicSwitch.error",
           {
             allowDetachedSession: options?.allowDetachedSession === true,
@@ -259,7 +259,7 @@ export function useWorkspaceTopicSwitch({
       composerDraftCoordinator?.prepareNavigation();
       if (!startTopicProjectResolution()) {
         logAgentDebug(
-          "AgentChatPage",
+          "LocalConversationPage",
           "switchTopic.skipWhileResolving",
           {
             allowDetachedSession: options?.allowDetachedSession === true,
@@ -288,7 +288,7 @@ export function useWorkspaceTopicSwitch({
         const topicBoundProjectId = normalizeProjectId(
           loadTopicBoundProjectId(topicId),
         );
-        logAgentDebug("AgentChatPage", "switchTopic.start", {
+        logAgentDebug("LocalConversationPage", "switchTopic.start", {
           allowDetachedSession: options?.allowDetachedSession === true,
           currentProjectId: currentProjectId ?? null,
           externalProjectId: externalProjectId ?? null,
@@ -302,7 +302,7 @@ export function useWorkspaceTopicSwitch({
           !topicBoundProjectId
         ) {
           logAgentDebug(
-            "AgentChatPage",
+            "LocalConversationPage",
             "switchTopic.detachedSessionFastPath",
             {
               topicId,
@@ -322,7 +322,7 @@ export function useWorkspaceTopicSwitch({
           (!topicBoundProjectId || topicBoundProjectId === currentProjectId)
         ) {
           rememberProjectId(currentProjectId);
-          logAgentDebug("AgentChatPage", "switchTopic.fastPathCurrentProject", {
+          logAgentDebug("LocalConversationPage", "switchTopic.fastPathCurrentProject", {
             allowDetachedSession: options?.allowDetachedSession === true,
             currentProjectId,
             externalProjectId: externalProjectId ?? null,
@@ -356,7 +356,7 @@ export function useWorkspaceTopicSwitch({
         ) {
           return "superseded" as const;
         }
-        logAgentDebug("AgentChatPage", "switchTopic.decision", {
+        logAgentDebug("LocalConversationPage", "switchTopic.decision", {
           decisionStatus: decision.status,
           projectId: decision.status === "ok" ? decision.projectId : null,
           topicId,
@@ -380,7 +380,7 @@ export function useWorkspaceTopicSwitch({
             ...source,
           };
           deferTopicSwitch(topicId, targetProjectId, options);
-          logAgentDebug("AgentChatPage", "switchTopic.deferUntilProjectReady", {
+          logAgentDebug("LocalConversationPage", "switchTopic.deferUntilProjectReady", {
             allowDetachedSession: options?.allowDetachedSession === true,
             currentProjectId,
             forceRefresh: options?.forceRefresh === true,
@@ -399,9 +399,9 @@ export function useWorkspaceTopicSwitch({
           lifecycle,
         });
       } catch (error) {
-        console.error("[AgentChatPage] 解析任务项目失败:", error);
+        console.error("[LocalConversationPage] 解析任务项目失败:", error);
         logAgentDebug(
-          "AgentChatPage",
+          "LocalConversationPage",
           "switchTopic.error",
           {
             allowDetachedSession: options?.allowDetachedSession === true,
@@ -452,7 +452,7 @@ export function useWorkspaceTopicSwitch({
       return;
     }
     const currentProjectId = normalizeProjectId(projectId);
-    logAgentDebug("AgentChatPage", "switchTopic.resumePending", {
+    logAgentDebug("LocalConversationPage", "switchTopic.resumePending", {
       allowDetachedSession: pending.allowDetachedSession === true,
       forceRefresh: pending.forceRefresh === true,
       resumeSessionStartHooks: pending.resumeSessionStartHooks === true,
@@ -474,9 +474,9 @@ export function useWorkspaceTopicSwitch({
           }
         : undefined,
     ).catch((error) => {
-      console.error("[AgentChatPage] 执行待切换任务失败:", error);
+      console.error("[LocalConversationPage] 执行待切换任务失败:", error);
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "switchTopic.resumePendingError",
         {
           allowDetachedSession: pending.allowDetachedSession === true,

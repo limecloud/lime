@@ -24,12 +24,12 @@ export function buildHomeAgentParams(
   };
 }
 
-export function buildClawAgentParams(
+export function buildConversationParams(
   overrides: Partial<AgentPageParams> = {},
 ): AgentPageParams {
   return {
     ...overrides,
-    agentEntry: "claw",
+    agentEntry: "conversation",
     immersiveHome: overrides.immersiveHome ?? false,
     theme: overrides.theme ?? "general",
     lockTheme: overrides.lockTheme ?? false,

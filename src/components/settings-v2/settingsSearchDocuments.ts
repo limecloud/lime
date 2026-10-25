@@ -6,7 +6,6 @@ interface SettingsSearchDocument {
   targetId: string;
   labelKey: string;
   termKeys: readonly string[];
-  localProfile?: boolean;
   path?: string;
   platform?: HotkeyPlatform;
   excludePlatform?: HotkeyPlatform;
@@ -64,6 +63,33 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     targetId: "plugins-installed",
     labelKey: "settings.plugins.subtitle",
     termKeys: ["settings.plugins.subtitle", "settings.plugins.browseDirectory"],
+  },
+  {
+    section: SettingsTabs.ComputerUse,
+    targetId: "computer-use-native",
+    labelKey: "settings.computerUse.anyApp",
+    termKeys: [
+      "settings.computerUse.description",
+      "settings.computerUse.anyAppDescription",
+    ],
+  },
+  {
+    section: SettingsTabs.ComputerUse,
+    targetId: "computer-use-chrome",
+    labelKey: "settings.computerUse.chrome",
+    termKeys: ["settings.computerUse.chromeDescription"],
+  },
+  {
+    section: SettingsTabs.ComputerUse,
+    targetId: "computer-use-office",
+    labelKey: "settings.computerUse.wps",
+    termKeys: ["settings.computerUse.wpsDescription"],
+  },
+  {
+    section: SettingsTabs.ComputerUse,
+    targetId: "computer-use-allowed-apps",
+    labelKey: "settings.computerUse.allowedApps",
+    termKeys: ["settings.computerUse.removeTitle"],
   },
   {
     section: SettingsTabs.Hooks,
@@ -247,20 +273,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: ["settings.keyboardShortcuts.externalLinkDescription"],
   },
   {
-    section: SettingsTabs.Profile,
-    targetId: "profile-displayName",
-    labelKey: "settings.profile.field.displayName.label",
-    termKeys: ["settings.profile.field.displayName.placeholder"],
-    localProfile: true,
-  },
-  {
-    section: SettingsTabs.Profile,
-    targetId: "profile-bio",
-    labelKey: "settings.profile.field.bio.label",
-    termKeys: ["settings.profile.field.bio.placeholder"],
-    localProfile: true,
-  },
-  {
     section: SettingsTabs.LocalEnvironments,
     targetId: "local-environments-projects",
     labelKey: "settings.localEnvironments.projects",
@@ -316,17 +328,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
       `settings.personalization.${field === "instructions" ? "instructionsDescription" : "memoryDescription"}`,
     ],
   })),
-  ...(
-    [
-      ["theme", "theme"],
-      ["skin", "colorScheme"],
-    ] as const
-  ).map(([field, message]) => ({
+  {
     section: SettingsTabs.Appearance,
-    targetId: `appearance-${field}`,
-    labelKey: `settings.appearance.${message}.title`,
-    termKeys: field === "theme" ? ["settings.desktop.mode"] : [],
-  })),
+    targetId: "appearance-theme",
+    labelKey: "settings.appearance.theme.title",
+    termKeys: ["settings.desktop.mode"],
+  },
   ...(
     [
       ["responsive-chat", "responsiveChat"],

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SOUL_STYLE_PROFILE_REGISTRY } from "@/lib/soul/style-profiles";
 import {
   CORE_NAMESPACES,
   hasBundledNamespace,
@@ -27,46 +26,6 @@ describe("i18n namespace loader", () => {
         ),
         locale,
       ).toEqual([]);
-    }
-  });
-  it("Soul 内置风格包文案覆盖所有支持 locale", () => {
-    const resources = loadBundledI18nResources();
-    const requiredKeys = DEFAULT_SOUL_STYLE_PROFILE_REGISTRY.packs.flatMap(
-      (pack) => [
-        pack.nameKey,
-        pack.descriptionKey,
-        ...pack.profiles.flatMap((profile) => [
-          profile.nameKey,
-          profile.descriptionKey,
-        ]),
-      ],
-    );
-
-    for (const locale of SUPPORTED_LOCALES) {
-      for (const key of requiredKeys) {
-        expect(
-          resources[locale].settings,
-          `${locale}/settings should include ${key}`,
-        ).toHaveProperty(key);
-      }
-    }
-  });
-
-  it("Soul 本地化不允许新增按 profile 展开的句库", () => {
-    const resources = loadBundledI18nResources();
-    const forbiddenKeyPattern =
-      /^agentChat\.soulInteraction\.(cheeky|warm|cool|calm|cheeky_sassy|warm_supportive|cool_confident|calm_professional)\./u;
-
-    for (const locale of SUPPORTED_LOCALES) {
-      for (const [namespace, entries] of Object.entries(resources[locale])) {
-        const forbiddenKeys = Object.keys(entries).filter((key) =>
-          forbiddenKeyPattern.test(key),
-        );
-        expect(
-          forbiddenKeys,
-          `${locale}/${namespace} must keep Soul style out of i18n phrase libraries`,
-        ).toEqual([]);
-      }
     }
   });
 
@@ -354,7 +313,7 @@ describe("i18n namespace loader", () => {
         "agentChat.inputbar.suggestions.error",
         "agentChat.inputbar.suggestions.planMode",
         "agentChat.inputbar.suggestions.goal",
-        "agentChat.home.hero.slogan",
+        "agentChat.home.composer.placeholder",
         "agentChat.inputbar.attachments.failed",
       ]) {
         expect(resources[locale].agent).toHaveProperty(key);
@@ -491,15 +450,6 @@ describe("i18n namespace loader", () => {
         "common.modelSelector.header.title",
       );
       expect(resources[locale].common).toHaveProperty(
-        "common.modelSelector.header.themeFilter",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.modelSelector.provider.section.cloud",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.modelSelector.model.incompatibleHidden",
-      );
-      expect(resources[locale].common).toHaveProperty(
         "common.modelSelector.noProvider.dismissAria",
       );
       expect(resources[locale].common).toHaveProperty(
@@ -512,9 +462,6 @@ describe("i18n namespace loader", () => {
         "common.modelCapabilities.vision.inactive",
       );
       expect(resources[locale].agent).toHaveProperty(
-        "skills.repoManager.title",
-      );
-      expect(resources[locale].agent).toHaveProperty(
         "skills.contentDialog.loading",
       );
       expect(resources[locale].agent).toHaveProperty(
@@ -524,21 +471,6 @@ describe("i18n namespace loader", () => {
         "skills.contentDialog.emptyInspection",
       );
       expect(resources[locale].agent).toHaveProperty(
-        "skills.repoManager.action.add",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "skills.repoManager.message.addFailed",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "skills.skillCard.source.builtin",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "skills.skillCard.action.install",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "skills.skillCard.compliance.standard",
-      );
-      expect(resources[locale].agent).toHaveProperty(
         "skills.workflowProgress.empty",
       );
       expect(resources[locale].agent).toHaveProperty(
@@ -546,13 +478,6 @@ describe("i18n namespace loader", () => {
       );
       expect(resources[locale].agent).toHaveProperty(
         "skills.workflowProgress.summary.running",
-      );
-      expect(resources[locale].agent).toHaveProperty("skills.page.title");
-      expect(resources[locale].agent).toHaveProperty(
-        "skills.page.action.refresh",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "skills.page.sections.remote.empty",
       );
       expect(resources[locale].agent).toHaveProperty(
         "skills.workspace.header.title",
@@ -860,61 +785,11 @@ describe("i18n namespace loader", () => {
       expect(resources[locale].settings).toHaveProperty(
         "settings.layout.loading.profile",
       );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.loading",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.field.displayName.label",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.field.bio.label",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.field.limit",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.action.cancel",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.action.edit",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.action.retry",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.action.save",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.field.cancelAria",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.field.editAria",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.field.saveAria",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.message.loadFailed",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.message.saveFailed",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.profile.message.saved",
-      );
       expect(
-        resources[locale].settings["settings.profile.message.saveFailed"],
-      ).not.toContain("{{error}}");
-      expect(
-        Object.keys(resources[locale].settings).filter((key) =>
-          /^settings\.profile\.(tags|hero|avatar|usage|basic|suggestedTag|status)\./.test(
-            key,
-          ),
+        Object.keys(resources[locale].settings).some((key) =>
+          key.startsWith("settings.profile."),
         ),
-      ).toEqual([]);
+      ).toBe(false);
       expect(resources[locale].settings).toHaveProperty(
         "settings.plugins.loading",
       );
@@ -931,13 +806,13 @@ describe("i18n namespace loader", () => {
         "settings.appearance.hero.title",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.appearance.colorScheme.options.dream-blossom.label",
+        "settings.appearance.theme.options.system.label",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.appearance.colorScheme.options.lime-classic.label",
+        "settings.appearance.theme.options.light.label",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.appearance.colorScheme.options.lime-future.label",
+        "settings.appearance.theme.options.dark.label",
       );
       for (const key of [
         "settings.desktop.title",
@@ -954,9 +829,6 @@ describe("i18n namespace loader", () => {
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.personalization.instructions",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.soul.styleProfile.title",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.personalization.instructionsDescription",
@@ -1308,9 +1180,9 @@ describe("i18n namespace loader", () => {
     ).toBe("第 {{currentStep}}/{{totalSteps}} 步");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.appearance.colorScheme.options.dream-blossom.label"
+        "settings.appearance.theme.options.system.label"
       ],
-    ).toBe("梦樱花境");
+    ).toBe("跟随系统");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.about.version.label"
@@ -1328,9 +1200,9 @@ describe("i18n namespace loader", () => {
     ).toBe("外观");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.appearance.colorScheme.options.lime-classic.label"
+        "settings.appearance.theme.options.light.label"
       ],
-    ).toBe("森野秘境");
+    ).toBe("浅色");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.localEnvironments.title"
@@ -1355,9 +1227,6 @@ describe("i18n namespace loader", () => {
       ],
     ).toBe("浏览目录");
     expect(
-      loadNamespaceResource("fr-FR", "agent")["skills.repoManager.title"],
-    ).toBe("仓库管理");
-    expect(
       loadNamespaceResource("fr-FR", "agent")["skills.contentDialog.loading"],
     ).toBe("正在检查 Skill 包...");
     expect(
@@ -1370,29 +1239,6 @@ describe("i18n namespace loader", () => {
         "skills.contentDialog.emptyInspection"
       ],
     ).toBe("暂无 Skill 检查结果");
-    expect(
-      loadNamespaceResource("fr-FR", "agent")["skills.repoManager.action.add"],
-    ).toBe("添加仓库");
-    expect(
-      loadNamespaceResource("fr-FR", "agent")[
-        "skills.repoManager.message.addFailed"
-      ],
-    ).toBe("添加失败: {{message}}");
-    expect(
-      loadNamespaceResource("fr-FR", "agent")[
-        "skills.skillCard.source.builtin"
-      ],
-    ).toBe("内置");
-    expect(
-      loadNamespaceResource("fr-FR", "agent")[
-        "skills.skillCard.action.install"
-      ],
-    ).toBe("安装");
-    expect(
-      loadNamespaceResource("fr-FR", "agent")[
-        "skills.skillCard.compliance.standard"
-      ],
-    ).toBe("标准");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.voice.model.action.download"

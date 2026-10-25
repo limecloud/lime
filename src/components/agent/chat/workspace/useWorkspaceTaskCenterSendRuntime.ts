@@ -399,7 +399,7 @@ export function useWorkspaceTaskCenterSendRuntime<
     sceneIsRestoringSession: taskCenterHomeSurfaceState.isRestoringSession,
     sceneLayoutMode: shouldRenderTaskCenterEmbeddedHome ? "chat" : layoutMode,
     sceneMessageListEmptyStateVariant:
-      agentEntry === "claw" &&
+      agentEntry === "conversation" &&
       !normalizedInitialSessionId &&
       !shouldRenderTaskCenterEmbeddedHome &&
       !shouldSuppressTaskCenterDraftContent

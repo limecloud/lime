@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   submitWorkspaceMessage,
-  submitWorkspaceLocalConfirmation,
   withWorkspaceSubmissionCleanup,
 } from "./workspaceSendSubmission";
 const receipt = {
@@ -62,25 +61,6 @@ describe("Workspace typed submission boundary", () => {
     ).toEqual({ kind: "rejected", error });
     expect(onRejected).toHaveBeenCalledWith(error);
   });
-});
-
-describe("local submission draft policy", () => {
-  it.each([false, true])(
-    "preserves structured draft when requested %s",
-    async (preserveDraft) => {
-      const publish = vi.fn(),
-        clearDraft = vi.fn();
-      expect(
-        await submitWorkspaceLocalConfirmation({
-          preserveDraft,
-          publish,
-          clearDraft,
-        }),
-      ).toEqual({ kind: "local-handled" });
-      expect(publish).toHaveBeenCalledOnce();
-      expect(clearDraft).toHaveBeenCalledTimes(preserveDraft ? 0 : 1);
-    },
-  );
 });
 
 describe("accepted cleanup identity", () => {

@@ -16,9 +16,8 @@ use super::trace_store::TraceEventWriter;
 use super::turn_input_events;
 use super::*;
 use crate::agent_ui_event_schema;
-use crate::runtime_backend::tool_process_metadata::SoulStyleMetadata;
 use crate::runtime_backend::{
-    current_agent_runtime_config_metadata, tool_process_external_metadata,
+    tool_process_external_metadata,
 };
 use app_server_protocol::*;
 use serde_json::Value;
@@ -204,16 +203,6 @@ fn append_runtime_events_to_stored_session(
     if runtime_events.is_empty() {
         return Ok(Vec::new());
     }
-    let should_resolve_soul_style = runtime_events.iter().any(|event| {
-        let event_class = normalized_runtime_event_class(&event.event_type);
-        should_enrich_tool_process_event_payload_class(event_class)
-            || should_enrich_tool_policy_event_payload_class(event_class)
-    });
-    let soul_config_metadata = should_resolve_soul_style
-        .then(current_agent_runtime_config_metadata)
-        .flatten();
-    let fallback_soul_style =
-        SoulStyleMetadata::from_config_metadata(soul_config_metadata.as_ref());
     let (workflow_audit_events, runtime_events): (Vec<_>, Vec<_>) = runtime_events
         .into_iter()
         .partition(|event| event.event_type.starts_with("workflow."));
@@ -257,7 +246,6 @@ fn append_runtime_events_to_stored_session(
                     validation.events(),
                     &event_type,
                     payload_object,
-                    fallback_soul_style.as_ref(),
                 );
             }
             payload
@@ -271,7 +259,6 @@ fn append_runtime_events_to_stored_session(
                     validation.events(),
                     &event_type,
                     payload_object,
-                    fallback_soul_style.as_ref(),
                 );
             }
             payload

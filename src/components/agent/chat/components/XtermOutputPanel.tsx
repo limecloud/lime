@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
 import { LIME_THEME_CHANGED_EVENT } from "@/lib/appearance/themeMode";
-import { LIME_COLOR_SCHEME_CHANGED_EVENT } from "@/lib/appearance/colorSchemes";
 import { readTerminalTheme } from "./terminalTheme";
 import { handleTerminalKeyEvent } from "./terminalKeyboard";
 import "@xterm/xterm/css/xterm.css";
@@ -76,11 +75,9 @@ export function XtermOutputPanel({ output }: { output: string }) {
           setError(error instanceof Error ? error.message : String(error));
       });
     window.addEventListener(LIME_THEME_CHANGED_EVENT, updateTheme);
-    window.addEventListener(LIME_COLOR_SCHEME_CHANGED_EVENT, updateTheme);
     return () => {
       disposed = true;
       window.removeEventListener(LIME_THEME_CHANGED_EVENT, updateTheme);
-      window.removeEventListener(LIME_COLOR_SCHEME_CHANGED_EVENT, updateTheme);
       observer?.disconnect();
       terminal.current = null;
       instance?.dispose();

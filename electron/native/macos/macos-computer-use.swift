@@ -8,6 +8,25 @@ import Security
 // corresponding native helper source. All identities below come from the OS.
 private var computerUseGeneration: UInt64 = 1
 private var computerUseFingerprint: Data?
+private var computerUseTargetTitles: [String: String] = [:]
+private var computerUseTargetClock: UInt64 = 0
+private var computerUseTargetFingerprints: [String: Data] = [:]
+private var computerUseTargetRevisions: [String: UInt64] = [:]
+private var computerUseIssuedSnapshots: [UInt64: [String: UInt64]] = [:]
+
+private func computerUseTargetKey(_ identity: [String: Any]) -> String? {
+    guard let app = identity["appId"] as? String,
+          let pid = identity["processId"] as? NSNumber,
+          let window = identity["windowId"] as? String else { return nil }
+    return "\(app):\(pid):\(window)"
+}
+
+func computerUseGenerationAllowsTarget(_ identity: [String: Any], generation: UInt64) -> Bool {
+    guard let key = computerUseTargetKey(identity),
+          let issued = computerUseIssuedSnapshots[generation]?[key],
+          let current = computerUseTargetRevisions[key] else { return false }
+    return issued == current
+}
 
 func computerUseLocked() -> Bool {
     guard let session = CGSessionCopyCurrentDictionary() as? [String: Any],
@@ -66,12 +85,17 @@ func computerUseSnapshot() -> [String: Any] {
                     "appId": bundleID,
                     "processId": rawPID.uint32Value,
                     "windowId": rawID.stringValue,
-                    "title": window["title"] as? String ?? "",
+                    "title": bundleID == "com.kingsoft.wpsoffice.mac"
+                        ? (window["title"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "* "))
+                        : computerUseTargetTitles["\(bundleID):\(rawPID):\(rawID)"] ?? window["title"] as? String ?? "",
                 ],
                 "nativeApp": ["type": "macos", "bundleId": bundleID],
                 "capabilities": ["observe", "screenshot", "click", "type", "key", "scroll", "drag"],
                 "locked": false,
             ])
+            // Keep display labels stable except WPS document tabs, where a
+            // title change must invalidate the selected document's authority.
+            computerUseTargetTitles["\(bundleID):\(rawPID):\(rawID)"] = (targets.last?["identity"] as? [String: Any])?["title"] as? String
         }
     }
     var steps: [String] = []
@@ -98,6 +122,32 @@ func computerUseSnapshot() -> [String: Any] {
         }
         computerUseGeneration += 1
         computerUseFingerprint = fingerprint
+    }
+    // Snapshot generations include unrelated windows. Preserve exact target
+    // revisions so an unrelated popup closing cannot race an approved action.
+    // Disappearance, document change or lost readiness retires that revision.
+    var fingerprints: [String: Data] = [:]
+    var revisions: [String: UInt64] = [:]
+    for target in targets {
+        guard let identity = target["identity"] as? [String: Any],
+              let key = computerUseTargetKey(identity),
+              let bytes = try? JSONSerialization.data(withJSONObject: target, options: [.sortedKeys]) else { continue }
+        fingerprints[key] = bytes
+        if computerUseTargetFingerprints[key] == bytes, let revision = computerUseTargetRevisions[key] {
+            revisions[key] = revision
+        } else {
+            guard computerUseTargetClock < UInt64.max else {
+                return ["generation": computerUseGeneration, "readiness": "blocked", "targets": [], "reason": "generation_exhausted", "setupSteps": []]
+            }
+            computerUseTargetClock += 1
+            revisions[key] = computerUseTargetClock
+        }
+    }
+    computerUseTargetFingerprints = fingerprints
+    computerUseTargetRevisions = revisions
+    computerUseIssuedSnapshots[computerUseGeneration] = revisions
+    while computerUseIssuedSnapshots.count > 32, let oldest = computerUseIssuedSnapshots.keys.min() {
+        computerUseIssuedSnapshots.removeValue(forKey: oldest)
     }
     return status.merging(["generation": computerUseGeneration]) { _, value in value }
 }
@@ -147,6 +197,11 @@ func computerUseSetup(params: [String: Any]) throws -> [String: Any] {
        let target = computerUseTarget(requested, in: snapshot),
        snapshot["readiness"] as? String == "ready" {
         let (title, message, allow, cancel) = computerUseConsentText()
+        // The stdio helper normally runs only a Foundation run loop. Initialize
+        // AppKit explicitly before presenting consent, including CLI-only use.
+        let application = NSApplication.shared
+        application.setActivationPolicy(.accessory)
+        application.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message + "\n\n" + (target["appId"] as? String ?? "")
@@ -155,6 +210,11 @@ func computerUseSetup(params: [String: Any]) throws -> [String: Any] {
         alert.addButton(withTitle: allow)
         alert.addButton(withTitle: cancel)
         accepted = alert.runModal() == .alertFirstButtonReturn
+        alert.window.orderOut(nil)
+        if accepted, let pid = target["processId"] as? NSNumber,
+           let targetApplication = NSRunningApplication(processIdentifier: pid.int32Value) {
+            _ = activateComputerUseApplication(targetApplication)
+        }
         snapshot = computerUseSnapshot()
         if accepted, let current = computerUseTarget(target, in: snapshot) {
             approved = current

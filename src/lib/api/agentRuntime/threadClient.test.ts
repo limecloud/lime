@@ -1026,7 +1026,7 @@ describe("agentRuntime threadClient", () => {
       ],
       metadata: {
         harness: {
-          source: "claw",
+          source: "conversation",
           workspace_skill_runtime_enable: {
             source: "manual_session_enable",
           },
@@ -1048,7 +1048,7 @@ describe("agentRuntime threadClient", () => {
         rendererEventName: "agent_stream_claw",
         metadata: {
           harness: {
-            source: "claw",
+            source: "conversation",
             workspace_skill_runtime_enable: {
               source: "manual_session_enable",
             },

@@ -219,12 +219,39 @@ function isModelSelectionRequiredError(message: string): boolean {
   );
 }
 
-export function resolveAgentRuntimeErrorPresentation(errorMessage: string): {
+export function resolveAgentRuntimeErrorPresentation(error: unknown): {
   displayMessage: string;
   toastMessage: string;
 } {
-  const normalizedMessage = normalizeRuntimeErrorMessage(errorMessage);
+  const normalizedMessage = normalizeRuntimeErrorMessage(
+    error instanceof Error ? error.message : String(error ?? ""),
+  );
   const lowerMessage = normalizedMessage.toLowerCase();
+  const data =
+    error && typeof error === "object" && "data" in error ? error.data : null;
+  const reasonCode =
+    data && typeof data === "object" && "reasonCode" in data
+      ? data.reasonCode
+      : null;
+
+  if (
+    reasonCode === "capability_snapshot_missing" ||
+    lowerMessage.includes("capability_snapshot_missing")
+  ) {
+    const message = readAgentRuntimeCopy(
+      "agentChat.runtimeError.modelMetadataUnavailable",
+      "无法读取当前模型的运行参数。请刷新模型列表后重试。",
+    );
+    return { displayMessage: message, toastMessage: message };
+  }
+
+  if (isLikelyProviderRouteRejectedError(lowerMessage)) {
+    const message = readAgentRuntimeCopy(
+      "agentChat.runtimeError.modelRouteRejected",
+      "所选模型无法执行当前请求。请检查服务商地址、协议和模型，或切换模型后重试。",
+    );
+    return { displayMessage: message, toastMessage: message };
+  }
 
   if (isModelSelectionRequiredError(lowerMessage)) {
     const message = readAgentRuntimeCopy(
@@ -271,7 +298,6 @@ export function resolveAgentRuntimeErrorPresentation(errorMessage: string): {
   }
 
   if (
-    isLikelyProviderRouteRejectedError(lowerMessage) ||
     isLikelyProviderUnavailableError(lowerMessage) ||
     isLikelyProviderNotFoundError(lowerMessage)
   ) {
@@ -328,11 +354,8 @@ export function resolveAgentRuntimeErrorPresentation(errorMessage: string): {
   };
 }
 
-export function resolveAgentRuntimeSubmitErrorMessage(
-  errorMessage: string,
-): string {
-  const toastMessage =
-    resolveAgentRuntimeErrorPresentation(errorMessage).toastMessage;
+export function resolveAgentRuntimeSubmitErrorMessage(error: unknown): string {
+  const toastMessage = resolveAgentRuntimeErrorPresentation(error).toastMessage;
   return toastMessage.startsWith("响应错误:")
     ? toastMessage.replace(/^响应错误:/, "发送失败:")
     : toastMessage;

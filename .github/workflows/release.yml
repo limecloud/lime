@@ -960,6 +960,12 @@ jobs:
               -print | sort
           )
 
+          if [ "$RUNNER_OS" != "Linux" ]; then
+            LIME_CLI_RESOURCE_BINARY="$BIN_DIR/app-server${EXE_SUFFIX}" \
+            LIME_CLI_RESOURCE_VERSION="$VERSION" \
+              node --input-type=module -e 'import { prepareLocalComputerUseResources } from "./scripts/lib/electron-desktop-resources.mjs"; prepareLocalComputerUseResources({ binaryPath: process.env.LIME_CLI_RESOURCE_BINARY, version: process.env.LIME_CLI_RESOURCE_VERSION });'
+          fi
+
           ASSET_PATH="packages/cli/dist/lime-npm-${{ matrix.npm_tag }}-${VERSION}.tgz"
           python3 packages/cli/scripts/build_npm_package.py \
             --package "${{ matrix.package }}" \

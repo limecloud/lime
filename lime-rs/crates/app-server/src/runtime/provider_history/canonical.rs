@@ -266,11 +266,41 @@ fn tool_result_from_item(item: &ThreadItem) -> Option<CurrentProviderToolResult>
                 .unwrap_or_else(|| "dynamic tool call failed".to_string())
         });
         return Some(CurrentProviderToolResult {
+            content_items: content_items
+                .iter()
+                .map(|item| match item {
+                    agent_protocol::DynamicToolCallContentItem::InputText { text } => {
+                        agent_protocol::response_item::FunctionCallOutputContentItem::InputText {
+                            text: text.clone(),
+                        }
+                    }
+                    agent_protocol::DynamicToolCallContentItem::InputImage { image_url } => {
+                        agent_protocol::response_item::FunctionCallOutputContentItem::InputImage {
+                            image_url: image_url.clone(),
+                            detail: None,
+                        }
+                    }
+                    agent_protocol::DynamicToolCallContentItem::InputAudio { audio_url } => {
+                        agent_protocol::response_item::FunctionCallOutputContentItem::InputAudio {
+                            audio_url: audio_url.clone(),
+                        }
+                    }
+                })
+                .collect(),
             history_token_limit: history_token_limit(item),
             call_id: call_id.clone(),
             name,
             success,
-            output: serde_json::to_string(content_items).ok()?,
+            output: content_items
+                .iter()
+                .filter_map(|item| match item {
+                    agent_protocol::DynamicToolCallContentItem::InputText { text } => {
+                        Some(text.as_str())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
             error,
         });
     }
@@ -316,6 +346,7 @@ fn tool_result_from_item(item: &ThreadItem) -> Option<CurrentProviderToolResult>
         })
         .unwrap_or_default();
     Some(CurrentProviderToolResult {
+        content_items: Vec::new(),
         history_token_limit: history_token_limit(item),
         call_id,
         name,
@@ -503,10 +534,10 @@ mod tests {
         assert_eq!(result.name, "desktop__appInfo");
         assert!(result.success);
         assert_eq!(result.error, None);
-        assert_eq!(
-            serde_json::from_str::<Vec<DynamicToolCallContentItem>>(&result.output)
-                .expect("ordered dynamic result"),
-            content_items
-        );
+        assert_eq!(result.output, "Lime");
+        assert_eq!(result.content_items.len(), content_items.len());
+        assert!(matches!(&result.content_items[1],
+            agent_protocol::response_item::FunctionCallOutputContentItem::InputImage { image_url, .. }
+            if image_url == "data:image/png;base64,AA=="));
     }
 }

@@ -172,7 +172,7 @@ describe("MessageList direct canonical timeline", () => {
     expect([...timelineCalls.values()]).toEqual([true, false]);
   });
 
-  it("已完成 canonical Turn 默认显示摘要，点击后按 Item identity 展开完整过程", () => {
+  it("已完成 canonical Turn 保留工具摘要，并按需展开技术详情", () => {
     const completedTurn = turn("turn-direct-completed");
     const container = render([], {
       currentTurnId: completedTurn.id,
@@ -186,26 +186,21 @@ describe("MessageList direct canonical timeline", () => {
       ],
     });
 
-    const preview = container.querySelector<HTMLButtonElement>(
-      '[data-testid="message-list-historical-timeline-preview:leading"]',
-    );
-    expect(preview).not.toBeNull();
-    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
-
-    act(() => preview?.click());
-
     expect(
-      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
-    ).not.toBeNull();
+      container.querySelector(
+        '[data-testid="message-list-historical-timeline-preview:leading"]',
+      ),
+    ).toBeNull();
     expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
       expect.objectContaining({
-        expandCompletedProcessDetails: true,
+        expandCompletedProcessDetails: false,
+        deferCompletedSingleDetails: true,
         items: [expect.objectContaining({ id: "completed-command" })],
       }),
     );
   });
 
-  it("已结束回合合并多个过程段，并只在最后一条 assistant 正文保留操作栏", () => {
+  it("已结束回合保留原始过程位置，并只在最后一条 assistant 正文保留操作栏", () => {
     const completedTurn = turn("turn-merged-history");
     completedTurn.completed_at = "2026-07-29T04:00:02.000Z";
     completedTurn.updated_at = completedTurn.completed_at;
@@ -240,11 +235,17 @@ describe("MessageList direct canonical timeline", () => {
       ],
     });
 
-    const previews = container.querySelectorAll(
-      '[data-testid="message-list-historical-timeline-preview:leading"]',
+    const segments = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-direct-segment-kind]"),
     );
-    expect(previews).toHaveLength(1);
-    expect(previews[0]?.textContent).toMatch(/(?:已处理|Processed)/);
+    expect(
+      segments.map((segment) => segment.dataset.directSegmentKind),
+    ).toEqual(["message", "message", "process", "message", "process"]);
+    expect(
+      Array.from(
+        container.querySelectorAll<HTMLElement>("[data-item-ids]"),
+      ).map((element) => element.dataset.itemIds?.split(",")),
+    ).toEqual([["merged-command"], ["merged-tool"]]);
     expect(
       container.querySelectorAll('[data-testid="message-actions"]'),
     ).toHaveLength(1);
@@ -273,8 +274,74 @@ describe("MessageList direct canonical timeline", () => {
     expect(diagnostic?.textContent).toContain("status");
     expect(container.textContent).not.toContain("unknown_item");
     expect(container.textContent).not.toContain("opaque-value-must-not-render");
-    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [expect.objectContaining({ id: "completed-unknown-item" })],
+      }),
+    );
   });
+
+  it.each(["running", "completed", "restored"] as const)(
+    "%s 回合按 User -> Reasoning -> Commentary -> Tool -> Reasoning -> Final 显示",
+    (state) => {
+      const currentTurn = turn(
+        "turn-sequence",
+        state === "running" ? "running" : "completed",
+      );
+      const values = [
+        item("sequence-user", currentTurn.id, 1, {
+          type: "user_message",
+          content: "打开网页",
+        }),
+        item("sequence-thinking-before", currentTurn.id, 2, {
+          type: "reasoning",
+          text: "检查可用浏览器",
+          summary: ["检查可用浏览器"],
+        }),
+        item("sequence-commentary", currentTurn.id, 3, {
+          type: "agent_message",
+          text: "我会打开网页。",
+          phase: "commentary",
+        }),
+        item("sequence-tool", currentTurn.id, 4, {
+          type: "tool_call",
+          tool_name: "browser/newTab",
+        }),
+        item("sequence-thinking-after", currentTurn.id, 5, {
+          type: "reasoning",
+          text: "确认页面状态",
+          summary: ["确认页面状态"],
+        }),
+        item("sequence-final", currentTurn.id, 6, {
+          type: "agent_message",
+          text: "已打开网页。",
+          phase: "final_answer",
+        }),
+      ];
+      const container = render([], {
+        currentTurnId: state === "restored" ? null : currentTurn.id,
+        isSending: state === "running",
+        turns: [currentTurn],
+        threadItems: [...values].reverse(),
+      });
+      const segments = Array.from(
+        container.querySelectorAll<HTMLElement>("[data-direct-segment-kind]"),
+      );
+      expect(
+        segments.map((segment) => segment.dataset.directSegmentKind),
+      ).toEqual(["message", "process", "message", "process", "message"]);
+      expect(
+        Array.from(
+          container.querySelectorAll<HTMLElement>("[data-item-ids]"),
+        ).map((element) => element.dataset.itemIds?.split(",")),
+      ).toEqual([
+        ["sequence-thinking-before"],
+        ["sequence-tool", "sequence-thinking-after"],
+      ]);
+      expect(segments[2]?.textContent).toContain("我会打开网页。");
+      expect(segments[4]?.textContent).toContain("已打开网页。");
+    },
+  );
 
   it("聚焦 completed process Item 时直接展开并保留精确定位参数", () => {
     const completedTurn = turn("turn-focused-completed");

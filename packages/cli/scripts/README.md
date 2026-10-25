@@ -20,7 +20,15 @@ vendor/<target-triple>/bin/
   windows-sandbox-setup.exe      # Windows only
   windows-sandbox-runner.exe     # Windows only
   <required runtime libraries>
+  desktop-resources.manifest.json # macOS / Windows
+  native/                        # macOS helper.app / Windows helper.exe
 ```
+
+macOS/Windows payloads reuse `prepareLocalComputerUseResources` from
+`scripts/lib/electron-desktop-resources.mjs` after staging the App Server binary.
+Staging validates the product/version/platform identity, contained paths, App Server
+and helper SHA256 digests, and the macOS helper bundle identity. Missing or modified
+resources fail packaging. The CLI does not depend on an Electron installation.
 
 For package-specific debugging, add `--pack-output <path>` to produce an npm
 tarball. Release packaging is owned by `.github/workflows/release.yml`: it

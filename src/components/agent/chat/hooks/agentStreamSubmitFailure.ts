@@ -12,7 +12,7 @@ import { isWorkspacePathErrorMessage } from "./agentChatCoreUtils";
 import type { ActiveStreamState } from "./agentStreamSubmissionLifecycle";
 import type { StreamRequestState } from "./agentStreamRuntimeHandlerTypes";
 import type { WorkspacePathMissingState } from "./agentChatShared";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 
 interface StreamObserver {
   onError?: (message: string) => void;
@@ -35,7 +35,7 @@ interface HandleSubmitFailureOptions {
   clearActiveStreamIfMatch: (eventName: string) => boolean;
   disposeListener: () => void;
   markOptimisticFailure: (errorMessage: string) => void;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 export function handleAgentStreamSubmitFailure(
@@ -56,7 +56,7 @@ export function handleAgentStreamSubmitFailure(
     clearActiveStreamIfMatch,
     disposeListener,
     markOptimisticFailure,
-    soulCopy,
+
   } = options;
 
   if (requestState.requestLogId && !requestState.requestFinished) {
@@ -71,7 +71,7 @@ export function handleAgentStreamSubmitFailure(
 
   console.error("[AgentChat] 发送失败:", error);
   const errMsg = error instanceof Error ? error.message : String(error);
-  const failedRuntimeStatus = buildFailedAgentRuntimeStatus(errMsg, soulCopy);
+  const failedRuntimeStatus = buildFailedAgentRuntimeStatus(errMsg);
   observer?.onError?.(errMsg);
 
   if (errMsg.includes("429") || errMsg.toLowerCase().includes("rate limit")) {
@@ -79,7 +79,7 @@ export function handleAgentStreamSubmitFailure(
   } else if (isWorkspacePathErrorMessage(errMsg)) {
     setWorkspacePathMissing({ content, images });
   } else {
-    toast.error(resolveAgentRuntimeSubmitErrorMessage(errMsg));
+    toast.error(resolveAgentRuntimeSubmitErrorMessage(error));
   }
 
   markOptimisticFailure(errMsg);
@@ -92,7 +92,7 @@ export function handleAgentStreamSubmitFailure(
             content: buildFailedAgentMessageContent(
               errMsg,
               msg.content,
-              soulCopy,
+
             ),
             runtimeStatus: failedRuntimeStatus,
           }

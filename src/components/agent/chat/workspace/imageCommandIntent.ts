@@ -198,7 +198,7 @@ export function resolveImageWorkbenchCommandRequest(
       ? "cover"
       : documentInlineSlotId
         ? "document-inline"
-        : "claw-image-workbench";
+        : "image-workbench";
   const runtimeContract = resolveImageGenerationRuntimeContractBinding();
   const explicitProviderId = normalizeImageTaskSelectionValue(
     parsedCommand.providerId,

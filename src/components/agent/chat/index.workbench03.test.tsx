@@ -18,7 +18,7 @@ const {
   mockUseAgentChatUnified,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
   it("历史旧导出结果与同会话新到的 saved_content 都不应自动打开画布，应等待用户手动点开", async () => {
     mockCanvasWorkbenchLayoutState.renderPreviewProbe = true;
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({

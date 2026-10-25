@@ -80,10 +80,6 @@ const SUPPORT_BUNDLE = join(
   REPO_ROOT,
   "lime-rs/crates/app-server/src/local_data_source/diagnostics/support_bundle.rs",
 );
-const STYLE_PACK_PATHS = join(
-  REPO_ROOT,
-  "lime-rs/crates/app-server/src/runtime/soul/style_pack_paths.rs",
-);
 const MCP_OAUTH_STORE = join(
   REPO_ROOT,
   "lime-rs/crates/mcp/src/oauth_store.rs",
@@ -347,10 +343,9 @@ describe("storage root boundary", () => {
   it("退役的 root bypass 不得回流到叶子 owner", () => {
     const diagnostics = readFileSync(LOCAL_DIAGNOSTICS, "utf8");
     const supportBundle = readFileSync(SUPPORT_BUNDLE, "utf8");
-    const stylePackPaths = readFileSync(STYLE_PACK_PATHS, "utf8");
     const mcpOAuthStore = readFileSync(MCP_OAUTH_STORE, "utf8");
 
-    for (const source of [diagnostics, supportBundle, stylePackPaths]) {
+    for (const source of [diagnostics, supportBundle]) {
       expect(source).not.toContain("preferred_data_dir");
     }
     expect(mcpOAuthStore).not.toContain("best_effort_runtime_subdir");
@@ -362,7 +357,6 @@ describe("storage root boundary", () => {
     expect(supportBundle).not.toContain("database::get_db_path()");
 
     // 领域 root 只能由 AppDataRoot 派生。
-    expect(stylePackPaths).toContain("style_pack_data_root_for_app_data_root");
     expect(mcpOAuthStore).toContain("oauth_store_root_for_app_data_root");
   });
 

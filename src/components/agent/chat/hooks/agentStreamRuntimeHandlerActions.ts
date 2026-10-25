@@ -71,7 +71,7 @@ import type {
   StreamObserver,
   StreamRequestState,
 } from "./agentStreamRuntimeHandlerTypes";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import {
   isAgentMessageCommentaryPhase,
   isAgentMessageFinalAnswerPhase,
@@ -126,7 +126,7 @@ interface CreateAgentStreamRuntimeHandlerActionsOptions {
   setThreadItems: Dispatch<SetStateAction<AgentThreadItem[]>>;
   setThreadTurns: Dispatch<SetStateAction<AgentThreadTurn[]>>;
   surfaceThinkingDeltas: boolean;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 export function createAgentStreamRuntimeHandlerActions({
@@ -148,7 +148,7 @@ export function createAgentStreamRuntimeHandlerActions({
   setThreadItems,
   setThreadTurns,
   surfaceThinkingDeltas,
-  soulCopy,
+
 }: CreateAgentStreamRuntimeHandlerActionsOptions) {
   const { clearActiveStreamIfMatch, disposeListener, isStreamActivated } =
     callbacks;
@@ -565,7 +565,7 @@ export function createAgentStreamRuntimeHandlerActions({
                 previousContent: msg.content,
                 previousContentParts: msg.contentParts,
                 usage: sideEffectPlan.usage ?? msg.usage,
-                soulCopy,
+
               }),
             }
           : msg,
@@ -767,7 +767,7 @@ export function createAgentStreamRuntimeHandlerActions({
           activeSessionId,
           fallbackTurnId,
           now: new Date().toISOString(),
-          soulCopy,
+
         },
         prev.find((item) => {
           if (item.id !== existingId) {

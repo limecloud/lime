@@ -79,6 +79,7 @@ fn output_key(content: &CurrentProviderContent) -> Option<Key<'_>> {
 
 fn aborted_output(content: &CurrentProviderContent) -> CurrentProviderMessage {
     let result = |id: &str, name: &str| CurrentProviderToolResult {
+        content_items: Vec::new(),
         history_token_limit: None,
         call_id: id.to_string(),
         name: name.to_string(),

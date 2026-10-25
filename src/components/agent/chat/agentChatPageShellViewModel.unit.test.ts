@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveAgentChatPageShellViewModel } from "./agentChatPageShellViewModel";
+import { resolveLocalConversationPageShellViewModel } from "./agentChatPageShellViewModel";
 
-type ShellInput = Parameters<typeof resolveAgentChatPageShellViewModel>[0];
+type ShellInput = Parameters<typeof resolveLocalConversationPageShellViewModel>[0];
 
 function resolve(input: ShellInput = {}) {
-  return resolveAgentChatPageShellViewModel(input);
+  return resolveLocalConversationPageShellViewModel(input);
 }
 
 function expectForced(input: ShellInput) {
@@ -13,8 +13,8 @@ function expectForced(input: ShellInput) {
     resolve({ agentEntry: "new-task", showChatPanel: false, ...input }),
   ).toMatchObject({
     hasDirectWorkspaceIntent: true,
-    shouldForceClawWorkspace: true,
-    effectiveAgentEntry: "claw",
+    shouldOpenConversation: true,
+    effectiveAgentEntry: "conversation",
     effectiveShowChatPanel: true,
   });
 }
@@ -23,8 +23,8 @@ describe("agentChatPageShellViewModel", () => {
   it("默认入口应保持 claw 工作区", () => {
     expect(resolve()).toEqual({
       hasDirectWorkspaceIntent: false,
-      shouldForceClawWorkspace: false,
-      effectiveAgentEntry: "claw",
+      shouldOpenConversation: false,
+      effectiveAgentEntry: "conversation",
       effectiveShowChatPanel: undefined,
     });
   });
@@ -37,7 +37,7 @@ describe("agentChatPageShellViewModel", () => {
       }),
     ).toEqual({
       hasDirectWorkspaceIntent: false,
-      shouldForceClawWorkspace: false,
+      shouldOpenConversation: false,
       effectiveAgentEntry: "new-task",
       effectiveShowChatPanel: false,
     });
@@ -60,7 +60,7 @@ describe("agentChatPageShellViewModel", () => {
       }),
     ).toMatchObject({
       hasDirectWorkspaceIntent: false,
-      shouldForceClawWorkspace: false,
+      shouldOpenConversation: false,
       effectiveAgentEntry: "new-task",
     });
   });
@@ -122,7 +122,7 @@ describe("agentChatPageShellViewModel", () => {
       }),
     ).toMatchObject({
       hasDirectWorkspaceIntent: false,
-      shouldForceClawWorkspace: false,
+      shouldOpenConversation: false,
       effectiveAgentEntry: "new-task",
       effectiveShowChatPanel: false,
     });
@@ -137,14 +137,14 @@ describe("agentChatPageShellViewModel", () => {
   it("claw 入口即使携带直达意图也不需要强制切换", () => {
     expect(
       resolve({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         showChatPanel: false,
         initialUserPrompt: "继续执行",
       }),
     ).toEqual({
       hasDirectWorkspaceIntent: true,
-      shouldForceClawWorkspace: false,
-      effectiveAgentEntry: "claw",
+      shouldOpenConversation: false,
+      effectiveAgentEntry: "conversation",
       effectiveShowChatPanel: false,
     });
   });
@@ -152,14 +152,14 @@ describe("agentChatPageShellViewModel", () => {
   it("claw 入口携带 initialSessionId 时应打开聊天面板", () => {
     expect(
       resolve({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         showChatPanel: true,
         initialSessionId: "session-from-sidebar",
       }),
     ).toEqual({
       hasDirectWorkspaceIntent: true,
-      shouldForceClawWorkspace: false,
-      effectiveAgentEntry: "claw",
+      shouldOpenConversation: false,
+      effectiveAgentEntry: "conversation",
       effectiveShowChatPanel: true,
     });
   });

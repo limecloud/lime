@@ -40,7 +40,6 @@
   "agentExperts.info.overview.workWithRefs": "必要時引用已綁定的技能、記憶範本和工作流。",
   "agentExperts.info.boundary.truth": "基於真實上下文和使用者提供的資訊工作，不編造未給出的事實。",
   "agentExperts.info.boundary.private": "不會把專案檔案、私有記憶或對話內容寫回公共專家目錄。",
-  "agentExperts.info.boundary.soul": "Global Soul 只影響溝通節奏；專家人格不會寫回 Global Soul，也不會預設進入正式產物。",
   "agentExperts.info.memory.title": "MEMORY.md — {{title}} 記憶",
   "agentExperts.info.memory.focus": "目前專案與關注",
   "agentExperts.info.memory.defaultFocus": "圍繞本輪任務持續沉澱偏好、約束和復盤線索。",

@@ -618,6 +618,7 @@ impl RuntimeCodeModeSessionDelegate for RuntimeCodeModeNestedToolDelegate {
                 return Ok(());
             }
             let provider_output = CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: None,
                 call_id: tool_call_id.clone(),
                 name: CODE_MODE_EXEC_TOOL_NAME.to_string(),
@@ -663,6 +664,7 @@ fn custom_provider_result(
     result: RuntimeCodeModeToolResult,
 ) -> CurrentProviderToolResult {
     CurrentProviderToolResult {
+        content_items: super::tool_output::code_mode_content_items(result.content_items),
         history_token_limit: None,
         call_id: call.id,
         name: call.name,
@@ -677,6 +679,7 @@ fn wait_provider_result(
     result: RuntimeCodeModeToolResult,
 ) -> CurrentProviderToolResult {
     CurrentProviderToolResult {
+        content_items: super::tool_output::code_mode_content_items(result.content_items),
         history_token_limit: None,
         call_id: call.id,
         name: call.name,

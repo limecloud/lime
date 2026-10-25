@@ -590,7 +590,7 @@ App Server 是 Default/Plan preset 的唯一事实源；Plan 固定以 `reasonin
 `src/lib/api/memoryStore.ts -> AppServerClient.request(...) -> app_server_handle_json_lines -> App Server memory/reset -> RuntimeCore -> MemoryAppDataSource -> LocalMemoryBackend`
 
 current method 为 exact `memory/reset`，只接受 omitted、`null` 或空对象 params，返回空对象。它只清理全局 memory
-root 并重建受管目录，不删除 Thread/Turn/Item、event log、projection store 或 memory root 外的 soul 配置。旧 scoped
+root 并重建受管目录，不删除 Thread/Turn/Item、event log、projection store 或 memory root 外的用户配置。旧 scoped
 `memoryStore/reset`、`MemoryStoreResetParams/Response`、typed client 与设置页调用均为
 `dead / deleted / forbidden-to-restore`；workspace memory reset 不再作为未被产品消费的平级公开能力保留。
 

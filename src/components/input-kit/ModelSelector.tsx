@@ -25,20 +25,11 @@ import { useProviderModels } from "@/hooks/useProviderModels";
 import { filterModelsByTheme } from "@/components/agent/chat/utils/modelThemePolicy";
 import { getProviderModelCompatibilityIssue } from "@/components/agent/chat/utils/providerModelCompatibility";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
-import {
-  getProviderPromptCacheMode,
-  resolvePromptCacheSupportNotice,
-} from "@/lib/model/providerPromptCacheSupport";
 import { buildProviderModelsFromBackendModelIds } from "@/lib/model/providerModelsCatalog";
 import { ModelCapabilityBadges } from "@/components/model/ModelCapabilityBadges";
-import { ModelProviderCapabilityBadges } from "@/components/model/ModelProviderCapabilityBadges";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
-import {
-  modelRegistryApi,
-  type ModelProviderCapabilities,
-} from "@/lib/api/modelRegistry";
 import type {
   EnhancedModelMetadata,
   ModelReasoningEffortLevel,
@@ -52,7 +43,7 @@ import { ModelSelectorTrigger } from "./ModelSelectorTrigger";
 import { useModelReasoningEffort } from "./useModelReasoningEffort";
 
 const itemClassName =
-  "flex w-full items-center justify-between rounded-xl border border-transparent px-2.5 py-2 text-left text-sm transition-colors";
+  "flex w-full items-center justify-between gap-2 rounded-md border-[0.5px] border-transparent px-2.5 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--lime-brand)]";
 
 const BACKGROUND_PRELOAD_IDLE_TIMEOUT_MS = 1_500;
 const BACKGROUND_PRELOAD_FALLBACK_DELAY_MS = 180;
@@ -115,20 +106,6 @@ function resolveProviderSelectionModel(params: {
 
 function hasProviderDeclaredModel(provider: ConfiguredProvider): boolean {
   return Boolean(resolveInitialProviderModel(provider));
-}
-
-function isProviderDeclaredModel(
-  provider: ConfiguredProvider | null | undefined,
-  modelId: string,
-): boolean {
-  const normalizedModelId = modelId.trim().toLowerCase();
-  return Boolean(
-    normalizedModelId &&
-    provider?.models?.some(
-      (declaredModelId) =>
-        declaredModelId.trim().toLowerCase() === normalizedModelId,
-    ),
-  );
 }
 
 export interface ModelSelectorProps {
@@ -205,10 +182,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     },
   );
   const [backgroundProviderLoadReady, setBackgroundProviderLoadReady] =
-    useState(false);
-  const [providerCapabilities, setProviderCapabilities] =
-    useState<ModelProviderCapabilities | null>(null);
-  const [providerCapabilitiesLoading, setProviderCapabilitiesLoading] =
     useState(false);
   const hasInitialized = useRef(false);
   const modelRef = useRef(model);
@@ -289,22 +262,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         : configuredProviders,
     [configuredProviders, providerFilter],
   );
-  const cloudProviders = useMemo(
-    () =>
-      visibleProviders.filter(
-        (provider) =>
-          provider.key === "lime-hub" || provider.providerId === "lime-hub",
-      ),
-    [visibleProviders],
-  );
-  const localProviders = useMemo(
-    () =>
-      visibleProviders.filter(
-        (provider) =>
-          provider.key !== "lime-hub" && provider.providerId !== "lime-hub",
-      ),
-    [visibleProviders],
-  );
   const selectedProvider = useMemo(() => {
     return findConfiguredProviderBySelection(
       configuredProviders,
@@ -319,41 +276,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const selectedProviderBlocksModelLoad =
     selectedProviderLoginRequired && !selectedProviderHasDeclaredModel;
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    let disposed = false;
-    setProviderCapabilities(null);
-    setProviderCapabilitiesLoading(true);
-
-    void modelRegistryApi
-      .readModelProviderCapabilities()
-      .then((capabilities) => {
-        if (!disposed) {
-          setProviderCapabilities(capabilities);
-        }
-      })
-      .catch(() => {
-        if (!disposed) {
-          setProviderCapabilities({
-            namespaceTools: false,
-            imageGeneration: false,
-            webSearch: false,
-          });
-        }
-      })
-      .finally(() => {
-        if (!disposed) {
-          setProviderCapabilitiesLoading(false);
-        }
-      });
-
-    return () => {
-      disposed = true;
-    };
-  }, [open]);
   const autoSelectableProviders = useMemo(
     () =>
       visibleProviders.filter(
@@ -420,32 +342,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   const modelOptions = useMemo(
     () =>
-      visibleModels.flatMap((item) => {
+      visibleModels.map((item) => {
         const compatibilityIssue = getProviderModelCompatibilityIssue({
           providerType: effectiveProviderType,
           configuredProviderType: selectedProvider?.type,
           model: item.id,
-          capabilityProvenance: item.capability_provenance,
-          providerDeclaredModel: isProviderDeclaredModel(
-            selectedProvider,
-            item.id,
-          ),
-          enforceExecutableCapability: true,
         });
-
-        if (
-          compatibilityIssue?.code === "runtime_capability_not_authoritative"
-        ) {
-          return [];
-        }
-
-        return [
-          {
-            id: item.id,
-            metadata: item,
-            compatibilityIssue,
-          },
-        ];
+        return { id: item.id, metadata: item, compatibilityIssue };
       }),
     [effectiveProviderType, selectedProvider, visibleModels],
   );
@@ -455,26 +358,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       modelOptions
         .filter((item) => !item.compatibilityIssue)
         .map((item) => item.id),
-    [modelOptions],
-  );
-  const selectedPromptCacheNotice = useMemo(
-    () =>
-      resolvePromptCacheSupportNotice({
-        providerType: effectiveProviderType,
-        configuredProviderType: selectedProvider?.type,
-        configuredApiHost: selectedProvider?.apiHost,
-        configuredPromptCacheMode: selectedProvider?.promptCacheMode,
-      }),
-    [
-      effectiveProviderType,
-      selectedProvider?.apiHost,
-      selectedProvider?.promptCacheMode,
-      selectedProvider?.type,
-    ],
-  );
-
-  const incompatibleModelCount = useMemo(
-    () => modelOptions.filter((item) => item.compatibilityIssue).length,
     [modelOptions],
   );
   const selectedModelOption = useMemo(
@@ -594,29 +477,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   ]);
 
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    if (!selectedProvider) return;
-    if (!activeTheme) return;
-    if (!filteredResult.usedFallback && filteredResult.filteredOutCount === 0) {
-      return;
-    }
-
-    console.debug("[ModelSelector] 主题模型过滤结果", {
-      theme: activeTheme,
-      provider: selectedProvider.key,
-      policyName: filteredResult.policyName,
-      filteredOutCount: filteredResult.filteredOutCount,
-      usedFallback: filteredResult.usedFallback,
-    });
-  }, [
-    activeTheme,
-    filteredResult.filteredOutCount,
-    filteredResult.policyName,
-    filteredResult.usedFallback,
-    selectedProvider,
-  ]);
-
-  useEffect(() => {
     if (!disabled) return;
     if (!open) return;
     setOpen(false);
@@ -650,8 +510,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     placeholderLabel ?? t("common.modelSelector.placeholder");
   const resolvedEmptyStateTitle =
     emptyStateTitle ?? t("common.modelSelector.noProvider.title");
-  const resolvedEmptyStateDescription =
-    emptyStateDescription ?? t("common.modelSelector.noProvider.description");
   const selectedProviderLabel = selectedProviderUnavailable
     ? t("common.modelSelector.provider.selectedUnavailable")
     : showPlaceholderSelection
@@ -684,19 +542,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           level: selectedReasoningEffortLabel,
         })
       : undefined;
-  const selectedModelWithReasoningLabel = selectedReasoningLabel
-    ? `${selectedModelLabel} · ${selectedReasoningLabel}`
-    : selectedModelLabel;
-  const normalizedTheme = (activeTheme || "").toLowerCase();
-  const activeThemeLabel =
-    normalizedTheme === "general"
-      ? t("common.modelSelector.theme.general")
-      : activeTheme || t("common.modelSelector.theme.current");
-  const showThemeFilterHint =
-    normalizedTheme !== "" &&
-    normalizedTheme !== "general" &&
-    !filteredResult.usedFallback &&
-    filteredResult.filteredOutCount > 0;
   const showNoProviderGuide =
     shouldLoadProviders &&
     !providersLoading &&
@@ -725,20 +570,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return (
       <div
         className={cn(
-          "w-full rounded-lg border border-amber-200 bg-amber-50/60 p-3",
+          "w-full rounded-lg border-[0.5px] border-[var(--lime-warning-border)] bg-[var(--lime-warning-soft)] p-3",
           className,
         )}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-start gap-2 min-w-0">
-            <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <AlertCircle className="h-4 w-4 text-[var(--lime-warning)] mt-0.5 shrink-0" />
             <div className="min-w-0">
-              <div className="text-sm font-medium text-amber-900">
+              <div className="text-sm font-medium text-[var(--lime-warning)]">
                 {resolvedEmptyStateTitle}
               </div>
-              <div className="text-xs text-amber-700 leading-5">
-                {resolvedEmptyStateDescription}
-              </div>
+              {emptyStateDescription ? (
+                <div className="text-xs text-[var(--lime-warning)] leading-5">
+                  {emptyStateDescription}
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -747,7 +594,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 shrink-0 border-amber-300 bg-white text-amber-800 hover:bg-amber-100 hover:text-amber-900"
+                className="h-8 shrink-0 border-[0.5px] border-[var(--lime-warning-border)] bg-[var(--lime-surface)] text-[var(--lime-warning)] hover:bg-[var(--lime-warning-soft)] hover:text-[var(--lime-warning)]"
                 onClick={onManageProviders}
               >
                 {t("common.modelSelector.action.configure")}
@@ -757,7 +604,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0 rounded-full text-amber-700 hover:bg-amber-100 hover:text-amber-900"
+              className="h-8 w-8 shrink-0 rounded-full text-[var(--lime-warning)] hover:bg-[var(--lime-warning-soft)] hover:text-[var(--lime-warning)]"
               aria-label={t("common.modelSelector.noProvider.dismissAria")}
               onClick={handleDismissNoProviderGuide}
             >
@@ -799,72 +646,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
         <PopoverContent
           data-model-selector-popover="true"
-          className="z-[80] w-[440px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-0 shadow-xl shadow-slate-950/8 opacity-100"
+          aria-label={t("common.modelSelector.header.title")}
+          className="z-[80] w-[480px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border-[0.5px] border-[var(--lime-surface-border)] bg-[var(--lime-surface)] p-0 shadow-none data-[state=open]:animate-none data-[state=closed]:animate-none opacity-100"
           align="start"
           side={popoverSide}
           sideOffset={8}
           avoidCollisions
           collisionPadding={8}
         >
-          <div className="border-b border-slate-200/80 bg-[linear-gradient(180deg,rgb(255,255,255)_0%,rgb(248,250,252)_100%)] px-4 py-3">
-            <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-              {t("common.modelSelector.header.title")}
-            </div>
-            {showPlaceholderSelection ? (
-              <div className="mt-1 text-sm font-medium text-slate-700">
-                {resolvedPlaceholderLabel}
-              </div>
-            ) : (
-              <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
-                <span className="font-medium">{selectedProviderLabel}</span>
-                <span className="text-slate-300">/</span>
-                <span className="truncate text-slate-500">
-                  {selectedModelWithReasoningLabel}
-                </span>
-              </div>
-            )}
-            {activeTheme ? (
-              <div className="mt-1 text-xs text-slate-500">
-                {t("common.modelSelector.header.themeFilter", {
-                  theme: activeThemeLabel,
-                })}
-              </div>
-            ) : null}
-            {selectedPromptCacheNotice ? (
-              <div className="mt-1 text-xs text-amber-700">
-                {t("common.modelSelector.notice.promptCacheExplicit")}
-              </div>
-            ) : null}
-          </div>
-
           <div className="flex h-[336px]">
-            <div className="flex w-[156px] flex-col gap-1 overflow-y-auto border-r border-slate-200/80 bg-slate-50 p-2">
-              <div className="mb-1 px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-                {t("common.modelSelector.provider.title")}
-              </div>
-              {providerCapabilities || providerCapabilitiesLoading ? (
-                <div
-                  className="mb-1 rounded-xl border border-slate-200/80 bg-white px-2.5 py-2"
-                  data-testid="model-selector-provider-capability-panel"
-                >
-                  <div className="mb-1.5 text-[10px] font-semibold text-slate-500">
-                    {t("common.modelProviderCapabilities.title")}
-                  </div>
-                  {providerCapabilitiesLoading ? (
-                    <div className="text-[10px] leading-4 text-slate-400">
-                      {t("common.modelProviderCapabilities.loading")}
-                    </div>
-                  ) : providerCapabilities ? (
-                    <ModelProviderCapabilityBadges
-                      capabilities={providerCapabilities}
-                      compact
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-
+            <div
+              role="group"
+              aria-label={t("common.modelSelector.provider.title")}
+              className="flex w-[156px] flex-col gap-1 overflow-y-auto border-r-[0.5px] border-[var(--lime-surface-border)] bg-[var(--lime-surface-hover)] p-2"
+            >
               {visibleProviders.length === 0 ? (
-                <div className="px-2 py-3 text-xs leading-5 text-slate-500">
+                <div className="px-2 py-3 text-xs leading-5 text-[var(--lime-text-muted)]">
                   {t("common.modelSelector.provider.empty")}
                 </div>
               ) : (
@@ -880,165 +677,90 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       className={cn(
                         itemClassName,
                         !providerType.trim()
-                          ? "border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5"
-                          : "text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-900",
+                          ? "border-[var(--lime-surface-border)] bg-[var(--lime-surface)] text-[var(--lime-text-strong)]"
+                          : "text-[var(--lime-text-muted)] hover:border-[var(--lime-surface-border)] hover:bg-[var(--lime-surface)] hover:text-[var(--lime-text-strong)]",
                       )}
                     >
                       <span className="truncate">
                         {resolvedAutoProviderLabel}
                       </span>
                       {!providerType.trim() ? (
-                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        <Check size={14} className="shrink-0" />
                       ) : null}
                     </button>
                   ) : null}
                   {selectedProviderUnavailable ||
                   (selectedProvider && !selectedProviderVisible) ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-700">
+                    <div className="rounded-md border-[0.5px] border-[var(--lime-warning-border)] bg-[var(--lime-warning-soft)] px-2.5 py-2 text-xs leading-5 text-[var(--lime-warning)]">
                       {t("common.modelSelector.provider.selectedUnavailable")}
                     </div>
                   ) : null}
-                  {[
-                    {
-                      key: "cloud",
-                      title: t("common.modelSelector.provider.section.cloud"),
-                      providers: cloudProviders,
-                    },
-                    {
-                      key: "local",
-                      title: t("common.modelSelector.provider.section.local"),
-                      providers: localProviders,
-                    },
-                  ]
-                    .filter((section) => section.providers.length > 0)
-                    .map((section) => (
-                      <div key={section.key} className="space-y-1">
-                        <div className="px-2 pt-2 text-[10px] font-semibold tracking-[0.08em] text-slate-400">
-                          {section.title}
-                        </div>
-                        {section.providers.map((provider) => {
-                          const isSelected =
-                            selectedProvider?.key === provider.key;
-                          const providerPromptCacheMode =
-                            getProviderPromptCacheMode(
-                              provider.type,
-                              provider.promptCacheMode,
-                              provider.apiHost,
-                            );
-
-                          return (
-                            <button
-                              key={provider.key}
-                              onClick={() => {
-                                const nextModel = resolveProviderSelectionModel(
-                                  {
-                                    provider,
-                                    modelFilter,
-                                    getFallbackModels,
-                                    isSelected,
-                                    currentModelOptions: modelOptions,
-                                  },
-                                );
-                                const didCommit =
-                                  queueOrCommitProviderSelection(
-                                    resolveProviderSelectionValue(provider),
-                                    nextModel,
-                                  );
-                                if (didCommit) {
-                                  setReasoningEffort?.("");
-                                }
-                              }}
-                              className={cn(
-                                itemClassName,
-                                isSelected
-                                  ? "border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5"
-                                  : "text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-900",
-                              )}
-                            >
-                              <span className="flex min-w-0 items-center gap-2">
-                                <ProviderIcon
-                                  providerType={provider.key}
-                                  fallbackText={provider.label}
-                                  size={15}
-                                />
-                                <span className="flex min-w-0 flex-col gap-1">
-                                  <span className="truncate">
-                                    {provider.label}
-                                  </span>
-                                  {provider.authStatus === "login_required" ? (
-                                    <span className="text-[10px] leading-4 text-amber-700">
-                                      {t(
-                                        "common.modelSelector.provider.badge.loginRequired",
-                                      )}
-                                    </span>
-                                  ) : providerPromptCacheMode ===
-                                    "explicit_only" ? (
-                                    <span className="text-[10px] leading-4 text-amber-700">
-                                      {t(
-                                        "common.modelSelector.provider.badge.explicitCache",
-                                      )}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </span>
-                              {isSelected && (
-                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              )}
-                            </button>
+                  {visibleProviders.map((provider) => {
+                    const isSelected = selectedProvider?.key === provider.key;
+                    return (
+                      <button
+                        key={provider.key}
+                        onClick={() => {
+                          const nextModel = resolveProviderSelectionModel({
+                            provider,
+                            modelFilter,
+                            getFallbackModels,
+                            isSelected,
+                            currentModelOptions: modelOptions,
+                          });
+                          const didCommit = queueOrCommitProviderSelection(
+                            resolveProviderSelectionValue(provider),
+                            nextModel,
                           );
-                        })}
-                      </div>
-                    ))}
+                          if (didCommit) {
+                            setReasoningEffort?.("");
+                          }
+                        }}
+                        className={cn(
+                          itemClassName,
+                          isSelected
+                            ? "border-[var(--lime-surface-border)] bg-[var(--lime-surface)] text-[var(--lime-text-strong)]"
+                            : "text-[var(--lime-text-muted)] hover:border-[var(--lime-surface-border)] hover:bg-[var(--lime-surface)] hover:text-[var(--lime-text-strong)]",
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ProviderIcon
+                            providerType={provider.key}
+                            fallbackText={provider.label}
+                            size={15}
+                          />
+                          <span className="flex min-w-0 flex-col gap-1">
+                            <span className="truncate">{provider.label}</span>
+                            {provider.authStatus === "login_required" ? (
+                              <span className="text-xs leading-4 text-[var(--lime-warning)]">
+                                {t(
+                                  "common.modelSelector.provider.badge.loginRequired",
+                                )}
+                              </span>
+                            ) : null}
+                          </span>
+                        </span>
+                        {isSelected && <Check size={14} className="shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </>
               )}
             </div>
 
-            <div className="flex flex-1 flex-col overflow-hidden p-2.5">
-              <div className="mb-1 px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-                {t("common.modelSelector.model.title")}
-              </div>
-              {showThemeFilterHint ||
-              (normalizedTheme !== "general" && filteredResult.usedFallback) ||
-              incompatibleModelCount > 0 ? (
-                <div className="mb-2 space-y-1 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2">
-                  {showThemeFilterHint ? (
-                    <div className="text-[11px] leading-5 text-slate-500">
-                      {t("common.modelSelector.model.themeFiltered", {
-                        theme: activeThemeLabel,
-                      })}
-                    </div>
-                  ) : null}
-                  {normalizedTheme !== "general" &&
-                  filteredResult.usedFallback ? (
-                    <div className="text-[11px] leading-5 text-amber-700">
-                      {t("common.modelSelector.model.themeFallback", {
-                        theme: activeThemeLabel,
-                      })}
-                    </div>
-                  ) : null}
-                  {incompatibleModelCount > 0 ? (
-                    <div className="text-[11px] leading-5 text-amber-700">
-                      {t("common.modelSelector.model.incompatibleHidden", {
-                        count: incompatibleModelCount,
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
+            <div
+              role="group"
+              aria-label={t("common.modelSelector.model.title")}
+              className="flex min-w-0 flex-1 flex-col overflow-hidden p-2"
+            >
               {selectedReasoningEffortOptions.length > 0 ? (
                 <div
-                  className="mb-2 rounded-2xl border border-slate-200/80 bg-slate-50 px-2.5 py-2"
+                  className="mb-2 rounded-lg border-[0.5px] border-[var(--lime-surface-border)] bg-[var(--lime-surface-hover)] px-2.5 py-2"
                   data-testid="model-selector-reasoning-effort"
                 >
                   <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-                    <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
+                    <div className="text-xs font-semibold text-[var(--lime-text-muted)]">
                       {t("common.modelSelector.reasoning.title")}
-                    </div>
-                    <div className="truncate text-[11px] text-slate-400">
-                      {selectedModelOption?.metadata.source === "api"
-                        ? t("common.modelSelector.reasoning.source.api")
-                        : null}
                     </div>
                   </div>
                   <div
@@ -1068,10 +790,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           })}
                           title={label}
                           className={cn(
-                            "inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-xs font-medium transition-colors",
+                            "inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium",
                             selected
-                              ? "bg-slate-900 text-white shadow-sm shadow-slate-950/10"
-                              : "text-slate-500 hover:bg-white hover:text-slate-900",
+                              ? "bg-[var(--lime-text-strong)] text-[var(--lime-surface)]"
+                              : "text-[var(--lime-text-muted)] hover:bg-[var(--lime-surface)] hover:text-[var(--lime-text-strong)]",
                           )}
                           onClick={() => setReasoningEffort?.(option.value)}
                         >
@@ -1090,15 +812,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 <div className="space-y-1 p-1">
                   {!selectedProvider &&
                   (allowAutoProvider || suppressAutoSelection) ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
+                    <div className="rounded-lg border-[0.5px] border-[var(--lime-surface-border)] px-3 py-6 text-center text-xs text-[var(--lime-text-muted)]">
                       {t("common.modelSelector.model.selectProviderFirst")}
                     </div>
                   ) : selectedProviderBlocksModelLoad ? (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 text-xs leading-5 text-amber-800">
+                    <div className="rounded-lg border-[0.5px] border-[var(--lime-warning-border)] bg-[var(--lime-warning-soft)] px-3 py-4 text-xs leading-5 text-[var(--lime-warning)]">
                       <div className="flex items-start gap-2 text-left">
-                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--lime-warning)]" />
                         <div className="min-w-0">
-                          <div className="font-medium text-amber-900">
+                          <div className="font-medium text-[var(--lime-warning)]">
                             {t(
                               "common.modelSelector.model.loginRequiredTitle",
                               {
@@ -1106,17 +828,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                               },
                             )}
                           </div>
-                          <div className="mt-1 text-amber-700">
-                            {t(
-                              "common.modelSelector.model.loginRequiredDescription",
-                            )}
-                          </div>
                           {onManageProviders ? (
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="mt-3 h-8 border-amber-300 bg-white text-amber-800 hover:bg-amber-100 hover:text-amber-900"
+                              className="mt-3 h-8 border-[0.5px] border-[var(--lime-warning-border)] bg-[var(--lime-surface)] text-[var(--lime-warning)] hover:bg-[var(--lime-warning-soft)] hover:text-[var(--lime-warning)]"
                               onClick={() => {
                                 setOpen(false);
                                 onManageProviders();
@@ -1129,7 +846,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       </div>
                     </div>
                   ) : modelOptions.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
+                    <div className="rounded-lg border-[0.5px] border-[var(--lime-surface-border)] px-3 py-6 text-center text-xs text-[var(--lime-text-muted)]">
                       {t("common.modelSelector.model.empty")}
                     </div>
                   ) : (
@@ -1144,22 +861,25 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           className={cn(
                             `${itemClassName} group`,
                             !model.trim()
-                              ? "border-slate-200 bg-slate-50 text-slate-900"
-                              : "text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
+                              ? "border-[var(--lime-surface-border)] bg-[var(--lime-surface-hover)] text-[var(--lime-text-strong)]"
+                              : "text-[var(--lime-text-muted)] hover:border-[var(--lime-surface-border)] hover:bg-[var(--lime-surface-hover)] hover:text-[var(--lime-text-strong)]",
                           )}
                         >
                           <span className="truncate">
                             {resolvedAutoModelLabel}
                           </span>
                           {!model.trim() ? (
-                            <Check size={14} className="text-slate-900" />
+                            <Check
+                              size={14}
+                              className="text-[var(--lime-text-strong)]"
+                            />
                           ) : null}
                         </button>
                       ) : null}
                       {selectedProvider &&
                       model.trim() &&
                       !currentModels.includes(model) ? (
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-700">
+                        <div className="rounded-md border-[0.5px] border-[var(--lime-warning-border)] bg-[var(--lime-warning-soft)] px-2.5 py-2 text-xs leading-5 text-[var(--lime-warning)]">
                           {t("common.modelSelector.model.selectedUnavailable")}
                         </div>
                       ) : null}
@@ -1185,10 +905,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           className={cn(
                             `${itemClassName} group`,
                             currentModelItem.compatibilityIssue
-                              ? "cursor-not-allowed border-transparent bg-transparent text-slate-400 opacity-70"
+                              ? "cursor-not-allowed border-transparent bg-transparent text-[var(--lime-text-muted)] opacity-70"
                               : model === currentModelItem.id
-                                ? "border-slate-200 bg-slate-50 text-slate-900"
-                                : "text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
+                                ? "border-[var(--lime-surface-border)] bg-[var(--lime-surface-hover)] text-[var(--lime-text-strong)]"
+                                : "text-[var(--lime-text-muted)] hover:border-[var(--lime-surface-border)] hover:bg-[var(--lime-surface-hover)] hover:text-[var(--lime-text-strong)]",
                           )}
                           title={currentModelItem.compatibilityIssue?.message}
                         >
@@ -1210,18 +930,25 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                 }
                                 model={currentModelItem.metadata}
                                 compact
+                                showNegative={false}
                               />
                               {currentModelItem.compatibilityIssue ? (
-                                <span className="truncate text-[11px] text-amber-700">
+                                <span className="truncate text-xs text-[var(--lime-warning)]">
                                   {currentModelItem.compatibilityIssue.message}
                                 </span>
                               ) : null}
                             </span>
                           </span>
                           {currentModelItem.compatibilityIssue ? (
-                            <AlertCircle size={14} className="text-amber-500" />
+                            <AlertCircle
+                              size={14}
+                              className="text-[var(--lime-warning)]"
+                            />
                           ) : model === currentModelItem.id ? (
-                            <Check size={14} className="text-slate-900" />
+                            <Check
+                              size={14}
+                              className="text-[var(--lime-text-strong)]"
+                            />
                           ) : null}
                         </button>
                       ))}
@@ -1235,17 +962,20 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {onManageProviders && (
             <button
               type="button"
-              className="flex h-11 w-full items-center justify-between border-t border-slate-200/80 px-4 text-sm text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              className="flex h-11 w-full items-center justify-between border-t-[0.5px] border-[var(--lime-surface-border)] px-4 text-sm text-[var(--lime-text-muted)] hover:bg-[var(--lime-surface-hover)] hover:text-[var(--lime-text-strong)]"
               onClick={() => {
                 setOpen(false);
                 onManageProviders();
               }}
             >
               <span className="inline-flex items-center gap-2">
-                <Settings2 size={14} className="text-slate-400" />
+                <Settings2
+                  size={14}
+                  className="text-[var(--lime-text-muted)]"
+                />
                 {t("common.modelSelector.action.manageProviders")}
               </span>
-              <ArrowRight size={14} className="text-slate-400" />
+              <ArrowRight size={14} className="text-[var(--lime-text-muted)]" />
             </button>
           )}
         </PopoverContent>

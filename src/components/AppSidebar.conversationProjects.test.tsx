@@ -73,7 +73,7 @@ describe("AppSidebar conversation projects", () => {
       onNavigate,
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-project-1",
       } as AgentPageParams,

@@ -1,0 +1,44 @@
+{
+  "name": {
+    "message": "Lime 電腦操控"
+  },
+  "description": {
+    "message": "允許 Lime 桌面或 CLI 操作已授權的 Chrome 分頁。"
+  },
+  "connected": {
+    "message": "已連線 Lime"
+  },
+  "disconnected": {
+    "message": "請開啟 Lime，在電腦操控設定中安裝原生連線元件。"
+  },
+  "approval": {
+    "message": "允許 Lime 在本次工作階段中讀取並操作這個分頁？"
+  },
+  "allow": {
+    "message": "允許此分頁"
+  },
+  "deny": {
+    "message": "拒絕"
+  },
+  "reconnect": {
+    "message": "重新連線"
+  },
+  "sessionName": {
+    "message": "任務名稱"
+  },
+  "sessionUrl": {
+    "message": "起始網址"
+  },
+  "createGroup": {
+    "message": "建立任務分頁群組"
+  },
+  "groupCreated": {
+    "message": "任務群組已建立。請在 Lime 中選取並授權該分頁後操控。"
+  },
+  "groupFailed": {
+    "message": "無法建立任務群組，請重試。"
+  },
+  "invalidUrl": {
+    "message": "請輸入 HTTP 或 HTTPS 網址。"
+  }
+}

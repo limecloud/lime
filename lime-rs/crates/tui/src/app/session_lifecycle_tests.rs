@@ -93,6 +93,7 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     assert!(screen(&app).contains("STDIO_RESTORED_界🙂"));
     let input_before_failed_resume = app.chat_widget.bottom_pane.composer_draft();
     let options = crate::runtime::connection::TuiOptions {
+        computer_use_targets: Vec::new(),
         app_server_bin: PathBuf::from(std::env::var_os("LIME_TEST_APP_SERVER_BIN").unwrap()),
         app_server_args: Vec::new(),
         remote: None,

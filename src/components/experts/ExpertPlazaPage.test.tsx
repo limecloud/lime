@@ -156,7 +156,7 @@ describe("ExpertPlazaPage", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-current",
         initialSessionName: "营销策略专家",
         initialUserPrompt:
@@ -213,7 +213,7 @@ describe("ExpertPlazaPage", () => {
     const [page, params] = onNavigate.mock.calls[0];
     expect(page).toBe("agent");
     expect(params).toMatchObject({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-current",
       autoRunInitialPromptOnMount: true,
       expertAgentLaunch: {

@@ -61,7 +61,7 @@ try {
   };
   await fs.writeFile(path.join(product, "desktop-resources.manifest.json"), JSON.stringify(receipt.manifest));
   const config = path.join(root, "config.yaml");
-  await fs.writeFile(config, "server:\n  api_key: fixture-only\ncomputer_use:\n  default_app_access: allow\n");
+  await fs.writeFile(config, "server:\n  api_key: fixture-only\nfeatures:\n  computer_use: true\ncomputer_use:\n  default_app_access: allow\n");
   child = spawn(binaries.appServerBinaryPath, [
     "--backend", "runtime", "--data-dir", path.join(root, "data"), "--app-data-dir", path.join(root, "app"),
   ], { stdio: ["pipe", "pipe", "pipe"], env: {
@@ -111,8 +111,8 @@ try {
   receipt.status = { ...native, targets: targets.length };
   receipt.checks.push("initialized real stdio RPC and OS-observed native readiness");
   const office = await request("computerUse/status", { adapter: "office" });
-  assert.equal(office.adapters[0].readiness, "not_installed");
-  receipt.checks.push("uninstalled Office remains not_installed");
+  assert.equal(office.adapters[0].readiness, "disabled");
+  receipt.checks.push("Office remains disabled when its independent switch is off");
 
   // No setup request is sent: the model cannot create its own authority.
   const target = targets[0] ?? {

@@ -61,7 +61,7 @@ export function useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime({
           persistedWorkbenchSnapshotRef.current = snapshot;
         })
         .catch((error) => {
-          console.warn("[AgentChatPage] 保存工作区文稿版本状态失败:", error);
+          console.warn("[LocalConversationPage] 保存工作区文稿版本状态失败:", error);
         });
     }, 1000);
 

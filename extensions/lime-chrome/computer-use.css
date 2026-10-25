@@ -1,0 +1,68 @@
+:root {
+  color-scheme: light dark;
+  font:
+    14px/1.6 system-ui,
+    sans-serif;
+}
+body {
+  margin: 0;
+  min-width: 340px;
+}
+main {
+  padding: 24px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+header img {
+  width: 32px;
+  height: 32px;
+}
+h1 {
+  font-size: 19px;
+}
+p {
+  opacity: 0.85;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+button {
+  border: 1px solid #8886;
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin: 6px 6px 0 0;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+}
+#allow {
+  background: #39784a;
+  color: white;
+}
+form {
+  margin-top: 18px;
+  border-top: 1px solid #8886;
+  padding-top: 18px;
+}
+label {
+  display: block;
+  margin-top: 8px;
+}
+input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #8886;
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+[hidden] {
+  display: none;
+}

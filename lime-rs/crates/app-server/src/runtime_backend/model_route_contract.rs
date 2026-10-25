@@ -279,9 +279,7 @@ fn model_ref_source(source: &str) -> ModelRefSource {
 
 fn model_provider_protocol_from_route_protocol(protocol: &ProtocolKind) -> ModelProviderProtocol {
     match protocol {
-        ProtocolKind::OpenaiResponses => {
-            ModelProviderProtocol::Responses
-        }
+        ProtocolKind::OpenaiResponses => ModelProviderProtocol::Responses,
         ProtocolKind::OpenaiChat => ModelProviderProtocol::ChatCompletions,
         ProtocolKind::GeminiGenerateContent => ModelProviderProtocol::GeminiGenerateContent,
         ProtocolKind::VertexGemini => ModelProviderProtocol::GeminiGenerateContent,
@@ -609,7 +607,7 @@ mod tests {
     }
 
     #[test]
-    fn resolved_route_blocks_inferred_capability_snapshot() {
+    fn unknown_protocol_does_not_promote_inferred_capabilities() {
         let selection = RuntimeModelSelection {
             provider: "fixture-openai".to_string(),
             model: "fixture-model".to_string(),
@@ -680,19 +678,25 @@ mod tests {
     }
 
     #[test]
-    fn custom_tools_route_requires_official_openai_responses_host() {
-        let route = resolved_custom_tool_route(
-            "openai",
-            "https://api.openai.com/v1",
-            ProtocolKind::OpenaiResponses,
-            true,
-        );
-
-        assert!(route.failure.is_none());
-        assert!(route
-            .capability_snapshot
-            .runtime_features
-            .contains(&"custom_tools".to_string()));
+    fn explicit_custom_tools_are_supported_on_responses_routes_without_an_official_host_gate() {
+        for (provider_name, base_url) in [
+            ("openai", "https://api.openai.com/v1"),
+            ("openai", "https://gateway.example.com/v1"),
+            ("azure-openai", "https://resource.openai.azure.com"),
+            ("ollama", "http://127.0.0.1:11434"),
+        ] {
+            let route = resolved_custom_tool_route(
+                provider_name,
+                base_url,
+                ProtocolKind::OpenaiResponses,
+                true,
+            );
+            assert!(route.failure.is_none());
+            assert!(route
+                .capability_snapshot
+                .runtime_features
+                .contains(&"custom_tools".to_string()));
+        }
     }
 
     #[test]
@@ -758,28 +762,11 @@ mod tests {
 
     #[test]
     fn custom_tools_route_fails_closed_for_unsupported_provider_routes() {
-        for (provider_name, base_url, protocol) in [
-            (
-                "openai",
-                "https://gateway.example.com/v1",
-                ProtocolKind::OpenaiResponses,
-            ),
-            (
-                "openai",
-                "https://api.openai.com/v1",
-                ProtocolKind::OpenaiChat,
-            ),
-            (
-                "azure-openai",
-                "https://resource.openai.azure.com",
-                ProtocolKind::OpenaiResponses,
-            ),
-            (
-                "ollama",
-                "http://127.0.0.1:11434",
-                ProtocolKind::OpenaiResponses,
-            ),
-        ] {
+        for (provider_name, base_url, protocol) in [(
+            "openai",
+            "https://api.openai.com/v1",
+            ProtocolKind::OpenaiChat,
+        )] {
             let route = resolved_custom_tool_route(provider_name, base_url, protocol, true);
             let failure = route.failure.expect("custom tools capability gap");
 
@@ -798,7 +785,7 @@ mod tests {
         let route = resolved_custom_tool_route(
             "openai",
             "https://gateway.example.com/v1",
-            ProtocolKind::OpenaiResponses,
+            ProtocolKind::OpenaiChat,
             false,
         );
 

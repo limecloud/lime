@@ -385,9 +385,29 @@ export class AppServerDynamicToolHost {
       ownerWebContentsId: owner?.ownerWebContentsId ?? 0,
       tools,
     });
+    this.#browserHost?.setThreadAccess(
+      owner?.ownerWebContentsId ?? 0,
+      threadId,
+      thread?.extra,
+    );
   }
 
   observeServerMessage(message: JsonRpcMessage): void {
+    if (
+      isJsonRpcNotification(message) &&
+      message.method === "thread/settings/updated"
+    ) {
+      const params = asRecord(message.params);
+      const threadId = nonEmptyString(params?.threadId);
+      const binding = threadId ? this.#bindingsByThread.get(threadId) : null;
+      if (threadId && binding)
+        this.#browserHost?.setThreadAccess(
+          binding.ownerWebContentsId,
+          threadId,
+          params?.threadSettings,
+        );
+      return;
+    }
     if (
       !isJsonRpcNotification(message) ||
       message.method !== METHOD_TURN_COMPLETED

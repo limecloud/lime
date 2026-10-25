@@ -760,7 +760,9 @@ async fn catalog_refresh_reselects_same_provider_before_next_provider() {
     let mut hidden = chat_model("provider-a", "hidden-model");
     hidden.visibility = ModelVisibility::Hide;
     let mut inferred = chat_model("provider-a", "inferred-model");
-    inferred.capability_provenance = ModelCapabilityProvenance::InferredHint;
+    inferred.capability_provenance = ModelCapabilityProvenance::ProviderExplicit;
+    inferred.runtime_features.clear();
+    inferred.capabilities.streaming = false;
     let mut image = chat_model("provider-a", "image-model");
     image.task_families = vec![ModelTaskFamily::ImageGeneration];
     let (_temp, core) = model_selection_core(vec![
@@ -802,7 +804,9 @@ async fn catalog_refresh_reselects_same_provider_before_next_provider() {
 #[tokio::test]
 async fn catalog_refresh_without_executable_model_fails_closed() {
     let mut inferred = chat_model("provider-a", "inferred-model");
-    inferred.capability_provenance = ModelCapabilityProvenance::InferredHint;
+    inferred.capability_provenance = ModelCapabilityProvenance::ProviderExplicit;
+    inferred.runtime_features.clear();
+    inferred.capabilities.streaming = false;
     let mut image = chat_model("provider-b", "image-model");
     image.task_families = vec![ModelTaskFamily::ImageGeneration];
     let (_temp, core) = model_selection_core(vec![

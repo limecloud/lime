@@ -185,6 +185,7 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
       state.sidePanelTabs.open && selected?.kind === "browser"
         ? (selected.browser?.tabId ?? null)
         : null,
+      selected?.browser?.url,
     );
   }, [owner, state.browserProjectionReady, state.sidePanelTabs]);
 

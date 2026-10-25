@@ -240,7 +240,7 @@ export function ScheduledTasksPage({
 
   const createWithLime = useCallback(() => {
     onNavigate?.("agent", {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: pageParams?.projectId,
       initialUserPrompt: t("scheduledTasks.createWithLime.prompt"),
       initialSessionName: t("scheduledTasks.createWithLime.sessionName"),
@@ -383,7 +383,7 @@ export function ScheduledTasksPage({
     (run: ScheduledTaskRunSummary) => {
       if (!run.sessionId) return;
       onNavigate?.("agent", {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: selectedTask?.execution.projectId ?? undefined,
         initialSessionId: run.sessionId,
         initialSessionName: selectedTask?.title,

@@ -2,6 +2,81 @@
 
 更新时间：2026-10-25
 
+### P0 删除旧个性化与模型指令对齐（2026-10-25，本轮删除范围完成，仓库门禁另有阻塞）
+
+- 用户授权删除旧个性化，不保留兼容层。目标：移除 Soul/风格包/创作声线的设置、配置、RPC、提示注入、投影元数据、资源与专用测试；保留 Codex 的 Memory、AGENTS.md、自定义指令与原版 personality 语义，以及 Lime 主题、多模型/多协议、自有服务和专家/消息渠道。
+- 写集：Soul 专属目录与文件；其 memory/config/session/context/tool-process/protocol/catalog/schema/frontend/fixture 消费者仅删除对应接线；model_registry_service 的已知模型描述接入上游 model_messages。共享原生、企业策略、Chrome、Provider 网络写集避让，不整文件覆盖。超过1000行的共享文件只删装配，不追加业务逻辑；退出条件是 Soul 全链移除后不再扩张这些文件。
+- 上游：Codex revision 970111f6cb62cc02fe36a82ea7d71b37a2889c97；models-manager/models.json 与 prompts/src/model_instructions.rs。优先直接复制模型指令数据，产品品牌适配 Lime，不复制账号/云端/遥测控制面。无公开 Desktop 源码的部分不能声明源码复制。
+- Verification Contract（root/P1）：旧配置不能影响新回合；普通用户输入原样进入同一 App Server/RuntimeCore；模型基础指令仅来自当前模型目录/显式请求；真实工具生命周期与恢复保持 canonical 身份。删除闭包扫描、类型、定向 Rust/UI、协议 schema/contracts、current fixture、GUI smoke 分层验证，live 以相同短句“打开百度新闻”验收，不伪造 reasoning 或压掉真实工具。
+- 架构 minor，由 root 确认：Product Surface → App Server JSON-RPC → RuntimeCore → Thread/Turn/Item 不变；移除 memory.soul → prompt/projection 旁路和 style-pack RPC。现役 Memory/AGENTS 与模型指令继续由原 owner 承接，无新增后端或持久化。
+- 上刀补录：中文自动链接92项、退出/unknown18项、主题8项、types/lint通过；正式GUI smoke standalone-shell-01-20261025100843-33149通过；unknown-item r11真实Electron正常退出exit0。verify:local r10在全量前端批次71失败：模型目录守卫同步扫描超时、并行原生路径违反storage guard；未放宽守卫。r13 live页面成功，但旧提示仍多工具，非本刀简洁度验收。
+
+- 清理落地：Soul runtime/processor、11 个 schema、RPC、memory.soul/profile 配置、全局创作声线、风格包及前端消费者/五语/专属 fixture 已删除。旧配置仍可读但不写回这些字段；共享导出文案迁回 `runtime/exports/locale_copy.rs`，删除报告里的创作声线/Generation Brief 装饰。专家功能保留，不再继承全局 Soul。
+- 基础指令：11/11 个复制模型描述接入 `model_messages`；复制同一 revision 的 `models-manager/prompt.md` 作为缺失模板 fallback，显式空模板不 fallback。账本记录源/目标 SHA256、品牌适配、许可证与真实消费者。Personality/Memory/AGENTS/自定义指令保留。前端 `generalAgentPrompt`、`useWorkspaceSystemPromptRuntime`、`workbenchPrompt/systemPrompt/projectPrompt` 构造链与正向测试一并删除，普通聊天不再隐式注入执行车道、旧 Browser Assist 或创作背景。真实 Account Center 会话属于 Lime 自有服务保留；本地 nickname/bio 编辑器只有表单自身消费者，已删除，非 OEM 请求旧资料入口回常规页。
+- 附带修复：相同 shell environment policy 不重复 UPDATE，thread/resume 返回最新 canonical metadata；SQLite trigger 回归证明重复 resume 不写库。发送准备阶段不提前 pending/list 右侧辅助数据，真实运行/审批继续刷新，原热路径守卫保留。Memory citation 测试复用同一时间戳，消除负载下跨秒的 fixture 不一致。
+- 已通过：完整 contracts、五语 unused=0、硬编码文案 findings=0、types/lint；定向 UI 113+143+170 项、治理 228 项；Rust prompt 20、spawn 1、Memory reset 1、registry 3、working_directory/session/shell 7+18+9 项。App Server 全 lib 2030/2031，唯一跨秒测试修正后 memory state 模块 10/10；未宣称修后统一全 lib 再跑全绿。日志 `.lime/qc/soul-*-r*.log`。
+- 真实 GUI：正式 smoke `standalone-shell-01-20261025111213-92256` exit0，真实 Electron/preload/App Server/主壳/响应布局/Memory 设置通过。CUA 相同短句“打开百度新闻”，thread `01a172bf-8ce4-75c2-bf68-1b2d6e93ef5c` / turn `turn_f4452479c4ce4309959ad933268140e1` completed；newTab/markDeliverable 成功、页面可见、无重复允许，最终短答复。reasoningCount=0，思考摘要未验收。证据 `.lime/qc/soul-live-final-r2-receipt.json`、`soul-live-baidu-final-r2.png/ax.txt`、`soul-settings-final.png/ax.txt`，两张截图实际审阅。
+- 未通过：`verify:local r3` 的 i18n/lint/types 通过，续跑批次71/152因 `tool-runtime/computer_use/{broker,document_host,installation,mailbox}.rs` 的数据目录边界守卫失败，属避让的并行原生服务写集，未改白名单。current fixture r6 的单测、unknown Item、两项首页真实 Electron 场景通过，Coding Workbench 在 `historicalOperationalDetailsHidden` 失败：当前 canonical 工具单行仍可见，旧断言要求全体 tool-call-row 为0；未为变绿改历史显示或放宽断言。保留原始失败证据；完整聚合仍未通过。
+- 最后续行窄写集：前端默认提示词构造链、setup/command/initial dispatch 中的装配、chatToolPreferences 的失效 compact helper、测试 fixture 与回流 catalog。原生/企业/Chrome、账号服务和共享协议只读。定向7文件274项已通过；新类型检查和最终 GUI/current fixture 见下方收尾记录。无新增 compat/deprecated；current 为模型目录与原 AGENTS/Memory owner，旧个性化和前端默认构造链为 dead/deleted/forbidden-to-restore。
+- 工程原则：通过删掉重复 prompt owner 落实 KISS/DRY/YAGNI；App Server 保持单一组装职责。root 再次确认原架构图与单主链一致，无新增权限、存储或 runtime。此切片不代表完整浏览器 UI/UX、企业网络、原生服务或双平台包完成，G01–G12 仍需独立验收。
+
+- 最终前端清理验证：7 文件 274 项、类型和 lint 均 exit0；复制模型/default prompt 的源/目标 SHA256 全部与账本一致，11/11 模型有模板，回流扫描无生产消费者。正式最新 `verify:gui-smoke` exit0，24/24，run `standalone-shell-01-20261025113026-73923`。此前 r2 证据保留；不把 smoke 记作签名包验收。
+- 最终 live（删除前端提示词构造链后）：CUA 在真实开发实例输入完全相同的“打开百度新闻”，thread `01a172cf-d144-7c23-be94-ff8858818da2`、turn `turn_a30c90fcf5ef449498d1fefebddf26df` completed；canonical 顺序为用户输入 → 短进展 → newTab → markDeliverable → 短最终回复，两个工具 success=true，无重复允许，reasoningCount=0。`soul-live-after-prompt-cleanup-receipt.json` 只保留身份/状态/必要文本；`soul-live-baidu-after-prompt-cleanup.png/ax.txt` 和 `soul-settings-after-prompt-cleanup.png/ax.txt` 均已保存，原图实际审阅。设置只读检查，无改动记忆开关、删除记忆或用户指令。中途误点插件页已重新定位设置，未改插件/权限/配置。
+- r7 再现同一历史工具断言，已按原 REA `ev_5e19b21bb34da85bc2445fe84fd13e49ff21c3e18b7d0b0264a43ccd41a51823` 的 mcp-tool-item-content/agent-activity-item-row 补迁 test-only 合同：canonical 工具单行保留、默认折叠，点击后必须匹配真实 fixture output，再收起隐藏结果；命令失败详情仍由原有 canonical command 回归验证。新增缺身份、重复行、默认展开、结果泄露反例，11/11 guard 通过。仅改 `scripts/electron/code-artifact-workbench-fixture-smoke.{mjs,test.mjs}`，未改产品投影或权限；静态 REA 不等于参考应用的运行验收。聚合 r8 因结果容器选择器失败；r9 已通过工具展开/收起，随后 followup 未等待发送按钮恢复而失败。已修 test-only 条件等待，产品终态与权限未改；新一轮待验。
+
+- 本地资料补刀（2026-10-25）：删除 account/profile 整目录、user_profile TS/Rust 字段与 config 写入路径、五语和专属 Electron fixture；真实 Account Center 保留且仅 OEM 可用。搜索从本地资料迁到现役 Memory 指令，保留白名单、重复请求、晚挂载、卸载取消及真实指令草稿保护。Gate 清单用 account-session-lifecycle 替代 profile-persistence，并补 Computer Use 必测项；此为验收要求，不是运行通过证据。KISS/DRY/YAGNI 通过删除表单及孤立配置实现，SOLID 保持账号、配置和搜索各自 owner，无新增 compat/deprecated。root 确认架构 minor，主链不变。首轮定向12文件：240通过、22个旧清单断言失败；types/lint通过。清单同步后的验证见后续收口。
+
+- 本轮分类：current 为原 Memory/AGENTS/模型目录及真实 Account Center；前端默认提示词、Soul/风格包/全局创作声线、本地资料及专属 fixture 为 dead/deleted/forbidden-to-restore，新增 compat/deprecated 为0。完整原版 GUI、Windows 与双平台包未完成，不以本轮删除切片替代全产品验收。
+- 定向验证：初轮234项现役测试通过；Gate清单替换后4文件54项通过（合计288项），账户五语文案调整后139项复验通过。types/lint、i18n覆盖100%/missing=0/extra=0、完整contracts与legacy边界0违规通过；source-copy账本4个源/目标hash一致。Rust core配置38项、真实config_jsonrpc 8项通过，明确拒绝旧user_profile及其子字段。分层Rust入口意外扩大到全App Server lib，2029/2031，两项进程时序失败单独复验均通过；不记作修后完整lib全绿。
+- 正式GUI smoke `standalone-shell-01-20261025120351-39306` 24/24通过，真实Electron/preload/IPC/App Server与Memory设置就绪，错误/mock为0。首轮因编译期间账户文案调整触发新鲜度守卫已作废保留；r2为正式结果。CUA原图与完整AX已审阅：个性化仅Memory/指令，真实OEM账号入口显示“账户”，Soul搜索无结果，未写入记忆或用户指令。证据 `.lime/qc/personalization-cleanup-{settings.png,settings.ax.txt,retired-search.ax.txt,cua-receipt.json}`。
+- 聚合边界：current-fixture r10通过unknown Item、两项首页与Coding Workbench（历史工具展开/收起、后续发送、右侧面板），随后图片场景因无真实文本模型而拒绝thread/start。补齐已有受控文本Provider后，85项fixture guards通过；独立图片场景仍等待旧@配图专用分流创建任务，retired image_skill_launch已退出发送链，不恢复旧路、不削弱生产预检。聚合仍未通过，剩余场景未执行；原件 `personalization-current-fixture-r10.log` / `personalization-image-command-r1.log` 保留。
+- 默认门禁 `verify:local` 的版本/i18n/lint/types通过，resume仍在批次71/152被并行原生服务 `computer_use/{broker,document_host,installation,mailbox}.rs` 的preferred_data_dir违规阻断；未改白名单或该写集。真实设置搜索迁移到当前字段：准确选择同名结果，删除已不存在的execution-policy-workspace正向目标，缺文案立即失败；窄屏点击指令行避开独立“了解更多”链接，保留原生hit-test，不使用force。r1/r2/r3失败保留；r4已exit0，Desktop Gate B（external backend），12个现役搜索目标、重复定位、指令草稿保留/放弃、4种主题组合、600×900窄窗通过。config精确恢复、console/page错误0、Main正常exit0与teardown通过；证据 `.lime/qc/settings-sections/personalization-navigation-20261025-r4/summary.json`。这是设置与Host合同，不冒充live provider或Windows/安装包。
+
+### P0 模型选择与工具展示减负，中文自动链接修复（2026-10-25，续行）
+
+- 本阶段交付同一聊天主链的可用模型选择、紧凑工具过程和真实网页打开；完整浏览器设置、企业策略、原生服务及双平台包继续逐项验收，不能以本切片宣布整体完成。遵循用户十一项设计原则，规则已写入 `design-language.md`。
+- 已清理 ModelSelector 重复标题、摘要、说明、分组眉题及异步 Provider 能力面板，移除无消费者的 ModelProviderCapabilityBadges 与专用测试。ProviderList 删除重复添加操作、无行为拖拽图标和空列表说明。能力仅显示正向提示；保留原协议、目录、推理选择与原子提交。当前页面使用语义 Radix 色、0.5px 边界、12/14px 字号和小圆角，无新增动画/阴影。此项不代表全仓颜色或文案已完成清理。
+- Radix 官方 3.0.0 的32组12阶取样逐项一致，许可证与 hash 收据在 `browser-first-open-20261025/radix-source/`；13皮肤的浅深主题正文/状态文字对比度回归通过。browser observe/markDeliverable 使用五语“查看/保留”状态；原 toolDisplayInfo 正确解析 toolCall namespace，不再显示相同的泛化“完成”。
+- 上轮验证：Rust三个受影响 owner及相关集成共316项通过，UI12文件186项通过，types/lint通过；正式 GUI smoke `standalone-shell-01-20261025091510-26458` 通过。`verify:local` 停在六条无引用旧文案；current-fixture-r5 因构建时输入变化失败，早期 fixture 正常退出超时均保留，不能记通过。本轮在产品源稳定后复验。
+- Live：真实 CUA 从 Lime 聊天发起任务，Sub2API备用/gpt-6.1-sol 无手工能力保存、无重复批准，完成 newTab → observe → markDeliverable → 最终回复。`live-final-r7.png/ax.txt` 与只读 canonical 收据 `automatic-model-live-turn-identity-r7.json` 关联 thread `01a17257-1b80-7d80-8c7a-2affa248b4b9`、turn `turn_51c83dc7625047a7bf7ce26bf8de839b`，三个工具 success=true，终态 completed。该回合没有 reasoning Item，真实思考摘要仍未验收。
+- 本刀窄写集：原 MarkdownRenderer 仅加 remark pipeline 委托，短 remarkCjkAutolinks 修 GFM 裸链接中文句界；组件测试与 harness、五语 agentHome/agentSkills 中六条已无消费者的文案、对应旧正向断言、本计划。公开 Codex TUI 的 markdown_render/web_links 与 terminal_hyperlinks 已只读核对，非本 React/GFM 实现，无可直接复制前端文件，本刀属于 Lime 当前 renderer 必要适配。原生/企业/扩展/共享协议及未知工作区改动只读。
+- Verification Contract：root/P1；输入为 canonical 原始消息，输出仅改变自动链接的点击范围，中文标点及后文保持普通文本；明确 Markdown 链接、angle/reference 链接、中文路径、编码标点、代码和 Skills 引用保持原语义。标准/轻量/流式与嵌套渲染回归、types/lint、真实 CUA 检查、GUI smoke/current fixture 和默认本地门禁分层记录。source 不在构建中继续修改，不放宽 guard、timeout或权限。架构影响 none，root确认只动现役投影视图，无新增runtime/authority/存储/协议。
+- 分类：current 为原选择器、Provider列表、Radix主题和 Markdown投影；dead/deleted 为手工能力编辑器、重复能力面板及旧文案；新增测试为 test-only，无新增 compat/deprecated。KISS/DRY 通过删除重复状态与单一 remark 委托落实，SOLID 由短转换模块承担链接边界，不修改持久化消息。
+
+### P0 删除手工模型能力保存门槛（2026-10-25，当前切片）
+
+- 用户否定手工勾选/保存能力的设计。删除本轮新增的 ModelCapabilitiesEditor、模型行入口、专用文案与正向测试；不再要求用户理解 streaming/tools/reasoningSummary 等内部字段后才能聊天。此前关于保留该编辑器和最后优化其排版的计划由本段替代。
+- 来源：Codex `models-manager/src/model_info.rs::model_info_from_slug` 为未知模型提供基础描述；`models-manager/models.json` 提供已知模型参数。Grok `xai-grok-pager/docs/user-guide/11-custom-models.md`、`xai-grok-shell/src/remote/model_source/oai.rs` 与 `agent/handlers/models.rs` 以本地/远端目录和可选配置合并模型，不存在强制勾选后保存的 GUI 流程。
+- 窄写集：原 ProviderSetting 仅删装配；现役 services/model_registry_service 下短 model_info 负责同目录复制描述消费；runtime-core/model_route 只补已配置 Chat 的基础协议描述，不放行媒体任务、未知模型目录或失效凭证；原工具行/时间线与定向测试、五语、计划和架构。未知 Rust/原生/设置改动继续避让。
+- 验证合同：只配置 endpoint/key/model 即可进入同一 App Server/RuntimeCore；已知模型自动得到目录中的推理档位，未知模型只得基础文本/工具协议默认，显式不支持、多模态、托管工具与企业权限保持原判断。先 services/runtime 定向，再 types/contracts/GUI smoke 与真实 Lime 聊天打开百度新闻；不伪造思考摘要。
+- 架构由 root 确认：仍为同一 registry/route/projection owner，无新增后端或持久化。超大组件只删入口/装配；新的动态工具内容接在短 mcp-tool-item-content 与 agent-activity-item-row，旧大组件仅委托，后续逐个工具族迁出时删除已无消费者的逻辑，不继续堆业务。
+- 续行窄接线：`app-server/runtime/model_providers/selection.rs` 与 `runtime-core` 共用 `chat_protocol_defaults`，清除 inferred 来源的一刀切禁选；Renderer `ModelSelector`/`providerModelCompatibility` 删除重复来源门槛，保留任务筛选和既有 Provider 兼容检查。显式否定能力不变，unknown 不获得 vision/effort/custom tools。五语错误不再指向已删除弹窗。原生/企业/扩展/其他未知写集继续只读。
+- 用户追加 Grok 源码与 UI 原则：实读 `grok-build/xai-grok-shell/src/remote/client.rs::parse_remote_model_value`、`remote/model_source/oai.rs`、`agent/remote_config/resolution.rs` 和 models handler，核对模型 ID 最小输入、默认参数、协议、目录合并及自定义 endpoint 凭证隔离。UI 写集扩至原 `appearance/colorSchemes` 的 Radix 色阶映射（官方 3.0.0 必需色阶及 MIT 许可证直接取样，无依赖升级）、当前 Provider/Composer/工具行样式与中点文案、对应回归。保留皮肤标识与明暗模式；不更改原生/企业写集，不以主题切换新增业务后端。
+
+### P0 先完成功能，再优化（2026-10-25，续行）
+
+- 用户恢复工作并确认删除 Codex 没有的产品功能。本刀先完成现役发送主链、旧命令删除、紧凑 Composer 与 canonical 完全访问浏览授权；直接修改原仓库，不提交或创建分支，不新增委派。
+- 写集：继承的 `useWorkspaceSendActions` 及 submission/测试、已退出构建图的旧命令模块与对应测试、BrowserPermissions/原 DynamicToolHost 最小接线与测试、工具摘要/五语、当前计划及架构对应段。Rust Provider、历史和 App Server 并行变更只读。
+- 退出条件：普通输入原样交同一 runtime，无自然句隐式改写、无前端安装技能代答；有效 acceptance/draft/worktree/provider 回归保留；完全访问只取已接受 canonical 设置且企业 deny/强制审批优先；定向测试、类型、contracts、GUI smoke 与真实 Computer Use 分别记录，不以局部测试宣布完整复刻。
+- 当前架构由 root 确认：`LocalConversationPage -> ComposerController -> useWorkspaceSendActions -> App Server -> RuntimeCore -> Thread/Turn/Item`；删除 renderer 专用命令分流，不新增后端、权限 authority 或持久化 owner。当前仅功能收口阶段，完整浏览器设置/企业网络/原生服务/双平台包仍有未验收项。
+
+### P0 输入框与真实执行过程（2026-10-25，实施中）
+
+- 最新用户截图为约290×98px的紧凑Composer：文本在上，＋和权限图标在左下，模型/推理强度与发送在右下。此要求替代旧计划人为放大的120/136px编辑区。沿用REA48 AdaptiveFooter结构和REA50/55的同EditorView、IME、听写合同；公开Codex仓库没有Desktop前端可直接复制，不能将宿主适配声称为上游源码。
+- 窄写集：原Inputbar布局/样式/AccessModeSelect、ModelSelectorTrigger、EmptyStateComposerPanel、五语和定向测试；继续修复本计划上段能力编辑与错误展示。浏览器权限仅在canonical设置与原BrowserPermissions owner内接线，不信任renderer自填full-access，不改企业deny、设备权限或敏感动作合同。
+- Verification Contract：输入为280–320px实际聊天容器、真实草稿/IME/听写状态，输出为不溢出的同一编辑器与可操作模型/权限/发送按钮；工具摘要只使用canonical生命周期，reasoning仅显示实际返回内容。先定向组件/类型/lint，再current fixture、GUI smoke、Computer Use真实打开百度新闻，证据分别结算；失败保留且不扩大完成声明。
+- 前轮live补证：Sub2API备用模型明确声明流式/工具能力后，通过真实Lime聊天自动执行newTab与markDeliverable，百度新闻实际加载并保留；证据computer-use-live-model-baidu.png/ax.txt。当时仍经过browse审批，不作为完全访问免重复授权证据。展开后为真实工具JSON，过程默认可见性与摘要仍需本刀修正。
+- 架构minor：保留现役ComposerController、App Server和Browser权限owner，root确认无新增runtime/协议/存储/第二权限authority；KISS/DRY为原槽位与原配置更新复用，SOLID为能力编辑留在短组件。
+
+### P0 截图对照与可用渠道误报（2026-10-25，实施中）
+
+- 用户要求先思考再修改。参考为本轮两张 Codex 实际截图：网页为主区域、聊天约 256–320px、同一页头标签、紧凑导航/批注/居中地址栏；工具单行显示“正在打开浏览器”到“已打开浏览器”，终态保留网页。截图只证明可见行为，不冒称公开 Desktop 源码。公开 `core/src/tools` / `app-server` 限定检索无该前端执行器，沿原 REA/current owner 适配。
+- 先解决真实阻塞：用户提供的备用 Sub2API / gpt-6.1-sol 经现有 `modelProvider/testChat` 返回 success=true、content=OK、3355ms；同一 Provider 的 `thread/start` 却在本地返回 RouteRejected/category=capability_gap/reasonCode=capability_snapshot_missing。当前设置只保存模型 id，缺少运行时要求的显式能力；错误展示又将所有 RouteRejected 合并成渠道不可用。不是已证明的上游故障，不修改域名信任规则或放宽 runtime 预检。
+- 本刀窄写集：`ProviderSetting` 仅接短 `ModelCapabilitiesEditor`；复用现有 ProviderModelConfig.capability 与 modelProvider/update；错误 presenter 及两处提交消费者保留原结构化错误；五语、定向回归和本计划。上述产品文件进刀时 clean；共享 Provider/Rust/protocol 源码只读。大文件仅装配/参数传递，退出为短组件承担所有新增状态与保存逻辑。
+- Verification Contract：root/P0。用户明确设置单个模型的文本/流式/工具/图片/推理能力，经原更新回调进入同一 catalog、route preflight 和动态工具链；保存保留其他模型、已有能力字段，失败可重试，取消不写入，不自动将 hint 升格为已验证。结构化 capability_gap 应指向设置，真实503仍报告服务不可用。定向组件/presenter/gateway、types/contracts、GUI smoke；最终 Computer Use 从聊天发送打开百度新闻，禁止用诊断 API、手工地址栏或 scripted provider 代替该证据。
+- 布局下一步：现有 `workspaceConversationRightSurfaceChrome -> WorkspaceMainArea -> LayoutTransition` 的单一分栏传 browser 呈现意图；原 BrowserNavigationBar 和工具 Item 投影原位调整，native route/审批/设置 owner 不变。先完成本地渠道配置缺口再验证截图，不把工具成功或局部门禁升级为完整浏览器复刻。
+- 首次打开补充：`gate-b-approval-r3.json` 为真实 Electron/App Server/RuntimeCore + localhost scripted provider，12/12 通过，包含零标签/面板关闭起步、审批前无目标导航、自动展开、工具与 GUI 同页、可见 native destination、仅一个标签且无 Google 占位、canonical newTab Item、真实 IPC 与无生产 mock。console/page error 均零；不代表 live provider 或 Windows。
+
 ### P0 首次直接打开浏览器（2026-10-25，用户截图回归，实施中）
 
 - 上轮自动下载为progress。用户真实截图暴露newTab在零原生route时错误要求先有可见tab；现有Gate B总先手工挂载页面，缺少首次工具打开路径。本刀优先完成“正常聊天→browser.newTab→自动展开内置浏览器→原生导航”，弹窗设置与已发现的guest adoption缺陷暂列后续，未对其修改产品。

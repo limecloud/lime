@@ -43,8 +43,8 @@ export function resolveAgentChatWorkspaceShellViewModel({
     (displayMessageCount > 0 ||
       threadItemCount > 0 ||
       isHomePendingPreviewActive);
-  const hasClawConversationActivity =
-    agentEntry === "claw" &&
+  const hasConversationActivity =
+    agentEntry === "conversation" &&
     (Boolean(initialSessionId?.trim()) ||
       hasDisplayMessages ||
       isHomePendingPreviewActive ||
@@ -53,7 +53,7 @@ export function resolveAgentChatWorkspaceShellViewModel({
       queuedTurnCount > 0);
   const effectiveShowChatPanel =
     showChatPanel ||
-    hasClawConversationActivity ||
+    hasConversationActivity ||
     hasCanvasWorkbenchContent ||
     (agentEntry === "new-task" &&
       (hasDisplayMessages ||

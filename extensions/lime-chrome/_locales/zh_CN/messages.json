@@ -1,0 +1,44 @@
+{
+  "name": {
+    "message": "Lime 电脑操控"
+  },
+  "description": {
+    "message": "允许 Lime 桌面或 CLI 操作已授权的 Chrome 标签页。"
+  },
+  "connected": {
+    "message": "已连接 Lime"
+  },
+  "disconnected": {
+    "message": "请打开 Lime，在电脑操控设置中安装原生连接组件。"
+  },
+  "approval": {
+    "message": "允许 Lime 在本次会话中读取并操作这个标签页？"
+  },
+  "allow": {
+    "message": "允许此标签页"
+  },
+  "deny": {
+    "message": "拒绝"
+  },
+  "reconnect": {
+    "message": "重新连接"
+  },
+  "sessionName": {
+    "message": "任务名称"
+  },
+  "sessionUrl": {
+    "message": "起始网址"
+  },
+  "createGroup": {
+    "message": "创建任务标签页分组"
+  },
+  "groupCreated": {
+    "message": "任务分组已创建。请在 Lime 中选择并授权该标签页后操控。"
+  },
+  "groupFailed": {
+    "message": "无法创建任务分组，请重试。"
+  },
+  "invalidUrl": {
+    "message": "请输入 HTTP 或 HTTPS 网址。"
+  }
+}

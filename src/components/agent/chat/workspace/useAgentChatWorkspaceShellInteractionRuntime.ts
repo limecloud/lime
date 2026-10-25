@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import type { useSoulInteractionCopy } from "@/hooks/useSoulInteractionCopy";
+
 import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
 import type { AgentChatWorkspaceProps } from "../agentChatWorkspaceContract";
 import type { TaskFile } from "../components/TaskFiles";
@@ -39,7 +39,7 @@ interface UseAgentChatWorkspaceShellInteractionRuntimeParams {
   artifactCanvasRuntime: ArtifactCanvasRuntime;
   imageWorkbenchSessionRuntime: ImageWorkbenchSessionRuntime;
   documentEditorFocusedRef: GeneralWorkbenchRuntime["documentEditorFocusedRef"];
-  soulInteractionCopy: ReturnType<typeof useSoulInteractionCopy>;
+
   activeSessionIdRef: MutableRefObject<string | null>;
   agentEntry: NonNullable<AgentChatWorkspaceProps["agentEntry"]>;
   clearEntryPendingA2UI: () => void;
@@ -65,7 +65,7 @@ export function useAgentChatWorkspaceShellInteractionRuntime({
   artifactCanvasRuntime,
   imageWorkbenchSessionRuntime,
   documentEditorFocusedRef,
-  soulInteractionCopy,
+
   activeSessionIdRef,
   agentEntry,
   clearEntryPendingA2UI,
@@ -165,7 +165,7 @@ export function useAgentChatWorkspaceShellInteractionRuntime({
       displayMessagesLength: displayMessages.length,
       executionStrategy,
       workspaceId: taskCenterWorkspaceId,
-      soulCopy: soulInteractionCopy,
+
     },
   });
   const {

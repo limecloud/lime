@@ -1,5 +1,15 @@
 import { normalizeLegacyToolSurfaceName } from "@/lib/api/agentTextNormalization";
 
+export function isDynamicToolCall(item: { metadata?: unknown }): boolean {
+  const metadata = item.metadata;
+  return (
+    metadata != null &&
+    typeof metadata === "object" &&
+    "canonical_type" in metadata &&
+    metadata.canonical_type === "dynamicToolCall"
+  );
+}
+
 export type McpToolOperationKind =
   | "search"
   | "list"
@@ -146,6 +156,7 @@ export function classifyMcpToolOperationKind(
 export function isBrowserToolName(toolName: string): boolean {
   const normalizedName = normalizeToolNameFamilyKey(toolName);
   return (
+    normalizedName === "newtab" ||
     classifyMcpToolOperationKind(toolName) === "browser" ||
     BROWSER_TOOL_MARKERS.some((marker) => normalizedName.includes(marker))
   );

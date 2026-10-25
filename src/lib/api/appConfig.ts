@@ -83,7 +83,6 @@ export type {
   ToolExecutionSandboxProfileConfig,
   ToolExecutionWarningPolicyConfig,
   TuiConfig,
-  UserProfile,
   WorkspacePreferencesConfig,
   WorkspaceSandboxConfig,
 } from "./appConfigTypes";

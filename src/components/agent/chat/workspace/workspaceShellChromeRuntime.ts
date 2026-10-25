@@ -9,7 +9,7 @@ import type { WorkflowGateState } from "../utils/workflowInputState";
 
 export interface ResolveWorkspaceShellChromeRuntimeParams {
   activeTheme: string;
-  agentEntry: "new-task" | "claw";
+  agentEntry: "new-task" | "conversation";
   contextWorkspaceEnabled: boolean;
   gateStatus?: WorkflowGateState["status"];
   effectiveShowChatPanel: boolean;

@@ -5,7 +5,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "version": "1.170.0",
+  "version": "1.171.0",
   "description": "Open-source full-stack desktop AI agent for global users: coding, research, content, files, terminals, tools, multimodal work, and multi-agent workflows.",
   "keywords": [
     "ai",
@@ -255,7 +255,6 @@
     "smoke:settings-about-electron-fixture": "node scripts/electron/settings-about-fixture-smoke.mjs",
     "smoke:settings-media-services-electron-fixture": "node scripts/electron/settings-media-services-fixture-smoke.mjs",
     "smoke:settings-web-search-electron-fixture": "node scripts/electron/settings-web-search-fixture-smoke.mjs",
-    "smoke:settings-profile-electron-fixture": "node scripts/electron/settings-profile-fixture-smoke.mjs",
     "smoke:settings-appearance-electron-fixture": "node scripts/electron/settings-appearance-fixture-smoke.mjs",
     "smoke:scheduled-tasks-electron-fixture": "node scripts/electron/scheduled-tasks-fixture-smoke.mjs",
     "smoke:settings-execution-policy-electron-fixture": "node scripts/electron/settings-execution-policy-fixture-smoke.mjs",

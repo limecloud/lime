@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentThreadItem } from "@/lib/api/agentProtocol";
-import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import {
   applyAgentStreamRuntimeStatusToMessages,
   applyAgentStreamRuntimeStatusToThreadItems,
@@ -85,43 +85,14 @@ describe("agentStreamRuntimeStatusController", () => {
     expect(plan).toMatchObject({
       normalizedStatus: {
         phase: "routing",
-        title: "正在启动处理流程",
+        title: "正在处理",
       },
       updatedAt: "2026-05-05T10:00:00.000Z",
     });
-    expect(plan?.summaryText).toContain("正在启动处理流程");
+    expect(plan?.summaryText).toContain("正在处理");
   });
 
-  it("provider_trace 首个请求阶段应保持 neutral 文案并携带 Soul metadata", () => {
-    const soulCopy = resolveSoulInteractionCopy({
-      soul: {
-        enabled: true,
-        style_profile_id: "cheeky_sassy_executor",
-      },
-    });
-    const plan = buildAgentStreamProviderTraceRuntimeStatusApplyPlan({
-      executionStrategy: "react",
-      firstRuntimeStatusAt: null,
-      stage: "request_started",
-      updatedAt: "2026-05-05T10:00:00.000Z",
-      soulCopy,
-    });
 
-    expect(plan?.normalizedStatus).toMatchObject({
-      title: "正在启动处理流程",
-      metadata: {
-        soul_surface: "waiting_runtime_status",
-        soul_phase: "routing",
-        style_level: "L1",
-        risk_level: "normal",
-        tone_variant: "cheeky_sassy",
-        profile_id: "cheeky_sassy_executor",
-        pack_id: "com.lime.soul.cheeky-sassy-executor",
-      },
-    });
-    expect(plan?.summaryText).toContain("正在启动处理流程");
-    expect(plan?.summaryText).not.toMatch(/小活儿|别急|安排/u);
-  });
 
   it("provider_trace 非首个等待阶段不应生成运行态计划", () => {
     expect(

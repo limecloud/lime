@@ -26,7 +26,6 @@ export const RUNTIME_BACKEND_TEST_SPLIT_MODULES = [
   "lime-rs/crates/app-server/src/runtime_backend/tests/model_selection.rs",
   "lime-rs/crates/app-server/src/runtime_backend/tests/session_prompt_context.rs",
   "lime-rs/crates/app-server/src/runtime_backend/tests/session_skill_context.rs",
-  "lime-rs/crates/app-server/src/runtime_backend/tests/session_soul_context.rs",
   "lime-rs/crates/app-server/src/runtime_backend/tests/tool_inventory.rs",
   "lime-rs/crates/app-server/src/runtime_backend/tests/tool_policy_context.rs",
   "lime-rs/crates/app-server/src/runtime_backend/tests/tool_surface.rs",

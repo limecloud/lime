@@ -2,7 +2,6 @@ use super::coding_events;
 use super::proposed_plan_parser;
 use super::reasoning_events;
 use super::tool_events;
-use super::tool_process_metadata::SoulStyleMetadata;
 use crate::RuntimeCoreError;
 use crate::RuntimeEventSink;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
@@ -40,24 +39,22 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser(
     proposed_plan_parser: &mut proposed_plan_parser::ProposedPlanParser,
     reasoning_event_state: &mut reasoning_events::ReasoningEventState,
 ) -> Result<(), RuntimeCoreError> {
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
         event,
         sink,
         coding_event_mirror,
         proposed_plan_parser,
         reasoning_event_state,
         None,
-        None,
     )
 }
 
-pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
     event: &RuntimeAgentEvent,
     sink: &mut dyn RuntimeEventSink,
     coding_event_mirror: &mut coding_events::CodingEventMirror,
     proposed_plan_parser: &mut proposed_plan_parser::ProposedPlanParser,
     reasoning_event_state: &mut reasoning_events::ReasoningEventState,
-    soul_style: Option<&SoulStyleMetadata>,
     model_route_evidence: Option<&ModelRouteEvidence>,
 ) -> Result<(), RuntimeCoreError> {
     if let RuntimeAgentEvent::CodeCellTrace { event } = event {
@@ -88,7 +85,7 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_s
         // Keep that signal transient; a missing receipt must never create a second durable
         // compaction marker.
         let events =
-            tool_events::runtime_events_from_agent_event_with_soul_style(event, soul_style)?;
+            tool_events::runtime_events_from_agent_event(event)?;
         for event in events {
             sink.emit_transient(event)?;
         }
@@ -145,7 +142,6 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_s
             }
             emit_presentation_events(
                 event,
-                soul_style,
                 model_route_evidence,
                 proposed_plan_parser,
                 sink,
@@ -163,7 +159,6 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_s
             }
             emit_presentation_events(
                 event,
-                soul_style,
                 model_route_evidence,
                 proposed_plan_parser,
                 sink,
@@ -182,7 +177,6 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_s
             }
             emit_presentation_events(
                 event,
-                soul_style,
                 model_route_evidence,
                 proposed_plan_parser,
                 sink,
@@ -210,7 +204,6 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_s
         }
         _ => emit_presentation_events(
             persistence_event.as_ref(),
-            soul_style,
             model_route_evidence,
             proposed_plan_parser,
             sink,
@@ -224,13 +217,12 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_s
 
 fn emit_presentation_events(
     event: &RuntimeAgentEvent,
-    soul_style: Option<&SoulStyleMetadata>,
     model_route_evidence: Option<&ModelRouteEvidence>,
     proposed_plan_parser: &mut proposed_plan_parser::ProposedPlanParser,
     sink: &mut dyn RuntimeEventSink,
 ) -> Result<(), RuntimeCoreError> {
     for mut event in
-        tool_events::runtime_events_from_agent_event_with_soul_style(event, soul_style)?
+        tool_events::runtime_events_from_agent_event(event)?
     {
         if matches!(
             event.event_type.as_str(),

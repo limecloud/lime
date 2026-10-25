@@ -241,51 +241,7 @@ describe("toolBatchGrouping", () => {
     );
   });
 
-  it("应把工具生命周期 Soul metadata 透传到批次 descriptor", () => {
-    const summary = summarizeStreamingToolBatch([
-      {
-        ...createToolCall("web_search", {
-          query: "Lime Soul tool lifecycle",
-        }),
-        metadata: {
-          soul_lifecycle: {
-            surface: "tool_lifecycle",
-            phase: "after_tool_success",
-            status: "completed",
-            styleLevel: "L2",
-            riskLevel: "normal",
-            toneVariant: "cheeky_sassy",
-            profileId: "cheeky_sassy_executor",
-            packId: "com.lime.soul.cheeky-sassy-executor",
-          },
-          soul_surface: "tool_lifecycle",
-          soul_phase: "after_tool_success",
-          style_level: "L2",
-          risk_level: "normal",
-          tone_variant: "cheeky_sassy",
-          profile_id: "cheeky_sassy_executor",
-          pack_id: "com.lime.soul.cheeky-sassy-executor",
-        },
-      },
-    ]);
 
-    expect(summary).toEqual(
-      expect.objectContaining({
-        kind: "web_search",
-        soulLifecycle: expect.objectContaining({
-          phase: "after_tool_success",
-          surface: "tool_lifecycle",
-        }),
-        soulSurface: "tool_lifecycle",
-        soulPhase: "after_tool_success",
-        styleLevel: "L2",
-        riskLevel: "normal",
-        toneVariant: "cheeky_sassy",
-        profileId: "cheeky_sassy_executor",
-        packId: "com.lime.soul.cheeky-sassy-executor",
-      }),
-    );
-  });
 
   it("单条 WebSearch 也应生成网页搜索摘要", () => {
     const summary = summarizeStreamingToolBatch([

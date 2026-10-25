@@ -254,7 +254,7 @@ export const CanvasWorkbenchShell = memo(function CanvasWorkbenchShell({
       <div
         data-testid="canvas-workbench-layout"
         data-panel-placement="canvas"
-        className="relative z-0 min-h-0 flex-1 overflow-hidden bg-[image:var(--lime-stage-surface-soft)]"
+        className="relative z-0 min-h-0 flex-1 overflow-hidden bg-[color:var(--lime-stage-surface-soft)]"
       >
         {isFilePreviewMode(contentTab) ? (
           <FilePreviewPanel

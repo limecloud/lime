@@ -7,17 +7,12 @@ export function useSettingsSearchTarget(
   containerRef: RefObject<HTMLElement | null>,
   section: SettingsTabs,
   focus: SettingsSearchFocusContext | undefined,
-  localProfile: boolean,
 ) {
   const targetId = focus?.targetId;
   const requestKey = focus?.requestKey;
   useEffect(() => {
     const container = containerRef.current;
-    if (
-      !container ||
-      !targetId ||
-      !isSettingsSearchTarget(section, targetId, localProfile)
-    )
+    if (!container || !targetId || !isSettingsSearchTarget(section, targetId))
       return;
     let active: HTMLElement | undefined;
     const locate = () => {
@@ -51,5 +46,5 @@ export function useSettingsSearchTarget(
       observer.disconnect();
       active?.removeAttribute("data-settings-search-active");
     };
-  }, [containerRef, section, targetId, requestKey, localProfile]);
+  }, [containerRef, section, targetId, requestKey]);
 }

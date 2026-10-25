@@ -17,7 +17,7 @@ import type {
 } from "@/lib/api/agentRuntime/sessionTypes";
 import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
 import {
-  buildClawAgentParams,
+  buildConversationParams,
   type StartNewConversation,
 } from "@/lib/workspace/navigation";
 import { requestExplicitInitialSessionNavigation } from "@/components/agent/chat/workspace/useWorkspaceInitialSessionNavigation";
@@ -144,7 +144,7 @@ export function useAppSidebarConversationActions({
     (fallbackSessionId?: string | null) => {
       const targetSessionId =
         currentSessionId ?? fallbackSessionId ?? undefined;
-      const targetParams = buildClawAgentParams({
+      const targetParams = buildConversationParams({
         projectId: projectScopedNavigationProjectId ?? undefined,
         initialSessionId: targetSessionId,
       });
@@ -175,7 +175,7 @@ export function useAppSidebarConversationActions({
         session,
         conversationDisplayProjects,
       );
-      const targetParams = buildClawAgentParams({
+      const targetParams = buildConversationParams({
         ...(sessionProjectId ? { projectId: sessionProjectId } : {}),
         initialSessionId: session.id,
         initialSessionName: resolveLocalizedSessionTitle(session),

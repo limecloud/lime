@@ -26,7 +26,7 @@ import type { ActionRequired, Message, MessageImage } from "../types";
 import { cloneInterruptedInputDraft } from "./agentStreamInputRestorePlan";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { AgentAccessMode } from "./agentChatStorage";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import type {
   SendMessageOptions,
   SessionModelPreference,
@@ -162,7 +162,7 @@ interface UseAgentStreamOptions {
   executionRuntime: AgentSessionExecutionRuntime | null;
 
   allowRecoveredStreamBinding?: boolean;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 export function useAgentStream(options: UseAgentStreamOptions) {
@@ -209,7 +209,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     executionRuntime,
 
     allowRecoveredStreamBinding = false,
-    soulCopy,
+
   } = options;
 
   const {
@@ -242,12 +242,12 @@ export function useAgentStream(options: UseAgentStreamOptions) {
   const recoveredPresentationRef = useRef({
     onWriteFile,
     refreshSessionReadModel,
-    soulCopy,
+
   });
   recoveredPresentationRef.current = {
     onWriteFile,
     refreshSessionReadModel,
-    soulCopy,
+
   };
   const recoveredWriteFile = useCallback(
     (...args: Parameters<NonNullable<typeof onWriteFile>>) => {
@@ -288,7 +288,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         onWriteFile,
         executionRuntime,
 
-        soulCopy,
+
         setActiveStream,
         clearActiveStreamIfMatch,
         setMessages,
@@ -312,7 +312,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       ensureSession,
       executionRuntime,
 
-      soulCopy,
+
       getWorkspaceIdForSubmit,
       waitForSessionProviderSelectionSync,
       getThreadIdForSubmit,
@@ -420,7 +420,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       setPendingActions,
       setThreadItems,
       setThreadTurns,
-      soulCopy: recoveredPresentationRef.current.soulCopy,
+
       target,
       warnedKeysRef,
     })

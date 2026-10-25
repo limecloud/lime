@@ -69,7 +69,7 @@ export function useWorkspaceHealthRuntime({
     let cancelled = false;
     const runWorkspaceCheck = () => {
       const startedAt = Date.now();
-      logAgentDebug("AgentChatPage", "workspaceCheck.start", {
+      logAgentDebug("LocalConversationPage", "workspaceCheck.start", {
         projectId: normalizedId,
       });
       void ensureWorkspaceReady(normalizedId)
@@ -83,9 +83,9 @@ export function useWorkspaceHealthRuntime({
               rootPath,
               source: "agent_chat_page",
             });
-            console.info("[AgentChatPage] workspace 目录已自动修复:", rootPath);
+            console.info("[LocalConversationPage] workspace 目录已自动修复:", rootPath);
           }
-          logAgentDebug("AgentChatPage", "workspaceCheck.success", {
+          logAgentDebug("LocalConversationPage", "workspaceCheck.success", {
             durationMs: Date.now() - startedAt,
             projectId: normalizedId,
             repaired,
@@ -97,9 +97,9 @@ export function useWorkspaceHealthRuntime({
             return;
           }
           const message = err instanceof Error ? err.message : String(err);
-          console.warn("[AgentChatPage] workspace 目录检查失败:", message);
+          console.warn("[LocalConversationPage] workspace 目录检查失败:", message);
           logAgentDebug(
-            "AgentChatPage",
+            "LocalConversationPage",
             "workspaceCheck.error",
             {
               durationMs: Date.now() - startedAt,
@@ -160,7 +160,7 @@ export function useWorkspaceHealthRuntime({
       imageCount: workspacePathMissing.images.length,
     });
     logAgentDebug(
-      "AgentChatPage",
+      "LocalConversationPage",
       "workspacePathAutoRecovery.skippedNoDefaultProjectFallback",
       {
         projectId: sourceWorkspaceId,

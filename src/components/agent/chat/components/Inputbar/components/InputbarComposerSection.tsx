@@ -217,7 +217,7 @@ export const InputbarComposerSection: React.FC<
     copy.contextCommands.planMode,
     planStatusModelLabel,
     planStatusReasoningLabel,
-  ].join(" · ");
+  ].join(" ");
   const workspacePlaceholder =
     workflowGate?.status === "waiting"
       ? copy.workspacePlaceholder.waiting
@@ -280,7 +280,7 @@ export const InputbarComposerSection: React.FC<
             <PlanModeContextSegment>
               {planStatusModelLabel}
             </PlanModeContextSegment>
-            <PlanModeContextSeparator aria-hidden>·</PlanModeContextSeparator>
+            <PlanModeContextSeparator aria-hidden> </PlanModeContextSeparator>
             <PlanModeContextSegment>
               {planStatusReasoningLabel}
             </PlanModeContextSegment>

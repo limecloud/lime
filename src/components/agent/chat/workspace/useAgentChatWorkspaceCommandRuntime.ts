@@ -13,7 +13,6 @@ import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime
 import { useWorkspaceGeneralWorkbenchSidebarHostRuntime } from "./useWorkspaceGeneralWorkbenchSidebarHostRuntime";
 import { useWorkspaceHarnessNavigationRuntime } from "./useWorkspaceHarnessNavigationRuntime";
 import { useWorkspaceGeneralWorkbenchHarnessSurfaceRuntime } from "./useWorkspaceGeneralWorkbenchHarnessSurfaceRuntime";
-import { useWorkspaceMessageSkillSaveRuntime } from "./useWorkspaceMessageSkillSaveRuntime";
 import { useWorkspaceHiddenWorkflowProgressRuntime } from "./useWorkspaceHiddenWorkflowProgressRuntime";
 import { useWorkspacePlanDecisionRuntime } from "./useWorkspacePlanDecisionRuntime";
 import { GENERAL_WORKBENCH_HISTORY_PAGE_SIZE } from "./generalWorkbenchHelpers";
@@ -47,7 +46,7 @@ export function useAgentChatWorkspaceCommandRuntime({
   } = props;
   const resolvedAutoRunInitialPromptOnMount =
     autoRunInitialPromptOnMount ?? false;
-  const resolvedAgentEntry = agentEntry ?? "claw";
+  const resolvedAgentEntry = agentEntry ?? "conversation";
   const resolvedLockTheme = lockTheme ?? false;
   const resolvedShowChatPanel = showChatPanel ?? true;
   const resolvedHideTopBar = hideTopBar ?? false;
@@ -59,16 +58,16 @@ export function useAgentChatWorkspaceCommandRuntime({
     setInput, setLayoutMode, showSidebar, activeSessionIdRef, deferSessionRecentMetadataSyncForNavigation, setChatToolPreferences, projectSelectionRuntime,
     projectId, shouldDisableSessionRestore, applyProjectSelection, taskCenterWorkspaceId, normalizedInitialSessionId, sessionRestorePresentation, shouldPreserveBlankHomeSurface, shouldUseBrowserWorkspaceHomeChrome,
     shouldDeferWorkspaceAuxiliaryLoads, project, isInitialContentLoading, canvasState, setCanvasState, setDocumentVersionStatusMap, lastCanvasSyncRequestRef, initialAutoSendAllowsDetachedSession,
-    initialCreationReplay, initialPendingServiceSkillLaunchSignature, validatedRuntimeProjectId, generalCanvasState, setGeneralCanvasState, taskFiles, setTaskFiles,
+    initialPendingServiceSkillLaunchSignature, validatedRuntimeProjectId, generalCanvasState, setGeneralCanvasState, taskFiles, setTaskFiles,
     selectedFileId, setSelectedFileId, taskFilesRef, socialStageLogRef, serviceModels, agentResponseLanguage, refreshServiceModelsConfig,
-    soulArtifactVoiceGenerationBrief, soulInteractionCopy, soulArtifactVoiceEnabledForTurn, setSoulArtifactVoiceEnabledForTurn, effectiveImageWorkbenchPreference, imageWorkbenchGenerationRuntime, setOnDemandMediaDefaults, imageWorkbenchSelectedProviderId,
+        effectiveImageWorkbenchPreference, imageWorkbenchGenerationRuntime, setOnDemandMediaDefaults, imageWorkbenchSelectedProviderId,
     imageWorkbenchSelectedModelId, imageWorkbenchSelectedSize, setImageWorkbenchSelectedSize, imageWorkbenchPreferredProviderUnavailable, ensureImageWorkbenchProvidersLoaded, imageWorkbenchProvidersLoading, mentionedCharacters,
     setMentionedCharacters, serviceSkills, pendingSkillKey, consumePendingSkill, processedMessageIds, handleWriteFileRef, sceneGateResumeHandlerRef, mappedTheme,
     syncContent, isSpecializedThemeMode, workbenchRequests,
   } = entryRuntime;
   // prettier-ignore
   const {
-    systemPrompt, agentChatRuntime, providerType, model, executionStrategy, accessMode, messages, setChatMessages,
+    agentChatRuntime, providerType, model, executionStrategy, accessMode, messages, setChatMessages,
     currentTurnId, turns, threadItems, queuedTurnCount, threadRead, threadGoal, threadGoalError, isThreadGoalLoading, activeExecutionRuntime, isSending, compactSession, refreshSessionReadModel,
     stopSending, replayPendingAction, handlePermissionResponse, pendingActions, submittedActionsInFlight, triggerAIGuide,
     topics, isAutoRestoringSession, isSessionHydrating, sessionId, ensureSession, originalSwitchTopic, workspacePathMissing,
@@ -168,7 +167,7 @@ export function useAgentChatWorkspaceCommandRuntime({
       resolveServiceModelsBeforeSend: shouldDeferWorkspaceAuxiliaryLoads
         ? refreshServiceModelsConfig
         : undefined,
-      savedSoulArtifactVoiceGenerationBrief: soulArtifactVoiceGenerationBrief,
+
       serviceModels,
       serviceSkills: activeTheme === "general" ? serviceSkills : [],
       setCanvasState,
@@ -179,7 +178,7 @@ export function useAgentChatWorkspaceCommandRuntime({
       setMentionedCharacters,
       setOnDemandMediaDefaults,
       setSelectedFileId,
-      setSoulArtifactVoiceEnabledForTurn,
+
       setTaskFiles,
       setTopicStatus,
       shouldUseCompactGeneralWorkbench,
@@ -199,7 +198,6 @@ export function useAgentChatWorkspaceCommandRuntime({
         workspaceRequestMetadataWithExpertSkills ?? undefined,
       workspaceSkillBindings,
       workspaceSkillRuntimeEnable: expertWorkspaceSkillRuntimeEnableInput,
-      soulArtifactVoiceEnabledForTurn,
     },
   });
   const {
@@ -261,7 +259,7 @@ export function useAgentChatWorkspaceCommandRuntime({
     artifactCanvasRuntime,
     imageWorkbenchSessionRuntime,
     documentEditorFocusedRef,
-    soulInteractionCopy,
+
     activeSessionIdRef,
     agentEntry: resolvedAgentEntry,
     clearEntryPendingA2UI,
@@ -402,7 +400,6 @@ export function useAgentChatWorkspaceCommandRuntime({
       setInput,
       shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
       shouldUseCompactGeneralWorkbench,
-      systemPrompt,
     },
     mediaTask: {
       canvasState,
@@ -568,11 +565,6 @@ export function useAgentChatWorkspaceCommandRuntime({
     setWorkspaceHealthError,
     workspacePathMissing,
   });
-  const { handleSaveMessageAsSkill } = useWorkspaceMessageSkillSaveRuntime({
-    creationProjectId: projectId,
-    creationReplay: initialCreationReplay,
-    onNavigate: _onNavigate,
-  });
 
   // prettier-ignore
   return {
@@ -588,6 +580,6 @@ export function useAgentChatWorkspaceCommandRuntime({
     handleHarnessLoadFilePreview, handleOpenArtifactFromTimeline, handleOpenMessagePreview, handleOpenSavedSiteContent, handleOpenServiceSkillResultFile, handleOpenUrlPreview, handleSaveArtifactDocument, handleWorkspaceArtifactClick,
     handleWorkspaceFileClick, openWorkspaceArtifactInWorkbench, preferredServiceSkillResultFileTarget, renderArtifactWorkbenchToolbarActions, shouldCollapseCodeBlockInChat, shouldCollapseCodeBlocks, handleWriteFile,
     handleJumpToTimelineItem, serviceSkillExecutionCard, generalWorkbenchActivityLogs,
-    generalWorkbenchWorkflowSteps, handleExpandGeneralWorkbenchSidebar, renderGeneralWorkbenchSidebarNode, planComposerPendingActions, planDecisionAccessory, handleSaveMessageAsSkill,
+    generalWorkbenchWorkflowSteps, handleExpandGeneralWorkbenchSidebar, renderGeneralWorkbenchSidebarNode, planComposerPendingActions, planDecisionAccessory,
   };
 }

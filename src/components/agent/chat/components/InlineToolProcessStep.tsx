@@ -25,7 +25,10 @@ import {
   isUnifiedWebSearchToolName,
   resolveSearchResultPreviewItemsFromText,
 } from "../utils/searchResultPreview";
-import { isUnifiedWebFetchToolName } from "../utils/toolNameFamily";
+import {
+  isDynamicToolCall,
+  isUnifiedWebFetchToolName,
+} from "../utils/toolNameFamily";
 import { attachUrlPreviewSnapshotsToSearchResults } from "../utils/urlPreviewSnapshot";
 import {
   resolveSiteSavedContentTargetDisplayName,
@@ -40,7 +43,7 @@ import {
   isLikelyWebRetrievalDiagnosticNoise,
 } from "../utils/toolProcessSummary";
 import { resolveTerminalInteractionSummaries } from "../utils/toolProcessSummaryMetadata";
-import { resolveToolSoulMetadataDomAttributes } from "../utils/toolSoulLifecycleMetadata";
+
 import { resolveMemoryToolEvidence } from "../utils/memoryToolEvidence";
 import {
   resolveWorkspaceSkillRuntimeEnableResultDisplay,
@@ -59,6 +62,7 @@ import {
 } from "../utils/limeTaskProtocolNoise";
 import { MemoryToolEvidencePanel } from "./MemoryToolEvidencePanel";
 import { stripTerminalControlSequences } from "../utils/terminalOutputText";
+import { McpToolItemContent } from "./mcp-tool-item-content";
 import {
   asRecord,
   buildSiteNoticeLines,
@@ -85,7 +89,16 @@ interface InlineToolProcessStepProps {
   urlPreviewToolCalls?: ToolCallState[];
 }
 
-export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
+export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = (
+  props,
+) =>
+  isDynamicToolCall(props.toolCall) ? (
+    <McpToolItemContent key={props.toolCall.id} toolCall={props.toolCall} />
+  ) : (
+    <InlineToolProcessStepContent {...props} />
+  );
+
+const InlineToolProcessStepContent: React.FC<InlineToolProcessStepProps> = ({
   toolCall,
   grouped = false,
   groupMarker = "•",
@@ -268,10 +281,7 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     () => resolveToolProcessNarrative(toolCall),
     [toolCall],
   );
-  const soulLifecycleAttributes = useMemo(
-    () => resolveToolSoulMetadataDomAttributes(processNarrative),
-    [processNarrative],
-  );
+
   const memoryToolEvidence = useMemo(
     () => resolveMemoryToolEvidence(toolCall),
     [toolCall],
@@ -679,7 +689,6 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
       className="py-1"
       data-testid="inline-tool-process-step"
       data-grouped={grouped ? "yes" : "no"}
-      {...soulLifecycleAttributes}
     >
       <div
         className="flex items-start gap-2"

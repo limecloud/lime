@@ -123,11 +123,15 @@ const toToolDisplayDescriptor = (
   config: ToolDisplayConfig,
   status: ToolCallStatus,
 ): ToolDisplayDescriptor => {
+  const resolveConfigCopy = (key: string, fallback: string) =>
+    key.startsWith("toolCall.")
+      ? resolveRequiredAgentChatCopy(key)
+      : resolveContentWorkbenchToolCopy(key, fallback);
   const label = config.labelKey
-    ? resolveContentWorkbenchToolCopy(config.labelKey, config.label)
+    ? resolveConfigCopy(config.labelKey, config.label)
     : resolveToolDisplayConfigLabel(config.label);
   const groupTitle = config.groupTitleKey
-    ? resolveContentWorkbenchToolCopy(config.groupTitleKey, config.groupTitle)
+    ? resolveConfigCopy(config.groupTitleKey, config.groupTitle)
     : resolveToolDisplayConfigGroupTitle(config.groupTitle);
   const actionCopy =
     status === "failed"
@@ -146,12 +150,7 @@ const toToolDisplayDescriptor = (
           };
   const action =
     actionCopy.key && actionCopy.defaultValue
-      ? actionCopy.key.startsWith("toolCall.")
-        ? resolveRequiredAgentChatCopy(actionCopy.key)
-        : resolveContentWorkbenchToolCopy(
-            actionCopy.key,
-            actionCopy.defaultValue,
-          )
+      ? resolveConfigCopy(actionCopy.key, actionCopy.defaultValue)
       : config.actions
         ? actionCopy.defaultValue
           ? resolveToolDisplayActionOverride(actionCopy.defaultValue)

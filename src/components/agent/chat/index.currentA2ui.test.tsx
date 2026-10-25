@@ -18,7 +18,7 @@ const {
   mockWorkspacePendingA2UIPanel,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 当前 A2UI 事实源", () => {
+describe("LocalConversationPage 当前 A2UI 事实源", () => {
   it("历史问卷正文不应再提升为输入区 A2UI", async () => {
     installMockAgentChatUnifiedState(
       createMockAgentChatUnifiedState({

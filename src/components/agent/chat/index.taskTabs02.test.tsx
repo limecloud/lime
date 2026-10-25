@@ -10,7 +10,7 @@ import {
 import { commitNewConversationRoute } from "./index.testFixtures";
 import { TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY } from "./utils/taskCenterTabs";
 
-describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 任务中心初始会话标签", { timeout: 20_000 }, () => {
   it("切换旧会话后公开 New 请求的 committed route 应回到稳定 Home", async () => {
     const onNavigate = vi.fn();
     const state: Record<string, unknown> = createMockAgentChatUnifiedState({
@@ -34,7 +34,7 @@ describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, ()
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
       onNavigate,
@@ -107,7 +107,7 @@ describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, ()
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -157,7 +157,7 @@ describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, ()
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -201,7 +201,7 @@ describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, ()
     installMockAgentChatUnifiedState(state);
 
     mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-history",
       projectId: "workspace-test",
     });
@@ -251,7 +251,7 @@ describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, ()
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -337,7 +337,7 @@ describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, ()
     await flushEffects();
 
     mounted.rerender({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-next",
     });
     await flushEffects();
@@ -358,7 +358,7 @@ describe("AgentChatPage 任务中心初始会话标签", { timeout: 20_000 }, ()
     installMockAgentChatUnifiedState(createMockAgentChatUnifiedState());
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "session-1",
       projectId: "project-default",
       onNavigate,

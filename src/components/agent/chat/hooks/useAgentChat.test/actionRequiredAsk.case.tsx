@@ -4,7 +4,7 @@ import {
   captureTurnStream,
   flushEffects,
   mockRespondAgentRuntimeAction,
-  mockResolveClawWorkspaceProviderSelection,
+  mockResolveConversationProviderSelection,
   mockTypedActionResponseHandled,
   mountHook,
   seedSession,
@@ -306,7 +306,7 @@ describe("useAgentChat action_required 渲染链路 - ask / elicitation", () => 
   it("tool_confirmation 提交时应透传 action_scope 以恢复原 turn", async () => {
     const workspaceId = "ws-tool-confirmation-scope";
     seedSession(workspaceId, "session-tool-confirmation-scope");
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "openai",
       model: "gpt-5.4-mini",
     });

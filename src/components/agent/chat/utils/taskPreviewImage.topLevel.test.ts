@@ -106,54 +106,5 @@ describe("buildImageTaskPreviewFromToolResult - 顶层数据识别", () => {
     expect(preview?.modelName).toBe("stable-diffusion-v3");
   });
 
-  it("应该保留工具结果中的图片生成 Soul metadata", () => {
-    const preview = buildImageTaskPreviewFromToolResult({
-      toolId: "tool-soul",
-      toolName: "create_image_task",
-      toolArguments: undefined,
-      fallbackPrompt: "生成青柠主视觉",
-      toolResult: {
-        task_id: "soul-image-task",
-        task_type: "image_generate",
-        task_family: "image",
-        status: "complete",
-        payload: {
-          prompt: "生成青柠主视觉",
-          presentation: {
-            styleLevels: {
-              runningStatus: { styleLevel: "L1" },
-              assistantIntro: { styleLevel: "L2" },
-              mediaArtifact: { styleLevel: "L3" },
-            },
-            generationBriefBoundary: {
-              formalArtifactVoiceSource: "generation_brief_only",
-              productSoulDefault: "interaction_only",
-            },
-            soul_lifecycle: {
-              surface: "image_generation",
-              phase: "image_generation_presentation",
-              styleLevel: "L2",
-              riskLevel: "normal",
-              profileId: "cheeky_sassy_executor",
-              packId: "com.lime.soul.cheeky-sassy-executor",
-              toneVariant: "cheeky_sassy",
-            },
-          },
-        },
-      },
-    });
 
-    expect(preview?.soulMetadata).toMatchObject({
-      surface: "image_generation",
-      styleLevel: "L2",
-      runningStatusStyleLevel: "L1",
-      assistantIntroStyleLevel: "L2",
-      mediaArtifactStyleLevel: "L3",
-      formalArtifactVoiceSource: "generation_brief_only",
-      productSoulDefault: "interaction_only",
-      profileId: "cheeky_sassy_executor",
-      packId: "com.lime.soul.cheeky-sassy-executor",
-      toneVariant: "cheeky_sassy",
-    });
-  });
 });

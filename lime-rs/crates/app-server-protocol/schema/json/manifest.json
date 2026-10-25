@@ -1176,22 +1176,6 @@
     },
     {
       "kind": "request",
-      "method": "soulStylePack/install"
-    },
-    {
-      "kind": "request",
-      "method": "soulStylePack/list"
-    },
-    {
-      "kind": "request",
-      "method": "soulStylePack/status/set"
-    },
-    {
-      "kind": "request",
-      "method": "soulStylePack/uninstall"
-    },
-    {
-      "kind": "request",
       "method": "storage/delete"
     },
     {
@@ -2212,17 +2196,6 @@
       "SkillScaffoldCreateResponse",
       "SkillSource",
       "SkillWorkflowStep",
-      "SoulStylePackInstallParams",
-      "SoulStylePackInstallResponse",
-      "SoulStylePackInstallStatus",
-      "SoulStylePackListEntry",
-      "SoulStylePackListParams",
-      "SoulStylePackListResponse",
-      "SoulStylePackMutableStatus",
-      "SoulStylePackStatusSetParams",
-      "SoulStylePackStatusSetResponse",
-      "SoulStylePackUninstallParams",
-      "SoulStylePackUninstallResponse",
       "StorageDeleteParams",
       "StorageDeleteResponse",
       "StorageReadParams",

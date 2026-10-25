@@ -6,9 +6,7 @@
   "agentChat.serviceSkills.badge.customScene": "カスタムシーン",
   "agentChat.serviceSkills.catalogSource.seeded": "はじめの手順",
   "agentChat.serviceSkills.catalogSource.synced": "同期済みの手順",
-  "agentChat.home.composer.placeholder": "このラウンドでやりたいことから始めてください。目標、対象、制約を書くと進めやすくなります。",
+  "agentChat.home.composer.placeholder": "自由に入力してください",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "これらのファイルまたはフォルダーを確認してください。",
-  "agentChat.home.hero.eyebrow": "制作",
-  "agentChat.home.hero.slogan": "Limeに聞けば、ひらめきが動き出す",
-  "agentChat.home.hero.description": "目標を一言伝えれば、Lime が続きの作業を進めます。"
+  "agentChat.home.title": "何を作りましょうか？"
 }

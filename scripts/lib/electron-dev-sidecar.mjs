@@ -9,6 +9,7 @@ import {
 import path from "node:path";
 import { ensureMacBinaryRpath } from "../prepare-sherpa-onnx-runtime.mjs";
 import { resolveRustyV8CargoEnv } from "./rusty-v8-artifacts.mjs";
+import { prepareLocalComputerUseResources } from "./electron-desktop-resources.mjs";
 
 export const APP_SERVER_WATCH_DEBOUNCE_MS = 800;
 
@@ -162,6 +163,7 @@ export function resolveDevAppServerBinary({
   forceBuild = false,
   isUsableBinary = isUsableAppServerBinary,
   prepareBinary = prepareLocalAppServerBinary,
+  prepareComputerUse = prepareLocalComputerUseResources,
 } = {}) {
   const envBinary = env.APP_SERVER_BIN?.trim();
   if (envBinary) {
@@ -222,6 +224,7 @@ export function resolveDevAppServerBinary({
   if (windowsSandboxRunnerPath) {
     prepareBinary({ binaryPath: windowsSandboxRunnerPath, platform });
   }
+  prepareComputerUse({ binaryPath, platform });
   return binaryPath;
 }
 

@@ -1,601 +1,681 @@
-#!/usr/bin/env node
+// Real Chrome MV3 -> Native Messaging -> shared App Server -> canonical tool loop.
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import readline from "node:readline";
+import { createServer } from "node:http";
+import { chromium } from "playwright";
+import { prepareLocalAppServerBinary } from "./lib/electron-dev-sidecar.mjs";
+import { terminalGateRuntimeEnvironment } from "./app-server/terminal-gate-binaries.mjs";
+import { startOpenAiCompatibleFixtureServer } from "./lib/openai-compatible-fixture-server.mjs";
+import {
+  buildToolExecutionThreadStartParams,
+  provisionToolExecutionFixtureProvider,
+} from "./agent-runtime/tool-execution-current-contract.mjs";
 
-import { randomUUID } from "node:crypto";
-import process from "node:process";
-
-const DEFAULTS = {
-  server: "ws://127.0.0.1:8787",
-  healthUrl: "http://127.0.0.1:3030/health",
-  invokeUrl: "http://127.0.0.1:3030/invoke",
-  key: "",
-  profile: "default",
-  timeoutMs: 15000,
-  intervalMs: 1000,
-  verifyForceDisconnect: true,
+const source = path.resolve(
+  process.env.APP_SERVER_BIN ||
+    `lime-rs/target/debug/app-server${process.platform === "win32" ? ".exe" : ""}`,
+);
+const evidence = path.resolve(
+  process.env.LIME_CHROME_EVIDENCE ||
+    ".lime/qc/computer-use-integrations-20261025/chrome.json",
+);
+const root = await fs.mkdtemp(path.join(os.tmpdir(), "lime-chrome-native-"));
+const receipt = {
+  startedAt: new Date().toISOString(),
+  claimBoundary:
+    "Real installed Google Chrome, MV3, Native Messaging, runtime stdio App Server and canonical model tool loop; loopback provider fixture, no live model or Desktop/CLI-host Gate B claim",
+  checks: [],
 };
-
-function parseArgs(argv) {
-  const args = { ...DEFAULTS };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--server" && argv[i + 1]) {
-      args.server = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg === "--health-url" && argv[i + 1]) {
-      args.healthUrl = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg === "--invoke-url" && argv[i + 1]) {
-      args.invokeUrl = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg === "--key" && argv[i + 1]) {
-      args.key = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg === "--profile" && argv[i + 1]) {
-      args.profile = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg === "--timeout-ms" && argv[i + 1]) {
-      args.timeoutMs = Number(argv[i + 1]);
-      i += 1;
-      continue;
-    }
-    if (arg === "--interval-ms" && argv[i + 1]) {
-      args.intervalMs = Number(argv[i + 1]);
-      i += 1;
-      continue;
-    }
-    if (arg === "--skip-force-disconnect") {
-      args.verifyForceDisconnect = false;
-      continue;
-    }
-    if (arg === "--help" || arg === "-h") {
-      printHelp();
-      process.exit(0);
-    }
-  }
-  return args;
-}
-
-function printHelp() {
-  console.log(`
-Lime Chrome Bridge E2E 联调脚本
-
-用法:
-  node scripts/chrome-bridge-e2e.mjs --key <lime_api_key> [选项]
-
-选项:
-  --server <ws_url>       服务地址，默认 ws://127.0.0.1:8787
-  --health-url <url>      DevBridge 健康检查地址，默认 http://127.0.0.1:3030/health
-  --invoke-url <url>      DevBridge invoke 地址，默认 http://127.0.0.1:3030/invoke
-  --key <api_key>         Lime API Key（必填）
-  --profile <profile_key> profileKey，默认 default
-  --timeout-ms <ms>       单步超时毫秒，默认 15000
-  --interval-ms <ms>      状态轮询间隔毫秒，默认 1000
-  --skip-force-disconnect 跳过桌面端主动断开验证，仅校验 WebSocket 命令链路
-  -h, --help              显示帮助
-
-示例:
-  node scripts/chrome-bridge-e2e.mjs --server ws://127.0.0.1:8787 --key proxy_cast --profile default
-  node scripts/chrome-bridge-e2e.mjs --server ws://127.0.0.1:8787 --key proxy_cast --profile default --skip-force-disconnect
-`);
-}
-
-function assertGlobalWebSocket() {
-  if (typeof WebSocket !== "undefined") {
-    return;
-  }
-  throw new Error(
-    "当前 Node 运行时不支持全局 WebSocket，请使用 Node 22+ 或安装支持 WebSocket 的运行环境。",
-  );
-}
-
-function normalizeServer(server) {
-  return String(server || "")
-    .trim()
-    .replace(/\/$/, "");
-}
-
-function appendProfileKey(url, profileKey) {
-  const endpoint = new URL(url);
-  endpoint.searchParams.set("profileKey", profileKey);
-  return endpoint.toString();
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-async function invoke(invokeUrl, cmd, args) {
-  const response = await fetch(invokeUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ cmd, args }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  const payload = await response.json();
-  if (payload?.error) {
-    throw new Error(String(payload.error));
-  }
-
-  return payload?.result;
-}
-
-async function waitForHealth(options) {
-  const startedAt = Date.now();
-  let lastError = null;
-
-  while (Date.now() - startedAt < options.timeoutMs) {
-    try {
-      const response = await fetch(options.healthUrl, { method: "GET" });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      console.log(
-        `[E2E] DevBridge 已就绪 (${Date.now() - startedAt}ms)${
-          payload?.status ? ` status=${payload.status}` : ""
-        }`,
-      );
-      return;
-    } catch (error) {
-      lastError = error;
-      await sleep(options.intervalMs);
-    }
-  }
-
-  const detail =
-    lastError instanceof Error
-      ? lastError.message
-      : String(lastError || "unknown error");
-  throw new Error(
-    `[E2E] DevBridge 未就绪，请先启动 npm run electron:dev。最后错误: ${detail}`,
-  );
-}
-
-function summarizeStatus(status) {
-  if (!status || typeof status !== "object") {
-    return "unknown";
-  }
-
-  return `observer=${status.observer_count ?? "?"}, control=${
-    status.control_count ?? "?"
-  }, pending=${status.pending_command_count ?? "?"}`;
-}
-
-function isStatusEmpty(status) {
-  return (
-    Number(status?.observer_count || 0) === 0 &&
-    Number(status?.control_count || 0) === 0 &&
-    Number(status?.pending_command_count || 0) === 0
-  );
-}
-
-function hasObserverForProfile(status, profileKey) {
-  return (status?.observers || []).some(
-    (observer) => observer?.profile_key === profileKey,
-  );
-}
-
-async function getBridgeStatus(invokeUrl) {
-  return invoke(invokeUrl, "get_chrome_bridge_status");
-}
-
-async function waitForStatus(invokeUrl, predicate, timeoutMs, intervalMs, desc) {
-  const startedAt = Date.now();
-  let lastStatus = null;
-
-  while (Date.now() - startedAt < timeoutMs) {
-    lastStatus = await getBridgeStatus(invokeUrl);
-    if (predicate(lastStatus)) {
-      return lastStatus;
-    }
-    await sleep(intervalMs);
-  }
-
-  throw new Error(
-    `[E2E] 等待桥接状态超时(${timeoutMs}ms): ${desc}\n最近状态: ${JSON.stringify(
-      lastStatus,
-      null,
-      2,
-    )}`,
-  );
-}
-
-function toText(data) {
-  if (typeof data === "string") return data;
-  if (Buffer.isBuffer(data)) return data.toString("utf8");
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString("utf8");
-  if (ArrayBuffer.isView(data))
-    return Buffer.from(data.buffer).toString("utf8");
-  return String(data);
-}
-
-function createClient(url, label, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    const state = {
-      label,
-      ws,
-      messages: [],
-      waiters: [],
-    };
-
-    const timer = setTimeout(() => {
-      reject(new Error(`[${label}] 连接超时: ${url}`));
-      try {
-        ws.close();
-      } catch (_) {
-        // ignore
-      }
-    }, timeoutMs);
-
-    ws.onopen = () => {
-      clearTimeout(timer);
-      resolve(state);
-    };
-
-    ws.onerror = (event) => {
-      clearTimeout(timer);
-      reject(
-        new Error(
-          `[${label}] WebSocket 连接失败: ${event?.message || "unknown error"}`,
-        ),
-      );
-    };
-
-    ws.onmessage = (event) => {
-      let payload;
-      const text = toText(event.data);
-      try {
-        payload = JSON.parse(text);
-      } catch (_) {
-        payload = { type: "raw_text", data: text };
-      }
-      state.messages.push(payload);
-
-      const pending = [...state.waiters];
-      for (const waiter of pending) {
-        if (waiter.predicate(payload)) {
-          waiter.resolve(payload);
-          state.waiters = state.waiters.filter((item) => item !== waiter);
-        }
-      }
-    };
-  });
-}
-
-function waitForMessage(client, predicate, timeoutMs, desc) {
-  const found = client.messages.find(predicate);
-  if (found) {
-    return Promise.resolve(found);
-  }
-
-  return new Promise((resolve, reject) => {
-    const waiter = { predicate, resolve };
-    client.waiters.push(waiter);
-    const timer = setTimeout(() => {
-      client.waiters = client.waiters.filter((item) => item !== waiter);
-      reject(
-        new Error(
-          `[${client.label}] 等待消息超时(${timeoutMs}ms): ${desc}\n最近消息: ${JSON.stringify(
-            client.messages.slice(-5),
-            null,
-            2,
-          )}`,
-        ),
-      );
-    }, timeoutMs);
-
-    waiter.resolve = (payload) => {
-      clearTimeout(timer);
-      resolve(payload);
-    };
-  });
-}
-
-function send(client, payload) {
-  client.ws.send(JSON.stringify(payload));
-}
-
-async function closeClient(client) {
-  if (!client) return;
-  await new Promise((resolve) => {
-    try {
-      client.ws.onclose = () => resolve();
-      client.ws.close();
-      setTimeout(resolve, 200);
-    } catch (_) {
-      resolve();
-    }
-  });
-}
-
-async function main() {
-  if (typeof fetch !== "function") {
-    throw new Error("当前 Node 运行时不支持 fetch，请使用 Node 18+");
-  }
-  assertGlobalWebSocket();
-  const args = parseArgs(process.argv.slice(2));
-
-  if (!args.key) {
-    printHelp();
-    throw new Error("缺少必填参数: --key");
-  }
-  if (!Number.isFinite(args.timeoutMs) || args.timeoutMs < 1000) {
-    throw new Error("--timeout-ms 必须是 >= 1000 的数字");
-  }
-  if (!Number.isFinite(args.intervalMs) || args.intervalMs < 100) {
-    throw new Error("--interval-ms 必须是 >= 100 的数字");
-  }
-
-  const server = normalizeServer(args.server);
-  const key = encodeURIComponent(args.key);
-  const profile = String(args.profile || "default").trim() || "default";
-  let observerBaseUrl = `${server}/lime-chrome-observer/${key}`;
-  let controlUrl = `${server}/lime-chrome-control/${key}`;
-  let baselineStatus = null;
-  if (args.verifyForceDisconnect) {
-    console.log("[E2E] invoke  :", args.invokeUrl);
-    await waitForHealth(args);
-    const endpointInfo = await invoke(args.invokeUrl, "get_chrome_bridge_endpoint_info");
-    if (typeof endpointInfo?.observer_ws_url === "string" && endpointInfo.observer_ws_url) {
-      observerBaseUrl = endpointInfo.observer_ws_url;
-    }
-    if (typeof endpointInfo?.control_ws_url === "string" && endpointInfo.control_ws_url) {
-      controlUrl = endpointInfo.control_ws_url;
-    }
-    if (
-      typeof endpointInfo?.bridge_key === "string" &&
-      endpointInfo.bridge_key &&
-      endpointInfo.bridge_key !== args.key
-    ) {
-      console.warn(
-        `[E2E] 传入 key 与当前运行态 bridge_key 不一致，将以运行态 endpoint 为准: cli=${args.key} runtime=${endpointInfo.bridge_key}`,
-      );
-    }
-    baselineStatus = await getBridgeStatus(args.invokeUrl);
-    console.log("[E2E] 基线状态:", summarizeStatus(baselineStatus));
-    if (!isStatusEmpty(baselineStatus)) {
-      console.warn(
-        "[E2E] 检测到已有桥接连接，本次将校验 force_disconnect 消息和目标 profile 清理，但不强制要求全局状态归零。",
-      );
-    }
-  }
-  const observerUrl = appendProfileKey(observerBaseUrl, profile);
-
-  console.log("[E2E] observer:", observerUrl);
-  console.log("[E2E] control :", controlUrl);
-
-  let observer;
-  let control;
-
-  try {
-    observer = await createClient(observerUrl, "observer", args.timeoutMs);
-    control = await createClient(controlUrl, "control", args.timeoutMs);
-
-    await waitForMessage(
-      observer,
-      (msg) => msg.type === "connection_ack",
-      args.timeoutMs,
-      "observer connection_ack",
-    );
-    await waitForMessage(
-      control,
-      (msg) => msg.type === "connection_ack",
-      args.timeoutMs,
-      "control connection_ack",
-    );
-    console.log("[E2E] 连接握手通过");
-
-    send(observer, { type: "heartbeat", timestamp: Date.now() });
-    send(control, { type: "heartbeat", timestamp: Date.now() });
-
-    await waitForMessage(
-      observer,
-      (msg) => msg.type === "heartbeat_ack",
-      args.timeoutMs,
-      "observer heartbeat_ack",
-    );
-    await waitForMessage(
-      control,
-      (msg) => msg.type === "heartbeat_ack",
-      args.timeoutMs,
-      "control heartbeat_ack",
-    );
-    console.log("[E2E] 心跳通道通过");
-
-    const requestId1 = `e2e-${randomUUID()}`;
-    send(control, {
-      type: "command",
-      data: {
-        requestId: requestId1,
-        command: "get_page_info",
-        wait_for_page_info: true,
-      },
-    });
-
-    const cmdFromServer1 = await waitForMessage(
-      observer,
-      (msg) => msg.type === "command" && msg.data?.requestId === requestId1,
-      args.timeoutMs,
-      "observer 收到 get_page_info 命令",
-    );
-    console.log("[E2E] observer 收到命令:", cmdFromServer1.data?.command);
-
-    send(observer, {
-      type: "command_result",
-      data: {
-        requestId: requestId1,
-        status: "success",
-        message: "get_page_info executed by e2e observer",
-      },
-    });
-    send(observer, {
-      type: "pageInfoUpdate",
-      data: {
-        markdown:
-          "# E2E Page\nURL: https://example.com/e2e\n\n## 内容\nbridge e2e test",
-      },
-    });
-
-    await waitForMessage(
-      control,
-      (msg) =>
-        msg.type === "command_result" &&
-        msg.data?.requestId === requestId1 &&
-        msg.data?.status === "success",
-      args.timeoutMs,
-      "control 收到 command_result(success)",
-    );
-    await waitForMessage(
-      control,
-      (msg) =>
-        msg.type === "page_info_update" &&
-        msg.data?.requestId === requestId1 &&
-        typeof msg.data?.markdown === "string" &&
-        msg.data.markdown.includes("E2E Page"),
-      args.timeoutMs,
-      "control 收到 page_info_update",
-    );
-    console.log("[E2E] wait_for_page_info 命令链路通过");
-
-    const requestId2 = `e2e-${randomUUID()}`;
-    send(control, {
-      type: "command",
-      data: {
-        requestId: requestId2,
-        command: "scroll",
-        text: "down:300",
-        wait_for_page_info: false,
-      },
-    });
-
-    const cmdFromServer2 = await waitForMessage(
-      observer,
-      (msg) => msg.type === "command" && msg.data?.requestId === requestId2,
-      args.timeoutMs,
-      "observer 收到 scroll 命令",
-    );
-    if (cmdFromServer2.data?.command !== "scroll") {
-      throw new Error(
-        `期望 scroll，实际为 ${cmdFromServer2.data?.command || "unknown"}`,
-      );
-    }
-    send(observer, {
-      type: "command_result",
-      data: {
-        requestId: requestId2,
-        status: "success",
-        message: "scroll executed by e2e observer",
-      },
-    });
-
-    await waitForMessage(
-      control,
-      (msg) =>
-        msg.type === "command_result" &&
-        msg.data?.requestId === requestId2 &&
-        msg.data?.status === "success",
-      args.timeoutMs,
-      "control 收到 scroll command_result",
-    );
-    console.log("[E2E] 非 wait_for_page_info 命令链路通过");
-
-    if (args.verifyForceDisconnect) {
-      const forceDisconnectObserver = waitForMessage(
-        observer,
-        (msg) => msg.type === "force_disconnect",
-        args.timeoutMs,
-        "observer 收到 force_disconnect",
-      );
-      const forceDisconnectControl = waitForMessage(
-        control,
-        (msg) => msg.type === "force_disconnect",
-        args.timeoutMs,
-        "control 收到 force_disconnect",
-      );
-
-      const disconnectResult = await invoke(
-        args.invokeUrl,
-        "disconnect_browser_connector_session",
-        {
-          profileKey: args.profile,
-        },
-      );
-
-      assert(
-        Number(disconnectResult?.disconnected_observer_count || 0) >= 1,
-        `disconnect_browser_connector_session 未断开 observer: ${JSON.stringify(
-          disconnectResult,
-          null,
-          2,
-        )}`,
-      );
-      assert(
-        Number(disconnectResult?.disconnected_control_count || 0) >= 1,
-        `disconnect_browser_connector_session 未断开 control: ${JSON.stringify(
-          disconnectResult,
-          null,
-          2,
-        )}`,
-      );
-
-      await Promise.all([forceDisconnectObserver, forceDisconnectControl]);
-      console.log("[E2E] force_disconnect 消息链路通过");
-
-      const finalStatus = await waitForStatus(
-        args.invokeUrl,
-        (status) =>
-          isStatusEmpty(baselineStatus)
-            ? isStatusEmpty(status)
-            : !hasObserverForProfile(status, args.profile),
-        args.timeoutMs,
-        args.intervalMs,
-        isStatusEmpty(baselineStatus)
-          ? "桥接状态归零"
-          : `profile=${args.profile} observer 已清理`,
-      );
-
-      if (isStatusEmpty(baselineStatus)) {
-        console.log("[E2E] force_disconnect 后状态归零:", summarizeStatus(finalStatus));
-      } else {
-        console.log(
-          "[E2E] force_disconnect 后目标 profile 已清理:",
-          summarizeStatus(finalStatus),
+const nativeManifest =
+  process.platform === "darwin"
+    ? path.join(
+        os.homedir(),
+        "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.limecloud.lime.computer_use.json",
+      )
+    : process.platform === "win32"
+      ? path.join(
+          process.env.LOCALAPPDATA,
+          "LimeCloud/lime/computer-use/com.limecloud.lime.computer_use.json",
+        )
+      : path.join(
+          os.homedir(),
+          ".config/google-chrome/NativeMessagingHosts/com.limecloud.lime.computer_use.json",
         );
-      }
-    }
-
-    console.log("\n[E2E] ✅ Chrome Bridge 联调通过");
-  } finally {
-    await closeClient(control);
-    await closeClient(observer);
-  }
-}
-
-main().catch((error) => {
-  console.error("\n[E2E] ❌ Chrome Bridge 联调失败");
-  console.error(error?.stack || error?.message || String(error));
-  process.exit(1);
+let originalManifest,
+  child,
+  lines,
+  context,
+  providerFixture,
+  stderr = "";
+const pending = new Map();
+const fixture = createServer((_request, response) => {
+  response.writeHead(200, { "Content-Type": "text/html" });
+  response.end(
+    '<!doctype html><title>Lime Chrome fixture</title><style>body{padding:40px}input{height:36px;width:400px}</style><label>Result<input id="result" aria-label="Result"></label><div id="readback"></div><a href="/?child=1" target="_blank">Open child</a><script>document.querySelector("input").addEventListener("input",e=>document.querySelector("#readback").textContent=e.target.value)</script>',
+  );
 });
+const waitUntil = async (fn, timeout = 15000) => {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const value = await fn();
+    if (value) return value;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Condition timed out");
+};
+let seq = 0;
+function request(method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const id = ++seq;
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`${method} timed out`));
+    }, 70000);
+    pending.set(id, {
+      resolve(value) {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      reject(error) {
+        clearTimeout(timer);
+        reject(error);
+      },
+    });
+    child.stdin.write(
+      JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n",
+    );
+  });
+}
+try {
+  await fs.mkdir(path.dirname(evidence), { recursive: true });
+  prepareLocalAppServerBinary({ binaryPath: source });
+  originalManifest = await fs.readFile(nativeManifest).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  });
+  await fs.writeFile(
+    path.join(root, "config.yaml"),
+    "server:\n  api_key: fixture-only\nfeatures:\n  computer_use: false\n  chrome_use: true\n  office_use: false\n",
+  );
+  child = spawn(
+    source,
+    [
+      "--backend",
+      "runtime",
+      "--data-dir",
+      path.join(root, "data"),
+      "--app-data-dir",
+      path.join(root, "app"),
+    ],
+    {
+      env: {
+        ...terminalGateRuntimeEnvironment({ appServerBinaryPath: source }),
+        LIME_CONFIG_PATH: path.join(root, "config.yaml"),
+        LIME_AGENT_RUNTIME_ROOT: path.join(root, "runtime"),
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
+  child.stderr.on("data", (bytes) => {
+    stderr = (stderr + bytes).slice(-6000);
+  });
+  child.on("exit", (code) => {
+    for (const call of pending.values())
+      call.reject(new Error(`App Server exited ${code}: ${stderr}`));
+    pending.clear();
+  });
+  lines = readline.createInterface({ input: child.stdout });
+  lines.on("line", (line) => {
+    try {
+      const value = JSON.parse(line);
+      const call = pending.get(value.id);
+      if (!call) return;
+      pending.delete(value.id);
+      value.error
+        ? call.reject(new Error(JSON.stringify(value.error)))
+        : call.resolve(value.result);
+    } catch {}
+  });
+  await request("initialize", {
+    clientInfo: { name: "chrome-native-fixture", version: "1" },
+  });
+  child.stdin.write(
+    JSON.stringify({ jsonrpc: "2.0", method: "initialized" }) + "\n",
+  );
+  const installed = await request("computerUse/setup", {
+    adapter: "chrome",
+    grantScope: "session",
+  });
+  assert.equal(installed.accepted, true);
+  const host = JSON.parse(await fs.readFile(nativeManifest, "utf8"));
+  assert.equal(host.path, source);
+  assert.deepEqual(host.allowed_origins, [
+    "chrome-extension://okipgpdaiijkenehohfgochhhlbifcbc/",
+  ]);
+  receipt.checks.push(
+    process.env.LIME_CHROME_EXTENSION_DIR
+      ? "real setup registered the per-user Native Messaging host; extension loaded directly from explicit source directory"
+      : "real setup exported the new extension and registered the per-user Native Messaging host",
+  );
+  receipt.extensionSource =
+    process.env.LIME_CHROME_EXTENSION_DIR || "compiled installer assets";
+  await new Promise((resolve) => fixture.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${fixture.address().port}/`;
+  const chromeProfile = path.join(root, "chrome-profile");
+  if (process.platform === "darwin" || process.platform === "linux") {
+    // Chromium resolves per-user native manifests under its actual user-data
+    // directory. Register the same installed host in this isolated test profile.
+    const hosts = path.join(chromeProfile, "NativeMessagingHosts");
+    await fs.mkdir(hosts, { recursive: true });
+    await fs.copyFile(
+      nativeManifest,
+      path.join(hosts, path.basename(nativeManifest)),
+    );
+  }
+  context = await chromium.launchPersistentContext(chromeProfile, {
+    channel: "chrome",
+    headless: false,
+    ignoreDefaultArgs: ["--disable-extensions"],
+    args: [
+      "--enable-unsafe-extension-debugging",
+      "--no-first-run",
+      "--no-default-browser-check",
+    ],
+  });
+  receipt.browserLogs = [];
+  context.on("console", (message) => {
+    if (receipt.browserLogs.length < 30)
+      receipt.browserLogs.push(message.text().slice(0, 500));
+  });
+  const page = await context.newPage();
+  const browserSession = await context.browser().newBrowserCDPSession();
+  const extensionDirectory =
+    process.env.LIME_CHROME_EXTENSION_DIR ||
+    (process.platform === "darwin"
+      ? path.join(
+          os.homedir(),
+          "Library/Application Support/lime/computer-use/chrome",
+        )
+      : process.platform === "win32"
+        ? path.join(
+            process.env.LOCALAPPDATA,
+            "LimeCloud/lime/computer-use/chrome",
+          )
+        : path.join(
+            process.env.XDG_DATA_HOME ||
+              path.join(os.homedir(), ".local/share"),
+            "lime/computer-use/chrome",
+          ));
+  if (!process.env.LIME_CHROME_EXTENSION_DIR) {
+    const installer = await fs.readFile(
+      "lime-rs/crates/tool-runtime/src/computer_use/installation.rs",
+      "utf8",
+    );
+    receipt.installedAssets = [];
+    for (const [, name] of installer.matchAll(/asset!\("([^"]+)"\)/g)) {
+      const bytes = await fs.readFile(path.join(extensionDirectory, name));
+      assert.deepEqual(
+        bytes,
+        await fs.readFile(path.join("extensions/lime-chrome", name)),
+        `stale compiled extension resource: ${name}`,
+      );
+      receipt.installedAssets.push({
+        name,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      });
+    }
+  }
+  const extension = await browserSession.send("Extensions.loadUnpacked", {
+    path: extensionDirectory,
+  });
+  assert.equal(extension.id, "okipgpdaiijkenehohfgochhhlbifcbc");
+  await page.goto(url);
+  const worker = await waitUntil(() => context.serviceWorkers()[0]);
+  const userGroup = await worker.evaluate(async (url) => {
+    const [tab] = await chrome.tabs.query({ url });
+    const id = await chrome.tabs.group({ tabIds: [tab.id] });
+    await chrome.tabGroups.update(id, {
+      title: "User existing group",
+      color: "grey",
+    });
+    return { id, tabId: tab.id };
+  }, url);
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extension.id}/computer-use.html`);
+  await popup.locator("#session-name").fill("🧪 测试环境发布验收");
+  await popup.locator("#session-url").fill(`${url}?task=group`);
+  await popup.locator("#task-tabs button[type=submit]").click();
+  const taskPage = await waitUntil(() =>
+    context.pages().find((p) => p.url() === `${url}?task=group`),
+  );
+  const taskGroup = await waitUntil(() =>
+    worker.evaluate(async (url) => {
+      const [tab] = await chrome.tabs.query({ url });
+      if (!tab || tab.groupId < 0) return null;
+      const group = await chrome.tabGroups.get(tab.groupId);
+      return group.title === "🧪 测试环境发布验收"
+        ? { tabId: tab.id, ...group }
+        : null;
+    }, `${url}?task=group`),
+  );
+  assert.equal(taskGroup.title, "🧪 测试环境发布验收");
+  assert(
+    [
+      "grey",
+      "blue",
+      "red",
+      "yellow",
+      "green",
+      "pink",
+      "purple",
+      "cyan",
+      "orange",
+    ].includes(taskGroup.color),
+  );
+  await taskPage.getByRole("link", { name: "Open child" }).click();
+  const childPage = await waitUntil(() =>
+    context.pages().find((p) => p.url() === `${url}?child=1`),
+  );
+  await waitUntil(() =>
+    worker.evaluate(
+      async ({ url, groupId }) => {
+        const [tab] = await chrome.tabs.query({ url });
+        return tab?.groupId === groupId;
+      },
+      { url: `${url}?child=1`, groupId: taskGroup.id },
+    ),
+  );
+  const stored = await worker.evaluate(() =>
+    chrome.storage.session.get("TASK_TABS"),
+  );
+  assert.equal(Object.values(stored.TASK_TABS)[0].tabs.length, 2);
+  await popup.screenshot({
+    path: path.join(path.dirname(evidence), "chrome-task-group-popup.png"),
+  });
+  receipt.groups = {
+    title: taskGroup.title,
+    color: taskGroup.color,
+    childJoined: true,
+  };
+  receipt.checks.push(
+    "popup created a named native Chrome tab group; child tab joined without granting control",
+  );
+  await childPage.close();
+  await taskPage.close();
+  await popup.close();
+  const target = await waitUntil(async () => {
+    const status = await request("computerUse/status", { adapter: "chrome" });
+    receipt.lastDiscovery = status.adapters[0];
+    return status.adapters[0].targets?.find((t) => t.url === url);
+  });
+  receipt.checks.push(
+    "isolated real Chrome loaded MV3 and discovered the exact profile/tab through native messaging",
+  );
+  const approveTarget = async () => {
+    const setup = request("computerUse/setup", {
+      adapter: "chrome",
+      target,
+      grantScope: "session",
+    });
+    void setup.catch(() => {});
+    const approval = await waitUntil(() =>
+      context
+        .pages()
+        .find((p) => p.url().includes("computer-use.html?request=")),
+    );
+    await approval
+      .getByRole("button", {
+        name: /Allow this tab|允许此标签页|允許此分頁|このタブを許可|이 탭 허용/,
+      })
+      .click();
+    return setup;
+  };
+  let grant = await approveTarget();
+  assert(grant.grant?.id);
+  assert.equal(
+    await worker.evaluate(
+      async ({ tabId }) => (await chrome.tabs.get(tabId)).groupId,
+      userGroup,
+    ),
+    userGroup.id,
+  );
+  receipt.checks.push(
+    "approving an existing user tab preserved its original group",
+  );
+  receipt.checks.push(
+    "explicit extension approval produced a connection-bound session grant",
+  );
+  const box = await page.locator("#result").boundingBox();
+  const marker = "Lime Chrome 原生连接 🟢";
+  const operation = (id, operation) => ({
+    type: "tool_call",
+    id,
+    name: "computer_use",
+    arguments: { target, operation },
+  });
+  const runtimeTabs = {};
+  const readTaskTabs = () =>
+    worker.evaluate(async (url) => {
+      const tabs = await chrome.tabs.query({});
+      return Promise.all(
+        tabs
+          .filter((tab) => tab.url?.startsWith(`${url}?runtime=`))
+          .map(async (tab) => ({
+            id: tab.id,
+            url: tab.url,
+            groupId: tab.groupId,
+            group:
+              tab.groupId >= 0 ? await chrome.tabGroups.get(tab.groupId) : null,
+          })),
+      );
+    }, url);
+  providerFixture = await startOpenAiCompatibleFixtureServer({
+    modelToolMode: "direct",
+    scriptedResponses: [
+      operation("chrome-click", {
+        action: "click",
+        x: box.x + 20,
+        y: box.y + 15,
+        button: "left",
+        count: 1,
+      }),
+      operation("chrome-type", { action: "type", text: marker }),
+      operation("chrome-observe", {
+        action: "observe",
+        max_depth: 5,
+        max_nodes: 64,
+      }),
+      operation("chrome-screenshot", { action: "screenshot" }),
+      operation("chrome-name", {
+        action: "name_session",
+        name: "🧪 模型浏览器任务",
+      }),
+      operation("chrome-create-temporary", {
+        action: "create_tab",
+        url: `${url}?runtime=temporary`,
+      }),
+      operation("chrome-create-deliverable", {
+        action: "create_tab",
+        url: `${url}?runtime=deliverable`,
+      }),
+      async ({ body }) => {
+        assert(
+          JSON.stringify(body.messages.at(-1)).includes("approvalRequired"),
+        );
+        const tabs = await readTaskTabs();
+        runtimeTabs.temporary = tabs.find((tab) =>
+          tab.url.endsWith("=temporary"),
+        ).id;
+        runtimeTabs.deliverable = tabs.find((tab) =>
+          tab.url.endsWith("=deliverable"),
+        ).id;
+        const status = await request("computerUse/status", {
+          adapter: "chrome",
+        });
+        const unapproved = status.adapters[0].targets.find(
+          (t) => t.tabId === String(runtimeTabs.deliverable),
+        );
+        await assert.rejects(
+          request("computerUse/lease/acquire", {
+            adapter: "chrome",
+            target: unapproved,
+            threadId: thread.id,
+            turnId: turn.id,
+            capability: "observe",
+            grantId: grant.grant.id,
+          }),
+          /Grant does not cover/,
+        );
+        return operation("chrome-mark-deliverable", {
+          action: "mark_tab",
+          tab_id: runtimeTabs.deliverable,
+          mark: "deliverable",
+        });
+      },
+      operation("chrome-create-handoff", {
+        action: "create_tab",
+        url: `${url}?runtime=handoff`,
+      }),
+      async () => {
+        const tabs = await readTaskTabs();
+        runtimeTabs.handoff = tabs.find((tab) =>
+          tab.url.endsWith("=handoff"),
+        ).id;
+        runtimeTabs.groupId = tabs[0].groupId;
+        assert(
+          tabs.length === 3 &&
+            tabs.every(
+              (tab) =>
+                tab.groupId === runtimeTabs.groupId &&
+                tab.group.title === "🧪 模型浏览器任务",
+            ),
+        );
+        return operation("chrome-mark-handoff", {
+          action: "mark_tab",
+          tab_id: runtimeTabs.handoff,
+          mark: "handoff",
+        });
+      },
+      { type: "text", content: "CHROME_NATIVE_READBACK_OK" },
+      operation("chrome-resume-name", {
+        action: "name_session",
+        name: "🟢 接续浏览任务",
+      }),
+      async () => {
+        const tabs = await readTaskTabs();
+        assert.equal(
+          tabs.find((tab) => tab.id === runtimeTabs.handoff).group.title,
+          "🟢 接续浏览任务",
+        );
+        return { type: "text", content: "CHROME_HANDOFF_RESUMED" };
+      },
+    ],
+  });
+  const provider = await provisionToolExecutionFixtureProvider({
+    fixture: providerFixture,
+    invoke: (_, method, params) => request(method, params),
+  });
+  await request("modelProvider/fetchModels", {
+    providerId: provider.providerPreference,
+  });
+  const { thread } = await request(
+    "thread/start",
+    buildToolExecutionThreadStartParams({
+      provider,
+      title: "Chrome native fixture",
+      workspaceRoot: root,
+    }),
+  );
+  const { turn } = await request("turn/start", {
+    threadId: thread.id,
+    input: [
+      {
+        type: "text",
+        text: "Write the fixture marker in the approved tab, observe it, and capture a screenshot.",
+      },
+    ],
+    approvalPolicy: "never",
+  });
+  const canonical = await waitUntil(async () => {
+    const { thread: read } = await request("thread/read", {
+      threadId: thread.id,
+      includeTurns: true,
+    });
+    const found = read.turns.find((t) => t.id === turn.id);
+    return found?.status !== "inProgress" ? found : null;
+  }, 60000);
+  assert.equal(canonical.status, "completed");
+  const tools = canonical.items.filter(
+    (item) => item.type === "dynamicToolCall" && item.tool === "computer_use",
+  );
+  assert.equal(tools.length, 10);
+  assert(
+    tools.every((tool) => tool.status === "completed"),
+    JSON.stringify(
+      tools.map(({ id, status, result, error }) => ({
+        id,
+        status,
+        result,
+        error,
+      })),
+    ),
+  );
+  assert.equal(await page.locator("#result").inputValue(), marker);
+  assert.equal(await page.locator("#readback").textContent(), marker);
+  const readback = providerFixture.requests
+    .at(-1)
+    .body.messages.filter((message) => message.role === "tool");
+  assert(
+    readback.some(
+      (message) =>
+        message.tool_call_id === "chrome-observe" &&
+        JSON.stringify(message.content).includes(marker),
+    ),
+  );
+  receipt.turn = {
+    threadId: thread.id,
+    turnId: turn.id,
+    toolItems: tools.map(({ id, status }) => ({ id, status })),
+    providerRequests: providerFixture.requests.length,
+    liveModelUsed: false,
+  };
+  receipt.checks.push(
+    "canonical click/type/DOM observe/screenshot completed and marker reached actual page and provider readback",
+  );
+  await waitUntil(async () => {
+    const tabs = await readTaskTabs();
+    return (
+      !tabs.some((tab) => tab.id === runtimeTabs.temporary) &&
+      tabs.some(
+        (tab) => tab.id === runtimeTabs.deliverable && tab.groupId === -1,
+      ) &&
+      tabs.some(
+        (tab) =>
+          tab.id === runtimeTabs.handoff && tab.groupId === runtimeTabs.groupId,
+      )
+    );
+  });
+  assert.equal(
+    await worker.evaluate(
+      async ({ tabId }) => (await chrome.tabs.get(tabId)).groupId,
+      userGroup,
+    ),
+    userGroup.id,
+  );
+  receipt.runtimeGroups = {
+    ...runtimeTabs,
+    temporaryClosed: true,
+    deliverableReleased: true,
+    handoffGrouped: true,
+    newTabInheritedGrant: false,
+  };
+  receipt.checks.push(
+    "canonical model actions created and named native groups; new tabs did not inherit source consent; terminal closed only temporary tabs",
+  );
+  // Closing temporary pages invalidates document authority, so request fresh consent.
+  await request("computerUse/status", { adapter: "chrome" });
+  grant = await approveTarget();
+  const resumed = await request("turn/start", {
+    threadId: thread.id,
+    input: [
+      {
+        type: "text",
+        text: "Resume the handoff task, rename it and finish without preserving it again.",
+      },
+    ],
+    approvalPolicy: "never",
+  });
+  const resumedCanonical = await waitUntil(async () => {
+    const { thread: read } = await request("thread/read", {
+      threadId: thread.id,
+      includeTurns: true,
+    });
+    const found = read.turns.find((t) => t.id === resumed.turn.id);
+    return found?.status !== "inProgress" ? found : null;
+  }, 60000);
+  assert.equal(resumedCanonical.status, "completed");
+  const resumedTool = resumedCanonical.items.find(
+    (item) => item.type === "dynamicToolCall" && item.tool === "computer_use",
+  );
+  assert.equal(
+    resumedTool?.status,
+    "completed",
+    JSON.stringify(resumedCanonical),
+  );
+  await waitUntil(
+    async () =>
+      !(await readTaskTabs()).some((tab) => tab.id === runtimeTabs.handoff),
+  );
+  assert(
+    (await readTaskTabs()).some((tab) => tab.id === runtimeTabs.deliverable),
+  );
+  receipt.runtimeGroups.resumedTurnId = resumed.turn.id;
+  receipt.runtimeGroups.unmarkedHandoffClosed = true;
+  receipt.checks.push(
+    "a second canonical turn resumed and renamed the handoff group; its old mark did not survive, while the deliverable and user tabs stayed open",
+  );
+  const revoked = await request("computerUse/revoke", {
+    grantId: grant.grant.id,
+  });
+  assert.equal(revoked.revoked, true);
+  const remaining = await request("computerUse/status", { adapter: "chrome" });
+  assert(!remaining.grants?.some((g) => g.id === grant.grant.id));
+  receipt.checks.push(
+    "session grant revocation removed further control authority",
+  );
+  await fs.mkdir(path.dirname(evidence), { recursive: true });
+  await page.screenshot({
+    path: path.join(path.dirname(evidence), "chrome-readback.png"),
+  });
+  await context.close();
+  context = null;
+  await waitUntil(async () => {
+    const state = await request("computerUse/status", { adapter: "chrome" });
+    return state.adapters[0].readiness !== "ready";
+  });
+  receipt.checks.push("Chrome exit invalidated connected target readiness");
+  receipt.result = "pass";
+} catch (error) {
+  receipt.result = "fail";
+  receipt.error = String(error);
+  receipt.stderr = stderr;
+  receipt.extensionState = await context
+    ?.serviceWorkers()[0]
+    ?.evaluate(() => chrome.storage.session.get(["connected", "error"]))
+    .catch(() => null);
+  receipt.extensionLocal = await context
+    ?.serviceWorkers()[0]
+    ?.evaluate(() => chrome.storage.local.get(["profileId", "TAB_GROUPS"]))
+    .catch(() => null);
+} finally {
+  await context?.close().catch(() => {});
+  await providerFixture?.close?.();
+  await new Promise((resolve) => fixture.close(resolve));
+  lines?.close();
+  if (child && child.exitCode === null) {
+    child.stdin.end();
+    await Promise.race([
+      new Promise((resolve) => child.once("exit", resolve)),
+      new Promise((resolve) =>
+        setTimeout(() => {
+          child.kill();
+          resolve();
+        }, 3000),
+      ),
+    ]);
+  }
+  if (originalManifest)
+    await fs.writeFile(nativeManifest, originalManifest, { mode: 0o600 });
+  else await fs.rm(nativeManifest, { force: true });
+  await fs.mkdir(path.dirname(evidence), { recursive: true });
+  receipt.completedAt = new Date().toISOString();
+  await fs.writeFile(evidence, JSON.stringify(receipt, null, 2) + "\n");
+  await fs.rm(root, { recursive: true, force: true });
+  console.log(JSON.stringify(receipt, null, 2));
+}
+process.exitCode = receipt.result === "pass" ? 0 : 1;

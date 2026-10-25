@@ -82,6 +82,49 @@
       ],
       "type": "string"
     },
+    "ComputerUseGrant": {
+      "properties": {
+        "adapter": {
+          "$ref": "#/$defs/ComputerUseAdapterKind"
+        },
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/ComputerUseCapability"
+          },
+          "type": "array"
+        },
+        "epoch": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ComputerUseGrantScope"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerUseTargetIdentity"
+        }
+      },
+      "required": [
+        "adapter",
+        "capabilities",
+        "epoch",
+        "id",
+        "scope",
+        "target"
+      ],
+      "type": "object"
+    },
+    "ComputerUseGrantScope": {
+      "enum": [
+        "persistent",
+        "session"
+      ],
+      "type": "string"
+    },
     "ComputerUseReadiness": {
       "enum": [
         "blocked",
@@ -213,6 +256,12 @@
       "format": "uint64",
       "minimum": 0,
       "type": "integer"
+    },
+    "grants": {
+      "items": {
+        "$ref": "#/$defs/ComputerUseGrant"
+      },
+      "type": "array"
     }
   },
   "required": [

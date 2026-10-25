@@ -887,3 +887,21 @@ describe("toolProcessSummary", () => {
     }
   });
 });
+
+
+describe("canonical Browser lifecycle copy", () => {
+  it.each([
+    ["zh-CN", "正在打开浏览器", "已打开浏览器"],
+    ["zh-TW", "正在開啟瀏覽器", "已開啟瀏覽器"],
+    ["en-US", "Opening browser", "Opened browser"],
+    ["ja-JP", "ブラウザーを開いています", "ブラウザーを開きました"],
+    ["ko-KR", "브라우저 여는 중", "브라우저 열림"],
+  ])("uses real newTab status in %s", async (locale, running, completed) => {
+    await changeLimeLocale(locale as Parameters<typeof changeLimeLocale>[0]);
+    try {
+      const input = { toolName: "newTab", argumentsValue: { url: "https://news.baidu.com/" }, metadata: { canonical_type: "dynamicToolCall", namespace: "browser" } };
+      expect(resolveToolProcessNarrative(createToolCall({ name: input.toolName, arguments: JSON.stringify(input.argumentsValue), metadata: input.metadata, status: "running" })).preSummary).toBe(running);
+      expect(resolveToolProcessNarrative(createToolCall({ name: input.toolName, arguments: JSON.stringify(input.argumentsValue), metadata: input.metadata, status: "completed", result: { success: true, output: "opened" } })).postSummary).toBe(completed);
+    } finally { await changeLimeLocale("zh-CN"); }
+  });
+});

@@ -48,7 +48,7 @@ describe("AppSidebar navigation visibility", () => {
     },
   );
 
-  it.each(["new-task", "claw"] as const)(
+  it.each(["new-task", "conversation"] as const)(
     "%s 页面应显示并打开设置、插件和已安排任务",
     async (agentEntry) => {
       const onNavigate = vi.fn();

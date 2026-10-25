@@ -1,39 +1,35 @@
-## Lime v1.170.0
+## Lime v1.171.0
 
 Simplified Chinese release notes are the primary version.
 
 ### Features
 
-- Consolidate plugins, Skills, and MCP management in plugin settings; add Hooks configuration with matching settings search and navigation.
-- Add message send key preferences, window close confirmation, and sleep prevention during active tasks; improve language selection and shortcut sequence editing.
-- Add conversation environment selection, recent actions, setup editing, and local environment action entry points.
-- Extend the browser with address suggestions and menus, site settings, page input, selection and dragging, and persistent CDP events.
-- Add shared Computer Use configuration, adapter status, grants, revocation, and execution leases; complete platform capabilities remain subject to their dedicated acceptance plans.
+- Add Computer Use settings, adapter installation and grant management; extend Chrome and Excel/Office integration through the shared App Server and package CLI resources.
+- Add the macOS Computer Use cursor and Windows cursor assets, plus Chrome extension sessions, tab groups, and interface resources in five languages.
 
 ### Fixes
 
-- Repair workspace and native page setup on the first browser open; strengthen CDP event origin checks, site permissions, and application network policies.
-- Improve shell environment inheritance, execution state, and conversation action wiring for local environments.
-- Enable local custom tools according to explicit model capabilities and actual Responses wire support, including Lime endpoints; validate remote hosted services independently.
-- Consolidate model protocol identifiers and error type names while preserving supported third-party app configuration and Skills installation targets.
+- Persist and restore the selected browser tab and page URL for conversations; improve navigation and site permission handling.
+- Fix Chinese Markdown link detection and refine MCP tool activity and message timeline rendering.
+- Improve application shutdown cleanup, tool output conversion, model catalog metadata, and baseline chat protocol capabilities.
 
 ### Improvements and Refactoring
 
-- Integrate execution policy and its required absolute path dependency into current Lime Rust owners, retaining source and license records.
-- Reorganize plugin, MCP, Hooks, and local environment components; remove replaced entry points and synchronize App Server schemas and generated clients.
-- Update Simplified Chinese, Traditional Chinese, English, Japanese, and Korean interface resources.
+- Keep light, dark, and system appearance modes; remove custom themes, skins, random switching, and home decorations.
+- Remove legacy personal style configuration, profile pages, and duplicate Skills entry points; synchronize protocols, generated clients, settings search, and five-language copy.
+- Refine the conversation sidebar, composer, and local conversation page while preserving Lime branding, multiple models, expert marketplace, and messaging channels.
 
 ### Tests and Quality
 
-- Extend targeted tests and real-process fixtures for the browser, window preferences, shortcuts, local environments, Computer Use, and model protocols.
-- See this release's execution plan for local checks and outstanding platform, packaged, and GUI validation; these notes do not claim complete Computer Use or cross-platform acceptance.
+- Update targeted regression coverage and fixtures for browser restoration, tool output, Computer Use, Chrome/Office, and interface behavior.
+- Prioritize commit, tag, and push as requested. See the release execution record for checks and outstanding GUI, Rust, and packaged platform validation; these notes do not claim complete platform acceptance.
 
 ### Documentation
 
-- Update architecture, command boundaries, source migration records, and related execution plans.
+- Update architecture, command boundaries, source alignment rules, and related execution plans.
 
 ### Other
 
-- Align app, CLI, and Rust workspace versions to 1.170.0.
+- Align app, CLI, and Rust workspace versions to 1.171.0.
 
-**Full changes**: `v1.169.0` -> `v1.170.0`
+**Full changes**: `v1.170.0` -> `v1.171.0`

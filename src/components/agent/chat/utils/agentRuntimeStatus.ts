@@ -1,3 +1,4 @@
+import { resolveRequiredAgentChatCopy } from "@/i18n/agentChatCopy";
 import type { AgentExecutionStrategy } from "@/lib/api/agentExecutionRuntime";
 import type {
   AgentContextTraceStep as ContextTraceStep,
@@ -5,11 +6,6 @@ import type {
 } from "@/lib/api/agentProtocol";
 import type { AgentRuntimeStatus } from "../types";
 import { resolveAgentRuntimeErrorPresentation } from "./agentRuntimeErrorPresentation";
-import type {
-  SoulCopyDescriptor,
-  SoulInteractionCopy,
-} from "@/lib/soul/interactionCopy";
-import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
 
 export function buildDiagnosticsRuntimeStatusMetadata(
   extra?: AgentRuntimeStatusMetadata,
@@ -33,68 +29,13 @@ function normalizeRuntimeErrorDetail(errorMessage: string): string {
   return resolveAgentRuntimeErrorPresentation(errorMessage).displayMessage;
 }
 
-export function buildSoulRuntimeStatusMetadata(
-  descriptor: SoulCopyDescriptor,
-): AgentRuntimeStatusMetadata {
-  return {
-    soul_copy: descriptor,
-    soul_surface: descriptor.surface,
-    soul_phase: descriptor.phase,
-    style_level: descriptor.styleLevel,
-    risk_level: descriptor.riskLevel,
-    tone_variant: descriptor.toneVariant,
-    ...(descriptor.profileId ? { profile_id: descriptor.profileId } : {}),
-    ...(descriptor.packId ? { pack_id: descriptor.packId } : {}),
-  };
-}
-
-export function buildInitialAgentRuntimeStatus(options: {
-  executionStrategy: AgentExecutionStrategy;
-  skipUserMessage?: boolean;
-  soulCopy?: SoulInteractionCopy;
-}): AgentRuntimeStatus {
-  const copy = options.soulCopy ?? resolveSoulInteractionCopy();
-  const checkpoints = [
-    ...copy.initialRuntimeCheckpoints,
-    options.skipUserMessage ? "系统引导请求" : "用户请求已入队",
-  ];
-
-  return {
-    phase: "preparing",
-    title: copy.initialRuntimeTitle,
-    detail: copy.initialRuntimeDetail,
-    checkpoints,
-    metadata: buildDiagnosticsRuntimeStatusMetadata(
-      buildSoulRuntimeStatusMetadata(copy.descriptors.initialRuntimeTitle),
-    ),
-  };
-}
-
-export function buildWaitingAgentRuntimeStatus(options: {
-  executionStrategy: AgentExecutionStrategy;
-  soulCopy?: SoulInteractionCopy;
-}): AgentRuntimeStatus {
-  void options.executionStrategy;
-  const copy = options.soulCopy ?? resolveSoulInteractionCopy();
-
-  return {
-    phase: "routing",
-    title: copy.waitingRuntimeTitle,
-    detail: copy.waitingRuntimeDetail,
-    checkpoints: copy.waitingRuntimeCheckpoints,
-    metadata: buildDiagnosticsRuntimeStatusMetadata(
-      buildSoulRuntimeStatusMetadata(copy.descriptors.waitingRuntimeTitle),
-    ),
-  };
-}
-
 export function buildContextRuntimeStatus(
   steps: ContextTraceStep[],
 ): AgentRuntimeStatus {
   const latestStep = steps[steps.length - 1];
   const checkpoints = steps
     .slice(-3)
-    .map((step) => `${step.stage} · ${step.detail}`);
+    .map((step) => `${step.stage}：${step.detail}`);
 
   return {
     phase: "context",
@@ -115,37 +56,6 @@ export function buildActionResumeRuntimeStatus(): AgentRuntimeStatus {
   };
 }
 
-export function buildFailedAgentRuntimeStatus(
-  errorMessage: string,
-  soulCopy: SoulInteractionCopy = resolveSoulInteractionCopy(),
-): AgentRuntimeStatus {
-  return {
-    phase: "failed",
-    title: "当前处理失败",
-    detail: normalizeRuntimeErrorDetail(errorMessage),
-    checkpoints: [
-      "已保留当前阶段记录",
-      "可修正问题后重试",
-      "如需继续可补充更明确的输入",
-    ],
-    metadata: buildDiagnosticsRuntimeStatusMetadata(
-      buildSoulRuntimeStatusMetadata(soulCopy.descriptors.failurePrefix),
-    ),
-  };
-}
-
-export function buildFailedAgentMessageContent(
-  errorMessage: string,
-  partialContent?: string,
-  soulCopy: SoulInteractionCopy = resolveSoulInteractionCopy(),
-): string {
-  const failureText = `${soulCopy.failurePrefix}${normalizeRuntimeErrorDetail(errorMessage)}`;
-  const trimmedPartialContent = partialContent?.trim();
-  return trimmedPartialContent
-    ? `${trimmedPartialContent}\n\n${failureText}`
-    : failureText;
-}
-
 export function formatAgentRuntimeStatusSummary(
   status?: AgentRuntimeStatus | null,
 ): string {
@@ -159,4 +69,48 @@ export function formatAgentRuntimeStatusSummary(
   }
 
   return lines.join("\n\n");
+}
+
+export function buildInitialAgentRuntimeStatus(_options: {
+  executionStrategy: AgentExecutionStrategy;
+  skipUserMessage?: boolean;
+}): AgentRuntimeStatus {
+  return {
+    phase: "preparing",
+    title: resolveRequiredAgentChatCopy("runtime.preparing"),
+    detail: "",
+    metadata: buildDiagnosticsRuntimeStatusMetadata(),
+  };
+}
+
+export function buildWaitingAgentRuntimeStatus(_options: {
+  executionStrategy: AgentExecutionStrategy;
+}): AgentRuntimeStatus {
+  return {
+    phase: "routing",
+    title: resolveRequiredAgentChatCopy("runtime.waiting"),
+    detail: "",
+    metadata: buildDiagnosticsRuntimeStatusMetadata(),
+  };
+}
+
+export function buildFailedAgentRuntimeStatus(
+  errorMessage: string,
+): AgentRuntimeStatus {
+  return {
+    phase: "failed",
+    title: resolveRequiredAgentChatCopy("runtime.failed"),
+    detail: normalizeRuntimeErrorDetail(errorMessage),
+    metadata: buildDiagnosticsRuntimeStatusMetadata(),
+  };
+}
+
+export function buildFailedAgentMessageContent(
+  errorMessage: string,
+  partialContent?: string,
+): string {
+  const error = normalizeRuntimeErrorDetail(errorMessage);
+  return partialContent?.trim()
+    ? `${partialContent.trim()}\n\n${error}`
+    : error;
 }

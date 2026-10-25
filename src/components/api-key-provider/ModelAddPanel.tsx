@@ -565,7 +565,7 @@ function buildCatalogTemplates(
     return {
       id: `catalog-${item.id}`,
       name: item.name,
-      description: `${copy.providerTypeLabel(providerType)} · ${
+      description: `${copy.providerTypeLabel(providerType)} ${
         item.api_host || copy.apiHostPlaceholder
       }`,
       category: resolveProviderCategory(item.id, item.group),
@@ -926,7 +926,7 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
           "settings.providers.modelAdd.catalog.registryDescriptionWithApiHost",
           {
             apiHost,
-            defaultValue: "模型目录 · {{apiHost}}",
+            defaultValue: "模型目录 {{apiHost}}",
           },
         ),
       registryDescriptionWithoutApiHost: t(

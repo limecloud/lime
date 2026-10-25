@@ -41,11 +41,11 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
       Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
         "value",
-      )!.set!.call(input, t("settings.profile.field.bio.label"));
+      )!.set!.call(input, t("settings.personalization.instructions"));
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(container.querySelector('[role="option"]')?.textContent).toContain(
-      t("settings.profile.field.bio.label"),
+      t("settings.personalization.instructions"),
     );
   },
 );
@@ -111,7 +111,7 @@ it("selects a highlighted result with arrows/Enter and prefetches its section", 
 });
 it("does not select during IME composition, then accepts a real Enter", async () => {
   const { select } = await mountSidebar();
-  const input = await enter("bio");
+  const input = await enter("instructions");
   await act(async () =>
     input.dispatchEvent(
       new CompositionEvent("compositionstart", { bubbles: true }),
@@ -127,7 +127,7 @@ it("does not select during IME composition, then accepts a real Enter", async ()
   );
   await key(input, "Enter");
   expect(select).toHaveBeenCalledWith(
-    expect.objectContaining({ targetId: "profile-bio" }),
+    expect.objectContaining({ targetId: "memory-instructions" }),
   );
 });
 it("Escape and clear restore navigation; no-results cannot select", async () => {
@@ -143,7 +143,7 @@ it("Escape and clear restore navigation; no-results cannot select", async () => 
   expect(
     container.querySelector('[data-testid="settings-sidebar-tab-about"]'),
   ).not.toBeNull();
-  await enter("bio");
+  await enter("instructions");
   const clear = container.querySelector<HTMLButtonElement>(
     'button[aria-label="Clear settings search"]',
   )!;
@@ -153,7 +153,7 @@ it("Escape and clear restore navigation; no-results cannot select", async () => 
 });
 it("pointer selection keeps the input available for dirty-navigation focus restoration", async () => {
   const { select } = await mountSidebar();
-  const input = await enter("bio");
+  const input = await enter("instructions");
   const result = container.querySelector<HTMLElement>('[role="option"]')!;
   await act(async () => {
     expect(
@@ -165,7 +165,7 @@ it("pointer selection keeps the input available for dirty-navigation focus resto
   });
   expect(document.activeElement).toBe(input);
   expect(select).toHaveBeenCalledWith(
-    expect.objectContaining({ targetId: "profile-bio" }),
+    expect.objectContaining({ targetId: "memory-instructions" }),
   );
 });
 it("narrow-screen shortcut focuses the same search and preserves keyboard navigation", async () => {
@@ -178,11 +178,11 @@ it("narrow-screen shortcut focuses the same search and preserves keyboard naviga
     '[data-testid="settings-sidebar-search"]',
   )!;
   expect(document.activeElement).toBe(input);
-  await enter("bio", input);
+  await enter("instructions", input);
   expect(container.querySelectorAll('[role="combobox"]')).toHaveLength(1);
   await key(input, "Enter");
   expect(select).toHaveBeenCalledWith(
-    expect.objectContaining({ targetId: "profile-bio" }),
+    expect.objectContaining({ targetId: "memory-instructions" }),
   );
   await key(input, "Escape");
   expect(input.value).toBe("");

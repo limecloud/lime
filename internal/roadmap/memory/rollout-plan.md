@@ -1,6 +1,7 @@
 # Lime 记忆与上下文治理实施计划
+> 2026-10-25：本文件仅保留历史实施证据，不再约束产品。旧 Soul、风格包及创作声线已删除；现役边界以 [记忆与上下文](../../aiprompts/memory-compaction.md) 和 [执行计划](../../exec-plans/browser-runtime-right-surface-plan.md) 为准。下文原有保留要求和未完成清单均已失效。
 
-> 状态：current rollout plan
+> 状态：historical / superseded
 > 更新时间：2026-06-19
 > 目标：用小步交付把 Lime 记忆主线收敛到文件化 memory store，把上下文防腐、压缩续接和多模型预算纳入 App Server current 主链，清理旧记忆 / 旧灵感库 surface，并保留 Soul 交互配置。
 

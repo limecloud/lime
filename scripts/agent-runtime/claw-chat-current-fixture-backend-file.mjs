@@ -7,6 +7,11 @@ import { withElectronFixtureSystemPath } from "../lib/electron-fixture-runtime-e
 import {
   ASSISTANT_DONE_TEXT,
   FIXTURE_MODEL,
+  IMAGE_COMMAND_DONE_TEXT,
+  IMAGE_COMMAND_CREATE_TASK_TOOL_NAME,
+  IMAGE_COMMAND_PROMPT,
+  IMAGE_COMMAND_IMAGE_PROMPT,
+  PLAIN_IMAGE_INTENT_PROMPT,
   IMAGE_COMMAND_PRESENTATION_CAPTION,
   IMAGE_COMMAND_PRESENTATION_INTRO,
   IMAGE_FIXTURE_MODEL,
@@ -20,10 +25,7 @@ import {
   TURN_PLAN_UPDATE_TOOL_CALL_ID,
 } from "./claw-chat-current-fixture-constants.mjs";
 import { writeFixtureBackend } from "./claw-chat-current-fixture-backend-script.mjs";
-import {
-  buildSoulStyleFixtureAssistantText,
-  summarizeSoulPromptMarkers,
-} from "./claw-chat-current-fixture-soul-style.mjs";
+
 import {
   ACTIVE_STEER_DONE_TEXT,
   ACTIVE_STEER_FINAL_TEXT,
@@ -44,7 +46,7 @@ function writeFixtureConfig(configPath, overrides = {}) {
   const language = String(overrides.language ?? "").trim();
   const imageProviderId = String(overrides.imageProviderId ?? "").trim();
   const imageModelId = String(overrides.imageModelId ?? "").trim();
-  const soulStyleProfileId = String(overrides.soulStyleProfileId ?? "").trim();
+
   const imageDefaults = ["      allowFallback: false"];
   if (imageProviderId) {
     imageDefaults.push(`      preferredProviderId: ${imageProviderId}`);
@@ -65,16 +67,6 @@ function writeFixtureConfig(configPath, overrides = {}) {
       "  media_defaults:",
       "    image:",
       ...imageDefaults,
-      ...(soulStyleProfileId
-        ? [
-            "memory:",
-            "  enabled: true",
-            "  soul:",
-            "    enabled: true",
-            `    style_profile_id: ${soulStyleProfileId}`,
-            "    imported_from: manual",
-          ]
-        : []),
       "",
     ].join("\n"),
   );
@@ -311,13 +303,7 @@ function fixtureTextForChatRequest(body) {
   ) {
     return presentationText;
   }
-  const soulStyleTranscriptText = buildSoulStyleFixtureAssistantText(
-    serialized,
-    ASSISTANT_DONE_TEXT,
-  );
-  if (soulStyleTranscriptText) {
-    return soulStyleTranscriptText;
-  }
+
   if (serialized.includes(NEWS_PROMPT)) {
     return [
       "今日国际新闻简要整理：",
@@ -365,7 +351,7 @@ function readChatContentText(content) {
   return "";
 }
 
-function summarizeChatCompletionRequestBody(body, expectedSoulStyle) {
+function summarizeChatCompletionRequestBody(body) {
   let parsed = {};
   try {
     parsed = JSON.parse(body || "{}");
@@ -398,7 +384,7 @@ function summarizeChatCompletionRequestBody(body, expectedSoulStyle) {
         message?.role === "tool" &&
         readChatContentText(message?.content).includes("Plan updated"),
     ),
-    soulMarkers: summarizeSoulPromptMarkers(serialized, expectedSoulStyle),
+
     bodyIncludesPresentationContract:
       serialized.includes("image_task_presentation.v1") ||
       serialized.includes(
@@ -551,9 +537,9 @@ function openaiModelsBody({ supportsTools = false } = {}) {
 }
 
 export async function startTextProviderFixtureServer({
-  soulStyleExpectation = null,
   activeSteerDelayMs = 0,
   turnPlanUpdate = false,
+  imageTask = null,
   requestMarkers = [],
 } = {}) {
   const requests = [];
@@ -599,7 +585,11 @@ export async function startTextProviderFixtureServer({
       ) {
         response.writeHead(200, { "content-type": "application/json" });
         response.end(
-          JSON.stringify(openaiModelsBody({ supportsTools: turnPlanUpdate })),
+          JSON.stringify(
+            openaiModelsBody({
+              supportsTools: turnPlanUpdate || Boolean(imageTask),
+            }),
+          ),
         );
         return;
       }
@@ -621,6 +611,54 @@ export async function startTextProviderFixtureServer({
       const messages = Array.isArray(parsedBody.messages)
         ? parsedBody.messages
         : [];
+      const imagePrompt = messages.find(
+        (message) =>
+          message?.role === "user" &&
+          [IMAGE_COMMAND_PROMPT, PLAIN_IMAGE_INTENT_PROMPT].includes(
+            readChatContentText(message.content),
+          ),
+      );
+      if (imageTask && imagePrompt && parsedBody.stream !== false) {
+        const hasToolResult = messages.some(
+          (message) => message?.role === "tool",
+        );
+        const rawText = readChatContentText(imagePrompt.content);
+        const responseBody = hasToolResult
+          ? openaiChatCompletionSseBody(
+              `${IMAGE_COMMAND_PRESENTATION_CAPTION}\n${IMAGE_COMMAND_DONE_TEXT}`,
+            )
+          : openaiToolCallSseBody({
+              name: IMAGE_COMMAND_CREATE_TASK_TOOL_NAME,
+              callId: "image-task-model-call",
+              argumentsValue: {
+                ...imageTask,
+                prompt:
+                  rawText === IMAGE_COMMAND_PROMPT
+                    ? IMAGE_COMMAND_IMAGE_PROMPT
+                    : PLAIN_IMAGE_INTENT_PROMPT,
+                raw_text: rawText,
+                title:
+                  rawText === IMAGE_COMMAND_PROMPT
+                    ? "青柠插画 E2E"
+                    : "广州夏天 E2E",
+                entry_source: "agent_tool",
+                executor_mode: "media_runtime_worker",
+                count: 1,
+                presentation: {
+                  assistant_intro: IMAGE_COMMAND_PRESENTATION_INTRO,
+                  completion_caption: IMAGE_COMMAND_PRESENTATION_CAPTION,
+                },
+              },
+            });
+        response.writeHead(200, {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+          connection: "close",
+          "content-length": Buffer.byteLength(responseBody),
+        });
+        response.end(responseBody);
+        return;
+      }
       const hasTurnPlanPrompt = messages.some(
         (message) =>
           message?.role === "user" &&
@@ -722,6 +760,9 @@ export async function startTextProviderFixtureServer({
     baseUrl: `http://127.0.0.1:${port}/v1`,
     host: "127.0.0.1",
     port,
+    setImageTask: (value) => {
+      imageTask = value;
+    },
     requestCount: () => requests.length,
     requests: () =>
       requests.map((entry) => ({
@@ -735,10 +776,7 @@ export async function startTextProviderFixtureServer({
             return null;
           }
         })(),
-        bodySummary: summarizeChatCompletionRequestBody(
-          entry.body,
-          soulStyleExpectation,
-        ),
+        bodySummary: summarizeChatCompletionRequestBody(entry.body),
         bodyMarkers: Object.fromEntries(
           requestMarkers.map((marker) => [marker, entry.body.includes(marker)]),
         ),

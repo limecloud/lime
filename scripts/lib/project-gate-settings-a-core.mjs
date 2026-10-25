@@ -25,6 +25,7 @@ export const SETTINGS_GATE_A_TABS = Object.freeze([
   "media-services",
   "profile",
   "plugins-settings",
+  "computer-use",
   "browser-use",
   "execution-policy",
   "hooks",

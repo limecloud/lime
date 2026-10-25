@@ -116,7 +116,7 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
           return;
         }
         setGeneralWorkbenchWorkflowRuns([]);
-        console.warn("[AgentChatPage] 加载 Workflow Read Model 失败:", error);
+        console.warn("[LocalConversationPage] 加载 Workflow Read Model 失败:", error);
       });
 
     return () => {
@@ -151,7 +151,7 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
         setGeneralWorkbenchHistoryHasMore(Boolean(page.has_more));
         setGeneralWorkbenchHistoryNextOffset(page.next_offset ?? null);
       } catch (error) {
-        console.warn("[AgentChatPage] 拉取工作区编排历史日志失败:", error);
+        console.warn("[LocalConversationPage] 拉取工作区编排历史日志失败:", error);
         if (replace) {
           setGeneralWorkbenchHistoryTerminals([]);
           setGeneralWorkbenchHistoryHasMore(false);
@@ -243,7 +243,7 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
             const skillId = resolveExecutableSkillId(skills, skillReference);
             if (!skillId) {
               console.warn(
-                "[AgentChatPage] 无法唯一解析 Skill 引用:",
+                "[LocalConversationPage] 无法唯一解析 Skill 引用:",
                 skillReference,
               );
               return [skillReference, null] as const;
@@ -253,7 +253,7 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
               return [skillReference, detail] as const;
             } catch (error) {
               console.warn(
-                "[AgentChatPage] 加载 Skill 详情失败:",
+                "[LocalConversationPage] 加载 Skill 详情失败:",
                 skillId,
                 error,
               );
@@ -263,7 +263,7 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
         ),
       )
       .catch((error) => {
-        console.warn("[AgentChatPage] 加载 Skill catalog 失败:", error);
+        console.warn("[LocalConversationPage] 加载 Skill catalog 失败:", error);
         return missingSkillNames.map(
           (skillReference) => [skillReference, null] as const,
         );
@@ -465,7 +465,7 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
           }
         }
       } catch (error) {
-        console.warn("[AgentChatPage] Workflow 控制动作失败:", error);
+        console.warn("[LocalConversationPage] Workflow 控制动作失败:", error);
       } finally {
         setGeneralWorkbenchWorkflowControlPendingItemId((current) =>
           current === item.id ? null : current,
@@ -511,7 +511,7 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
           return;
         }
         setSelectedGeneralWorkbenchRunDetail(null);
-        console.warn("[AgentChatPage] 加载运行详情失败:", error);
+        console.warn("[LocalConversationPage] 加载运行详情失败:", error);
       })
       .finally(() => {
         if (!cancelled) {

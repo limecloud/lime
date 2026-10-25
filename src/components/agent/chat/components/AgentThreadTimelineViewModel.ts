@@ -1,6 +1,9 @@
 import { parseAIResponse } from "@/components/workspace/a2ui/parser";
 import type { AgentThreadItem } from "../types";
-import type { AgentThreadOrderedBlock } from "../utils/agentThreadGrouping";
+import {
+  isStandaloneProcessItem,
+  type AgentThreadOrderedBlock,
+} from "../utils/agentThreadGrouping";
 import { isHiddenConversationArtifactPath } from "../utils/internalArtifactVisibility";
 import { isRuntimePermissionConfirmationWaitMessage } from "../utils/runtimeActionConfirmation";
 import {
@@ -134,7 +137,9 @@ export function buildTimelineBlockRenderPlan(params: {
     (shouldRenderActiveSingleThinkingInline ||
       shouldRenderStructuredSingleThinkingInline ||
       (!shouldKeepCompletedSingleReasoningInShell &&
-        (!deferCompletedSingleDetails ||
+        ((block.items[0]?.type === "tool_call" &&
+          isStandaloneProcessItem(block.items[0])) ||
+          !deferCompletedSingleDetails ||
           preferInlineDetails ||
           block.status !== "completed" ||
           hasFocusedItem)));

@@ -1,201 +1,50 @@
-# 基础 Prompt 主链
+# 基础指令主链
 
-## 这份文档回答什么
+## 唯一 owner
 
-本文件只定义 Lime 当前真正入模的基础 Prompt 主链，回答四个问题：
-
-1. 当前 provider 最终看到的 system prompt 是怎么拼出来的
-2. `project / session / frontend / runtime AGENTS / prompt_context / augmentation` 分别处在什么位置
-3. 哪些 prompt 文件和 builder 属于 `current`，哪些只是 `compat` / `deprecated`
-4. `query-loop.md`、功能样板文档、历史工作台说明与基础 Prompt 主链的关系是什么
-
-一句话事实源声明：
-
-> 后续所有基础 Prompt、system prompt、subagent prompt、plan prompt、augmentation 顺序与 diagnostics 判断，统一向 `App Server runtime_backend/request_context/session_config.rs -> lime-agent current_provider_turn -> agent-runtime provider_turn -> model-provider lowering` 这一条 current 主链收敛。
-
-路径边界：`lime-rs/src/**` 已删除；旧 `runtime_turn.rs`、`prompt_context.rs` 只允许从 git history / 执行计划只读参考，不是 current owner。新增 Prompt 能力、augmentation stage、diagnostics 或 provider prompt 组装逻辑应进入 App Server / RuntimeCore / prompt services / `lime-rs/crates/agent`，不能恢复 `lime-rs/src/commands/**` 业务逻辑、compat wrapper 或退场 stub。
-
-## Current 主链总览
+基础指令由 App Server 组装，Desktop、CLI/TUI 消费同一 runtime：
 
 ```text
-lime-rs/crates/app-server/src/runtime_backend/request_context.rs
-  -> 选择 base session prompt 来源（project > session > frontend > none）
-  -> merge_system_prompt_with_runtime_agents(...)
-  -> merge_system_prompt_with_request_tool_policy(...)
-  -> 可选 merge_system_prompt_with_web_search_preflight_context(...)
-  -> TurnInputEnvelope 记录 base/final prompt 与 augmentation stages
-  -> SessionConfig.system_prompt
-
-lime-agent::current_provider_turn
-  -> merge_system_prompt_with_request_tool_policy(...)
+Product Surface -> App Server JSON-RPC
+  -> runtime_backend/request_context/session_config.rs
+  -> agent::build_agent_session_config
   -> agent-runtime::provider_turn
-  -> CurrentProviderRequest.system_prompt
-  -> model-provider lowering
-  -> provider 实际收到的最终 system prompt / instructions / system
+  -> model-provider::current_client
 ```
 
-关键事实：
+前端普通聊天不生成默认角色、回答风格、执行车道或创作模式提示词，不将结构化创作记忆追加为系统指令。
+用户输入、显式专家上下文和工具生命周期继续走同一 Thread/Turn/Item；不建立第二套提示词 owner。
 
-- `TurnInputEnvelope` 里记录的 `base_system_prompt_len / final_system_prompt_len` 只覆盖 Lime 侧的 `session prompt` 片段，不等于 provider 侧最终收到的完整 system prompt 长度。
-- `current_provider_turn` 在开始 provider turn 前合并 request tool policy；随后 `agent-runtime::provider_turn` 只将同一份 `system_prompt` 放入 `CurrentProviderRequest`。
-- 因此，排查“Prompt 为什么变长”“Prompt cache 为什么失效”时，必须先看 App Server session config、runtime agents / skills / plugin / memory / soul context、`TurnInputEnvelope` 和 `current_provider_turn`，而不是已删除 runtime 的 prompt manager 或模板链。
+## 组装来源
 
-## 基础 Prompt 的 current 事实源
+`lime-rs/crates/app-server/src/runtime_backend/request_context/session_config.rs` 是现役组装入口。
 
-### 1. Base Session Prompt 入口
+- 模型基础指令来自 `services/model_registry_service/models.json` 的 `model_messages`。
+- 缺少模型模板时使用同目录 `prompt.md`；显式空模板不被默认模板覆盖。
+- 模板的 personality 变量按 `default / friendly / pragmatic / none` 渲染。
+- 显式请求指令由 `RuntimeRequest.system_prompt` 提供；普通 GUI 不默认填入这一字段。
+- 普通工具回合追加现役 AGENTS、Skills/Plugins 快照、Memory 和 request tool policy。内部 Agent 的隔离策略与轻量回合继续由原 App Server owner 控制。
+- `model-provider` 仅按协议将同一份指令转换为 Responses、Chat Completions 或 Anthropic 的 wire 表达，不另造角色模板。
 
-- `lime-rs/crates/app-server/src/runtime_backend/request_context.rs`
-- `lime-rs/crates/agent/src/agent_state_support.rs`
-- 优先级固定为：
-  1. `project prompt`
-  2. `session prompt`
-  3. `request.system_prompt`（frontend）
-  4. `None`
+Memory、AGENTS、自定义指令与用户明确选择的专家上下文保留。Soul、风格包、全局创作声线及其配置、RPC、投影装饰均已删除。
 
-对应实现：
+## 源码与必要适配
 
-- `build_project_system_prompt(...)`
-- `session_state_snapshot.system_prompt()`
-- `request.system_prompt`
-- `TurnInputEnvelopeBuilder::set_base_system_prompt(...)`
+上游：`/Users/coso/Documents/dev/rust/codex`，revision
+`970111f6cb62cc02fe36a82ea7d71b37a2889c97`。
+复制 `codex-rs/models-manager/models.json` 的模型运行描述与 `model_messages`，以及
+`codex-rs/models-manager/prompt.md`；按 Lime 品牌、共享 Desktop/CLI/TUI 宿主做必要适配，
+不接入上游账号、Cloud、遥测或托管服务。
 
-### 2. Lime 侧 augmentation 主链
+哈希、许可证、消费者及删除项见
+[复制账本](../exec-plans/browser-model-instructions-source-copy.json)。
+基础指令来源与 personality 模板语义对照上游 `prompts/src/model_instructions.rs`。
+公开仓库没有 Desktop React 工作台源码；删除旧前端默认提示词属于现役消费者收口，不能声称复制了上游 GUI。
 
-- `lime-rs/crates/app-server/src/runtime_backend/request_context.rs`
-- `lime-rs/crates/agent/src/request_tool_policy.rs`
-- `lime-rs/crates/agent/src/prompt/runtime_agents.rs`
-- `lime-rs/crates/agent/src/turn_input_envelope.rs`
+## 验证边界
 
-FullRuntime 固定顺序：
-
-1. `RuntimeAgents`
-2. `ExplicitLocalPathFocus`
-3. `Memory`
-4. `WebSearch`
-5. `RequestToolPolicy`
-6. `Artifact`
-7. `ImageSkillLaunch`
-8. `CoverSkillLaunch`
-9. `VideoSkillLaunch`
-10. `BroadcastSkillLaunch`
-11. `ResourceSearchSkillLaunch`
-12. `ResearchSkillLaunch`
-13. `ReportSkillLaunch`
-14. `DeepSearchSkillLaunch`
-15. `SiteSearchSkillLaunch`
-16. `PdfReadSkillLaunch`
-17. `PresentationSkillLaunch`
-18. `FormSkillLaunch`
-19. `SummarySkillLaunch`
-20. `TranslationSkillLaunch`
-21. `AnalysisSkillLaunch`
-22. `TranscriptionSkillLaunch`
-23. `UrlParseSkillLaunch`
-24. `TypesettingSkillLaunch`
-25. `WebpageSkillLaunch`
-26. `ServiceSkillLaunch`
-27. `Elicitation`
-28. `TeamPreference`
-29. `AutoContinue`
-30. `ServiceSkillLaunchPreload`（在主组装后追加，只在 `FullRuntime` 生效）
-
-FastChat 固定顺序：
-
-1. `RuntimeAgents`
-2. `ExplicitLocalPathFocus`
-3. `RequestToolPolicy`
-
-这里的“固定顺序”以 App Server request context 和 `TurnPromptAugmentationStageKind` 为准；文档、前端假设或样板说明不得自行重排。
-
-### 3. Current provider turn
-
-最终 provider request 由以下 current owner 串联：
-
-- `lime-rs/crates/app-server/src/runtime_backend/request_context/session_config.rs`
-- `lime-rs/crates/agent/src/prompt/runtime_agents.rs`
-- `lime-rs/crates/agent/src/request_tool_policy/policy_config.rs`
-- `lime-rs/crates/agent/src/current_provider_turn.rs`
-- `lime-rs/crates/agent-runtime/src/provider_turn.rs`
-- `lime-rs/crates/model-provider/src/current_client/{lowering,stream,transport}.rs`
-
-`model-provider` 会按 provider protocol 将同一份 `CurrentProviderRequest.system_prompt` lower 为 Chat Completions `system` message、Responses `instructions` 或 Anthropic `system` 字段。没有第二套 prompt manager、模板目录或 retired source adapter 可以改写该事实。
-
-## Current / Compat / Deprecated 边界
-
-### Current
-
-以下路径是当前唯一允许继续演进的基础 Prompt 事实源：
-
-- `lime-rs/crates/app-server/src/runtime_backend/request_context.rs`
-- `lime-rs/crates/agent/src/request_tool_policy.rs`
-- `lime-rs/crates/agent/src/prompt/runtime_agents.rs`
-- `lime-rs/crates/agent/src/turn_input_envelope.rs`
-- `lime-rs/crates/app-server/src/runtime_backend/request_context/session_config.rs`
-- `lime-rs/crates/app-server/src/runtime_backend/agent_skills_context.rs`
-- `lime-rs/crates/agent/src/current_provider_turn.rs`
-- `lime-rs/crates/agent-runtime/src/{session_config,provider_turn}.rs`
-- `lime-rs/crates/model-provider/src/current_client/{lowering,stream,transport}.rs`
-
-### Compat
-
-以下路径是局部 helper 或历史 evidence，不属于基础 Prompt 主链，后续不要继续把新能力长进去：
-
-- `lime-rs/crates/agent/src/prompt/builder.rs`
-- `lime-rs/crates/agent/src/prompt/templates.rs`
-- `internal/aiprompts/query-loop.md`
-  这是 Query Loop current 文档，但不是基础 Prompt 逐层拼装的唯一事实源
-- `internal/aiprompts/content-creator.md`
-  这是归档工作台说明，不是基础 Prompt 主入口
-
-这些 compat 路径可以继续被读取、测试或保留导出，但不能再被当成“当前 prompt 主链定义处”。
-
-### 特殊说明
-
-- 已删除 runtime 的 prompt manager、embedded prompt 和 vendor 文件只能作为 git history / 执行计划 evidence，不属于基础 Prompt current 主链。
-- `internal/prd/gongneng/**`、`internal/roadmap/**`、`x-article-export/**` 等功能样板或产品文档，只能消费主链事实，不能反向定义基础 Prompt 顺序。
-
-## 谁可以定义基础 Prompt，谁只能消费
-
-可以定义基础 Prompt 的边界：
-
-- `lime-rs/crates/app-server/src/runtime_backend/request_context.rs`
-- `lime-rs/crates/agent/src/request_tool_policy.rs`
-- `lime-rs/crates/agent/src/prompt/runtime_agents.rs`
-- `lime-rs/crates/agent/src/turn_input_envelope.rs`
-- `lime-rs/crates/agent/src/agent_state_support.rs`
-- `agent-runtime::provider_turn` 与 `model-provider::current_client` 的 request / lowering 边界
-
-只能消费、解释或验证基础 Prompt 的边界：
-
-- 前端 Workspace / Chat UI
-- `internal/aiprompts/query-loop.md`
-- `internal/prd/**` / `internal/roadmap/**`
-- 功能样板文档，例如 `x-article-export`
-- 历史工作台归档文档，例如 `content-creator.md`
-
-如果消费层文档与上述 current 事实源冲突，以 current 代码边界为准，并同步回写文档。
-
-## 与 Query Loop 的关系
-
-- `query-loop.md` 负责解释 submit turn、queue、tool runtime、context compaction、evidence 等主循环。
-- 本文只负责解释“系统提示词是如何形成并进入 provider”的主链。
-- 两者关系是并列 current 文档，但基础 Prompt 的更细粒度事实源以本文为准。
-
-遇到以下改动时，先读本文，再回到 `query-loop.md` 看提交链：
-
-- 改 `system prompt`
-- 改 `subagent prompt`
-- 改 `plan prompt`
-- 改 App Server request context 或历史 `prompt_context.rs` 迁移锚点
-- 改 augmentation 顺序或 marker
-- 改 `TurnInputEnvelope` diagnostics
-- 排查 token、Prompt Cache、prompt 变长、无声注入等问题
-
-## 对齐结论
-
-本轮治理后的统一口径是：
-
-- Lime 的基础 Prompt 主链不是某一份前端 `systemPrompt`、某一份 PRD，或某个样板包
-- Lime 的基础 Prompt 主链也不是单独某个 builder 文件
-- 真正的 current 主链是 “App Server request context 先组 session prompt，`lime-agent` 追加 turn policy，`agent-runtime` 生成 provider request，`model-provider` lower 成上游请求”
-- 后续所有 Prompt 相关治理，必须围绕这条主链做减法和收口，而不是再新增平级 builder、平级模板或平级文档解释
+- `runtime_backend/tests/session_prompt_context.rs` 覆盖基础指令、模板缺失/显式空值、personality、AGENTS 与 Skills 上下文。
+- 配置往返测试证明旧 Soul/profile 字段不会再写回；治理 catalog 禁止旧模块恢复。
+- GUI/fixture 验证普通输入、工具状态与恢复；external backend 会绕过实际 provider 指令组装，不能替代 Rust 指令测试。
+- Live 只记录真实模型返回的 reasoning Item；不得用状态文案或前端模板补出思考内容。
+- 验证结果与已知阻塞记录在[浏览器执行计划](../exec-plans/browser-runtime-right-surface-plan.md)。

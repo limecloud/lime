@@ -1,4 +1,4 @@
-import { buildClawAgentParams } from "@/lib/workspace/navigation";
+import { buildConversationParams } from "@/lib/workspace/navigation";
 import type {
   AgentInitialInputCapabilityParams,
   AgentPageParams,
@@ -215,7 +215,7 @@ export function resolveWorkspaceEntry(
     toolPreferences,
     targetTheme,
     nextNewChatAt,
-    navigationParams: buildClawAgentParams(shared),
+    navigationParams: buildConversationParams(shared),
     workspaceBootstrap: {
       projectId: resolvedProjectId,
       contentId: payload.contentId,

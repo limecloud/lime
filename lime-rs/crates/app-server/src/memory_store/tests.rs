@@ -398,12 +398,12 @@ async fn audit_events_are_file_backed_but_excluded_from_search_and_index_sources
 }
 
 #[tokio::test]
-async fn reset_clears_store_contents_preserves_layout_and_soul_boundary() {
+async fn reset_clears_store_contents_preserves_layout_and_unrelated_files() {
     let temp = tempfile::tempdir().expect("tempdir");
     let backend = backend(&temp);
-    let outside_file = temp.path().join("data").join("memory.soul.json");
+    let outside_file = temp.path().join("data").join("settings.json");
     fs::create_dir_all(outside_file.parent().expect("outside parent")).expect("outside parent");
-    fs::write(&outside_file, "soul config").expect("outside soul");
+    fs::write(&outside_file, "unrelated settings").expect("outside settings");
     let note = backend
         .add_note(MemoryStoreAddNoteParams {
             root: global_root(),

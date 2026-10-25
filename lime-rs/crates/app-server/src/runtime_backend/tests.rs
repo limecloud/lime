@@ -36,7 +36,6 @@ mod model_selection;
 mod session_history;
 mod session_prompt_context;
 mod session_skill_context;
-mod session_soul_context;
 mod tool_inventory;
 mod tool_policy_context;
 mod tool_surface;
@@ -90,7 +89,7 @@ fn code_cell_trace_bypasses_runtime_event_and_item_projection() {
         source_js: "text('ok')".to_string(),
     };
 
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
         &RuntimeAgentEvent::CodeCellTrace {
             event: trace.clone(),
         },
@@ -98,7 +97,6 @@ fn code_cell_trace_bypasses_runtime_event_and_item_projection() {
         &mut coding_event_mirror,
         &mut proposed_plan_parser,
         &mut reasoning_event_state,
-        None,
         None,
     )
     .expect("CodeCell trace should use internal sink");
@@ -116,7 +114,7 @@ fn rollout_budget_reminder_forwards_the_preappended_canonical_event() {
     let mut proposed_plan_parser = proposed_plan_parser::ProposedPlanParser::default();
     let mut reasoning_event_state = reasoning_events::ReasoningEventState::default();
 
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
         &RuntimeAgentEvent::RolloutBudgetReminder {
             remaining_tokens: 50,
             reminder_index: 2,
@@ -128,7 +126,6 @@ fn rollout_budget_reminder_forwards_the_preappended_canonical_event() {
         &mut coding_event_mirror,
         &mut proposed_plan_parser,
         &mut reasoning_event_state,
-        None,
         None,
     )
     .expect("rollout budget reminder should forward its durable event");
@@ -145,7 +142,7 @@ fn same_turn_compaction_forwards_its_preappended_canonical_event() {
     let mut proposed_plan_parser = proposed_plan_parser::ProposedPlanParser::default();
     let mut reasoning_event_state = reasoning_events::ReasoningEventState::default();
 
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
         &RuntimeAgentEvent::ContextCompactionCompleted {
             item_id: "compact-turn-1".to_string(),
             trigger: "context_limit".to_string(),
@@ -163,7 +160,6 @@ fn same_turn_compaction_forwards_its_preappended_canonical_event() {
         &mut proposed_plan_parser,
         &mut reasoning_event_state,
         None,
-        None,
     )
     .expect("same-turn compaction should forward its durable receipt");
 
@@ -179,7 +175,7 @@ fn compaction_without_receipt_is_transient() {
     let mut proposed_plan_parser = proposed_plan_parser::ProposedPlanParser::default();
     let mut reasoning_event_state = reasoning_events::ReasoningEventState::default();
 
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
         &RuntimeAgentEvent::ContextCompactionCompleted {
             item_id: "compact-test".to_string(),
             trigger: "context_limit".to_string(),
@@ -190,7 +186,6 @@ fn compaction_without_receipt_is_transient() {
         &mut coding_event_mirror,
         &mut proposed_plan_parser,
         &mut reasoning_event_state,
-        None,
         None,
     )
     .expect("receipt-less compaction should remain observable");
@@ -217,7 +212,7 @@ fn model_events_preserve_route_evidence_and_reroute_is_transient() {
         route_attempt: 2,
     };
 
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
         &RuntimeAgentEvent::ServerModel {
             model: "gpt-5.1-codex".to_string(),
         },
@@ -225,11 +220,10 @@ fn model_events_preserve_route_evidence_and_reroute_is_transient() {
         &mut coding_event_mirror,
         &mut proposed_plan_parser,
         &mut reasoning_event_state,
-        None,
         Some(&evidence),
     )
     .expect("server model evidence");
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
         &RuntimeAgentEvent::ModelReroute {
             from_model: "gpt-5-codex".to_string(),
             to_model: "gpt-5.1-codex".to_string(),
@@ -239,7 +233,6 @@ fn model_events_preserve_route_evidence_and_reroute_is_transient() {
         &mut coding_event_mirror,
         &mut proposed_plan_parser,
         &mut reasoning_event_state,
-        None,
         Some(&evidence),
     )
     .expect("model reroute notification event");

@@ -133,7 +133,7 @@ impl Fixture {
         let requirements = temp.path().join("requirements.toml");
         std::fs::write(
             &config,
-            "server:\n  api_key: test-only\ncomputer_use:\n  default_app_access: allow\n",
+            "server:\n  api_key: test-only\nfeatures:\n  computer_use: true\ncomputer_use:\n  default_app_access: allow\n",
         )
         .unwrap();
         let started = Arc::new(Notify::new());

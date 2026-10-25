@@ -196,35 +196,37 @@ describe("MessageList message actions", () => {
     );
   });
 
-  it("助手结果应支持保存为技能草稿", () => {
-    const onSaveMessageAsSkill = vi.fn();
-    const now = new Date();
-    const messages: Message[] = [
-      {
-        id: "msg-assistant-save-skill",
-        role: "assistant",
-        content:
-          "这是一段足够长的结果说明，用来验证助手消息上会出现保存为技能的入口。",
-        timestamp: now,
-      },
-    ];
-
-    const container = render(messages, { onSaveMessageAsSkill });
-    const saveButton = container.querySelector(
-      'button[aria-label="Save as Skill"]',
+  it("助手结果只保留消息操作，引用仍回传原文", () => {
+    const onQuoteMessage = vi.fn();
+    const content = "已打开百度新闻，可以继续浏览、搜索新闻和查看新闻详情。";
+    const container = render(
+      [
+        {
+          id: "assistant-result",
+          role: "assistant",
+          content,
+          timestamp: new Date(),
+        },
+      ],
+      { onQuoteMessage },
     );
+    const actions = container.querySelector('[data-testid="message-actions"]');
 
-    expect(saveButton).not.toBeNull();
-
+    expect(actions).not.toBeNull();
+    expect(
+      Array.from(actions!.querySelectorAll("button")).map((button) =>
+        button.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Quote message", "Copy message"]);
     act(() => {
-      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      actions!
+        .querySelector<HTMLButtonElement>('button[aria-label="Quote message"]')!
+        .click();
     });
-
-    expect(onSaveMessageAsSkill).toHaveBeenCalledWith({
-      messageId: "msg-assistant-save-skill",
-      content:
-        "这是一段足够长的结果说明，用来验证助手消息上会出现保存为技能的入口。",
-    });
+    expect(onQuoteMessage).toHaveBeenCalledWith(content, "assistant-result");
+    expect(
+      container.querySelector('button[aria-label="Save as Skill"]'),
+    ).toBeNull();
   });
 
   it("助手结果不应再暴露旧灵感库保存入口", () => {

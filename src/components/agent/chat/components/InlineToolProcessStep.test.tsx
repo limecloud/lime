@@ -41,50 +41,7 @@ describe("InlineToolProcessStep", () => {
     expect(container.textContent).not.toContain("raw-input-must-not-render");
   });
 
-  it("内联工具过程节点应消费 Soul lifecycle descriptor metadata", () => {
-    const { container } = renderTool({
-      id: "tool-soul-lifecycle-inline-1",
-      name: "WebSearch",
-      arguments: JSON.stringify({ query: "Lime Soul lifecycle" }),
-      status: "running",
-      metadata: {
-        soul_lifecycle: {
-          surface: "tool_lifecycle",
-          phase: "before_tool",
-          status: "running",
-          styleLevel: "L1",
-          riskLevel: "normal",
-          toneVariant: "cheeky_sassy",
-          profileId: "cheeky_sassy_executor",
-          packId: "com.lime.soul.cheeky-sassy-executor",
-        },
-        soul_surface: "tool_lifecycle",
-        soul_phase: "before_tool",
-        style_level: "L1",
-        risk_level: "normal",
-        tone_variant: "cheeky_sassy",
-        profile_id: "cheeky_sassy_executor",
-        pack_id: "com.lime.soul.cheeky-sassy-executor",
-      },
-      startTime: new Date("2026-07-06T12:00:00.000Z"),
-    });
 
-    const step = container.querySelector(
-      '[data-testid="inline-tool-process-step"]',
-    );
-    expect(step?.getAttribute("data-soul-lifecycle")).toBe("yes");
-    expect(step?.getAttribute("data-soul-surface")).toBe("tool_lifecycle");
-    expect(step?.getAttribute("data-soul-phase")).toBe("before_tool");
-    expect(step?.getAttribute("data-soul-style-level")).toBe("L1");
-    expect(step?.getAttribute("data-soul-risk-level")).toBe("normal");
-    expect(step?.getAttribute("data-soul-tone-variant")).toBe("cheeky_sassy");
-    expect(step?.getAttribute("data-soul-profile-id")).toBe(
-      "cheeky_sassy_executor",
-    );
-    expect(step?.getAttribute("data-soul-pack-id")).toBe(
-      "com.lime.soul.cheeky-sassy-executor",
-    );
-  });
 
   it("运行中的读取工具应展示前置意图摘要", () => {
     const { container } = renderTool({

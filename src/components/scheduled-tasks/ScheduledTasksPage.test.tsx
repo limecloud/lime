@@ -234,7 +234,7 @@ describe("ScheduledTasksPage", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         autoRunInitialPromptOnMount: false,
         initialSessionName: "创建已安排任务",
       }),
@@ -352,7 +352,7 @@ describe("ScheduledTasksPage", () => {
     await click(openRun as HTMLButtonElement);
 
     expect(onNavigate).toHaveBeenCalledWith("agent", {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-alpha",
       initialSessionId: "session-scheduled-run",
       initialSessionName: "每日项目简报",

@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
-  LIME_COLOR_SCHEME_STORAGE_KEY,
-  LIME_THEME_STORAGE_KEY,
   act,
-  changeLimeLocale,
   cleanupAppSidebarTest,
   flushEffects,
   mockGetConfig,
@@ -96,7 +93,7 @@ describe("AppSidebar preferences", () => {
     const onNavigate = vi.fn();
     const container = mountSidebarContainer({
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
       onNavigate,
@@ -134,149 +131,18 @@ describe("AppSidebar preferences", () => {
     expect(container.textContent).not.toContain("桌宠");
   });
 
-  it("底部外观入口应弹出轻量快捷面板并同步主题与皮肤", async () => {
-    const container = mountSidebarContainer({
-      currentPageParams: {
-        agentEntry: "new-task",
-      } as AgentPageParams,
-    });
+  it("旧皮肤偏好不能恢复外观快捷面板，设置入口仍可导航", async () => {
+    localStorage.setItem("lime.appearance.skin", "dream-blossom");
+    const container = mountSidebarContainer({ currentPage: "agent" });
     await flushEffects(2);
-
-    const trigger = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="快速切换外观"]',
-    );
-
-    expect(trigger).not.toBeNull();
-
-    await act(async () => {
-      trigger?.click();
-      await Promise.resolve();
-    });
-
-    const popover = container.querySelector(
-      '[data-testid="app-sidebar-appearance-popover"]',
-    );
-    expect(popover).not.toBeNull();
-    expect(popover?.textContent).toContain("浅色");
-    expect(popover?.textContent).toContain("深色");
-    expect(popover?.textContent).toContain("跟随系统");
-    expect(popover?.textContent).toContain("随机");
-    expect(popover?.textContent).toContain("梦樱花境");
-    expect(popover?.textContent).toContain("森野秘境");
-    expect(popover?.textContent).toContain("财神打工");
-    expect(popover?.textContent).toContain("奥特曼守护");
-    expect(popover?.textContent).toContain("东方国潮");
-    expect(popover?.textContent).toContain("初音未来");
-    expect(popover?.textContent).toContain("灵感少年");
-    expect(popover?.textContent).toContain("黑金舞台");
-    expect(popover?.textContent).toContain("极简未来");
-    expect(popover?.textContent).toContain("爆燃涂鸦");
-    expect(popover?.textContent).toContain("清透少年");
-    expect(popover?.textContent).toContain("蓝紫星夜");
-    expect(popover?.textContent).toContain("红白未来城");
-
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="切换皮肤为奥特曼守护"]',
-        )
-        ?.click();
-      await Promise.resolve();
-    });
-
-    expect(localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
-      "lime-ocean",
-    );
-    expect(document.documentElement.dataset.limeColorScheme).toBe("lime-ocean");
-
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('button[aria-label="切换主题为深色"]')
-        ?.click();
-      await Promise.resolve();
-    });
-
-    expect(localStorage.getItem(LIME_THEME_STORAGE_KEY)).toBe("dark");
-    expect(document.documentElement.dataset.limeTheme).toBe("dark");
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-  });
-
-  it("外观快捷面板应使用 navigation 命名空间资源", async () => {
-    await changeLimeLocale("en-US");
-    const container = mountSidebarContainer({
-      currentPageParams: {
-        agentEntry: "new-task",
-      } as AgentPageParams,
-    });
-    await flushEffects(2);
-
-    const trigger = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Quick appearance switch"]',
-    );
-
-    expect(trigger).not.toBeNull();
-
-    await act(async () => {
-      trigger?.click();
-      await Promise.resolve();
-    });
-
-    const popover = container.querySelector(
-      '[data-testid="app-sidebar-appearance-popover"]',
-    );
-    expect(popover?.textContent).toContain("Appearance");
-    expect(popover?.textContent).toContain("Follow system · Dream Blossom");
-    expect(popover?.textContent).toContain("Theme");
-    expect(popover?.textContent).toContain("Skin");
-    expect(popover?.textContent).toContain("Light");
-    expect(popover?.textContent).toContain("Dark");
-    expect(popover?.textContent).toContain("Follow system");
-    expect(popover?.textContent).toContain("Random");
-    expect(popover?.textContent).toContain("Ultraman Guardian");
     expect(
-      container.querySelector('button[aria-label="Switch theme to Dark"]'),
-    ).not.toBeNull();
+      container.querySelector('[data-testid="app-sidebar-appearance"]'),
+    ).toBeNull();
     expect(
-      container.querySelector(
-        'button[aria-label="Switch skin to Ultraman Guardian"]',
-      ),
+      container.querySelector('[data-testid="app-sidebar-appearance-popover"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="app-sidebar-nav-settings"]'),
     ).not.toBeNull();
-  });
-
-  it("外观弹层的随机皮肤应持久化到一个真实预设", async () => {
-    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
-
-    try {
-      const container = mountSidebarContainer({
-        currentPage: "agent",
-        currentPageParams: {
-          agentEntry: "new-task",
-        } as AgentPageParams,
-      });
-      await flushEffects(2);
-
-      await act(async () => {
-        container
-          .querySelector<HTMLButtonElement>('button[aria-label="快速切换外观"]')
-          ?.click();
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        container
-          .querySelector<HTMLButtonElement>('button[aria-label="随机切换皮肤"]')
-          ?.click();
-        await Promise.resolve();
-      });
-
-      expect(localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
-        "lime-classic",
-      );
-      expect(document.documentElement.dataset.limeColorScheme).toBe(
-        "lime-classic",
-      );
-    } finally {
-      randomSpy.mockRestore();
-    }
   });
 });

@@ -302,14 +302,6 @@ pub enum AppServerRequestMethod {
     WorkspaceRightSurfacePendingConsume,
     #[serde(rename = "workspaceRightSurface/pending/dismiss")]
     WorkspaceRightSurfacePendingDismiss,
-    #[serde(rename = "soulStylePack/install")]
-    SoulStylePackInstall,
-    #[serde(rename = "soulStylePack/list")]
-    SoulStylePackList,
-    #[serde(rename = "soulStylePack/status/set")]
-    SoulStylePackStatusSet,
-    #[serde(rename = "soulStylePack/uninstall")]
-    SoulStylePackUninstall,
     #[serde(rename = "scheduledTask/list")]
     ScheduledTaskList,
     #[serde(rename = "scheduledTask/read")]
@@ -603,10 +595,6 @@ impl AppServerRequestMethod {
             Self::WorkspaceRightSurfacePendingDismiss => {
                 METHOD_WORKSPACE_RIGHT_SURFACE_PENDING_DISMISS
             }
-            Self::SoulStylePackInstall => METHOD_SOUL_STYLE_PACK_INSTALL,
-            Self::SoulStylePackList => METHOD_SOUL_STYLE_PACK_LIST,
-            Self::SoulStylePackStatusSet => METHOD_SOUL_STYLE_PACK_STATUS_SET,
-            Self::SoulStylePackUninstall => METHOD_SOUL_STYLE_PACK_UNINSTALL,
             Self::ScheduledTaskList => METHOD_SCHEDULED_TASK_LIST,
             Self::ScheduledTaskRead => METHOD_SCHEDULED_TASK_READ,
             Self::ScheduledTaskCreate => METHOD_SCHEDULED_TASK_CREATE,
@@ -836,10 +824,6 @@ impl AppServerRequestMethod {
             METHOD_WORKSPACE_RIGHT_SURFACE_PENDING_DISMISS => {
                 Some(Self::WorkspaceRightSurfacePendingDismiss)
             }
-            METHOD_SOUL_STYLE_PACK_INSTALL => Some(Self::SoulStylePackInstall),
-            METHOD_SOUL_STYLE_PACK_LIST => Some(Self::SoulStylePackList),
-            METHOD_SOUL_STYLE_PACK_STATUS_SET => Some(Self::SoulStylePackStatusSet),
-            METHOD_SOUL_STYLE_PACK_UNINSTALL => Some(Self::SoulStylePackUninstall),
             METHOD_SCHEDULED_TASK_LIST => Some(Self::ScheduledTaskList),
             METHOD_SCHEDULED_TASK_READ => Some(Self::ScheduledTaskRead),
             METHOD_SCHEDULED_TASK_CREATE => Some(Self::ScheduledTaskCreate),
@@ -1456,22 +1440,6 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     AppServerMethodSpec {
         method: METHOD_WORKSPACE_RIGHT_SURFACE_PENDING_CHANGED,
         kind: AppServerMethodKind::Notification,
-    },
-    AppServerMethodSpec {
-        method: METHOD_SOUL_STYLE_PACK_INSTALL,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_SOUL_STYLE_PACK_LIST,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_SOUL_STYLE_PACK_STATUS_SET,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_SOUL_STYLE_PACK_UNINSTALL,
-        kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {
         method: METHOD_SCHEDULED_TASK_LIST,

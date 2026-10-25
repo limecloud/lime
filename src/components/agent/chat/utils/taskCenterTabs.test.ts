@@ -52,7 +52,7 @@ function createFallbackRestoreParams(
   > = {},
 ): Parameters<typeof resolveTaskCenterFallbackRestorePlan>[0] {
   return {
-    agentEntry: "claw",
+    agentEntry: "conversation",
     workspaceId: "workspace-test",
     isAutoRestoringSession: false,
     isSessionHydrating: false,
@@ -195,7 +195,7 @@ describe("taskCenterTabs", () => {
     expect(
       initializeTaskCenterOpenTabMap({
         initialTabMap: currentMap,
-        agentEntry: "claw",
+        agentEntry: "conversation",
         workspaceId: "workspace-a",
         normalizedInitialSessionId: "topic-selected",
       }),
@@ -225,7 +225,7 @@ describe("taskCenterTabs", () => {
     expect(
       initializeTaskCenterOpenTabMap({
         initialTabMap: currentMap,
-        agentEntry: "claw",
+        agentEntry: "conversation",
         workspaceId: null,
         normalizedInitialSessionId: "topic-imported",
       }),
@@ -243,7 +243,7 @@ describe("taskCenterTabs", () => {
 
     expect(
       resolveTaskCenterRouteTabSyncIntent({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         workspaceId: "workspace-a",
         normalizedInitialSessionId: "topic-selected",
         lastSyncedInitialSessionId: "topic-current",
@@ -270,7 +270,7 @@ describe("taskCenterTabs", () => {
 
     expect(
       resolveTaskCenterRouteTabSyncIntent({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         workspaceId: "workspace-a",
         normalizedInitialSessionId: "topic-selected",
         lastSyncedInitialSessionId: "topic-selected",
@@ -303,7 +303,7 @@ describe("taskCenterTabs", () => {
 
     expect(
       resolveTaskCenterRouteTabSyncIntent({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         workspaceId: null,
         normalizedInitialSessionId: "topic-imported",
         lastSyncedInitialSessionId: null,

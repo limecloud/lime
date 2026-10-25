@@ -40,7 +40,7 @@ describe("agentThreadGrouping", () => {
     await changeLimeLocale("zh-CN");
   });
 
-  it("应按真实时序把连续执行项收成一个过程块", () => {
+  it("浏览器工具按真实时序保留独立过程行", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("browser-1", 1),
@@ -69,13 +69,20 @@ describe("agentThreadGrouping", () => {
 
     const model = buildAgentThreadDisplayModel(items);
 
-    expect(model.groups.map((group) => group.kind)).toEqual(["process"]);
-    expect(model.groups[0]?.items).toHaveLength(4);
+    expect(model.groups.map((group) => group.kind)).toEqual([
+      "process",
+      "process",
+      "process",
+      "process",
+    ]);
+    expect(
+      model.groups.map((group) => group.items.map((item) => item.id)),
+    ).toEqual([["browser-1"], ["browser-2"], ["search-1"], ["browser-3"]]);
     expect(model.groups[0]?.previewLines).toContain(
       "打开了 https://example.com",
     );
-    expect(model.groups[0]?.previewLines).toContain("点了 #submit");
-    expect(model.groups[0]?.previewLines).toContain("搜了 Lime CDP 并行渲染");
+    expect(model.groups[1]?.previewLines).toContain("点了 #submit");
+    expect(model.groups[2]?.previewLines).toContain("Lime CDP 并行渲染");
     expect(model.summaryChips).toEqual([
       { kind: "process", label: "执行过程", count: 4 },
     ]);
@@ -115,6 +122,7 @@ describe("agentThreadGrouping", () => {
     expect(model.groups.map((group) => group.kind)).toEqual([
       "process",
       "artifact",
+      "process",
       "process",
     ]);
     expect(model.groups[1]?.previewLines).toEqual(["生成了 wechat-draft.md"]);
@@ -176,7 +184,7 @@ describe("agentThreadGrouping", () => {
     ]);
   });
 
-  it("思考与工具步骤应保持原始时序并收进同一个过程块", () => {
+  it("思考与工具步骤保持原始时序并分别显示", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("browser-1", 1),
@@ -199,12 +207,20 @@ describe("agentThreadGrouping", () => {
 
     const model = buildAgentThreadDisplayModel(items);
 
-    expect(model.orderedBlocks.map((block) => block.kind)).toEqual(["process"]);
-    expect(model.groups.map((group) => group.kind)).toEqual(["process"]);
-    expect(model.orderedBlocks[0]?.previewLines).toEqual([
+    expect(model.orderedBlocks.map((block) => block.kind)).toEqual([
+      "process",
+      "process",
+      "process",
+    ]);
+    expect(model.groups.map((group) => group.kind)).toEqual([
+      "process",
+      "process",
+      "process",
+    ]);
+    expect(model.orderedBlocks.flatMap((entry) => entry.previewLines)).toEqual([
       "打开了 https://mp.weixin.qq.com",
       "已打开公众号后台",
-      "搜了 微信公众号 封面尺寸",
+      "微信公众号 封面尺寸",
     ]);
   });
 
@@ -236,11 +252,13 @@ describe("agentThreadGrouping", () => {
 
     const model = buildAgentThreadDisplayModel(items);
 
-    expect(model.orderedBlocks).toHaveLength(1);
+    expect(model.orderedBlocks).toHaveLength(4);
     expect(model.orderedBlocks[0]?.title).toBe("执行过程");
-    expect(model.orderedBlocks[0]?.previewLines).toEqual([
+    expect(
+      model.orderedBlocks.slice(0, 3).flatMap((entry) => entry.previewLines),
+    ).toEqual([
       "先确认用户要的是今天国际新闻。",
-      "搜了 today world news Reuters",
+      "today world news Reuters",
       "再按地区和影响力筛选来源。",
     ]);
   });
@@ -269,9 +287,9 @@ describe("agentThreadGrouping", () => {
 
     const model = buildAgentThreadDisplayModel(items);
 
-    expect(model.orderedBlocks[0]?.previewLines).toEqual([
+    expect(model.orderedBlocks.flatMap((entry) => entry.previewLines)).toEqual([
       "打开了 https://example.com/first",
-      "搜了 第二步资料",
+      "第二步资料",
     ]);
   });
 
@@ -580,15 +598,21 @@ describe("agentThreadGrouping", () => {
 
     expect(model.orderedBlocks.map((block) => block.kind)).toEqual([
       "process",
+      "process",
+      "process",
       "artifact",
     ]);
     expect(model.orderedBlocks[0]?.title).toBe("执行过程");
     expect(model.orderedBlocks[0]?.defaultExpanded).toBe(false);
     expect(model.orderedBlocks[0]?.forceExpanded).toBeUndefined();
-    expect(JSON.stringify(model.orderedBlocks[0])).toContain("npm test");
-    expect(JSON.stringify(model.orderedBlocks[0])).toContain(
-      "需要先确认测试失败点",
-    );
+    expect(
+      model.orderedBlocks.map((block) => block.items.map((item) => item.id)),
+    ).toEqual([
+      ["assistant-canonical-progress"],
+      ["reasoning-canonical"],
+      ["cmd-canonical", "search-canonical"],
+      ["patch-canonical"],
+    ]);
   });
 
   it("交互与任务结果预览应使用更直白的用户文案", () => {

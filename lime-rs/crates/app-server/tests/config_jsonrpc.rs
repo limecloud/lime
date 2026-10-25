@@ -363,21 +363,27 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         "configLayerReadonly"
     );
 
-    let unknown_key = request_error(
-        &server,
-        7,
-        METHOD_CONFIG_VALUE_WRITE,
-        json!({
-            "keyPath": "unknown_product_config",
-            "value": true,
-            "mergeStrategy": "replace"
-        }),
-    )
-    .await;
-    assert_eq!(
-        unknown_key["error"]["data"]["config_write_error_code"],
-        "configSchemaUnknownKey"
-    );
+    for key_path in [
+        "unknown_product_config",
+        "user_profile",
+        "user_profile.nickname",
+    ] {
+        let unknown_key = request_error(
+            &server,
+            7,
+            METHOD_CONFIG_VALUE_WRITE,
+            json!({
+                "keyPath": key_path,
+                "value": true,
+                "mergeStrategy": "replace"
+            }),
+        )
+        .await;
+        assert_eq!(
+            unknown_key["error"]["data"]["config_write_error_code"], "configSchemaUnknownKey",
+            "retired or unknown config key must be rejected: {key_path}"
+        );
+    }
 
     let project_layer = request(
         &server,
@@ -386,7 +392,10 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         json!({"cwd": temp.path().to_string_lossy(), "includeLayers": true}),
     )
     .await;
-    assert_eq!(project_layer["result"]["layers"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        project_layer["result"]["layers"].as_array().unwrap().len(),
+        1
+    );
 
     for (id, key_path, value) in [
         (9, "tui.keymap.editor.move_lft", json!("f10")),

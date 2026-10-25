@@ -5,7 +5,7 @@
  */
 
 import { useAgentChat } from "./useAgentChat";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import type { InterruptedInputRestoreRequest } from "./agentStreamInputRestoreTypes";
 export { useArtifactAutoPreviewSync } from "./useArtifactAutoPreviewSync";
 
@@ -33,7 +33,7 @@ interface UseAgentChatUnifiedOptions {
   ) => import("../utils/chatToolPreferences").ChatToolPreferences | null;
   onOpenSubagents?: () => void;
   onRestoreInterruptedInput?: (request: InterruptedInputRestoreRequest) => void;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 /**

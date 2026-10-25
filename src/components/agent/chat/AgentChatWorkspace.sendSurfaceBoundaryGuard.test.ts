@@ -38,7 +38,7 @@ describe("AgentChatWorkspace send surface runtime boundary", () => {
       "useWorkspaceSendActions(",
       "bindImageWorkbenchHandleSendRef(",
       "sceneGateResumeHandlerRef.current =",
-      "[AgentChatPage] 执行技能命令:",
+      "[LocalConversationPage] 执行技能命令:",
     ]) {
       expect(workspaceSource).not.toContain(retiredWorkspaceSendGlue);
       expect(ownerSource).toContain(retiredWorkspaceSendGlue);

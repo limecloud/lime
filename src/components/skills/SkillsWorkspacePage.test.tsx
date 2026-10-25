@@ -216,7 +216,6 @@ describe("SkillsWorkspacePage", () => {
         directory: "project-report",
         name: "项目报告",
         description: "沉淀为可注册的工作区技能。",
-        sourceExcerpt: "workspace_skill:project-report@1.0.0",
       },
       initialScaffoldRequestKey: 2,
     });
@@ -336,7 +335,6 @@ describe("SkillsWorkspacePage", () => {
           directory: "project-report",
           name: "项目报告",
           description: "沉淀为可注册的工作区技能。",
-          sourceExcerpt: "workspace_skill:project-report@1.0.0",
         },
         initialScaffoldRequestKey: 3,
       });

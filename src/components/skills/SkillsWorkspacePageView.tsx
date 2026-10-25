@@ -11,7 +11,6 @@ import { useTranslation } from "react-i18next";
 import type { ProtocolSkillEnabledState } from "@/lib/api/skillConfig";
 import type { Skill } from "@/lib/api/skills";
 import type { AgentRuntimeWorkspaceSkillBinding } from "@/lib/api/agentRuntime/toolInventoryTypes";
-import type { SkillScaffoldDraft } from "@/types/page";
 import { WorkspaceRegisteredSkillsPanel } from "@/features/capability-drafts";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,8 +48,6 @@ import {
 import { MarketplaceSkillSection } from "./SkillsWorkspaceMarketplace";
 
 interface SkillsWorkspacePageViewProps {
-  activeScaffoldDraft: SkillScaffoldDraft | null;
-  activeScaffoldTitle: string;
   activeView: SkillsWorkspaceView;
   currentProjectState: SkillsWorkspaceProjectState;
   detailContentState: MarketplaceSkillDetailContentState | null;
@@ -90,7 +87,6 @@ interface SkillsWorkspacePageViewProps {
     state: MarketplaceSkillActionState,
   ) => string;
   onActiveViewChange: (view: SkillsWorkspaceView) => void;
-  onBringScaffoldToCreation: (draft: SkillScaffoldDraft) => void;
   onEnableRegisteredSkillRuntime: (
     binding: AgentRuntimeWorkspaceSkillBinding,
   ) => void;
@@ -260,37 +256,6 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                 </div>
               </div>
             </section>
-
-            {props.activeScaffoldDraft ? (
-              <section
-                className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-                data-testid="skills-workspace-active-scaffold-banner"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="font-semibold">
-                      {t("skills.workspace.activeScaffold.badge")}
-                    </span>
-                    <span className="ml-2 text-emerald-900">
-                      {props.activeScaffoldTitle}
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-full border-emerald-200 bg-white px-3 text-xs text-emerald-800 hover:bg-emerald-50"
-                    data-testid="skills-workspace-bring-scaffold-to-agent"
-                    onClick={() =>
-                      props.activeScaffoldDraft &&
-                      props.onBringScaffoldToCreation(props.activeScaffoldDraft)
-                    }
-                  >
-                    {t("skills.workspace.activeScaffold.backToCreation")}
-                  </Button>
-                </div>
-              </section>
-            ) : null}
 
             {(props.serviceSkillsError || props.localSkillsError) && (
               <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">

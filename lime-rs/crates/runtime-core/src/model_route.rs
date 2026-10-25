@@ -11,6 +11,9 @@ use app_server_protocol::{
 use serde_json::{json, Value};
 use std::borrow::Cow;
 
+mod protocol_defaults;
+pub use protocol_defaults::chat_protocol_defaults;
+
 pub struct ModelRouteSelection<'a> {
     pub provider_id: &'a str,
     pub model_id: &'a str,
@@ -65,8 +68,7 @@ pub fn resolved_route_from_task(
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
-    let capability_snapshot = capability_snapshot(routing_payload);
-    let has_capability_snapshot = has_authoritative_capability_snapshot(routing_payload);
+    let mut capability_snapshot = capability_snapshot(routing_payload);
     let protocol = resolve_protocol(
         task_request,
         &capability_snapshot,
@@ -74,6 +76,14 @@ pub fn resolved_route_from_task(
         provider,
         direct_config.as_ref(),
     );
+    let uses_protocol_defaults = protocol_defaults::apply_protocol_defaults(
+        &task_request.task_kind,
+        &protocol,
+        routing_payload,
+        &mut capability_snapshot,
+    );
+    let has_capability_snapshot =
+        has_authoritative_capability_snapshot(routing_payload) || uses_protocol_defaults;
     let capability_gap = if has_capability_snapshot {
         route_capability_gap(task_request, &capability_snapshot)
     } else {
@@ -819,7 +829,7 @@ mod tests {
     }
 
     #[test]
-    fn direct_route_without_capability_snapshot_fails_closed() {
+    fn configured_direct_chat_route_uses_protocol_defaults_without_manual_capabilities() {
         let task_request = chat_task_request("fixture-openai", "fixture-model");
         let route = resolved_route_from_task(
             &task_request,
@@ -854,13 +864,15 @@ mod tests {
             }),
         );
 
-        let failure = route.failure.expect("missing capability snapshot failure");
-        assert_eq!(failure.category, RouteFailureCategory::CapabilityGap);
-        assert_eq!(failure.reason_code, "capability_snapshot_missing");
+        assert!(route.failure.is_none());
         assert_eq!(
-            failure.capability_gap.as_deref(),
-            Some("capability_snapshot:missing")
+            route.capability_snapshot.source.as_deref(),
+            Some("protocol_default")
         );
+        assert!(route.capability_snapshot.capabilities.streaming);
+        assert!(route.capability_snapshot.capabilities.tools);
+        assert!(!route.capability_snapshot.capabilities.vision);
+        assert!(!route.capability_snapshot.capabilities.reasoning);
     }
 
     #[test]
@@ -1123,7 +1135,7 @@ mod tests {
     }
 
     #[test]
-    fn ollama_inferred_capability_hint_is_not_route_authority() {
+    fn configured_ollama_model_uses_protocol_defaults_without_promoting_inferred_hints() {
         let task_request = chat_task_request("ollama", "qwen3:14b");
         let route = resolved_route_from_task(
             &task_request,
@@ -1173,13 +1185,22 @@ mod tests {
         assert_eq!(route.protocol, ProtocolKind::OpenaiResponses);
         assert_eq!(route.auth.kind, AuthKind::NoAuth);
         assert_eq!(route.framing, FramingKind::Sse);
-        let failure = route.failure.expect("inferred hint must fail closed");
-        assert_eq!(failure.category, RouteFailureCategory::CapabilityGap);
-        assert_eq!(failure.reason_code, "capability_snapshot_missing");
+        assert!(route.failure.is_none());
         assert_eq!(
-            failure.capability_gap.as_deref(),
-            Some("capability_snapshot:missing")
+            route.capability_snapshot.source.as_deref(),
+            Some("protocol_default")
         );
+        assert!(
+            route
+                .capability_snapshot
+                .capabilities
+                .supports_reasoning_summaries
+        );
+        assert!(route
+            .capability_snapshot
+            .capabilities
+            .reasoning_effort
+            .is_none());
     }
 
     #[test]

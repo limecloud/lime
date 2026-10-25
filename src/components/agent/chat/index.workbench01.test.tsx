@@ -28,7 +28,7 @@ const {
   mockUseAgentChatUnified,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
   it("空白新建任务首页应去掉项目栏和会话标签，将工具区放入共享页头", async () => {
     const container = renderPage({
       agentEntry: "new-task",

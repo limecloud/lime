@@ -41,7 +41,6 @@ import {
   REASONING_FIRST_VISIBLE_SCENARIO,
   RIGHT_SURFACE_VISUAL_MATRIX_SCENARIO,
   THREAD_SUMMARY_PANEL_SCENARIO,
-  SOUL_STYLE_SCENARIO,
   TERMINAL_CANCELED_AFTER_ANSWER_SCENARIO,
   TERMINAL_FAILED_AFTER_ANSWER_SCENARIO,
   TERMINAL_STALE_GUARD_SCENARIO,
@@ -100,13 +99,7 @@ import {
   ACTIVE_STEER_INITIAL_PROMPT,
   ACTIVE_STEER_SCENARIO,
 } from "./claw-chat-current-fixture-active-steer.mjs";
-import {
-  DEFAULT_SOUL_STYLE_FIXTURE_PROFILE_ID,
-  createSoulStyleFixtureOverrides,
-  createSoulStyleFixtureSelection,
-  isSoulStylePromptContextCoveredByRuntime,
-  pickLatestSoulStylePromptMarkers,
-} from "./claw-chat-current-fixture-soul-style.mjs";
+
 import {
   createFixtureSession,
   navigateGuiToWorkspaceScopedAgent,
@@ -137,7 +130,7 @@ Claw Chat Current Electron Fixture Smoke
   的主链可以完成用户消息、assistant 输出和 read model 收尾。
 
 边界:
-  普通聊天场景使用一次性本地 external backend fixture；图片命令、Soul、
+  普通聊天场景使用一次性本地 external backend fixture；图片命令、
   active steer 与 turn-plan-update 场景使用 APP_SERVER_BACKEND_MODE=runtime。
   全部场景均不调用正式模型后端，不使用 APP_SERVER_BACKEND_MODE=mock，
   不走 Tauri / legacy runtime command / renderer mock fallback 作为成功证据。
@@ -150,10 +143,9 @@ Claw Chat Current Electron Fixture Smoke
   --evidence-dir <path>  证据目录
   --prefix <name>        证据文件前缀
   --run-id <id>          Gate 项目 run-id；也可通过 LIME_GATE_RUN_ID 注入
-  --scenario <name>      complete | unknown-item | home-hotpath | home-hotpath-greeting | cancel | cancel-then-continue | inputbar-rich-restore | inputbar-active-steer | plan | turn-plan-update | goal | soul-style | image-command | plain-image-intent | media-reference | reasoning-first-visible | live-tail-commit | electron-resize-reflow | approval-request-resume | approval-request-decline | approval-request-cancel | approval-request-host-interrupt | approval-request-full-access | terminal-failed-after-answer | terminal-canceled-after-answer | terminal-stale-guard | typed-error-retry-success | typed-error-retry-failure | web-tools-rendering | mcp-structured-content | skills-runtime | expert-plaza-skills-runtime | expert-panel-skills-runtime | right-surface-visual-matrix | thread-summary-panel | content-factory-article-workspace | content-factory-inline-image-article-workspace，默认 complete
+  --scenario <name>      complete | unknown-item | home-hotpath | home-hotpath-greeting | cancel | cancel-then-continue | inputbar-rich-restore | inputbar-active-steer | plan | turn-plan-update | goal | image-command | plain-image-intent | media-reference | reasoning-first-visible | live-tail-commit | electron-resize-reflow | approval-request-resume | approval-request-decline | approval-request-cancel | approval-request-host-interrupt | approval-request-full-access | terminal-failed-after-answer | terminal-canceled-after-answer | terminal-stale-guard | typed-error-retry-success | typed-error-retry-failure | web-tools-rendering | mcp-structured-content | skills-runtime | expert-plaza-skills-runtime | expert-panel-skills-runtime | right-surface-visual-matrix | thread-summary-panel | content-factory-article-workspace | content-factory-inline-image-article-workspace，默认 complete
   --hook-fixture         仅用于 turn-plan-update：启用受信 command Hook Gate B
   --prompt <text>        仅 home-hotpath 场景可用，覆盖默认新闻输入
-  --soul-style-profile <id>   soul-style 场景使用的 profile，默认 ${DEFAULT_SOUL_STYLE_FIXTURE_PROFILE_ID}
   --cdp-port <port>      可选 Electron remote debugging port；传入后通过 CDP renderer 执行 GUI 动作
   --timeout-ms <ms>      总超时，默认 180000
   --interval-ms <ms>     轮询间隔，默认 500
@@ -169,7 +161,7 @@ function parseArgs(argv) {
     cdpUrl: null,
     promptOverride: null,
     runId: process.env.LIME_GATE_RUN_ID?.trim() || null,
-    soulStyleProfileId: DEFAULT_SOUL_STYLE_FIXTURE_PROFILE_ID,
+
     hookFixture: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -209,11 +201,7 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
-    if (arg === "--soul-style-profile" && next) {
-      options.soulStyleProfileId = next.trim();
-      index += 1;
-      continue;
-    }
+
     if (arg === "--cdp-port" && next) {
       options.cdpPort = Number(next);
       index += 1;
@@ -278,7 +266,7 @@ function parseArgs(argv) {
     "plan",
     TURN_PLAN_UPDATE_SCENARIO,
     "goal",
-    SOUL_STYLE_SCENARIO,
+
     IMAGE_COMMAND_SCENARIO,
     PLAIN_IMAGE_INTENT_SCENARIO,
     MEDIA_REFERENCE_SCENARIO,
@@ -314,9 +302,7 @@ function parseArgs(argv) {
   if (options.hookFixture && options.scenario !== TURN_PLAN_UPDATE_SCENARIO) {
     throw new Error("--hook-fixture 仅支持 --scenario turn-plan-update");
   }
-  createSoulStyleFixtureSelection({
-    profileId: options.soulStyleProfileId,
-  });
+
   return options;
 }
 
@@ -492,13 +478,6 @@ function traceEvidenceHasProviderAndClient(evidence) {
   );
 }
 
-function applySoulStyleProviderMarkerSummary(summary, textProviderRequests) {
-  const soulMarkers = pickLatestSoulStylePromptMarkers(textProviderRequests);
-  summary.soulStylePromptContextCoveredByRuntime =
-    isSoulStylePromptContextCoveredByRuntime(soulMarkers);
-  summary.soulStylePromptContextMarkers = sanitizeJson(soulMarkers ?? null);
-}
-
 function isImageWorkflowScenario(scenario) {
   return (
     scenario === IMAGE_COMMAND_SCENARIO ||
@@ -509,11 +488,6 @@ function isImageWorkflowScenario(scenario) {
 function shouldUseTextProviderFixture(scenario) {
   return (
     isImageWorkflowScenario(scenario) ||
-    scenario === SOUL_STYLE_SCENARIO ||
-    scenario === INPUTBAR_RICH_RESTORE_SCENARIO ||
-    scenario === ACTIVE_STEER_SCENARIO ||
-    scenario === TURN_PLAN_UPDATE_SCENARIO ||
-    scenario === CONTENT_FACTORY_ARTICLE_WORKSPACE_SCENARIO ||
     scenario === CONTENT_FACTORY_INLINE_IMAGE_ARTICLE_WORKSPACE_SCENARIO
   );
 }
@@ -540,10 +514,6 @@ function resolveScenarioBackendEnv(options, runtimeEnv) {
     };
   }
   if (
-    options.scenario === SOUL_STYLE_SCENARIO ||
-    options.scenario === ACTIVE_STEER_SCENARIO ||
-    options.scenario === TURN_PLAN_UPDATE_SCENARIO ||
-    options.scenario === CONTENT_FACTORY_ARTICLE_WORKSPACE_SCENARIO ||
     options.scenario === CONTENT_FACTORY_INLINE_IMAGE_ARTICLE_WORKSPACE_SCENARIO
   ) {
     return {
@@ -680,12 +650,7 @@ async function run() {
     logPrefix: LOG_PREFIX,
     rootDir: process.cwd(),
   });
-  const soulStyleSelection =
-    options.scenario === SOUL_STYLE_SCENARIO
-      ? createSoulStyleFixtureSelection({
-          profileId: options.soulStyleProfileId,
-        })
-      : null;
+
   fs.mkdirSync(options.evidenceDir, { recursive: true });
 
   const summaryPath = path.join(
@@ -799,11 +764,7 @@ async function run() {
     rendererSnapshot: null,
     initialize: null,
     imageFixtureProvider: null,
-    soulStyleExpectation: soulStyleSelection
-      ? sanitizeJson(soulStyleSelection)
-      : null,
-    soulStyleConfig: null,
-    soulStylePromptContextCoveredByRuntime: false,
+
     guiWorkspaceBinding: null,
     sessionCreation: null,
     guiWorkspaceNavigation: null,
@@ -957,8 +918,7 @@ async function run() {
   const agentDebugLogs = [];
   const composerDiagnosticReads = [];
   const pageLifecycleEvents = [];
-  const fixtureConfigSoulOverrides =
-    createSoulStyleFixtureOverrides(soulStyleSelection);
+
   const collectConsoleMessage = (message) => {
     const text = sanitizeText(message.text());
     if (text.includes("[AgentDebug]")) {
@@ -997,7 +957,6 @@ async function run() {
     imageProviderFixtureServer = await startImageProviderFixtureServer();
     if (shouldUseTextProviderFixture(options.scenario)) {
       textProviderFixtureServer = await startTextProviderFixtureServer({
-        soulStyleExpectation: soulStyleSelection,
         activeSteerDelayMs:
           options.scenario === ACTIVE_STEER_SCENARIO ? 30_000 : 0,
         turnPlanUpdate: options.scenario === TURN_PLAN_UPDATE_SCENARIO,
@@ -1011,7 +970,6 @@ async function run() {
       serverHost: imageProviderFixtureServer.host,
       serverPort: imageProviderFixtureServer.port,
       serverApiKey: LOCAL_IMAGE_SERVER_API_KEY,
-      ...fixtureConfigSoulOverrides,
     });
     summary.imageProviderFixtureServer = sanitizeJson({
       baseUrl: imageProviderFixtureServer.baseUrl,
@@ -1186,39 +1144,6 @@ async function run() {
       );
     }
 
-    if (options.scenario === SOUL_STYLE_SCENARIO) {
-      logStage("enable-soul-style-config");
-      runtimeEnv.writeFixtureConfig(fixtureConfigSoulOverrides);
-      summary.soulStyleConfig = sanitizeJson(
-        (
-          await updateConfigFromPage(
-            page,
-            (currentConfig) => ({
-              ...(currentConfig || {}),
-              memory: {
-                ...(currentConfig?.memory || {}),
-                enabled: true,
-                soul: {
-                  ...(currentConfig?.memory?.soul || {}),
-                  enabled: true,
-                  style_profile_id: soulStyleSelection.profileId,
-                  imported_from: "manual",
-                },
-              },
-            }),
-            appServerRequests,
-          )
-        ).config.memory.soul,
-      );
-      await page.evaluate(() => {
-        window.localStorage.setItem(
-          "lime.app-config.changed-at",
-          String(Date.now()),
-        );
-        window.dispatchEvent(new Event("lime:app-config-changed"));
-      });
-    }
-
     logStage("ensure-fixture-image-provider");
     const imageFixtureProvider = await ensureFixtureImageProvider(
       page,
@@ -1236,7 +1161,6 @@ async function run() {
       serverApiKey: LOCAL_IMAGE_SERVER_API_KEY,
       imageProviderId: imageFixtureProvider.providerId,
       imageModelId: imageFixtureProvider.modelId,
-      ...fixtureConfigSoulOverrides,
     });
     summary.imageFixtureProvider = sanitizeJson({
       ...imageFixtureProvider,
@@ -1262,6 +1186,13 @@ async function run() {
         model: textFixtureProvider.modelId,
       };
       summary.textFixtureProvider = sanitizeJson(textFixtureProvider);
+      if (isImageWorkflowScenario(options.scenario)) {
+        textProviderFixtureServer.setImageTask({
+          project_root_path: workspace.rootPath,
+          provider_id: imageFixtureProvider.providerId,
+          model: imageFixtureProvider.modelId,
+        });
+      }
     }
 
     logStage("bind-gui-workspace-model");
@@ -1478,9 +1409,6 @@ async function run() {
         requestCount: textProviderFixtureServer.requestCount(),
         requests: textProviderRequests,
       });
-      if (options.scenario === SOUL_STYLE_SCENARIO) {
-        applySoulStyleProviderMarkerSummary(summary, textProviderRequests);
-      }
     }
     summary.pageErrors = pageErrors;
     summary.pageLifecycleEvents = pageLifecycleEvents;
@@ -1623,9 +1551,6 @@ async function run() {
         requestCount: textProviderFixtureServer.requestCount(),
         requests: textProviderRequests,
       });
-      if (options.scenario === SOUL_STYLE_SCENARIO) {
-        applySoulStyleProviderMarkerSummary(summary, textProviderRequests);
-      }
     }
     await Promise.allSettled(composerDiagnosticReads);
     summary.agentDebugLogs = agentDebugLogs.slice(-200);

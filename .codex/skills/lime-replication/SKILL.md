@@ -45,7 +45,7 @@ description: 以 Lime 品牌为边界复刻 Codex 与原生 Computer Use；支�
 
 复刻分成四个不可跳过的状态：`frozen-source -> migrated-owner -> brand-clean -> upstream-removed`。整树复制只服务于第一、第二个状态；复制树不能成为产品层、长期依赖或文档入口。每次状态转换都在账本中记录负责人、写集、验证命令和未决项。
 
-Lime 的产品边界先于上游相似度：Lime 主题、品牌、多模型/多协议、服务端能力、Provider catalog、配置与发布合同都是 current owner，迁移不能覆盖、降级或拆出第二套实现。复制前核对 [Lime 保留边界](../../../internal/aiprompts/codex-source-alignment.md#复刻注意项lime-保留边界)，把各项 owner、消费者、保护写集和必要适配记入账本；消费者切换前验证仍由原 owner 提供。Codex 登录、Cloud、账号、遥测、订阅、发布、服务控制面、产品 bundle 和品牌入口均排除，不因整树复制而进入 Lime。服务依赖检查覆盖默认 endpoint、认证与凭证读取、远端开关、遥测和升级入口，避免仅改显示品牌后仍调用上游产品服务。本地 App Server JSON-RPC、runtime、协议、持久化和工具代码仍是复制目标，不得把它们误判为被排除的 Codex 云端产品服务。
+Lime 的产品边界先于上游相似度：Lime 品牌、多模型/多协议、服务端能力、Provider catalog、配置与发布合同都是 current owner，迁移不能覆盖、降级或拆出第二套实现。复制前核对 [Lime 保留边界](../../../internal/aiprompts/codex-source-alignment.md#复刻注意项lime-保留边界)，把各项 owner、消费者、保护写集和必要适配记入账本；消费者切换前验证仍由原 owner 提供。Codex 登录、Cloud、账号、遥测、订阅、发布、服务控制面、产品 bundle 和品牌入口均排除，不因整树复制而进入 Lime。服务依赖检查覆盖默认 endpoint、认证与凭证读取、远端开关、遥测和升级入口，避免仅改显示品牌后仍调用上游产品服务。本地 App Server JSON-RPC、runtime、协议、持久化和工具代码仍是复制目标，不得把它们误判为被排除的 Codex 云端产品服务。
 
 品牌规则是硬约束：
 
@@ -54,7 +54,7 @@ Lime 的产品边界先于上游相似度：Lime 主题、品牌、多模型/多
 - 无品牌的上游路径层级、目录、文件、模块、类型和函数名默认原样保留，不给所有领域名称增加 `lime` 前缀，也不因命名偏好重新实现。
 - 不保留 `lime-rs/upstream/`、`vendor-upstream/`、`candidate/` 或其他整树镜像作为产品源码层。若并行流程已经建立临时复制树，必须在迁移完成后删除该目录，并在仓库扫描中证明没有 Cargo、脚本、文档或构建产物继续引用它。
 - 技术实现中确需保留的带品牌协议固定值、第三方许可证和明确的第三方应用集成契约，必须在审计账本中标注“外部来源”，不能作为 Lime 产品品牌；一般的无品牌路径和符号按上游复制，不属于品牌例外。
-- 不把 Codex 服务端、认证、Cloud、遥测、账号、计费、发布或单模型控制面接入 Lime；Lime 的服务端协议、Provider 边界、主题和多模型能力继续由现役 owner 负责。发现上游依赖这些能力时，优先裁剪依赖闭包并记录排除理由。
+- 不把 Codex 服务端、认证、Cloud、遥测、账号、计费、发布或单模型控制面接入 Lime；Lime 的服务端协议、Provider 边界和多模型能力继续由现役 owner 负责。发现上游依赖这些能力时，优先裁剪依赖闭包并记录排除理由。
 - 按[源码迁移准则](../../../internal/aiprompts/codex-source-alignment.md#复刻注意项lime-保留边界)分别检查协议能力、本地工具与远端托管服务；本地 custom tool 不沿用官方域名限制，仍要求模型显式能力与 wire 支持，不连带启用 hosted 服务。
 - 不做全局字符串替换来伪造品牌迁移；先确定 public boundary，再逐项改入口、产物和展示文案。
 
@@ -80,7 +80,7 @@ Lime 的产品边界先于上游相似度：Lime 主题、品牌、多模型/多
 - 同一 Thread/Turn/Item 是否贯穿 Desktop、CLI、TUI 和工具结果。
 - 权限、取消、lease、target identity 是否仍由唯一 owner 管理。
 - 旧实现是否还被旁路读取（设置、日志、记忆、搜索、统计、回放、脚本）。
-- Lime 自有主题、多模型路由、Provider readiness/retry/circuit breaker、服务端配置和发布标识是否仍由原 owner 提供；任何被复制代码直接覆盖这些边界的改动都必须阻断并重新切分写集。
+- Lime 多模型路由、Provider readiness/retry/circuit breaker、服务端配置和发布标识是否仍由原 owner 提供；任何被复制代码直接覆盖这些边界的改动都必须阻断并重新切分写集。
 
 消费者切换后立即执行一次品牌和路径回流检查：产品源码、workspace member、package/bin、配置根、bundle/package 标识、扩展 manifest、Native Messaging 注册和用户文案不得出现 Codex 产品品牌；协议固定值、许可证署名和审计报告中的外部来源按 [品牌边界清单](references/brand-boundary.md) 单独登记。检查失败时停在 `brand-clean` 之前，不得进入平台验收。
 

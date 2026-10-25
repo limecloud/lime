@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
-import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import type { AgentThreadItem, AgentThreadTurn } from "../types";
 import {
   applyAgentStreamErrorToastPlan,
@@ -45,7 +45,7 @@ describe("agentStreamErrorController", () => {
       contentParts: [{ type: "text", text: "已输出一半" }],
       runtimeStatus: {
         phase: "failed",
-        title: "当前处理失败",
+        title: "处理失败",
         detail: "provider failed",
       },
     });
@@ -60,7 +60,7 @@ describe("agentStreamErrorController", () => {
       previousContent: "",
     });
 
-    expect(patch.content).toContain("执行失败：");
+    expect(patch.content).toContain("当前模型通道返回了计费或额度类错误");
     expect(patch.runtimeStatus?.detail).toContain(
       "当前模型通道返回了计费或额度类错误",
     );
@@ -70,39 +70,7 @@ describe("agentStreamErrorController", () => {
     expect(patch.runtimeStatus?.detail).not.toContain("Insufficient Balance");
   });
 
-  it("失败 assistant patch 应保持 neutral 文案并携带 Soul descriptor metadata", () => {
-    const soulCopy = resolveSoulInteractionCopy({
-      soul: {
-        enabled: true,
-        style_profile_id: "cheeky_sassy_executor",
-        tone: [],
-        communication_style: [],
-        avoid: [],
-        artifact_voice: { enabled: false, evidence_refs: [] },
-        imported_from: "manual",
-      },
-    });
-    const patch = buildAgentStreamFailedAssistantMessagePatch({
-      accumulatedContent: "",
-      errorMessage: "provider failed",
-      previousContent: "",
-      soulCopy,
-    });
 
-    expect(patch.content).toBe("执行失败：provider failed");
-    expect(patch.contentParts).toEqual([
-      { type: "text", text: "执行失败：provider failed" },
-    ]);
-    expect(patch.runtimeStatus?.metadata).toMatchObject({
-      soul_surface: "failure_recovery",
-      soul_phase: "failed",
-      style_level: "L2",
-      risk_level: "normal",
-      tone_variant: "cheeky_sassy",
-      profile_id: "cheeky_sassy_executor",
-      pack_id: "com.lime.soul.cheeky-sassy-executor",
-    });
-  });
 
   it("Provider 402 失败 timeline summary 应使用友好提示", () => {
     const rawProviderError =
@@ -182,10 +150,10 @@ describe("agentStreamErrorController", () => {
       }),
       {
         type: "text",
-        text: "执行失败：模型未输出最终答复，请重试",
+        text: "模型未输出最终答复，请重试",
       },
     ]);
-    expect(patch.content).toBe("执行失败：模型未输出最终答复，请重试");
+    expect(patch.content).toBe("模型未输出最终答复，请重试");
     expect(patch.runtimeStatus?.detail).toBe("模型未输出最终答复，请重试");
   });
 
@@ -372,7 +340,7 @@ describe("agentStreamErrorController", () => {
       status: "failed",
       completed_at: "2026-05-05T08:01:30.000Z",
       updated_at: "2026-05-05T08:02:00.000Z",
-      text: "当前处理失败\n\nprovider failed",
+      text: "处理失败\n\nprovider failed",
     });
   });
 

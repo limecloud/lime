@@ -4,7 +4,7 @@ export const LIME_STAGE_SURFACE =
 export const LIME_STAGE_SURFACE_SOFT =
   "var(--lime-stage-surface-soft, var(--lime-stage-surface, #f4f7f1))";
 export const LIME_CARD_SUBTLE =
-  "var(--lime-card-subtle, var(--lime-home-card-surface, #ffffff))";
+  "var(--lime-card-subtle, var(--lime-surface, #ffffff))";
 export const LIME_CARD_SUBTLE_BORDER =
   "var(--lime-card-subtle-border, var(--lime-surface-border, #e2f0e2))";
 export const LIME_DIVIDER_SUBTLE =
@@ -15,8 +15,7 @@ export const TASK_CENTER_CHROME_RAIL_SURFACE =
 export const TASK_CENTER_CHROME_SURFACE = "var(--lime-chrome-surface, #f4f7f1)";
 export const TASK_CENTER_CHROME_ACTIVE_TAB =
   "var(--lime-chrome-tab-active-surface, var(--lime-chrome-active-tab, #fbfcf8))";
-export const TASK_CENTER_CHROME_STAGE_BLEND =
-  "var(--lime-chrome-stage-blend, linear-gradient(180deg, var(--lime-chrome-tab-active-surface, #fbfcf8) 0%, var(--lime-stage-surface-top, var(--lime-home-bg-start, #f8fcf7)) 100%))";
+export const TASK_CENTER_CHROME_STAGE_BLEND = "var(--lime-chrome-stage-blend)";
 export const TASK_CENTER_CHROME_DIVIDER =
   "var(--lime-chrome-divider, var(--lime-chrome-border, rgba(204, 214, 197, 0.72)))";
 export const TASK_CENTER_CHROME_STAGE_SEAM =

@@ -11,6 +11,7 @@ import {
   Mic,
   Image,
   Puzzle,
+  MousePointer2,
   ShieldCheck,
   Variable,
   Info,
@@ -124,9 +125,9 @@ const PluginsSettings = lazy(() =>
   loadPlugins().then((module) => ({ default: module.PluginsSettings })),
 );
 
-const loadProfile = () => import("./account/profile");
-const ProfileSettings = lazy(() =>
-  loadProfile().then((module) => ({ default: module.ProfileSettings })),
+const loadComputerUse = () => import("./integrations/computer-use");
+const ComputerUseSettings = lazy(() =>
+  loadComputerUse().then((module) => ({ default: module.ComputerUseSettings })),
 );
 
 const loadUserCenterSession = () => import("./account/user-center-session");
@@ -263,14 +264,8 @@ export const settingsSections: readonly SettingsSection[] = [
     labelKey: "settings.tab.profile",
     icon: User,
     loadingKey: "settings.layout.loading.profile",
-    preload: () =>
-      resolveOemCloudRuntimeContext() ? loadUserCenterSession() : loadProfile(),
-    render: () =>
-      resolveOemCloudRuntimeContext() ? (
-        <UserCenterSessionSettings />
-      ) : (
-        <ProfileSettings />
-      ),
+    preload: loadUserCenterSession,
+    render: () => <UserCenterSessionSettings />,
   },
   {
     key: SettingsTabs.Plugins,
@@ -293,6 +288,15 @@ export const settingsSections: readonly SettingsSection[] = [
         }
       />
     ),
+  },
+  {
+    key: SettingsTabs.ComputerUse,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.computerUse.title",
+    icon: MousePointer2,
+    loadingKey: "settings.computerUse.loading",
+    preload: loadComputerUse,
+    render: () => <ComputerUseSettings />,
   },
   {
     key: SettingsTabs.Browser,
@@ -366,9 +370,15 @@ const sectionsByKey = new Map<SettingsTabs, SettingsSection>(
 );
 
 export function isSettingsSection(tab: SettingsTabs): boolean {
-  return sectionsByKey.has(tab);
+  return (
+    sectionsByKey.has(tab) &&
+    (tab !== SettingsTabs.Profile || Boolean(resolveOemCloudRuntimeContext()))
+  );
 }
 
 export function resolveSettingsSection(tab?: SettingsTabs): SettingsSection {
-  return (tab && sectionsByKey.get(tab)) || settingsSections[0];
+  return (
+    (tab && isSettingsSection(tab) && sectionsByKey.get(tab)) ||
+    settingsSections[0]
+  );
 }

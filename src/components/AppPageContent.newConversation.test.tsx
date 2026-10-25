@@ -17,7 +17,7 @@ vi.mock("@/features/plugin/ui/PluginWorkspaceTabs", () => ({
   PluginWorkspaceTabs: () => null,
 }));
 vi.mock("./agent/chat", () => ({
-  AgentChatPage: (props: Record<string, unknown>) => {
+  LocalConversationPage: (props: Record<string, unknown>) => {
     page.props = props;
     return <div data-testid="agent-consumer" />;
   },
@@ -42,7 +42,7 @@ describe("AppPageContent committed New intent boundary", () => {
     });
     const startNewConversation = vi.fn();
     const before: AgentPageParams = {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "old-session",
       newChatAt: 10,
     };

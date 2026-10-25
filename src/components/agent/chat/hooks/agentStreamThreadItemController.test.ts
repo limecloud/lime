@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AgentThreadItem, AgentThreadTurn } from "@/lib/api/agentProtocol";
 import { changeLimeLocale } from "@/i18n/createI18n";
-import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import { resolveAgentThreadToolProcessNarrative } from "../utils/toolProcessSummary";
 import { upsertThreadItemState } from "./agentThreadState";
 import { buildAgentStreamTurnStartedPendingItemUpdate } from "./agentStreamThreadItemController";
@@ -148,12 +148,7 @@ describe("agentStreamThreadItemController", () => {
         activeSessionId: "thread-1",
         fallbackTurnId: "turn-1",
         now: "2026-05-05T00:01:00.000Z",
-        soulCopy: resolveSoulInteractionCopy({
-          soul: {
-            enabled: true,
-            style_profile_id: "cool_confident_operator",
-          },
-        }),
+
       },
     );
     const updated = projectAgentStreamTimelineItem(
@@ -188,23 +183,9 @@ describe("agentStreamThreadItemController", () => {
         modality: "image",
         assetRef: "artifact://image-1",
         output_kind: "preview",
-        soul_lifecycle: {
-          surface: "tool_lifecycle",
-          phase: "tool_progress",
-          status: "output_delta",
-          styleLevel: "L1",
-          riskLevel: "normal",
-          toneVariant: "cool_confident",
-          profileId: "cool_confident_operator",
-          packId: "com.lime.soul.cool-confident-operator",
-        },
-        soul_surface: "tool_lifecycle",
-        soul_phase: "tool_progress",
-        style_level: "L1",
-        risk_level: "normal",
-        tone_variant: "cool_confident",
-        profile_id: "cool_confident_operator",
-        pack_id: "com.lime.soul.cool-confident-operator",
+
+
+
         streaming: true,
       },
     });
@@ -234,19 +215,7 @@ describe("agentStreamThreadItemController", () => {
         progress: {
           message: "waiting approval",
           metadata: {
-            soul_lifecycle: {
-              surface: "tool_lifecycle",
-              phase: "tool_progress",
-              status: "progress",
-              styleLevel: "L4",
-              riskLevel: "high",
-              toneVariant: "calm_professional",
-              profileId: "calm_professional_partner",
-              packId: "com.lime.soul.calm-professional-partner",
-            },
-            risk_level: "high",
-            profile_id: "calm_professional_partner",
-            pack_id: "com.lime.soul.calm-professional-partner",
+
           },
         },
         sequence: 21,
@@ -263,19 +232,8 @@ describe("agentStreamThreadItemController", () => {
     expect(progress).toMatchObject({
       type: "tool_call",
       metadata: {
-        soul_lifecycle: {
-          phase: "tool_progress",
-          status: "progress",
-          styleLevel: "L4",
-          riskLevel: "high",
-          profileId: "calm_professional_partner",
-          packId: "com.lime.soul.calm-professional-partner",
-        },
-        soul_phase: "tool_progress",
-        style_level: "L4",
-        risk_level: "high",
-        profile_id: "calm_professional_partner",
-        pack_id: "com.lime.soul.calm-professional-partner",
+
+
       },
     });
   });
@@ -296,7 +254,7 @@ describe("agentStreamThreadItemController", () => {
               values: { query: "runtime start" },
             },
           },
-          soul_phase: "before_tool",
+
         },
         sequence: 20,
         timestamp: "2026-05-05T00:01:00.000Z",
@@ -315,7 +273,7 @@ describe("agentStreamThreadItemController", () => {
         tool_process_summary: {
           source: "runtime_facts",
         },
-        soul_phase: "before_tool",
+
       },
     });
     expect(
@@ -382,7 +340,7 @@ describe("agentStreamThreadItemController", () => {
         tool_process_summary: {
           source: "runtime_facts",
         },
-        soul_phase: "after_tool_success",
+
       },
     });
     expect(

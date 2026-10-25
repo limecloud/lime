@@ -6,6 +6,7 @@ fixture acquires the real per-user control lock without deleting/resetting it.
 """
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import json
@@ -20,9 +21,19 @@ import time
 
 FIXTURE = r'''import AppKit
 import Foundation
+final class MouseTextView: NSTextView {
+ var lastMouse:[String:Int] = [:]
+ func record(_ event:NSEvent) { lastMouse = ["button":event.buttonNumber,"count":event.clickCount] }
+ override func mouseDown(with event:NSEvent) { record(event); super.mouseDown(with:event) }
+ override func rightMouseDown(with event:NSEvent) { record(event) }
+ override func otherMouseDown(with event:NSEvent) { record(event) }
+}
 final class Delegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
  var window: NSWindow!
- var text: NSTextView!
+ var text: MouseTextView!
+ var scroll: NSScrollView!
+ var extra: NSWindow?
+ var hidden = false
  func applicationDidFinishLaunching(_ notification: Notification) {
   let menu = NSMenu()
   let editItem = NSMenuItem(title:"Edit",action:nil,keyEquivalent:"")
@@ -33,12 +44,22 @@ final class Delegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
   NSApplication.shared.mainMenu = menu
   window = NSWindow(contentRect:NSRect(x:160,y:160,width:540,height:280),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
   window.title = "Lime Computer Use Fixture"
-  text = NSTextView(frame:NSRect(x:10,y:10,width:520,height:230))
+  scroll = NSScrollView(frame:NSRect(x:10,y:10,width:520,height:230))
+  scroll.hasVerticalScroller = true
+  text = MouseTextView(frame:NSRect(x:0,y:0,width:500,height:230))
+  text.minSize = NSSize(width:0,height:230)
+  text.maxSize = NSSize(width:CGFloat.greatestFiniteMagnitude,height:CGFloat.greatestFiniteMagnitude)
+  text.isVerticallyResizable = true
+  text.isHorizontallyResizable = false
+  text.autoresizingMask = [.width]
+  text.textContainer?.widthTracksTextView = true
+  text.textContainer?.containerSize = NSSize(width:500,height:CGFloat.greatestFiniteMagnitude)
   text.identifier = NSUserInterfaceItemIdentifier("computer-use-input")
   text.isEditable = true
   text.isRichText = false
   text.delegate = self
-  window.contentView?.addSubview(text)
+  scroll.documentView = text
+  window.contentView?.addSubview(scroll)
   window.makeKeyAndOrderFront(nil)
   window.makeFirstResponder(text)
   NSApplication.shared.activate(ignoringOtherApps:true)
@@ -47,7 +68,28 @@ final class Delegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
  }
  func textDidChange(_ notification:Notification) { save() }
  func save() {
-  if let bytes = try? JSONSerialization.data(withJSONObject:["text":text.string,"pid":ProcessInfo.processInfo.processIdentifier]) {
+  let prefix = CommandLine.arguments[1]
+  if extra == nil && FileManager.default.fileExists(atPath:prefix + ".extra") {
+   extra = NSWindow(contentRect:NSRect(x:740,y:160,width:240,height:140),styleMask:[.titled],backing:.buffered,defer:false)
+   extra?.title = "Unrelated fixture window"
+   extra?.orderFront(nil)
+  }
+  let hide = FileManager.default.fileExists(atPath:prefix + ".hide")
+  if hide != hidden {
+   hidden = hide
+   if hide { window.orderOut(nil) } else { window.orderFront(nil) }
+  }
+  let pointer = window.convertPoint(fromScreen:NSEvent.mouseLocation)
+  var state:[String:Any] = ["text":text.string,"pid":ProcessInfo.processInfo.processIdentifier,"selectionLength":text.selectedRange().length,"scrollY":scroll.contentView.bounds.origin.y,"lastMouse":text.lastMouse,"pointer":["x":pointer.x,"y":window.frame.height - pointer.y],"reduceMotion":NSWorkspace.shared.accessibilityDisplayShouldReduceMotion]
+  if !text.string.isEmpty, let layout = text.layoutManager, let container = text.textContainer {
+   let glyphs = layout.glyphRange(forCharacterRange:NSRange(location:0,length:min(16,text.string.utf16.count)),actualCharacterRange:nil)
+   var rect = layout.boundingRect(forGlyphRange:glyphs,in:container)
+   rect.origin.x += text.textContainerOrigin.x
+   rect.origin.y += text.textContainerOrigin.y
+   let converted = text.convert(rect,to:nil)
+   state["selectionDrag"] = ["x":converted.minX + 1,"y":window.frame.height - converted.midY,"to_x":converted.maxX + 1,"to_y":window.frame.height - converted.midY]
+  }
+  if let bytes = try? JSONSerialization.data(withJSONObject:state) {
    try? bytes.write(to:URL(fileURLWithPath:CommandLine.arguments[1]),options:.atomic)
   }
  }
@@ -120,6 +162,18 @@ def main():
             time.sleep(0.05)
         if not target:
             raise RuntimeError("fixture target unavailable; readiness=" + snapshot["readiness"])
+        # AppKit finishes creating its windows after the first visible frame.
+        # Await stable discovery before testing authority; never retry an input.
+        stable = 0
+        for _ in range(80):
+            time.sleep(0.05)
+            current = invoke("computerUse.snapshot", {})
+            stable = stable + 1 if current == snapshot else 0
+            snapshot = current
+            if stable >= 3:
+                break
+        if stable < 3:
+            raise RuntimeError("OS target discovery did not stabilize")
         receipt["checks"].append("OS-discovered signed fixture target")
         control = Path.home() / "Library/Application Support/lime/computer-use"
         control.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -155,7 +209,50 @@ def main():
             raise RuntimeError("invalid screenshot")
         receipt["checks"].append("target-only PNG screenshot")
         execute({"action": "click", "x": 140, "y": 90, "button": "left", "count": 1})
-        receipt["checks"].append("targeted click submitted")
+        def mouse_readback(button, count):
+            for _ in range(100):
+                current = json.loads(state.read_text())
+                pointer = current["pointer"]
+                if (current["lastMouse"] == {"button": button, "count": count}
+                        and abs(pointer["x"] - 140) < 2 and abs(pointer["y"] - 90) < 2):
+                    return {"pointer": pointer, "event": current["lastMouse"]}
+                time.sleep(0.02)
+            raise RuntimeError("real mouse pointer/button readback mismatch: " + json.dumps(current))
+
+        receipt["mouseReadback"] = [mouse_readback(0, 1)]
+        receipt["checks"].append("system pointer moved to approved window coordinates and real left click received")
+        overlay = next((w for w in invoke("window.read", {})["windows"]
+                        if w.get("title") == "Lime Computer Use Pointer" and w["ownerPid"] == helper.pid), None)
+        if not overlay or overlay["layer"] <= 0:
+            raise RuntimeError("native animated pointer overlay was not visible after real mouse input")
+        receipt["pointerOverlay"] = overlay
+        receipt["checks"].append("real native gradient pointer overlay visible above the approved window")
+        pointer_frames = []
+        for index in range(2):
+            time.sleep(0.12)
+            frame = invoke("screenCapture.snapshot", {"windowId": overlay["windowId"]})
+            pixels = base64.b64decode(frame["data"])
+            args.evidence.parent.mkdir(parents=True, exist_ok=True)
+            (args.evidence.parent / f"native-pointer-frame-{index}.png").write_bytes(pixels)
+            pointer_frames.append(hashlib.sha256(pixels).hexdigest())
+        receipt["pointerAnimation"] = {"frameSha256": pointer_frames, "reduceMotion": json.loads(state.read_text())["reduceMotion"]}
+        if not receipt["pointerAnimation"]["reduceMotion"] and len(set(pointer_frames)) != 2:
+            raise RuntimeError("native gradient pointer did not animate in real window captures")
+        receipt["checks"].append("native pointer animation captured in two real overlay frames; respects reduced motion")
+        for button, number, count in [("left", 0, 2), ("right", 1, 1), ("middle", 2, 1)]:
+            execute({"action": "click", "x": 140, "y": 90, "button": button, "count": count})
+            receipt["mouseReadback"].append(mouse_readback(number, count))
+        receipt["checks"].append("real double click, right click and middle click received by the exact fixture window")
+        execute({"action": "click", "x": 140, "y": 90, "button": "left", "count": 1})
+        mouse_readback(0, 1)
+        for _ in range(180):
+            if not any(w.get("title") == "Lime Computer Use Pointer" and w["ownerPid"] == helper.pid
+                       for w in invoke("window.read", {})["windows"]):
+                break
+            time.sleep(0.02)
+        else:
+            raise RuntimeError("native pointer overlay did not restore the regular cursor after idle")
+        receipt["checks"].append("native pointer overlay dismissed after idle, restoring the regular pointer")
         # Put a surrogate pair across the 32 UTF-16 chunk boundary.
         marker = "Lime " + "a" * 26 + "🟢复刻"
         execute({"action": "type", "text": marker})
@@ -165,9 +262,36 @@ def main():
         execute({"action": "type", "text": "Lime replacement"})
         readback("Lime replacement")
         receipt["checks"].append("Command+A and replacement verified by live readback")
-        execute({"action": "scroll", "x": 140, "y": 90, "delta_x": 0, "delta_y": 40})
-        execute({"action": "drag", "x": 50, "y": 90, "to_x": 180, "to_y": 90, "duration_ms": 80})
-        receipt["checks"].append("targeted scroll and bounded drag submitted")
+        drag = json.loads(state.read_text())["selectionDrag"]
+        execute({"action": "drag", **drag, "duration_ms": 80})
+        for _ in range(100):
+            if json.loads(state.read_text())["selectionLength"] > 0:
+                break
+            time.sleep(0.02)
+        else:
+            raise RuntimeError("bounded drag did not select real text")
+        receipt["checks"].append("bounded drag verified by live text selection")
+        execute({"action": "key", "key": "a", "modifiers": ["command"]})
+        long_text = "\n".join("Lime scroll line " + str(i) for i in range(60))
+        execute({"action": "type", "text": long_text})
+        readback(long_text)
+        time.sleep(0.1)
+        scroll_before = json.loads(state.read_text())["scrollY"]
+        receipt["scrollReadback"] = {"before":scroll_before}
+        execute({"action": "scroll", "x": 140, "y": 90, "delta_x": 0, "delta_y": 100 if scroll_before > 0 else -100})
+        for _ in range(100):
+            scroll_after = json.loads(state.read_text())["scrollY"]
+            receipt["scrollReadback"]["after"] = scroll_after
+            if abs(scroll_after - scroll_before) > 1:
+                break
+            time.sleep(0.02)
+        else:
+            raise RuntimeError("targeted scroll did not move the real viewport")
+        receipt["scrollReadback"] = {"before":scroll_before,"after":scroll_after}
+        receipt["checks"].append("targeted scroll verified by live viewport offset")
+        execute({"action": "key", "key": "a", "modifiers": ["command"]})
+        execute({"action": "type", "text": "Lime replacement"})
+        readback("Lime replacement")
         current = invoke("computerUse.snapshot", {})
         seq += 1
         action_id = str(seq)
@@ -193,6 +317,37 @@ def main():
         execute({"action": "screenshot"}, {"generation": 0}, True)
         execute({"action": "screenshot"}, {"fence": fence + 1}, True)
         receipt["checks"].append("stale generation and wrong persisted fence rejected")
+        issued = invoke("computerUse.snapshot", {})["generation"]
+        Path(str(state) + ".extra").touch()
+        for _ in range(80):
+            current = invoke("computerUse.snapshot", {})
+            if any(t["identity"].get("title") == "Unrelated fixture window" for t in current["targets"]):
+                break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError("secondary fixture window not discovered")
+        execute({"action":"screenshot"}, {"generation":issued})
+        receipt["checks"].append("unrelated window changes retain the issued exact target revision")
+        issued = invoke("computerUse.snapshot", {})["generation"]
+        Path(str(state) + ".hide").touch()
+        for _ in range(80):
+            current = invoke("computerUse.snapshot", {})
+            if not any(t["identity"].get("windowId") == target["windowId"] for t in current["targets"]):
+                break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError("primary fixture window did not hide")
+        execute({"action":"screenshot"}, {"generation":issued}, True)
+        Path(str(state) + ".hide").unlink()
+        for _ in range(80):
+            current = invoke("computerUse.snapshot", {})
+            if any(t["identity"].get("windowId") == target["windowId"] for t in current["targets"]):
+                break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError("primary fixture window did not return")
+        execute({"action":"screenshot"}, {"generation":issued}, True)
+        receipt["checks"].append("hidden and returned target retires its previous revision")
         fcntl.flock(lock, fcntl.LOCK_UN)
         execute({"action": "screenshot"}, expect_error=True)
         receipt["checks"].append("released control lock rejected")

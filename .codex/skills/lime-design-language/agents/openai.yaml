@@ -1,7 +1,7 @@
 interface:
-  display_name: "Lime UI 设计语言"
-  short_description: "依据 Codex Desktop 证据对齐界面与代码结构，保留 Lime 主题、多模型和首页 Banner"
-  default_prompt: "使用 $lime-design-language，依据 REA 安装包证据与公开源码对齐 GUI 结构、交互和命名，保留 Lime 主题、多模型与首页 Banner，同步清理旧实现并记录验证等级。"
+  display_name: "Lime GUI 源码复刻"
+  short_description: "按 Codex 原版复刻界面和交互，源码整目录优先复制，仅适配 Lime 保留边界"
+  default_prompt: "使用 $lime-design-language，先查 Codex 源码和已有 REA 发货证据，能整目录复制就整目录复制；按原版复刻页面、布局、交互、状态与无品牌命名。保留 Lime 品牌、多模型和自有服务端，不以旧组件或自主设计改变原版，不保留首页 Banner。先完成复刻再优化，直接修改现役 owner 并验证真实调用链。"
 
 policy:
   allow_implicit_invocation: true

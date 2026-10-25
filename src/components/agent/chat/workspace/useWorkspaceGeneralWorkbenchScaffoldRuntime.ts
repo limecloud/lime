@@ -152,7 +152,7 @@ export function useWorkspaceGeneralWorkbenchScaffoldRuntime({
         unlisten = dispose;
       })
       .catch((error) => {
-        console.warn("[AgentChatPage] 监听任务提交事件失败:", error);
+        console.warn("[LocalConversationPage] 监听任务提交事件失败:", error);
       });
 
     return () => {

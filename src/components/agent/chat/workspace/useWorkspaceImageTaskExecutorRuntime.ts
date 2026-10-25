@@ -77,7 +77,7 @@ export function useWorkspaceImageTaskExecutorRuntime({
       try {
         await getImageTask(lookup);
       } catch (error) {
-        console.warn("[AgentChatPage] 图片任务状态读取失败:", error);
+        console.warn("[LocalConversationPage] 图片任务状态读取失败:", error);
       } finally {
         inFlightTaskIdsRef.current.delete(task.id);
       }

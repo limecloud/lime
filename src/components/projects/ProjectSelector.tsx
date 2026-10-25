@@ -791,16 +791,16 @@ export function ProjectSelector({
   );
   const workspaceCurrentProject =
     workspaceTab && value
-      ? filteredProjects.find((project) => project.id === value) ??
+      ? (filteredProjects.find((project) => project.id === value) ??
         (summaryProject?.id === value ? summaryProject : null) ??
-        (defaultProject?.id === value ? defaultProject : null)
+        (defaultProject?.id === value ? defaultProject : null))
       : null;
   const visualSelectedProject = workspaceTab
-    ? workspaceCurrentProject ??
+    ? (workspaceCurrentProject ??
       selectedProject ??
       (autoSelectFallback ? defaultProject : null) ??
       filteredProjects[0] ??
-      null
+      null)
     : selectedProject;
   const selectedProjectId = visualSelectedProject?.id ?? value ?? null;
   const workspaceMenuProjects =
@@ -931,7 +931,7 @@ export function ProjectSelector({
             popoverWidthClass,
             workspaceTab
               ? "overflow-hidden rounded-[28px] border border-slate-200 bg-white p-0 shadow-2xl shadow-slate-950/12"
-              : "overflow-hidden rounded-[28px] border border-[color:var(--lime-surface-border)] bg-[image:var(--lime-home-card-surface-strong)] p-0 shadow-lg shadow-slate-950/10",
+              : "overflow-hidden rounded-[28px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] p-0 shadow-lg shadow-slate-950/10",
           )}
         >
           {workspaceTab ? (
@@ -1051,8 +1051,6 @@ export function ProjectSelector({
                   headerPaddingClass,
                 )}
               >
-                <div className="pointer-events-none absolute -left-10 top-[-24px] h-24 w-24 rounded-full bg-[color:var(--lime-home-glow-secondary)] blur-3xl" />
-                <div className="pointer-events-none absolute right-[-20px] top-0 h-20 w-20 rounded-full bg-[color:var(--lime-home-glow-primary)] blur-3xl" />
                 <div
                   className={cn(
                     "relative",
@@ -1265,7 +1263,7 @@ export function ProjectSelector({
                       size="sm"
                       className={cn(
                         compact ? "h-8 px-3 text-xs" : "h-9",
-                        "gap-1.5 rounded-full border border-[color:var(--lime-surface-border-strong)] bg-[image:var(--lime-primary-gradient)] text-white shadow-sm shadow-slate-950/10 hover:opacity-95",
+                        "gap-1.5 rounded-full border border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-primary-gradient)] text-white shadow-sm shadow-slate-950/10 hover:opacity-95",
                       )}
                       onClick={() => {
                         handleOpenChange(false);

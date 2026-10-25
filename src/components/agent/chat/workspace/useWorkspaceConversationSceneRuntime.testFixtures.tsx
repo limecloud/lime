@@ -155,7 +155,6 @@ export function createBaseParams(overrides: Record<string, unknown> = {}) {
       onArtifactClick: overrides.handleArtifactClick ?? noop,
       onOpenUrlPreview: overrides.handleOpenUrlPreview,
       onOpenMessagePreview: overrides.handleOpenMessagePreview,
-      onSaveMessageAsSkill: overrides.handleSaveMessageAsSkill,
 
       onOpenSubagentSession: overrides.handleOpenSubagentSession ?? noop,
       onPermissionResponse: overrides.handlePermissionResponse ?? noop,

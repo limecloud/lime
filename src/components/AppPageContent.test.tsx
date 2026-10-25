@@ -32,7 +32,7 @@ const latestSettingsPageProps = vi.hoisted(() => ({
 }));
 const pluginsLifecycle = vi.hoisted(() => ({ mounts: 0 }));
 vi.mock("./agent/chat", () => ({
-  AgentChatPage: (props: Record<string, unknown>) => {
+  LocalConversationPage: (props: Record<string, unknown>) => {
     latestAgentChatProps.value = props;
 
     useEffect(() => {
@@ -208,9 +208,9 @@ describe("AppPageContent", () => {
     vi.unstubAllGlobals();
   });
 
-  it("agent 页面应把 initialSiteSkillLaunch 透传给 AgentChatPage", async () => {
+  it("agent 页面应把 initialSiteSkillLaunch 透传给 LocalConversationPage", async () => {
     const pageParams: AgentPageParams = {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-1",
       contentId: "content-1",
       theme: "general",
@@ -235,7 +235,7 @@ describe("AppPageContent", () => {
     expect(latestAgentChatProps.value).toMatchObject({
       projectId: "project-1",
       contentId: "content-1",
-      agentEntry: "claw",
+      agentEntry: "conversation",
       theme: "general",
       newChatAt: 1234567890,
       initialSiteSkillLaunch: {
@@ -253,9 +253,9 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面应把 initialProjectFileOpenTarget 透传给 AgentChatPage", async () => {
+  it("agent 页面应把 initialProjectFileOpenTarget 透传给 LocalConversationPage", async () => {
     const pageParams: AgentPageParams = {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-2",
       contentId: "content-2",
       theme: "general",
@@ -278,13 +278,13 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("AgentChatPage 的 onLocationChange 应回调到上层 onAgentLocationChange", async () => {
+  it("LocalConversationPage 的 onLocationChange 应回调到上层 onAgentLocationChange", async () => {
     const onAgentLocationChange = vi.fn();
 
     renderContentWithNavigationState({
       currentPage: "agent",
       pageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-route",
       } satisfies AgentPageParams,
@@ -312,7 +312,7 @@ describe("AppPageContent", () => {
 
   it("agent 页面应透传专家 Agent 身份，重复恢复同一专家不触发新 key", async () => {
     const pageParams: AgentPageParams = {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "default",
       theme: "general",
       initialSessionId: "session-expert-1",
@@ -347,9 +347,9 @@ describe("AppPageContent", () => {
     expect(agentChatLifecycle.unmounts).toBe(0);
   });
 
-  it("agent 页面应把 initialSessionId 透传给 AgentChatPage", async () => {
+  it("agent 页面应把 initialSessionId 透传给 LocalConversationPage", async () => {
     const pageParams: AgentPageParams = {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "session-resume-1",
       entryBannerMessage: "已恢复对应会话。",
     };
@@ -358,13 +358,13 @@ describe("AppPageContent", () => {
     await flushEffects();
 
     expect(latestAgentChatProps.value).toMatchObject({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "session-resume-1",
       entryBannerMessage: "已恢复对应会话。",
     });
   });
 
-  it("agent 页面切换 initialSessionId 应复用 AgentChatPage 实例", async () => {
+  it("agent 页面切换 initialSessionId 应复用 LocalConversationPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",
       pageParams: {
@@ -381,7 +381,7 @@ describe("AppPageContent", () => {
     rendered.rerender({
       currentPage: "agent",
       pageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         theme: "general",
         initialSessionId: "session-opened-from-sidebar",
@@ -392,13 +392,13 @@ describe("AppPageContent", () => {
     expect(agentChatLifecycle.mounts).toBe(1);
     expect(agentChatLifecycle.unmounts).toBe(0);
     expect(latestAgentChatProps.value).toMatchObject({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-1",
       initialSessionId: "session-opened-from-sidebar",
     });
   });
 
-  it("agent 页面切换 agentEntry 应复用 AgentChatPage 实例", async () => {
+  it("agent 页面切换 agentEntry 应复用 LocalConversationPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",
       pageParams: {
@@ -419,7 +419,7 @@ describe("AppPageContent", () => {
     rendered.rerender({
       currentPage: "agent",
       pageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         theme: "general",
       } satisfies AgentPageParams,
@@ -429,16 +429,16 @@ describe("AppPageContent", () => {
     expect(agentChatLifecycle.mounts).toBe(1);
     expect(agentChatLifecycle.unmounts).toBe(0);
     expect(latestAgentChatProps.value).toMatchObject({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       showChatPanel: true,
     });
   });
 
-  it("agent 页面切换项目、文稿或主题边界也应复用 AgentChatPage 实例", async () => {
+  it("agent 页面切换项目、文稿或主题边界也应复用 LocalConversationPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",
       pageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         contentId: "content-1",
         theme: "general",
@@ -459,7 +459,7 @@ describe("AppPageContent", () => {
     rendered.rerender({
       currentPage: "agent",
       pageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-2",
         contentId: "content-2",
         theme: "writing",
@@ -478,9 +478,9 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面 pending navigation 被 currentPage 追平时不应重建 AgentChatPage 实例", async () => {
+  it("agent 页面 pending navigation 被 currentPage 追平时不应重建 LocalConversationPage 实例", async () => {
     const agentParams = {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-pending",
       theme: "general",
       initialSessionId: "session-pending-navigation",
@@ -516,7 +516,7 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面切换 newChatAt 不应重建 AgentChatPage 实例", async () => {
+  it("agent 页面切换 newChatAt 不应重建 LocalConversationPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",
       pageParams: {
@@ -552,7 +552,7 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面应把 initialPendingServiceSkillLaunch 透传给 AgentChatPage", async () => {
+  it("agent 页面应把 initialPendingServiceSkillLaunch 透传给 LocalConversationPage", async () => {
     const pageParams: AgentPageParams = {
       agentEntry: "new-task",
       projectId: "project-3",
@@ -586,7 +586,7 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面应把 initialInputCapability 透传给 AgentChatPage", async () => {
+  it("agent 页面应把 initialInputCapability 透传给 LocalConversationPage", async () => {
     const pageParams: AgentPageParams = {
       agentEntry: "new-task",
       projectId: "project-3",
@@ -626,7 +626,7 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面切换 initialInputCapability 时应复用 AgentChatPage 实例", async () => {
+  it("agent 页面切换 initialInputCapability 时应复用 LocalConversationPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",
       pageParams: {
@@ -692,7 +692,7 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面切换结果模板 initialInputCapability 时也应复用 AgentChatPage 实例", async () => {
+  it("agent 页面切换结果模板 initialInputCapability 时也应复用 LocalConversationPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",
       pageParams: {
@@ -752,9 +752,9 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面应把自动发送 metadata 透传给 AgentChatPage", async () => {
+  it("agent 页面应把自动发送 metadata 透传给 LocalConversationPage", async () => {
     const pageParams: AgentPageParams = {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-service-workflow",
       theme: "general",
       initialAutoSendRequestMetadata: {
@@ -863,13 +863,13 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("skills 页面应把技能草稿参数透传给 SkillsWorkspacePage", async () => {
+  it("skills 页面应把专家注册字段透传给现役管理页", async () => {
     const { container } = renderContent("skills", {
       initialScaffoldDraft: {
         target: "project",
-        directory: "saved-skill-demo",
-        name: "结果沉淀技能",
-        description: "沉淀自一次成功结果",
+        directory: "project-report",
+        name: "项目报告",
+        description: "生成项目报告。",
       },
       initialScaffoldRequestKey: 20260408,
     });
@@ -879,9 +879,9 @@ describe("AppPageContent", () => {
       pageParams: {
         initialScaffoldDraft: {
           target: "project",
-          directory: "saved-skill-demo",
-          name: "结果沉淀技能",
-          description: "沉淀自一次成功结果",
+          directory: "project-report",
+          name: "项目报告",
+          description: "生成项目报告。",
         },
         initialScaffoldRequestKey: 20260408,
       },

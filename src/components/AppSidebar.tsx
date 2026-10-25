@@ -13,13 +13,7 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import {
-  Home,
-  Palette,
-  Search,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { Home, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   AgentPageParams,
@@ -50,12 +44,10 @@ import {
 } from "@/components/app-sidebar/AppNavigationRail";
 import { SidebarResizeHandle } from "@/components/app-sidebar/SidebarResizeHandle";
 import { useSidebarWidth } from "@/components/app-sidebar/useSidebarWidth";
-import { AppSidebarAppearancePopover } from "@/components/app-sidebar/AppSidebarAppearancePopover";
 import { AppSidebarConversationShelf } from "@/components/app-sidebar/AppSidebarConversationShelf";
 import { AppSidebarSearchDialog } from "@/components/app-sidebar/AppSidebarSearchDialog";
 import type { AgentBackgroundSessionRuntimeSnapshot } from "@/components/agent/chat";
 import { useOpenedProjectSummaries } from "@/components/agent/chat/hooks/useOpenedProjectSummaries";
-import { useAppSidebarAppearance } from "@/components/app-sidebar/useAppSidebarAppearance";
 import { useAppSidebarConversationActions } from "@/components/app-sidebar/useAppSidebarConversationActions";
 import { useAppSidebarProjectActions } from "@/components/app-sidebar/useAppSidebarProjectActions";
 import { useAppSidebarSessions } from "@/components/app-sidebar/useAppSidebarSessions";
@@ -80,7 +72,6 @@ import {
   MainNavList,
   NavButton,
   NavLabel,
-  FooterAppearanceActionSlot,
   IconActionButton,
 } from "@/components/app-sidebar/AppSidebar.styles";
 import {
@@ -188,7 +179,7 @@ export function AppSidebar({
     ?.agentEntry;
   const activeAgentPageParams = activePageParams as AgentPageParams | undefined;
   const isAgentWorkspace = activePage === "agent";
-  const isClawTaskCenter = isAgentWorkspace && agentEntry === "claw";
+  const isConversation = isAgentWorkspace && agentEntry === "conversation";
   const isNewTaskHome = activePage === "agent" && agentEntry === "new-task";
   const [rememberedProjectId, setRememberedProjectId] = useState<string | null>(
     () =>
@@ -297,19 +288,6 @@ export function AppSidebar({
       );
     };
   }, []);
-  const {
-    appearanceColorSchemes,
-    appearanceControlRef,
-    appearancePopoverOpen,
-    appearanceThemeOptions,
-    colorSchemeId,
-    copy: appearanceCopy,
-    handleColorSchemeChange,
-    handleRandomColorScheme,
-    handleThemeModeChange,
-    setAppearancePopoverOpen,
-    themeState,
-  } = useAppSidebarAppearance();
   const [sidebarSearchOpen, setSidebarSearchOpen] = useState(false);
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState("");
 
@@ -467,12 +445,12 @@ export function AppSidebar({
       return;
     }
 
-    if (!isClawTaskCenter) {
+    if (!isConversation) {
       return;
     }
 
     setCollapsed(false);
-  }, [isClawTaskCenter, isNewTaskHome, isCustomizationPage]);
+  }, [isConversation, isNewTaskHome, isCustomizationPage]);
 
   const toggleSidebarCollapsed = useCallback(() => {
     setCollapsed((value) => !value);
@@ -510,7 +488,7 @@ export function AppSidebar({
     sidebarSearchOpen,
     sidebarSearchQuery,
     isNewTaskHome,
-    isClawTaskCenter,
+    isConversation,
     activeAgentStreaming,
     conversationUntitledLabel,
   });
@@ -711,7 +689,6 @@ export function AppSidebar({
       ) : null}
       <Container
         $collapsed={collapsed}
-        $themeMode={themeState.effectiveThemeMode}
         data-testid="app-sidebar"
         data-collapsed={String(collapsed)}
         data-lime-window-drag-region
@@ -724,34 +701,6 @@ export function AppSidebar({
           label={t("navigation.sidebar.landmark")}
           footer={
             <>
-              <FooterAppearanceActionSlot ref={appearanceControlRef}>
-                <NavigationRailButton
-                  type="button"
-                  $active={appearancePopoverOpen}
-                  title={appearanceCopy.entryLabel}
-                  aria-label={appearanceCopy.entryLabel}
-                  aria-expanded={appearancePopoverOpen}
-                  aria-haspopup="dialog"
-                  data-testid="app-sidebar-appearance"
-                  onClick={() => {
-                    setAppearancePopoverOpen((current) => !current);
-                  }}
-                >
-                  <Palette />
-                </NavigationRailButton>
-                {appearancePopoverOpen ? (
-                  <AppSidebarAppearancePopover
-                    themeMode={themeState.themeMode}
-                    colorSchemeId={colorSchemeId}
-                    themeOptions={appearanceThemeOptions}
-                    colorSchemes={appearanceColorSchemes}
-                    copy={appearanceCopy}
-                    onThemeModeChange={handleThemeModeChange}
-                    onColorSchemeChange={handleColorSchemeChange}
-                    onRandomColorScheme={handleRandomColorScheme}
-                  />
-                ) : null}
-              </FooterAppearanceActionSlot>
               {localizedSettingsFooterNavItem
                 ? renderNavItem(localizedSettingsFooterNavItem, true)
                 : null}

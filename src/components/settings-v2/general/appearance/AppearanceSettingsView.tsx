@@ -1,40 +1,23 @@
 import styled from "styled-components";
-import { Shuffle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type {
-  LimeColorSchemeId,
-  LIME_COLOR_SCHEMES,
-} from "@/lib/appearance/colorSchemes";
 import type { LimeThemeMode } from "@/lib/appearance/themeMode";
-import type { LucideIcon } from "lucide-react";
 import {
-  SettingsAction,
   SettingsGroup,
   SettingsPageBody,
   SettingsPageHeader,
   SettingsRow,
   SettingsSection,
-  SettingsSelect,
 } from "../../SettingsPrimitives";
 
 export interface ThemeOption {
   id: LimeThemeMode;
   label: string;
-  description: string;
-  icon: LucideIcon;
 }
 
 interface AppearanceSettingsViewProps {
   theme: LimeThemeMode;
-  colorSchemeId: LimeColorSchemeId;
   themeOptions: readonly ThemeOption[];
-  colorSchemeOptions: readonly (Omit<
-    (typeof LIME_COLOR_SCHEMES)[number],
-    "label" | "description"
-  > & { label: string; description: string })[];
   handleThemeChange: (theme: LimeThemeMode) => void;
-  handleColorSchemeChange: (id: LimeColorSchemeId) => void;
-  handleRandomColorScheme: () => void;
 }
 
 const ModeChoices = styled.div`
@@ -44,7 +27,7 @@ const ModeChoices = styled.div`
     width: clamp(48px, 20cqw, 80px);
     height: clamp(36px, 15cqw, 60px);
     padding: 4px;
-    border: 1px solid var(--lime-surface-border, hsl(var(--border)));
+    border: 0.5px solid var(--lime-surface-border, hsl(var(--border)));
     border-radius: 9px;
     background: var(--lime-surface-subtle, hsl(var(--muted)));
     cursor: pointer;
@@ -62,20 +45,24 @@ const ModeChoices = styled.div`
     width: 100%;
     height: 100%;
     overflow: hidden;
-    border: 1px solid rgb(0 0 0 / 10%);
+    border: 0.5px solid var(--lime-surface-border);
     border-radius: 5px;
-    background: #fff;
+    background: var(--appearance-preview-light);
   }
   .mode-preview[data-mode="dark"] {
-    background: #181818;
+    background: var(--appearance-preview-dark);
   }
   .mode-preview[data-mode="system"] {
-    background: linear-gradient(90deg, #fff 50%, #181818 50%);
+    background: linear-gradient(
+      90deg,
+      var(--appearance-preview-light) 50%,
+      var(--appearance-preview-dark) 50%
+    );
   }
   .preview-sidebar {
     width: 25%;
-    background: rgb(120 120 120 / 14%);
-    border-right: 1px solid rgb(120 120 120 / 18%);
+    background: var(--lime-surface-muted);
+    border-right: 0.5px solid var(--lime-surface-border);
   }
   .preview-content {
     flex: 1;
@@ -88,25 +75,21 @@ const ModeChoices = styled.div`
   .preview-line {
     height: 2px;
     width: 75%;
-    background: #aaa;
+    background: var(--lime-text-muted);
     opacity: 0.5;
   }
   .preview-message {
     height: 12px;
     width: 85%;
-    border: 1px solid rgb(120 120 120 / 25%);
+    border: 0.5px solid var(--lime-surface-border);
     border-radius: 4px;
   }
 `;
 
 export function AppearanceSettingsView({
   theme,
-  colorSchemeId,
   themeOptions,
-  colorSchemeOptions,
   handleThemeChange,
-  handleColorSchemeChange,
-  handleRandomColorScheme,
 }: AppearanceSettingsViewProps) {
   const { t } = useTranslation("settings");
   return (
@@ -173,34 +156,6 @@ export function AppearanceSettingsView({
                 </button>
               ))}
             </ModeChoices>
-          </SettingsRow>
-        </SettingsGroup>
-        <SettingsGroup className="mt-4">
-          <SettingsRow
-            label={t("settings.appearance.colorScheme.title")}
-            targetId="appearance-skin"
-          >
-            <SettingsAction
-              type="button"
-              aria-label={t("settings.appearance.colorScheme.random.title")}
-              title={t("settings.appearance.colorScheme.random.title")}
-              onClick={handleRandomColorScheme}
-            >
-              <Shuffle />
-            </SettingsAction>
-            <SettingsSelect
-              aria-label={t("settings.appearance.colorScheme.title")}
-              value={colorSchemeId}
-              onChange={(event) =>
-                handleColorSchemeChange(event.target.value as LimeColorSchemeId)
-              }
-            >
-              {colorSchemeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </SettingsSelect>
           </SettingsRow>
         </SettingsGroup>
       </SettingsSection>

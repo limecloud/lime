@@ -9,14 +9,18 @@ pub enum ModelVerbosity {
     High,
 }
 
-/// 推理摘要策略；不改变模型的推理能力或推理强度。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+// 来源：上游 protocol/src/config_types.rs；仅移除本 owner 不消费的代码生成派生。
+/// A summary of the reasoning performed by the model. This can be useful for
+/// debugging and understanding the model's reasoning process.
+/// See https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries
+#[derive(Debug, Serialize, Deserialize, Default, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ReasoningSummary {
     #[default]
     Auto,
     Concise,
     Detailed,
+    /// Option to disable reasoning summaries.
     None,
 }
 

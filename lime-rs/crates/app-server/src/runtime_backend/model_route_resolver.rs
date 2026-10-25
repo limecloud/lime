@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn direct_provider_config_without_capability_snapshot_fails_closed() {
+    async fn direct_provider_config_without_manual_capabilities_uses_chat_defaults() {
         let db = test_db();
         let service = ApiKeyProviderService::new();
         let request = request_for_test("hello", None, None);
@@ -268,16 +268,10 @@ mod tests {
         .await
         .expect("route");
 
-        let failure = route
-            .resolved_route
-            .failure
-            .as_ref()
-            .expect("missing capability snapshot failure");
-        assert_eq!(failure.category, RouteFailureCategory::CapabilityGap);
-        assert_eq!(failure.reason_code, "capability_snapshot_missing");
+        assert!(route.resolved_route.failure.is_none());
         assert_eq!(
-            failure.capability_gap.as_deref(),
-            Some("capability_snapshot:missing")
+            route.resolved_route.capability_snapshot.source.as_deref(),
+            Some("protocol_default")
         );
         assert_eq!(route.resolved_route.protocol, ProtocolKind::OpenaiChat);
         assert_eq!(
@@ -296,14 +290,7 @@ mod tests {
                 .and_then(|value| value.as_str()),
             Some("direct_provider_config_not_in_registry")
         );
-        assert_eq!(
-            route
-                .not_possible_payload
-                .as_ref()
-                .and_then(|payload| payload.pointer("/routeFailure/reasonCode"))
-                .and_then(Value::as_str),
-            Some("capability_snapshot_missing")
-        );
+        assert!(route.not_possible_payload.is_none());
     }
 
     #[tokio::test]
@@ -656,10 +643,10 @@ mod tests {
             .failure
             .expect("inferred capability hint failure");
         assert_eq!(failure.category, RouteFailureCategory::CapabilityGap);
-        assert_eq!(failure.reason_code, "capability_snapshot_missing");
+        assert_eq!(failure.reason_code, "capability_gap");
         assert_eq!(
             failure.capability_gap.as_deref(),
-            Some("capability_snapshot:missing")
+            Some("task_family:vision_understanding")
         );
         assert_eq!(
             route
@@ -675,7 +662,7 @@ mod tests {
                 .as_ref()
                 .and_then(|payload| payload.pointer("/routeFailure/capabilityGap"))
                 .and_then(|value| value.as_str()),
-            Some("capability_snapshot:missing")
+            Some("task_family:vision_understanding")
         );
     }
 
@@ -799,14 +786,7 @@ mod tests {
         .await
         .expect("route");
 
-        assert_eq!(
-            route
-                .resolved_route
-                .failure
-                .as_ref()
-                .map(|failure| failure.reason_code.as_str()),
-            Some("capability_snapshot_missing")
-        );
+        assert!(route.resolved_route.failure.is_none());
         assert_eq!(
             route.resolved_route.protocol,
             ProtocolKind::AnthropicMessages
@@ -874,14 +854,7 @@ mod tests {
         .await
         .expect("route");
 
-        assert_eq!(
-            route
-                .resolved_route
-                .failure
-                .as_ref()
-                .map(|failure| failure.reason_code.as_str()),
-            Some("capability_snapshot_missing")
-        );
+        assert!(route.resolved_route.failure.is_none());
         assert_eq!(route.resolved_route.protocol, ProtocolKind::OpenaiChat);
         assert_eq!(
             route.resolved_route.endpoint.kind,
@@ -1056,14 +1029,7 @@ mod tests {
         .await
         .expect("assemble key B route");
 
-        assert_eq!(
-            route_b
-                .resolved_route
-                .failure
-                .as_ref()
-                .map(|failure| failure.reason_code.as_str()),
-            Some("capability_snapshot_missing")
-        );
+        assert!(route_b.resolved_route.failure.is_none());
         assert_eq!(
             route_b.resolved_route.auth.credential_ref.as_deref(),
             Some(ref_b.as_str())

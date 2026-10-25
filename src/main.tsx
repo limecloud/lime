@@ -1,6 +1,7 @@
 import ReactDOM from "react-dom/client";
 import { RootRouter } from "./RootRouter";
 import "./index.css";
+import "./lib/appearance/colors.css";
 
 // Initialize Desktop Host fallback for web mode
 import "./lib/desktop-host/index";
@@ -9,7 +10,6 @@ import "./lib/desktop-host/index";
 import "./i18n/config";
 import { initCrashReporting } from "@/lib/crashReporting";
 import { scheduleStyledRuntimeDiagnostics } from "@/lib/styledRuntime";
-import { initializeLimeColorScheme } from "@/lib/appearance/colorSchemes";
 import { initializeLimeThemeMode } from "@/lib/appearance/themeMode";
 
 // 启动诊断工具
@@ -22,9 +22,6 @@ startupTracker.mark("main.tsx: start");
 import { registerLightweightRenderers } from "./components/artifact/renderers";
 registerLightweightRenderers();
 startupTracker.mark("renderers registered");
-
-initializeLimeColorScheme();
-startupTracker.mark("color scheme initialized");
 
 initializeLimeThemeMode();
 startupTracker.mark("theme mode initialized");

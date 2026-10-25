@@ -17,11 +17,12 @@ impl RequestProcessor {
     pub(super) async fn handle_computer_use_status(
         &self,
         params: Option<Value>,
+        request: Option<ConnectionRequestId>,
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         dispatch_result(
             self.runtime
-                .computer_use_status(parse_params(params)?)
+                .computer_use_status(&connection(request), parse_params(params)?)
                 .await
                 .map_err(to_jsonrpc_error)?,
         )

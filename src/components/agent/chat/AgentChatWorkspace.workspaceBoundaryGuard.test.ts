@@ -498,42 +498,6 @@ describe("AgentChatWorkspace retired message knowledge save boundary", () => {
   });
 });
 
-describe("AgentChatWorkspace message skill save boundary", () => {
-  it("消息保存为 Skill 草稿的校验、导航和提示必须由 message skill save runtime 提供", () => {
-    const workspaceSource = [
-      "src/components/agent/chat/useAgentChatWorkspaceRuntime.tsx",
-      "src/components/agent/chat/workspace/useAgentChatWorkspaceEntryRuntime.ts",
-      "src/components/agent/chat/workspace/useAgentChatWorkspaceSetupRuntime.ts",
-      "src/components/agent/chat/workspace/useAgentChatWorkspaceCommandRuntime.ts",
-      "src/components/agent/chat/workspace/useAgentChatWorkspaceSceneRuntime.tsx",
-    ]
-      .map((ownerPath) => readFileSync(join(process.cwd(), ownerPath), "utf8"))
-      .join("\n");
-    const ownerSource = readFileSync(
-      join(
-        process.cwd(),
-        "src/components/agent/chat/workspace/useWorkspaceMessageSkillSaveRuntime.ts",
-      ),
-      "utf8",
-    );
-
-    expect(workspaceSource).toContain("useWorkspaceMessageSkillSaveRuntime({");
-    expect(ownerSource.split("\n").length).toBeLessThan(160);
-    for (const retiredWorkspaceSkillSaveOwner of [
-      "const handleSaveMessageAsSkill = useCallback",
-      "buildSkillsPageParamsFromMessage(",
-      "nextPageParams?.initialScaffoldDraft",
-      'onNavigate("skills"',
-      "当前入口暂不支持直接跳转到 Skill 页面",
-      "这条结果暂时还不足以生成技能草稿",
-      "已带着这条结果去新建 Skill",
-    ]) {
-      expect(workspaceSource).not.toContain(retiredWorkspaceSkillSaveOwner);
-      expect(ownerSource).toContain(retiredWorkspaceSkillSaveOwner);
-    }
-  });
-});
-
 describe("AgentChatWorkspace general workbench entry prompt actions boundary", () => {
   it("General Workbench entry prompt 的继续、重启和 follow-up 应用必须由 entry prompt actions runtime 提供", () => {
     const workspaceSource = [
@@ -653,7 +617,6 @@ describe("Workspace Inputbar scene presentation boundary", () => {
     expect(ownerSource.split("\n").length).toBeLessThan(800);
     for (const retiredPresentationOwner of [
       "styled.",
-      "renderSoulArtifactVoiceAccessory",
       "renderGeneralWorkbenchEntryPromptAccessory",
       "InputbarControlReplacement",
       "<GeneralWorkbenchDialogSection",

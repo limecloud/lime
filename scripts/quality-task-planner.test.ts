@@ -216,7 +216,7 @@ describe("quality-task-planner", () => {
   });
 
   it("Chrome extension i18n surface 改动应推荐刷新 extension evidence", () => {
-    const tasks = detectTasks(["extensions/lime-chrome/pages/options.html"]);
+    const tasks = detectTasks(["extensions/lime-chrome/computer-use.html"]);
 
     expect(tasks.docsOnly).toBe(false);
     expect(tasks.frontend).toBe(false);

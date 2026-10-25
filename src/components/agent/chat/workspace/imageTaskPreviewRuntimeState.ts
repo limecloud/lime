@@ -162,7 +162,7 @@ function buildImageWorkbenchPreviewMessageFromTask(params: {
           : null,
     runtimeContract: params.task.runtimeContract ?? null,
     workflowRun: params.task.workflowRun ?? null,
-    soulMetadata: params.task.soulMetadata ?? null,
+
   };
 
   return {
@@ -307,8 +307,7 @@ export function mergeImageTaskSnapshot(
         snapshot.task.runtimeContract ?? previousTask?.runtimeContract ?? null,
       workflowRun:
         snapshot.task.workflowRun ?? previousTask?.workflowRun ?? null,
-      soulMetadata:
-        snapshot.task.soulMetadata ?? previousTask?.soulMetadata ?? null,
+
     },
     ...current.tasks.filter((task) => task.id !== snapshot.taskId),
   ];
@@ -682,7 +681,7 @@ function patchMessagesWithImageWorkbenchState(params: {
             : null,
       runtimeContract: task.runtimeContract ?? preview.runtimeContract ?? null,
       workflowRun: task.workflowRun ?? preview.workflowRun ?? null,
-      soulMetadata: task.soulMetadata ?? preview.soulMetadata ?? null,
+
       retryable:
         typeof preview.retryable === "boolean"
           ? preview.retryable

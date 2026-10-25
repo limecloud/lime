@@ -3,9 +3,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type AgentChatPageModule = typeof import("./index");
-type AgentChatPageProps = React.ComponentProps<
-  AgentChatPageModule["AgentChatPage"]
+type LocalConversationPageModule = typeof import("./index");
+type LocalConversationPageProps = React.ComponentProps<
+  LocalConversationPageModule["LocalConversationPage"]
 >;
 
 const latestWorkspaceProps = vi.hoisted(
@@ -68,12 +68,12 @@ vi.mock("@/lib/api/skills", () => ({
 }));
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
-let AgentChatPage: AgentChatPageModule["AgentChatPage"];
+let LocalConversationPage: LocalConversationPageModule["LocalConversationPage"];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 beforeEach(async () => {
   vi.resetModules();
-  ({ AgentChatPage } = await import("./index"));
+  ({ LocalConversationPage } = await import("./index"));
   HTMLElement.prototype.scrollIntoView = vi.fn();
   (
     globalThis as typeof globalThis & {
@@ -98,27 +98,27 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderPage(props: Partial<AgentChatPageProps> = {}) {
+function renderPage(props: Partial<LocalConversationPageProps> = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
   act(() => {
-    root.render(<AgentChatPage {...props} />);
+    root.render(<LocalConversationPage {...props} />);
   });
 
   mountedRoots.push({ root, container });
   return container;
 }
 
-function renderPageWithRoot(props: Partial<AgentChatPageProps> = {}) {
+function renderPageWithRoot(props: Partial<LocalConversationPageProps> = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  const rerender = (nextProps: Partial<AgentChatPageProps>) => {
+  const rerender = (nextProps: Partial<LocalConversationPageProps>) => {
     act(() => {
-      root.render(<AgentChatPage {...nextProps} />);
+      root.render(<LocalConversationPage {...nextProps} />);
     });
   };
 
@@ -135,7 +135,7 @@ async function flushEffects(times = 8) {
   });
 }
 
-describe("AgentChatPage 工作区路由", () => {
+describe("LocalConversationPage 工作区路由", () => {
   beforeEach(() => {
     workspaceLifecycle.reset();
   });
@@ -201,11 +201,11 @@ describe("AgentChatPage 工作区路由", () => {
     ) as HTMLDivElement | null;
 
     expect(workspace).not.toBeNull();
-    expect(workspace?.dataset.agentEntry).toBe("claw");
+    expect(workspace?.dataset.agentEntry).toBe("conversation");
     expect(workspace?.dataset.showChatPanel).toBe("true");
     expect(latestWorkspaceProps.value).toMatchObject({
       initialUserPrompt: "请直接开始处理这个任务",
-      agentEntry: "claw",
+      agentEntry: "conversation",
       showChatPanel: true,
     });
   });
@@ -228,14 +228,14 @@ describe("AgentChatPage 工作区路由", () => {
     ) as HTMLDivElement | null;
 
     expect(workspace).not.toBeNull();
-    expect(workspace?.dataset.agentEntry).toBe("claw");
+    expect(workspace?.dataset.agentEntry).toBe("conversation");
     expect(workspace?.dataset.showChatPanel).toBe("true");
     expect(latestWorkspaceProps.value).toMatchObject({
       initialProjectFileOpenTarget: {
         relativePath: "exports/social-article/google-cloud/index.md",
         requestKey: 20260408,
       },
-      agentEntry: "claw",
+      agentEntry: "conversation",
       showChatPanel: true,
     });
   });
@@ -258,14 +258,14 @@ describe("AgentChatPage 工作区路由", () => {
     ) as HTMLDivElement | null;
 
     expect(workspace).not.toBeNull();
-    expect(workspace?.dataset.agentEntry).toBe("claw");
+    expect(workspace?.dataset.agentEntry).toBe("conversation");
     expect(workspace?.dataset.showChatPanel).toBe("true");
     expect(latestWorkspaceProps.value).toMatchObject({
       initialPendingServiceSkillLaunch: {
         skillId: "service-skill-1",
         requestKey: 20260409,
       },
-      agentEntry: "claw",
+      agentEntry: "conversation",
       showChatPanel: true,
     });
   });
@@ -296,7 +296,7 @@ describe("AgentChatPage 工作区路由", () => {
     ) as HTMLDivElement | null;
 
     expect(workspace).not.toBeNull();
-    expect(workspace?.dataset.agentEntry).toBe("claw");
+    expect(workspace?.dataset.agentEntry).toBe("conversation");
     expect(workspace?.dataset.showChatPanel).toBe("true");
     expect(latestWorkspaceProps.value).toMatchObject({
       initialInputCapability: {
@@ -311,7 +311,7 @@ describe("AgentChatPage 工作区路由", () => {
         },
         requestKey: 20260418,
       },
-      agentEntry: "claw",
+      agentEntry: "conversation",
       showChatPanel: true,
     });
   });
@@ -345,13 +345,13 @@ describe("AgentChatPage 工作区路由", () => {
       '[data-testid="workspace"]',
     ) as HTMLDivElement | null;
     expect(secondWorkspace).toBe(firstWorkspace);
-    expect(secondWorkspace?.dataset.agentEntry).toBe("claw");
+    expect(secondWorkspace?.dataset.agentEntry).toBe("conversation");
     expect(secondWorkspace?.dataset.showChatPanel).toBe("true");
     expect(workspaceLifecycle.mounts).toBe(1);
     expect(workspaceLifecycle.unmounts).toBe(0);
     expect(latestWorkspaceProps.value).toMatchObject({
       initialUserPrompt: "请直接开始处理这个任务",
-      agentEntry: "claw",
+      agentEntry: "conversation",
       showChatPanel: true,
     });
   });

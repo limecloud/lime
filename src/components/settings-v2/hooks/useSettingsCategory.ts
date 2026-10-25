@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
 import type { SettingsGroupKey, SettingsTabs } from "@/types/settings";
-import { settingsSections } from "../sections";
+import { isSettingsSection, settingsSections } from "../sections";
 
 export interface CategoryItem {
   key: SettingsTabs;
@@ -24,6 +24,7 @@ export function useSettingsCategory(): CategoryGroup[] {
   return useMemo(() => {
     const groups = new Map<SettingsGroupKey | null, CategoryGroup>();
     for (const section of settingsSections) {
+      if (!isSettingsSection(section.key)) continue;
       let group = groups.get(section.group);
       if (!group) {
         group = {

@@ -2,7 +2,7 @@ import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  buildClawAgentParams,
+  buildConversationParams,
   buildHomeAgentParams,
 } from "@/lib/workspace/navigation";
 import { useAppNavigation } from "./useAppNavigation";
@@ -219,7 +219,7 @@ describe("useAppNavigation", () => {
 
   it("tryNavigate 接受设置目标时沿用现有返回会话，不引入第二套返回路由", async () => {
     await renderProbe();
-    const params = buildClawAgentParams({
+    const params = buildConversationParams({
       initialSessionId: "original",
       projectId: "workspace",
     });
@@ -242,7 +242,7 @@ describe("useAppNavigation", () => {
     await act(async () =>
       latestNavigation!.handleNavigate(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           initialSessionId: "session-original",
           projectId: "workspace-original",
           initialUserPrompt: "one shot",
@@ -286,7 +286,7 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation?.handleNavigate(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           projectId: "project-2",
           initialUserPrompt: "继续整理当前项目",
         }),
@@ -297,7 +297,7 @@ describe("useAppNavigation", () => {
     expect(latestNavigation?.pageParams).toEqual({
       projectId: "project-2",
       initialUserPrompt: "继续整理当前项目",
-      agentEntry: "claw",
+      agentEntry: "conversation",
       immersiveHome: false,
       theme: "general",
       lockTheme: false,
@@ -323,7 +323,7 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation?.handleNavigate(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           projectId: "project-history",
           initialSessionId: "session-history",
           initialUserPrompt: "这条 prompt 不应被 reload 恢复",
@@ -339,7 +339,7 @@ describe("useAppNavigation", () => {
     ).toEqual({
       page: "agent",
       params: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         initialSessionId: "session-history",
         lockTheme: false,
@@ -352,7 +352,7 @@ describe("useAppNavigation", () => {
 
     expect(latestNavigation?.currentPage).toBe("agent");
     expect(latestNavigation?.pageParams).toEqual({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       immersiveHome: false,
       initialSessionId: "session-history",
       lockTheme: false,
@@ -367,7 +367,7 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation?.handleNavigate(
         "agent",
-        buildClawAgentParams({ initialSessionId: "session-history" }),
+        buildConversationParams({ initialSessionId: "session-history" }),
       );
     });
     await flushEffects();
@@ -433,7 +433,7 @@ describe("useAppNavigation", () => {
 
     await act(async () => {
       latestNavigation?.handleNavigate("agent", {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-stable",
         theme: "general",
         initialRequestMetadata: {
@@ -459,7 +459,7 @@ describe("useAppNavigation", () => {
         },
         theme: "general",
         projectId: "project-stable",
-        agentEntry: "claw",
+        agentEntry: "conversation",
       });
     });
     await flushEffects();
@@ -470,7 +470,7 @@ describe("useAppNavigation", () => {
     );
     expect(latestNavigation?.currentPage).toBe("agent");
     expect(latestNavigation?.pageParams).toMatchObject({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "project-stable",
       theme: "general",
       initialRequestMetadata: {
@@ -536,7 +536,7 @@ describe("useAppNavigation", () => {
       back();
     });
     expect(latestNavigation!.pageParams).toEqual(
-      buildClawAgentParams({
+      buildConversationParams({
         initialSessionId: "materialized-thread",
         projectId: "actual-workspace",
         contentId: undefined,
@@ -557,7 +557,7 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation!.handleNavigate(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           projectId: "workspace",
           initialSessionId: "thread",
           contentId: "content",
@@ -586,7 +586,7 @@ describe("useAppNavigation", () => {
       latestNavigation!.returnFromSettings();
     });
     expect(latestNavigation!.pageParams).toEqual(
-      buildClawAgentParams({
+      buildConversationParams({
         initialSessionId: "thread",
         projectId: "workspace",
         contentId: "content",
@@ -600,7 +600,7 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation!.handleNavigate(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           initialSessionId: "new-thread",
           projectId: "new-workspace",
         }),

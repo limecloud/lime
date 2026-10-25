@@ -1,8 +1,7 @@
 import { useMemo, type ComponentProps, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Info, Palette } from "lucide-react";
+import { Info } from "lucide-react";
 import styled from "styled-components";
-import { Switch } from "@/components/ui/switch";
 
 import { Inputbar } from "../components/Inputbar";
 import type { TaskFile } from "../components/TaskFiles";
@@ -20,14 +19,6 @@ interface GeneralWorkbenchEntryPromptAccessoryProps {
   onContinue: () => Promise<void> | void;
 }
 
-interface SoulArtifactVoiceAccessoryProps {
-  enabled: boolean;
-  title: string;
-  enabledLabel: string;
-  disabledLabel: string;
-  toggleAria: string;
-  onEnabledChange: (enabled: boolean) => void;
-}
 
 const InputbarOverlayAccessoryStack = styled.div`
   display: flex;
@@ -43,56 +34,10 @@ const InputbarControlReplacement = styled.div`
   max-width: 100%;
 `;
 
-const SoulArtifactVoiceCard = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  max-width: min(320px, calc(100vw - 48px));
-  min-height: 42px;
-  padding: 8px 10px 8px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(167, 243, 208, 0.9);
-  background: rgba(255, 255, 255, 0.98);
-  color: #0f172a;
-  box-shadow: 0 14px 28px -24px rgba(15, 23, 42, 0.24);
-`;
 
-const SoulArtifactVoiceIcon = styled.span`
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(236, 253, 245, 0.98);
-  color: #047857;
-`;
 
-const SoulArtifactVoiceText = styled.span`
-  display: inline-flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1px;
-`;
 
-const SoulArtifactVoiceTitle = styled.span`
-  overflow: hidden;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
 
-const SoulArtifactVoiceStatus = styled.span<{ $enabled: boolean }>`
-  color: ${({ $enabled }) => ($enabled ? "#047857" : "#64748b")};
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.25;
-  white-space: nowrap;
-`;
 
 const GeneralWorkbenchEntryPromptCard = styled.div`
   display: flex;
@@ -181,34 +126,6 @@ const GeneralWorkbenchEntryPromptButton = styled.button<{
   }
 `;
 
-function renderSoulArtifactVoiceAccessory({
-  enabled,
-  title,
-  enabledLabel,
-  disabledLabel,
-  toggleAria,
-  onEnabledChange,
-}: SoulArtifactVoiceAccessoryProps): ReactNode {
-  return (
-    <SoulArtifactVoiceCard data-testid="soul-artifact-voice-turn-toggle">
-      <SoulArtifactVoiceIcon aria-hidden="true">
-        <Palette className="h-3.5 w-3.5" />
-      </SoulArtifactVoiceIcon>
-      <SoulArtifactVoiceText>
-        <SoulArtifactVoiceTitle>{title}</SoulArtifactVoiceTitle>
-        <SoulArtifactVoiceStatus $enabled={enabled}>
-          {enabled ? enabledLabel : disabledLabel}
-        </SoulArtifactVoiceStatus>
-      </SoulArtifactVoiceText>
-      <Switch
-        checked={enabled}
-        aria-label={toggleAria}
-        data-testid="soul-artifact-voice-turn-switch"
-        onCheckedChange={onEnabledChange}
-      />
-    </SoulArtifactVoiceCard>
-  );
-}
 
 function renderGeneralWorkbenchEntryPromptAccessory({
   prompt,
@@ -268,9 +185,9 @@ export interface UseWorkspaceInputbarScenePresentationRuntimeParams {
     onContinueGeneralWorkbenchEntryPrompt: () => Promise<void> | void;
     planDecisionAccessory?: ReactNode;
     approvalAccessory?: ReactNode;
-    soulArtifactVoiceGenerationBrief?: Record<string, unknown> | null;
-    soulArtifactVoiceEnabledForTurn: boolean;
-    onSoulArtifactVoiceEnabledForTurnChange: (enabled: boolean) => void;
+
+
+
     generalWorkbenchDialog: ComponentProps<
       typeof GeneralWorkbenchDialogSection
     >;
@@ -347,32 +264,12 @@ export function useWorkspaceInputbarScenePresentationRuntime({
     ],
   );
 
-  const soulArtifactVoiceAccessory = useMemo(
-    () =>
-      inputbarPresentation.soulArtifactVoiceGenerationBrief
-        ? renderSoulArtifactVoiceAccessory({
-            enabled: inputbarPresentation.soulArtifactVoiceEnabledForTurn,
-            title: t("agentChat.workspace.soulArtifactVoice.title"),
-            enabledLabel: t("agentChat.workspace.soulArtifactVoice.enabled"),
-            disabledLabel: t("agentChat.workspace.soulArtifactVoice.disabled"),
-            toggleAria: t("agentChat.workspace.soulArtifactVoice.toggleAria"),
-            onEnabledChange:
-              inputbarPresentation.onSoulArtifactVoiceEnabledForTurnChange,
-          })
-        : null,
-    [
-      inputbarPresentation.onSoulArtifactVoiceEnabledForTurnChange,
-      inputbarPresentation.soulArtifactVoiceEnabledForTurn,
-      inputbarPresentation.soulArtifactVoiceGenerationBrief,
-      t,
-    ],
-  );
+
 
   const overlayAccessory =
-    generalWorkbenchEntryPromptAccessory || soulArtifactVoiceAccessory ? (
+    generalWorkbenchEntryPromptAccessory ? (
       <InputbarOverlayAccessoryStack>
         {generalWorkbenchEntryPromptAccessory}
-        {soulArtifactVoiceAccessory}
       </InputbarOverlayAccessoryStack>
     ) : undefined;
 

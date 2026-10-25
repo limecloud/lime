@@ -70,7 +70,7 @@ export type TaskCenterFallbackRestorePlan =
     };
 
 export function isTaskCenterAgentEntry(agentEntry?: string | null): boolean {
-  return agentEntry === "claw" || agentEntry === "new-task";
+  return agentEntry === "conversation" || agentEntry === "new-task";
 }
 
 export function shouldResumeTaskSession(

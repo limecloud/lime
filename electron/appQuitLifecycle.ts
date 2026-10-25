@@ -25,22 +25,20 @@ export function installAppQuitLifecycle(
   let drained = false;
   let shutdown: Promise<void> | undefined;
 
-  app.on("before-quit", () => {
-    if (prepared) return;
-    prepared = true;
-    prepare();
-  });
-  app.on("will-quit", (event) => {
+  app.on("before-quit", (event) => {
     if (drained) return;
     event.preventDefault();
+    if (!prepared) {
+      prepared = true;
+      prepare();
+    }
     shutdown ??= Promise.resolve()
       .then(dispose)
       .catch(onError)
       .finally(() => {
         drained = true;
-        // Electron can remain inside the current `will-quit` dispatch while
-        // running the async drain continuation. Resume the quit on the next
-        // event-loop turn so the second lifecycle pass is not re-entrant.
+        // Drain while windows and Electron's event loop still exist, then
+        // resume the normal quit on the next turn without re-entering dispatch.
         setTimeout(() => app.quit(), 0);
       });
   });

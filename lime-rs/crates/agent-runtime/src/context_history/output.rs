@@ -16,6 +16,29 @@ pub(super) fn for_prompt(
                 .map(TruncationPolicy::Tokens)
                 .unwrap_or(policy);
             result.output = truncate_tool_output(&result.output, policy);
+            let mut remaining = policy;
+            result.content_items.retain_mut(|item| {
+                let agent_protocol::response_item::FunctionCallOutputContentItem::InputText {
+                    text,
+                } = item
+                else {
+                    return true;
+                };
+                if remaining.byte_budget() == 0 {
+                    return false;
+                }
+                let len = text.len();
+                *text = truncate_tool_output(text, remaining);
+                remaining = match remaining {
+                    TruncationPolicy::Bytes(limit) => {
+                        TruncationPolicy::Bytes(limit.saturating_sub(len))
+                    }
+                    TruncationPolicy::Tokens(limit) => {
+                        TruncationPolicy::Tokens(limit.saturating_sub(len.div_ceil(4)))
+                    }
+                };
+                true
+            });
         }
         CurrentProviderContent::RawResponseItem(item)
             if matches!(

@@ -9,14 +9,11 @@ import type {
   AgentEventToolStart,
   AgentThreadItem,
 } from "@/lib/api/agentProtocol";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
-import { buildSoulToolLifecycleDescriptor } from "../projection/soulToolLifecycleDescriptor";
 
 interface ProjectTimelineItemContext {
   activeSessionId: string;
   fallbackTurnId?: string | null;
   now: string;
-  soulCopy?: SoulInteractionCopy;
 }
 
 const LEGACY_TOOL_EVENT_SOURCE = "legacy_tool_event";
@@ -67,99 +64,6 @@ function legacyToolEventMetadata(
       {},
     ),
     runtime_event_source: LEGACY_TOOL_EVENT_SOURCE,
-  };
-}
-
-function mergedMetadataSource(
-  ...records: Array<Record<string, unknown> | undefined>
-): Record<string, unknown> {
-  return records.reduce<Record<string, unknown>>(
-    (merged, record) => (record ? { ...merged, ...record } : merged),
-    {},
-  );
-}
-
-function readStringValue(
-  record: Record<string, unknown> | undefined,
-  ...keys: string[]
-): string | undefined {
-  for (const key of keys) {
-    const value = record?.[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
-
-function inheritedSoulLifecycleMetadata(
-  record: Record<string, unknown> | undefined,
-): {
-  toneVariant?: string;
-  profileId?: string;
-  packId?: string;
-  riskLevel?: "normal" | "high";
-} {
-  const lifecycle = normalizeRecord(
-    record?.soul_lifecycle ?? record?.soulLifecycle,
-  );
-  const riskLevel =
-    readStringValue(record, "risk_level", "riskLevel") ??
-    readStringValue(lifecycle, "riskLevel", "risk_level");
-  return {
-    toneVariant:
-      readStringValue(record, "tone_variant", "toneVariant") ??
-      readStringValue(lifecycle, "toneVariant", "tone_variant"),
-    profileId:
-      readStringValue(record, "profile_id", "profileId") ??
-      readStringValue(lifecycle, "profileId", "profile_id"),
-    packId:
-      readStringValue(record, "pack_id", "packId") ??
-      readStringValue(lifecycle, "packId", "pack_id"),
-    riskLevel:
-      riskLevel === "high"
-        ? "high"
-        : riskLevel === "normal"
-          ? "normal"
-          : undefined,
-  };
-}
-
-function toolLifecycleMetadata(
-  context: ProjectTimelineItemContext,
-  status: Parameters<typeof buildSoulToolLifecycleDescriptor>[0]["status"],
-  existing?: Record<string, unknown>,
-): Record<string, unknown> {
-  const inherited = inheritedSoulLifecycleMetadata(existing);
-  const resolved = buildSoulToolLifecycleDescriptor({
-    soulCopy: context.soulCopy,
-    status,
-    highRisk: inherited.riskLevel === "high",
-  });
-  const descriptor = {
-    ...resolved,
-    toneVariant:
-      context.soulCopy || !inherited.toneVariant
-        ? resolved.toneVariant
-        : inherited.toneVariant,
-    profileId:
-      context.soulCopy || !inherited.profileId
-        ? resolved.profileId
-        : inherited.profileId,
-    packId:
-      context.soulCopy || !inherited.packId
-        ? resolved.packId
-        : inherited.packId,
-  };
-  return {
-    soul_lifecycle: descriptor,
-    soul_surface: descriptor.surface,
-    soul_phase: descriptor.phase,
-    style_level: descriptor.styleLevel,
-    risk_level: descriptor.riskLevel,
-    tone_variant: descriptor.toneVariant,
-    ...(descriptor.profileId ? { profile_id: descriptor.profileId } : {}),
-    ...(descriptor.packId ? { pack_id: descriptor.packId } : {}),
   };
 }
 
@@ -281,14 +185,7 @@ function projectToolStart(
     metadata: legacyToolEventMetadata(
       normalizeRecord(existing?.metadata),
       normalizeRecord(event.metadata),
-      toolLifecycleMetadata(
-        context,
-        "started",
-        mergedMetadataSource(
-          normalizeRecord(existing?.metadata),
-          normalizeRecord(event.metadata),
-        ),
-      ),
+      {},
     ),
   };
 }
@@ -321,14 +218,7 @@ function projectToolInputDelta(
     metadata: legacyToolEventMetadata(
       normalizeRecord(current?.metadata),
       normalizeRecord(event.metadata),
-      toolLifecycleMetadata(
-        context,
-        "input_delta",
-        mergedMetadataSource(
-          normalizeRecord(current?.metadata),
-          normalizeRecord(event.metadata),
-        ),
-      ),
+      {},
     ),
   };
 }
@@ -355,11 +245,6 @@ function projectToolOutputDelta(
     error: current?.error,
     metadata: {
       ...legacyToolEventMetadata(normalizeRecord(current?.metadata), metadata),
-      ...toolLifecycleMetadata(
-        context,
-        "output_delta",
-        mergedMetadataSource(normalizeRecord(current?.metadata), metadata),
-      ),
       ...(event.output_kind ? { output_kind: event.output_kind } : {}),
       streaming: true,
     },
@@ -395,14 +280,7 @@ function projectToolProgress(
         progress: event.progress,
       },
       progressMetadata,
-      toolLifecycleMetadata(
-        context,
-        "progress",
-        mergedMetadataSource(
-          normalizeRecord(current?.metadata),
-          progressMetadata,
-        ),
-      ),
+      {},
     ),
   };
 }
@@ -439,14 +317,7 @@ function projectToolEnd(
     metadata: legacyToolEventMetadata(
       normalizeRecord(current?.metadata),
       event.result.metadata,
-      toolLifecycleMetadata(
-        context,
-        event.result.success === false ? "failed" : "completed",
-        mergedMetadataSource(
-          normalizeRecord(current?.metadata),
-          event.result.metadata,
-        ),
-      ),
+      {},
     ),
   };
 }

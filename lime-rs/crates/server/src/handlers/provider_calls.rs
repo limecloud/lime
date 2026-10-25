@@ -474,6 +474,7 @@ fn openai_message_content(
         content.clear();
         content.push(CurrentProviderContent::ToolResult(
             CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: None,
                 call_id: message
                     .tool_call_id
@@ -626,6 +627,7 @@ fn anthropic_content(
                     )),
                     "tool_result" => content.push(CurrentProviderContent::ToolResult(
                         CurrentProviderToolResult {
+                            content_items: Vec::new(),
                             history_token_limit: None,
                             call_id: part
                                 .get("tool_use_id")

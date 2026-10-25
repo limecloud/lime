@@ -14,7 +14,7 @@ import {
   waitForPendingA2UIForm,
 } from "./index.testFixtures";
 
-describe("AgentChatPage 服务技能 A2UI", () => {
+describe("LocalConversationPage 服务技能 A2UI", () => {
   it("Skills 首页入口带着 pending service skill 时，应挂起服务技能 A2UI", async () => {
     installMockAgentChatUnifiedState(
       createMockAgentChatUnifiedState({ sessionId: null }),

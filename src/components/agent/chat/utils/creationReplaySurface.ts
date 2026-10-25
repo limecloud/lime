@@ -111,27 +111,6 @@ function buildMemoryEntrySummary(
   return surfaceCopy.fallbackSummary;
 }
 
-function buildSkillScaffoldSummary(
-  creationReplay: Extract<CreationReplayMetadata, { kind: "skill_scaffold" }>,
-): string {
-  const summary =
-    normalizeOptionalText(creationReplay.data.description) ||
-    normalizeOptionalText(creationReplay.data.source_excerpt);
-  if (summary) {
-    return truncateText(summary, 160);
-  }
-
-  const inputs = (creationReplay.data.inputs || [])
-    .map((item) => normalizeOptionalText(item))
-    .filter(Boolean)
-    .slice(0, 3);
-  if (inputs.length > 0) {
-    return `输入约束：${inputs.join("；")}`;
-  }
-
-  return "当前生成会继续沿用这份 Skill 草稿的目标与边界。";
-}
-
 export function buildCreationReplaySurfaceModel(
   creationReplay?: CreationReplayMetadata,
 ): CreationReplaySurfaceModel | null {
@@ -139,43 +118,27 @@ export function buildCreationReplaySurfaceModel(
     return null;
   }
 
-  if (creationReplay.kind === "memory_entry") {
-    const referenceSelection =
-      buildCuratedTaskReferenceSelectionFromCreationReplay(creationReplay);
-    const surfaceCopy = getMemoryEntrySurfaceCopy(creationReplay.data.category);
-    const badgeLabel = getCuratedTaskReferenceCategoryLabel(
-      creationReplay.data.category,
-    );
-    const title =
-      normalizeOptionalText(creationReplay.data.title) ||
-      getCuratedTaskReferenceFallbackTitle(creationReplay.data.category);
-
-    return {
-      kind: creationReplay.kind,
-      eyebrow: surfaceCopy.eyebrow,
-      badgeLabel,
-      title,
-      summary: buildMemoryEntrySummary(creationReplay),
-      hint:
-        referenceSelection.referenceMemoryIds.length > 0
-          ? surfaceCopy.hintWithReference
-          : surfaceCopy.hintWithoutReference,
-      defaultReferenceMemoryIds: referenceSelection.referenceMemoryIds,
-      defaultReferenceEntries: referenceSelection.referenceEntries,
-    };
-  }
-
+  const referenceSelection =
+    buildCuratedTaskReferenceSelectionFromCreationReplay(creationReplay);
+  const surfaceCopy = getMemoryEntrySurfaceCopy(creationReplay.data.category);
+  const badgeLabel = getCuratedTaskReferenceCategoryLabel(
+    creationReplay.data.category,
+  );
   const title =
-    normalizeOptionalText(creationReplay.data.name) || "当前 Skill 草稿";
+    normalizeOptionalText(creationReplay.data.title) ||
+    getCuratedTaskReferenceFallbackTitle(creationReplay.data.category);
 
   return {
     kind: creationReplay.kind,
-    eyebrow: "当前带入 Skill 草稿",
-    badgeLabel: "Skill 草稿",
+    eyebrow: surfaceCopy.eyebrow,
+    badgeLabel,
     title,
-    summary: buildSkillScaffoldSummary(creationReplay),
-    hint: "这轮会先沿着这份 Skill 草稿继续生成，跑顺后可回到 Skills 继续整理。",
-    defaultReferenceMemoryIds: [],
-    defaultReferenceEntries: [],
+    summary: buildMemoryEntrySummary(creationReplay),
+    hint:
+      referenceSelection.referenceMemoryIds.length > 0
+        ? surfaceCopy.hintWithReference
+        : surfaceCopy.hintWithoutReference,
+    defaultReferenceMemoryIds: referenceSelection.referenceMemoryIds,
+    defaultReferenceEntries: referenceSelection.referenceEntries,
   };
 }

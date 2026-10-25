@@ -335,17 +335,15 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
   it("外部透传的 slotValues 和提示文案应优先用于当前对话 A2UI", async () => {
     const { render, getValue } = renderHook({
       creationReplay: {
-        kind: "skill_scaffold",
-        source: {
-          page: "skills",
-        },
+        version: 1,
+        kind: "memory_entry",
+        source: { page: "memory_store" },
         data: {
-          name: "AI Agent 行业复盘",
-          description: "旧草稿说明",
-          outputs: ["聚焦 AI Agent 协作趋势"],
-          source_excerpt: "旧草稿线索",
+          category: "context",
+          title: "AI Agent 行业复盘",
+          summary: "聚焦 AI Agent 协作趋势",
         },
-      } as HookProps["creationReplay"],
+      },
     });
     await render();
 

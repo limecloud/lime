@@ -7,6 +7,10 @@ use std::path::PathBuf;
 
 #[derive(Debug, Default, Args, Clone)]
 pub(crate) struct ConnectionArgs {
+    /// Request native confirmation for this exact target before starting the session.
+    #[arg(long = "computer-use-target", value_name = "JSON", value_parser = parse_computer_use_target)]
+    pub(crate) computer_use_targets:
+        Vec<app_server_protocol::protocol::v2::ComputerUseTargetIdentity>,
     #[arg(long = "app-server", value_name = "PATH")]
     pub(crate) app_server: Option<PathBuf>,
     #[arg(
@@ -163,6 +167,10 @@ impl ConnectionArgs {
     }
 
     pub(crate) fn inherit_from(&mut self, root: &Self) {
+        if self.computer_use_targets.is_empty() {
+            self.computer_use_targets
+                .clone_from(&root.computer_use_targets);
+        }
         let child_sandbox_group_selected = self.sandbox_mode.is_some()
             || self.approve_for_me
             || self.dangerously_bypass_approvals_and_sandbox
@@ -242,6 +250,13 @@ impl ConnectionArgs {
             self.approval_policy = root.approval_policy;
         }
     }
+}
+
+fn parse_computer_use_target(
+    value: &str,
+) -> std::result::Result<app_server_protocol::protocol::v2::ComputerUseTargetIdentity, String> {
+    serde_json::from_str(value)
+        .map_err(|error| format!("invalid Computer Use target JSON: {error}"))
 }
 
 #[derive(Debug, Default, Args, Clone)]

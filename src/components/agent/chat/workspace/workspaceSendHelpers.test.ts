@@ -271,7 +271,7 @@ describe("workspaceSendHelpers", () => {
               voiceGuard: "user_explicit",
               brandVoiceId: "brand-voice-1",
               evidencePackId: "voice-pack-1",
-              inheritsGlobalSoul: false,
+
               inheritsExpertPersona: false,
             },
           },
@@ -295,7 +295,7 @@ describe("workspaceSendHelpers", () => {
           voice_guard: "user_explicit",
           brand_voice_id: "brand-voice-1",
           evidence_pack_id: "voice-pack-1",
-          inherits_global_soul: false,
+
           inherits_expert_persona: false,
         },
       },
@@ -432,138 +432,11 @@ describe("workspaceSendHelpers", () => {
     });
   });
 
-  it("保存的 Soul 创作声线无本轮显式声线时应作为发送 fallback", () => {
-    const metadata = buildWorkspaceRequestMetadata({
-      savedSoulArtifactVoiceGenerationBrief: {
-        voice_source: "brand_voice",
-        voice_guard: "user_explicit",
-        brand_voice_id: "saved-brand-voice",
-        evidence_source: "memory.soul.artifact_voice",
-      },
-      soulArtifactVoiceEnabledForTurn: true,
-      effectiveToolPreferences: {
-        task: false,
-        subagent: false,
-      },
-      mappedTheme: "general",
-      isThemeWorkbench: true,
-      currentGateKey: "write_mode",
-      contentId: "content-saved-voice",
-    });
 
-    expect(metadata).toMatchObject({
-      artifact: {
-        generation_brief: {
-          voice_source: "brand_voice",
-          voice_guard: "user_explicit",
-          brand_voice_id: "saved-brand-voice",
-          evidence_source: "memory.soul.artifact_voice",
-        },
-      },
-      diagnostics: {
-        soul_artifact_voice: {
-          status: "saved_applied",
-          enabled_for_turn: true,
-          source: "memory.soul.artifact_voice",
-          guard_result: "applied",
-          voice_source: "brand_voice",
-          voice_guard: "user_explicit",
-          evidence_source: "memory.soul.artifact_voice",
-        },
-      },
-    });
-  });
 
-  it("本轮关闭保存的 Soul 创作声线时不应注入 artifact metadata", () => {
-    const metadata = buildWorkspaceRequestMetadata({
-      savedSoulArtifactVoiceGenerationBrief: {
-        voice_source: "brand_voice",
-        voice_guard: "user_explicit",
-        brand_voice_id: "saved-brand-voice",
-        evidence_source: "memory.soul.artifact_voice",
-      },
-      soulArtifactVoiceEnabledForTurn: false,
-      effectiveToolPreferences: {
-        task: false,
-        subagent: false,
-      },
-      mappedTheme: "general",
-      isThemeWorkbench: true,
-      currentGateKey: "write_mode",
-      contentId: "content-saved-voice-disabled",
-    });
 
-    expect(metadata.artifact).toBeUndefined();
-    expect(metadata).toMatchObject({
-      diagnostics: {
-        soul_artifact_voice: {
-          status: "disabled_for_turn",
-          enabled_for_turn: false,
-          source: "memory.soul.artifact_voice",
-          guard_result: "blocked_by_turn_override",
-          voice_source: "brand_voice",
-          voice_guard: "user_explicit",
-          evidence_source: "memory.soul.artifact_voice",
-        },
-      },
-    });
-  });
 
-  it("本轮显式声线应覆盖保存的 Soul 创作声线且不继承保存 evidence", () => {
-    const metadata = buildWorkspaceRequestMetadata({
-      savedSoulArtifactVoiceGenerationBrief: {
-        voice_source: "brand_voice",
-        voice_guard: "user_explicit",
-        brand_voice_id: "saved-brand-voice",
-        evidence_source: "memory.soul.artifact_voice",
-      },
-      soulArtifactVoiceEnabledForTurn: true,
-      sendOptions: {
-        requestMetadata: {
-          generationBrief: {
-            voiceSource: "creator_voice",
-            creatorVoiceId: "turn-creator-voice",
-            evidenceRefs: ["memory:turn-voice"],
-          },
-        },
-      },
-      effectiveToolPreferences: {
-        task: false,
-        subagent: false,
-      },
-      mappedTheme: "general",
-      isThemeWorkbench: true,
-      currentGateKey: "write_mode",
-      contentId: "content-turn-voice",
-    });
 
-    expect(metadata).toMatchObject({
-      artifact: {
-        generation_brief: {
-          voice_source: "creator_voice",
-          creator_voice_id: "turn-creator-voice",
-          evidence_refs: ["memory:turn-voice"],
-        },
-      },
-      diagnostics: {
-        soul_artifact_voice: {
-          status: "turn_explicit",
-          enabled_for_turn: true,
-          source: "request_metadata.generation_brief",
-          guard_result: "applied",
-          voice_source: "creator_voice",
-          evidence_refs: ["memory:turn-voice"],
-          evidence_ref_count: 1,
-        },
-      },
-    });
-    expect(metadata.artifact).not.toMatchObject({
-      generation_brief: {
-        brand_voice_id: "saved-brand-voice",
-        evidence_source: "memory.soul.artifact_voice",
-      },
-    });
-  });
 
   it("自动首发 metadata 中已有浏览器协助参数时应主动剔除", () => {
     const metadata = buildWorkspaceRequestMetadata({
@@ -656,7 +529,7 @@ describe("workspaceSendHelpers", () => {
     });
 
     const messages = buildSubmissionPreviewMessages(snapshot);
-    expect(messages).toHaveLength(2);
+    expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({
       id: "submission-preview:submission-preview-1:user",
       role: "user",
@@ -667,15 +540,7 @@ describe("workspaceSendHelpers", () => {
         commandPrefix: "@inspect",
       },
     });
-    expect(messages[1]).toMatchObject({
-      id: "submission-preview:submission-preview-1:assistant",
-      role: "assistant",
-      content: "",
-      isThinking: true,
-      runtimeStatus: {
-        phase: "preparing",
-      },
-    });
+    expect(messages.some((message) => message.role === "assistant")).toBe(false);
 
     vi.restoreAllMocks();
   });

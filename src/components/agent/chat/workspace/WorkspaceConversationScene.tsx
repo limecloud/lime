@@ -499,7 +499,7 @@ export function WorkspaceConversationScene({
     },
   });
   const shouldUseTaskCenterUtilityToolbar =
-    navbarContextVariant === "task-center";
+    navbarContextVariant === "task-center" && showChatLayout;
   const shouldRenderThreadHeader = Boolean(threadHeader && showChatLayout);
   const taskCenterUtilityToolbarNode = shouldUseTaskCenterUtilityToolbar ? (
     <TaskCenterUtilityToolbar
@@ -533,7 +533,7 @@ export function WorkspaceConversationScene({
       />
     ) : null;
   const chatNavbarProps = buildWorkspaceNavbarProps({
-    visible: navbarVisible,
+    visible: navbarVisible && showChatLayout,
     isRunning,
     chrome: navbarChrome,
     navbarContextVariant,

@@ -160,7 +160,7 @@ export function clickBodyButtonByText(text: string) {
 
 export function clickNoProviderGuideDismissButton(container: HTMLElement) {
   const dismissButton = container.querySelector<HTMLButtonElement>(
-    'button[aria-label="关闭工具模型未配置提示"]',
+    'button[aria-label="关闭服务商未配置提示"]',
   );
   if (!dismissButton) {
     throw new Error("未找到关闭引导按钮");

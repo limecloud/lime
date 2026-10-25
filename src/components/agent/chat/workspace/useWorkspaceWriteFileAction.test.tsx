@@ -125,7 +125,7 @@ describe("useWorkspaceWriteFileAction", () => {
       expect(setSelectedArtifactId).toHaveBeenCalledWith(artifact.id);
       if (failed)
         expect(error).toHaveBeenCalledWith(
-          "[AgentChatPage] 持久化 artifact 失败:",
+          "[LocalConversationPage] 持久化 artifact 失败:",
           expect.objectContaining({ message: "disk full" }),
         );
       else expect(error).not.toHaveBeenCalled();

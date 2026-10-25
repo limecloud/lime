@@ -15,7 +15,7 @@ import {
 
 const { mockUseAgentChatUnified } = getIndexTestMocks();
 
-describe("AgentChatPage 侧栏显示控制", () => {
+describe("LocalConversationPage 侧栏显示控制", () => {
   it("Claw 模式有消息时默认收起侧栏，且切换项目不应意外展开", async () => {
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
@@ -208,7 +208,7 @@ describe("AgentChatPage 侧栏显示控制", () => {
       },
     );
 
-    const container = renderPage({ agentEntry: "claw" });
+    const container = renderPage({ agentEntry: "conversation" });
     await flushEffects();
 
     expect(

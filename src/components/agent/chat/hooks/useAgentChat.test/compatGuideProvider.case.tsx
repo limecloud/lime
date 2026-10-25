@@ -5,7 +5,7 @@ import {
   flushEffects,
   getSubmittedTurnStart,
   mockGetRuntimeProviderSelection,
-  mockResolveClawWorkspaceProviderSelection,
+  mockResolveConversationProviderSelection,
   mockScheduleMinimumDelayIdleTask,
   mockSubmitAgentRuntimeTurn,
   mountHook,
@@ -132,7 +132,7 @@ describe("useAgentChat 兼容接口 - guide / provider", () => {
       return () => undefined;
     });
     mockGetRuntimeProviderSelection.mockReturnValue(runtimeSelection.promise);
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: selectedProvider,
       model: selectedModel,
     });
@@ -166,7 +166,7 @@ describe("useAgentChat 兼容接口 - guide / provider", () => {
       });
 
       expect(mockGetRuntimeProviderSelection).toHaveBeenCalledTimes(1);
-      expect(mockResolveClawWorkspaceProviderSelection).not.toHaveBeenCalled();
+      expect(mockResolveConversationProviderSelection).not.toHaveBeenCalled();
 
       await act(async () => {
         scheduledTasks.forEach((task) => task());
@@ -235,7 +235,7 @@ describe("useAgentChat 兼容接口 - guide / provider", () => {
     mockGetRuntimeProviderSelection.mockResolvedValue({
       provider_configured: false,
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: selectedProvider,
       model: selectedModel,
     });
@@ -255,7 +255,7 @@ describe("useAgentChat 兼容接口 - guide / provider", () => {
       });
 
       expect(mockGetRuntimeProviderSelection).toHaveBeenCalledTimes(1);
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: undefined,
         currentModel: selectedModel,
         theme: "general",
@@ -288,7 +288,7 @@ describe("useAgentChat 兼容接口 - guide / provider", () => {
     mockGetRuntimeProviderSelection.mockResolvedValue({
       provider_configured: false,
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "custom-a32774c6-6fd0-433b-8b81-e95340e08793",
       model: "glm-5.1",
     });
@@ -299,7 +299,7 @@ describe("useAgentChat 兼容接口 - guide / provider", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: "anthropic",
         currentModel: "glm-5.1",
         theme: "general",

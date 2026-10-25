@@ -227,6 +227,12 @@ describe("electron desktop resource manifest", () => {
           "electron/native/macos/macos-screen-capture.swift",
         ),
         expect.stringContaining(
+          "electron/native/macos/macos-computer-use-cursor.swift",
+        ),
+        expect.stringContaining(
+          "electron/native/macos/macos-computer-use-cursor-frames.swift",
+        ),
+        expect.stringContaining(
           "electron/native/macos/macos-window-orchestration.swift",
         ),
         expect.stringContaining(

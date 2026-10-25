@@ -119,7 +119,7 @@ describe("Inputbar workflow current integration", () => {
 
     expect(container.textContent).toContain("Current progress");
     expect(container.textContent).toContain("Task queue");
-    expect(container.textContent).toContain("In progress · 0/2");
+    expect(container.textContent).toContain("In progress 0/2");
     expect(container.textContent).toContain("Moving forward; 1 item(s) remain");
     expect(container.textContent).not.toContain("当前进展");
     expect(container.textContent).not.toContain("任务队列");

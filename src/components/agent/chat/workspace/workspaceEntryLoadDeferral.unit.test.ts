@@ -11,7 +11,7 @@ type Input = Parameters<typeof resolveWorkspaceEntryLoadDeferral>[0];
 
 function resolve(overrides: Partial<Input> = {}) {
   return resolveWorkspaceEntryLoadDeferral({
-    agentEntry: "claw",
+    agentEntry: "conversation",
     contentId: undefined,
     normalizedEntryTheme: "general",
     normalizedInitialSessionId: null,

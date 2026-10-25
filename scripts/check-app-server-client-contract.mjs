@@ -3269,7 +3269,7 @@ const checks = [
       "RuntimeCoreError::pending_route_for_session(",
       "RuntimeCoreError::RouteRejected",
       'reason_code == "provider_and_model_missing"',
-      'reason_code == "capability_snapshot_missing"',
+      'reason_code == "capability_gap"',
     ],
     absentSnippets: [
       ".configure_provider(",

@@ -12,41 +12,33 @@ export const MetaSelectWrap = styled.label`
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 12px 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.82));
-  background: var(--lime-surface, #ffffff);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 28px;
+  height: 28px;
+  gap: 4px;
+  padding: 0 4px;
+  border-radius: 8px;
   color: hsl(var(--muted-foreground));
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    color 0.2s ease,
-    background 0.2s ease;
+  [data-access-mode-label] {
+    font-size: 12px;
+    font-weight: 400;
+    white-space: nowrap;
+  }
 
-  &::after {
-    content: "";
-    position: absolute;
-    right: 11px;
-    top: 50%;
-    width: 6px;
-    height: 6px;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: translateY(-62%) rotate(45deg);
-    pointer-events: none;
-    opacity: 0.76;
+  @container composer (max-width: 24rem) {
+    [data-access-mode-label] {
+      display: none;
+    }
+  }
+
+  &[data-access-mode="full-access"] {
+    color: var(--lime-warning, #d97706);
   }
 
   &:focus-within {
-    border-color: var(--lime-surface-border-strong, #bbf7d0);
-    background: var(--lime-surface, #ffffff);
-    box-shadow:
-      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.92);
-    color: hsl(var(--foreground));
+    outline: 1px solid hsl(var(--ring));
+    outline-offset: 1px;
   }
 `;
 
@@ -64,7 +56,12 @@ export const MetaSelectIcon = styled.span`
   }
 `;
 
-export const MetaSelect = styled.select<{ $width?: string }>`
+export const MetaSelect = styled.select`
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   appearance: none;
   border: none;
   background: transparent;
@@ -74,7 +71,6 @@ export const MetaSelect = styled.select<{ $width?: string }>`
   line-height: 1;
   padding: 0 14px 0 0;
   min-width: 0;
-  width: ${({ $width }) => $width || "auto"};
   cursor: pointer;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -318,10 +314,17 @@ export const PlanModeContextSeparator = styled.span`
 export const ActionButtonGroup = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-inline-start: 8px;
+  gap: 4px;
+  margin-inline-start: 4px;
   flex: 0 0 auto;
   justify-content: flex-end;
+
+  .is-dictation:not(.is-recording) {
+    width: 24px;
+    height: 28px;
+    border-color: transparent;
+    background: transparent;
+  }
 `;
 
 export const InputIconButton = styled.button<{

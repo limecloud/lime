@@ -41,12 +41,7 @@ import { summarizeReadModelMediaReference } from "./claw-chat-current-fixture-me
 import { buildScenarioAssertions } from "./claw-chat-current-fixture-scenario-assertions.mjs";
 import { registerImageContentSmokeGuards } from "./claw-chat-current-fixture-smoke-domain-guards.mjs";
 import { registerSkillsRuntimeSmokeGuards } from "./claw-chat-current-fixture-smoke-skills-runtime-guards.mjs";
-import {
-  buildSoulStyleTranscriptGoldenReport,
-  SOUL_STYLE_TRANSCRIPT_GOLDENS,
-  SOUL_STYLE_TRANSCRIPT_SURFACES,
-} from "./claw-chat-current-fixture-soul-style-transcript-golden.mjs";
-import { SOUL_STYLE_FIXTURE_PROFILE_IDS } from "./claw-chat-current-fixture-soul-style.mjs";
+
 import {
   analyzeHomeHotpathSubmitToConversationSamples,
   summarizeHomeHotpathPreTurnTrace,
@@ -123,8 +118,6 @@ const fixtureSourceFiles = [
   "scripts/agent-runtime/claw-chat-current-fixture-skills-runtime-assertions.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-terminal-assertions.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-web-tools-assertions.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-soul-style-transcript-golden.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-soul-style.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-content-factory-assertions.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-not-applicable-assertions.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-assertion-context.mjs",
@@ -804,7 +797,7 @@ describe("claw chat current Electron fixture smoke guard", () => {
                   method: "turn/start",
                   params: {
                     threadId: "thread-current",
-                    input: { text: prompt },
+                    input: [{ type: "text", text: prompt }],
                   },
                 }),
               ],
@@ -1042,34 +1035,19 @@ describe("claw chat current Electron fixture smoke guard", () => {
     expect(summary.createTaskOutputContainsTaskFile).toBe(true);
   });
 
-  it("binds image workflow audit to the current runtime session", () => {
-    const workflowRead = {
-      sessionId: "sess-current",
-      activeWorkflowRunId: "",
-      matchedRun: {
-        workflowKey: "image_command_workflow",
-        status: "completed",
-        stepCounts: { total: 5 },
-      },
-    };
-    const buildAssertions = (sessionId) =>
+  it("rejects frontend image routing metadata for the model tool scenario", () => {
+    const check = (runtimeRequest) =>
       buildScenarioAssertions({
-        appServerRequestMethods: ["workflow/read"],
+        appServerRequestMethods: [],
         isImageCommandScenario: true,
         pageText: "",
-        summary: {
-          sessionId,
-          imageCommandWorkflowRead: workflowRead,
-        },
-      });
-
-    expect(
-      buildAssertions("sess-current")
-        .imageCommandWorkflowAuditReadModelProjected,
-    ).toBe(true);
-    expect(
-      buildAssertions("sess-stale").imageCommandWorkflowAuditReadModelProjected,
-    ).toBe(false);
+        imageCommandTurnStart: { runtimeRequest },
+        summary: {},
+      }).imageCommandNoSyntheticRoutingMetadata;
+    expect(check({ metadata: {} })).toBe(true);
+    expect(check({ metadata: { harness: { image_command_intent: {} } } })).toBe(
+      false,
+    );
   });
 
   it("proves runtime notifications align with the same turn read model", () => {
@@ -2227,84 +2205,6 @@ describe("claw chat current Electron fixture smoke guard", () => {
     expect(content).toContain("newsRequestDidNotPassLegacyWebSearchFlag");
     expect(content).toContain('search_mode !== "required"');
     expect(content).toContain('"web_search"');
-  });
-
-  it("covers Soul style config through the real Electron fixture without exposing prompt payload", () => {
-    const content = readSmokeScript();
-
-    expect(content).toContain("soul-style");
-    expect(content).toContain("SOUL_STYLE_SCENARIO");
-    expect(content).toContain("--soul-style-profile");
-    expect(content).toContain("SOUL_STYLE_FIXTURE_PROFILES");
-    expect(content).toContain("createSoulStyleFixtureSelection");
-    expect(content).toContain("buildSoulStyleFixtureAssistantText");
-    expect(content).toContain("resolveSoulStyleFixtureExpectedTexts");
-    expect(content).toContain("soulStyleExpectation");
-    expect(content).toContain("enable-soul-style-config");
-    expect(content).toContain("soulStyleConfig");
-    expect(content).toContain("soulStyleConfigEnabled");
-    expect(content).toContain("soulStylePromptReachedBackend");
-    expect(content).toContain("soulStyleRuntimeProviderReached");
-    expect(content).toContain("soulStylePromptContextCoveredByRuntime");
-    expect(content).toContain("soulStylePromptContextMarkers");
-    expect(content).toContain("applySoulStyleProviderMarkerSummary");
-    expect(content).toContain("summarizeSoulPromptMarkers");
-    expect(content).toContain("hasInteractionSoul");
-    expect(content).toContain("hasMemorySoulSchema");
-    expect(content).toContain("hasProfileId");
-    expect(content).toContain("hasStylePack");
-    expect(content).toContain("hasToolLifecycleSurfaceContracts");
-    expect(content).toContain("closing_suggestion:");
-    expect(content).toContain("buildSoulStyleScenarioAssertions");
-    expect(content).toContain("soulStyleTranscriptMatchesExpectedProfile");
-    expect(content).toContain("SOUL_STYLE_TRANSCRIPT_GOLDENS");
-    expect(content).toContain("buildSoulStyleTranscriptGoldenReport");
-    expect(content).toContain("soulStyleReadModelCompleted");
-    expect(content).toContain("soulStyleGuiCompleted");
-    expect(content).toContain("!isSoulStyleScenario");
-    expect(content).toContain("options.scenario === SOUL_STYLE_SCENARIO");
-    expect(content).toContain("options.scenario !== SOUL_STYLE_SCENARIO");
-    expect(content).toContain('APP_SERVER_BACKEND_MODE: "runtime"');
-    expect(readGuiActionsScript()).toContain(
-      "/^(system_prompt|systemPrompt)$/u",
-    );
-    expect(readFixtureUtilsScript()).toContain(
-      "/^(system_prompt|systemPrompt)$/u",
-    );
-    expect(readGuiActionsScript()).toContain("[redacted-prompt]");
-    expect(readFixtureUtilsScript()).toContain("[redacted-prompt]");
-    expect(content).not.toContain("soulStyleContextReachedBackend");
-    expect(content).not.toContain("includesMemorySoulPromptContext");
-    expect(content).not.toContain("requestContains");
-    expect(content).not.toContain("bodyPreview");
-    expect(content).not.toContain("contentPreview");
-    expect(content).not.toContain("SOUL_STYLE_PROFILE_ID");
-    expect(content).not.toContain("SOUL_STYLE_PACK_ID");
-    expect(content).not.toContain("SOUL_STYLE_INTENSITY");
-  });
-
-  it("locks Soul transcript golden to four different styles over the same facts", () => {
-    const report = buildSoulStyleTranscriptGoldenReport();
-
-    expect(report.profiles).toEqual([
-      "cheeky_sassy_executor",
-      "warm_supportive_companion",
-      "cool_confident_operator",
-      "calm_professional_partner",
-    ]);
-    expect(SOUL_STYLE_FIXTURE_PROFILE_IDS).toEqual(report.profiles);
-    expect(report.surfaces).toEqual(SOUL_STYLE_TRANSCRIPT_SURFACES);
-    expect(SOUL_STYLE_TRANSCRIPT_GOLDENS).toHaveLength(4);
-
-    for (const check of report.checks) {
-      expect(check.textCount, `${check.surface} text count`).toBe(4);
-      expect(check.uniqueTextCount, `${check.surface} style collapse`).toBe(4);
-      expect(check.factSignatureCount, `${check.surface} fact drift`).toBe(1);
-      expect(
-        check.missingFactsByProfile,
-        `${check.surface} missing facts`,
-      ).toEqual({});
-    }
   });
 
   it("covers web tool WebSearch/WebFetch rendering in the real Electron fixture", () => {

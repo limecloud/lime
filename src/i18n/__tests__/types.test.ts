@@ -56,15 +56,6 @@ function assertI18nKeyTypes() {
   i18n.t("common.oemLimeHubProviderSync.managedKeyAlias", { ns: "common" });
   i18n.t("common.oemLimeHubProviderSync.cloudTokenName", { ns: "common" });
   i18n.t("common.modelSelector.header.title", { ns: "common" });
-  i18n.t("common.modelSelector.header.themeFilter", {
-    ns: "common",
-    theme: "General chat",
-  });
-  i18n.t("common.modelSelector.provider.section.cloud", { ns: "common" });
-  i18n.t("common.modelSelector.model.incompatibleHidden", {
-    ns: "common",
-    count: 2,
-  });
   i18n.t("common.modelSelector.noProvider.dismissAria", { ns: "common" });
   i18n.t("common.modelSelector.state.loginRequired", { ns: "common" });
   i18n.t("common.modelCapabilities.reasoning.active", { ns: "common" });
@@ -72,12 +63,6 @@ function assertI18nKeyTypes() {
   i18n.t("skills.contentDialog.loading", { ns: "agent" });
   i18n.t("skills.contentDialog.section.metadata", { ns: "agent" });
   i18n.t("skills.contentDialog.emptyInspection", { ns: "agent" });
-  i18n.t("skills.repoManager.title", { ns: "agent" });
-  i18n.t("skills.repoManager.action.add", { ns: "agent" });
-  i18n.t("skills.repoManager.message.addFailed", {
-    ns: "agent",
-    message: "network down",
-  });
   i18n.t("agentChat.messageList.historicalAssistantPreview.longNotice", {
     ns: "agent",
     countLabel: "12,000",
@@ -217,7 +202,6 @@ function assertI18nKeyTypes() {
   i18n.t("agentChat.serviceSkills.catalogSource.synced", { ns: "agent" });
   i18n.t("agentExperts.title", { ns: "agent" });
   i18n.t("agentExperts.info.sections.workflow", { ns: "agent" });
-  i18n.t("agentExperts.info.boundary.soul", { ns: "agent" });
   i18n.t("agentExperts.chat.runtimePrompt", {
     ns: "agent",
     title: "合同审阅",
@@ -336,12 +320,9 @@ function assertI18nKeyTypes() {
   i18n.t("agentChat.inputbar.suggestions.error", { ns: "agent" });
   i18n.t("agentChat.inputbar.suggestions.planMode", { ns: "agent" });
   i18n.t("agentChat.inputbar.suggestions.goal", { ns: "agent" });
-  i18n.t("agentChat.home.hero.slogan", { ns: "agent" });
+  i18n.t("agentChat.home.composer.placeholder", { ns: "agent" });
 
   i18n.t("agentChat.inputbar.attachments.failed", { ns: "agent" });
-  i18n.t("skills.skillCard.source.builtin", { ns: "agent" });
-  i18n.t("skills.skillCard.action.install", { ns: "agent" });
-  i18n.t("skills.skillCard.compliance.standard", { ns: "agent" });
   i18n.t("skills.workflowProgress.empty", { ns: "agent" });
   i18n.t("skills.workflowProgress.status.retrying", { ns: "agent" });
   i18n.t("skills.workflowProgress.summary.running", {
@@ -349,9 +330,6 @@ function assertI18nKeyTypes() {
     current: 1,
     total: 3,
   });
-  i18n.t("skills.page.title", { ns: "agent" });
-  i18n.t("skills.page.action.refresh", { ns: "agent" });
-  i18n.t("skills.page.sections.remote.empty", { ns: "agent" });
   i18n.t("skills.workspace.header.title", { ns: "agent" });
   i18n.t("skills.workspace.serviceSkill.runner.instant.label", {
     ns: "agent",
@@ -664,30 +642,6 @@ function assertI18nKeyTypes() {
   });
   i18n.t("settings.layout.action.back", { ns: "settings" });
   i18n.t("settings.layout.loading.profile", { ns: "settings" });
-  i18n.t("settings.profile.title", { ns: "settings" });
-  i18n.t("settings.profile.loading", { ns: "settings" });
-  i18n.t("settings.profile.field.displayName.label", { ns: "settings" });
-  i18n.t("settings.profile.field.bio.label", { ns: "settings" });
-  i18n.t("settings.profile.field.limit", { ns: "settings", count: 64 });
-  i18n.t("settings.profile.action.cancel", { ns: "settings" });
-  i18n.t("settings.profile.action.edit", { ns: "settings" });
-  i18n.t("settings.profile.action.retry", { ns: "settings" });
-  i18n.t("settings.profile.action.save", { ns: "settings" });
-  i18n.t("settings.profile.field.cancelAria", {
-    ns: "settings",
-    label: "Display name",
-  });
-  i18n.t("settings.profile.field.editAria", {
-    ns: "settings",
-    label: "Display name",
-  });
-  i18n.t("settings.profile.field.saveAria", {
-    ns: "settings",
-    label: "Display name",
-  });
-  i18n.t("settings.profile.message.loadFailed", { ns: "settings" });
-  i18n.t("settings.profile.message.saveFailed", { ns: "settings" });
-  i18n.t("settings.profile.message.saved", { ns: "settings" });
   i18n.t("settings.plugins.loading", { ns: "settings" });
   i18n.t("settings.about.version.label", {
     ns: "settings",
@@ -697,7 +651,7 @@ function assertI18nKeyTypes() {
   i18n.t("settings.about.update.errorDownload", { ns: "settings" });
   i18n.t("settings.group.coding", { ns: "settings" });
   i18n.t("settings.appearance.hero.title", { ns: "settings" });
-  i18n.t("settings.appearance.colorScheme.options.lime-classic.label", {
+  i18n.t("settings.appearance.theme.options.light.label", {
     ns: "settings",
   });
   i18n.t("settings.desktop.language", { ns: "settings" });
@@ -713,7 +667,6 @@ function assertI18nKeyTypes() {
   i18n.t("settings.group.coding", { ns: "settings" });
   i18n.t("settings.desktop.personalization", { ns: "settings" });
   i18n.t("settings.personalization.instructions", { ns: "settings" });
-  i18n.t("settings.memory.soul.styleProfile.title", { ns: "settings" });
   i18n.t("settings.personalization.instructionsDescription", {
     ns: "settings",
   });

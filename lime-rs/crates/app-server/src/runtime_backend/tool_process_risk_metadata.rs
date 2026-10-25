@@ -4,7 +4,6 @@ use serde_json::{Map, Value};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ToolProcessRiskMetadata {
     pub(crate) risk_level: &'static str,
-    pub(crate) style_level: Option<&'static str>,
     pub(crate) risk_category: Option<&'static str>,
     pub(crate) risk_reason: Option<&'static str>,
 }
@@ -13,7 +12,6 @@ impl ToolProcessRiskMetadata {
     fn normal() -> Self {
         Self {
             risk_level: "normal",
-            style_level: None,
             risk_category: None,
             risk_reason: None,
         }
@@ -22,7 +20,6 @@ impl ToolProcessRiskMetadata {
     fn high(category: &'static str, reason: &'static str) -> Self {
         Self {
             risk_level: "high",
-            style_level: Some("L4"),
             risk_category: Some(category),
             risk_reason: Some(reason),
         }
@@ -33,12 +30,6 @@ impl ToolProcessRiskMetadata {
             "riskLevel".to_string(),
             Value::String(self.risk_level.to_string()),
         );
-        if let Some(style_level) = self.style_level {
-            lifecycle.insert(
-                "styleLevel".to_string(),
-                Value::String(style_level.to_string()),
-            );
-        }
     }
 
     pub(crate) fn insert_fact_fields(&self, facts: &mut Map<String, Value>) {
@@ -306,16 +297,11 @@ mod tests {
             status: ToolProcessStatus::Started,
             arguments: Some(&arguments),
             result: None,
-            soul_style: None,
         });
 
         assert_eq!(
-            metadata["soul_lifecycle"]["riskLevel"].as_str(),
+            metadata["tool_process_facts"]["riskLevel"].as_str(),
             Some("high")
-        );
-        assert_eq!(
-            metadata["soul_lifecycle"]["styleLevel"].as_str(),
-            Some("L4")
         );
         assert_eq!(
             metadata["tool_process_facts"]["riskCategory"].as_str(),
@@ -346,11 +332,9 @@ mod tests {
             status: ToolProcessStatus::Failed,
             arguments: None,
             result: Some(&result),
-            soul_style: None,
         });
 
         assert_eq!(metadata["risk_level"].as_str(), Some("high"));
-        assert_eq!(metadata["style_level"].as_str(), Some("L4"));
         assert_eq!(
             metadata["tool_process_facts"]["riskCategory"].as_str(),
             Some("destructive_operation")
@@ -366,11 +350,10 @@ mod tests {
             status: ToolProcessStatus::Started,
             arguments: Some(&arguments),
             result: None,
-            soul_style: None,
         });
 
         assert_eq!(
-            metadata["soul_lifecycle"]["riskLevel"].as_str(),
+            metadata["tool_process_facts"]["riskLevel"].as_str(),
             Some("normal")
         );
         assert!(metadata["tool_process_facts"]["riskCategory"].is_null());

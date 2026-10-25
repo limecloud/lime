@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getLimeI18n } from "@/i18n/createI18n";
 import { SettingsTabs } from "@/types/settings";
-import { settingsSections } from "./sections";
+import { isSettingsSection, settingsSections } from "./sections";
 import type { CategoryGroup } from "./hooks/useSettingsCategory";
 import {
   searchSettings,
@@ -14,6 +14,7 @@ const localize = (locale = "en-US") => {
   const t = getLimeI18n().getFixedT(locale, "settings");
   const groups: CategoryGroup[] = [];
   for (const section of settingsSections) {
+    if (!isSettingsSection(section.key)) continue;
     let group = groups.find((value) => value.key === section.group);
     if (!group) {
       group = {
@@ -31,9 +32,9 @@ const localize = (locale = "en-US") => {
   }
   return { t, groups };
 };
-const search = (query: string, localProfile = true) => {
+const search = (query: string) => {
   const { t, groups } = localize();
-  return searchSettings(query, groups, t, localProfile);
+  return searchSettings(query, groups, t);
 };
 
 // 独立列出 current 可见字段，避免从被测索引生成自己的期望。
@@ -107,7 +108,7 @@ describe("current settings search projection", () => {
         expect(t(message)).not.toBe(message);
         for (const platform of ["mac", "windows", "other"] as const) {
           expect(
-            searchSettings(t(message), groups, t, true, platform),
+            searchSettings(t(message), groups, t, platform),
           ).toContainEqual(
             expect.objectContaining({
               section: SettingsTabs.General,
@@ -135,7 +136,6 @@ describe("current settings search projection", () => {
             `${t("browserSiteSettings.title")} ${query}`,
             groups,
             t,
-            true,
           ),
         ).toContainEqual(
           expect.objectContaining({
@@ -152,7 +152,7 @@ describe("current settings search projection", () => {
       const { t, groups } = localize(locale);
       const query = t("settings.desktop.preventSleepWhileRunning");
       for (const platform of ["mac", "other"] as const) {
-        expect(searchSettings(query, groups, t, true, platform)).toContainEqual(
+        expect(searchSettings(query, groups, t, platform)).toContainEqual(
           expect.objectContaining({
             section: SettingsTabs.General,
             targetId: "general-prevent-sleep",
@@ -162,17 +162,15 @@ describe("current settings search projection", () => {
           isSettingsSearchTarget(
             SettingsTabs.General,
             "general-prevent-sleep",
-            true,
             platform,
           ),
         ).toBe(true);
       }
-      expect(searchSettings(query, groups, t, true, "windows")).toEqual([]);
+      expect(searchSettings(query, groups, t, "windows")).toEqual([]);
       expect(
         isSettingsSearchTarget(
           SettingsTabs.General,
           "general-prevent-sleep",
-          true,
           "windows",
         ),
       ).toBe(false);
@@ -184,19 +182,18 @@ describe("current settings search projection", () => {
       const { t, groups } = localize(locale);
       const query = t("settings.desktop.macMenuBar");
       expect(query).toContain("Lime");
-      expect(searchSettings(query, groups, t, true, "mac")).toContainEqual(
+      expect(searchSettings(query, groups, t, "mac")).toContainEqual(
         expect.objectContaining({
           section: SettingsTabs.General,
           targetId: "general-menu-bar",
         }),
       );
       for (const platform of ["windows", "other"] as const) {
-        expect(searchSettings(query, groups, t, true, platform)).toEqual([]);
+        expect(searchSettings(query, groups, t, platform)).toEqual([]);
         expect(
           isSettingsSearchTarget(
             SettingsTabs.General,
             "general-menu-bar",
-            true,
             platform,
           ),
         ).toBe(false);
@@ -204,7 +201,6 @@ describe("current settings search projection", () => {
           getSettingsSearchDocument(
             SettingsTabs.General,
             "general-menu-bar",
-            true,
             platform,
           ),
         ).toBeUndefined();
@@ -216,12 +212,7 @@ describe("current settings search projection", () => {
     (locale) => {
       const { t, groups } = localize(locale);
       expect(
-        searchSettings(
-          t("settings.desktop.autoDetectLanguage"),
-          groups,
-          t,
-          true,
-        ),
+        searchSettings(t("settings.desktop.autoDetectLanguage"), groups, t),
       ).toContainEqual(
         expect.objectContaining({
           section: SettingsTabs.General,
@@ -237,7 +228,7 @@ describe("current settings search projection", () => {
       for (const key of ["enterBehavior", "cmdIfMultiline"]) {
         const message = t(`settings.desktop.${key}`);
         expect(message).not.toBe(`settings.desktop.${key}`);
-        expect(searchSettings(message, groups, t, true)).toContainEqual(
+        expect(searchSettings(message, groups, t)).toContainEqual(
           expect.objectContaining({
             section: SettingsTabs.General,
             targetId: "general-enter-behavior",
@@ -251,7 +242,7 @@ describe("current settings search projection", () => {
     (locale) => {
       const { t, groups } = localize(locale);
       expect(
-        searchSettings(t("settings.plugins.skills.title"), groups, t, true),
+        searchSettings(t("settings.plugins.skills.title"), groups, t),
       ).toContainEqual(
         expect.objectContaining({
           section: SettingsTabs.Plugins,
@@ -269,7 +260,6 @@ describe("current settings search projection", () => {
           t("settings.configuration.modelFeatures.label"),
           groups,
           t,
-          true,
         ),
       ).toContainEqual(
         expect.objectContaining({
@@ -289,7 +279,6 @@ describe("current settings search projection", () => {
             t(`settings.configuration.fields.${field}.label`),
             groups,
             t,
-            true,
           ),
         ).toContainEqual(
           expect.objectContaining({
@@ -310,7 +299,7 @@ describe("current settings search projection", () => {
         ["managed", "worktrees-managed"],
       ]) {
         expect(
-          searchSettings(t(`settings.worktrees.${message}`), groups, t, true),
+          searchSettings(t(`settings.worktrees.${message}`), groups, t),
         ).toContainEqual(
           expect.objectContaining({
             section: SettingsTabs.Worktrees,
@@ -318,9 +307,9 @@ describe("current settings search projection", () => {
           }),
         );
       }
-      expect(
-        searchSettings("/private/fixture-worktrees", groups, t, true),
-      ).toEqual([]);
+      expect(searchSettings("/private/fixture-worktrees", groups, t)).toEqual(
+        [],
+      );
     },
   );
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
@@ -328,7 +317,7 @@ describe("current settings search projection", () => {
     (locale) => {
       const { t, groups } = localize(locale);
       expect(
-        searchSettings(t("settings.voice.sounds.label"), groups, t, true),
+        searchSettings(t("settings.voice.sounds.label"), groups, t),
       ).toContainEqual(
         expect.objectContaining({
           section: SettingsTabs.Voice,
@@ -342,7 +331,7 @@ describe("current settings search projection", () => {
     (locale) => {
       const { t, groups } = localize(locale);
       expect(
-        searchSettings(t("settings.voice.dictionary.label"), groups, t, true),
+        searchSettings(t("settings.voice.dictionary.label"), groups, t),
       ).toContainEqual(
         expect.objectContaining({
           section: SettingsTabs.Voice,
@@ -350,7 +339,7 @@ describe("current settings search projection", () => {
         }),
       );
       expect(
-        searchSettings("private-dictionary-fixture-entry", groups, t, true),
+        searchSettings("private-dictionary-fixture-entry", groups, t),
       ).toEqual([]);
     },
   );
@@ -359,14 +348,14 @@ describe("current settings search projection", () => {
     (locale) => {
       const { t, groups } = localize(locale);
       expect(
-        searchSettings(t("settings.voice.microphone.label"), groups, t, true),
+        searchSettings(t("settings.voice.microphone.label"), groups, t),
       ).toContainEqual(
         expect.objectContaining({
           section: SettingsTabs.Voice,
           targetId: "voice-microphone",
         }),
       );
-      expect(searchSettings("fixture-usb", groups, t, true)).toEqual([]);
+      expect(searchSettings("fixture-usb", groups, t)).toEqual([]);
     },
   );
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
@@ -375,7 +364,7 @@ describe("current settings search projection", () => {
       const { t, groups } = localize(locale);
       for (const [section, targetId, message] of mediaTargets) {
         expect(
-          searchSettings(t(`settings.${message}`), groups, t, true),
+          searchSettings(t(`settings.${message}`), groups, t),
         ).toContainEqual(expect.objectContaining({ section, targetId }));
         expect(
           searchSettings(
@@ -384,10 +373,9 @@ describe("current settings search projection", () => {
             ),
             groups,
             t,
-            true,
           ),
         ).toContainEqual(expect.objectContaining({ section, targetId }));
-        expect(getSettingsSearchDocument(section, targetId, true)?.path).toBe(
+        expect(getSettingsSearchDocument(section, targetId)?.path).toBe(
           undefined,
         );
       }
@@ -401,13 +389,7 @@ describe("current settings search projection", () => {
         expect(t(document.labelKey)).not.toBe(document.labelKey);
         for (const key of document.termKeys) expect(t(key)).not.toBe(key);
         expect(
-          searchSettings(
-            t(document.labelKey),
-            groups,
-            t,
-            true,
-            document.platform,
-          ),
+          searchSettings(t(document.labelKey), groups, t, document.platform),
         ).toContainEqual(
           expect.objectContaining({
             section: document.section,
@@ -423,15 +405,15 @@ describe("current settings search projection", () => {
     expect(search(description)).toContainEqual(
       expect.objectContaining({ targetId: "local-environments-projects" }),
     );
-    expect(search("profile bio")).toContainEqual(
-      expect.objectContaining({ targetId: "profile-bio" }),
+    expect(search("personalization instructions")).toContainEqual(
+      expect.objectContaining({ targetId: "memory-instructions" }),
     );
-    expect(search("display bio")).toEqual([]);
+    expect(search("display instructions")).toEqual([]);
     expect(search("   ")).toEqual([]);
   });
   it("normalizes width and case, prioritizes panel titles and returns one result per panel", () => {
-    const results = search("ＰＲＯＦＩＬＥ");
-    expect(results[0]).toMatchObject({ section: SettingsTabs.Profile });
+    const results = search("ＡＰＰＥＡＲＡＮＣＥ");
+    expect(results[0]).toMatchObject({ section: SettingsTabs.Appearance });
     expect(results[0].targetId).toBeUndefined();
     const broad = search("a");
     expect(new Set(broad.map((result) => result.section)).size).toBe(
@@ -441,9 +423,8 @@ describe("current settings search projection", () => {
   it("derives titles from all current sections, with no extra section registry", () => {
     const { t, groups } = localize();
     for (const section of settingsSections) {
-      expect(
-        searchSettings(t(section.labelKey), groups, t, false),
-      ).toContainEqual({
+      if (!isSettingsSection(section.key)) continue;
+      expect(searchSettings(t(section.labelKey), groups, t)).toContainEqual({
         section: section.key,
         label: t(section.labelKey),
         panelLabel: t(section.labelKey),
@@ -451,27 +432,22 @@ describe("current settings search projection", () => {
     }
     expect(search("fixture private profile value")).toEqual([]);
   });
-  it("excludes local fields in managed account mode but preserves the Profile title", () => {
-    expect(search("bio", false)).toEqual([]);
-    expect(search("profile", false)).toContainEqual(
-      expect.objectContaining({ section: SettingsTabs.Profile }),
+  it("does not offer retired local profile fields", () => {
+    expect(search("bio")).toEqual([]);
+    expect(isSettingsSearchTarget(SettingsTabs.Profile, "profile-bio")).toBe(
+      false,
     );
-    expect(
-      isSettingsSearchTarget(SettingsTabs.Profile, "profile-bio", false),
-    ).toBe(false);
   });
   it("rejects unknown, cross-section and selector-shaped targets", () => {
     expect(
-      isSettingsSearchTarget(SettingsTabs.Profile, "profile-bio", true),
+      isSettingsSearchTarget(SettingsTabs.Memory, "memory-instructions"),
     ).toBe(true);
     for (const target of [
       "missing",
       "local-environments-projects",
       'profile-bio"] input, *',
     ]) {
-      expect(isSettingsSearchTarget(SettingsTabs.Profile, target, true)).toBe(
-        false,
-      );
+      expect(isSettingsSearchTarget(SettingsTabs.Profile, target)).toBe(false);
     }
   });
 });
@@ -481,7 +457,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
   (locale) => {
     const { t, groups } = localize(locale);
     expect(
-      searchSettings(t("settings.plugins.marketplace.title"), groups, t, true),
+      searchSettings(t("settings.plugins.marketplace.title"), groups, t),
     ).toContainEqual(
       expect.objectContaining({
         section: SettingsTabs.Plugins,
@@ -489,7 +465,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
       }),
     );
     expect(
-      isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-marketplace", true),
+      isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-marketplace"),
     ).toBe(true);
   },
 );
@@ -500,7 +476,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     const { t, groups } = localize(locale);
     for (const key of ["addServer", "authenticate", "envVars"]) {
       expect(
-        searchSettings(t("settings.plugins.mcp." + key), groups, t, true),
+        searchSettings(t("settings.plugins.mcp." + key), groups, t),
       ).toContainEqual(
         expect.objectContaining({
           section: SettingsTabs.Plugins,
@@ -508,11 +484,9 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
         }),
       );
     }
-    expect(
-      isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-mcps", true),
-    ).toBe(true);
-    expect(searchSettings("fixture-secret-mcp-token", groups, t, true)).toEqual(
-      [],
+    expect(isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-mcps")).toBe(
+      true,
     );
+    expect(searchSettings("fixture-secret-mcp-token", groups, t)).toEqual([]);
   },
 );

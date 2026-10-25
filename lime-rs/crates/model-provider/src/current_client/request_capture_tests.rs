@@ -56,6 +56,7 @@ fn request_with_multimodal_tool_history() -> CurrentProviderRequest {
         )]),
         CurrentProviderMessage::tool(vec![CurrentProviderContent::ToolResult(
             CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: Some(17),
                 call_id: "call-1".to_string(),
                 name: "read_file".to_string(),
@@ -97,6 +98,7 @@ fn request_with_custom_tool_history() -> CurrentProviderRequest {
         CurrentProviderMessage::assistant(vec![CurrentProviderContent::CustomToolCall(call)]),
         CurrentProviderMessage::tool(vec![CurrentProviderContent::CustomToolResult(
             CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: Some(17),
                 call_id: "custom-call-1".to_string(),
                 name: "run_code".to_string(),

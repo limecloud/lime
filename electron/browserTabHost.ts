@@ -582,6 +582,14 @@ export class ElectronBrowserTabHost {
     this.#toolWorkspace.setHandler(handler);
   }
 
+  setThreadAccess(
+    ownerWebContentsId: number,
+    threadId: string,
+    settings: unknown,
+  ): void {
+    this.#permissions.setThreadAccess(ownerWebContentsId, threadId, settings);
+  }
+
   setArtifactWriter(writer: BrowserArtifactWriter | null): void {
     this.#artifactWriter = writer;
   }
@@ -1345,7 +1353,7 @@ export class ElectronBrowserTabHost {
     this.#toolWorkspace.reset();
     this.#sitePermissions.cancelView();
     this.#embeddedHost.revokePermissionGrants?.();
-    this.#permissions.revoke();
+    this.#permissions.clearThreadAccess();
     this.#clearPendingPermissions(() => true);
     this.#embeddedHost.clearPendingPermissions?.();
     this.#clearPendingApprovals(() => true);

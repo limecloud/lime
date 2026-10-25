@@ -1,7 +1,7 @@
-use super::super::soul::locale_copy::HandoffCopy;
-use super::super::soul::locale_copy::RuntimeExportCopy;
 use super::super::status::agent_turn_status_label;
 use super::super::RuntimeCoreError;
+use super::locale_copy::HandoffCopy;
+use super::locale_copy::RuntimeExportCopy;
 use super::metrics::HandoffMetrics;
 use super::metrics::HandoffRecentArtifact;
 use app_server_protocol::AgentSessionReadResponse;
@@ -109,7 +109,6 @@ pub(super) fn build_replay_grader_markdown(
         metrics.thread_status.as_str()
     );
     let _ = writeln!(content);
-    write_generation_brief_boundary(&mut content, copy);
     let _ = writeln!(content);
     let _ = writeln!(content, "## {}", copy.replay.checks_heading);
     let pending_request_check = copy
@@ -174,7 +173,6 @@ pub(super) fn build_analysis_brief_markdown(
     }
     let _ = writeln!(content, "- exportedAt: `{exported_at}`");
     let _ = writeln!(content);
-    write_generation_brief_boundary(&mut content, copy);
     let _ = writeln!(content);
     let _ = writeln!(content, "## {}", copy.analysis.focus_heading);
     let _ = writeln!(content);
@@ -308,7 +306,6 @@ pub(super) fn build_review_decision_markdown(
     let _ = writeln!(content, "- analysis: `{analysis_relative_root}`");
     let _ = writeln!(content, "- replay: `{replay_relative_root}`");
     let _ = writeln!(content);
-    write_generation_brief_boundary(&mut content, copy);
     let _ = writeln!(content);
     let _ = writeln!(content, "## {}", copy.review.summary_heading);
     let _ = writeln!(
@@ -460,7 +457,6 @@ pub(super) fn build_rollout_summary_candidate_markdown(
     }
     let _ = writeln!(content, "- exportedAt: `{exported_at}`");
     let _ = writeln!(content);
-    write_generation_brief_boundary(&mut content, copy);
     let _ = writeln!(content);
     let _ = writeln!(content, "## {}", copy.rollout.candidate_memory_heading);
     let _ = writeln!(
@@ -579,19 +575,6 @@ fn write_handoff_header(
         let _ = writeln!(content, "- latestTurnStatus: `{latest_turn_status}`");
     }
     let _ = writeln!(content, "- {}: `{}`", copy.exported_at_label, exported_at);
-}
-
-fn write_generation_brief_boundary(content: &mut String, copy: &RuntimeExportCopy) {
-    let _ = writeln!(content, "## {}", copy.generation_brief.heading);
-    let _ = writeln!(
-        content,
-        "- {}: `{}`",
-        copy.generation_brief.voice_source_label,
-        copy.formal_artifact_voice_source()
-    );
-    let _ = writeln!(content, "- {}", copy.generation_brief.default_voice);
-    let _ = writeln!(content, "- {}", copy.generation_brief.explicit_voice);
-    let _ = writeln!(content, "- {}", copy.generation_brief.fidelity_rule);
 }
 
 fn write_handoff_todo_summary(content: &mut String, metrics: &HandoffMetrics, copy: HandoffCopy) {

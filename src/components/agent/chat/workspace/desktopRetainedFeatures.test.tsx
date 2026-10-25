@@ -1,9 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { AppSidebarAppearancePopover } from "@/components/app-sidebar/AppSidebarAppearancePopover";
-import { EmptyStateHero } from "../components/EmptyStateHero";
 
 function sourceOf(relativePath: string): string {
   return readFileSync(relativePath, "utf8");
@@ -17,6 +13,28 @@ describe("Codex alignment kept product surfaces", () => {
   it("不恢复已退出的首页任务树、抽屉和专用状态 owner", () => {
     const base = "src/components/agent/chat/";
     const retired = [
+      "skill-selection/runtimeInputCapabilityCatalog.ts",
+      "utils/browserWorkbenchCommand.ts",
+      "utils/competitorWorkbenchCommand.ts",
+      "utils/coverWorkbenchCommand.ts",
+      "utils/deepSearchWorkbenchCommand.ts",
+      "utils/fileReadWorkbenchCommand.ts",
+      "utils/pdfWorkbenchCommand.ts",
+      "utils/posterWorkbenchCommand.ts",
+      "utils/reportWorkbenchCommand.ts",
+      "utils/searchWorkbenchCommand.ts",
+      "utils/siteSearchWorkbenchCommand.ts",
+      "utils/videoWorkbenchCommand.ts",
+      "workspace/commands/dispatchBodyBuilders.ts",
+      "workspace/commands/intentHelpers.ts",
+      "workspace/commands/mentionCommandUtils.ts",
+      "workspace/commands/serviceSkillMatch.ts",
+      "workspace/commands/skillInstallHelpers.ts",
+      "workspace/commands/skillLaunchContextBuilders.ts",
+      "workspace/commands/skillLaunchResolvers.ts",
+      "utils/mentionCommandReplayText.ts",
+      "workspace/browserControlLaunch.ts",
+      "components/EmptyStateHero.tsx",
       "home/HomeAmbientSuggestionsContent.tsx",
       "home/HomeSuggestionList.tsx",
       "home/HomeGuideCards.tsx",
@@ -37,7 +55,7 @@ describe("Codex alignment kept product surfaces", () => {
     expect(retired.filter((file) => existsSync(base + file))).toEqual([]);
   });
 
-  it("首页和 Composer 仍引用 Banner、Hero、主题、多模态和多模型入口", () => {
+  it("保留多模态和多模型，删除创作 Banner 与自定义皮肤", () => {
     const layout = sourceOf(
       "src/components/agent/chat/components/EmptyStateLayout.tsx",
     );
@@ -52,68 +70,15 @@ describe("Codex alignment kept product surfaces", () => {
     );
     const sidebar = sourceOf("src/components/AppSidebar.tsx");
 
-    expect(layout).toContain("EmptyStateHero");
+    expect(layout).not.toContain("EmptyStateHero");
+    expect(
+      existsSync("src/components/agent/chat/components/EmptyStateHero.tsx"),
+    ).toBe(false);
     expect(scene).toContain('data-testid="workspace-entry-banner"');
     expect(scene).toContain("entryBannerMessage");
-    expect(sidebar).toContain("AppSidebarAppearancePopover");
+    expect(sidebar).not.toContain("AppSidebarAppearancePopover");
     expect(home).toContain("pendingImages");
     expect(composer).toContain("InputbarModelExtra");
     expect(composer).toContain("onAddFiles");
-  });
-
-  it("应渲染首页 Hero 和主题控件", () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    act(() => {
-      root.render(
-        <>
-          <EmptyStateHero
-            eyebrow="创作"
-            slogan="青柠一下，灵感即来"
-            description="说一句目标，Lime 就接着帮你做。"
-          />
-          <AppSidebarAppearancePopover
-            themeMode="system"
-            colorSchemeId="dream-blossom"
-            themeOptions={[
-              {
-                id: "system",
-                label: "跟随系统",
-                description: "使用系统外观",
-              },
-            ]}
-            colorSchemes={[]}
-            copy={{
-              entryLabel: "主题",
-              titleLabel: "外观",
-              summaryLabel: "当前主题",
-              themeGroupLabel: "模式",
-              colorSchemeGroupLabel: "配色",
-              randomColorSchemeLabel: "随机",
-              randomColorSchemeAriaLabel: "随机配色",
-              randomColorSchemeTitle: "换一套配色",
-              formatThemeSwitchAria: (label) => label,
-              formatColorSchemeSwitchAria: (label) => label,
-            }}
-            onThemeModeChange={() => undefined}
-            onColorSchemeChange={() => undefined}
-            onRandomColorScheme={() => undefined}
-          />
-        </>,
-      );
-    });
-
-    expect(
-      container.querySelector('[data-testid="empty-state-hero-eyebrow-badge"]')
-        ?.textContent,
-    ).toBe("创作");
-    expect(
-      container.querySelector('[data-testid="app-sidebar-appearance-popover"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("跟随系统");
-
-    act(() => root.unmount());
   });
 });

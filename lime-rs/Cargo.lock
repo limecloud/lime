@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "agent-protocol"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "schemars 1.2.1",
  "serde",
@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "agent-runtime"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -171,7 +171,7 @@ dependencies = [
 
 [[package]]
 name = "ansi-escape"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "ansi-to-tui",
  "ratatui",
@@ -249,7 +249,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "app-server"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "agent-runtime",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-client"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "app-server-protocol",
  "app-server-transport",
@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-daemon"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "app-server-protocol",
  "app-server-transport",
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-protocol"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "schemars 1.2.1",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-test-client"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "anyhow",
  "app-server-client",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-transport"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "app-server-protocol",
  "axum",
@@ -410,6 +410,15 @@ dependencies = [
  "percent-encoding",
  "windows-sys 0.60.2",
  "x11rb",
+]
+
+[[package]]
+name = "arc-swap"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "380962b3d93b99642e50b9febf72c071e97e8b32d86eae9cf4ef582bb960ae6e"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]
@@ -506,6 +515,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "aws-lc-rs"
+version = "1.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "faac5829c2b74c28f830747e7818ccfb684261b5f48a1118b1e2a13d36dfab13"
+dependencies = [
+ "aws-lc-sys",
+ "zeroize",
+]
+
+[[package]]
+name = "aws-lc-sys"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1622d8446a2d4b2ce0c7eefc73dd43a99779028d5ee5c2dd8073a658ba8a2bc"
+dependencies = [
+ "cc",
+ "cmake",
+ "dunce",
+ "fs_extra",
+ "pkg-config",
+]
+
+[[package]]
 name = "axum"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -561,6 +593,28 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-server"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1ab4a3ec9ea8a657c72d99a03a824af695bd0fb5ec639ccbd9cd3543b41a5f9"
+dependencies = [
+ "arc-swap",
+ "bytes",
+ "fs-err",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-util",
+ "pin-project-lite",
+ "rustls",
+ "rustls-pemfile",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls",
+ "tower-service",
 ]
 
 [[package]]
@@ -1013,7 +1067,7 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "cli"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -1069,7 +1123,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "anyhow",
  "code-mode-host",
@@ -1087,7 +1141,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-host"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "axum",
  "code-mode-protocol",
@@ -1103,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-protocol"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
@@ -1117,7 +1171,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-runtime"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "base64 0.22.1",
  "code-mode-protocol",
@@ -1942,7 +1996,7 @@ dependencies = [
 
 [[package]]
 name = "document-preview"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "flate2",
  "tempfile",
@@ -2168,7 +2222,7 @@ dependencies = [
 
 [[package]]
 name = "execpolicy"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2454,6 +2508,16 @@ checksum = "0f158e3ff0a1b334408dc9fb811cd99b446986f4d8b741bb08f9df1604085ae7"
 dependencies = [
  "lazy_static",
  "num",
+]
+
+[[package]]
+name = "fs-err"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5c95b673b8f6f7235229ae11c5642d81b04c2e64c1e2fb417bc0cf73ca45f29"
+dependencies = [
+ "autocfg",
+ "tokio",
 ]
 
 [[package]]
@@ -3639,7 +3703,7 @@ dependencies = [
 
 [[package]]
 name = "lime-agent"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "agent-runtime",
@@ -3674,7 +3738,7 @@ dependencies = [
 
 [[package]]
 name = "lime-config"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -3690,7 +3754,7 @@ dependencies = [
 
 [[package]]
 name = "lime-core"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "async-trait",
@@ -3747,7 +3811,7 @@ dependencies = [
 
 [[package]]
 name = "lime-gateway"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "aes",
  "async-trait",
@@ -3775,7 +3839,7 @@ dependencies = [
 
 [[package]]
 name = "lime-infra"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "chrono",
  "dashmap 5.5.3",
@@ -3797,7 +3861,7 @@ dependencies = [
 
 [[package]]
 name = "lime-mcp"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "async-trait",
@@ -3823,7 +3887,7 @@ dependencies = [
 
 [[package]]
 name = "lime-media-runtime"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3842,7 +3906,7 @@ dependencies = [
 
 [[package]]
 name = "lime-processor"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -3882,7 +3946,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "async-stream",
@@ -3925,7 +3989,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server-utils"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "axum",
  "futures",
@@ -3940,7 +4004,7 @@ dependencies = [
 
 [[package]]
 name = "lime-services"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3983,7 +4047,7 @@ dependencies = [
 
 [[package]]
 name = "lime-skills"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -4005,7 +4069,7 @@ dependencies = [
 
 [[package]]
 name = "lime-utils-absolute-path"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "dirs 6.0.0",
  "dunce",
@@ -4019,7 +4083,7 @@ dependencies = [
 
 [[package]]
 name = "lime-websocket"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "axum",
  "chrono",
@@ -4353,7 +4417,7 @@ dependencies = [
 
 [[package]]
 name = "model-provider"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -5180,7 +5244,7 @@ checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
 
 [[package]]
 name = "patch-apply"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "tempfile",
  "thiserror 1.0.69",
@@ -5196,6 +5260,16 @@ dependencies = [
  "hmac",
  "password-hash",
  "sha2",
+]
+
+[[package]]
+name = "pem"
+version = "3.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
+dependencies = [
+ "base64 0.22.1",
+ "serde_core",
 ]
 
 [[package]]
@@ -6069,6 +6143,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rcgen"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75e669e5202259b5314d1ea5397316ad400819437857b90861765f24c4cf80a2"
+dependencies = [
+ "pem",
+ "ring",
+ "rustls-pki-types",
+ "time",
+ "yasna",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6288,7 +6375,7 @@ dependencies = [
 
 [[package]]
 name = "runtime-core"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "app-server-protocol",
@@ -6363,6 +6450,7 @@ version = "0.23.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c665f33d38cea657d9614f766881e4d510e0eda4239891eea56b4cadcf01801b"
 dependencies = [
+ "aws-lc-rs",
  "log",
  "once_cell",
  "ring",
@@ -6370,6 +6458,15 @@ dependencies = [
  "rustls-webpki",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rustls-pemfile"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]
@@ -6388,6 +6485,7 @@ version = "0.103.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7df23109aa6c1567d1c575b9952556388da57401e4ace1d15f79eedad0d8f53"
 dependencies = [
+ "aws-lc-rs",
  "ring",
  "rustls-pki-types",
  "untrusted",
@@ -7604,7 +7702,7 @@ dependencies = [
 
 [[package]]
 name = "thread-store"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "chrono",
@@ -7931,11 +8029,13 @@ dependencies = [
 
 [[package]]
 name = "tool-runtime"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "app-server-protocol",
  "async-trait",
+ "axum",
+ "axum-server",
  "base64 0.22.1",
  "chrono",
  "code-mode",
@@ -7955,6 +8055,7 @@ dependencies = [
  "lime-skills",
  "patch-apply",
  "portable-pty",
+ "rcgen",
  "regex",
  "reqwest",
  "rmcp",
@@ -8207,7 +8308,7 @@ dependencies = [
 
 [[package]]
 name = "tui"
-version = "1.170.0"
+version = "1.171.0"
 dependencies = [
  "agent-protocol",
  "ansi-escape",
@@ -9774,6 +9875,15 @@ name = "yansi"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
+
+[[package]]
+name = "yasna"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e17bb3549cc1321ae1296b9cdc2698e2b6cb1992adfa19a8c72e5b7a738f44cd"
+dependencies = [
+ "time",
+]
 
 [[package]]
 name = "yoke"

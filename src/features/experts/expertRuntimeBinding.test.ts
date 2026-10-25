@@ -57,21 +57,20 @@ describe("buildExpertRuntimeMetadata", () => {
       memory_enabled: true,
       workflow_enabled: true,
       personality_boundary: {
-        inherits_global_soul: true,
-        global_soul_scope: "communication_rhythm",
+
+
         expert_persona_scope: "current_expert_session",
-        writes_back_to_global_soul: false,
+
         formal_artifact_voice_source: "generation_brief_only",
       },
     });
     expect(metadata.expert.personalityBoundary).toEqual({
-      inheritsGlobalSoul: true,
-      globalSoulScope: "communication_rhythm",
+
+
       expertPersonaScope: "current_expert_session",
-      writesBackToGlobalSoul: false,
+
       formalArtifactVoiceSource: "generation_brief_only",
     });
-    expect(JSON.stringify(metadata)).not.toContain("memory.soul");
     expect(JSON.stringify(metadata)).not.toContain("SOUL.md");
   });
 

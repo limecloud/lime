@@ -10,7 +10,7 @@ import {
 
 const { mockInputbar, mockToast } = getIndexTestMocks();
 
-describe("AgentChatPage 停止 Team 协作", () => {
+describe("LocalConversationPage 停止 Team 协作", () => {
   it("点击停止时只停止主输出，不调用或提示已删除的子任务控制", async () => {
     const stopSendingMock = vi.fn(async () => undefined);
 

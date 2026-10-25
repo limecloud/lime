@@ -12,7 +12,7 @@ import {
 const { mockLaunchBrowserSession, mockUseAgentChatUnified } =
   getIndexTestMocks();
 
-describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
   it("当前待处理任务不再暴露旧侧栏恢复入口", async () => {
     const onNavigate = vi.fn();
     mockUseAgentChatUnified.mockImplementation(

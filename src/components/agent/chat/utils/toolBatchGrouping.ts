@@ -17,7 +17,7 @@ import {
   isUnifiedWebFetchToolName,
   isUnifiedWebSearchToolName,
 } from "./toolNameFamily";
-import { resolveToolSoulMetadataFromEntries } from "./toolSoulLifecycleMetadata";
+
 import {
   resolveToolProcessFactsOperationKind,
   resolveToolProcessFactsSubject,
@@ -632,13 +632,11 @@ function buildWebSearchDescriptor(
       webFetchCount,
     }),
     hasRunning: hasRunningWebRetrieval,
-    ...resolveToolSoulMetadataFromEntries(entries),
   };
 }
 
 function buildExplorationDescriptor(
   accumulator: ToolBatchAccumulator,
-  entries: ToolLikeDescriptor[],
 ): ToolBatchSummaryDescriptor | null {
   const {
     readCount,
@@ -686,13 +684,11 @@ function buildExplorationDescriptor(
     }),
     rawDetailLabel: resolveExplorationRawDetailLabel(),
     hasRunning: accumulator.hasRunning,
-    ...resolveToolSoulMetadataFromEntries(entries),
   };
 }
 
 function buildBrowserDescriptor(
   accumulator: ToolBatchAccumulator,
-  entries: ToolLikeDescriptor[],
 ): ToolBatchSummaryDescriptor | null {
   if (
     accumulator.browserCount < 2 ||
@@ -730,7 +726,6 @@ function buildBrowserDescriptor(
     }),
     rawDetailLabel: resolveBrowserRawDetailLabel(),
     hasRunning: accumulator.hasRunning,
-    ...resolveToolSoulMetadataFromEntries(entries),
   };
 }
 
@@ -752,8 +747,8 @@ function buildDescriptorFromEntries(
   }
 
   return (
-    buildExplorationDescriptor(accumulator, entries) ||
-    buildBrowserDescriptor(accumulator, entries)
+    buildExplorationDescriptor(accumulator) ||
+    buildBrowserDescriptor(accumulator)
   );
 }
 

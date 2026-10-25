@@ -352,10 +352,6 @@ export const METHOD_SKILLS_CHANGED = "skills/changed";
 export const METHOD_SKILLS_CONFIG_WRITE = "skills/config/write";
 export const METHOD_SKILLS_EXTRA_ROOTS_SET = "skills/extraRoots/set";
 export const METHOD_SKILLS_LIST = "skills/list";
-export const METHOD_SOUL_STYLE_PACK_INSTALL = "soulStylePack/install";
-export const METHOD_SOUL_STYLE_PACK_LIST = "soulStylePack/list";
-export const METHOD_SOUL_STYLE_PACK_STATUS_SET = "soulStylePack/status/set";
-export const METHOD_SOUL_STYLE_PACK_UNINSTALL = "soulStylePack/uninstall";
 export const METHOD_STORAGE_DELETE = "storage/delete";
 export const METHOD_STORAGE_READ = "storage/read";
 export const METHOD_STORAGE_REFRESH = "storage/refresh";
@@ -1663,22 +1659,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "skills/list",
-  },
-  {
-    kind: "request",
-    method: "soulStylePack/install",
-  },
-  {
-    kind: "request",
-    method: "soulStylePack/list",
-  },
-  {
-    kind: "request",
-    method: "soulStylePack/status/set",
-  },
-  {
-    kind: "request",
-    method: "soulStylePack/uninstall",
   },
   {
     kind: "request",
@@ -3476,26 +3456,6 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
-      method: "soulStylePack/install";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "soulStylePack/list";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "soulStylePack/status/set";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "soulStylePack/uninstall";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
       method: "scheduledTask/list";
       params?: unknown;
     }
@@ -4061,10 +4021,6 @@ export type AppServerRequestMethod =
   | "skillRepository/delete"
   | "skillRepository/list"
   | "skillRepository/save"
-  | "soulStylePack/install"
-  | "soulStylePack/list"
-  | "soulStylePack/status/set"
-  | "soulStylePack/uninstall"
   | "storage/delete"
   | "storage/read"
   | "storage/refresh"
@@ -5469,6 +5425,7 @@ export interface ComputerUseStatusParams {
 export interface ComputerUseStatusResponse {
   adapters: ComputerUseAdapterStatus[];
   epoch: number;
+  grants?: ComputerUseGrant[];
 }
 
 export type ComputerUseTargetIdentity =
@@ -10158,67 +10115,6 @@ export interface SleepItem {
 }
 
 export type SortDirection = "asc" | "desc";
-
-export interface SoulStylePackInstallParams {
-  enableAfterInstall?: boolean;
-  localeSources?: Record<string, string>;
-  manifestSource: string;
-}
-
-export interface SoulStylePackInstallResponse {
-  packId: string;
-  profileIds?: string[];
-  status: SoulStylePackInstallStatus;
-}
-
-export type SoulStylePackInstallStatus =
-  | "disabled"
-  | "discovered"
-  | "downloading"
-  | "enabled"
-  | "failed"
-  | "installed"
-  | "installing"
-  | "uninstalled"
-  | "validating";
-
-export interface SoulStylePackListEntry {
-  integrityDigest?: null | string;
-  localeSources?: Record<string, string>;
-  manifestSource: string;
-  packId: string;
-  profileIds?: string[];
-  source: string;
-  status: SoulStylePackInstallStatus;
-  updatedAt?: null | string;
-}
-
-export type SoulStylePackListParams = Record<string, unknown>;
-
-export interface SoulStylePackListResponse {
-  packs?: SoulStylePackListEntry[];
-}
-
-export type SoulStylePackMutableStatus = "disabled" | "enabled";
-
-export interface SoulStylePackStatusSetParams {
-  packId: string;
-  status: SoulStylePackMutableStatus;
-}
-
-export interface SoulStylePackStatusSetResponse {
-  packId: string;
-  status: SoulStylePackInstallStatus;
-}
-
-export interface SoulStylePackUninstallParams {
-  packId: string;
-}
-
-export interface SoulStylePackUninstallResponse {
-  packId: string;
-  status: SoulStylePackInstallStatus;
-}
 
 export interface StorageDeleteParams {
   archivedOnly: boolean;

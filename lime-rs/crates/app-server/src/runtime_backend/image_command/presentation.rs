@@ -1,11 +1,8 @@
-use super::presentation_soul::insert_image_generation_soul_payload_fields;
 use super::{workflow_run_id, ImageCommandIntent};
-use crate::runtime::memory_prompt::append_soul_context_to_system_prompt;
 use crate::runtime_backend::{
     backend_error, current_agent_runtime_config_metadata, direct_provider_config_from_request,
     initialize_runtime_database, model_route_contract, model_route_resolver,
     request_context::{self, RuntimeModelSelection},
-    tool_process_metadata::SoulStyleMetadata,
 };
 use crate::{ExecutionRequest, RuntimeCoreError};
 use lime_agent::{
@@ -175,13 +172,7 @@ pub(super) async fn generate_image_task_presentation(
         }),
     );
 
-    let runtime_metadata = request.runtime_metadata();
-    let soul_style = image_generation_soul_style(config_metadata.as_ref(), runtime_metadata);
-    let system_prompt = append_soul_context_to_system_prompt(
-        Some(presentation_system_prompt()),
-        config_metadata.as_ref(),
-    )
-    .unwrap_or_else(presentation_system_prompt);
+    let system_prompt = presentation_system_prompt();
     let presentation_language =
         detect_presentation_language(intent.raw_text.as_deref().unwrap_or(&intent.prompt));
     tracing::info!(
@@ -221,12 +212,11 @@ pub(super) async fn generate_image_task_presentation(
         .unwrap_or(&selection.model);
 
     let raw_text_len = generated.text.chars().count();
-    let parsed = parse_generated_presentation_with_soul_style(
+    let parsed = parse_generated_presentation(
         &generated.text,
         generated_provider,
         generated_model,
         presentation_language,
-        soul_style.as_ref(),
     )
     .map(|mut presentation| {
         presentation.usage = generated.usage.clone();
@@ -271,26 +261,15 @@ pub(super) fn normalize_existing_presentation(
         .or_else(|| intent.provider_id.clone());
     let model = string_field(existing, &["model", "modelName", "model_name"])
         .or_else(|| intent.model.clone());
-    let soul_style = existing
-        .as_object()
-        .and_then(SoulStyleMetadata::from_payload_object);
     normalize_presentation_value(
         existing,
         provider.as_deref(),
         model.as_deref(),
         presentation_language,
         PRESENTATION_SOURCE_METADATA,
-        soul_style.as_ref(),
     )
 }
 
-fn image_generation_soul_style(
-    config_metadata: Option<&Value>,
-    runtime_metadata: Option<&Value>,
-) -> Option<SoulStyleMetadata> {
-    SoulStyleMetadata::from_config_metadata(config_metadata)
-        .or_else(|| SoulStyleMetadata::from_config_metadata(runtime_metadata))
-}
 
 fn resolve_presentation_model_selection(
     request: &ExecutionRequest,
@@ -460,22 +439,12 @@ pub(super) fn merge_generated_presentation(
     Some(Value::Object(merged))
 }
 
-#[cfg(test)]
+
 fn parse_generated_presentation(
     raw_text: &str,
     provider: &str,
     model: &str,
     expected_language: PresentationLanguage,
-) -> Option<GeneratedImageTaskPresentation> {
-    parse_generated_presentation_with_soul_style(raw_text, provider, model, expected_language, None)
-}
-
-fn parse_generated_presentation_with_soul_style(
-    raw_text: &str,
-    provider: &str,
-    model: &str,
-    expected_language: PresentationLanguage,
-    soul_style: Option<&SoulStyleMetadata>,
 ) -> Option<GeneratedImageTaskPresentation> {
     let value = parse_json_object(raw_text)?;
     normalize_presentation_value(
@@ -484,7 +453,6 @@ fn parse_generated_presentation_with_soul_style(
         Some(model),
         expected_language,
         PRESENTATION_SOURCE,
-        soul_style,
     )
 }
 
@@ -494,7 +462,6 @@ fn normalize_presentation_value(
     model: Option<&str>,
     expected_language: PresentationLanguage,
     source: &str,
-    soul_style: Option<&SoulStyleMetadata>,
 ) -> Option<GeneratedImageTaskPresentation> {
     let assistant_intro = sanitize_user_visible_copy(
         string_field(&value, &["assistant_intro", "assistantIntro", "intro"]).as_deref(),
@@ -544,14 +511,6 @@ fn normalize_presentation_value(
         payload.insert("model".to_string(), json!(model));
     }
     payload.insert("language".to_string(), json!(expected_language.code()));
-    insert_image_generation_soul_payload_fields(
-        &mut payload,
-        source,
-        provider,
-        model,
-        expected_language.code(),
-        soul_style,
-    );
     if let Some(planning_summary) = planning_summary.as_ref() {
         payload.insert("planning_summary".to_string(), json!(planning_summary));
         payload.insert("planningSummary".to_string(), json!(planning_summary));
@@ -828,8 +787,8 @@ fn presentation_user_prompt(
             "Write in the same language as the user request.",
             presentation_language.rule(),
             "planning_summary should be one short, user-visible process summary about composition, mood, and constraints. It must not expose hidden chain-of-thought.",
-            "assistant_intro should follow the active Interaction Soul when present, stay brief, and naturally acknowledge the request before generation.",
-            "completion_caption should follow the active Interaction Soul when present, describe the result as if the image has completed, invite lightweight iteration, and avoid sounding templated.",
+            "assistant_intro should briefly acknowledge the request before generation.",
+            "completion_caption should briefly describe the completed result.",
             "Do not mention workflow, task id, files, JSON, tools, internal paths, or runtime details.",
             "Do not mention branded assistant names."
         ],
@@ -847,7 +806,6 @@ fn presentation_system_prompt() -> String {
         "You write concise, natural user-visible copy for Lime image generation turns.\n\
 Return only JSON that matches the requested schema.\n\
 The copy must feel contextual and human, not like a reusable template.\n\
-If an Interaction Soul section is present, apply it to assistant_intro and completion_caption while keeping planning_summary factual and bounded.\n\
 planning_summary is a brief visible process summary, not hidden chain-of-thought. Summarize what visual direction you will use without revealing internal workflow.\n\
 Detect the user's request language and keep both fields in that language. For Chinese requests, use Simplified Chinese and never use English openers such as Sure, Done, or is ready.\n\
 Never reveal internal workflow, task ids, tool names, files, JSON/JSONL, audit details, or runtime implementation.\n\

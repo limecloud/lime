@@ -46,7 +46,7 @@ export function useWorkspaceDefaultProjectAliasRuntime({
     let cancelled = false;
     const startedAt = Date.now();
     const perfT0 = performance.now();
-    logAgentDebug("AgentChatPage", "resolveDefaultProjectAlias.start", {
+    logAgentDebug("LocalConversationPage", "resolveDefaultProjectAlias.start", {
       externalProjectId: externalProjectId ?? null,
     });
 
@@ -65,7 +65,7 @@ export function useWorkspaceDefaultProjectAliasRuntime({
               resolvedRootPath = ensuredWorkspace.rootPath || resolvedRootPath;
             } catch (error) {
               logAgentDebug(
-                "AgentChatPage",
+                "LocalConversationPage",
                 "resolveDefaultProjectAlias.ensureRememberedWorkspaceReadyError",
                 {
                   error,
@@ -90,7 +90,7 @@ export function useWorkspaceDefaultProjectAliasRuntime({
                   },
             );
             logAgentDebug(
-              "AgentChatPage",
+              "LocalConversationPage",
               "resolveDefaultProjectAlias.fromRememberedProject",
               {
                 durationMs: Date.now() - startedAt,
@@ -108,7 +108,7 @@ export function useWorkspaceDefaultProjectAliasRuntime({
 
         resetProjectSelection();
         setProject(null);
-        logAgentDebug("AgentChatPage", "resolveDefaultProjectAlias.detached", {
+        logAgentDebug("LocalConversationPage", "resolveDefaultProjectAlias.detached", {
           durationMs: Date.now() - startedAt,
         });
         console.info(
@@ -119,9 +119,9 @@ export function useWorkspaceDefaultProjectAliasRuntime({
           return;
         }
 
-        console.warn("[AgentChatPage] 默认工作区别名解析失败:", error);
+        console.warn("[LocalConversationPage] 默认工作区别名解析失败:", error);
         logAgentDebug(
-          "AgentChatPage",
+          "LocalConversationPage",
           "resolveDefaultProjectAlias.error",
           {
             durationMs: Date.now() - startedAt,

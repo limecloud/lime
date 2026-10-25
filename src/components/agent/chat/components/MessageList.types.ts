@@ -83,12 +83,6 @@ export interface MessageListProps {
     target: MessagePreviewTarget,
     message: Message,
   ) => void;
-  /** 将助手结果沉淀为技能草稿 */
-  onSaveMessageAsSkill?: (source: {
-    messageId: string;
-    content: string;
-  }) => void;
-  /** 将助手结果保存到项目资料 */
   /** 打开子代理会话 */
   onOpenSubagentSession?: (sessionId: string) => void;
   /** 权限确认响应回调 */

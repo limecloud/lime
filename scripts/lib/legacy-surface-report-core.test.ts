@@ -235,9 +235,9 @@ describe("legacy-surface-report-core", () => {
     expect(result.status).toBe(0);
   });
 
-  it("普通资料表单、通用 UI 和 TUI textarea 不属于退役主输入适配器", () => {
+  it("账户页、通用 UI 和 TUI textarea 不属于退役主输入适配器", () => {
     const owners = [
-      "src/components/settings-v2/account/profile/index.tsx",
+      "src/components/settings-v2/account/user-center-session/index.tsx",
       "src/components/ui/textarea.tsx",
       "lime-rs/crates/tui/src/bottom_pane/chat_composer.rs",
     ];

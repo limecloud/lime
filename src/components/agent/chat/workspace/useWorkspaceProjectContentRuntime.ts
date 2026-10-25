@@ -111,7 +111,7 @@ export function useWorkspaceProjectContentRuntime({
 
     const loadData = async () => {
       const startedAt = Date.now();
-      logAgentDebug("AgentChatPage", "loadData.start", {
+      logAgentDebug("LocalConversationPage", "loadData.start", {
         contentId: contentId ?? null,
         lockTheme,
         projectId: projectId ?? null,
@@ -129,7 +129,7 @@ export function useWorkspaceProjectContentRuntime({
         if (cancelled) {
           return;
         }
-        logAgentDebug("AgentChatPage", "loadData.noProject", {
+        logAgentDebug("LocalConversationPage", "loadData.noProject", {
           contentId: contentId ?? null,
           durationMs: Date.now() - startedAt,
         });
@@ -146,7 +146,7 @@ export function useWorkspaceProjectContentRuntime({
             return;
           }
           logAgentDebug(
-            "AgentChatPage",
+            "LocalConversationPage",
             "loadData.projectMissing",
             {
               contentId: contentId ?? null,
@@ -172,7 +172,7 @@ export function useWorkspaceProjectContentRuntime({
 
         setProject(loadedProject);
         const theme = projectTypeToTheme(loadedProject.workspaceType);
-        logAgentDebug("AgentChatPage", "loadData.projectLoaded", {
+        logAgentDebug("LocalConversationPage", "loadData.projectLoaded", {
           durationMs: Date.now() - startedAt,
           projectId: loadedProject.id,
           theme,
@@ -188,7 +188,7 @@ export function useWorkspaceProjectContentRuntime({
             return;
           }
           setProjectMemory(memory);
-          logAgentDebug("AgentChatPage", "loadData.memoryLoaded", {
+          logAgentDebug("LocalConversationPage", "loadData.memoryLoaded", {
             charactersCount: memory?.characters?.length ?? 0,
             durationMs: Date.now() - startedAt,
             hasOutline: Boolean(memory?.outline?.length),
@@ -196,14 +196,14 @@ export function useWorkspaceProjectContentRuntime({
           });
         } else {
           setProjectMemory(null);
-          logAgentDebug("AgentChatPage", "loadData.memoryDeferred", {
+          logAgentDebug("LocalConversationPage", "loadData.memoryDeferred", {
             durationMs: Date.now() - startedAt,
             projectId,
           });
         }
 
         if (!contentId) {
-          logAgentDebug("AgentChatPage", "loadData.projectOnlyComplete", {
+          logAgentDebug("LocalConversationPage", "loadData.projectOnlyComplete", {
             durationMs: Date.now() - startedAt,
             projectId,
           });
@@ -217,7 +217,7 @@ export function useWorkspaceProjectContentRuntime({
 
         if (!content) {
           logAgentDebug(
-            "AgentChatPage",
+            "LocalConversationPage",
             "loadData.contentMissing",
             {
               contentId,
@@ -230,7 +230,7 @@ export function useWorkspaceProjectContentRuntime({
           return;
         }
 
-        logAgentDebug("AgentChatPage", "loadData.contentLoaded", {
+        logAgentDebug("LocalConversationPage", "loadData.contentLoaded", {
           bodyLength: content.body?.length ?? 0,
           contentId: content.id,
           durationMs: Date.now() - startedAt,
@@ -267,11 +267,11 @@ export function useWorkspaceProjectContentRuntime({
             content.id,
           ).catch((error) => {
             console.warn(
-              "[AgentChatPage] 读取工作区文稿版本状态失败，降级为 metadata 解析:",
+              "[LocalConversationPage] 读取工作区文稿版本状态失败，降级为 metadata 解析:",
               error,
             );
             logAgentDebug(
-              "AgentChatPage",
+              "LocalConversationPage",
               "loadData.documentStateError",
               {
                 contentId: content.id,
@@ -282,7 +282,7 @@ export function useWorkspaceProjectContentRuntime({
             );
             return null;
           });
-          logAgentDebug("AgentChatPage", "loadData.documentStateLoaded", {
+          logAgentDebug("LocalConversationPage", "loadData.documentStateLoaded", {
             contentId: content.id,
             durationMs: Date.now() - startedAt,
             hasBackendDocumentState: Boolean(backendDocumentState),
@@ -333,16 +333,16 @@ export function useWorkspaceProjectContentRuntime({
         };
         setCanvasState(initialState);
         setLayoutMode("canvas");
-        logAgentDebug("AgentChatPage", "loadData.complete", {
+        logAgentDebug("LocalConversationPage", "loadData.complete", {
           contentId: content.id,
           durationMs: Date.now() - startedAt,
           initialStateType: initialState.type,
           projectId,
         });
       } catch (error) {
-        console.error("[AgentChatPage] 加载项目或文稿失败:", error);
+        console.error("[LocalConversationPage] 加载项目或文稿失败:", error);
         logAgentDebug(
-          "AgentChatPage",
+          "LocalConversationPage",
           "loadData.error",
           {
             contentId: contentId ?? null,
@@ -395,7 +395,7 @@ export function useWorkspaceProjectContentRuntime({
     const cancelDeferredLoad = scheduleMinimumDelayIdleTask(
       () => {
         const startedAt = Date.now();
-        logAgentDebug("AgentChatPage", "loadDeferredMemory.start", {
+        logAgentDebug("LocalConversationPage", "loadDeferredMemory.start", {
           projectId: normalizedProjectId,
         });
         void getProjectMemory(normalizedProjectId)
@@ -404,7 +404,7 @@ export function useWorkspaceProjectContentRuntime({
               return;
             }
             setProjectMemory(memory);
-            logAgentDebug("AgentChatPage", "loadDeferredMemory.success", {
+            logAgentDebug("LocalConversationPage", "loadDeferredMemory.success", {
               charactersCount: memory?.characters?.length ?? 0,
               durationMs: Date.now() - startedAt,
               hasOutline: Boolean(memory?.outline?.length),
@@ -415,9 +415,9 @@ export function useWorkspaceProjectContentRuntime({
             if (cancelled) {
               return;
             }
-            console.warn("[AgentChatPage] 延后加载项目 Memory 失败:", error);
+            console.warn("[LocalConversationPage] 延后加载项目 Memory 失败:", error);
             logAgentDebug(
-              "AgentChatPage",
+              "LocalConversationPage",
               "loadDeferredMemory.error",
               {
                 durationMs: Date.now() - startedAt,

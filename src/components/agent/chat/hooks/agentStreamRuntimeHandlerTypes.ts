@@ -14,7 +14,7 @@ import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import type { AgentUiPerformanceTraceMetadata } from "./agentStreamPerformanceMetrics";
 import type { AgentStreamReasoningTimelineState } from "./agentStreamReasoningTimeline";
 import type { TextSegmentFinalEligibility } from "./agentStreamTextDeltaLifecycle";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import type { AgentStreamConversationProjectionOwner } from "./agentStreamConversationProjection";
 
 export type MessageParts = NonNullable<Message["contentParts"]>;
@@ -138,5 +138,5 @@ export interface HandleTurnStreamEventOptions {
     SetStateAction<AgentSessionExecutionRuntime | null>
   >;
   setIsSending: Dispatch<SetStateAction<boolean>>;
-  soulCopy?: SoulInteractionCopy;
+
 }

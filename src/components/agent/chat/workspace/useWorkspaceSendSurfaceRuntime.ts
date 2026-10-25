@@ -21,10 +21,7 @@ interface UseWorkspaceSendSurfaceRuntimeParams {
       requestMetadata: Record<string, unknown>;
     }) => Promise<boolean>
   >;
-  sendActions: Omit<
-    SendActionsParams,
-    "prepareImageWorkbenchSkillSend" | "resolveImageWorkbenchCommandRequest"
-  >;
+  sendActions: SendActionsParams;
 }
 
 /** 发送、图片工作台桥接与工作区技能命令由同一 surface 编排。 */
@@ -38,14 +35,8 @@ export function useWorkspaceSendSurfaceRuntime({
     bindWorkspaceHandleSendRef: bindImageWorkbenchHandleSendRef,
     handleImageWorkbenchCommand,
     imageWorkbenchActionRuntime,
-    prepareImageWorkbenchSkillSend,
-    resolveImageWorkbenchCommandRequest,
   } = useWorkspaceImageWorkbenchRuntime(imageWorkbench);
-  const sendRuntime = useWorkspaceSendActions({
-    ...sendActions,
-    prepareImageWorkbenchSkillSend,
-    resolveImageWorkbenchCommandRequest,
-  });
+  const sendRuntime = useWorkspaceSendActions(sendActions);
   const { displayMessages, handleSend, handleSendRef } = sendRuntime;
 
   useEffect(() => {
@@ -77,7 +68,7 @@ export function useWorkspaceSendSurfaceRuntime({
 
     consumePendingSkill();
     const command = `/${pendingSkillKey}`;
-    console.log("[AgentChatPage] 执行技能命令:", command);
+    console.log("[LocalConversationPage] 执行技能命令:", command);
     handleSend([], false, false, command);
   }, [consumePendingSkill, handleSend, isThemeWorkbench, pendingSkillKey]);
 

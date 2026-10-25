@@ -1316,7 +1316,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
         unlisten = dispose;
       })
       .catch((error) => {
-        console.warn("[AgentChatPage] 监听图片任务事件失败:", error);
+        console.warn("[LocalConversationPage] 监听图片任务事件失败:", error);
       });
 
     if (restoreFromWorkspace) {

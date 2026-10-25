@@ -25,9 +25,9 @@ export function useWorkspaceSkillDirectoryRuntime({
   } = useLimeSkills({
     autoLoad: false,
     deferredDelayMs,
-    logScope: "AgentChatPage",
+    logScope: "LocalConversationPage",
     onError: (error) => {
-      console.warn("[AgentChatPage] 加载 skills 失败:", error);
+      console.warn("[LocalConversationPage] 加载 skills 失败:", error);
     },
   });
   const {

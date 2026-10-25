@@ -29,9 +29,11 @@ describe.each(SUPPORTED_LOCALES)(
         expect(container.querySelector(".lucide-terminal")).toBeNull();
         expect(container.textContent).not.toContain("execute Cdp Command");
       }
-      expect(inline.container.textContent).toContain(
-        copy("toolCall.processSummary.browser.viewPageState"),
-      );
+      expect(
+        inline.container
+          .querySelector("[aria-expanded]")
+          ?.getAttribute("aria-expanded"),
+      ).toBe("false");
       expect(card.container.textContent).toContain(
         `${copy("toolCall.action.browser.running")} ${copy("toolCall.subject.page")}`,
       );
@@ -44,9 +46,10 @@ describe.each(SUPPORTED_LOCALES)(
         inline.root.render(<InlineToolProcessStep toolCall={completed} />);
         card.root.render(<ToolCallDisplay toolCall={completed} />);
       });
-      expect(inline.container.textContent).toContain(
-        copy("toolCall.processSummary.browser.operationCompleted"),
+      act(() =>
+        inline.container.querySelector<HTMLButtonElement>("button")?.click(),
       );
+      expect(inline.container.textContent).toContain('"value": 1');
       expect(card.container.textContent).toContain(
         `${copy("toolCall.action.browser.completed")} ${copy("toolCall.subject.page")}`,
       );

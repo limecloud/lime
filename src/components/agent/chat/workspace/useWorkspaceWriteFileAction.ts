@@ -171,7 +171,7 @@ export function useWorkspaceWriteFileAction({
   return useCallback(
     (content: string, fileName: string, context?: WriteArtifactContext) => {
       logWorkspaceWriteInfo(
-        "[AgentChatPage] 收到文件写入:",
+        "[LocalConversationPage] 收到文件写入:",
         fileName,
         content.length,
         "字符",
@@ -242,7 +242,7 @@ export function useWorkspaceWriteFileAction({
         if (nextContent.length > 0) {
           void saveSessionFile(fileName, nextContent, nextArtifact.meta).catch(
             (error) => {
-              console.error("[AgentChatPage] 持久化 artifact 失败:", error);
+              console.error("[LocalConversationPage] 持久化 artifact 失败:", error);
             },
           );
         }
@@ -338,7 +338,7 @@ export function useWorkspaceWriteFileAction({
 
       void saveSessionFile(fileName, content, persistedTaskFileMetadata).catch(
         (error) => {
-          console.error("[AgentChatPage] 持久化文件失败:", error);
+          console.error("[LocalConversationPage] 持久化文件失败:", error);
         },
       );
 
@@ -347,7 +347,7 @@ export function useWorkspaceWriteFileAction({
           .then((existingContent) => {
             if (!existingContent) {
               console.warn(
-                "[AgentChatPage] contentId 对应的内容不存在，跳过同步:",
+                "[LocalConversationPage] contentId 对应的内容不存在，跳过同步:",
                 contentId,
               );
               return;
@@ -356,15 +356,15 @@ export function useWorkspaceWriteFileAction({
             void updateContent(contentId, {
               body: content,
             }).catch((error) => {
-              console.error("[AgentChatPage] 同步内容到项目失败:", error);
+              console.error("[LocalConversationPage] 同步内容到项目失败:", error);
             });
           })
           .catch((error) => {
-            console.error("[AgentChatPage] 检查内容存在性失败:", error);
+            console.error("[LocalConversationPage] 检查内容存在性失败:", error);
           });
       } else if (isThemeWorkbench && !shouldApplyToMainDocument) {
         logWorkspaceWriteInfo(
-          "[AgentChatPage] 工作区编排非成文阶段，跳过主稿写入:",
+          "[LocalConversationPage] 工作区编排非成文阶段，跳过主稿写入:",
           {
             gate: currentGateKey,
             fileName,
@@ -417,14 +417,14 @@ export function useWorkspaceWriteFileAction({
 
           if (existing.content === content) {
             logWorkspaceWriteInfo(
-              "[AgentChatPage] 文件内容相同，跳过:",
+              "[LocalConversationPage] 文件内容相同，跳过:",
               fileName,
             );
             setSelectedFileId(existing.id);
             return previous;
           }
 
-          logWorkspaceWriteInfo("[AgentChatPage] 更新文件:", fileName);
+          logWorkspaceWriteInfo("[LocalConversationPage] 更新文件:", fileName);
           const nextFiles = [...previous];
           nextFiles[existingIndex] = {
             ...existing,
@@ -442,7 +442,7 @@ export function useWorkspaceWriteFileAction({
           return nextFiles;
         }
 
-        logWorkspaceWriteInfo("[AgentChatPage] 创建新文件:", fileName);
+        logWorkspaceWriteInfo("[LocalConversationPage] 创建新文件:", fileName);
         const newFile: TaskFile = {
           id: crypto.randomUUID(),
           name: fileName,
@@ -462,14 +462,14 @@ export function useWorkspaceWriteFileAction({
       }
 
       setCanvasState((previous) => {
-        logWorkspaceWriteInfo("[AgentChatPage] 更新画布状态:", {
+        logWorkspaceWriteInfo("[LocalConversationPage] 更新画布状态:", {
           prevType: previous?.type,
           mappedTheme,
           contentLength: content.length,
         });
 
         if (!previous || previous.type !== "document") {
-          logWorkspaceWriteInfo("[AgentChatPage] 创建新文档状态");
+          logWorkspaceWriteInfo("[LocalConversationPage] 创建新文档状态");
           const initialDocumentState = createInitialDocumentState(content);
           if (!effectiveDocumentVersionId) {
             return initialDocumentState;
@@ -550,7 +550,7 @@ export function useWorkspaceWriteFileAction({
           };
         }
 
-        logWorkspaceWriteInfo("[AgentChatPage] 更新现有文档状态");
+        logWorkspaceWriteInfo("[LocalConversationPage] 更新现有文档状态");
         return {
           ...previous,
           content,

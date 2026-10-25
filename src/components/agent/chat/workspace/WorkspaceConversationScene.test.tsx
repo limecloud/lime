@@ -351,6 +351,19 @@ afterEach(() => {
 });
 
 describe("WorkspaceConversationScene", () => {
+  it("首页空态不重复显示项目导航和会话工具栏", () => {
+    const container = renderScene({
+      showChatLayout: false,
+      navbarVisible: true,
+      navbarContextVariant: "task-center",
+    });
+    expect(
+      container.querySelector('[data-testid="empty-state-stub"]'),
+    ).not.toBeNull();
+    expect(mockChatNavbar).not.toHaveBeenCalled();
+    expect(mockTaskCenterUtilityToolbar).not.toHaveBeenCalled();
+  });
+
   it("空 Thread 应使用可见页头的 canonical identity 渲染 Project 入口", () => {
     const container = renderScene({
       navbarVisible: true,

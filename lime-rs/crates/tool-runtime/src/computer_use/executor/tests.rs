@@ -152,6 +152,19 @@ fn tool_schema_accepts_native_action_and_readiness_discovery_but_rejects_authori
     let mut spoofed = input();
     spoofed["grant_id"] = json!("not-model-authority");
     assert!(!validator.is_valid(&spoofed));
+    for operation in [
+        json!({"action":"name_session","name":"🧪 Task"}),
+        json!({"action":"create_tab","url":"https://example.test/"}),
+        json!({"action":"mark_tab","tab_id":2,"mark":"deliverable"}),
+    ] {
+        let mut action = input();
+        action["operation"] = operation;
+        assert!(validator.is_valid(&action));
+        assert!(serde_json::from_value::<ComputerUseToolInput>(action.clone()).is_ok());
+        action["operation"]["owner"] = json!({"turnId":"forged"});
+        assert!(!validator.is_valid(&action));
+        assert!(serde_json::from_value::<ComputerUseToolInput>(action).is_err());
+    }
 }
 
 #[tokio::test]

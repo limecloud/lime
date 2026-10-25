@@ -1920,7 +1920,6 @@ async function main() {
     const storageOverrides = {
       lime_onboarding_complete: "true",
       lime_onboarding_version: ONBOARDING_VERSION,
-      lime_user_profile: "developer",
       [FAST_RESPONSE_MODE_STORAGE_KEY]: "off",
       agent_pref_provider: JSON.stringify(preferredProvider),
       agent_pref_model: JSON.stringify(preferredModel),
@@ -2041,17 +2040,17 @@ async function main() {
       async () => {
         const consoleText = readConsoleText(consoleMessages);
         if (
-          consoleText.includes("AgentChatPage.loadData.projectOnlyComplete")
+          consoleText.includes("LocalConversationPage.loadData.projectOnlyComplete")
         ) {
-          return "AgentChatPage.loadData.projectOnlyComplete";
+          return "LocalConversationPage.loadData.projectOnlyComplete";
         }
-        if (consoleText.includes("AgentChatPage.loadData.projectLoaded")) {
-          return "AgentChatPage.loadData.projectLoaded";
+        if (consoleText.includes("LocalConversationPage.loadData.projectLoaded")) {
+          return "LocalConversationPage.loadData.projectLoaded";
         }
-        if (consoleText.includes("AgentChatPage.workspaceCheck.success")) {
-          return "AgentChatPage.workspaceCheck.success";
+        if (consoleText.includes("LocalConversationPage.workspaceCheck.success")) {
+          return "LocalConversationPage.workspaceCheck.success";
         }
-        if (consoleText.includes("AgentChatPage.loadData.noProject")) {
+        if (consoleText.includes("LocalConversationPage.loadData.noProject")) {
           const snapshot = await readPageSnapshot(page);
           const workspaceReady = appServerMethodSucceeded(
             invokes,
@@ -2063,8 +2062,8 @@ async function main() {
           );
           if (snapshot?.ready && workspaceReady) {
             return skillsReady
-              ? "AgentChatPage.loadData.noProject+skillManagement/list"
-              : "AgentChatPage.loadData.noProject+workspace/default/ensure";
+              ? "LocalConversationPage.loadData.noProject+skillManagement/list"
+              : "LocalConversationPage.loadData.noProject+workspace/default/ensure";
           }
         }
         return null;

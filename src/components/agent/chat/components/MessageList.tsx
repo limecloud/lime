@@ -91,7 +91,6 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onOpenSavedSiteContent,
   onArtifactClick,
   onOpenMessagePreview,
-  onSaveMessageAsSkill,
 
   onOpenSubagentSession,
   onPermissionResponse,
@@ -460,7 +459,6 @@ const MessageListInner: React.FC<MessageListProps> = ({
         onPermissionResponse={onPermissionResponse}
         onQuoteMessage={onQuoteMessage}
         onRequestThreadRevert={handleRequestThreadRevert}
-        onSaveMessageAsSkill={onSaveMessageAsSkill}
         onWriteFile={onWriteFile}
       />
     ),
@@ -495,7 +493,6 @@ const MessageListInner: React.FC<MessageListProps> = ({
       onPermissionResponse,
       onQuoteMessage,
 
-      onSaveMessageAsSkill,
       onWriteFile,
       promptCacheNotice,
       providerType,
@@ -662,7 +659,6 @@ const MessageListInner: React.FC<MessageListProps> = ({
                           onPermissionResponse={onPermissionResponse}
                           onQuoteMessage={onQuoteMessage}
                           onRequestThreadRevert={handleRequestThreadRevert}
-                          onSaveMessageAsSkill={onSaveMessageAsSkill}
                           onCodeBlockClick={onCodeBlockClick}
                         />
                       </MessageTurnGroup>

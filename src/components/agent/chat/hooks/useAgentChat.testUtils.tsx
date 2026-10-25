@@ -32,7 +32,7 @@ const {
   mockSafeListen,
   mockToast,
   mockWechatChannelSetRuntimeModel,
-  mockResolveClawWorkspaceProviderSelection,
+  mockResolveConversationProviderSelection,
   mockScheduleMinimumDelayIdleTask,
   mockAgentSessionDetailByThreadId,
   resolveMockAgentRuntimeSession,
@@ -112,7 +112,7 @@ const {
       warning: vi.fn(),
     },
     mockWechatChannelSetRuntimeModel: vi.fn(async () => undefined),
-    mockResolveClawWorkspaceProviderSelection: vi.fn(),
+    mockResolveConversationProviderSelection: vi.fn(),
     mockScheduleMinimumDelayIdleTask: vi.fn((task: () => void) => {
       task();
       return () => undefined;
@@ -144,7 +144,7 @@ export {
   mockSafeListen,
   mockToast,
   mockWechatChannelSetRuntimeModel,
-  mockResolveClawWorkspaceProviderSelection,
+  mockResolveConversationProviderSelection,
   mockScheduleMinimumDelayIdleTask,
 };
 
@@ -221,9 +221,9 @@ vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
   scheduleMinimumDelayIdleTask: mockScheduleMinimumDelayIdleTask,
 }));
 
-vi.mock("../utils/clawWorkspaceProviderSelection", () => ({
-  resolveClawWorkspaceProviderSelection:
-    mockResolveClawWorkspaceProviderSelection,
+vi.mock("../utils/conversationProviderSelection", () => ({
+  resolveConversationProviderSelection:
+    mockResolveConversationProviderSelection,
 }));
 
 import { useAgentChat } from "./useAgentChat";
@@ -574,7 +574,7 @@ beforeEach(async () => {
   mockParseAgentEvent.mockReset();
   mockSafeListen.mockReset();
   mockWechatChannelSetRuntimeModel.mockReset();
-  mockResolveClawWorkspaceProviderSelection.mockReset();
+  mockResolveConversationProviderSelection.mockReset();
   mockScheduleMinimumDelayIdleTask.mockReset();
   mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
     task();
@@ -651,7 +651,7 @@ beforeEach(async () => {
   mockRespondAgentRuntimeAction.mockResolvedValue(undefined);
   mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
   mockSafeListen.mockResolvedValue(() => {});
-  mockResolveClawWorkspaceProviderSelection.mockImplementation(
+  mockResolveConversationProviderSelection.mockImplementation(
     async (input?: {
       currentProviderType?: string | null;
       currentModel?: string | null;

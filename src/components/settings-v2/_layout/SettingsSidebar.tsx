@@ -11,7 +11,6 @@ import { useTranslation } from "react-i18next";
 import { useCommand } from "@/lib/commands/useCommand";
 import { useSettingsCategory } from "../hooks/useSettingsCategory";
 import { SettingsTabs } from "@/types/settings";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { searchSettings, type SettingsSearchResult } from "../settingsSearch";
 import { SettingsSearch } from "./SettingsSearch";
 
@@ -119,10 +118,9 @@ export function SettingsSidebar({
   const categoryGroups = useSettingsCategory();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const localProfile = !resolveOemCloudRuntimeContext();
   const results = useMemo(
-    () => searchSettings(searchQuery, categoryGroups, t, localProfile),
-    [searchQuery, categoryGroups, t, localProfile],
+    () => searchSettings(searchQuery, categoryGroups, t),
+    [searchQuery, categoryGroups, t],
   );
   const selectResult = (result: SettingsSearchResult) => {
     if (onSearchSelect) onSearchSelect(result);

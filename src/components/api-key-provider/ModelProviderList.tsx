@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProviderIcon } from "@/icons/providers";
 import { cn } from "@/lib/utils";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
-import { GripVertical, Plus, Settings2 } from "lucide-react";
+import { Plus, Settings2 } from "lucide-react";
 import {
   buildEnabledModelItems,
   type EnabledModelListOptions,
@@ -41,39 +41,15 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
   return (
     <aside
       className={cn(
-        "flex h-full min-h-0 w-[clamp(220px,26%,320px)] flex-col overflow-hidden border-r border-slate-200/80 bg-[#fbfaf7]",
+        "flex h-full min-h-0 w-[clamp(220px,26%,320px)] flex-col overflow-hidden border-r-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)]",
         className,
       )}
       data-testid="enabled-model-list"
     >
       <div className="flex-shrink-0 px-5 pb-3 pt-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">
-              {t("settings.providers.modelList.title", "启用的模型")}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              {t(
-                "settings.providers.modelList.description",
-                "拖拽排序，首位为默认",
-              )}
-            </p>
-          </div>
-          {onAddModel ? (
-            <button
-              type="button"
-              onClick={onAddModel}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-              aria-label={t(
-                "settings.providers.modelList.action.add",
-                "添加模型",
-              )}
-              data-testid="enabled-model-add-icon-button"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
+        <p className="text-sm font-semibold text-[color:var(--lime-text-strong)]">
+          {t("settings.providers.modelList.title", "启用的模型")}
+        </p>
       </div>
 
       <div
@@ -84,29 +60,21 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
           <div className="space-y-2" data-testid="enabled-model-items">
             {items.map((item) => {
               const selected = selectedProviderId === item.id;
-              const title = item.isDefault
-                ? t("settings.providers.modelList.item.defaultTitle", {
-                    provider: item.providerName,
-                    defaultValue: "默认 ({{provider}})",
-                  })
-                : item.providerName;
-
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => onProviderSelect?.(item.id)}
                   className={cn(
-                    "group flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition",
+                    "group flex w-full items-center gap-3 rounded-md border-[0.5px] px-3 py-3 text-left",
                     selected
-                      ? "border-slate-200 bg-white shadow-sm shadow-slate-950/5"
-                      : "border-transparent bg-transparent hover:border-slate-200 hover:bg-white/80",
+                      ? "border-[var(--lime-surface-border)] bg-[var(--lime-surface-hover)]"
+                      : "border-transparent bg-transparent hover:bg-[var(--lime-surface-hover)]",
                   )}
                   data-testid="enabled-model-item"
                   data-provider-id={item.id}
                   data-selected={selected}
                 >
-                  <GripVertical className="h-4 w-4 flex-shrink-0 text-slate-300" />
                   <ProviderIcon
                     providerType={item.provider.id}
                     fallbackText={item.providerName}
@@ -115,11 +83,11 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-slate-900">
-                        {title}
+                      <span className="truncate text-sm font-semibold text-[color:var(--lime-text-strong)]">
+                        {item.providerName}
                       </span>
                       {item.isDefault ? (
-                        <Badge className="shrink-0 whitespace-nowrap border border-emerald-200 bg-emerald-50 px-1.5 py-0 text-[11px] text-emerald-700 hover:bg-emerald-50">
+                        <Badge className="shrink-0 whitespace-nowrap rounded-sm border-[0.5px] border-[var(--lime-surface-border)] bg-[var(--lime-surface-soft)] px-1.5 py-0 text-xs text-[var(--lime-text-muted)] hover:bg-[var(--lime-surface-soft)]">
                           {t(
                             "settings.providers.modelList.badge.default",
                             "默认",
@@ -127,7 +95,7 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
                         </Badge>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-slate-500">
+                    <span className="mt-0.5 block truncate text-xs text-[color:var(--lime-text-muted)]">
                       {item.status === "login_required"
                         ? t(
                             "settings.providers.modelList.status.loginRequired",
@@ -146,31 +114,25 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
           </div>
         ) : (
           <div
-            className="mt-2 rounded-[20px] border border-dashed border-slate-200 bg-white px-4 py-8 text-center"
+            className="mt-2 px-4 py-8 text-center"
             data-testid="enabled-model-empty"
           >
-            <p className="text-sm font-medium text-slate-900">
+            <p className="text-sm font-medium text-[color:var(--lime-text-strong)]">
               {t("settings.providers.modelList.empty.title", "还没有启用模型")}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              {t(
-                "settings.providers.modelList.empty.description",
-                "点击添加模型后，再从推荐服务或自定义供应商里筛选。",
-              )}
             </p>
           </div>
         )}
       </div>
 
-      <div className="flex-shrink-0 space-y-2 border-t border-slate-200/80 px-4 py-4">
+      <div className="flex-shrink-0 space-y-2 border-t-[0.5px] border-[var(--lime-surface-border)] px-4 py-4">
         {onAddModel ? (
           <button
             type="button"
             onClick={onAddModel}
-            className="flex w-full items-center gap-3 rounded-[18px] bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 shadow-sm shadow-slate-950/5 transition hover:bg-slate-50"
+            className="flex w-full items-center gap-3 rounded-md px-4 py-3 text-left text-sm font-medium text-[var(--lime-text)] hover:bg-[var(--lime-surface-hover)]"
             data-testid="add-model-button"
           >
-            <Plus className="h-4 w-4 text-slate-500" />
+            <Plus className="h-4 w-4 text-[color:var(--lime-text-muted)]" />
             {t("settings.providers.modelList.action.add", "添加模型")}
           </button>
         ) : null}
@@ -178,7 +140,7 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
           <button
             type="button"
             onClick={onImportExport}
-            className="flex w-full items-center gap-3 rounded-[18px] px-4 py-2.5 text-left text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            className="flex w-full items-center gap-3 rounded-md px-4 py-2.5 text-left text-xs font-medium text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[var(--lime-text-strong)]"
             data-testid="import-export-button"
           >
             <Settings2 className="h-4 w-4" />

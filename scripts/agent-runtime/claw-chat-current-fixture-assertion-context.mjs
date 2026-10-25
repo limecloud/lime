@@ -24,14 +24,13 @@ import {
   LIVE_TAIL_COMMIT_SCENARIO,
   MCP_STRUCTURED_CONTENT_PROMPT,
   NEWS_PROMPT,
-  PLAIN_IMAGE_INTENT_ROUTED_PROMPT,
+  PLAIN_IMAGE_INTENT_PROMPT,
   PLAIN_IMAGE_INTENT_SCENARIO,
   PLAN_PROMPT,
   REASONING_FIRST_VISIBLE_PROMPT,
   REASONING_FIRST_VISIBLE_SCENARIO,
   RIGHT_SURFACE_VISUAL_MATRIX_SCENARIO,
   THREAD_SUMMARY_PANEL_SCENARIO,
-  SOUL_STYLE_SCENARIO,
   SKILLS_RUNTIME_EXPLICIT_PROMPT,
   SKILLS_RUNTIME_MANUAL_ENABLE_PROMPT,
   SKILLS_RUNTIME_PROMPT,
@@ -358,12 +357,10 @@ export function buildAssertionContext({
   );
   const expectedImageIntentRoutedPrompt =
     options.scenario === PLAIN_IMAGE_INTENT_SCENARIO
-      ? PLAIN_IMAGE_INTENT_ROUTED_PROMPT
+      ? PLAIN_IMAGE_INTENT_PROMPT
       : IMAGE_COMMAND_PROMPT;
   const imageCommandWorkflowTurnStart =
-    summary.imageCommandWorkflowTurnStart ??
-    summary.imageCommandBackendTurnStart ??
-    null;
+    summary.imageCommandModelTurnStart ?? null;
   const imageCommandTurnStart =
     backendLedger.find(
       (entry) =>
@@ -514,7 +511,7 @@ export function buildAssertionContext({
     options.scenario === MEDIA_REFERENCE_SCENARIO;
   const isSkillsRuntimeScenario = options.scenario === "skills-runtime";
   const isUnknownItemScenario = options.scenario === UNKNOWN_ITEM_SCENARIO;
-  const isSoulStyleScenario = options.scenario === SOUL_STYLE_SCENARIO;
+
   const isExpertPlazaSkillsRuntimeScenario =
     options.scenario === "expert-plaza-skills-runtime";
   const isExpertPanelSkillsRuntimeScenario =
@@ -684,11 +681,8 @@ export function buildAssertionContext({
                                               ) === true
                                           : isContentFactoryArticleWorkspaceScenario
                                             ? true
-                                            : isSoulStyleScenario
-                                              ? newsTraceTurnStart?.inputText ===
-                                                NEWS_PROMPT
-                                              : newsTurnStart?.inputText ===
-                                                NEWS_PROMPT;
+                                            : newsTurnStart?.inputText ===
+                                              NEWS_PROMPT;
   return {
     backendLedger,
     traceMessages,
@@ -763,7 +757,7 @@ export function buildAssertionContext({
     isMediaReferenceScenario,
     isSkillsRuntimeScenario,
     isUnknownItemScenario,
-    isSoulStyleScenario,
+
     isExpertPlazaSkillsRuntimeScenario,
     isExpertPanelSkillsRuntimeScenario,
     isRightSurfaceVisualMatrixScenario,

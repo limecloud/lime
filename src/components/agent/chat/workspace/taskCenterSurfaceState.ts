@@ -49,7 +49,7 @@ export function shouldPrioritizeTaskCenterInitialSessionRoute({
   const normalizedInitialSessionId = initialSessionId?.trim() || null;
   const normalizedSessionId = sessionId?.trim() || null;
   return Boolean(
-    agentEntry === "claw" &&
+    agentEntry === "conversation" &&
     normalizedInitialSessionId &&
     normalizedInitialSessionId !== normalizedSessionId,
   );

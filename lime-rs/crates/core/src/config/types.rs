@@ -409,7 +409,10 @@ pub struct Config {
     #[serde(default)]
     pub sandbox_workspace_write: super::SandboxWorkspaceWrite,
     /// Shell 子进程环境策略，与 Lime 配置语义一致。
-    #[serde(default, skip_serializing_if = "super::ShellEnvironmentPolicyToml::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "super::ShellEnvironmentPolicyToml::is_empty"
+    )]
     pub shell_environment_policy: super::ShellEnvironmentPolicyToml,
     /// Lime-compatible default named permission profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -537,9 +540,6 @@ pub struct Config {
     /// 图像生成服务配置
     #[serde(default)]
     pub image_gen: ImageGenConfig,
-    /// 用户资料
-    #[serde(default)]
-    pub user_profile: UserProfile,
     /// 速率限制配置
     #[serde(default)]
     pub rate_limit: RateLimitSettings,
@@ -2209,7 +2209,6 @@ impl Default for Config {
             web_search: None,
             memory: MemoryConfig::default(),
             image_gen: ImageGenConfig::default(),
-            user_profile: UserProfile::default(),
             rate_limit: RateLimitSettings::default(),
             crash_reporting: CrashReportingConfig::default(),
             conversation: ConversationSettings::default(),
@@ -2357,119 +2356,6 @@ pub struct ChatAppearanceConfig {
     /// 推荐点击时自动附带当前选中文本上下文
     #[serde(default)]
     pub append_selected_text_to_recommendation: Option<bool>,
-}
-
-/// 记忆管理配置
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct MemoryProfileConfig {
-    /// 当前学习/工作状态（单选）
-    #[serde(default)]
-    pub current_status: Option<String>,
-    /// 擅长领域（多选）
-    #[serde(default)]
-    pub strengths: Vec<String>,
-    /// 偏好的解释风格（多选）
-    #[serde(default)]
-    pub explanation_style: Vec<String>,
-    /// 遇到难题时的偏好（多选）
-    #[serde(default)]
-    pub challenge_preference: Vec<String>,
-}
-
-/// Soul 导入来源
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum MemorySoulImportSource {
-    /// 用户手动配置
-    #[default]
-    Manual,
-    /// 从 SOUL.md 导入
-    SoulMd,
-}
-
-/// 正式产物创作声线来源
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum MemorySoulArtifactVoiceSource {
-    /// 使用用户显式配置的创作者声线
-    #[default]
-    CreatorVoice,
-    /// 使用用户显式配置的品牌声线
-    BrandVoice,
-}
-
-/// 全局交互口吻预设 ID。
-///
-/// 具体风格由 Style Pack Registry 解析，配置层只保存稳定 ID，不枚举内置 seed。
-pub type MemorySoulStyleProfileId = String;
-
-/// 正式产物创作声线配置
-///
-/// 该配置只作为 Generation Brief 的显式输入，默认不影响正式产物。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct MemorySoulArtifactVoiceConfig {
-    /// 是否允许本配置进入正式产物 Generation Brief
-    #[serde(default)]
-    pub enabled: bool,
-    /// 声线来源
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub voice_source: Option<MemorySoulArtifactVoiceSource>,
-    /// 创作者声线 ID
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub creator_voice_id: Option<String>,
-    /// 品牌声线 ID
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub brand_voice_id: Option<String>,
-    /// Evidence Pack ID
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub evidence_pack_id: Option<String>,
-    /// 可追踪 evidence 引用
-    #[serde(default)]
-    pub evidence_refs: Vec<String>,
-}
-
-/// 全局交互人格配置
-///
-/// 该配置只表达 Lime 与用户互动时的语气、解释节奏和追问方式。
-/// 正式创作声线必须通过 Generation Brief，不从这里默认进入 artifact。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct MemorySoulConfig {
-    /// 是否启用全局交互人格
-    #[serde(default)]
-    pub enabled: bool,
-    /// 人格名称
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    /// 一句话风格摘要
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
-    /// 交互口吻预设
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub style_profile_id: Option<MemorySoulStyleProfileId>,
-    /// 语气标签
-    #[serde(default)]
-    pub tone: Vec<String>,
-    /// 沟通方式
-    #[serde(default)]
-    pub communication_style: Vec<String>,
-    /// 解释深度
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub explanation_depth: Option<String>,
-    /// 遇到弱假设或分歧时的处理方式
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub challenge_style: Option<String>,
-    /// 避免事项
-    #[serde(default)]
-    pub avoid: Vec<String>,
-    /// 正式产物创作声线配置
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub artifact_voice: Option<MemorySoulArtifactVoiceConfig>,
-    /// 导入来源
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub imported_from: Option<MemorySoulImportSource>,
-    /// 更新时间
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
 }
 
 /// 记忆来源配置
@@ -2644,12 +2530,6 @@ pub struct MemoryConfig {
     /// 自动清理过期记忆
     #[serde(default)]
     pub auto_cleanup: Option<bool>,
-    /// 记忆偏好画像
-    #[serde(default)]
-    pub profile: Option<MemoryProfileConfig>,
-    /// 全局交互人格
-    #[serde(default)]
-    pub soul: Option<MemorySoulConfig>,
     /// 记忆来源配置
     #[serde(default)]
     pub sources: MemorySourcesConfig,
@@ -2696,17 +2576,6 @@ pub struct ImageGenConfig {
     pub image_search_pixabay_api_key: Option<String>,
 }
 
-/// 用户资料
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct UserProfile {
-    /// 显示名称（本地配置字段）
-    #[serde(default)]
-    pub nickname: Option<String>,
-    /// 个人简介
-    #[serde(default)]
-    pub bio: Option<String>,
-}
-
 #[cfg(test)]
 mod unit_tests {
     use super::super::tool_execution::{
@@ -2719,26 +2588,14 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    fn profile_roundtrip_drops_retired_fields() {
-        let profile: crate::config::UserProfile = serde_json::from_value(serde_json::json!({
-            "nickname": "Ada",
-            "bio": "Builds tools",
-            "avatar_url": "retired-avatar",
-            "email": "retired@example.test",
-            "tags": ["retired-tag"]
-        }))
-        .unwrap();
-        assert_eq!(
-            serde_json::to_value(&profile).unwrap(),
-            serde_json::json!({"nickname": "Ada", "bio": "Builds tools"})
-        );
-        assert_eq!(
-            serde_yaml::from_str::<crate::config::UserProfile>(
-                &serde_yaml::to_string(&profile).unwrap()
-            )
-            .unwrap(),
-            profile
-        );
+    fn config_roundtrip_drops_retired_local_profile() {
+        let mut value = serde_json::to_value(Config::default()).unwrap();
+        value["user_profile"] = serde_json::json!({"nickname": "Ada", "bio": "Retired"});
+        let config: Config = serde_json::from_value(value).unwrap();
+        assert!(serde_json::to_value(config)
+            .unwrap()
+            .get("user_profile")
+            .is_none());
     }
 
     #[test]
@@ -2802,37 +2659,14 @@ mod unit_tests {
     }
 
     #[test]
-    fn memory_soul_style_profile_accepts_registry_profile_id() {
-        let yaml = r#"
-memory:
-  soul:
-    enabled: true
-    style_profile_id: cheeky_sassy_executor
-"#;
-
-        let config: Config = serde_yaml::from_str(yaml).expect("style profile id");
-
-        assert_eq!(
-            config.memory.soul.and_then(|soul| soul.style_profile_id),
-            Some("cheeky_sassy_executor".to_string())
-        );
-    }
-
-    #[test]
-    fn memory_soul_style_profile_does_not_alias_legacy_profile_id() {
-        let yaml = r#"
-memory:
-  soul:
-    enabled: true
-    style_profile_id: sassy_cute_executor
-"#;
-
-        let config: Config = serde_yaml::from_str(yaml).expect("style profile id");
-
-        assert_eq!(
-            config.memory.soul.and_then(|soul| soul.style_profile_id),
-            Some("sassy_cute_executor".to_string())
-        );
+    fn obsolete_personalization_does_not_survive_config_roundtrip() {
+        let config: Config = serde_yaml::from_str(
+            "memory:\n  enabled: true\n  profile:\n    current_status: student\n  soul:\n    enabled: true\n    style_profile_id: old_style\n",
+        ).expect("old config remains readable");
+        let memory = serde_json::to_value(config.memory).unwrap();
+        assert_eq!(memory["enabled"], true);
+        assert!(memory.get("profile").is_none());
+        assert!(memory.get("soul").is_none());
     }
 
     #[test]

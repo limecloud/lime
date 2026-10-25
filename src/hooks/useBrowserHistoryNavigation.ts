@@ -13,7 +13,7 @@ import {
   consumeWorkspaceRightSurfacePending,
   requestWorkspaceRightSurface,
 } from "@/lib/api/workspaceRightSurface";
-import { buildClawAgentParams } from "@/lib/workspace/navigation";
+import { buildConversationParams } from "@/lib/workspace/navigation";
 import { areWorkspacePathsIdentical } from "@/lib/workspace/pathIdentity";
 import type {
   AgentLocation,
@@ -208,7 +208,7 @@ export function useBrowserHistoryNavigation({
               if (
                 !tryNavigate(
                   "agent",
-                  buildClawAgentParams({
+                  buildConversationParams({
                     initialSessionId: resolvedOwner.runtimeSessionId,
                     projectId: resolvedOwner.workspaceId ?? undefined,
                   }),

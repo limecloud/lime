@@ -1,152 +1,65 @@
-# Lime Browser Bridge Chrome 商店提交底稿
+# Lime Computer Use 商店更新材料
 
-本文档用于填写 Chrome Web Store 开发者后台的上架表单、审核备注与数据使用说明。
+日期：2026-10-25。替换旧条目；用户已明确授权发布。本材料取代 0.4.0 旧 WS 版本文案。
+当前开发版本 0.5.0；上传前以开发者后台的真实条目 ID、公钥和线上版本确认最终包。
 
-## 基础信息
+## Single purpose
 
-- 扩展名称：`Lime Browser Bridge`
-- 当前版本：`0.4.0`
-- 上传包：`tmp/lime-chrome-0.4.0.zip`
-- 上传包 SHA-256：`059b6c17a8fea130d78709cd85e3cc16e687438da4ab4aab6bd0ed898bd3818b`
-- 建议分类：`Productivity`
-- 建议语言：`English`
+Connect Chrome to the user's local Lime Desktop or CLI runtime so the user can
+organize task tabs and explicitly approve browser observation and control.
 
-## 单一句用途
+## Short description
 
-`Lime Browser Bridge` 的单一用途是把用户当前 Chrome 标签页连接到本地运行的 Lime 桌面端，让 Lime 在用户明确触发浏览器相关任务时读取当前页面上下文，并在当前浏览器中执行对应操作。
+Control approved Chrome tabs from Lime Desktop or CLI, with native task tab groups.
 
-## Short Description
+## Detailed description
 
-Connect Lime to your current Chrome tab so Lime can read page context and perform browser actions through your local desktop runtime.
+Lime Computer Use is the companion Chrome extension for Lime Desktop and CLI.
 
-## Detailed Description
+- Connect to the locally installed Lime Native Messaging host.
+- Create native Chrome tab groups with task names, including emoji.
+- Keep task child tabs together and preserve existing user tab groups.
+- Approve a selected tab before Lime can observe, capture, click, type, or scroll.
+- Revoke control through Lime. Each tab requires its own target-bound authority.
 
-Lime Browser Bridge is the companion Chrome extension for the Lime desktop app.
+The extension requires a compatible local Lime installation. Creating a group
+alone does not authorize control. It does not contain a cloud account, remote
+code loader, advertising, or analytics SDK. Requested content may be processed
+by the model provider the user configures in Lime.
 
-It connects your current Chrome session to a locally running Lime runtime so Lime can:
+## 权限理由
 
-- read the active page title, URL, and page content
-- execute browser actions such as open URL, click, type, scroll, switch tab, and go back
-- keep browser control attached to the tabs you are already using instead of launching a separate managed browser
-- reconnect automatically when Lime is running again
+| 权限             | 实际用途                                                           |
+| ---------------- | ------------------------------------------------------------------ |
+| debugger         | 获批标签页截图与坐标鼠标/键盘输入；保留 Chrome 标准调试提示        |
+| tabs / activeTab | 报告可选 HTTP/HTTPS 标签页身份、URL；按目标授权执行                |
+| tabGroups        | 原生任务名称、颜色、子标签页分组；不移动用户已有分组               |
+| scripting        | 获批标签页按需读取渲染内容，不常驻全站 content script              |
+| nativeMessaging  | 与本机 `com.limecloud.lime.computer_use` host 通信                 |
+| storage          | 随机 profile ID、任务名称、组/标签页关联、连接状态                 |
+| alarms           | MV3 断线重连                                                       |
+| all_urls         | 用户可选择任意常规 HTTP/HTTPS 网页；实际发现/执行过滤为 HTTP/HTTPS |
 
-This extension is designed for users who already use Lime on their desktop and want browser-aware AI workflows inside their existing Chrome session.
+## 数据使用与审核说明
 
-The extension does not provide a consumer cloud service by itself. It works only with a user-configured or locally exported Lime connection and only operates on pages the user chooses to open or control.
+处理 Website content（DOM/表单/截图）、当前标签页 URL/标题、用户任务输入和本地任务组元数据。
+仅用于扩展功能，不出售、不用于广告、放贷或数据经纪。浏览器数据经 Native Messaging
+交给本机 Lime；Lime 可按用户配置把所需内容交给模型 Provider，不能宣称数据永不离开本机。
+不使用 history/cookies/clipboard API，不复制旧 WS endpoint/key 配置。
+无 remote hosted code：worker 的模块和注入观察函数均随扩展包提供。
 
-## 审核备注
+审核步骤：安装兼容 Lime → 开启 Chrome 通道并注册 Native Host → 安装此扩展 →
+打开测试 HTTP/HTTPS 页面 → 在 Lime 选择目标并请求连接 → 扩展弹窗明确允许 →
+请求一次观察/输入/截图并核对页面 → 撤销授权。分组可从扩展 popup 输入任务名和起始网址创建。
+真实本机测试为隔离 Chrome + 本地模型协议 fixture，不声称真实模型或 Windows 已验收。
 
-可直接粘贴给审核团队：
+## 上传前核对
 
-This extension is a companion bridge for the Lime desktop application. Its single purpose is to connect the user's existing Chrome tabs to a locally running Lime runtime so Lime can inspect the current page and perform browser actions requested by the user.
-
-The `debugger` permission is required because some actions rely on Chrome DevTools Protocol, including screenshot capture, coordinate-based interactions, raw keyboard input, and page lifecycle inspection. Chrome will show its standard debugger banner during those actions.
-
-The `<all_urls>` host permission is required because users may ask Lime to work with arbitrary websites in their existing session. The extension does not run on `chrome://` pages and does not inject persistent scripts into every site by default; it injects scripts on demand when a read or action request occurs.
-
-The extension stores only local configuration and recent bridge status in Chrome storage. It sends page data only to the user-configured Lime runtime endpoint, which is local by default.
-
-## 权限说明
-
-### `debugger`
-
-用于通过 Chrome DevTools Protocol 执行以下能力：
-
-- 页面结构读取
-- 截图
-- 坐标点击与键盘输入
-- 页面生命周期与标签页调试会话管理
-
-### `tabs` / `tabGroups` / `windows` / `activeTab`
-
-用于读取当前标签页、切换标签页、聚合 Lime Agent 打开的标签页，并把用户带回正确的窗口。
-
-### `scripting`
-
-用于在用户当前操作的网页上按需注入内容脚本，以抓取页面内容或执行页面内动作。
-
-### `storage`
-
-用于保存以下本地状态：
-
-- `serverUrl`
-- `bridgeKey`
-- `profileKey`
-- 开关状态
-- 最近一次页面快照摘要
-- relay 连接状态与端口信息
-
-### `clipboardRead`
-
-仅在用户点击弹窗中的粘贴配置操作时使用，用于把 Lime 导出的配置粘贴到扩展设置。
-
-### `alarms`
-
-用于维持 MV3 service worker 存活和断线自动重连。
-
-### `notifications`
-
-用于在本地 relay 异常时向用户展示浏览器内提示。
-
-### `<all_urls>`
-
-用于支持用户在任意常规网页上让 Lime 读取内容或执行浏览器动作。该权限不会用于 `chrome://` 等 Chrome 内部页面。
-
-## 数据使用填写建议
-
-以下内容是后台数据使用问卷的建议答案，请以上线前实际条目为准再核对一遍。
-
-### 收集的数据
-
-- Website content
-- Website URLs
-- Page titles
-- User-provided connection settings
-- Optional screenshots captured from the active tab during requested actions
-
-### 数据用途
-
-- Extension functionality
-
-### 是否出售数据
-
-- No
-
-### 是否用于广告
-
-- No
-
-### 是否用于信用评估或放贷
-
-- No
-
-### 是否与数据经纪人共享
-
-- No
-
-### 数据传输说明
-
-- Page data is sent only to the user-configured Lime runtime endpoint.
-- The default endpoint is local (`ws://127.0.0.1:8999`).
-- The extension does not include analytics, ad SDKs, or third-party tracking code.
-
-## 截图建议
-
-建议准备至少 3 张 `1280x800` 截图：
-
-1. 安装引导页
-2. 扩展状态/连接页
-3. 连接后由 Lime 控制当前浏览器标签页的示意页
-
-已生成的本地截图草稿：
-
-- `tmp/chrome-store-assets/install-extension-1280x800.png`
-- `tmp/chrome-store-assets/compare-methods-1280x800.png`
-- `tmp/chrome-store-assets/options-connected-clean-1280x800.png`
-
-## 发布前核对
-
-- 确认后台条目是否就是 `cpidmllglbedhpombjibeoalnafofipo`
-- 确认隐私政策 URL 已填写且外网可访问；当前仓库内草稿文件为 `extensions/lime-chrome/PRIVACY_POLICY.md`
-- 确认截图、分类、语言、可见性、地区都已补齐
-- 确认审核备注已说明 `debugger` 与 `<all_urls>` 的必要性
+- 使用旧条目的“上传新软件包”，不创建另一条目；版本必须高于后台当前版本。
+- 从旧条目取公钥，使解压开发 ID、商店 ID、Native Messaging allowed origin 保持一致。
+- 本仓库历史候选 `cpidmllglbedhpombjibeoalnafofipo` 未经后台确认；当前 key 推导
+  `okipgpdaiijkenehohfgochhhlbifcbc`，不能据此直接发布或改 allowed origin。
+- 旧权限 clipboardRead/notifications 已删除，新增 nativeMessaging；后台权限说明同步本表。
+- 隐私政策使用本目录最新版，并核实后台的公开 URL 能访问这版内容。
+- 旧安装/配置截图反映 WS 0.4.0，应替换为当前 Native Messaging popup/分组截图。
+- 最后记录上传包 SHA、提交结果、审核状态和可见版本；上传成功不等于审核通过。

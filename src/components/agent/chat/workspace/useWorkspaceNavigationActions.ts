@@ -17,7 +17,7 @@ interface UseWorkspaceNavigationActionsParams {
   compactSession: () => Promise<void>;
   dismissWorkspacePathError: () => void;
   fixWorkspacePathAndRetry: (newPath: string) => Promise<void>;
-  agentEntry?: "new-task" | "claw";
+  agentEntry?: "new-task" | "conversation";
   externalProjectId?: string | null;
   onNavigate?: (page: Page, params?: PageParams) => void;
   projectId?: string;
@@ -37,7 +37,7 @@ export function useWorkspaceNavigationActions({
   compactSession,
   dismissWorkspacePathError,
   fixWorkspacePathAndRetry,
-  agentEntry = "claw",
+  agentEntry = "conversation",
   externalProjectId,
   onNavigate,
   projectId,

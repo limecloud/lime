@@ -95,7 +95,7 @@ use app_server_protocol::AgentSessionActionType;
 use event_mapper::emit_runtime_agent_event_with_coding_mirror;
 use event_mapper::{
     emit_agent_message_finish, emit_reasoning_finish,
-    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style,
+    emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route,
     ModelRouteEvidence,
 };
 
@@ -415,9 +415,6 @@ impl RuntimeBackend {
             .await?;
 
         let config_metadata = current_agent_runtime_config_metadata();
-        let soul_style = tool_process_metadata::SoulStyleMetadata::from_config_metadata(
-            config_metadata.as_ref(),
-        );
         let mention_selection = mention_selection::resolve_mentions(
             &request,
             self.current_app_data_source()?,
@@ -626,13 +623,12 @@ impl RuntimeBackend {
                         return;
                     }
                     if let Err(error) =
-                        emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_soul_style(
+                        emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_model_route(
                             event,
                             sink,
                             &mut coding_event_mirror,
                             &mut proposed_plan_parser,
                             &mut reasoning_event_state,
-                            soul_style.as_ref(),
                             Some(&model_route_evidence),
                         )
                     {

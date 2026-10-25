@@ -16,7 +16,7 @@ impl RequestProcessor {
         connection_request_id: Option<ConnectionRequestId>,
     ) -> BoxFuture<'a, Result<RpcDispatch, JsonRpcError>> {
         match method {
-            v2::METHOD_COMPUTER_USE_STATUS => self.handle_computer_use_status(params).boxed(),
+            v2::METHOD_COMPUTER_USE_STATUS => self.handle_computer_use_status(params, connection_request_id).boxed(),
             v2::METHOD_COMPUTER_USE_SETUP => self.handle_computer_use_setup(params, connection_request_id).boxed(),
             v2::METHOD_COMPUTER_USE_REVOKE => ready(self.handle_computer_use_revoke(params, connection_request_id)).boxed(),
             v2::METHOD_COMPUTER_USE_LEASE_ACQUIRE => self.handle_computer_use_acquire(params, connection_request_id).boxed(),
@@ -442,16 +442,6 @@ impl RequestProcessor {
             }
             app_server_protocol::protocol::v2::METHOD_PLUGIN_SHARE_DELETE => {
                 self.handle_plugin_share_delete_v2_impl(params).boxed()
-            }
-            METHOD_SOUL_STYLE_PACK_INSTALL => {
-                self.handle_soul_style_pack_install_impl(params).boxed()
-            }
-            METHOD_SOUL_STYLE_PACK_LIST => self.handle_soul_style_pack_list_impl(params).boxed(),
-            METHOD_SOUL_STYLE_PACK_STATUS_SET => {
-                self.handle_soul_style_pack_status_set_impl(params).boxed()
-            }
-            METHOD_SOUL_STYLE_PACK_UNINSTALL => {
-                self.handle_soul_style_pack_uninstall_impl(params).boxed()
             }
             METHOD_SCHEDULED_TASK_LIST => self.handle_scheduled_task_list_impl(params).boxed(),
             METHOD_SCHEDULED_TASK_READ => self.handle_scheduled_task_read_impl(params).boxed(),

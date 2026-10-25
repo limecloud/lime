@@ -10,13 +10,6 @@ import { changeLimeLocale } from "@/i18n/createI18n";
 import type { RuntimeSubmissionResult } from "../hooks/agentSendResult";
 import { acceptedSubmission } from "../hooks/agentSendResult.testFixtures";
 
-vi.mock("../skill-selection/runtimeInputCapabilityCatalog", () => ({
-  useRuntimeMentionCommandCatalog: () => ({
-    mentionAgentTurnRouteMap: {},
-    mentionCommandSkillIdMap: {},
-    mentionCommandPrefixKeyMap: {},
-  }),
-}));
 
 describe("structured workspace acceptance", () => {
   it.each([true, false])(

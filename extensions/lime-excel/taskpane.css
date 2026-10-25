@@ -1,0 +1,35 @@
+:root {
+  color-scheme: light dark;
+  font:
+    14px/1.6 system-ui,
+    sans-serif;
+}
+body {
+  margin: 0;
+}
+main {
+  padding: 24px;
+}
+h1 {
+  font-size: 22px;
+}
+button {
+  border: 1px solid #8886;
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin: 6px 6px 0 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+#allow {
+  background: #39784a;
+  color: white;
+}
+#error {
+  color: #d35b55;
+  overflow-wrap: anywhere;
+}
+[hidden] {
+  display: none;
+}

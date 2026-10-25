@@ -40,9 +40,9 @@
 - 能走真实 Electron Desktop Host 和 App Server 就必须走真实链路；浏览器镜像入口暂不支持的原生壳能力只能使用显式测试夹具，并在结论里标为 `test-only / fixture`，不能作为 GUI 主路径交付证据
 - 通过 Electron CDP 连接真实窗口时，先断言 `window.__LIME_ELECTRON__ === true` 且 `window.electronAPI.invoke` 存在；随后从页面内读取 `localStorage.lime_invoke_trace_buffer_v1`，确认关键动作的 `transport` 为 `electron-ipc`，并能看到 `app_server_handle_json_lines` 中的 current JSON-RPC method。不要只以页面文本或 DevBridge `/health` 成功作为主路径证据
 - `lime_invoke_trace_buffer_v1` 可能包含 `save_config` / provider 配置的脱敏不足字段。汇报和落库 evidence 时只保留 method、transport、status、sessionId、turnId、marker、必要片段；不要粘贴完整 config、API key、token、provider secret 或用户私密 prompt
-- `lime_invoke_trace_buffer_v1` 中的 `turn/start` 是 renderer 发给 App Server 的请求预览，只证明前端、Electron IPC 与 App Server JSON-RPC 主链；它不是 Runtime backend 完成 session config / final prompt 拼装后的模型请求。renderer 请求预览不能证明最终 Soul prompt
-- `APP_SERVER_BACKEND_MODE=external` 适合证明 GUI、read model、Electron IPC 和 current JSON-RPC 链路，但会绕过 `RuntimeBackend::handle_turn_start` 中的 `session_config_from_request` / session prompt 拼装，因此不能作为 Soul 最终 prompt 注入证据
-- Soul / AI 个性最终 prompt 只能通过 Rust prompt 单测或 `APP_SERVER_BACKEND_MODE=runtime` + 本地 OpenAI-compatible provider fixture 证明；provider fixture evidence 只保存 marker booleans，例如 `hasInteractionSoul`、`hasMemorySoulSchema`、`profileId`、`stylePackId`、`hasSurfaceContracts`，不得保存完整 `system_prompt`、provider request / response 或用户私密 prompt
+- `lime_invoke_trace_buffer_v1` 中的 `turn/start` 是 renderer 发给 App Server 的请求预览，只证明前端、Electron IPC 与 App Server JSON-RPC 主链；它不是 Runtime backend 完成 session config / final prompt 拼装后的模型请求。renderer 请求预览不能证明最终 模型指令
+- `APP_SERVER_BACKEND_MODE=external` 适合证明 GUI、read model、Electron IPC 和 current JSON-RPC 链路，但会绕过 `RuntimeBackend::handle_turn_start` 中的 `session_config_from_request` / session prompt 拼装，因此不能作为 最终模型指令 注入证据
+- 最终模型指令使用 Rust prompt 单测或 runtime provider fixture 验证，只保存必要摘要，不保存完整请求。
 - `verify:gui-smoke` 默认启动真实 Electron Desktop Host 但隐藏主窗口，避免本地最小 smoke 抢占开发者当前窗口；这仍属于真实 Electron fixture 证据，不是 browser mirror
 - 如需肉眼调试最小 smoke，可显式设置 `LIME_ELECTRON_SMOKE_VISIBLE=1 npm run verify:gui-smoke`；该模式优先用 Electron `showInactive()` 显示窗口，尽量不抢焦点，但 Linux / Wayland 仍可能受平台限制
 - `verify:gui-smoke` 内部的 browser runtime 校验默认走无界面浏览器会话；它只证明主链可启动，不替代后续真实页面交互验证
@@ -129,8 +129,8 @@ npm run verify:gui-smoke -- --include-knowledge-product-e2e --reuse-running
 开始前先写清本轮要证明什么：
 
 - 只证明 UI 投影、路由、DOM、截图或事件投影：按 Gate A 执行，证据不得扩张为真实产品链路可用
-- 证明 Claw / Workspace / Soul / Skills / App Server 主路径能交付：按 Gate B 执行，必须进入真实 Electron Desktop Host 或仓库 Electron fixture
-- 证明最终模型请求或 Soul prompt：Gate B 还不够，必须补 runtime backend / provider fixture / Rust prompt 单测证据
+- 证明 Workspace / Skills / App Server 主路径能交付：按 Gate B 执行，必须进入真实 Electron Desktop Host 或仓库 Electron fixture
+- 证明最终模型请求或 模型指令：Gate B 还不够，必须补 runtime backend / provider fixture / Rust prompt 单测证据
 
 结论中必须包含 proof level 和 claim boundary，避免把 deterministic fixture、截图或 renderer trace 误报成真实模型请求或发布门禁通过。
 
@@ -215,7 +215,7 @@ CDP 连接成功后优先继续使用这个真实窗口完成业务动作。只�
 
 ### 6. 真实 Claw 回合必须采集 current 主链证据
 
-对 Claw / Workspace / Soul 风格 / Agent runtime 这类主路径，完成发送后必须从真实 Electron 页面的 trace buffer 里取证：
+对 Workspace / Agent runtime 这类主路径，完成发送后必须从真实 Electron 页面的 trace buffer 里取证：
 
 ```js
 const trace = await page.evaluate(() =>
@@ -247,29 +247,9 @@ const turnStarts = trace.flatMap((entry) => {
 - 页面上同一轮出现用户消息和 assistant 输出，且停止按钮已消失
 - `lime_invoke_error_buffer_v1` 本轮无新增错误；如有，必须分类为阻塞 / 非阻塞 / 历史残留
 
-Soul / AI 个性风格测试必须在 Claw 真实输入框中发送，不得只验证 `设置 -> 记忆 -> AI 个性` 控件存在。测试应切换不同 `style_profile_id` 对比同一任务的工具前说明、工具中状态、工具后承接、正文转折和结尾建议；不得通过强度字段放大差异，`style_intensity` 属于已删除设计。
+### 7. 最终模型指令的证据
 
-注意：上面的 trace 只证明 current 主链，不证明最终 system prompt。若本轮 claim 是“风格进入最终模型请求”，继续执行下一节。
-
-### 7. Soul 最终 prompt 必须用 runtime 层证据
-
-Soul / AI 个性风格的完整闭环分三段验收：
-
-1. 设置层：`memory.soul.enabled`、`style_profile_id` 正确写入配置，且 i18n / UI 控件能恢复状态；`style_intensity` 不存在，测试不得要求或写入该字段
-2. 产品链路层：真实 Claw 输入框发送一轮，trace 中有 `electron-ipc`、`app_server_handle_json_lines`、`turn/start`，read model 和页面 assistant 输出同轮可见
-3. Runtime prompt 层：Rust prompt 单测或本地 provider fixture 证明最终模型请求含 Soul marker
-
-Runtime prompt 层的允许证据：
-
-- Rust 定向测试覆盖 `session_soul_context`、`soul_prompt_context` 或 `memory_soul_prompt_context.v2`
-- `APP_SERVER_BACKEND_MODE=runtime` 启动本地 OpenAI-compatible provider fixture，捕获 provider request 后只输出 marker booleans
-
-Runtime prompt 层的禁止证据：
-
-- renderer trace 中的请求预览或测试侧注入的 prompt
-- `APP_SERVER_BACKEND_MODE=external` 下的 GUI 成功
-- 仅凭 assistant 输出“看起来像某种风格”
-- 保存或粘贴完整 `system_prompt` / provider request / provider response / API key / 用户私密 prompt
+真实 Electron 发送、IPC 与 read model 只能证明产品链路。最终基础指令必须另由 Rust session-config 测试或 runtime 模式 provider capture 证明；只记录模型身份、指令摘要和必要布尔值，不保存完整请求或凭证。external backend 不能证明最终 prompt。旧 Soul/风格包测试已删除。
 
 ## Lime 推荐续测主路径
 
@@ -287,9 +267,7 @@ Runtime prompt 层的禁止证据：
 3. 点击 `刷新审阅`，确认待审阅笔记区域能显示空态或待审阅列表，不直接报错
 4. 输入一条记忆修正并点击 `保存修正`，确认入口走文件化 ad-hoc note，不出现旧灵感库保存入口
 5. 点击 `整理笔记`，确认只触发显式整理入口，不自动把当前 turn 内容写入摘要
-6. 打开 `AI 个性`，确认 Soul 仍作为交互配置存在；打开 `高级`，确认 `SOUL.md` 导入 / 复制能力可用
 7. 全程不应出现旧 `灵感库` 页面、旧命中预演或旧 MemoryPage 导航
-8. 修改记忆开关后分别尝试切章、返回、rail Home 和一级导航，确认只有继续编辑/放弃两个动作；继续编辑或 Escape 保留输入，放弃不写配置。SOUL 未应用文本也需要保护，Cancel 应清空；Save 不代为应用文本。
 9. 保存期间禁止放弃；失败留稿，保存成功不覆盖在途的新编辑，取消 pending 后迟到结果不导航。真实配置保存/重读和返回同一会话使用 `scripts/electron/settings-navigation-fixture-smoke.mjs`；失败/在途/迟到回归由 Memory hook 与导航 integration 测试承担。此接入仅覆盖 Memory，不代表其他设置表单已受保护。
 10. 修正笔记独立保护：切章、返回、Home、根导航与新建须确认；继续编辑保留原文，放弃不调用 addNote。切换 AI 个性/高级后返回仍保留草稿，隐藏期间也应阻止离开；配置取消不能清稿。显式保存经 memoryStore/addNote 后由 memoryStore/read 重读完整 Markdown，只有提交版本可以清空；失败、重复提交、在途新编辑和卸载迟到由实际 Memory 页面 integration 回归。原生子场景为 `scripts/electron/lib/settings-note-navigation-scenario.mjs`；不把此结果推广到其他设置表单或维护操作。
 
@@ -540,20 +518,6 @@ Web Search 复用同一导航fixture，子场景为`scripts/electron/lib/setting
 3. 确认前端不会回退普通 `chat_stream`，而是进入 skill 执行态
 4. 打开控制台，确认当前 Electron Desktop Host / App Server JSON-RPC2 链路不再出现 `execute_skill`、`list_executable_skills` 或 `get_skill_detail` 的 unknown method / unknown command 报错
 5. 确认 skill 使用 current typed tool，最终反馈 runtime 任务提交摘要或任务状态，而不是前端本地伪造成功态；不得把“模型先写 Bash”当成通过条件
-
-### 聊天结果保存为技能验证
-
-1. 在 `Claw / 创作` 中完成一段足够长的助手结果
-2. 确认助手消息操作区出现 `保存为技能`
-3. 点击后确认页面跳到 `技能`，并自动打开脚手架对话框
-4. 确认对话框仍只暴露轻量基础字段，但已经带着来源摘要
-5. 直接创建后，确认生成的 `SKILL.md` 预览里已经包含：
-   - `何时使用`
-   - `输入`
-   - `执行步骤`
-   - `输出`
-   - `失败回退`
-6. 如当前链路来自聊天结果沉淀，确认这些 section 不是通用空壳，而是带有本次结果提炼出的上下文
 
 ### Slash Scene / ServiceSkill 验证
 

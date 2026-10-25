@@ -295,18 +295,20 @@ function TimelineBlockCard({
     );
   }
 
-  const singleItemContent = renderPlan.shouldRenderSingleItemInline ? (
-    <TimelineItemDetails
-      item={block.items[0]!}
-      onFileClick={onFileClick}
-      onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
-      onOpenSavedSiteContent={onOpenSavedSiteContent}
-      onOpenSubagentSession={onOpenSubagentSession}
-      onPermissionResponse={onPermissionResponse}
-      defaultExpandCompletedToolResult={expandCompletedProcessDetails}
-      openSubagentLabel={openSubagentLabel}
-    />
-  ) : null;
+  const singleItemContent =
+    renderPlan.shouldRenderSingleItemInline &&
+    (allowOperationalDetails || block.items[0]?.type === "unknown_item") ? (
+      <TimelineItemDetails
+        item={block.items[0]!}
+        onFileClick={onFileClick}
+        onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+        onOpenSavedSiteContent={onOpenSavedSiteContent}
+        onOpenSubagentSession={onOpenSubagentSession}
+        onPermissionResponse={onPermissionResponse}
+        defaultExpandCompletedToolResult={expandCompletedProcessDetails}
+        openSubagentLabel={openSubagentLabel}
+      />
+    ) : null;
 
   if (singleItemContent) {
     return (

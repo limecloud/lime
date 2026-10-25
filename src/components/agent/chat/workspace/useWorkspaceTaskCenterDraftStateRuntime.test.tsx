@@ -10,12 +10,12 @@ let root: Root;
 let runtime: Runtime | null = null;
 
 function Harness({
-  agentEntry = "claw",
+  agentEntry = "conversation",
   messagesLength = 0,
   effectiveThreadItemCount = 0,
   resetComposerDraft,
 }: {
-  agentEntry?: "new-task" | "claw";
+  agentEntry?: "new-task" | "conversation";
   messagesLength?: number;
   effectiveThreadItemCount?: number;
   resetComposerDraft?: () => void;
@@ -101,7 +101,7 @@ describe("useWorkspaceTaskCenterDraftStateRuntime", () => {
     const newTaskRuntime = renderHarness({ agentEntry: "new-task" });
     newTaskRuntime.taskCenterHomeSurfaceActiveRef.current = true;
 
-    const clawRuntime = renderHarness({ agentEntry: "claw" });
+    const clawRuntime = renderHarness({ agentEntry: "conversation" });
 
     expect(clawRuntime.taskCenterHomeSurfaceActiveRef.current).toBe(false);
   });

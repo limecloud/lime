@@ -109,7 +109,7 @@ export function renderHook(props?: Partial<HookProps>) {
           raw_text: "@配图 生成 城市夜景主视觉",
           size: "1024x1024",
           count: 1,
-          usage: "claw-image-workbench",
+          usage: "image-workbench",
           provider_id: "fal",
           model: "fal-ai/nano-banana-pro",
           session_id: "session-1",

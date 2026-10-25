@@ -10,7 +10,7 @@ import {
   mockGetAgentRuntimeSession,
   mockGetRuntimeProviderSelection,
   mockListAgentRuntimeSessions,
-  mockResolveClawWorkspaceProviderSelection,
+  mockResolveConversationProviderSelection,
   mockResumeAgentRuntimeThread,
   mockScheduleMinimumDelayIdleTask,
   mockSubmitAgentRuntimeTurn,
@@ -249,7 +249,7 @@ describe("useAgentChat 首页新会话", () => {
     mockGetRuntimeProviderSelection.mockResolvedValue({
       provider_configured: false,
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "deepseek",
       model: "deepseek-v4-flash",
     });
@@ -268,7 +268,7 @@ describe("useAgentChat 首页新会话", () => {
       });
 
       expect(mockGetRuntimeProviderSelection).toHaveBeenCalledTimes(1);
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: undefined,
         currentModel: null,
         theme: "general",
@@ -300,7 +300,7 @@ describe("useAgentChat 首页新会话", () => {
     mockGetRuntimeProviderSelection.mockResolvedValue({
       provider_configured: false,
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "deepseek",
       model: "deepseek-v4-flash",
     });
@@ -342,7 +342,7 @@ describe("useAgentChat 首页新会话", () => {
     mockGetRuntimeProviderSelection.mockResolvedValue({
       provider_configured: false,
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "openai",
       model: "gpt-5.4-mini",
     });
@@ -358,7 +358,7 @@ describe("useAgentChat 首页新会话", () => {
           .sendMessage("参考图生成一张小红书封面", [], false, false, false);
       });
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: undefined,
         currentModel: null,
         theme: "general",
@@ -538,7 +538,7 @@ describe("useAgentChat 首页新会话", () => {
       provider_name: "openai",
       model_name: "gpt-5.4-mini",
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "openai",
       model: "gpt-5.4-mini",
     });
@@ -549,7 +549,7 @@ describe("useAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: "openai",
         currentModel: "gpt-5.4-mini",
         theme: "general",
@@ -580,7 +580,7 @@ describe("useAgentChat 首页新会话", () => {
       provider_selector: "lime-hub",
       model_name: "gpt-5.5",
     });
-    mockResolveClawWorkspaceProviderSelection
+    mockResolveConversationProviderSelection
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         providerType: "deepseek",
@@ -593,7 +593,7 @@ describe("useAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenNthCalledWith(
+      expect(mockResolveConversationProviderSelection).toHaveBeenNthCalledWith(
         1,
         {
           currentProviderType: "lime-hub",
@@ -602,7 +602,7 @@ describe("useAgentChat 首页新会话", () => {
           allowProviderFallback: false,
         },
       );
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenNthCalledWith(
+      expect(mockResolveConversationProviderSelection).toHaveBeenNthCalledWith(
         2,
         {
           currentProviderType: "lime-hub",
@@ -632,7 +632,7 @@ describe("useAgentChat 首页新会话", () => {
       provider_selector: "custom-image-provider",
       model_name: "gpt-image-1",
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue(null);
+    mockResolveConversationProviderSelection.mockResolvedValue(null);
 
     const harness = mountHook(workspaceId);
 
@@ -652,7 +652,7 @@ describe("useAgentChat 首页新会话", () => {
           localStorage.getItem(`agent_pref_model_${workspaceId}`) || "null",
         ),
       ).toBe("fixture-model");
-      expect(mockResolveClawWorkspaceProviderSelection).not.toHaveBeenCalled();
+      expect(mockResolveConversationProviderSelection).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
     }
@@ -673,7 +673,7 @@ describe("useAgentChat 首页新会话", () => {
       provider_name: "openai",
       model_name: "gpt-5.2-pro",
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "deepseek",
       model: "deepseek-v4-pro",
     });
@@ -691,7 +691,7 @@ describe("useAgentChat 首页新会话", () => {
           localStorage.getItem(`agent_pref_model_${workspaceId}`) || "null",
         ),
       ).toBe("gpt-4o");
-      expect(mockResolveClawWorkspaceProviderSelection).not.toHaveBeenCalled();
+      expect(mockResolveConversationProviderSelection).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
     }
@@ -715,7 +715,7 @@ describe("useAgentChat 首页新会话", () => {
       provider_selector: "deepseek",
       model_name: "deepseek-v4-pro",
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: selectedProvider,
       model: selectedModel,
     });
@@ -726,7 +726,7 @@ describe("useAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: selectedProvider,
         currentModel: selectedModel,
         theme: "general",
@@ -841,7 +841,7 @@ describe("useAgentChat 首页新会话", () => {
       provider_name: "Lime Hub",
       provider_selector: "lime-hub",
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue(null);
+    mockResolveConversationProviderSelection.mockResolvedValue(null);
 
     const harness = mountHook(workspaceId);
 
@@ -849,7 +849,7 @@ describe("useAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: "lime-hub",
         currentModel: null,
         theme: "general",
@@ -879,7 +879,7 @@ describe("useAgentChat 首页新会话", () => {
       provider_name: "Lime Hub",
       provider_selector: "lime-hub",
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "lime-hub",
       model: "agnes-2.0-flash",
     });
@@ -890,7 +890,7 @@ describe("useAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: "lime-hub",
         currentModel: null,
         theme: "general",
@@ -915,7 +915,7 @@ describe("useAgentChat 首页新会话", () => {
     mockGetRuntimeProviderSelection.mockResolvedValue({
       provider_configured: false,
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "openai",
       model: "gpt-5.4",
     });
@@ -926,7 +926,7 @@ describe("useAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: undefined,
         currentModel: null,
         theme: "general",
@@ -961,7 +961,7 @@ describe("useAgentChat 首页新会话", () => {
     mockGetRuntimeProviderSelection.mockResolvedValue({
       provider_configured: false,
     });
-    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+    mockResolveConversationProviderSelection.mockResolvedValue({
       providerType: "gemini",
       model: "gemini-2.5-flash",
     });
@@ -972,7 +972,7 @@ describe("useAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
+      expect(mockResolveConversationProviderSelection).toHaveBeenCalledWith({
         currentProviderType: "gemini",
         currentModel: "gemini-2.5-pro",
         theme: "general",

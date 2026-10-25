@@ -144,6 +144,9 @@ async fn execute(
     };
     let execution = async {
         let handle = session.request_handle();
+        handle
+            .setup_computer_use_targets(&connection.computer_use_targets)
+            .await?;
         let config: ConfigReadResponse = handle
             .request(METHOD_CONFIG_READ, ConfigReadParams::default())
             .await

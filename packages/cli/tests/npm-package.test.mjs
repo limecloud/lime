@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -319,6 +320,32 @@ test("platform staging requires the complete App Server runtime payload", (t) =>
   ]) {
     writeFileSync(path.join(binDir, name), name);
   }
+  const helper =
+    "native/macos/macos-native-host.app/Contents/MacOS/macos-native-host";
+  mkdirSync(path.dirname(path.join(binDir, helper)), { recursive: true });
+  writeFileSync(path.join(binDir, helper), "fixture native helper");
+  writeFileSync(
+    path.resolve(binDir, helper, "../../Info.plist"),
+    '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.limecloud.lime.native-host</string><key>CFBundleExecutable</key><string>macos-native-host</string></dict></plist>',
+  );
+  const manifestPath = path.join(binDir, "desktop-resources.manifest.json");
+  const manifest = {
+    schemaVersion: 1,
+    applicationId: "com.limecloud.lime",
+    version: "1.2.3",
+    platform: "darwin",
+    arch: "arm64",
+    resources: [
+      { id: "app-server", path: "app-server" },
+      { id: "macos-native-host", path: helper },
+    ].map((entry) => ({
+      ...entry,
+      sha256: createHash("sha256")
+        .update(readFileSync(path.join(binDir, entry.path)))
+        .digest("hex"),
+    })),
+  };
+  writeFileSync(manifestPath, JSON.stringify(manifest));
 
   const staging = path.join(root, "platform-package");
   const tarball = path.join(root, "lime-npm-darwin-arm64-1.2.3.tgz");
@@ -354,7 +381,67 @@ test("platform staging requires the complete App Server runtime payload", (t) =>
       path.join(staging, "vendor", "aarch64-apple-darwin", "bin", "app-server"),
     ),
   );
+  assert.equal(
+    readFileSync(
+      path.join(staging, "vendor/aarch64-apple-darwin/bin", helper),
+      "utf8",
+    ),
+    "fixture native helper",
+  );
+  assert.deepEqual(
+    JSON.parse(
+      readFileSync(
+        path.join(
+          staging,
+          "vendor/aarch64-apple-darwin/bin/desktop-resources.manifest.json",
+        ),
+        "utf8",
+      ),
+    ),
+    manifest,
+  );
 
+  rmSync(staging, { recursive: true, force: true });
+  writeFileSync(path.join(binDir, helper), "tampered helper");
+  const tampered = spawnSync(
+    "python3",
+    [
+      BUILD_SCRIPT,
+      "--package",
+      "lime-darwin-arm64",
+      "--version",
+      "1.2.3",
+      "--staging-dir",
+      staging,
+      "--vendor-src",
+      vendor,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(tampered.status, 0);
+  assert.match(tampered.stderr, /integrity mismatch: macos-native-host/u);
+  rmSync(staging, { recursive: true, force: true });
+  rmSync(manifestPath);
+  const unmanifested = spawnSync(
+    "python3",
+    [
+      BUILD_SCRIPT,
+      "--package",
+      "lime-darwin-arm64",
+      "--version",
+      "1.2.3",
+      "--staging-dir",
+      staging,
+      "--vendor-src",
+      vendor,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(unmanifested.status, 0);
+  assert.match(
+    unmanifested.stderr,
+    /Missing or oversized Computer Use resource manifest/u,
+  );
   rmSync(staging, { recursive: true, force: true });
   rmSync(path.join(binDir, "app-server"));
   const failure = spawnSync(

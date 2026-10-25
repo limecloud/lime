@@ -1,51 +1,18 @@
 # Skills 组件
 
-<!-- 一旦我所属的文件夹有所变化，请更新我 -->
+现役入口是 `SkillsWorkspacePage.tsx`，由 `AppPageContent` 装配。它负责技能商店、内置技能和已安装技能，委托现役 API 完成安装、卸载、查看、导入、导出和标准创建。
 
-## 架构说明
+| 文件 | 职责 |
+| --- | --- |
+| `SkillsWorkspacePage.tsx` / `SkillsWorkspacePageView.tsx` | 状态装配与页面展示 |
+| `SkillsWorkspacePageViewModel.ts` | 列表选择与过滤 |
+| `SkillsWorkspaceMarketplace.tsx` | 商店列表 |
+| `SkillsWorkspaceInstalledSkills.tsx` | 已安装技能操作 |
+| `SkillsWorkspaceDetailDialogs.tsx` / `SkillContentDialog.tsx` | 标准技能详情 |
+| `SkillScaffoldDialog.tsx` | 手工创建与专家注册预填 |
+| `SkillPackageInstallDialog.tsx` | 本地技能包安装 |
+| `useSkillsWorkspaceLocalSkillActions.ts` | 本地技能操作 |
 
-Skills 组件模块提供 Skill 管理、查看和脚手架创建的 UI 界面，包括：
+聊天消息不提供结果转技能、草稿回带或续用回放。专家注册可以预填名称、目录和结构字段，仍通过标准 scaffold API 创建；正常技能安装与聊天中的技能调用保持同一主链。
 
-- Built-in / Local / Remote Skills 分组展示与管理
-- Skill 仓库管理
-- Workflow 执行进度展示
-
-## 文件索引
-
-| 文件                       | 说明                                       |
-| -------------------------- | ------------------------------------------ |
-| `index.ts`                 | 模块导出入口                               |
-| `SkillsPage.tsx`           | Skills 主页面，展示 Skill 列表             |
-| `SkillsPage.test.tsx`      | Skills 主页面分组与筛选测试                |
-| `SkillCard.tsx`            | Skill 卡片组件，展示单个 Skill 信息和操作  |
-| `SkillCard.test.ts`        | SkillCard 组件测试                         |
-| `SkillScaffoldDialog.tsx`  | 标准 Skill 脚手架对话框                   |
-| `SkillScaffoldDialog.test.tsx` | 脚手架对话框测试                     |
-| `RepoManagerPanel.tsx`     | Skill 仓库管理面板                         |
-| `WorkflowProgress.tsx`     | Workflow 进度展示组件                      |
-
-## 组件依赖关系
-
-```
-SkillsPage
-├── SkillCard (Skill 列表项)
-├── SkillScaffoldDialog (标准脚手架)
-├── RepoManagerPanel (仓库管理)
-└── SkillContentDialog (内容查看)
-```
-
-## 当前行为
-
-- `Built-in Skills` 展示 Lime 随应用提供的内置技能，默认可用，不显示安装/卸载入口
-- `Local Skills` 以 `catalogSource=user/project` 为主事实源，直接读取本地目录中的技能，优先展示，不依赖远程网络
-- `Remote Skills` 以 `catalogSource=remote` 为主事实源，展示仓库缓存中的远程技能，点击刷新时才同步最新仓库列表
-- 搜索和安装状态筛选会先作用于全量技能，再按分组渲染结果
-- Skill 卡片额外展示标准状态：`标准` / `含兼容字段` / `待修复`
-- Skill 卡片会显示资源摘要标签：`scripts` / `references` / `assets`
-- 若后端返回 `metadata.lime_category`，列表会展示分类标签（如社媒、调研、媒体、写作）
-- 远程 Skill 支持安装前预检，本地 Skill 支持查看统一 inspection 详情
-- Skills 页面支持直接创建标准 Skill 脚手架，并在创建后立即预览生成的 `SKILL.md`
-
-## 更新提醒
-
-任何文件变更后，请更新此文档和相关的上级文档。
+无产品消费者的旧页面及专属组件已删除；禁止从历史实现恢复第二套管理入口。验证见 [执行计划](../../../internal/exec-plans/chat-skill-save-removal-20261025.md)。

@@ -185,7 +185,8 @@ mod tests {
 
         let options = from_models(vec![visible, hidden, inferred, image]);
 
-        assert_eq!(options.available_models.len(), 1);
+        assert_eq!(options.available_models.len(), 2);
+        assert!(options.available_models.iter().any(|model| model.model == "inferred-model"));
         assert_eq!(options.available_models[0].model, "gpt-5.6-sol");
         assert_eq!(
             options.available_models[0].supported_reasoning_efforts,

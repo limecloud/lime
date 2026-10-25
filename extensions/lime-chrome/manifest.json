@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Lime Browser Bridge",
-  "description": "Attach Lime to your current Chrome tab via the Lime browser bridge.",
-  "version": "0.4.0",
+  "name": "__MSG_name__",
+  "description": "__MSG_description__",
+  "version": "0.5.0",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -13,21 +13,20 @@
     "debugger",
     "tabs",
     "tabGroups",
-    "windows",
     "activeTab",
     "scripting",
     "storage",
-    "clipboardRead",
-    "alarms",
-    "notifications"
+    "nativeMessaging",
+    "alarms"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "computer-use.js",
+    "type": "module"
   },
   "action": {
-    "default_title": "Lime Browser Bridge",
-    "default_popup": "popup.html",
+    "default_title": "Lime Computer Use",
+    "default_popup": "computer-use.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -35,8 +34,6 @@
       "128": "icons/icon128.png"
     }
   },
-  "options_ui": {
-    "page": "pages/options.html",
-    "open_in_tab": true
-  }
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr2h26TEyHgjKpBSYABmg3+XX3fO9Y4M1KrEl2ccio3IGRxyC87OOgfM+Vf56WsesePBdv0LfoD/k3ju5UzkVBbv6pejYQBe56UAcMfQCvB86zSHGJqqKOUHWrVIs1xT5DojhwqdR2URAxThQUEWkfAw0An4/wpR6FtPZViCQHsBl3PC5BTQny4RA/m2i1BpThOHBKBiNN5ap1xioAnPy2KjLlGFF41mIRbykSkK8DEGwX+a7IKjZnUpABhgoaLSTqvPmTveqzfpldsyyfV7FDt95otaSYesBG3TlSRKnD8KUvw2jDdOH1xIfxEDTf4ouvovJQ9PABwQrNdynd//9/QIDAQAB",
+  "default_locale": "en"
 }

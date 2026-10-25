@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type { Page, PageParams } from "@/types/page";
-import { buildClawAgentParams } from "@/lib/workspace/navigation";
+import { buildConversationParams } from "@/lib/workspace/navigation";
 import {
   LAST_PROJECT_ID_KEY,
   loadPersistedProjectId,
@@ -41,18 +41,7 @@ const Shell = styled.div.attrs({
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
-  background:
-    radial-gradient(
-      circle at 8% 0%,
-      var(--lime-home-glow-secondary, rgba(14, 165, 233, 0.08)),
-      transparent 28rem
-    ),
-    radial-gradient(
-      circle at 96% 2%,
-      var(--lime-home-glow-primary, rgba(16, 185, 129, 0.08)),
-      transparent 24rem
-    ),
-    var(--lime-stage-surface, #f8fafc);
+  background: var(--lime-stage-surface);
   padding: 24px;
   color: var(--lime-text-strong, #0f172a);
 
@@ -282,7 +271,7 @@ const ExpertCard = styled.article`
 
   &:hover {
     border-color: var(
-      --lime-home-card-hover-border,
+      --lime-surface-border-strong,
       var(--lime-surface-border-strong, #c7e7d1)
     );
     box-shadow: 0 18px 40px
@@ -500,12 +489,11 @@ const DetailSide = styled.aside`
   flex-direction: column;
   gap: 12px;
   border-radius: 22px;
-  background:
-    linear-gradient(
-      180deg,
-      var(--lime-brand-soft, #ecfdf5) 0%,
-      var(--lime-surface-soft, #f8fafc) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    var(--lime-brand-soft, #ecfdf5) 0%,
+    var(--lime-surface-soft, #f8fafc) 100%
+  );
   padding: 16px;
 `;
 
@@ -521,7 +509,6 @@ const DetailActions = styled.div`
       var(--lime-surface-border, #e2e8f0)
     );
   padding-top: 12px;
-
 `;
 
 const DetailPrimaryButton = styled(PrimaryButton)`
@@ -599,8 +586,7 @@ function resolveExpertAgentIdentity(
 
 function resolveExpertPlazaProjectId(projectId?: string | null): string | null {
   return (
-    normalizeProjectId(projectId) ||
-    loadPersistedProjectId(LAST_PROJECT_ID_KEY)
+    normalizeProjectId(projectId) || loadPersistedProjectId(LAST_PROJECT_ID_KEY)
   );
 }
 
@@ -730,11 +716,7 @@ export function ExpertPlazaPage({
   const handleStart = (item: ExpertCatalogProjectionItem) => {
     const nextOverlays = recordExpertLaunch(overlays, item);
     setOverlays(nextOverlays);
-    const identity = resolveExpertAgentIdentity(
-      catalog,
-      item,
-      projectScopedId,
-    );
+    const identity = resolveExpertAgentIdentity(catalog, item, projectScopedId);
     const existingInstance = projectScopedId
       ? findExpertAgentInstance(identity)
       : null;
@@ -779,7 +761,7 @@ export function ExpertPlazaPage({
     });
     onNavigate?.(
       "agent",
-      buildClawAgentParams({
+      buildConversationParams({
         ...(projectScopedId ? { projectId: projectScopedId } : {}),
         initialUserPrompt,
         initialSessionName: item.title,

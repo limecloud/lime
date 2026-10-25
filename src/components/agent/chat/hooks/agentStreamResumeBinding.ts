@@ -22,7 +22,7 @@ import type {
 } from "@/lib/api/agentExecutionRuntime";
 import type { ActionRequired, Message } from "../types";
 import { buildWaitingAgentRuntimeStatus } from "../utils/agentRuntimeStatus";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { handleTurnStreamEvent } from "./agentStreamRuntimeHandler";
 import type { StreamRequestState } from "./agentStreamRuntimeHandlerTypes";
@@ -65,7 +65,7 @@ interface BindRecoveredAgentStreamThreadOptions {
   setThreadItems: Dispatch<SetStateAction<AgentThreadItem[]>>;
   setThreadTurns: Dispatch<SetStateAction<AgentThreadTurn[]>>;
   setIsSending: Dispatch<SetStateAction<boolean>>;
-  soulCopy?: SoulInteractionCopy;
+
   surfaceThinkingDeltas?: boolean;
   target: AgentStreamResumeBindingTarget;
   warnedKeysRef: MutableRefObject<Set<string>>;
@@ -108,7 +108,7 @@ export async function bindRecoveredAgentStreamThread(
     setPendingActions,
     setThreadItems,
     setThreadTurns,
-    soulCopy,
+
     surfaceThinkingDeltas = false,
     target,
     warnedKeysRef,
@@ -133,7 +133,7 @@ export async function bindRecoveredAgentStreamThread(
     `recovered-turn-summary:${target.turnId}`;
   const runtimeStatus = buildWaitingAgentRuntimeStatus({
     executionStrategy,
-    soulCopy,
+
   });
   const requestState: StreamRequestState = {
     accumulatedContent: "",
@@ -242,7 +242,7 @@ export async function bindRecoveredAgentStreamThread(
         setCurrentTurnId,
         setExecutionRuntime,
         setIsSending,
-        soulCopy,
+
       });
     });
   } catch (error) {

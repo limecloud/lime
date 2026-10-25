@@ -17,9 +17,9 @@ pub use llm_protocol::canonical::{
     ToolDefinition as CanonicalToolDefinition, ToolResultValue, Usage,
 };
 pub use model_route::{
-    protocol_from_provider_name, resolved_route_from_task, route_evidence_payload,
-    route_resolution_evidence_payloads, DirectRouteConfig, ModelRouteProvider, ModelRouteSelection,
-    RouteResolutionEvidencePayloads,
+    chat_protocol_defaults, protocol_from_provider_name, resolved_route_from_task,
+    route_evidence_payload, route_resolution_evidence_payloads, DirectRouteConfig,
+    ModelRouteProvider, ModelRouteSelection, RouteResolutionEvidencePayloads,
 };
 pub use model_routing::{
     resolve_model_routing_for_candidate, resolve_ready_model_routing,

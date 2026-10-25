@@ -39,6 +39,21 @@ function call(overrides: Record<string, unknown> = {}): JsonRpcMessage {
 }
 
 describe("AppServerDynamicToolHost", () => {
+  it("projects only accepted canonical settings to the bound Browser owner", () => {
+    const browserHost = { setThreadAccess: vi.fn(), executeTool: vi.fn(), turnEnded: vi.fn() };
+    const host = new AppServerDynamicToolHost(undefined, browserHost as never);
+    host.prepareClientRequest({ id: "untrusted", method: "thread/start", params: { approvalPolicy: "never" } });
+    expect(browserHost.setThreadAccess).not.toHaveBeenCalled();
+    const full = { approvalPolicy: "never", sandboxPolicy: "danger-full-access" };
+    host.observeClientResult("thread/start", { thread: { id: "thread-1", extra: full } }, { ownerWebContentsId: 41 });
+    expect(browserHost.setThreadAccess).toHaveBeenLastCalledWith(41, "thread-1", full);
+    const limited = { approvalPolicy: "on-request", sandboxPolicy: "workspace-write" };
+    host.observeServerMessage({ method: "thread/settings/updated", params: { threadId: "thread-1", threadSettings: limited } } as JsonRpcMessage);
+    expect(browserHost.setThreadAccess).toHaveBeenLastCalledWith(41, "thread-1", limited);
+    browserHost.setThreadAccess.mockClear();
+    host.observeServerMessage({ method: "thread/settings/updated", params: { threadId: "unbound", threadSettings: full } } as JsonRpcMessage);
+    expect(browserHost.setThreadAccess).not.toHaveBeenCalled();
+  });
   it.each([
     null,
     [{}],
@@ -48,7 +63,11 @@ describe("AppServerDynamicToolHost", () => {
   ])(
     "rejects malformed select choices before invoking the native owner: %j",
     async (options) => {
-      const browserHost = { executeTool: vi.fn(), turnEnded: vi.fn() };
+      const browserHost = {
+        setThreadAccess: vi.fn(),
+        executeTool: vi.fn(),
+        turnEnded: vi.fn(),
+      };
       const host = new AppServerDynamicToolHost(
         undefined,
         browserHost as never,
@@ -77,7 +96,11 @@ describe("AppServerDynamicToolHost", () => {
   it.each(["bad", null, 10001, -10001, Infinity])(
     "rejects invalid scroll delta %s before invoking the native owner",
     async (deltaY) => {
-      const browserHost = { executeTool: vi.fn(), turnEnded: vi.fn() };
+      const browserHost = {
+        setThreadAccess: vi.fn(),
+        executeTool: vi.fn(),
+        turnEnded: vi.fn(),
+      };
       const host = new AppServerDynamicToolHost(
         undefined,
         browserHost as never,
@@ -244,6 +267,7 @@ describe("AppServerDynamicToolHost", () => {
 
   it("routes Browser calls through the WebContents owner bound to the thread", async () => {
     const browserHost = {
+      setThreadAccess: vi.fn(),
       executeTool: vi.fn(async () => ({
         status: "completed" as const,
         data: [],
@@ -290,6 +314,7 @@ describe("AppServerDynamicToolHost", () => {
 
   it("allows one Browser preflight and one approved execution for the same call", async () => {
     const browserHost = {
+      setThreadAccess: vi.fn(),
       executeTool: vi
         .fn()
         .mockResolvedValueOnce({
@@ -383,6 +408,7 @@ describe("AppServerDynamicToolHost", () => {
     "cleans Browser control after a %s terminal turn",
     (status) => {
       const browserHost = {
+        setThreadAccess: vi.fn(),
         executeTool: vi.fn(async () => ({ status: "completed" as const })),
         turnEnded: vi.fn(),
       };
@@ -405,6 +431,7 @@ describe("AppServerDynamicToolHost", () => {
 
   it("does not release Browser control for a non-terminal turn status", () => {
     const browserHost = {
+      setThreadAccess: vi.fn(),
       executeTool: vi.fn(async () => ({ status: "completed" as const })),
       turnEnded: vi.fn(),
     };
@@ -423,6 +450,7 @@ describe("AppServerDynamicToolHost", () => {
 
   it("accepts revision zero for a complete Browser claim snapshot", async () => {
     const browserHost = {
+      setThreadAccess: vi.fn(),
       executeTool: vi.fn(async () => ({ status: "completed" as const })),
       turnEnded: vi.fn(),
     };
@@ -459,6 +487,7 @@ describe("AppServerDynamicToolHost", () => {
 
   it("fails Browser calls closed when the thread has no desktop owner", async () => {
     const browserHost = {
+      setThreadAccess: vi.fn(),
       executeTool: vi.fn(),
       turnEnded: vi.fn(),
     };

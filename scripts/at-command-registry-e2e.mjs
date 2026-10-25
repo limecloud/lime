@@ -581,7 +581,6 @@ async function main() {
           "lime_onboarding_version",
           onboardingVersion,
         );
-        window.localStorage.setItem("lime_user_profile", "developer");
         window.localStorage.setItem(
           "agent_pref_provider",
           JSON.stringify(chatProviderPreference),
@@ -693,15 +692,15 @@ async function main() {
       async () => {
         const consoleText = readConsoleText(consoleMessages);
         if (
-          consoleText.includes("AgentChatPage.loadData.projectOnlyComplete")
+          consoleText.includes("LocalConversationPage.loadData.projectOnlyComplete")
         ) {
-          return "AgentChatPage.loadData.projectOnlyComplete";
+          return "LocalConversationPage.loadData.projectOnlyComplete";
         }
-        if (consoleText.includes("AgentChatPage.loadData.projectLoaded")) {
-          return "AgentChatPage.loadData.projectLoaded";
+        if (consoleText.includes("LocalConversationPage.loadData.projectLoaded")) {
+          return "LocalConversationPage.loadData.projectLoaded";
         }
-        if (consoleText.includes("AgentChatPage.workspaceCheck.success")) {
-          return "AgentChatPage.workspaceCheck.success";
+        if (consoleText.includes("LocalConversationPage.workspaceCheck.success")) {
+          return "LocalConversationPage.workspaceCheck.success";
         }
         if (invokes.some((item) => item.cmd === "workspace_ensure_ready")) {
           return "invoke:workspace_ensure_ready";

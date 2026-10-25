@@ -56,7 +56,7 @@ export interface AgentPageParams {
   initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
   /** Agent 入口模式：新建任务或生成 */
-  agentEntry?: "new-task" | "claw";
+  agentEntry?: "new-task" | "conversation";
   /** 首页沉浸模式提交后透传的首条图片 */
   initialUserImages?: Array<{
     data: string;
@@ -166,7 +166,7 @@ export interface SettingsPageParams {
   browserReturnOwner?: BrowserHistoryReturnOwner;
 }
 
-export interface SkillScaffoldDraft extends Record<string, unknown> {
+export interface SkillScaffoldDraft {
   target?: SkillScaffoldTarget;
   directory?: string;
   name?: string;
@@ -176,8 +176,6 @@ export interface SkillScaffoldDraft extends Record<string, unknown> {
   outputs?: string[];
   steps?: string[];
   fallbackStrategy?: string[];
-  sourceMessageId?: string;
-  sourceExcerpt?: string;
 }
 
 export interface SkillsPageParams {

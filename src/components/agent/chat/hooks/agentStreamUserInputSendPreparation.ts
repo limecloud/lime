@@ -35,7 +35,6 @@ export type AgentStreamUserInputSendPreparationEnv = Pick<
   | "reasoningEffortRef"
   | "sessionIdRef"
   | "executionRuntime"
-  | "soulCopy"
   | "getWorkspaceIdForSubmit"
   | "getSyncedSessionModelPreference"
   | "setMessages"
@@ -409,7 +408,7 @@ export function prepareAgentStreamUserInputSend(
     messagePurpose,
     capabilityRoute,
     effectiveExecutionStrategy,
-    soulCopy: env.soulCopy,
+
     setMessages: env.setMessages,
     setIsSending: env.setIsSending,
   });

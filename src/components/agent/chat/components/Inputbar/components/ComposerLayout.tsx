@@ -1,16 +1,12 @@
 import type { ReactNode, Ref } from "react";
 import styled from "styled-components";
 import type { ComposerLayout } from "./useComposerLayout";
-import {
-  InlineControlLayoutContext,
-  useInlineControlLayout,
-} from "@/components/input-kit/InlineControlLayout";
 
 const Footer = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  column-gap: 5px;
+  column-gap: 4px;
   min-width: 0;
   padding-inline: 8px;
   padding-bottom: 8px;
@@ -46,20 +42,31 @@ const Footer = styled.div`
     grid-row: 2;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     min-width: 0;
+
+    > * {
+      gap: 4px;
+      flex-wrap: nowrap;
+    }
   }
 
   [data-composer-trailing-controls] {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 2;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     min-width: 0;
+
+    [data-inline-control] {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
   }
 
-  @media (min-width: 40rem) {
+  @container composer (min-width: 40rem) {
     &[data-composer-rows="responsive"] {
       grid-template-columns: auto minmax(0, 1fr) auto;
       [data-composer-footer-input] {
@@ -71,31 +78,21 @@ const Footer = styled.div`
         grid-row: 1;
       }
       [data-composer-trailing-controls] {
+        grid-column: 3;
         grid-row: 1;
       }
     }
   }
 `;
 
-const ExpandingControls = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-width: 0;
-  flex: 1;
-
-  > * {
-    min-width: 0;
-    max-width: 100%;
-  }
-`;
-
 const ModelControl = styled.div`
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
 
-  &[hidden] {
-    display: none;
+  > * {
+    min-width: 0;
+    flex-wrap: nowrap;
   }
 `;
 
@@ -121,9 +118,6 @@ export function AdaptiveFooter({
   inputRef,
   dictation,
 }: AdaptiveFooterProps) {
-  const { availableRef, controlRef, presentation } = useInlineControlLayout(
-    Boolean(modelControl),
-  );
   return (
     <Footer
       data-composer-layout={layout}
@@ -149,18 +143,7 @@ export function AdaptiveFooter({
         {leadingControls}
       </div>
       <div data-composer-trailing-controls="" hidden={Boolean(dictation)}>
-        {modelControl ? (
-          <ExpandingControls
-            ref={availableRef}
-            data-inline-control-available=""
-          >
-            <ModelControl ref={controlRef} hidden={presentation === "hidden"}>
-              <InlineControlLayoutContext.Provider value={presentation}>
-                {modelControl}
-              </InlineControlLayoutContext.Provider>
-            </ModelControl>
-          </ExpandingControls>
-        ) : null}
+        {modelControl ? <ModelControl>{modelControl}</ModelControl> : null}
         {trailingControls}
       </div>
       {dictation ? (

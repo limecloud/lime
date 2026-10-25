@@ -25,9 +25,6 @@ describe("CLI npm Gate B", () => {
     expect(source).toContain("constants.COPYFILE_FICLONE");
     expect(source).not.toContain("await link(source, destination)");
     expect(source).toContain('"installed exec event schema"');
-    expect(source).toContain(
-      'path.join(destination, "exec-events.schema.json")',
-    );
   });
 
   it("enters CLI Gate B through the Node launcher and sibling App Server", () => {

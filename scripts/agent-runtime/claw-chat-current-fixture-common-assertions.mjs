@@ -106,7 +106,7 @@ export function buildCommonAssertions(context) {
     isTypedErrorRetryScenario,
     isTypedErrorRetrySuccessScenario,
     isSkillsRuntimeScenario,
-    isSoulStyleScenario,
+
     isContentFactoryArticleWorkspaceScenario,
     isAnyExpertSkillsRuntimeScenario,
     isApprovalRequestResumeScenario,
@@ -132,7 +132,6 @@ export function buildCommonAssertions(context) {
     !isPlanScenario &&
     !isImageCommandScenario &&
     !isMediaReferenceScenario &&
-    !isSoulStyleScenario &&
     !isInputbarRichRestoreScenario &&
     !isApprovalRequestResumeScenario &&
     !isApprovalRequestDecisionScenario &&
@@ -211,12 +210,10 @@ export function buildCommonAssertions(context) {
       ? summary.textProviderFixtureServer?.requestCount >= 3 &&
         summary.activeSteer?.provider?.chatRequestCount >= 2
       : isImageCommandScenario
-        ? summary.imageCommandWorkflowUsed === true
+        ? summary.imageCommandModelToolUsed === true
         : isContentFactoryArticleWorkspaceScenario
           ? true
-          : isSoulStyleScenario
-            ? summary.textProviderFixtureServer?.requestCount >= 1
-            : backendLedger.some((entry) => entry.kind === "turnStart"),
+          : backendLedger.some((entry) => entry.kind === "turnStart"),
     fixturePromptReachedBackend: isActiveSteerScenario
       ? summary.activeSteer?.provider?.initialRequestObserved === true &&
         summary.activeSteer?.provider?.steerRequestObserved === true

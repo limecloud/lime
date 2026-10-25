@@ -43,7 +43,7 @@ export function useAgentChatWorkspaceSceneRuntime({
     onNavigate: _onNavigate, contentId, agentEntry, topBarChrome = "full", onBackToProjectManagement,
     hideInlineStepProgress, initialSessionName, newChatAt, onBackgroundSessionRuntimeChange, preferContentReviewInRightRail,
   } = props;
-  const resolvedAgentEntry = agentEntry ?? "claw";
+  const resolvedAgentEntry = agentEntry ?? "conversation";
   const resolvedHideInlineStepProgress = hideInlineStepProgress ?? false;
   const resolvedPreferContentReviewInRightRail =
     preferContentReviewInRightRail ?? false;
@@ -55,8 +55,8 @@ export function useAgentChatWorkspaceSceneRuntime({
     handleAddPathReferences, handleRemovePathReference, handleClearPathReferences,  activeSessionIdRef, setChatToolPreferences,
     handleOpenSkillsManageFromExpertPanel, projectId, markNewChatRequestHandled, taskCenterWorkspaceId, normalizedInitialSessionId, shouldUseBrowserWorkspaceHomeChrome, shouldDeferWorkspaceAuxiliaryLoads, project,
     isInitialContentLoading, initialContentLoadError, canvasState, setCanvasState, initialCreationReplaySurface, runtimeWorkspaceId, generalCanvasState,
-    setGeneralCanvasState, taskFiles, selectedFileId, openedProjects, handleCloseOpenedProject, soulArtifactVoiceGenerationBrief, soulArtifactVoiceEnabledForTurn,
-    setSoulArtifactVoiceEnabledForTurn, imageGenerationSelectionReady, imageGenerationSelectionWarning, imageWorkbenchGenerationRuntime, imageWorkbenchPreferenceSummary, imageWorkbenchPreferenceWarning,
+    setGeneralCanvasState, taskFiles, selectedFileId, openedProjects, handleCloseOpenedProject,
+     imageGenerationSelectionReady, imageGenerationSelectionWarning, imageWorkbenchGenerationRuntime, imageWorkbenchPreferenceSummary, imageWorkbenchPreferenceWarning,
     skills, serviceSkills, handleSkillSuggestionsNeeded, mappedTheme, syncStatus,
     isSpecializedThemeMode, workbenchRequests,
   } = entryRuntime;
@@ -88,10 +88,10 @@ export function useAgentChatWorkspaceSceneRuntime({
     handleHarnessLoadFilePreview, handleOpenArtifactFromTimeline, handleOpenMessagePreview, handleOpenSavedSiteContent, handleOpenServiceSkillResultFile, handleOpenUrlPreview, handleSaveArtifactDocument, handleWorkspaceArtifactClick,
     handleWorkspaceFileClick, openWorkspaceArtifactInWorkbench, preferredServiceSkillResultFileTarget, renderArtifactWorkbenchToolbarActions, shouldCollapseCodeBlockInChat, shouldCollapseCodeBlocks, handleWriteFile,
     handleJumpToTimelineItem, serviceSkillExecutionCard, generalWorkbenchActivityLogs,
-    generalWorkbenchWorkflowSteps, handleExpandGeneralWorkbenchSidebar, renderGeneralWorkbenchSidebarNode, planComposerPendingActions, planDecisionAccessory, handleSaveMessageAsSkill,
+    generalWorkbenchWorkflowSteps, handleExpandGeneralWorkbenchSidebar, renderGeneralWorkbenchSidebarNode, planComposerPendingActions, planDecisionAccessory,
   } = commandRuntime;
   const inputbarScene = useWorkspaceInputbarSceneRuntime({
-    contextVariant: agentEntry === "claw" ? "task-center" : "default",
+    contextVariant: agentEntry === "conversation" ? "task-center" : "default",
     taskFiles,
     selectedFileId,
     isThemeWorkbench,
@@ -147,9 +147,7 @@ export function useAgentChatWorkspaceSceneRuntime({
     setChatToolPreferences,
     objectiveEnabled: inputbarObjectiveModeEnabled,
     onObjectiveEnabledChange: setInputbarObjectiveModeEnabled,
-    soulArtifactVoiceGenerationBrief,
-    soulArtifactVoiceEnabledForTurn,
-    onSoulArtifactVoiceEnabledForTurnChange: setSoulArtifactVoiceEnabledForTurn,
+
     generalWorkbenchEntryPrompt,
     handleRestartGeneralWorkbenchEntryPrompt,
     handleContinueGeneralWorkbenchEntryPrompt,
@@ -483,7 +481,6 @@ export function useAgentChatWorkspaceSceneRuntime({
           onPermissionResponse: handlePermissionResponse,
           onReplayPendingRequest: replayPendingAction,
 
-          onSaveMessageAsSkill: handleSaveMessageAsSkill,
           onWriteFile: handleWriteFile,
         },
         collapseCodeBlocks: shouldCollapseCodeBlocks,
@@ -547,7 +544,7 @@ export function useAgentChatWorkspaceSceneRuntime({
           untitledTaskLabel,
         }),
         navbarContextVariant:
-          agentEntry === "claw" || shouldUseBrowserWorkspaceHomeChrome
+          agentEntry === "conversation" || shouldUseBrowserWorkspaceHomeChrome
             ? "task-center"
             : "default",
         navigationActions,

@@ -251,7 +251,12 @@ pub(crate) fn runtime_image_task_error(message: impl Into<String>) -> RuntimeToo
 const SESSION_ID_KEYS: &[&str] = &["session_id", "sessionId"];
 const THREAD_ID_KEYS: &[&str] = &["thread_id", "threadId"];
 const TURN_ID_KEYS: &[&str] = &["turn_id", "turnId"];
-const SCOPE_POINTERS: &[&str] = &["/action_scope", "/actionScope", "/scope"];
+const SCOPE_POINTERS: &[&str] = &[
+    "/app_server_runtime_backend",
+    "/action_scope",
+    "/actionScope",
+    "/scope",
+];
 
 fn resolve_project_root_path(
     params: &Value,
@@ -409,6 +414,23 @@ mod tests {
         assert_eq!(input.session_id, "session-image-1");
         assert_eq!(input.thread_id, "thread-image-1");
         assert_eq!(input.turn_id, "turn-image-1");
+    }
+
+    #[test]
+    fn parses_canonical_app_server_turn_identity_without_model_supplied_ids() {
+        let workspace = TempDir::new().expect("workspace");
+        let context = RuntimeToolTurnContext {
+            metadata: HashMap::from([("app_server_runtime_backend".into(), json!({
+                "sessionId": "session-current", "threadId": "thread-current", "turnId": "turn-current"
+            }))]),
+            ..RuntimeToolTurnContext::default()
+        };
+        let input = parse_image_task_input(
+            &json!({ "prompt": "封面" }), workspace.path(), "session-current", Some(&context),
+        ).expect("canonical identity");
+        assert_eq!(input.thread_id, "thread-current");
+        assert_eq!(input.turn_id, "turn-current");
+        assert_eq!(input.session_id, "session-current");
     }
 
     #[test]

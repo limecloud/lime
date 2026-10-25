@@ -36,7 +36,7 @@ function createArtifact(overrides: Partial<Artifact> = {}): Artifact {
 describe("resolveTaskCenterHomeSurfaceState", () => {
   it("任务中心草稿 surface 应压住旧会话活动并进入首页", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: true,
       sessionSwitchPending: false,
@@ -55,7 +55,7 @@ describe("resolveTaskCenterHomeSurfaceState", () => {
 
   it("草稿发送后应退出首页，交给会话布局展示预览", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: false,
       sessionSwitchPending: false,
@@ -73,7 +73,7 @@ describe("resolveTaskCenterHomeSurfaceState", () => {
 
   it("草稿 surface 标志滞留时，已有真实会话活动不应被首页覆盖", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: true,
       sessionSwitchPending: false,
@@ -92,7 +92,7 @@ describe("resolveTaskCenterHomeSurfaceState", () => {
 
   it("从侧栏打开历史空会话时不应被任务中心首页覆盖", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: false,
       shouldSuppressDraftContent: false,
       sessionSwitchPending: false,
@@ -111,7 +111,7 @@ describe("resolveTaskCenterHomeSurfaceState", () => {
 
   it("路由携带 standalone initialSessionId 时应优先展示恢复壳而不是首页空态", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: false,
       shouldSuppressDraftContent: true,
       sessionSwitchPending: false,
@@ -131,7 +131,7 @@ describe("resolveTaskCenterHomeSurfaceState", () => {
 
   it("旧会话切换中即使草稿 suppression 滞留也应展示恢复壳", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: true,
       sessionSwitchPending: true,
@@ -152,7 +152,7 @@ describe("resolveTaskCenterHomeSurfaceState", () => {
 
   it("旧 route transition 滞留时不应覆盖已有真实会话活动", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: false,
       shouldSuppressDraftContent: false,
       sessionSwitchPending: true,
@@ -173,7 +173,7 @@ describe("resolveTaskCenterHomeSurfaceState", () => {
 
   it("侧栏新建任务激活草稿 surface 时应压住旧 route session", () => {
     const state = resolveTaskCenterHomeSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: true,
       sessionSwitchPending: false,
@@ -227,7 +227,7 @@ describe("shouldPauseTaskCenterInitialSessionNavigation", () => {
   it("任务中心首页首发 pending 时应暂停 initial session hydrate", () => {
     expect(
       shouldPauseTaskCenterInitialSessionNavigation({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         draftSurfaceActive: false,
         hasHomeHotpathPending: true,
       }),
@@ -312,11 +312,17 @@ describe("resolveHarnessRuntimeVisible", () => {
 describe("shouldAutoRefreshWorkspaceRightSurfacePending", () => {
   it("真实会话发送及审批等待期间继续接收工具的前台面板请求", () => {
     for (const sceneIsSending of [false, true]) {
-      expect(shouldAutoRefreshWorkspaceRightSurfacePending({
-        sessionId: "thread-session", sceneIsSending, sceneIsPreparingSend: true,
-        taskCenterHomeHotpathActive: true, sceneLayoutMode: "chat",
-        manualRightSurfaceActive: false, pluginActivationActive: false,
-      })).toBe(true);
+      expect(
+        shouldAutoRefreshWorkspaceRightSurfacePending({
+          sessionId: "thread-session",
+          sceneIsSending,
+          sceneIsPreparingSend: false,
+          taskCenterHomeHotpathActive: true,
+          sceneLayoutMode: "chat",
+          manualRightSurfaceActive: false,
+          pluginActivationActive: false,
+        }),
+      ).toBe(true);
     }
   });
   const baseParams = {
@@ -345,14 +351,14 @@ describe("shouldAutoRefreshWorkspaceRightSurfacePending", () => {
     ).toBe(true);
   });
 
-  it("有会话的发送准备继续刷新，无会话的workspace发送热路径暂停", () => {
+  it("发送准备与无会话的 workspace 发送热路径暂停刷新", () => {
     expect(
       shouldAutoRefreshWorkspaceRightSurfacePending({
         ...baseParams,
         sessionId: "session-1",
         sceneIsPreparingSend: true,
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldAutoRefreshWorkspaceRightSurfacePending({
         ...baseParams,

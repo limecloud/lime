@@ -1034,10 +1034,13 @@ function hasToolTimelineProjection(readResult) {
   return status === "completed" && output.includes(TOOL_OUTPUT_PREVIEW);
 }
 
-function hasHistoricalOperationalDetailsHidden(timelineProcessEvidence) {
+function hasCollapsedHistoricalToolResults(timelineProcessEvidence) {
   return (
-    timelineProcessEvidence?.historicalTimelinePreviewCount > 0 &&
-    timelineProcessEvidence?.toolCallRowCount === 0 &&
+    timelineProcessEvidence?.toolCallRowCount > 0 &&
+    timelineProcessEvidence?.fixtureToolRowCount === 1 &&
+    timelineProcessEvidence?.fixtureToolRowCanonical === true &&
+    timelineProcessEvidence?.fixtureToolRowCollapsed === true &&
+    timelineProcessEvidence?.fixtureToolOutputHidden === true &&
     timelineProcessEvidence?.operationalTimelineDetailsCount === 0
   );
 }
@@ -1058,44 +1061,66 @@ async function inspectHistoricalTimelineSummary(page, options) {
   let lastSnapshot = null;
 
   while (Date.now() - startedAt < timeoutMs) {
-    const snapshot = await evaluatePageSnapshot(page, () => {
-      const isVisible = (element) => {
-        if (!(element instanceof HTMLElement)) {
-          return false;
-        }
-        const style = window.getComputedStyle(element);
-        const rect = element.getBoundingClientRect();
-        return (
-          style.display !== "none" &&
-          style.visibility !== "hidden" &&
-          rect.width > 0 &&
-          rect.height > 0
+    const snapshot = await evaluatePageSnapshot(
+      page,
+      ({ toolCallId, toolName, output }) => {
+        const isVisible = (element) => {
+          if (!(element instanceof HTMLElement)) {
+            return false;
+          }
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return (
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            rect.width > 0 &&
+            rect.height > 0
+          );
+        };
+        const historicalTimelinePreviews = Array.from(
+          document.querySelectorAll(
+            '[data-testid^="message-list-historical-timeline-preview:"]',
+          ),
+        ).filter(isVisible);
+        const toolCallRows = Array.from(
+          document.querySelectorAll('[data-testid="tool-call-row"]'),
+        ).filter(isVisible);
+        const operationalTimelineDetails = Array.from(
+          document.querySelectorAll(
+            [
+              'details[data-testid^="agent-thread-block:"][data-testid$=":process"]',
+              'details[data-testid^="agent-thread-block:"][data-testid$=":approval"]',
+            ].join(","),
+          ),
+        ).filter(isVisible);
+        const fixtureToolRows = toolCallRows.filter(
+          (row) => row.getAttribute("data-tool-name") === toolName,
         );
-      };
-      const historicalTimelinePreviews = Array.from(
-        document.querySelectorAll(
-          '[data-testid^="message-list-historical-timeline-preview:"]',
-        ),
-      ).filter(isVisible);
-      const toolCallRows = Array.from(
-        document.querySelectorAll('[data-testid="tool-call-row"]'),
-      ).filter(isVisible);
-      const operationalTimelineDetails = Array.from(
-        document.querySelectorAll(
-          [
-            'details[data-testid^="agent-thread-block:"][data-testid$=":process"]',
-            'details[data-testid^="agent-thread-block:"][data-testid$=":approval"]',
-          ].join(","),
-        ),
-      ).filter(isVisible);
-      const text = document.body?.innerText || "";
-      return {
-        historicalTimelinePreviewCount: historicalTimelinePreviews.length,
-        toolCallRowCount: toolCallRows.length,
-        operationalTimelineDetailsCount: operationalTimelineDetails.length,
-        bodyText: text,
-      };
-    });
+        const fixtureToolRow = fixtureToolRows[0];
+        const fixtureToolId =
+          fixtureToolRow?.getAttribute("data-tool-call-id") || "";
+        const text = document.body?.innerText || "";
+        return {
+          fixtureToolRowCount: fixtureToolRows.length,
+          fixtureToolRowCanonical:
+            fixtureToolId === toolCallId ||
+            fixtureToolId.startsWith(`${toolCallId}:`),
+          fixtureToolRowCollapsed: Boolean(
+            fixtureToolRow?.querySelector('button[aria-expanded="false"]'),
+          ),
+          fixtureToolOutputHidden: !text.includes(output),
+          historicalTimelinePreviewCount: historicalTimelinePreviews.length,
+          toolCallRowCount: toolCallRows.length,
+          operationalTimelineDetailsCount: operationalTimelineDetails.length,
+          bodyText: text,
+        };
+      },
+      {
+        toolCallId: TOOL_CALL_ID,
+        toolName: TOOL_NAME,
+        output: TOOL_OUTPUT_PREVIEW,
+      },
+    );
     if (!snapshot) {
       await sleep(options.intervalMs);
       continue;
@@ -1118,12 +1143,22 @@ async function inspectHistoricalTimelineSummary(page, options) {
         )}`,
       );
     }
-    if (
-      snapshot.historicalTimelinePreviewCount > 0 &&
-      snapshot.toolCallRowCount === 0 &&
-      snapshot.operationalTimelineDetailsCount === 0
-    ) {
-      return snapshot;
+    if (hasCollapsedHistoricalToolResults(snapshot)) {
+      // Desktop keeps canonical tool rows visible and their payload collapsed.
+      // Verify the actual disclosure rather than requiring the old summary-only DOM.
+      const row = page.locator(
+        `[data-testid="tool-call-row"][data-tool-name=${JSON.stringify(TOOL_NAME)}]`,
+      );
+      await row.locator('button[aria-expanded="false"]').click();
+      const result = row.getByTestId("tool-call-content");
+      await result.waitFor({ state: "visible", timeout: options.timeoutMs });
+      assert(
+        (await result.innerText()).includes(TOOL_OUTPUT_PREVIEW),
+        "Expanded canonical tool result must match the backend output",
+      );
+      await row.locator('button[aria-expanded="true"]').click();
+      await result.waitFor({ state: "hidden", timeout: options.timeoutMs });
+      return { ...snapshot, toolResultExpandedAndRestored: true };
     }
     await sleep(options.intervalMs);
   }
@@ -1441,6 +1476,20 @@ async function sendPromptFromGui(page, options, prompt) {
   assert(
     afterFill.promptVisibleInEditor,
     `输入框未保留 coding 请求: ${JSON.stringify(sanitizeJson(afterFill))}`,
+  );
+
+  await page
+    .getByRole("button", { name: /^(发送|Send)$/i })
+    .waitFor({ state: "visible", timeout: options.timeoutMs });
+  await page.waitForFunction(
+    () =>
+      [...document.querySelectorAll("button")].some(
+        (button) =>
+          /^(发送|Send)$/i.test(button.getAttribute("aria-label") || "") &&
+          !button.disabled,
+      ),
+    undefined,
+    { timeout: options.timeoutMs },
   );
 
   const clicked = await page.evaluate(() => {
@@ -3333,8 +3382,9 @@ async function run() {
     const appServerJsonRpcObserved =
       appServerRequestMethods.includes(APP_SERVER_METHOD_TURN_START) ||
       backendTurnStartObserved;
-    const historicalOperationalDetailsHidden =
-      hasHistoricalOperationalDetailsHidden(summary.timelineProcessEvidence);
+    const historicalToolResultsCollapsed = hasCollapsedHistoricalToolResults(
+      summary.timelineProcessEvidence,
+    );
     const followupTurns = Array.isArray(summary.followupRead?.thread?.turns)
       ? summary.followupRead.thread.turns
       : [];
@@ -3413,7 +3463,9 @@ async function run() {
         pageText.includes(ARTIFACT_PATH) ||
         pageText.includes("Hello Lime Workbench") ||
         pageText.includes("产物"),
-      historicalOperationalDetailsHidden,
+      historicalToolResultsCollapsed,
+      historicalToolResultDisclosureWorks:
+        summary.timelineProcessEvidence?.toolResultExpandedAndRestored === true,
       commandOutputVisible:
         summary.commandEvidence?.visible === true &&
         summary.commandEvidence.outputMatched === true,
@@ -3579,8 +3631,7 @@ async function run() {
     summary.backendKinds = backendLedger.map((entry) => entry.kind);
     summary.backendEmittedEventTypes = backendEmittedEventTypes;
     summary.traceFollowupTurnStart = sanitizeJson(traceFollowupTurnStart);
-    summary.historicalOperationalDetailsHidden =
-      historicalOperationalDetailsHidden;
+    summary.historicalToolResultsCollapsed = historicalToolResultsCollapsed;
     summary.assertions = assertions;
     summary.businessAssertionsPassed = true;
     summary.completedAt = new Date().toISOString();

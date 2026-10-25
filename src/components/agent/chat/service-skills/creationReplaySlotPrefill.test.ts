@@ -141,57 +141,6 @@ describe("buildCreationReplaySlotPrefill", () => {
     );
   });
 
-  it("应把技能草稿回放映射到保留信息与重点调整点", () => {
-    const result = buildCreationReplaySlotPrefill(
-      {
-        ...BASE_SKILL,
-        slotSchema: [
-          {
-            key: "must_keep",
-            label: "必须保留的信息",
-            type: "textarea",
-            required: false,
-            placeholder: "输入需要保留的信息",
-          },
-          {
-            key: "focus_changes",
-            label: "重点调整点",
-            type: "textarea",
-            required: false,
-            placeholder: "输入调整点",
-          },
-        ],
-      },
-      {
-        version: 1,
-        kind: "skill_scaffold",
-        source: {
-          page: "skills",
-          source_message_id: "message-1",
-        },
-        data: {
-          name: "短视频复刻流程",
-          description: "保留原节奏，但语气更克制。",
-          source_excerpt: "先拆前三秒钩子，再补 CTA。",
-          outputs: ["脚本结构", "镜头节奏"],
-          steps: ["先拆结构", "再写脚本"],
-          fallback_strategy: ["信息不足时先补问平台和受众"],
-        },
-      },
-    );
-
-    expect(result).toEqual({
-      slotValues: {
-        must_keep:
-          "延续原结果重点：先拆前三秒钩子，再补 CTA。\n保留交付骨架：脚本结构；镜头节奏",
-        focus_changes:
-          "继续沿用步骤：先拆结构；再写脚本\n需要注意回退：信息不足时先补问平台和受众\n本次意图重点：保留原节奏，但语气更克制。",
-      },
-      fieldLabels: ["必须保留的信息", "重点调整点"],
-      hint: "已根据当前技能草稿自动预填 必须保留的信息、重点调整点，可继续修改后执行。",
-    });
-  });
-
   it("应把趋势和调度线索映射到更完整的运营类参数", () => {
     const result = buildCreationReplaySlotPrefill(
       {
@@ -272,77 +221,6 @@ describe("buildCreationReplaySlotPrefill", () => {
     });
   });
 
-  it("应把语言和来源线索映射到视频类技能参数", () => {
-    const result = buildCreationReplaySlotPrefill(
-      {
-        ...BASE_SKILL,
-        slotSchema: [
-          {
-            key: "reference_video",
-            label: "参考视频链接/素材",
-            type: "url",
-            required: true,
-            placeholder: "输入视频链接",
-          },
-          {
-            key: "target_language",
-            label: "目标语言",
-            type: "text",
-            required: true,
-            defaultValue: "中文",
-            placeholder: "输入目标语言",
-          },
-          {
-            key: "subtitle_preference",
-            label: "字幕要求",
-            type: "enum",
-            required: false,
-            defaultValue: "keep_original",
-            placeholder: "选择字幕要求",
-            options: [
-              { value: "keep_original", label: "保留原字幕" },
-              { value: "bilingual", label: "中英双语字幕" },
-              { value: "dub_only", label: "只做配音稿" },
-            ],
-          },
-          {
-            key: "target_duration",
-            label: "目标时长",
-            type: "text",
-            required: false,
-            placeholder: "输入时长",
-          },
-        ],
-      },
-      {
-        version: 1,
-        kind: "skill_scaffold",
-        source: {
-          page: "skills",
-          source_message_id: "message-video-1",
-        },
-        data: {
-          name: "日文配音短视频",
-          description:
-            "参考 https://example.com/video-demo 并整理成 60-90 秒版本。",
-          source_excerpt:
-            "请输出日文配音稿，保留中英双语字幕，整体更像科技感讲解。",
-        },
-      },
-    );
-
-    expect(result).toEqual({
-      slotValues: {
-        reference_video: "https://example.com/video-demo",
-        target_language: "日文",
-        subtitle_preference: "bilingual",
-        target_duration: "60-90 秒",
-      },
-      fieldLabels: ["参考视频链接/素材", "目标语言", "字幕要求", "目标时长"],
-      hint: "已根据当前技能草稿自动预填 参考视频链接/素材、目标语言、字幕要求 等参数，可继续修改后执行。",
-    });
-  });
-
   it("应从账号和阈值线索里补入增长类参数", () => {
     const result = buildCreationReplaySlotPrefill(
       {
@@ -396,72 +274,6 @@ describe("buildCreationReplaySlotPrefill", () => {
       },
       fieldLabels: ["参考账号 / 目标账号", "回报频率", "告警阈值"],
       hint: "已根据当前灵感条目自动预填 参考账号 / 目标账号、回报频率、告警阈值，可继续修改后执行。",
-    });
-  });
-
-  it("应把技能草稿映射到参考素材和复刻模式参数", () => {
-    const result = buildCreationReplaySlotPrefill(
-      {
-        ...BASE_SKILL,
-        slotSchema: [
-          {
-            key: "reference_post",
-            label: "参考帖子",
-            type: "textarea",
-            required: true,
-            placeholder: "输入参考帖子",
-          },
-          {
-            key: "delivery_mode",
-            label: "执行方式",
-            type: "enum",
-            required: true,
-            defaultValue: "one_to_one",
-            placeholder: "选择执行方式",
-            options: [
-              { value: "one_to_one", label: "1:1 复刻" },
-              { value: "expand", label: "同风格扩写" },
-            ],
-          },
-          {
-            key: "script_mode",
-            label: "脚本模式",
-            type: "enum",
-            required: true,
-            defaultValue: "replicate",
-            placeholder: "选择脚本模式",
-            options: [
-              { value: "replicate", label: "贴近原结构" },
-              { value: "expand", label: "同风格扩展" },
-            ],
-          },
-        ],
-      },
-      {
-        version: 1,
-        kind: "skill_scaffold",
-        source: {
-          page: "skills",
-          source_message_id: "message-replication-1",
-        },
-        data: {
-          name: "小红书轮播改写",
-          description: "按这个结构同风格扩写一版，但语气更像真实用户分享。",
-          source_excerpt: "保留开头钩子、利益点排序和结尾 CTA。",
-          inputs: ["平台：小红书", "品牌名：Lime"],
-        },
-      },
-    );
-
-    expect(result).toEqual({
-      slotValues: {
-        reference_post:
-          "参考线索：保留开头钩子、利益点排序和结尾 CTA。\n改写目标：按这个结构同风格扩写一版，但语气更像真实用户分享。\n输入约束：平台：小红书；品牌名：Lime",
-        delivery_mode: "expand",
-        script_mode: "expand",
-      },
-      fieldLabels: ["参考帖子", "执行方式", "脚本模式"],
-      hint: "已根据当前技能草稿自动预填 参考帖子、执行方式、脚本模式，可继续修改后执行。",
     });
   });
 

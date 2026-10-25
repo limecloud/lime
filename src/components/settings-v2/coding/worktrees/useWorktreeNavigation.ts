@@ -3,7 +3,7 @@ import {
   createAgentRuntimeSession,
   getAgentRuntimeSession,
 } from "@/lib/api/agentRuntime/sessionClient";
-import { buildClawAgentParams } from "@/lib/workspace/navigation";
+import { buildConversationParams } from "@/lib/workspace/navigation";
 import { requestExplicitInitialSessionNavigation } from "@/components/agent/chat/workspace/useWorkspaceInitialSessionNavigation";
 import type { AgentPageParams, Page, PageParams } from "@/types/page";
 import { useSettingsDraft } from "../../_layout/useSettingsDraft";
@@ -60,7 +60,7 @@ export function useWorktreeNavigation({ onNavigate }: WorktreeNavigationProps) {
       if (!session.id?.trim())
         throw new Error("Missing canonical session identity");
       if (request === generation.current) {
-        setDestination(buildClawAgentParams({ initialSessionId: session.id }));
+        setDestination(buildConversationParams({ initialSessionId: session.id }));
       }
     } catch {
       if (request === generation.current) setFailed(worktreePath);

@@ -1,14 +1,10 @@
+import { resolveRequiredAgentChatCopy } from "@/i18n/agentChatCopy";
 import type { RuntimeSubmissionResult } from "./hooks/agentSendResult";
 import type { AcceptedRuntimeSubmissionResult } from "./hooks/agentSendResult";
 import type { ComposerDraftCapture } from "@/components/input-kit/ComposerDraftCoordinator";
 import type { HandleSendOptions } from "./hooks/handleSendTypes";
 import type { Message, MessageImage } from "./types";
-import {
-  buildDiagnosticsRuntimeStatusMetadata,
-  buildSoulRuntimeStatusMetadata,
-} from "./utils/agentRuntimeStatus";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
-import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
+import { buildDiagnosticsRuntimeStatusMetadata } from "./utils/agentRuntimeStatus";
 
 export interface TaskCenterSendSource {
   sessionId: string | null;
@@ -44,7 +40,6 @@ export interface TaskCenterDraftSendRequest {
 export function buildHomePendingPreviewMessages(
   request: TaskCenterDraftSendRequest,
   executionStrategy: "react",
-  soulCopy: SoulInteractionCopy = resolveSoulInteractionCopy(),
 ): Message[] {
   const timestamp = new Date(request.submittedAt);
   void request.sendExecutionStrategy;
@@ -69,12 +64,9 @@ export function buildHomePendingPreviewMessages(
       isThinking: true,
       runtimeStatus: {
         phase: "preparing",
-        title: soulCopy.preparingTitle,
-        detail: soulCopy.preparingDetail,
-        checkpoints: soulCopy.preparingCheckpoints,
-        metadata: buildDiagnosticsRuntimeStatusMetadata(
-          buildSoulRuntimeStatusMetadata(soulCopy.descriptors.preparingTitle),
-        ),
+        title: resolveRequiredAgentChatCopy("runtime.preparing"),
+        detail: "",
+        metadata: buildDiagnosticsRuntimeStatusMetadata(),
       },
     },
   ];

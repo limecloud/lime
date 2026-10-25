@@ -32,10 +32,6 @@ interface UseWorkspaceTaskFilesRefSyncRuntimeParams {
   taskFilesRef: MutableRefObject<TaskFile[]>;
 }
 
-interface UseWorkspaceSoulArtifactVoiceTurnRuntimeParams {
-  generationBrief?: Record<string, unknown> | string | null;
-  setSoulArtifactVoiceEnabledForTurn: Dispatch<SetStateAction<boolean>>;
-}
 
 interface UseWorkspaceServiceSkillDirectoryToastRuntimeParams {
   activeTheme: string;
@@ -130,14 +126,6 @@ export function useWorkspaceTaskFilesRefSyncRuntime({
   }, [taskFiles, taskFilesRef]);
 }
 
-export function useWorkspaceSoulArtifactVoiceTurnRuntime({
-  generationBrief,
-  setSoulArtifactVoiceEnabledForTurn,
-}: UseWorkspaceSoulArtifactVoiceTurnRuntimeParams): void {
-  useEffect(() => {
-    setSoulArtifactVoiceEnabledForTurn(true);
-  }, [generationBrief, setSoulArtifactVoiceEnabledForTurn]);
-}
 
 export function useWorkspaceServiceSkillDirectoryToastRuntime({
   activeTheme,

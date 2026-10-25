@@ -17,7 +17,7 @@ export function useWorkspaceA2UISubmitActions({
 }: UseWorkspaceA2UISubmitActionsParams) {
   const handleA2UISubmit = useCallback(
     async (formData: A2UIFormData, _messageId: string) => {
-      console.log("[AgentChatPage] A2UI 表单提交:", formData);
+      console.log("[LocalConversationPage] A2UI 表单提交:", formData);
 
       const formattedData = Object.entries(formData)
         .map(([key, value]) => {

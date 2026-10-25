@@ -110,11 +110,18 @@ impl Session {
                     .cloned()
                     .ok_or_else(|| denied("Missing native result")),
                 Some(false) => Err(denied(format!(
-                    "Native helper rejected {method}: {}",
+                    "Native helper rejected {method}: {} ({})",
                     value
                         .pointer("/error/code")
                         .and_then(Value::as_str)
-                        .unwrap_or("operation_failed")
+                        .unwrap_or("operation_failed"),
+                    value
+                        .pointer("/error/message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("Native operation failed")
+                        .chars()
+                        .take(512)
+                        .collect::<String>()
                 ))),
                 None => Err(denied("Invalid native helper response")),
             };

@@ -142,6 +142,7 @@ interface RenderOptions {
   promptLinkItemId?: string;
   baseFilePath?: string;
   isStreaming?: boolean;
+  renderMode?: "standard" | "light";
   collapseCodeBlocks?: boolean;
   shouldCollapseCodeBlock?: (language: string, code: string) => boolean;
   showBlockActions?: boolean;
@@ -188,6 +189,7 @@ function renderIntoRoot(
     promptLinkItemId,
     baseFilePath,
     isStreaming = false,
+    renderMode,
     collapseCodeBlocks = false,
     shouldCollapseCodeBlock,
     showBlockActions = false,
@@ -203,6 +205,7 @@ function renderIntoRoot(
           promptLinkItemId={promptLinkItemId}
           baseFilePath={baseFilePath}
           isStreaming={isStreaming}
+          renderMode={renderMode}
           collapseCodeBlocks={collapseCodeBlocks}
           shouldCollapseCodeBlock={shouldCollapseCodeBlock}
           showBlockActions={showBlockActions}

@@ -784,6 +784,12 @@ export function summarizeHomeHotpathPreTurnTrace(
       ).map((message) => ({
         method: message?.method ?? null,
         inputText:
+          (Array.isArray(message?.params?.input)
+            ? message.params.input
+                .filter((input) => input.type === "text")
+                .map((input) => input.text)
+                .join("\n")
+            : null) ??
           message?.params?.input?.text ??
           message?.params?.input?.content ??
           message?.params?.inputText ??

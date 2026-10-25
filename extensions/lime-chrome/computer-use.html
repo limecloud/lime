@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="computer-use.css" />
+    <title>Lime Computer Use</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icons/icon48.png" alt="" />
+        <h1 data-i18n="name"></h1>
+      </header>
+      <p id="status" role="status"></p>
+      <p id="description" data-i18n="description"></p>
+      <pre id="target"></pre>
+      <div id="approval" hidden>
+        <p data-i18n="approval"></p>
+        <button id="allow" data-i18n="allow"></button
+        ><button id="deny" data-i18n="deny"></button>
+      </div>
+      <button id="reconnect" data-i18n="reconnect"></button>
+      <form id="task-tabs" hidden>
+        <label for="session-name" data-i18n="sessionName"></label>
+        <input id="session-name" maxlength="100" required />
+        <label for="session-url" data-i18n="sessionUrl"></label>
+        <input id="session-url" type="url" required />
+        <button type="submit" data-i18n="createGroup"></button>
+        <p id="group-status" role="status"></p>
+      </form>
+    </main>
+    <script src="computer-use-popup.js"></script>
+  </body>
+</html>

@@ -157,9 +157,9 @@ describe("agentStreamPerformanceMetrics", () => {
       submittedAt: 100,
       workspaceId: "workspace-c",
     });
-    expect(trace?.requestId).toMatch(/^claw_request_/);
-    expect(trace?.runId).toMatch(/^claw_run_/);
-    expect(trace?.traceId).toMatch(/^claw_trace_/);
+    expect(trace?.requestId).toMatch(/^conversation_request_/);
+    expect(trace?.runId).toMatch(/^conversation_run_/);
+    expect(trace?.traceId).toMatch(/^conversation_trace_/);
     expect(trace?.w3cTraceContext).toMatchObject({
       traceparent: expect.stringMatching(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/),
       tracestate: null,

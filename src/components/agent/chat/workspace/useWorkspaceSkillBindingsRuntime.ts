@@ -66,7 +66,7 @@ export function useWorkspaceSkillBindingsRuntime({
         setBindings([]);
         setError(message);
         console.warn(
-          "[AgentChatPage] 读取 workspace skill bindings 失败:",
+          "[LocalConversationPage] 读取 workspace skill bindings 失败:",
           loadError,
         );
       } finally {

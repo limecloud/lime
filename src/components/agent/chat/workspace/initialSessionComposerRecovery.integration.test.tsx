@@ -111,7 +111,7 @@ describe("initial session recovery with a newly mounted Composer owner", () => {
           resolving.current = false;
         }, []);
         useWorkspaceTaskCenterNavigationRuntime({
-          agentEntry: "claw",
+          agentEntry: "conversation",
           currentSessionId: sessionId,
           initialSessionId: target.id,
           normalizedInitialSessionId: target.id,

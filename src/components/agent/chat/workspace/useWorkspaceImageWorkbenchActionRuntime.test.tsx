@@ -115,7 +115,7 @@ describe("useWorkspaceImageWorkbenchCommandActionRuntime", () => {
           mode: "generate",
           prompt: "城市夜景主视觉",
           size: "1024x1024",
-          usage: "claw-image-workbench",
+          usage: "image-workbench",
           session_id: "session-1",
           project_id: "project-1",
           entry_source: "at_image_command",

@@ -1,5 +1,10 @@
 # GUI 结构与命名对齐账本
 
+> 2026-10-25 更新：用户已取消 Lime 主题/皮肤保留例外，旧皮肤及首页装饰段落仅为历史证据，现役实现与验收见 `internal/exec-plans/appearance-home-alignment-20261025.md`。
+
+2026-10-25 current 纠正：下文本地 Profile/Soul 实施为历史证据，已退役。Codex 公共 Profile 为账号服务能力，本地 nickname/bio 表单不能替代；已删除表单、配置、搜索目标和专用 fixture，保留真实 Lime Account Center。个性化仅保留 Memory、AGENTS 与原版指令语义。旧公开 Profile 后续动作不再作为 Lime 当前产品待办。详见 [当前执行计划](../../exec-plans/browser-runtime-right-surface-plan.md)。
+
+
 当前证据有效性以[缺失声明](validation-evidence-lifecycle-20261018.json)为准：旧`.lime/`整个目录消失，本账本旧收据/冻结结果只保留历史观察，不作为当前验收。新表格合同与测试独立补证，新原生结果须由新候选重建。
 
 状态：current / partial。校准日期：2026-10-20。本页归并已有 REA 审计与正式实现映射，不新增参考应用运行结论，也不是全量符号清单。

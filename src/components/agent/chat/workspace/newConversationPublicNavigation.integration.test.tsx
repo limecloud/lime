@@ -215,7 +215,7 @@ describe("public action -> committed route -> sole draft owner -> real gateway/p
     });
     await act(async () =>
       view.current().navigation.handleNavigate("agent", {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         initialSessionId: local.id,
       }),
     );
@@ -428,7 +428,7 @@ describe("public action -> committed route -> sole draft owner -> real gateway/p
     };
     await act(async () =>
       view.current().navigation.handleNavigate("agent", {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         initialSessionId: "existing",
         newConversationRequest: request,
       }),

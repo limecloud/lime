@@ -11,6 +11,31 @@ pub enum ComputerUseAction {
         max_nodes: u16,
     },
     Screenshot {},
+    NameSession {
+        name: String,
+    },
+    CreateTab {
+        url: String,
+    },
+    MarkTab {
+        tab_id: u32,
+        mark: TabMark,
+    },
+    WorkbookRead {},
+    RangeRead {
+        sheet: String,
+        address: String,
+    },
+    RangeWrite {
+        sheet: String,
+        address: String,
+        values: Vec<Vec<serde_json::Value>>,
+    },
+    FormulaWrite {
+        sheet: String,
+        address: String,
+        formulas: Vec<Vec<String>>,
+    },
     Click {
         x: f64,
         y: f64,
@@ -41,6 +66,13 @@ pub enum ComputerUseAction {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+pub enum TabMark {
+    Deliverable,
+    Handoff,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum MouseButton {
     Left,
     Right,
@@ -52,6 +84,13 @@ impl ComputerUseAction {
         match self {
             Self::Observe { .. } => ComputerUseCapability::Observe,
             Self::Screenshot {} => ComputerUseCapability::Screenshot,
+            Self::NameSession { .. } | Self::CreateTab { .. } | Self::MarkTab { .. } => {
+                ComputerUseCapability::Navigate
+            }
+            Self::WorkbookRead {} => ComputerUseCapability::WorkbookRead,
+            Self::RangeRead { .. } => ComputerUseCapability::RangeRead,
+            Self::RangeWrite { .. } => ComputerUseCapability::RangeWrite,
+            Self::FormulaWrite { .. } => ComputerUseCapability::FormulaWrite,
             Self::Click { .. } => ComputerUseCapability::Click,
             Self::Type { .. } => ComputerUseCapability::Type,
             Self::Key { .. } => ComputerUseCapability::Key,
@@ -65,6 +104,48 @@ impl ComputerUseAction {
             x.is_finite() && y.is_finite() && x.abs() < 100_000.0 && y.abs() < 100_000.0
         };
         let valid = match self {
+            Self::NameSession { name } => {
+                !name.trim().is_empty() && name.chars().count() <= 100 && !name.contains('\0')
+            }
+            Self::CreateTab { url } => {
+                url.len() <= 8192
+                    && url::Url::parse(url).is_ok_and(|url| {
+                        matches!(url.scheme(), "http" | "https")
+                            && url.host_str().is_some()
+                            && url.username().is_empty()
+                            && url.password().is_none()
+                    })
+            }
+            Self::MarkTab { tab_id, .. } => *tab_id > 0 && *tab_id <= i32::MAX as u32,
+            Self::WorkbookRead {} => true,
+            Self::RangeRead { sheet, address } => valid_range(sheet, address),
+            Self::RangeWrite {
+                sheet,
+                address,
+                values,
+            } => {
+                valid_range(sheet, address)
+                    && valid_matrix(values)
+                    && values.iter().flatten().all(|v| match v {
+                        serde_json::Value::Null
+                        | serde_json::Value::Bool(_)
+                        | serde_json::Value::Number(_) => true,
+                        serde_json::Value::String(s) => s.len() <= 8192 && !s.starts_with('='),
+                        _ => false,
+                    })
+            }
+            Self::FormulaWrite {
+                sheet,
+                address,
+                formulas,
+            } => {
+                valid_range(sheet, address)
+                    && valid_matrix(formulas)
+                    && formulas
+                        .iter()
+                        .flatten()
+                        .all(|s| s.len() <= 8192 && s.starts_with('='))
+            }
             Self::Observe {
                 max_depth,
                 max_nodes,
@@ -102,4 +183,21 @@ impl ComputerUseAction {
             Err(denied("Computer Use action exceeds its allowed bounds"))
         }
     }
+}
+
+fn valid_range(sheet: &str, address: &str) -> bool {
+    !sheet.is_empty()
+        && sheet.len() <= 128
+        && !sheet.contains('\0')
+        && address.len() <= 32
+        && regex::Regex::new(r"^[A-Z]{1,3}[1-9][0-9]{0,6}(:[A-Z]{1,3}[1-9][0-9]{0,6})?$")
+            .unwrap()
+            .is_match(address)
+}
+fn valid_matrix<T: Serialize>(values: &[Vec<T>]) -> bool {
+    !values.is_empty()
+        && !values[0].is_empty()
+        && values.len().saturating_mul(values[0].len()) <= 1000
+        && values.iter().all(|row| row.len() == values[0].len())
+        && serde_json::to_vec(values).is_ok_and(|v| v.len() <= 256 * 1024)
 }

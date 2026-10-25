@@ -34,92 +34,11 @@ interface LatestState {
   handleSend: ReturnType<typeof vi.fn>;
   input: string;
   runtime: GeneralWorkbenchInitialDispatchRuntime;
-  soulArtifactVoiceEnabledForTurn: boolean;
 }
 
 let container: HTMLDivElement;
 let root: Root;
 let latestState: LatestState | null = null;
-
-function Harness({
-  autoRunInitialPromptOnMount = false,
-  contentId,
-  enableAutoGuide = false,
-  handleSend: handleSendOverride,
-  initialAutoSendAllowsDetachedSession = false,
-  initialAutoSendRequestMetadata = { source: "test" },
-  initialUserPrompt,
-  isSending = false,
-  isThemeWorkbench = false,
-  messagesLength = 0,
-  queuedTurnsLength = 0,
-  projectId = "project-1",
-  shouldUseCompactGeneralWorkbench = false,
-  onInitialUserPromptConsumed = () => undefined,
-}: HarnessProps) {
-  const [input, setInput] = useState("");
-  const [soulArtifactVoiceEnabledForTurn, setSoulArtifactVoiceEnabledForTurn] =
-    useState(false);
-  const triggerAIGuideRef = useRef(() => undefined);
-  const fallbackHandleSend = useRef(
-    vi.fn(async () => acceptedSubmission()),
-  ).current;
-  const handleSend = handleSendOverride ?? fallbackHandleSend;
-  const runtime = useGeneralWorkbenchInitialDispatchRuntime({
-    activeTheme: "general",
-    autoRunInitialPromptOnMount,
-    contentId,
-    initialUserPrompt,
-    isSending,
-    isThemeWorkbench,
-    mappedTheme: "general",
-    messagesLength,
-    onInitialUserPromptConsumed,
-    queuedTurnsLength,
-    sessionId: "session-1",
-    setInput,
-    setSoulArtifactVoiceEnabledForTurn,
-    shouldUseCompactGeneralWorkbench,
-  });
-
-  useGeneralWorkbenchInitialAutoGuideRuntime({
-    autoRunInitialPromptOnMount,
-    canvasState: null,
-    contentId,
-    consumedInitialPromptRef: runtime.consumedInitialPromptRef,
-    generalWorkbenchEntryCheckPending:
-      runtime.generalWorkbenchEntryCheckPending,
-    generalWorkbenchEntryPrompt: runtime.generalWorkbenchEntryPrompt,
-    handleSend,
-    hasProject: true,
-    hasTriggeredGuideRef: runtime.hasTriggeredGuideRef,
-    initialAutoSendAllowsDetachedSession,
-    initialAutoSendRequestMetadata,
-    initialDispatchKey: runtime.initialDispatchKey,
-    initialUserPrompt,
-    isSending,
-    isThemeWorkbench,
-    mappedTheme: "general",
-    messagesLength,
-    onInitialUserPromptConsumed,
-    projectId,
-    sessionId: "session-1",
-    setInput,
-    shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt: false,
-    shouldUseCompactGeneralWorkbench:
-      !enableAutoGuide || shouldUseCompactGeneralWorkbench,
-    systemPrompt: "system",
-    triggerAIGuideRef,
-  });
-
-  latestState = {
-    handleSend,
-    input,
-    runtime,
-    soulArtifactVoiceEnabledForTurn,
-  };
-  return null;
-}
 
 function renderHarness(props?: HarnessProps): LatestState {
   act(() => {
@@ -193,7 +112,7 @@ describe("useGeneralWorkbenchInitialDispatchRuntime", () => {
     });
   });
 
-  it("发送成功后应消费初始输入并恢复本轮语音开关", async () => {
+  it("发送成功后应消费初始输入", async () => {
     const onInitialUserPromptConsumed = vi.fn();
     renderHarness({
       contentId: "content-1",
@@ -214,7 +133,6 @@ describe("useGeneralWorkbenchInitialDispatchRuntime", () => {
 
     expect(runtime.consumedInitialPromptRef.current).toBe("生成大纲::");
     expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
-    expect(readLatestState().soulArtifactVoiceEnabledForTurn).toBe(true);
   });
 
   it("工作台初始提示应恢复为确认卡并支持重启消费", async () => {
@@ -303,3 +221,80 @@ describe("useGeneralWorkbenchInitialDispatchRuntime", () => {
     expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
   });
 });
+
+function Harness({
+  autoRunInitialPromptOnMount = false,
+  contentId,
+  enableAutoGuide = false,
+  handleSend: handleSendOverride,
+  initialAutoSendAllowsDetachedSession = false,
+  initialAutoSendRequestMetadata = { source: "test" },
+  initialUserPrompt,
+  isSending = false,
+  isThemeWorkbench = false,
+  messagesLength = 0,
+  queuedTurnsLength = 0,
+  projectId = "project-1",
+  shouldUseCompactGeneralWorkbench = false,
+  onInitialUserPromptConsumed = () => undefined,
+}: HarnessProps) {
+  const [input, setInput] = useState("");
+  useState(false);
+  const triggerAIGuideRef = useRef(() => undefined);
+  const fallbackHandleSend = useRef(
+    vi.fn(async () => acceptedSubmission()),
+  ).current;
+  const handleSend = handleSendOverride ?? fallbackHandleSend;
+  const runtime = useGeneralWorkbenchInitialDispatchRuntime({
+    activeTheme: "general",
+    autoRunInitialPromptOnMount,
+    contentId,
+    initialUserPrompt,
+    isSending,
+    isThemeWorkbench,
+    mappedTheme: "general",
+    messagesLength,
+    onInitialUserPromptConsumed,
+    queuedTurnsLength,
+    sessionId: "session-1",
+    setInput,
+
+    shouldUseCompactGeneralWorkbench,
+  });
+
+  useGeneralWorkbenchInitialAutoGuideRuntime({
+    autoRunInitialPromptOnMount,
+    canvasState: null,
+    contentId,
+    consumedInitialPromptRef: runtime.consumedInitialPromptRef,
+    generalWorkbenchEntryCheckPending:
+      runtime.generalWorkbenchEntryCheckPending,
+    generalWorkbenchEntryPrompt: runtime.generalWorkbenchEntryPrompt,
+    handleSend,
+    hasProject: true,
+    hasTriggeredGuideRef: runtime.hasTriggeredGuideRef,
+    initialAutoSendAllowsDetachedSession,
+    initialAutoSendRequestMetadata,
+    initialDispatchKey: runtime.initialDispatchKey,
+    initialUserPrompt,
+    isSending,
+    isThemeWorkbench,
+    mappedTheme: "general",
+    messagesLength,
+    onInitialUserPromptConsumed,
+    projectId,
+    sessionId: "session-1",
+    setInput,
+    shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt: false,
+    shouldUseCompactGeneralWorkbench:
+      !enableAutoGuide || shouldUseCompactGeneralWorkbench,
+    triggerAIGuideRef,
+  });
+
+  latestState = {
+    handleSend,
+    input,
+    runtime,
+  };
+  return null;
+}

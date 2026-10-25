@@ -79,7 +79,7 @@ it.each([null, "/source/.lime/environments/dev.toml"])(
       expect.objectContaining({ rootPath: "/checkout" }),
     );
     expect(navigate).toHaveBeenCalledExactlyOnceWith("agent", {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "checkout",
     });
   },
@@ -124,7 +124,7 @@ it("opens the confirmed failed checkout on request and serializes repeated recov
     >),
   );
   expect(navigate).toHaveBeenCalledExactlyOnceWith("agent", {
-    agentEntry: "claw",
+    agentEntry: "conversation",
     projectId: "checkout",
   });
   expect(createProjectGitWorktree).toHaveBeenCalledOnce();
@@ -146,7 +146,7 @@ it("keeps recovery available after the workspace owner fails, without opening a 
   expect(navigate).not.toHaveBeenCalled();
   await act(async () => action.onClick({} as MouseEvent<HTMLButtonElement>));
   expect(navigate).toHaveBeenCalledExactlyOnceWith("agent", {
-    agentEntry: "claw",
+    agentEntry: "conversation",
     projectId: "checkout",
   });
   expect(createProjectGitWorktree).toHaveBeenCalledOnce();

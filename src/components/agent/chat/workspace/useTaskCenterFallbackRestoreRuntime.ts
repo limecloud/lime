@@ -92,7 +92,7 @@ export function useTaskCenterFallbackRestoreRuntime({
         return;
       }
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "taskCenter.fallback.skipDetachedSession",
         {
           detachedTopicId,
@@ -110,7 +110,7 @@ export function useTaskCenterFallbackRestoreRuntime({
     }
 
     fallbackRestoreRef.current = restorePlan.nextRestore;
-    logAgentDebug("AgentChatPage", "taskCenter.fallback.restoreVisibleTask", {
+    logAgentDebug("LocalConversationPage", "taskCenter.fallback.restoreVisibleTask", {
       fallbackId: restorePlan.fallbackTopicId,
       openTabIds,
       sessionId,

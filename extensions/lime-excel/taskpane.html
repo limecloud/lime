@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://appsforoffice.microsoft.com; connect-src 'self'; style-src 'self'; img-src 'self' data:; frame-src https://appsforoffice.microsoft.com"
+    />
+    <title>Lime Computer Use</title>
+    <link rel="stylesheet" href="/taskpane.css" />
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Lime</h1>
+      <p id="status" role="status"></p>
+      <p id="description"></p>
+      <p id="workbook"></p>
+      <section id="approval" hidden>
+        <p id="question"></p>
+        <button id="allow"></button><button id="deny"></button>
+      </section>
+      <button id="disconnect" hidden></button>
+      <p id="error" role="alert"></p>
+    </main>
+    <script src="/taskpane.js"></script>
+  </body>
+</html>

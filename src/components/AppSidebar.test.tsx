@@ -20,7 +20,7 @@ describe("AppSidebar navigation", () => {
 
     const container = mountSidebarContainer({
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
       } as AgentPageParams,
     });
     await flushEffects();
@@ -390,7 +390,7 @@ describe("AppSidebar navigation", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
       } as AgentPageParams,
     });
     await flushEffects(2);

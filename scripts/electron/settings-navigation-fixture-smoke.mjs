@@ -43,7 +43,6 @@ import { runSettingsNoteNavigationScenario } from "./lib/settings-note-navigatio
 import { runSettingsLocalEnvironmentsNavigationScenario } from "./lib/settings-local-environments-navigation-scenario.mjs";
 import { runSettingsExecutionPolicyNavigationScenario } from "./lib/settings-execution-policy-navigation-scenario.mjs";
 import { runSettingsWebSearchNavigationScenario } from "./lib/settings-web-search-navigation-scenario.mjs";
-import { runSettingsProfileNavigationScenario } from "./lib/settings-profile-navigation-scenario.mjs";
 import { runSettingsSearchScenario } from "./lib/settings-search-scenario.mjs";
 import {
   installInvokeTraceCollector,
@@ -73,9 +72,9 @@ export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
     startedAt: new Date().toISOString(),
     sourceSha256: fingerprints(),
     limitations: [
-      "Controlled external backend bypasses the production runtime backend and provider execution; only the declared Browser/Keyboard shortcuts save/reload and Memory/Web Search/Environment/Execution Policy/Profile configuration and note scenarios are covered. Profile uses a non-OEM test override. Search covers only the declared 36 content targets/current section titles. No live search/provider/tool execution, auth, Windows, reference runtime or full-settings claim.",
+      "Controlled external backend bypasses the production runtime backend and provider execution; only the declared Browser/Keyboard shortcuts save/reload and Memory/Web Search/Environment/Execution Policy configuration and note scenarios are covered. Search covers only the declared current content targets/current section titles. No live search/provider/tool execution, auth, Windows, reference runtime or full-settings claim.",
       "Website launch uses the public Electron open-url event; OS URL dispatch is not exercised.",
-      "Current Settings keeps the global icon rail and hides the conversation sidebar. Draft GUI navigation covers section/back; Home/Root/New guard authority is separate component evidence, not Desktop clicks.",
+      "Current Settings uses its own Back/search/section navigation. Draft GUI navigation covers section/back; Home/Root/New guard authority is separate component evidence, not Desktop clicks.",
     ],
     rounds: [],
     navigationObservations: [],
@@ -219,7 +218,7 @@ export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
       const phase = message
         .text()
         .match(
-          /^\[AgentDebug\] AgentChatPage\.((?:initialSessionNavigation|switchTopic|runTopicSwitch)\.[\w]+)\b/,
+          /^\[AgentDebug\] LocalConversationPage\.((?:initialSessionNavigation|switchTopic|runTopicSwitch)\.[\w]+)\b/,
         )?.[1];
       if (phase)
         summary.recoveryPhases.push({ phase, at: new Date().toISOString() });
@@ -500,13 +499,6 @@ export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
         stage,
         waitForSession: () => surface(page, options, sessionId),
       });
-    summary.unsavedProfile = await runSettingsProfileNavigationScenario({
-      page,
-      options,
-      evidenceDir,
-      stage,
-      waitForSession: () => surface(page, options, sessionId),
-    });
     summary.settingsSearch = await runSettingsSearchScenario({
       page,
       options,

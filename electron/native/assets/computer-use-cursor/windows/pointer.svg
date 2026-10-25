@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="lime" gradientUnits="userSpaceOnUse" x1="-6" y1="-4" x2="20" y2="20">
+      <stop offset="0%" stop-color="#064E3B"/>
+      <stop offset="35%" stop-color="#10B981"/>
+      <stop offset="70%" stop-color="#84CC16"/>
+      <stop offset="100%" stop-color="#D9F99D"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-25%" width="180%" height="170%"><feDropShadow dx="0" dy="0.5" stdDeviation="0.45" flood-color="#022c22" flood-opacity="0.22"/></filter>
+    <radialGradient id="halo"><stop stop-color="#10B981" stop-opacity="0.32"/><stop offset="0.55" stop-color="#84CC16" stop-opacity="0.18"/><stop offset="1" stop-color="#84CC16" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g transform="translate(8 8)">
+  <ellipse cx="8.5" cy="9.5" rx="11" ry="11" fill="url(#halo)" opacity="0.6"/>
+  <g transform="rotate(0 3 3)">
+  <path d="M4.1 3.2 C2.9 2.75 1.8 3.85 2.25 5.05 L5.9 15.2 C6.3 16.3 7.8 16.34 8.25 15.25 L9.92 11.15 Q10.08 10.75 10.48 10.59 L14.58 8.92 C15.67 8.47 15.63 6.97 14.53 6.57 Z" fill="url(#lime)" fill-opacity="0.12" stroke="#064e3b" stroke-opacity="0.4" stroke-width="1.7" stroke-linejoin="round" filter="url(#shadow)"/>
+  <path d="M4.1 3.2 C2.9 2.75 1.8 3.85 2.25 5.05 L5.9 15.2 C6.3 16.3 7.8 16.34 8.25 15.25 L9.92 11.15 Q10.08 10.75 10.48 10.59 L14.58 8.92 C15.67 8.47 15.63 6.97 14.53 6.57 Z" fill="none" stroke="url(#lime)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  </g>
+</svg>

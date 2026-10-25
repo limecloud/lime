@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  buildClawAgentParams,
+  buildConversationParams,
   buildHomeAgentParams,
   type StartNewConversation,
 } from "@/lib/workspace/navigation";
@@ -147,7 +147,7 @@ function pickRestorableAgentParams(params: unknown): AgentPageParams | null {
     return null;
   }
 
-  return buildClawAgentParams({
+  return buildConversationParams({
     initialSessionId,
     projectId: readString(params.projectId),
     contentId: readString(params.contentId),

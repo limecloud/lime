@@ -21,7 +21,6 @@ import type { SearchResultPreviewItem } from "../utils/searchResultPreview";
 import type {
   CanonicalTurnMediaSegment,
   CanonicalTurnMessageSegment,
-  CanonicalTurnProcessSegment,
   CanonicalTurnRenderEntry,
 } from "../projection/turnTimelineRenderProjection";
 import { readQuestionReplies } from "./asyncUserInput/questions";
@@ -46,10 +45,7 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 import { CollapsibleUserMessageContent } from "./CollapsibleUserMessageContent";
 import { MessageActionButtons } from "./MessageActionButtons";
 import { MessageImageAttachments } from "./MessageImageAttachments";
-import {
-  HistoricalAssistantMessagePreview,
-  HistoricalTimelinePreview,
-} from "./MessageListHistoricalPreviews";
+import { HistoricalAssistantMessagePreview } from "./MessageListHistoricalPreviews";
 import {
   MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_PREVIEW_CHARS,
   MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_THRESHOLD,
@@ -106,10 +102,6 @@ interface ConversationTurnTimelineProps {
   onPermissionResponse?: (response: ConfirmResponse) => void;
   onQuoteMessage?: (content: string, id: string) => void;
   onRequestThreadRevert?: (target: ThreadRevertTarget) => void;
-  onSaveMessageAsSkill?: (source: {
-    messageId: string;
-    content: string;
-  }) => void;
   onCodeBlockClick?: (language: string, code: string) => void;
 }
 
@@ -246,13 +238,10 @@ export function ConversationTurnTimeline({
   onPermissionResponse,
   onQuoteMessage,
   onRequestThreadRevert,
-  onSaveMessageAsSkill,
 
   onCodeBlockClick,
 }: ConversationTurnTimelineProps) {
   const { i18n, t } = useTranslation("agent");
-  const [expandedHistoricalProcessIds, setExpandedHistoricalProcessIds] =
-    useState<Set<string>>(() => new Set());
   const [
     expandedHistoricalAssistantItemIds,
     setExpandedHistoricalAssistantItemIds,
@@ -277,31 +266,10 @@ export function ConversationTurnTimeline({
     isTerminalThreadTurnStatus(entry.turn.status) &&
     threadRead?.can_accept_direct_input !== false,
   );
-  const renderSegments = useMemo<QuestionRenderSegment[]>(() => {
-    const segments = expandQuestionSegments(entry.segments);
-    if (isActiveOperationalTurn) {
-      return segments;
-    }
-
-    const processSegments = segments.filter(
-      (segment): segment is CanonicalTurnProcessSegment =>
-        segment.kind === "process",
-    );
-    if (processSegments.length <= 1) {
-      return segments;
-    }
-
-    // 已结束回合只保留一个回合级过程摘要，避免每个 assistant 段重复显示整轮时长。
-    const mergedProcessSegment: CanonicalTurnProcessSegment = {
-      kind: "process",
-      id: `process:${entry.turn.id}:merged`,
-      items: processSegments.flatMap((segment) => segment.items),
-    };
-    return [
-      ...segments.filter((segment) => segment.kind !== "process"),
-      mergedProcessSegment,
-    ];
-  }, [entry.segments, entry.turn.id, isActiveOperationalTurn]);
+  const renderSegments = useMemo<QuestionRenderSegment[]>(
+    () => expandQuestionSegments(entry.segments),
+    [entry.segments],
+  );
   const assistantActionOwnerId = useMemo(
     () =>
       renderSegments
@@ -361,11 +329,6 @@ export function ConversationTurnTimeline({
     >
       {renderSegments.map((segment) => {
         if (segment.kind === "process") {
-          const isFocusedProcess = segment.items.some(
-            (item) => item.id === focusedTimelineItemId,
-          );
-          const showHistoricalDetails =
-            expandedHistoricalProcessIds.has(segment.id) || isFocusedProcess;
           return (
             <MessageWrapper
               key={segment.id}
@@ -376,7 +339,7 @@ export function ConversationTurnTimeline({
               data-segment-id={segment.id}
             >
               <ContentColumn $isUser={false}>
-                {isActiveOperationalTurn || showHistoricalDetails ? (
+                {
                   <AgentThreadTimeline
                     turn={entry.turn}
                     items={segment.items}
@@ -386,7 +349,7 @@ export function ConversationTurnTimeline({
                     collapseInactiveDetails={
                       isActiveOperationalTurn ? !isSending : false
                     }
-                    expandCompletedProcessDetails={!isActiveOperationalTurn}
+                    expandCompletedProcessDetails={false}
                     deferCompletedSingleDetails={!isActiveOperationalTurn}
                     placement="leading"
                     showOperationalDetails={true}
@@ -399,27 +362,7 @@ export function ConversationTurnTimeline({
                     focusedItemId={focusedTimelineItemId}
                     focusRequestKey={timelineFocusRequestKey}
                   />
-                ) : (
-                  <HistoricalTimelinePreview
-                    items={segment.items}
-                    placement="leading"
-                    detailsDeferred={shouldDeferHistoricalTimelineDetails}
-                    startedAt={entry.turn.started_at}
-                    completedAt={entry.turn.completed_at}
-                    onFileClick={onFileClick}
-                    onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
-                    onOpenSavedSiteContent={onOpenSavedSiteContent}
-                    onOpenSubagentSession={onOpenSubagentSession}
-                    onPermissionResponse={onPermissionResponse}
-                    onExpand={() => {
-                      setExpandedHistoricalProcessIds((current) => {
-                        const next = new Set(current);
-                        next.add(segment.id);
-                        return next;
-                      });
-                    }}
-                  />
-                )}
+                }
               </ContentColumn>
             </MessageWrapper>
           );
@@ -495,7 +438,6 @@ export function ConversationTurnTimeline({
           : segment.item.type === "user_message"
             ? resolveUserMessageContent(segment)
             : (segment.question?.title ?? segment.item.text ?? "");
-        const canSave = !isUser && content.trim().length >= 24;
         const isStreaming =
           !isUser &&
           !segment.question &&
@@ -693,15 +635,11 @@ export function ConversationTurnTimeline({
                     actionContent={content}
                     canCopyMessage={true}
                     canQuoteMessage={Boolean(onQuoteMessage)}
-                    canSaveMessageAsSkill={
-                      canSave && Boolean(onSaveMessageAsSkill)
-                    }
                     copied={copiedId === segment.item.id}
                     isImageWorkbenchMessage={false}
                     messageId={segment.item.id}
                     onCopy={handleCopy}
                     onQuoteMessage={onQuoteMessage}
-                    onSaveMessageAsSkill={onSaveMessageAsSkill}
                   />
                 ) : null}
               </MessageBubble>

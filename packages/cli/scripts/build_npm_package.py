@@ -2,11 +2,13 @@
 """Stage and optionally package the @limecloud/lime npm module."""
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import tempfile
+import plistlib
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -86,7 +88,7 @@ def main() -> int:
                 f"Native runtime payload required for package '{args.package}'. "
                 "Provide --vendor-src."
             )
-        copy_native_binaries(args.vendor_src.resolve(), staging_dir, platform)
+        copy_native_binaries(args.vendor_src.resolve(), staging_dir, platform, version)
 
     print(f"Staged package {args.package} in {staging_dir}")
     if args.pack_output:
@@ -156,17 +158,17 @@ def compute_platform_package_version(version: str, npm_tag: str) -> str:
 
 
 def copy_native_binaries(
-    vendor_src: Path, staging_dir: Path, platform: dict[str, str]
+    vendor_src: Path, staging_dir: Path, platform: dict[str, str], version: str
 ) -> None:
     target_triple = platform["target_triple"]
     source_target = vendor_src / target_triple
-    validate_native_payload(source_target, platform)
+    validate_native_payload(source_target, platform, version)
     destination_target = staging_dir / "vendor" / target_triple
     destination_target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_target, destination_target)
 
 
-def validate_native_payload(target_root: Path, platform: dict[str, str]) -> None:
+def validate_native_payload(target_root: Path, platform: dict[str, str], version: str) -> None:
     if not target_root.is_dir():
         raise RuntimeError(f"Missing target directory in vendor source: {target_root}")
 
@@ -197,6 +199,51 @@ def validate_native_payload(target_root: Path, platform: dict[str, str]) -> None
             f"Incomplete native runtime libraries for {platform['target_triple']}: "
             f"missing {', '.join(missing_runtime)}"
         )
+    if platform["os"] in ("darwin", "win32"):
+        validate_computer_use_resources(bin_dir, platform, version)
+
+
+def validate_computer_use_resources(bin_dir: Path, platform: dict[str, str], version: str) -> None:
+    """Keep CLI native control within the same contained, hashed product closure."""
+    manifest_path = bin_dir / "desktop-resources.manifest.json"
+    if not manifest_path.is_file() or manifest_path.stat().st_size > 1024 * 1024:
+        raise RuntimeError("Missing or oversized Computer Use resource manifest")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if any(manifest.get(key) != value for key, value in {
+        "schemaVersion": 1, "applicationId": "com.limecloud.lime",
+        "version": version, "platform": platform["os"], "arch": platform["cpu"],
+    }.items()):
+        raise RuntimeError("Computer Use resource manifest identity/version mismatch")
+    resources = manifest.get("resources", [])
+    root = bin_dir.resolve()
+
+    def resource(identifier: str) -> Path:
+        entries = [entry for entry in resources if entry.get("id") == identifier]
+        if len(entries) != 1:
+            raise RuntimeError(f"Computer Use manifest requires one {identifier}")
+        entry = entries[0]
+        relative = Path(str(entry.get("path", "")).replace("\\", "/"))
+        if not relative.parts or relative.is_absolute() or any(part in ("..", ".") for part in relative.parts):
+            raise RuntimeError("Computer Use resource path must be relative and contained")
+        file = (root / relative).resolve()
+        if not file.is_relative_to(root) or not file.is_file():
+            raise RuntimeError(f"Missing or escaping Computer Use resource: {identifier}")
+        if hashlib.sha256(file.read_bytes()).hexdigest() != entry.get("sha256"):
+            raise RuntimeError(f"Computer Use resource integrity mismatch: {identifier}")
+        return file
+
+    suffix = ".exe" if platform["os"] == "win32" else ""
+    if resource("app-server") != (root / f"app-server{suffix}").resolve():
+        raise RuntimeError("Computer Use manifest belongs to another App Server")
+    helper = resource("macos-native-host" if platform["os"] == "darwin" else "windows-native-host")
+    if platform["os"] == "darwin":
+        plist_path = helper.parent.parent / "Info.plist"
+        if not plist_path.is_file():
+            raise RuntimeError("Missing Computer Use helper application bundle")
+        with plist_path.open("rb") as source:
+            info = plistlib.load(source)
+        if info.get("CFBundleIdentifier") != "com.limecloud.lime.native-host" or info.get("CFBundleExecutable") != helper.name:
+            raise RuntimeError("Computer Use helper application identity mismatch")
 
 
 def run_npm_pack(staging_dir: Path, output_path: Path) -> Path:

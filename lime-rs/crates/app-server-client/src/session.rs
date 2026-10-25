@@ -21,6 +21,8 @@ use crate::{RemoteTransport, RemoteTransportConfig};
 
 #[derive(Debug, Error)]
 pub enum SessionError {
+    #[error("Computer Use target confirmation was denied or did not grant the requested target")]
+    ComputerUseDenied,
     #[error("app-server session is closed")]
     Closed,
     #[error("app-server transport failed: {0}")]
@@ -481,6 +483,7 @@ fn fail_pending(pending: &mut HashMap<RequestId, PendingRequest>, message: &str)
 
 #[cfg(test)]
 mod tests {
+    mod computer_use_tests;
     use super::*;
     use async_trait::async_trait;
     use tokio::sync::mpsc;

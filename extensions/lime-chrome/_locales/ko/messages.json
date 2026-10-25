@@ -1,0 +1,44 @@
+{
+  "name": {
+    "message": "Lime 컴퓨터 사용"
+  },
+  "description": {
+    "message": "Lime 데스크톱 또는 CLI에서 승인된 Chrome 탭을 제어합니다."
+  },
+  "connected": {
+    "message": "Lime에 연결됨"
+  },
+  "disconnected": {
+    "message": "Lime을 열고 컴퓨터 사용 설정에서 기본 연결 구성 요소를 설치하세요."
+  },
+  "approval": {
+    "message": "이 세션에서 Lime이 이 탭을 읽고 제어하도록 허용할까요?"
+  },
+  "allow": {
+    "message": "이 탭 허용"
+  },
+  "deny": {
+    "message": "거부"
+  },
+  "reconnect": {
+    "message": "다시 연결"
+  },
+  "sessionName": {
+    "message": "작업 이름"
+  },
+  "sessionUrl": {
+    "message": "시작 URL"
+  },
+  "createGroup": {
+    "message": "작업 탭 그룹 만들기"
+  },
+  "groupCreated": {
+    "message": "작업 그룹을 만들었습니다. Lime에서 이 탭을 선택하고 허용하면 제어할 수 있습니다."
+  },
+  "groupFailed": {
+    "message": "작업 그룹을 만들 수 없습니다. 다시 시도하세요."
+  },
+  "invalidUrl": {
+    "message": "HTTP 또는 HTTPS URL을 입력하세요."
+  }
+}

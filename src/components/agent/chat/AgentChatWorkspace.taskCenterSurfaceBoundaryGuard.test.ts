@@ -64,7 +64,7 @@ describe("AgentChatWorkspace Task Center surface runtime boundary", () => {
       shellInteractionOwnerSource,
       ownerSource,
     ]) {
-      expect(source).not.toContain("buildClawAgentParams({");
+      expect(source).not.toContain("buildConversationParams({");
     }
 
     expect(

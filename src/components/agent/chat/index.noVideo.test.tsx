@@ -6,7 +6,7 @@ import {
   sharedTriggerAIGuideMock,
 } from "./index.testFixtures";
 
-describe("AgentChatPage 通用工作区无专用视频模式", () => {
+describe("LocalConversationPage 通用工作区无专用视频模式", () => {
   it("general 主题仍应渲染底部通用输入条，且不应自动发送首条请求", async () => {
     const container = renderPage({
       projectId: "project-video",

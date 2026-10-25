@@ -51,8 +51,6 @@ import {
 import { AppServerClient } from "@/lib/api/appServer";
 import { readPromptHistory } from "@/lib/api/promptHistory";
 import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
-import { getLimeSkinCopy } from "@/lib/appearance/skinContent";
-import { useHomeSkinPresentation } from "./homeSkinPresentation";
 import { toast } from "sonner";
 import { prepareThreadGoalDraft } from "./Inputbar/hooks/threadGoalDraft";
 import {
@@ -107,7 +105,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onRemovePathReference,
   onClearPathReferences,
 }) => {
-  const { t, i18n } = useTranslation("agent");
+  const { t } = useTranslation("agent");
   const {
     controller: composerController,
     snapshot: composerSnapshot,
@@ -201,19 +199,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     emittedComposerTextRef.current = composerSnapshot.document.text;
     setInput(composerSnapshot.document.text);
   }, [composerSnapshot.document.text, setInput]);
-  const homeSkinPresentation = useHomeSkinPresentation();
   const translateAgentCopyKey = useCallback(
     (key: string, values?: Record<string, number | string>) =>
       t(key as AgentI18nKey, values ?? {}),
     [t],
   );
-  const skinCopy = useMemo(
-    () => getLimeSkinCopy(homeSkinPresentation.skinId, i18n.language),
-    [homeSkinPresentation.skinId, i18n.language],
-  );
   const homeSurfaceCopy = useMemo(
-    () => buildHomeSurfaceCopy(translateAgentCopyKey, skinCopy),
-    [skinCopy, translateAgentCopyKey],
+    () => buildHomeSurfaceCopy(translateAgentCopyKey),
+    [translateAgentCopyKey],
   );
   const inputbarCoreCopy = useMemo(
     () => buildInputbarCoreCopy(translateAgentCopyKey),
@@ -635,7 +628,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   return (
     <EmptyStateLayout
-      heroCopy={homeSurfaceCopy.hero}
       composer={composerPanel}
     />
   );

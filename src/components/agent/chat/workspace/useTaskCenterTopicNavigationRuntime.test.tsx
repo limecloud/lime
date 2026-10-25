@@ -70,7 +70,7 @@ function mountRuntime(
       onStartNewConversation: overrides.onStartNewConversation,
       getComposerDraftNavigationEpoch:
         overrides.getComposerDraftNavigationEpoch,
-      agentEntry: "claw",
+      agentEntry: "conversation",
       clearEntryPendingA2UI: vi.fn(),
       clearTaskCenterEmbeddedHomeSession:
         overrides.clearTaskCenterEmbeddedHomeSession ?? vi.fn(),

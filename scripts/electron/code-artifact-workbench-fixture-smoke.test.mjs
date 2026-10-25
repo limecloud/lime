@@ -9,6 +9,40 @@ function readSmokeScript() {
 }
 
 describe("code artifact workbench Electron fixture smoke guard", () => {
+  it("rejects missing identity, expanded payload and leaked tool output", () => {
+    const content = readSmokeScript();
+    const helper = content.slice(
+      content.indexOf("function hasCollapsedHistoricalToolResults("),
+      content.indexOf("function hasHydratedSessionSnapshot("),
+    );
+    const check = new Function(
+      `${helper}; return hasCollapsedHistoricalToolResults;`,
+    )();
+    const collapsed = {
+      toolCallRowCount: 2,
+      fixtureToolRowCount: 1,
+      fixtureToolRowCanonical: true,
+      fixtureToolRowCollapsed: true,
+      fixtureToolOutputHidden: true,
+      operationalTimelineDetailsCount: 0,
+    };
+    expect(check(collapsed)).toBe(true);
+    expect(check(null)).toBe(false);
+    for (const invalid of [
+      { toolCallRowCount: 0 },
+      { fixtureToolRowCount: 0 },
+      { fixtureToolRowCount: 2 },
+      { fixtureToolRowCanonical: false },
+      { fixtureToolRowCollapsed: false },
+      { fixtureToolOutputHidden: false },
+      { operationalTimelineDetailsCount: 1 },
+    ]) {
+      expect(check({ ...collapsed, ...invalid })).toBe(false);
+    }
+    expect(content).toContain("toolResultExpandedAndRestored: true");
+    expect(content).toContain("historicalToolResultDisclosureWorks:");
+  });
+
   it("keeps the smoke on real Electron Desktop Host IPC and App Server JSON-RPC", () => {
     const content = readSmokeScript();
 
@@ -94,7 +128,7 @@ describe("code artifact workbench Electron fixture smoke guard", () => {
       'logStage("inspect-historical-timeline-summary")',
     );
     expect(content).toContain("timelineProcessEvidence");
-    expect(content).toContain("hasHistoricalOperationalDetailsHidden");
+    expect(content).toContain("hasCollapsedHistoricalToolResults");
     expect(content).toContain(
       '[data-testid^="message-list-historical-timeline-preview:"]',
     );
@@ -174,19 +208,19 @@ describe("code artifact workbench Electron fixture smoke guard", () => {
     expect(content).not.toContain('type: "command.exited"');
     expect(content).not.toContain('type: "test.started"');
     expect(content).not.toContain('type: "test.completed"');
-    expect(content).toContain("historicalOperationalDetailsHidden");
+    expect(content).toContain("historicalToolResultsCollapsed");
     const historicalDetailsAssertion = content.slice(
-      content.indexOf("historicalOperationalDetailsHidden,"),
+      content.indexOf("historicalToolResultsCollapsed,"),
       content.indexOf(
         "noInvokeErrors:",
-        content.indexOf("historicalOperationalDetailsHidden,"),
+        content.indexOf("historicalToolResultsCollapsed,"),
       ),
     );
     expect(historicalDetailsAssertion).not.toContain(
       "toolTimelineProjectionPersisted",
     );
     expect(content).toContain(
-      "timelineProcessEvidence?.toolCallRowCount === 0",
+      "timelineProcessEvidence?.fixtureToolRowCanonical === true",
     );
     expect(content).toContain('type: "artifact.snapshot"');
     expect(content).toContain('type: "turn.completed"');

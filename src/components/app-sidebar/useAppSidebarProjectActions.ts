@@ -162,7 +162,7 @@ export function useAppSidebarProjectActions({
         markProjectOpened(nextProject.id);
         toast.success(worktreeCreatedLabel);
         onNavigate("agent", {
-          agentEntry: "claw",
+          agentEntry: "conversation",
           projectId: nextProject.id,
         });
       } catch (error) {
@@ -172,7 +172,7 @@ export function useAppSidebarProjectActions({
             error,
             t("agent:agentChat.navbar.appSwitcher.openWorktree"),
             (projectId) =>
-              onNavigate("agent", { agentEntry: "claw", projectId }),
+              onNavigate("agent", { agentEntry: "conversation", projectId }),
           ),
         );
       }

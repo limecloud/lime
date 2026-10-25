@@ -366,18 +366,18 @@ export function useWorkspaceArtifactPreviewActions({
 
   const handleCodeBlockClick = useCallback(
     (language: string, code: string) => {
-      console.log("[AgentChatPage] 代码块点击:", language);
+      console.log("[LocalConversationPage] 代码块点击:", language);
 
       const matchingArtifact = findArtifactForCodeBlock(code);
       if (!matchingArtifact) {
         console.warn(
-          "[AgentChatPage] 代码块未匹配到 artifact，保持内联渲染:",
+          "[LocalConversationPage] 代码块未匹配到 artifact，保持内联渲染:",
           language,
         );
         return;
       }
 
-      console.log("[AgentChatPage] 找到匹配的 artifact:", matchingArtifact.id);
+      console.log("[LocalConversationPage] 找到匹配的 artifact:", matchingArtifact.id);
       void openArtifactInWorkbench(matchingArtifact);
     },
     [findArtifactForCodeBlock, openArtifactInWorkbench],

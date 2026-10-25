@@ -69,6 +69,7 @@ import {
 import type { ProviderSettingsFocusContext } from "@/types/page";
 import { formatProviderConnectionError } from "./providerConnectionError";
 import { useSettingsDraft } from "@/components/settings-v2/_layout/useSettingsDraft";
+import { ProviderProtocolSelect } from "./ProviderProtocolSelect";
 import {
   useProviderSettingDraft,
   type ProviderSettingDraftState,
@@ -220,12 +221,12 @@ function parseModelDraft(value: string): string[] {
 function buildStatusClass(tone: InlineStatusTone): string {
   switch (tone) {
     case "success":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      return "border-[color:var(--lime-success-border)] bg-[color:var(--lime-success-soft)] text-[color:var(--lime-success)]";
     case "error":
-      return "border-rose-200 bg-rose-50 text-rose-700";
+      return "border-[color:var(--lime-danger-border)] bg-[color:var(--lime-danger-soft)] text-[color:var(--lime-danger)]";
     case "info":
     default:
-      return "border-sky-200 bg-sky-50 text-sky-700";
+      return "border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] text-[color:var(--lime-info)]";
   }
 }
 
@@ -287,19 +288,19 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = (props) => {
     return (
       <div
         className={cn(
-          "flex h-full items-center justify-center bg-slate-50 px-6",
+          "flex h-full items-center justify-center bg-[color:var(--lime-surface-soft)] px-6",
           props.className,
         )}
         data-testid="provider-setting-empty"
       >
-        <div className="w-full max-w-[720px] rounded-[28px] border border-slate-200/80 bg-white p-8 shadow-sm shadow-slate-950/5">
-          <div className="flex items-center gap-3 text-slate-900">
+        <div className="w-full max-w-[720px] rounded-xl border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-8 shadow-none">
+          <div className="flex items-center gap-3 text-[color:var(--lime-text-strong)]">
             <Sparkles className="h-5 w-5" />
-            <p className="text-lg font-semibold">
+            <p className="text-base font-semibold">
               {t("settings.providers.setting.empty.title", "选择或添加模型")}
             </p>
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-500">
+          <p className="mt-3 text-sm leading-6 text-[color:var(--lime-text-muted)]">
             {t(
               "settings.providers.setting.empty.description",
               "左侧选择一个已启用模型后，这里只展示密钥、模型优先级和测试连接。",
@@ -313,12 +314,15 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = (props) => {
   if (props.authStatus === "login_required") {
     return (
       <div
-        className={cn("flex h-full flex-col bg-slate-50", props.className)}
+        className={cn(
+          "flex h-full flex-col bg-[color:var(--lime-surface-soft)]",
+          props.className,
+        )}
         data-testid="provider-login-required"
         data-provider-id={props.provider.id}
       >
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
-          <section className="mx-auto w-full max-w-[820px] rounded-[30px] border border-amber-200 bg-amber-50 p-5 shadow-sm shadow-slate-950/5 lg:p-6">
+          <section className="mx-auto w-full max-w-[820px] rounded-xl border-[0.5px] border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] p-5 shadow-none lg:p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 items-start gap-3">
                 <ProviderIcon
@@ -330,12 +334,12 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = (props) => {
                 />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="min-w-0 truncate text-xl font-semibold tracking-tight text-amber-950">
+                    <h3 className="min-w-0 truncate text-base font-semibold tracking-tight text-[color:var(--lime-warning)]">
                       {props.provider.name}
                     </h3>
                     <Badge
                       variant="outline"
-                      className="border-amber-300 bg-white text-amber-800"
+                      className="border-[color:var(--lime-warning-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-warning)]"
                     >
                       {t(
                         "settings.providers.setting.loginRequired.badge",
@@ -343,7 +347,7 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = (props) => {
                       )}
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-amber-800">
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--lime-warning)]">
                     {t(
                       "settings.providers.setting.loginRequired.description",
                       "登录后会自动同步 Lime Hub 的可用模型和本地托管访问凭证；未登录时不会展示本地兜底模型。",
@@ -356,7 +360,7 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = (props) => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-10 shrink-0 rounded-full border-amber-300 bg-white px-4 text-amber-900 hover:bg-amber-100 hover:text-amber-950"
+                  className="h-10 shrink-0 rounded-full border-[color:var(--lime-warning-border)] bg-[color:var(--lime-surface)] px-4 text-[color:var(--lime-warning)] hover:bg-[color:var(--lime-warning-soft)] hover:text-[color:var(--lime-warning)]"
                   onClick={() => {
                     void props.onLogin?.();
                   }}
@@ -1273,13 +1277,16 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
 
   return (
     <div
-      className={cn("flex h-full min-h-0 flex-col bg-slate-50", className)}
+      className={cn(
+        "flex h-full min-h-0 flex-col [&_.border]:border-[0.5px] bg-[color:var(--lime-surface-soft)]",
+        className,
+      )}
       data-testid="provider-setting"
       data-provider-id={provider.id}
     >
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
         <section
-          className="mx-auto w-full max-w-[820px] rounded-[30px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 lg:p-6"
+          className="mx-auto w-full max-w-[820px] rounded-xl border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-5 shadow-none lg:p-6"
           data-testid="provider-simple-card"
         >
           <header className="flex flex-wrap items-start justify-between gap-4">
@@ -1294,21 +1301,21 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3
-                    className="min-w-0 truncate text-xl font-semibold tracking-tight text-slate-900"
+                    className="min-w-0 truncate text-base font-semibold tracking-tight text-[color:var(--lime-text-strong)]"
                     data-testid="provider-name"
                   >
                     {provider.name}
                   </h3>
                   <Badge
                     variant="outline"
-                    className="border-slate-200 bg-slate-50 text-slate-600"
+                    className="border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] text-[color:var(--lime-text-muted)]"
                   >
                     {getProviderTypeLabel(provider.type)}
                   </Badge>
                   {showExplicitPromptCacheBadge ? (
                     <Badge
                       variant="outline"
-                      className="border-amber-200 bg-amber-50 text-amber-700"
+                      className="border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] text-[color:var(--lime-warning)]"
                       data-testid="provider-prompt-cache-badge"
                     >
                       {t(
@@ -1318,7 +1325,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                     </Badge>
                   ) : null}
                 </div>
-                <p className="mt-1 break-words text-sm text-slate-500">
+                <p className="mt-1 break-words text-sm text-[color:var(--lime-text-muted)]">
                   {providerHostLabel}
                 </p>
               </div>
@@ -1336,7 +1343,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                     onClick={(event) => {
                       interceptHttpExternalLinkClick(event, accessHelp.url);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                    className="inline-flex items-center gap-1.5 rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 py-2 text-sm font-medium text-[color:var(--lime-text-muted)] hover:border-[color:var(--lime-surface-border-strong)] hover:bg-[color:var(--lime-surface-soft)] hover:text-[color:var(--lime-text-strong)]"
                     data-testid="provider-api-key-link"
                   >
                     {t(
@@ -1351,7 +1358,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 rounded-full border-rose-200 bg-white px-3 text-rose-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+                    className="h-9 rounded-full border-[color:var(--lime-danger-border)] bg-[color:var(--lime-surface)] px-3 text-[color:var(--lime-danger)] hover:border-[color:var(--lime-danger-border)] hover:bg-[color:var(--lime-danger-soft)] hover:text-[color:var(--lime-danger)]"
                     onClick={() => {
                       void handleDeleteProvider();
                     }}
@@ -1379,13 +1386,19 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
           </header>
 
           <div className="mt-6 space-y-6">
+            <ProviderProtocolSelect
+              key={provider.id}
+              provider={provider}
+              disabled={loading}
+              onUpdate={onUpdate}
+            />
             {showProviderFocusBanner ? (
               <div
                 className={cn(
-                  "rounded-[18px] border px-4 py-3 text-sm",
+                  "rounded-lg border-[0.5px] px-4 py-3 text-sm",
                   needsApiKeyFromFocus || focusModelMissing
-                    ? "border-amber-200 bg-amber-50 text-amber-900"
-                    : "border-sky-200 bg-sky-50 text-sky-900",
+                    ? "border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] text-[color:var(--lime-warning)]"
+                    : "border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] text-[color:var(--lime-info)]",
                 )}
                 data-testid="provider-focus-banner"
               >
@@ -1439,7 +1452,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-9 shrink-0 rounded-full border-amber-300 bg-white px-3 text-amber-900 hover:bg-amber-100"
+                      className="h-9 shrink-0 rounded-full border-[color:var(--lime-warning-border)] bg-[color:var(--lime-surface)] px-3 text-[color:var(--lime-warning)] hover:bg-[color:var(--lime-warning-soft)]"
                       onClick={() => {
                         void addModels([focusedModelId]);
                       }}
@@ -1460,7 +1473,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
             {providerActionStatus ? (
               <div
                 className={cn(
-                  "flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                  "flex items-start gap-2 rounded-md border-[0.5px] px-3 py-2 text-sm",
                   buildStatusClass(providerActionStatus.tone),
                 )}
                 data-testid="provider-action-status"
@@ -1476,7 +1489,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               <div className="flex items-center justify-between gap-3">
                 <Label
                   htmlFor="provider-api-host"
-                  className="text-sm text-slate-600"
+                  className="text-sm text-[color:var(--lime-text-muted)]"
                 >
                   {t(
                     "settings.providers.setting.body.apiHost.label",
@@ -1484,7 +1497,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                   )}
                 </Label>
                 {hasPendingApiHost ? (
-                  <span className="text-xs text-amber-600">
+                  <span className="text-xs text-[color:var(--lime-warning)]">
                     {t(
                       "settings.providers.setting.body.apiHost.pending",
                       "未保存",
@@ -1507,21 +1520,17 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                     "settings.providers.setting.body.apiHost.placeholder",
                     "输入 API Host",
                   )}
-                  className="h-12 min-w-0 flex-1 rounded-[18px] border-slate-200 bg-white px-4"
+                  className="h-12 min-w-0 flex-1 rounded-lg border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4"
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  disabled={
-                    loading ||
-                    testingConnection ||
-                    fetchingModels
-                  }
+                  disabled={loading || testingConnection || fetchingModels}
                   data-testid="provider-api-host-input"
                 />
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 rounded-[18px] border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50"
+                  className="h-12 rounded-lg border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-surface-soft)]"
                   onClick={() => {
                     void handleSaveApiHost();
                   }}
@@ -1547,7 +1556,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               {apiHostStatus ? (
                 <div
                   className={cn(
-                    "flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                    "flex items-start gap-2 rounded-md border-[0.5px] px-3 py-2 text-sm",
                     buildStatusClass(apiHostStatus.tone),
                   )}
                   data-testid="api-host-status"
@@ -1562,7 +1571,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               <div className="flex items-center justify-between gap-3">
                 <Label
                   htmlFor="provider-api-key"
-                  className="text-sm text-slate-600"
+                  className="text-sm text-[color:var(--lime-text-muted)]"
                 >
                   {providerApiKeyRequired
                     ? t(
@@ -1575,14 +1584,14 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                       )}
                 </Label>
                 {hasPendingApiKey ? (
-                  <span className="text-xs text-amber-600">
+                  <span className="text-xs text-[color:var(--lime-warning)]">
                     {t(
                       "settings.providers.setting.body.apiKey.pending",
                       "未保存",
                     )}
                   </span>
                 ) : hasApiKey ? (
-                  <span className="text-xs text-emerald-600">
+                  <span className="text-xs text-[color:var(--lime-success)]">
                     {t(
                       "settings.providers.setting.body.apiKey.configured",
                       "已配置",
@@ -1617,21 +1626,17 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                             "本地服务可留空",
                           )
                     }
-                    className="h-12 rounded-[18px] border-slate-200 bg-white px-4 pr-11"
+                    className="h-12 rounded-lg border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 pr-11"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
-                    disabled={
-                      loading ||
-                      testingConnection ||
-                      fetchingModels
-                    }
+                    disabled={loading || testingConnection || fetchingModels}
                     data-testid="provider-api-key-input"
                   />
                   <button
                     type="button"
                     onClick={() => setShowApiKey((previous) => !previous)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-text-strong)]"
                     aria-label={t(
                       "settings.providers.setting.body.apiKey.toggleVisibility",
                       "显示或隐藏 API 密钥",
@@ -1644,7 +1649,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 rounded-[18px] border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50"
+                  className="h-12 rounded-lg border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-surface-soft)]"
                   onClick={() => {
                     void handleSaveApiKey();
                   }}
@@ -1670,7 +1675,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               {apiKeyStatus ? (
                 <div
                   className={cn(
-                    "flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                    "flex items-start gap-2 rounded-md border-[0.5px] px-3 py-2 text-sm",
                     buildStatusClass(apiKeyStatus.tone),
                   )}
                   data-testid="api-key-status"
@@ -1680,7 +1685,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                 </div>
               ) : null}
               {accessHelp.keylessHint ? (
-                <p className="text-xs leading-5 text-slate-500">
+                <p className="text-xs leading-5 text-[color:var(--lime-text-muted)]">
                   {accessHelp.keylessHint}
                 </p>
               ) : null}
@@ -1689,24 +1694,18 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
             <div className="space-y-3" data-testid="model-priority-section">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <Label className="text-sm text-slate-600">
+                  <Label className="text-sm text-[color:var(--lime-text-muted)]">
                     {t(
                       "settings.providers.setting.body.models.title",
                       "模型优先级",
                     )}
                   </Label>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {t(
-                      "settings.providers.setting.body.models.description",
-                      "只使用接口返回或你手动添加的模型，不再显示本地兜底模型。",
-                    )}
-                  </p>
                 </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 shrink-0 rounded-full border-slate-200 bg-white"
+                  className="h-9 shrink-0 rounded-full border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)]"
                   onClick={() => {
                     void handleFetchModelsFromApi();
                   }}
@@ -1732,7 +1731,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
 
               {!modelAutoFetchCapability.supported &&
               modelAutoFetchCapability.unsupportedReason ? (
-                <p className="rounded-[16px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                <p className="rounded-md border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] px-3 py-2 text-xs leading-5 text-[color:var(--lime-text-muted)]">
                   {modelAutoFetchCapability.unsupportedReason}
                 </p>
               ) : null}
@@ -1740,7 +1739,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               {modelFetchStatus ? (
                 <div
                   className={cn(
-                    "flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                    "flex items-start gap-2 rounded-md border-[0.5px] px-3 py-2 text-sm",
                     buildStatusClass(modelFetchStatus.tone),
                   )}
                   data-testid="model-fetch-status"
@@ -1752,11 +1751,11 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
 
               {availableApiModels.length > 0 ? (
                 <div
-                  className="rounded-[18px] border border-slate-200/80 bg-slate-50 p-3"
+                  className="rounded-lg border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] p-3"
                   data-testid="api-model-suggestions"
                 >
                   <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-xs font-medium text-slate-500">
+                    <div className="text-xs font-medium text-[color:var(--lime-text-muted)]">
                       {t(
                         "settings.providers.setting.body.models.apiSuggestions",
                         {
@@ -1772,7 +1771,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                         "settings.providers.setting.body.models.filterPlaceholder",
                         "筛选接口模型",
                       )}
-                      className="h-8 rounded-full border-slate-200 bg-white px-3 text-xs normal-case sm:w-[220px]"
+                      className="h-8 rounded-full border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 text-xs normal-case sm:w-[220px]"
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
@@ -1793,7 +1792,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                               void addModels([modelId]);
                             }}
                             disabled={loading || savingModels}
-                            className="max-w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                            className="max-w-full rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 py-1.5 text-xs text-[color:var(--lime-text-strong)] hover:border-[color:var(--lime-surface-border-strong)] hover:text-[color:var(--lime-text-strong)]"
                             data-testid="api-model-suggestion"
                           >
                             <span className="block max-w-[220px] truncate normal-case">
@@ -1803,7 +1802,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                         ))}
                       </div>
                     ) : (
-                      <div className="rounded-[14px] border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500">
+                      <div className="rounded-[14px] border-[0.5px] border-dashed border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 py-4 text-center text-xs text-[color:var(--lime-text-muted)]">
                         {t(
                           "settings.providers.setting.body.models.noApiMatches",
                           "没有匹配的接口模型。",
@@ -1815,7 +1814,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               ) : null}
 
               <div
-                className="rounded-[22px] bg-slate-100 p-3"
+                className="rounded-lg bg-[color:var(--lime-surface-muted)] p-3"
                 data-testid="model-priority-list"
               >
                 <input
@@ -1836,12 +1835,11 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                       return (
                         <div
                           key={modelId}
-                          className="flex items-center gap-3 rounded-[16px] bg-white px-3 py-2 text-sm text-slate-800"
+                          className="flex items-center gap-3 rounded-md bg-[color:var(--lime-surface)] px-3 py-2 text-sm text-[color:var(--lime-text-strong)]"
                           data-testid="model-priority-item"
                         >
-                          <span className="text-slate-400">::</span>
                           {index === 0 ? (
-                            <Badge className="border border-amber-200 bg-amber-50 px-2 py-0 text-[11px] text-amber-700 hover:bg-amber-50">
+                            <Badge className="border-[0.5px] border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] px-2 py-0 text-xs text-[color:var(--lime-warning)] hover:bg-[color:var(--lime-warning-soft)]">
                               {t(
                                 "settings.providers.setting.body.models.primaryBadge",
                                 "主模型",
@@ -1853,7 +1851,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                           </span>
                           {imageModelCommand ? (
                             <Badge
-                              className="border border-emerald-200 bg-emerald-50 px-2 py-0 text-[11px] text-emerald-700 hover:bg-emerald-50"
+                              className="border-[0.5px] border-[color:var(--lime-success-border)] bg-[color:var(--lime-success-soft)] px-2 py-0 text-xs text-[color:var(--lime-success)] hover:bg-[color:var(--lime-success-soft)]"
                               data-testid="image-command-bound-badge"
                             >
                               {t(
@@ -1870,7 +1868,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                               onClick={() => {
                                 handleOpenImageCommandDraft(modelId);
                               }}
-                              className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
+                              className="rounded-full border-[0.5px] border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] px-2.5 py-1 text-xs font-medium text-[color:var(--lime-info)] hover:border-[color:var(--lime-info-border)] hover:bg-[color:var(--lime-info-soft)]"
                               data-testid="create-image-command-button"
                             >
                               <Sparkles className="mr-1 inline h-3 w-3" />
@@ -1887,7 +1885,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                                 void handleSetMainModel(modelId);
                               }}
                               disabled={loading || savingModels}
-                              className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                              className="text-xs font-medium text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-text-strong)]"
                             >
                               <Star className="mr-1 inline h-3 w-3" />
                               {t(
@@ -1902,7 +1900,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                               void handleRemoveModel(modelId);
                             }}
                             disabled={loading || savingModels}
-                            className="text-slate-400 hover:text-rose-600"
+                            className="text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-danger)]"
                             aria-label={t(
                               "settings.providers.setting.body.models.action.removeAria",
                               {
@@ -1917,7 +1915,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500">
+                  <div className="rounded-lg border-[0.5px] border-dashed border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 py-5 text-sm text-[color:var(--lime-text-muted)]">
                     {t(
                       "settings.providers.setting.body.models.empty",
                       "暂无模型。请从接口获取后选择，或手动添加模型 ID。",
@@ -1928,7 +1926,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                 {imageCommandStatus ? (
                   <div
                     className={cn(
-                      "mt-3 flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                      "mt-3 flex items-start gap-2 rounded-md border-[0.5px] px-3 py-2 text-sm",
                       buildStatusClass(imageCommandStatus.tone),
                     )}
                     data-testid="image-command-status"
@@ -1942,17 +1940,17 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
 
                 {imageCommandDraft ? (
                   <div
-                    className="mt-3 rounded-[18px] border border-sky-200 bg-sky-50 p-3"
+                    className="mt-3 rounded-lg border-[0.5px] border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] p-3"
                     data-testid="image-command-binding-panel"
                   >
                     <div className="mb-2">
-                      <div className="text-sm font-medium text-slate-800">
+                      <div className="text-sm font-medium text-[color:var(--lime-text-strong)]">
                         {t(
                           "settings.providers.setting.body.models.imageCommand.title",
                           "创建图片 @命令",
                         )}
                       </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-600">
+                      <p className="mt-1 text-xs leading-5 text-[color:var(--lime-text-muted)]">
                         {t(
                           "settings.providers.setting.body.models.imageCommand.description",
                           {
@@ -1971,7 +1969,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                               : draft,
                           )
                         }
-                        className="h-10 rounded-[14px] border-sky-200 bg-white px-3 normal-case"
+                        className="h-10 rounded-[14px] border-[color:var(--lime-info-border)] bg-[color:var(--lime-surface)] px-3 normal-case"
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
@@ -1979,7 +1977,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                       />
                       <Button
                         type="button"
-                        className="h-10 rounded-[14px] bg-slate-950 px-4 text-white hover:bg-slate-800"
+                        className="h-10 rounded-[14px] bg-[color:var(--lime-surface-muted)] px-4 text-white hover:bg-[color:var(--lime-surface-muted)]"
                         onClick={handleSaveImageCommandDraft}
                         disabled={!imageCommandDraft.trigger.trim()}
                         data-testid="image-command-save-button"
@@ -1992,7 +1990,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-10 rounded-[14px] border-slate-200 bg-white px-4"
+                        className="h-10 rounded-[14px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4"
                         onClick={() => {
                           setImageCommandDraft(null);
                         }}
@@ -2021,7 +2019,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                       "settings.providers.setting.body.models.draftPlaceholder",
                       "输入模型 ID，按 Enter 添加",
                     )}
-                    className="h-11 rounded-[16px] border-slate-200 bg-white px-4 normal-case"
+                    className="h-11 rounded-md border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 normal-case"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
@@ -2031,7 +2029,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                   <Button
                     type="button"
                     variant="secondary"
-                    className="h-11 rounded-[16px] px-4"
+                    className="h-11 rounded-md px-4"
                     onClick={() => {
                       void handleAddModelDraft();
                     }}
@@ -2055,7 +2053,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
                   void handleTestConnection();
                 }}
                 disabled={!canTestConnection}
-                className="h-12 w-full rounded-full bg-slate-950 text-sm font-semibold text-white hover:bg-slate-800"
+                className="h-12 w-full rounded-full bg-[color:var(--lime-surface-muted)] text-sm font-semibold text-white hover:bg-[color:var(--lime-surface-muted)]"
                 data-testid="provider-test-connection-button"
               >
                 {testingConnection ? (
@@ -2080,7 +2078,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               </Button>
 
               {!canTestConnection && !testingConnection ? (
-                <p className="text-center text-xs text-slate-500">
+                <p className="text-center text-xs text-[color:var(--lime-text-muted)]">
                   {modelList.length === 0
                     ? t(
                         "settings.providers.setting.body.connection.needModel",
@@ -2101,7 +2099,7 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
               {connectionStatus ? (
                 <div
                   className={cn(
-                    "flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                    "flex items-start gap-2 rounded-md border-[0.5px] px-3 py-2 text-sm",
                     buildStatusClass(connectionStatus.tone),
                   )}
                   data-testid="connection-status"

@@ -115,7 +115,7 @@ describe("Modal", () => {
 
     expect(overlay?.className).toContain("overflow-y-auto");
     expect(overlay?.className).toContain(
-      "bg-[image:var(--lime-stage-surface-soft)]",
+      "bg-[color:var(--lime-stage-surface-soft)]",
     );
     expect(overlay?.className).toContain("backdrop-blur-[2px]");
     expect(overlay?.className).not.toContain("bg-black/50");

@@ -64,6 +64,7 @@ fn existing_results_and_media_are_preserved_across_mixed_representations() {
         ),
         CurrentProviderMessage::tool(vec![CurrentProviderContent::CustomToolResult(
             CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: None,
                 call_id: "c".to_string(),
                 name: "run".to_string(),
@@ -82,6 +83,7 @@ fn orphan_outputs_are_removed_by_family_without_losing_text_or_external_search()
         CurrentProviderMessage::tool(vec![
             CurrentProviderContent::Text("keep text".to_string()),
             CurrentProviderContent::ToolResult(CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: None,
                 call_id: "orphan".to_string(),
                 name: "read_file".to_string(),

@@ -15,10 +15,8 @@ import {
 } from "../utils/harnessRequestMetadata";
 import type { WorkspaceSkillRuntimeEnableInput } from "../utils/workspaceSkillBindingsMetadata";
 import {
-  hasGenerationBriefMetadata,
   mergeGenerationBriefIntoArtifactMetadata,
   mergeRequestMetadataWithArtifact,
-  mergeSoulArtifactVoiceDiagnostics,
 } from "../utils/artifactGenerationBriefMetadata";
 import type { AgentRuntimeWorkspaceSkillBinding } from "@/lib/api/agentRuntime/toolInventoryTypes";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
@@ -437,8 +435,7 @@ interface BuildWorkspaceSendTextOptions {
 interface BuildWorkspaceRequestMetadataOptions {
   workspaceRequestMetadataBase?: Record<string, unknown>;
   sendOptions?: HandleSendOptions;
-  savedSoulArtifactVoiceGenerationBrief?: Record<string, unknown> | null;
-  soulArtifactVoiceEnabledForTurn?: boolean;
+
   currentProviderType?: string | null;
   effectiveToolPreferences: ChatToolPreferences;
   mappedTheme: ThemeType;
@@ -633,8 +630,7 @@ export function buildWorkspaceRequestMetadata(
   const {
     workspaceRequestMetadataBase,
     sendOptions,
-    savedSoulArtifactVoiceGenerationBrief,
-    soulArtifactVoiceEnabledForTurn,
+
     currentProviderType,
     effectiveToolPreferences,
     mappedTheme,
@@ -701,31 +697,11 @@ export function buildWorkspaceRequestMetadata(
     delete harnessMetadata.oemRouting;
   }
 
-  const hasExplicitGenerationBrief =
-    hasGenerationBriefMetadata(workspaceRequestMetadataBase) ||
-    hasGenerationBriefMetadata(sendOptions?.requestMetadata);
-  const shouldApplySavedSoulArtifactVoice =
-    soulArtifactVoiceEnabledForTurn !== false &&
-    !hasExplicitGenerationBrief &&
-    Boolean(savedSoulArtifactVoiceGenerationBrief);
-  const baseRequestMetadata = shouldApplySavedSoulArtifactVoice
-    ? mergeGenerationBriefIntoArtifactMetadata(
-        workspaceRequestMetadataBase,
-        savedSoulArtifactVoiceGenerationBrief,
-      )
-    : mergeGenerationBriefIntoArtifactMetadata(workspaceRequestMetadataBase);
-  const requestMetadata = mergeSoulArtifactVoiceDiagnostics(
-    mergeGenerationBriefIntoArtifactMetadata(
-      mergeRequestMetadataWithArtifact(
-        baseRequestMetadata,
-        sendOptions?.requestMetadata,
-      ),
+  const requestMetadata = mergeGenerationBriefIntoArtifactMetadata(
+    mergeRequestMetadataWithArtifact(
+      workspaceRequestMetadataBase,
+      sendOptions?.requestMetadata,
     ),
-    {
-      savedGenerationBrief: savedSoulArtifactVoiceGenerationBrief,
-      savedVoiceEnabledForTurn: soulArtifactVoiceEnabledForTurn,
-      hasExplicitGenerationBrief,
-    },
   );
 
   return {
@@ -771,20 +747,6 @@ export function buildSubmissionPreviewMessages(
       timestamp,
       inputCapabilityRoute: snapshot.inputCapabilityRoute,
     },
-    {
-      id: `submission-preview:${snapshot.key}:assistant`,
-      role: "assistant",
-      content: "",
-      timestamp: new Date(timestamp.getTime() + 1),
-      isThinking: true,
-      contentParts: [],
-      runtimeStatus: {
-        phase: "preparing",
-        title: "正在准备回复",
-        detail: "已收到请求，正在准备会话和执行环境。",
-        checkpoints: ["请求已接收", "等待会话就绪", "准备开始输出"],
-      },
-    },
   ];
 }
 
@@ -801,20 +763,6 @@ export function buildInitialDispatchPreviewMessages(
       content: normalizedPrompt,
       images: snapshot.images.length > 0 ? snapshot.images : undefined,
       timestamp,
-    },
-    {
-      id: `initial-dispatch-preview:${snapshot.key}:assistant`,
-      role: "assistant",
-      content: "任务已进入处理队列…",
-      timestamp: new Date(timestamp.getTime() + 1),
-      isThinking: true,
-      contentParts: [],
-      runtimeStatus: {
-        phase: "preparing",
-        title: "正在准备回复",
-        detail: "已收到请求，正在等待会话接管。",
-        checkpoints: ["请求已接收", "等待会话就绪", "准备开始输出"],
-      },
     },
   ];
 }

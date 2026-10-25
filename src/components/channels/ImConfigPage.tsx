@@ -1,3 +1,5 @@
+import { t } from "i18next";
+import { useTranslation } from "react-i18next";
 import {
   Suspense,
   lazy,
@@ -164,39 +166,46 @@ function normalizeChannelsConfig(
 function describeDmPolicy(policy?: string): string {
   switch ((policy || "").trim().toLowerCase()) {
     case "open":
-      return "开放模式";
+      return t("settings:settings.channels.config.open");
     case "allowlist":
-      return "白名单";
+      return t("settings:settings.channels.config.allowlist");
     case "pairing":
-      return "配对模式";
+      return t("settings:settings.channels.config.pairing");
     case "disabled":
-      return "已关闭";
+      return t("settings:settings.computerUse.status.disabled");
     default:
-      return "未设置";
+      return t("settings:settings.channels.config.unset");
   }
 }
 
 function describeTelegramScope(config: TelegramBotConfig): string {
   return config.allowed_user_ids.length === 0
-    ? "所有用户可发起"
-    : `已限制 ${config.allowed_user_ids.length} 个用户`;
+    ? t("settings:settings.channels.config.anyUser")
+    : t("settings:settings.channels.config.limitedUsers", {
+        count: config.allowed_user_ids.length,
+      });
 }
 
 function describeWechatStatus(config: WechatBotConfig): string {
   const accountCount = Object.keys(config.accounts ?? {}).length;
   if (!config.enabled) {
-    return "未启用";
+    return t("settings:settings.channels.config.notEnabled");
   }
   if (accountCount === 0) {
-    return "等待扫码";
+    return t("settings:settings.channels.config.awaitingScan");
   }
-  return `已接入 ${accountCount} 个账号`;
+  return t("settings:settings.channels.config.accountCount", {
+    count: accountCount,
+  });
 }
 
 function describeWechatAccountModel(account: {
   default_model?: string;
 }): string {
-  return account.default_model?.trim() || "跟随全局模型";
+  return (
+    account.default_model?.trim() ||
+    t("settings:settings.channels.config.globalModel")
+  );
 }
 
 function describeWechatAccountRoute(
@@ -208,9 +217,9 @@ function describeWechatAccountRoute(
   const accountBaseUrl = account.base_url?.trim();
   const normalizedFallback = fallbackBaseUrl?.trim();
   if (!accountBaseUrl || accountBaseUrl === normalizedFallback) {
-    return "沿用默认地址";
+    return t("settings:settings.channels.config.defaultAddress");
   }
-  return "自定义地址";
+  return t("settings:settings.channels.config.customAddress");
 }
 
 function normalizeConnectionMode(value?: string): "webhook" | "websocket" {
@@ -248,7 +257,7 @@ function normalizeWechatGroupPolicy(
 function maskMiddle(value: string, keep = 4): string {
   const trimmed = value.trim();
   if (trimmed.length <= keep * 2) {
-    return trimmed || "未填写";
+    return trimmed || t("settings:settings.channels.config.empty");
   }
   return `${trimmed.slice(0, keep)}...${trimmed.slice(-keep)}`;
 }
@@ -333,7 +342,7 @@ function ActionButton({
       className={cn(
         "inline-flex items-center justify-center rounded-xl px-3.5 py-2 text-sm font-medium transition",
         kind === "primary"
-          ? "border border-emerald-200 bg-[image:var(--lime-primary-gradient)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
+          ? "border border-emerald-200 bg-[color:var(--lime-primary-gradient)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
         disabled && "cursor-not-allowed opacity-50",
       )}
@@ -392,7 +401,9 @@ function FieldLabel({
     <label className="mb-1.5 block text-sm font-medium text-slate-700">
       {label}
       {optional ? (
-        <span className="ml-1 text-xs font-normal text-slate-400">可选</span>
+        <span className="ml-1 text-xs font-normal text-slate-400">
+          {t("settings:settings.channels.config.optional")}
+        </span>
       ) : null}
     </label>
   );
@@ -461,7 +472,9 @@ function SecretField({
           className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
         />
         <ActionButton onClick={() => setVisible((current) => !current)}>
-          {visible ? "隐藏" : "显示"}
+          {visible
+            ? t("settings:settings.channels.config.hide")
+            : t("settings:settings.channels.config.show")}
         </ActionButton>
       </div>
     </div>
@@ -518,7 +531,10 @@ function StringListEditor({
                   type="button"
                   onClick={() => removeValue(value)}
                   className="text-slate-400 hover:text-slate-700"
-                  aria-label={`移除 ${value}`}
+                  aria-label={t(
+                    "settings:settings.channels.config.removeValue",
+                    { value },
+                  )}
                 >
                   ×
                 </button>
@@ -539,7 +555,9 @@ function StringListEditor({
             placeholder={placeholder}
             className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
           />
-          <ActionButton onClick={() => addItems(inputValue)}>添加</ActionButton>
+          <ActionButton onClick={() => addItems(inputValue)}>
+            {t("settings:browserSiteSettings.add")}
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -584,14 +602,23 @@ function ModelSelect({
 
   return (
     <div>
-      <FieldLabel label="默认模型" optional />
+      <FieldLabel
+        label={t("settings:settings.mediaGeneration.selector.label")}
+        optional
+      />
       <select
         value={value || ""}
         onChange={(event) => onChange(event.target.value || undefined)}
         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
       >
-        <option value="">跟随全局默认</option>
-        {loading ? <option disabled>加载中...</option> : null}
+        <option value="">
+          {t("settings:settings.channels.config.globalDefault")}
+        </option>
+        {loading ? (
+          <option disabled>
+            {t("settings:settings.channels.logTail.state.loading")}
+          </option>
+        ) : null}
         {providers.map((provider) => {
           const models = provider.models ?? [];
           const { compatibleModels } = filterProviderModelsByCompatibility(
@@ -660,15 +687,21 @@ function ProbePanel({
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="text-sm font-medium text-slate-900">接入检查</div>
+          <div className="text-sm font-medium text-slate-900">
+            {t("settings:settings.channels.config.connectionCheck")}
+          </div>
           <p className="text-xs leading-5 text-slate-500">{description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton onClick={() => void onProbe()} disabled={busy}>
-            {busy ? "检测中..." : "检测连接"}
+            {busy
+              ? t("settings:settings.channels.config.checking")
+              : t("settings:settings.channels.config.checkConnection")}
           </ActionButton>
           {onOpenAdvanced ? (
-            <ActionButton onClick={onOpenAdvanced}>查看日志与检查</ActionButton>
+            <ActionButton onClick={onOpenAdvanced}>
+              {t("settings:settings.channels.config.openDiagnostics")}
+            </ActionButton>
           ) : null}
         </div>
       </div>
@@ -721,7 +754,8 @@ function QrCodePreview({ value }: { value: string }) {
   if (error) {
     return (
       <div className="flex h-[260px] items-center justify-center rounded-[24px] border border-rose-200 bg-rose-50 px-6 text-center text-sm text-rose-700">
-        二维码生成失败：{error}
+        {t("settings:settings.channels.config.qrFailed")}
+        {error}
       </div>
     );
   }
@@ -729,7 +763,7 @@ function QrCodePreview({ value }: { value: string }) {
   if (!dataUrl) {
     return (
       <div className="flex h-[260px] items-center justify-center rounded-[24px] border border-slate-200 bg-slate-50 text-sm text-slate-500">
-        正在生成二维码...
+        {t("settings:settings.channels.wechatRuntime.qr.generating")}
       </div>
     );
   }
@@ -738,7 +772,7 @@ function QrCodePreview({ value }: { value: string }) {
     <div className="rounded-[24px] border border-slate-200 bg-white p-4">
       <img
         src={dataUrl}
-        alt="微信扫码二维码"
+        alt={t("settings:settings.channels.wechatRuntime.qr.alt")}
         className="mx-auto h-[228px] w-[228px]"
       />
     </div>
@@ -834,7 +868,9 @@ function TelegramConfigDialog({
         type: result.ok ? "success" : "error",
         text:
           result.message ||
-          (result.ok ? "Telegram 连接正常" : "Telegram 连接失败"),
+          (result.ok
+            ? t("settings:settings.channels.config.telegramConnected")
+            : t("settings:settings.channels.config.telegramFailed")),
       });
     } catch (error) {
       setMessage({
@@ -850,7 +886,7 @@ function TelegramConfigDialog({
     if (draft.enabled && !draft.bot_token.trim()) {
       setMessage({
         type: "error",
-        text: "启用 Telegram 前请先填写机器人 Token",
+        text: t("settings:settings.channels.config.telegramTokenRequired"),
       });
       return;
     }
@@ -866,7 +902,7 @@ function TelegramConfigDialog({
             .map((item) => item.trim())
             .filter(Boolean),
         },
-        "Telegram 配置已保存",
+        t("settings:settings.channels.config.telegramSaved"),
       );
       onClose();
     } catch (error) {
@@ -886,31 +922,37 @@ function TelegramConfigDialog({
       maxWidth="max-w-2xl"
       className="lime-workbench-theme-scope border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]"
     >
-      <ModalHeader>Telegram 配置</ModalHeader>
+      <ModalHeader>
+        {t("settings:settings.channels.config.telegramConfig")}
+      </ModalHeader>
       <ModalBody className="space-y-5">
         <SwitchField
           checked={draft.enabled}
           onChange={(checked) =>
             setDraft((current) => ({ ...current, enabled: checked }))
           }
-          title="启用 Telegram"
-          description="机器人 Token、用户范围和接入检查都在这里。"
+          title={t("settings:settings.channels.config.telegramEnable")}
+          description={t("settings:settings.channels.config.telegramIntro")}
         />
         <SecretField
-          label="机器人 Token"
+          label={t("settings:settings.channels.config.botToken")}
           value={draft.bot_token}
           onChange={(value) =>
             setDraft((current) => ({ ...current, bot_token: value }))
           }
-          placeholder="123456:ABC-DEF..."
+          placeholder={t(
+            "settings:settings.channels.config.example.telegramToken",
+          )}
         />
         <StringListEditor
-          label="允许用户"
+          label={t("settings:settings.channels.config.allowedUsers")}
           values={draft.allowed_user_ids}
           onChange={(values) =>
             setDraft((current) => ({ ...current, allowed_user_ids: values }))
           }
-          placeholder="输入 Telegram 用户 ID"
+          placeholder={t(
+            "settings:settings.channels.config.telegramUserPlaceholder",
+          )}
         />
         <ModelSelect
           value={draft.default_model}
@@ -919,7 +961,7 @@ function TelegramConfigDialog({
           }
         />
         <ProbePanel
-          description="填好 Token 后直接检测，不通再看日志。"
+          description={t("settings:settings.channels.config.telegramCheckHint")}
           message={message}
           busy={busy}
           onProbe={handleProbe}
@@ -927,13 +969,15 @@ function TelegramConfigDialog({
         />
       </ModalBody>
       <ModalFooter>
-        <ActionButton onClick={onClose}>取消</ActionButton>
+        <ActionButton onClick={onClose}>
+          {t("settings:settings.storage.cancel")}
+        </ActionButton>
         <ActionButton
           kind="primary"
           onClick={() => void handleSave()}
           disabled={busy}
         >
-          保存
+          {t("settings:settings.channels.workbench.action.save")}
         </ActionButton>
       </ModalFooter>
     </Modal>
@@ -967,7 +1011,10 @@ function FeishuConfigDialog({
   const dmPolicy = draft.dm_policy || "open";
   const hasCredentials =
     draft.app_id.trim().length > 0 && draft.app_secret.trim().length > 0;
-  const allowListLabel = dmPolicy === "allowlist" ? "白名单用户" : "已允许用户";
+  const allowListLabel =
+    dmPolicy === "allowlist"
+      ? t("settings:settings.channels.config.allowlistUsers")
+      : t("settings:settings.channels.config.approvedUsers");
   const showAllowListEditor =
     dmPolicy === "pairing" || dmPolicy === "allowlist";
   const statusTone = hasCredentials
@@ -977,29 +1024,29 @@ function FeishuConfigDialog({
     : "warning";
   const statusText = hasCredentials
     ? draft.enabled
-      ? "已启用"
-      : "已配置"
-    : "待补充凭证";
+      ? t("settings:settings.channels.wechatRuntime.state.enabled")
+      : t("settings:settings.providers.setting.body.apiKey.configured")
+    : t("settings:settings.channels.config.credentialsNeeded");
   const policyOptions = [
     {
       value: "pairing",
-      title: "配对模式",
-      description: "仅已配对会话可用。",
+      title: t("settings:settings.channels.config.pairing"),
+      description: t("settings:settings.channels.config.pairedHint"),
     },
     {
       value: "open",
-      title: "开放模式",
-      description: "所有人可直接发起对话。",
+      title: t("settings:settings.channels.config.open"),
+      description: t("settings:settings.channels.config.openHint"),
     },
     {
       value: "allowlist",
-      title: "白名单",
-      description: "仅名单内用户可发起。",
+      title: t("settings:settings.channels.config.allowlist"),
+      description: t("settings:settings.channels.config.allowlistHint"),
     },
     {
       value: "disabled",
-      title: "关闭私聊",
-      description: "保留配置，不接收私聊。",
+      title: t("settings:settings.channels.config.disableDm"),
+      description: t("settings:settings.channels.config.disabledDmHint"),
     },
   ] as const;
 
@@ -1027,7 +1074,11 @@ function FeishuConfigDialog({
       });
       setMessage({
         type: result.ok ? "success" : "error",
-        text: result.message || (result.ok ? "飞书连接正常" : "飞书连接失败"),
+        text:
+          result.message ||
+          (result.ok
+            ? t("settings:settings.channels.config.feishuConnected")
+            : t("settings:settings.channels.config.feishuFailed")),
       });
     } catch (error) {
       setMessage({
@@ -1043,7 +1094,7 @@ function FeishuConfigDialog({
     if (draft.enabled && (!draft.app_id.trim() || !draft.app_secret.trim())) {
       setMessage({
         type: "error",
-        text: "启用飞书前请先填写应用 ID 和应用密钥",
+        text: t("settings:settings.channels.config.feishuCredentialsRequired"),
       });
       return;
     }
@@ -1071,7 +1122,7 @@ function FeishuConfigDialog({
           webhook_path: draft.webhook_path?.trim() || undefined,
           allow_from: nextAllowFrom,
         },
-        "飞书配置已保存",
+        t("settings:settings.channels.config.feishuSaved"),
       );
       onClose();
     } catch (error) {
@@ -1091,7 +1142,9 @@ function FeishuConfigDialog({
       maxWidth="max-w-2xl"
       className="lime-workbench-theme-scope border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]"
     >
-      <ModalHeader>配置飞书</ModalHeader>
+      <ModalHeader>
+        {t("settings:settings.channels.config.feishuConfig")}
+      </ModalHeader>
       <ModalBody className="space-y-4">
         <div
           className={cn(
@@ -1105,14 +1158,16 @@ function FeishuConfigDialog({
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-sm font-medium text-slate-900">
-                  配置状态
+                  {t("settings:settings.channels.config.configurationStatus")}
                 </div>
                 <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
               </div>
               <p className="text-sm leading-6 text-slate-600">
                 {hasCredentials
-                  ? "凭证已就绪，可直接检查接入。"
-                  : "先填应用 ID 和应用密钥。"}
+                  ? t("settings:settings.channels.config.credentialsReadyHint")
+                  : t(
+                      "settings:settings.channels.config.credentialsMissingHint",
+                    )}
               </p>
             </div>
             <button
@@ -1146,9 +1201,11 @@ function FeishuConfigDialog({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-slate-900">
-                    当前机器人
+                    {t("settings:settings.channels.config.currentBot")}
                   </div>
-                  <p className="text-xs text-slate-500">默认只看摘要。</p>
+                  <p className="text-xs text-slate-500">
+                    {t("settings:settings.channels.config.summaryHint")}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -1156,10 +1213,10 @@ function FeishuConfigDialog({
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   {credentialsOpen
-                    ? "收起凭证"
+                    ? t("settings:settings.channels.config.collapseCredentials")
                     : hasCredentials
-                      ? "编辑凭证"
-                      : "填写凭证"}
+                      ? t("settings:settings.channels.config.editCredentials")
+                      : t("settings:settings.channels.config.enterCredentials")}
                   {credentialsOpen ? (
                     <ChevronDown className="h-4 w-4 text-slate-500" />
                   ) : (
@@ -1170,21 +1227,28 @@ function FeishuConfigDialog({
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="grid gap-3 md:grid-cols-3">
                   <div>
-                    <div className="text-xs text-slate-500">应用 ID</div>
+                    <div className="text-xs text-slate-500">
+                      {t("settings:settings.channels.config.appId")}
+                    </div>
                     <div className="mt-1 text-sm font-medium text-slate-900">
                       {maskMiddle(draft.app_id, 5)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">应用密钥</div>
+                    <div className="text-xs text-slate-500">
+                      {t("settings:settings.channels.config.appSecret")}
+                    </div>
                     <div className="mt-1 text-sm font-medium text-slate-900">
                       {maskMiddle(draft.app_secret, 6)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">默认模型</div>
+                    <div className="text-xs text-slate-500">
+                      {t("settings:settings.mediaGeneration.selector.label")}
+                    </div>
                     <div className="mt-1 text-sm font-medium text-slate-900">
-                      {draft.default_model || "跟随全局默认"}
+                      {draft.default_model ||
+                        t("settings:settings.channels.config.globalDefault")}
                     </div>
                   </div>
                 </div>
@@ -1193,21 +1257,25 @@ function FeishuConfigDialog({
             <CollapsibleContent className="space-y-4 border-t border-slate-100 px-4 py-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField
-                  label="应用 ID"
+                  label={t("settings:settings.channels.config.appId")}
                   value={draft.app_id}
                   onChange={(value) =>
                     setDraft((current) => ({ ...current, app_id: value }))
                   }
-                  placeholder="cli_xxxx"
+                  placeholder={t(
+                    "settings:settings.channels.config.example.appId",
+                  )}
                   mono
                 />
                 <SecretField
-                  label="应用密钥"
+                  label={t("settings:settings.channels.config.appSecret")}
                   value={draft.app_secret}
                   onChange={(value) =>
                     setDraft((current) => ({ ...current, app_secret: value }))
                   }
-                  placeholder="飞书应用密钥"
+                  placeholder={t(
+                    "settings:settings.channels.config.feishuAppSecret",
+                  )}
                 />
               </div>
               <ModelSelect
@@ -1222,8 +1290,12 @@ function FeishuConfigDialog({
 
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-4">
           <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-900">准入策略</div>
-            <p className="text-xs text-slate-500">选择私聊如何进入。</p>
+            <div className="text-sm font-medium text-slate-900">
+              {t("settings:settings.channels.config.accessPolicy")}
+            </div>
+            <p className="text-xs text-slate-500">
+              {t("settings:settings.channels.config.dmPolicyHint")}
+            </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {policyOptions.map((option) => {
@@ -1248,7 +1320,7 @@ function FeishuConfigDialog({
                   className={cn(
                     "rounded-2xl border px-4 py-4 text-left transition",
                     selected
-                      ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] text-slate-800 shadow-sm shadow-emerald-950/10"
+                      ? "border-emerald-200 bg-[color:var(--lime-surface-soft)] text-slate-800 shadow-sm shadow-emerald-950/10"
                       : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white",
                   )}
                 >
@@ -1286,13 +1358,15 @@ function FeishuConfigDialog({
               onChange={(values) =>
                 setDraft((current) => ({ ...current, allow_from: values }))
               }
-              placeholder="输入 open_id / user_id"
+              placeholder={t(
+                "settings:settings.channels.config.feishuUserPlaceholder",
+              )}
             />
           ) : (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
               {dmPolicy === "open"
-                ? "开放模式下不需要名单。"
-                : "关闭后不再接收飞书私聊。"}
+                ? t("settings:settings.channels.config.openNoAllowlist")
+                : t("settings:settings.channels.config.feishuDmDisabled")}
             </div>
           )}
         </div>
@@ -1306,10 +1380,10 @@ function FeishuConfigDialog({
               >
                 <div>
                   <div className="text-sm font-medium text-slate-900">
-                    高级配置
+                    {t("settings:settings.channels.config.advancedConfig")}
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
-                    回调与兼容参数。
+                    {t("settings:settings.channels.config.callbackHint")}
                   </p>
                 </div>
                 {advancedOpen ? (
@@ -1322,7 +1396,9 @@ function FeishuConfigDialog({
             <CollapsibleContent className="space-y-4 border-t border-slate-100 px-4 py-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField
-                  label="验证 Token"
+                  label={t(
+                    "settings:settings.channels.config.verificationToken",
+                  )}
                   value={draft.verification_token || ""}
                   onChange={(value) =>
                     setDraft((current) => ({
@@ -1330,10 +1406,12 @@ function FeishuConfigDialog({
                       verification_token: value || undefined,
                     }))
                   }
-                  placeholder="事件订阅验证 Token"
+                  placeholder={t(
+                    "settings:settings.channels.config.eventVerificationToken",
+                  )}
                 />
                 <SecretField
-                  label="加密密钥"
+                  label={t("settings:settings.channels.config.encryptionKey")}
                   value={draft.encrypt_key || ""}
                   onChange={(value) =>
                     setDraft((current) => ({
@@ -1341,11 +1419,15 @@ function FeishuConfigDialog({
                       encrypt_key: value || undefined,
                     }))
                   }
-                  placeholder="事件加密密钥"
+                  placeholder={t(
+                    "settings:settings.channels.config.eventEncryptionKey",
+                  )}
                 />
               </div>
               <div>
-                <FieldLabel label="回调方式" />
+                <FieldLabel
+                  label={t("settings:settings.channels.config.connectionMode")}
+                />
                 <select
                   value={connectionMode}
                   onChange={(event) =>
@@ -1356,19 +1438,23 @@ function FeishuConfigDialog({
                   }
                   className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                 >
-                  <option value="webhook">Webhook 回调</option>
-                  <option value="websocket">WebSocket</option>
+                  <option value="webhook">
+                    {t("settings:settings.channels.config.webhook")}
+                  </option>
+                  <option value="websocket">
+                    {t("settings:settings.channels.config.example.websocket")}
+                  </option>
                 </select>
                 {connectionMode === "websocket" ? (
                   <p className="mt-2 text-xs text-amber-600">
-                    当前仍建议优先用 Webhook 回调。
+                    {t("settings:settings.channels.config.webhookRecommended")}
                   </p>
                 ) : null}
               </div>
               {connectionMode === "webhook" ? (
                 <div className="grid gap-4 md:grid-cols-3">
                   <TextField
-                    label="回调主机"
+                    label={t("settings:settings.channels.config.callbackHost")}
                     value={draft.webhook_host || ""}
                     onChange={(value) =>
                       setDraft((current) => ({
@@ -1376,10 +1462,12 @@ function FeishuConfigDialog({
                         webhook_host: value || undefined,
                       }))
                     }
-                    placeholder="127.0.0.1"
+                    placeholder={t(
+                      "settings:settings.channels.config.example.host",
+                    )}
                   />
                   <TextField
-                    label="回调端口"
+                    label={t("settings:settings.channels.config.callbackPort")}
                     value={draft.webhook_port ? String(draft.webhook_port) : ""}
                     onChange={(value) =>
                       setDraft((current) => ({
@@ -1390,11 +1478,13 @@ function FeishuConfigDialog({
                             : undefined,
                       }))
                     }
-                    placeholder="3000"
+                    placeholder={t(
+                      "settings:settings.channels.config.example.port",
+                    )}
                     type="number"
                   />
                   <TextField
-                    label="回调路径"
+                    label={t("settings:settings.channels.config.callbackPath")}
                     value={draft.webhook_path || ""}
                     onChange={(value) =>
                       setDraft((current) => ({
@@ -1402,14 +1492,18 @@ function FeishuConfigDialog({
                         webhook_path: value || undefined,
                       }))
                     }
-                    placeholder="/feishu/default"
+                    placeholder={t(
+                      "settings:settings.channels.config.example.webhookPath",
+                    )}
                     mono
                   />
                 </div>
               ) : null}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <FieldLabel label="流式返回" />
+                  <FieldLabel
+                    label={t("settings:settings.channels.config.streaming")}
+                  />
                   <select
                     value={streamingMode}
                     onChange={(event) =>
@@ -1420,13 +1514,23 @@ function FeishuConfigDialog({
                     }
                     className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                   >
-                    <option value="partial">增量返回</option>
-                    <option value="block">阻塞返回</option>
-                    <option value="off">关闭</option>
+                    <option value="partial">
+                      {t("settings:settings.channels.config.partial")}
+                    </option>
+                    <option value="block">
+                      {t("settings:settings.channels.config.block")}
+                    </option>
+                    <option value="off">
+                      {t(
+                        "settings:settings.providers.importExport.action.close",
+                      )}
+                    </option>
                   </select>
                 </div>
                 <div>
-                  <FieldLabel label="引用回复" />
+                  <FieldLabel
+                    label={t("settings:settings.channels.config.replyMode")}
+                  />
                   <select
                     value={replyToMode}
                     onChange={(event) =>
@@ -1437,9 +1541,19 @@ function FeishuConfigDialog({
                     }
                     className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                   >
-                    <option value="off">关闭</option>
-                    <option value="first">首条</option>
-                    <option value="all">全部</option>
+                    <option value="off">
+                      {t(
+                        "settings:settings.providers.importExport.action.close",
+                      )}
+                    </option>
+                    <option value="first">
+                      {t("settings:settings.channels.config.first")}
+                    </option>
+                    <option value="all">
+                      {t(
+                        "settings:settings.channels.logTail.filter.option.all",
+                      )}
+                    </option>
                   </select>
                 </div>
               </div>
@@ -1447,7 +1561,7 @@ function FeishuConfigDialog({
           </div>
         </Collapsible>
         <ProbePanel
-          description="配置后直接检测，不通再看排障。"
+          description={t("settings:settings.channels.config.checkHint")}
           message={message}
           busy={busy}
           onProbe={handleProbe}
@@ -1455,13 +1569,15 @@ function FeishuConfigDialog({
         />
       </ModalBody>
       <ModalFooter>
-        <ActionButton onClick={onClose}>取消</ActionButton>
+        <ActionButton onClick={onClose}>
+          {t("settings:settings.storage.cancel")}
+        </ActionButton>
         <ActionButton
           kind="primary"
           onClick={() => void handleSave()}
           disabled={busy}
         >
-          保存
+          {t("settings:settings.channels.workbench.action.save")}
         </ActionButton>
       </ModalFooter>
     </Modal>
@@ -1617,7 +1733,9 @@ function WechatConfigDialog({
         ...(current.accounts ?? {}),
         [nextAccountId]: {
           enabled: true,
-          name: `微信账号 ${index}`,
+          name: t("settings:settings.channels.config.wechatAccountName", {
+            index,
+          }),
         },
       },
     }));
@@ -1673,7 +1791,7 @@ function WechatConfigDialog({
       setQrValue(result.qrcodeUrl);
       setMessage({
         type: "success",
-        text: "二维码已生成，扫码后会自动等待登录结果",
+        text: t("settings:settings.channels.config.qrReady"),
       });
 
       const waitResult = await wechatChannelLoginWait({
@@ -1725,7 +1843,7 @@ function WechatConfigDialog({
         }));
         setMessage({
           type: "success",
-          text: "微信已扫码成功，可以直接保存并启用",
+          text: t("settings:settings.channels.config.wechatLoginReady"),
         });
         const accounts = await wechatChannelListAccounts();
         if (scanRequestIdRef.current === requestId) {
@@ -1734,7 +1852,9 @@ function WechatConfigDialog({
       } else {
         setMessage({
           type: "error",
-          text: waitResult.message || "未检测到扫码成功，请重新生成二维码",
+          text:
+            waitResult.message ||
+            t("settings:settings.channels.config.wechatLoginMissing"),
         });
       }
     } catch (error) {
@@ -1766,7 +1886,10 @@ function WechatConfigDialog({
       loginResult?.accountId?.trim() ||
       runtimeAccounts[0]?.accountId;
     if (!accountId) {
-      setMessage({ type: "error", text: "请先扫码或选择默认账号" });
+      setMessage({
+        type: "error",
+        text: t("settings:settings.channels.config.wechatAccountRequired"),
+      });
       return;
     }
 
@@ -1776,7 +1899,11 @@ function WechatConfigDialog({
       const result = await wechatChannelProbe({ accountId });
       setMessage({
         type: result.ok ? "success" : "error",
-        text: result.message || (result.ok ? "微信连接正常" : "微信连接失败"),
+        text:
+          result.message ||
+          (result.ok
+            ? t("settings:settings.channels.config.wechatConnected")
+            : t("settings:settings.channels.config.wechatFailed")),
       });
     } catch (error) {
       setMessage({
@@ -1829,7 +1956,10 @@ function WechatConfigDialog({
     setBusy(true);
     setMessage(null);
     try {
-      await onSave(nextConfig, "微信配置已保存");
+      await onSave(
+        nextConfig,
+        t("settings:settings.channels.config.wechatSaved"),
+      );
       const accountId =
         nextConfig.default_account?.trim() ||
         loginResult?.accountId?.trim() ||
@@ -1855,19 +1985,21 @@ function WechatConfigDialog({
       maxWidth="max-w-4xl"
       className="lime-workbench-theme-scope border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]"
     >
-      <ModalHeader>微信扫码配置</ModalHeader>
+      <ModalHeader>
+        {t("settings:settings.channels.config.wechatConfig")}
+      </ModalHeader>
       <ModalBody className="space-y-5">
         <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
           <div className="space-y-3">
             <QrCodePreview value={qrValue} />
             <div className="text-center text-xs leading-5 text-slate-500">
-              微信扫码后会自动接入。
+              {t("settings:settings.channels.config.wechatQrHint")}
             </div>
             <ActionButton
               onClick={() => void handleStartScan()}
               disabled={busy}
             >
-              重新生成二维码
+              {t("settings:settings.channels.config.regenerateQr")}
             </ActionButton>
           </div>
 
@@ -1877,33 +2009,40 @@ function WechatConfigDialog({
               onChange={(checked) =>
                 setDraft((current) => ({ ...current, enabled: checked }))
               }
-              title="启用微信"
-              description="扫码后自动回填，保存时尝试启动。"
+              title={t("settings:settings.channels.config.wechatEnable")}
+              description={t(
+                "settings:settings.channels.config.wechatSaveHint",
+              )}
             />
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-slate-900">
-                  当前账号
+                  {t("settings:settings.channels.config.currentAccount")}
                 </span>
                 <StatusBadge
                   tone={draft.default_account?.trim() ? "success" : "warning"}
                 >
-                  {draft.default_account?.trim() || "等待扫码"}
+                  {draft.default_account?.trim() ||
+                    t("settings:settings.channels.config.awaitingScan")}
                 </StatusBadge>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                扫码后自动绑定默认账号。
+                {t("settings:settings.channels.config.wechatDefaultHint")}
               </p>
             </div>
             <ProbePanel
-              description="扫码后直接检测，不通再看排障。"
+              description={t(
+                "settings:settings.channels.config.wechatCheckHint",
+              )}
               message={message}
               busy={busy}
               onProbe={handleProbe}
               onOpenAdvanced={onOpenAdvanced}
             />
             <div>
-              <FieldLabel label="私聊接入策略" />
+              <FieldLabel
+                label={t("settings:settings.channels.config.dmPolicy")}
+              />
               <select
                 value={draft.dm_policy || "pairing"}
                 onChange={(event) =>
@@ -1914,16 +2053,24 @@ function WechatConfigDialog({
                 }
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
               >
-                <option value="pairing">配对模式</option>
-                <option value="allowlist">白名单</option>
-                <option value="open">开放模式</option>
-                <option value="disabled">关闭私聊</option>
+                <option value="pairing">
+                  {t("settings:settings.channels.config.pairing")}
+                </option>
+                <option value="allowlist">
+                  {t("settings:settings.channels.config.allowlist")}
+                </option>
+                <option value="open">
+                  {t("settings:settings.channels.config.open")}
+                </option>
+                <option value="disabled">
+                  {t("settings:settings.channels.config.disableDm")}
+                </option>
               </select>
             </div>
             {runtimeAccounts.length > 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-sm font-medium text-slate-900">
-                  已接入账号
+                  {t("settings:settings.channels.config.connectedAccounts")}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {runtimeAccounts.map((account) => (
@@ -1958,10 +2105,12 @@ function WechatConfigDialog({
                   >
                     <div>
                       <div className="text-sm font-medium text-slate-900">
-                        高级参数
+                        {t(
+                          "settings:settings.channels.config.advancedParameters",
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
-                        群组、账号与兼容参数。
+                        {t("settings:settings.channels.config.accountsHint")}
                       </p>
                     </div>
                     {advancedOpen ? (
@@ -1974,7 +2123,7 @@ function WechatConfigDialog({
                 <CollapsibleContent className="space-y-4 border-t border-slate-100 px-4 py-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <TextField
-                      label="扫码用户 ID"
+                      label={t("settings:settings.channels.config.scanUserId")}
                       value={draft.scanner_user_id || ""}
                       onChange={(value) =>
                         setDraft((current) => ({
@@ -1982,11 +2131,15 @@ function WechatConfigDialog({
                           scanner_user_id: value || undefined,
                         }))
                       }
-                      placeholder="扫码绑定后的 user_id"
+                      placeholder={t(
+                        "settings:settings.channels.config.scanUserPlaceholder",
+                      )}
                       mono
                     />
                     <TextField
-                      label="默认账号 ID"
+                      label={t(
+                        "settings:settings.channels.config.defaultAccountId",
+                      )}
                       value={draft.default_account || ""}
                       onChange={(value) =>
                         setDraft((current) => ({
@@ -1994,7 +2147,9 @@ function WechatConfigDialog({
                           default_account: value,
                         }))
                       }
-                      placeholder="默认账号 ID"
+                      placeholder={t(
+                        "settings:settings.channels.config.defaultAccountId",
+                      )}
                     />
                     <ModelSelect
                       value={draft.default_model}
@@ -2006,7 +2161,11 @@ function WechatConfigDialog({
                       }
                     />
                     <div>
-                      <FieldLabel label="群组策略" />
+                      <FieldLabel
+                        label={t(
+                          "settings:settings.channels.config.groupPolicy",
+                        )}
+                      />
                       <select
                         value={groupPolicy}
                         onChange={(event) =>
@@ -2017,15 +2176,21 @@ function WechatConfigDialog({
                         }
                         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                       >
-                        <option value="allowlist">白名单</option>
-                        <option value="open">开放模式</option>
-                        <option value="disabled">已关闭</option>
+                        <option value="allowlist">
+                          {t("settings:settings.channels.config.allowlist")}
+                        </option>
+                        <option value="open">
+                          {t("settings:settings.channels.config.open")}
+                        </option>
+                        <option value="disabled">
+                          {t("settings:settings.computerUse.status.disabled")}
+                        </option>
                       </select>
                     </div>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <TextField
-                      label="服务地址"
+                      label={t("settings:settings.channels.config.serviceUrl")}
                       value={draft.base_url}
                       onChange={(value) =>
                         setDraft((current) => ({ ...current, base_url: value }))
@@ -2034,7 +2199,7 @@ function WechatConfigDialog({
                       mono
                     />
                     <TextField
-                      label="资源地址"
+                      label={t("settings:settings.channels.config.resourceUrl")}
                       value={draft.cdn_base_url}
                       onChange={(value) =>
                         setDraft((current) => ({
@@ -2048,7 +2213,9 @@ function WechatConfigDialog({
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <FieldLabel label="流式返回" />
+                      <FieldLabel
+                        label={t("settings:settings.channels.config.streaming")}
+                      />
                       <select
                         value={streamingMode}
                         onChange={(event) =>
@@ -2059,13 +2226,23 @@ function WechatConfigDialog({
                         }
                         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                       >
-                        <option value="off">关闭</option>
-                        <option value="partial">增量返回</option>
-                        <option value="block">阻塞返回</option>
+                        <option value="off">
+                          {t(
+                            "settings:settings.providers.importExport.action.close",
+                          )}
+                        </option>
+                        <option value="partial">
+                          {t("settings:settings.channels.config.partial")}
+                        </option>
+                        <option value="block">
+                          {t("settings:settings.channels.config.block")}
+                        </option>
                       </select>
                     </div>
                     <div>
-                      <FieldLabel label="引用回复" />
+                      <FieldLabel
+                        label={t("settings:settings.channels.config.replyMode")}
+                      />
                       <select
                         value={replyToMode}
                         onChange={(event) =>
@@ -2076,14 +2253,24 @@ function WechatConfigDialog({
                         }
                         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                       >
-                        <option value="off">关闭</option>
-                        <option value="first">首条</option>
-                        <option value="all">全部</option>
+                        <option value="off">
+                          {t(
+                            "settings:settings.providers.importExport.action.close",
+                          )}
+                        </option>
+                        <option value="first">
+                          {t("settings:settings.channels.config.first")}
+                        </option>
+                        <option value="all">
+                          {t(
+                            "settings:settings.channels.logTail.filter.option.all",
+                          )}
+                        </option>
                       </select>
                     </div>
                   </div>
                   <StringListEditor
-                    label="已允许用户"
+                    label={t("settings:settings.channels.config.approvedUsers")}
                     values={draft.allow_from ?? []}
                     onChange={(values) =>
                       setDraft((current) => ({
@@ -2091,10 +2278,14 @@ function WechatConfigDialog({
                         allow_from: values,
                       }))
                     }
-                    placeholder="输入用户 ID 或 *"
+                    placeholder={t(
+                      "settings:settings.channels.config.userPlaceholder",
+                    )}
                   />
                   <StringListEditor
-                    label="群组允许用户"
+                    label={t(
+                      "settings:settings.channels.config.groupAllowedUsers",
+                    )}
                     values={draft.group_allow_from ?? []}
                     onChange={(values) =>
                       setDraft((current) => ({
@@ -2102,7 +2293,9 @@ function WechatConfigDialog({
                         group_allow_from: values,
                       }))
                     }
-                    placeholder="输入用户 ID 或 *"
+                    placeholder={t(
+                      "settings:settings.channels.config.userPlaceholder",
+                    )}
                   />
                   <Collapsible
                     open={accountsOpen}
@@ -2113,7 +2306,9 @@ function WechatConfigDialog({
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-sm font-medium text-slate-900">
-                              账号参数
+                              {t(
+                                "settings:settings.channels.config.accountParameters",
+                              )}
                             </div>
                             <StatusBadge
                               tone={
@@ -2121,22 +2316,34 @@ function WechatConfigDialog({
                               }
                             >
                               {accountIds.length > 0
-                                ? `${accountIds.length} 个账号`
-                                : "暂无账号"}
+                                ? t(
+                                    "settings:settings.channels.config.accountsCount",
+                                    { count: accountIds.length },
+                                  )
+                                : t(
+                                    "settings:settings.channels.config.noAccounts",
+                                  )}
                             </StatusBadge>
                             {draft.default_account?.trim() ? (
                               <StatusBadge tone="neutral">
-                                {`默认 ${draft.default_account.trim()}`}
+                                {t(
+                                  "settings:settings.channels.config.defaultAccountValue",
+                                  { account: draft.default_account.trim() },
+                                )}
                               </StatusBadge>
                             ) : null}
                           </div>
                           <p className="text-xs text-slate-500">
-                            扫码账号会自动进来，按需展开编辑。
+                            {t(
+                              "settings:settings.channels.config.autoAccountHint",
+                            )}
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <ActionButton onClick={addAccountDraft}>
-                            新增账号草稿
+                            {t(
+                              "settings:settings.channels.config.addAccountDraft",
+                            )}
                           </ActionButton>
                           <button
                             type="button"
@@ -2145,7 +2352,13 @@ function WechatConfigDialog({
                             }
                             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                           >
-                            {accountsOpen ? "收起账号" : "展开账号"}
+                            {accountsOpen
+                              ? t(
+                                  "settings:settings.channels.config.collapseAccounts",
+                                )
+                              : t(
+                                  "settings:settings.channels.config.expandAccounts",
+                                )}
                             {accountsOpen ? (
                               <ChevronDown className="h-4 w-4 text-slate-500" />
                             ) : (
@@ -2188,13 +2401,17 @@ function WechatConfigDialog({
                                         <div className="text-xs text-slate-500">
                                           {account.name?.trim()
                                             ? accountId
-                                            : "未命名账号"}
+                                            : t(
+                                                "settings:settings.channels.config.unnamedAccount",
+                                              )}
                                         </div>
                                       </div>
                                       <div className="flex flex-wrap items-center gap-2">
                                         {draft.default_account === accountId ? (
                                           <StatusBadge tone="success">
-                                            默认账号
+                                            {t(
+                                              "settings:settings.channels.config.defaultAccount",
+                                            )}
                                           </StatusBadge>
                                         ) : null}
                                         <StatusBadge
@@ -2205,18 +2422,26 @@ function WechatConfigDialog({
                                           }
                                         >
                                           {account.enabled !== false
-                                            ? "已启用"
-                                            : "已停用"}
+                                            ? t(
+                                                "settings:settings.channels.wechatRuntime.state.enabled",
+                                              )
+                                            : t(
+                                                "settings:settings.channels.config.disabled",
+                                              )}
                                         </StatusBadge>
                                       </div>
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
                                       <span>
-                                        模型：
+                                        {t(
+                                          "settings:settings.channels.config.modelPrefix",
+                                        )}
                                         {describeWechatAccountModel(account)}
                                       </span>
                                       <span>
-                                        地址：
+                                        {t(
+                                          "settings:settings.channels.config.addressPrefix",
+                                        )}
                                         {describeWechatAccountRoute(
                                           account,
                                           draft.base_url ||
@@ -2238,7 +2463,9 @@ function WechatConfigDialog({
                                     <div className="space-y-1">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <div className="text-sm font-medium text-slate-900">
-                                          编辑账号详情
+                                          {t(
+                                            "settings:settings.channels.config.editAccount",
+                                          )}
                                         </div>
                                         <StatusBadge
                                           tone={
@@ -2253,7 +2480,9 @@ function WechatConfigDialog({
                                         </StatusBadge>
                                       </div>
                                       <p className="text-xs text-slate-500">
-                                        按需补模型、地址或扫码用户 ID。
+                                        {t(
+                                          "settings:settings.channels.config.accountDetailsHint",
+                                        )}
                                       </p>
                                     </div>
                                     <button
@@ -2266,8 +2495,12 @@ function WechatConfigDialog({
                                       className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                                     >
                                       {accountEditorOpen
-                                        ? "收起详情"
-                                        : "展开详情"}
+                                        ? t(
+                                            "settings:settings.channels.config.collapseDetails",
+                                          )
+                                        : t(
+                                            "settings:settings.channels.config.expandDetails",
+                                          )}
                                       {accountEditorOpen ? (
                                         <ChevronDown className="h-4 w-4 text-slate-500" />
                                       ) : (
@@ -2279,7 +2512,9 @@ function WechatConfigDialog({
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                       <div className="flex flex-wrap items-center gap-3">
                                         <div className="text-sm font-medium text-slate-900">
-                                          当前账号
+                                          {t(
+                                            "settings:settings.channels.config.currentAccount",
+                                          )}
                                         </div>
                                         <StatusBadge
                                           tone={
@@ -2291,8 +2526,12 @@ function WechatConfigDialog({
                                         >
                                           {draft.default_account ===
                                           activeAccountId
-                                            ? "默认账号"
-                                            : "账号草稿"}
+                                            ? t(
+                                                "settings:settings.channels.config.defaultAccount",
+                                              )
+                                            : t(
+                                                "settings:settings.channels.config.accountDraft",
+                                              )}
                                         </StatusBadge>
                                       </div>
                                       <div className="flex flex-wrap gap-2">
@@ -2304,14 +2543,18 @@ function WechatConfigDialog({
                                             }))
                                           }
                                         >
-                                          设为默认
+                                          {t(
+                                            "settings:settings.voice.model.action.setDefault",
+                                          )}
                                         </ActionButton>
                                         <ActionButton
                                           onClick={() =>
                                             removeAccountDraft(activeAccountId)
                                           }
                                         >
-                                          删除
+                                          {t(
+                                            "settings:settings.archivedConversations.action.delete",
+                                          )}
                                         </ActionButton>
                                       </div>
                                     </div>
@@ -2326,12 +2569,18 @@ function WechatConfigDialog({
                                           }),
                                         )
                                       }
-                                      title="启用该账号"
-                                      description="关闭后保留参数，但不参与运行。"
+                                      title={t(
+                                        "settings:settings.channels.config.enableAccount",
+                                      )}
+                                      description={t(
+                                        "settings:settings.channels.config.disableAccountHint",
+                                      )}
                                     />
                                     <div className="grid gap-4 md:grid-cols-2">
                                       <TextField
-                                        label="账号名称"
+                                        label={t(
+                                          "settings:settings.channels.config.accountName",
+                                        )}
                                         value={activeAccount.name || ""}
                                         onChange={(value) =>
                                           patchAccount(
@@ -2342,7 +2591,9 @@ function WechatConfigDialog({
                                             }),
                                           )
                                         }
-                                        placeholder="主微信 / 运营号"
+                                        placeholder={t(
+                                          "settings:settings.channels.config.accountNamePlaceholder",
+                                        )}
                                       />
                                       <ModelSelect
                                         value={activeAccount.default_model}
@@ -2359,7 +2610,9 @@ function WechatConfigDialog({
                                     </div>
                                     <div className="grid gap-4 md:grid-cols-2">
                                       <TextField
-                                        label="账号服务地址"
+                                        label={t(
+                                          "settings:settings.channels.config.accountServiceUrl",
+                                        )}
                                         value={activeAccount.base_url || ""}
                                         onChange={(value) =>
                                           patchAccount(
@@ -2374,7 +2627,9 @@ function WechatConfigDialog({
                                         mono
                                       />
                                       <TextField
-                                        label="账号资源地址"
+                                        label={t(
+                                          "settings:settings.channels.config.accountResourceUrl",
+                                        )}
                                         value={activeAccount.cdn_base_url || ""}
                                         onChange={(value) =>
                                           patchAccount(
@@ -2392,7 +2647,9 @@ function WechatConfigDialog({
                                       />
                                     </div>
                                     <SecretField
-                                      label="账号机器人 Token"
+                                      label={t(
+                                        "settings:settings.channels.config.accountBotToken",
+                                      )}
                                       value={activeAccount.bot_token || ""}
                                       onChange={(value) =>
                                         patchAccount(
@@ -2403,10 +2660,14 @@ function WechatConfigDialog({
                                           }),
                                         )
                                       }
-                                      placeholder="扫码成功后回填的 token"
+                                      placeholder={t(
+                                        "settings:settings.channels.config.scannedToken",
+                                      )}
                                     />
                                     <TextField
-                                      label="账号扫码用户 ID"
+                                      label={t(
+                                        "settings:settings.channels.config.accountScanUserId",
+                                      )}
                                       value={
                                         activeAccount.scanner_user_id || ""
                                       }
@@ -2419,7 +2680,9 @@ function WechatConfigDialog({
                                           }),
                                         )
                                       }
-                                      placeholder="扫码后的微信 user_id"
+                                      placeholder={t(
+                                        "settings:settings.channels.config.wechatUserId",
+                                      )}
                                       mono
                                     />
                                   </CollapsibleContent>
@@ -2429,7 +2692,9 @@ function WechatConfigDialog({
                           </>
                         ) : (
                           <div className="text-xs text-slate-500">
-                            还没有账号。可先扫码或手工新增。
+                            {t(
+                              "settings:settings.channels.config.noAccountsHint",
+                            )}
                           </div>
                         )}
                       </CollapsibleContent>
@@ -2442,13 +2707,15 @@ function WechatConfigDialog({
         </div>
       </ModalBody>
       <ModalFooter>
-        <ActionButton onClick={onClose}>取消</ActionButton>
+        <ActionButton onClick={onClose}>
+          {t("settings:settings.storage.cancel")}
+        </ActionButton>
         <ActionButton
           kind="primary"
           onClick={() => void handleSave()}
           disabled={busy}
         >
-          保存并启用
+          {t("settings:settings.channels.config.saveEnable")}
         </ActionButton>
       </ModalFooter>
     </Modal>
@@ -2456,6 +2723,7 @@ function WechatConfigDialog({
 }
 
 export function ImConfigPage() {
+  useTranslation("settings");
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<FlashMessage>(null);
@@ -2536,7 +2804,7 @@ export function ImConfigPage() {
         data-testid="im-config-page"
         className="lime-workbench-theme-scope mx-auto flex w-full max-w-[1260px] flex-col gap-6 pb-10"
       >
-        <div className="h-36 animate-pulse rounded-[30px] border border-slate-200 bg-[image:var(--lime-card-subtle)]" />
+        <div className="h-36 animate-pulse rounded-[30px] border border-slate-200 bg-[color:var(--lime-card-subtle)]" />
         <div className="grid gap-5 lg:grid-cols-3">
           <div className="h-[280px] animate-pulse rounded-[28px] border border-slate-200 bg-white" />
           <div className="h-[280px] animate-pulse rounded-[28px] border border-slate-200 bg-white" />
@@ -2549,42 +2817,49 @@ export function ImConfigPage() {
   return (
     <>
       <div className="lime-workbench-theme-scope mx-auto flex w-full max-w-[1260px] flex-col gap-6 pb-10">
-        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[image:var(--lime-card-subtle)] px-7 py-7 shadow-sm shadow-slate-950/5">
+        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[color:var(--lime-card-subtle)] px-7 py-7 shadow-sm shadow-slate-950/5">
           <div className="max-w-3xl space-y-4">
             <div className="max-w-2xl space-y-3">
               <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
                 <Sparkles className="h-3.5 w-3.5" />
-                系统入口
+                {t("settings:settings.channels.config.systemEntry")}
               </span>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                    消息渠道
+                    {t("settings:settings.channels.config.channels")}
                   </h1>
                   <WorkbenchInfoTip
-                    ariaLabel="消息渠道说明"
-                    content="把 Telegram、飞书、微信接进 Lime，让消息接收、回复和结果投递继续留在熟悉客户端；接入检查放在各自配置里，日志和运行检查按需展开。"
+                    ariaLabel={t(
+                      "settings:settings.channels.config.channelsInfo",
+                    )}
+                    content={t(
+                      "settings:settings.channels.config.channelsIntroFull",
+                    )}
                     tone="mint"
                   />
                 </div>
                 <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                  把外部消息接进
-                  Lime，让消息接收、回复和结果投递继续留在熟悉客户端。
+                  {t("settings:settings.channels.config.channelsIntro")}
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-                3 个常用渠道
+                {t("settings:settings.channels.config.channelCount")}
               </span>
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-                已启用 {enabledChannelCount} 个
+                {t("settings:settings.channels.config.enabledCount", {
+                  count: enabledChannelCount,
+                })}
               </span>
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-                微信 {wechatAccountCount} 个账号
+                {t("settings:settings.channels.config.wechatAccountCount", {
+                  count: wechatAccountCount,
+                })}
               </span>
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-                日志与检查可展开
+                {t("settings:settings.channels.config.diagnosticsHint")}
               </span>
             </div>
           </div>
@@ -2595,17 +2870,23 @@ export function ImConfigPage() {
         <div className="grid gap-5 lg:grid-cols-3">
           <ChannelCard
             icon={<Send className="h-5 w-5" />}
-            title="Telegram"
-            subtitle="Token 接入"
-            status={channels.telegram.enabled ? "已启用" : "未启用"}
+            title={t("settings:settings.channels.config.example.telegram")}
+            subtitle={t("settings:settings.channels.config.tokenSetup")}
+            status={
+              channels.telegram.enabled
+                ? t("settings:settings.channels.wechatRuntime.state.enabled")
+                : t("settings:settings.channels.config.notEnabled")
+            }
             statusTone={channels.telegram.enabled ? "success" : "neutral"}
             details={[
               {
-                label: "机器人 Token",
-                value: channels.telegram.bot_token.trim() ? "已填写" : "未填写",
+                label: t("settings:settings.channels.config.botToken"),
+                value: channels.telegram.bot_token.trim()
+                  ? t("settings:settings.channels.config.filled")
+                  : t("settings:settings.channels.config.empty"),
               },
               {
-                label: "接入范围",
+                label: t("settings:settings.channels.config.accessScope"),
                 value: describeTelegramScope(channels.telegram),
               },
             ]}
@@ -2614,10 +2895,12 @@ export function ImConfigPage() {
                 <ActionButton
                   kind="primary"
                   onClick={() => setActiveDialog("telegram")}
-                  ariaLabel="打开 Telegram 配置"
+                  ariaLabel={t(
+                    "settings:settings.channels.config.openTelegram",
+                  )}
                   dataTestId="telegram-config-button"
                 >
-                  配置
+                  {t("settings:settings.configuration.title")}
                 </ActionButton>
               </>
             }
@@ -2625,17 +2908,21 @@ export function ImConfigPage() {
 
           <ChannelCard
             icon={<Bot className="h-5 w-5" />}
-            title="飞书"
-            subtitle="应用凭证与准入"
-            status={channels.feishu.enabled ? "已启用" : "未启用"}
+            title={t("settings:settings.channels.workbench.runtime.tab.feishu")}
+            subtitle={t("settings:settings.channels.config.appCredentials")}
+            status={
+              channels.feishu.enabled
+                ? t("settings:settings.channels.wechatRuntime.state.enabled")
+                : t("settings:settings.channels.config.notEnabled")
+            }
             statusTone={channels.feishu.enabled ? "success" : "neutral"}
             details={[
               {
-                label: "应用 ID",
+                label: t("settings:settings.channels.config.appId"),
                 value: maskMiddle(channels.feishu.app_id, 5),
               },
               {
-                label: "准入策略",
+                label: t("settings:settings.channels.config.accessPolicy"),
                 value: describeDmPolicy(channels.feishu.dm_policy),
               },
             ]}
@@ -2644,10 +2931,10 @@ export function ImConfigPage() {
                 <ActionButton
                   kind="primary"
                   onClick={() => setActiveDialog("feishu")}
-                  ariaLabel="打开飞书配置"
+                  ariaLabel={t("settings:settings.channels.config.openFeishu")}
                   dataTestId="feishu-config-button"
                 >
-                  配置
+                  {t("settings:settings.configuration.title")}
                 </ActionButton>
               </>
             }
@@ -2655,8 +2942,8 @@ export function ImConfigPage() {
 
           <ChannelCard
             icon={<ScanQrCode className="h-5 w-5" />}
-            title="微信"
-            subtitle="扫码接入与账号"
+            title={t("settings:settings.channels.workbench.runtime.tab.wechat")}
+            subtitle={t("settings:settings.channels.config.qrSetup")}
             status={describeWechatStatus(channels.wechat)}
             statusTone={
               channels.wechat.enabled
@@ -2667,11 +2954,13 @@ export function ImConfigPage() {
             }
             details={[
               {
-                label: "默认账号",
-                value: channels.wechat.default_account || "未设置",
+                label: t("settings:settings.channels.config.defaultAccount"),
+                value:
+                  channels.wechat.default_account ||
+                  t("settings:settings.channels.config.unset"),
               },
               {
-                label: "私聊策略",
+                label: t("settings:settings.channels.config.dmAccess"),
                 value: describeDmPolicy(channels.wechat.dm_policy),
               },
             ]}
@@ -2680,10 +2969,10 @@ export function ImConfigPage() {
                 <ActionButton
                   kind="primary"
                   onClick={() => setActiveDialog("wechat")}
-                  ariaLabel="打开微信扫码配置"
+                  ariaLabel={t("settings:settings.channels.config.openWechat")}
                   dataTestId="wechat-config-button"
                 >
-                  配置
+                  {t("settings:settings.configuration.title")}
                 </ActionButton>
               </>
             }
@@ -2694,10 +2983,14 @@ export function ImConfigPage() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-700">
-                <span>即将开放</span>
+                <span>{t("settings:settings.channels.config.comingSoon")}</span>
                 <WorkbenchInfoTip
-                  ariaLabel="即将开放渠道说明"
-                  content="这些渠道先保留同级占位，灰态展示，不开放点击。"
+                  ariaLabel={t(
+                    "settings:settings.channels.config.comingSoonInfo",
+                  )}
+                  content={t(
+                    "settings:settings.channels.config.comingSoonHint",
+                  )}
                   tone="slate"
                 />
               </div>
@@ -2708,9 +3001,9 @@ export function ImConfigPage() {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500"
               >
                 <MessageSquare className="h-3.5 w-3.5" />
-                Discord
+                {t("settings:settings.channels.config.example.discord")}
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">
-                  即将开放
+                  {t("settings:settings.channels.config.comingSoon")}
                 </span>
               </div>
               <div
@@ -2718,9 +3011,9 @@ export function ImConfigPage() {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500"
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
-                钉钉
+                {t("settings:settings.channels.config.dingtalk")}
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">
-                  即将开放
+                  {t("settings:settings.channels.config.comingSoon")}
                 </span>
               </div>
             </div>
@@ -2740,7 +3033,7 @@ export function ImConfigPage() {
                 >
                   <div className="space-y-1">
                     <div className="text-lg font-semibold tracking-tight text-slate-900">
-                      日志与检查
+                      {t("settings:settings.channels.workbench.title")}
                     </div>
                   </div>
                   {debugToolsOpen ? (
@@ -2751,8 +3044,12 @@ export function ImConfigPage() {
                 </button>
               </CollapsibleTrigger>
               <WorkbenchInfoTip
-                ariaLabel="日志与检查说明"
-                content="接入日志和运行检查都在这里，平时不用一直展开。"
+                ariaLabel={t(
+                  "settings:settings.channels.config.diagnosticsInfo",
+                )}
+                content={t(
+                  "settings:settings.channels.config.diagnosticsIntro",
+                )}
                 tone="slate"
               />
             </div>
@@ -2760,7 +3057,7 @@ export function ImConfigPage() {
               <Suspense
                 fallback={
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
-                    正在加载日志与检查...
+                    {t("settings:settings.channels.config.loadingDiagnostics")}
                   </div>
                 }
               >

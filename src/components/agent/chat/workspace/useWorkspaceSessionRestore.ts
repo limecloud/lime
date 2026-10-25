@@ -80,7 +80,7 @@ export function useWorkspaceSessionRestore({
       return;
     }
 
-    console.log("[AgentChatPage] 恢复会话元数据:", sessionId, sessionMeta);
+    console.log("[LocalConversationPage] 恢复会话元数据:", sessionId, sessionMeta);
 
     if (sessionMeta.theme && (!lockTheme || !initialTheme)) {
       const entryIsGeneral = !initialTheme || initialTheme === "general";
@@ -89,17 +89,17 @@ export function useWorkspaceSessionRestore({
       );
       if (entryIsGeneral && restoredIsSpecializedTheme) {
         console.log(
-          "[AgentChatPage] 通用对话入口，跳过恢复内容工作区主题:",
+          "[LocalConversationPage] 通用对话入口，跳过恢复内容工作区主题:",
           sessionMeta.theme,
         );
       } else {
-        console.log("[AgentChatPage] 恢复主题:", sessionMeta.theme);
+        console.log("[LocalConversationPage] 恢复主题:", sessionMeta.theme);
         setActiveTheme(normalizeInitialTheme(sessionMeta.theme));
       }
     }
 
     if (sessionMeta.creationMode) {
-      console.log("[AgentChatPage] 恢复创建模式:", sessionMeta.creationMode);
+      console.log("[LocalConversationPage] 恢复创建模式:", sessionMeta.creationMode);
       setCreationMode(sessionMeta.creationMode as CreationMode);
     }
 
@@ -130,7 +130,7 @@ export function useWorkspaceSessionRestore({
     const restoredFiles = buildSessionTaskFilePlaceholders(sessionFiles);
     if (restoredFiles.length > 0) {
       console.log(
-        "[AgentChatPage] 从持久化存储恢复文件清单:",
+        "[LocalConversationPage] 从持久化存储恢复文件清单:",
         sessionId,
         restoredFiles.length,
         "个文件",

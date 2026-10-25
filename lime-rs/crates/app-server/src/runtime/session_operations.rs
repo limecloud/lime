@@ -542,6 +542,7 @@ fn apply_session_metadata_mutation(
         .ok_or_else(|| "thread metadata must be a JSON object".to_string())?;
     let result = match mutation {
         SessionMetadataMutation::ShellEnvironmentPolicy { policy, overrides } => {
+            let previous = metadata.clone();
             let mut config = metadata
                 .get("config")
                 .and_then(Value::as_object)
@@ -559,6 +560,11 @@ fn apply_session_metadata_mutation(
                 "shellEnvironmentPolicy".into(),
                 serde_json::to_value(policy).map_err(|error| error.to_string())?,
             );
+            if metadata == previous {
+                return Ok(SessionMetadataMutationResult::ShellEnvironmentPolicy(
+                    Value::Object(metadata),
+                ));
+            }
             SessionMetadataMutationResult::ShellEnvironmentPolicy(Value::Object(metadata.clone()))
         }
         SessionMetadataMutation::ThreadSettings {

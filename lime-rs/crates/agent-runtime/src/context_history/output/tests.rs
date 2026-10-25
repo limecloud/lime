@@ -1,6 +1,40 @@
 use super::*;
 
 #[test]
+fn typed_tool_images_survive_zero_text_budget_without_mutating_durable_history() {
+    use agent_protocol::response_item::FunctionCallOutputContentItem;
+    use model_provider::current_client::CurrentProviderToolResult;
+    let image = FunctionCallOutputContentItem::InputImage {
+        image_url: "data:image/png;base64,AA==".into(),
+        detail: None,
+    };
+    let original = CurrentProviderContent::ToolResult(CurrentProviderToolResult {
+        content_items: vec![
+            FunctionCallOutputContentItem::InputText {
+                text: "original observation".into(),
+            },
+            image.clone(),
+        ],
+        history_token_limit: Some(0),
+        call_id: "image".into(),
+        name: "computer_use".into(),
+        success: false,
+        output: "original observation".into(),
+        error: Some("window disappeared".into()),
+    });
+    let snapshot = original.clone();
+    let CurrentProviderContent::ToolResult(result) =
+        for_prompt(&original, TruncationPolicy::Tokens(10))
+    else {
+        panic!("result")
+    };
+    assert_eq!(result.content_items, vec![image]);
+    assert_eq!(result.error.as_deref(), Some("window disappeared"));
+    assert!(!result.output.contains("base64"));
+    assert_eq!(original, snapshot);
+}
+
+#[test]
 fn structured_outputs_share_text_budget_and_keep_media_order_and_opaque_fields() {
     let original = CurrentProviderContent::RawResponseItem(json!({
         "type":"function_call_output","name":"external_event","success":false,

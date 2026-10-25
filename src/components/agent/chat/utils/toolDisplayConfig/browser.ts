@@ -6,6 +6,68 @@ export const BROWSER_TOOL_MATCHERS: Array<{
   config: ToolDisplayConfig;
 }> = [
   {
+    match: (name) => name === "browserobserve",
+    config: {
+      family: "browser",
+      label: "查看页面",
+      labelKey: "toolCall.browser.observe",
+      verb: "查看",
+      icon: Globe,
+      groupTitle: "浏览器",
+      actionKey: "browser",
+      actions: {
+        failed: "查看失败",
+        completed: "已查看",
+        running: "正在查看",
+      },
+      actionKeys: {
+        failed: "toolCall.browser.observeFailed",
+        completed: "toolCall.browser.observed",
+        running: "toolCall.browser.observing",
+      },
+    },
+  },
+  {
+    match: (name) => name === "browsermarkdeliverable",
+    config: {
+      family: "browser",
+      label: "保留页面",
+      labelKey: "toolCall.browser.retain",
+      verb: "操作",
+      icon: Globe,
+      groupTitle: "浏览器",
+      actionKey: "browser",
+      actions: {
+        failed: "保留失败",
+        completed: "已保留",
+        running: "正在保留",
+      },
+      actionKeys: {
+        failed: "toolCall.browser.retainFailed",
+        completed: "toolCall.browser.retained",
+        running: "toolCall.browser.retaining",
+      },
+    },
+  },
+  {
+    match: (name) => name === "newtab" || name === "browsernewtab",
+    config: {
+      family: "browser",
+      label: "页面打开",
+      labelKey: "toolCall.browser.open",
+      verb: "打开",
+      icon: Globe,
+      groupTitle: "浏览器",
+      actionKey: "browser",
+      actions: { failed: "打开失败", completed: "已打开", running: "打开中" },
+      actionKeys: {
+        failed: "toolCall.browser.failed",
+        completed: "toolCall.browser.opened",
+        running: "toolCall.browser.opening",
+      },
+    },
+  },
+  {
     match: (name) => name === "open",
     config: {
       family: "browser",

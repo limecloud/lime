@@ -54,7 +54,7 @@ Agent / GUI 主链实现前，在执行计划填写 [Agent Verification Contract
 
 GUI 对齐范围及用户明确保留差异以 [design-language.md](design-language.md) 为准。公开 Rust 源码决定共享协议和 runtime 语义；Desktop 布局与模块结构由指定安装包的 REA Evidence 或已获准的运行观察证明。记录版本、摘要、Evidence ID 和覆盖限制，不能把压缩局部符号当成原始名称，不能把静态分析写成运行证据。
 
-每个切片的账本至少包含上游模块/可确认符号、Lime current owner、行为合同、调用者、删除项和验证。检查结构、函数、类型、类与命名迁移，以及视觉主题、多模型、专家广场和消息渠道是否继续走既有 owner；同名文件数和视觉相似度不证明全面对齐。
+每个切片的账本至少包含上游模块/可确认符号、Lime current owner、行为合同、调用者、删除项和验证。检查结构、函数、类型、类与命名迁移，以及多模型、专家广场和消息渠道是否继续走既有 owner；同名文件数和视觉相似度不证明全面对齐。
 
 直接替换时同步迁移或删除旧代码、文档、测试、snapshot、fixture、扫描规则与白名单：
 

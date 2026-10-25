@@ -3,7 +3,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalTab } from "./TerminalTab";
 import { LIME_THEME_CHANGED_EVENT } from "@/lib/appearance/themeMode";
-import { LIME_COLOR_SCHEME_CHANGED_EVENT } from "@/lib/appearance/colorSchemes";
 
 const api = vi.hoisted(() => ({
   exec: vi.fn(),
@@ -260,10 +259,7 @@ describe("TerminalTab / TerminalPanel current process lifecycle", () => {
     const computed = vi.spyOn(window, "getComputedStyle").mockReturnValue({
       getPropertyValue: (key: string) => colors[key] ?? "",
     } as CSSStyleDeclaration);
-    for (const event of [
-      LIME_THEME_CHANGED_EVENT,
-      LIME_COLOR_SCHEME_CHANGED_EVENT,
-    ]) {
+    for (const event of [LIME_THEME_CHANGED_EVENT]) {
       await act(async () => window.dispatchEvent(new Event(event)));
       expect(terminal.options.theme).toMatchObject({
         background: "#121212",

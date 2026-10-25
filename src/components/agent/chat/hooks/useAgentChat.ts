@@ -32,7 +32,7 @@ import {
 import { useAgentTopicSnapshot } from "./useAgentTopicSnapshot";
 import { useAgentSessionThreadGoal } from "./useAgentSessionThreadGoal";
 import { hasActiveThreadReadActivity } from "../projection/threadReadActivity";
-import { resolveClawWorkspaceProviderSelection } from "../utils/clawWorkspaceProviderSelection";
+import { resolveConversationProviderSelection } from "../utils/conversationProviderSelection";
 import {
   applyGeneratedAutoTitleToTopics,
   buildAutoTitleConversationText,
@@ -78,7 +78,7 @@ export function useAgentChat(options: UseAgentChatRuntimeOptions) {
     getSyncedSessionRecentPreferences,
     onOpenSubagents,
     onRestoreInterruptedInput,
-    soulCopy,
+
     runtimeAdapter,
     preserveRestoredMessages = false,
   } = options;
@@ -219,7 +219,7 @@ export function useAgentChat(options: UseAgentChatRuntimeOptions) {
         !currentProviderMatchesRuntime
       ) {
         try {
-          const retainedSelection = await resolveClawWorkspaceProviderSelection(
+          const retainedSelection = await resolveConversationProviderSelection(
             {
               currentProviderType,
               currentModel,
@@ -250,7 +250,7 @@ export function useAgentChat(options: UseAgentChatRuntimeOptions) {
         (!hasPersistedWorkspacePreference || !currentProviderMatchesRuntime)
       ) {
         try {
-          const runtimeSelection = await resolveClawWorkspaceProviderSelection({
+          const runtimeSelection = await resolveConversationProviderSelection({
             currentProviderType: usableRuntimeProviderType,
             currentModel: usableRuntimeModel,
             theme: "general",
@@ -299,7 +299,7 @@ export function useAgentChat(options: UseAgentChatRuntimeOptions) {
             ? { allowProviderFallback: false }
             : {}),
         };
-        const resolvedSelection = await resolveClawWorkspaceProviderSelection(
+        const resolvedSelection = await resolveConversationProviderSelection(
           resolvedSelectionInput,
         );
 
@@ -457,7 +457,7 @@ export function useAgentChat(options: UseAgentChatRuntimeOptions) {
       Boolean(session.sessionId) &&
       (session.recoveredStreamBindingSessionId === session.sessionId ||
         hasRecoverableRunningActivity),
-    soulCopy,
+
   });
   detachStreamBindingsRef.current = stream.detachStreamBindings;
   const setChatMessages = session.setMessages;

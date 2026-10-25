@@ -44,7 +44,7 @@ import { AppNavigationContext } from "./contexts/AppNavigationContext";
 import { BrowserHistoryNavigationContext } from "./contexts/BrowserHistoryNavigationContext";
 import { useBrowserHistoryNavigation } from "./hooks/useBrowserHistoryNavigation";
 import type { OpenDeepLinkPayload } from "./hooks/useDeepLink";
-import { buildClawAgentParams } from "./lib/workspace/navigation";
+import { buildConversationParams } from "./lib/workspace/navigation";
 import {
   resolveWebsiteInstalledSkillNavigation,
   resolveWebsiteOpenNavigation,
@@ -234,7 +234,7 @@ function AppContent() {
     if (pendingRecommendation) {
       handleNavigate(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           projectId: project.id,
           initialUserPrompt: pendingRecommendation.fullPrompt,
         }),
@@ -244,7 +244,7 @@ function AppContent() {
     } else if (isUserProjectType(type)) {
       handleNavigate(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           projectId: project.id,
         }),
       );

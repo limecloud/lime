@@ -1,0 +1,44 @@
+{
+  "name": {
+    "message": "Lime コンピューター操作"
+  },
+  "description": {
+    "message": "Lime デスクトップまたは CLI から許可した Chrome タブを操作します。"
+  },
+  "connected": {
+    "message": "Lime に接続済み"
+  },
+  "disconnected": {
+    "message": "Lime を開き、コンピューター操作の設定から接続コンポーネントをインストールしてください。"
+  },
+  "approval": {
+    "message": "このセッションで Lime にこのタブの読み取りと操作を許可しますか？"
+  },
+  "allow": {
+    "message": "このタブを許可"
+  },
+  "deny": {
+    "message": "拒否"
+  },
+  "reconnect": {
+    "message": "再接続"
+  },
+  "sessionName": {
+    "message": "タスク名"
+  },
+  "sessionUrl": {
+    "message": "開始 URL"
+  },
+  "createGroup": {
+    "message": "タスクのタブグループを作成"
+  },
+  "groupCreated": {
+    "message": "タスクグループを作成しました。Lime でこのタブを選択して許可すると操作できます。"
+  },
+  "groupFailed": {
+    "message": "タスクグループを作成できませんでした。もう一度お試しください。"
+  },
+  "invalidUrl": {
+    "message": "HTTP または HTTPS の URL を入力してください。"
+  }
+}

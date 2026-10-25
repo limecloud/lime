@@ -355,7 +355,6 @@ mod tests {
             status: ToolProcessStatus::Started,
             arguments,
             result: None,
-            soul_style: None,
         }
     }
 

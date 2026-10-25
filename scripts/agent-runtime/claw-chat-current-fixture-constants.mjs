@@ -136,7 +136,7 @@ export const CONTENT_FACTORY_ARTICLE_WORKSPACE_SCENARIO =
   "content-factory-article-workspace";
 export const CONTENT_FACTORY_INLINE_IMAGE_ARTICLE_WORKSPACE_SCENARIO =
   "content-factory-inline-image-article-workspace";
-export const SOUL_STYLE_SCENARIO = "soul-style";
+
 export const INPUTBAR_RICH_RESTORE_SCENARIO = "inputbar-rich-restore";
 export const HOME_HOTPATH_SCENARIO = "home-hotpath";
 export const HOME_HOTPATH_GREETING_SCENARIO = "home-hotpath-greeting";
@@ -569,8 +569,7 @@ export const MCP_STRUCTURED_CONTENT_ASSERTION_KEYS = [
 ];
 export const IMAGE_COMMAND_ASSERTION_KEYS = [
   "imageCommandPromptReachedBackend",
-  "imageCommandMetadataReachedBackend",
-  "imageCommandLegacySkillLaunchNotSubmitted",
+  "imageCommandNoSyntheticRoutingMetadata",
   "imageCommandUsedCurrentMediaTaskArtifactMethods",
   "imageCommandTaskArtifactWritten",
   "imageCommandTaskArtifactReadable",
@@ -579,11 +578,8 @@ export const IMAGE_COMMAND_ASSERTION_KEYS = [
   "imageCommandTaskAuditLogWritten",
   "imageCommandTaskAuditLogEventSequence",
   "imageCommandTaskAuditLogNoSensitiveTokens",
-  "imageCommandWorkflowAuditReadModelProjected",
-  "imageCommandWorkflowAuditStepsProjected",
-  "imageCommandWorkflowAuditSummaryRedacted",
   "imageCommandWorkerUsedFixtureProviderAndModel",
-  "imageCommandWorkflowToolObserved",
+  "imageCommandModelCalledTool",
   "imageCommandCreateTaskToolObserved",
   "guiImageCommandInputSubmitted",
   "guiImageCommandToolProcessVisible",

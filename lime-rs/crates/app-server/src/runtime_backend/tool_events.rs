@@ -1,5 +1,4 @@
 use super::plan_events;
-use super::tool_process_metadata::SoulStyleMetadata;
 use super::tool_process_runtime_metadata;
 use crate::RuntimeCoreError;
 use crate::RuntimeEvent;
@@ -11,16 +10,9 @@ use lime_agent::AgentEvent as RuntimeAgentEvent;
 use model_provider::safety::SAFETY_BUFFERING_RUNTIME_EVENT_KIND;
 use serde_json::{json, Value};
 
-#[cfg(test)]
+
 pub(super) fn runtime_events_from_agent_event(
     event: &RuntimeAgentEvent,
-) -> Result<Vec<RuntimeEvent>, RuntimeCoreError> {
-    runtime_events_from_agent_event_with_soul_style(event, None)
-}
-
-pub(super) fn runtime_events_from_agent_event_with_soul_style(
-    event: &RuntimeAgentEvent,
-    soul_style: Option<&SoulStyleMetadata>,
 ) -> Result<Vec<RuntimeEvent>, RuntimeCoreError> {
     if let Some(events) = hook_runtime_events(event) {
         return Ok(events);
@@ -61,7 +53,6 @@ pub(super) fn runtime_events_from_agent_event_with_soul_style(
         tool_process_runtime_metadata::enrich_runtime_tool_process_payload(
             event,
             payload_object,
-            soul_style,
         );
         enrich_reasoning_payload(event, payload_object);
     }
@@ -717,36 +708,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn canonical_tool_process_metadata_is_nested_on_item() {
-        let soul_style = SoulStyleMetadata {
-            profile_id: Some("cool_confident_operator".to_string()),
-            pack_id: Some("com.lime.soul.cool-confident-operator".to_string()),
-            tone_variant: Some("cool_confident".to_string()),
-        };
-        let events = runtime_events_from_agent_event_with_soul_style(
-            &canonical_tool_event(
-                "tool-search-style",
-                "web_search",
-                Some(json!({ "query": "runtime facts" })),
-                None,
-            ),
-            Some(&soul_style),
-        )
-        .expect("tool item start should emit");
-
-        let metadata = &events[0].payload["item"]["metadata"];
-        assert_eq!(
-            metadata["tool_process_summary"]["pre"]["key"],
-            "toolCall.processSummary.webSearch.searchFirstWithQuery"
-        );
-        assert_eq!(
-            metadata["tool_process_facts"]["profileId"],
-            "cool_confident_operator"
-        );
-        assert_eq!(metadata["soul_lifecycle"]["status"], "started");
-        assert!(metadata.get("metadata").is_none());
-    }
 
     #[test]
     fn canonical_tool_completion_preserves_output_and_metadata() {

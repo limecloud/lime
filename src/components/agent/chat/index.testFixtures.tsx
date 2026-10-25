@@ -38,7 +38,6 @@ const {
   mockUseGlobalMediaGenerationDefaults,
   mockReadGlobalMediaGenerationDefaults,
   mockUseServiceModelsConfig,
-  mockUseSoulArtifactVoiceGenerationBrief,
   mockUseImageGen,
   mockGetConfig,
   mockGetDefaultProviderFromConfig,
@@ -59,7 +58,6 @@ const {
   mockSetArtifactsAtom,
   mockSetSelectedArtifactIdAtom,
   mockJotaiState,
-  mockGenerateGeneralWorkbenchPrompt,
   mockIsSpecializedWorkbenchTheme,
   mockEmptyState,
   mockInputbar,
@@ -93,7 +91,7 @@ const {
   mockUseGlobalMediaGenerationDefaults: vi.fn(),
   mockReadGlobalMediaGenerationDefaults: vi.fn(),
   mockUseServiceModelsConfig: vi.fn(),
-  mockUseSoulArtifactVoiceGenerationBrief: vi.fn(),
+
   mockUseImageGen: vi.fn(),
   mockGetConfig: vi.fn(),
   mockGetDefaultProviderFromConfig: vi.fn(),
@@ -124,7 +122,6 @@ const {
   },
   mockSetArtifactsAtom: vi.fn(),
   mockSetSelectedArtifactIdAtom: vi.fn(),
-  mockGenerateGeneralWorkbenchPrompt: vi.fn(() => "mock-system-prompt"),
   mockIsSpecializedWorkbenchTheme: vi.fn(() => false),
   mockEmptyState: vi.fn((props?: MockEmptyStateProps) => (
     <div
@@ -249,63 +246,6 @@ const {
   mockExecuteBrowserSessionAction: vi.fn(),
 }));
 
-export function getIndexTestMocks() {
-  return {
-    mockUseAgentChatUnified,
-    mockUseArtifactAutoPreviewSync,
-    mockUseTopicBranchBoard,
-    mockUseSessionFiles,
-    mockUseTrayModelShortcuts,
-    mockSafeListen,
-    mockUseSessionRecentMetadataSyncRuntime,
-    mockUseGlobalMediaGenerationDefaults,
-    mockReadGlobalMediaGenerationDefaults,
-    mockUseServiceModelsConfig,
-    mockUseSoulArtifactVoiceGenerationBrief,
-    mockUseImageGen,
-    mockGetConfig,
-    mockGetDefaultProviderFromConfig,
-    mockSubscribeAppConfigChanged,
-    mockGetProject,
-    mockGetDefaultProject,
-    mockGetOrCreateDefaultProject,
-    mockGetContent,
-    mockGetGeneralWorkbenchDocumentState,
-    mockEnsureWorkspaceReady,
-    mockEnsureProjectWorkspace,
-    mockUpdateContent,
-    mockGetProjectMemory,
-    mockToast,
-    mockArtifactsAtom,
-    mockSelectedArtifactAtom,
-    mockSelectedArtifactIdAtom,
-    mockSetArtifactsAtom,
-    mockSetSelectedArtifactIdAtom,
-    mockJotaiState,
-    mockGenerateGeneralWorkbenchPrompt,
-    mockIsSpecializedWorkbenchTheme,
-    mockEmptyState,
-    mockInputbar,
-    mockMessageList,
-    mockExpertInfoPanel,
-    mockWorkspacePendingA2UIPanel,
-    mockExecutionRunGetGeneralWorkbenchState,
-    mockExecutionRunListGeneralWorkbenchHistory,
-    mockExecutionRunGet,
-    mockSkillExecutionListExecutableSkills,
-    mockSkillExecutionGetDetail,
-    mockSkillsGetAll,
-    mockSkillsGetLocal,
-    mockGetAgentRuntimeToolInventory,
-    mockRequestWorkspaceRightSurface,
-    mockCanvasWorkbenchLayoutState,
-    mockCanvasWorkbenchLayout,
-    mockLaunchBrowserSession,
-    mockBrowserExecuteAction,
-    mockExecuteBrowserSessionAction,
-  };
-}
-
 vi.mock("sonner", () => ({
   toast: mockToast,
 }));
@@ -359,10 +299,6 @@ vi.mock("@/hooks/useGlobalMediaGenerationDefaults", () => ({
 
 vi.mock("@/hooks/useServiceModelsConfig", () => ({
   useServiceModelsConfig: mockUseServiceModelsConfig,
-}));
-
-vi.mock("@/hooks/useSoulArtifactVoiceGenerationBrief", () => ({
-  useSoulArtifactVoiceGenerationBrief: mockUseSoulArtifactVoiceGenerationBrief,
 }));
 
 vi.mock("@/components/image-gen/useImageGen", () => ({
@@ -583,11 +519,6 @@ vi.mock("@/components/workspace/canvas/canvasUtils", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/workspace/workbenchPrompt", () => ({
-  generateGeneralWorkbenchPrompt: mockGenerateGeneralWorkbenchPrompt,
-  generateProjectMemoryPrompt: vi.fn(() => ""),
-}));
-
 vi.mock("@/lib/workspace/workbenchContract", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/workspace/workbenchContract")>();
@@ -708,9 +639,9 @@ vi.mock("./utils/workflowMapping", async (importOriginal) => {
 
 vi.mock("@/lib/workspace/navigation", () => ({
   buildHomeAgentParams: vi.fn(() => ({})),
-  buildClawAgentParams: vi.fn((overrides?: Record<string, unknown>) => ({
+  buildConversationParams: vi.fn((overrides?: Record<string, unknown>) => ({
     ...(overrides || {}),
-    agentEntry: "claw",
+    agentEntry: "conversation",
     theme: typeof overrides?.theme === "string" ? overrides.theme : "general",
     lockTheme: false,
     immersiveHome:
@@ -791,8 +722,8 @@ vi.mock("@/lib/api/agentRuntime/inventoryClient", async () => {
 
 import * as configuredProvidersModule from "@/hooks/useConfiguredProviders";
 import * as providerModelsModule from "@/hooks/useProviderModels";
-import { AgentChatPage } from "./index";
-export { AgentChatPage };
+import { LocalConversationPage } from "./index";
+export { LocalConversationPage };
 
 const agentChatWorkspacePreload = import("./AgentChatWorkspace");
 
@@ -803,7 +734,9 @@ beforeAll(async () => {
 interface MountedHarness {
   container: HTMLDivElement;
   root: Root;
-  rerender: (props?: Partial<ComponentProps<typeof AgentChatPage>>) => void;
+  rerender: (
+    props?: Partial<ComponentProps<typeof LocalConversationPage>>,
+  ) => void;
 }
 
 export type MockInputbarSendProps = {
@@ -876,7 +809,7 @@ export function createProject(id: string, archived = false) {
 }
 
 export function mountPage(
-  initialProps: Partial<ComponentProps<typeof AgentChatPage>> = {},
+  initialProps: Partial<ComponentProps<typeof LocalConversationPage>> = {},
 ): MountedHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -891,7 +824,7 @@ export function mountPage(
     root.render(
       <AppShell>
         <AppShellHeader />
-        <AgentChatPage {...currentProps} />
+        <LocalConversationPage {...currentProps} />
       </AppShell>,
     );
   };
@@ -939,7 +872,7 @@ export function commitNewConversationRoute(
 }
 
 export function renderPage(
-  props: Partial<ComponentProps<typeof AgentChatPage>> = {},
+  props: Partial<ComponentProps<typeof LocalConversationPage>> = {},
 ): HTMLDivElement {
   return mountPage(props).container;
 }
@@ -1357,7 +1290,6 @@ beforeEach(async () => {
   vi.spyOn(providerModelsModule, "loadProviderModels").mockResolvedValue([
     buildMockProviderModel(),
   ]);
-  mockGenerateGeneralWorkbenchPrompt.mockReturnValue("mock-system-prompt");
   mockIsSpecializedWorkbenchTheme.mockReturnValue(false);
   mockEmptyState.mockImplementation((props?: MockEmptyStateProps) => (
     <div
@@ -1399,10 +1331,7 @@ beforeEach(async () => {
       agentResponseLanguage: undefined,
     })),
   });
-  mockUseSoulArtifactVoiceGenerationBrief.mockReturnValue({
-    generationBrief: undefined,
-    loading: false,
-  });
+
   mockUseImageGen.mockReturnValue({
     availableProviders: [],
     selectedProvider: null,
@@ -1494,3 +1423,59 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+export function getIndexTestMocks() {
+  return {
+    mockUseAgentChatUnified,
+    mockUseArtifactAutoPreviewSync,
+    mockUseTopicBranchBoard,
+    mockUseSessionFiles,
+    mockUseTrayModelShortcuts,
+    mockSafeListen,
+    mockUseSessionRecentMetadataSyncRuntime,
+    mockUseGlobalMediaGenerationDefaults,
+    mockReadGlobalMediaGenerationDefaults,
+    mockUseServiceModelsConfig,
+
+    mockUseImageGen,
+    mockGetConfig,
+    mockGetDefaultProviderFromConfig,
+    mockSubscribeAppConfigChanged,
+    mockGetProject,
+    mockGetDefaultProject,
+    mockGetOrCreateDefaultProject,
+    mockGetContent,
+    mockGetGeneralWorkbenchDocumentState,
+    mockEnsureWorkspaceReady,
+    mockEnsureProjectWorkspace,
+    mockUpdateContent,
+    mockGetProjectMemory,
+    mockToast,
+    mockArtifactsAtom,
+    mockSelectedArtifactAtom,
+    mockSelectedArtifactIdAtom,
+    mockSetArtifactsAtom,
+    mockSetSelectedArtifactIdAtom,
+    mockJotaiState,
+    mockIsSpecializedWorkbenchTheme,
+    mockEmptyState,
+    mockInputbar,
+    mockMessageList,
+    mockExpertInfoPanel,
+    mockWorkspacePendingA2UIPanel,
+    mockExecutionRunGetGeneralWorkbenchState,
+    mockExecutionRunListGeneralWorkbenchHistory,
+    mockExecutionRunGet,
+    mockSkillExecutionListExecutableSkills,
+    mockSkillExecutionGetDetail,
+    mockSkillsGetAll,
+    mockSkillsGetLocal,
+    mockGetAgentRuntimeToolInventory,
+    mockRequestWorkspaceRightSurface,
+    mockCanvasWorkbenchLayoutState,
+    mockCanvasWorkbenchLayout,
+    mockLaunchBrowserSession,
+    mockBrowserExecuteAction,
+    mockExecuteBrowserSessionAction,
+  };
+}

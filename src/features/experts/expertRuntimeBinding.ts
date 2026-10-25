@@ -12,18 +12,18 @@ export interface BuildExpertRuntimeMetadataOptions {
 }
 
 export interface ExpertPersonalityBoundary {
-  inheritsGlobalSoul: true;
-  globalSoulScope: "communication_rhythm";
+
+
   expertPersonaScope: "current_expert_session";
-  writesBackToGlobalSoul: false;
+
   formalArtifactVoiceSource: "generation_brief_only";
 }
 
 export interface ExpertPersonalityBoundaryMetadata {
-  inherits_global_soul: true;
-  global_soul_scope: "communication_rhythm";
+
+
   expert_persona_scope: "current_expert_session";
-  writes_back_to_global_soul: false;
+
   formal_artifact_voice_source: "generation_brief_only";
 }
 
@@ -89,10 +89,10 @@ export function buildExpertRuntimeMetadata(
       ? [...options.skillRefsOverride]
       : [...expert.release.skillRefs];
   const personalityBoundary: ExpertPersonalityBoundary = {
-    inheritsGlobalSoul: true,
-    globalSoulScope: "communication_rhythm",
+
+
     expertPersonaScope: "current_expert_session",
-    writesBackToGlobalSoul: false,
+
     formalArtifactVoiceSource: "generation_brief_only",
   };
   const common = {
@@ -134,11 +134,10 @@ export function buildExpertRuntimeMetadata(
         memory_enabled: common.memoryEnabled,
         workflow_enabled: common.workflowEnabled,
         personality_boundary: {
-          inherits_global_soul: common.personalityBoundary.inheritsGlobalSoul,
-          global_soul_scope: common.personalityBoundary.globalSoulScope,
+
+
           expert_persona_scope: common.personalityBoundary.expertPersonaScope,
-          writes_back_to_global_soul:
-            common.personalityBoundary.writesBackToGlobalSoul,
+
           formal_artifact_voice_source:
             common.personalityBoundary.formalArtifactVoiceSource,
         },

@@ -14,7 +14,7 @@ import {
   useWorkspaceActiveContentTargetRuntime,
   useWorkspaceEntryStateRuntime,
   useWorkspaceServiceSkillDirectoryToastRuntime,
-  useWorkspaceSoulArtifactVoiceTurnRuntime,
+
   useWorkspaceTaskFilesRefSyncRuntime,
 } from "./useWorkspaceEntrySideEffectsRuntime";
 
@@ -169,20 +169,7 @@ describe("workspace entry side effects runtime", () => {
     expect(taskFilesRef.current).toEqual([taskFile]);
   });
 
-  it("voice turn runtime 应在 brief 变化时重新启用本轮配音", async () => {
-    const setSoulArtifactVoiceEnabledForTurn = vi.fn();
-    const { render } = mountProbe(() => {
-      useWorkspaceSoulArtifactVoiceTurnRuntime({
-        generationBrief: "brief-1",
-        setSoulArtifactVoiceEnabledForTurn,
-      });
-      return null;
-    });
 
-    await render();
-
-    expect(setSoulArtifactVoiceEnabledForTurn).toHaveBeenCalledWith(true);
-  });
 
   it("service skill 目录错误只在 general 主题展示 toast", async () => {
     const { render: renderArticle } = mountProbe(() => {

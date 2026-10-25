@@ -9,7 +9,7 @@ import type {
   AutoContinueRequestPayload,
 } from "@/lib/api/agentRuntime/sessionTypes";
 import type { ActionRequired, Message } from "../types";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import type { StreamRequestState } from "./agentStreamRuntimeHandlerTypes";
 
@@ -83,5 +83,5 @@ export interface RegisterAgentStreamTurnEventBindingOptions {
     SetStateAction<AgentSessionExecutionRuntime | null>
   >;
   setIsSending: Dispatch<SetStateAction<boolean>>;
-  soulCopy?: SoulInteractionCopy;
+
 }

@@ -197,69 +197,6 @@ describe("EmptyStateComposerPanel", () => {
     expect(connectedComposer?.contains(projectContextSlot ?? null)).toBe(true);
   });
 
-  it("梦樱皮肤应通过装饰槽渲染输入区玫瑰和悬挂拍立得", () => {
-    const previousSkin = localStorage.getItem("lime.appearance.skin");
-    localStorage.setItem("lime.appearance.skin", "dream-blossom");
-
-    const container = renderPanel({
-      accessMode: "full-access",
-      setAccessMode: vi.fn(),
-    });
-    const decorationFrame = container.querySelector(
-      '[data-testid="home-composer-decoration-frame"]',
-    );
-
-    expect(
-      decorationFrame?.getAttribute("data-home-composer-decoration-skin"),
-    ).toBe("configured");
-    expect(
-      decorationFrame?.querySelector('img[src*="composer-rose.png"]'),
-    ).toBeTruthy();
-    expect(
-      decorationFrame?.querySelector('img[src*="home-character-v3.png"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('[data-testid="inputbar-meta-left"] svg'),
-    ).toBeTruthy();
-
-    if (previousSkin) {
-      localStorage.setItem("lime.appearance.skin", previousSkin);
-    } else {
-      localStorage.removeItem("lime.appearance.skin");
-    }
-  });
-
-  it("奥特曼皮肤应使用独立破框前景和徽章纪念物", () => {
-    const previousSkin = localStorage.getItem("lime.appearance.skin");
-    localStorage.setItem("lime.appearance.skin", "lime-ocean");
-
-    const container = renderPanel({
-      accessMode: "full-access",
-      setAccessMode: vi.fn(),
-    });
-    const decorationFrame = container.querySelector(
-      '[data-testid="home-composer-decoration-frame"]',
-    );
-
-    expect(
-      decorationFrame?.querySelector(
-        '[data-home-skin-decoration-icon="shield"]',
-      ),
-    ).toBeTruthy();
-    expect(
-      decorationFrame?.querySelector('[data-home-keepsake-variant="badge"]'),
-    ).toBeTruthy();
-    expect(
-      decorationFrame?.querySelector('img[src*="lime-ocean-foreground.png"]'),
-    ).toBeTruthy();
-
-    if (previousSkin) {
-      localStorage.setItem("lime.appearance.skin", previousSkin);
-    } else {
-      localStorage.removeItem("lime.appearance.skin");
-    }
-  });
-
   it("没有真实项目时不应把 UUID 会话号显示成项目", () => {
     const staleProjectId = "240ed157-3e7a-456c-a2c2-a05d499f5991";
     const container = renderPanel({
@@ -277,7 +214,7 @@ describe("EmptyStateComposerPanel", () => {
       '[data-testid="composer-utility-project-trigger"]',
     ) as HTMLButtonElement | null;
 
-    expect(trigger?.textContent).toContain("进入项目工作");
+    expect(trigger?.textContent).toContain("选择项目");
     expect(trigger?.textContent).not.toContain(staleProjectId);
     expect(container.textContent).not.toContain(staleProjectId);
 

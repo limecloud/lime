@@ -14,6 +14,11 @@ npm install -g @limecloud/lime
 
 根 npm 包包含 launcher 和 `exec-events.schema.json`，并通过 optional dependency 安装当前平台的原生载荷；安装阶段不执行网络下载脚本。平台载荷原子包含 `lime`、`app-server`、`code-mode-host`、Windows sandbox helpers 和所需动态库，保证默认 TUI 与 `exec` 都进入同一 App Server 产品链。
 
+macOS/Windows 平台包还包含 Computer Use 原生 helper 与严格资源清单，CLI 无需安装 Electron。
+本机 WPS 使用原生办公通道；开启功能后，`--computer-use-target '<目标 JSON>'` 为当前连接
+请求准确目标授权。系统权限和原生确认仍然生效，连接结束后需要重新授权。Windows 驱动与
+各平台的实际支持范围以验收记录为准，包含 helper 不代表所有平台操作已验证。
+
 当前发布目标为 macOS arm64/x64、Windows x64 与 Linux x64 GNU。尚无真实构建和运行证据的平台会明确拒绝启动，不发布空壳 optional package。
 
 ## 命令

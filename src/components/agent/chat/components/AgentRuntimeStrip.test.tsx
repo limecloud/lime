@@ -287,49 +287,7 @@ describe("AgentRuntimeStrip", () => {
     ).toBeTruthy();
   });
 
-  it("team 运行条应暴露 collaboration facts 与 Soul metadata contract", () => {
-    const container = renderStrip({
-      runtimeToolAvailability: CODE_RUNTIME_TOOL_AVAILABILITY,
-      canonicalChildren: [
-        createCanonicalChild("running", 1),
-        createCanonicalChild("pendingInit", 2),
-      ],
-      harnessState: createHarnessState({
-        delegatedTasks: [
-          {
-            id: "delegated-1",
-            title: "整理证据",
-            status: "running",
-          },
-        ],
-      }),
-    });
 
-    const strip = container.querySelector(
-      '[data-testid="agent-runtime-strip"]',
-    );
-    const teamSummary = container.querySelector(
-      '[data-testid="agent-runtime-strip-team-summary"]',
-    );
-
-    expect(strip?.getAttribute("data-collaboration-facts")).toBe("yes");
-    expect(strip?.getAttribute("data-collaboration-surface")).toBe(
-      "runtime_strip",
-    );
-    expect(strip?.getAttribute("data-collaboration-phase")).toBe("acting");
-    expect(strip?.getAttribute("data-collaboration-kind")).toBe(
-      "team_runtime_status",
-    );
-    expect(strip?.getAttribute("data-soul-style-level")).toBe("L1");
-    expect(strip?.getAttribute("data-soul-risk-level")).toBe("normal");
-    expect(teamSummary?.getAttribute("data-collaboration-facts")).toBe("yes");
-    expect(teamSummary?.getAttribute("data-collaboration-phase")).toBe(
-      "acting",
-    );
-    expect(strip?.getAttribute("data-team-roster-source")).toBe("canonical");
-    expect(strip?.getAttribute("data-team-active-count")).toBe("2");
-    expect(strip?.getAttribute("data-team-pending-init-count")).toBe("1");
-  });
 
   it("canonical roster 应优先并按 Codex 七态独立计数", () => {
     const canonicalChildren = (

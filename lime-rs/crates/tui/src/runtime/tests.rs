@@ -50,6 +50,7 @@ fn export_merge_keeps_persisted_order_and_latest_live_entries() {
 #[test]
 fn model_route_requires_model_and_provider_together() {
     let options = TuiOptions {
+        computer_use_targets: Vec::new(),
         app_server_bin: PathBuf::from("app-server"),
         app_server_args: Vec::new(),
         remote: None,
@@ -91,6 +92,7 @@ fn successful_history_retry_clears_only_the_history_page_error() {
 #[test]
 fn stdio_config_appends_host_arguments_after_the_current_runtime_default() {
     let options = TuiOptions {
+        computer_use_targets: Vec::new(),
         app_server_bin: PathBuf::from("custom-app-server"),
         app_server_args: vec![OsString::from("--backend"), OsString::from("external")],
         remote: None,

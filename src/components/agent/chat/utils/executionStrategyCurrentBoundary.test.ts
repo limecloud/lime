@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 
 const CONSUMER_PATHS = [
   "src/components/agent/chat/commands/types.ts",
-  "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.ts",
   "src/components/agent/chat/utils/agentRuntimeStatus.ts",
   "src/components/agent/chat/utils/chatToolPreferences.ts",
   "src/components/agent/chat/hooks/agentChatStorage.ts",

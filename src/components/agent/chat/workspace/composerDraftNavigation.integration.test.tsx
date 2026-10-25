@@ -291,7 +291,7 @@ describe("navigation commits through real Controller, gateway, parser and Store"
   it("draft activation and Controller survive preparation until actual topic commit", async () => {
     const h = await setup();
     const hook = mount(useWorkspaceTaskCenterDraftStateRuntime, {
-      agentEntry: "claw",
+      agentEntry: "conversation",
       composerDraftCoordinator: h.coordinator,
       resetComposerDraft: vi.fn(),
       deferSessionRecentMetadataSyncForNavigation: vi.fn(),
@@ -330,7 +330,7 @@ function useNavigationHarness(props: {
   const surface = useRef(true);
   const runtime = useTaskCenterTopicNavigationRuntime({
     activeSessionIdRef: useRef("old"),
-    agentEntry: "claw",
+    agentEntry: "conversation",
     clearEntryPendingA2UI: vi.fn(),
     clearTaskCenterEmbeddedHomeSession: vi.fn(),
     messagesLength: 0,

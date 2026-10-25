@@ -14,7 +14,7 @@ import {
 } from "./useTaskCenterTabSessionRuntime";
 
 interface HarnessProps {
-  agentEntry?: "new-task" | "claw" | null;
+  agentEntry?: "new-task" | "conversation" | null;
   normalizedInitialSessionId?: string | null;
   newChatAt?: number;
   sessionId?: string | null;
@@ -65,7 +65,7 @@ function createDraftSendRequest(id: string): TaskCenterDraftSendRequest {
 }
 
 function Harness({
-  agentEntry = "claw",
+  agentEntry = "conversation",
   normalizedInitialSessionId = "topic-a",
   newChatAt,
   sessionId = "topic-a",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import { buildToolProjectionEvents } from "./toolEventProjection";
 
 const baseContext = {
@@ -38,19 +38,9 @@ describe("toolEventProjection", () => {
       persistence: "ephemeral_live",
       payload: {
         toolName: "read_file",
-        soulLifecycle: {
-          surface: "tool_lifecycle",
-          phase: "before_tool",
-          status: "started",
-          styleLevel: "L1",
-          riskLevel: "normal",
-          toneVariant: "neutral",
-        },
-        soulSurface: "tool_lifecycle",
-        soulPhase: "before_tool",
-        styleLevel: "L1",
-        riskLevel: "normal",
-        toneVariant: "neutral",
+
+
+
       },
     });
     expect(events[1]).toMatchObject({
@@ -67,69 +57,7 @@ describe("toolEventProjection", () => {
     });
   });
 
-  it("工具生命周期 descriptor 应继承当前 Soul profile 与 pack metadata", () => {
-    const soulCopy = resolveSoulInteractionCopy({
-      soul: {
-        enabled: true,
-        style_profile_id: "cheeky_sassy_executor",
-      },
-    });
 
-    const started = buildToolProjectionEvents(
-      {
-        type: "tool_start",
-        tool_id: "tool-soul",
-        tool_name: "web_search",
-        arguments: JSON.stringify({ query: "Lime Soul" }),
-      },
-      baseContext,
-      { soulCopy },
-    );
-
-    expect(started[0].payload).toMatchObject({
-      soulLifecycle: {
-        surface: "tool_lifecycle",
-        phase: "before_tool",
-        status: "started",
-        styleLevel: "L1",
-        riskLevel: "normal",
-        toneVariant: "cheeky_sassy",
-        profileId: "cheeky_sassy_executor",
-        packId: "com.lime.soul.cheeky-sassy-executor",
-      },
-      soulSurface: "tool_lifecycle",
-      soulPhase: "before_tool",
-      styleLevel: "L1",
-      riskLevel: "normal",
-      toneVariant: "cheeky_sassy",
-      profileId: "cheeky_sassy_executor",
-      packId: "com.lime.soul.cheeky-sassy-executor",
-    });
-
-    const completed = buildToolProjectionEvents(
-      {
-        type: "tool_end",
-        tool_id: "tool-soul",
-        result: {
-          success: true,
-          output: "done",
-        },
-      },
-      baseContext,
-      { soulCopy },
-    );
-
-    expect(completed[0].payload).toMatchObject({
-      soulLifecycle: {
-        phase: "after_tool_success",
-        status: "completed",
-        styleLevel: "L2",
-        toneVariant: "cheeky_sassy",
-      },
-      soulPhase: "after_tool_success",
-      styleLevel: "L2",
-    });
-  });
 
   it("应由 tool owner 统一分发 tool_end 与 plan approval metadata", () => {
     const events = buildToolProjectionEvents(

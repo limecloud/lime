@@ -15,7 +15,6 @@ export interface CreationReplaySlotPrefillResult {
 export interface CreationReplaySlotPrefillCopy {
   sourceLabels?: {
     memoryEntry?: string;
-    skillScaffold?: string;
   };
   formatFieldSummary?: (visibleLabels: string[], totalCount: number) => string;
   formatHint?: (sourceLabel: string, fieldSummary: string) => string;
@@ -24,7 +23,6 @@ export interface CreationReplaySlotPrefillCopy {
 export interface ResolvedCreationReplaySlotPrefillCopy {
   sourceLabels: {
     memoryEntry: string;
-    skillScaffold: string;
   };
   formatFieldSummary: (visibleLabels: string[], totalCount: number) => string;
   formatHint: (sourceLabel: string, fieldSummary: string) => string;
@@ -148,9 +146,6 @@ const SOURCE_CREATION_REPLAY_SLOT_PREFILL_COPY: ResolvedCreationReplaySlotPrefil
       memoryEntry: translateCreationReplaySourceKey(
         "skills.workspace.serviceSkill.prefill.creationReplay.source.memoryEntry",
       ),
-      skillScaffold: translateCreationReplaySourceKey(
-        "skills.workspace.serviceSkill.prefill.creationReplay.source.skillScaffold",
-      ),
     },
     formatFieldSummary: (visibleLabels, totalCount) => {
       const fieldSeparator = translateCreationReplaySourceKey(
@@ -253,19 +248,6 @@ function joinMultilineItems(
 }
 
 function collectReplayTexts(creationReplay: CreationReplayMetadata): string[] {
-  if (creationReplay.kind === "skill_scaffold") {
-    return dedupeItems([
-      creationReplay.data.name,
-      creationReplay.data.description,
-      creationReplay.data.source_excerpt,
-      ...(creationReplay.data.when_to_use || []),
-      ...(creationReplay.data.inputs || []),
-      ...(creationReplay.data.outputs || []),
-      ...(creationReplay.data.steps || []),
-      ...(creationReplay.data.fallback_strategy || []),
-    ]);
-  }
-
   return dedupeItems([
     creationReplay.data.title,
     creationReplay.data.summary,
@@ -291,17 +273,7 @@ function extractReplayUrl(creationReplay: CreationReplayMetadata): string {
   return matched[0].replace(/[.,;!?]+$/g, "");
 }
 
-function resolveReplaySourceLabel(
-  creationReplay: CreationReplayMetadata,
-  copy: ResolvedCreationReplaySlotPrefillCopy,
-): string {
-  return creationReplay.kind === "memory_entry"
-    ? copy.sourceLabels.memoryEntry
-    : copy.sourceLabels.skillScaffold;
-}
-
 function buildPrefillHint(
-  creationReplay: CreationReplayMetadata,
   fieldLabels: string[],
   copy: CreationReplaySlotPrefillCopy = {},
 ): string {
@@ -311,7 +283,7 @@ function buildPrefillHint(
     visibleLabels,
     fieldLabels.length,
   );
-  const sourceLabel = resolveReplaySourceLabel(creationReplay, resolvedCopy);
+  const sourceLabel = resolvedCopy.sourceLabels.memoryEntry;
 
   return resolvedCopy.formatHint(sourceLabel, fieldSummary);
 }
@@ -408,29 +380,6 @@ function buildSourceMaterialValue(
     return "";
   }
 
-  if (creationReplay.kind === "skill_scaffold") {
-    if (
-      !creationReplay.data.source_excerpt &&
-      !creationReplay.data.description &&
-      !creationReplay.data.inputs?.length
-    ) {
-      return "";
-    }
-
-    return joinMultilineItems([
-      creationReplay.data.source_excerpt
-        ? `参考线索：${creationReplay.data.source_excerpt}`
-        : null,
-      creationReplay.data.description
-        ? `改写目标：${creationReplay.data.description}`
-        : null,
-      creationReplay.data.inputs?.length
-        ? `输入约束：${creationReplay.data.inputs.join("；")}`
-        : null,
-      creationReplay.data.name ? `来源标题：${creationReplay.data.name}` : null,
-    ]);
-  }
-
   if (!creationReplay.data.summary && !creationReplay.data.content_excerpt) {
     return "";
   }
@@ -500,20 +449,6 @@ function resolveReplicationModeValue(
 }
 
 function buildMustKeepValue(creationReplay: CreationReplayMetadata): string {
-  if (creationReplay.kind === "skill_scaffold") {
-    return joinMultilineItems([
-      creationReplay.data.source_excerpt
-        ? `延续原结果重点：${creationReplay.data.source_excerpt}`
-        : null,
-      creationReplay.data.outputs?.length
-        ? `保留交付骨架：${creationReplay.data.outputs.join("；")}`
-        : null,
-      creationReplay.data.inputs?.length
-        ? `参考原始输入约束：${creationReplay.data.inputs.join("；")}`
-        : null,
-    ]);
-  }
-
   return joinMultilineItems([
     creationReplay.data.title ? `保留主题：${creationReplay.data.title}` : null,
     creationReplay.data.summary
@@ -528,20 +463,6 @@ function buildMustKeepValue(creationReplay: CreationReplayMetadata): string {
 function buildFocusChangesValue(
   creationReplay: CreationReplayMetadata,
 ): string {
-  if (creationReplay.kind === "skill_scaffold") {
-    return joinMultilineItems([
-      creationReplay.data.steps?.length
-        ? `继续沿用步骤：${creationReplay.data.steps.join("；")}`
-        : null,
-      creationReplay.data.fallback_strategy?.length
-        ? `需要注意回退：${creationReplay.data.fallback_strategy.join("；")}`
-        : null,
-      creationReplay.data.description
-        ? `本次意图重点：${creationReplay.data.description}`
-        : null,
-    ]);
-  }
-
   return joinMultilineItems([
     creationReplay.data.summary
       ? `围绕这条灵感继续展开：${creationReplay.data.summary}`
@@ -619,17 +540,9 @@ function buildSubtitlePreferenceValue(
 function buildIndustryKeywordsValue(
   creationReplay: CreationReplayMetadata,
 ): string {
-  if (creationReplay.kind === "memory_entry") {
-    return joinInlineItems(
-      [...(creationReplay.data.tags || []), creationReplay.data.title],
-      5,
-      120,
-    );
-  }
-
   return joinInlineItems(
-    [creationReplay.data.name, ...(creationReplay.data.outputs || [])],
-    4,
+    [...(creationReplay.data.tags || []), creationReplay.data.title],
+    5,
     120,
   );
 }
@@ -794,6 +707,6 @@ export function buildCreationReplaySlotPrefill(
   return {
     slotValues,
     fieldLabels,
-    hint: buildPrefillHint(creationReplay, fieldLabels, copy),
+    hint: buildPrefillHint(fieldLabels, copy),
   };
 }

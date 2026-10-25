@@ -1,5 +1,7 @@
 # Soul Style 输出面收敛执行计划
 
+> 2026-10-25 已退役：用户要求对齐 Codex，Soul/风格包全链删除。本文件仅保留历史证据，现役状态见 browser-runtime-right-surface-plan.md。
+
 > 状态：active
 > 创建时间：2026-07-06
 > 绑定路线图：`internal/roadmap/soul/README.md`、`internal/roadmap/soul/personal-style-profiles.md`、`internal/roadmap/soul/personal-style-output-surfaces.md`

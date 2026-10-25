@@ -260,9 +260,9 @@ const SECTION_TABS_CLASS_NAME =
 const SECTION_TAB_TRIGGER_CLASS_NAME =
   "rounded-[14px] px-3 py-2 text-sm font-medium text-slate-600 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm";
 const ACTIVE_SUBPAGE_BUTTON_CLASS =
-  "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] text-slate-800 shadow-sm shadow-emerald-950/10";
+  "border-emerald-200 bg-[color:var(--lime-surface-soft)] text-slate-800 shadow-sm shadow-emerald-950/10";
 const PRIMARY_ACTION_BUTTON_CLASS =
-  "flex items-center gap-1.5 rounded-full border border-emerald-200 bg-[image:var(--lime-primary-gradient)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:opacity-50";
+  "flex items-center gap-1.5 rounded-full border border-emerald-200 bg-[color:var(--lime-primary-gradient)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:opacity-50";
 
 interface SurfacePanelProps {
   icon: LucideIcon;
@@ -621,7 +621,11 @@ function GatewayTunnelPanel({
             onChange={(event) => patchTunnel({ provider: event.target.value })}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           >
-            <option value="cloudflare">cloudflare</option>
+            <option
+              value={t("settings:settings.channels.config.example.cloudflare")}
+            >
+              {t("settings:settings.channels.config.example.cloudflare")}
+            </option>
             <option value="ngrok">
               {t("settings.channels.gatewayTunnel.option.ngrokReserved")}
             </option>
@@ -636,8 +640,16 @@ function GatewayTunnelPanel({
             onChange={(event) => patchTunnel({ mode: event.target.value })}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           >
-            <option value="managed">managed</option>
-            <option value="external">external</option>
+            <option
+              value={t("settings:settings.channels.config.example.managed")}
+            >
+              {t("settings:settings.channels.config.example.managed")}
+            </option>
+            <option
+              value={t("settings:settings.channels.config.example.external")}
+            >
+              {t("settings:settings.channels.config.example.external")}
+            </option>
           </select>
         </label>
         <label className="space-y-1">
@@ -667,7 +679,7 @@ function GatewayTunnelPanel({
             onChange={(event) =>
               patchTunnel({ local_host: event.target.value })
             }
-            placeholder="127.0.0.1"
+            placeholder={t("settings:settings.channels.config.example.host")}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -685,7 +697,7 @@ function GatewayTunnelPanel({
                 local_port: Number.parseInt(event.target.value, 10) || 3000,
               })
             }
-            placeholder="3000"
+            placeholder={t("settings:settings.channels.config.example.port")}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -700,7 +712,9 @@ function GatewayTunnelPanel({
                 public_base_url: event.target.value.trim() || undefined,
               })
             }
-            placeholder="https://bot.example.com"
+            placeholder={t(
+              "settings:settings.channels.config.example.publicUrl",
+            )}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -716,7 +730,9 @@ function GatewayTunnelPanel({
             onChange={(event) =>
               patchCloudflare({ tunnel_name: event.target.value || undefined })
             }
-            placeholder="lime-gateway"
+            placeholder={t(
+              "settings:settings.channels.config.example.tunnelName",
+            )}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -729,7 +745,7 @@ function GatewayTunnelPanel({
             onChange={(event) =>
               patchCloudflare({ tunnel_id: event.target.value || undefined })
             }
-            placeholder="uuid"
+            placeholder={t("settings:settings.channels.config.example.uuid")}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -742,7 +758,7 @@ function GatewayTunnelPanel({
             onChange={(event) =>
               patchCloudflare({ dns_name: event.target.value || undefined })
             }
-            placeholder="bot.example.com"
+            placeholder={t("settings:settings.channels.config.example.domain")}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -752,7 +768,9 @@ function GatewayTunnelPanel({
         label={t("settings.channels.gatewayTunnel.field.runToken")}
         value={cloudflare.run_token || ""}
         onChange={(value) => patchCloudflare({ run_token: value || undefined })}
-        placeholder="cloudflared tunnel run --token ..."
+        placeholder={t(
+          "settings:settings.channels.config.example.tunnelCommand",
+        )}
       />
 
       <div>
@@ -766,7 +784,9 @@ function GatewayTunnelPanel({
               credentials_file: event.target.value || undefined,
             })
           }
-          placeholder="~/.cloudflared/<tunnel-id>.json"
+          placeholder={t(
+            "settings:settings.channels.config.example.credentialsPath",
+          )}
           className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
         />
       </div>
@@ -779,7 +799,9 @@ function GatewayTunnelPanel({
           <input
             value={feishuAccountId}
             onChange={(event) => setFeishuAccountId(event.target.value)}
-            placeholder="default"
+            placeholder={t(
+              "settings:settings.channels.config.example.defaultAccount",
+            )}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -1016,7 +1038,9 @@ function TelegramGatewayDebugPanel() {
           <input
             value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
-            placeholder="default"
+            placeholder={t(
+              "settings:settings.channels.config.example.defaultAccount",
+            )}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -1027,7 +1051,9 @@ function TelegramGatewayDebugPanel() {
           <input
             value={pollTimeoutSecs}
             onChange={(event) => setPollTimeoutSecs(event.target.value)}
-            placeholder="25"
+            placeholder={t(
+              "settings:settings.channels.config.example.heartbeat",
+            )}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -1237,7 +1263,9 @@ function FeishuGatewayDebugPanel() {
           <input
             value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
-            placeholder="default"
+            placeholder={t(
+              "settings:settings.channels.config.example.defaultAccount",
+            )}
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
         </label>
@@ -1951,7 +1979,9 @@ function WechatGatewayDebugPanel({
             <input
               value={accountId}
               onChange={(event) => setAccountId(event.target.value)}
-              placeholder="default"
+              placeholder={t(
+                "settings:settings.channels.config.example.defaultAccount",
+              )}
               className="h-9 w-full rounded-md border bg-background px-3 text-sm"
             />
           </label>
@@ -1962,7 +1992,9 @@ function WechatGatewayDebugPanel({
             <input
               value={pollTimeoutSecs}
               onChange={(event) => setPollTimeoutSecs(event.target.value)}
-              placeholder="25"
+              placeholder={t(
+                "settings:settings.channels.config.example.heartbeat",
+              )}
               className="h-9 w-full rounded-md border bg-background px-3 text-sm"
             />
           </label>
@@ -2130,7 +2162,9 @@ function WechatGatewayDebugPanel({
               <input
                 value={loginTimeoutMs}
                 onChange={(event) => setLoginTimeoutMs(event.target.value)}
-                placeholder="480000"
+                placeholder={t(
+                  "settings:settings.channels.config.example.timeout",
+                )}
                 className="h-9 w-full rounded-md border bg-background px-3 text-sm"
               />
             </label>
@@ -2839,7 +2873,7 @@ export function ChannelsDebugWorkbench({
                   value="telegram"
                   className={SECTION_TAB_TRIGGER_CLASS_NAME}
                 >
-                  Telegram
+                  {t("settings:settings.channels.config.example.telegram")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="feishu"

@@ -1,6 +1,85 @@
 {
   "imports": [
     {
+      "id": "retired-chat-result-skill-save",
+      "classification": "dead",
+      "description": "聊天结果保存技能、结果转草稿及回带续用整链已删除；标准技能管理和专家注册继续使用现役 SkillsWorkspacePage。",
+      "targets": [
+        "src/components/agent/chat/workspace/useWorkspaceMessageSkillSaveRuntime.ts",
+        "src/components/agent/chat/utils/skillScaffoldDraft.ts",
+        "src/components/skills/skillScaffoldCreationSeed.ts",
+        "src/components/skills/SkillsPage.tsx",
+        "src/components/skills/SkillCard.tsx",
+        "src/components/skills/RepoManagerPanel.tsx",
+        "src/components/skills/skillsUtils.ts",
+        "internal/bussniss/book/lime-general-creative-platform-ui-design.md",
+        "internal/bussniss/book/lime-general-creative-platform-prd-component-plan.md"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "retired-custom-skins",
+      "classification": "dead",
+      "description": "用户取消主题保留例外；旧皮肤、随机切换、侧栏快捷面板、首页装饰与资源已删除，仅保留固定明暗外观。",
+      "targets": [
+        "src/lib/appearance/colorSchemes.ts",
+        "src/lib/appearance/skinContent.ts",
+        "src/components/app-sidebar/useAppSidebarAppearance.ts",
+        "src/components/app-sidebar/AppSidebarAppearancePopover.tsx",
+        "src/components/agent/chat/components/HomeComposerDecorations.tsx",
+        "src/components/agent/chat/components/homeSkinPresentation.ts",
+        "src/assets/skins",
+        ".codex/skills/lime-skins-hero"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "retired-soul-personalization",
+      "classification": "dead",
+      "description": "旧个性化、风格包和全局创作声线整链已删除；仅保留 Codex 的 Memory、AGENTS、自定义指令及模型 personality。",
+      "targets": [
+        "src/lib/soul",
+        "src/lib/api/soulStylePacks.ts",
+        "src/hooks/useSoulInteractionCopy.ts",
+        "src/hooks/useSoulArtifactVoiceGenerationBrief.ts",
+        "src/components/agent/chat/projection/soulToolLifecycleDescriptor.ts",
+        "src/components/agent/chat/utils/toolSoulLifecycleMetadata.ts",
+        "lime-rs/crates/app-server/src/runtime/soul",
+        "lime-rs/crates/app-server/src/processor/soul.rs",
+        "lime-rs/crates/app-server/src/runtime_backend/image_command/presentation_soul.rs",
+        "lime-rs/crates/app-server-protocol/src/protocol/v0/soul.rs",
+        "scripts/agent-runtime/claw-chat-current-fixture-soul-style.mjs",
+        "scripts/agent-runtime/claw-chat-current-fixture-soul-style-transcript-golden.mjs"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "retired-frontend-base-prompts",
+      "classification": "dead",
+      "description": "基础指令统一归 App Server 模型目录；前端默认角色、创作模式与结构化创作记忆提示链已删除。",
+      "targets": [
+        "src/components/agent/chat/utils/generalAgentPrompt.ts",
+        "src/components/agent/chat/workspace/useWorkspaceSystemPromptRuntime.ts",
+        "src/lib/workspace/systemPrompt.ts",
+        "src/lib/workspace/workbenchPrompt.ts",
+        "src/lib/workspace/projectPrompt.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "retired-local-profile-editor",
+      "classification": "dead",
+      "description": "本地昵称/简介设置及配置消费者已删除；真实账号资料统一由 Lime Account Center 服务维护。",
+      "targets": [
+        "src/components/settings-v2/account/profile",
+        "scripts/electron/settings-profile-fixture-smoke.mjs",
+        "scripts/electron/lib/settings-profile-fixture-driver.mjs",
+        "scripts/electron/lib/settings-profile-navigation-scenario.mjs",
+        "scripts/electron/lib/settings-profile-fixture-evidence.mjs"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "retired-environment-preview",
       "classification": "dead",
       "description": "进程变量设置、专用预览和无消费者平台聚合已由 Local Environments 替换；真实工具环境与 native host 保持现役。",
@@ -2094,7 +2173,7 @@
     {
       "id": "memory-page-inspiration-library-surface",
       "classification": "dead",
-      "description": "旧 MemoryPage 灵感库 / 高级诊断混合视图；文件化记忆主线只允许通过 memory store、MemoryBackend、memory tools 与 settings.memory.soul 继续演进，不得恢复 GUI 主入口",
+      "description": "旧 MemoryPage 灵感库 / 高级诊断混合视图；文件化记忆主线只允许通过 memory store、MemoryBackend、memory tools 与 Codex 自定义指令 继续演进，不得恢复 GUI 主入口",
       "targets": [
         "src/components/memory/index.ts",
         "src/components/memory/inspirationProjection.ts",
@@ -2125,7 +2204,7 @@
     {
       "id": "memory-runtime-retired-gateway-surface",
       "classification": "dead",
-      "description": "旧 memoryRuntime 前端网关和运行时召回 DTO；文件化记忆主线必须走 memoryStore/*、MemoryBackend 与 memory tools，配置类型只允许保留在 memoryConfigTypes / memory.soul",
+      "description": "旧 memoryRuntime 前端网关和运行时召回 DTO；文件化记忆主线必须走 memoryStore/*、MemoryBackend 与 memory tools，配置类型只允许保留在 memoryConfigTypes",
       "targets": [
         "src/lib/api/memoryRuntime.ts",
         "src/lib/api/memoryRuntime.test.ts",
@@ -3605,6 +3684,37 @@
   ],
   "frontendText": [
     {
+      "id": "retired-chat-result-skill-save-wiring",
+      "classification": "dead",
+      "description": "禁止聊天结果保存与技能草稿续用接线、文案和回放重新进入产品。",
+      "patterns": [
+        "onSaveMessageAsSkill",
+        "handleSaveMessageAsSkill",
+        "canSaveMessageAsSkill",
+        "buildSkillsPageParamsFromMessage",
+        "skillScaffoldCreationSeed",
+        "buildSkillScaffoldCreationReplayRequestMetadata",
+        "kind: \"skill_scaffold\"",
+        "\"kind\": \"skill_scaffold\"",
+        "skills.workspace.activeScaffold.",
+        "agentChat.messageList.actions.saveAsSkill",
+        "onBringBackToCreation"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/",
+        "src/components/skills/",
+        "src/types/page.ts",
+        "src/i18n/resources/",
+        "scripts/",
+        "docs/",
+        "internal/aiprompts/"
+      ],
+      "allowedPaths": [
+        "src/components/agent/chat/components/MessageList.messageActions.test.tsx",
+        "src/components/agent/chat/utils/creationReplayMetadata.test.ts"
+      ]
+    },
+    {
       "id": "retired-canvas-file-model-contract",
       "classification": "dead",
       "description": "current Files持有共享预览/目录合同，禁止恢复旧Canvas类型、hook、selector或旧预览文案key。",
@@ -4958,7 +5068,6 @@
       "patterns": ["showThemeTabs", "themeTabs={"],
       "includePathPrefixes": [
         "src/components/agent/chat/components/EmptyState.tsx",
-        "src/components/agent/chat/components/EmptyStateHero.tsx",
         "src/components/agent/chat/workspace/chatSurfaceProps.ts"
       ],
       "allowedPaths": []
@@ -5115,14 +5224,12 @@
       ],
       "includePathPrefixes": [
         "src/lib/api/agentProtocol.ts",
-        "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.ts",
         "src/components/agent/chat/hooks/",
         "src/components/agent/chat/utils/",
         "src/components/agent/chat/workspace/"
       ],
       "allowedPaths": [
         "src/lib/api/agentProtocol.test.ts",
-        "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.test.tsx",
         "src/components/agent/chat/hooks/agentSessionRefresh.test.ts",
         "src/components/agent/chat/hooks/agentChatStorage.test.ts",
         "src/components/agent/chat/hooks/agentSessionTopicViewModel.unit.test.ts",
@@ -5143,13 +5250,11 @@
       ],
       "includePathPrefixes": [
         "src/lib/api/agentProtocol.ts",
-        "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.ts",
         "src/lib/api/agentRuntime/executionStrategyCompat.ts"
       ],
       "allowedPaths": [
         "src/lib/api/agentRuntime/executionStrategyCompat.ts",
-        "src/lib/api/agentRuntime/executionStrategyCompat.test.ts",
-        "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.test.tsx"
+        "src/lib/api/agentRuntime/executionStrategyCompat.test.ts"
       ]
     },
     {

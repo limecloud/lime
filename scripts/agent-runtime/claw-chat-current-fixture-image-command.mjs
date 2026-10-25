@@ -19,7 +19,6 @@ import {
 } from "./claw-chat-current-fixture-constants.mjs";
 import { collectAgentUiPerformanceTraceEvidence } from "./claw-chat-current-fixture-agent-ui-trace.mjs";
 import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { readImageCommandWorkflowAudit } from "./claw-chat-current-fixture-image-command-workflow-read.mjs";
 import {
   collectReadModelToolCalls,
   readModelLatestTurnStatus,
@@ -62,10 +61,10 @@ export function resolveImageIntentScenario(scenario) {
     return {
       scenario,
       inputPrompt: PLAIN_IMAGE_INTENT_PROMPT,
-      routedPrompt: PLAIN_IMAGE_INTENT_ROUTED_PROMPT,
+      routedPrompt: PLAIN_IMAGE_INTENT_PROMPT,
       imagePrompt: PLAIN_IMAGE_INTENT_IMAGE_PROMPT,
       taskTitle: "广州夏天 E2E",
-      entrySource: "at_image_command",
+      entrySource: "agent_tool",
     };
   }
 
@@ -75,7 +74,7 @@ export function resolveImageIntentScenario(scenario) {
     routedPrompt: IMAGE_COMMAND_PROMPT,
     imagePrompt: IMAGE_COMMAND_IMAGE_PROMPT,
     taskTitle: "青柠插画 E2E",
-    entrySource: "at_image_command",
+    entrySource: "agent_tool",
   };
 }
 
@@ -432,7 +431,7 @@ function imageTaskMatchesScenario(
   );
 }
 
-async function waitForImageCommandWorkflowTaskArtifact({
+async function waitForImageTaskArtifact({
   page,
   workspace,
   appServerRequests,
@@ -495,7 +494,7 @@ async function waitForImageCommandWorkflowTaskArtifact({
     }
     if (lastSnapshot.createFailure) {
       throw new Error(
-        `ImageCommandWorkflow 创建 image task 失败: ${JSON.stringify(
+        `Image tool 创建 image task 失败: ${JSON.stringify(
           lastSnapshot.createFailure,
         )}`,
       );
@@ -503,7 +502,7 @@ async function waitForImageCommandWorkflowTaskArtifact({
     await sleep(options.intervalMs);
   }
   throw new Error(
-    `ImageCommandWorkflow 未创建匹配的 image task artifact: ${JSON.stringify(
+    `Image tool 未创建匹配的 image task artifact: ${JSON.stringify(
       sanitizeJson(lastSnapshot),
     )}`,
   );
@@ -1213,7 +1212,7 @@ export async function runImageCommandScenario({
   }
   const traceTurnStart =
     imageCommandInputSend.afterClick?.matchingTurnStartTrace ?? null;
-  const imageTaskArtifact = await waitForImageCommandWorkflowTaskArtifact({
+  const imageTaskArtifact = await waitForImageTaskArtifact({
     page,
     workspace,
     appServerRequests,
@@ -1226,28 +1225,7 @@ export async function runImageCommandScenario({
     "turn_id",
     "turnId",
   ]);
-  const workflowHarness = {
-    image_command_intent: {
-      kind: "image_command",
-      image_task: workflowTaskPayload,
-    },
-  };
-  const imageCommandWorkflowTurnStart = {
-    kind: "workflow:image_command",
-    sessionId: options.sessionId,
-    turnId,
-    inputText: scenarioConfig.routedPrompt,
-    providerPreference: traceTurnStart?.providerPreference ?? null,
-    modelPreference: traceTurnStart?.modelPreference ?? null,
-    runtimeOptions: traceTurnStart?.runtimeOptions ?? {},
-    metadata: traceTurnStart?.metadata ?? null,
-    runtimeRequest: {
-      metadata: {
-        harness:
-          traceTurnStart?.runtimeRequest?.metadata?.harness ?? workflowHarness,
-      },
-    },
-  };
+  const imageCommandModelTurnStart = traceTurnStart;
   const imageCommandTaskArtifact = await readImageCommandTaskArtifact({
     page,
     appServerRequests,
@@ -1305,13 +1283,6 @@ export async function runImageCommandScenario({
     workspace,
     taskPath: imageCommandTaskArtifactTerminalPatch.taskPath,
   });
-  const imageCommandWorkflowRead = await readImageCommandWorkflowAudit({
-    page,
-    appServerRequests,
-    sessionId: options.sessionId,
-    turnId,
-    taskId: imageCommandTaskArtifactTerminalPatch.taskId,
-  });
   const guiImageCommandTerminal = await waitForGuiImageCommandTerminal(
     page,
     options,
@@ -1342,31 +1313,14 @@ export async function runImageCommandScenario({
 
   return sanitizeJson({
     imageCommandInputSend,
-    imageCommandWorkflowUsed: true,
-    imageCommandWorkflowTurnStart,
-    imageCommandBackendTurnStart: {
-      sessionId: imageCommandWorkflowTurnStart.sessionId,
-      turnId,
-      inputText: imageCommandWorkflowTurnStart.inputText,
-      hasImageCommandIntentMetadata: JSON.stringify(
-        imageCommandWorkflowTurnStart.runtimeRequest || {},
-      ).includes("image_command_intent"),
-      hasLegacyImageSkillLaunchMetadata: JSON.stringify(
-        imageCommandWorkflowTurnStart.runtimeRequest || {},
-      ).includes("image_skill_launch"),
-      hasImageTaskMetadata: JSON.stringify(
-        imageCommandWorkflowTurnStart.runtimeRequest || {},
-      ).includes("image_task"),
-      providerPreference: imageCommandWorkflowTurnStart.providerPreference,
-      modelPreference: imageCommandWorkflowTurnStart.modelPreference,
-    },
+    imageCommandModelToolUsed: true,
+    imageCommandModelTurnStart,
     imageCommandTaskCreateRequest: workflowTaskPayload,
     imageCommandFixtureProvider: imageFixtureProvider ?? null,
     imageCommandTaskArtifact,
     imageCommandTaskArtifactTerminalPatch,
     imageCommandTaskArtifactTerminal,
     imageCommandTaskAuditLog,
-    imageCommandWorkflowRead,
     guiImageCommandCompleted,
     guiImageCommandTerminal,
     agentUiPerformanceTrace: agentUiPerformanceTracePreReload,

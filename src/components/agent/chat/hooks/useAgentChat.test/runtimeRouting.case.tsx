@@ -584,7 +584,7 @@ describe("useAgentChat runtime routing", () => {
         .find((msg) => msg.role === "assistant");
 
       expect(assistantMessage?.content).toContain(
-        "执行失败：模型未输出最终答复，请重试",
+        "模型未输出最终答复，请重试",
       );
       expect(assistantMessage?.runtimeStatus).toMatchObject({
         phase: "failed",
@@ -728,7 +728,7 @@ describe("useAgentChat runtime routing", () => {
       );
       expect(assistantMessage).toBeTruthy();
       expect(assistantMessage?.content).toContain(
-        "执行失败：模型未输出最终答复，请重试",
+        "模型未输出最终答复，请重试",
       );
       expect(assistantMessage?.runtimeStatus).toMatchObject({
         phase: "failed",
@@ -822,7 +822,7 @@ describe("useAgentChat runtime routing", () => {
         .find((msg) => msg.role === "assistant");
 
       expect(assistantMessage?.content).toContain(
-        "执行失败：模型未输出最终答复，请重试",
+        "模型未输出最终答复，请重试",
       );
       expect(assistantMessage?.runtimeStatus).toMatchObject({
         phase: "failed",

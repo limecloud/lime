@@ -1,6 +1,5 @@
 use super::model_capability;
 use super::request_context::RuntimeModelSelection;
-use crate::runtime::memory_prompt::memory_soul_prompt_context_from_config;
 use crate::RuntimeCoreError;
 use crate::RuntimeEvent;
 use app_server_protocol::CapabilitySnapshot;
@@ -51,7 +50,6 @@ fn current_agent_runtime_config_metadata_from_config(
     let skills_config = (!config.skills.config.is_empty()).then(|| json!(config.skills));
     let orchestrator_config =
         (!OrchestratorConfig::is_default(&config.orchestrator)).then(|| json!(config.orchestrator));
-    let soul_context = memory_soul_prompt_context_from_config(config.memory.soul.as_ref());
     let mut metadata = serde_json::Map::new();
     metadata.insert(
         "tools".to_string(),
@@ -69,14 +67,6 @@ fn current_agent_runtime_config_metadata_from_config(
     }
     if let Some(orchestrator_config) = orchestrator_config {
         metadata.insert("orchestrator".to_string(), orchestrator_config);
-    }
-    if let Some(soul_context) = soul_context {
-        metadata.insert(
-            "memory".to_string(),
-            json!({
-                "soul": soul_context,
-            }),
-        );
     }
 
     Some(Value::Object(metadata))

@@ -8,7 +8,7 @@ import {
   recordAgentStreamPerformanceMetric,
   type AgentUiPerformanceTraceMetadata,
 } from "./agentStreamPerformanceMetrics";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 
 interface ResolveAgentStreamSubmitContextOptions {
   ensureSession: (options?: {
@@ -30,7 +30,7 @@ interface ResolveAgentStreamSubmitContextOptions {
   skipSessionRestore?: boolean;
   skipSessionStartHooks?: boolean;
   performanceTrace?: AgentUiPerformanceTraceMetadata | null;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 export async function resolveAgentStreamSubmitContext(
@@ -48,7 +48,7 @@ export async function resolveAgentStreamSubmitContext(
     skipSessionRestore,
     skipSessionStartHooks,
     performanceTrace,
-    soulCopy,
+
   } = options;
 
   const hadActiveSessionBeforeEnsure = Boolean(sessionIdRef.current?.trim());
@@ -110,7 +110,7 @@ export async function resolveAgentStreamSubmitContext(
     getSyncedSessionExecutionStrategy(activeSessionId);
   const waitingRuntimeStatus = buildWaitingAgentRuntimeStatus({
     executionStrategy: effectiveExecutionStrategy,
-    soulCopy,
+
   });
   const effectiveWaitingRuntimeStatus =
     assistantDraft?.waitingRuntimeStatus || waitingRuntimeStatus;

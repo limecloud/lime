@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "source": "public/logo-v6.svg",
+  "sourceSha256": "8ebd5690467c6506fecac26fdb22f5e8bbc0d03f6591f1ecb2e7d7ef9457dd2a",
+  "colors": [
+    {
+      "offset": "0%",
+      "color": "#064E3B"
+    },
+    {
+      "offset": "35%",
+      "color": "#10B981"
+    },
+    {
+      "offset": "70%",
+      "color": "#84CC16"
+    },
+    {
+      "offset": "100%",
+      "color": "#D9F99D"
+    }
+  ],
+  "frames": 24,
+  "durationMs": 1600,
+  "motion": {
+    "halo": "radial opacity/size breathing",
+    "wobbleDegrees": 4,
+    "pivot": "fixed hotspot",
+    "reduced": "first frame"
+  },
+  "fps": 15,
+  "macos": {
+    "width": 40,
+    "height": 40,
+    "hotspot": [
+      15,
+      15
+    ],
+    "inset": 12,
+    "sizes": [
+      1,
+      2
+    ],
+    "shape": "M4.1 3.2 C2.9 2.75 1.8 3.85 2.25 5.05 L5.9 15.2 C6.3 16.3 7.8 16.34 8.25 15.25 L9.92 11.15 Q10.08 10.75 10.48 10.59 L14.58 8.92 C15.67 8.47 15.63 6.97 14.53 6.57 Z",
+    "format": "PNG frames, AppKit/Core Animation overlay",
+    "reduceMotion": "first frame"
+  },
+  "windows": {
+    "width": 32,
+    "height": 32,
+    "hotspot": [
+      11,
+      11
+    ],
+    "inset": 8,
+    "sizes": [
+      1,
+      1.5,
+      2
+    ],
+    "shape": "M4.1 3.2 C2.9 2.75 1.8 3.85 2.25 5.05 L5.9 15.2 C6.3 16.3 7.8 16.34 8.25 15.25 L9.92 11.15 Q10.08 10.75 10.48 10.59 L14.58 8.92 C15.67 8.47 15.63 6.97 14.53 6.57 Z",
+    "format": "RIFF ACON .ani with multi-resolution 32-bit CUR frames",
+    "reduceMotion": "lime-pointer.cur"
+  }
+}

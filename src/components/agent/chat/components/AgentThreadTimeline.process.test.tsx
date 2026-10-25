@@ -70,55 +70,40 @@ describe("AgentThreadTimeline", () => {
         (value) => !value.endsWith(":shell") && !value.endsWith(":details"),
       );
 
-    expect(blockIds).toEqual(["agent-thread-block:1:process"]);
+    expect(blockIds).toEqual([
+      "agent-thread-block:1:process",
+      "agent-thread-block:2:process",
+      "agent-thread-block:3:process",
+    ]);
   });
-  it("同类多工具步骤应显示批次数量并切成轻量子行", () => {
-    const items: AgentThreadItem[] = [
-      {
-        ...createBaseItem("browser-1", 1),
-        type: "tool_call",
-        tool_name: "browser_navigate",
-        arguments: { url: "https://example.com" },
-      },
-      {
-        ...createBaseItem("browser-2", 2),
-        type: "tool_call",
-        tool_name: "browser_click",
-        arguments: { selector: "#publish" },
-      },
-    ];
-
-    const container = renderTimeline(items, {
-      turn: {
-        status: "completed",
-      },
-      isCurrentTurn: true,
-    });
-
-    const block = container.querySelector<HTMLDetailsElement>(
-      '[data-testid="agent-thread-block:1:process"]',
+  it("完成后的浏览器调用直接保留独立工具行，不再显示自定义批次数量", () => {
+    const container = renderTimeline(
+      [
+        {
+          ...createBaseItem("browser-1", 1),
+          type: "tool_call",
+          tool_name: "newTab",
+          metadata: { canonical_type: "dynamicToolCall", namespace: "browser" },
+          arguments: { url: "https://example.com" },
+        },
+        {
+          ...createBaseItem("browser-2", 2),
+          type: "tool_call",
+          tool_name: "markDeliverable",
+          metadata: { canonical_type: "dynamicToolCall", namespace: "browser" },
+          arguments: { tabId: "tab-1" },
+        },
+      ],
+      { turn: { status: "completed" }, deferCompletedSingleDetails: true },
     );
-    const summary = block?.querySelector("summary");
-
-    expect(summary?.textContent).toContain("2 步");
-    expect(summary?.textContent).toContain("2 个工具步骤");
-    expect(
-      container.querySelectorAll('[data-testid="tool-call-item"]'),
-    ).toHaveLength(0);
-
-    act(() => {
-      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    const toolRows = Array.from(
+    const rows = Array.from(
       container.querySelectorAll<HTMLElement>('[data-testid="tool-call-item"]'),
     );
-
-    expect(toolRows).toHaveLength(2);
-    expect(toolRows[0]?.dataset.grouped).toBe("yes");
-    expect(toolRows[0]?.dataset.groupMarker).toBe("└");
-    expect(toolRows[1]?.dataset.grouped).toBe("yes");
-    expect(toolRows[1]?.dataset.groupMarker).toBe("·");
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.dataset.grouped === "no")).toBe(true);
+    expect(container.querySelectorAll("details")).toHaveLength(0);
+    expect(container.textContent).not.toContain("2 步");
+    expect(container.textContent).not.toContain("2 个工具步骤");
   });
   it("超长过程展开后应分批挂载详情，同时保留全部 canonical 步骤", () => {
     const items: AgentThreadItem[] = Array.from({ length: 70 }, (_, index) => ({
@@ -211,7 +196,7 @@ describe("AgentThreadTimeline", () => {
     );
 
     expect(block?.open).toBe(false);
-    expect(block?.querySelector("summary")?.textContent).toContain("2 步");
+    expect(container.querySelectorAll("details")).toHaveLength(2);
     expect(
       container.querySelectorAll('[data-testid="tool-call-item"]'),
     ).toHaveLength(0);
@@ -344,7 +329,7 @@ describe("AgentThreadTimeline", () => {
     expect(container.textContent).not.toContain("查看子任务详情");
   });
 
-  it("连续执行流里有运行中步骤时，应聚合为一个高亮过程块", () => {
+  it("连续执行流里有运行中步骤时，只高亮实际仍运行的过程块", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("browser-1", 1),
@@ -370,7 +355,7 @@ describe("AgentThreadTimeline", () => {
 
     const container = renderTimeline(items, { isCurrentTurn: true });
     const processBlock = container.querySelector<HTMLDetailsElement>(
-      '[data-testid="agent-thread-block:1:process"]',
+      '[data-testid="agent-thread-block:2:process"]',
     );
 
     expect(processBlock?.dataset.emphasis).toBe("active");
@@ -403,14 +388,11 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    const processBlock = container.querySelector<HTMLDetailsElement>(
-      '[data-testid="agent-thread-block:1:process"]',
+    const itemsInOrder = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-thread-item-id]"),
     );
-
-    expect(processBlock).not.toBeNull();
-    expect(processBlock?.open).toBe(true);
-    expect(processBlock?.querySelector("summary")?.textContent).toContain(
-      "国际新闻 2026年5月9日",
+    expect(itemsInOrder.map((element) => element.dataset.threadItemId)).toEqual(
+      ["reasoning-1", "search-1"],
     );
     expect(container.textContent).toContain("搜索结果");
     expect(

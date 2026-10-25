@@ -159,7 +159,6 @@ export interface WorkspaceConversationMessageListRuntime {
   onArtifactClick: ConversationScenePresentationParams["messageList"]["onArtifactClick"];
   onOpenUrlPreview?: ConversationScenePresentationParams["messageList"]["onOpenUrlPreview"];
   onOpenMessagePreview?: ConversationScenePresentationParams["messageList"]["onOpenMessagePreview"];
-  onSaveMessageAsSkill?: ConversationScenePresentationParams["messageList"]["onSaveMessageAsSkill"];
   onOpenSubagentSession: ConversationScenePresentationParams["messageList"]["onOpenSubagentSession"];
   onPermissionResponse: ConversationScenePresentationParams["messageList"]["onPermissionResponse"];
   onRefreshSessionReadModel?: (
@@ -360,7 +359,6 @@ export function useWorkspaceConversationSceneRuntime({
     onArtifactClick,
     onOpenUrlPreview,
     onOpenMessagePreview,
-    onSaveMessageAsSkill,
 
     onOpenSubagentSession,
     onPermissionResponse,
@@ -612,7 +610,6 @@ export function useWorkspaceConversationSceneRuntime({
       onArtifactClick,
       onOpenUrlPreview,
       onOpenMessagePreview,
-      onSaveMessageAsSkill,
 
       onOpenSubagentSession,
       onPermissionResponse,

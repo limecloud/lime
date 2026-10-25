@@ -240,7 +240,7 @@ describe("useWorkspaceHealthRuntime", () => {
 
     expect(ensureWorkspaceReady).not.toHaveBeenCalled();
     expect(logAgentDebug).toHaveBeenCalledWith(
-      "AgentChatPage",
+      "LocalConversationPage",
       "workspacePathAutoRecovery.skippedNoDefaultProjectFallback",
       {
         projectId: "temporary-project",

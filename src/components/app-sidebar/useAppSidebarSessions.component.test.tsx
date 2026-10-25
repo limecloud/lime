@@ -92,7 +92,7 @@ describe("sidebar catalog pagination", () => {
         sidebarSearchOpen: false,
         sidebarSearchQuery: "",
         isNewTaskHome: false,
-        isClawTaskCenter: false,
+        isConversation: false,
         conversationUntitledLabel: "Untitled",
       });
       return (

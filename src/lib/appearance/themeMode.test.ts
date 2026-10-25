@@ -37,7 +37,7 @@ describe("themeMode", () => {
     expect(document.documentElement.dataset.limeThemeEffective).toBe("dark");
     expect(
       document.documentElement.style.getPropertyValue("--lime-app-bg"),
-    ).toBe("#160f14");
+    ).toBe("");
   });
 
   it("持久化主题模式后应可重新读取", () => {

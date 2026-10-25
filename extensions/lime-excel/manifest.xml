@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="TaskPaneApp">
+  <Id>994cff01-b776-4b5d-ad46-6125c5e16c2f</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Lime</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Lime Computer Use"><Override Locale="zh-CN" Value="Lime 电脑操控"/><Override Locale="zh-TW" Value="Lime 電腦操控"/><Override Locale="ja-JP" Value="Lime コンピューター操作"/><Override Locale="ko-KR" Value="Lime 컴퓨터 사용"/></DisplayName>
+  <Description DefaultValue="Connect this workbook to Lime Desktop or CLI with session approval."/>
+  <AppDomains><AppDomain>https://localhost:32147</AppDomain></AppDomains>
+  <Hosts><Host Name="Workbook"/></Hosts>
+  <Requirements><Sets DefaultMinVersion="1.1"><Set Name="ExcelApi" MinVersion="1.1"/></Sets></Requirements>
+  <DefaultSettings><SourceLocation DefaultValue="__SOURCE__"/></DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>

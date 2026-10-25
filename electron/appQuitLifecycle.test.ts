@@ -8,7 +8,9 @@ function fixture() {
   const finalEvent = { preventDefault: vi.fn() };
   app.quit = vi.fn(() => {
     order.push("quit");
-    app.emit("before-quit", finalEvent);
+    const before = { preventDefault: vi.fn() };
+    app.emit("before-quit", before);
+    if (before.preventDefault.mock.calls.length) return;
     app.emit("will-quit", finalEvent);
   });
   let finish!: () => void;
@@ -40,6 +42,24 @@ function fixture() {
 }
 
 describe("App Main quit lifecycle", () => {
+  it("defers window teardown until the current owners have drained", async () => {
+    const f = fixture();
+    const willQuit = vi.fn();
+    f.app.on("will-quit", willQuit);
+    f.app.quit();
+    await Promise.resolve();
+    expect(f.prepare).toHaveBeenCalledOnce();
+    expect(f.dispose).toHaveBeenCalledOnce();
+    expect(willQuit).not.toHaveBeenCalled();
+    const quit = new Promise<void>((resolve) =>
+      f.app.once("will-quit", resolve),
+    );
+    f.finish();
+    await quit;
+    expect(willQuit).toHaveBeenCalledOnce();
+    expect(f.finalEvent.preventDefault).not.toHaveBeenCalled();
+  });
+
   it("prepares once, waits for async stop, then permits the resumed quit", async () => {
     const f = fixture();
     const first = { preventDefault: vi.fn() };

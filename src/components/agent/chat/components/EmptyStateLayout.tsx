@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import styled from "styled-components";
-import type { HomeSurfaceHeroCopy } from "../home/homeSurfaceCopy";
-import { EmptyStateHero } from "./EmptyStateHero";
+import { useTranslation } from "react-i18next";
+import { LIME_BRAND_LOGO_SRC } from "@/lib/branding";
 import {
   EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
   EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
@@ -19,13 +19,38 @@ const ContentWrapper = styled.div.attrs({
   className: EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
 })`
   box-sizing: border-box;
-  display: grid;
-  grid-template-rows: minmax(160px, 1fr) auto;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 100%;
   flex: 0 0 auto;
-  padding: 24px var(--lime-panel-padding, 24px) 16px;
+  padding: 16px var(--lime-panel-padding, 24px) 12px;
+`;
+
+const Welcome = styled.div`
+  display: flex;
+  min-height: 120px;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px 0;
+  color: var(--lime-text-strong);
+
+  img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: center;
+  }
 `;
 
 const ComposerFrame = styled.div`
@@ -33,26 +58,17 @@ const ComposerFrame = styled.div`
   min-width: 0;
 `;
 
-const HeroRegion = styled.div`
-  container-type: size;
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  align-items: center;
-`;
-
 const ComposerRegion = styled.div`
   position: relative;
   z-index: 50;
   display: flex;
-  width: min(100%, var(--thread-content-max-width, 48rem));
+  width: min(100%, 36rem);
   min-width: 0;
   min-height: fit-content;
   flex-direction: column;
   justify-content: flex-end;
   align-self: center;
   justify-self: center;
-  padding: 0 0 16px;
 `;
 
 export function EmptyStateComposerFrame({ children }: { children: ReactNode }) {
@@ -64,29 +80,22 @@ export function EmptyStateComposerFrame({ children }: { children: ReactNode }) {
 }
 
 interface EmptyStateLayoutProps {
-  heroCopy: HomeSurfaceHeroCopy;
   composer: ReactNode;
   children?: ReactNode;
 }
 
 export function EmptyStateLayout({
-  heroCopy,
   composer,
   children,
 }: EmptyStateLayoutProps) {
+  const { t } = useTranslation("agent");
   return (
     <PageContainer data-testid="home-composer-page">
       <ContentWrapper data-testid="empty-state-first-screen">
-        <HeroRegion>
-          <EmptyStateHero
-            eyebrow={heroCopy.eyebrow}
-            slogan={heroCopy.slogan}
-            description={heroCopy.description}
-            skinBrandSubtitle={heroCopy.skinBrandSubtitle}
-            skinTagline={heroCopy.skinTagline}
-            skinStatus={heroCopy.skinStatus}
-          />
-        </HeroRegion>
+        <Welcome data-testid="home-welcome">
+          <img src={LIME_BRAND_LOGO_SRC} alt="" aria-hidden="true" />
+          <h1>{t("agentChat.home.title")}</h1>
+        </Welcome>
         <ComposerRegion>{composer}</ComposerRegion>
       </ContentWrapper>
       {children}

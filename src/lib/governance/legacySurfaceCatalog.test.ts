@@ -33,6 +33,17 @@ function collectSourceFiles(root: string): string[] {
 }
 
 describe("legacySurfaceCatalog", () => {
+  it("聊天结果转技能及无消费者旧技能页必须保持物理删除", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "retired-chat-result-skill-save",
+    );
+    expect(monitor?.classification).toBe("dead");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets.length).toBeGreaterThan(0);
+    for (const target of monitor?.targets ?? []) {
+      expect(existsSync(join(REPO_ROOT, target)), target).toBe(false);
+    }
+  });
   it("项目写作人设与平台发布配置整链删除且不恢复兼容入口", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "retired-project-persona-publish",
@@ -3661,7 +3672,6 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.patterns).toEqual(["showThemeTabs", "themeTabs={"]);
     expect(monitor?.includePathPrefixes).toEqual([
       "src/components/agent/chat/components/EmptyState.tsx",
-      "src/components/agent/chat/components/EmptyStateHero.tsx",
       "src/components/agent/chat/workspace/chatSurfaceProps.ts",
     ]);
   });
@@ -3837,7 +3847,6 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.classification).toBe("dead");
     expect(monitor?.allowedPaths).toEqual([
       "src/lib/api/agentProtocol.test.ts",
-      "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.test.tsx",
       "src/components/agent/chat/hooks/agentSessionRefresh.test.ts",
       "src/components/agent/chat/hooks/agentChatStorage.test.ts",
       "src/components/agent/chat/hooks/agentSessionTopicViewModel.unit.test.ts",
@@ -3863,13 +3872,11 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.classification).toBe("dead");
     expect(monitor?.includePathPrefixes).toEqual([
       "src/lib/api/agentProtocol.ts",
-      "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.ts",
       "src/lib/api/agentRuntime/executionStrategyCompat.ts",
     ]);
     expect(monitor?.allowedPaths).toEqual([
       "src/lib/api/agentRuntime/executionStrategyCompat.ts",
       "src/lib/api/agentRuntime/executionStrategyCompat.test.ts",
-      "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.test.tsx",
     ]);
     expect(monitor?.patterns).toEqual(["code_orchestrated"]);
     expect(monitor?.regexPatterns).toEqual([

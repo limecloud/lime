@@ -34,6 +34,7 @@ export enum SettingsTabs {
   // 智能体
   Providers = "providers",
   Plugins = "plugins-settings",
+  ComputerUse = "computer-use",
   MediaServices = "media-services",
 
   // 系统

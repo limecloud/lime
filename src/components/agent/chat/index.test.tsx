@@ -53,7 +53,7 @@ vi.mock("./utils/agentTaskRuntime", async (importOriginal) => {
   };
 });
 
-describe("AgentChatPage 任务中心顶部工具区", () => {
+describe("LocalConversationPage 任务中心顶部工具区", () => {
   it("任务中心不应再渲染顶部项目栏和会话标签", async () => {
     installMockAgentChatUnifiedState(
       createMockAgentChatUnifiedState({
@@ -70,7 +70,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     const container = renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -105,7 +105,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -143,7 +143,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -170,7 +170,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -194,7 +194,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -221,7 +221,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -248,7 +248,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -282,7 +282,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -311,7 +311,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -344,7 +344,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
       onNavigate,
@@ -429,7 +429,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
       onNavigate,
@@ -485,7 +485,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-project",
       projectId: "workspace-test",
       onNavigate,
@@ -527,7 +527,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-project",
       projectId: "workspace-test",
       onNavigate,
@@ -597,7 +597,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -700,7 +700,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
     installMockAgentChatUnifiedState(state);
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-current",
       projectId: "workspace-test",
     });
@@ -770,7 +770,7 @@ describe("AgentChatPage 任务中心顶部工具区", () => {
     );
 
     renderPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       initialSessionId: "topic-selected",
       projectId: "workspace-test",
     });

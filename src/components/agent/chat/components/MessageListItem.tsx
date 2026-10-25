@@ -118,10 +118,6 @@ export interface MessageListItemProps {
   onPermissionResponse?: (response: ConfirmResponse) => void;
   onQuoteMessage?: (content: string, id: string) => void;
   onRequestThreadRevert?: (target: ThreadRevertTarget) => void;
-  onSaveMessageAsSkill?: (source: {
-    messageId: string;
-    content: string;
-  }) => void;
   onWriteFile?: (
     content: string,
     fileName: string,
@@ -179,7 +175,6 @@ export function MessageListItem({
   onQuoteMessage,
   onRequestThreadRevert,
 
-  onSaveMessageAsSkill,
   onWriteFile,
 }: MessageListItemProps) {
   const { i18n, t } = useTranslation("agent");
@@ -254,9 +249,6 @@ export function MessageListItem({
   } = projection;
 
   const canQuoteMessage = Boolean(onQuoteMessage && projection.canQuoteMessage);
-  const canSaveMessageAsSkill = Boolean(
-    onSaveMessageAsSkill && projection.canSaveMessageAsSkill,
-  );
   const revertTurnId = msg.runtimeTurnId?.trim() || "";
   const revertThreadId = threadRead?.thread_id?.trim() || "";
   const canRevertThread = Boolean(
@@ -270,10 +262,9 @@ export function MessageListItem({
     threadRead?.can_accept_direct_input !== false,
   );
   const showMessageActions =
-    (msg.role === "assistant" &&
-      Boolean(msg.imageWorkbenchPreview) &&
-      (canQuoteMessage || canCopyMessage)) ||
-    canSaveMessageAsSkill;
+    msg.role === "assistant" &&
+    !msg.isThinking &&
+    (canQuoteMessage || canCopyMessage);
   const userMessageFooter =
     msg.role === "user" && !isUserCommandMessage ? (
       <div
@@ -573,13 +564,11 @@ export function MessageListItem({
                 actionContent={actionContent}
                 canCopyMessage={canCopyMessage}
                 canQuoteMessage={canQuoteMessage}
-                canSaveMessageAsSkill={canSaveMessageAsSkill}
                 copied={copiedId === msg.id}
                 isImageWorkbenchMessage={Boolean(msg.imageWorkbenchPreview)}
                 messageId={msg.id}
                 onCopy={handleCopy}
                 onQuoteMessage={onQuoteMessage}
-                onSaveMessageAsSkill={onSaveMessageAsSkill}
               />
             ) : null}
           </MessageBubble>

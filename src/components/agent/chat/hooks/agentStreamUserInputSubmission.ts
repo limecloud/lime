@@ -152,7 +152,7 @@ export async function submitAgentStreamUserInput(
       setThreadTurns: env.setThreadTurns,
       setCurrentTurnId: env.setCurrentTurnId,
       setExecutionRuntime: env.setExecutionRuntime,
-      soulCopy: env.soulCopy,
+
     });
   } catch (error) {
     if (executionScopeIsCurrent?.() === false) {
@@ -175,7 +175,7 @@ export async function submitAgentStreamUserInput(
       clearActiveStreamIfMatch: env.clearActiveStreamIfMatch,
       disposeListener,
       markOptimisticFailure,
-      soulCopy: env.soulCopy,
+
     });
     throw error;
   }

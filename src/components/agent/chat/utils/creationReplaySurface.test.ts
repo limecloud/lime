@@ -62,30 +62,4 @@ describe("buildCreationReplaySurfaceModel", () => {
       defaultReferenceEntries: [],
     });
   });
-
-  it("技能草稿回放应收口为Skill 草稿前台文案", () => {
-    const result = buildCreationReplaySurfaceModel({
-      version: 1,
-      kind: "skill_scaffold",
-      source: {
-        page: "skills",
-        project_id: "project-3",
-      },
-      data: {
-        name: "账号复盘方法",
-        description: "把结果复盘成下一轮增长方案。",
-      },
-    });
-
-    expect(result).toEqual({
-      kind: "skill_scaffold",
-      eyebrow: "当前带入 Skill 草稿",
-      badgeLabel: "Skill 草稿",
-      title: "账号复盘方法",
-      summary: "把结果复盘成下一轮增长方案。",
-      hint: "这轮会先沿着这份 Skill 草稿继续生成，跑顺后可回到 Skills 继续整理。",
-      defaultReferenceMemoryIds: [],
-      defaultReferenceEntries: [],
-    });
-  });
 });

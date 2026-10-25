@@ -36,6 +36,10 @@ const MAC_COMPUTER_USE_ACTIONS_SOURCE = path.join(
   REPO_ROOT,
   "electron/native/macos/macos-computer-use-actions.swift",
 );
+const MAC_COMPUTER_USE_CURSOR_SOURCES = [
+  "macos-computer-use-cursor.swift",
+  "macos-computer-use-cursor-frames.swift",
+].map((file) => path.join(REPO_ROOT, "electron/native/macos", file));
 const MAC_SECURITY_SOURCE = path.join(
   REPO_ROOT,
   "electron/native/macos/macos-security.swift",
@@ -211,6 +215,30 @@ export function prepareDevelopmentDesktopResources({
   });
 }
 
+// The development sidecar runs from Cargo's output directory, independently
+// of Electron's staged resources. Keep the same contained, hashed contract.
+export function prepareLocalComputerUseResources({
+  binaryPath,
+  platform = process.platform,
+  arch = process.arch,
+  version = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"),
+  ).version,
+  execFileSyncImpl = execFileSync,
+}) {
+  const resourcesRoot = path.dirname(path.resolve(binaryPath));
+  return prepareDesktopResourcesFromRoot({
+    resourcesRoot,
+    platform,
+    arch,
+    version,
+    applicationId: DESKTOP_APPLICATION_ID,
+    execFileSyncImpl,
+    nativeSignedByForge: false,
+    localSidecar: path.basename(binaryPath),
+  });
+}
+
 function prepareDesktopResourcesFromRoot({
   resourcesRoot,
   platform,
@@ -219,31 +247,39 @@ function prepareDesktopResourcesFromRoot({
   applicationId,
   execFileSyncImpl,
   nativeSignedByForge,
+  localSidecar,
 }) {
   const platformKey = desktopResourcePlatformKey(platform, arch);
   const appServerManifestPath = path.join(
     resourcesRoot,
     "app-server.release.json",
   );
-  assertRegularFile(appServerManifestPath, "app-server release manifest");
-  const appServerManifest = JSON.parse(
-    readFileSync(appServerManifestPath, "utf8"),
-  );
-  const artifact = Array.isArray(appServerManifest.artifacts)
+  if (!localSidecar)
+    assertRegularFile(appServerManifestPath, "app-server release manifest");
+  const appServerManifest = localSidecar
+    ? null
+    : JSON.parse(readFileSync(appServerManifestPath, "utf8"));
+  const artifact = Array.isArray(appServerManifest?.artifacts)
     ? appServerManifest.artifacts.find((item) => item?.platform === platformKey)
     : null;
-  if (!artifact) {
+  if (!localSidecar && !artifact) {
     throw new Error(`app-server release manifest is missing ${platformKey}`);
   }
   const binaryName = platform === "win32" ? "app-server.exe" : "app-server";
   const codeModeHostName =
     platform === "win32" ? "code-mode-host.exe" : "code-mode-host";
-  const files = {
-    "browser-client": path.join("browser-client", "client.mjs"),
-    "app-server": path.join("app-server", platformKey, binaryName),
-    "code-mode-host": path.join("app-server", platformKey, codeModeHostName),
-  };
-  if (platform === "win32") {
+  const files = localSidecar
+    ? { "app-server": localSidecar }
+    : {
+        "browser-client": path.join("browser-client", "client.mjs"),
+        "app-server": path.join("app-server", platformKey, binaryName),
+        "code-mode-host": path.join(
+          "app-server",
+          platformKey,
+          codeModeHostName,
+        ),
+      };
+  if (platform === "win32" && !localSidecar) {
     files["windows-sandbox-setup"] = path.join(
       "app-server",
       platformKey,
@@ -269,6 +305,7 @@ function prepareDesktopResourcesFromRoot({
         MAC_SCREEN_CAPTURE_SOURCE,
         MAC_COMPUTER_USE_SOURCE,
         MAC_COMPUTER_USE_ACTIONS_SOURCE,
+        ...MAC_COMPUTER_USE_CURSOR_SOURCES,
         MAC_SECURITY_SOURCE,
         MAC_WINDOW_ORCHESTRATION_SOURCE,
         MAC_ACCESSIBILITY_TREE_SOURCE,

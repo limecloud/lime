@@ -33,16 +33,6 @@ export async function submitWorkspaceMessage(options: {
   }
 }
 
-export async function submitWorkspaceLocalConfirmation(options: {
-  preserveDraft: boolean;
-  publish: () => void;
-  clearDraft: () => void;
-}): Promise<RuntimeSubmissionResult> {
-  if (!options.preserveDraft) options.clearDraft();
-  options.publish();
-  return { kind: "local-handled" };
-}
-
 export async function withWorkspaceSubmissionCleanup(
   submit: () => Promise<RuntimeSubmissionResult>,
   cleanup: () => void,

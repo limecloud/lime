@@ -37,10 +37,13 @@ export const ModelSelectorTrigger = forwardRef<
   const hideLabel = compact && presentation === "compact";
   const label =
     placeholderLabel ??
-    `${selectedProviderLabel} / ${modelLabel}${reasoningLabel ? ` · ${reasoningLabel}` : ""}`;
+    `${selectedProviderLabel} / ${modelLabel}${reasoningLabel ? ` ${reasoningLabel}` : ""}`;
   const reasoning = reasoningLabel ? (
-    <span data-testid="model-selector-effort" className="shrink-0 text-xs">
-      · {reasoningLabel}
+    <span
+      data-testid="model-selector-effort"
+      className="shrink-0 text-xs text-muted-foreground"
+    >
+      {reasoningLabel}
     </span>
   ) : null;
   return (
@@ -57,31 +60,29 @@ export const ModelSelectorTrigger = forwardRef<
       title={compact ? label : undefined}
       className={cn(
         compact
-          ? "h-8 max-w-[224px] justify-start gap-1.5 rounded-full border-slate-200/80 bg-white/92 text-slate-600 shadow-none transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-800"
-          : "h-9 w-full min-w-0 justify-start gap-2 rounded-full border-slate-200/80 bg-white/92 px-3 font-normal text-slate-700 shadow-none transition-colors hover:border-slate-300 hover:bg-white",
+          ? "h-7 max-w-[224px] justify-start gap-1 rounded-md border-[0.5px] border-transparent bg-transparent font-normal text-foreground shadow-none hover:bg-muted"
+          : "h-9 w-full min-w-0 justify-start gap-2 rounded-md border-[0.5px] border-border bg-background px-3 font-normal text-foreground shadow-none hover:border-border hover:bg-muted",
         compact &&
-          (hideLabel
-            ? "w-8 min-w-8 justify-center px-0"
-            : "min-w-[104px] px-2.5"),
-        compact && open && "border-slate-300 bg-white text-slate-700",
+          (hideLabel ? "w-8 min-w-8 justify-center px-0" : "min-w-0 px-1"),
+        compact && open && "border-border bg-muted text-foreground",
       )}
     >
-      {compact ? (
+      {compact && hideLabel ? (
         <ProviderIcon
           providerType={providerType}
           fallbackText={providerLabel}
           size={15}
         />
-      ) : (
-        <Bot size={16} className="text-slate-500" />
-      )}
+      ) : !compact ? (
+        <Bot size={16} className="text-muted-foreground" />
+      ) : null}
       {!hideLabel ? (
         placeholderLabel !== undefined || compact ? (
           <span
             className={
               compact
                 ? "min-w-0 flex-1 flex items-center gap-1 text-xs font-medium"
-                : "min-w-0 flex-1 font-medium text-left text-slate-700"
+                : "min-w-0 flex-1 font-medium text-left text-foreground"
             }
           >
             <span className="min-w-0 truncate">
@@ -94,8 +95,8 @@ export const ModelSelectorTrigger = forwardRef<
             <span className="font-medium truncate">
               {selectedProviderLabel}
             </span>
-            <span className="text-slate-300 shrink-0">/</span>
-            <span className="text-sm text-slate-500 truncate">
+            <span className="text-muted-foreground shrink-0">/</span>
+            <span className="text-sm text-muted-foreground truncate">
               {modelLabel}
             </span>
             {reasoning}
@@ -106,8 +107,8 @@ export const ModelSelectorTrigger = forwardRef<
         <ChevronDown
           className={
             compact
-              ? "h-3 w-3 shrink-0 text-slate-400 opacity-80"
-              : "ml-1 h-3 w-3 text-slate-400 opacity-70"
+              ? "h-3 w-3 shrink-0 text-muted-foreground opacity-80"
+              : "ml-1 h-3 w-3 text-muted-foreground opacity-70"
           }
         />
       ) : null}

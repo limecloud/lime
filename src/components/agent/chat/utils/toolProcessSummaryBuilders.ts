@@ -341,6 +341,8 @@ function buildBrowserPreSummary(
   args: Record<string, unknown>,
   metadata: Record<string, unknown> | null,
 ): string | null {
+  if (normalizedName === "newtab" || normalizedName === "browsernewtab")
+    return resolveRequiredAgentChatCopy("toolCall.browser.opening");
   const urlLabel = resolveUrlLabel(args, metadata);
   const target =
     readString(args, ["selector", "element", "target", "label", "text"]) ||
@@ -412,6 +414,8 @@ export function buildBrowserPostSummary(
   args: Record<string, unknown>,
   metadata: Record<string, unknown> | null,
 ): string | null {
+  if (normalizedName === "newtab" || normalizedName === "browsernewtab")
+    return resolveRequiredAgentChatCopy("toolCall.browser.opened");
   const urlLabel = resolveUrlLabel(args, metadata);
 
   if (normalizedName.includes("navigate") || normalizedName.includes("goto")) {

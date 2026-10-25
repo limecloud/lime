@@ -129,7 +129,7 @@ export function useWorkspaceChatToolPreferencesRuntime({
     void syncSessionRecentPreferences(trimmedSessionId, fallbackPreferences, {
       priority: "background",
     }).catch((error) => {
-      console.warn("[AgentChatPage] 回填会话 recent_preferences 失败:", error);
+      console.warn("[LocalConversationPage] 回填会话 recent_preferences 失败:", error);
     });
   }, [
     activeTheme,

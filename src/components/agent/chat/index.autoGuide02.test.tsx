@@ -25,7 +25,7 @@ const {
   mockUseTopicBranchBoard,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 自动引导", { timeout: 20_000 }, () => {
   it("工作区编排启用时应仅保留专用侧栏，不再渲染右侧旧操作面板", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     const container = renderPage({

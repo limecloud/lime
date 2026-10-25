@@ -27,7 +27,6 @@ import {
   getSettingsSearchDocument,
   type SettingsSearchResult,
 } from "../settingsSearch";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 
 const LayoutContainer = styled.div`
   display: flex;
@@ -132,7 +131,6 @@ function renderSettingsContent(
     searchPath: getSettingsSearchDocument(
       tab,
       params.searchFocus?.targetId,
-      !resolveOemCloudRuntimeContext(),
     )?.path,
     providerView:
       tab === SettingsTabs.Providers
@@ -246,7 +244,6 @@ export function SettingsPage({
     contentContainerRef,
     activeTab,
     pageParams.searchFocus,
-    !resolveOemCloudRuntimeContext(),
   );
 
   return (

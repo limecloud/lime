@@ -257,9 +257,9 @@ describe("agentRuntimeErrorPresentation", () => {
       ),
     ).toEqual({
       displayMessage:
-        "当前模型通道暂时不可用，请稍后重试；如果持续失败，请检查 Provider 状态或切换到其他可用模型。",
+        "所选模型无法执行当前请求。请检查服务商地址、协议和模型，或切换模型后重试。",
       toastMessage:
-        "当前模型通道暂时不可用，请稍后重试；如果持续失败，请检查 Provider 状态或切换到其他可用模型。",
+        "所选模型无法执行当前请求。请检查服务商地址、协议和模型，或切换模型后重试。",
     });
   });
 
@@ -272,7 +272,7 @@ describe("agentRuntimeErrorPresentation", () => {
         "runtime model route is not executable",
       ),
     ).toBe(
-      "当前模型通道暂时不可用，请稍后重试；如果持续失败，请检查 Provider 状态或切换到其他可用模型。",
+      "所选模型无法执行当前请求。请检查服务商地址、协议和模型，或切换模型后重试。",
     );
   });
 

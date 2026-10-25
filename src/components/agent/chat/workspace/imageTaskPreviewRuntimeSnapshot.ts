@@ -21,7 +21,7 @@ import {
   mergeStoryboardSlots,
   readBoolean,
   readImageCommandRunSnapshot,
-  readImageGenerationSoulMetadata,
+
   readImageTaskPresentationCaption,
   readImageTaskPresentationText,
   readPositiveNumber,
@@ -503,13 +503,7 @@ export function buildParsedImageTaskSnapshot(params: {
   const runtimeTurnId =
     readString([payload, params.taskRecord], ["turn_id", "turnId"]) ||
     undefined;
-  const soulMetadata = readImageGenerationSoulMetadata([
-    resultRecord,
-    attemptResultRecord,
-    payload,
-    uiHintsRecord,
-    params.taskRecord,
-  ]);
+
   const prompt = sanitizePreviewPrompt(
     readString(
       [payload, params.taskRecord, uiHintsRecord],
@@ -753,7 +747,7 @@ export function buildParsedImageTaskSnapshot(params: {
       null,
     runtimeContract,
     workflowRun,
-    soulMetadata,
+
   };
 
   const messageTimestamp = new Date(createdAt);
@@ -791,7 +785,7 @@ export function buildParsedImageTaskSnapshot(params: {
       failureMessage: lastError,
       runtimeContract,
       workflowRun,
-      soulMetadata,
+
       hookImageIds: outputs.map((output) => output.hookImageId),
       applyTarget,
       taskFilePath,
@@ -851,9 +845,7 @@ export function buildPendingImageTaskSnapshot(params: {
   const workflowRun = readImageCommandRunSnapshot([params.payload || null]);
   const runtimeTurnId =
     readString([params.payload || null], ["turn_id", "turnId"]) || undefined;
-  const soulMetadata = readImageGenerationSoulMetadata([
-    params.payload || null,
-  ]);
+
   const fallbackAssistantIntro =
     readImageTaskPresentationText([params.payload || null], previewPrompt) ||
     "";
@@ -911,7 +903,7 @@ export function buildPendingImageTaskSnapshot(params: {
           phase: resolvePendingProgressPhase(params.status),
           statusMessage: params.progressMessage || "正在生成图片。",
           workflowRun,
-          soulMetadata,
+
         },
       },
       task: {
@@ -931,7 +923,7 @@ export function buildPendingImageTaskSnapshot(params: {
         targetOutputId: null,
         createdAt: Date.now(),
         workflowRun,
-        soulMetadata,
+
         hookImageIds: [],
         applyTarget: resolveScopedImageWorkbenchApplyTarget({
           canvasState: params.canvasState,

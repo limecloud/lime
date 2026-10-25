@@ -31,7 +31,7 @@ export function useSessionRecentMetadataSyncRuntime() {
         navigationDeferUntilRef.current,
         deferUntil,
       );
-      logAgentDebug("AgentChatPage", "sessionRecentMetadataSync.defer", {
+      logAgentDebug("LocalConversationPage", "sessionRecentMetadataSync.defer", {
         deferMs: SESSION_RECENT_METADATA_NAVIGATION_DEFER_MS,
         topicId,
       });
@@ -65,7 +65,7 @@ export function useSessionRecentMetadataSyncRuntime() {
             },
           );
           logAgentDebug(
-            "AgentChatPage",
+            "LocalConversationPage",
             "sessionRecentMetadataSync.deferredForNavigation",
             {
               deferMs: remainingNavigationDeferMs,

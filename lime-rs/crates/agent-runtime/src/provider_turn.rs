@@ -63,6 +63,7 @@ mod output_lifecycle;
 mod stop_hooks;
 mod stream_producer;
 mod tool_call;
+mod tool_output;
 use code_mode::PendingProviderToolCall;
 #[cfg(test)]
 use input::runtime_inter_agent_text;
@@ -2432,6 +2433,7 @@ async fn execute_calls(
     let mut results = Vec::with_capacity(completed.len());
     for CompletedToolCall { call, output } in completed {
         results.push(CurrentProviderToolResult {
+            content_items: tool_output::normalized_content_items(&output),
             history_token_limit: output.history_token_limit,
             call_id: call.id,
             name: call.name,

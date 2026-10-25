@@ -12,9 +12,9 @@ import { useContentSync } from "../hooks/useContentSync";
 
 import { useServiceModelsConfig } from "@/hooks/useServiceModelsConfig";
 
-import { useSoulArtifactVoiceGenerationBrief } from "@/hooks/useSoulArtifactVoiceGenerationBrief";
 
-import { useSoulInteractionCopy } from "@/hooks/useSoulInteractionCopy";
+
+
 
 import { type TaskFile } from "../components/TaskFiles";
 
@@ -61,7 +61,7 @@ import { useWorkspaceSkillDirectoryRuntime } from "./useWorkspaceSkillDirectoryR
 import {
   useWorkspaceActiveContentTargetRuntime,
   useWorkspaceEntryStateRuntime,
-  useWorkspaceSoulArtifactVoiceTurnRuntime,
+
   useWorkspaceTaskFilesRefSyncRuntime,
 } from "./useWorkspaceEntrySideEffectsRuntime";
 
@@ -79,7 +79,7 @@ export function useAgentChatWorkspaceEntryRuntime({
   initialRequestMetadata,
   initialAutoSendRequestMetadata,
   autoRunInitialPromptOnMount = false,
-  agentEntry = "claw",
+  agentEntry = "conversation",
   theme: initialTheme,
   initialCreationMode,
   lockTheme = false,
@@ -106,9 +106,9 @@ export function useAgentChatWorkspaceEntryRuntime({
   }, []);
 
   const normalizedEntryTheme = normalizeInitialTheme(initialTheme);
-  const shouldAutoCollapseClassicClawSidebar = agentEntry === "claw";
+  const shouldCollapseConversationSidebar = agentEntry === "conversation";
   const defaultTopicSidebarVisible =
-    showChatPanel && !shouldAutoCollapseClassicClawSidebar;
+    showChatPanel && !shouldCollapseConversationSidebar;
   const shouldBootstrapCanvasOnEntry =
     Boolean(contentId) && isSpecializedWorkbenchTheme(normalizedEntryTheme);
   const shouldKeepNewTaskHomeSessionRestoreDisabled =
@@ -324,19 +324,10 @@ export function useAgentChatWorkspaceEntryRuntime({
   } = useServiceModelsConfig({
     enabled: !shouldDeferWorkspaceAuxiliaryLoads,
   });
-  const { generationBrief: soulArtifactVoiceGenerationBrief } =
-    useSoulArtifactVoiceGenerationBrief({
-      enabled: !shouldDeferWorkspaceAuxiliaryLoads,
-    });
-  const soulInteractionCopy = useSoulInteractionCopy({
-    enabled: !shouldDeferWorkspaceAuxiliaryLoads,
-  });
-  const [soulArtifactVoiceEnabledForTurn, setSoulArtifactVoiceEnabledForTurn] =
-    useState(true);
-  useWorkspaceSoulArtifactVoiceTurnRuntime({
-    generationBrief: soulArtifactVoiceGenerationBrief,
-    setSoulArtifactVoiceEnabledForTurn,
-  });
+
+
+
+
   const {
     effectiveImageWorkbenchPreference,
     imageGenerationSelectionReady,
@@ -451,7 +442,7 @@ export function useAgentChatWorkspaceEntryRuntime({
     untitledTaskLabel,
     workspaceRenderT0,
     normalizedEntryTheme,
-    shouldAutoCollapseClassicClawSidebar,
+    shouldCollapseConversationSidebar,
     defaultTopicSidebarVisible,
     shouldBootstrapCanvasOnEntry,
     shouldKeepNewTaskHomeSessionRestoreDisabled,
@@ -556,10 +547,10 @@ export function useAgentChatWorkspaceEntryRuntime({
     serviceModels,
     agentResponseLanguage,
     refreshServiceModelsConfig,
-    soulArtifactVoiceGenerationBrief,
-    soulInteractionCopy,
-    soulArtifactVoiceEnabledForTurn,
-    setSoulArtifactVoiceEnabledForTurn,
+
+
+
+
 
     effectiveImageWorkbenchPreference,
     imageGenerationSelectionReady,

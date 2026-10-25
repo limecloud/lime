@@ -53,7 +53,7 @@ function resolveContentSyncTone(status: SyncStatus): {
     case "syncing":
       return {
         text: "var(--lime-text, #1a3b2b)",
-        background: "var(--lime-home-card-surface)",
+        background: "var(--lime-surface)",
         border: "var(--lime-surface-border, rgba(226, 240, 226, 0.9))",
       };
     case "success":
@@ -72,7 +72,7 @@ function resolveContentSyncTone(status: SyncStatus): {
     default:
       return {
         text: "var(--lime-text-muted, #6b826b)",
-        background: "var(--lime-home-card-surface)",
+        background: "var(--lime-surface)",
         border: "var(--lime-surface-border, rgba(226, 240, 226, 0.88))",
       };
   }
@@ -133,7 +133,7 @@ export const EntryBanner = styled.div`
   padding: 8px 10px;
   border-radius: 16px;
   border: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.9));
-  background: var(--lime-home-card-surface);
+  background: var(--lime-surface);
   color: var(--lime-text, #1a3b2b);
   font-size: 12px;
   line-height: 1.45;
@@ -226,7 +226,7 @@ export const GeneralWorkbenchLeftExpandButton = styled.button`
   height: 78px;
   border: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.92));
   border-radius: 14px;
-  background: var(--lime-home-card-surface);
+  background: var(--lime-surface);
   color: var(--lime-text-muted, #6b826b);
   display: inline-flex;
   align-items: center;
@@ -238,7 +238,7 @@ export const GeneralWorkbenchLeftExpandButton = styled.button`
   &:hover {
     color: var(--lime-text-strong, #0f172a);
     border-color: var(--lime-surface-border-strong, #bbf7d0);
-    background: var(--lime-home-card-surface-strong);
+    background: var(--lime-surface-soft);
   }
 `;
 

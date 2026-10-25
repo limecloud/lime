@@ -35,6 +35,9 @@ fn model_records() -> Vec<ModelHistoryRecord> {
                 .unwrap(),
                 ModelHistoryRecord::outputs(&[CurrentProviderContent::ToolResult(
                     CurrentProviderToolResult {
+                        content_items: vec![agent_protocol::response_item::FunctionCallOutputContentItem::InputImage {
+                            image_url: "data:image/png;base64,aGVsbG8=".into(), detail: None,
+                        }],
                         call_id: id.to_string(),
                         name: "Read".to_string(),
                         success: true,

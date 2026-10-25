@@ -28,7 +28,6 @@ function createDialogProps(
     onOpenChange: () => {},
     onCreate: async () => {},
     initialValues: null,
-    sourceHint: null,
     ...overrides,
   };
 }
@@ -96,71 +95,24 @@ describe("SkillScaffoldDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("带预填草稿时应展示来源说明并回填表单", () => {
+  it("专家注册预填应回填表单，不显示结果续用操作", () => {
     renderDialog({
       initialValues: {
         target: "project",
-        directory: "saved-skill-demo",
-        name: "研究结果复用",
-        description: "沉淀自一次成功结果",
+        directory: "project-report",
+        name: "项目报告",
+        description: "生成项目报告。",
       },
-      sourceHint: "研究结果摘要",
     });
 
     expect(
       findInputById(document.body, "skill-scaffold-directory")?.value,
-    ).toBe("saved-skill-demo");
+    ).toBe("project-report");
     expect(findInputById(document.body, "skill-scaffold-name")?.value).toBe(
-      "研究结果复用",
+      "项目报告",
     );
-    expect(document.body.textContent).toContain(
-      "已根据刚才的结果预填一版技能草稿，并补好适用场景、输入输出与执行步骤。",
-    );
-    expect(document.body.textContent).toContain("来源结果：研究结果摘要");
-  });
-
-  it("来源草稿应支持带回创作输入", () => {
-    const onBringBackToCreation = vi.fn();
-    const onOpenChange = vi.fn();
-    renderDialog({
-      onOpenChange,
-      onBringBackToCreation,
-      initialValues: {
-        target: "project",
-        directory: "saved-skill-demo",
-        name: "研究结果复用",
-        description: "沉淀自一次成功结果",
-        whenToUse: ["当你需要继续复用这类结果时使用。"],
-        inputs: ["目标与主题：研究结果复用"],
-        outputs: ["交付一份可直接使用的研究结果。"],
-        steps: ["先确认目标，再复用结构。"],
-        fallbackStrategy: ["信息不足时先补问关键约束。"],
-        sourceExcerpt: "研究结果摘要",
-        sourceMessageId: "msg-1",
-      },
-      sourceHint: "研究结果摘要",
-    });
-
-    fillTextInput(
-      findInputById(document.body, "skill-scaffold-name"),
-      "研究结果复用升级版",
-    );
-    clickButtonByText(document.body, "带回创作输入", { exact: true });
-
-    expect(onBringBackToCreation).toHaveBeenCalledWith({
-      target: "project",
-      directory: "saved-skill-demo",
-      name: "研究结果复用升级版",
-      description: "沉淀自一次成功结果",
-      whenToUse: ["当你需要继续复用这类结果时使用。"],
-      inputs: ["目标与主题：研究结果复用"],
-      outputs: ["交付一份可直接使用的研究结果。"],
-      steps: ["先确认目标，再复用结构。"],
-      fallbackStrategy: ["信息不足时先补问关键约束。"],
-      sourceExcerpt: "研究结果摘要",
-      sourceMessageId: "msg-1",
-    });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(document.body.textContent).not.toContain("来源结果");
+    expect(findButtonByText(document.body, "带回创作输入")).toBeUndefined();
   });
 
   it("带结构化草稿时应保留隐藏骨架字段一并提交", async () => {
@@ -169,11 +121,11 @@ describe("SkillScaffoldDialog", () => {
       onCreate,
       initialValues: {
         target: "project",
-        directory: "saved-skill-demo",
-        name: "研究结果复用",
-        description: "沉淀自一次成功结果",
+        directory: "project-report",
+        name: "项目报告",
+        description: "生成项目报告。",
         whenToUse: ["当你需要继续复用这类结果时使用。"],
-        inputs: ["目标与主题：研究结果复用"],
+        inputs: ["目标与主题：项目报告"],
         outputs: ["交付一份可直接使用的研究结果。"],
         steps: ["先确认目标，再复用结构。"],
         fallbackStrategy: ["信息不足时先补问关键约束。"],
@@ -185,11 +137,11 @@ describe("SkillScaffoldDialog", () => {
 
     expect(onCreate).toHaveBeenCalledWith({
       target: "project",
-      directory: "saved-skill-demo",
-      name: "研究结果复用",
-      description: "沉淀自一次成功结果",
+      directory: "project-report",
+      name: "项目报告",
+      description: "生成项目报告。",
       whenToUse: ["当你需要继续复用这类结果时使用。"],
-      inputs: ["目标与主题：研究结果复用"],
+      inputs: ["目标与主题：项目报告"],
       outputs: ["交付一份可直接使用的研究结果。"],
       steps: ["先确认目标，再复用结构。"],
       fallbackStrategy: ["信息不足时先补问关键约束。"],

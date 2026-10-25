@@ -95,3 +95,11 @@
 - 新增 Rust 后端能力进入 App Server crates / RuntimeCore / services；桌面壳能力进入 Electron Desktop Host。
 - 任何执行计划如果要求恢复 `lime-rs/src/commands/**` 的业务逻辑、API adapter、runtime 分支、compat wrapper、fail-closed stub、tombstone 或 thin facade，必须直接改到 current owner，不能把已删除目录当实施落点。
 - 前端 `src/lib/dev-bridge/**` 按职责治理：`safeInvoke`、HTTP client、`app_server_handle_json_lines`、bridge availability / event listener capability 是 current renderer bridge；旧命令 policy / no-mock fallback 是迁移期 `compat / deprecated`；已迁旧命令名只能作为 `dead` / `test-only` guard。后续计划清命令时必须同步检查 policy、mock、fallback、旧 smoke 和 contract guard，不得把整目录删除当作默认治理动作；删不动且跨命令组长期存在的 residual 必须回挂 `tech-debt-tracker.md` 的 `CCD-012`。
+
+## Computer Use
+
+- [最新进度与平台验收](native-computer-use-delivery-20261025.md)
+- [产品 PRD](native-computer-use-prd-20261025.md)
+- [架构与图表](native-computer-use-architecture-20261025.md)
+- [实施与验证记录](native-computer-use-implementation-20261025.md)
+- [Chrome 原生分组与商店替换](native-computer-use-chrome-groups-20261025.md)

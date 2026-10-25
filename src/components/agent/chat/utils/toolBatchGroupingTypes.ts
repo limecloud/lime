@@ -1,12 +1,12 @@
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type { AgentThreadItem } from "../types";
 import type { ToolCallArgumentValue } from "./toolDisplayInfo";
-import type { ToolSoulLifecycleMetadata } from "./toolSoulLifecycleMetadata";
+
 
 export type ToolBatchKind = "exploration" | "browser" | "web_search";
 
 export interface ToolBatchSummaryDescriptor
-  extends ToolSoulLifecycleMetadata {
+  {
   kind: ToolBatchKind;
   title: string;
   supportingLines: string[];

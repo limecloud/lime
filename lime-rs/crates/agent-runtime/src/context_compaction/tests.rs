@@ -52,6 +52,7 @@ fn request() -> CurrentProviderRequest {
         )]),
         CurrentProviderMessage::tool(vec![CurrentProviderContent::ToolResult(
             CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: None,
                 call_id: "read-1".to_string(),
                 name: "read_file".to_string(),
@@ -168,6 +169,7 @@ async fn summary_request_repairs_incomplete_history_without_modifying_the_source
         ]));
     request.messages.push(CurrentProviderMessage::tool(vec![
         CurrentProviderContent::ToolResult(CurrentProviderToolResult {
+            content_items: Vec::new(),
             history_token_limit: None,
             call_id: "orphan".to_string(),
             name: "read_file".to_string(),

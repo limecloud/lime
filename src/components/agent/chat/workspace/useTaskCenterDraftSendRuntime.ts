@@ -33,7 +33,7 @@ import {
   scheduleAfterNextPaint,
 } from "./agentChatWorkspaceHelpers";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import { logAgentDebug } from "@/lib/agentDebug";
 
 type TaskCenterDraftSendExecutionStrategy = NonNullable<
@@ -49,7 +49,7 @@ interface UseTaskCenterHomePendingPreviewRuntimeParams {
   displayMessagesLength: number;
   executionStrategy: TaskCenterDraftSendExecutionStrategy;
   workspaceId?: string | null;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 interface UseTaskCenterEmptyStateSendRuntimeParams {
@@ -85,7 +85,7 @@ export function useTaskCenterHomePendingPreviewRuntime({
   displayMessagesLength,
   executionStrategy,
   workspaceId,
-  soulCopy,
+
 }: UseTaskCenterHomePendingPreviewRuntimeParams): {
   homePendingPreviewMessages: Message[];
   isHomePendingPreviewActive: boolean;
@@ -101,14 +101,14 @@ export function useTaskCenterHomePendingPreviewRuntime({
         ? buildHomePendingPreviewMessages(
             homePendingPreviewRequest,
             executionStrategy,
-            soulCopy,
+
           )
         : [],
     [
       executionStrategy,
       homePendingPreviewRequest,
       shouldRenderPendingPreview,
-      soulCopy,
+
     ],
   );
 
@@ -210,7 +210,7 @@ export function useTaskCenterEmptyStateSendRuntime({
           : handlerEnteredAt;
       const triggerSource = payload.triggerSource ?? "adapter";
       if (homeSendInFlightRef.current || taskCenterDraftSendRequest) {
-        logAgentDebug("AgentChatPage", "homeInput.submit.blocked", {
+        logAgentDebug("LocalConversationPage", "homeInput.submit.blocked", {
           hasPendingRequest: Boolean(taskCenterDraftSendRequest),
           homeSendInFlight: homeSendInFlightRef.current,
           source: "empty-state",
@@ -282,7 +282,7 @@ export function useTaskCenterEmptyStateSendRuntime({
       };
       const shouldQueueHomeSend =
         !hasDisplayMessages &&
-        (agentEntry === "claw" || agentEntry === "new-task");
+        (agentEntry === "conversation" || agentEntry === "new-task");
       if (shouldQueueHomeSend) {
         homeSendInFlightRef.current = true;
         const submittedAt = triggeredAt;
@@ -339,7 +339,7 @@ export function useTaskCenterEmptyStateSendRuntime({
             setHomePendingPreviewRequest(previewRequest);
           });
           settlement.effect("accepted_log", () =>
-            logAgentDebug("AgentChatPage", "homeInput.directDispatch.start", {
+            logAgentDebug("LocalConversationPage", "homeInput.directDispatch.start", {
               requestId,
               source: "empty-state",
               workspaceId: taskCenterWorkspaceId,
@@ -383,7 +383,7 @@ export function useTaskCenterEmptyStateSendRuntime({
                   );
                   settlement.effect("accepted_log", () =>
                     logAgentDebug(
-                      "AgentChatPage",
+                      "LocalConversationPage",
                       "homeInput.directDispatch.done",
                       {
                         requestId,
@@ -428,7 +428,7 @@ export function useTaskCenterEmptyStateSendRuntime({
                   );
                   settlement.effect("accepted_log", () =>
                     logAgentDebug(
-                      "AgentChatPage",
+                      "LocalConversationPage",
                       "homeInput.directDispatch.error",
                       {
                         error: "request_rejected",

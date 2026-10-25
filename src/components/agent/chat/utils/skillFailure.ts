@@ -73,7 +73,7 @@ function byCode(code: SkillFailureCode, message: string): SkillFailureInfo {
         code,
         message,
         recoveryHint:
-          "请确认技能名称拼写，并在 Claw 侧边栏的技能页查看可用技能。",
+          "请确认技能名称拼写，并在 Lime 侧边栏的技能页查看可用技能。",
       };
     case "skill_session_init_failed":
       return {

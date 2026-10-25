@@ -52,7 +52,7 @@ import {
   resolveToolProcessNarrative,
 } from "../utils/toolProcessSummary";
 import { resolveTerminalInteractionSummaries } from "../utils/toolProcessSummaryMetadata";
-import { resolveToolSoulMetadataDomAttributes } from "../utils/toolSoulLifecycleMetadata";
+
 import {
   isLimeTaskProtocolFailure,
   resolveLimeTaskProtocolFailureDisplayText,
@@ -78,6 +78,8 @@ import {
 } from "../utils/toolResultDetailText";
 import { ToolCallDisplayResultPanel } from "./ToolCallDisplayResultPanel";
 import { stripTerminalControlSequences } from "../utils/terminalOutputText";
+import { isDynamicToolCall } from "../utils/toolNameFamily";
+import { McpToolItemContent } from "./mcp-tool-item-content";
 import {
   ToolCallSkillContentButton,
   ToolCallSkillContentPanel,
@@ -97,7 +99,14 @@ interface ToolCallDisplayProps {
   groupMarker?: string;
 }
 
-export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
+export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = (props) =>
+  isDynamicToolCall(props.toolCall) ? (
+    <McpToolItemContent key={props.toolCall.id} toolCall={props.toolCall} />
+  ) : (
+    <ToolCallDisplayContent {...props} />
+  );
+
+const ToolCallDisplayContent: React.FC<ToolCallDisplayProps> = ({
   toolCall,
   defaultExpanded = false,
   isMessageStreaming = false,
@@ -226,10 +235,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     () => resolveToolProcessNarrative(toolCall),
     [toolCall],
   );
-  const soulLifecycleAttributes = useMemo(
-    () => resolveToolSoulMetadataDomAttributes(processNarrative),
-    [processNarrative],
-  );
+
   const shouldHideResultEnvelope = useMemo(
     () =>
       shouldHideToolResultEnvelope({
@@ -736,7 +742,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
           data-tool-call-id={toolCall.id}
           data-tool-name={toolCall.name}
           data-tool-status={toolCall.status}
-          {...soulLifecycleAttributes}
         >
           <span className="pt-0.5 font-mono text-xs text-slate-400">
             {groupMarker}
@@ -790,7 +795,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
           data-tool-call-id={toolCall.id}
           data-tool-name={toolCall.name}
           data-tool-status={toolCall.status}
-          {...soulLifecycleAttributes}
         >
           <span
             className={cn(

@@ -1,43 +1,44 @@
 ---
 name: lime-design-language
-description: 对齐 Lime GUI 的布局、交互、组件结构与命名；以 Codex Desktop 安装包证据和公开源码分工校准，保留 Lime 视觉主题与多模型。适用于页面、工作台、侧边栏、Composer、面板与设置改动。
+description: 复刻 Codex Desktop 的页面、布局、交互和代码组织时使用；优先复制源码，缺失的 Desktop 实现按 REA 证据还原，保留 Lime 品牌、多模型和自有服务端。适用于导航、会话、Composer、面板、设置与 Computer Use GUI。
 ---
 
-# Lime GUI 对齐
+# Codex GUI 复刻
 
-先读 [设计事实源](../../../internal/aiprompts/design-language.md)。用户本轮明确指定的目标优先于 skill、旧页面和历史计划；不要把本 skill 当成保留旧 Lime 布局的理由。
+本 skill 服务于复刻。Codex 原版决定产品结构和行为，Lime 既有页面与组件只是待迁移实现，不能反过来成为设计基线。用户最新要求优先；按“先完成复刻，再优化”的顺序推进。
 
-按改动边界继续读取：
+执行顺序为：用户当前要求 → 指定 Codex 版本的源码与 REA 证据 → Lime 明确保留差异的必要适配。旧设计规范、旧页面和原型图不能替代原版证据；需要画图时使用同一基线，不重新决定布局和交互。
 
-- 组件拆分、目录或 owner 迁移：[全局架构](../../../internal/aiprompts/architecture.md)。
-- Workspace 主路径：[工作台边界](../../../internal/aiprompts/workspace.md)。
-- 命令、审批、队列、历史恢复：[命令边界](../../../internal/aiprompts/commands.md)。
-- 验证与证据等级：[质量工作流](../../../internal/aiprompts/quality-workflow.md)；真实交互再读 [GUI E2E](../../../internal/aiprompts/playwright-e2e.md)。
+先读 [源码复制规则](../../../internal/aiprompts/codex-source-alignment.md) 和 [GUI 复刻事实源](../../../internal/aiprompts/design-language.md)。源码迁移使用 `lime-replication`；需要发货 Desktop 证据时使用 `reverse-engineer-anything`，复用已有匹配版本证据，避免重做研究。
 
-## 参考与保留范围
+## 先找原版，再改产品
 
-- Desktop 的布局、交互、模块边界、导出名称和可观察数据流来自实际安装包。用户要求 REA 复刻时使用 `reverse-engineer-anything` 的 ASAR / JavaScript 流程，复用匹配版本与摘要的 Evidence。
-- 协议、Thread/Turn/Item、状态机、工具生命周期、审批、MCP、Skills、Multi-Agent 与恢复语义对齐 `/Users/coso/Documents/dev/rust/codex` 的 current owner。该公开仓库不包含 Desktop 前端源码，不能由 TUI 布局推断 GUI。
-- 保留差异为 Lime **视觉主题、多模型支持**及用户明确保留的**专家广场、消息渠道**。其他可确认的 UI、行为、目录职责、函数、类型和类均纳入对齐；证据不足的项目记录为 unknown，不擅自增加保留项。
-- 主题样式通过现有 token / skin 实现；多模型通过现有 catalog / model-provider 实现。这两项都不能产生第二套 runtime 或 read model。
+1. 明确本次要复刻的原版页面、状态和动作，读取已有截图、REA Evidence、模块提取与源代码。原版的区域划分、入口顺序、可见条件、弹层、滚动、键盘、焦点、授权、停止和失败恢复都在范围内。
+2. 公开源码从 `/Users/coso/Documents/dev/rust/codex` 直接取。能整目录复制就整目录复制，能整文件复制就整文件复制；包括实现、测试、资源和依赖闭包。不能先自己重写，再把上游当参考。无品牌的路径、目录、文件、模块、类型和函数名沿用原名。
+3. 公开仓库没有 Desktop 前端源码时，按安装包中的合法可用实现与 REA 数据流还原；记录观察到的模块、导出、调用与状态。压缩符号和猜测名称不能冒充原始源码名。证据缺口只补查影响当前切片的部分，不能借此长期停在方案或重新设计。
+4. 将实现直接接入 Lime 现役 owner，删除已被替代的旧布局、入口和状态副本。旧组件若妨碍复刻，就重构或替换；不为了复用旧组件而改变原版行为。禁止保留 `lime-rs/upstream/`、候选产品树或第二套业务后端。
 
-## 实施方式
+## Lime 适配边界
 
-在执行计划记录“参考模块/符号 → Lime current owner → 行为和数据合同 → 迁移/删除项 → 验证”，再按独立切片直接替换。需要截图、安装包分析或源码才能成立的结论分别标明来源；静态分析不证明运行效果。
+- **品牌**：Lime 产品名、Logo、bundle/package、命令、配置根和发布身份继续使用 Lime；不复制 Codex 产品品牌。许可证署名与必须保留的第三方固定协议值按源码规则登记。
+- **外观**：只保留 Codex 的浅色、深色、跟随系统模式，使用固定语义颜色。用户已取消 Lime 主题/皮肤例外，禁止恢复皮肤 catalog、随机切换、首页装饰及专用资源。
+- **多模型/多协议**：保留现役模型选择、catalog、Provider 路由和能力判断；布局与交互沿用原版，必要模型选择接在同一位置和同一主链。
+- **自有服务端**：继续调用 Lime 认证、服务端与发布合同，排除 Codex 登录、账号、Cloud、遥测、计费和产品服务控制面。公开源码中的本地 App Server JSON-RPC、runtime、工具和持久化仍应复制接入。
+- 专家广场、消息渠道及用户后续明确保留的能力按当前仓库规则处理，不把这些例外扩张为其他自主产品设计。
 
-Codex 只作源码和行为事实来源。仅迁入许可证允许、属于 Lime 产品且有现役消费者的最小完整依赖闭包；不整仓复制，不创建 `lime-rs/upstream/` 镜像目录。迁入现役 Lime owner 后，Lime 自有路径、文件、模块、符号、命令、协议方法、环境变量、配置目录、文案和产物清除 Codex 产品标识。只有法律署名和有消费者及协议证据的不可变外部值可以保留。同步迁移调用者、测试与 fixture，并删除无消费者的上游专属代码和重复实现。不要把压缩变量、chunk hash 或猜测名称当成源码事实。
+## 执行与验收
 
-GUI 只消费 canonical projection。显示状态可在 surface 内维护，业务状态、审批 authority、工具执行和持久化仍属于 App Server 与既有领域 owner。长历史、审批和 diff 必须复用同一 thread/turn/item identity。
+在执行计划中简要记录“原版模块/证据 → Lime 目标文件 → 复制及必要适配 → 消费者切换 → 验证”。对任务没有帮助的规划、治理和规则扩写不应阻塞产品实现。
 
-清理与替换同时交付：旧组件、hook、重复状态、旧文档入口、过期正向测试和冲突护栏一起迁移或删除。有效风险用 current owner 的行为测试继续覆盖；不要为旧 snapshot、旧选择器或规则恢复已替代实现。
+GUI 通过 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection` 消费同一业务状态。设置、授权、取消、工具执行和持久化使用现役 owner；renderer 不新增 authority 或平行历史。
 
-## 视觉与交互检查
+逐项对照原版验收页面和状态：
 
-- 导航、会话页头、时间线、Composer 与右侧面按 Desktop 证据组织，不强套白卡、统计卡或阶段导轨模板。
-- 使用既有语义 token，验证浅色、深色、跟随系统与受影响 skin；不要硬编码旧浅色或覆盖用户主题。
-- 面板层级、宽度、密度、滚动与焦点服务任务；不要用重复弹窗、进度入口或背景装饰替代状态反馈。
-- 长历史验证动态高度、canonical key、滚动锚点、流式尾随和离屏焦点；审批验证完整详情、可用决定和失败恢复；Files 验证工作区树、源码预览和文件标签身份；Changes 验证实际打开已有 diff owner。具体合同与参考限制见设计事实源。
-- 面向开发工作流可以直接显示模型、Skills、MCP、权限、工具和 Git 等用户需要操作的产品概念；Runtime、Gateway、mock 等内部机制只在需要诊断时呈现。
-- 用户可见文案覆盖五语言；键盘、焦点、可访问名称和可见状态要有稳定回归。验证命令和 Gate 等级按质量事实源选择。
+- 页面区域、控件顺序、尺寸比例、密度、显隐条件及响应布局。
+- 点击、键盘、焦点、滚动、弹层、加载、拒绝、停止、恢复与终态。
+- 目录职责、无品牌名称、真实调用者与已删除的冲突实现。
+- Lime 品牌、多模型和自有服务端仍由现役 owner 提供。
 
-汇报实际替换、保留差异及用户明确例外、current/compat/deprecated/dead 分类、已取得证据及未验证项。规则更新完成不等于 GUI 已对齐。
+不能把“看起来合理”、旧 snapshot 通过或自拟设计图作为复刻完成依据。用户文案覆盖五语言；按 [质量规则](../../../internal/aiprompts/quality-workflow.md) 运行受影响测试和真实 GUI 验证，区分组件、Gate A 与 Desktop Gate B。
+
+涉及边界时再读 [架构](../../../internal/aiprompts/architecture.md)、[命令](../../../internal/aiprompts/commands.md)、[工作台](../../../internal/aiprompts/workspace.md) 和 [GUI 验证](../../../internal/aiprompts/playwright-e2e.md)。报告实际完成的复刻、必要适配、测试与缺口，不将 skill 修订计入产品完成度。

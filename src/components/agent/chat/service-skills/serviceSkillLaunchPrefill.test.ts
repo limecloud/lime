@@ -193,15 +193,16 @@ describe("resolveServiceSkillLaunchPrefill", () => {
     });
     const creationReplay: CreationReplayMetadata = {
       version: 1,
-      kind: "skill_scaffold",
+      kind: "memory_entry",
       source: {
-        page: "skills",
+        page: "memory_store",
         project_id: "project-1",
       },
       data: {
-        name: "AI Agent 行业拆解",
-        description: "参考原文做一版 90 秒总结，结论更聚焦团队协作。",
-        source_excerpt: "参考 https://example.com/report 并保留关键结论。",
+        category: "context",
+        title: "AI Agent 行业拆解",
+        summary: "参考原文做一版 90 秒总结，结论更聚焦团队协作。",
+        content_excerpt: "参考 https://example.com/report 并保留关键结论。",
       },
     };
 
@@ -213,25 +214,25 @@ describe("resolveServiceSkillLaunchPrefill", () => {
     ).toEqual({
       slotValues: {
         article_source:
-          "参考线索：参考 https://example.com/report 并保留关键结论。\n改写目标：参考原文做一版 90 秒总结，结论更聚焦团队协作。\n来源标题：AI Agent 行业拆解",
+          "摘要：参考原文做一版 90 秒总结，结论更聚焦团队协作。\n补充线索：参考 https://example.com/report 并保留关键结论。\n主题：AI Agent 行业拆解",
         target_duration: "90 秒",
       },
-      hint: "已根据当前技能草稿自动预填 文章链接/正文、目标时长，可继续修改后执行。",
+      hint: "已根据当前灵感条目自动预填 文章链接/正文、目标时长，可继续修改后执行。",
     });
   });
 
   it("creation replay hint 允许通过 launch prefill copy 本地化", () => {
     const creationReplay: CreationReplayMetadata = {
       version: 1,
-      kind: "skill_scaffold",
+      kind: "memory_entry",
       source: {
-        page: "skills",
-        source_message_id: "message-1",
+        page: "memory_store",
       },
       data: {
-        name: "AI Agent 行业拆解",
-        description: "参考原文做一版 90 秒总结。",
-        source_excerpt: "参考 https://example.com/report。",
+        category: "context",
+        title: "AI Agent 行业拆解",
+        summary: "参考原文做一版 90 秒总结。",
+        content_excerpt: "参考 https://example.com/report。",
       },
     };
 
@@ -242,7 +243,7 @@ describe("resolveServiceSkillLaunchPrefill", () => {
         copy: {
           creationReplay: {
             sourceLabels: {
-              skillScaffold: "the current Skill draft",
+              memoryEntry: "the current idea",
             },
             formatFieldSummary: (visibleLabels) => visibleLabels.join(", "),
             formatHint: (sourceLabel, fieldSummary) =>
@@ -251,7 +252,7 @@ describe("resolveServiceSkillLaunchPrefill", () => {
         },
       })?.hint,
     ).toBe(
-      "Prefilled 文章链接/正文, 目标时长 from the current Skill draft. Review before running.",
+      "Prefilled 文章链接/正文, 目标时长 from the current idea. Review before running.",
     );
   });
 

@@ -8,29 +8,22 @@ import type {
   SettingsPageParams,
   SettingsSearchFocusContext,
 } from "@/types/page";
-import type { ConfigUpdater } from "@/lib/api/appConfig";
 import { SettingsPage } from ".";
 import { useSettingsSearchTarget } from "./useSettingsSearchTarget";
 
-const api = vi.hoisted(() => ({ getConfig: vi.fn(), saveConfig: vi.fn() }));
-vi.mock("@/lib/api/appConfig", () => ({
-  ...api,
-  updateConfig: async (update: ConfigUpdater) => {
-    const config = update(await api.getConfig());
-    await api.saveConfig(config);
-    return config;
-  },
-}));
 vi.mock("../general/GeneralSettings", () => ({ GeneralSettings: () => null }));
 vi.mock("../sections", async () => {
   const { SettingsTabs, SettingsGroupKey } = await import("@/types/settings");
-  const { ProfileSettings } = await import("../account/profile");
   const sections = [
     {
-      key: SettingsTabs.Profile,
+      key: SettingsTabs.Memory,
       group: SettingsGroupKey.Personal,
-      labelKey: "settings.profile.title",
-      render: () => <ProfileSettings />,
+      labelKey: "settings.desktop.personalization",
+      render: () => (
+        <div data-settings-search-target="memory-instructions" tabIndex={-1}>
+          Lime instructions
+        </div>
+      ),
     },
     {
       key: SettingsTabs.LocalEnvironments,
@@ -73,7 +66,7 @@ function Harness() {
   navigation = useAppNavigation();
   const { handleNavigate } = navigation;
   useLayoutEffect(
-    () => handleNavigate("settings", { tab: SettingsTabs.Profile }),
+    () => handleNavigate("settings", { tab: SettingsTabs.Memory }),
     [handleNavigate],
   );
   return (
@@ -93,17 +86,6 @@ const input = () =>
   container.querySelector<HTMLInputElement>(
     '[data-testid="settings-sidebar-search"]',
   )!;
-const dialog = () => document.querySelector('[role="alertdialog"]');
-const button = (text: string) => {
-  const node = [...document.querySelectorAll("button")].find(
-    (node) => node.textContent === text,
-  );
-  if (!node) throw new Error(`Missing ${text}`);
-  return node;
-};
-async function click(node: HTMLElement) {
-  await act(async () => node.click());
-}
 async function edit(
   node: HTMLInputElement | HTMLTextAreaElement,
   value: string,
@@ -130,22 +112,10 @@ async function search(query: string) {
 async function mount() {
   await act(async () => root.render(<Harness />));
 }
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
-
 beforeEach(async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   window.sessionStorage.clear();
   window.__LIME_OEM_CLOUD__ = { enabled: false };
-  api.getConfig.mockReset().mockResolvedValue({
-    user_profile: { nickname: "Saved", bio: "Saved bio" },
-  });
-  api.saveConfig.mockReset().mockResolvedValue(undefined);
   await changeLimeLocale("en-US");
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -159,135 +129,83 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe("settings search through the canonical navigation and real Profile draft", () => {
-  it("focuses and highlights without editing; repeating the same target is a new canonical request", async () => {
+describe("settings search through canonical navigation", () => {
+  it("focuses instructions and gives repeated requests a new canonical identity", async () => {
     await mount();
-    await search("bio");
-    expect(document.activeElement).toBe(target("profile-bio"));
-    expect(target("profile-bio")?.dataset.settingsSearchActive).toBe("true");
-    expect(container.querySelector("textarea")).toBeNull();
+    await search("instructions");
+    expect(document.activeElement).toBe(target("memory-instructions"));
+    expect(target("memory-instructions")?.dataset.settingsSearchActive).toBe(
+      "true",
+    );
     const first = (navigation.requestedPageParams as SettingsPageParams)
       .searchFocus;
-    await search("bio");
+    await search("instructions");
     expect(
       (navigation.requestedPageParams as SettingsPageParams).searchFocus
         ?.requestKey,
     ).toBeGreaterThan(first!.requestKey!);
-    expect(document.activeElement).toBe(target("profile-bio"));
-    expect(api.saveConfig).not.toHaveBeenCalled();
-  });
-  it("keep retains the draft/canonical params; discard commits the last target without saving", async () => {
-    await mount();
-    await click(target("profile-displayName")!.querySelector("button")!);
-    const name = container.querySelector<HTMLInputElement>(
-      "#profile-field-displayName",
-    )!;
-    await edit(name, "Unsaved private name");
-    const params = navigation.requestedPageParams;
-    const requestId = navigation.navigationRequestId;
-    await search("bio");
-    expect(dialog()).not.toBeNull();
-    expect(navigation.requestedPageParams).toBe(params);
-    expect(navigation.navigationRequestId).toBe(requestId);
-    expect(container.querySelector("[data-settings-search-active]")).toBeNull();
-    await click(button("Keep editing"));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(name.value).toBe("Unsaved private name");
-    expect(document.activeElement).toBe(input());
-    await search("setup");
-    // Multiple requests while guarded replace the pending destination, never canonical state.
-    await act(async () =>
-      navigation.handleNavigate("settings", {
-        tab: SettingsTabs.Profile,
-        searchFocus: { targetId: "profile-bio", requestKey: 50 },
-      }),
-    );
-    expect(navigation.requestedPageParams).toBe(params);
-    await click(button("Discard changes"));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(dialog()).toBeNull();
-    expect(navigation.requestedPageParams).toMatchObject({
-      tab: SettingsTabs.Profile,
-      searchFocus: { targetId: "profile-bio", requestKey: 50 },
-    });
-    expect(container.querySelector("#profile-field-displayName")).toBeNull();
-    expect(target("profile-displayName")?.textContent).toContain("Saved");
-    expect(document.activeElement).toBe(target("profile-bio"));
-    expect(api.saveConfig).not.toHaveBeenCalled();
-  });
-  it("waits for asynchronously loaded Profile and cancels an abandoned destination", async () => {
-    const load = deferred<{ user_profile: { bio: string } }>();
-    api.getConfig.mockReturnValue(load.promise);
-    await mount();
-    await search("bio");
-    expect(target("profile-bio")).toBeNull();
-    await act(async () =>
-      load.resolve({ user_profile: { bio: "Loaded later" } }),
-    );
-    expect(document.activeElement).toBe(target("profile-bio"));
-    expect(target("profile-bio")?.textContent).toContain("Loaded later");
-    const late = deferred<{ user_profile: { bio: string } }>();
-    api.getConfig.mockReturnValue(late.promise);
-    await search("bio");
-    await search("setup");
-    const destination = target("local-environments-projects");
-    expect(document.activeElement).toBe(destination);
-    await act(async () => late.resolve({ user_profile: { bio: "Abandoned" } }));
-    expect(document.activeElement).toBe(destination);
-    expect(target("profile-bio")).toBeNull();
+    expect(document.activeElement).toBe(target("memory-instructions"));
+    expect(container.querySelector("textarea")).toBeNull();
   });
 });
 
 let updateTarget!: (value: boolean) => void;
 let updateFocus!: (value: SettingsSearchFocusContext | undefined) => void;
-function TargetHarness({ localProfile = true }: { localProfile?: boolean }) {
+function TargetHarness() {
   const ref = useRef<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [focus, setFocus] = useState<SettingsSearchFocusContext | undefined>({
-    targetId: "profile-bio",
+    targetId: "memory-instructions",
     requestKey: 1,
   });
   updateTarget = setVisible;
   updateFocus = setFocus;
-  useSettingsSearchTarget(ref, SettingsTabs.Profile, focus, localProfile);
+  useSettingsSearchTarget(ref, SettingsTabs.Memory, focus);
   return (
     <main ref={ref}>
       {visible ? (
-        <div data-settings-search-target="profile-bio" tabIndex={-1}>
-          Bio
+        <div data-settings-search-target="memory-instructions" tabIndex={-1}>
+          Lime instructions
         </div>
       ) : null}
     </main>
   );
 }
-it("does not allow unknown, cross-section or managed-profile target requests", async () => {
+it("waits for late targets and refocuses repeated requests", async () => {
   await act(async () => root.render(<TargetHarness />));
-  await act(async () =>
-    updateFocus({ targetId: 'profile-bio"] input', requestKey: 2 }),
-  );
+  expect(target("memory-instructions")).toBeNull();
   await act(async () => updateTarget(true));
-  expect(container.querySelector("[data-settings-search-active]")).toBeNull();
+  expect(document.activeElement).toBe(target("memory-instructions"));
+  const elsewhere = document.createElement("button");
+  container.appendChild(elsewhere);
+  elsewhere.focus();
   await act(async () =>
-    updateFocus({ targetId: "local-environments-projects", requestKey: 3 }),
+    updateFocus({ targetId: "memory-instructions", requestKey: 2 }),
   );
-  expect(container.querySelector("[data-settings-search-active]")).toBeNull();
-  await act(async () => root.render(<TargetHarness localProfile={false} />));
-  await act(async () =>
-    updateFocus({ targetId: "profile-bio", requestKey: 4 }),
-  );
-  expect(container.querySelector("[data-settings-search-active]")).toBeNull();
+  expect(document.activeElement).toBe(target("memory-instructions"));
 });
+
+it.each([
+  "missing",
+  "local-environments-projects",
+  'memory-instructions"] input, *',
+  "profile-bio",
+])(
+  "rejects unknown, cross-section or selector-shaped target %s",
+  async (targetId) => {
+    await act(async () => root.render(<TargetHarness />));
+    await act(async () => updateFocus({ targetId, requestKey: 2 }));
+    await act(async () => updateTarget(true));
+    expect(container.querySelector("[data-settings-search-active]")).toBeNull();
+  },
+);
 it("disconnects a waiting observer on unmount", async () => {
   const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
   await act(async () => root.render(<TargetHarness />));
   await act(async () => root.render(null));
   expect(disconnect).toHaveBeenCalled();
   const stray = document.createElement("div");
-  stray.dataset.settingsSearchTarget = "profile-bio";
+  stray.dataset.settingsSearchTarget = "memory-instructions";
   stray.tabIndex = -1;
   container.appendChild(stray);
   await act(async () => {
@@ -296,60 +214,6 @@ it("disconnects a waiting observer on unmount", async () => {
   expect(stray.hasAttribute("data-settings-search-active")).toBe(false);
 });
 
-it("keeps narrow search mounted through dirty confirmation, then focuses the committed target", async () => {
-  vi.spyOn(window, "matchMedia").mockReturnValue({
-    matches: true,
-  } as MediaQueryList);
-  await mount();
-  await click(target("profile-displayName")!.querySelector("button")!);
-  await edit(
-    container.querySelector<HTMLInputElement>("#profile-field-displayName")!,
-    "Narrow draft",
-  );
-  await act(async () =>
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
-    ),
-  );
-  const mobile = container.querySelector<HTMLInputElement>(
-    '[data-testid="settings-sidebar-search"]',
-  )!;
-  expect(document.activeElement).toBe(mobile);
-  await edit(mobile, "bio");
-  await act(async () =>
-    mobile.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-    ),
-  );
-  expect(dialog()).not.toBeNull();
-  await act(async () =>
-    button("Keep editing").dispatchEvent(
-      new Event("pointerdown", { bubbles: true }),
-    ),
-  );
-  await click(button("Keep editing"));
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-  expect(mobile.isConnected).toBe(true);
-  expect(document.activeElement).toBe(mobile);
-  expect(
-    container.querySelector<HTMLInputElement>("#profile-field-displayName")
-      ?.value,
-  ).toBe("Narrow draft");
-  await act(async () =>
-    mobile.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-    ),
-  );
-  await click(button("Discard changes"));
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-  expect(mobile.isConnected).toBe(true);
-  expect(document.activeElement).toBe(target("profile-bio"));
-  expect(api.saveConfig).not.toHaveBeenCalled();
-});
 it("scrolls only the settings content owner when a late target becomes available", async () => {
   await act(async () => root.render(<TargetHarness />));
   const main = container.querySelector("main")!;
@@ -363,9 +227,9 @@ it("scrolls only the settings content owner when a late target becomes available
   );
   await act(async () => updateTarget(true));
   expect(scroll).toHaveBeenCalledWith({ top: 396, behavior: "auto" });
-  expect(document.activeElement).toBe(target("profile-bio"));
+  expect(document.activeElement).toBe(target("memory-instructions"));
   await act(async () => updateFocus(undefined));
   expect(
-    target("profile-bio")?.hasAttribute("data-settings-search-active"),
+    target("memory-instructions")?.hasAttribute("data-settings-search-active"),
   ).toBe(false);
 });

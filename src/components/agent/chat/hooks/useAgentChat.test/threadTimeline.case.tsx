@@ -110,11 +110,11 @@ describe("useAgentChat thread timeline", () => {
         .find((msg) => msg.role === "assistant");
 
       expect(assistantMessage?.content).toBe(
-        "执行失败：当前模型通道请求受限（429），请稍后重试；如果持续失败，请检查服务商配额或切换其他可用模型。",
+        "当前模型通道请求受限（429），请稍后重试；如果持续失败，请检查服务商配额或切换其他可用模型。",
       );
       expect(assistantMessage?.runtimeStatus).toMatchObject({
         phase: "failed",
-        title: "当前处理失败",
+        title: "处理失败",
       });
       expect(harness.getValue().turns).toEqual([
         expect.objectContaining({
@@ -258,10 +258,10 @@ describe("useAgentChat thread timeline", () => {
         .reverse()
         .find((msg) => msg.role === "assistant");
 
-      expect(assistantMessage?.content).toContain("执行失败：模型执行失败");
+      expect(assistantMessage?.content).toContain("模型执行失败");
       expect(assistantMessage?.runtimeStatus).toMatchObject({
         phase: "failed",
-        title: "当前处理失败",
+        title: "处理失败",
       });
       expect(harness.getValue().turns).toEqual([
         expect.objectContaining({
@@ -327,11 +327,11 @@ describe("useAgentChat thread timeline", () => {
         .find((msg) => msg.role === "assistant");
 
       expect(assistantMessage?.content).toContain(
-        `执行失败：${friendlyErrorMessage}`,
+        `${friendlyErrorMessage}`,
       );
       expect(assistantMessage?.runtimeStatus).toMatchObject({
         phase: "failed",
-        title: "当前处理失败",
+        title: "处理失败",
         detail: friendlyErrorMessage,
       });
       expect(harness.getValue().turns).toEqual([

@@ -24,16 +24,6 @@ export const settingsSources = [
   "src/components/settings-v2/hooks/useSettingsCategory.ts",
   "src/lib/api/oemCloudRuntime.ts",
 
-  ...[
-    "index.tsx",
-    "ProfileFieldEditor.tsx",
-    "ProfileContent.tsx",
-    "profileConfig.ts",
-    "ProfileLayout.tsx",
-    "useProfileDraft.ts",
-  ].map((file) => "src/components/settings-v2/account/profile/" + file),
-  "scripts/electron/lib/settings-profile-navigation-scenario.mjs",
-  "scripts/electron/lib/settings-profile-fixture-driver.mjs",
   "src/hooks/useAppNavigation.ts",
   "src/hooks/useAppShellLayout.ts",
   "src/lib/navigationGuard.ts",

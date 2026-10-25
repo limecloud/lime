@@ -155,3 +155,68 @@ describe("browser permission origin and policy owner", () => {
     expect(permissions.allows(anchor, "https://example.com/")).toBe(false);
   });
 });
+
+describe("canonical conversation full access", () => {
+  const settings = { approvalPolicy: "never", sandboxPolicy: "danger-full-access" };
+  const url = "https://example.com/";
+  it("allows browsing only after accepted full access settings for the same owner and thread", () => {
+    const permissions = new BrowserPermissions(new BrowserTabPolicy());
+    permissions.setThreadAccess(42, anchor.threadId, settings);
+    expect(permissions.require(call, anchor, url)?.status).toBe("approval_required");
+    permissions.clearPending(() => true);
+    permissions.setThreadAccess(anchor.ownerWebContentsId, anchor.threadId, settings);
+    expect(permissions.require(call, anchor, url)).toBeNull();
+    expect(permissions.allows(anchor, url)).toBe(true);
+    expect(permissions.allows({ ...anchor, turnId: "next-turn" }, url)).toBe(false);
+    expect(permissions.allows({ ...anchor, browserSessionId: "other-session" }, url)).toBe(false);
+    permissions.setThreadAccess(anchor.ownerWebContentsId, anchor.threadId, settings);
+    expect(permissions.allows(anchor, url)).toBe(true);
+    permissions.turnEnded(anchor.threadId, anchor.turnId);
+    expect(permissions.allows(anchor, url)).toBe(false);
+  });
+  it.each([
+    {}, { fullAccess: true }, { approvalPolicy: "never" },
+    { approvalPolicy: "on-request", sandboxPolicy: "danger-full-access" },
+    { approvalPolicy: "never", sandboxPolicy: "workspace-write" },
+  ])("does not infer full access from incomplete settings: %j", (value) => {
+    const permissions = new BrowserPermissions(new BrowserTabPolicy());
+    permissions.setThreadAccess(anchor.ownerWebContentsId, anchor.threadId, value);
+    expect(permissions.require(call, anchor, url)?.status).toBe("approval_required");
+  });
+  it("revokes automatic grants immediately on downgrade or disconnect", () => {
+    const permissions = new BrowserPermissions(new BrowserTabPolicy());
+    const enable = () => {
+      permissions.setThreadAccess(anchor.ownerWebContentsId, anchor.threadId, settings);
+      expect(permissions.require(call, anchor, url)).toBeNull();
+    };
+    enable();
+    permissions.setThreadAccess(anchor.ownerWebContentsId, anchor.threadId, { approvalPolicy: "on-request" });
+    expect(permissions.allows(anchor, url)).toBe(false);
+    expect(permissions.require(call, anchor, url)?.status).toBe("approval_required");
+    permissions.clearPending(() => true);
+    enable();
+    permissions.clearThreadAccess();
+    expect(permissions.allows(anchor, url)).toBe(false);
+    expect(permissions.require(call, anchor, url)?.status).toBe("approval_required");
+  });
+  it.each([
+    { defaultOriginPolicy: { persistentApproval: false } },
+    { defaultOriginPolicy: { accessApprovalLifetime: "turn" as const } },
+    { origins: { "example.com": { persistentApproval: false } } },
+  ])("keeps administrator approval requirements above full access: %j", (browserUse) => {
+    const policy = new BrowserTabPolicy();
+    policy.setSettings(effectiveBrowserSettings({}, null, { browserUse }));
+    const permissions = new BrowserPermissions(policy);
+    permissions.setThreadAccess(anchor.ownerWebContentsId, anchor.threadId, settings);
+    expect(permissions.require(call, anchor, url)?.status).toBe("approval_required");
+    expect(permissions.allows(anchor, url)).toBe(false);
+  });
+  it("keeps explicit deny above full access", () => {
+    const policy = new BrowserTabPolicy();
+    policy.setSettings(effectiveBrowserSettings({}, { default_origin_policy: { access: "deny" } }));
+    const permissions = new BrowserPermissions(policy);
+    permissions.setThreadAccess(anchor.ownerWebContentsId, anchor.threadId, settings);
+    expect(() => permissions.require(call, anchor, url)).toThrow("denied");
+    expect(permissions.pending()).toEqual([]);
+  });
+});

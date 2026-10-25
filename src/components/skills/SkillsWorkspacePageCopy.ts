@@ -113,9 +113,6 @@ export function useSkillsWorkspaceCopy(t: TFunction<"agent">, locale: string) {
             memoryEntry: t(
               "skills.workspace.serviceSkill.prefill.creationReplay.source.memoryEntry",
             ),
-            skillScaffold: t(
-              "skills.workspace.serviceSkill.prefill.creationReplay.source.skillScaffold",
-            ),
           },
           formatFieldSummary: (visibleLabels, totalCount) => {
             const fields = formatList(visibleLabels, {

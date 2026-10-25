@@ -50,135 +50,31 @@ export function registerImageContentSmokeGuards({
   readSmokeScript,
   removeContentFactoryForbiddenMarkerGuard,
 }) {
-  it("covers Claw @配图 through ImageCommandWorkflow and current task artifact", () => {
+  it("uses the runtime model image tool without frontend workflow routing", () => {
     const content = readSmokeScript();
     const imageCommandContent = readImageCommandScript();
-    const imageCommandWorkflowReadContent =
-      readImageCommandWorkflowReadScript();
-    const rpcContent = readRpcScript();
-
     expectAllToContain(expect, content, [
       "image-command",
       "plain-image-intent",
-      "IMAGE_COMMAND_SCENARIO",
-      "PLAIN_IMAGE_INTENT_SCENARIO",
-      "@配图 E2E 图片命令路由测试，请生成一张青柠插画",
-      "画一张广州夏天的图",
-      "@配图 ${PLAIN_IMAGE_INTENT_PROMPT}",
-      "ensure-fixture-image-provider",
-      "image_command_intent",
-      "imageCommandLegacySkillLaunchNotSubmitted",
-      "image_task",
       "lime_create_image_generation_task",
-      "mediaTaskArtifact/image/create",
-      "mediaTaskArtifact/get",
-      "mediaTaskArtifact/list",
       'APP_SERVER_BACKEND_MODE: "runtime"',
-      "media_runtime_worker",
-      "lime-image-api-worker",
-      ".lime/tasks/image_generate",
-      "runImageCommandScenario",
-      "waitForImageCommandWorkflowTaskArtifact",
-      "isImageIntentScenario",
-      "waitForGuiImageCommandCompleted",
-      "waitForGuiImageCommandTerminal",
-      "waitForSessionReadImageCommandCompleted",
-      "waitForImageCommandTaskArtifactTerminal",
-      "imageCommandTaskArtifactTerminalPatch",
-      "completeMethodUsed",
+      "imageCommandNoSyntheticRoutingMetadata",
+      "imageCommandModelCalledTool",
       "imageCommandTaskArtifactTerminal",
-      "imageCommandTaskArtifactAfterReload",
-      "imageCommandTaskAuditLog",
-      "EXPECTED_IMAGE_TASK_AUDIT_EVENTS",
-      "worker_loaded",
-      "request_slot_succeeded",
-      "task_succeeded",
-      "guiImageCommandRestoredAfterReload",
-      "agentUiPerformanceTracePreReload",
-      "collectAgentUiPerformanceTraceEvidence",
-      "image-workbench-message-preview-${taskId}",
-      "page.reload",
-      "imageCommandTaskArtifact",
-      "imageCommandPromptReachedBackend",
-      "imageCommandMetadataReachedBackend",
-      "imageCommandUsedCurrentMediaTaskArtifactMethods",
-      "imageCommandTaskArtifactWritten",
-      "imageCommandTaskArtifactSameTaskUpdated",
-      "imageCommandTaskAuditLogWritten",
-      "imageCommandTaskAuditLogEventSequence",
       "imageCommandTaskAuditLogNoSensitiveTokens",
+      "guiImageCommandRestoredAfterReload",
+    ]);
+    expectAllToContain(expect, imageCommandContent, [
+      "sendPromptFromGui",
+      'entrySource: "agent_tool"',
+      "waitForImageTaskArtifact",
+      "waitForImageCommandTaskArtifactTerminal",
+      "EXPECTED_IMAGE_TASK_AUDIT_EVENTS",
+    ]);
+    expectAllNotToContain(expect, imageCommandContent, [
+      "workflow:image_command",
+      "image_command_intent",
       "readImageCommandWorkflowAudit",
-      "APP_SERVER_METHOD_WORKFLOW_READ",
-      "workflow/read",
-      "imageCommandWorkflowRead",
-      "imageCommandWorkflowAuditReadModelProjected",
-      "imageCommandWorkflowAuditStepsProjected",
-      "imageCommandWorkflowAuditSummaryRedacted",
-      "image-command-run-${turnId}",
-      "imageCommandWorkerUsedFixtureProviderAndModel",
-      "imageCommandFixtureProvider",
-      "bodyIncludesModel",
-      "headerProviderId",
-      "imageCommandWorkflowToolObserved",
-      "imageCommandCreateTaskToolObserved",
-      "guiImageCommandToolProcessVisible",
-      "guiImageCommandTaskCardVisible",
-      "guiImageCommandTaskCardTerminal",
-      "guiImageCommandSingleTaskCard",
-      "hasLoadedVisiblePreviewImage",
-      "guiImageCommandNoDraftCard",
-      "guiImageCommandNoTemplateTaskId",
-      "readModelImageCommandTaskPreviewObserved",
-      "IMAGE_COMMAND_ASSERTION_KEYS",
-      "draft-image-",
-      "{task_id}",
-    ]);
-    expectAllToContain(expect, imageCommandContent, [
-      "expectedSessionId: options.sessionId",
-      "sessionId: options.sessionId",
-      "sessionId === expectedSessionId",
-      "threadId: options.threadId",
-      "includeTurns: true",
-    ]);
-    expectAllNotToContain(expect, imageCommandContent, [
-      "SESSION_ID",
-      "THREAD_ID",
-    ]);
-    expectAllToContain(expect, imageCommandWorkflowReadContent, [
-      "sessionId,",
-      "sessionId",
-    ]);
-    expectAllNotToContain(expect, imageCommandWorkflowReadContent, [
-      "SESSION_ID",
-    ]);
-    expectAllToContain(expect, imageCommandContent, [
-      "expectedSessionId: options.sessionId",
-      'entrySource: "at_image_command"',
-      "image_command_workflow",
-      "snapshot.hasVisibleImageTaskProcess",
-      "hasPresentationIntroInAssistantText",
-      "hasPresentationCaptionAfterCard",
-      "cardHasPresentationCaption",
-      "completionAfterCard",
-    ]);
-    expectAllToContain(expect, rpcContent, [
-      "modelProvider/create",
-      "modelProviderKey/create",
-      "media_defaults",
-    ]);
-    expectAllNotToContain(expect, content, [
-      "createImageCommandTaskArtifact",
-      "completeImageCommandTaskArtifact",
-      "completeImageCommandTaskArtifactFile",
-      "execute_skill",
-      "agent_runtime_submit_turn",
-    ]);
-    expectAllNotToContain(expect, imageCommandContent, [
-      'entrySource: "plain_image_intent"',
-      "IMAGE_COMMAND_SKILL_NAME",
-      "IMAGE_COMMAND_SKILL_TOOL_CALL_ID",
-      "(snapshot.hasAssistantSummary || snapshot.hasDoneText) &&",
-      "cardText.includes(presentationCaption) ||",
     ]);
   });
 

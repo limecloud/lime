@@ -6,8 +6,7 @@ export interface GenerationBriefVoiceBoundaryInput extends Record<
   voiceSource?: string | null;
   voice_guard?: string | null;
   voiceGuard?: string | null;
-  global_soul_scope?: string | null;
-  globalSoulScope?: string | null;
+
   expert_persona_scope?: string | null;
   expertPersonaScope?: string | null;
   formal_artifact_voice_source?: string | null;
@@ -22,8 +21,7 @@ export interface GenerationBriefVoiceBoundaryInput extends Record<
   evidenceSource?: string | null;
   evidence_refs?: string[] | null;
   evidenceRefs?: string[] | null;
-  inherits_global_soul?: boolean | null;
-  inheritsGlobalSoul?: boolean | null;
+
   inherits_expert_persona?: boolean | null;
   inheritsExpertPersona?: boolean | null;
 }
@@ -31,7 +29,6 @@ export interface GenerationBriefVoiceBoundaryInput extends Record<
 const STRING_FIELD_ALIASES = [
   ["voice_source", ["voice_source", "voiceSource"]],
   ["voice_guard", ["voice_guard", "voiceGuard"]],
-  ["global_soul_scope", ["global_soul_scope", "globalSoulScope"]],
   ["expert_persona_scope", ["expert_persona_scope", "expertPersonaScope"]],
   [
     "formal_artifact_voice_source",
@@ -44,7 +41,6 @@ const STRING_FIELD_ALIASES = [
 ] as const;
 
 const BOOLEAN_FIELD_ALIASES = [
-  ["inherits_global_soul", ["inherits_global_soul", "inheritsGlobalSoul"]],
   [
     "inherits_expert_persona",
     ["inherits_expert_persona", "inheritsExpertPersona"],
@@ -86,21 +82,9 @@ export function hasGenerationBriefMetadata(
   const artifact = asRecord(source.artifact);
   return Boolean(
     asRecord(source.generation_brief) ||
-      asRecord(source.generationBrief) ||
-      asRecord(artifact?.generation_brief) ||
-      asRecord(artifact?.generationBrief),
-  );
-}
-
-function readGenerationBriefMetadata(
-  metadata?: Record<string, unknown>,
-): Record<string, unknown> | undefined {
-  const artifact = asRecord(metadata?.artifact);
-  return (
+    asRecord(source.generationBrief) ||
     asRecord(artifact?.generation_brief) ||
-    asRecord(artifact?.generationBrief) ||
-    asRecord(metadata?.generation_brief) ||
-    asRecord(metadata?.generationBrief)
+    asRecord(artifact?.generationBrief),
   );
 }
 
@@ -337,140 +321,4 @@ export function mergeGenerationBriefIntoArtifactMetadata(
   metadata.artifact = nextArtifact;
 
   return metadata;
-}
-
-export interface SoulArtifactVoiceDiagnosticsInput {
-  requestMetadata?: Record<string, unknown>;
-  savedGenerationBrief?: GenerationBriefVoiceBoundaryInput | null;
-  savedVoiceEnabledForTurn?: boolean;
-  hasExplicitGenerationBrief?: boolean;
-}
-
-function readDiagnosticText(
-  source: Record<string, unknown> | undefined,
-  key: string,
-): string | undefined {
-  const value = source?.[key];
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : undefined;
-}
-
-function readDiagnosticBoolean(
-  source: Record<string, unknown> | undefined,
-  key: string,
-): boolean | undefined {
-  const value = source?.[key];
-  return typeof value === "boolean" ? value : undefined;
-}
-
-function readDiagnosticStringArray(
-  source: Record<string, unknown> | undefined,
-  key: string,
-): string[] | undefined {
-  const value = source?.[key];
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-  const items = value.filter(
-    (item): item is string =>
-      typeof item === "string" && item.trim().length > 0,
-  );
-  return items.length > 0 ? items.map((item) => item.trim()) : undefined;
-}
-
-function buildSoulArtifactVoiceDiagnostics(
-  input: SoulArtifactVoiceDiagnosticsInput,
-): Record<string, unknown> | undefined {
-  const normalizedSaved = buildGenerationBriefMetadata(
-    input.savedGenerationBrief,
-  );
-  const finalBrief = readGenerationBriefMetadata(input.requestMetadata);
-  const hasSavedVoice = Boolean(normalizedSaved);
-  const hasExplicitGenerationBrief = input.hasExplicitGenerationBrief === true;
-
-  if (!hasSavedVoice && !hasExplicitGenerationBrief) {
-    return undefined;
-  }
-
-  const enabledForTurn = input.savedVoiceEnabledForTurn !== false;
-  const diagnosticSource = hasExplicitGenerationBrief
-    ? finalBrief
-    : enabledForTurn
-      ? finalBrief || normalizedSaved
-      : normalizedSaved;
-  const status = hasExplicitGenerationBrief
-    ? "turn_explicit"
-    : enabledForTurn
-      ? "saved_applied"
-      : "disabled_for_turn";
-
-  const diagnostics: Record<string, unknown> = {
-    status,
-    enabled_for_turn: enabledForTurn,
-    source: hasExplicitGenerationBrief
-      ? "request_metadata.generation_brief"
-      : "memory.soul.artifact_voice",
-    guard_result:
-      status === "disabled_for_turn" ? "blocked_by_turn_override" : "applied",
-  };
-
-  const stringFields = [
-    "voice_source",
-    "voice_guard",
-    "global_soul_scope",
-    "expert_persona_scope",
-    "formal_artifact_voice_source",
-    "evidence_pack_id",
-    "evidence_source",
-  ] as const;
-  for (const field of stringFields) {
-    const value = readDiagnosticText(diagnosticSource, field);
-    if (value) {
-      diagnostics[field] = value;
-    }
-  }
-
-  for (const field of [
-    "inherits_global_soul",
-    "inherits_expert_persona",
-  ] as const) {
-    const value = readDiagnosticBoolean(diagnosticSource, field);
-    if (value !== undefined) {
-      diagnostics[field] = value;
-    }
-  }
-
-  const evidenceRefs = readDiagnosticStringArray(
-    diagnosticSource,
-    "evidence_refs",
-  );
-  if (evidenceRefs) {
-    diagnostics.evidence_refs = evidenceRefs;
-    diagnostics.evidence_ref_count = evidenceRefs.length;
-  }
-
-  return diagnostics;
-}
-
-export function mergeSoulArtifactVoiceDiagnostics(
-  requestMetadata: Record<string, unknown>,
-  input: Omit<SoulArtifactVoiceDiagnosticsInput, "requestMetadata">,
-): Record<string, unknown> {
-  const diagnostics = buildSoulArtifactVoiceDiagnostics({
-    ...input,
-    requestMetadata,
-  });
-  if (!diagnostics) {
-    return requestMetadata;
-  }
-
-  const existingDiagnostics = asRecord(requestMetadata.diagnostics) || {};
-  return {
-    ...requestMetadata,
-    diagnostics: {
-      ...existingDiagnostics,
-      soul_artifact_voice: diagnostics,
-    },
-  };
 }

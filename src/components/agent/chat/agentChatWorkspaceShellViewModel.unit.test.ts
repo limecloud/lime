@@ -66,7 +66,7 @@ describe("agentChatWorkspaceShellViewModel", () => {
   it("App Server read model 已有 thread item 时不应按首页空态处理", () => {
     expect(
       resolve({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         displayMessageCount: 0,
         threadItemCount: 2,
       }),
@@ -81,7 +81,7 @@ describe("agentChatWorkspaceShellViewModel", () => {
   it("claw 首页首发 pending preview 应立即打开聊天面板", () => {
     expect(
       resolve({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         isHomePendingPreviewActive: true,
       }),
     ).toMatchObject({
@@ -100,7 +100,7 @@ describe("agentChatWorkspaceShellViewModel", () => {
     ] satisfies Array<Partial<AgentChatWorkspaceShellViewModelInput>>) {
       expect(
         resolve({
-          agentEntry: "claw",
+          agentEntry: "conversation",
           ...overrides,
         }),
       ).toMatchObject({
@@ -159,7 +159,7 @@ describe("agentChatWorkspaceShellViewModel", () => {
   it("非 new-task 入口不应用空白首页规则阻断图片任务恢复", () => {
     expect(
       resolve({
-        agentEntry: "claw",
+        agentEntry: "conversation",
       }),
     ).toMatchObject({
       effectiveShowChatPanel: false,
@@ -170,7 +170,7 @@ describe("agentChatWorkspaceShellViewModel", () => {
   it("claw 历史会话入口应打开聊天面板", () => {
     expect(
       resolve({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         initialSessionId: "session-from-sidebar",
       }),
     ).toMatchObject({

@@ -21,6 +21,8 @@ use tool_runtime::computer_use::*;
 
 const PROVIDER: &str = "computer-use-provider";
 const OBSERVATION: &str = "computer-use-provider-observed-window";
+const PNG: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFe0AAAAASUVORK5CYII=";
 
 #[derive(Default)]
 struct TestAdapter {
@@ -55,7 +57,10 @@ impl ComputerUseAdapter for TestAdapter {
                 native_app: Some(NativeAppIdentity::Macos {
                     bundle_id: "com.example.ProviderFixture".into(),
                 }),
-                capabilities: vec![ComputerUseCapability::Observe],
+                capabilities: vec![
+                    ComputerUseCapability::Observe,
+                    ComputerUseCapability::Screenshot,
+                ],
                 locked: false,
             }],
             reason: None,
@@ -81,9 +86,12 @@ impl ComputerUseAdapter for TestAdapter {
         cancel: tokio_util::sync::CancellationToken,
     ) -> ComputerUseResult<Value> {
         assert!(!cancel.is_cancelled());
-        assert!(matches!(action, ComputerUseAction::Observe { .. }));
+        assert!(matches!(
+            action,
+            ComputerUseAction::Observe { .. } | ComputerUseAction::Screenshot {}
+        ));
         assert_eq!(lease.response.target, target());
-        assert_eq!(lease.response.capability, ComputerUseCapability::Observe);
+        assert_eq!(lease.response.capability, action.capability());
         self.calls.lock().unwrap().push(lease.owner.clone());
         self.entered.notify_one();
         if self.block.load(Ordering::Acquire) {
@@ -92,7 +100,12 @@ impl ComputerUseAdapter for TestAdapter {
             self.stopped.notify_one();
             return Err(ComputerUseError("test adapter canceled".into()));
         }
-        Ok(json!({"observation":OBSERVATION}))
+        Ok(match action {
+            ComputerUseAction::Screenshot {} => {
+                json!({"observation":OBSERVATION,"format":"png","width":1,"height":1,"data":PNG})
+            }
+            _ => json!({"observation":OBSERVATION}),
+        })
     }
 }
 
@@ -104,7 +117,7 @@ async fn provider_turn(wire: Wire, grant: bool) {
             0 => Some(("discover", json!({"operation":{"action":"status"}}))),
             1 => Some((
                 "observe",
-                json!({"target":target(), "operation":{"action":"observe","max_depth":2,"max_nodes":32}}),
+                json!({"target":target(), "operation":{"action":"screenshot"}}),
             )),
             _ => None,
         };
@@ -115,7 +128,7 @@ async fn provider_turn(wire: Wire, grant: bool) {
     let config = temp.path().join("config.yaml");
     std::fs::write(
         &config,
-        "server:\n  api_key: test-only\ncomputer_use:\n  default_app_access: allow\n",
+        "server:\n  api_key: test-only\nfeatures:\n  computer_use: true\ncomputer_use:\n  default_app_access: allow\n",
     )
     .unwrap();
     let adapter = Arc::new(TestAdapter::default());
@@ -186,6 +199,7 @@ async fn provider_turn(wire: Wire, grant: bool) {
     );
     if grant {
         assert!(readback.contains(OBSERVATION), "{readback}");
+        assert_provider_image(wire, &capture.body);
         let calls = adapter.calls.lock().unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].thread_id, thread);
@@ -238,6 +252,12 @@ async fn provider_turn(wire: Wire, grant: bool) {
     }
     assert!(results[0].success, "read-only discovery needs no grant");
     assert_eq!(results[1].success, grant);
+    if grant {
+        assert!(!results[1].output.contains(PNG));
+        assert!(results[1].content_items.iter().any(|item| matches!(item,
+            agent_protocol::response_item::FunctionCallOutputContentItem::InputImage { image_url, .. }
+            if image_url == &format!("data:image/png;base64,{PNG}"))));
+    }
     assert_eq!(
         events
             .iter()
@@ -273,6 +293,62 @@ async fn provider_turn(wire: Wire, grant: bool) {
     .await
     .expect("thread/closed must confirm runtime cleanup before transport EOF");
     client.shutdown().await;
+}
+
+fn assert_provider_image(wire: Wire, body: &Value) {
+    let url = format!("data:image/png;base64,{PNG}");
+    match wire {
+        Wire::Responses => {
+            let result = body["input"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["type"] == "function_call_output" && item["call_id"] == "observe")
+                .unwrap();
+            assert!(result["output"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["type"] == "input_image" && item["image_url"] == url));
+        }
+        Wire::Chat => {
+            let messages = body["messages"].as_array().unwrap();
+            let tool = messages
+                .iter()
+                .position(|item| item["role"] == "tool" && item["tool_call_id"] == "observe")
+                .unwrap();
+            assert!(!messages[tool]["content"].as_str().unwrap().contains(PNG));
+            assert_eq!(messages[tool + 1]["role"], "user");
+            assert!(messages[tool + 1]["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["type"] == "image_url" && item["image_url"]["url"] == url));
+        }
+        Wire::Anthropic => {
+            let result = body["messages"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .flat_map(|message| message["content"].as_array().unwrap())
+                .find(|item| item["type"] == "tool_result" && item["tool_use_id"] == "observe")
+                .unwrap();
+            assert!(result["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["type"] == "image" && item["source"]["data"] == PNG));
+        }
+        Wire::Gemini => {
+            assert!(body["contents"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .flat_map(|content| content["parts"].as_array().unwrap())
+                .any(|part| part["inlineData"]["mimeType"] == "image/png"
+                    && part["inlineData"]["data"] == PNG));
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

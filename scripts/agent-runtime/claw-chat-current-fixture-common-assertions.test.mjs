@@ -31,7 +31,6 @@ const SCENARIO_FLAGS = [
   "isTypedErrorRetryScenario",
   "isTypedErrorRetrySuccessScenario",
   "isSkillsRuntimeScenario",
-  "isSoulStyleScenario",
   "isRightSurfaceVisualMatrixScenario",
   "isThreadSummaryPanelScenario",
   "isContentFactoryArticleWorkspaceScenario",

@@ -115,118 +115,7 @@ function createDefaultHarnessPanelBaseProps(
   };
 }
 
-function createDefaultProps(overrides: HookPropsOverrides = {}): HookProps {
-  const noop = vi.fn();
-  const {
-    generalWorkbenchHarnessPanelBaseProps,
-    pendingActions,
-    submittedActionsInFlight,
-    onRespondToAction,
-    ...hookOverrides
-  } = overrides;
 
-  return {
-    setMentionedCharacters: noop,
-    isThemeWorkbench: true,
-    sessionId: "session-1",
-    threadId: null,
-    threadGoal: null,
-    threadGoalError: null,
-    threadGoalLoading: false,
-    generalWorkbenchHarnessPanelBaseProps: createDefaultHarnessPanelBaseProps(
-      noop,
-      {
-        ...generalWorkbenchHarnessPanelBaseProps,
-        ...(pendingActions ? { pendingActions } : {}),
-        ...(submittedActionsInFlight ? { submittedActionsInFlight } : {}),
-        ...(onRespondToAction ? { onRespondToAction } : {}),
-      },
-    ),
-    handleStopSending: noop,
-    input: "",
-    setInput: noop,
-    currentGate: null,
-    generalWorkbenchWorkflowSteps: [],
-    steps: [],
-    workflowRunState: "idle",
-    handleSend: vi.fn().mockResolvedValue(acceptedSubmission()),
-    isPreparingSend: false,
-    isSending: false,
-    providerType: "openai",
-    setProviderType: noop,
-    model: "gpt-5",
-    setModel: noop,
-    reasoningEffort: "",
-    setReasoningEffort: noop,
-    sessionExecutionRuntime: null,
-    projectId: "project-1",
-    projectRootPath: "/tmp/project-1",
-    accessMode: "default" as any,
-    setAccessMode: noop,
-    activeTheme: "general",
-    navigationActions: {
-      handleManageProviders: noop,
-      handleOpenExecutionPolicySettings: noop,
-      handleOpenRuntimeMemoryWorkbench: noop,
-    },
-    characters: [],
-    skills: [],
-    serviceSkills: [],
-    serviceSkillGroups: [],
-    skillsLoading: false,
-    onSelectServiceSkill: noop,
-    initialInputCapability: undefined,
-    setChatToolPreferences: noop,
-    handleNavigateToSkillSettings: noop,
-    handleRefreshSkills: noop,
-    soulArtifactVoiceGenerationBrief: null,
-    soulArtifactVoiceEnabledForTurn: true,
-    onSoulArtifactVoiceEnabledForTurnChange: noop,
-    generalWorkbenchEntryPrompt: null,
-    handleRestartGeneralWorkbenchEntryPrompt: noop,
-    handleContinueGeneralWorkbenchEntryPrompt: noop,
-    generalWorkbenchEnabled: false,
-    harnessPanelVisible: false,
-    setHarnessPanelVisible: noop,
-    harnessState: {
-      runtimeStatus: null,
-      pendingApprovals: [],
-      latestContextTrace: [],
-      plan: {
-        phase: "idle",
-        items: [],
-      },
-      activity: {
-        planning: 0,
-        filesystem: 0,
-        execution: 0,
-        web: 0,
-        skills: 0,
-        delegation: 0,
-      },
-      delegatedTasks: [],
-      outputSignals: [],
-      activeFileWrites: [],
-      recentFileEvents: [],
-      hasSignals: false,
-    },
-    mappedTheme: "general",
-    activeRuntimeStatusTitle: null,
-    chatToolPreferences: {
-      task: false,
-      subagent: false,
-    },
-    defaultCuratedTaskReferenceMemoryIds: [],
-    defaultCuratedTaskReferenceEntries: [],
-    pathReferences: [],
-    onAddPathReferences: noop,
-    onRemovePathReference: noop,
-    onClearPathReferences: noop,
-
-    inputCompletionEnabled: true,
-    ...hookOverrides,
-  };
-}
 
 function renderHookNode(props: HookProps): HTMLDivElement {
   const container = document.createElement("div");
@@ -725,45 +614,9 @@ describe("useWorkspaceInputbarSceneRuntime", () => {
     expect(toastMock.error).toHaveBeenCalledWith("队列操作失败，请重试");
   });
 
-  it("有已保存创作声线时应在输入区显示本轮开关并响应切换", () => {
-    const onSoulArtifactVoiceEnabledForTurnChange = vi.fn();
-    const container = renderHookNode(
-      createDefaultProps({
-        soulArtifactVoiceGenerationBrief: {
-          voice_source: "brand_voice",
-          brand_voice_id: "brand-voice-1",
-        },
-        soulArtifactVoiceEnabledForTurn: true,
-        onSoulArtifactVoiceEnabledForTurnChange,
-      }),
-    );
 
-    expect(
-      container.querySelector('[data-testid="soul-artifact-voice-turn-toggle"]')
-        ?.textContent,
-    ).toContain("创作声线");
-    expect(container.textContent).toContain("本轮使用");
 
-    act(() => {
-      (
-        container.querySelector(
-          '[data-testid="soul-artifact-voice-turn-switch"]',
-        ) as HTMLButtonElement
-      ).click();
-    });
 
-    expect(onSoulArtifactVoiceEnabledForTurnChange).toHaveBeenCalledWith(false);
-  });
-
-  it("没有已保存创作声线时不应显示本轮开关", () => {
-    const container = renderHookNode(createDefaultProps());
-
-    expect(
-      container.querySelector(
-        '[data-testid="soul-artifact-voice-turn-toggle"]',
-      ),
-    ).toBeNull();
-  });
 
   it("应在 Plan 确认态替换底部输入框而不是叠加渲染", () => {
     const container = renderHookNode(
@@ -1178,3 +1031,116 @@ describe("useWorkspaceInputbarSceneRuntime", () => {
     expect(onInputRestoreRequestHandled).toHaveBeenCalledWith("restore-1");
   });
 });
+
+function createDefaultProps(overrides: HookPropsOverrides = {}): HookProps {
+  const noop = vi.fn();
+  const {
+    generalWorkbenchHarnessPanelBaseProps,
+    pendingActions,
+    submittedActionsInFlight,
+    onRespondToAction,
+    ...hookOverrides
+  } = overrides;
+
+  return {
+    setMentionedCharacters: noop,
+    isThemeWorkbench: true,
+    sessionId: "session-1",
+    threadId: null,
+    threadGoal: null,
+    threadGoalError: null,
+    threadGoalLoading: false,
+    generalWorkbenchHarnessPanelBaseProps: createDefaultHarnessPanelBaseProps(
+      noop,
+      {
+        ...generalWorkbenchHarnessPanelBaseProps,
+        ...(pendingActions ? { pendingActions } : {}),
+        ...(submittedActionsInFlight ? { submittedActionsInFlight } : {}),
+        ...(onRespondToAction ? { onRespondToAction } : {}),
+      },
+    ),
+    handleStopSending: noop,
+    input: "",
+    setInput: noop,
+    currentGate: null,
+    generalWorkbenchWorkflowSteps: [],
+    steps: [],
+    workflowRunState: "idle",
+    handleSend: vi.fn().mockResolvedValue(acceptedSubmission()),
+    isPreparingSend: false,
+    isSending: false,
+    providerType: "openai",
+    setProviderType: noop,
+    model: "gpt-5",
+    setModel: noop,
+    reasoningEffort: "",
+    setReasoningEffort: noop,
+    sessionExecutionRuntime: null,
+    projectId: "project-1",
+    projectRootPath: "/tmp/project-1",
+    accessMode: "default" as any,
+    setAccessMode: noop,
+    activeTheme: "general",
+    navigationActions: {
+      handleManageProviders: noop,
+      handleOpenExecutionPolicySettings: noop,
+      handleOpenRuntimeMemoryWorkbench: noop,
+    },
+    characters: [],
+    skills: [],
+    serviceSkills: [],
+    serviceSkillGroups: [],
+    skillsLoading: false,
+    onSelectServiceSkill: noop,
+    initialInputCapability: undefined,
+    setChatToolPreferences: noop,
+    handleNavigateToSkillSettings: noop,
+    handleRefreshSkills: noop,
+
+
+
+    generalWorkbenchEntryPrompt: null,
+    handleRestartGeneralWorkbenchEntryPrompt: noop,
+    handleContinueGeneralWorkbenchEntryPrompt: noop,
+    generalWorkbenchEnabled: false,
+    harnessPanelVisible: false,
+    setHarnessPanelVisible: noop,
+    harnessState: {
+      runtimeStatus: null,
+      pendingApprovals: [],
+      latestContextTrace: [],
+      plan: {
+        phase: "idle",
+        items: [],
+      },
+      activity: {
+        planning: 0,
+        filesystem: 0,
+        execution: 0,
+        web: 0,
+        skills: 0,
+        delegation: 0,
+      },
+      delegatedTasks: [],
+      outputSignals: [],
+      activeFileWrites: [],
+      recentFileEvents: [],
+      hasSignals: false,
+    },
+    mappedTheme: "general",
+    activeRuntimeStatusTitle: null,
+    chatToolPreferences: {
+      task: false,
+      subagent: false,
+    },
+    defaultCuratedTaskReferenceMemoryIds: [],
+    defaultCuratedTaskReferenceEntries: [],
+    pathReferences: [],
+    onAddPathReferences: noop,
+    onRemovePathReference: noop,
+    onClearPathReferences: noop,
+
+    inputCompletionEnabled: true,
+    ...hookOverrides,
+  };
+}

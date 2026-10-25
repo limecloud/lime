@@ -21,14 +21,14 @@ const {
   mockToast,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 话题切换项目恢复", { timeout: 60_000 }, () => {
+describe("LocalConversationPage 话题切换项目恢复", { timeout: 60_000 }, () => {
   it("应先切换到话题绑定项目，再执行话题切换", async () => {
     localStorage.setItem(
       "agent_session_workspace_topic-a",
       JSON.stringify("project-topic"),
     );
 
-    const mounted = mountPage({ agentEntry: "claw" });
+    const mounted = mountPage({ agentEntry: "conversation" });
     await flushEffects(60);
 
     mounted.rerender({ initialSessionId: "topic-a" });
@@ -54,7 +54,7 @@ describe("AgentChatPage 话题切换项目恢复", { timeout: 60_000 }, () => {
     );
 
     const mounted = mountPage({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       projectId: "locked-project",
     });
     await flushEffects(60);
@@ -79,7 +79,7 @@ describe("AgentChatPage 话题切换项目恢复", { timeout: 60_000 }, () => {
       createProject("default-new"),
     );
 
-    const mounted = mountPage({ agentEntry: "claw" });
+    const mounted = mountPage({ agentEntry: "conversation" });
     await flushEffects(60);
 
     mounted.rerender({ initialSessionId: "topic-a" });
@@ -113,7 +113,7 @@ describe("AgentChatPage 话题切换项目恢复", { timeout: 60_000 }, () => {
       warning: null,
     });
 
-    renderPage({ agentEntry: "claw", projectId: "default" });
+    renderPage({ agentEntry: "conversation", projectId: "default" });
     await flushEffects(60);
 
     expect(mockGetOrCreateDefaultProject).not.toHaveBeenCalled();
@@ -142,7 +142,7 @@ describe("AgentChatPage 话题切换项目恢复", { timeout: 60_000 }, () => {
       warning: null,
     });
 
-    renderPage({ agentEntry: "claw", projectId: "workspace-default" });
+    renderPage({ agentEntry: "conversation", projectId: "workspace-default" });
     await flushEffects(60);
 
     expect(mockGetOrCreateDefaultProject).not.toHaveBeenCalled();
@@ -227,7 +227,7 @@ describe("AgentChatPage 话题切换项目恢复", { timeout: 60_000 }, () => {
       }),
     );
 
-    renderPage({ agentEntry: "claw" });
+    renderPage({ agentEntry: "conversation" });
     await flushEffects(60);
 
     expect(mockGetOrCreateDefaultProject).not.toHaveBeenCalled();
@@ -247,7 +247,7 @@ describe("AgentChatPage 话题切换项目恢复", { timeout: 60_000 }, () => {
       JSON.stringify("project-manual"),
     );
 
-    const mounted = mountPage({ agentEntry: "claw" });
+    const mounted = mountPage({ agentEntry: "conversation" });
     await flushEffects(60);
 
     expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe(

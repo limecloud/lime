@@ -254,7 +254,7 @@ describe("agentStreamRuntimeHandler", () => {
     expect(requestState.firstRuntimeStatusAt).toBe(Date.now());
     expect(messages[0]?.runtimeStatus).toMatchObject({
       phase: "routing",
-      title: "正在启动处理流程",
+      title: "正在处理",
     });
 
     handleTurnStreamEvent({
@@ -2911,10 +2911,10 @@ describe("agentStreamRuntimeHandler", () => {
       setIsSending: setIsSending as never,
     });
 
-    expect(messages[0]?.content).toContain("执行失败：");
+    expect(messages[0]?.content).toContain("模型未输出最终答复，请重试");
     expect(messages[0]?.runtimeStatus).toMatchObject({
       phase: "failed",
-      title: "当前处理失败",
+      title: "处理失败",
       detail: "模型未输出最终答复，请重试",
     });
     expect(removeQueuedTurnsFromProjection).not.toHaveBeenCalled();
@@ -3043,10 +3043,10 @@ describe("agentStreamRuntimeHandler", () => {
     expect(
       requestState.hasAssistantTextAfterLatestFinalAnswerRequiredProcessBoundary,
     ).toBe(false);
-    expect(messages[0]?.content).toContain("执行失败：");
+    expect(messages[0]?.content).toContain("模型未输出最终答复，请重试");
     expect(messages[0]?.runtimeStatus).toMatchObject({
       phase: "failed",
-      title: "当前处理失败",
+      title: "处理失败",
       detail: "模型未输出最终答复，请重试",
     });
     expect(removeQueuedTurnsFromProjection).not.toHaveBeenCalled();
@@ -6042,10 +6042,10 @@ describe("agentStreamRuntimeHandler", () => {
       setIsSending: vi.fn() as never,
     });
 
-    expect(messages[0]?.content).toContain("执行失败：");
+    expect(messages[0]?.content).toContain("模型未输出最终答复，请重试");
     expect(messages[0]?.runtimeStatus).toMatchObject({
       phase: "failed",
-      title: "当前处理失败",
+      title: "处理失败",
       detail: "模型未输出最终答复，请重试",
     });
     expect(mockToast.error).toHaveBeenCalledWith("模型未输出最终答复，请重试");
@@ -6338,12 +6338,12 @@ describe("agentStreamRuntimeHandler", () => {
       setIsSending: vi.fn() as never,
     });
 
-    expect(messages[0]?.content).toContain("执行失败：");
+    expect(messages[0]?.content).toContain(providerUnavailableMessage);
     expect(messages[0]?.contentParts).toEqual([
       expect.objectContaining({ type: "tool_use" }),
       expect.objectContaining({
         type: "text",
-        text: expect.stringContaining("执行失败："),
+        text: expect.stringContaining(providerUnavailableMessage),
       }),
     ]);
     expect(messages[0]?.runtimeStatus).toMatchObject({

@@ -22,7 +22,7 @@ const {
   mockUseTopicBranchBoard,
 } = getIndexTestMocks();
 
-describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
+describe("LocalConversationPage 自动引导", { timeout: 20_000 }, () => {
   it("工作区编排写入损坏的 markdown 产物时不应覆盖主稿正文", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockGetContent.mockResolvedValue({

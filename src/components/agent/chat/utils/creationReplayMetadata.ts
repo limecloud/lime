@@ -1,30 +1,12 @@
 import type { MemoryCategory } from "@/lib/memory/memoryReferenceTypes";
-import type { SkillScaffoldTarget } from "@/lib/api/skills";
-import type { SkillScaffoldDraft } from "@/types/page";
 
 const CREATION_REPLAY_VERSION = 1;
 const DEFAULT_MAX_ITEMS = 6;
 
-type CreationReplaySourcePage = "skills" | "memory_store";
-
 interface CreationReplaySource extends Record<string, unknown> {
-  page: CreationReplaySourcePage;
+  page: "memory_store";
   project_id?: string;
-  source_message_id?: string;
   entry_id?: string;
-}
-
-interface SkillScaffoldCreationReplayData extends Record<string, unknown> {
-  name?: string;
-  description?: string;
-  target?: SkillScaffoldTarget;
-  directory?: string;
-  source_excerpt?: string;
-  when_to_use?: string[];
-  inputs?: string[];
-  outputs?: string[];
-  steps?: string[];
-  fallback_strategy?: string[];
 }
 
 interface MemoryEntryCreationReplayData extends Record<string, unknown> {
@@ -35,13 +17,6 @@ interface MemoryEntryCreationReplayData extends Record<string, unknown> {
   tags?: string[];
 }
 
-export interface SkillScaffoldCreationReplayMetadata {
-  version: typeof CREATION_REPLAY_VERSION;
-  kind: "skill_scaffold";
-  source: CreationReplaySource;
-  data: SkillScaffoldCreationReplayData;
-}
-
 export interface MemoryEntryCreationReplayMetadata {
   version: typeof CREATION_REPLAY_VERSION;
   kind: "memory_entry";
@@ -49,9 +24,7 @@ export interface MemoryEntryCreationReplayMetadata {
   data: MemoryEntryCreationReplayData;
 }
 
-export type CreationReplayMetadata =
-  | SkillScaffoldCreationReplayMetadata
-  | MemoryEntryCreationReplayMetadata;
+export type CreationReplayMetadata = MemoryEntryCreationReplayMetadata;
 
 export type CreationReplayRequestMetadata = Record<string, unknown> & {
   harness: {
@@ -113,12 +86,6 @@ function normalizeOptionalList(
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function isSkillScaffoldTarget(
-  value: string | undefined,
-): value is SkillScaffoldTarget {
-  return value === "project" || value === "user";
-}
-
 function isMemoryCategory(value: string | undefined): value is MemoryCategory {
   return (
     value === "identity" ||
@@ -178,37 +145,6 @@ function buildCreationReplayRequestMetadata(
   };
 }
 
-export function buildSkillScaffoldCreationReplayRequestMetadata(
-  draft: SkillScaffoldDraft,
-  options: {
-    projectId?: string;
-  } = {},
-): CreationReplayRequestMetadata {
-  const metadata: SkillScaffoldCreationReplayMetadata = {
-    version: CREATION_REPLAY_VERSION,
-    kind: "skill_scaffold",
-    source: compactRecord({
-      page: "skills",
-      project_id: normalizeOptionalText(options.projectId, 80),
-      source_message_id: normalizeOptionalText(draft.sourceMessageId, 80),
-    } satisfies CreationReplaySource) as CreationReplaySource,
-    data: compactRecord({
-      name: normalizeOptionalText(draft.name, 80),
-      description: normalizeOptionalText(draft.description, 180),
-      target: draft.target,
-      directory: normalizeOptionalText(draft.directory, 120),
-      source_excerpt: normalizeOptionalText(draft.sourceExcerpt, 220),
-      when_to_use: normalizeOptionalList(draft.whenToUse, 4),
-      inputs: normalizeOptionalList(draft.inputs, 4),
-      outputs: normalizeOptionalList(draft.outputs, 4),
-      steps: normalizeOptionalList(draft.steps, 6),
-      fallback_strategy: normalizeOptionalList(draft.fallbackStrategy, 4),
-    } satisfies SkillScaffoldCreationReplayData) as SkillScaffoldCreationReplayData,
-  };
-
-  return buildCreationReplayRequestMetadata(metadata);
-}
-
 export function buildMemoryEntryCreationReplayRequestMetadata(
   entry: MemoryEntryCreationReplayInput,
 ): CreationReplayRequestMetadata {
@@ -248,31 +184,6 @@ export function extractCreationReplayMetadata(
   const kind = readText(rawReplay, "kind");
   const page = readText(source, "page");
   const version: typeof CREATION_REPLAY_VERSION = CREATION_REPLAY_VERSION;
-
-  if (kind === "skill_scaffold" && page === "skills" && data) {
-    const target = readText(data, "target");
-    return {
-      version,
-      kind,
-      source: compactRecord<CreationReplaySource>({
-        page,
-        project_id: readText(source, "project_id"),
-        source_message_id: readText(source, "source_message_id"),
-      }),
-      data: compactRecord<SkillScaffoldCreationReplayData>({
-        name: readText(data, "name"),
-        description: readText(data, "description"),
-        target: isSkillScaffoldTarget(target) ? target : undefined,
-        directory: readText(data, "directory"),
-        source_excerpt: readText(data, "source_excerpt"),
-        when_to_use: readTextList(data, "when_to_use"),
-        inputs: readTextList(data, "inputs"),
-        outputs: readTextList(data, "outputs"),
-        steps: readTextList(data, "steps"),
-        fallback_strategy: readTextList(data, "fallback_strategy"),
-      }),
-    };
-  }
 
   const category = readText(data, "category");
   if (

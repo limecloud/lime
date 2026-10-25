@@ -17,7 +17,6 @@ describe("Browser current owner boundary", () => {
       "electron/browserTabSelection.ts",
       "electron/appServerDynamicToolHost.ts",
       "src/lib/api/browserTab.ts",
-      "src/components/agent/chat/utils/generalAgentPrompt.ts",
       "src/components/agent/chat/workspace/right-surface/browser/BrowserWorkspace.tsx",
       "src/components/agent/chat/workspace/right-surface/browser/browserTabHydration.ts",
       "src/components/agent/chat/workspace/right-surface/browser/useBrowserWorkspaceHydration.ts",

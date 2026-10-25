@@ -41,7 +41,7 @@ import {
   normalizeToolNameKey,
 } from "./toolDisplayInfo";
 import { isUnifiedWebSearchToolName } from "./searchResultPreview";
-import { resolveToolSoulMetadata } from "./toolSoulLifecycleMetadata";
+
 import { resolveToolDisplayName } from "./toolDisplayName";
 
 export type {
@@ -275,7 +275,7 @@ function buildNarrative(input: ToolProcessInput): ToolProcessNarrative {
     postSummary,
     summary,
     postSource,
-    ...resolveToolSoulMetadata(input.metadata),
+
   };
 }
 

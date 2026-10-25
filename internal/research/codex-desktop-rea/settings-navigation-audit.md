@@ -1,5 +1,10 @@
 # Codex Desktop 设置导航对齐审计
 
+> 2026-10-25 更新：用户已取消 Lime 主题/皮肤保留例外，旧皮肤及首页装饰段落仅为历史证据，现役实现与验收见 `internal/exec-plans/appearance-home-alignment-20261025.md`。
+
+2026-10-25 current 纠正：下文本地 Profile/Soul 实施为历史证据，已退役。Codex 公共 Profile 为账号服务能力，本地 nickname/bio 表单不能替代；已删除表单、配置、搜索目标和专用 fixture，保留真实 Lime Account Center。个性化仅保留 Memory、AGENTS 与原版指令语义。旧公开 Profile 后续动作不再作为 Lime 当前产品待办。详见 [当前执行计划](../../exec-plans/browser-runtime-right-surface-plan.md)。
+
+
 2026-10-18 布局纠正：本版legacy设置共用340px偏好侧栏，无全局rail及独立Settings标题；实际Back→search→groups，内容居中48rem/20px scroll padding/46px toolbar。旧railHome验收仅为历史，该用户路径已迁为Back回来源后Home。当前合同及待验状态见[窗口排版报告](../../exec-plans/artifacts/codex-shell-layout-rea-20261018/report.md)。下文旧布局对比均为实施前快照。
 
 七 member 静态审计及后续切片的采用记录；章节 owner、公开 SettingsPage、canonical 路由与返回已交付。Memory配置/SOUL、独立笔记、Web Search、Environment、Execution Policy与Profile未保存导航保护已分别完成验收；公共Profile身份/可见性、内容搜索、其他表单与完整外部 dirty authority 仍待交付。下文保留各阶段历史事实，不以首屏读取证明写入或丢稿保护。
@@ -119,7 +124,7 @@ root核对冻结manifest/patch/29项证据与九源before/after后，正式采�
 
 `SettingsPage` 现直接消费 `SettingsPageParams`，章节点击回写同一根导航；删除 initial props 到 activeTab/providerView/developerLabTab 的局部复制。焦点仅进入所属章节，切离清理；Experimental 仍委托 Developer。唯一返回快照位于 `useAppNavigation`，原workspace surface回调直接迁为 `onLocationChange({sessionId, workspaceId})`，App不再另存一份活跃session。requestId门禁拒绝旧回调，连续未提交导航保留实际来处，最小Agent恢复参数排除首发/附件/技能启动/新建intent。页头 `settings-back-button` 返回来处，可见rail Home始终进入首页；旧隐藏Home选择器按钮删除，所有current消费者迁可见入口。
 
-Skills 弹窗续检：`SkillScaffoldDialog` 本地持有 target/directory/name/description，open 时由 initialValues 初始化；提交先验证，再等待 `SkillsPage.handleCreateScaffold -> skillsApi.createSkillScaffold`，成功关闭，失败保留错误与当前输入。它属于手动草稿候选，未接导航保护；“带回创作”另传显式草稿快照。`SkillContentDialog` 在本次源码检查中仅消费详情/资源投影，没有输入编辑；`SkillPackageInstallDialog` 持有检查结果、所选文件和安装在途状态，没有配置编辑草稿。两者不能因弹窗形状被误登记为同一 dirty 表单；安装在途关闭/迟到结果仍需独立验收。本轮未修改这些产品文件。
+Skills 弹窗续检：`SkillScaffoldDialog` 本地持有 target/directory/name/description，open 时由 initialValues 初始化；提交先验证，再等待 `SkillsWorkspacePage.handleCreateScaffold -> skillsApi.createSkillScaffold`，成功关闭，失败保留错误与当前输入。它只承接手工创建与专家注册预填，不从消息结果生成或回带草稿。`SkillContentDialog` 在本次源码检查中仅消费详情/资源投影，没有输入编辑；`SkillPackageInstallDialog` 持有检查结果、所选文件和安装在途状态，没有配置编辑草稿。两者不能因弹窗形状被误登记为同一 dirty 表单；安装在途关闭/迟到结果仍需独立验收。本轮未修改这些产品文件。
 
 ## 第二切片当前验证（2026-10-15）
 

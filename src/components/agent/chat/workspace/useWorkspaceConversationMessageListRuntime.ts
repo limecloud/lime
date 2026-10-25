@@ -61,7 +61,6 @@ interface WorkspaceConversationMessageListActionsInput {
   onOpenUrlPreview: WorkspaceConversationMessageListRuntime["onOpenUrlPreview"];
   onPermissionResponse: WorkspaceConversationMessageListRuntime["onPermissionResponse"];
   onReplayPendingRequest: WorkspaceConversationMessageListRuntime["onReplayPendingRequest"];
-  onSaveMessageAsSkill: WorkspaceConversationMessageListRuntime["onSaveMessageAsSkill"];
   onWriteFile: (
     content: string,
     fileName: string,
@@ -140,7 +139,6 @@ export function useWorkspaceConversationMessageListRuntime({
       onArtifactClick: actions.onArtifactClick,
       onOpenUrlPreview: actions.onOpenUrlPreview,
       onOpenMessagePreview: actions.onOpenMessagePreview,
-      onSaveMessageAsSkill: actions.onSaveMessageAsSkill,
 
       onOpenSubagentSession: actions.onOpenSubagentSession,
       onPermissionResponse: actions.onPermissionResponse,

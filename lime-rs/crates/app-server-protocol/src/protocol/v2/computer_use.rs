@@ -144,6 +144,8 @@ pub struct ComputerUseStatusParams {
 pub struct ComputerUseStatusResponse {
     pub epoch: u64,
     pub adapters: Vec<ComputerUseAdapterStatus>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grants: Vec<ComputerUseGrant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

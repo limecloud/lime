@@ -23,7 +23,7 @@ interface OpenTaskTopicOptions {
 }
 
 interface UseTaskCenterChromeNavigationRuntimeParams {
-  agentEntry: "new-task" | "claw";
+  agentEntry: "new-task" | "conversation";
   clearEmbeddedHomeSession: (sessionId: string) => void;
   detachedTopicId: string | null;
   draftSendRequest: TaskCenterDraftSendRequest | null;

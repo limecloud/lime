@@ -161,6 +161,7 @@ async function rebuildAppServer(event) {
   console.log(`[electron-dev] app-server source changed: ${source}`);
   try {
     await buildLocalAppServerAsync();
+    resolveDevAppServerBinary();
     console.log("[electron-dev] app-server rebuilt; restarting Electron");
     await restartElectron("app-server rebuilt");
   } catch (error) {

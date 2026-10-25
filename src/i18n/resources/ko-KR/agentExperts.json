@@ -40,7 +40,6 @@
   "agentExperts.info.overview.workWithRefs": "필요할 때 연결된 스킬, 메모리 템플릿, 워크플로를 참조합니다.",
   "agentExperts.info.boundary.truth": "실제 맥락과 사용자가 제공한 정보를 기반으로 작업하며, 제공되지 않은 사실은 만들지 않습니다.",
   "agentExperts.info.boundary.private": "프로젝트 파일, 개인 메모리, 대화 내용은 공개 전문가 카탈로그에 다시 쓰지 않습니다.",
-  "agentExperts.info.boundary.soul": "Global Soul은 커뮤니케이션 리듬에만 영향을 줍니다. Expert Persona는 Global Soul에 다시 쓰이지 않으며 기본적으로 공식 결과물에 들어가지 않습니다.",
   "agentExperts.info.memory.title": "MEMORY.md — {{title}} 메모리",
   "agentExperts.info.memory.focus": "현재 프로젝트와 초점",
   "agentExperts.info.memory.defaultFocus": "이번 작업의 선호, 제약, 회고 신호를 계속 축적합니다.",

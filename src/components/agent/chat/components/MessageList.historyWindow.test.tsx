@@ -466,7 +466,12 @@ describe("MessageList history window", () => {
         turnsCount: 8,
       }),
     );
-    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expandCompletedProcessDetails: false,
+        deferCompletedSingleDetails: true,
+      }),
+    );
     expect(container.textContent).not.toContain("/repo/file-");
   });
 
@@ -541,7 +546,12 @@ describe("MessageList history window", () => {
     );
 
     expect(container.textContent).toContain("继续整理重点");
-    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expandCompletedProcessDetails: false,
+        deferCompletedSingleDetails: true,
+      }),
+    );
     const commit = getAgentUiPerformanceMetrics().find(
       (entry) => entry.phase === "messageList.commit",
     );
@@ -577,7 +587,12 @@ describe("MessageList history window", () => {
         turnsCount: 8,
       }),
     );
-    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expandCompletedProcessDetails: false,
+        deferCompletedSingleDetails: true,
+      }),
+    );
     expect(container.textContent).not.toContain("/repo/sending-");
   });
 

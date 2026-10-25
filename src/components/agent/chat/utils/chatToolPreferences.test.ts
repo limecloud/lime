@@ -5,7 +5,6 @@ import {
   alignChatToolPreferencesWithExecutionStrategy,
   loadChatToolPreferences,
   saveChatToolPreferences,
-  shouldUseCompactGeneralPromptForPreferences,
 } from "./chatToolPreferences";
 
 describe("chatToolPreferences", () => {
@@ -48,14 +47,8 @@ describe("chatToolPreferences", () => {
   });
 
   it("应按主题作用域保存偏好，但不恢复搜索与思考旧开关", () => {
-    saveChatToolPreferences(
-      { task: true, subagent: false },
-      "general",
-    );
-    saveChatToolPreferences(
-      { task: false, subagent: true },
-      "custom-theme",
-    );
+    saveChatToolPreferences({ task: true, subagent: false }, "general");
+    saveChatToolPreferences({ task: false, subagent: true }, "custom-theme");
 
     expect(loadChatToolPreferences("general")).toEqual({
       task: true,
@@ -68,30 +61,6 @@ describe("chatToolPreferences", () => {
     expect(loadChatToolPreferences("another-theme")).toEqual(
       DEFAULT_CHAT_TOOL_PREFERENCES,
     );
-  });
-
-  it("通用首轮旧搜索与思考开关不应影响紧凑 Prompt", () => {
-    expect(
-      shouldUseCompactGeneralPromptForPreferences({
-        chatMode: "general",
-        contentId: null,
-        preferences: {
-          task: false,
-          subagent: false,
-        },
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldUseCompactGeneralPromptForPreferences({
-        chatMode: "general",
-        contentId: null,
-        preferences: {
-          task: false,
-          subagent: false,
-        },
-      }),
-    ).toBe(true);
   });
 
   it("legacy code_orchestrated 不应再自动打开任务与子代理偏好", () => {

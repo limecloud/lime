@@ -3,7 +3,6 @@ export const MEDIA_REFERENCE_PREVIEW_CHUNK_BYTES = 4 * 1024 * 1024;
 
 const MEDIA_REFERENCE_PREVIEW_POLICY_SCHEMA =
   "lime.media_reference.preview_policy.v1";
-const MEDIA_REFERENCE_SOUL_SCHEMA = "lime.media_reference.soul_surface.v1";
 
 export type MediaReferencePreviewPolicy =
   | "direct_owner"
@@ -66,14 +65,8 @@ export function mediaReferencePreviewPolicyMeta(params: {
     mediaPreviewPageIndex: pageIndex ?? undefined,
     mediaPreviewCanReadNextPage: facts.canReadNextPage,
     mediaPreviewCanReadPreviousPage: facts.canReadPreviousPage,
-    mediaReferenceSoulSchema: MEDIA_REFERENCE_SOUL_SCHEMA,
-    mediaReferenceSoulStyleLevels: {
-      title: "L0",
-      referenceFacts: "L0",
-      loadingStatus: "L1",
-      previewCaption: "L2",
-      mediaArtifact: "L3",
-    },
+
+
     mediaArtifactBoundary: "source_owned_media_payload",
   };
 }

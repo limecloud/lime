@@ -30,7 +30,6 @@ function createDefaultProps(): HookProps {
       onPermissionResponse: noop,
       onReplayPendingRequest: noop,
 
-      onSaveMessageAsSkill: noop,
       onWriteFile: noop,
     },
     collapseCodeBlocks: true,

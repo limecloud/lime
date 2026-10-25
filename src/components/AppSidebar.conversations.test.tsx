@@ -123,7 +123,7 @@ describe("AppSidebar conversations", () => {
     mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
       onNavigate,
@@ -164,7 +164,7 @@ describe("AppSidebar conversations", () => {
       const container = mountSidebarContainer({
         currentPage: "agent",
         currentPageParams: {
-          agentEntry: "claw",
+          agentEntry: "conversation",
           projectId: "project-1",
           initialSessionId: "session-current",
         } as AgentPageParams,
@@ -211,7 +211,7 @@ describe("AppSidebar conversations", () => {
       const container = mountSidebarContainer({
         currentPage: "agent",
         currentPageParams: {
-          agentEntry: "claw",
+          agentEntry: "conversation",
           projectId: "project-1",
           initialSessionId: "session-current",
         } as AgentPageParams,
@@ -240,7 +240,7 @@ describe("AppSidebar conversations", () => {
       expect(onNavigate).toHaveBeenCalledWith(
         "agent",
         expect.objectContaining({
-          agentEntry: "claw",
+          agentEntry: "conversation",
           projectId: "project-1",
           initialSessionId: "session-click",
           initialSessionName: "立即打开历史会话",
@@ -269,7 +269,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-current",
       } as AgentPageParams,
@@ -287,7 +287,7 @@ describe("AppSidebar conversations", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-click",
       }),
@@ -311,7 +311,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-current",
       } as AgentPageParams,
@@ -342,7 +342,7 @@ describe("AppSidebar conversations", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-workspace-only",
       }),
@@ -376,13 +376,13 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-old",
       } as AgentPageParams,
       requestedPage: "agent",
       requestedPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-old",
       } as AgentPageParams,
@@ -427,13 +427,13 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-old",
       } as AgentPageParams,
       requestedPage: "agent",
       requestedPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-new",
       } as AgentPageParams,
@@ -468,7 +468,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-project-current",
       } as AgentPageParams,
@@ -488,7 +488,7 @@ describe("AppSidebar conversations", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         initialSessionId: "session-standalone",
       }),
     );
@@ -628,7 +628,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -744,7 +744,7 @@ describe("AppSidebar conversations", () => {
         workspaceType: "general",
       });
       expect(harness.onNavigate).toHaveBeenCalledWith("agent", {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-worktree",
       });
     } finally {
@@ -950,7 +950,7 @@ describe("AppSidebar conversations", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-workspace-memory",
       }),
@@ -1001,7 +1001,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -1222,7 +1222,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         initialSessionId: "session-source",
       } as AgentPageParams,
       activeAgentSessionId: "session-forked",
@@ -1362,7 +1362,7 @@ describe("AppSidebar conversations", () => {
     mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         initialSessionId: "session-current",
       } as AgentPageParams,
     });
@@ -1424,7 +1424,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-25",
       } as AgentPageParams,
@@ -1479,7 +1479,7 @@ describe("AppSidebar conversations", () => {
     const mounted = mountSidebar({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -1507,7 +1507,7 @@ describe("AppSidebar conversations", () => {
             currentPage="agent"
             currentPageParams={
               {
-                agentEntry: "claw",
+                agentEntry: "conversation",
                 projectId: "project-2",
               } as AgentPageParams
             }
@@ -1590,7 +1590,7 @@ describe("AppSidebar conversations", () => {
             currentPage="agent"
             currentPageParams={
               {
-                agentEntry: "claw",
+                agentEntry: "conversation",
                 projectId: "project-1",
                 initialSessionId: "session-current",
               } as AgentPageParams
@@ -1639,7 +1639,7 @@ describe("AppSidebar conversations", () => {
     const mounted = mountSidebar({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-current",
       } as AgentPageParams,
@@ -1663,7 +1663,7 @@ describe("AppSidebar conversations", () => {
             currentPage="agent"
             currentPageParams={
               {
-                agentEntry: "claw",
+                agentEntry: "conversation",
                 projectId: "project-1",
                 initialSessionId: "session-current",
               } as AgentPageParams
@@ -1706,7 +1706,7 @@ describe("AppSidebar conversations", () => {
             currentPage="agent"
             currentPageParams={
               {
-                agentEntry: "claw",
+                agentEntry: "conversation",
                 projectId: "project-1",
                 initialSessionId: "session-current",
               } as AgentPageParams
@@ -1754,7 +1754,7 @@ describe("AppSidebar conversations", () => {
     const mounted = mountSidebar({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
       } as AgentPageParams,
       activeAgentSessionId: null,
       activeAgentStreaming: false,
@@ -1790,7 +1790,7 @@ describe("AppSidebar conversations", () => {
     const mounted = mountSidebar({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
       } as AgentPageParams,
       activeAgentSessionId: null,
       activeAgentStreaming: false,
@@ -1827,7 +1827,7 @@ describe("AppSidebar conversations", () => {
     const mounted = mountSidebar({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
       } as AgentPageParams,
       backgroundAgentSessionRuntime: {
         sessionId: "session-current",
@@ -1859,7 +1859,7 @@ describe("AppSidebar conversations", () => {
     mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -1923,7 +1923,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
       onNavigate,
@@ -1995,7 +1995,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
       onNavigate,
@@ -2018,7 +2018,7 @@ describe("AppSidebar conversations", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
         initialSessionId: "session-workspace-only",
       }),
@@ -2032,7 +2032,7 @@ describe("AppSidebar conversations", () => {
       const container = mountSidebarContainer({
         currentPage: "agent",
         currentPageParams: {
-          agentEntry: "claw",
+          agentEntry: "conversation",
           projectId: "project-1",
         } as AgentPageParams,
       });
@@ -2062,7 +2062,7 @@ describe("AppSidebar conversations", () => {
       const container = mountSidebarContainer({
         currentPage: "agent",
         currentPageParams: {
-          agentEntry: "claw",
+          agentEntry: "conversation",
           projectId: "project-1",
         } as AgentPageParams,
       });
@@ -2107,7 +2107,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
       onNavigate,
@@ -2188,7 +2188,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -2235,7 +2235,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -2273,7 +2273,7 @@ describe("AppSidebar conversations", () => {
     mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -2308,7 +2308,7 @@ describe("AppSidebar conversations", () => {
     mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -2356,7 +2356,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -2410,7 +2410,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });
@@ -2512,7 +2512,7 @@ describe("AppSidebar conversations", () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "project-1",
       } as AgentPageParams,
     });

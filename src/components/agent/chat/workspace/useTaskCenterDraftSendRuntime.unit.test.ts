@@ -159,7 +159,7 @@ function mountHomePendingPreviewRuntime({
 function mountEmptyStateSendRuntime({
   activeSessionId = null,
   activeSessionIdAfterSend,
-  agentEntry = "claw",
+  agentEntry = "conversation",
   displayMessagesLength = 0,
   turnsLength = 0,
   threadItemsLength = 0,

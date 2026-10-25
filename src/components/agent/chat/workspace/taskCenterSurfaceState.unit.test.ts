@@ -32,7 +32,7 @@ describe("hasTaskCenterPendingPreviewActivity", () => {
 describe("resolveTaskCenterDraftSurfaceState", () => {
   it("激活草稿页且尚未发送时应压制旧会话内容", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       draftSendRequest: null,
@@ -50,7 +50,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("草稿发送中不应被首页空态压制", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       draftSendRequest: createDraftSendRequest({
@@ -70,7 +70,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("激活草稿的 direct-dispatch pending send 应立即解除首页压制", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       draftSendRequest: createDraftSendRequest({
@@ -93,7 +93,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("direct-dispatch tracking 清除后仍有 pending preview 时不应闪回首页", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       draftSendRequest: null,
@@ -113,7 +113,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("新 session 接管时 request 和 preview 已清但仍在发送不应闪回首页", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       draftSendRequest: null,
@@ -153,7 +153,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("草稿 surface 标志滞留但已有会话活动时不应压制内容", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       draftSendRequest: null,
@@ -172,7 +172,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("草稿 surface 标志滞留但已有本地 canonical 会话时不应压制内容", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       draftSendRequest: null,
@@ -191,7 +191,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("Claw 目标会话尚未接管时应忽略旧草稿 surface，避免闪回首页", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       initialSessionId: "target-session",
@@ -211,7 +211,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 
   it("committed New route 以稳定 Home surface 接管旧历史", () => {
     const state = resolveTaskCenterDraftSurfaceState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       isTaskCenterEntry: true,
       draftSurfaceActive: true,
       initialSessionId: null,
@@ -253,7 +253,7 @@ describe("resolveTaskCenterDraftSurfaceState", () => {
 describe("resolveTaskCenterHomeChromeState", () => {
   it("草稿首页无会话活动时应渲染 embedded home 并隐藏首页工具动作", () => {
     const state = resolveTaskCenterHomeChromeState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: true,
       draftSendRequest: null,
@@ -283,7 +283,7 @@ describe("resolveTaskCenterHomeChromeState", () => {
 
   it("首页 pending preview 已出现时应保留当前会话内容", () => {
     const state = resolveTaskCenterHomeChromeState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: false,
       draftSendRequest: createDraftSendRequest(),
@@ -313,7 +313,7 @@ describe("resolveTaskCenterHomeChromeState", () => {
 
   it("首页发送请求已创建但 pending preview 尚未派生时应立即退出 embedded home", () => {
     const state = resolveTaskCenterHomeChromeState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: false,
       draftSendRequest: createDraftSendRequest(),
@@ -346,7 +346,7 @@ describe("resolveTaskCenterHomeChromeState", () => {
 
   it("首页发送刚触发但 preview 尚未派生时不应闪回 embedded home", () => {
     const state = resolveTaskCenterHomeChromeState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: false,
       draftSendRequest: null,
@@ -472,7 +472,7 @@ describe("resolveTaskCenterHomeChromeState", () => {
 
   it("本地 canonical 会话应优先作为前台会话，不被后台恢复卡片覆盖", () => {
     const state = resolveTaskCenterHomeChromeState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: false,
       shouldSuppressDraftContent: false,
       draftSendRequest: null,
@@ -509,7 +509,7 @@ describe("resolveTaskCenterHomeChromeState", () => {
 
   it("侧边栏新建任务激活草稿 surface 时应压住 route 空会话页", () => {
     const state = resolveTaskCenterHomeChromeState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: true,
       shouldSuppressDraftContent: true,
       draftSendRequest: null,
@@ -542,7 +542,7 @@ describe("resolveTaskCenterHomeChromeState", () => {
 
   it("从路由打开历史空会话时不应被任务中心首页覆盖", () => {
     const state = resolveTaskCenterHomeChromeState({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       draftSurfaceActive: false,
       shouldSuppressDraftContent: false,
       draftSendRequest: null,

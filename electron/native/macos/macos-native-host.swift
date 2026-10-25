@@ -741,6 +741,7 @@ func processRequestLine(_ line: String) {
         let result = try handle(method: method, params: dictionary(object["params"]))
         writeJSON(response(id: id, result: result))
     } catch {
+        stopComputerUsePointer()
         let hostError = error as? HostError ?? .operationFailed(String(describing: error))
         let (code, message, details) = errorDetails(hostError)
         writeJSON(failure(id: id, code: code, message: message, data: details))
@@ -760,6 +761,7 @@ struct NativeHostMain {
                     }
                 }
                 DispatchQueue.main.sync {
+                    stopComputerUsePointer()
                     _ = stopHIDTopologyWatcher()
                     _ = stopBareModifierMonitor()
                     _ = stopDisplayWatcher()
@@ -771,6 +773,10 @@ struct NativeHostMain {
                 }
             }
         }
-        RunLoop.main.run()
+        // AppKit owns event dispatch and Accessibility registration for consent
+        // windows even when this helper is launched by a terminal App Server.
+        let application = NSApplication.shared
+        application.setActivationPolicy(.accessory)
+        application.run()
     }
 }

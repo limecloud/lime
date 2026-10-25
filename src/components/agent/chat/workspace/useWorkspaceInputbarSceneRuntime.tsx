@@ -114,9 +114,9 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   setChatToolPreferences: Dispatch<SetStateAction<ChatToolPreferences>>;
   objectiveEnabled?: boolean;
   onObjectiveEnabledChange?: (enabled: boolean) => void;
-  soulArtifactVoiceGenerationBrief?: Record<string, unknown> | null;
-  soulArtifactVoiceEnabledForTurn: boolean;
-  onSoulArtifactVoiceEnabledForTurnChange: (enabled: boolean) => void;
+
+
+
   generalWorkbenchEntryPrompt: InputbarPresentationParams["generalWorkbenchEntryPrompt"];
   handleRestartGeneralWorkbenchEntryPrompt: InputbarPresentationParams["onRestartGeneralWorkbenchEntryPrompt"];
   handleContinueGeneralWorkbenchEntryPrompt: InputbarPresentationParams["onContinueGeneralWorkbenchEntryPrompt"];
@@ -188,9 +188,9 @@ export function useWorkspaceInputbarSceneRuntime({
   setChatToolPreferences,
   objectiveEnabled = false,
   onObjectiveEnabledChange,
-  soulArtifactVoiceGenerationBrief,
-  soulArtifactVoiceEnabledForTurn,
-  onSoulArtifactVoiceEnabledForTurnChange,
+
+
+
   generalWorkbenchEntryPrompt,
   handleRestartGeneralWorkbenchEntryPrompt,
   handleContinueGeneralWorkbenchEntryPrompt,
@@ -486,9 +486,9 @@ export function useWorkspaceInputbarSceneRuntime({
       planDecisionAccessory: activePendingInteraction
         ? undefined
         : planDecisionAccessory,
-      soulArtifactVoiceGenerationBrief,
-      soulArtifactVoiceEnabledForTurn,
-      onSoulArtifactVoiceEnabledForTurnChange,
+
+
+
       generalWorkbenchDialog: {
         enabled: generalWorkbenchEnabled && !isThemeWorkbench,
         open: harnessPanelVisible,

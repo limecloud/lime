@@ -1,6 +1,6 @@
 use super::tool_process_metadata::{
     build_tool_process_metadata, merge_result_tool_process_metadata, merge_tool_process_metadata,
-    promote_mcp_route_metadata, SoulStyleMetadata, ToolProcessMetadataInput, ToolProcessStatus,
+    promote_mcp_route_metadata, ToolProcessMetadataInput, ToolProcessStatus,
 };
 use app_server_protocol::AgentEvent;
 use lime_agent::AgentToolResult;
@@ -11,7 +11,6 @@ pub(crate) fn enrich_external_tool_process_payload(
     existing_events: &[AgentEvent],
     event_type: &str,
     payload_object: &mut Map<String, Value>,
-    fallback_soul_style: Option<&SoulStyleMetadata>,
 ) {
     promote_mcp_route_metadata(payload_object);
     let Some(status) = tool_process_status_from_event_type(event_type) else {
@@ -48,22 +47,12 @@ pub(crate) fn enrich_external_tool_process_payload(
         }
         (status, _) => status,
     };
-    let soul_style = SoulStyleMetadata::from_payload_object(payload_object)
-        .unwrap_or_default()
-        .merge_with_fallback(
-            active_tool
-                .as_ref()
-                .and_then(|tool| tool.soul_style.as_ref()),
-        )
-        .unwrap_or_default()
-        .merge_with_fallback(fallback_soul_style);
     let metadata = build_tool_process_metadata(ToolProcessMetadataInput {
         tool_id: &tool_id,
         tool_name: tool_name.as_deref(),
         status,
         arguments: arguments.as_ref(),
         result: result.as_ref(),
-        soul_style: soul_style.as_ref(),
     });
     merge_tool_process_metadata(payload_object, &metadata);
     merge_result_tool_process_metadata(payload_object, &metadata);
@@ -74,7 +63,6 @@ pub(crate) fn enrich_external_tool_policy_payload(
     existing_events: &[AgentEvent],
     event_type: &str,
     payload_object: &mut Map<String, Value>,
-    fallback_soul_style: Option<&SoulStyleMetadata>,
 ) {
     let Some((phase, status)) = tool_policy_lifecycle_status(event_type) else {
         return;
@@ -92,16 +80,6 @@ pub(crate) fn enrich_external_tool_policy_payload(
             .and_then(|tool| tool.tool_name.as_deref())
             .map(str::to_string)
     });
-    let mut lifecycle = Map::from_iter([
-        (
-            "surface".to_string(),
-            Value::String("tool_lifecycle".to_string()),
-        ),
-        ("phase".to_string(), Value::String(phase.to_string())),
-        ("status".to_string(), Value::String(status.to_string())),
-        ("styleLevel".to_string(), Value::String("L4".to_string())),
-        ("riskLevel".to_string(), Value::String("high".to_string())),
-    ]);
     let mut facts = Map::from_iter([
         (
             "source".to_string(),
@@ -114,7 +92,6 @@ pub(crate) fn enrich_external_tool_policy_payload(
         ),
         ("status".to_string(), Value::String(status.to_string())),
         ("phase".to_string(), Value::String(phase.to_string())),
-        ("styleLevel".to_string(), Value::String("L4".to_string())),
         ("riskLevel".to_string(), Value::String("high".to_string())),
     ]);
     if let Some(tool_name) = tool_name.and_then(|value| non_empty_string(value.as_str())) {
@@ -136,40 +113,14 @@ pub(crate) fn enrich_external_tool_policy_payload(
     ) {
         facts.insert("reasonCode".to_string(), Value::String(reason_code));
     }
-    let soul_style = SoulStyleMetadata::from_payload_object(payload_object)
-        .unwrap_or_default()
-        .merge_with_fallback(
-            active_tool
-                .as_ref()
-                .and_then(|tool| tool.soul_style.as_ref()),
-        )
-        .unwrap_or_default()
-        .merge_with_fallback(fallback_soul_style);
-    if let Some(soul_style) = soul_style.as_ref() {
-        soul_style.insert_lifecycle_fields(&mut lifecycle);
-        soul_style.insert_fact_fields(&mut facts);
-    }
 
-    let mut metadata = Map::from_iter([
+    let metadata = Map::from_iter([
         (
             "tool_process_facts".to_string(),
             Value::Object(facts.clone()),
         ),
-        (
-            "soul_lifecycle".to_string(),
-            Value::Object(lifecycle.clone()),
-        ),
-        (
-            "soul_surface".to_string(),
-            Value::String("tool_lifecycle".to_string()),
-        ),
-        ("soul_phase".to_string(), Value::String(phase.to_string())),
-        ("style_level".to_string(), Value::String("L4".to_string())),
         ("risk_level".to_string(), Value::String("high".to_string())),
     ]);
-    if let Some(soul_style) = soul_style.as_ref() {
-        soul_style.insert_top_level_fields(&mut metadata);
-    }
     merge_policy_tool_metadata(payload_object, &metadata);
     insert_tool_process_top_level_aliases(payload_object, &metadata);
 }
@@ -213,7 +164,7 @@ fn merge_policy_tool_metadata(
 }
 
 fn merge_policy_metadata_field(target: &mut Map<String, Value>, key: &str, value: &Value) {
-    if matches!(key, "tool_process_facts" | "soul_lifecycle") {
+    if matches!(key, "tool_process_facts") {
         if let (Some(target_object), Some(source_object)) = (
             target.get_mut(key).and_then(Value::as_object_mut),
             value.as_object(),
@@ -235,7 +186,6 @@ fn merge_policy_metadata_field(target: &mut Map<String, Value>, key: &str, value
 struct ActiveToolProcess {
     tool_name: Option<String>,
     arguments: Option<Value>,
-    soul_style: Option<SoulStyleMetadata>,
 }
 
 fn tool_process_status_from_event_type(event_type: &str) -> Option<ToolProcessStatus> {
@@ -284,7 +234,6 @@ fn active_tool_for_call_id(
                 active_tool = Some(ActiveToolProcess {
                     tool_name: tool_name_from_payload(payload_object),
                     arguments: tool_arguments_from_payload(payload_object),
-                    soul_style: SoulStyleMetadata::from_payload_object(payload_object),
                 });
             }
             "tool.args" | "tool.args.delta" | "tool.input.delta" => {
@@ -294,9 +243,6 @@ fn active_tool_for_call_id(
                     }
                     if let Some(arguments) = tool_arguments_from_payload(payload_object) {
                         tool.arguments = Some(arguments);
-                    }
-                    if tool.soul_style.is_none() {
-                        tool.soul_style = SoulStyleMetadata::from_payload_object(payload_object);
                     }
                 }
             }

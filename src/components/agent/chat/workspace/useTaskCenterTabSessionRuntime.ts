@@ -376,7 +376,7 @@ export function useTaskCenterTabSessionRuntime({
   ]);
 
   useEffect(() => {
-    if (agentEntry !== "claw" && agentEntry !== "new-task") {
+    if (agentEntry !== "conversation" && agentEntry !== "new-task") {
       return;
     }
 

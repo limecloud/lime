@@ -359,12 +359,21 @@ impl RequestProcessor {
             persisted_config.as_ref(),
             params.config.as_ref(),
         )?;
-        thread.extra = Some(
-            self.runtime
-                .set_thread_shell_environment_policy(&thread_id, shell_policy, overrides)
-                .await
-                .map_err(to_jsonrpc_error)?,
-        );
+        self.runtime
+            .set_thread_shell_environment_policy(&thread_id, shell_policy, overrides)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        let current = self
+            .runtime
+            .read_thread(agent_protocol::thread::ThreadReadParams {
+                thread_id: agent_protocol::ThreadId::new(thread_id.clone()),
+                turns_view: agent_protocol::ThreadTurnsView::NotLoaded,
+            })
+            .await
+            .map_err(to_jsonrpc_error)?;
+        let current = project_thread_read_response(current)?.thread;
+        thread.extra = current.extra;
+        thread.updated_at = current.updated_at;
         let metadata = thread
             .extra
             .as_ref()

@@ -3,89 +3,6 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 186 88% 32%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --radius: 0.5rem;
-
-    /* Claude 风格颜色 */
-    --surface: #ffffff;
-    --surface-secondary: #f5f4f1;
-    --surface-tertiary: #efeee9;
-    --surface-cream: #faf9f6;
-    --ink-900: #1a1915;
-    --ink-700: #4a4a45;
-    --ink-600: #666661;
-    --ink-400: #9b9b96;
-    --claude-accent: #d97757;
-    --claude-accent-hover: #cc785c;
-    --claude-accent-subtle: #fdf4f1;
-    --success: #16a34a;
-    --info: #2563eb;
-    --tooltip-bg: #f8fbf8;
-    --tooltip-foreground: #1f2937;
-    --tooltip-border: #d7e3db;
-    --tooltip-shadow:
-      0 20px 38px -24px rgba(15, 23, 42, 0.28),
-      0 12px 22px -20px rgba(46, 89, 67, 0.22);
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-
-    /* Claude 风格颜色 - 暗色模式 */
-    --surface: #1a1915;
-    --surface-secondary: #2d2d2a;
-    --surface-tertiary: #3a3a35;
-    --surface-cream: #242420;
-    --ink-900: #f5f4f1;
-    --ink-700: #d1d1cc;
-    --ink-600: #9b9b96;
-    --ink-400: #666661;
-    --claude-accent: #e8956f;
-    --claude-accent-hover: #d97757;
-    --claude-accent-subtle: #3d2a24;
-    --tooltip-bg: #1f2b36;
-    --tooltip-foreground: #edf4f2;
-    --tooltip-border: #31424f;
-    --tooltip-shadow:
-      0 20px 38px -24px rgba(2, 8, 23, 0.5),
-      0 12px 22px -20px rgba(2, 8, 23, 0.4);
-  }
-}
-
-@layer base {
   * {
     @apply border-border;
   }
@@ -126,7 +43,7 @@
   }
 }
 
-/* Claude 风格动画 */
+/* 流式动画 */
 @keyframes shimmer {
   0% {
     transform: translateX(-120%);
@@ -239,7 +156,7 @@
   animation: streaming-progress 1.5s ease-in-out infinite;
 }
 
-/* 设置页和工作台仍有存量 Tailwind 静态色；用单一作用域接入 Lime 主题变量，避免每页散落补丁。 */
+/* 设置页和工作台的存量 Tailwind 静态色统一消费固定明暗语义变量。 */
 :where(.lime-settings-theme-scope, .lime-workbench-theme-scope) {
   background: var(--lime-stage-surface, var(--lime-app-bg, #f4f7f1));
   color: var(--lime-text, #1a3b2b);
@@ -252,7 +169,7 @@
   background: var(--lime-surface, #ffffff) !important;
 }
 
-/* 聊天画布是工作台主表面，随皮肤继承舞台底色，避免旧消息列表白底割裂外壳。 */
+/* 聊天画布与工作台共用主表面颜色。 */
 :where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
   [data-testid="message-list-scroll-container"] {
   background: var(--lime-stage-surface, var(--lime-app-bg, #f4f7f1)) !important;

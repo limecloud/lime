@@ -3,6 +3,7 @@ use lime_core::config::{ComputerUseConfigToml, ComputerUseRequirementsToml};
 use lime_core::AllowDenyRequirementToml::{Allow, Deny};
 use std::sync::{Arc, Mutex};
 
+mod chrome;
 mod turn;
 
 struct TestAdapter {

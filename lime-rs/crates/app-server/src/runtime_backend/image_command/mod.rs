@@ -3,7 +3,6 @@ use crate::{AppDataSource, ExecutionRequest, RuntimeCoreError, RuntimeEventSink}
 mod events;
 mod intent;
 mod presentation;
-mod presentation_soul;
 #[cfg(test)]
 mod tests;
 use events::{

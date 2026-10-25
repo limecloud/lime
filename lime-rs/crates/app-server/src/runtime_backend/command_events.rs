@@ -18,7 +18,7 @@ pub(crate) fn publisher(
         let persisted = super::coding_events::runtime_event_for_persistence(event);
         let mut events = coding.before_raw;
         events.extend(
-            tool_events::runtime_events_from_agent_event_with_soul_style(persisted.as_ref(), None)
+            tool_events::runtime_events_from_agent_event(persisted.as_ref())
                 .map_err(|error| error.to_string())?,
         );
         events.extend(coding.after_raw);

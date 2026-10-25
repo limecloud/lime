@@ -77,6 +77,7 @@ fn raw_arguments_and_zero_budget_survive_persistence_without_wire_metadata() {
     let decoded: ModelHistoryRecord = serde_json::from_value(encoded).unwrap();
     assert_eq!(decoded.into_message().unwrap().content, vec![call]);
     let output = CurrentProviderContent::ToolResult(CurrentProviderToolResult {
+        content_items: Vec::new(),
         history_token_limit: Some(0),
         call_id: "call-1".to_string(),
         name: "exec_command".to_string(),
@@ -124,6 +125,7 @@ fn invalid_model_names_are_preserved_but_missing_call_ids_are_rejected() {
     let record = ModelHistoryRecord::calls(&[call.clone()]).unwrap();
     assert_eq!(record.into_message().unwrap().content, vec![call]);
     let output = CurrentProviderContent::ToolResult(CurrentProviderToolResult {
+        content_items: Vec::new(),
         history_token_limit: Some(0),
         call_id: "invalid-name-call".to_string(),
         name: String::new(),

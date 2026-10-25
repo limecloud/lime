@@ -37,6 +37,35 @@ const tool = (name: string): AgentToolCallState => ({
 afterEach(async () => changeLimeLocale("zh-CN"));
 
 describe.each(SUPPORTED_LOCALES)("browser tool presentation / %s", (locale) => {
+  it("查看与保留页面分别显示实际动作，其他命名空间保持原分类", async () => {
+    await changeLimeLocale(locale);
+    for (const [name, key] of [
+      ["observe", "observe"],
+      ["markDeliverable", "retain"],
+    ]) {
+      const completedKey = key === "observe" ? "observed" : "retained";
+      const runningKey = key === "observe" ? "observing" : "retaining";
+      const failedKey = `${key}Failed`;
+      expect(getToolDisplayInfo(name, "completed", metadata)).toMatchObject({
+        family: "browser",
+        label: copy(`toolCall.browser.${key}`),
+        action: copy(`toolCall.browser.${completedKey}`),
+      });
+      expect(getToolDisplayInfo(name, "running", metadata).action).toBe(
+        copy(`toolCall.browser.${runningKey}`),
+      );
+      expect(getToolDisplayInfo(name, "failed", metadata).action).toBe(
+        copy(`toolCall.browser.${failedKey}`),
+      );
+      expect(
+        getToolDisplayInfo(name, "completed", {
+          ...metadata,
+          namespace: "filesystem",
+        }).family,
+      ).not.toBe("browser");
+    }
+  });
+
   it("canonical namespace 决定标签、动作、主题及分组，保留原始身份", async () => {
     await changeLimeLocale(locale);
     for (const name of [

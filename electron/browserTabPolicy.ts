@@ -8,7 +8,10 @@ import {
 } from "../src/lib/api/browserSettingsTypes";
 import type { BrowserToolCall } from "./browserTabHost";
 import { isDeepStrictEqual } from "node:util";
-import { managedBrowserAccessApprovalLifetime } from "../src/lib/api/browserUseRequirements";
+import {
+  managedBrowserAccessApprovalLifetime,
+  managedBrowserRequiresApproval,
+} from "../src/lib/api/browserUseRequirements";
 import { isBrowserCdpTool } from "./browserCdp";
 
 export class BrowserTabPolicy {
@@ -46,6 +49,13 @@ export class BrowserTabPolicy {
 
   get historyAccess(): BrowserSettings["history_access"] {
     return this.#settings.history_access;
+  }
+
+  requiresBrowseApproval(url: string): boolean {
+    return managedBrowserRequiresApproval(
+      this.#settings.requirements,
+      new URL(url),
+    );
   }
 
   accessApprovalLifetime(url: string): "turn" | "thread" {

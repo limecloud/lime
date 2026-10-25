@@ -1,0 +1,44 @@
+{
+  "name": {
+    "message": "Lime Computer Use"
+  },
+  "description": {
+    "message": "Control an approved Chrome tab from Lime Desktop or CLI."
+  },
+  "connected": {
+    "message": "Connected to Lime"
+  },
+  "disconnected": {
+    "message": "Open Lime and install the native connection from Computer Use settings."
+  },
+  "approval": {
+    "message": "Allow Lime to observe and control this tab for the current session?"
+  },
+  "allow": {
+    "message": "Allow this tab"
+  },
+  "deny": {
+    "message": "Deny"
+  },
+  "reconnect": {
+    "message": "Reconnect"
+  },
+  "sessionName": {
+    "message": "Task name"
+  },
+  "sessionUrl": {
+    "message": "Starting URL"
+  },
+  "createGroup": {
+    "message": "Create task tab group"
+  },
+  "groupCreated": {
+    "message": "Task group created. Select and approve this tab in Lime to control it."
+  },
+  "groupFailed": {
+    "message": "Could not create the task group. Try again."
+  },
+  "invalidUrl": {
+    "message": "Enter an HTTP or HTTPS URL."
+  }
+}

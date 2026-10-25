@@ -9,7 +9,16 @@ private var computerUseCanceled = false
 private var computerUseFence: UInt64 = 0
 private let computerUseParentPID = getppid()
 
-private func checkComputerUseFence() throws {
+func activateComputerUseApplication(_ application: NSRunningApplication) -> Bool {
+    if #available(macOS 14.0, *), NSApplication.shared.isActive {
+        // Hand off activation from our consent UI using the cooperative API.
+        NSApplication.shared.yieldActivation(to: application)
+        return application.activate(from: .current, options: [])
+    }
+    return application.activate(options: [.activateIgnoringOtherApps])
+}
+
+private func checkComputerUseFence(_ expected: UInt64? = nil) throws {
     guard getppid() == computerUseParentPID,
           let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
         throw HostError.notGranted("The Computer Use issuer is no longer available.")
@@ -31,7 +40,7 @@ private func checkComputerUseFence() throws {
     guard errno == EWOULDBLOCK else { throw HostError.notGranted("The control lock could not be verified.") }
     var bytes = [UInt8](repeating: 0, count: 8)
     guard read(fd, &bytes, 8) == 8,
-          bytes.reduce(UInt64(0), { ($0 << 8) | UInt64($1) }) == computerUseFence else {
+          bytes.reduce(UInt64(0), { ($0 << 8) | UInt64($1) }) == (expected ?? computerUseFence) else {
         throw HostError.notGranted("The Computer Use control fence has changed.")
     }
 }
@@ -43,6 +52,7 @@ func computerUseCancelLine(_ line: String) -> Bool {
     computerUseCancelLock.lock()
     computerUseCanceled = true
     computerUseCancelLock.unlock()
+    DispatchQueue.main.async { stopComputerUsePointer() }
     return true
 }
 
@@ -87,10 +97,14 @@ private func inputComputerUseTarget(windowID: UInt32, pid: pid_t, window: AXUIEl
     try checkComputerUseCancellation()
     try checkComputerUseFence()
     guard try windowOwnerPID(windowID: windowID) == pid,
-          try windowBounds(windowID: windowID) == frame,
-          NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-          !IsSecureEventInputEnabled() else {
-        throw HostError.notGranted("Target focus changed or secure input is active.")
+          try windowBounds(windowID: windowID) == frame else {
+        throw HostError.notGranted("Target window ownership or geometry changed.")
+    }
+    guard !IsSecureEventInputEnabled() else {
+        throw HostError.notGranted("Secure keyboard input is active.")
+    }
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+        throw HostError.notGranted("The approved application has not become frontmost.")
     }
     var focused: CFTypeRef?
     let app = AXUIElementCreateApplication(pid)
@@ -110,12 +124,29 @@ private func actionPoint(_ operation: [String: Any], x: String, y: String, frame
     return CGPoint(x: frame.minX + rawX.doubleValue, y: frame.minY + rawY.doubleValue)
 }
 
-private func postMouse(_ type: CGEventType, point: CGPoint, button: CGMouseButton, pid: pid_t, count: Int = 1) throws {
+private func postMouse(_ type: CGEventType, point: CGPoint, button: CGMouseButton, pid: pid_t, window: AXUIElement, count: Int = 1) throws {
     guard let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: button) else {
         throw HostError.operationFailed("The mouse event could not be created.")
     }
     event.setIntegerValueField(.mouseEventClickState, value: Int64(count))
-    event.postToPid(pid)
+    // Qt/custom controls use the system pointer position for hit testing.
+    // A process-local event does not move it, even with a global location.
+    // Always release a held button, including after a click opens a dialog.
+    if ![CGEventType.leftMouseUp, .rightMouseUp, .otherMouseUp].contains(type) {
+        var element: AXUIElement?
+        var hitWindow: CFTypeRef?
+        var owner: pid_t = 0
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &element) == .success,
+              let element, AXUIElementGetPid(element, &owner) == .success, owner == pid,
+              CFEqual(element, window) || (AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &hitWindow) == .success
+                  && hitWindow.map { CFEqual($0, window) } == true) else {
+            throw HostError.notGranted("The approved window is not under the pointer target.")
+        }
+    }
+    if type == .mouseMoved || type == .leftMouseDragged {
+        showComputerUsePointer(at: point, ownerPID: pid)
+    }
+    event.post(tap: .cghidEventTap)
 }
 
 private func computerUseKeyCode(_ name: String) -> CGKeyCode? {
@@ -143,7 +174,7 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
     let snapshot = computerUseSnapshot()
     guard let requested = params["target"] as? [String: Any],
           let generation = params["generation"] as? NSNumber,
-          generation == snapshot["generation"] as? NSNumber,
+          computerUseGenerationAllowsTarget(requested, generation: generation.uint64Value),
           snapshot["readiness"] as? String == "ready",
           let identity = computerUseTarget(requested, in: snapshot),
           let rawID = identity["windowId"] as? String, let windowID = UInt32(rawID),
@@ -154,8 +185,9 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
           let action = operation["action"] as? String else {
         throw HostError.notGranted("Native action target, generation or fence is no longer valid.")
     }
+    // A rejected fence must not poison the high-water mark for later actions.
+    try checkComputerUseFence(fence.uint64Value)
     computerUseFence = fence.uint64Value
-    try checkComputerUseFence()
     let pid = rawPID.int32Value
     let frame = try windowBounds(windowID: windowID)
     let window = try exactComputerUseWindow(pid: pid, frame: frame)
@@ -170,14 +202,16 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
     if action == "screenshot" {
         return try screenCaptureSnapshot(params: ["windowId": windowID])
     }
-    guard NSRunningApplication(processIdentifier: pid)?.activate(options: [.activateIgnoringOtherApps]) == true,
+    guard let application = NSRunningApplication(processIdentifier: pid),
+          activateComputerUseApplication(application),
           AXUIElementPerformAction(window, kAXRaiseAction as CFString) == .success else {
         throw HostError.operationFailed("The approved window could not be focused.")
     }
     // A bounded wait for the OS focus transition; revalidate before every event.
-    for _ in 0..<10 {
+    for _ in 0..<100 {
+        try checkComputerUseCancellation()
         if NSWorkspace.shared.frontmostApplication?.processIdentifier == pid { break }
-        Thread.sleep(forTimeInterval: 0.01)
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
     }
     try inputComputerUseTarget(windowID: windowID, pid: pid, window: window, frame: frame)
     switch action {
@@ -191,10 +225,11 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
         let button: CGMouseButton = buttonName == "right" ? .right : buttonName == "middle" ? .center : .left
         let down: CGEventType = button == .right ? .rightMouseDown : button == .center ? .otherMouseDown : .leftMouseDown
         let up: CGEventType = button == .right ? .rightMouseUp : button == .center ? .otherMouseUp : .leftMouseUp
+        try postMouse(.mouseMoved, point: point, button: button, pid: pid, window: window)
         for index in 1...count {
             try inputComputerUseTarget(windowID: windowID, pid: pid, window: window, frame: frame)
-            try postMouse(down, point: point, button: button, pid: pid, count: index)
-            try postMouse(up, point: point, button: button, pid: pid, count: index)
+            try postMouse(down, point: point, button: button, pid: pid, window: window, count: index)
+            try postMouse(up, point: point, button: button, pid: pid, window: window, count: index)
         }
     case "type":
         guard let text = operation["text"] as? String, !text.isEmpty, text.utf16.count <= 2048,
@@ -250,21 +285,28 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
             throw HostError.invalidArgument("Scroll bounds are invalid.")
         }
         event.location = point
-        event.postToPid(pid)
+        try postMouse(.mouseMoved, point: point, button: .left, pid: pid, window: window)
+        try inputComputerUseTarget(windowID: windowID, pid: pid, window: window, frame: frame)
+        event.post(tap: .cghidEventTap)
     case "drag":
         let from = try actionPoint(operation, x: "x", y: "y", frame: frame)
         let to = try actionPoint(operation, x: "to_x", y: "to_y", frame: frame)
         let duration = (operation["duration_ms"] as? NSNumber)?.intValue ?? 0
         guard (50...2000).contains(duration) else { throw HostError.invalidArgument("Drag duration is invalid.") }
         var position = from
-        try postMouse(.leftMouseDown, point: from, button: .left, pid: pid)
-        defer { try? postMouse(.leftMouseUp, point: position, button: .left, pid: pid) }
+        try postMouse(.mouseMoved, point: from, button: .left, pid: pid, window: window)
+        try postMouse(.leftMouseDown, point: from, button: .left, pid: pid, window: window)
+        defer {
+            // Release an already held button even if cancellation or another
+            // window interrupts the drag; do not leave the OS pointer held.
+            try? postMouse(.leftMouseUp, point: position, button: .left, pid: pid, window: window)
+        }
         let steps = max(2, duration / 16)
         for index in 1...steps {
             try inputComputerUseTarget(windowID: windowID, pid: pid, window: window, frame: frame)
             let progress = CGFloat(index) / CGFloat(steps)
             position = CGPoint(x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress)
-            try postMouse(.leftMouseDragged, point: position, button: .left, pid: pid)
+            try postMouse(.leftMouseDragged, point: position, button: .left, pid: pid, window: window)
             Thread.sleep(forTimeInterval: Double(duration) / Double(steps) / 1000)
         }
     default:

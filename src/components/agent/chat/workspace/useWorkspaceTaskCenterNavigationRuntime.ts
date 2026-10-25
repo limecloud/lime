@@ -118,12 +118,12 @@ export function useWorkspaceTaskCenterNavigationRuntime({
     currentSessionId,
     resolveInitialSessionSwitch,
     shouldAllowResolvedForceMatchedHydration:
-      !(agentEntry === "claw" || agentEntry === "new-task") ||
+      !(agentEntry === "conversation" || agentEntry === "new-task") ||
       (messagesLength === 0 && turnsLength === 0 && threadItemsLength === 0),
     shouldPauseInitialSessionNavigation:
       shouldPauseInitialSessionNavigationForTaskCenterDraft,
     shouldCancelPausedInitialSessionNavigationOnCurrentSessionChange:
-      (agentEntry === "claw" || agentEntry === "new-task") &&
+      (agentEntry === "conversation" || agentEntry === "new-task") &&
       Boolean(normalizedInitialSessionId),
     shouldHydrateMatchedInitialSession:
       isAutoRestoringSession ||

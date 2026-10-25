@@ -1,6 +1,10 @@
 import path from "node:path";
 import { EventEmitter } from "node:events";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("./electron-desktop-resources.mjs", () => ({
+  prepareLocalComputerUseResources: vi.fn(),
+}));
 
 import {
   appServerBinaryName,

@@ -133,6 +133,7 @@ fn request_with_history() -> CurrentProviderRequest {
         )]),
         CurrentProviderMessage::tool(vec![CurrentProviderContent::ToolResult(
             CurrentProviderToolResult {
+                content_items: Vec::new(),
                 history_token_limit: None,
                 call_id: "call-1".to_string(),
                 name: "lookup".to_string(),

@@ -1,6 +1,6 @@
 import type { Artifact } from "@/lib/artifact/types";
 import type {
-  ImageGenerationSoulMetadata,
+
   ImageCommandRunSnapshot,
   ImageRuntimeContractSnapshot,
   ImageStoryboardSlot,
@@ -45,7 +45,7 @@ export interface ImageWorkbenchTaskView {
   failureMessage?: string;
   runtimeContract?: ImageRuntimeContractSnapshot | null;
   workflowRun?: ImageCommandRunSnapshot | null;
-  soulMetadata?: ImageGenerationSoulMetadata | null;
+
 }
 
 export interface ImageWorkbenchOutputView {

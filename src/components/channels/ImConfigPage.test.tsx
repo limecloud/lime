@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { changeLimeLocale } from "@/i18n/createI18n";
 
 const {
   mockGetConfig,
@@ -223,7 +224,8 @@ async function leaveTip(trigger: HTMLButtonElement | null) {
 }
 
 describe("ImConfigPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await changeLimeLocale("zh-CN");
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 
     mockGetConfig.mockResolvedValue(createConfig());
@@ -294,6 +296,24 @@ describe("ImConfigPage", () => {
 
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ["zh-CN", "已启用 3 个渠道"],
+    ["zh-TW", "已啟用 3 個管道"],
+    ["en-US", "Enabled channels: 3"],
+    ["ja-JP", "有効なチャネル: 3"],
+    ["ko-KR", "사용 중인 채널: 3"],
+  ] as const)("切换到 %s 后更新渠道数量且不保存配置", async (locale, count) => {
+    renderPage();
+    await flushEffects();
+    await act(async () => {
+      await changeLimeLocale(locale);
+    });
+    await flushEffects();
+    expect(getBodyText()).toContain(count);
+    expect(getBodyText()).not.toMatch(/settings:settings\.|\{\{count\}\}/);
+    expect(mockSaveConfig).not.toHaveBeenCalled();
   });
 
   it("应将 Telegram、飞书、微信作为同级主入口展示", async () => {

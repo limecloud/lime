@@ -138,10 +138,6 @@ pub const METHOD_WORKSPACE_RIGHT_SURFACE_PENDING_DISMISS: &str =
     "workspaceRightSurface/pending/dismiss";
 pub const METHOD_WORKSPACE_RIGHT_SURFACE_PENDING_CHANGED: &str =
     "workspaceRightSurface/pendingChanged";
-pub const METHOD_SOUL_STYLE_PACK_INSTALL: &str = "soulStylePack/install";
-pub const METHOD_SOUL_STYLE_PACK_LIST: &str = "soulStylePack/list";
-pub const METHOD_SOUL_STYLE_PACK_STATUS_SET: &str = "soulStylePack/status/set";
-pub const METHOD_SOUL_STYLE_PACK_UNINSTALL: &str = "soulStylePack/uninstall";
 pub const METHOD_SCHEDULED_TASK_LIST: &str = "scheduledTask/list";
 pub const METHOD_SCHEDULED_TASK_READ: &str = "scheduledTask/read";
 pub const METHOD_SCHEDULED_TASK_CREATE: &str = "scheduledTask/create";

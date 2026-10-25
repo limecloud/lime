@@ -396,11 +396,11 @@ describe("agentStreamUserInputSendPreparation", () => {
     expect(result.requestMetadata).toMatchObject({
       source: "test",
       agentUiPerformanceTrace: expect.objectContaining({
-        requestId: expect.stringMatching(/^claw_request_/),
-        runId: expect.stringMatching(/^claw_run_/),
+        requestId: expect.stringMatching(/^conversation_request_/),
+        runId: expect.stringMatching(/^conversation_run_/),
         sessionId: "session-trace",
         source: "agent-chat",
-        traceId: expect.stringMatching(/^claw_trace_/),
+        traceId: expect.stringMatching(/^conversation_trace_/),
         workspaceId: "workspace-1",
         w3cTraceContext: expect.objectContaining({
           traceparent: expect.stringMatching(
@@ -433,11 +433,11 @@ describe("agentStreamUserInputSendPreparation", () => {
     expect(result.userMsg?.id).toBe("00000000-0000-0000-0000-000000000302");
     expect(result.requestMetadata).toMatchObject({
       agentUiPerformanceTrace: expect.objectContaining({
-        requestId: expect.stringMatching(/^claw_request_/),
-        runId: expect.stringMatching(/^claw_run_/),
+        requestId: expect.stringMatching(/^conversation_request_/),
+        runId: expect.stringMatching(/^conversation_run_/),
         sessionId: "session-1",
         source: "agent-chat",
-        traceId: expect.stringMatching(/^claw_trace_/),
+        traceId: expect.stringMatching(/^conversation_trace_/),
         workspaceId: "workspace-1",
         w3cTraceContext: expect.objectContaining({
           traceparent: expect.stringMatching(

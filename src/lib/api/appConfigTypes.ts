@@ -204,11 +204,6 @@ export interface ImageGenConfig {
   image_search_pixabay_api_key?: string;
 }
 
-export interface UserProfile {
-  nickname?: string | null;
-  bio?: string | null;
-}
-
 export interface CrashReportingConfig {
   enabled: boolean;
   dsn?: string | null;
@@ -282,6 +277,9 @@ export interface ShellEnvironmentPolicyToml {
 export interface Config {
   shell_environment_policy?: ShellEnvironmentPolicyToml;
   features?: Record<string, boolean>;
+  computer_use?:
+    | import("@limecloud/app-server-client").ComputerUseConfig
+    | null;
   tools?: {
     experimental_request_user_input?: { enabled?: boolean };
   };
@@ -345,7 +343,6 @@ export interface Config {
   web_search?: import("@limecloud/app-server-client").WebSearchMode | null;
   memory?: MemoryConfig;
   image_gen?: ImageGenConfig;
-  user_profile?: UserProfile;
   agent?: NativeAgentConfig;
   orchestrator?: OrchestratorConfig;
   gateway?: GatewayConfig;

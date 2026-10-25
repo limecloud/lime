@@ -98,6 +98,11 @@ impl State {
             if previous == &snapshot {
                 return Ok(());
             }
+            if kind == ComputerUseAdapterKind::Chrome && chrome_target_addition(previous, &snapshot)
+            {
+                self.snapshots.insert(kind, snapshot);
+                return Ok(());
+            }
             let previous_generation = previous.generation;
             self.invalidate();
             if snapshot.generation == previous_generation {
@@ -109,11 +114,12 @@ impl State {
     }
 
     fn status(&self, kind: ComputerUseAdapterKind) -> ComputerUseAdapterStatus {
+        let disabled = self.policy.as_ref().is_some_and(|p| !p.enabled(kind));
         let blocked = self
             .policy
             .as_ref()
             .is_some_and(|p| p.allow_browser_and_computer_use == Some(false));
-        let snapshot = self.snapshots.get(&kind).filter(|_| !blocked);
+        let snapshot = self.snapshots.get(&kind).filter(|_| !blocked && !disabled);
         ComputerUseAdapterStatus {
             adapter: kind,
             readiness: if self
@@ -122,6 +128,8 @@ impl State {
                 .is_some_and(|p| p.allow_browser_and_computer_use == Some(false))
             {
                 ComputerUseReadiness::Blocked
+            } else if disabled {
+                ComputerUseReadiness::Disabled
             } else {
                 snapshot.map_or(ComputerUseReadiness::NotInstalled, |s| s.readiness)
             },
@@ -148,6 +156,9 @@ impl State {
                 Some("Computer Use is disabled by administrator policy".into())
             } else {
                 snapshot.and_then(|s| s.reason.clone()).or_else(|| {
+                    if disabled {
+                        return Some("Computer Use is disabled in settings".into());
+                    }
                     snapshot
                         .is_none()
                         .then(|| "No trusted adapter is installed".into())
@@ -184,10 +195,21 @@ impl State {
         scope: ComputerUseGrantScope,
         consent: bool,
     ) -> ComputerUseResult<()> {
+        if kind == ComputerUseAdapterKind::Office && target.native_app.is_some() {
+            return self
+                .policy
+                .as_ref()
+                .ok_or_else(|| denied("Policy is not loaded"))?
+                .check_office_native(target, scope, consent)
+                .map_err(denied);
+        }
         if kind != ComputerUseAdapterKind::Native {
-            return Err(denied(
-                "Browser and Office policy adapters are not connected",
-            ));
+            return self
+                .policy
+                .as_ref()
+                .ok_or_else(|| denied("Policy is not loaded"))?
+                .check_extension(&target.identity, scope, consent)
+                .map_err(denied);
         }
         let identity = target
             .native_app
@@ -218,6 +240,20 @@ pub struct ComputerUseService {
 }
 
 impl ComputerUseService {
+    pub fn grants_for_connection(
+        &self,
+        connection: &str,
+    ) -> ComputerUseResult<Vec<ComputerUseGrant>> {
+        let mut grants = self
+            .lock()?
+            .grants
+            .values()
+            .filter(|grant| grant.connection == connection)
+            .map(|grant| grant.response.clone())
+            .collect::<Vec<_>>();
+        grants.sort_by(|left, right| left.id.cmp(&right.id));
+        Ok(grants)
+    }
     /// Composition is a trusted host operation; it is not exposed over JSON-RPC.
     pub fn with_adapter(mut self, adapter: Arc<dyn ComputerUseAdapter>) -> Self {
         self.adapters.insert(adapter.kind(), adapter);
@@ -276,12 +312,16 @@ impl ComputerUseService {
                 .is_some_and(|p| p.allow_browser_and_computer_use == Some(false))
             {
                 return Ok(ComputerUseStatusResponse {
+                    grants: Vec::new(),
                     epoch: state.epoch,
                     adapters: kinds.iter().map(|kind| state.status(*kind)).collect(),
                 });
             }
         }
         for kind in &kinds {
+            if self.lock()?.status(*kind).readiness == ComputerUseReadiness::Disabled {
+                continue;
+            }
             self.probe(*kind).await?;
         }
         let mut state = self.lock()?;
@@ -299,6 +339,7 @@ impl ComputerUseService {
             })
             .collect();
         Ok(ComputerUseStatusResponse {
+            grants: Vec::new(),
             epoch: state.epoch,
             adapters,
         })
@@ -320,6 +361,7 @@ impl ComputerUseService {
                 .unwrap()
                 .allow_browser_and_computer_use
                 == Some(false)
+                || !state.policy.as_ref().unwrap().enabled(params.adapter)
             {
                 return Ok(ComputerUseSetupResponse {
                     accepted: false,
@@ -515,6 +557,30 @@ impl ComputerUseService {
         if lease.response.capability != action.capability() {
             return Err(denied("Lease capability does not cover this action"));
         }
+        if action.capability() == ComputerUseCapability::Navigate {
+            if lease.response.adapter != ComputerUseAdapterKind::Chrome {
+                return Err(denied("Browser task actions require the Chrome adapter"));
+            }
+            if let ComputerUseAction::CreateTab { url } = &action {
+                let mut destination = lease.response.target.clone();
+                if let ComputerUseTargetIdentity::Chrome {
+                    origin,
+                    url: target_url,
+                    ..
+                } = &mut destination
+                {
+                    let parsed = url::Url::parse(url).map_err(|_| denied("Invalid browser URL"))?;
+                    *origin = parsed.origin().ascii_serialization();
+                    *target_url = Some(url.clone());
+                }
+                self.lock()?
+                    .policy
+                    .as_ref()
+                    .ok_or_else(|| denied("Policy is not loaded"))?
+                    .check_extension(&destination, ComputerUseGrantScope::Session, true)
+                    .map_err(denied)?;
+            }
+        }
         let adapter = self
             .adapters
             .get(&lease.response.adapter)
@@ -587,44 +653,6 @@ impl ComputerUseService {
         })
     }
 
-    pub fn disconnect(&self, connection: &str) {
-        if let Ok(mut state) = self.state.lock() {
-            state
-                .turn_connections
-                .retain(|_, owner| owner != connection);
-            if state.grants.values().any(|g| g.connection == connection)
-                || state
-                    .leases
-                    .values()
-                    .any(|l| l.owner.connection == connection)
-            {
-                state.invalidate();
-            }
-        }
-    }
-
-    pub fn cancel_turn(&self, thread_id: &str, turn_id: &str) {
-        if let Ok(mut state) = self.state.lock() {
-            state
-                .turn_connections
-                .remove(&(thread_id.into(), turn_id.into()));
-            state.leases.retain(|_, lease| {
-                let matches = lease.owner.thread_id == thread_id && lease.owner.turn_id == turn_id;
-                if matches {
-                    lease.cancellation.cancel();
-                }
-                !matches
-            });
-        }
-    }
-
-    pub fn disconnect_all(&self) {
-        if let Ok(mut state) = self.state.lock() {
-            state.turn_connections.clear();
-            state.invalidate();
-        }
-    }
-
     pub fn policy_changed(&self) {
         if let Ok(mut state) = self.state.lock() {
             state.invalidate();
@@ -635,8 +663,6 @@ impl ComputerUseService {
 
 impl Drop for ComputerUseService {
     fn drop(&mut self) {
-        if let Ok(mut state) = self.state.lock() {
-            state.invalidate();
-        }
+        self.disconnect_all();
     }
 }

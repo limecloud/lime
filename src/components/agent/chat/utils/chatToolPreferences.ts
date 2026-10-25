@@ -1,5 +1,4 @@
 import type { AgentExecutionStrategy } from "@/lib/api/agentExecutionRuntime";
-import { isGeneralResearchTheme } from "./generalAgentPrompt";
 
 export interface ChatToolPreferences {
   webSearch?: boolean;
@@ -27,18 +26,6 @@ export const DEFAULT_CHAT_TOOL_PREFERENCES: ChatToolPreferences = {
   task: false,
   subagent: false,
 };
-
-export function shouldUseCompactGeneralPromptForPreferences(params: {
-  chatMode: "agent" | "general" | "workbench";
-  contentId?: string | null;
-  preferences: ChatToolPreferences;
-}): boolean {
-  if (params.chatMode !== "general" || params.contentId) {
-    return false;
-  }
-
-  return !params.preferences.task && !params.preferences.subagent;
-}
 
 const LEGACY_CHAT_TOOL_PREFERENCES_KEY = "lime.chat.tool_preferences.v1";
 const CHAT_TOOL_PREFERENCES_KEY_PREFIX = "lime.chat.tool_preferences";
@@ -85,7 +72,7 @@ export function loadChatToolPreferences(
       return parseStoredPreferences(scopedRaw, defaults);
     }
 
-    if (isGeneralResearchTheme(theme)) {
+    if (normalizeThemeScope(theme) === "general") {
       return defaults;
     }
 

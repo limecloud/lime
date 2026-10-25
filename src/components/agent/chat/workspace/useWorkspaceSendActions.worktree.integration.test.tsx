@@ -209,7 +209,7 @@ describe("staged Worktree through send plan, current session and stream", () => 
         workspaceType: "general",
       });
       expect(h.navigate).toHaveBeenCalledExactlyOnceWith("agent", {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         projectId: "b",
       });
       expect(mockSubmitAgentRuntimeTurn).not.toHaveBeenCalled();
@@ -260,13 +260,8 @@ describe("staged Worktree through send plan, current session and stream", () => 
       h.unmount();
     }
   });
-  it.each([
-    "",
-    "/status",
-    "!",
-    'Download and install a skill.\nSKILL_NAME="fixture-skill"\nDOWNLOAD_URL="https://limeai.run/skill-packages/fixture-skill/latest/fixture-skill.zip"\nExtract it into the Agent Skills directory.',
-  ])(
-    "does not create for empty input or local confirmation: %s",
+  it.each(["", "/status", "!"])(
+    "does not create for empty input or local commands: %s",
     async (text) => {
       const h = mount();
       try {

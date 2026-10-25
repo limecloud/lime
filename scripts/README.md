@@ -280,7 +280,6 @@ npm run smoke:settings-about-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-local-environments-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-web-search-electron-fixture -- --run-id <run-id>
-npm run smoke:settings-profile-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-appearance-electron-fixture -- --run-id <run-id>
 npm run smoke:scheduled-tasks-electron-fixture -- --timeout-ms 180000
 npm run smoke:settings-execution-policy-electron-fixture -- --run-id <run-id>
@@ -337,7 +336,6 @@ Web Search 子场景由`electron/lib/settings-web-search-navigation-scenario.mjs
 
 Execution Policy子场景由`electron/lib/settings-execution-policy-navigation-scenario.mjs`承接，同一导航fixture中验证四路继续编辑/放弃、GUI命令/网络规则增改删、plan开关保存、完整canonical配置读回、重开和原值恢复。Rust省略默认tool_execution及其false/空字段，比较只按其已知默认值补齐，其余配置完整比较，值不写证据。light/dark/system媒体投影单列，当前规则控件文字对比度须达到4.5:1，控件与文档不得横向溢出；仅当前皮肤/窗口和enabled文字，不证明placeholder、disabled或hover。New、诊断focus/建议规则、失败/重复/在途/迟到和五语言归组件证据；不伪造设置页不存在的入口，不执行工具或live provider。原15秒正常退出、同一Thread/Turn/Item、单次turnStart、trace和freshness护栏保持。
 
-Profile子场景由`electron/lib/settings-profile-navigation-scenario.mjs`承接：名称与简介草稿分别验证章节/返回/Home/根导航四路保留与放弃，再由GUI保存名称和简介、公开RPC核对未编辑配置、重开并恢复。`settings-profile-fixture-driver.mjs`为两组fixture经公开config/read与config/batchWrite建立隔离非null基线，不用空字符串冒充默认null精确恢复。四主题投影独立于9项可见合同；仅当前皮肤/窗口，system为媒体模拟。原生New没有入口，保留组件证据。导航使用显式external backend，冷启动使用unavailable backend；配置/Host验收不能冒充provider或参考Profile内容等价。
 
 `npm run smoke:settings-about-electron-fixture -- --run-id <run-id>` 在同一真实 Electron 窗口验证 About 与返回首页两个独立 Settings 场景：About 要求构建时 `VITE_APP_VERSION`、Desktop Host `app.getVersion()` 和用户可见版本一致，同时观察 `check_for_updates`、`get_update_install_session` 与 current App Server IPC；返回首页要求点击 `app-sidebar-nav-new-chat` 后 `home-composer-page` 可见、Settings header 消失。证据分别写入 `settings-about-fixture-summary.json` 和 `settings-about-fixture-home-summary.json`，两者各自带独立 `settingsScenarioProof`，不得互相代替。
 
@@ -349,7 +347,6 @@ Profile子场景由`electron/lib/settings-profile-navigation-scenario.mjs`承接
 
 `npm run smoke:settings-web-search-electron-fixture -- --run-id <run-id>` 在隔离用户目录中经 Web Search GUI 切换搜索引擎路由并命中 App Server `config/read|config/batchWrite`，冷重启读回后恢复原值，再次冷重启确认恢复完成。结构化 JSON 只记录生命周期布尔与 current method/command，不记录搜索路由值、Provider 配置或任何搜索 Key；截图只包含页面正常可见的路由状态。
 
-`npm run smoke:settings-profile-electron-fixture -- --run-id <run-id>` 使用正式 window OEM runtime override 的 `enabled=false` 在隔离用户目录中进入 non-OEM local Profile，经 GUI 修改名称与简介并命中 App Server `config/read|config/batchWrite`。两次冷重启分别读回提交值和恢复值，完整配置保持/恢复由真实RPC读回核验；配置路径IO失败时分别验证名称与简介安全错误、保稿和重试，并由独立同preload/IPC/App Server边界RPC probe核验IO原因，probe不冒充GUI响应捕获。三次Main必须在原15秒内code0/signalnull正常退出，强制回收不计通过，finally后写最终summary。该场景不证明managed-account登录、参考Profile内容等价、工具执行或live provider；结构化evidence不记录资料值或完整config。
 
 `npm run smoke:settings-appearance-electron-fixture -- --run-id <run-id>` 同时验证 Appearance 的两个 current owner：主题模式写入 renderer localStorage，推荐行为写入 App Server `config/read|config/batchWrite`。fixture 在隔离用户目录中修改两者、冷重启读回、恢复两者并再次冷重启确认；结构化 evidence 不记录外观原值或完整 config。
 

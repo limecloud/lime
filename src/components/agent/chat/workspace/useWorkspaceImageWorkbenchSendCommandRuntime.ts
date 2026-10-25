@@ -171,7 +171,7 @@ export function useWorkspaceImageWorkbenchSendCommandRuntime({
         });
     } catch (error) {
       logAgentDebug(
-        "AgentChatPage",
+        "LocalConversationPage",
         "imageWorkbench.sendRoute.refresh.failed",
         {
           error: error instanceof Error ? error.message : String(error),

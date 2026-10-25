@@ -1,5 +1,6 @@
 import React from "react";
 import { ShieldCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { MetaSelect, MetaSelectIcon, MetaSelectWrap } from "../styles";
 import {
   DEFAULT_AGENT_ACCESS_MODE,
@@ -17,9 +18,18 @@ const ACCESS_MODE_OPTIONS: Array<{
   value: AgentAccessMode;
   label: string;
 }> = [
-  { value: "read-only", label: "只读" },
-  { value: "current", label: "按需确认" },
-  { value: "full-access", label: "完全访问" },
+  {
+    value: "read-only",
+    label: "generalWorkbench.taskRail.context.access.readOnly",
+  },
+  {
+    value: "current",
+    label: "generalWorkbench.taskRail.context.access.current",
+  },
+  {
+    value: "full-access",
+    label: "generalWorkbench.taskRail.context.access.fullAccess",
+  },
 ];
 
 export const InputbarAccessModeSelect: React.FC<
@@ -30,28 +40,34 @@ export const InputbarAccessModeSelect: React.FC<
   accessMode = DEFAULT_AGENT_ACCESS_MODE,
   setAccessMode,
 }) => {
+  const { t } = useTranslation("agent");
   if (isFullscreen || !setAccessMode) {
     return null;
   }
+  const accessModeLabel = t(
+    ACCESS_MODE_OPTIONS.find((option) => option.value === accessMode)!.label,
+  );
 
   return (
-    <MetaSelectWrap>
+    <MetaSelectWrap data-access-mode={accessMode} title={accessModeLabel}>
       <MetaSelectIcon aria-hidden>
         <ShieldCheck strokeWidth={1.8} />
       </MetaSelectIcon>
+      <span data-access-mode-label aria-hidden="true">
+        {accessModeLabel}
+      </span>
       <MetaSelect
         disabled={disabled}
-        aria-label="权限模式"
+        aria-label={t("agentChat.inputbar.accessMode.label")}
         data-testid="inputbar-access-mode-select"
         value={accessMode}
         onChange={(event) =>
           setAccessMode(event.target.value as AgentAccessMode)
         }
-        $width="92px"
       >
         {ACCESS_MODE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {t(option.label)}
           </option>
         ))}
       </MetaSelect>

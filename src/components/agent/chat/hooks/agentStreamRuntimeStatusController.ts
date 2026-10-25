@@ -10,7 +10,7 @@ import {
   buildWaitingAgentRuntimeStatus,
   formatAgentRuntimeStatusSummary,
 } from "../utils/agentRuntimeStatus";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import {
   areJsonLikeValuesEqual,
   upsertThreadItemState,
@@ -50,7 +50,7 @@ export function buildAgentStreamProviderTraceRuntimeStatusApplyPlan(params: {
   firstRuntimeStatusAt?: number | null;
   stage?: string | null;
   updatedAt: string;
-  soulCopy?: SoulInteractionCopy;
+
 }): AgentStreamRuntimeStatusApplyPlan | null {
   if (params.firstRuntimeStatusAt) {
     return null;
@@ -65,7 +65,7 @@ export function buildAgentStreamProviderTraceRuntimeStatusApplyPlan(params: {
   return buildAgentStreamRuntimeStatusApplyPlan({
     status: buildWaitingAgentRuntimeStatus({
       executionStrategy: params.executionStrategy,
-      soulCopy: params.soulCopy,
+
     }),
     updatedAt: params.updatedAt,
   });

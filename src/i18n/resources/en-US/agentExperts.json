@@ -40,7 +40,6 @@
   "agentExperts.info.overview.workWithRefs": "Use bound skills, memory templates, and workflows when they are relevant.",
   "agentExperts.info.boundary.truth": "Work from real context and user-provided information without inventing missing facts.",
   "agentExperts.info.boundary.private": "Project files, private memory, and chat content are not written back to the public expert catalog.",
-  "agentExperts.info.boundary.soul": "Global Soul only affects communication rhythm. Expert persona is not written back to Global Soul and does not enter formal artifacts by default.",
   "agentExperts.info.memory.title": "MEMORY.md — {{title}} Memory",
   "agentExperts.info.memory.focus": "Current project and focus",
   "agentExperts.info.memory.defaultFocus": "Continuously collect preferences, constraints, and review signals for this task.",

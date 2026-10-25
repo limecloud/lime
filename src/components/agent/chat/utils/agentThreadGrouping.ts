@@ -13,6 +13,8 @@ import type {
   AgentThreadSummaryChip,
 } from "./agentThreadGroupingTypes";
 import {
+  isBrowserToolName,
+  isDynamicToolCall,
   isUnifiedWebFetchToolName,
   isUnifiedWebSearchToolName,
 } from "./toolNameFamily";
@@ -82,9 +84,19 @@ function shouldSplitProcessBlockBeforeItem(
   },
   item: AgentThreadItem,
 ): boolean {
-  if (current.kind !== "process" || !isWebSearchProcessItem(item)) {
+  if (current.kind !== "process") {
     return false;
   }
+
+  // Desktop 的 dynamic-tool-call 保留独立工具呈现，不能压成通用步骤计数。
+  if (
+    isStandaloneProcessItem(item) ||
+    current.items.some(isStandaloneProcessItem)
+  ) {
+    return true;
+  }
+
+  if (!isWebSearchProcessItem(item)) return false;
 
   if (!current.items.some(isWebRetrievalProcessItem)) {
     return false;
@@ -99,6 +111,17 @@ function shouldSplitProcessBlockBeforeItem(
   }
 
   return true;
+}
+
+export function isStandaloneProcessItem(item: AgentThreadItem): boolean {
+  return (
+    item.type === "reasoning" ||
+    item.type === "plan" ||
+    item.type === "turn_summary" ||
+    item.type === "context_compaction" ||
+    (item.type === "tool_call" &&
+      (isDynamicToolCall(item) || isBrowserToolName(item.tool_name)))
+  );
 }
 
 function resolveGroupTitle(

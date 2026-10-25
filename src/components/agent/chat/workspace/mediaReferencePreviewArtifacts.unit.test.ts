@@ -106,14 +106,8 @@ describe("createMediaReferencePreviewArtifact", () => {
       mediaPreviewPolicySchema: "lime.media_reference.preview_policy.v1",
       mediaPreviewPolicy: "sidecar_metadata_fallback",
       mediaPreviewRequiresPagination: false,
-      mediaReferenceSoulSchema: "lime.media_reference.soul_surface.v1",
-      mediaReferenceSoulStyleLevels: {
-        title: "L0",
-        referenceFacts: "L0",
-        loadingStatus: "L1",
-        previewCaption: "L2",
-        mediaArtifact: "L3",
-      },
+
+
       mediaArtifactBoundary: "source_owned_media_payload",
       contentKind: "markdown",
       renderMode: "canvas",

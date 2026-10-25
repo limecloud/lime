@@ -206,6 +206,13 @@ async fn unexecutable_route_returns_typed_rejection_before_provider_call() {
                 model_name: Some("fixture-model".to_string()),
                 api_key: Some("fixture-key".to_string()),
                 base_url: Some("http://127.0.0.1:1".to_string()),
+                model_capabilities: Some(json!({
+                    "provenance": "provider_explicit",
+                    "taskFamilies": ["chat"],
+                    "inputModalities": ["text"],
+                    "outputModalities": ["text"],
+                    "capabilities": {"streaming": false}
+                })),
                 ..app_server_protocol::RuntimeProviderConfig::default()
             }),
             ..app_server_protocol::RuntimeRequest::default()
@@ -216,7 +223,7 @@ async fn unexecutable_route_returns_typed_rejection_before_provider_call() {
 
     let error = ExecutionBackend::start_turn(&backend, request, &mut sink)
         .await
-        .expect_err("missing capability snapshot must reject the current route");
+        .expect_err("explicit streaming denial must reject the current route");
 
     assert!(matches!(
         &error,
@@ -229,7 +236,7 @@ async fn unexecutable_route_returns_typed_rejection_before_provider_call() {
         } if session_id == "session-1"
             && provider == "fixture-openai"
             && model == "fixture-model"
-            && reason_code == "capability_snapshot_missing"
+            && reason_code == "capability_gap"
     ));
     let rpc_error = error.into_jsonrpc_error();
     assert_eq!(

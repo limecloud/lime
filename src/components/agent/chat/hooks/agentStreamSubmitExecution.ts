@@ -42,7 +42,7 @@ import { bindSubmissionMessagesToRuntimeTurn } from "./agentStreamRuntimeHandler
 import { buildTurnInput } from "../utils/buildUserInputSubmitOp";
 import { resolveAgentStreamSubmitContext } from "./agentStreamSubmitContext";
 import { registerAgentStreamTurnEventBinding } from "./agentStreamTurnEventBinding";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import {
   extractAgentUiPerformanceTraceMetadata,
   mergeAgentUiPerformanceTraceMetadata,
@@ -157,7 +157,7 @@ interface ExecuteAgentStreamSubmitOptions {
   setExecutionRuntime: Dispatch<
     SetStateAction<AgentSessionExecutionRuntime | null>
   >;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 async function resolveSubmitModelPolicy(options: {
@@ -283,7 +283,7 @@ export async function executeAgentStreamSubmit(
     setThreadTurns,
     setCurrentTurnId,
     setExecutionRuntime,
-    soulCopy,
+
   } = options;
 
   const requireCurrent = () => {
@@ -316,7 +316,7 @@ export async function executeAgentStreamSubmit(
     skipSessionRestore,
     skipSessionStartHooks,
     performanceTrace,
-    soulCopy,
+
   });
   requireCurrent();
   const resolvedActiveSessionId = activeSessionId?.trim();
@@ -479,7 +479,7 @@ export async function executeAgentStreamSubmit(
     setCurrentTurnId,
     setExecutionRuntime,
     setIsSending,
-    soulCopy,
+
   });
 
   if (options.isCurrent?.() === false) {

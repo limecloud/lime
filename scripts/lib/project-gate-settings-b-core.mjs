@@ -9,8 +9,12 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     tab: "general",
     owner: "settings/desktop-host/app-server",
   },
-  { id: "profile-persistence", tab: "profile", owner: "settings" },
   { id: "appearance-persistence", tab: "appearance", owner: "settings" },
+  {
+    id: "account-session-lifecycle",
+    tab: "profile",
+    owner: "settings/account-center",
+  },
   {
     id: "voice-preferences-persistence",
     tab: "voice",
@@ -53,6 +57,11 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     owner: "settings/model-provider",
   },
   { id: "mcp-create-list", tab: "plugins-settings", owner: "settings/mcp" },
+  {
+    id: "computer-use-permissions",
+    tab: "computer-use",
+    owner: "settings/tool-runtime",
+  },
   {
     id: "mcp-lifecycle-recovery",
     tab: "plugins-settings",

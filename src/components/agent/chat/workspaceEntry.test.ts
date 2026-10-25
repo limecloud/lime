@@ -61,7 +61,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 234,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: "project-1",
         contentId: "content-1",
@@ -113,7 +113,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 456,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: "project-1",
         contentId: "content-1",
@@ -225,7 +225,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 789,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: undefined,
         theme: "general",
@@ -275,7 +275,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 987,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: "project-1",
         theme: "general",
@@ -340,7 +340,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 654,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: "project-1",
         theme: "general",
@@ -410,7 +410,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 741,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: "project-1",
         theme: "general",
@@ -490,7 +490,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 111,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: "project-document-1",
         contentId: "content-site-skill-1",
@@ -562,7 +562,7 @@ describe("workspaceEntry", () => {
       targetTheme: "general",
       nextNewChatAt: 654,
       navigationParams: {
-        agentEntry: "claw",
+        agentEntry: "conversation",
         immersiveHome: false,
         projectId: "project-3",
         contentId: "content-3",

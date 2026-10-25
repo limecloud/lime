@@ -61,7 +61,7 @@ pub(super) fn request(
             CanonicalRole::Assistant => {
                 ("model", assistant_parts(&message.content, media_payloads)?)
             }
-            CanonicalRole::Tool => ("user", tool_result_parts(&message.content)?),
+            CanonicalRole::Tool => ("user", tool_result_parts(&message.content, media_payloads)?),
             CanonicalRole::User | CanonicalRole::System | CanonicalRole::Developer => {
                 ("user", user_parts(&message.content, media_payloads)?)
             }
@@ -216,8 +216,11 @@ fn assistant_parts(
         .map(|parts| parts.into_iter().flatten().collect())
 }
 
-fn tool_result_parts(parts: &[ContentPart]) -> Result<Vec<Value>, CurrentProviderError> {
-    parts
+fn tool_result_parts(
+    parts: &[ContentPart],
+    media_payloads: &BTreeMap<String, String>,
+) -> Result<Vec<Value>, CurrentProviderError> {
+    let mut output = parts
         .iter()
         .map(|part| match part {
             ContentPart::ToolResult {
@@ -236,7 +239,35 @@ fn tool_result_parts(parts: &[ContentPart]) -> Result<Vec<Value>, CurrentProvide
             })),
             other => Err(unsupported_content("tool", other)),
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    for part in parts {
+        let ContentPart::ToolResult {
+            id,
+            name,
+            result: ToolResultValue::Content { value },
+            ..
+        } = part
+        else {
+            continue;
+        };
+        let mut media = Vec::new();
+        for item in value {
+            if let ContentPart::Media {
+                uri, media_type, ..
+            } = item
+            {
+                media.push(media_part(
+                    provider_media_uri(uri, media_payloads),
+                    media_type,
+                )?);
+            }
+        }
+        if !media.is_empty() {
+            output.push(json!({"text":format!("Media returned by tool {name}, call_id {id}:")}));
+            output.extend(media);
+        }
+    }
+    Ok(output)
 }
 
 fn unsupported_content(role: &str, part: &ContentPart) -> CurrentProviderError {

@@ -20,25 +20,22 @@ const normalize = (value: string) =>
 export function isSettingsSearchTarget(
   section: SettingsTabs,
   targetId: string,
-  localProfile: boolean,
   platform = resolveHotkeyPlatform(globalThis.navigator),
 ): boolean {
   return Boolean(
-    getSettingsSearchDocument(section, targetId, localProfile, platform),
+    getSettingsSearchDocument(section, targetId, platform),
   );
 }
 
 export function getSettingsSearchDocument(
   section: SettingsTabs,
   targetId: string | undefined,
-  localProfile: boolean,
   platform = resolveHotkeyPlatform(globalThis.navigator),
 ) {
   return settingsSearchDocuments.find(
     (document) =>
       document.section === section &&
       document.targetId === targetId &&
-      (!document.localProfile || localProfile) &&
       document.excludePlatform !== platform &&
       (!document.platform || document.platform === platform),
   );
@@ -48,7 +45,6 @@ export function searchSettings(
   query: string,
   groups: CategoryGroup[],
   t: TFunction<"settings", undefined>,
-  localProfile: boolean,
   platform: HotkeyPlatform = resolveHotkeyPlatform(globalThis.navigator),
 ): SettingsSearchResult[] {
   const terms = normalize(query).split(/\s+/).filter(Boolean);
@@ -69,7 +65,6 @@ export function searchSettings(
       for (const document of settingsSearchDocuments) {
         if (
           document.section !== item.key ||
-          (document.localProfile && !localProfile) ||
           document.excludePlatform === platform ||
           (document.platform && document.platform !== platform)
         )

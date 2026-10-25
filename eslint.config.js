@@ -111,7 +111,7 @@ const generalChatRestrictedPaths = [
   {
     name: "@/lib/api/compat",
     message:
-      "api/compat.ts 属于历史记忆兼容层，请不要在新代码中接入；记忆主链请使用当前 memory store / MemoryBackend / memory tools / Soul 配置入口。",
+      "api/compat.ts 属于历史记忆兼容层，请不要在新代码中接入；记忆主链请使用当前 memory store / MemoryBackend / memory tools / 自定义指令入口。",
   },
   {
     name: "@/lib/api/agent",
@@ -288,7 +288,7 @@ const generalChatRestrictedPaths = [
       "MemorySourcesConfig",
     ],
     message:
-      "旧记忆运行时相关能力已下线；记忆设置和显式整理请走 src/lib/api/memoryStore.ts 与 memory.soul current 配置，不要继续从已删除的桌面宿主聚合 Hook 聚合层引入。",
+      "旧记忆运行时相关能力已下线；记忆设置和显式整理请走 src/lib/api/memoryStore.ts 与 当前 Memory 配置，不要继续从已删除的桌面宿主聚合 Hook 聚合层引入。",
   },
   {
     name: LEGACY_DESKTOP_HOST_AGGREGATE_HOOK_PATH,

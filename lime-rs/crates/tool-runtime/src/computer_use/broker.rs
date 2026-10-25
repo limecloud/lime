@@ -94,7 +94,7 @@ fn io_error(error: std::io::Error) -> super::ComputerUseError {
     denied(format!("Computer Use desktop lock is unavailable: {error}"))
 }
 
-fn check_path(path: &Path, directory: bool) -> ComputerUseResult<()> {
+pub(super) fn check_path(path: &Path, directory: bool) -> ComputerUseResult<()> {
     let metadata = fs::symlink_metadata(path).map_err(io_error)?;
     if metadata.file_type().is_symlink()
         || (directory && !metadata.is_dir())

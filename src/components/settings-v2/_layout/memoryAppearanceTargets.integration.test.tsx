@@ -24,9 +24,7 @@ vi.mock("@/i18n/legacy-patch/I18nPatchProvider", () => ({
   useI18nPatch: () => ({ setLanguage: vi.fn() }),
 }));
 vi.mock("@/lib/api/project", () => ({ getDefaultProject: async () => null }));
-vi.mock("@/lib/api/soulStylePacks", () => ({
-  listSoulStylePacks: async () => ({ packs: [] }),
-}));
+
 vi.mock("@/lib/api/memoryStore", () => ({
   resetMemory: async () => ({}),
   getMemoryStoreHealth: async () => ({ initialized: false }),
@@ -87,12 +85,6 @@ const targets = [
     "personalization.instructions",
   ],
   [SettingsTabs.Appearance, "", "appearance-theme", "appearance.theme.title"],
-  [
-    SettingsTabs.Appearance,
-    "",
-    "appearance-skin",
-    "appearance.colorScheme.title",
-  ],
   [SettingsTabs.General, "", "general-language", "desktop.language"],
 ] as const;
 const t = (key: string) =>
@@ -183,11 +175,11 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     for (const [section, , targetId, key] of targets) {
       expect(translate(`settings.${key}`)).not.toBe(`settings.${key}`);
       expect(
-        searchSettings(translate(`settings.${key}`), groups, translate, true),
+        searchSettings(translate(`settings.${key}`), groups, translate),
       ).toContainEqual(expect.objectContaining({ section, targetId }));
     }
     expect(
-      searchSettings("fixture private imported text", groups, translate, true),
+      searchSettings("fixture private imported text", groups, translate),
     ).toEqual([]);
   },
 );

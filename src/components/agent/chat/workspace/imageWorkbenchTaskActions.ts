@@ -203,7 +203,7 @@ export function resolveTrackedTaskReplayUsage(
   if (task?.applyTarget?.kind === "canvas-insert") {
     return "document-inline";
   }
-  return "claw-image-workbench";
+  return "image-workbench";
 }
 
 export function resolvePendingImageTaskId(

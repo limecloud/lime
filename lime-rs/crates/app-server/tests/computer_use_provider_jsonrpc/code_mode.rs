@@ -26,8 +26,8 @@ impl Fixture {
         let wire = Wire::Responses;
         let source = format!(
             "text(await tools.computer_use({{operation:{{action:'status'}}}}));\n\
-             try {{ text(await tools.computer_use({args})); }} catch (e) {{ text(String(e)); }}",
-            args = json!({"target":target(),"operation":{"action":"observe","max_depth":2,"max_nodes":32}})
+             try {{ const result = await tools.computer_use({args}); text(result.structuredContent); image(result.content.find(item => item.type === 'image')); throw new Error('fixture failure after image'); }} catch (e) {{ throw e; }}",
+            args = json!({"target":target(),"operation":{"action":"screenshot"}})
         );
         let provider = ModelFixture::start_with_custom_tool(
             wire,
@@ -41,7 +41,7 @@ impl Fixture {
         let config = temp.path().join("config.yaml");
         std::fs::write(
             &config,
-            "server:\n  api_key: test-only\ncomputer_use:\n  default_app_access: allow\n",
+            "server:\n  api_key: test-only\nfeatures:\n  computer_use: true\ncomputer_use:\n  default_app_access: allow\n",
         )
         .unwrap();
         let db = Arc::new(Mutex::new(rusqlite::Connection::open_in_memory().unwrap()));
@@ -199,13 +199,31 @@ async fn completed_code_mode(grant: bool) {
         .unwrap();
     assert_eq!(call["name"], "exec");
     assert_eq!(call["call_id"], result["call_id"]);
-    let output = result["output"].as_str().unwrap();
+    let output = result["output"]
+        .as_str()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| {
+            result["output"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|item| item["text"].as_str())
+                .collect::<String>()
+        });
     assert!(
         output.contains("com.example.ProviderFixture"),
         "status readback: {output}"
     );
     if grant {
         assert!(output.contains(OBSERVATION), "{output}");
+        assert!(output.contains("fixture failure after image"));
+        assert!(!output.contains(PNG));
+        assert!(result["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["type"] == "input_image"
+                && item["image_url"] == format!("data:image/png;base64,{PNG}")));
         let calls = fixture.adapter.calls.lock().unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].thread_id, fixture.thread);

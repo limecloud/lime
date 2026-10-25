@@ -25,7 +25,7 @@ import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 import { resolveUnfinishedSessionProjection } from "../projection/unfinishedSessionProjection";
 import { sanitizeMessageTextForPreview } from "../utils/messageDisplaySanitizer";
 import { sanitizeGeneratedAutoTitle } from "./agentChatAutoTitleViewModel";
-import type { SoulInteractionCopy } from "@/lib/soul/interactionCopy";
+
 import type { ModelCapabilitySummary } from "@/lib/model/inferModelCapabilities";
 import type {
   InterruptedInputDraftSnapshot,
@@ -98,7 +98,7 @@ export interface UseAgentChatOptions {
   ) => ChatToolPreferences | null;
   onOpenSubagents?: () => void;
   onRestoreInterruptedInput?: (request: InterruptedInputRestoreRequest) => void;
-  soulCopy?: SoulInteractionCopy;
+
 }
 
 import type { RuntimeAcceptanceReceipt } from "@/lib/api/agentRuntime/runtimeAcceptance";

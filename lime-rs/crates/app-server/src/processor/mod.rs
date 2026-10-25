@@ -44,7 +44,6 @@ mod right_surface;
 mod rollout;
 mod session_operations;
 mod skill;
-mod soul;
 mod storage;
 mod thread;
 mod thread_fork;

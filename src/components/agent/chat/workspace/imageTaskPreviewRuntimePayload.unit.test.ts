@@ -4,7 +4,7 @@ import {
   buildNormalizedStoryboardSlot,
   mergeStoryboardSlots,
   readBoolean,
-  readImageGenerationSoulMetadata,
+
   readImageTaskPresentationCaption,
   readImageTaskPresentationText,
   readPositiveNumber,
@@ -65,58 +65,7 @@ describe("imageTaskPreviewRuntimePayload", () => {
     );
   });
 
-  it("应读取图片生成 Soul metadata 与 L0/L1/L2/L3 边界", () => {
-    const metadata = readImageGenerationSoulMetadata([
-      {
-        presentation: {
-          schemaVersion: "lime.image_generation.presentation.v1",
-          surface: "image_generation",
-          styleLevels: {
-            title: { styleLevel: "L0" },
-            parameterSummary: { styleLevel: "L0" },
-            runningStatus: { styleLevel: "L1" },
-            assistantIntro: { styleLevel: "L2" },
-            completionCaption: { styleLevel: "L2" },
-            mediaArtifact: { styleLevel: "L3" },
-          },
-          generationBriefBoundary: {
-            formalArtifactVoiceSource: "generation_brief_only",
-            productSoulDefault: "interaction_only",
-          },
-          image_generation_presentation_facts: {
-            mediaArtifactStyleLevel: "L3",
-          },
-          soul_lifecycle: {
-            surface: "image_generation",
-            phase: "image_generation_presentation",
-            styleLevel: "L2",
-            riskLevel: "normal",
-            profileId: "cheeky_sassy_executor",
-            packId: "com.lime.soul.cheeky-sassy-executor",
-            toneVariant: "cheeky_sassy",
-          },
-        },
-      },
-    ]);
 
-    expect(metadata).toEqual({
-      surface: "image_generation",
-      phase: "image_generation_presentation",
-      styleLevel: "L2",
-      riskLevel: "normal",
-      toneVariant: "cheeky_sassy",
-      profileId: "cheeky_sassy_executor",
-      packId: "com.lime.soul.cheeky-sassy-executor",
-      titleStyleLevel: "L0",
-      parameterSummaryStyleLevel: "L0",
-      runningStatusStyleLevel: "L1",
-      assistantIntroStyleLevel: "L2",
-      completionCaptionStyleLevel: "L2",
-      mediaArtifactStyleLevel: "L3",
-      formalArtifactVoiceSource: "generation_brief_only",
-      productSoulDefault: "interaction_only",
-    });
-  });
 
   it("读取图片任务 presentation 时不应在前端改写模型文案语义", () => {
     const payload = {

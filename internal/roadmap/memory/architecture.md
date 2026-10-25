@@ -1,6 +1,7 @@
 # Lime 记忆与上下文治理目标架构
+> 2026-10-25：本文件仅保留历史实施证据，不再约束产品。旧 Soul、风格包及创作声线已删除；现役边界以 [记忆与上下文](../../aiprompts/memory-compaction.md) 和 [执行计划](../../exec-plans/browser-runtime-right-surface-plan.md) 为准。下文原有保留要求和未完成清单均已失效。
 
-> 状态：current architecture plan
+> 状态：historical / superseded
 > 更新时间：2026-06-19
 > 目标：以文件化 memory store 为唯一记忆事实源，App Server 提供受控工具、context contributor、上下文防腐和压缩主链，Soul 作为独立交互配置保留，SQLite 只保留状态、压缩 checkpoint 与清理边界。
 

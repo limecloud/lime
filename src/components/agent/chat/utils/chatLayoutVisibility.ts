@@ -26,7 +26,7 @@ export function shouldShowChatLayout({
   queuedTurnCount,
 }: ResolveChatLayoutVisibilityParams): boolean {
   return (
-    (agentEntry === "claw" && !preferEmptyStateForFreshTaskCenterTab) ||
+    (agentEntry === "conversation" && !preferEmptyStateForFreshTaskCenterTab) ||
     hasSession ||
     hasDisplayMessages ||
     hasPendingA2UIForm ||

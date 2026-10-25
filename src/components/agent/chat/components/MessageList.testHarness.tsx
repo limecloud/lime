@@ -256,6 +256,7 @@ export const mockAgentThreadTimeline = vi.fn(
       }
       data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
       data-turn-id={turn?.id || ""}
+      data-item-ids={items?.map((item) => item.id).join(",")}
     >
       {MOCK_AGENT_THREAD_TIMELINE_LABEL}
       {actionRequests?.length ? `:${actionRequests.length}` : ""}
@@ -269,6 +270,13 @@ export const mockAgentThreadTimeline = vi.fn(
             data-testid="timeline-process-item"
             data-item-status={item.status}
           />
+        ))}
+      {(items || [])
+        .filter((item) => item.type === "unknown_item")
+        .map((item) => (
+          <span key={item.id} data-testid="timeline-unsupported-item">
+            {item.upstream_type} {item.field_names.join(" ")}
+          </span>
         ))}
       {(items || [])
         .filter((item) => item.type === "file_artifact")

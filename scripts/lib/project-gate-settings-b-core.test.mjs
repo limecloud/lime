@@ -107,6 +107,7 @@ describe("project Gate SETTINGS-01 Gate B-F evidence", () => {
       "environment-current-read",
       "automation-lifecycle",
       "developer-current-diagnostics",
+      "profile-persistence",
     ]) {
       expect(() =>
         build([source("settings-scenario", genericScenarioSummary(retired))]),

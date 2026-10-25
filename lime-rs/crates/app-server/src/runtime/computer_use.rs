@@ -17,7 +17,8 @@ impl RuntimeCore {
     pub fn with_native_computer_use(mut self) -> Self {
         self.computer_use = Arc::new(ComputerUseService::default().with_adapter(Arc::new(
             tool_runtime::computer_use::NativeAdapter::default(),
-        )));
+        )).with_adapter(Arc::new(tool_runtime::computer_use::ExtensionAdapter::new(ComputerUseAdapterKind::Chrome)))
+          .with_adapter(Arc::new(tool_runtime::computer_use::OfficeAdapter::default())));
         self
     }
 
@@ -33,12 +34,15 @@ impl RuntimeCore {
 
     pub(crate) async fn computer_use_status(
         &self,
+        connection: &str,
         params: ComputerUseStatusParams,
     ) -> Result<ComputerUseStatusResponse, RuntimeCoreError> {
-        self.computer_use
+        let mut response = self.computer_use
             .status(params, || self.computer_use_policy())
             .await
-            .map_err(policy_error)
+            .map_err(policy_error)?;
+        response.grants = self.computer_use.grants_for_connection(connection).map_err(policy_error)?;
+        Ok(response)
     }
 
     pub(crate) async fn computer_use_setup(
@@ -115,6 +119,11 @@ fn load_policy(
     let requirements = super::config_requirements::read_config_requirements_at(requirements_path)
         .map_err(|error| ComputerUseError(error.to_string()))?;
     Ok(ComputerUsePolicy {
+        native_enabled: Some(config.config().features.entries.get("computer_use").copied().unwrap_or(false)),
+        chrome_enabled: Some(config.config().features.entries.get("chrome_use").copied().unwrap_or(false)),
+        office_enabled: Some(config.config().features.entries.get("office_use").copied().unwrap_or(false)),
+        browser: config.config().browser_use.clone(),
+        browser_admin: requirements.as_ref().and_then(|r| r.browser_use.clone()),
         user: config.config().computer_use.clone(),
         admin: requirements.as_ref().and_then(|r| r.computer_use.clone()),
         allow_browser_and_computer_use: requirements.and_then(|r| r.allow_browser_and_computer_use),

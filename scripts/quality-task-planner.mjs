@@ -148,14 +148,13 @@ const I18N_CHROME_EXTENSION_WORKFLOW_FILES = new Set([
   "extensions/lime-chrome/CHROME_WEB_STORE_SUBMISSION.md",
   "extensions/lime-chrome/README.md",
   "extensions/lime-chrome/manifest.json",
-  "extensions/lime-chrome/pages/scripts/install-i18n.js",
-  "extensions/lime-chrome/pages/scripts/options.js",
   "scripts/i18n/i18n-chrome-extension-workflow-report.test.ts",
   "scripts/i18n/i18n-chrome-extension-workflow-report.ts",
 ]);
 
 const I18N_CHROME_EXTENSION_WORKFLOW_PREFIXES = [
-  "extensions/lime-chrome/pages/",
+  "extensions/lime-chrome/_locales/",
+  "extensions/lime-chrome/computer-use",
 ];
 
 const I18N_APP_METADATA_WORKFLOW_FILES = new Set([

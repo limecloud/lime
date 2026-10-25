@@ -446,7 +446,6 @@ export function ExpertSkillsSection({
                   "agentExperts.info.skills.registrationDraft.fallbackStrategy",
                 ),
               ],
-              sourceExcerpt: item.ref,
             }
           : undefined,
     };

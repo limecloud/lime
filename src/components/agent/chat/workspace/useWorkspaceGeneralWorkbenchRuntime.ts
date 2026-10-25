@@ -204,7 +204,7 @@ export function useWorkspaceGeneralWorkbenchRuntime({
         }
       } catch (error) {
         if (!disposed) {
-          console.warn("[AgentChatPage] 拉取工作区编排运行状态失败:", error);
+          console.warn("[LocalConversationPage] 拉取工作区编排运行状态失败:", error);
           if (themeWorkbenchRunStateSignatureRef.current !== "null") {
             themeWorkbenchRunStateSignatureRef.current = "null";
             setThemeWorkbenchBackendRunState(null);

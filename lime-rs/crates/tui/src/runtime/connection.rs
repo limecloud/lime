@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct TuiOptions {
+    pub computer_use_targets: Vec<app_server_protocol::protocol::v2::ComputerUseTargetIdentity>,
     pub app_server_bin: PathBuf,
     pub app_server_args: Vec<OsString>,
     pub remote: Option<RemoteTransportConfig>,
@@ -37,11 +38,20 @@ pub(super) fn validate_model_route(options: &TuiOptions) -> Result<()> {
 
 pub(crate) async fn connect_session(options: &TuiOptions) -> Result<AppServerSession> {
     validate_model_route(options)?;
-    if let Some(remote) = options.remote.clone() {
+    let mut session = if let Some(remote) = options.remote.clone() {
         AppServerSession::connect_remote(remote).await
     } else {
         AppServerSession::connect(stdio_config(options)?).await
+    }?;
+    if let Err(error) = session
+        .request_handle()
+        .setup_computer_use_targets(&options.computer_use_targets)
+        .await
+    {
+        let _ = session.shutdown().await;
+        return Err(error.into());
     }
+    Ok(session)
 }
 
 pub(crate) fn stdio_config(options: &TuiOptions) -> Result<StdioTransportConfig> {

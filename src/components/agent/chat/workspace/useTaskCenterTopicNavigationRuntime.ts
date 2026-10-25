@@ -25,7 +25,7 @@ import { normalizeProjectId } from "../utils/topicProjectResolution";
 import type { ComposerDraftNavigationCallbacks } from "./composerDraftNavigation";
 import type { WorkspaceTopicSwitchLifecycle } from "./useWorkspaceTopicSwitch";
 
-type AgentEntry = "new-task" | "claw";
+type AgentEntry = "new-task" | "conversation";
 
 interface TaskCenterTopicSwitchOptions {
   forceRefresh?: boolean;
@@ -121,7 +121,7 @@ export function useTaskCenterTopicNavigationRuntime({
       const wasOpenInTaskCenter =
         taskCenterOpenTabIdsRef.current.includes(topicId);
       const shouldMaintainTaskCenterTab =
-        agentEntry === "claw" || agentEntry === "new-task";
+        agentEntry === "conversation" || agentEntry === "new-task";
       const shouldSkipActiveTopicReopen = shouldSkipTaskCenterActiveTopicReopen(
         {
           topicId,

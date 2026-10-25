@@ -6,9 +6,7 @@
   "agentChat.serviceSkills.badge.customScene": "自訂場景",
   "agentChat.serviceSkills.catalogSource.seeded": "起步做法",
   "agentChat.serviceSkills.catalogSource.synced": "已同步做法",
-  "agentChat.home.composer.placeholder": "先說這輪要做什麼，目標、對象或限制都可以。",
+  "agentChat.home.composer.placeholder": "隨心輸入",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "請查看這些檔案或資料夾。",
-  "agentChat.home.hero.eyebrow": "創作",
-  "agentChat.home.hero.slogan": "青檸一下，靈感即來",
-  "agentChat.home.hero.description": "說一句目標，Lime 就接著幫你做。"
+  "agentChat.home.title": "我們要建置什麼？"
 }

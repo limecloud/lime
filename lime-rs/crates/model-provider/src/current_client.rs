@@ -63,6 +63,7 @@ mod stream;
 #[cfg(test)]
 mod stream_tests;
 mod tool_arguments;
+mod tool_output;
 mod transport;
 #[cfg(test)]
 mod vertex_gemini_tests;
@@ -313,6 +314,11 @@ impl CurrentProviderRequest {
     fn media_payloads(&self) -> Result<BTreeMap<String, String>, CurrentProviderError> {
         let mut payloads = BTreeMap::new();
         for content in self.messages.iter().flat_map(|message| &message.content) {
+            if let CurrentProviderContent::ToolResult(result)
+            | CurrentProviderContent::CustomToolResult(result) = content
+            {
+                tool_output::collect_media_payloads(result, &mut payloads)?;
+            }
             let CurrentProviderContent::Image {
                 uri, provider_data, ..
             } = content
@@ -406,16 +412,7 @@ fn canonical_content(
         CurrentProviderContent::ToolResult(result) => Ok(ContentPart::ToolResult {
             id: result.call_id.clone(),
             name: result.name.clone(),
-            result: if result.success {
-                ToolResultValue::text(result.output.clone())
-            } else {
-                ToolResultValue::Error {
-                    value: serde_json::json!({
-                        "output": result.output,
-                        "error": result.error,
-                    }),
-                }
-            },
+            result: tool_output::canonical_result(result)?,
             error: result.error.clone(),
             provider_executed: Some(false),
             metadata: Default::default(),
@@ -423,16 +420,7 @@ fn canonical_content(
         CurrentProviderContent::CustomToolResult(result) => Ok(ContentPart::CustomToolResult {
             id: result.call_id.clone(),
             name: result.name.clone(),
-            result: if result.success {
-                ToolResultValue::text(result.output.clone())
-            } else {
-                ToolResultValue::Error {
-                    value: serde_json::json!({
-                        "output": result.output,
-                        "error": result.error,
-                    }),
-                }
-            },
+            result: tool_output::canonical_result(result)?,
             error: result.error.clone(),
             metadata: Default::default(),
         }),
@@ -576,6 +564,9 @@ impl CurrentProviderToolCall {
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CurrentProviderToolResult {
+    /// Typed model output, persisted in the same durable call/result history.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub content_items: Vec<agent_protocol::response_item::FunctionCallOutputContentItem>,
     /// Originating history budget, including allowance; never serialized to provider wire.
     pub history_token_limit: Option<usize>,
     pub call_id: String,
@@ -2246,6 +2237,7 @@ mod tests {
             )]),
             CurrentProviderMessage::tool(vec![CurrentProviderContent::ToolResult(
                 CurrentProviderToolResult {
+                    content_items: Vec::new(),
                     history_token_limit: None,
                     call_id: "call-1".to_string(),
                     name: "Read".to_string(),

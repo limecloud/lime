@@ -63,7 +63,7 @@ export function useWorkspaceTaskCenterDraftStateRuntime({
     const previousAgentEntry = previousAgentEntryRef.current;
     previousAgentEntryRef.current = agentEntry;
 
-    if (previousAgentEntry !== "new-task" || agentEntry !== "claw") {
+    if (previousAgentEntry !== "new-task" || agentEntry !== "conversation") {
       return;
     }
 

@@ -88,7 +88,7 @@ async function mount(
       initialScope,
     });
     const state = useWorkspaceTaskCenterDraftStateRuntime({
-      agentEntry: "claw",
+      agentEntry: "conversation",
       deferSessionRecentMetadataSyncForNavigation: noop,
       effectiveThreadItemCount: 0,
       hasInitialSessionTopic: false,
@@ -154,7 +154,7 @@ async function mount(
     };
     const topicNavigation = useTaskCenterTopicNavigationRuntime({
       activeSessionIdRef,
-      agentEntry: "claw",
+      agentEntry: "conversation",
       clearEntryPendingA2UI: noop,
       clearTaskCenterEmbeddedHomeSession,
       messagesLength: 0,

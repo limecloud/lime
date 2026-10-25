@@ -287,7 +287,7 @@ export const InputbarRuntimeStatusLine: React.FC<
       {segments.map((segment) => (
         <React.Fragment key={segment}>
           <span aria-hidden className="text-slate-300">
-            ·
+            {" "}
           </span>
           <span className="whitespace-nowrap">{segment}</span>
         </React.Fragment>
@@ -296,7 +296,7 @@ export const InputbarRuntimeStatusLine: React.FC<
       {detailText ? (
         <>
           <span aria-hidden className="text-slate-300">
-            ·
+            {" "}
           </span>
           <span
             className="min-w-0 max-w-[300px] truncate text-slate-400"

@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsTabs } from "@/types/settings";
 import type { BrowserWorkspaceIdentity } from "@/lib/api/browserWorkspace";
-import { buildClawAgentParams } from "@/lib/workspace/navigation";
+import { buildConversationParams } from "@/lib/workspace/navigation";
 import { useBrowserHistoryNavigation } from "./useBrowserHistoryNavigation";
 import { useAppNavigation } from "./useAppNavigation";
 
@@ -144,7 +144,7 @@ describe("browser history canonical navigation", () => {
     });
     expect(navigate).toHaveBeenCalledExactlyOnceWith(
       "agent",
-      buildClawAgentParams({
+      buildConversationParams({
         initialSessionId: "runtime-session",
         projectId: "workspace",
       }),
@@ -258,7 +258,7 @@ describe("browser history canonical navigation", () => {
       await act(async () =>
         navigation.handleNavigate(
           "agent",
-          buildClawAgentParams({
+          buildConversationParams({
             initialSessionId: owner.runtimeSessionId,
             projectId: owner.workspaceId,
           }),
@@ -418,7 +418,7 @@ describe("browser history settings return fallback", () => {
       });
       expect(navigate).toHaveBeenCalledExactlyOnceWith(
         "agent",
-        buildClawAgentParams({
+        buildConversationParams({
           initialSessionId: owner.runtimeSessionId,
           projectId: owner.workspaceId,
         }),
@@ -463,7 +463,7 @@ describe("browser history settings return fallback", () => {
     expect(api.request.mock.calls[0][0].workspaceId).toBeNull();
     expect(navigate).toHaveBeenCalledExactlyOnceWith(
       "agent",
-      buildClawAgentParams({
+      buildConversationParams({
         initialSessionId: owner.runtimeSessionId,
         projectId: undefined,
       }),

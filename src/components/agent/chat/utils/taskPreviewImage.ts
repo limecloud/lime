@@ -18,7 +18,7 @@ import {
 } from "./taskPreviewCopy";
 import { findImageTaskRecord } from "./imageTaskToolResult";
 import { sanitizeImageWorkbenchPresentationText } from "./imageWorkbenchPresentation";
-import { readImageGenerationSoulMetadata } from "../workspace/imageTaskPreviewRuntimePayload";
+
 
 function extractImageTaskPromptFromToolArguments(toolArguments: string | undefined): {
   prompt?: string;
@@ -407,7 +407,7 @@ export function buildImageTaskPreviewFromToolResult(
       status: previewStatus,
       layoutHint,
     });
-  const soulMetadata = readImageGenerationSoulMetadata(candidates);
+
   const explicitTaskFilePath = readMetadataString(candidates, [
     "absolute_path",
     "absolutePath",
@@ -487,6 +487,6 @@ export function buildImageTaskPreviewFromToolResult(
       readMetadataString(candidates, ["size", "resolution"]),
     phase: resolveTaskPreviewPhase(status),
     statusMessage,
-    soulMetadata,
+
   };
 }

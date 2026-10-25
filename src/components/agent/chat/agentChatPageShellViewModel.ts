@@ -2,7 +2,7 @@ import type { AgentChatWorkspaceProps } from "./agentChatWorkspaceContract";
 
 type AgentEntry = NonNullable<AgentChatWorkspaceProps["agentEntry"]>;
 
-type AgentChatPageShellInput = Pick<
+type LocalConversationPageShellInput = Pick<
   AgentChatWorkspaceProps,
   | "agentEntry"
   | "initialInputCapability"
@@ -17,9 +17,9 @@ type AgentChatPageShellInput = Pick<
   | "showChatPanel"
 >;
 
-export interface AgentChatPageShellViewModel {
+export interface LocalConversationPageShellViewModel {
   hasDirectWorkspaceIntent: boolean;
-  shouldForceClawWorkspace: boolean;
+  shouldOpenConversation: boolean;
   effectiveAgentEntry: AgentEntry;
   effectiveShowChatPanel: AgentChatWorkspaceProps["showChatPanel"];
 }
@@ -28,10 +28,10 @@ function hasText(value: string | null | undefined): boolean {
   return Boolean(value?.trim());
 }
 
-export function resolveAgentChatPageShellViewModel(
-  props: AgentChatPageShellInput,
-): AgentChatPageShellViewModel {
-  const agentEntry = props.agentEntry ?? "claw";
+export function resolveLocalConversationPageShellViewModel(
+  props: LocalConversationPageShellInput,
+): LocalConversationPageShellViewModel {
+  const agentEntry = props.agentEntry ?? "conversation";
   const preferHomeForInitialInputCapability =
     props.preferHomeForInitialInputCapability ?? false;
 
@@ -47,14 +47,14 @@ export function resolveAgentChatPageShellViewModel(
     hasText(props.initialProjectFileOpenTarget?.relativePath) ||
     Boolean(props.openBrowserAssistOnMount);
 
-  const shouldForceClawWorkspace =
+  const shouldOpenConversation =
     agentEntry === "new-task" && hasDirectWorkspaceIntent;
 
   return {
     hasDirectWorkspaceIntent,
-    shouldForceClawWorkspace,
-    effectiveAgentEntry: shouldForceClawWorkspace ? "claw" : agentEntry,
-    effectiveShowChatPanel: shouldForceClawWorkspace
+    shouldOpenConversation,
+    effectiveAgentEntry: shouldOpenConversation ? "conversation" : agentEntry,
+    effectiveShowChatPanel: shouldOpenConversation
       ? true
       : props.showChatPanel,
   };

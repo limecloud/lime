@@ -89,6 +89,80 @@ impl ComputerUseService {
         drop(release);
         result
     }
+    pub fn disconnect(&self, connection: &str) {
+        let mut owners = Vec::new();
+        if let Ok(mut state) = self.state.lock() {
+            state
+                .turn_connections
+                .retain(|(thread_id, turn_id), owner| {
+                    if owner != connection {
+                        return true;
+                    }
+                    owners.push(ComputerUseOwner {
+                        connection: owner.clone(),
+                        thread_id: thread_id.clone(),
+                        turn_id: turn_id.clone(),
+                    });
+                    false
+                });
+            if state.grants.values().any(|g| g.connection == connection)
+                || state
+                    .leases
+                    .values()
+                    .any(|l| l.owner.connection == connection)
+            {
+                state.invalidate();
+            }
+        }
+        self.finish_turns(owners);
+    }
+
+    pub fn cancel_turn(&self, thread_id: &str, turn_id: &str) {
+        let mut owners = Vec::new();
+        if let Ok(mut state) = self.state.lock() {
+            if let Some(connection) = state
+                .turn_connections
+                .remove(&(thread_id.into(), turn_id.into()))
+            {
+                owners.push(ComputerUseOwner {
+                    connection,
+                    thread_id: thread_id.into(),
+                    turn_id: turn_id.into(),
+                });
+            }
+            state.leases.retain(|_, lease| {
+                let matches = lease.owner.thread_id == thread_id && lease.owner.turn_id == turn_id;
+                if matches {
+                    lease.cancellation.cancel();
+                }
+                !matches
+            });
+        }
+        self.finish_turns(owners);
+    }
+
+    pub fn disconnect_all(&self) {
+        let mut owners = Vec::new();
+        if let Ok(mut state) = self.state.lock() {
+            owners.extend(state.turn_connections.drain().map(
+                |((thread_id, turn_id), connection)| ComputerUseOwner {
+                    connection,
+                    thread_id,
+                    turn_id,
+                },
+            ));
+            state.invalidate();
+        }
+        self.finish_turns(owners);
+    }
+
+    fn finish_turns(&self, owners: Vec<ComputerUseOwner>) {
+        for owner in owners {
+            for adapter in self.adapters.values() {
+                adapter.finish_turn(&owner);
+            }
+        }
+    }
 }
 
 struct TurnLeaseGuard<'a> {

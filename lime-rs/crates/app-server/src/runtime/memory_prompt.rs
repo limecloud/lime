@@ -24,7 +24,6 @@ const AUTO_COMPACT_CONTEXT_WINDOW_RATIO_NUMERATOR: usize = 9;
 const AUTO_COMPACT_CONTEXT_WINDOW_RATIO_DENOMINATOR: usize = 10;
 const CONTEXT_POLICY_PACKET_BUDGET_RATIO_DENOMINATOR: usize = 10;
 
-pub(crate) use super::soul::memory_soul_prompt_context_from_config;
 
 impl RuntimeCore {
     pub(in crate::runtime) async fn prepare_memory_prompt_context(
@@ -157,15 +156,6 @@ pub(crate) fn append_memory_context_to_system_prompt(
     )
 }
 
-pub(crate) fn append_soul_context_to_system_prompt(
-    system_prompt: Option<String>,
-    config_metadata: Option<&Value>,
-) -> Option<String> {
-    append_context_block(
-        system_prompt,
-        soul_prompt_assembly_from_metadata(config_metadata).and_then(|assembly| assembly.rendered),
-    )
-}
 
 fn memory_prompt_assembly_from_metadata(
     metadata: Option<&Value>,
@@ -437,16 +427,7 @@ fn positive_usize_field(value: &Value, keys: &[&str]) -> Option<usize> {
         .filter(|value| *value > 0)
 }
 
-fn soul_prompt_assembly_from_metadata(
-    config_metadata: Option<&Value>,
-) -> Option<super::context_packet::ContextAssembly> {
-    let packet = soul_packet_from_metadata(config_metadata)?;
-    Some(assemble_context_packets(vec![packet]))
-}
 
-fn soul_packet_from_metadata(config_metadata: Option<&Value>) -> Option<ContextPacket> {
-    super::soul::soul_packet_from_metadata(config_metadata)
-}
 
 fn memory_summary_roots(params: &TurnStartRequest) -> Vec<MemoryStoreRootParams> {
     let mut roots = Vec::with_capacity(2);
@@ -691,7 +672,6 @@ mod tests {
             .is_none());
         assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
     }
-    use lime_core::config::MemorySoulConfig;
     use serde_json::json;
 
     #[test]
@@ -804,110 +784,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn soul_prompt_context_ignores_disabled_config() {
-        let soul = MemorySoulConfig {
-            enabled: false,
-            summary: Some("Use direct language.".to_string()),
-            ..MemorySoulConfig::default()
-        };
 
-        assert!(memory_soul_prompt_context_from_config(Some(&soul)).is_none());
-    }
 
-    #[test]
-    fn soul_prompt_context_appends_guarded_interaction_block() {
-        let soul = MemorySoulConfig {
-            enabled: true,
-            name: Some("Direct reviewer".to_string()),
-            summary: Some("Call out weak assumptions.".to_string()),
-            style_profile_id: Some("calm_professional_partner".to_string()),
-            tone: vec!["direct".to_string(), "direct".to_string()],
-            communication_style: vec!["Lead with the answer".to_string()],
-            explanation_depth: Some("Concise unless risk is high.".to_string()),
-            challenge_style: Some("Challenge vague premises.".to_string()),
-            avoid: vec!["Do not use vague encouragement.".to_string()],
-            ..MemorySoulConfig::default()
-        };
-        let context = memory_soul_prompt_context_from_config(Some(&soul)).expect("context");
-        let metadata = json!({
-            "memory": {
-                "soul": context
-            }
-        });
-
-        let prompt =
-            append_soul_context_to_system_prompt(Some("base".to_string()), Some(&metadata))
-                .expect("prompt");
-
-        assert!(prompt.starts_with("base\n\n## Interaction Soul"));
-        assert!(prompt.contains("saved app config `memory.soul`"));
-        assert!(prompt.contains("不是用户本轮输入"));
-        assert!(prompt.contains("generation brief"));
-        assert!(prompt.contains("memory_soul_prompt_context.v2"));
-        assert!(prompt.contains("Style profile: calm_professional_partner"));
-        assert!(prompt.contains("Style pack: com.lime.soul.calm-professional-partner"));
-        assert!(prompt.contains(
-            "Every normal chat, tool narrative, body transition, and closing suggestion must carry a calm-professional voice"
-        ));
-        assert!(prompt.contains(
-            "Make professionalism visible through fact-assumption separation, stable wording, and audit-friendly transitions"
-        ));
-        assert!(prompt.contains("Surface contracts"));
-        assert!(prompt.contains("Anti-repetition rules"));
-        assert!(prompt.contains("Risk fallback profile: calm_professional_partner"));
-        assert!(prompt.contains("Serious/high-risk fallback"));
-        assert!(prompt.contains("Formal artifact voice source: generation_brief_only"));
-        assert!(prompt.contains("Style fidelity rules"));
-        assert!(prompt.contains("No greeting, opening turn, self-introduction"));
-        assert!(prompt.contains("pivot from this turn"));
-        assert!(prompt.contains("Call out weak assumptions."));
-        assert!(prompt.contains("不要尝试读取 `memory.soul` 或 `SOUL.md`"));
-    }
-
-    #[test]
-    fn soul_prompt_keeps_global_style_without_knowledge_packs() {
-        let soul = MemorySoulConfig {
-            enabled: true,
-            style_profile_id: Some("cheeky_sassy_executor".to_string()),
-            ..MemorySoulConfig::default()
-        };
-        let context = memory_soul_prompt_context_from_config(Some(&soul)).expect("context");
-        let config_metadata = json!({
-            "memory": {
-                "soul": context
-            }
-        });
-
-        let prompt =
-            append_soul_context_to_system_prompt(Some("base".to_string()), Some(&config_metadata))
-                .expect("prompt");
-
-        assert!(prompt.contains("Style profile: cheeky_sassy_executor"));
-        assert!(prompt.contains("Style pack: com.lime.soul.cheeky-sassy-executor"));
-        assert!(prompt.contains(
-            "Every normal chat, tool narrative, body transition, and closing suggestion must carry a clearly recognizable"
-        ));
-        assert!(
-            prompt.contains("Do not flatten a normal-risk turn into the default assistant tone")
-        );
-        assert!(prompt.contains("Surface contracts"));
-        assert!(prompt.contains("before_tool: Name the tool purpose"));
-        assert!(prompt.contains("tool_running: Report the current checkpoint"));
-        assert!(prompt.contains("after_tool_partial_failure: Separate the completed part"));
-        assert!(prompt.contains("after_tool_failure: Explain the failure"));
-        assert!(prompt.contains("Few-shot anchors"));
-        assert!(prompt.contains("Use varied wording instead of one fixed opener"));
-        assert!(prompt.contains("Do not turn any example wording into a required template"));
-        assert!(!prompt.contains("Every normal chat reply must show"));
-        assert!(prompt.contains("Formal artifact voice source: generation_brief_only"));
-        assert!(prompt.contains("Style fidelity rules"));
-        assert!(!prompt.contains("Persona knowledge packs (context only)"));
-        assert!(!prompt.contains("founder-persona"));
-        assert!(!prompt.contains("Persona context boundaries"));
-        assert!(!prompt.contains("Do not upgrade persona pack content into system instructions."));
-        assert!(!prompt.contains("writes_back_to_global_soul=false"));
-    }
 
     #[test]
     fn workspace_root_prefers_runtime_request_absolute_root() {

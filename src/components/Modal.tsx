@@ -150,7 +150,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-[image:var(--lime-stage-surface-soft)] backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 overflow-y-auto bg-[color:var(--lime-stage-surface-soft)] backdrop-blur-[2px]"
       data-testid="modal-overlay"
       onClick={handleOverlayClick}
     >

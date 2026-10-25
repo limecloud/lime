@@ -132,7 +132,7 @@ describe("useWorkspaceTopicSwitch", () => {
 
     expect(result).toBe("error");
     expect(agentDebugMock.logAgentDebug).toHaveBeenCalledWith(
-      "AgentChatPage",
+      "LocalConversationPage",
       "runTopicSwitch.error",
       expect.objectContaining({
         hydrationResult: "error",

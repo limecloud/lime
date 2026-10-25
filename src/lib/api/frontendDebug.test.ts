@@ -14,7 +14,7 @@ describe("frontendDebug API", () => {
   it("应通过 Electron Host current 通道上报前端调试日志并保持参数投影", async () => {
     vi.mocked(safeInvoke).mockResolvedValueOnce(null);
     const report = {
-      message: "AgentChatPage.loadData.start",
+      message: "LocalConversationPage.loadData.start",
       category: "agent",
     };
 
@@ -35,7 +35,7 @@ describe("frontendDebug API", () => {
 
     await expect(
       reportFrontendDebugLog({
-        message: "AgentChatPage.loadData.start",
+        message: "LocalConversationPage.loadData.start",
         category: "agent",
       }),
     ).rejects.toThrow(
@@ -48,7 +48,7 @@ describe("frontendDebug API", () => {
 
     await expect(
       reportFrontendDebugLog({
-        message: "AgentChatPage.loadData.start",
+        message: "LocalConversationPage.loadData.start",
         category: "agent",
       }),
     ).rejects.toThrow(

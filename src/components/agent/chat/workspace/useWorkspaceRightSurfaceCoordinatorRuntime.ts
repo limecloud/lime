@@ -19,7 +19,12 @@ import { useWorkspaceRightSurfacePendingBridgeRuntime } from "./useWorkspaceRigh
 import { useWorkspaceRightSurfaceProjectionRuntime } from "./useWorkspaceRightSurfaceProjectionRuntime";
 import { closeBrowserTab } from "@/lib/api/browserTab";
 import { useWorkspaceBrowserTabProjection } from "./useWorkspaceBrowserTabProjection";
-import { readBrowserPresentation } from "./right-surface/browser/browserPresentation";
+import {
+  hasBrowserPresentation,
+  readBrowserPresentation,
+  readBrowserPresentationUrl,
+} from "./right-surface/browser/browserPresentation";
+import { readBrowserResumeTarget } from "./right-surface/browser/browserResumeTarget";
 import {
   createBrowserWorkspaceLinkTab,
   type BrowserWorkspaceOwner,
@@ -99,13 +104,24 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
     sceneThreadId,
     threadItems,
   );
+  const browserOwner = {
+    sessionId: effectiveSessionId,
+    threadId: effectiveSceneThreadId,
+  };
+  const browserResumeUrl =
+    readBrowserPresentationUrl(browserOwner) ??
+    (!hasBrowserPresentation(browserOwner)
+      ? readBrowserResumeTarget(threadItems, effectiveSceneThreadId)
+      : null);
   useWorkspaceBrowserTabProjection({
     enabled:
       localState.sidePanelTabs.tabs.some((tab) => tab.kind === "browser") ||
       readBrowserPresentation({
         sessionId: effectiveSessionId,
         threadId: effectiveSceneThreadId,
-      }) !== null,
+      }) !== null ||
+      browserResumeUrl !== null,
+    resumeUrl: browserResumeUrl,
     runtimeSessionId: effectiveSessionId,
     threadId: effectiveSceneThreadId,
     onProjection: localState.synchronizeBrowserTabs,

@@ -4,7 +4,7 @@ import {
   buildGenerationBriefMetadata,
   mergeGenerationBriefIntoArtifactMetadata,
   mergeRequestMetadataWithArtifact,
-  mergeSoulArtifactVoiceDiagnostics,
+
 } from "./artifactGenerationBriefMetadata";
 
 describe("artifactGenerationBriefMetadata", () => {
@@ -19,7 +19,7 @@ describe("artifactGenerationBriefMetadata", () => {
       voiceSource: " brand_voice ",
       voiceGuard: " user_explicit ",
       formalArtifactVoiceSource: " generation_brief_only ",
-      inheritsGlobalSoul: false,
+
       inheritsExpertPersona: false,
       evidencePackId: " voice-pack-1 ",
       evidenceRefs: [" memory:voice-1 ", "", "knowledge:brand-1"],
@@ -30,7 +30,7 @@ describe("artifactGenerationBriefMetadata", () => {
       voice_source: "brand_voice",
       voice_guard: "user_explicit",
       formal_artifact_voice_source: "generation_brief_only",
-      inherits_global_soul: false,
+
       inherits_expert_persona: false,
       evidence_pack_id: "voice-pack-1",
       evidence_refs: ["memory:voice-1", "knowledge:brand-1"],
@@ -211,103 +211,9 @@ describe("artifactGenerationBriefMetadata", () => {
     });
   });
 
-  it("保存声线被应用时应写入可解释诊断", () => {
-    const metadata = mergeSoulArtifactVoiceDiagnostics(
-      {
-        artifact: {
-          generation_brief: {
-            voice_source: "brand_voice",
-            voice_guard: "user_explicit",
-            brand_voice_id: "brand-voice-1",
-            evidence_refs: ["memory:brand-voice"],
-          },
-        },
-      },
-      {
-        savedGenerationBrief: {
-          voiceSource: "brand_voice",
-          voiceGuard: "user_explicit",
-          brandVoiceId: "brand-voice-1",
-          evidenceRefs: ["memory:brand-voice"],
-        },
-        savedVoiceEnabledForTurn: true,
-        hasExplicitGenerationBrief: false,
-      },
-    );
 
-    expect(metadata.diagnostics).toEqual({
-      soul_artifact_voice: {
-        status: "saved_applied",
-        enabled_for_turn: true,
-        source: "memory.soul.artifact_voice",
-        guard_result: "applied",
-        voice_source: "brand_voice",
-        voice_guard: "user_explicit",
-        evidence_refs: ["memory:brand-voice"],
-        evidence_ref_count: 1,
-      },
-    });
-  });
 
-  it("本轮关闭保存声线时应只保留诊断，不注入 generation brief", () => {
-    const metadata = mergeSoulArtifactVoiceDiagnostics(
-      {},
-      {
-        savedGenerationBrief: {
-          voiceSource: "creator_voice",
-          creatorVoiceId: "creator-voice-1",
-          evidenceSource: "memory.soul.artifact_voice",
-        },
-        savedVoiceEnabledForTurn: false,
-        hasExplicitGenerationBrief: false,
-      },
-    );
 
-    expect(metadata).not.toHaveProperty("artifact");
-    expect(metadata.diagnostics).toEqual({
-      soul_artifact_voice: {
-        status: "disabled_for_turn",
-        enabled_for_turn: false,
-        source: "memory.soul.artifact_voice",
-        guard_result: "blocked_by_turn_override",
-        voice_source: "creator_voice",
-        evidence_source: "memory.soul.artifact_voice",
-      },
-    });
-  });
 
-  it("本轮显式 generation brief 的诊断来源应覆盖保存声线", () => {
-    const metadata = mergeSoulArtifactVoiceDiagnostics(
-      {
-        artifact: {
-          generation_brief: {
-            voice_source: "creator_voice",
-            creator_voice_id: "turn-creator-voice",
-            evidence_refs: ["memory:turn-voice"],
-          },
-        },
-      },
-      {
-        savedGenerationBrief: {
-          voiceSource: "brand_voice",
-          brandVoiceId: "saved-brand-voice",
-          evidenceSource: "memory.soul.artifact_voice",
-        },
-        savedVoiceEnabledForTurn: true,
-        hasExplicitGenerationBrief: true,
-      },
-    );
 
-    expect(metadata.diagnostics).toEqual({
-      soul_artifact_voice: {
-        status: "turn_explicit",
-        enabled_for_turn: true,
-        source: "request_metadata.generation_brief",
-        guard_result: "applied",
-        voice_source: "creator_voice",
-        evidence_refs: ["memory:turn-voice"],
-        evidence_ref_count: 1,
-      },
-    });
-  });
 });

@@ -6904,82 +6904,6 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
-              "const": "soulStylePack/install",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "soulStylePack/list",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "soulStylePack/status/set",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "soulStylePack/uninstall",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
               "const": "scheduledTask/list",
               "type": "string"
             },
@@ -8700,10 +8624,6 @@
         "skillRepository/delete",
         "skillRepository/list",
         "skillRepository/save",
-        "soulStylePack/install",
-        "soulStylePack/list",
-        "soulStylePack/status/set",
-        "soulStylePack/uninstall",
         "storage/delete",
         "storage/read",
         "storage/refresh",
@@ -21472,6 +21392,49 @@
           ],
           "type": "string"
         },
+        "ComputerUseGrant": {
+          "properties": {
+            "adapter": {
+              "$ref": "#/$defs/ComputerUseAdapterKind"
+            },
+            "capabilities": {
+              "items": {
+                "$ref": "#/$defs/ComputerUseCapability"
+              },
+              "type": "array"
+            },
+            "epoch": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/ComputerUseGrantScope"
+            },
+            "target": {
+              "$ref": "#/$defs/ComputerUseTargetIdentity"
+            }
+          },
+          "required": [
+            "adapter",
+            "capabilities",
+            "epoch",
+            "id",
+            "scope",
+            "target"
+          ],
+          "type": "object"
+        },
+        "ComputerUseGrantScope": {
+          "enum": [
+            "persistent",
+            "session"
+          ],
+          "type": "string"
+        },
         "ComputerUseReadiness": {
           "enum": [
             "blocked",
@@ -21603,6 +21566,12 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/ComputerUseGrant"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -73782,351 +73751,6 @@
       "title": "SortDirection",
       "type": "string"
     },
-    "SoulStylePackInstallParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "enableAfterInstall": {
-          "default": false,
-          "type": "boolean"
-        },
-        "localeSources": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {},
-          "type": "object"
-        },
-        "manifestSource": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "manifestSource"
-      ],
-      "title": "SoulStylePackInstallParams",
-      "type": "object"
-    },
-    "SoulStylePackInstallResponse": {
-      "$defs": {
-        "SoulStylePackInstallStatus": {
-          "enum": [
-            "disabled",
-            "discovered",
-            "downloading",
-            "enabled",
-            "failed",
-            "installed",
-            "installing",
-            "uninstalled",
-            "validating"
-          ],
-          "type": "string"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "packId": {
-          "type": "string"
-        },
-        "profileIds": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "status": {
-          "$ref": "#/$defs/SoulStylePackInstallStatus"
-        }
-      },
-      "required": [
-        "packId",
-        "status"
-      ],
-      "title": "SoulStylePackInstallResponse",
-      "type": "object"
-    },
-    "SoulStylePackInstallStatus": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "enum": [
-        "disabled",
-        "discovered",
-        "downloading",
-        "enabled",
-        "failed",
-        "installed",
-        "installing",
-        "uninstalled",
-        "validating"
-      ],
-      "title": "SoulStylePackInstallStatus",
-      "type": "string"
-    },
-    "SoulStylePackListEntry": {
-      "$defs": {
-        "SoulStylePackInstallStatus": {
-          "enum": [
-            "disabled",
-            "discovered",
-            "downloading",
-            "enabled",
-            "failed",
-            "installed",
-            "installing",
-            "uninstalled",
-            "validating"
-          ],
-          "type": "string"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "integrityDigest": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "localeSources": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {},
-          "type": "object"
-        },
-        "manifestSource": {
-          "type": "string"
-        },
-        "packId": {
-          "type": "string"
-        },
-        "profileIds": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "source": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/SoulStylePackInstallStatus"
-        },
-        "updatedAt": {
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      },
-      "required": [
-        "manifestSource",
-        "packId",
-        "source",
-        "status"
-      ],
-      "title": "SoulStylePackListEntry",
-      "type": "object"
-    },
-    "SoulStylePackListParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "SoulStylePackListParams",
-      "type": "object"
-    },
-    "SoulStylePackListResponse": {
-      "$defs": {
-        "SoulStylePackInstallStatus": {
-          "enum": [
-            "disabled",
-            "discovered",
-            "downloading",
-            "enabled",
-            "failed",
-            "installed",
-            "installing",
-            "uninstalled",
-            "validating"
-          ],
-          "type": "string"
-        },
-        "SoulStylePackListEntry": {
-          "properties": {
-            "integrityDigest": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "localeSources": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "default": {},
-              "type": "object"
-            },
-            "manifestSource": {
-              "type": "string"
-            },
-            "packId": {
-              "type": "string"
-            },
-            "profileIds": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "source": {
-              "type": "string"
-            },
-            "status": {
-              "$ref": "#/$defs/SoulStylePackInstallStatus"
-            },
-            "updatedAt": {
-              "type": [
-                "null",
-                "string"
-              ]
-            }
-          },
-          "required": [
-            "manifestSource",
-            "packId",
-            "source",
-            "status"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "packs": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/SoulStylePackListEntry"
-          },
-          "type": "array"
-        }
-      },
-      "title": "SoulStylePackListResponse",
-      "type": "object"
-    },
-    "SoulStylePackMutableStatus": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "enum": [
-        "disabled",
-        "enabled"
-      ],
-      "title": "SoulStylePackMutableStatus",
-      "type": "string"
-    },
-    "SoulStylePackStatusSetParams": {
-      "$defs": {
-        "SoulStylePackMutableStatus": {
-          "enum": [
-            "disabled",
-            "enabled"
-          ],
-          "type": "string"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "packId": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/SoulStylePackMutableStatus"
-        }
-      },
-      "required": [
-        "packId",
-        "status"
-      ],
-      "title": "SoulStylePackStatusSetParams",
-      "type": "object"
-    },
-    "SoulStylePackStatusSetResponse": {
-      "$defs": {
-        "SoulStylePackInstallStatus": {
-          "enum": [
-            "disabled",
-            "discovered",
-            "downloading",
-            "enabled",
-            "failed",
-            "installed",
-            "installing",
-            "uninstalled",
-            "validating"
-          ],
-          "type": "string"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "packId": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/SoulStylePackInstallStatus"
-        }
-      },
-      "required": [
-        "packId",
-        "status"
-      ],
-      "title": "SoulStylePackStatusSetResponse",
-      "type": "object"
-    },
-    "SoulStylePackUninstallParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "packId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "packId"
-      ],
-      "title": "SoulStylePackUninstallParams",
-      "type": "object"
-    },
-    "SoulStylePackUninstallResponse": {
-      "$defs": {
-        "SoulStylePackInstallStatus": {
-          "enum": [
-            "disabled",
-            "discovered",
-            "downloading",
-            "enabled",
-            "failed",
-            "installed",
-            "installing",
-            "uninstalled",
-            "validating"
-          ],
-          "type": "string"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "packId": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/SoulStylePackInstallStatus"
-        }
-      },
-      "required": [
-        "packId",
-        "status"
-      ],
-      "title": "SoulStylePackUninstallResponse",
-      "type": "object"
-    },
     "StorageDeleteParams": {
       "$defs": {
         "StorageCleanupCandidate": {
@@ -123799,10 +123423,6 @@
               "skills/config/write",
               "skills/extraRoots/set",
               "skills/list",
-              "soulStylePack/install",
-              "soulStylePack/list",
-              "soulStylePack/status/set",
-              "soulStylePack/uninstall",
               "storage/delete",
               "storage/read",
               "storage/refresh",

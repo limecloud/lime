@@ -40,7 +40,6 @@
   "agentExperts.info.overview.workWithRefs": "必要时引用已绑定的技能、记忆模板和工作流。",
   "agentExperts.info.boundary.truth": "基于真实上下文和用户提供的信息工作，不编造未给出的事实。",
   "agentExperts.info.boundary.private": "不会把项目文件、私有记忆或对话内容写回公共专家目录。",
-  "agentExperts.info.boundary.soul": "全局 Soul 只影响沟通节奏；专家人格不会写回全局 Soul，也不会默认进入正式产物。",
   "agentExperts.info.memory.title": "MEMORY.md — {{title}} 记忆",
   "agentExperts.info.memory.focus": "当前项目与关注",
   "agentExperts.info.memory.defaultFocus": "围绕本轮任务持续沉淀偏好、约束和复盘线索。",

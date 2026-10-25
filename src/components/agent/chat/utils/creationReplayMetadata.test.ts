@@ -1,58 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMemoryEntryCreationReplayRequestMetadata,
-  buildSkillScaffoldCreationReplayRequestMetadata,
   extractCreationReplayMetadata,
 } from "./creationReplayMetadata";
-
-describe("buildSkillScaffoldCreationReplayRequestMetadata", () => {
-  it("应生成可复用的技能草稿结构化回放 metadata", () => {
-    const result = buildSkillScaffoldCreationReplayRequestMetadata(
-      {
-        name: "结果沉淀技能",
-        description: "  把一次成功结果整理成稳定可复用的工作流。  ",
-        target: "project",
-        directory: "content/skill-writer",
-        whenToUse: ["复用相近任务", "沉淀团队做法"],
-        inputs: ["任务目标", "参考结果"],
-        outputs: ["结构化输入骨架"],
-        steps: ["先拆目标", "再补执行步骤"],
-        fallbackStrategy: ["信息不足先补问"],
-        sourceMessageId: "message-1",
-        sourceExcerpt: "  一段可以继续复用的高质量结果摘要。  ",
-      },
-      {
-        projectId: "project-7",
-      },
-    );
-
-    expect(result).toEqual({
-      harness: {
-        creation_replay: {
-          version: 1,
-          kind: "skill_scaffold",
-          source: {
-            page: "skills",
-            project_id: "project-7",
-            source_message_id: "message-1",
-          },
-          data: {
-            name: "结果沉淀技能",
-            description: "把一次成功结果整理成稳定可复用的工作流。",
-            target: "project",
-            directory: "content/skill-writer",
-            source_excerpt: "一段可以继续复用的高质量结果摘要。",
-            when_to_use: ["复用相近任务", "沉淀团队做法"],
-            inputs: ["任务目标", "参考结果"],
-            outputs: ["结构化输入骨架"],
-            steps: ["先拆目标", "再补执行步骤"],
-            fallback_strategy: ["信息不足先补问"],
-          },
-        },
-      },
-    });
-  });
-});
 
 describe("buildMemoryEntryCreationReplayRequestMetadata", () => {
   it("应生成灵感条目的结构化回放 metadata", () => {
@@ -90,6 +40,21 @@ describe("buildMemoryEntryCreationReplayRequestMetadata", () => {
 });
 
 describe("extractCreationReplayMetadata", () => {
+  it("旧技能草稿 metadata 不再恢复为聊天续用入口", () => {
+    expect(
+      extractCreationReplayMetadata({
+        harness: {
+          creation_replay: {
+            version: 1,
+            kind: "skill_scaffold",
+            source: { page: "skills" },
+            data: { name: "旧技能草稿" },
+          },
+        },
+      }),
+    ).toBeUndefined();
+  });
+
   it("应从 requestMetadata.harness 中恢复 creation replay", () => {
     const requestMetadata = {
       harness: {

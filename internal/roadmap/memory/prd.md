@@ -1,6 +1,7 @@
 # Lime 记忆与上下文治理系统 PRD
+> 2026-10-25：本文件仅保留历史实施证据，不再约束产品。旧 Soul、风格包及创作声线已删除；现役边界以 [记忆与上下文](../../aiprompts/memory-compaction.md) 和 [执行计划](../../exec-plans/browser-runtime-right-surface-plan.md) 为准。下文原有保留要求和未完成清单均已失效。
 
-> 状态：current PRD
+> 状态：historical / superseded
 > 更新时间：2026-06-19
 > 产品口径：普通用户不需要理解记忆系统或上下文压缩；Agent 通过受控工具使用文件化记忆；运行时通过结构化上下文防腐层和多模型预算使用上下文；Soul 继续承接用户可编辑的交互身份和沟通节奏。
 

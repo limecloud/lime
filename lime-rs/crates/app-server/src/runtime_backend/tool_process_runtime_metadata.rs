@@ -1,6 +1,6 @@
 use super::tool_process_metadata::{
     build_tool_process_metadata, merge_result_tool_process_metadata, merge_tool_process_metadata,
-    promote_mcp_route_metadata, SoulStyleMetadata, ToolProcessMetadataInput, ToolProcessStatus,
+    promote_mcp_route_metadata, ToolProcessMetadataInput, ToolProcessStatus,
 };
 use agent_protocol::{ItemStatus, ThreadItem, ThreadItemPayload, ToolArgument, ToolOutput};
 use lime_agent::{AgentEvent as RuntimeAgentEvent, AgentToolResult};
@@ -10,7 +10,6 @@ use std::collections::HashMap;
 pub(super) fn enrich_runtime_tool_process_payload(
     event: &RuntimeAgentEvent,
     payload_object: &mut Map<String, Value>,
-    fallback_soul_style: Option<&SoulStyleMetadata>,
 ) {
     if matches!(event, RuntimeAgentEvent::ToolProgress { .. }) {
         promote_mcp_route_metadata(payload_object);
@@ -18,16 +17,12 @@ pub(super) fn enrich_runtime_tool_process_payload(
     let Some(input) = runtime_tool_process_input(event) else {
         return;
     };
-    let payload_soul_style = SoulStyleMetadata::from_payload_object(payload_object)
-        .unwrap_or_default()
-        .merge_with_fallback(fallback_soul_style);
     let metadata = build_tool_process_metadata(ToolProcessMetadataInput {
         tool_id: &input.tool_id,
         tool_name: input.tool_name.as_deref(),
         status: input.status,
         arguments: input.arguments.as_ref(),
         result: input.result.as_ref(),
-        soul_style: payload_soul_style.as_ref(),
     });
     if let Some(item_metadata) = canonical_item_metadata_mut(payload_object) {
         merge_canonical_item_process_metadata(item_metadata, &metadata);
@@ -194,7 +189,7 @@ fn merge_canonical_item_process_metadata(
         if key == "tool_process_summary" && target.contains_key(key) {
             continue;
         }
-        if matches!(key.as_str(), "tool_process_facts" | "soul_lifecycle") {
+        if matches!(key.as_str(), "tool_process_facts") {
             if let (Some(target), Some(source)) = (
                 target.get_mut(key).and_then(Value::as_object_mut),
                 value.as_object(),

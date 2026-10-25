@@ -2,11 +2,13 @@ import { useEffect } from "react";
 import {
   isBrowserTabHostAvailable,
   listBrowserTabs,
+  mountBrowserTab,
   listenBrowserTabClosed,
   listenBrowserTabState,
   type BrowserTabState,
 } from "@/lib/api/browserTab";
 import { openBrowserWorkspaceIdentity } from "@/lib/api/browserWorkspace";
+import { rememberBrowserPresentation } from "./right-surface/browser/browserPresentation";
 import {
   projectBrowserTabChanges,
   type BrowserTabChange,
@@ -17,11 +19,13 @@ export function useWorkspaceBrowserTabProjection({
   enabled,
   runtimeSessionId,
   threadId,
+  resumeUrl = null,
   onProjection,
 }: {
   enabled: boolean;
   runtimeSessionId: string | null;
   threadId: string | null;
+  resumeUrl?: string | null;
   onProjection: (states: readonly BrowserTabState[]) => void;
 }) {
   useEffect(() => {
@@ -74,11 +78,43 @@ export function useWorkspaceBrowserTabProjection({
         threadId,
       });
       if (disposed) return;
-      const snapshot = await listBrowserTabs({
+      let snapshot = await listBrowserTabs({
         browserSessionId: identity.browserSessionId,
         threadId,
       });
       if (disposed) return;
+      if (!snapshot.length && !changes.length && resumeUrl) {
+        const restored = await mountBrowserTab({
+          ...identity,
+          threadId,
+          url: resumeUrl,
+          selected: true,
+          visible: false,
+          bounds: { x: 0, y: 0, width: 0, height: 0 },
+        });
+        if (disposed) return;
+        if (
+          restored.threadId !== threadId ||
+          restored.browserSessionId !== identity.browserSessionId ||
+          restored.tabId !== identity.tabId
+        )
+          throw new Error(
+            "Restored browser does not belong to the canonical conversation",
+          );
+        snapshot = [restored];
+        rememberBrowserPresentation(
+          { sessionId: runtimeSessionId, threadId },
+          restored.tabId,
+          restored.url,
+        );
+      } else if (snapshot.length && resumeUrl) {
+        const selected = snapshot.find((tab) => tab.selected) ?? snapshot[0];
+        rememberBrowserPresentation(
+          { sessionId: runtimeSessionId, threadId },
+          selected.tabId,
+          selected.url,
+        );
+      }
       const first = changes.find(
         (change) =>
           change.kind === "state" &&
@@ -101,5 +137,5 @@ export function useWorkspaceBrowserTabProjection({
       disposed = true;
       cleanup.forEach((stop) => stop());
     };
-  }, [enabled, runtimeSessionId, threadId, onProjection]);
+  }, [enabled, runtimeSessionId, threadId, resumeUrl, onProjection]);
 }

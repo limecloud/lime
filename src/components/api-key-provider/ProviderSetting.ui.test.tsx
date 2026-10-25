@@ -517,7 +517,7 @@ describe("ProviderSetting", () => {
       }),
     );
     expect(callOrder).toEqual(["update", "test"]);
-    expect(container.textContent ?? "").toContain("聊天试跑通过 · 96ms");
+    expect(container.textContent ?? "").toContain("聊天试跑通过 96ms");
   });
 
   it("Lime Hub 未登录时应展示登录提示，不展示模型配置表单", async () => {
@@ -1013,7 +1013,7 @@ describe("ProviderSetting", () => {
       { replaceExisting: true },
     );
     expect(status?.textContent ?? "").toContain("该 API Key 已存在");
-    expect(status?.className ?? "").toContain("border-rose-200");
+    expect(status?.className ?? "").toContain("var(--lime-danger-border)");
     expect(status?.textContent ?? "").not.toContain(
       "这个 API 密钥已在当前服务商中",
     );
@@ -1107,7 +1107,7 @@ describe("ProviderSetting", () => {
         requireChatReady: true,
       }),
     );
-    expect(container.textContent ?? "").toContain("聊天试跑通过 · 128ms");
+    expect(container.textContent ?? "").toContain("聊天试跑通过 128ms");
     expect(container.textContent ?? "").not.toContain("错误详情");
     expect(container.textContent ?? "").not.toContain("对话测试");
   });

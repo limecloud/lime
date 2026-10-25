@@ -5,7 +5,6 @@ import { useAgentChatUnified } from "../hooks";
 import type { AgentChatWorkspaceProps } from "../agentChatWorkspaceContract";
 import { useWorkspaceHarnessInventoryRuntime } from "./useWorkspaceHarnessInventoryRuntime";
 import { useWorkspaceImageWorkbenchSessionRuntime } from "./useWorkspaceImageWorkbenchSessionRuntime";
-import { useWorkspaceSystemPromptRuntime } from "./useWorkspaceSystemPromptRuntime";
 import { useWorkspaceGeneralWorkbenchScaffoldRuntime } from "./useWorkspaceGeneralWorkbenchScaffoldRuntime";
 import { useWorkspaceGeneralWorkbenchRuntime } from "./useWorkspaceGeneralWorkbenchRuntime";
 import { useWorkspaceTeamRuntime } from "./useWorkspaceTeamRuntime";
@@ -18,7 +17,7 @@ import {
   resolveReadOnlyInteractiveMessageIds,
 } from "./workspaceRestoredInteractiveMessages";
 import { useWorkspaceDebugRuntime } from "./useWorkspaceDebugRuntime";
-import { useWorkspaceClassicClawSidebarRuntime } from "./useWorkspaceClassicClawSidebarRuntime";
+import { useConversationSidebar } from "./useConversationSidebar";
 import { useWorkspaceChatToolPreferencesRuntime } from "./useWorkspaceChatToolPreferencesRuntime";
 import { useWorkspaceArtifactCanvasRuntime } from "./useWorkspaceArtifactCanvasRuntime";
 import { useWorkspaceExpertSkillPanelRuntime } from "./useWorkspaceExpertSkillPanelRuntime";
@@ -46,7 +45,7 @@ export function useAgentChatWorkspaceSetupRuntime({
     contentId,
     initialRequestMetadata,
     initialAutoSendRequestMetadata,
-    agentEntry = "claw",
+    agentEntry = "conversation",
     theme: initialTheme,
     initialCreationMode,
     lockTheme = false,
@@ -59,7 +58,7 @@ export function useAgentChatWorkspaceSetupRuntime({
 
   const {
     normalizedEntryTheme,
-    shouldAutoCollapseClassicClawSidebar,
+    shouldCollapseConversationSidebar,
     activeTheme,
     creationMode,
     handleRestoreInterruptedInput,
@@ -105,7 +104,7 @@ export function useAgentChatWorkspaceSetupRuntime({
     generalCanvasState,
 
     agentResponseLanguage,
-    soulInteractionCopy,
+
     ensureImageWorkbenchProvidersLoaded,
     skills,
     skillsLoading,
@@ -120,19 +119,15 @@ export function useAgentChatWorkspaceSetupRuntime({
     isSpecializedThemeMode,
   } = entryRuntime;
 
-  const { chatMode, generalHarnessEntryEnabled, systemPrompt } =
-    useWorkspaceSystemPromptRuntime({
-      chatToolPreferences,
-      contentId,
-      creationMode,
-      isSpecializedThemeMode,
-      mappedTheme,
-      projectMemory,
-    });
+  const chatMode = isSpecializedThemeMode
+    ? "workbench"
+    : mappedTheme === "general"
+      ? "general"
+      : "agent";
+  const generalHarnessEntryEnabled = chatMode === "general";
 
-  // 使用 Agent Chat Hook（传递系统提示词）
+  // 基础指令由 App Server 的模型目录和 AGENTS 统一提供。
   const agentChatRuntime = useAgentChatUnified({
-    systemPrompt,
     onWriteFile: (content, fileName, context) => {
       // 使用 ref 调用最新的 handleWriteFile
       handleWriteFileRef.current?.(content, fileName, context);
@@ -156,8 +151,6 @@ export function useAgentChatWorkspaceSetupRuntime({
     getSyncedSessionRecentPreferences,
     onOpenSubagents: handleOpenSubagents,
     onRestoreInterruptedInput: handleRestoreInterruptedInput,
-
-    soulCopy: soulInteractionCopy,
   });
   const {
     providerType,
@@ -284,16 +277,15 @@ export function useAgentChatWorkspaceSetupRuntime({
     [topics],
   );
   activeSessionIdRef.current = sessionId;
-  const { autoCollapsedTopicSidebarRef } =
-    useWorkspaceClassicClawSidebarRuntime({
-      contentId,
-      externalProjectId,
-      newChatAt,
-      normalizedEntryTheme,
-      sessionId,
-      shouldAutoCollapseClassicClawSidebar,
-      setShowSidebar,
-    });
+  const { autoCollapsedTopicSidebarRef } = useConversationSidebar({
+    contentId,
+    externalProjectId,
+    newChatAt,
+    normalizedEntryTheme,
+    sessionId,
+    shouldCollapseConversationSidebar,
+    setShowSidebar,
+  });
   const effectiveChatToolPreferences = useWorkspaceChatToolPreferencesRuntime({
     activeTheme,
     chatToolPreferences,
@@ -571,7 +563,6 @@ export function useAgentChatWorkspaceSetupRuntime({
   return {
     chatMode,
     generalHarnessEntryEnabled,
-    systemPrompt,
     agentChatRuntime,
     providerType,
     setProviderType,

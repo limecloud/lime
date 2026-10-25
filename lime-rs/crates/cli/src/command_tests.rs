@@ -9,6 +9,45 @@ use clap::{CommandFactory, Parser};
 use super::*;
 
 #[test]
+fn computer_use_target_is_explicit_typed_input_for_exec_and_tui() {
+    let target = r#"{"type":"native","appId":"com.example.Editor","processId":42,"windowId":"12"}"#;
+    for args in [
+        vec!["lime", "--computer-use-target", target],
+        vec!["lime", "exec", "--computer-use-target", target, "inspect"],
+    ] {
+        let cli = crate::MultitoolCli::try_parse_from(args).unwrap();
+        let targets = match cli.subcommand {
+            Some(crate::Subcommand::Exec(args)) => args.connection.computer_use_targets.clone(),
+            None => cli.interactive.connection.computer_use_targets,
+            _ => panic!("host"),
+        };
+        assert_eq!(targets.len(), 1);
+        assert!(matches!(
+            &targets[0],
+            app_server_protocol::protocol::v2::ComputerUseTargetIdentity::Native {
+                process_id: Some(42),
+                ..
+            }
+        ));
+    }
+    assert!(crate::MultitoolCli::try_parse_from([
+        "lime",
+        "exec",
+        "--computer-use-target",
+        "{}",
+        "inspect"
+    ])
+    .is_err());
+    let mut child = ConnectionArgs::default();
+    let root = ConnectionArgs {
+        computer_use_targets: vec![serde_json::from_str(target).unwrap()],
+        ..Default::default()
+    };
+    child.inherit_from(&root);
+    assert_eq!(child.computer_use_targets, root.computer_use_targets);
+}
+
+#[test]
 fn explicit_app_server_path_has_highest_precedence() {
     let path = resolve_app_server_bin(Some(PathBuf::from("/tmp/custom-app-server")));
     assert_eq!(path, PathBuf::from("/tmp/custom-app-server"));
@@ -325,6 +364,7 @@ fn remote_connection_flags_match_codex_shape() {
 #[test]
 fn remote_auth_token_env_requires_remote_endpoint() {
     let connection = ConnectionArgs {
+        computer_use_targets: Vec::new(),
         app_server: None,
         app_server_args: Vec::new(),
         remote: InteractiveRemoteOptions {
@@ -349,6 +389,7 @@ fn remote_auth_token_env_requires_remote_endpoint() {
 #[test]
 fn remote_auth_token_env_missing_fails_before_connecting() {
     let connection = ConnectionArgs {
+        computer_use_targets: Vec::new(),
         app_server: None,
         app_server_args: Vec::new(),
         remote: InteractiveRemoteOptions {
@@ -373,6 +414,7 @@ fn remote_auth_token_env_missing_fails_before_connecting() {
 #[test]
 fn tui_options_lower_remote_url_without_local_process_settings() {
     let connection = ConnectionArgs {
+        computer_use_targets: Vec::new(),
         app_server: None,
         app_server_args: Vec::new(),
         remote: InteractiveRemoteOptions {
@@ -431,6 +473,7 @@ fn remote_workspace_omits_local_defaults_and_keeps_explicit_server_paths() {
 #[test]
 fn remote_connection_rejects_local_app_server_overrides() {
     let connection = ConnectionArgs {
+        computer_use_targets: Vec::new(),
         app_server: Some(PathBuf::from("app-server")),
         app_server_args: Vec::new(),
         remote: InteractiveRemoteOptions {
@@ -672,8 +715,13 @@ mod features_tests {
     #[test]
     fn features_enable_and_disable_parse_feature_name() {
         for action in ["enable", "disable"] {
-            let cli = crate::MultitoolCli::try_parse_from(["lime", "features", action, "workspace_dependencies"])
-                .expect("parse feature toggle");
+            let cli = crate::MultitoolCli::try_parse_from([
+                "lime",
+                "features",
+                action,
+                "workspace_dependencies",
+            ])
+            .expect("parse feature toggle");
             assert!(matches!(
                 cli.subcommand,
                 Some(crate::Subcommand::Features(_))

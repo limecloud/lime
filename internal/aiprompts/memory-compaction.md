@@ -5,7 +5,6 @@
 本文件定义 Lime 当前记忆与压缩治理边界，主要回答：
 
 - 文件化记忆、summary 注入、工具读取和后台整理分别由哪条 current 主链负责
-- Soul 如何继续作为用户可编辑的交互身份配置保留
 - 模型可见上下文如何经过 typed packet、防腐、预算和 provider adapter
 - 旧 `unified_memory_*`、`memory_runtime_*`、旧 MemoryPage 灵感库和旧命中预演如何清理
 - App Server `thread/compact/start` 与记忆文件主链如何保持分离，避免把压缩续接做成第二套记忆系统
@@ -20,11 +19,9 @@
 - 调整 memory store、`memory_summary.md`、`MEMORY.md`、memory tools 或 `MemoryBackend`
 - 调整 App Server `thread/compact/start`、summary cache 或 overflow compaction
 - 调整 `ContextPacket`、`ContextContributor`、`ContextAssembler`、`ContextBudgetPlanner` 或 provider context profile
-- 调整 `memory.soul`、`SOUL.md` 导入 / 复制、artifact voice generation brief
 - 清理 `unified_memory_*`、`memory_runtime_*`、旧 MemoryPage 灵感库或旧命中预演
-- 讨论“这条信息应该进入长期记忆、项目资料、Soul 还是压缩摘要”的边界归属
+- 讨论“这条信息应该进入长期记忆、项目资料还是压缩摘要”的边界归属
 
-如果一个需求同时碰到“summary 注入 + 工具读取”“压缩续接 + 记忆整理”“Soul + artifact voice”中的两项以上，默认属于本主链。
 
 ## 固定主链
 
@@ -39,7 +36,6 @@ memory store folder
   -> ContextCompaction 只处理 session context
   -> ProviderContextProfile 统一多模型预算
   -> 后台 consolidation 刷新 MEMORY.md / memory_summary.md
-  -> memory.soul 独立提供交互身份和 artifact voice brief
 ```
 
 固定判断：
@@ -47,12 +43,10 @@ memory store folder
 1. `memory store folder` 是长期记忆 canonical content。
 2. `memory_summary.md` 是每轮默认注入的唯一记忆摘要；原文只能按需通过 memory tools 读取。
 3. `MemoryBackend` 是 list/read/search/add note 的唯一后端合同。
-4. `memory.soul` / `MemorySoulConfig` 是交互身份、沟通节奏和 artifact voice 的 current 配置。
-5. `SOUL.md` 只是导入 / 复制快照，运行时读取保存后的 app config，不依赖该文件路径。
 6. App Server exact `thread/compact/start` 是手动压缩入口；压缩摘要不能替代 memory store，也不能把旧 runtime recall 重新接成 current。
 7. 项目资料继续走 project memory / knowledge 当前边界，只能作为资料附属层，不抢长期记忆事实源。
 8. 模型可见上下文必须先形成 `ContextPacket`，再由 `ContextAssembler` 做 admission、截断、防腐、去重和 provider 渲染。
-9. provider / model 差异只进入 `ProviderContextProfile` 与 provider adapter，不允许 memory、Soul、GUI 或单个功能 prompt 分叉。
+9. provider / model 差异只进入 `ProviderContextProfile` 与 provider adapter，不允许 memory、GUI 或单个功能 prompt 分叉。
 
 固定规则只有一句：
 
@@ -79,23 +73,9 @@ memory store folder
 4. `memory_add_note` 只写 ad-hoc note，不直接修改 `MEMORY.md` 或 `memory_summary.md`。
 5. consolidation 必须有 secret / injection scan，失败不能阻塞当前 turn。
 
-### 2. Soul current
+### 2. 自定义指令
 
-当前保留：
-
-- `src/lib/api/memoryConfigTypes.ts` 中的 `MemorySoulConfig`
-- `src/lib/soul/soulConfig.ts`
-- `src/components/settings-v2/general/memory/index.tsx` 的 Soul 设置、模板、`SOUL.md` 导入 / 复制
-- 专家 persona 对全局 Soul `communication_rhythm` 的只读继承
-
-固定规则：
-
-1. Soul 不是长期记忆本体，不写 `MEMORY.md`、`memory_summary.md` 或 ad-hoc note。
-2. `SOUL.md` 导入必须先预览，再保存到 `memory.soul`。
-3. 导入 warning 至少保留 `project_rules`、`local_path`、`secret_like`、`too_long`。
-4. artifact voice 只生成 `generation_brief_only`，不能回写长期记忆。
-5. expert persona 不得回写全局 Soul。
-6. 旧 `companion_*` 桌宠命令链路与 Soul 无关，按 `dead` 清理。
+Memory、AGENTS.md 与模型基础指令沿用 Codex 语义。旧 Soul、风格包、SOUL.md 导入和全局创作声线已删除，不保留配置或运行时兼容入口。专家指令只属于当前专家会话。
 
 ### 3. 压缩 current
 
@@ -133,7 +113,7 @@ memory store folder
 2. 单 packet 默认硬上限不超过 1k token；超过 1k token 需要专项评审和 E2E；超过 10k token 必须转文件引用或工具读取。
 3. secret-like、prompt injection、local path 泄露和未审计外部文本必须被拒绝、脱敏或送 review。
 4. provider adapter 只渲染 `AssembledContext`，不选择业务上下文，不读取 memory store 或 session DB。
-5. 多模型切换只改变 admission / truncation / compaction 策略，不改变 memory store、Soul 或 session history。
+5. 多模型切换只改变 admission / truncation / compaction 策略，不改变 memory store 或 session history。
 
 ### 5. 旧记忆与旧灵感库 cleanup
 
@@ -168,9 +148,6 @@ memory store folder
 - `LocalMemoryBackend`
 - memory tools
 - prompt contributor
-- `memory.soul` / `MemorySoulConfig`
-- `SOUL.md` 导入 / 复制快照
-- `memory.soul.artifact_voice` generation brief
 - App Server `thread/compact/start`
 - `ContextPacket`
 - `ContextContributor`
@@ -189,7 +166,6 @@ memory store folder
 
 保留原因：
 
-- Soul 保留为 `memory.soul` current 配置，不走旧长期记忆或旧灵感库 compat。
 - project memory / knowledge 资料附属层只作为项目上下文，不是长期 memory store 本体。
 
 退出条件：
@@ -227,14 +203,13 @@ memory store folder
 - 改 memory store / tools / prompt contributor：Rust 定向测试 + 对应前端 API 测试
 - 改 context packet / assembler / provider profile：Rust 定向测试 + App Server client / frontend gateway 测试 + `npm run test:contracts`
 - 改 compaction 主链：session / runtime 定向测试 + GUI smoke + Playwright E2E
-- 改 Soul：`src/lib/soul/soulConfig.unit.test.ts`、设置页 memory 测试、专家 persona metadata 测试
 - 改 GUI 主路径：补现有 `*.test.tsx` 稳定断言；必要时再补 `npm run verify:gui-smoke`
 
 ## 这一步如何服务主线
 
 当前主线目标是：
 
-**把 Lime 记忆系统收敛到文件化 memory store，并清理旧记忆 / 旧灵感库入口，同时保留 Soul。**
+**把 Lime 记忆系统收敛到文件化 memory store，并清理旧记忆 / 旧灵感库入口。**
 新增上下文目标是：**把所有模型可见上下文收敛到 typed packet + assembler + provider profile，压缩只作为 session context artifact，不变成第二套长期记忆。**
 
 后续解释记忆系统时：
@@ -242,7 +217,7 @@ memory store folder
 - 解释长期记忆，回到 memory store / `MEMORY.md`
 - 解释默认注入，回到 `memory_summary.md`
 - 解释按需读取，回到 memory tools / `MemoryBackend`
-- 解释交互身份，回到 `memory.soul`
+- 配置行为，使用 AGENTS.md 与当前模型指令
 - 解释压缩续接，回到 App Server exact `thread/compact/start` 与标准 Thread / Turn / Item lifecycle
 - 解释上下文防腐，回到 `ContextPacket` / `ContextAssembler`
 - 解释多模型预算，回到 `ProviderContextProfile`

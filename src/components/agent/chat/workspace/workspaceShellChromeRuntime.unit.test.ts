@@ -9,7 +9,7 @@ function baseInput(
 ): Parameters<typeof resolveWorkspaceShellChromeRuntime>[0] {
   return {
     activeTheme: "general",
-    agentEntry: "claw",
+    agentEntry: "conversation",
     contextWorkspaceEnabled: false,
     effectiveShowChatPanel: true,
     gateStatus: "idle",
@@ -91,7 +91,7 @@ describe("resolveWorkspaceShellChromeRuntime", () => {
   it("claw 首页首发 pending preview 尚无 session 时应立即显示聊天布局", () => {
     const runtime = resolveWorkspaceShellChromeRuntime(
       baseInput({
-        agentEntry: "claw",
+        agentEntry: "conversation",
         effectiveShowChatPanel: true,
         hasDisplayMessages: true,
         hasHomeConversationActivity: true,

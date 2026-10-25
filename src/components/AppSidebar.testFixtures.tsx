@@ -16,7 +16,6 @@ import { AppSidebar as AppSidebarComponent } from "./AppSidebar";
 import { AppShell, AppShellHeader } from "./app-shell/AppShell";
 import { shouldReserveMacWindowControls } from "@/lib/windowControls";
 import { changeLimeLocale as changeLimeLocaleImpl } from "@/i18n/createI18n";
-import { LIME_COLOR_SCHEME_STORAGE_KEY as LIME_COLOR_SCHEME_STORAGE_KEY_VALUE } from "@/lib/appearance/colorSchemes";
 import { LIME_THEME_STORAGE_KEY as LIME_THEME_STORAGE_KEY_VALUE } from "@/lib/appearance/themeMode";
 import {
   getCloudAccount as getCloudAccountImpl,
@@ -31,8 +30,6 @@ let newConversationRequestId = 0;
 
 export const changeLimeLocale = changeLimeLocaleImpl;
 export const SettingsTabs = LimeSettingsTabs;
-export const LIME_COLOR_SCHEME_STORAGE_KEY =
-  LIME_COLOR_SCHEME_STORAGE_KEY_VALUE;
 export const LIME_THEME_STORAGE_KEY = LIME_THEME_STORAGE_KEY_VALUE;
 export const getCloudAccount = getCloudAccountImpl;
 export const setOemCloudBootstrapSnapshot = setOemCloudBootstrapSnapshotImpl;

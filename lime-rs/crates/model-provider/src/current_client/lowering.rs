@@ -1,5 +1,7 @@
 mod responses;
+mod tool_output;
 pub(super) use responses::responses_message;
+use tool_output::{anthropic_tool_content, tool_media_observations};
 
 use super::{
     REQUEST_KIND_METADATA_KEY, SESSION_ID_METADATA_KEY, THREAD_ID_METADATA_KEY,
@@ -27,12 +29,19 @@ pub(super) fn chat_completions_request(
     if !system.is_empty() {
         messages.push(json!({ "role": "system", "content": system }));
     }
-    messages.extend(
-        request
-            .messages
-            .iter()
-            .flat_map(|message| chat_message(message, media_payloads)),
-    );
+    let mut observations = Vec::new();
+    for message in &request.messages {
+        if message.role != CanonicalRole::Tool && !observations.is_empty() {
+            messages.push(json!({"role":"user","content":std::mem::take(&mut observations)}));
+        }
+        messages.extend(chat_message(message, media_payloads));
+        if message.role == CanonicalRole::Tool {
+            observations.extend(tool_media_observations(&message.content, media_payloads));
+        }
+    }
+    if !observations.is_empty() {
+        messages.push(json!({"role":"user","content":observations}));
+    }
     let mut object = Map::from_iter([
         ("model".to_string(), json!(config.model_name)),
         ("messages".to_string(), Value::Array(messages)),
@@ -715,6 +724,11 @@ fn responses_input_content(
         .iter()
         .filter_map(|part| match part {
             ContentPart::Text { text, .. } => Some(json!({ "type": "input_text", "text": text })),
+            ContentPart::Media {
+                uri, media_type, ..
+            } if media_type.starts_with("audio/") => Some(
+                json!({"type":"input_audio","audio_url":provider_media_uri(uri, media_payloads)}),
+            ),
             ContentPart::Media { uri, detail, .. } => {
                 let mut image = Map::from_iter([
                     ("type".to_string(), json!("input_image")),
@@ -771,7 +785,8 @@ fn anthropic_message(
             } => Some(json!({
                 "type": "tool_result",
                 "tool_use_id": id,
-                "content": tool_result_text(result, error.as_deref()),
+                "content": anthropic_tool_content(result, error.as_deref(), media_payloads),
+                "is_error": error.is_some() || matches!(result, ToolResultValue::Error { .. }),
             })),
             ContentPart::CustomToolCall { .. } | ContentPart::CustomToolResult { .. } => None,
             ContentPart::RawResponseItem { .. } => None,

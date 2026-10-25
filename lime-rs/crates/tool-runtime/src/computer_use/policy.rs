@@ -5,7 +5,7 @@ use app_server_protocol::protocol::v2::ComputerUseGrantScope;
 use lime_core::config::{ComputerUseConfigToml, ComputerUseRequirementsToml};
 use lime_core::AllowDenyRequirementToml::{self, Allow, Deny};
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(
     tag = "type",
     rename_all = "lowercase",
@@ -26,12 +26,108 @@ pub enum NativeAppIdentity {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ComputerUsePolicy {
+    pub native_enabled: Option<bool>,
+    pub chrome_enabled: Option<bool>,
+    pub office_enabled: Option<bool>,
+    pub browser: Option<lime_core::config::BrowserUseConfigToml>,
+    pub browser_admin: Option<lime_core::config::BrowserUseRequirementsToml>,
     pub user: Option<ComputerUseConfigToml>,
     pub admin: Option<ComputerUseRequirementsToml>,
     pub allow_browser_and_computer_use: Option<bool>,
 }
 
 impl ComputerUsePolicy {
+    pub(super) fn check_office_native(
+        &self,
+        target: &super::ComputerUseTarget,
+        scope: ComputerUseGrantScope,
+        consent: bool,
+    ) -> Result<(), &'static str> {
+        if scope != ComputerUseGrantScope::Session || !consent {
+            return Err("WPS requires explicit session approval");
+        }
+        if !matches!(&target.identity, super::ComputerUseTargetIdentity::Office { host, .. } if host == "WPS") {
+            return Err("Invalid native Office target");
+        }
+        let identity = target.native_app.as_ref().ok_or("Verified WPS identity is required")?;
+        if !matches!(identity, NativeAppIdentity::Macos { bundle_id } if bundle_id == "com.kingsoft.wpsoffice.mac") {
+            return Err("Verified WPS identity is required");
+        }
+        let mut policy = self.clone();
+        policy.native_enabled = self.office_enabled;
+        policy.check(identity, target.locked, scope, consent)
+    }
+
+    pub(super) fn enabled(&self, kind: super::ComputerUseAdapterKind) -> bool {
+        (match kind {
+            super::ComputerUseAdapterKind::Native => self.native_enabled,
+            super::ComputerUseAdapterKind::Chrome => self.chrome_enabled,
+            super::ComputerUseAdapterKind::Office => self.office_enabled,
+        }) != Some(false)
+    }
+
+    pub(super) fn check_extension(
+        &self,
+        target: &super::ComputerUseTargetIdentity,
+        scope: ComputerUseGrantScope,
+        consent: bool,
+    ) -> Result<(), &'static str> {
+        if self.allow_browser_and_computer_use == Some(false) {
+            return Err("Computer Use is disabled by administrator policy");
+        }
+        if scope != ComputerUseGrantScope::Session || !consent {
+            return Err("Connected targets require explicit session approval");
+        }
+        match target {
+            super::ComputerUseTargetIdentity::Chrome { origin, .. } => {
+                if !self.enabled(super::ComputerUseAdapterKind::Chrome) {
+                    return Err("Chrome control is disabled in settings");
+                }
+                let url = url::Url::parse(origin).map_err(|_| "Invalid browser origin")?;
+                if !["http", "https"].contains(&url.scheme())
+                    || url.origin().ascii_serialization() != *origin
+                {
+                    return Err("Invalid browser origin");
+                }
+                let denied_user = self.browser.as_ref().is_some_and(|b| {
+                    origin_access(
+                        &url,
+                        b.default_origin_policy.as_ref().and_then(|p| p.access),
+                        b.origins
+                            .iter()
+                            .flat_map(|m| m.iter())
+                            .map(|(key, p)| (key.as_str(), p.access)),
+                    ) == Some(Deny)
+                });
+                let denied_admin = self.browser_admin.as_ref().is_some_and(|b| {
+                    origin_access(
+                        &url,
+                        b.default_origin_policy.as_ref().and_then(|p| p.access),
+                        b.origins
+                            .iter()
+                            .flat_map(|m| m.iter())
+                            .map(|(key, p)| (key.as_str(), p.access)),
+                    ) == Some(Deny)
+                });
+                if denied_user || denied_admin {
+                    return Err("Browser origin access is denied by policy");
+                }
+            }
+            super::ComputerUseTargetIdentity::Office { host, .. } => {
+                if !self.enabled(super::ComputerUseAdapterKind::Office) || host != "Excel" {
+                    return Err("Excel control is disabled or unsupported");
+                }
+                if self.user.as_ref().and_then(|p| p.default_app_access) == Some(Deny)
+                    || self.admin.as_ref().and_then(|p| p.default_app_access) == Some(Deny)
+                {
+                    return Err("Application access is denied by policy");
+                }
+            }
+            _ => return Err("Invalid connected target"),
+        }
+        Ok(())
+    }
+
     pub(super) fn check(
         &self,
         identity: &NativeAppIdentity,
@@ -39,6 +135,9 @@ impl ComputerUsePolicy {
         scope: ComputerUseGrantScope,
         session_consent: bool,
     ) -> Result<(), &'static str> {
+        if self.native_enabled == Some(false) {
+            return Err("Computer Use is disabled in settings");
+        }
         let identity_verified = match identity {
             NativeAppIdentity::Macos { bundle_id } => !bundle_id.trim().is_empty(),
             NativeAppIdentity::Windows {
@@ -200,4 +299,53 @@ fn combine(
             (Some(Deny), _) | (_, Deny) => Some(Deny),
             _ => Some(Allow),
         })
+}
+
+fn origin_access<'a>(
+    origin: &url::Url,
+    default: Option<AllowDenyRequirementToml>,
+    patterns: impl Iterator<Item = (&'a str, Option<AllowDenyRequirementToml>)>,
+) -> Option<AllowDenyRequirementToml> {
+    combine(
+        patterns
+            .filter(|(pattern, _)| origin_matches(origin, pattern))
+            .filter_map(|(_, access)| access),
+    )
+    .or(default)
+}
+
+fn origin_matches(origin: &url::Url, pattern: &str) -> bool {
+    let normalized = pattern.trim().to_lowercase();
+    let normalized = normalized.trim_end_matches("/*").trim_end_matches('/');
+    let scheme = normalized.contains("://");
+    let authority = normalized
+        .split_once("://")
+        .map_or(normalized, |(_, authority)| authority);
+    let wildcard = authority.starts_with("*.");
+    let explicit_port = authority
+        .rsplit_once(':')
+        .and_then(|(_, port)| port.parse::<u16>().ok());
+    let probe = normalized.replacen("*.", "wildcard.", 1);
+    let Ok(parsed) = url::Url::parse(&if scheme {
+        probe
+    } else {
+        format!("https://{probe}")
+    }) else {
+        return false;
+    };
+    if scheme && parsed.scheme() != origin.scheme() {
+        return false;
+    }
+    if (scheme || explicit_port.is_some())
+        && parsed.port_or_known_default() != origin.port_or_known_default()
+    {
+        return false;
+    }
+    match (origin.host_str(), parsed.host_str()) {
+        (Some(host), Some(expected)) if wildcard => expected
+            .strip_prefix("wildcard.")
+            .is_some_and(|suffix| host.ends_with(&format!(".{suffix}"))),
+        (Some(host), Some(expected)) => host == expected,
+        _ => false,
+    }
 }

@@ -40,7 +40,6 @@
   "agentExperts.info.overview.workWithRefs": "必要に応じて、紐づいたスキル、メモリーテンプレート、ワークフローを参照します。",
   "agentExperts.info.boundary.truth": "実際の文脈とユーザー提供情報に基づき、未提示の事実は作りません。",
   "agentExperts.info.boundary.private": "プロジェクトファイル、私的メモリー、会話内容を公開専門家カタログへ書き戻しません。",
-  "agentExperts.info.boundary.soul": "Global Soul はコミュニケーションのリズムだけに影響します。専門家ペルソナは Global Soul に書き戻されず、正式な成果物にも既定では入りません。",
   "agentExperts.info.memory.title": "MEMORY.md — {{title}} メモリー",
   "agentExperts.info.memory.focus": "現在のプロジェクトと注目点",
   "agentExperts.info.memory.defaultFocus": "今回のタスクに関する好み、制約、振り返りの手掛かりを継続的に蓄積します。",

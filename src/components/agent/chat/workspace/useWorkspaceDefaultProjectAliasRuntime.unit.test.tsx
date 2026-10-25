@@ -156,7 +156,7 @@ describe("useWorkspaceDefaultProjectAliasRuntime", () => {
     expect(resetProjectSelection).toHaveBeenCalledTimes(1);
     expect(latestProject).toBeNull();
     expect(logAgentDebug).toHaveBeenCalledWith(
-      "AgentChatPage",
+      "LocalConversationPage",
       "resolveDefaultProjectAlias.detached",
       expect.objectContaining({ durationMs: expect.any(Number) }),
     );

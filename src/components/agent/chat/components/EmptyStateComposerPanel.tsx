@@ -26,71 +26,33 @@ import { type InputbarPluginCapability } from "./Inputbar/pluginInputCapability"
 import type { InputbarCoreCopy } from "./Inputbar/components/inputbarCoreCopy";
 import type { ModelReasoningEffortLevel } from "@/lib/types/modelRegistry";
 import type { BaseComposerSendMetadata } from "@/components/input-kit";
-import {
-  HomeComposerAccent,
-  HomeComposerDecorationFrame,
-} from "./HomeComposerDecorations";
-import { useHomeSkinPresentation } from "./homeSkinPresentation";
-
 const ConnectedComposerShell = styled.div`
   width: 100%;
-  border: 1px solid var(--lime-composer-border, rgba(110, 231, 183, 0.84));
-  border-radius: 22px;
-  background: var(--lime-composer-surface);
-  box-shadow:
-    0 12px 30px var(--lime-shadow-color),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
-
-  > div:first-child {
-    padding: 0;
-  }
 
   [data-testid="inputbar-core-container"] {
-    border: 0;
-    border-radius: 21px 21px 0 0;
+    border: 0.5px solid var(--lime-composer-border);
+    border-radius: 22px;
+    background: var(--lime-composer-surface);
     box-shadow: none;
   }
 
   [data-testid="composer-editor"] {
-    min-height: 136px;
+    min-height: 44px;
     padding-top: 7px;
-    font-size: 16px;
-    line-height: 1.55;
+    font-size: 14px;
+    line-height: 1.5;
   }
 
   [data-testid="inputbar-context-bar-slot"] {
+    width: calc(100% - 24px);
+    margin: 0 12px;
     border: 0;
-    border-top: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.9));
-    border-radius: 0 0 21px 21px;
-  }
-
-  &:focus-within {
-    border-color: var(--lime-composer-border-focus, rgba(74, 222, 128, 0.7));
-    box-shadow:
-      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
-      0 14px 32px var(--lime-shadow-color),
-      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    border-radius: 14px 14px 0 0;
+    background: var(--lime-composer-context-surface);
   }
 
   &:focus-within [data-testid="inputbar-core-container"] {
-    border: 0;
-    border-bottom-right-radius: 0;
-    border-bottom-left-radius: 0;
-    box-shadow: none;
-  }
-
-  &:focus-within [data-testid="inputbar-context-bar-slot"] {
-    border-top-color: var(
-      --lime-surface-border-strong,
-      rgba(203, 213, 225, 0.96)
-    );
-    background: var(
-      --lime-composer-context-surface-focus,
-      var(--lime-composer-surface-focus)
-    );
+    border-color: var(--lime-composer-border-focus);
     box-shadow: none;
   }
 `;
@@ -203,7 +165,6 @@ export function EmptyStateComposerPanel({
   pathReferences = [],
   onRemovePathReference,
 }: EmptyStateComposerPanelProps) {
-  const { composerDecorations } = useHomeSkinPresentation();
   const [fallbackController] = useState(
     () => controller ?? new ComposerController({ text: input }),
   );
@@ -317,7 +278,6 @@ export function EmptyStateComposerPanel({
         accessMode={accessMode}
         setAccessMode={setAccessMode}
       />
-      <HomeComposerAccent icon={composerDecorations?.accentIcon} />
 
       {taskEnabled ? (
         <InputbarModeStatusChip
@@ -351,12 +311,13 @@ export function EmptyStateComposerPanel({
   const projectContextBar = (
     <div
       data-testid="inputbar-context-bar-slot"
-      className="flex min-h-10 w-full items-center bg-[image:var(--lime-composer-context-surface,var(--lime-composer-surface))] px-4 py-1.5"
+      className="flex min-h-8 w-full items-center bg-[color:var(--lime-composer-context-surface)] px-4 py-1.5"
     >
       <ComposerUtilityBar
         projectId={projectId}
         openedProjects={openedProjects}
         onProjectChange={onProjectContextChange}
+        showModeControls={Boolean(projectId)}
         modeLabel={projectContextModeLabel}
         branchLabel={projectContextBranchLabel}
         copy={inputbarCopy.projectContext}
@@ -365,43 +326,40 @@ export function EmptyStateComposerPanel({
   );
   return (
     <>
-      <HomeComposerDecorationFrame>
-        <ConnectedComposerShell data-testid="inputbar-connected-composer">
-          <InputbarCore
-            uiCopy={inputbarCopy}
-            controller={resolvedController}
-            sessionId={sessionId}
-            commandPriority="fallback"
-            editorRef={editorRef}
-            text={input}
-            setText={setInput}
-            onSend={handleSendDraft}
-            onHistoryRecall={onHistoryRecall}
-            onStop={onStop}
-            isLoading={isLoading}
-            disabled={disabled}
-            onToolClick={handleToolAction}
-            pendingImages={pendingImages}
-            onRemoveImage={onRemoveImage}
-            onPaste={onPaste}
-            onDragOver={onDragOver}
-            onDrop={onDrop}
-            placeholder={placeholder}
-            showDragHandle={false}
-            visualVariant="default"
-            connectedContextBar
-            deferSendOnEnter
-            sendOnPointerDown
-            leftExtra={leftExtra}
-            trailingMeta={trailingMeta}
-            pathReferences={pathReferences}
-            onRemovePathReference={onRemovePathReference}
-            showEditorExpandButton={false}
-            contextualSuggestions={contextualSuggestions}
-          />
-          {projectContextBar}
-        </ConnectedComposerShell>
-      </HomeComposerDecorationFrame>
+      <ConnectedComposerShell data-testid="inputbar-connected-composer">
+        {projectContextBar}
+        <InputbarCore
+          uiCopy={inputbarCopy}
+          controller={resolvedController}
+          sessionId={sessionId}
+          commandPriority="fallback"
+          editorRef={editorRef}
+          text={input}
+          setText={setInput}
+          onSend={handleSendDraft}
+          onHistoryRecall={onHistoryRecall}
+          onStop={onStop}
+          isLoading={isLoading}
+          disabled={disabled}
+          onToolClick={handleToolAction}
+          pendingImages={pendingImages}
+          onRemoveImage={onRemoveImage}
+          onPaste={onPaste}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          placeholder={placeholder}
+          showDragHandle={false}
+          visualVariant="default"
+          deferSendOnEnter
+          sendOnPointerDown
+          leftExtra={leftExtra}
+          trailingMeta={trailingMeta}
+          pathReferences={pathReferences}
+          onRemovePathReference={onRemovePathReference}
+          showEditorExpandButton={false}
+          contextualSuggestions={contextualSuggestions}
+        />
+      </ConnectedComposerShell>
     </>
   );
 }

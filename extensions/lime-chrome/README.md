@@ -1,99 +1,29 @@
-# Lime Chrome Connector 扩展
+# Lime Chrome 电脑操控
 
-用于把 Chrome 页面能力接入 Lime 的浏览器连接器通道，供各业务 AI Agent 通过统一 `browser_execute_action` / MCP 浏览器工具调用。
+本目录是重写后的 MV3 扩展。旧 observer/control WebSocket、URL key、站点执行器和旧页面均已删除。
 
-## 功能
+在 Lime「设置 → 集成 → 电脑操控」开启 Google Chrome，点击「管理 → 安装并打开」。安装器导出本目录的构建版本并注册当前 OS 用户的 Native Messaging host；在 `chrome://extensions` 开启开发者模式，选择「加载已解压的扩展程序」，加载打开的文件夹。
 
-- Observer 通道自动连接：`/lime-chrome-observer/<bridge_key>?profileKey=...`
-- 启停状态持久化：手动停用或桌面端主动断开后，不会在后台偷偷重连
-- MV3 保活与自动重连：使用 `chrome.alarms` 保持 relay 存活，并在浏览器恢复后自动重连
-- 按需注入 content script：不再对所有站点常驻注入，只在抓取或执行命令时动态注入
-- 页面信息上报：标题、URL、Markdown
-- 远程指令执行：`open_url` / `click` / `type` / `scroll` / `switch_tab` / `list_tabs` / `go_back` 等
-- 弹窗入口：直接打开 Lime 的“连接器”页，并保留高级手动配置
-- 自动配置文件：导出后自动写入 `auto_config.json`
-- 弹窗配置：`serverUrl`、`bridgeKey`、`profileKey`、监控开关、手动抓取
-- 桌面端主动断开：当 Lime 设置页点击“断开已连接扩展”时，扩展会关闭 observer 连接并停止自动重连，直到用户手动重连
+保持 Chrome 运行。在 Lime 管理页选择目标标签页并授权，再在扩展弹窗点击允许。开关、扩展连接和标签页授权是独立状态。导航、断连和回合结束使对应控制授权失效；CLI 复用相同 App Server 与工具协议，Electron 无须运行。
 
-## 安装
+唯一传输链：MV3 → Chrome Native Messaging → App Server 可执行文件的纯适配器模式 → 私有本机消息目录 → tool-runtime 的 ComputerUseService。Native Messaging 模式不启动第二 runtime；业务授权、策略、回合租约、互斥、取消和历史仍由现役 App Server 管理。
 
-1. 在 Lime 设置页进入“连接器”
-2. 点击“选择目录并安装”或“同步更新扩展”
-3. 在文件选择器里选择一个用户自定义根目录
-4. Lime 会把扩展导出到固定子目录：`<你选择的目录>/Lime Browser Connector`
-5. 打开 Chrome `chrome://extensions`
-6. 打开右上角「开发者模式」
-7. 点击「加载已解压的扩展程序」
-8. 选择目录：`<你选择的目录>/Lime Browser Connector`
+运行真实 Google Chrome 回归：`node scripts/chrome-bridge-e2e.mjs`。测试使用隔离 profile、真实 Native Messaging 和 runtime，并通过本地模型协议 fixture 检查 canonical 工具结果与页面回读；不代表真实模型或 Desktop/CLI Host 的完整 Gate B。
 
-## 配置
+公开上游没有对应插件源码，本目录属于根据已记录 REA 合同实施的 Lime 适配，不标记为源码复制。
 
-点击扩展图标后，优先使用“打开 Lime 连接器页”回到桌面端统一管理。
+扩展弹窗支持输入任务名称（含 emoji）和起始网址，创建 Chrome 原生标签页分组。
+任务页打开的子页自动加入同组；接管用户已有标签页时保留原分组。组标题、颜色和
+元数据在 Chrome 本地保存，分组不授予页面操控权限，仍须在 Lime 选择目标并明确批准。
+模型通过共享 `computer_use` 工具的 `name_session`、`create_tab`、`mark_tab` 管理任务。
+线程/回合归属来自 host；新页不会继承源页授权。回合结束关闭未标记的任务页，
+`deliverable` 保留并移出任务组，`handoff` 保留供下轮接续且下轮必须重新标记。
+用户已有页只释放任务归属，保留页面和原分组；popup 手动创建的任务不会被模型回合误关。
+终态/断线清理经现役 App Server hook 与有界 Native Messaging 通知，浏览器临时失败会重试；
+扩展 worker 恢复时清理中断回合，保留已完成的 handoff。清理不创建任何新授权。
 
-只有在自动配置失效或手动排查链路时，才需要展开“高级配置”并填写：
-
-- `Server URL`：Lime 服务地址，例如 `ws://127.0.0.1:8999`
-- `Bridge Key`：Lime 服务 API Key（与后端 `Lime_Key` 一致）
-- `Profile Key`：浏览器会话隔离键（建议与业务场景对应，如 `research_a`）
-
-点击「保存并重连」后，扩展会建立 observer WebSocket 连接。
-
-如果你已经通过 Lime 导出了扩展，目录里会同时带上 `auto_config.json`。扩展加载后会自动读取该文件并应用默认配置。
-
-## 验证
-
-1. 在 Lime 设置中查看 `get_chrome_bridge_status`，`observer_count` 应大于 0
-2. 调用 `browser_execute_action`：
-
-```json
-{
-  "profile_key": "default",
-  "action": "navigate",
-  "args": { "url": "https://example.com" }
-}
-```
-
-3. 再调用 `browser_execute_action`：
-
-```json
-{
-  "action": "read_page"
-}
-```
-
-如果返回 `success=true` 且 `data.markdown` 有内容，说明链路可用。
-
-## 自动化联调脚本
-
-仓库提供了桥接链路的端到端联调脚本（模拟 observer/control 双端）：
-
-```bash
-npm run bridge:e2e -- --server ws://127.0.0.1:8787 --key proxy_cast --profile default
-```
-
-默认还会通过 `http://127.0.0.1:3030/invoke` 调用 `disconnect_browser_connector_session`，继续验证桌面端主动断开链路：
-
-- observer/control 均收到 `force_disconnect`
-- `disconnect_browser_connector_session` 返回断开计数
-- 在干净环境下，`get_chrome_bridge_status` 最终归零
-
-如果你当前只想验证纯 WebSocket 握手和命令回路，而不依赖 DevBridge invoke，可显式跳过该阶段：
-
-```bash
-npm run bridge:e2e -- --server ws://127.0.0.1:8787 --key proxy_cast --profile default --skip-force-disconnect
-```
-
-脚本会验证：
-
-- observer/control 握手
-- 双向心跳 ack
-- `wait_for_page_info=true` 命令链路（`command_result` + `page_info_update`）
-- 普通命令链路（`command_result`）
-- 桌面端主动断开链路（默认开启）
-
-## 兼容说明
-
-- 扩展只负责浏览器侧采集与动作执行。
-- 当前主链仍然是 `API -> observer socket -> 扩展 -> 当前已登录 Chrome 标签页`，不会额外拉起新的托管 Chrome。
-- Agent 侧通过 `agent_cmd` 暴露的现役浏览器 MCP 工具访问。
-- 若你同时使用多个 Chrome Profile，请分别安装并配置扩展，并使用不同的 `profileKey` 隔离连接。
+`tab-groups.js` 和 `browser-session.js` 的 `Bf` 分类函数从已安装扩展的发货 bundle 提取，
+其余生命周期接线是 Lime 适配；分组管理仅改默认产品名和模块导出。
+方法名沿用发货属性名，压缩符号不是上游原始源码名。来源、摘要、必要适配、测试和
+商店状态见[执行记录](../../internal/exec-plans/native-computer-use-chrome-groups-20261025.md)。
+旧 WebSocket 后端路由残余的清理进度单列于总交付文档。

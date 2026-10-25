@@ -6,7 +6,7 @@
 
 复刻范围内默认直接复制 `/Users/coso/Documents/dev/rust/codex` 的可复用源码，能整目录复制就整目录复制；在许可证、功能归属和依赖闭包满足要求后，直接接入 Lime 现役 owner。无品牌的目录名、路径层级、文件名、模块名、类型名和函数名沿用上游，不以逐文件重写、重新抽象或另起名称代替复制。复制后裁剪无消费者内容，迁移调用并清理被替代的实现；不得保留 `lime-rs/upstream/` 或第二套源码与 runtime。执行细则见 [源码复制与迁移准则](internal/aiprompts/codex-source-alignment.md)。
 
-Lime 自有主题、品牌、多模型/多协议、Provider 控制面、服务端能力、配置与发布合同是必须保留的产品差异，由现役 owner 继续负责。批量复制前必须划出这些 owner 的保护写集；共享构建、配置、schema 注册和发布文件只做最小合并，不得整文件覆盖。Codex 的品牌、产品配置和云端服务不是复制目标；其登录、Cloud、账号、遥测、计费、发布和单模型服务控制面不得进入 Lime。这里排除的是上游产品服务，不包括实现共享主链所需的本地 App Server JSON-RPC、runtime、协议和工具代码；这些仍应优先复制，并接入 Lime 自有服务端与 Provider 边界。
+Lime 自有品牌、多模型/多协议、Provider 控制面、服务端能力、配置与发布合同是必须保留的产品差异，由现役 owner 继续负责。批量复制前必须划出这些 owner 的保护写集；共享构建、配置、schema 注册和发布文件只做最小合并，不得整文件覆盖。Codex 的品牌、产品配置和云端服务不是复制目标；其登录、Cloud、账号、遥测、计费、发布和单模型服务控制面不得进入 Lime。这里排除的是上游产品服务，不包括实现共享主链所需的本地 App Server JSON-RPC、runtime、协议和工具代码；这些仍应优先复制，并接入 Lime 自有服务端与 Provider 边界。
 
 复制时区分协议能力、本地工具执行与远端托管服务：不得把 Codex 产品服务或官方域名条件套到 Lime 自有 endpoint 的本地工具上。模型能力仍以现役 catalog 的显式声明与实际 wire 支持求交集，不按品牌、模型名或复制来源推断。
 
@@ -14,13 +14,17 @@ Lime 自有标识中的 `codex-rs`、`codex_`、`codex-`、`CODEX_` 等品牌名
 
 Computer Use 复刻覆盖 macOS/Windows、Desktop、CLI/TUI、Chrome Plugin 和 Office connector，共用同一 App Server、工具权限与 canonical 投影。CLI 必须在 Electron 完全退出后仍可使用共享能力；适配器合同、授权/撤销/租约与证据要求见 [源码复制与迁移准则](internal/aiprompts/codex-source-alignment.md) 和 [命令边界](internal/aiprompts/commands.md)。方案与实际进度放在 `internal/exec-plans/`，不把静态证据、规则更新或设计图记为产品验收通过。
 
+GUI 复刻使用 [lime-design-language](.codex/skills/lime-design-language/SKILL.md)：指定 Codex 版本的源码与 REA 证据决定页面结构、布局、交互和状态，明暗模式使用固定语义颜色。旧页面、旧设计规范和自主原型不能覆盖复刻目标；先完成复刻，再优化。
+
+2026-10-25 用户取消主题保留例外：Lime 自定义主题、皮肤、随机切换与首页装饰均删除。外观仅保留 Codex 的浅色、深色、跟随系统模式；首页按 Codex 布局使用 Lime icon。
+
 ## 事实源
 
 1. 代码仓库是唯一记录系统。影响实现的决策、计划和验证结果必须落在仓库内。
 2. 根文件只保留仓库级约束和导航；领域规则放在 `internal/aiprompts/`，执行进度放在 `internal/exec-plans/`。
 3. 每种能力只能有一个继续演进的 owner。`current` 可扩展；`compat` 只能委托；`deprecated` 只能迁出；`dead` 应删除并补回流守卫。
 4. Agent runtime 的唯一业务主链是 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection`。当前 Product Surface 包括 `Electron Desktop Host -> GUI` 与 `CLI/TUI Host -> tui`；Computer Use 的 native、Chrome、Office 适配器也必须挂在同一 App Server 边界。所有 surface 共享协议、runtime、持久化与工具 owner，不建立第二套业务后端。未来 Cloud 只能通过认证 transport 接入同一 App Server 边界，不预建平行 runtime。
-5. Codex 是唯一主对标：Agent loop、状态机、Thread/Turn/Item、工具生命周期、MCP、Skills、Multi-Agent 和历史恢复直接读 `/Users/coso/Documents/dev/rust/codex` 源码；Desktop 行为使用 REA 安装包证据。Lime 的主题、品牌、多模型、多协议和服务端能力优先保持现役 owner；catalog、默认选择、model switch、provider capability/readiness、retry/circuit breaker 与多模态 sampling 仅参考 `/Users/coso/Documents/dev/rust/grok-build` 的适用机制，不能替代 Codex 的 runtime、harness 或产品语义。provider wire、canonical content 与媒体 lowering 可辅助参考 `/Users/coso/Documents/dev/js/opencode`。
+5. Codex 是唯一主对标：Agent loop、状态机、Thread/Turn/Item、工具生命周期、MCP、Skills、Multi-Agent 和历史恢复直接读 `/Users/coso/Documents/dev/rust/codex` 源码；Desktop 行为使用 REA 安装包证据。Lime 的品牌、多模型、多协议和服务端能力优先保持现役 owner；catalog、默认选择、model switch、provider capability/readiness、retry/circuit breaker 与多模态 sampling 仅参考 `/Users/coso/Documents/dev/rust/grok-build` 的适用机制，不能替代 Codex 的 runtime、harness 或产品语义。provider wire、canonical content 与媒体 lowering 可辅助参考 `/Users/coso/Documents/dev/js/opencode`。
 6. Rust 后端只能落在 `lime-rs/crates/**` 的现有领域 owner。禁止增加 `lime-rs/upstream/` 或其他整仓镜像目录；源码按真实消费者依赖闭包筛选，直接迁入对应 Lime owner。迁移期间不覆盖未知并行改动、不启动第二业务后端；消费者切换后清除重复实现，不长期维护两套同义 owner。
 7. Provider 网络边界归 `model-provider`；工具定义、权限和执行归 `tool-runtime`；会话/回合编排归 `agent-runtime` 与 App Server；投影和持久化归 App Server、`thread-store` 与对应 repository。
 8. Lime 是唯一产品品牌。Lime 自有产品代码、crate、模块、符号、命令、协议方法、环境变量、配置目录、界面和发布产物不得带 `codex` 品牌前缀或 Codex 产品标识；内部 `codex_`、`codex-`、`CODEX_` 等 Lime 自有命名迁为 Lime 名称。明确支持的第三方应用集成边界保留对方所需的目标标识和官方路径，例如 `codex` 技能包目标与 `~/.codex/skills`，不能因去 Lime 自有品牌而误删。治理/审计文档可以在明确的上游来源、证据或迁移记录中引用 Codex 名称，但不得成为产品入口或运行时身份。许可证署名、无法改变的外部协议值和已证明的第三方集成契约必须记录消费者及证据，不得借此把 Lime 自有产品继续命名为 Codex。
@@ -41,7 +45,7 @@ Computer Use 复刻覆盖 macOS/Windows、Desktop、CLI/TUI、Chrome Plugin 和 
 11. 产品代码必须直接修改原始仓库中的现役文件。`.lime/verification/**`、`candidate/` 及其他临时副本仅用于保存冻结快照和验证证据，不得作为产品开发目录或以事后回写代替原目录修改；并行冲突必须在原始仓库内协调窄写集。
 12. Codex 对齐先核对 `/Users/coso/Documents/dev/rust/codex` 对应源码，按本页核心准则优先整目录复制到现役 owner，并沿用无品牌的目录、文件、类型、函数与调用结构。改动限于已登记的品牌、Lime 保留差异、依赖和平台接线；不得以风格偏好重新实现。不能直接复用的部分记录原因，公开源码缺失的 Desktop 行为使用 REA 安装包证据，不将自研实现、压缩符号或猜测名称标成 Codex 原名。逐项记录 revision、源路径、许可证、目标路径、必要适配、消费者、删除项和验证。Computer Use 方案必须包含 PRD、架构图、时序图、流程图、适配器边界和平台验收矩阵。
 
-13. 产品减负以 Codex 为唯一功能基线，保留 Lime 多模型/多协议、视觉主题、品牌、自有服务端与 Provider 边界，以及用户明确保留的专家广场、消息渠道。这些差异不因 Codex 缺少对应能力而删除或被上游实现覆盖。除此之外，Codex 没有的产品能力应删除入口、实现、配置、协议、数据消费、专用依赖、文案和测试，不以隐藏菜单代替删除。首页 Banner、创作场景和旧平台功能不享有额外保留例外。共享底层能力先核对现役消费者与 Codex 证据，禁止误删聊天、工具和恢复主链。
+13. 产品减负以 Codex 为唯一功能基线，保留 Lime 多模型/多协议、品牌、自有服务端与 Provider 边界，以及用户明确保留的专家广场、消息渠道。这些差异不因 Codex 缺少对应能力而删除或被上游实现覆盖。除此之外，Codex 没有的产品能力应删除入口、实现、配置、协议、数据消费、专用依赖、文案和测试，不以隐藏菜单代替删除。首页 Banner、创作场景和旧平台功能不享有额外保留例外。共享底层能力先核对现役消费者与 Codex 证据，禁止误删聊天、工具和恢复主链。
 
 ## 协议与质量
 

@@ -63,6 +63,53 @@ fn session_config_projects_bounded_deepswe_provider_step_budget() {
 }
 
 #[test]
+fn session_config_distinguishes_missing_and_empty_model_instructions() {
+    let request = request_for_test(
+        "继续实现",
+        Some(RuntimeRequest {
+            provider_preference: Some("custom".to_string()),
+            model_preference: Some("custom-model".to_string()),
+            ..RuntimeRequest::default()
+        }),
+        None,
+    );
+    let host_request = runtime_request_from_request(&request);
+    let scope = session_scope_from_request(&request).expect("session scope");
+    let selection = selection_from_explicit_preferences(&request).expect("selection");
+    let policy = request_tool_policy_from_request(host_request.as_ref());
+    let base_instructions = lime_services::model_registry_service::BASE_INSTRUCTIONS;
+    for (metadata, expected) in [
+        (None, base_instructions),
+        (Some(json!({"modelRegistry": {}})), base_instructions),
+        (
+            Some(json!({"modelRegistry": {"modelMessages": {}}})),
+            base_instructions,
+        ),
+        (
+            Some(json!({"modelRegistry": {"modelMessages": {
+                "instructions_template": ""
+            }}})),
+            "",
+        ),
+    ] {
+        let config = session_config_from_request(
+            &request,
+            host_request.as_ref(),
+            &scope,
+            &selection,
+            &policy,
+            metadata,
+        );
+        let prompt = config.system_prompt.expect("system prompt");
+        if expected.is_empty() {
+            assert!(!prompt.contains(base_instructions));
+        } else {
+            assert!(prompt.starts_with(expected));
+        }
+    }
+}
+
+#[test]
 fn session_config_applies_model_catalog_instructions_and_context_defaults() {
     let mut request = request_for_test("继续实现", None, None);
     let options = request.runtime_options.as_mut().expect("runtime options");
@@ -400,46 +447,6 @@ fn detached_agent_chat_first_turn_uses_compact_tool_surface() {
 }
 
 #[test]
-fn detached_agent_chat_first_turn_carries_injected_soul_without_reread_instruction() {
-    let mut request = request_for_test("你好", None, None);
-    let options = request.runtime_options.as_mut().expect("runtime options");
-    options.runtime_request_mut().provider_preference = Some("openai".to_string());
-    options.runtime_request_mut().model_preference = Some("gpt-4.1".to_string());
-    apply_detached_agent_chat_first_turn_policy(&mut request);
-    let host_request = runtime_request_from_request(&request);
-    let scope = session_scope_from_request(&request).expect("session scope");
-    let selection = selection_from_explicit_preferences(&request).expect("selection");
-    let policy = request_tool_policy_from_request(host_request.as_ref());
-    let config = session_config_from_request(
-        &request,
-        host_request.as_ref(),
-        &scope,
-        &selection,
-        &policy,
-        Some(json!({
-            "memory": {
-                "soul": {
-                    "schema": "memory_soul_prompt_context.v2",
-                    "source": "memory.soul",
-                    "scope": "interaction_only",
-                    "styleProfile": {
-                        "id": "cheeky_sassy_executor",
-                        "packId": "com.lime.soul.cheeky-sassy-executor",
-                        "tone": "cheeky_sassy"
-                    }
-                }
-            }
-        })),
-    );
-
-    assert!(should_use_compact_tool_surface(&request));
-    let prompt = config.system_prompt.expect("system prompt");
-    assert!(prompt.contains("Style profile: cheeky_sassy_executor"));
-    assert!(prompt.contains("`memory.soul` 是配置键，不是文件路径"));
-    assert!(prompt.contains("不要尝试读取 `memory.soul` 或 `SOUL.md`"));
-}
-
-#[test]
 fn retired_desktop_app_id_does_not_enable_responsive_profile() {
     let mut request = request_for_test("你好", None, None);
     request.session.app_id = "desktop".to_string();
@@ -638,14 +645,7 @@ fn detached_first_turn_session_config_uses_light_context() {
     let scope = session_scope_from_request(&request).expect("session scope");
     let selection = selection_from_explicit_preferences(&request).expect("selection");
     let policy = request_tool_policy_from_request(host_request.as_ref());
-    let config_metadata = json!({
-        "memory": {
-            "soul": {
-                "source": "memory.soul",
-                "summary": "RESPONSIVE_TURN_SOUL_CONTEXT"
-            }
-        }
-    });
+    let config_metadata = json!({"modelRegistry": {"modelMessages": {"instructions_template": "MODEL_BASE_INSTRUCTIONS"}}});
 
     let config = session_config_from_request(
         &request,
@@ -658,9 +658,8 @@ fn detached_first_turn_session_config_uses_light_context() {
     assert_eq!(config.include_context_trace, Some(false));
 
     let prompt = config.system_prompt.expect("system prompt");
-    assert!(prompt.contains("你是 Lime 桌面端中的 AI 助手"));
-    assert!(prompt.contains("## Interaction Soul"));
-    assert!(prompt.contains("RESPONSIVE_TURN_SOUL_CONTEXT"));
+    assert!(prompt.contains("MODEL_BASE_INSTRUCTIONS"));
+    assert!(!prompt.contains("Interaction Soul"));
     assert!(!prompt.contains("【Lime Runtime AGENTS 指令】"));
     assert!(!prompt.contains("## 可用 Agent Skills"));
     let turn_context = config.turn_context.expect("turn context");
@@ -745,7 +744,7 @@ fn detached_first_turn_keeps_auto_web_search_in_compact_context() {
     );
 
     let prompt = config.system_prompt.expect("system prompt");
-    assert!(prompt.contains("你是 Lime 桌面端中的 AI 助手"));
+    assert!(prompt.contains("You are a coding agent running in Lime"));
     assert!(!prompt.contains("## 可用 Agent Skills"));
 }
 
