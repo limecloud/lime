@@ -84,3 +84,14 @@ Quality run `40329480101` 的 typecheck 已通过，随后测试分层预算报 
 - `vitest-layer-classifier.mjs` 不再将 `vi.waitFor` 等对象方法轮询当成 React Testing Library 的独立 `waitFor`，保留真正 DOM 和组件检测；补正反回归。`electron/appServerHost.test.ts` 的受控连接测试无 DOM，恢复 unit 分类。
 - `composerCodeBlockHighlight.test.ts` 中的 5 个纯 grammar/parser/loader 回归迁入 `composerCodeBlockParser.unit.test.ts`；其余 17 个 ProseMirror 投影和编辑器生命周期回归迁为显式 `composerCodeBlockHighlight.component.test.ts`。没有改变产品代码或删除断言，避免导入 helper 的 DOM 行为被误标为 unit。
 - 分层预算恢复 38/38；classifier、budget、Host、parser 和 component 合计 5 文件 / 80 测试通过。完整 typecheck 复核。此增量只影响质量工具和测试，发布产物仍固定在用户批准的 `183b6b714`，无需反复移动标签重启构建。
+
+修复提交 `b92b0db3c` 的 Quality run `40331728498` 已通过 lint、typecheck 和分层预算，随后全量 Vitest 在第 3 批发现 3 条过期首页工具栏断言。扩展检查同族测试，本地复现共 5 条：
+
+- current `WorkspaceConversationScene` 仅在 `showChatLayout` 时渲染会话工具区，其已有组件回归明确覆盖首页空态不显示会话导航/工具栏。`index.test.tsx` 与 `index.workbench01.test.tsx` 仍正向要求空白首页出现旧工具区，与现役行为冲突。
+- 将这 5 条迁移为首页不显示会话工具区，保留空态、消息清空、项目上下文、禁止提前创建会话与首次提交接受回执等行为断言；删除一处重复的旧 DOM 位置断言，不恢复产品工具栏或旧夹具。
+- 首页及 scene 定向回归 3 文件 / 46 测试通过，完整 typecheck 与定向 ESLint 通过。新一轮全量分批 Vitest 进行中；上一次本地全量完成于 10 月 25 日，不能作为当前大写集的结果；本轮用独立状态文件保存进度，后续失败从该状态续跑。
+- 发布 run `40330431329` 中 Windows 构建、Squirrel 安装及安装后 Code Mode/native Gate B 已全部成功，macOS arm64 构建与 packaged native Gate B 成功；macOS x64 和后续发布环节仍在运行。Quality `40329480101` 的 Windows Shell Runtime 已成功，Rust Full 尚未结束。
+
+全量第 4 批又复现 `index.autoGuide01.test.tsx` 要求前端注入“任务已进入处理队列…”助手消息。current `buildInitialDispatchPreviewMessages` 只回显用户输入，助手消息来自 canonical runtime；迁移这一过期正向断言，保留首条意图被消费后用户输入仍可见的检查，完整数组断言同时禁止伪造助手消息。该批 10 测试通过后续跑。修复写集增加此测试，仍仅为 test-only；无新增 compat/deprecated。
+
+Release 的三个 Electron 平台构建及各自现役 packaged 门禁现均成功，GitHub Electron 资产已上传并公开；R2 updater、四平台 CLI 构建与 npm 发布继续跟进，尚不记完整发布成功。

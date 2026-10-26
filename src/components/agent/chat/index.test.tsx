@@ -380,10 +380,8 @@ describe("LocalConversationPage 任务中心顶部工具区", () => {
       ),
     ).toBeNull();
     expect(
-      container.querySelector(
-        '[data-testid="app-shell-header"] [data-app-shell-header-toolbar] [data-testid="task-center-utility-toolbar"]',
-      ),
-    ).not.toBeNull();
+      container.querySelector('[data-testid="task-center-utility-toolbar"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="toggle-harness"]'),
     ).toBeNull();
@@ -458,10 +456,8 @@ describe("LocalConversationPage 任务中心顶部工具区", () => {
       container.querySelector('[data-testid^="task-center-tab-task-draft-"]'),
     ).toBeNull();
     expect(
-      container.querySelector(
-        '[data-testid="app-shell-header"] [data-app-shell-header-toolbar] [data-testid="task-center-utility-toolbar"]',
-      ),
-    ).not.toBeNull();
+      container.querySelector('[data-testid="task-center-utility-toolbar"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="empty-state"]'),
     ).not.toBeNull();
@@ -500,10 +496,8 @@ describe("LocalConversationPage 任务中心顶部工具区", () => {
 
     expect(state.clearMessages).toHaveBeenCalledWith({ showToast: false });
     expect(
-      container.querySelector(
-        '[data-testid="app-shell-header"] [data-app-shell-header-toolbar] [data-testid="task-center-utility-toolbar"]',
-      ),
-    ).not.toBeNull();
+      container.querySelector('[data-testid="task-center-utility-toolbar"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="empty-state"]'),
     ).not.toBeNull();

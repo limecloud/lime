@@ -392,7 +392,7 @@ describe("LocalConversationPage 自动引导", { timeout: 20_000 }, () => {
     );
   });
 
-  it("首条意图被父层消费后，发送中仍应保留 bootstrap 预览，避免空白对话框", async () => {
+  it("首条意图被父层消费后，发送中仍应回显用户输入且不伪造助手消息", async () => {
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
         observedWorkspaceIds.push(workspaceId);
@@ -449,10 +449,6 @@ describe("LocalConversationPage 自动引导", { timeout: 20_000 }, () => {
       expect.objectContaining({
         role: "user",
         content: "请直接开始处理这个任务",
-      }),
-      expect.objectContaining({
-        role: "assistant",
-        content: "任务已进入处理队列…",
       }),
     ]);
   });

@@ -29,7 +29,7 @@ const {
 } = getIndexTestMocks();
 
 describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
-  it("空白新建任务首页应去掉项目栏和会话标签，将工具区放入共享页头", async () => {
+  it("空白新建任务首页不应显示项目栏、会话标签和会话工具区", async () => {
     const container = renderPage({
       agentEntry: "new-task",
       showChatPanel: false,
@@ -59,13 +59,8 @@ describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
     ).toBeNull();
     expect(container.textContent).not.toContain("新对话");
     expect(
-      container.querySelector(
-        '[data-testid="app-shell-header"] [data-app-shell-header-toolbar] [data-testid="task-center-utility-toolbar"]',
-      ),
-    ).not.toBeNull();
-    expect(
       container.querySelector('[data-testid="task-center-utility-toolbar"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="toggle-harness"]'),
     ).toBeNull();
@@ -102,9 +97,9 @@ describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
     expect(draftTabs).toHaveLength(0);
     expect(
       mounted.container.querySelector(
-        '[data-testid="app-shell-header"] [data-app-shell-header-toolbar] [data-testid="task-center-utility-toolbar"]',
+        '[data-testid="task-center-utility-toolbar"]',
       ),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it("空白新建任务首页刷新后不应自动恢复最近会话", async () => {
