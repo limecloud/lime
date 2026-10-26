@@ -3,7 +3,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { createArtifactFrameDriver } from "./artifact-frame-driver.mjs";
 import { createHash } from "node:crypto";
-import { invokeAppServerFromPage } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../../lib/chat-fixture/rpc.mjs";
 
 export async function runDocxAnnotationScenario({
   page,

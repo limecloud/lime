@@ -27,7 +27,7 @@ description: 为 Lime GUI、CLI/TUI、Rust、协议、配置与发布改动选�
 1. 先跑受影响的 unit/component/domain integration。纯逻辑归 projection/selector/helper，React 测试覆盖渲染、DOM、hook 和关键接线。
 2. Rust 先 `npm run test:rust:related -- <paths...>`，跨 owner 追加 integration；不要无理由从 workspace 全量开始。
 3. method / protocol / client / IPC / preload / gateway / catalog 变更补 `npm run test:contracts`，并同步 schema、消费者、fixture 和文档。
-4. Agent chat、streaming、stop、approval、queue、工具终态或恢复主链，先 `npm run smoke:agent-runtime-current-fixture`，再按受影响场景补证据。
+4. Agent chat、streaming、stop、approval、queue、工具终态或恢复主链，先 `npm run smoke:agent-runtime-current`，再按受影响场景补证据。
 5. GUI / Bridge / Workspace / Desktop Agent 主路径至少 `npm run verify:gui-smoke`；交付默认本地门禁 `npm run verify:local`。真实用户路径还需对应 Electron Gate B。
 6. CLI/TUI 先 crate 测试，再用真实 stdio/CLI/PTY fixture；从事实源选择具体入口。TUI 必须证明 alternate screen、键盘与终端恢复。
 
@@ -36,7 +36,7 @@ description: 为 Lime GUI、CLI/TUI、Rust、协议、配置与发布改动选�
 ## 证据与治理
 
 - Unit、App Server integration、current fixture、Gate A、Desktop Gate B、CLI Gate B、TUI Gate B、live 和 platform/packaged 分别报告，不能互相替代。
-- `smoke:agent-runtime-current-fixture` 是混合聚合入口，包含定向测试与 Electron 子场景。只报告实际执行成功的场景和边界，不把入口名称或历史结果当成任意 GUI 功能的 Gate B。
+- `smoke:agent-runtime-current` 聚合 Code Mode、会话恢复和运行中 Turn 恢复三个真实 Electron 入口。只报告实际执行成功的场景和边界，不把入口名称或历史结果当成任意 GUI 功能的 Gate B。
 - Desktop Gate B 必须关联真实 Electron、preload/IPC、`app_server_handle_json_lines`、current JSON-RPC、runtime/read model 与同一 identity 的用户可见状态；仅 `/health` 或浏览器 DOM 成功不足。
 - external / unavailable backend 是显式测试依赖；说明绕过了哪些执行层，不冒充 production 或 live provider。生产 mock fallback 命中必须为零。
 - public v2 使用 `thread/*`、`turn/*`、`item/*` 与 server request 合同。完成回归区分 wire `turn/completed`、runtime event 和 renderer `turn_completed`；不靠 sleep/grace timer 合成 terminal。

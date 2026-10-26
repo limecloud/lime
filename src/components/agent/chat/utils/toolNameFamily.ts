@@ -10,6 +10,16 @@ export function isDynamicToolCall(item: { metadata?: unknown }): boolean {
   );
 }
 
+export function isMcpToolCall(item: { metadata?: unknown }): boolean {
+  const metadata = item.metadata;
+  return (
+    metadata != null &&
+    typeof metadata === "object" &&
+    "canonical_type" in metadata &&
+    metadata.canonical_type === "mcpToolCall"
+  );
+}
+
 export type McpToolOperationKind =
   | "search"
   | "list"

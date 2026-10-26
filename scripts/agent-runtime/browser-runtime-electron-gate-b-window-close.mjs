@@ -1,4 +1,4 @@
-import { sanitizeJson, sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { sanitizeJson, sleep } from "../lib/chat-fixture/utils.mjs";
 
 async function destroyBrowserOwnerWindow(app, windowId) {
   return await app.evaluate(

@@ -108,16 +108,18 @@ export function BrowserDownloadRow({
           ) : null}
         </div>
         {entry.state !== "completed" ? (
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {t(`browserDownloads.state.${entry.state}`)} ·{" "}
-            {entry.totalBytes === null
-              ? t("browserDownloads.received", {
-                  received: formatBytes(entry.receivedBytes, i18n.language),
-                })
-              : t("browserDownloads.progress", {
-                  received: formatBytes(entry.receivedBytes, i18n.language),
-                  total: formatBytes(entry.totalBytes, i18n.language),
-                })}
+          <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+            <span>{t(`browserDownloads.state.${entry.state}`)}</span>
+            <span>
+              {entry.totalBytes === null
+                ? t("browserDownloads.received", {
+                    received: formatBytes(entry.receivedBytes, i18n.language),
+                  })
+                : t("browserDownloads.progress", {
+                    received: formatBytes(entry.receivedBytes, i18n.language),
+                    total: formatBytes(entry.totalBytes, i18n.language),
+                  })}
+            </span>
           </p>
         ) : null}
         {!isFinishedDownload(entry) && progress !== null ? (

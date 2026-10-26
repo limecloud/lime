@@ -38,6 +38,70 @@ fn input() -> Value {
         "operation":{"action":"screenshot"}})
 }
 
+struct FailingGateway {
+    interrupted: bool,
+    calls: AtomicUsize,
+}
+
+#[async_trait]
+impl ComputerUseGateway for FailingGateway {
+    async fn execute(
+        &self,
+        _: ComputerUseToolScope<'_>,
+        _: ComputerUseToolInput,
+    ) -> ComputerUseResult<Value> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Err(if self.interrupted {
+            ComputerUseError::interrupted("Manual intervention".into())
+        } else {
+            denied("user_intervened in ordinary denial text")
+        })
+    }
+}
+
+#[tokio::test]
+async fn takeover_cancels_local_and_enclosing_turn_but_ordinary_denial_does_not() {
+    use crate::tool_executor::{RuntimeToolExecutionContext, RuntimeToolExecutionContextInput};
+    use tokio_util::sync::CancellationToken;
+    for interrupted in [false, true] {
+        let cell = CancellationToken::new();
+        let turn = CancellationToken::new();
+        let context = RuntimeToolExecutionContext::new(RuntimeToolExecutionContextInput {
+            working_directory: ".".into(),
+            session_id: "session".into(),
+            cancel_token: Some(cell.clone()),
+            workspace_sandbox: None,
+        })
+        .with_turn_cancel_token(Some(turn.clone()))
+        .with_tool_identity(RuntimeToolExecutionIdentity::new("call", "turn"));
+        let gateway = Arc::new(FailingGateway {
+            interrupted,
+            calls: AtomicUsize::new(0),
+        });
+        let executor = ComputerUseExecutor {
+            gateway: gateway.clone(),
+        };
+        let params = input();
+        let request = RuntimeToolExecutionRequest {
+            tool_name: COMPUTER_USE_TOOL_NAME,
+            params: &params,
+            context: &context,
+            turn_context: None,
+        };
+        assert!(executor.execute(request).await.is_err());
+        assert_eq!(cell.is_cancelled(), interrupted);
+        assert_eq!(turn.is_cancelled(), interrupted);
+        if interrupted {
+            assert!(executor.execute(request).await.is_err());
+            assert_eq!(
+                gateway.calls.load(Ordering::SeqCst),
+                1,
+                "no next input after takeover"
+            );
+        }
+    }
+}
+
 fn registry(gateway: Arc<Gateway>) -> RuntimeGatewayToolExecutionRegistry {
     let dispatch = NativeDispatch::builder()
         .with_computer_use_gateway(gateway)

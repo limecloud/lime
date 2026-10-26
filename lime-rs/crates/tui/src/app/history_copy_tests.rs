@@ -260,6 +260,7 @@ fn main_selection_history_prepend_preserves_the_original_copy_ticket() {
             text: "EARLIEST canonical answer".into(),
             phase: None,
             memory_citation: None,
+            content_parts: Vec::new(),
             delivery: None,
             questions: None,
         }],

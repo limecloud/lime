@@ -13,7 +13,7 @@ import {
   verifyAcceptedNewEdit,
   verifyRecord,
   verifyRejectedSubmission,
-} from "../../agent-runtime/claw-chat-current-fixture-draft-persistence.mjs";
+} from "../../lib/chat-fixture/draft-persistence.mjs";
 import {
   assertAppServerRequestMethods,
   assertRestartLifecycle,
@@ -24,7 +24,7 @@ import {
 
 const dependencies = {
   drafts:
-    "scripts/agent-runtime/claw-chat-current-fixture-draft-persistence.mjs",
+    "scripts/lib/chat-fixture/draft-persistence.mjs",
   launcher: "scripts/electron/mcp-config-fixture-smoke.mjs",
   lifecycle: "scripts/electron/lib/persisted-atom-fixture-driver.mjs",
   owners: "scripts/electron/lib/persisted-atom-fixture-standalone.mjs",
@@ -32,25 +32,25 @@ const dependencies = {
   freshness: "scripts/lib/electron-fixture-build.mjs",
   assets: "scripts/lib/electron-app-server-assets.mjs",
   trace: "scripts/lib/invoke-trace-collector.mjs",
-  runtime: "scripts/agent-runtime/claw-chat-current-fixture-backend-file.mjs",
-  constants: "scripts/agent-runtime/claw-chat-current-fixture-constants.mjs",
-  rpc: "scripts/agent-runtime/claw-chat-current-fixture-rpc.mjs",
-  sessions: "scripts/agent-runtime/claw-chat-current-fixture-session.mjs",
-  marks: "scripts/agent-runtime/claw-chat-current-fixture-composer-marks.mjs",
+  runtime: "scripts/lib/chat-fixture/backend-file.mjs",
+  constants: "scripts/lib/chat-fixture/constants.mjs",
+  rpc: "scripts/lib/chat-fixture/rpc.mjs",
+  sessions: "scripts/lib/chat-fixture/session.mjs",
+  marks: "scripts/lib/chat-fixture/composer-marks.mjs",
   image:
-    "scripts/agent-runtime/claw-chat-current-fixture-composer-image-upload.mjs",
+    "scripts/lib/chat-fixture/composer-image-upload.mjs",
   history:
-    "scripts/agent-runtime/claw-chat-current-fixture-composer-history.mjs",
+    "scripts/lib/chat-fixture/composer-history.mjs",
   dom: "scripts/lib/composer-editor-dom.mjs",
   skills:
-    "scripts/agent-runtime/claw-chat-current-fixture-skills-workspace.mjs",
+    "scripts/lib/chat-fixture/skills-workspace.mjs",
 };
 const hashBytes = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const fixtureSources = [
   "scripts/electron/composer-draft-fixture-smoke.mjs",
   "scripts/electron/lib/composer-draft-fixture-driver.mjs",
   "scripts/electron/lib/composer-draft-fixture-evidence.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-draft-persistence.mjs",
+  "scripts/lib/chat-fixture/draft-persistence.mjs",
 ];
 
 async function sourceFingerprint(repoRoot, relative) {
@@ -368,10 +368,9 @@ export async function runComposerDraftGuiFixture(options, scenario = null) {
         runtimeEnv.backendPath,
         runtimeEnv.backendLedgerPath,
         runtimeEnv.cancelSignalPath,
-        runtimeEnv.typedErrorSignalPath,
       ]),
       APP_SERVER_BACKEND_TIMEOUT_MS: "130000",
-      CLAW_CHAT_FIXTURE_SCENARIO: "inputbar-rich-restore",
+      LIME_CHAT_FIXTURE_MODE: "silent",
     };
     async function launch(generation) {
       phase = `generation-${generation}-real-electron-launch`;

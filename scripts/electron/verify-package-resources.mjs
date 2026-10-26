@@ -384,9 +384,9 @@ function verifyDesktopResourceManifest(
     if (packagedSha256 !== resource.sha256) {
       if (
         !signedMacNativeHost ||
-        id !== "macos-native-host" ||
+        (id !== "macos-native-host" && id !== "desktop-permissions") ||
         !isMacCodeSigned(
-          signedMacNativeHostPath ?? resourcePath,
+          id === "macos-native-host" ? signedMacNativeHostPath ?? resourcePath : resourcePath,
           execFileSyncImpl,
         )
       ) {
@@ -435,9 +435,14 @@ function verifyDesktopResourceManifest(
           "desktop resource manifest Windows native helper path mismatch",
         );
       }
-      if (helperMetadata.readOnly !== true) {
+      if (
+        helperMetadata.readOnly !== false ||
+        helperMetadata.computerUseProtocolVersion !== 1 ||
+        !Array.isArray(helperMetadata.api) ||
+        !helperMetadata.api.includes("ComputerUse")
+      ) {
         throw new Error(
-          "desktop resource manifest Windows native helper must be read-only",
+          "desktop resource manifest Windows native helper Computer Use metadata mismatch",
         );
       }
       if (
@@ -460,7 +465,7 @@ function verifyDesktopResourceManifest(
     );
   }
   if (platform === "darwin") {
-    requiredIds.push("macos-native-host");
+    requiredIds.push("macos-native-host", "desktop-permissions");
     const helperMetadata = manifest.native?.helper;
     const helperResource = manifest.resources.find(
       (resource) => resource?.id === "macos-native-host",
@@ -650,6 +655,8 @@ function expectedDesktopResourcePath(id, key, platform) {
       return platform === "win32"
         ? `app-server/${key}/windows-sandbox-setup.exe`
         : null;
+    case "desktop-permissions":
+      return platform === "darwin" ? "native/macos/desktop-permissions.node" : null;
     case "windows-sandbox-runner":
       return platform === "win32"
         ? `app-server/${key}/windows-sandbox-runner.exe`

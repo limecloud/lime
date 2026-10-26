@@ -26,10 +26,14 @@ pub(super) fn project_item(item: canonical::ThreadItem) -> Result<v2::ThreadItem
                     .collect(),
             })
         }
-        canonical::ThreadItemPayload::AgentMessage { text, phase, delivery, questions, .. } => {
+        canonical::ThreadItemPayload::AgentMessage { text, phase, content_parts, delivery, questions } => {
+            if content_parts.iter().any(|part| !part.is_safe()) {
+                return Err(projection_error("unsafe agent message content reference"));
+            }
             Ok(v2::ThreadItem::AgentMessage {
                 id,
                 text,
+                content_parts,
                 phase,
                 memory_citation: metadata
                     .get("memoryCitation")

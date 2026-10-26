@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { waitForGuiChatCompleted } from "./claw-chat-current-fixture-gui-completion-waits.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
+import { waitForGuiChatCompleted } from "../lib/chat-fixture/gui-completion-waits.mjs";
 import {
   clickApprovalDecision,
   waitForApprovalPrompt,

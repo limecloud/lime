@@ -161,6 +161,43 @@ describe("electron launcher", () => {
     expect(branded).not.toContain("electron.icns");
   });
 
+  it("隐私声明写入根字典，保留 Electron 的嵌套完整性记录", () => {
+    const integrity = [
+      "<key>ElectronAsarIntegrity</key><dict>",
+      "<key>Resources/default_app.asar</key><dict>",
+      "<key>algorithm</key><string>SHA256</string>",
+      "<key>hash</key><string>receipt</string>",
+      "<key>NSLocationUsageDescription</key><string>nested</string>",
+      "</dict></dict>",
+    ].join("");
+    const branded = brandInfoPlist(`<plist><dict>${integrity}</dict></plist>`);
+    expect(branded).toContain(integrity);
+    expect(
+      branded.indexOf("<key>NSAppleEventsUsageDescription</key>"),
+    ).toBeGreaterThan(branded.indexOf("</dict></dict>"));
+    expect(branded).toContain("</dict></dict>\t<key>CFBundleDisplayName</key>");
+    expect(branded).toContain(
+      "<key>NSLocationUsageDescription</key>\n\t<string>Lime 需要访问位置以向获准的网站提供当前位置</string>",
+    );
+    expect(brandInfoPlist(branded)).toBe(branded);
+  });
+
+  it("不会将嵌套字典中的隐私声明视为可用的应用声明", () => {
+    const valid = brandInfoPlist("<plist><dict></dict></plist>");
+    const misplaced = valid.replace(
+      /(<key>NSLocationUsageDescription<\/key>\s*<string>[^<]*<\/string>)/,
+      "<key>ElectronAsarIntegrity</key><dict>$1</dict>",
+    );
+    expect(
+      isBrandedElectronAppReady({
+        executablePath: "/repo/Lime",
+        infoPlistPath: "/repo/Info.plist",
+        fileExists: () => true,
+        readFile: () => misplaced,
+      }),
+    ).toBe(false);
+  });
+
   it("准备 branded dev bundle 时复制 app、图标并写回 Info.plist", () => {
     const calls = [];
     const written = [];
@@ -372,6 +409,12 @@ describe("electron launcher", () => {
           "<key>CFBundleExecutable</key><string>Lime</string>",
           "<key>CFBundleIdentifier</key><string>com.limecloud.lime.dev</string>",
           "<key>CFBundleIconFile</key><string>icon.icns</string>",
+          "<key>NSLocationWhenInUseUsageDescription</key><string>Location for approved sites</string>",
+          "<key>NSLocationUsageDescription</key><string>Location for approved sites</string>",
+          "<key>NSCameraUsageDescription</key><string>Camera input</string>",
+          "<key>NSMicrophoneUsageDescription</key><string>Voice input</string>",
+          "<key>NSAppleEventsUsageDescription</key><string>Control apps</string>",
+          "<key>NSLocalNetworkUsageDescription</key><string>Local connections</string>",
           "</dict></plist>",
         ].join("");
       },
@@ -419,6 +462,12 @@ describe("electron launcher", () => {
           "<key>CFBundleExecutable</key><string>Lime</string>",
           "<key>CFBundleIdentifier</key><string>com.limecloud.lime.dev</string>",
           "<key>CFBundleIconFile</key><string>icon.icns</string>",
+          "<key>NSLocationWhenInUseUsageDescription</key><string>Location for approved sites</string>",
+          "<key>NSLocationUsageDescription</key><string>Location for approved sites</string>",
+          "<key>NSCameraUsageDescription</key><string>Camera input</string>",
+          "<key>NSMicrophoneUsageDescription</key><string>Voice input</string>",
+          "<key>NSAppleEventsUsageDescription</key><string>Control apps</string>",
+          "<key>NSLocalNetworkUsageDescription</key><string>Local connections</string>",
           "</dict></plist>",
         ].join("");
       },

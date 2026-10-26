@@ -13,7 +13,7 @@ import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs"
 import {
   createTempRuntimeEnv,
   startTextProviderFixtureServer,
-} from "../agent-runtime/claw-chat-current-fixture-backend-file.mjs";
+} from "../lib/chat-fixture/backend-file.mjs";
 import {
   bindGuiWorkspaceAndModelPreferences,
   ensureDefaultWorkspace,
@@ -22,19 +22,19 @@ import {
   collectTraceRequestMethods,
   invokeAppServerFromPage,
   reloadRendererDocument,
-} from "../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
-import { waitForSessionReadCompleted } from "../agent-runtime/claw-chat-current-fixture-read-model-waits.mjs";
-import { sendPromptFromGui } from "../agent-runtime/claw-chat-current-fixture-gui-actions.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
+import { waitForSessionReadCompleted } from "../lib/chat-fixture/read-model-waits.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
 import {
   GREETING_DONE_TEXT,
   GREETING_PROMPT,
   GREETING_SUMMARY_TEXT,
-} from "../agent-runtime/claw-chat-current-fixture-constants.mjs";
+} from "../lib/chat-fixture/constants.mjs";
 import {
   readJsonl,
   sanitizeText,
-} from "../agent-runtime/claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
 import { inspectElectronFixtureBuildFreshness } from "../lib/electron-fixture-build.mjs";
@@ -140,7 +140,6 @@ export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
           runtimeEnv.backendPath,
           runtimeEnv.backendLedgerPath,
           runtimeEnv.cancelSignalPath,
-          runtimeEnv.typedErrorSignalPath,
         ]),
         APP_SERVER_BACKEND_TIMEOUT_MS: "10000",
         LIME_ALLOW_LIVE_PROVIDER_SMOKE: "0",

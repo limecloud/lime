@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { clickNativeMenuItem } from "./browser-runtime-gate-a.mjs";
-import { assert, sanitizeText } from "./claw-chat-current-fixture-utils.mjs";
+import { assert, sanitizeText } from "../lib/chat-fixture/utils.mjs";
 import {
   readConfigFromPage,
   writeConfigEditsFromPage,

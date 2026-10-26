@@ -84,6 +84,10 @@ internal/exec-plans/*
 !internal/exec-plans/agnes-model-recovery-20261020.json
 !internal/exec-plans/artifacts/
 internal/exec-plans/artifacts/*
+!internal/exec-plans/artifacts/release-v1.172.0/
+internal/exec-plans/artifacts/release-v1.172.0/*
+!internal/exec-plans/artifacts/release-v1.172.0/candidate-manifest.json
+!internal/exec-plans/artifacts/release-v1.172.0/chat-fixture-cleanup.json
 !internal/exec-plans/artifacts/codex-file-clicks-20261022/
 internal/exec-plans/artifacts/codex-file-clicks-20261022/*
 !internal/exec-plans/artifacts/codex-file-clicks-20261022/summary.json

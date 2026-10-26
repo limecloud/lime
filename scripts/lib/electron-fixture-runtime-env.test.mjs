@@ -38,7 +38,7 @@ describe("electron fixture runtime env", () => {
 
   it("三条 current Gate B fixture 应共享同一 PATH owner", () => {
     const fixtureSources = [
-      "scripts/agent-runtime/claw-chat-current-fixture-backend-file.mjs",
+      "scripts/lib/chat-fixture/backend-file.mjs",
       "scripts/electron/session-history-fixture-smoke.mjs",
       "scripts/electron/code-artifact-workbench-fixture-smoke.mjs",
     ].map((filePath) => fs.readFileSync(filePath, "utf8"));

@@ -14,8 +14,8 @@ import {
   initializeAppServer,
   waitForAppUrlReady,
   waitForRendererReady,
-} from "./claw-chat-current-fixture-rpc.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
 import {
   assert,
   cleanupTempRoot,
@@ -23,7 +23,7 @@ import {
   sanitizeJson,
   sanitizeText,
   writeJsonFile,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 import {
   readSessionSummary,
   readWorkflowAudit,

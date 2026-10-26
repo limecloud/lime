@@ -13,7 +13,7 @@ import { startOpenAiCompatibleFixtureServer } from "../lib/openai-compatible-fix
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { ensureElectronFixtureBuild } from "../lib/electron-fixture-build.mjs";
-import { APP_SERVER_METHOD_SESSION_READ } from "./claw-chat-current-fixture-constants.mjs";
+import { APP_SERVER_METHOD_SESSION_READ } from "../lib/chat-fixture/constants.mjs";
 import { runBrowserCancelScenario } from "./browser-runtime-electron-gate-b-cancel.mjs";
 import {
   installBrowserApprovalPage,
@@ -71,26 +71,26 @@ import {
   initializeAppServer,
   invokeAppServerFromPage,
   waitForRendererReady,
-} from "./claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 import {
   createFixtureSession,
   navigateGuiToWorkspaceScopedAgent,
   openFixtureSessionFromSidebar,
   waitForGuiSessionVisible,
-} from "./claw-chat-current-fixture-session.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { createTempRuntimeEnv } from "./claw-chat-current-fixture-backend-file.mjs";
+} from "../lib/chat-fixture/session.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
+import { createTempRuntimeEnv } from "../lib/chat-fixture/backend-file.mjs";
 import {
   mergeInvokeTraceEvidence,
   startInvokeTraceEvidenceCollector,
-} from "./claw-chat-current-fixture-invoke-trace.mjs";
+} from "../lib/chat-fixture/invoke-trace.mjs";
 import {
   assert,
   cleanupTempRoot,
   sanitizeJson,
   sanitizeText,
   sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 const LOG_PREFIX = "[smoke:browser-runtime-electron-gate-b]";
 const MODEL_NAME = "fixture-browser-runtime";

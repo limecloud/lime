@@ -3,6 +3,7 @@ use serde_json::json;
 use std::collections::HashMap;
 
 mod async_user_input;
+mod media;
 mod queue;
 
 #[test]

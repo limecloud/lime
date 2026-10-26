@@ -183,7 +183,15 @@ export function isBrandedElectronAppReady({
       infoPlist.includes(`<key>CFBundleIdentifier</key>`) &&
       infoPlist.includes(`<string>${bundleIdentifier}</string>`) &&
       infoPlist.includes(`<key>CFBundleIconFile</key>`) &&
-      infoPlist.includes(`<string>${APP_ICON_NAME}</string>`)
+      infoPlist.includes(`<string>${APP_ICON_NAME}</string>`) &&
+      [
+        "NSCameraUsageDescription",
+        "NSMicrophoneUsageDescription",
+        "NSAppleEventsUsageDescription",
+        "NSLocationUsageDescription",
+        "NSLocationWhenInUseUsageDescription",
+        "NSLocalNetworkUsageDescription",
+      ].every((key) => Boolean(rootPlistString(infoPlist, key)?.[4]?.trim()))
     );
   } catch {
     return false;
@@ -264,6 +272,13 @@ export function brandInfoPlist(
     CFBundleIdentifier: bundleIdentifier,
     CFBundleIconFile: iconFile,
     LSApplicationCategoryType: "public.app-category.productivity",
+    NSCameraUsageDescription: "Lime 需要访问摄像头以使用视觉输入功能",
+    NSMicrophoneUsageDescription: "Lime 需要访问麦克风以使用语音输入功能",
+    NSAppleEventsUsageDescription: "Lime 需要控制其他应用以完成电脑操作",
+    NSLocationUsageDescription: "Lime 需要访问位置以向获准的网站提供当前位置",
+    NSLocationWhenInUseUsageDescription:
+      "Lime 需要访问位置以向获准的网站提供当前位置",
+    NSLocalNetworkUsageDescription: "Lime 需要连接获准的局域网服务",
   });
 }
 
@@ -297,18 +312,33 @@ export function setPlistStringValues(content, values) {
 }
 
 function setPlistStringValue(content, key, value) {
-  const escapedKey = escapeRegExp(key);
-  const pattern = new RegExp(
-    `(<key>${escapedKey}</key>\\s*<string>)([\\s\\S]*?)(</string>)`,
-  );
-  if (pattern.test(content)) {
-    return content.replace(pattern, `$1${escapePlistString(value)}$3`);
+  const existing = rootPlistString(content, key);
+  const entry = `<key>${key}</key>\n\t<string>${escapePlistString(value)}</string>`;
+  if (existing) {
+    return (
+      content.slice(0, existing.index) +
+      entry +
+      content.slice(existing.index + existing[0].length)
+    );
   }
-
+  // Privacy usage strings must be root entries, outside ElectronAsarIntegrity.
+  if (!/<\/dict>\s*<\/plist>\s*$/.test(content)) {
+    throw new Error("Expected an XML plist with a root dictionary");
+  }
   return content.replace(
-    /<\/dict>/,
-    `\t<key>${key}</key>\n\t<string>${escapePlistString(value)}</string>\n</dict>`,
+    /<\/dict>(\s*<\/plist>\s*)$/,
+    (_, tail) => `\t${entry}\n</dict>${tail}`,
   );
+}
+
+function rootPlistString(content, key) {
+  let depth = 0;
+  for (const token of content.matchAll(
+    /<(\/?)(dict|array)>|<key>([^<]+)<\/key>\s*<string>([^<]*)<\/string>/g,
+  )) {
+    if (token[2]) depth += token[1] ? -1 : 1;
+    else if (depth === 1 && token[3] === key) return token;
+  }
 }
 
 function escapePlistString(value) {
@@ -316,10 +346,6 @@ function escapePlistString(value) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function codesignAppBundle(appPath) {

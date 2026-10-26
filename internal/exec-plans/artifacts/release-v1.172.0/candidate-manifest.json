@@ -1,0 +1,3736 @@
+{
+  "version": "1.172.0",
+  "tag": "v1.172.0",
+  "base": "2f8ff31d38ba4c80598d8ed15b4ebc2215da6ae7",
+  "scope": "完整初始候选加用户授权的旧聊天夹具与对应逻辑清理，无排除项。",
+  "metadataNote": "显式列出每个增删路径，避免重命名检测隐藏旧文件删除。Cargo.toml 同时包含既有候选改动和版本更新；验证边界见发布执行记录。",
+  "fileCount": 620,
+  "excluded": [],
+  "files": [
+    {
+      "path": ".codex/skills/lime-quality-workflow/SKILL.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e7c5c8a61b177f2c076af70cf4ba3d59ab157703bc54f42382d0f4f931b6897a"
+    },
+    {
+      "path": ".gitignore",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "de68ccb1f4c346117cc50cee7056f3a9c2ff12e116ba5277c37b509f72f7b4f9"
+    },
+    {
+      "path": "AGENTS.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "83cda1562d1c717015be965f31b4c9ba16f5acd69ee7e50fd2c8262c231e299c"
+    },
+    {
+      "path": "RELEASE_NOTES.en.md",
+      "status": "M",
+      "kind": "release metadata",
+      "sha256": "39b9c452c25e1596ec978522f07b982b308c725e09ddeb6a8d3ebd68341cb324"
+    },
+    {
+      "path": "RELEASE_NOTES.md",
+      "status": "M",
+      "kind": "release metadata",
+      "sha256": "9f5f3939ddc6ff8a439d6b2f2dd55d203f674543a8d00e98dfc4ed65931cdcad"
+    },
+    {
+      "path": "electron/appServerHost.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "f4cffa9579b57ed6041b89c3cfcaabfc28490dbe591f191cc52cf54eaaa5b198"
+    },
+    {
+      "path": "electron/appServerHost.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4728412872e7754eb0d4e2e52b107f023d3bb49b075cd66ecc7cf02c1d706d17"
+    },
+    {
+      "path": "electron/browserHistoryHost.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "69628c8be8ba1455adc730cf5a5a71a2c5ff364e498f9359459f613ab0b0e2d4"
+    },
+    {
+      "path": "electron/browserHistoryHost.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e2656ad31bc4c51419185962bee5615bc037b38fa10069bfe3b63a9cee46b462"
+    },
+    {
+      "path": "electron/browserNativePipeResources.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b7c7c45307ba0a8c9f3bdf075fe652e8fdc04a8e92c0e9c1bfb52636676e9268"
+    },
+    {
+      "path": "electron/browserNavigationRecovery.integration.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "9127ffac66d0060bc1624f4beeb447e6fabe27e8aeb9e4c3eb3742684bf124be"
+    },
+    {
+      "path": "electron/browserNavigationStore.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "dc6681a3fcf39d0e4a382335cc41e40d69db72593ca320a68a46f7093f3f05d9"
+    },
+    {
+      "path": "electron/browserNavigationStore.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "0ade0d4ee2fa97c02233b8f071a981a92458a48c760f9c50d34835c16082d9cd"
+    },
+    {
+      "path": "electron/browserPermissionRequests.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c3d19a0fa7c800dd3e8f18aea320acdfe7a3853c481985090e4f655a222914c6"
+    },
+    {
+      "path": "electron/browserSiteSettingsStore.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5842c2dd934cdcee2054606540fe013e7249f03a73cef86d99340d5738415ea4"
+    },
+    {
+      "path": "electron/browserSiteSettingsStore.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0e074a31c7e7939308b180d3a823dc2d67fe18df4401b9e887ec3e5147bc877b"
+    },
+    {
+      "path": "electron/browserTabHost.testHarness.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4275470141360ea1b6c61184dd8d77ce4a3e5667ffc0ba4e63beab1ac7c621a2"
+    },
+    {
+      "path": "electron/browserTabHost.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "852938161bea2ad01c042ad07824c9942e24405edeac3c9bba7452d739005944"
+    },
+    {
+      "path": "electron/browserTabNavigation.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "97af41b6df9baf866db78dba323e346c5fd8fd18a62f2b5195a2e03ee36dfc70"
+    },
+    {
+      "path": "electron/browserTabNavigation.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "afa1522743b207adaab921f535a51259916216f452d96e0faa96fd6e09031102"
+    },
+    {
+      "path": "electron/desktopDiskAccess.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "b65ec50fd6f9dc713bda7bb9c08a8a2af2641610428852fcfd470cd16a062ac4"
+    },
+    {
+      "path": "electron/desktopDiskAccess.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "7400bff4c5f7e2ab9f338df767f4c608351a823aa67a7f747b623045af527467"
+    },
+    {
+      "path": "electron/desktopPermissionsHost.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "965167fecd839d65e11a5f0cad68c4e3d108899db8e17462bf80b196a1a65a96"
+    },
+    {
+      "path": "electron/desktopPermissionsHost.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "d478694cdcb7c894ed159a500ee422cbd9c6f1ca643d1dee698da1711ad4dc82"
+    },
+    {
+      "path": "electron/desktopPermissionsNative.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "e1c3bc5092c9f08af5b897ae78e426d06ab5c36b140bbc518826ab4792a19c40"
+    },
+    {
+      "path": "electron/desktopPermissionsSetupStore.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "8a5c391b74ef41fac4863108d4f917dbe006b87552139474e3ad4b70bbc97ee5"
+    },
+    {
+      "path": "electron/desktopResources.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "234f9cf0fe16748155e88af7427225352e677db05ff807694acb7a683a5ff9b0"
+    },
+    {
+      "path": "electron/desktopResources.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "a62c0857b001cfa2d807e6cac8e164a3d9c0530c545f94e7c9acf0fa3e6d7c36"
+    },
+    {
+      "path": "electron/embeddedBrowserHost.testFixtures.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "377522b71647ead7e41c2d22d67b64b93c4de7739eccb156cbacdcac731ce414"
+    },
+    {
+      "path": "electron/embeddedBrowserHost.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b089cea5b72b7ee2894ed35449a8e8543466c9d3dcb9dfcccbfb543402ac7785"
+    },
+    {
+      "path": "electron/embeddedBrowserImages.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "4897880ba45cdd5383c935af643ee1a035c781dcadd86b54ad23e6bf3d02f94b"
+    },
+    {
+      "path": "electron/embeddedBrowserImages.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "4fd72c6d9dd6c74d6b1d0930977cba7581380f7323eca007b971e500a52eaa45"
+    },
+    {
+      "path": "electron/hostCommands.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "71034cfe9bec08d688ccd70c8530177b9df390587d0399de4d3a5ebc63a8ac7a"
+    },
+    {
+      "path": "electron/hostCommands.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ebaeea3697fe4dd536e55e8be7a0613bfa00193651077c76b58604e715178a30"
+    },
+    {
+      "path": "electron/ipcChannels.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a0b4eb091e605fe65e067907847c7e08458ef5dcc34962162c38d89dab08ebc4"
+    },
+    {
+      "path": "electron/ipcChannels.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "bef45dd08c323829cac712ee4131027085be4c22103dc0d5d2beda293d7be549"
+    },
+    {
+      "path": "electron/macosNativeHost.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8f71d33792b99c6a00ca8e5b1b66b2913ff883e5944a163d55da69d99e45068f"
+    },
+    {
+      "path": "electron/macosNativeHost.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0cd99e8d95a9b32d9aece8a4913bd2bb9dc2e0dfd59fa70b8d3ed710d38f2ab6"
+    },
+    {
+      "path": "electron/main.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "895a559bf590c82b3c7e2b8653a8dab912afdc90de895c5571015acafb8f3f8b"
+    },
+    {
+      "path": "electron/native/assets/computer-use-cursor/README.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "500ade2631fefa7240c14d6244ad1bebbc52f3ffd2d2ba2fe077a73db9a4dc09"
+    },
+    {
+      "path": "electron/native/computer-use-cursor-motion.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "7c6a8212b8b684ac4532d9113b4ccd36859b40d206a3715bba9ec66a0df18d40"
+    },
+    {
+      "path": "electron/native/macos/desktop-permissions.mm",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "d4e23e88a3504d92c958e53a3efb2bc62883eec0ea37850c917bc4286f1f68ef"
+    },
+    {
+      "path": "electron/native/macos/macos-apple-events.swift",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "3c83004fec1dfe5a581e1ddc9e8ac01b42467dc48c8c1710ca7349afd43eeb00"
+    },
+    {
+      "path": "electron/native/macos/macos-computer-use-actions.swift",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "87fc1665c7f43e6cd1bc1ed87189e874d5019443f6c5b55e0b5975bf330cd6e7"
+    },
+    {
+      "path": "electron/native/macos/macos-computer-use-cursor.swift",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ea0154f29aa483d345bab8da66a80a71cbb936a1b3c3bd113b6cd5850023864b"
+    },
+    {
+      "path": "electron/native/macos/macos-computer-use-input.swift",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "bb6e07be0b1e4a96bc8db321eae975fe6a752233829c29f34c754ddd499edb7c"
+    },
+    {
+      "path": "electron/native/macos/macos-computer-use.swift",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "59486b9e17ba545c1431f896e20b4069e324ab28bb361d951697272d5a793ad9"
+    },
+    {
+      "path": "electron/native/macos/macos-native-host.swift",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "bde3586f1ba6650f69969a100f1da32d78d23b7db94eccca233f9abd390bf750"
+    },
+    {
+      "path": "electron/native/windows/tests/computer-use-cursor-motion-test.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "256f9032ea0c848e92dfbe15534440e842a8be0ba90363103df0e127a3bafc89"
+    },
+    {
+      "path": "electron/native/windows/tests/computer-use-cursor-presentation-test.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "765ff3dcd9a608e0ebe615f43a1480c64e00f7ab0efa2fefbcb7e325d20d1d1d"
+    },
+    {
+      "path": "electron/native/windows/tests/computer-use-cursor-window-test.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "744e4073657456e9520cb680078302e5a37a8d47d1f5b3741834e5553aba6776"
+    },
+    {
+      "path": "electron/native/windows/tests/windows-native-protocol-test.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "c19be1154ff346c7dd482858635b8bc0c8f95abe721d28a6586f7a4db3f7c8db"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-actions.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "5acd2bf545d7c0b236a3d8c131d3a1bcf090bd597635441dd6903fcfd516f276"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-apps.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "5156c24fb147dd3e08d0b295450dc78d8ac4f450871b68aa7961cc443b84c668"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-capture.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "a5d7be3a6506efa2b45a2b175d7caf6995662c8c24bd1cc9a0ebda5f018459cd"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-cursor-frames.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "c8bec85d6aaaa751b0957e740f364b2e8dabde8082876fcefb51f93a582518ee"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-cursor-internal.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "5ee496e15226ae4cdedfe1ee31cf0ef27a7014864793c9dd4785a6a17a2b6558"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-cursor-presentation.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "82a1b622d399b4f79fd0f07a6dcbbe3ced368f10b277d6a82bec602824550741"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-cursor-recovery.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "5fae9358da6f981d85aa6c9c89a3d0d62a20f79fd865f620ae83d5dd81a37297"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-cursor-window.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "f91c8ccc0349ceebf05227f161bf7a46d25090009c8a5b43b739daf42c346157"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-cursor.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "9ddfe9b166186baf69c9a537841b6f280cb37437317b73a19d156ae9915e7955"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-cursor.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "ec51e3d91d5e54aaac00186a0801fa3bfd232632ce6bee6986e9b5f8f7643f89"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-input.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "e06a68b5437b7251dbf86c9bf78df7cbbea72b723c5427453889f3c327092bd0"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use-input.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "93f9bb49e7347e65d97b97d35333efd46f26e61fb10d77857a866efab5ceefab"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use.cpp",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "e09a852657e37bbfb80c1681b43eaa070ee3fcb1f1d137ac1c66ec433486143d"
+    },
+    {
+      "path": "electron/native/windows/windows-computer-use.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "dddadaf53e028e92d906de83e67a3dbcaa03bf940b86324cf8b411002237cc55"
+    },
+    {
+      "path": "electron/native/windows/windows-native-host.cpp",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "89558be6bc06620a05393ad1ebacbc3c0b0ef000c091e7271a38d19e9a5f5bcf"
+    },
+    {
+      "path": "electron/native/windows/windows-native-protocol.h",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "b1e2d49b7349800f78bda832264e9021a63d4f2adda5efda08cbf6ac3174f88f"
+    },
+    {
+      "path": "electron/systemUtilityHost.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6b3664bb4001009eaa1994080e99092d06646380cc0d1b57c94ea3ce5c650d0d"
+    },
+    {
+      "path": "electron/systemUtilityHost.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "cb924f622385556439dc90afc5f055cc6d9f534ab7676a81fca2a32d2417afc3"
+    },
+    {
+      "path": "electron/windowsNativeHost.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4dbf816cf4d1b5e4da8ae0711393f04aeb0c7a4b3303ab09e20974c1439981a5"
+    },
+    {
+      "path": "electron/windowsNativeHost.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "38db2b43fb2976176e386e368c5815ef8104f165cca50009e8a1ea7cf1976d84"
+    },
+    {
+      "path": "extensions/lime-chrome/CHROME_WEB_STORE_SUBMISSION.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "694f8b60f4804af1d35d1f08fc71d95b9d1b143a912b8ff77a4bec6e501b331f"
+    },
+    {
+      "path": "extensions/lime-chrome/PRIVACY_POLICY.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a365892b5c32941332343410c9e77253382f0503821a59eb2f99159174b4f256"
+    },
+    {
+      "path": "extensions/lime-chrome/README.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "27d1961c1b4a9e05249bc551da60f661fdd41256cedcc00d13cbcb3df65abd58"
+    },
+    {
+      "path": "extensions/lime-chrome/browser-session.js",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4dea526b716daf19234e0a200e9644a5b1790044d750e9b896cb810a3473aa15"
+    },
+    {
+      "path": "forge.config.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "380fe94c7fa1a9f73593c53eaccd2b7d2a3c7d881f06efa28e881a169e28cd9d"
+    },
+    {
+      "path": "internal/aiprompts/architecture.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b4599763d94cdd4c481c18f7dcc41af00de82f24378fe3490f2e4267d0770a59"
+    },
+    {
+      "path": "internal/aiprompts/claw-streaming-rendering-correctness.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9a29e6b3ff93065a296977c3ee3e0c5329146cbc1d75854c464e2bc839341072"
+    },
+    {
+      "path": "internal/aiprompts/commands.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "734b85f14af2fab0fdf25f75614d54edae5aa9b9cf2596483e2eed3c70ca0a45"
+    },
+    {
+      "path": "internal/aiprompts/quality-workflow.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7629fed83edaf427f982d857cbedd1bce6e6dff058dd3df7cd3441a6b77845ef"
+    },
+    {
+      "path": "internal/aiprompts/remote-runtime.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "492fa61e7823adfd25cf59ea39f5e821d2795b02186bfcfc38eb0701a02d387b"
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.172.0/candidate-manifest.json",
+      "status": "A",
+      "kind": "release evidence",
+      "sha256": null,
+      "note": "Self hash omitted to avoid a recursive digest."
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.172.0/chat-fixture-cleanup.json",
+      "status": "A",
+      "kind": "release evidence",
+      "sha256": "5e63ff520bcf2ee08a4db2c12c85ef62e2abb231d0e04e028285a399a05b083f"
+    },
+    {
+      "path": "internal/exec-plans/release-v1.172.0-plan.md",
+      "status": "A",
+      "kind": "release evidence",
+      "sha256": "75f69b0477d4534a602c22ae3e6fb0792724547c4c0a3267ee88eced34591e11"
+    },
+    {
+      "path": "internal/exec-plans/tech-debt-tracker.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2a1b321168ba8df4c2f7adc45553e2a7456a97aba2db315a47819527ad0280a4"
+    },
+    {
+      "path": "lime-rs/Cargo.lock",
+      "status": "M",
+      "kind": "release metadata",
+      "sha256": "83f4d8ce6d2eaed641993e95186ea1126c0320b0ed829985d7c9cd5f1614f500"
+    },
+    {
+      "path": "lime-rs/Cargo.toml",
+      "status": "M",
+      "kind": "release metadata",
+      "sha256": "dc78253f10a76754fa50f9286fcf6335b59cefdf87ffa4696f6f1ca212492219"
+    },
+    {
+      "path": "lime-rs/crates/agent-runtime/src/provider_turn/code_mode.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7ab8507ed6ef84a902883e7409a9fba5feacb820dc191622390dae6f0cc64218"
+    },
+    {
+      "path": "lime-rs/crates/agent-runtime/src/provider_turn/tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "68865bb4ea1b14f0aa2528e14d4746508969889ba6ed30617bba55fef1bc2b07"
+    },
+    {
+      "path": "lime-rs/crates/agent-runtime/src/provider_turn/tests/interruption.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "33bc51f56ced70617a5de6fa62234004664f60f28f306bc0564cb4149b70b731"
+    },
+    {
+      "path": "lime-rs/crates/agent/src/native_tools/gateway_bridge.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ab62d7bbb8d22e26156ada11bc7a6220e69ebd34f270da9241786d0ee2997d73"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/app_server_protocol.schemas.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "158fb893f6017ae88be2df8115988c745d95c91e30dcff45fd3197c6c0d2f351"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ItemCompletedNotification.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6f3e31e4293ea00ffc5588cfb2b10fb485741155304d45dfce7cfe1c1e84940c"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ItemStartedNotification.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8d88a9154e3e7bfee1170ae2e74cfcaecd1a15b0aa97df55c752c7cf17e2ed84"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ReviewStartResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ca42987965abb9919b86f52c4a0cdb69157ad88e5178670cf432d2c9a3f4d1ec"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ServerNotification.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ff73f46032ebc79d5627facbdb911e0224f695e5a1d32cd984985cad34845ba8"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/Thread.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9d0b6102827a88a657b39cee25eee350740350a857a272589c5cb11f28bb0395"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadForkResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6c052ca38ba9ce230eeaa44d58138bcc244e4c75c28866a1ea10a3ed2679076a"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadItem.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e46d5fb99d93de9b1a02693f1b95486692bba5c06baf4f03d16ac320f2953c94"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadItemEntry.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "22d28192c07bc36e93206aae036ffb1219c3b498f4f37b015e31960df9a26712"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadItemsListResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "77af45f86bac6560c47e2e97d95570646ca95af75105f725d3953b110f6fb191"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadListResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d57890bef68bd46b983f8d66e45b2e1759b24945cf4244d428fc8bd35029b5b8"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadMetadataUpdateResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0ff25b304210b96ffc7eccb0f481ddc6b24f1caa4565e662b27b07c6e5ace615"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadQueueStartResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9802b1818029b6a8b1d9844ca9688b7e8776a7ee92b4a2d72874d83aa059d2a7"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadReadResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "82b9f2e3eadef26032ff219cd284da1d4630dd7ce30c0298d3a64382dc1c5a39"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadResumeResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a2fdc3e2584083d1eb3bc58f64d637931d355dfdcc42d2524e3af6d75c602698"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadRevertResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c9152c069e95fc68259621543c18304a6516fd29967b2963f5dc80e3dfe5007f"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadSearchResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "cc97bca8ea324ab8b081d53d1fe01988ac5f6baea46dce8bce043cd6edd4811c"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadSearchResult.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9d65030047c58f2fe94863b28450506bc9fc940dc2ea004069d0fcbd085b2c77"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadStartResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c5b11f621390d219d70f871dd05d18de4130c77ba97514f147ba3181d78ea1c1"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadStartedNotification.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d181f799b16b97baf0d2476353eded2eca494d73064af565241a5c3201bc92a3"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadTurnsListResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a380b0ef8c9dce090ecdb25e3f74e7e6597234fc0997edd1cd89c4f1788c5793"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/ThreadUnarchiveResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1e4a5b39a35e9c405583f20b0e51cbc63c4e24bc64f0605d3bd7ebd3465fdb58"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/Turn.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a6c59ae34ac43dc963568087d76a49648e7d02de01344673199f56cb4eaaa8a9"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/TurnCompletedNotification.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e866942d4df4d770f707402dca05dcdaa05247eb2c7c2ad710d17eee3a89a57d"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/TurnStartResponse.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2bb866fd8dce9cd1ed9e462b4a9c5d1b30b394e7981d3b824a596ca6f5ef7519"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/TurnStartedNotification.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "985cb163d365445deceafdcbb171fd1867f32cb3840bfb669df1454665e1495d"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/schema/json/v2/TurnsPage.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8145641ece8a28b96257c8ec99a49202a84388ae097e795ec92ebc1e69ede851"
+    },
+    {
+      "path": "lime-rs/crates/app-server-protocol/src/protocol/v2/item.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b6ebdba0d386fcc38eef82175f916422a8ffdcdf93d521843132b54bd7519526"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/computer_use_host.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "53f72505f147bef25b3e111c7299d40d9c7de699199ea880d4b3495eaf7a169f"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/main.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0abb779a524d21be38ab3ef406b3d4d0342be7235087ab2a04f8dae3e564b284"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/media_task.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e53a9c28a0b6e9b289d93042582e92336db9bddbb9d31ec2739d5212cc278ecd"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/media_task/sidecar.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8e289baaf03e88ea22ca05535de052202ee6a9d9cacbec02b6ff218cd80aa88c"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/processor/computer_use.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "acb95b3d9decc6483a9c133f0f7b456ec4bb2d76c0c73035db2af38f56ad4fc4"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/processor/thread/projection/item.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8b8dd044d8354dbdfa86669fe61d250f273e690c2544827318f82c65d6f8926a"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/processor/thread/projection/tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "fe3095ce58c6bf8dc14809ba7192ecfdfe11e318cb5ae66ee6b6c94b9b86ac8a"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/processor/thread/projection/tests/media.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "a9399a8da9f2ec281b8b2ac8e94b4dbfee2e1072e49b4ce86d021716c7e054f3"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "620819bb39e5f07bb31e0d313109a95f14540c117876c4d3179150a174dfd867"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime/computer_use.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "dc170df13e20e193f5e98ea881097f939eea2fedc1398c3cd672da55d3d0c2f8"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime/computer_use/gateway.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5c308adcda61dc1da6b5fde49a4ee39b6eca7c82b738669c62017148ca17de30"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime/tests/read_model.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "3b89a97ea1dcf53716e534717797172ca2d1d0b874525e47f426f4aa1359c380"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime/thread_item_projection.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "f83b70c5853b7befff5776fadd78550ff38dc369a3ce68fe3c6fc0e30242b6a1"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime/thread_item_projection/media_result.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "62b286cfc1464f33066766681361cd83f12821c14349427d4bdd49caa775f5f0"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime/turn_execution.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "296c22cc9a04e1ff8c565ab18bd50150bfea36a0cf487303e7d32bc0e04e47cc"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime/turn_execution/model_history/tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a340e4954e0d09ff0895fc00664dc804d1c6c205d9d94b9350f5bf09b8de98ca"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime_backend/image_tools.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a4de92566f08ee98b834c25493b27785bb13124680b9ea60b0d64a15f2a9ac1f"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime_backend/tests/image_tools.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "fe9d81c40f098178bcf908a37c0b6d94e1084e98b788d3481b0ab92445ec29a8"
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/runtime_backend/tool_events.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4b78cf13c7fa5dd6ad0a88f2db53f5f91126edf6cc8826f43b7583db0adb90a7"
+    },
+    {
+      "path": "lime-rs/crates/app-server/tests/computer_use_jsonrpc.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d9c84bd0ee698e59f9d53c21c0471f7b53dbe00db183a9833f4ee6ab6adfbcfe"
+    },
+    {
+      "path": "lime-rs/crates/app-server/tests/computer_use_jsonrpc/persistent.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "9fa7d105bfbc5e1794b21dba50b3740b29e7ea3d3b7eee335cf1bfb42a3bce98"
+    },
+    {
+      "path": "lime-rs/crates/app-server/tests/computer_use_provider_jsonrpc.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "86abd9a38d20b4cfd801c56ad1fdbfc8e75bb0b4308d59a1144720ce292c10f2"
+    },
+    {
+      "path": "lime-rs/crates/app-server/tests/host_boundary_guard.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "170e984003c415396b24032b13bba71f0112a9f565a8e973ee11609701798c76"
+    },
+    {
+      "path": "lime-rs/crates/server/src/chrome_bridge.rs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "lime-rs/crates/server/src/handlers/chrome_bridge_ws.rs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "lime-rs/crates/server/src/handlers/mod.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a8958adf8ce4ebca5278265e1ed8ce022cecb23ca54af576d4d275d26a13242e"
+    },
+    {
+      "path": "lime-rs/crates/server/src/lib.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "838f1f9fe58576898baf33bc3d11615a35409a8404908abae675a057f8616701"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/broker.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2c5cd1c1f1b525aa919b4e1e512a3d7138f3b8c60a328300637d4f76c54d2fa0"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/broker_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2ebe9ead1c14c6d6a10fcaa1419e21b2b8947bb723b6a09bbde45ebcc7f2b633"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/document_host.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "f31308a3916c4a3bd5bae182ee3449a3789c801e51518bf0a12e533d311b9bb0"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/document_host_tests.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "c90cbfabb749fb87bcb9a394a00f4b7eb50171c2ee085603741ef3b8f3bb264e"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/executor.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e7a9fa283c03c3a8ec4b0789c510996bc90571ecacc37b282cba07450b63e592"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/executor/tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "eb4fc6053f223f2f96526c0783978d219ab12de795ea0f29e80372b8a7093ca1"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/extension.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5adb25da08d9ab60a161230604ddd349ebfe51132fdd4cc2294669bd8d8d9886"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/extension_host.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "84491fc56b535e4e0cb135585c4d931653a7393f929bd954d650970625b30a31"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/extension_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0279481426323620008bf59696f080d158ec06b20fc812f01bf2723d549228cd"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/installation.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ac6aadb46456f92a21a408abfc073e032a7aff567be757ca0efed5c0124a22df"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/mailbox.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "3254b1df1e6d52a000fe51402a0eb0529af5b53ef32469297f4a39a1b5580fde"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/mod.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d666685aabca63ef18a05ff5b5358e4f1e05053fdaf661150867055a087b9917"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/native.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "801d122d88234ba85e347f0b7114d735018b1c4f809f2c800590686b79665205"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/native_host.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "44e949c16119bfc0d9570fb1fc08ef772a99a68ae15c4b3112d408fbac03cc8e"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/native_host_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7c93df3c6be61efa69c699fb93a7c8be1b552c0de9044c5d58ac0f10b890fe7f"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/native_resources.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "54007c14162512adbe7147cc58a58f53fbfae2f665f7a259576d4b8c9e7143fe"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/native_resources_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "82e66ef86d72f52953377cf112dbf17651f0431fc4a3faf1b4cc0646773bd98a"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/office.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a7bb07ba697cccb6b6ef1dbfa404a60ae7b6ceed12aa353a33b176b43b082b41"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/office_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e11b0deae3817158aa13f287978139591c4b14a24df4bd2e071518778b2996e1"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/paths.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "2908c6413d21960a354565dbd65fbe89679e106fde71e7c79ddb1c892083f569"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/policy.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ceaa2758f4413234a80c274f85f30c4b3aac3248ecb774c5b40d3b4188e2a023"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/state.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2634ff27a816681e33858c1a31013b532b803db6b3c55348e13ca103b56b2813"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/state/snapshot.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "8d9a5c5d3c7c95334a7ab7950f34ef3e3e143b14a0bae09bb7f87fbc12d486c7"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/state/turn.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4927a3f8997a6a7c496a82dd73eba753f9b7ed99c01221db61fd957dba6bc420"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4e45c3000574262f4c6d19959bccb6bfe271980657d0f7bfbaefe4e6b4f58387"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/tests/chrome.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "203bdad511fcb890020315325fd2afa4737527abd03fd056ea0a1fabed5c3669"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/tests/native_snapshot.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "edacab68c646a141c1cb991b6e7c5590790fb0e16caa6ab77240125fb9ad7367"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/tests/persistent.rs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "c74515f8596a3a3212a94c740d45a3bc4fd65a2d771653dd4043699abc91d30b"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/computer_use/tests/turn.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1cf66e0b5e89ba3ff13aa2e834e0111c135726f97068e63c398a8c41b496a30f"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/image_task/executor.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a7547261b19e040c909b19b99130a1916c03b363e35be44f44f3799b7cf8b41e"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/native_dispatch.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9d5b7925a44371c7291cf085c5770b487c172f99aa3454ae07eff75b5736b37a"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/src/tool_executor.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "3e4906ec1786e2754dd620ea3db6c09987e821b2c87dfc1e09b99abff48df910"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/tests/fixtures/computer_use_consent.swift",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6d873fcc10c252be4687628470c0279ccc38f7edd5ac0ebbf706a8b0b42e9796"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/tests/fixtures/computer_use_tui.py",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ffc57d48a1458d556dab87c9728f35903c0c8ee571920ded435713af1fcd62f2"
+    },
+    {
+      "path": "lime-rs/crates/tool-runtime/tests/fixtures/computer_use_tui_test.py",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "fcdfa3336be6ffa953dbceded0b63af801cbe274b21a840ad7d59964ebdc1e56"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/app/history_copy_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "941fe8d38a7ca94f1ba47f1a7ebe861ba4f3744ce4d94477e02200c2968f9612"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/app/history_pagination.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "23808f5771450ab7ede26875344eae1e58268f500e814dcc09a6196e3ad6708d"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/app/history_reading_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c19411401eecf84211408c089f30d863da1e388c7259f4b73dca166fb090758d"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/app/history_ui_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7c438b90a9d2a93c828d7cb6819afacf454f68b90e80995dc764795d03ef9b14"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/app/replay_filter.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "fe6470185059e5cdcce673969911be41c822ac1c0887312c5ed4d38d54489f62"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/app/tests/copy_picker_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "52f8f6a8b362917f14f0a5a462fe1bc02b9eef4e12260c4718a1f63e15efe3ec"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/app_server_session/history_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5ee0d810698d3827768344a95934c7e92800bde69c482b0a69dce793eb8ac017"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/chatwidget/transcript_export_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "dbe4adada0352b1e82157f1bca65972f8e196744e459637a6cf50c02284aeb56"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/projection_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b5f7207ad8e9feaf97f5e367a49c78813a9ded764aaf75c50087344b76bdcf4b"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/resume_picker_transcript_preview_tests.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ac6554939b2439b525f1d940ea6e66e24db21bc58f100e5ac236d47b9e9de4cc"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/thread_transcript.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9b88c4bcb7187b8204cdd438ff5f4024acd30894f66bd7b368553005a7d3fa1a"
+    },
+    {
+      "path": "lime-rs/crates/tui/src/view/tests/navigation.rs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "cee32bceedbb60f463fae2fd18406a6bf6ab53f4f3cc6430e569b53d0e49b39f"
+    },
+    {
+      "path": "package.json",
+      "status": "M",
+      "kind": "release metadata",
+      "sha256": "debcf2a812d93b28700b39f1bbbe9556d1dc9da60026c21098e40a16b7e7f309"
+    },
+    {
+      "path": "packages/app-server-client/src/generated/protocol-types.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "de69d64a89d68517cc71e895a63029970ecff6d69e0d87335a0ed92e7536b9d4"
+    },
+    {
+      "path": "packages/cli/package.json",
+      "status": "M",
+      "kind": "release metadata",
+      "sha256": "afd309ec17676bc1cc722b34806d4b4cf63625481758747a117d0c158bd187d3"
+    },
+    {
+      "path": "scripts/README.md",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "60a5f73830ff6a2fdfca6280012db3f2a3ddc306dc3c0a2ea30a1ced80382fde"
+    },
+    {
+      "path": "scripts/agent-runtime/agent-session-recovery-cdp-gate.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "309a046090f24163ef6700522ce6135686d031743edeb4d8101c0461421774fa"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-annotation-form-layout-native.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b47b90936c0ac185e3460d98d7da43382ce17190a18c9acf57c62142fc36a8f1"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-cdp-event-provider.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "32aa8283bc9df66ffa047414bd328665feaf66218379725f9bf18aa347e39b80"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-cdp-provider.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "75a34a2772728656bf3fa576fceb7764fe435aea142b23a03975ab2b08656ed2"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-cdp-session-provider.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "fb9d4296557a6c953e383d1fc16a53e810ebc8e46ab53439852889bb99b328ce"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-cdp-target-provider.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8882e15c0bc60f3cd5503cf82c2a00ce1d892f7b5f5115fa2ac31844b6c02570"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-download-live-pagination.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "fe60423326468193fb814f2d4e0ddc5ada9546c2d214b5bf430b0f258060f064"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-download-restart.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "cda8eb1f895860ce2f2d9885cd5f91dbfc3b91b06d192ddd46feda3d5e6b4ec6"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-images-native.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "160042fbd734e6055948d1f452704cfe3577823502dc09d1f3f60841611d5b7a"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-navigation-native.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "4c25861be486dcaf8fbb1979438de848470ed5470dff271674a9d2e70f94bf4f"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-address.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2e02d3c75fac785646049559329280d3562719928580302ae6a7d30dbce13d24"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-active.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "418a3e5621c6aa5c59b38f64d4fa890184187803eec30c491fea78835db1a941"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-anchors.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c63bceb9ec567925b8cafad0fb581e876bc04bc9d653fd4d399e08713f9dc653"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-control-provider.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2511198000f38e3f3dd4d95b56eaa9aeb6f88ced7387aa0ac59e588df5456cbf"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-control.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0b3cc23c2b569a3029513ae48677fc3d2b8075aae9ae26bd14d5e77978c1d086"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-design.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9986f6e5e9ebf08a6129b77b6934553611f279d52593d755cf139ef10c45166b"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-diagnostics.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d054813c726d046634e6faded6f3faedaf2b7b62d62fe3f47f562d731ebdb4ef"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-form-text.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b63cdcfee90931c6f4483e24fee5ee7d55d6b3e0568b1306d598e85f4a98bfa8"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-frames.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5aabbee91b2430cd87ae4bac683504d4ac8f889c14842162ceeeb26f7fc8664c"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-keyboard.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "49fa15f35eb1390dca99a6dd6e071cb2fee498ebf6b35440fb0bcc705c6cca92"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-marker-lifecycle.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "379fc57409092fdf07f06765e4e08b0e68de44b1d533b3e62bb124af7a8c67c3"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-mode.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "36726742a798862e5f73d3e33e97c3cd4ddc7491c16cf0325804c1d0eec2476d"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-provider.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ec5dd5026ba7f3b7336048c01cc6a6ef60757ba502531bd7b101e221151215ed"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-regions.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4f3bfbc53d657d7fb67d531eda1684c52eec834acbe81c2f17b2bd5cc7785ec6"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-rejection.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "29f172eff9295b156df03f6e7abde236ec79ec14117ceecad3716b64d514e245"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-submission.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4434a82a0d04b5d6666ac55d467058706cc90d65e9e421f96754f89510b28b48"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-text.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4c70d25f4819f97ac45d50f1938f0c67d341a37b49d133e2abf0805e95d6ff5d"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "37c15fd392a06f41d032f71db75af7a3e30214b32b858740719a397fd44f6505"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-approval.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c2f1e840d04b207c95ee080d5c13474601c17398a34bde9fc590fc8ad2e39221"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-artifact.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "3dd963c3e634bb846b8e17171186012c4a04d40b7e29e678a72d9bf1064716f5"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-browse.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a2c2b243e45c887088933f98d77a7e88bd430b7336e1b7b2d506f20a7c9f2945"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-cancel.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5305038ca826d658a313e4abbba987d9df1b9083a355b017db34e0826d01cdf4"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-cdp-events.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "679a4ff40172d30f6c391977cf0e6a5c187cdae3c07870a634b35f88ec737f4e"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-cdp-sessions.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "41075ce3aa1b94a160efba0048c01b8ecfac436365f2e099c3c011aebd3cd644"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-cdp-targets.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "756c61bed08df5e127e6631a5534aa873c0082ba5c1e719edf9699c0325da8d2"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-cdp.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a958c0632bdd6b147ebd82ef1efc88cce4b38b66b191ae8717a4aadb24a90dd0"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-data.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "51b1cd7429f899adf230c26e99832ddfa4cc315fc122415481e83af89912a4f2"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-device-annotation.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9c00021cb75c492035611da1239f4f5f4f97d51a61ed3d95e0d1adeb1112da11"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-device.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "f2ba3d3f97863a9464d9326b878e493c0fb7e1629d8366dd3fd78148e0484a13"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-disconnect.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "83d003656420cc9028814ab25e65967b87b4a8944d80b551ad3c81ce533676d9"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-download-history-native.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e84e3b84e74362734f3ffb6d9749a31a2541eee14e7be8d9749e57e72a94ee84"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-download-history-pagination.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "94738815ae03892180ec30aa3851051e6bcf6df485c489e9344e93c94cfa1cdd"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-download-history.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "bb2f164f70e886427bae70db1d9f3e4274fd342c5581682df4797296f7f74a92"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-download.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c8c61f7789bcdcf8ef411419dc468915b2c7d10ba1e50290968b949d17e2101f"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-first-open.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b499416479a9e36b865ed4ecccf989b932f97d191a9f0647f0259a09cb7ee1f3"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-history-access.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a16c607ed1ef6da30daf7cdb5b6ff2d40b57ebd23f2e590fd16f348f4e15ce24"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-history-management.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "f432a86d39924a4e594784b91d586186e308acc093f0b3c2d461e5dd95131a91"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-history.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6b371e3c83ba74815878f07946f2e5ea3dda44353e9896d102c11cdd7869adda"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-new-tab-address.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c762780c9b7a8b10d5f428da3e81dc0cf15723a81cf8aa81c9751bf7e4f42f5b"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-permission.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8df35a5f161ce3dfa23e3f74db8be731be49014c16a150bdab269a166fd07ce9"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-settings-navigation.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8976eba6f6b5916fdf7a2dd49fff2979357ce711dace08f85ce19e9ef068cc8d"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-site-permissions.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1ea57abad8937c8c170f06f4fab89e4e8a47e764a446a3ace0f9656d7654a36e"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-thread.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c536b77688f685c718e8438ab68a78d2fd19fa066aea0c96d7cc3f2d5a4adcce"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-user-control.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9400c30cf438e4414d230bb3cd5731d1ac2ff4323b6e9e1924ca0cefb7b9c1fe"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-window-close.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "89ce83cf0e4006fbf16875bf140acd045bccdcfd159f9d255c5b8b5396f2bc6e"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5556f426f80d3bc4d614ea7824d8f0a0077e85197a5bd178b927eb81174535ae"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "3a87e1f23c32d76c85a4de08c7be6928369e9e5b88886936be57796349ff3129"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-site-settings.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "db6fc32d29cfd0b5bb41c8609a92e6e43541d962769475c73ec0d6a378f9ffbd"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-gate-a.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "3130aeaa5666e0f4f64437955d3b1bf128fc9e8e497463f8aee8d17d6a22412f"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-history-navigation.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d7dd6e75d5f765f141f8f0dbd41000a5c8b8d6858bf6163689cc3d517371d199"
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-active-steer-evidence.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-active-steer-evidence.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-active-steer.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-agent-ui-trace.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-agent-ui-trace.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-backend-events.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-gui.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-gui.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-read-model.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-read-model.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-resume.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-approval-trace.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-assertion-context.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-backend-file.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-backend-file.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-backend-ledger.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-backend-script.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-backend-tool-skill-events.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-common-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-common-assertions.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-code-dom.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-code-picker.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-code-picker.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-code-pm.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-history.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-history.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-image-upload.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-image-upload.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-ime.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-ime.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-marks-renderer.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-marks.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-composer-marks.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-constants.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-content-factory-article-workspace.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-content-factory-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-content-factory-workspace-patches.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-draft-persistence.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-expert-actions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-first-send.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gate-b-contract.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gate-b-contract.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gate-b-execution-evidence.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-goal-identity.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-goal.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gui-actions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gui-completion-waits.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gui-completion-waits.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gui-input-modes.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gui-tool-waits.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-gui-web-tools-waits.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-home-hotpath.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-image-command-guards.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-image-command-workflow-read.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-image-command.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-image-preview.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-inline-image-article-workspace.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-inputbar-rich-restore.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-inputbar-rich-restore.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-invoke-trace.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-invoke-trace.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-live-tail.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-media-reference.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-not-applicable-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-plan-history.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-read-model-core.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-read-model-waits.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-read-model-waits.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-resize-reflow-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-resize-reflow-diagnostics.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-resize-reflow-diagnostics.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-resize-reflow-geometry.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-resize-reflow-geometry.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-resize-reflow.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-rich-input-evidence.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-rich-input-evidence.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-right-surface-visual.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-rpc.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-runtime-surface-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-scenario-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-scenario-assertions.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-scenario-flow.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-screenshot.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-screenshot.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-session.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-skill-identity.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-skill-identity.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-skills-runtime-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-skills-runtime-flow.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-skills-workspace.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-smoke-domain-guards.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-smoke-skills-runtime-guards.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-smoke.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-teardown.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-teardown.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-terminal-after-answer.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-terminal-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-terminal-stale-guard.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-turn-plan-update.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-typed-error.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-unknown-item.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-unknown-item.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-clipboard-observation.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-clipboard-observation.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-clipboard.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-copy-action.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-copy-action.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-evidence.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-evidence.unit.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-failure.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse-rich.integration.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-message-collapse.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-user-shell.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-utils.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-web-tools-assertions.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-web-tools-rendering.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/claw-image-live-smoke-audit.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1442f95157c0009a869e061894bdd7f7f1638c609b683ba6351dda2e0f286c50"
+    },
+    {
+      "path": "scripts/agent-runtime/claw-image-live-smoke-gui.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e76887e24662a35fc79f2d178be658c745deb9437737307129f1b5f14bc2ff8d"
+    },
+    {
+      "path": "scripts/agent-runtime/claw-image-live-smoke-provider.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "669c6f32d2cdd08d7a828e351512a12e1033ee7d7cefcd4a706663f1e6a43f1c"
+    },
+    {
+      "path": "scripts/agent-runtime/claw-image-live-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6d1b5fbc5d13578becbea8ca22437b91c2d6e2cc1eaeeac485945fd84f0f693f"
+    },
+    {
+      "path": "scripts/agent-runtime/claw-image-live-smoke.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "de35356088d304dc9ab3c76e22b5f1186bde279295384326b6d33eb17221b485"
+    },
+    {
+      "path": "scripts/agent-runtime/code-mode-electron-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6e4aff8b772a8be53d2525357682f381a4b94a1d5bcab51448bd1b16d8c04c6a"
+    },
+    {
+      "path": "scripts/agent-runtime/code-mode-electron-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2b7079e9434179ee35ba10d98c24e9b40bcf07cb72cd7e1144a4969f309265a5"
+    },
+    {
+      "path": "scripts/agent-runtime/command-continuation-electron-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b496939bf4462fecb7e33eb0fc50534f0529b05f772bb302871efe5432190373"
+    },
+    {
+      "path": "scripts/agent-runtime/current-fixture-regression-smoke.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/current-fixture-regression-smoke.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/expert-skills-live-gate.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/expert-skills-live-gate.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/expert-skills-live-runner.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/expert-skills-live-runner.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/fixtures/composer-reference.md",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/provider-generation-pending-route-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "329177d1c255e4393394db76290a7f4495a24147d87e381f694e2f17f34aced9"
+    },
+    {
+      "path": "scripts/agent-runtime/reasoning-backend.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/reasoning-fixture.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/reasoning-fixture.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/reopen-running-turn-cdp-gate.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "021d1ee7cc9032f81d55a188426b4ceb6221f17a38e9f1334994b07bf06e04f3"
+    },
+    {
+      "path": "scripts/agent-runtime/reopen-running-turn-cdp-gate.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a3e43423522f33852d4186f6e6d804dc9ab9cbefa260e9fb5637be3e4782e25d"
+    },
+    {
+      "path": "scripts/agent-runtime/reopen-turn-continuation.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "93314063a6a6b2d0a091dbe35b065724432c6186b6a5566396b12c64ad17b4c7"
+    },
+    {
+      "path": "scripts/agent-runtime/runtime-input-image-evidence.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9c227a59392a0406292bf7eab17aafa2412d74feadf725005d5cee655496842f"
+    },
+    {
+      "path": "scripts/agent-runtime/skills-runtime-fixture-scenario.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/agent-runtime/skills-runtime-fixture-scenario.test.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/app-server/cli-npm-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "179eba0a4d76879d47c4929567736e9afd2f2578252f208252776c4e7d3dffb4"
+    },
+    {
+      "path": "scripts/app-server/computer-use-approval-fixture.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "b86c04c9e6b0e3305895b3cdb79419d72b4010b7bb8f7d157440f4fee2f32030"
+    },
+    {
+      "path": "scripts/app-server/computer-use-chrome-groups.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4c285c6c02b01ae9ca1ddf6a427c55941513d11a7d7c555240c3a1e179474259"
+    },
+    {
+      "path": "scripts/app-server/computer-use-chrome-host.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "da12d8246163b93545d32d4d7c0ce6024a0d109ff0930ceace09345fd33f12cb"
+    },
+    {
+      "path": "scripts/app-server/computer-use-desktop.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "af44c393dcce8590a55f34e9578e02bd2a78ea777c15e3a2cce42e14dc4215a5"
+    },
+    {
+      "path": "scripts/app-server/computer-use-intervention.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "d3d0ded2128fa4d5c4d80c12cc9e7d9c1cf4bdff9f6dec13ca04e43fbe534dcb"
+    },
+    {
+      "path": "scripts/app-server/computer-use-wps-adapter.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "58d302b4d4ba918b90a8e2569d38cbfa9d3eea767de18519701adf1ad9d06193"
+    },
+    {
+      "path": "scripts/app-server/computer-use-wps-adapter.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "9d998aa0a9d76b3351fe48c1e4221f4aee992131bf9d33864d5bd3755e25eb25"
+    },
+    {
+      "path": "scripts/app-server/computer-use-wps-desktop.mjs",
+      "status": "D",
+      "kind": "candidate changes",
+      "sha256": null
+    },
+    {
+      "path": "scripts/app-server/computer-use-wps-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5a29b6285bae29552a7f3def5e1ddc3879e84290816ddc7adc05d5115e0e99fe"
+    },
+    {
+      "path": "scripts/app-server/computer-use-wps-workbook.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9cbfbba1769478b4bca2eea464b824adca68f05c4721ed15614758a75ddc3a13"
+    },
+    {
+      "path": "scripts/app-server/computer-use-wps-workbook.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e3a4d0ebee359c5da612a7753fbafd0950dc2afb6c93b2ace0f39d0a5916b21c"
+    },
+    {
+      "path": "scripts/app-server/terminal-gate-binaries.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d9a17d54d90707c2e8630cf484461984bc772ecd5922e34f21956ce79dfbd436"
+    },
+    {
+      "path": "scripts/app-server/terminal-gate-binaries.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "f9b40fed4d8475a35fe6d2ba9f3067d76c28e497c8e3f546729dd31c44a64de6"
+    },
+    {
+      "path": "scripts/check-app-server-client-contract.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9966b4fd8f4be00ac8e16021a3c0247e9969b7876bfbeca78db196110249c89b"
+    },
+    {
+      "path": "scripts/check-command-contracts.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ac29999109e77b34099cf57dccf3016f6f1c87d3af8b402d8003fd35bdacf97c"
+    },
+    {
+      "path": "scripts/chrome-bridge-e2e.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "473f981c34d80cdc22e84b6e469fad0cf3ccd7a5ee1b89affe0df1a439167a51"
+    },
+    {
+      "path": "scripts/electron/browser-settings-conflict-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "999b9abf2c6bb814d849a8e4ea93d4ec14888150ed98c22369722690c1cf9919"
+    },
+    {
+      "path": "scripts/electron/code-artifact-workbench-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "511b5ba4e9961efc31d8b48e21bd923c8397f6031c7327cb7ccfd6f17991943e"
+    },
+    {
+      "path": "scripts/electron/computer-use-cursor-motion.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "0bacb1432262fc1248c2a06599cfd63a5d66741e5517ca27b7ea37784b55bd4f"
+    },
+    {
+      "path": "scripts/electron/computer-use-cursor-presentation.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "bda7e975be2c913cd8653801cbfcdbfcaeb84c68b04d7458c5d5ef081f9362b8"
+    },
+    {
+      "path": "scripts/electron/computer-use-cursor.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1fc2b5c9ff9668a271634b6cfb1537b8715f09fad95b4904f7b411efe0a9784d"
+    },
+    {
+      "path": "scripts/electron/computer-use-intervention.py",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "f546e556d6dfb5c07fc6c02d5725075423cbeff4d32190e9f6ddc4ba4900801e"
+    },
+    {
+      "path": "scripts/electron/computer-use-settings-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5d7cb40a288839fe91a46b9d7f48adde320d049e29858fa1f8659a4bc588800d"
+    },
+    {
+      "path": "scripts/electron/document-preview-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "fdc5db22c6758ebe482fce81cec2e82b6d94d2e8bd32d2ed5a1c018b788729cb"
+    },
+    {
+      "path": "scripts/electron/file-click-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2a47c460cf15778ef1ebe47ba7e11c8998110f7a3e364df2166c11dfce394501"
+    },
+    {
+      "path": "scripts/electron/forge-config.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "eec21f77489140875ca15ef57713b5aa60a6fb5cbab3c35889abfc49556f2bbb"
+    },
+    {
+      "path": "scripts/electron/generate-computer-use-cursor.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7055fc254f777da0fe8b8a0bc297bef5fb7753208aa2e16ba5103ab4d31b175c"
+    },
+    {
+      "path": "scripts/electron/lib/background-terminal-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2cc967c23ab1e7b3d73e9e80d5f4dcfc8198feeb643cf5026dcfd9e5fa72999c"
+    },
+    {
+      "path": "scripts/electron/lib/background-terminal-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "462d5282ad0c4980a148c15945407f09f1970ed296070058d7ca5cfaee428175"
+    },
+    {
+      "path": "scripts/electron/lib/composer-draft-fixture-driver.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "53d02f7e17258e593283ef546f114f39dc20b8394ea13c3711d2b8cf7f6d24a9"
+    },
+    {
+      "path": "scripts/electron/lib/composer-first-send-resource-evidence.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "43bca807d2ed0132706c6b46f1813a80d81646f45e3d882f046ecec8999c96a0"
+    },
+    {
+      "path": "scripts/electron/lib/composer-worktree-evidence.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9ca8d1ff84545a0919c92ef12c1b8f5d0804112209c007f56579d5f1b602401e"
+    },
+    {
+      "path": "scripts/electron/lib/composer-worktree-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6831558b75a577781d0b28f6eb90c7bca94a758a2a51a9cbb9658f16532dd41e"
+    },
+    {
+      "path": "scripts/electron/lib/document-preview-diagnostics.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6df02124909a088eee8e89fb922c679604ce22a483fdb369c2f8d5d5f830115f"
+    },
+    {
+      "path": "scripts/electron/lib/document-preview-provenance.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "be54b9c083ff3a401c37dcaebe7949601419b02c51bc0080ca2ff04ad7cd17bc"
+    },
+    {
+      "path": "scripts/electron/lib/docx-annotation-batch-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "067546777267b50d6be548b543b570437a40dd252de4e3f3c1955e0915797d49"
+    },
+    {
+      "path": "scripts/electron/lib/docx-annotation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "85f2eacf44b071ee31e5062934650ab1c68333c4fe89d5c4cd580bcd01d1f937"
+    },
+    {
+      "path": "scripts/electron/lib/local-conversation-actions-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4a8efc6a6a8e6b6bca1d3778a45937a3667c58ad65c5649bbbc3080db6c20753"
+    },
+    {
+      "path": "scripts/electron/lib/macos-native-host-electron-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "bb46210d1351570e0a5899542a61d92873deb644a148435482ce3f23c5de0ea7"
+    },
+    {
+      "path": "scripts/electron/lib/pdf-annotation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2270d27f45e040c5ef5d868398ff92bdec4d3f84cc9828d5f474384deaf1b177"
+    },
+    {
+      "path": "scripts/electron/lib/presentation-annotation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c2cb908b659182b1af10d02443d69e7488cd5ab1692ef70ce38093cac492a5cf"
+    },
+    {
+      "path": "scripts/electron/lib/presentation-flush-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "14a84d26e7bd2e906118c4f3e995b98ff7e2f42785b0f22d7433d0b399486d4a"
+    },
+    {
+      "path": "scripts/electron/lib/session-history-user-collapse-gate.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d9c2da355132b24bc5f6f65cc6740cc300015965ce4b9c8c217b29da35d749e3"
+    },
+    {
+      "path": "scripts/electron/lib/session-history-user-collapse-geometry.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "add2e6e52e696b03125fcf999a649159b34ef772fd885b533ad6af6c25b849c3"
+    },
+    {
+      "path": "scripts/electron/lib/session-history-user-collapse-runtime.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1c6243a73b592c9b51dcbda86dc0e90d28e5abf5aaa20a979fb9e1bb35e15c00"
+    },
+    {
+      "path": "scripts/electron/lib/settings-archived-delete-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b7d2902fc76117358bd9c3023224d86c4ca830cb031b4631d2ff109e43188737"
+    },
+    {
+      "path": "scripts/electron/lib/settings-archived-list-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2676ed3c79fad85ecbb0a4046246898255f0bd82c634c9fb7ff8c298e375f75f"
+    },
+    {
+      "path": "scripts/electron/lib/settings-browser-preferences-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8f9a1e8a4f4bdeadfe9efc989b950c08ca6e0f9dad359f2c2ee5c3f58e120c6a"
+    },
+    {
+      "path": "scripts/electron/lib/settings-config-scopes-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "263b8b6eb6f8f0b35a3e9261fb4d549e546af7cdc19daf2e9e65341572be3351"
+    },
+    {
+      "path": "scripts/electron/lib/settings-configuration-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ad79fbaa058a5c400436608e82d3e98f74b0814358297fdd288e019dd22c0f39"
+    },
+    {
+      "path": "scripts/electron/lib/settings-draft-navigation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "51249a91ca7f6c1428f59a0402b09d7d61ed844ab209ac86be8f4e32126869f2"
+    },
+    {
+      "path": "scripts/electron/lib/settings-enter-behavior-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e588fde60c68b58bd526019a39ded77a8567ac4e9b4408ae52695a7d80a5bf41"
+    },
+    {
+      "path": "scripts/electron/lib/settings-execution-policy-navigation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7f5908958b60d6102b24ca70f865b6039db9c7dfb6a8ac9813e78ab4c866ff1d"
+    },
+    {
+      "path": "scripts/electron/lib/settings-local-environments-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "53d0d6d03ee3d830e5608e1293ca4af09803a145f5f273c9714d801de1afb283"
+    },
+    {
+      "path": "scripts/electron/lib/settings-local-environments-navigation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "12cf1fb8c20c4ebbb6ff830d9329d5736006c41f61b552214cbdc26e0db7a095"
+    },
+    {
+      "path": "scripts/electron/lib/settings-navigation-fixture-identity.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "58cd6225650d453102ffb3ad47251b34e3e60fdcd8f12d7607868e454b6b6f6f"
+    },
+    {
+      "path": "scripts/electron/lib/settings-navigation-surface.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "dd5a9fe3a03f6c57e0db7ff85b2b3904244e1a3d96319b0b3cc9c1339fb57297"
+    },
+    {
+      "path": "scripts/electron/lib/settings-new-thread-effort-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4e66408f4ad48e649bf67a4e46c754c847ee7fcf50530497e4796e56de322a97"
+    },
+    {
+      "path": "scripts/electron/lib/settings-note-navigation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "410cc2c480dd2d241f7566c4a948a36c046a8161398b638dc6bbcb072c563bd5"
+    },
+    {
+      "path": "scripts/electron/lib/settings-reasoning-default-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a1315b112b912870e080dcb120cc5d89e8d906d17513f3d32b13444a04a828bd"
+    },
+    {
+      "path": "scripts/electron/lib/settings-search-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "23e472ecd677ff813ca176bf0293e19b9127541a48a1ccf0b416d466b1771eaa"
+    },
+    {
+      "path": "scripts/electron/lib/settings-unsaved-navigation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0c4e4cb00865830f472ae24f7edca5af87cb64430b2e300730edd83b8b14b6a0"
+    },
+    {
+      "path": "scripts/electron/lib/settings-web-search-navigation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "312b9856aeb36da37d0142793fadf26a3d549e190dc7e37e2597de1832cd49ca"
+    },
+    {
+      "path": "scripts/electron/lib/settings-window-close-fixture.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d02cd0b268b2bcea06ffd708202142ce9c2b9c505c126d0fe0fdaf35bf740e29"
+    },
+    {
+      "path": "scripts/electron/lib/sidebar-layout-fixture-evidence.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e807599a05e50662f662d4b6304538ea000b28289a39cbdf6f45c98f23400082"
+    },
+    {
+      "path": "scripts/electron/lib/thread-side-panel-website-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "869616479a7793bd4086100450399a8da09512098c3456a0a59384323568c6bb"
+    },
+    {
+      "path": "scripts/electron/lib/workbook-annotation-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8956dc7a54fd64eb7aefa6c795ce7bc12e0d17c22c380e0eb9dcdae6877c69d3"
+    },
+    {
+      "path": "scripts/electron/lib/workbook-flush-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8deb6d357b11bb42483d3782632224bf4118d85a0d74d04b6b9debeb04871b88"
+    },
+    {
+      "path": "scripts/electron/lib/workbook-preview-scenario.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1a486c3a565266a26d09c7a6da9ad22c2d4baff62ae8957c7fe3c1baf25f0a44"
+    },
+    {
+      "path": "scripts/electron/macos-computer-use-cursor-presentation-fixture.swift",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "d24390893c7086043cc1dbfc209e32bc3eda5e828adf00f607d93923f5f4fa1c"
+    },
+    {
+      "path": "scripts/electron/macos-computer-use-intervention-fixture.swift",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "c56da117867d1b8954249e6ee4420a95ea720d8c0bdeadd967407b2b1516207d"
+    },
+    {
+      "path": "scripts/electron/mcp-config-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "824a55468c0d1764cb20cfa099f82cd618d6946a568bf4e942bd3e83828f8e2d"
+    },
+    {
+      "path": "scripts/electron/request-user-input-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8b80fc27b19fcc9c26a3ca868f3bc13d9cf736aa08c1f73033b4ae13554cf750"
+    },
+    {
+      "path": "scripts/electron/settings-about-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c16e7ccdfd703452798f88a2e0a6e1105e24a337f308d9cc925d15dbcc5302cc"
+    },
+    {
+      "path": "scripts/electron/settings-execution-policy-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "dbd9994f914bce04baffef83322e8b4ba817555b30a9a1ede6640f98b27f425d"
+    },
+    {
+      "path": "scripts/electron/settings-mcp-lifecycle-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6281d864fe0c68c4f448ff759698fdfe72c599b66627dbabd94dfdbc5124d4ac"
+    },
+    {
+      "path": "scripts/electron/settings-navigation-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e55cc461746338760c01d5921775e32f460fa1ac001898fde707be37582888ab"
+    },
+    {
+      "path": "scripts/electron/settings-web-search-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4d388234d7f85ee2afca47b2acb5dcdfa49715c4a724b21dc6b996a3091f3792"
+    },
+    {
+      "path": "scripts/electron/sidebar-layout-fixture-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c4167930ea22e2de46ac6ca8e0fec82cb3e697b8480d3ae7635c70c929734346"
+    },
+    {
+      "path": "scripts/electron/thread-fork-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "299896c0dfc5c4b4a4b4d495b45e4c688e4b79c9815174b454ac9ac9fce0dc60"
+    },
+    {
+      "path": "scripts/electron/verify-package-resources.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ef9f16377386159657877dd436bc9aed9f92e779d3c8a1a7980b81fd697bd00a"
+    },
+    {
+      "path": "scripts/electron/verify-package-resources.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8a4115673e3a343960102521bd08ecdab8a3aec1f9e657656be0ff4e6b266f20"
+    },
+    {
+      "path": "scripts/electron/windows-computer-use-cursor-presentation.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "7d26b2d479cb98b4ff1960bb68db2a6ee429761b4655c7baa5fa825a9c3d4a25"
+    },
+    {
+      "path": "scripts/electron/windows-native-host-gate-b.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a203fdd72f2bec49f7ab5bb07e2d9c1035f28e18a0ba64f2e0f76fee1d672bd3"
+    },
+    {
+      "path": "scripts/electron/windows-native-host-gate-b.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "66c00e1b795099a0f2728376dc06407bce3747c907dc6ffc8aa6f7f1dc0b51f7"
+    },
+    {
+      "path": "scripts/electron/windows-native-protocol.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "46b09d8e3169253ee3bbcf17044b1d6e6609e87a2cd65e3474d3854956c51997"
+    },
+    {
+      "path": "scripts/electron/windows-packaged-evidence.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "81776e81a549fff74581da1f119f5381033c270c32e9e08664edee6739e26dc0"
+    },
+    {
+      "path": "scripts/electron/windows-packaged-evidence.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "84c89b9180d7ed10d3d617c4c317915de855178f2b12aceae08722529de05896"
+    },
+    {
+      "path": "scripts/harness/deepswe-desktop-controlled-smoke.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "eab16292aa7aaf8ac3f677acc5e1a9b735b1c971dd1d7edbf3e7967a81df96fd"
+    },
+    {
+      "path": "scripts/i18n/i18n-unused-key-check.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "45b2faffcdbc3c9ea7af3e54afba890ecbcb8cf7210770a208541e4073dcb959"
+    },
+    {
+      "path": "scripts/i18n/i18n-unused-key-check.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e7af5737cf4d2e5933b8751b70e947412091d55afac222e3ff17bd943987e5c0"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/backend-file.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "854f5394d0cee35c192e1b9282b09d1a8953879388df1e0df662be8b2920f711"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/backend-file.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "fdd8f8608b1a9866ca2b96855bccbac40339148925b9218199676a5ba30bda36"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/backend-ledger.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "40fae93c2bc595b67256a34ba7e535f90e767219428001614aeed721e874f28c"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/backend-script.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "a4fdb97061399b567af824d7ab7282955ff4c9b449b4c77541363becac7a0a79"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/backend-script.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "bb02d84bf4c82e6e7939498061b9af37288b26297b3657759f6d5519afcc45a6"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/composer-code-picker.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "edc9772f9a5fd6ed7fa297b3fda7cd0337199bb2c7c697b440def0c47b934a49"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/composer-history.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "4aaf741c216ad0dd79869a2562d4d9f6719b4e635c59161f6587c0ab2760cccf"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/composer-image-upload.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "39ac92ed842fb7240f7d739e3f16d0602ff39e10d700ffddbf1ba883d18b3237"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/composer-marks.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "418a92e4aaf1e034a888d583e051198457ee184dc1f963717ca9b27e16095a42"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/constants.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "8240e319c23f3fc3c8531e816e772b67ff6ad0659f880b6cc0a722973fcc15cb"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/draft-persistence.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "0025cdd57ebdd2750050aa74fcad2b10f6e0019d32c0d4ba96edcff78e026d50"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/gui-actions.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "245f247fbcc521e7e380c90f1ff2d5ecfc90f425db4d87ea2f3194a246d90774"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/gui-completion-waits.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "d1979d6fb95f375471bfea557a7479a63c80fcef319ccc0139f712ea12b649be"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/gui-completion-waits.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "eec611bab66b652ffafddb85e3c72cc887b40bb669a203ed3d726df41c7be719"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/gui-input-modes.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "2ea1ec958c54730dafe3f56cc039ee383850e6b327405690ddbda8daca87bb9e"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/invoke-trace.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "8b2740092f17d122b667a2b286dafa9de6d2af1e7fedc6488c9c12f38fb16453"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/invoke-trace.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "b6aab01b2c457222b0d1339d01d112d80ad9aba7afff77277ec20fbcaa125141"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/read-model-core.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "097a46ebc2e3da74fffa1a4471ec8856157556f9c363f236e65e8d28d57d42ff"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/read-model-waits.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "62911420d81d43ccd1613c5594519b3b540f7699a6695b5134811a0b3eaccae5"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/rich-input-evidence.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "04090774f2234d9cd9b50afd5c56fc215b6c24fcc7092cc312262325b92f369c"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/rich-input-evidence.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "de9a00a7b166f248252fe9190b387a10dc65835a7dc7273dff9a14af3077eecd"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/rpc.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "922b390ff7892adf1dd0895c9ab3417a67cd3111693f769d9373ac20d17fd56e"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/session.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "576faf3b70f27bf13394923bc157c12230daf8b75010666a5e758b6daab17032"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/skill-identity.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "fe041d56d9816350c1d7280e928daadc547c3522119df81157b372758ca81ab1"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/skill-identity.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "af2a2276a5da9f73c348b3c3a484369a6700c9d39dca51ff8076492fa2866519"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/skills-workspace.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "09c029f70e20bbc227cff499280444badd890e231c90152dd7799148bd7f6920"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/teardown.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "b90bf823d144b849aa3862c4f8d59303a0bdb600fd7e9682f610ef964ea84f3d"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/teardown.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "d020c7135817dd1bdc74711ef04dc17458075fb9af125d128ae7184fc9fcaa8a"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/user-message-collapse-clipboard-observation.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "a64d7abc84afec5a4025acfe6663b542747f5e2cc74f4ccfa842b0a6c65ab134"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/user-message-collapse-clipboard-observation.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "e1ac9a7cec50459cd7c5de48a11cad7cc131e80df9336773860c1c009d5ddef9"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/user-message-collapse-clipboard.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "b44e142119b45b229d8f6695731f05e28a841a0acdb4c02b0e0849bb9fb50e8f"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/user-message-collapse-evidence.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "bc575b03ea7116eb42948aa3186df1324ea23bac143b992698995cce22e47a02"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/user-message-collapse-evidence.unit.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "74bdfa21731a27895bb8eb3b3e40b7a4893ed8a8ae5235e6d3643bf88821c62f"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/user-message-collapse.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "87ed33c7b9a03ed4d917332b5f6543235bbdddc9ba6d89bdce43e0b271a78aa6"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/user-message-collapse.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "84ba4a673df9e2a74e7f6faa960298aea2b41c08f3c1aba7f078fcdf46fd4d93"
+    },
+    {
+      "path": "scripts/lib/chat-fixture/utils.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "65f62e98c52f4c693963bc3ccf41aed09fac677596d4a8a5dbe27b834b48155c"
+    },
+    {
+      "path": "scripts/lib/desktop-first-run.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "295a72a27c73f53c40957a3e33da8abbb95f0a076596ee6f7b349ef63fb4ce67"
+    },
+    {
+      "path": "scripts/lib/desktop-permissions-build.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "7931ae3a349504a4663fd34762c5294ac24686766e40ec0ecf4fc0678c990a3f"
+    },
+    {
+      "path": "scripts/lib/desktop-permissions-build.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "aa7317161a13ca89b5795d295ac5e9f559860902cff08996ac2453d63f4bd89b"
+    },
+    {
+      "path": "scripts/lib/electron-build-inputs.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "98bb1ec7eec161ebe2b02b010b159413263ba7dd7629fbcecfdba42d93bec6fd"
+    },
+    {
+      "path": "scripts/lib/electron-desktop-resources.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2b68c31e0702ef967f634a584dfeb0bb5affc1ee7ee6219e51afbfe8963d76eb"
+    },
+    {
+      "path": "scripts/lib/electron-desktop-resources.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "db5d0efa9016a2049039b2d61f5c43327a44477fb16df4802c7c791d25615e0a"
+    },
+    {
+      "path": "scripts/lib/electron-fixture-build.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4d36a6d322eb4907f9a5a51a091bab2738fe7191d5de37860115e933b860eacc"
+    },
+    {
+      "path": "scripts/lib/electron-fixture-runtime-env.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "543ae6101bbe3273373b9357beb8aeab4d220a416ca65ca5e3048bf01ea77e7b"
+    },
+    {
+      "path": "scripts/lib/electron-launcher.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b6d9ab1accd9130ecd6212e644f8ea3be5854a0db458b5d21f3230caefa7c340"
+    },
+    {
+      "path": "scripts/lib/electron-launcher.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "9a13a1cd48ae4a16ffc94913a5e40abcab565e3738e8bceecd24e0a1453ed86b"
+    },
+    {
+      "path": "scripts/lib/invoke-trace-collector.test.mjs",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1076c000690cd1f98c6209b2ff8bde2dc92418b5e4e4113c5fb63a534bed3fbf"
+    },
+    {
+      "path": "scripts/lib/retired-browser-connector-contract.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "ba550fda037470ec030e1fea03dfe4af9c7e83de3869ef0c4556675bb0bcfd9b"
+    },
+    {
+      "path": "scripts/lib/retired-browser-connector-contract.test.mjs",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "c2e26cf4c2e1f8f58f4582fc8b323ca967fd3b252284bad5de2d199d9e22ac4f"
+    },
+    {
+      "path": "src/App.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c7295cfd648f817b2cf80d32e21c295df569ed20a239d1248608c1378ae0374e"
+    },
+    {
+      "path": "src/components/agent/chat/components/AgentThreadTimeline.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "389e523e6c7cbf0ebf2304d0e6377ae5b3ec64e29201dbafc86272a7763ca34e"
+    },
+    {
+      "path": "src/components/agent/chat/components/ChatModelSelector.integration.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "a48ba6a39396b8abeddad743c2baf2735d509cabda79e84560db90373134fd80"
+    },
+    {
+      "path": "src/components/agent/chat/components/EmptyState.testFixtures.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "fa4c3f57e42f22ae8f0cac8e1e7edec1d6ec2e5b6d27eca63b01d5ff45abf917"
+    },
+    {
+      "path": "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "18d1ceee7a535ad3403b6f134a3e7604d0e34fcd0df5bda2d39c48179b258885"
+    },
+    {
+      "path": "src/components/agent/chat/components/InlineToolProcessStepViewModel.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "02962183afa8e241abc11367b907f6756a5303d96446e15afc7a0068a450d2f7"
+    },
+    {
+      "path": "src/components/agent/chat/components/MarkdownRenderer.media.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "b83cb7bca17dd0379b8777fb41fcd8ee667781270cf591ac0d0cfc1b96367f80"
+    },
+    {
+      "path": "src/components/agent/chat/components/MessageList.canonicalHistory.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "209d1e0ea176933b8d622b18c8c1ac44e773e0eddbe388f4927e7927f2b63e9a"
+    },
+    {
+      "path": "src/components/agent/chat/components/MessageList.failureWebTools.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "95402fa708fde0075ebfda880afee9e8aea9a541748696ca45852a9154fb0ff7"
+    },
+    {
+      "path": "src/components/agent/chat/components/MessageList.reasoningFlow.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "519a7fddd0352fbbe07fbcc5a90e68858aa8298f3f135110ef5f52d1fc515998"
+    },
+    {
+      "path": "src/components/agent/chat/components/MessageList.reasoningPersistence.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "16572b5a3a711744f68a3c8ba524c0f0c524a2f4570a71abb2cf66ae83851873"
+    },
+    {
+      "path": "src/components/agent/chat/components/StreamingMediaReferenceCard.component.test.tsx",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "27e894632d642b920170ba43b0516c35a35c11681c130cbdbd6f1213343f007b"
+    },
+    {
+      "path": "src/components/agent/chat/components/StreamingMediaReferenceCard.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4fb7d8720309dea8a5666cf5310c7653f519e33a195b12e79080cdd731199e06"
+    },
+    {
+      "path": "src/components/agent/chat/components/ToolCallDisplay.toolSearchActions.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2725f3f5a5d0366297a3181f1256f790ca04e0dce363d109a9a2f10960ff6034"
+    },
+    {
+      "path": "src/components/agent/chat/components/ToolCallDisplay.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0b2950e23fecb93b93a7007f399d63d94a0304e35a83ad9a22cdd1a3917fd024"
+    },
+    {
+      "path": "src/components/agent/chat/components/mcp-tool-item-content.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ed35557407c58b9d65604577c99013f07d8728285f24d824e7c1dea95086f221"
+    },
+    {
+      "path": "src/components/agent/chat/components/mcp-tool-item-content.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7e553d06d26d1e1012e066f29c7f85eb70297555ff81a1e56a8c07d9a820a380"
+    },
+    {
+      "path": "src/components/agent/chat/hooks/agentChatHistory.missingUsers.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ed34457b42cd0308bfbc2b87a747ef6d56129e5dcee380047dc7d6b6ad980ddd"
+    },
+    {
+      "path": "src/components/agent/chat/hooks/agentStreamSubmitDraft.component.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "cabde3aec9faeed3558bf254dfd4c3b8c10ba4a3bd3a1c2246399fe769b317be"
+    },
+    {
+      "path": "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ca51aeeb0125bca4e6455bf6b8c55c6116119d5d08f66b26cc923659db9491fb"
+    },
+    {
+      "path": "src/components/agent/chat/hooks/agentThreadMessageContentParts.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "2f3d82ede44c6c30a9c01c08b7ac8c152f48c80ea0c3079b0933b1e4a89ec116"
+    },
+    {
+      "path": "src/components/agent/chat/hooks/agentThreadMessageContentParts.unit.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "cda944c9ab35eb2b08281725debadc51581d2150f554c8394225587968e5b67c"
+    },
+    {
+      "path": "src/components/agent/chat/utils/agentThreadGrouping.mcp.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "42c9c4a2e8a10d44f7919e3e108db0eb66fb6e2cdac7476204485fcbade66024"
+    },
+    {
+      "path": "src/components/agent/chat/utils/agentThreadGrouping.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1d9539a7f6cbe903a5cd1099a9a2929d048487fc7acd4fa208d9b4d8599ca97c"
+    },
+    {
+      "path": "src/components/agent/chat/utils/agentThreadGrouping.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4cf0dca18c4e39f448edeaa2b3bd4878f0c41cb7aa5e414c7273ea17fcfa3124"
+    },
+    {
+      "path": "src/components/agent/chat/utils/toolDisplayConfig/content.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "01a93a73fcf4b4eb8859b9db289e10d2ed4da5dc89af65324604fd66ce9e982c"
+    },
+    {
+      "path": "src/components/agent/chat/utils/toolDisplayInfo.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "21c76ff9e87352f274a0e422ba0ac3465d9cc2cdf0c9641b50a85ef538d1d4fd"
+    },
+    {
+      "path": "src/components/agent/chat/utils/toolNameFamily.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d7c8530d186333b76c8675b40b1fb57ca136447df293109ded3ca74fe66fb241"
+    },
+    {
+      "path": "src/components/agent/chat/utils/toolProcessSummaryBuilders.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8509b4471f4b957bec16c7f2ff21eaa7693d8fc711612f0264aa88b39ac236e3"
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserWorkspace.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "edafce7e4c4aa3ee085a7f5d80909386551d116685ecac575aab70466e0e1856"
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserWorkspace.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "dffb6d36d626021de9984da3aa464944a55603cdb751f878bc7f48cac0de114b"
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserPresentation.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "caba5f543d092d781f2054dbd36d083dcfd5cd060ac76b30d90ffb2f0bbc59eb"
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserPresentation.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "402b728e64ca93c47d2cdbc4177e11876a75e5c6c1bf6a24c4a368d7ba6fe51a"
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceBrowserTabProjection.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c303897a3a08100c2229b2e3aead28e753ca9542b2b2f80b16386fea4d32329d"
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceBrowserTabProjection.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "0417be6e265afb0f4e2d6c1f7c8691f92c0eebfcabeb2f8174e84cf53a5d8bf8"
+    },
+    {
+      "path": "src/components/permissions/PermissionsSetup.component.test.tsx",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "888b97741e25a46ffd96f61556b620f9a9e156a0d24cd3e7782f9354c9e229fa"
+    },
+    {
+      "path": "src/components/permissions/PermissionsSetup.tsx",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "8d765829d20a0d1a39d328c89e6e2dfe2be48fd895c4f567b5bd075bec555b48"
+    },
+    {
+      "path": "src/components/permissions/usePermissionsSetup.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "3b96f7d8cbfdd7da17498b16a574398c160050bffc6c76df17551bc33ef56364"
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserAgentPermissions.component.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1c8aecb704f8b6f44f02b00be119df2ba6348c2b1f4b94bcd73140a6aa210daf"
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserDownloadRow.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d4cd072e2bb49510b19e403cf8f07c4caf5d01c898494e607897494c5d23010c"
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserDownloadsPage.progress.component.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d40c2ad3faf8c3683be03bceec165749995dff04ba3f0f8a4d32ae874524159a"
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserSitePermissionSelect.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "87f36edb382dacbbd764a96c3c6d10ce6d812c062c2cd07f40698109d2da65da"
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserSiteSettingsPage.component.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "70df98af619adc3af61ab9e07d56245b15004d54ff81d951f45f545d2bf65313"
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserSiteSettingsPage.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "dfbde295922484b38fc0cea113d2ea0fd4d73fc7386502ef172346d955e4bea5"
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/preferences.integration.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "d58d4738c1dea7000ff14281db2f31af0bf7a2a86778e08c02fdb2ddf29d8e1b"
+    },
+    {
+      "path": "src/components/settings-v2/general/storage/index.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ebcbd553b61817204f1120a97742cdee6ebc41817948df2c007e65f45298562a"
+    },
+    {
+      "path": "src/components/settings-v2/hooks/useSettingsCategory.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1800720fd40a066bf17c30bdd0d2f527869de6decd24ff66adf29befb732e57e"
+    },
+    {
+      "path": "src/components/settings-v2/integrations/computer-use/ComputerUseDialogs.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "4ab9861e01a422640af24ab93f7eb6ed25fba4b4290dd5da06f8ef77175d36d3"
+    },
+    {
+      "path": "src/components/settings-v2/integrations/computer-use/ComputerUseSettings.test.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "89d9ca6f0e08606cfeb41037ed244c5bdd3708a2c315ccbb62b4721e96260d80"
+    },
+    {
+      "path": "src/components/settings-v2/integrations/computer-use/ComputerUseSettings.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "1a51c59392782db3b2db5bcbbac39fb1b110495c84d60d863b0f2ff00ea48f6d"
+    },
+    {
+      "path": "src/components/settings-v2/integrations/computer-use/useComputerUseSettings.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "998671edb85b9731f3b754c05b61844a13541b89bc6e61968faca405eaf294ac"
+    },
+    {
+      "path": "src/components/settings-v2/system/about/index.tsx",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6f176fee54d767c94458c0e2b3f0722c09d38afdde0da6c4e8dba6885b1e18ba"
+    },
+    {
+      "path": "src/i18n/resources/en-US/settings.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "55ef50829b781dad180c67424fba206058a0e8a0e23783774eee59dc1968e48d"
+    },
+    {
+      "path": "src/i18n/resources/ja-JP/settings.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6f49e788bdd31eab27d9b6ea92df62b251812a4589bf72d80aaeacca35d99bb8"
+    },
+    {
+      "path": "src/i18n/resources/ko-KR/settings.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "5f8e738bf44441d25049af15ddc1b3efae262175811c0dd69aeb7cf736af7164"
+    },
+    {
+      "path": "src/i18n/resources/zh-CN/settings.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "935ca36b17deded30afa4fbaa7c0ddf2e1537c71f8130cc519c8b52f8b3004d7"
+    },
+    {
+      "path": "src/i18n/resources/zh-TW/settings.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e42ae4ad436d0fc7211e74652374360fed29804532bf4c2ab04208bd79ccfce2"
+    },
+    {
+      "path": "src/lib/api/agentRuntime/appServerCanonicalItemReader.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "e3bf8e6091b3d3a0a4c092a4f72c6901a3c7b65dd4ca770d55d54886e63491ea"
+    },
+    {
+      "path": "src/lib/api/agentRuntime/appServerCanonicalMessageContent.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "603cef7314ea929e16c3e6be5f6ab4ea4b54f0f423ee0f43b202af50b6b2118f"
+    },
+    {
+      "path": "src/lib/api/agentRuntime/appServerCanonicalMessageContent.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "99c01a7baacc911d84ed98288e8e6f06654f272833d5006e9fee5c82f69dcb86"
+    },
+    {
+      "path": "src/lib/api/browserSiteSettings.unit.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6f86d019e45b5f9b25ff1a737fcacf66a57b694ca5f09122089112a5d5964a22"
+    },
+    {
+      "path": "src/lib/api/browserSiteSettingsTypes.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6356a65ee32d1ffac370bb9e053a1c5e6f069a553af5ef2e44284ea11ca45246"
+    },
+    {
+      "path": "src/lib/api/browserTab.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7ccbd26e278df2cb32b6f81eb6be6c3b4783ac8992e7074caa383807a7b51187"
+    },
+    {
+      "path": "src/lib/api/computerUseSettings.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "6126267f14cc70da9e5adde03a9ce00fd78741d0fffd46a0bc92497567c5f18c"
+    },
+    {
+      "path": "src/lib/api/computerUseSettings.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "c9014406b8b0def06b12c06d83a93e77766cda24fc2b8adc85025b3f8026f19a"
+    },
+    {
+      "path": "src/lib/api/desktopPermissions.contract.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "c12dadb259669fbb9d42e6d2ed44c9eccaf000a671bc964deffd1dd0ec43dc8a"
+    },
+    {
+      "path": "src/lib/api/desktopPermissions.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "58ea49929caba6cdeb7790433c0ce851380483d7b9a4379dc56529ec90e22cad"
+    },
+    {
+      "path": "src/lib/api/desktopPermissionsTypes.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "1f4373cb3830fe0b8501cbc08d68a14138326d9b27d64f89799fd958cacfdcd4"
+    },
+    {
+      "path": "src/lib/dev-bridge/desktopPermissions.contract.test.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "03b9bed8fd50db412403c237483cebbd65c5a0de93ff443ec95537ae91e755c9"
+    },
+    {
+      "path": "src/lib/dev-bridge/http-client.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "72c865f6d1f6ef6d6145ebd442d83a2eadea5b2f60b40c734e671ef8729998b1"
+    },
+    {
+      "path": "src/lib/governance/agentCommandCatalog.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "ef303c4eeee78974e948705f7095ed29379f951e5b06a3179ac752d8cbbcb644"
+    },
+    {
+      "path": "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7c0835701ddd2fcf916268b2ef4eff7298972eee392f7075966c6395cbf516f3"
+    },
+    {
+      "path": "src/lib/governance/legacySurfaceCatalog.json",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "7710b8a079903404d66ed2d931b6ca7d89de63108b9cf48048173b1f95cb523f"
+    },
+    {
+      "path": "src/lib/governance/pluginFixtureBoundary.test.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "8f99c6952edc3551c04842b1d2a98679720fe02543dae5bec7546d3941001685"
+    },
+    {
+      "path": "src/lib/permissionsSetup.ts",
+      "status": "A",
+      "kind": "candidate changes",
+      "sha256": "9bb8d7371749a00ae6832474f4c85eb9cc2415d82ff3fde0f89cb58ace3dfd66"
+    },
+    {
+      "path": "src/types/page.ts",
+      "status": "M",
+      "kind": "candidate changes",
+      "sha256": "38355fd91603bf5abf8aee5018e07370d8f7ae02f4d24c8973d4c54ce3c5da4b"
+    }
+  ],
+  "deletedInitialUntrackedPaths": [
+    "scripts/agent-runtime/claw-chat-current-fixture-backend-env.mjs",
+    "scripts/agent-runtime/mcp-result-acceptance.test.mjs"
+  ]
+}

@@ -4,7 +4,7 @@ import {
   assert,
   sleep,
   sanitizeText,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 /** Real toolbar -> existing IPC -> the same native WebContents, without an Agent turn. */
 export async function runBrowserDeviceScenario({

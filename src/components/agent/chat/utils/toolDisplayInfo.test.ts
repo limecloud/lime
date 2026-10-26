@@ -307,6 +307,18 @@ describe("toolDisplayInfo", () => {
     ).toBe("已发起");
   });
 
+  it.each(SUPPORTED_LOCALES)("%s 图片任务展示实际生成状态", (locale) => {
+    document.documentElement.lang = locale;
+    const resource = loadNamespaceResource(locale, "agentRuntime");
+    for (const status of ["running", "completed", "failed"] as const) {
+      expect(
+        getToolDisplayInfo("lime_create_image_generation_task", status).action,
+      ).toBe(
+        resource[`agentChat.contentWorkbenchTools.action.generate.${status}`],
+      );
+    }
+  });
+
   it("本地历史导入的 exec_command 应展示真实命令而不是只显示工具名", () => {
     const subject = resolveToolPrimarySubject(
       "exec_command",

@@ -99,6 +99,7 @@ export const HOST_SOURCE_FILES = [
   "scripts/electron/build-host.mjs",
   "scripts/electron/copy-desktop-assets.mjs",
   "scripts/lib/electron-desktop-resources.mjs",
+  "scripts/lib/desktop-permissions-build.mjs",
   "scripts/lib/electron-build-inputs.mjs",
 ];
 export const APP_SERVER_SOURCE_DIRS = [
@@ -123,6 +124,7 @@ const SOURCE_EXTENSIONS = new Set([
   ".html",
   ".ico",
   ".gif",
+  ".h",
   ".js",
   ".jpeg",
   ".jpg",
@@ -133,6 +135,7 @@ const SOURCE_EXTENSIONS = new Set([
   ".md",
   ".mdx",
   ".mjs",
+  ".mm",
   ".mp3",
   ".png",
   ".rs",

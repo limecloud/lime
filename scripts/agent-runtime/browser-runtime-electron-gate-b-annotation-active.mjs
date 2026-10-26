@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import { waitForBrowserAnnotationState as waitFor } from "./browser-runtime-electron-gate-b-annotation-diagnostics.mjs";
 import { annotationTextOf } from "./browser-runtime-electron-gate-b-annotation-evidence.mjs";
 

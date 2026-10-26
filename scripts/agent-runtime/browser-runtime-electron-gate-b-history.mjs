@@ -19,7 +19,7 @@ import {
   sanitizeJson,
   sanitizeText,
   sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 async function startHistoryServer() {
   const marker = `history-fixture-${randomUUID()}`;

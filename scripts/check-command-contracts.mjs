@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { collectPersistedAtomContractFailures } from "./lib/persisted-atom-contract.mjs";
+import { collectRetiredBrowserConnectorFailures } from "./lib/retired-browser-connector-contract.mjs";
 
 const repoRoot = process.cwd();
 
@@ -775,16 +776,6 @@ const currentElectronHostRequiredCommands = new Set([
 const currentDevBridgeTruthRequiredCommands = new Set([
   "open_external_url",
   "start_oem_cloud_oauth_callback_bridge",
-]);
-
-const electronDiagnosticFacadeCommands = new Set([
-  "get_browser_backend_policy",
-  "get_browser_backends_status",
-  "get_browser_connector_install_status_cmd",
-  "get_browser_connector_settings_cmd",
-  "get_chrome_bridge_endpoint_info",
-  "get_chrome_bridge_status",
-  "get_chrome_profile_sessions",
 ]);
 
 function normalizePath(filePath) {
@@ -1580,63 +1571,6 @@ function collectProductionBridgeGuardFailures() {
       message: "Electron dev 不能注入 mock App Server backend",
       token: 'APP_SERVER_BACKEND_MODE: "mock"',
     });
-  }
-
-  const electronHostCommandsPath = "electron/hostCommands.ts";
-  const electronHostCommandsSource = readSource(electronHostCommandsPath);
-  const electronSystemUtilityHostPath = "electron/systemUtilityHost.ts";
-  const electronSystemUtilityHostSource = readSource(
-    electronSystemUtilityHostPath,
-  );
-  for (const { path: sourcePath, source } of [
-    { path: electronHostCommandsPath, source: electronHostCommandsSource },
-    {
-      path: electronSystemUtilityHostPath,
-      source: electronSystemUtilityHostSource,
-    },
-  ]) {
-    if (source.includes('"current"')) {
-      failures.push({
-        file: sourcePath,
-        message: "Electron 设置页诊断 facade 不能恢复 legacy Agent 浏览器后端",
-        token: '"current"',
-      });
-    }
-    if (source.includes("auto_fallback: true")) {
-      failures.push({
-        file: sourcePath,
-        message: "Electron 设置页诊断 facade 不能默认启用浏览器后端自动回退",
-        token: "auto_fallback: true",
-      });
-    }
-  }
-  for (const command of electronDiagnosticFacadeCommands) {
-    if (!electronHostCommandsSource.includes(`"${command}"`)) {
-      failures.push({
-        file: electronHostCommandsPath,
-        message: "设置页 Electron 诊断命令缺少 host facade 承接",
-        token: command,
-      });
-    }
-    const diagnosticMetaPattern = new RegExp(
-      `diagnosticMeta\\([\\s\\S]*?["'\`]${escapeRegExp(command)}["'\`][\\s\\S]*?\\)`,
-    );
-    const emptyDiagnosticListPattern = new RegExp(
-      `emptyDiagnosticList\\([\\s\\S]*?["'\`]${escapeRegExp(command)}["'\`][\\s\\S]*?\\)`,
-    );
-    const hasDiagnosticProjection =
-      diagnosticMetaPattern.test(electronSystemUtilityHostSource) ||
-      emptyDiagnosticListPattern.test(electronSystemUtilityHostSource) ||
-      diagnosticMetaPattern.test(electronHostCommandsSource) ||
-      emptyDiagnosticListPattern.test(electronHostCommandsSource);
-    if (!hasDiagnosticProjection) {
-      failures.push({
-        file: electronSystemUtilityHostPath,
-        message:
-          "设置页 Electron 诊断命令必须显式标注 electron-host-diagnostic degraded",
-        token: command,
-      });
-    }
   }
 
   const runElectronDevPath = "scripts/electron/run-dev.mjs";
@@ -4606,6 +4540,7 @@ function main() {
   const productionBridgeGuardFailures = [
     ...collectProductionBridgeGuardFailures(),
     ...collectPersistedAtomContractFailures(readSource),
+    ...collectRetiredBrowserConnectorFailures({ repoRoot }),
   ];
   const retiredFileBrowserFacadeSourceFailures =
     collectRetiredFileBrowserFacadeSourceFailures();

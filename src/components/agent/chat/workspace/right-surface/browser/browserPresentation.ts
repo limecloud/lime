@@ -35,16 +35,18 @@ export function rememberBrowserPresentation(
 ): void {
   const scope = key(owner);
   if (!scope) return;
-  savePersisted(scope, tabId && url ? { tabId, url } : tabId);
+  savePersisted(scope, tabId && url ? { tabId, url } : { tabId });
 }
 
 export function hasBrowserPresentation(
   owner: BrowserPresentationOwner,
 ): boolean {
   const scope = key(owner);
-  return Boolean(
-    scope && loadPersisted<unknown>(scope, undefined) !== undefined,
-  );
+  if (!scope) return false;
+  const value = loadPersisted<unknown>(scope, undefined);
+  // Older teardown paths wrote bare null. Only an explicit presentation record
+  // can suppress recovery from the canonical delivered browser result.
+  return value !== undefined && value !== null;
 }
 
 export function readBrowserPresentationUrl(

@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import electronPath from "electron";
 import { _electron as electron } from "playwright";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 
 /** Real Chromium geometry only. This is not the Desktop/App Server submission gate. */
 const root = process.cwd();

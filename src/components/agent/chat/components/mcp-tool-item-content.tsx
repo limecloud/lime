@@ -6,12 +6,15 @@ import { cn } from "@/lib/utils";
 import {
   buildToolHeadline,
   getToolDisplayInfo,
+  humanizeToolName,
   parseToolCallArguments,
   resolveToolFilePath,
   resolveToolPrimarySubject,
 } from "../utils/toolDisplayInfo";
 import { normalizeToolResultImages } from "../hooks/agentChatToolResult";
 import { resolveToolResultStructuredContent } from "../utils/toolResultDetailText";
+import { shouldHideProtocolToolResultEnvelope } from "../utils/toolResultEnvelopeDisplay";
+import { isMcpToolCall } from "../utils/toolNameFamily";
 import { AgentActivityItemRow } from "./agent-activity-item-row";
 
 function formatPayload(value: unknown): string {
@@ -43,21 +46,35 @@ export function McpToolItemContent({
     toolCall.metadata,
   );
   const Icon = display.icon;
-  const headline = buildToolHeadline({
-    toolDisplay: display,
-    toolName: toolCall.name,
-    subject: resolveToolPrimarySubject(
-      toolCall.name,
-      args,
-      resolveToolFilePath(args),
-      toolCall.metadata,
-    ),
-  });
+  const server =
+    isMcpToolCall(toolCall) && typeof toolCall.metadata?.server === "string"
+      ? toolCall.metadata.server
+      : null;
+  const headline = server
+    ? `${server} / ${humanizeToolName(toolCall.name)}`
+    : buildToolHeadline({
+        toolDisplay: display,
+        toolName: toolCall.name,
+        subject: resolveToolPrimarySubject(
+          toolCall.name,
+          args,
+          resolveToolFilePath(args),
+          toolCall.metadata,
+        ),
+      });
   const result = toolCall.result;
   const structured = resolveToolResultStructuredContent(result);
   const output = result?.error || result?.output || "";
   const structuredText = formatPayload(structured);
-  const outputText = formatPayload(output);
+  const outputText =
+    !result?.error &&
+    shouldHideProtocolToolResultEnvelope({
+      toolName: toolCall.name,
+      rawResultText: output,
+      structuredContent: structured,
+    })
+      ? ""
+      : formatPayload(output);
   const images =
     normalizeToolResultImages(result?.images, output, result?.metadata) ?? [];
   const failed = toolCall.status === "failed" || result?.success === false;
@@ -69,6 +86,7 @@ export function McpToolItemContent({
       data-testid="tool-call-row"
       data-tool-call-id={toolCall.id}
       data-tool-name={toolCall.name}
+      data-mcp-server={server ?? undefined}
       data-tool-status={toolCall.status}
     >
       <AgentActivityItemRow

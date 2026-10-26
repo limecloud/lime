@@ -9,8 +9,8 @@ import {
   readConfigFromPage,
   writeConfigEditsFromPage,
 } from "../electron/mcp-config-fixture-smoke.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { waitForGuiChatCompleted } from "./claw-chat-current-fixture-gui-completion-waits.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
+import { waitForGuiChatCompleted } from "../lib/chat-fixture/gui-completion-waits.mjs";
 import {
   clickApprovalDecision,
   installBrowserApprovalPage,
@@ -20,7 +20,7 @@ import {
 import { waitForBrowserAnnotationState as waitFor } from "./browser-runtime-electron-gate-b-annotation-diagnostics.mjs";
 import { readInvokeDiagnostics } from "./browser-runtime-electron-gate-b-cancel.mjs";
 import { parseJsonRpcRequestsFromInvokeTrace } from "../electron/lib/mcp-config-fixture-evidence.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 
 /** Runtime provider -> canonical approval -> same native page. DOM input is synthetic. */
 export async function runBrowserCdpScenario(ctx) {

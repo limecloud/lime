@@ -17,7 +17,7 @@ import {
   captureCollapseTraceBoundary,
   captureContinuousTraceBoundary,
   summarizeCollapseInputBoundary,
-} from "../agent-runtime/claw-chat-current-fixture-user-message-collapse-evidence.mjs";
+} from "./chat-fixture/user-message-collapse-evidence.mjs";
 
 const page = { evaluate: async (callback, argument) => callback(argument) };
 let originalDescriptors;

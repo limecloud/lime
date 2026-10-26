@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import { waitForBrowserAnnotationState as waitFor } from "./browser-runtime-electron-gate-b-annotation-diagnostics.mjs";
 
 /** Start a real canonical turn without consuming the deliberately unsubmitted GUI drafts. */

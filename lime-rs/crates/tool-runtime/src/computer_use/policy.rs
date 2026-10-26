@@ -24,6 +24,27 @@ pub enum NativeAppIdentity {
     },
 }
 
+impl NativeAppIdentity {
+    pub(super) fn is_wps(&self) -> bool {
+        match self {
+            Self::Macos { bundle_id } => bundle_id == "com.kingsoft.wpsoffice.mac",
+            Self::Windows {
+                aumid,
+                publisher_name,
+                product_name,
+                binary_name,
+            } => {
+                !publisher_name.trim().is_empty()
+                    && aumid.as_ref().is_none_or(|id| !id.trim().is_empty())
+                    && product_name.eq_ignore_ascii_case("WPS Office")
+                    && ["et.exe", "wps.exe", "wpp.exe"]
+                        .iter()
+                        .any(|binary| binary_name.eq_ignore_ascii_case(binary))
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ComputerUsePolicy {
     pub native_enabled: Option<bool>,
@@ -43,19 +64,116 @@ impl ComputerUsePolicy {
         scope: ComputerUseGrantScope,
         consent: bool,
     ) -> Result<(), &'static str> {
-        if scope != ComputerUseGrantScope::Session || !consent {
-            return Err("WPS requires explicit session approval");
-        }
-        if !matches!(&target.identity, super::ComputerUseTargetIdentity::Office { host, .. } if host == "WPS") {
+        if !matches!(&target.identity, super::ComputerUseTargetIdentity::Office { host, .. } if host == "WPS")
+        {
             return Err("Invalid native Office target");
         }
-        let identity = target.native_app.as_ref().ok_or("Verified WPS identity is required")?;
-        if !matches!(identity, NativeAppIdentity::Macos { bundle_id } if bundle_id == "com.kingsoft.wpsoffice.mac") {
+        let identity = target
+            .native_app
+            .as_ref()
+            .ok_or("Verified WPS identity is required")?;
+        if !identity.is_wps() {
             return Err("Verified WPS identity is required");
         }
         let mut policy = self.clone();
         policy.native_enabled = self.office_enabled;
         policy.check(identity, target.locked, scope, consent)
+    }
+
+    /// Build the exact application rule only after the service verifies fresh consent.
+    /// Rechecking this against freshly loaded configuration prevents overwriting a denial.
+    pub fn with_persistent_approval(
+        &self,
+        adapter: super::ComputerUseAdapterKind,
+        target: &super::ComputerUseTarget,
+    ) -> Result<Self, &'static str> {
+        let identity = target
+            .native_app
+            .as_ref()
+            .ok_or("Verified application identity is required")?;
+        let mut policy = self.clone();
+        match adapter {
+            super::ComputerUseAdapterKind::Native
+                if matches!(
+                    target.identity,
+                    super::ComputerUseTargetIdentity::Native { .. }
+                ) => {}
+            super::ComputerUseAdapterKind::Office => {
+                policy.check_office_native(target, ComputerUseGrantScope::Session, true)?;
+                policy.native_enabled = policy.office_enabled;
+            }
+            _ => return Err("This target requires session approval"),
+        }
+        policy.check(
+            identity,
+            target.locked,
+            ComputerUseGrantScope::Session,
+            true,
+        )?;
+        if policy
+            .admin
+            .as_ref()
+            .and_then(|p| p.allow_persistent_approval)
+            == Some(false)
+        {
+            return Err("Persistent Computer Use approval is disabled by administrator policy");
+        }
+        let user = policy.user.get_or_insert_with(Default::default);
+        match identity {
+            NativeAppIdentity::Macos { bundle_id } => {
+                user.macos
+                    .get_or_insert_with(Default::default)
+                    .bundle_ids
+                    .get_or_insert_with(Default::default)
+                    .insert(bundle_id.clone(), Allow);
+            }
+            NativeAppIdentity::Windows {
+                aumid: Some(aumid), ..
+            } => {
+                user.windows
+                    .get_or_insert_with(Default::default)
+                    .aumids
+                    .get_or_insert_with(Default::default)
+                    .insert(aumid.clone(), Allow);
+            }
+            NativeAppIdentity::Windows {
+                publisher_name,
+                product_name,
+                binary_name,
+                ..
+            } => {
+                let rules = user
+                    .windows
+                    .get_or_insert_with(Default::default)
+                    .exes
+                    .get_or_insert_with(Default::default);
+                if !rules.iter().any(|rule| {
+                    matches_exe(
+                        publisher_name,
+                        product_name,
+                        binary_name,
+                        &rule.publisher_name,
+                        &rule.product_name,
+                        rule.binary_name.as_deref(),
+                    )
+                }) {
+                    rules.push(lime_core::config::ComputerUseWindowsExeConfigToml {
+                        publisher_name: publisher_name.clone(),
+                        product_name: product_name.clone(),
+                        binary_name: Some(binary_name.clone()),
+                        access: Allow,
+                    });
+                }
+            }
+        }
+        policy.check(
+            identity,
+            target.locked,
+            ComputerUseGrantScope::Persistent,
+            false,
+        )?;
+        policy.native_enabled = self.native_enabled;
+        Ok(policy)
     }
 
     pub(super) fn enabled(&self, kind: super::ComputerUseAdapterKind) -> bool {

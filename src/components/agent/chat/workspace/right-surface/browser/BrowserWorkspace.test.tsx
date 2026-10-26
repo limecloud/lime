@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setPermissionsSetupVisible } from "@/lib/permissionsSetup";
 import type {
   BrowserTabDownloadEvent,
   BrowserTabLoadFailedEvent,
@@ -184,6 +185,21 @@ describe("BrowserWorkspace", () => {
     });
     vi.unstubAllGlobals();
     container.remove();
+    setPermissionsSetupVisible(false);
+  });
+
+  it("hides the native page behind permission setup and restores the same tab afterward", async () => {
+    const tab = browserState();
+    mocks.list.mockResolvedValue([tab]);
+    await act(async () => {
+      root.render(<BrowserWorkspace runtimeSessionId="session-1" threadId="thread-1" />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { setPermissionsSetupVisible(true); await Promise.resolve(); });
+    expect(mocks.setBounds).toHaveBeenCalledWith(expect.objectContaining({ tabId: tab.tabId, visible: false }));
+    await act(async () => { setPermissionsSetupVisible(false); await Promise.resolve(); });
+    expect(container.querySelector('[data-testid="browser-workspace"]')?.getAttribute("data-browser-tab-id")).toBe(tab.tabId);
+    expect(mocks.close).not.toHaveBeenCalled();
   });
 
   it("selects the explicitly requested canonical tab without navigating the previously selected tab", async () => {

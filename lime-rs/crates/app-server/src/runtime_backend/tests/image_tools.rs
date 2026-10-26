@@ -75,3 +75,93 @@ async fn runtime_backend_registers_image_generation_task_native_tool() {
         "{LIME_CREATE_IMAGE_TASK_TOOL_NAME} should be registered as the current image task native tool"
     );
 }
+
+#[test]
+fn image_tool_result_emits_canonical_media_lifecycle_only_for_available_images() {
+    use agent_protocol::{
+        ItemId, ItemKind, ItemStatus, SessionId, ThreadId, ThreadItem, ThreadItemPayload,
+        ToolOutput, TurnId,
+    };
+    use lime_agent::AgentEvent as RuntimeAgentEvent;
+    use serde_json::json;
+
+    for (status, with_sidecar, expected_media) in [
+        ("succeeded", true, true),
+        ("partial", true, true),
+        ("pending", true, false),
+        ("failed", true, false),
+        ("cancelled", true, false),
+        ("succeeded", false, false),
+    ] {
+        let mut image = json!({"url": "data:image/png;base64,AAAA"});
+        if with_sidecar {
+            image["sidecarRef"] = json!({"uri": "sidecar://media/result", "mimeType": "image/png"});
+        }
+        let item = ThreadItem {
+            session_id: SessionId::new("session-image"),
+            thread_id: ThreadId::new("thread-image"),
+            turn_id: TurnId::new("turn-image"),
+            item_id: ItemId::new("tool-image"),
+            sequence: 5,
+            ordinal: 5,
+            created_at_ms: 1,
+            updated_at_ms: 2,
+            completed_at_ms: Some(2),
+            kind: ItemKind::Tool,
+            status: ItemStatus::Completed,
+            payload: ThreadItemPayload::Tool {
+                call_id: "call-image".to_string(),
+                name: LIME_CREATE_IMAGE_TASK_TOOL_NAME.to_string(),
+                arguments: vec![],
+                output: Some(ToolOutput {
+                    structured_content: Some(json!({"response": {
+                        "task_id": "task-image", "task_type": "image_generate", "normalized_status": status,
+                        "record": {"result": {"images": [image]}}
+                    }})),
+                    ..ToolOutput::default()
+                }),
+            },
+            metadata: json!({}),
+        };
+        let events = super::super::tool_events::runtime_events_from_agent_event(
+            &RuntimeAgentEvent::ItemCompleted { item },
+        )
+        .unwrap();
+        assert_eq!(
+            events.len(),
+            if expected_media { 3 } else { 1 },
+            "{status}, sidecar={with_sidecar}"
+        );
+        if !expected_media {
+            continue;
+        }
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.event_type.as_str())
+                .collect::<Vec<_>>(),
+            ["item.completed", "item.started", "item.completed"]
+        );
+        let start: ThreadItem = serde_json::from_value(events[1].payload["item"].clone()).unwrap();
+        let complete: ThreadItem =
+            serde_json::from_value(events[2].payload["item"].clone()).unwrap();
+        assert_eq!(start.item_id, complete.item_id);
+        assert_eq!(
+            complete.item_id.as_str(),
+            "item_media-task-result:turn-image:task-image"
+        );
+        assert_eq!(complete.thread_id.as_str(), "thread-image");
+        assert_eq!(complete.turn_id.as_str(), "turn-image");
+        assert_eq!(start.status, ItemStatus::InProgress);
+        assert_eq!(complete.status, ItemStatus::Completed);
+        assert!(!serde_json::to_string(&complete).unwrap().contains("data:image"));
+        let ThreadItemPayload::AgentMessage { content_parts, .. } = complete.payload else {
+            panic!("media message")
+        };
+        assert_eq!(content_parts.len(), 1);
+        assert!(content_parts[0].is_safe());
+        assert!(!serde_json::to_string(&content_parts)
+            .unwrap()
+            .contains("data:image"));
+    }
+}

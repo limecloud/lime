@@ -11,12 +11,12 @@ import {
   waitForPageCondition,
   writeConfigEditsFromPage,
 } from "./mcp-config-fixture-smoke.mjs";
-import { createTempRuntimeEnv } from "../agent-runtime/claw-chat-current-fixture-backend-file.mjs";
+import { createTempRuntimeEnv } from "../lib/chat-fixture/backend-file.mjs";
 import {
   initializeAppServer,
   reloadRendererDocument,
-} from "../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
 import { inspectElectronFixtureBuildFreshness } from "../lib/electron-fixture-build.mjs";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";

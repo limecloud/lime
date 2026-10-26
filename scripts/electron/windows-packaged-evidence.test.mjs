@@ -124,7 +124,7 @@ function createFixture() {
     helper: {
       path: path.join(resourcesRoot, "native/windows/windows-native-host.exe"),
       resourcesRoot,
-      readOnly: true,
+      readOnly: false,
       digestMatches: true,
     },
   };

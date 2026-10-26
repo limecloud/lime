@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   parseArgs,
   resolveInstalledResourcesRoot,
+  assertComputerUseSnapshot,
 } from "./windows-native-host-gate-b.mjs";
 
 const roots = [];
@@ -18,6 +19,84 @@ afterEach(() => {
 });
 
 describe("windows-native-host-gate-b", () => {
+  const snapshot = () => ({
+    readiness: "ready",
+    generation: 2,
+    targets: [
+      {
+        identity: {
+          type: "native",
+          appId: "win32:c:\\windows\\notepad.exe",
+          processId: 42,
+          windowId: "101:12345",
+        },
+        nativeApp: {
+          type: "windows",
+          publisherName: "CN=Fixture Publisher",
+          productName: "Notepad",
+          binaryName: "notepad.exe",
+        },
+        capabilities: [
+          "observe",
+          "screenshot",
+          "click",
+          "type",
+          "key",
+          "scroll",
+          "drag",
+        ],
+        locked: false,
+      },
+    ],
+  });
+
+  it("验收新的真实驱动快照合同，不把旧 unavailable helper 记为通过", () => {
+    const valid = snapshot();
+    expect(assertComputerUseSnapshot(valid)).toEqual(valid.targets[0].identity);
+    for (const readiness of ["blocked", "unavailable", "permission_required"])
+      expect(() => assertComputerUseSnapshot({ ...valid, readiness })).toThrow(
+        "not ready",
+      );
+    expect(() => assertComputerUseSnapshot({ ...valid, targets: [] })).toThrow(
+      "no verifiable",
+    );
+    expect(() =>
+      assertComputerUseSnapshot({ ...valid, generation: 0 }),
+    ).toThrow("generation");
+  });
+
+  it("拒绝没有精确窗口、签名应用身份或完整动作能力的快照", () => {
+    for (const change of [
+      (target) => {
+        target.identity.windowId = "101";
+      },
+      (target) => {
+        target.identity.processId = 0;
+      },
+      (target) => {
+        target.nativeApp.publisherName = "";
+      },
+      (target) => {
+        target.nativeApp.productName = "";
+      },
+      (target) => {
+        target.nativeApp.binaryName = "";
+      },
+      (target) => {
+        target.locked = true;
+      },
+      (target) => {
+        target.capabilities = ["observe"];
+      },
+      (target) => {
+        target.capabilities = "observe screenshot click type key scroll drag";
+      },
+    ]) {
+      const invalid = snapshot();
+      change(invalid.targets[0]);
+      expect(() => assertComputerUseSnapshot(invalid)).toThrow();
+    }
+  });
   it("通过真实 CLI 入口显示帮助并拒绝缺失安装路径", () => {
     const script = path.resolve(
       "scripts/electron/windows-native-host-gate-b.mjs",

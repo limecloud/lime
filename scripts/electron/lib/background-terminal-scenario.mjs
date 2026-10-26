@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { invokeAppServerFromPage } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../../lib/chat-fixture/rpc.mjs";
 import { closeThreadSidePanelTab } from "./thread-side-panel-navigation.mjs";
 
 export const BACKGROUND_MARKER = "LIME_SUMMARY_BACKGROUND";

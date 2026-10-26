@@ -25,6 +25,7 @@ pub struct RuntimeToolExecutionContext {
     environment_id: Option<String>,
     session_id: String,
     cancel_token: Option<CancellationToken>,
+    turn_cancel_token: Option<CancellationToken>,
     workspace_sandbox: Option<RuntimeWorkspaceSandboxInput>,
     environment: HashMap<String, String>,
     tool_identity: Option<RuntimeToolExecutionIdentity>,
@@ -87,6 +88,7 @@ impl RuntimeToolExecutionContext {
             environment_id: None,
             session_id: input.session_id,
             cancel_token: input.cancel_token,
+            turn_cancel_token: None,
             workspace_sandbox: input.workspace_sandbox,
             environment: HashMap::new(),
             tool_identity: None,
@@ -111,6 +113,22 @@ impl RuntimeToolExecutionContext {
 
     pub fn cancel_token(&self) -> Option<&CancellationToken> {
         self.cancel_token.as_ref()
+    }
+
+    /// Nested cells keep their local cancellation while trusted interruptions
+    /// also stop the enclosing provider turn, including future sampling steps.
+    pub fn with_turn_cancel_token(mut self, token: Option<CancellationToken>) -> Self {
+        self.turn_cancel_token = token;
+        self
+    }
+
+    pub fn interrupt_turn(&self) {
+        if let Some(token) = &self.turn_cancel_token {
+            token.cancel();
+        }
+        if let Some(token) = &self.cancel_token {
+            token.cancel();
+        }
     }
 
     pub fn workspace_sandbox(&self) -> Option<&RuntimeWorkspaceSandboxInput> {

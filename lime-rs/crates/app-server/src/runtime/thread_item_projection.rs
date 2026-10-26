@@ -123,7 +123,15 @@ pub(super) fn thread_items_from_events(stored: &StoredSession) -> Vec<Value> {
     items.extend(approval_items.into_values());
     items.extend(context_compaction_items.into_values());
     items.extend(subagent_items.into_values());
-    items.extend(media_result_items.into_values());
+    let known_item_ids = items
+        .iter()
+        .filter_map(|item| string_field(item, &["id"]))
+        .collect::<std::collections::HashSet<_>>();
+    items.extend(
+        media_result_items
+            .into_iter()
+            .filter_map(|(id, item)| (!known_item_ids.contains(&id)).then_some(item)),
+    );
     sort_thread_items(&mut items);
     items
 }

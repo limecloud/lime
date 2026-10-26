@@ -9,12 +9,14 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 #[async_trait]
 pub trait ImageTaskGateway: Send + Sync {
     async fn create_image_media_task_artifact(
         &self,
         params: MediaTaskArtifactImageCreateParams,
+        cancel_token: Option<CancellationToken>,
     ) -> Result<MediaTaskArtifactResponse, String>;
 }
 
@@ -63,12 +65,17 @@ impl RuntimeImageTaskExecutor {
         )?;
         let response = self
             .gateway
-            .create_image_media_task_artifact(build_create_params(input))
+            .create_image_media_task_artifact(
+                build_create_params(input),
+                request.context.cancel_token().cloned(),
+            )
             .await
             .map_err(runtime_image_task_error)?;
+        let success = response.success
+            && matches!(response.normalized_status.as_str(), "succeeded" | "partial");
         let projection = image_task_tool_result_projection(response);
         Ok(RuntimeToolExecutionResult::new(
-            true,
+            success,
             projection.output.unwrap_or_default(),
             None,
             projection.metadata,
@@ -140,6 +147,7 @@ mod tests {
         async fn create_image_media_task_artifact(
             &self,
             params: MediaTaskArtifactImageCreateParams,
+            _cancel_token: Option<CancellationToken>,
         ) -> Result<MediaTaskArtifactResponse, String> {
             *self.last_params.lock().await = Some(params.clone());
             Ok(MediaTaskArtifactResponse {
@@ -147,8 +155,8 @@ mod tests {
                 task_id: "task-image-1".to_string(),
                 task_type: "image_generate".to_string(),
                 task_family: "image".to_string(),
-                status: "pending".to_string(),
-                normalized_status: "pending".to_string(),
+                status: "succeeded".to_string(),
+                normalized_status: "succeeded".to_string(),
                 artifact_path: ".lime/tasks/image_generate/task-image-1.json".to_string(),
                 record: json!({
                     "task_type": "image_generate",
@@ -228,7 +236,7 @@ mod tests {
         assert_eq!(result.metadata.get("task_family"), Some(&json!("image")));
         assert_eq!(
             result.metadata.get("normalized_status"),
-            Some(&json!("pending"))
+            Some(&json!("succeeded"))
         );
         let artifact_path = result
             .metadata

@@ -3,7 +3,7 @@ import {
   readInvokeDiagnostics,
   waitForProviderCancellation,
 } from "./browser-runtime-electron-gate-b-cancel.mjs";
-import { sanitizeJson } from "./claw-chat-current-fixture-utils.mjs";
+import { sanitizeJson } from "../lib/chat-fixture/utils.mjs";
 
 async function terminateAppServerSidecar(app) {
   return await app.evaluate(() => {

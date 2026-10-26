@@ -107,7 +107,8 @@ describe("electron desktop resource manifest", () => {
       id: "windows-native-host",
       path: "native/windows/windows-native-host.exe",
       api: expect.arrayContaining(["UIAutomation", "RawInput"]),
-      readOnly: true,
+      readOnly: false,
+      computerUseProtocolVersion: 1,
       signedByForge: true,
     });
     expect(result.manifest.native.windowsHelper.api).toEqual(
@@ -125,6 +126,14 @@ describe("electron desktop resource manifest", () => {
           "electron/native/windows/windows-native-host.cpp",
         ),
         "uiautomationcore.lib",
+        "windowscodecs.lib",
+        "wintrust.lib",
+        expect.stringContaining("windows-computer-use-actions.cpp"),
+        expect.stringContaining("windows-computer-use-apps.cpp"),
+        expect.stringContaining("windows-computer-use-capture.cpp"),
+        expect.stringContaining("windows-computer-use-input.cpp"),
+        expect.stringContaining("windows-computer-use-cursor.cpp"),
+        expect.stringContaining("windows-computer-use-cursor-recovery.cpp"),
       ]),
     );
   });
@@ -155,6 +164,7 @@ describe("electron desktop resource manifest", () => {
       version: "1.2.3",
       execFileSyncImpl: (command, args) => {
         compileCalls.push([command, args]);
+        if (command === process.execPath) return;
         writeFileSync(args.at(-1), "compiled native host");
       },
     });
@@ -215,16 +225,29 @@ describe("electron desktop resource manifest", () => {
       applicationGroups: [],
       automationAppleEvents: true,
     });
-    expect(compileCalls).toHaveLength(1);
-    expect(compileCalls[0][0]).toBe("swiftc");
-    expect(compileCalls[0][1]).toEqual(
+    const compilerCalls = compileCalls.filter(([command]) => command === "swiftc" || command === "clang++");
+    expect(compilerCalls).toHaveLength(2);
+    expect(compilerCalls[0][0]).toBe("swiftc");
+    expect(compilerCalls[1][0]).toBe("clang++");
+    expect(compilerCalls[1][1]).toEqual(expect.arrayContaining([
+      "UserNotifications", "CoreLocation", expect.stringContaining("electron/native/macos/desktop-permissions.mm"),
+    ]));
+    expect(result.manifest.resources).toContainEqual(expect.objectContaining({
+      id: "desktop-permissions", path: "native/macos/desktop-permissions.node", required: true,
+    }));
+    expect(compilerCalls[0][1]).toEqual(
       expect.arrayContaining([
+        "-import-objc-header",
+        expect.stringContaining("electron/native/computer-use-cursor-motion.h"),
         "AVFoundation",
         expect.stringContaining(
           "electron/native/macos/macos-native-host.swift",
         ),
         expect.stringContaining(
           "electron/native/macos/macos-screen-capture.swift",
+        ),
+        expect.stringContaining(
+          "electron/native/macos/macos-computer-use-input.swift",
         ),
         expect.stringContaining(
           "electron/native/macos/macos-computer-use-cursor.swift",

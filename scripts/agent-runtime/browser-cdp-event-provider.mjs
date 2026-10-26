@@ -1,4 +1,4 @@
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import { completedBrowserCdpResult } from "./browser-cdp-session-provider.mjs";
 
 function barrier() {

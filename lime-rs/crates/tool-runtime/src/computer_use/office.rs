@@ -12,11 +12,11 @@ pub struct OfficeAdapter {
     observed: Mutex<(Option<ComputerUseSnapshot>, u64)>,
 }
 
-impl Default for OfficeAdapter {
-    fn default() -> Self {
+impl OfficeAdapter {
+    pub fn new(paths: ComputerUsePaths) -> Self {
         Self {
             native: NativeAdapter::default(),
-            excel: ExtensionAdapter::new(ComputerUseAdapterKind::Office),
+            excel: ExtensionAdapter::new(ComputerUseAdapterKind::Office, paths),
             observed: Mutex::new((None, 0)),
         }
     }
@@ -32,19 +32,31 @@ fn wps_identity(target: &ComputerUseTarget, session: u64) -> Option<ComputerUseT
     else {
         return None;
     };
-    let verified = matches!(&target.native_app,
-        Some(NativeAppIdentity::Macos { bundle_id })
-            if bundle_id == "com.kingsoft.wpsoffice.mac" && app_id == bundle_id);
-    if !verified || *pid == 0 || window.is_empty() || title.as_ref().is_none_or(|s| s.is_empty()) {
+    let native_app = target.native_app.as_ref()?;
+    let app_matches = match native_app {
+        NativeAppIdentity::Macos { bundle_id } => app_id == bundle_id,
+        NativeAppIdentity::Windows { binary_name, .. } => {
+            app_id.starts_with("win32:\\\\?\\")
+                && app_id.rsplit_once('\\').is_some_and(|(directory, name)| {
+                    directory.len() > "win32:\\\\?\\".len()
+                        && name.eq_ignore_ascii_case(binary_name)
+                })
+        }
+    };
+    if !native_app.is_wps()
+        || !app_matches
+        || session == 0
+        || *pid == 0
+        || window.trim().is_empty()
+        || title.as_ref().is_none_or(|s| s.trim().is_empty())
+    {
         return None;
     }
+    let document = serde_json::to_vec(&(app_id, native_app, title)).ok()?;
     Some(ComputerUseTargetIdentity::Office {
         host: "WPS".into(),
         workbook_id: window.clone(),
-        session_id: format!(
-            "wps:{session}:{pid}:{:x}",
-            Sha256::digest(title.as_deref().unwrap_or_default().as_bytes())
-        ),
+        session_id: format!("wps:{session}:{pid}:{:x}", Sha256::digest(document)),
         workbook_name: title.clone(),
     })
 }
@@ -74,6 +86,11 @@ impl OfficeAdapter {
 impl ComputerUseAdapter for OfficeAdapter {
     fn kind(&self) -> ComputerUseAdapterKind {
         ComputerUseAdapterKind::Office
+    }
+
+    fn finish_turn(&self, owner: &ComputerUseOwner) {
+        self.native.finish_turn(owner);
+        self.excel.finish_turn(owner);
     }
 
     async fn snapshot(&self) -> ComputerUseResult<ComputerUseSnapshot> {
@@ -139,32 +156,11 @@ impl ComputerUseAdapter for OfficeAdapter {
         params: &ComputerUseSetupParams,
     ) -> ComputerUseResult<ComputerUseSetupOutcome> {
         let Some(target) = params.target.as_ref() else {
-            #[cfg(target_os = "macos")]
-            {
-                let status = std::process::Command::new("/usr/bin/open")
-                    .args(["-b", "com.kingsoft.wpsoffice.mac"])
-                    .status()
-                    .map_err(|e| denied(e.to_string()))?;
-                if !status.success() {
-                    return Err(denied("WPS is not installed or could not be opened"));
-                }
-                let result = self
-                    .native
-                    .setup(&ComputerUseSetupParams {
-                        adapter: ComputerUseAdapterKind::Native,
-                        target: None,
-                        grant_scope: ComputerUseGrantScope::Session,
-                    })
-                    .await?;
-                return Ok(ComputerUseSetupOutcome {
-                    generation: self.snapshot().await?.generation,
-                    ..result
-                });
-            }
-            #[cfg(not(target_os = "macos"))]
-            return Err(denied(
-                "WPS native control is not available on this platform",
-            ));
+            let result = self.native.setup_wps().await?;
+            return Ok(ComputerUseSetupOutcome {
+                generation: self.snapshot().await?.generation,
+                ..result
+            });
         };
         if !matches!(target, ComputerUseTargetIdentity::Office { host, .. } if host == "WPS") {
             let outcome = self.excel.setup(params).await?;
@@ -173,16 +169,13 @@ impl ComputerUseAdapter for OfficeAdapter {
                 ..outcome
             });
         }
-        if params.grant_scope != ComputerUseGrantScope::Session {
-            return Err(denied("WPS requires explicit session approval"));
-        }
         let native = self.native_target(target).await?;
         let result = self
             .native
             .setup(&ComputerUseSetupParams {
                 adapter: ComputerUseAdapterKind::Native,
                 target: Some(native.clone()),
-                grant_scope: ComputerUseGrantScope::Session,
+                grant_scope: params.grant_scope,
             })
             .await?;
         let snapshot = self.snapshot().await?;
@@ -203,6 +196,7 @@ impl ComputerUseAdapter for OfficeAdapter {
                 })
                 .flatten(),
             generation: snapshot.generation,
+            approved_revision: result.approved_revision,
         })
     }
 
@@ -218,7 +212,7 @@ impl ComputerUseAdapter for OfficeAdapter {
         }
         let target = self.native_target(&lease.response.target).await?;
         self.native
-            .execute_target(&target, lease.control_fence(), action, cancel)
+            .execute_target(&target, &lease.owner, lease.control_fence(), action, cancel)
             .await
     }
 }

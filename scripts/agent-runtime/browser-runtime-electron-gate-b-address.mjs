@@ -4,7 +4,7 @@ import {
   assert,
   sanitizeText,
   sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 /** Address UI on the real browser owner; page navigation is an external stimulus. */
 export async function runBrowserAddressScenario({

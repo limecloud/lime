@@ -44,13 +44,13 @@ impl TurnGateway {
             .runtime
             .state
             .lock()
-            .map_err(|_| ComputerUseError("Runtime state is unavailable".into()))?;
+            .map_err(|_| ComputerUseError::new("Runtime state is unavailable".into()))?;
         let stored = state
             .sessions
             .get(scope.session_id)
             .filter(|_| !state.shutting_down && !state.closing_sessions.contains(scope.session_id))
             .ok_or_else(|| {
-                ComputerUseError("Computer Use requires a live canonical session".into())
+                ComputerUseError::new("Computer Use requires a live canonical session".into())
             })?;
         let active = stored.turns.iter().any(|turn| {
             turn.turn_id == scope.turn_id
@@ -62,7 +62,7 @@ impl TurnGateway {
                 )
         });
         if !active || scope.call_id.is_empty() {
-            return Err(ComputerUseError(
+            return Err(ComputerUseError::new(
                 "Computer Use requires an active canonical turn and call".into(),
             ));
         }
@@ -91,7 +91,7 @@ impl ComputerUseGateway for TurnGateway {
                 )
                 .await?;
             return serde_json::to_value(status)
-                .map_err(|error| ComputerUseError(error.to_string()));
+                .map_err(|error| ComputerUseError::new(error.to_string()));
         };
         self.runtime
             .computer_use

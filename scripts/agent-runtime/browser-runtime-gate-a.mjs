@@ -4,7 +4,7 @@ import {
   assert,
   sanitizeJson,
   sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 const NAVIGATION_URL = "https://example.com/browser-runtime-gate-a-nav";
 

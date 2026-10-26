@@ -8,9 +8,9 @@ import process from "node:process";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { writeJsonFile } from "../mcp/lib/current-smoke-transport.mjs";
-import { invokeAppServerFromPage } from "../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
 import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import { inspectElectronFixtureBuildFreshness } from "../lib/electron-fixture-build.mjs";
 import {
   createTempRuntimeEnv,

@@ -9,19 +9,19 @@ import { _electron as electron, chromium } from "playwright";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { ensureElectronFixtureBuild } from "../lib/electron-fixture-build.mjs";
-import { createTempRuntimeEnv } from "./claw-chat-current-fixture-backend-file.mjs";
+import { createTempRuntimeEnv } from "../lib/chat-fixture/backend-file.mjs";
 import {
   APP_SERVER_HANDLE_JSON_LINES_COMMAND,
   APP_SERVER_METHOD_INITIALIZED,
   APP_SERVER_METHOD_INITIALIZE,
   FIXTURE_MODEL,
   FIXTURE_PROVIDER,
-} from "./claw-chat-current-fixture-constants.mjs";
+} from "../lib/chat-fixture/constants.mjs";
 import {
   openSessionFromSidebar,
   navigateGuiToWorkspaceScopedAgent,
   waitForGuiSessionVisible,
-} from "./claw-chat-current-fixture-session.mjs";
+} from "../lib/chat-fixture/session.mjs";
 import {
   bindGuiWorkspaceAndModelPreferences,
   clearInvokeBuffers,
@@ -32,7 +32,7 @@ import {
   readTraceMessages,
   waitForAppUrlReady,
   waitForRendererReady,
-} from "./claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 import {
   assert,
   cleanupTempRoot,
@@ -40,7 +40,7 @@ import {
   sanitizeText,
   sleep,
   writeJsonFile,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 const LOG_PREFIX = "[cdp:agent-session-recovery]";
 const DEFAULTS = {

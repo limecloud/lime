@@ -8,7 +8,7 @@ import {
   openSettings,
 } from "../mcp-config-fixture-smoke.mjs";
 import { captureMainProcessExit } from "./persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "../../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../../lib/chat-fixture/teardown.mjs";
 import {
   parseSettingsAppearanceFixtureArgs,
   summarizeSettingsAppearanceTrace,

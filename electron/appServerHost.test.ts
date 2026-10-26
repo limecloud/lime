@@ -1170,6 +1170,59 @@ describe("ElectronAppServerHost", () => {
     expect(recordedRequests).toHaveLength(0);
   });
 
+  it("退出后事件轮询正常结束且不启动 sidecar，业务请求仍拒绝", async () => {
+    const { ElectronAppServerHost } = await import("./appServerHost");
+    const host = new ElectronAppServerHost();
+    await host.warmup();
+    await host.stop();
+
+    await expect(host.drainEvents({ includeRecent: true })).resolves.toEqual({
+      lines: [],
+    });
+    await expect(
+      host.handleJsonLines({
+        lines: [encodeMessage({ id: 1, method: "thread/read", params: {} })],
+      }),
+    ).rejects.toThrow("app-server host is stopping");
+    expect(lifecycleConfigs).toHaveLength(1);
+    expect(fakeConnection.nextServerMessage).not.toHaveBeenCalled();
+  });
+
+  it("退出时丢弃在途 drain 的迟到通知，不再次读取已停止连接", async () => {
+    const { ElectronAppServerHost } = await import("./appServerHost");
+    const host = new ElectronAppServerHost();
+    await host.warmup();
+    let resolvePending!: (message: JsonRpcMessage) => void;
+    const pending = new Promise<JsonRpcMessage>((resolve) => {
+      resolvePending = resolve;
+    });
+    fakeConnection.nextServerMessage.mockReturnValueOnce(pending);
+    const drain = host.drainEvents({ includeRecent: true, limit: 2 });
+    await vi.waitFor(() => {
+      expect(fakeConnection.nextServerMessage).toHaveBeenCalledTimes(1);
+    });
+    await host.stop();
+    resolvePending({ method: "thread/started", params: {} });
+
+    await expect(drain).resolves.toEqual({ lines: [] });
+    expect(fakeConnection.nextServerMessage).toHaveBeenCalledTimes(1);
+    expect(lifecycleConfigs).toHaveLength(1);
+  });
+
+  it("正常运行的 drain 连接失败仍向调用者报错", async () => {
+    const { ElectronAppServerHost } = await import("./appServerHost");
+    const host = new ElectronAppServerHost();
+    vi.spyOn(
+      FakeAppServerSidecarLifecycle.prototype,
+      "start",
+    ).mockRejectedValueOnce(new Error("fixture connection failed"));
+
+    await expect(host.drainEvents()).rejects.toThrow(
+      "fixture connection failed",
+    );
+    await host.stop();
+  });
+
   it("drainEvents 应能读取 turn/start 请求镜像的 direct notification", async () => {
     const { ElectronAppServerHost } = await import("./appServerHost");
     const host = new ElectronAppServerHost();

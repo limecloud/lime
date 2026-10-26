@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { openExternalMock, isDefaultProtocolClientMock } = vi.hoisted(() => ({
@@ -11,7 +12,6 @@ const { openExternalMock, isDefaultProtocolClientMock } = vi.hoisted(() => ({
 vi.mock("./electronRuntime", () => ({
   app: {
     getName: () => "Lime",
-    getVersion: () => "0.0.0-test",
     isPackaged: true,
     isDefaultProtocolClient: isDefaultProtocolClientMock,
   },
@@ -24,6 +24,8 @@ vi.mock("./electronRuntime", () => ({
 }));
 
 import { SystemUtilityHost } from "./systemUtilityHost";
+import { MacOSNativeHostClient } from "./macosNativeHost";
+import { WindowsNativeHostClient } from "./windowsNativeHost";
 
 const tempDirs: string[] = [];
 
@@ -50,6 +52,51 @@ afterEach(async () => {
 });
 
 describe("SystemUtilityHost", () => {
+  it.each(["darwin", "win32"] as const)(
+    "%s 旧原生转发拒绝 Computer Use，保留现役观察方法",
+    async (platform) => {
+      const original = Object.getOwnPropertyDescriptor(process, "platform")!;
+      Object.defineProperty(process, "platform", {
+        configurable: true,
+        value: platform,
+      });
+      const host = createHost(await createTempUserDataDir());
+      const client =
+        platform === "darwin" ? MacOSNativeHostClient : WindowsNativeHostClient;
+      const invoke = vi
+        .spyOn(client.prototype, "invoke")
+        .mockResolvedValue({ observed: true });
+      const call = (method: string) =>
+        platform === "darwin"
+          ? host.invokeMacOSNativeHost({ method, params: {} })
+          : host.invokeWindowsNativeHost({ method, params: {} });
+      try {
+        for (const suffix of [
+          "snapshot",
+          "setup",
+          "execute",
+          "cancel",
+          "futureMethod",
+        ])
+          await expect(call(`computerUse.${suffix}`)).rejects.toMatchObject({
+            code: "unsupported",
+          });
+        expect(invoke).not.toHaveBeenCalled();
+        await expect(
+          call(
+            platform === "darwin"
+              ? "accessibility.read"
+              : "windows.window.read",
+          ),
+        ).resolves.toEqual({ observed: true });
+        expect(invoke).toHaveBeenCalledOnce();
+      } finally {
+        invoke.mockRestore();
+        host.dispose();
+        Object.defineProperty(process, "platform", original);
+      }
+    },
+  );
   it.each([true, false])(
     "保存启动时的 HTTPS 默认协议身份 %s，不在每次读取时重查 OS",
     async (value) => {
@@ -111,68 +158,6 @@ describe("SystemUtilityHost", () => {
     expect(openExternalMock).toHaveBeenNthCalledWith(
       2,
       "ms-settings:clipboard",
-    );
-  });
-
-  it("浏览器诊断占位保持 degraded diagnostic 形态", async () => {
-    const appDataRoot = await createTempUserDataDir();
-    const host = createHost(appDataRoot);
-
-    expect(host.getBrowserConnectorSettings()).toEqual(
-      expect.objectContaining({
-        enabled: true,
-        install_root_dir: path.join(appDataRoot, "connectors", "browser"),
-        diagnostic: expect.objectContaining({
-          command: "get_browser_connector_settings_cmd",
-        }),
-      }),
-    );
-    expect(host.getBrowserConnectorInstallStatus()).toEqual(
-      expect.objectContaining({
-        status: "not_installed",
-        bundled_version: "0.0.0-test",
-        diagnostic: expect.objectContaining({
-          command: "get_browser_connector_install_status_cmd",
-        }),
-      }),
-    );
-    expect(host.getChromeBridgeEndpointInfo()).toEqual(
-      expect.objectContaining({
-        server_running: false,
-        diagnostic: expect.objectContaining({
-          command: "get_chrome_bridge_endpoint_info",
-        }),
-      }),
-    );
-    expect(host.getBrowserBackendsStatus()).toEqual(
-      expect.objectContaining({
-        policy: expect.objectContaining({
-          priority: ["lime_extension_bridge", "cdp_direct"],
-        }),
-        backends: expect.arrayContaining([
-          expect.objectContaining({
-            backend: "lime_extension_bridge",
-            available: false,
-          }),
-        ]),
-        diagnostic: expect.objectContaining({
-          command: "get_browser_backends_status",
-        }),
-      }),
-    );
-
-    const profileSessions = host.getChromeProfileSessions();
-    expect(profileSessions).toEqual([]);
-    expect(
-      Object.getOwnPropertyDescriptor(profileSessions, "__diagnostic"),
-    ).toEqual(
-      expect.objectContaining({
-        enumerable: false,
-        value: expect.objectContaining({
-          command: "get_chrome_profile_sessions",
-          status: "degraded",
-        }),
-      }),
     );
   });
 });

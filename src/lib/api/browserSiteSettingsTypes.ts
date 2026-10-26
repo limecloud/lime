@@ -7,6 +7,7 @@ export const BROWSER_SITE_PERMISSIONS = [
   "sound",
   "protectedContent",
   "automaticDownloads",
+  "images",
 ] as const;
 export type BrowserSitePermission = (typeof BROWSER_SITE_PERMISSIONS)[number];
 
@@ -27,7 +28,7 @@ export type BrowserSitePermissionSetting =
 export function browserSitePermissionSettings(
   permission: BrowserSitePermission,
 ): readonly BrowserSitePermissionSetting[] {
-  return permission === "sound"
+  return permission === "sound" || permission === "images"
     ? ["allow", "block"]
     : BROWSER_SITE_PERMISSION_SETTINGS;
 }
@@ -67,6 +68,7 @@ export const DEFAULT_BROWSER_SITE_SETTINGS: BrowserSiteSettingsSnapshot["default
     sound: "allow",
     protectedContent: "block",
     automaticDownloads: "ask",
+    images: "allow",
   };
 
 export function parseBrowserSiteOrigin(value: unknown): string {

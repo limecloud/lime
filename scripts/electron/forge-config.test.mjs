@@ -249,6 +249,14 @@ describe("Electron Forge config", () => {
       ignorePackagerInput(`${process.cwd()}/dist-electron/preload/index.js`),
     ).toBe(false);
     expect(ignorePackagerInput(`${process.cwd()}/src/App.tsx`)).toBe(true);
+    for (const dependencyPath of [
+      "node_modules",
+      "node_modules/@aiden0z/pptx-renderer",
+      "node_modules/.pnpm/echarts/package.json",
+    ]) {
+      expect(ignorePackagerInput(dependencyPath)).toBe(true);
+      expect(ignorePackagerInput(`${process.cwd()}/${dependencyPath}`)).toBe(true);
+    }
     expect(
       ignorePackagerInput(`${process.cwd()}/scripts/electron/smoke.mjs`),
     ).toBe(true);

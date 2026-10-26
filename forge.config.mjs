@@ -8,6 +8,7 @@ import { MakerZIP } from "@electron-forge/maker-zip";
 import { brandMacHelperApps } from "./scripts/electron/brand-mac-helper-apps.mjs";
 import { notarizeMacPackages } from "./scripts/electron/lib/macos-notarization.mjs";
 import { preparePackagedDesktopResources } from "./scripts/lib/electron-desktop-resources.mjs";
+import { verifyElectronRuntimeBundles } from "./scripts/electron/verify-package-resources.mjs";
 
 const PRODUCT_NAME = "Lime";
 const APP_ID = "com.limecloud.lime";
@@ -20,7 +21,7 @@ const PACKAGE_VERSION = JSON.parse(
 const DEFAULT_UPDATE_BASE_URL = "https://updates.limecloud.com";
 const MACOS_APP_ENTITLEMENTS = "lime-rs/entitlements.plist";
 
-const retainedPackageRoots = new Set(["dist", "node_modules", "package.json"]);
+const retainedPackageRoots = new Set(["dist", "package.json"]);
 const retainedPackageDirectories = new Set([
   "dist-electron",
   "dist-electron/main",
@@ -245,6 +246,9 @@ export {
 export default {
   outDir: RELEASE_OUTPUT_DIR,
   hooks: {
+    prePackage: async () => {
+      verifyElectronRuntimeBundles(process.cwd());
+    },
     postPackage: async (_config, result) => {
       await notarizeMacPackages(result, macNotarizeOptions());
     },
@@ -276,6 +280,9 @@ export default {
     ],
     extendInfo: {
       NSCameraUsageDescription: "Lime 需要访问摄像头以使用视觉输入功能",
+      NSLocationUsageDescription: "Lime 需要访问位置以向获准的网站提供当前位置",
+      NSLocationWhenInUseUsageDescription: "Lime 需要访问位置以向获准的网站提供当前位置",
+      NSLocalNetworkUsageDescription: "Lime 需要连接获准的局域网服务",
       NSMicrophoneUsageDescription: "Lime 需要访问麦克风以使用语音输入功能",
       NSAppleEventsUsageDescription: "Lime 需要控制其他应用以输入识别的文本",
     },

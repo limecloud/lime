@@ -7,12 +7,16 @@ import {
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { app } from "./electronRuntime";
+import { resolveDesktopResourcesRoot } from "./desktopResources";
 
 const RESOURCE_MANIFEST = "desktop-resources.manifest.json";
 const RESOURCE_SCHEMA_VERSION = 1;
 const RESOURCE_APPLICATION_ID = "com.limecloud.lime";
 const NATIVE_HOST_PROTOCOL_VERSION = 1;
 const REQUEST_TIMEOUT_MS = 10_000;
+const PERMISSION_REQUEST_METHODS = new Set([
+  "accessibility.request", "screenCapture.request", "inputMonitoring.request", "appleEvents.request", "mediaPermissions.request",
+]);
 
 export type MacOSNativeHostRequest = {
   method: string;
@@ -31,7 +35,7 @@ export type MacOSNativeHostEventListener = (
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
+  timer?: ReturnType<typeof setTimeout>;
 };
 
 type NativeHostResponse = {
@@ -91,7 +95,7 @@ export class MacOSNativeHostClient {
   ): Promise<unknown> {
     const id = String(this.#nextRequestId++);
     return await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const timer = PERMISSION_REQUEST_METHODS.has(method) ? undefined : setTimeout(() => {
         this.#pending.delete(id);
         reject(
           new NativeHostError(
@@ -291,14 +295,12 @@ function resolveMacOSNativeHostDescriptor(): MacOSNativeHostDescriptor | null {
   if (process.platform !== "darwin") {
     return null;
   }
-  const packagedResourcesRoot =
-    typeof process.resourcesPath === "string" && process.resourcesPath.trim()
-      ? process.resourcesPath
-      : null;
-  const resourcesRoot =
-    app?.isPackaged === true
-      ? packagedResourcesRoot
-      : path.resolve(process.cwd(), "dist-electron");
+  const resourcesRoot = resolveDesktopResourcesRoot({
+    isPackaged: app?.isPackaged === true,
+    defaultApp: process.defaultApp,
+    resourcesPath: process.resourcesPath,
+    appPath: app?.getAppPath?.() ?? process.cwd(),
+  });
   if (!resourcesRoot) {
     return null;
   }

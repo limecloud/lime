@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   WEB_TOOL_START_TIME,
+  mockAgentThreadTimeline,
   mockStreamingRenderer,
   render,
   renderZh,
@@ -395,13 +396,19 @@ describe("MessageList failure and web tools", () => {
         '[data-testid="conversation-turn-timeline"][data-runtime-turn-id="turn-web-tools-reasoning"]',
       ),
     ).not.toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="message-list-historical-timeline-preview:leading"]',
-      ),
-    ).not.toBeNull();
-    expect(container.textContent).not.toContain(
-      "搜索结果还需要继续筛掉广告软文",
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turn: expect.objectContaining({ id: turnId }),
+        items: expect.arrayContaining([
+          expect.objectContaining({ id: "tool-web-search" }),
+          expect.objectContaining({
+            id: "reasoning-web-tools",
+            text: "搜索结果还需要继续筛掉广告软文，我先读取有效来源。",
+          }),
+          expect.objectContaining({ id: "tool-web-fetch" }),
+        ]),
+        showOperationalDetails: true,
+      }),
     );
   });
 

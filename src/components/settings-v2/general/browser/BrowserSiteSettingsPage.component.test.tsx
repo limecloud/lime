@@ -60,6 +60,7 @@ beforeEach(async () => {
         sound: null,
         protectedContent: null,
         automaticDownloads: null,
+        images: null,
       },
     ];
     state.revision = 1;
@@ -129,6 +130,22 @@ describe("BrowserSiteSettingsPage", () => {
         root.render(<BrowserSiteSettingsPage onBack={back} />),
       );
       expect(container.querySelector("h1")?.textContent).toBe(title);
+      const images = container.querySelector<HTMLSelectElement>(
+        "#browser-site-default-images select",
+      )!;
+      expect(images.getAttribute("aria-label")).toBe(
+        {
+          "zh-CN": "图片",
+          "zh-TW": "圖片",
+          "en-US": "Images",
+          "ja-JP": "画像",
+          "ko-KR": "이미지",
+        }[locale],
+      );
+      expect(Array.from(images.options, (option) => option.value)).toEqual([
+        "allow",
+        "block",
+      ]);
       expect(
         container.querySelector(`select[aria-label="${clipboard}"]`),
       ).not.toBeNull();
@@ -149,6 +166,25 @@ describe("BrowserSiteSettingsPage", () => {
       }
     },
   );
+
+  it("persists the default image setting through the current gateway", async () => {
+    await act(async () =>
+      root.render(<BrowserSiteSettingsPage onBack={back} />),
+    );
+    const images = container.querySelector<HTMLSelectElement>(
+      "#browser-site-default-images select",
+    )!;
+    await act(async () => {
+      images.value = "block";
+      images.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(api.update).toHaveBeenCalledExactlyOnceWith({
+      origin: null,
+      permission: "images",
+      setting: "block",
+    });
+    expect(images.value).toBe("block");
+  });
 
   it("does not send writes for the unavailable protected-content control", async () => {
     await act(async () =>
@@ -251,6 +287,7 @@ describe("BrowserSiteSettingsPage", () => {
         sound: null,
         protectedContent: null,
         automaticDownloads: null,
+        images: null,
       },
     ];
     api.get.mockResolvedValue(state);

@@ -29,6 +29,7 @@ func readAppleEventsTargets() -> [String: Any] {
             "active": application.isActive,
             "hidden": application.isHidden,
             "terminated": application.isTerminated,
+            "userFacing": application.activationPolicy == .regular,
         ]
     }
     .sorted { left, right in

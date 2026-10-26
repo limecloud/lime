@@ -111,7 +111,12 @@ impl RuntimeToolExecutor for ComputerUseExecutor {
                 }
             } else {
                 action.await
-            }.map_err(|error| tool_error(error.0))?;
+            }.map_err(|error| {
+                if error.is_interrupted() {
+                    request.context.interrupt_turn();
+                }
+                tool_error(error.0)
+            })?;
             project_output(value)
         })
     }

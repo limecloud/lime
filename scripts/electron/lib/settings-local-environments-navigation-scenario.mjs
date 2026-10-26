@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { openSettings } from "../mcp-config-fixture-smoke.mjs";
-import { invokeAppServerFromPage } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../../lib/chat-fixture/rpc.mjs";
 
 export async function openLocalEnvironmentEditor(page, options, projectName) {
   await openSettings(page, options);

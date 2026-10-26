@@ -1,11 +1,11 @@
 import { parseJsonRpcRequestsFromInvokeTrace } from "../electron/lib/mcp-config-fixture-evidence.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
-import { openFixtureSessionFromSidebar } from "./claw-chat-current-fixture-session.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
+import { openFixtureSessionFromSidebar } from "../lib/chat-fixture/session.mjs";
 import {
   reloadRendererDocument,
   waitForRendererReady,
-} from "./claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 import {
   waitForApprovalPrompt,
   clickApprovalDecision,
@@ -216,39 +216,142 @@ export async function runBrowserFirstOpenScenario(ctx) {
       evidence.reopened.webContentsId === opened.webContentsId &&
         evidence.reopened.tabId === opened.tabId,
     );
-    evidence.preferencesBeforeReload = await page.evaluate(() => Object.fromEntries(
-      Object.keys(localStorage).filter((key) => key.startsWith("browser-presentation:")).map((key) => [key, localStorage.getItem(key)])));
+    const forwardUrls = [1, 2].map((index) => {
+      const url = new URL(ctx.targetUrl);
+      url.hash = `navigation-recovery-${index}`;
+      return url.href;
+    });
+    for (const url of forwardUrls) {
+      const address = page.getByTestId("browser-workspace-address");
+      await address.fill(url);
+      await address.press("Enter");
+      await ctx.waitForNativeBrowserCommit(
+        app,
+        options,
+        opened.webContentsId,
+        url,
+      );
+    }
+    for (const url of [forwardUrls[0], ctx.targetUrl]) {
+      await page.getByTestId("browser-workspace-back").click();
+      await ctx.waitForNativeBrowserCommit(
+        app,
+        options,
+        opened.webContentsId,
+        url,
+      );
+    }
+    evidence.preferencesBeforeReload = await page.evaluate(() =>
+      Object.fromEntries(
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith("browser-presentation:"))
+          .map((key) => [key, localStorage.getItem(key)]),
+      ),
+    );
     console.log("[browser-first-open] stage=renderer-reload");
     await reloadRendererDocument(page, options);
     await waitForRendererReady(page, options);
     await openFixtureSessionFromSidebar(page, sessionOptions, requestLog);
-    evidence.preferencesAfterReload = await page.evaluate(() => Object.fromEntries(
-      Object.keys(localStorage).filter((key) => key.startsWith("browser-presentation:")).map((key) => [key, localStorage.getItem(key)])));
+    evidence.preferencesAfterReload = await page.evaluate(() =>
+      Object.fromEntries(
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith("browser-presentation:"))
+          .map((key) => [key, localStorage.getItem(key)]),
+      ),
+    );
     evidence.reloaded = await ctx.waitForBrowserSurface(page, options);
     check(
-      "renderer-reload-restores-same-native-browser",
-      evidence.reloaded.webContentsId === opened.webContentsId &&
-        evidence.reloaded.tabId === opened.tabId,
+      "renderer-reload-restores-browser-with-fresh-native-view",
+      evidence.reloaded.webContentsId !== opened.webContentsId &&
+        evidence.reloaded.threadId === opened.threadId,
     );
     await ctx.waitForNativeBrowserCommit(
       app,
       options,
-      opened.webContentsId,
+      evidence.reloaded.webContentsId,
+      ctx.targetUrl,
+    );
+    evidence.restoredNavigation = await app.evaluate(({ webContents }, id) => {
+      const history = webContents.fromId(id).navigationHistory;
+      return {
+        index: history.getActiveIndex(),
+        entries: history
+          .getAllEntries()
+          .map(({ url, title }) => ({ url, title })),
+      };
+    }, evidence.reloaded.webContentsId);
+    check(
+      "renderer-reload-restores-native-forward-history",
+      JSON.stringify(
+        evidence.restoredNavigation.entries.map(({ url }) => url),
+      ) === JSON.stringify([ctx.targetUrl, ...forwardUrls]) &&
+        evidence.restoredNavigation.index === 0,
+    );
+    await page.getByTestId("browser-workspace-forward").click();
+    await ctx.waitForNativeBrowserCommit(
+      app,
+      options,
+      evidence.reloaded.webContentsId,
+      forwardUrls[0],
+    );
+    await page.getByTestId("browser-workspace-back").click();
+    await ctx.waitForNativeBrowserCommit(
+      app,
+      options,
+      evidence.reloaded.webContentsId,
+      ctx.targetUrl,
+    );
+    check(
+      "restored-native-history-is-navigable-through-the-gui",
+      await page.getByTestId("browser-workspace-forward").isEnabled(),
+    );
+    await page.evaluate(({ sessionId, threadId }) => {
+      localStorage.setItem(
+        `browser-presentation:${JSON.stringify([sessionId, threadId])}`,
+        "null",
+      );
+    }, identity);
+    await reloadRendererDocument(page, options);
+    await waitForRendererReady(page, options);
+    await openFixtureSessionFromSidebar(page, sessionOptions, requestLog);
+    evidence.recoveredFromStaleTeardown = await ctx.waitForBrowserSurface(
+      page,
+      options,
+    );
+    check(
+      "stale-teardown-null-does-not-suppress-canonical-browser",
+      evidence.recoveredFromStaleTeardown.threadId === opened.threadId &&
+        evidence.recoveredFromStaleTeardown.webContentsId !==
+          evidence.reloaded.webContentsId,
+    );
+    await ctx.waitForNativeBrowserCommit(
+      app,
+      options,
+      evidence.recoveredFromStaleTeardown.webContentsId,
       ctx.targetUrl,
     );
     await ctx.captureBrowserScreenshot(page, options, "browser-reopened");
     await page
       .getByRole("button", { name: "关闭侧边面板", exact: true })
       .click();
-    await page.waitForFunction(
-      () => !document.querySelector('[data-testid="browser-workspace"]'),
+    await page.getByTestId("browser-workspace").waitFor({ state: "hidden" });
+    check(
+      "explicit-collapse-hides-native-browser",
+      await app.evaluate(
+        ({ BrowserWindow }, id) =>
+          BrowserWindow.getAllWindows()
+            .flatMap((window) => window.contentView.children)
+            .find((view) => view.webContents?.id === id)
+            ?.getVisible() === false,
+        evidence.recoveredFromStaleTeardown.webContentsId,
+      ),
     );
     await reloadRendererDocument(page, options);
     await waitForRendererReady(page, options);
     await openFixtureSessionFromSidebar(page, sessionOptions, requestLog);
     check(
       "explicit-collapse-survives-reload",
-      (await page.locator('[data-testid="browser-workspace"]').count()) === 0,
+      !(await page.getByTestId("browser-workspace").isVisible()),
     );
     const calls = parseJsonRpcRequestsFromInvokeTrace(
       JSON.stringify(ctx.readInvokeTrace()),
@@ -283,8 +386,15 @@ export async function runBrowserFirstOpenScenario(ctx) {
     evidence.status = "pass";
     return evidence;
   } catch (error) {
-    evidence.preferencesAtFailure = await page.evaluate(() => Object.fromEntries(
-      Object.keys(localStorage).filter((key) => key.startsWith("browser-presentation:")).map((key) => [key, localStorage.getItem(key)]))).catch(() => null);
+    evidence.preferencesAtFailure = await page
+      .evaluate(() =>
+        Object.fromEntries(
+          Object.keys(localStorage)
+            .filter((key) => key.startsWith("browser-presentation:"))
+            .map((key) => [key, localStorage.getItem(key)]),
+        ),
+      )
+      .catch(() => null);
     evidence.status = "fail";
     evidence.error = String(error);
     evidence.guiAtFailure = await ctx

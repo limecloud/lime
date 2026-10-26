@@ -56,6 +56,9 @@ enum HostError: Error {
     case unavailable(String)
     case notGranted(String)
     case operationFailed(String)
+    case userIntervened(String)
+    case inputMonitorUnavailable(String)
+    case desktopLocked(String)
 }
 
 func errorDetails(_ error: HostError) -> (String, String, [String: Any]) {
@@ -68,6 +71,12 @@ func errorDetails(_ error: HostError) -> (String, String, [String: Any]) {
         return ("not_granted", message, [:])
     case .operationFailed(let message):
         return ("operation_failed", message, [:])
+    case .userIntervened(let message):
+        return ("user_intervened", message, [:])
+    case .inputMonitorUnavailable(let message):
+        return ("input_monitor_unavailable", message, [:])
+    case .desktopLocked(let message):
+        return ("desktop_locked", message, [:])
     }
 }
 
@@ -565,6 +574,9 @@ func handle(method: String, params: [String: Any]) throws -> [String: Any] {
         return try computerUseSetup(params: params)
     case "computerUse.execute":
         return try computerUseExecute(params: params)
+    case "computerUse.finishTurn":
+        finishComputerUsePointer(owner: try computerUseTurnOwner(params["owner"]))
+        return ["finished": true]
     case "capabilities.read":
         return readCapabilities()
     case "accessibility.read":
@@ -572,6 +584,14 @@ func handle(method: String, params: [String: Any]) throws -> [String: Any] {
             AXIsProcessTrusted(),
             grantedReason: "macOS Accessibility permission is granted.",
             deniedReason: "macOS Accessibility permission is not granted.",
+            settingsURL: accessibilitySettingsURL
+        )
+    case "accessibility.request":
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        return capabilityStatus(
+            AXIsProcessTrustedWithOptions(options as CFDictionary),
+            grantedReason: "macOS Accessibility permission is granted.",
+            deniedReason: "Enable Accessibility for Lime in System Settings.",
             settingsURL: accessibilitySettingsURL
         )
     case "accessibility.openSettings":

@@ -4,6 +4,7 @@ import type {
   ConfigRequirements,
   ComputerUseAdapterKind,
   ComputerUseTargetIdentity,
+  ComputerUseGrantScope,
 } from "@limecloud/app-server-client";
 import { getConfigSnapshot, updateConfig, type Config } from "./appConfig";
 import { getConfigRequirements } from "./configRequirements";
@@ -23,6 +24,7 @@ export interface ComputerUseSettingsSnapshot {
   enabled: Record<ComputerUseAdapterKind, boolean>;
   managed: Record<ComputerUseAdapterKind, boolean>;
   allowedApps: AllowedComputerApp[];
+  persistentApprovalAllowed: boolean;
   status: ComputerUseStatusResponse;
 }
 
@@ -100,6 +102,9 @@ export async function getComputerUseSettings(): Promise<ComputerUseSettingsSnaps
   ]);
   const config = snapshot.config;
   return {
+    persistentApprovalAllowed:
+      !blocked(requirements) &&
+      requirements?.computerUse?.allowPersistentApproval !== false,
     enabled: Object.fromEntries(
       Object.entries(features).map(([adapter, feature]) => [
         adapter,
@@ -171,12 +176,13 @@ export async function removeAllowedComputerApp(
 export async function setupComputerUseAdapter(
   adapter: ComputerUseAdapterKind,
   target?: ComputerUseTargetIdentity,
+  grantScope: ComputerUseGrantScope = "session",
 ): Promise<void> {
   // Setup without a target can request OS permissions, but cannot grant app access.
   const result = await setupComputerUse({
     adapter,
     target,
-    grantScope: "session",
+    grantScope,
   });
   if (!result.accepted || (target && !result.grant))
     throw new Error(

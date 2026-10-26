@@ -12,6 +12,11 @@ export const IPC_DEEP_LINK_GET_URLS_CHANNEL = "app:deep-link:get-urls";
 export const IPC_DEEP_LINK_GET_CURRENT_CHANNEL = "app:deep-link:get-current";
 
 export const ELECTRON_HOST_COMMANDS = [
+  "desktop_permissions_read",
+  "desktop_permissions_request",
+  "desktop_permissions_open_settings",
+  "desktop_permissions_targets",
+  "desktop_permissions_complete",
   "app_server_handle_json_lines",
   "app_server_drain_events",
   "app_server_host_diagnostics",
@@ -79,13 +84,6 @@ export const ELECTRON_HOST_COMMANDS = [
   "embedded_browser_view_go_back",
   "embedded_browser_view_go_forward",
   "embedded_browser_view_destroy",
-  "get_browser_backend_policy",
-  "get_browser_backends_status",
-  "get_browser_connector_install_status_cmd",
-  "get_browser_connector_settings_cmd",
-  "get_chrome_bridge_endpoint_info",
-  "get_chrome_bridge_status",
-  "get_chrome_profile_sessions",
   "get_default_provider",
   "get_file_icon_data_url",
   "get_home_dir",

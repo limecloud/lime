@@ -64,11 +64,11 @@ Renderer 只渲染 `ContentPart[]`，不负责排序、去重或生命周期语�
 - `StreamingRenderer.webSearch.sequence.test.tsx`：WebSearch / WebFetch / thinking / text 的 collapsed 与展开态顺序。
 - `streamingProjectionGuard.unit.test.ts`：核心投影文件不得重新引入展示文案或内容正则生命周期判断。
 
-Agent Runtime / Claw chat 主路径改动至少跑 `npm run smoke:agent-runtime-current-fixture`；涉及自然语言新闻或 GUI 输入链路时再跑 `npm run smoke:claw-chat-current-fixture`。
+Agent Runtime / Claw chat 主路径改动至少跑 `npm run smoke:agent-runtime-current`；按受影响的 GUI 输入、工具或恢复边界补充定向回归。
 修复 provider idle / 无法完成任务类问题时，还必须跑 `cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent stream_message_reply_with_policy_should -- --nocapture`，覆盖取消、tail failure retry、provider idle retry、首事件前 provider idle fail-closed 与 App Server current fixture 完成态。
-修复 WebSearch preflight / synthesis / web tool 排版时，还必须跑 `cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent web_search_preflight -- --nocapture`、`cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent web_search_synthesis_boundary -- --nocapture` 与 `node scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs --scenario web-tools-rendering ...`。
+修复 WebSearch preflight / synthesis / web tool 排版时，还必须跑 `cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent web_search_preflight -- --nocapture`、`cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent web_search_synthesis_boundary -- --nocapture` 与 受影响的现役工具展示回归。
 修改 request policy config / `search_mode` / `web_search` 解析时，还必须跑 `cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent request_tool_policy -- --nocapture`，并补 App Server / scheduler 的调用方定向测试，证明 public re-export 和 system prompt 合并链路没有漂移。
-修改 runtime status 或 auto compaction projection 时，还必须跑 `cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent request_tool_policy -- --nocapture` 与 `npm run smoke:agent-runtime-current-fixture`；若 WebSearch / WebFetch 过程状态或完成排版受影响，再补 `node scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs --scenario web-tools-rendering ...`。
+修改 runtime status 或 auto compaction projection 时，还必须跑 `cargo test --manifest-path "lime-rs/Cargo.toml" -p lime-agent request_tool_policy -- --nocapture` 与 `npm run smoke:agent-runtime-current`；若 WebSearch / WebFetch 过程状态或完成排版受影响，再补 受影响的现役工具展示回归。
 
 ## E2E 诊断护栏
 

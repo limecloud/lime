@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import { finishDesktopFirstRun } from "../lib/desktop-first-run.mjs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -184,7 +185,7 @@ async function waitForRendererReady(page, options) {
       !snapshot.startupVisible &&
       snapshot.appSidebarVisible
     ) {
-      return snapshot;
+      return { ...snapshot, firstRun: await finishDesktopFirstRun(page, options.timeoutMs) };
     }
     await sleep(options.intervalMs);
   }

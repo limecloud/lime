@@ -1,17 +1,17 @@
-import { NEWS_PROMPT } from "./claw-chat-current-fixture-constants.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
+import { RECOVERY_PROMPT } from "../lib/chat-fixture/constants.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
 import {
   waitForGuiChatCanceled,
   waitForStopButtonVisibleAndClick,
-} from "./claw-chat-current-fixture-gui-completion-waits.mjs";
-import { waitForBackendLedgerEntry } from "./claw-chat-current-fixture-backend-ledger.mjs";
-import { waitForSessionReadCanceled } from "./claw-chat-current-fixture-read-model-waits.mjs";
+} from "../lib/chat-fixture/gui-completion-waits.mjs";
+import { waitForBackendLedgerEntry } from "../lib/chat-fixture/backend-ledger.mjs";
+import { waitForSessionReadCanceled } from "../lib/chat-fixture/read-model-waits.mjs";
 import {
   collectReadModelTurns,
   readModelTurnId,
   readModelTurnStatus,
-} from "./claw-chat-current-fixture-read-model-core.mjs";
-import { assert, sanitizeJson } from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/read-model-core.mjs";
+import { assert, sanitizeJson } from "../lib/chat-fixture/utils.mjs";
 
 export async function verifyRestartTurnContinuation({
   page,
@@ -21,7 +21,7 @@ export async function verifyRestartTurnContinuation({
   identity,
   orphanTurnId,
 }) {
-  const prompt = `${NEWS_PROMPT}（重启后继续发送）`;
+  const prompt = `${RECOVERY_PROMPT}（重启后继续发送）`;
   const inputSend = await sendPromptFromGui(page, options, prompt, {
     expectedSessionId: identity.sessionId,
     expectedThreadId: identity.threadId,
@@ -45,7 +45,7 @@ export async function verifyRestartTurnContinuation({
   const turnId = started.entry.turnId;
   const stopClick = await waitForStopButtonVisibleAndClick(page, options, {
     prompt,
-    visibleOutputText: "以下是今日国际新闻简要整理",
+    visibleOutputText: "会话恢复测试正在运行",
     requireVisibleOutput: true,
   });
   const canceled = await waitForBackendLedgerEntry(
@@ -63,12 +63,12 @@ export async function verifyRestartTurnContinuation({
     {
       threadId: identity.threadId,
       prompt,
-      partialText: "以下是今日国际新闻简要整理",
+      partialText: "会话恢复测试正在运行",
     },
   );
   const gui = await waitForGuiChatCanceled(page, options, {
     prompt,
-    partialText: "以下是今日国际新闻简要整理",
+    partialText: "会话恢复测试正在运行",
   });
   const turns = collectReadModelTurns(readModel);
   for (const expectedId of [orphanTurnId, turnId]) {

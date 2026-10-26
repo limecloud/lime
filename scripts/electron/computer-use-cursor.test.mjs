@@ -108,4 +108,62 @@ describe("Lime animated computer-use pointers", () => {
     expect(haloAlpha(icons[12].data)).toBeGreaterThan(haloAlpha(icons[0].data));
     expect((manifest.frames / 60) * 4 * 1000).toBe(manifest.durationMs);
   });
+
+  it("embeds the ANI's exact DPI frames as premultiplied top-down BGRA for the Windows overlay", () => {
+    const ani = read("windows/lime-pointer.ani");
+    const generated = readFileSync(
+      "electron/native/windows/windows-computer-use-cursor-frames.h",
+      "utf8",
+    );
+    expect(generated).toContain(createHash("sha256").update(ani).digest("hex"));
+    const descriptors = [
+      ...generated.matchAll(/\{(\d+), (\d+), (\d+), (\d+)\}/g),
+    ].map((match) => match.slice(1).map(Number));
+    const pixels = Buffer.from(
+      [
+        ...generated
+          .slice(generated.indexOf("pixels[]"))
+          .matchAll(/0x([0-9a-f]{2})/g),
+      ].map(([, byte]) => Number.parseInt(byte, 16)),
+    );
+    const list = chunks(ani, 12, ani.length).find(
+      (chunk) => chunk.id === "LIST",
+    ).data;
+    const icons = chunks(list, 4, list.length);
+    expect(descriptors).toHaveLength(manifest.frames * 3);
+    let total = 0;
+    for (let frame = 0; frame < manifest.frames; frame++) {
+      for (let variant = 0; variant < 3; variant++) {
+        const data = icons[frame].data;
+        const at = 6 + variant * 16,
+          size = data[at],
+          dib = data.readUInt32LE(at + 12);
+        const [width, hotspotX, hotspotY, offset] =
+          descriptors[frame * 3 + variant];
+        expect([width, hotspotX, hotspotY, offset]).toEqual([
+          size,
+          data.readUInt16LE(at + 4),
+          data.readUInt16LE(at + 6),
+          total,
+        ]);
+        const expected = Buffer.alloc(size * size * 4);
+        for (let y = 0; y < size; y++)
+          for (let x = 0; x < size; x++) {
+            const from = dib + 40 + ((size - 1 - y) * size + x) * 4;
+            const to = (y * size + x) * 4,
+              alpha = data[from + 3];
+            for (let channel = 0; channel < 3; channel++)
+              expected[to + channel] = Math.round(
+                (data[from + channel] * alpha) / 255,
+              );
+            expected[to + 3] = alpha;
+          }
+        expect(
+          pixels.subarray(offset, offset + expected.length).equals(expected),
+        ).toBe(true);
+        total += expected.length;
+      }
+    }
+    expect(pixels.length).toBe(total);
+  });
 });

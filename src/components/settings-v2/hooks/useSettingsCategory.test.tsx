@@ -1,10 +1,15 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
 import { settingsSections } from "../sections";
 import { useSettingsCategory, type CategoryGroup } from "./useSettingsCategory";
+
+const runtime = vi.hoisted(() => ({ oemAvailable: false }));
+vi.mock("@/lib/api/oemCloudRuntime", () => ({
+  resolveOemCloudRuntimeContext: () => (runtime.oemAvailable ? {} : null),
+}));
 
 interface Mounted {
   container: HTMLDivElement;
@@ -31,6 +36,7 @@ function renderHookProbe(onGroups: (groups: CategoryGroup[]) => void) {
 }
 
 beforeEach(async () => {
+  runtime.oemAvailable = false;
   (
     globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -106,30 +112,46 @@ describe("useSettingsCategory", () => {
 });
 
 describe("current settings navigation translations", () => {
-  it.each([
+  const locales = [
     ["zh-CN", "已归档的聊天"],
     ["zh-TW", "已封存的聊天"],
     ["en-US", "Archived chats"],
     ["ja-JP", "アーカイブ済みのチャット"],
     ["ko-KR", "보관된 채팅"],
-  ])(
-    "%s 下全部 current 章节应继续显示既有翻译",
-    async (locale, archivedLabel) => {
+  ] as const;
+  it.each(
+    locales.flatMap(([locale, archivedLabel]) =>
+      [false, true].map((oemAvailable) => ({
+        locale,
+        archivedLabel,
+        oemAvailable,
+      })),
+    ),
+  )(
+    "$locale 下可用章节应显示翻译（OEM=$oemAvailable）",
+    async ({ locale, archivedLabel, oemAvailable }) => {
+      runtime.oemAvailable = oemAvailable;
       await changeLimeLocale(locale);
       let groups: CategoryGroup[] = [];
       renderHookProbe((nextGroups) => {
         groups = nextGroups;
       });
       const items = groups.flatMap((group) => group.items);
+      const availableSections = settingsSections.filter(
+        (section) => oemAvailable || section.key !== SettingsTabs.Profile,
+      );
       expect(groups).toHaveLength(4);
       expect(items.at(-1)?.key).toBe(SettingsTabs.About);
       expect(
         items.find((item) => item.key === SettingsTabs.ArchivedConversations)
           ?.label,
       ).toBe(archivedLabel);
-      expect(items).toHaveLength(settingsSections.length);
+      expect(items.some((item) => item.key === SettingsTabs.Profile)).toBe(
+        oemAvailable,
+      );
+      expect(items).toHaveLength(availableSections.length);
       expect(new Set(items.map((item) => item.key)).size).toBe(
-        settingsSections.length,
+        availableSections.length,
       );
       expect(items.map((item) => item.key)).toEqual(
         expect.arrayContaining([
@@ -142,7 +164,7 @@ describe("current settings navigation translations", () => {
       );
       for (const group of groups) {
         expect(group.items.map((item) => item.key)).toEqual(
-          settingsSections
+          availableSections
             .filter((section) => section.group === group.key)
             .map((section) => section.key),
         );

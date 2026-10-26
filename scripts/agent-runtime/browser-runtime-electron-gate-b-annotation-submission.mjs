@@ -1,7 +1,7 @@
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
-import { APP_SERVER_METHOD_SESSION_READ } from "./claw-chat-current-fixture-constants.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
+import { APP_SERVER_METHOD_SESSION_READ } from "../lib/chat-fixture/constants.mjs";
 import { appServerCallFromPage } from "../electron/mcp-config-fixture-smoke.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import { parseJsonRpcRequestsFromInvokeTrace } from "../electron/lib/mcp-config-fixture-evidence.mjs";
 import {
   annotationTextOf as textOf,

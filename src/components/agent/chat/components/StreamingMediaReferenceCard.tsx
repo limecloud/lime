@@ -67,12 +67,6 @@ export function StreamingMediaReferenceCard({
 }) {
   const { t } = useTranslation("agent");
   const kind = normalizeKind(reference.kind);
-  const title =
-    reference.caption?.trim() ||
-    reference.title?.trim() ||
-    t("agentChat.streamingRenderer.mediaReference.title", {
-      defaultValue: "Media reference",
-    });
   const kindFallback = t(
     "agentChat.streamingRenderer.mediaReference.kind.file",
     {
@@ -85,6 +79,11 @@ export function StreamingMediaReferenceCard({
       defaultValue: kindFallback,
     },
   );
+  const title =
+    [reference.caption, reference.title]
+      .map((value) => value?.trim())
+      .find((value) => value && !isInternalMediaReferenceUri(value)) ||
+    kindLabel;
   const byteSize = formatByteSize(reference.byteSize);
   const inlineImageUri =
     kind === "image" && isInlineImageUri(reference.uri)
@@ -99,7 +98,7 @@ export function StreamingMediaReferenceCard({
         src={inlineImageUri}
         alt={title}
         loading="lazy"
-        className="max-h-[512px] max-w-full rounded-lg border border-border object-contain"
+        className="max-h-[512px] max-w-full rounded-lg border-[0.5px] border-border object-contain"
         data-testid="streaming-media-reference-image"
       />
     );
@@ -144,25 +143,25 @@ export function StreamingMediaReferenceCard({
   }
 
   const className = cn(
-    "max-w-[520px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm shadow-sm",
-    isStreaming && "border-sky-200 bg-sky-50",
+    "max-w-[520px] rounded-lg border-[0.5px] border-border bg-background px-3 py-2 text-left text-sm",
+    isStreaming && "bg-muted",
     onOpen &&
-      "cursor-pointer transition hover:border-sky-300 hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-300",
+      "cursor-pointer hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring",
   );
   const body = (
     <div className="flex items-start gap-2">
-      <div className="mt-0.5 rounded-md bg-slate-100 p-1 text-slate-600">
+      <div className="mt-0.5 p-1 text-muted-foreground">
         <MediaIcon kind={kind} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-slate-900">{title}</div>
-        <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-slate-500">
+        <div className="truncate font-medium text-foreground">{title}</div>
+        <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{kindLabel}</span>
           {reference.mimeType ? <span>{reference.mimeType}</span> : null}
           {byteSize ? <span>{byteSize}</span> : null}
         </div>
         {displayUri ? (
-          <div className="mt-1 truncate font-mono text-xs text-slate-500">
+          <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
             {displayUri}
           </div>
         ) : null}

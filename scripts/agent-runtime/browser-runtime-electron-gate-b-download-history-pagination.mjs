@@ -1,4 +1,4 @@
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import { downloadHistoryPublicEvidence } from "./browser-runtime-electron-gate-b-download-history-evidence.mjs";
 import {
   fileEvidence,

@@ -16,6 +16,19 @@ import sys
 import termios
 import time
 
+# Keep the controlling session alive while checking the terminal after Lime
+# exits. macOS revokes the slave when its session leader exits (ENOTTY).
+if len(sys.argv) > 1 and sys.argv[1] == "--supervise":
+    signal.signal(signal.SIGINT, lambda *_: None)
+    command, result_fd = json.loads(sys.argv[2]), int(sys.argv[3])
+    process = subprocess.Popen(command)
+    code = process.wait()
+    state = {"pid": process.pid, "exitCode": code,
+             "terminalFlagsAfterExit": termios.tcgetattr(0)[3]}
+    os.write(result_fd, json.dumps(state).encode())
+    os.close(result_fd)
+    sys.exit(0)
+
 argv, prompt, marker, transcript = json.loads(sys.argv[1]), *sys.argv[2:]
 master, slave = pty.openpty()
 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 160, 0, 0))
@@ -25,9 +38,12 @@ def terminal_session():
     os.setsid()
     fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
-child = subprocess.Popen(argv, stdin=slave, stdout=slave, stderr=slave,
+state_read, state_write = os.pipe()
+child = subprocess.Popen([sys.executable, __file__, "--supervise", json.dumps(argv), str(state_write)],
+                         stdin=slave, stdout=slave, stderr=slave,
                          env={**os.environ, "TERM": "xterm-256color"},
-                         preexec_fn=terminal_session)
+                         pass_fds=(state_write,), preexec_fn=terminal_session)
+os.close(state_write)
 raw = bytearray()
 submitted = visible = False
 exit_started = None
@@ -70,13 +86,13 @@ try:
             break
     if child.poll() is None:
         raise RuntimeError("real TUI did not visibly finish before deadline")
-    after = termios.tcgetattr(slave)
-    restored = (after[3] & (termios.ECHO | termios.ICANON)) == (before[3] & (termios.ECHO | termios.ICANON))
-    result = {"pid": child.pid, "exitCode": child.returncode, "submitted": submitted,
+    state = json.loads(os.read(state_read, 4096))
+    restored = (state["terminalFlagsAfterExit"] & (termios.ECHO | termios.ICANON)) == (before[3] & (termios.ECHO | termios.ICANON))
+    result = {"pid": state["pid"], "exitCode": state["exitCode"], "submitted": submitted,
               "visibleFinal": visible, "alternateScreenEntered": b"\x1b[?1049h" in raw,
               "alternateScreenRestored": b"\x1b[?1049l" in raw,
               "terminalModeRestored": restored, "transcriptSha256": hashlib.sha256(raw).hexdigest()}
-    assert child.returncode == 0 and all(result[key] for key in
+    assert child.returncode == 0 and state["exitCode"] == 0 and all(result[key] for key in
         ("submitted", "visibleFinal", "alternateScreenEntered", "alternateScreenRestored", "terminalModeRestored")), result
     print(json.dumps(result))
 finally:
@@ -90,3 +106,4 @@ finally:
             child.wait()
     os.close(master)
     os.close(slave)
+    os.close(state_read)

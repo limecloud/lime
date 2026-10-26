@@ -28,6 +28,27 @@ function agentMessageItem(
 }
 
 describe("messageContentPartsFromAgentThreadItem", () => {
+  it("无标题媒体保留引用身份，不把内部地址写入可见标题", () => {
+    const uri = `sidecar://media/${"a".repeat(64)}`;
+    const parts = messageContentPartsFromAgentThreadItem(
+      agentMessageItem({
+        contentParts: [
+          {
+            type: "media",
+            kind: "image",
+            reference: { uri, mime_type: "image/png" },
+          },
+        ],
+      }),
+    );
+    expect(parts).toEqual([
+      expect.objectContaining({
+        reference: { uri, kind: "image", mimeType: "image/png" },
+        metadata: expect.objectContaining({ referenceUri: uri }),
+      }),
+    ]);
+  });
+
   it("把 App Server media contentParts 转成 GUI media reference", () => {
     const parts = messageContentPartsFromAgentThreadItem(
       agentMessageItem({

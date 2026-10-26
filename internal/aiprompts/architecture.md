@@ -2,6 +2,17 @@
 
 状态：current
 
+Desktop 权限引导归 `electron/desktopPermissionsHost.ts`；Renderer 仅通过同组 typed IPC
+请求与回读。辅助功能、屏幕与输入监控、自动化使用实际执行 Computer Use 的现有 macOS native
+helper。通知与定位属于 Electron 应用身份，由同进程 `desktop-permissions.node` 调用
+UserNotifications/CoreLocation；不能用 helper 的授权冒充主应用授权。该模块由既有桌面资源
+构建链编译，纳入清单、哈希、Forge 签名与包校验，Windows 不加载 macOS 模块。
+FDA 为当前进程对系统哨兵的 open/close 可访问性检测，不读取 TCC 数据；文件夹偏好冷启动后
+重新检测，不持久化授权布尔值。引导完成不授予 Agent grant 或 sandbox 权限。
+本地网络没有通用预授权 API，由真实服务连接触发 OS 提示，引导标记为按需申请。
+Architecture impact: minor / host binding；root 确认无新增 runtime 或权限 authority，验证见
+[浏览器收口执行计划](../exec-plans/browser-completion-20261025.md) r61。
+
 ## 1. 目的与裁决顺序
 
 本文件是 Lime 的唯一全局架构地图。它回答目录归属、跨层数据流、依赖方向、协议边界和验证证据应该落在哪里。新增能力、重大重构、目录调整和架构评审都先以本文件判断 owner；领域文档只能补充具体契约，不能建立第二套运行时或改写这里的边界。
@@ -1318,6 +1329,8 @@ Architecture impact: major（Renderer owner/data flow 接线）；责任开发�
 | `electron/forge/`、`forge.config.mjs`  | Forge 打包、maker、签名和 release 事实源。                                                             |
 
 Electron 负责窗口、托盘、Dock、系统文件选择、权限、外部链接、自动更新和 sidecar 生命周期。它不得保存业务 session、解释 provider response、执行模型工具、拼 Thread/Turn/Item 或提供业务 mock fallback。
+
+Desktop 发行包的 JavaScript 依赖由现役 Vite 构建内联到 Host、preload 和 renderer；Forge 只接收 `dist`、Host/preload bundle、产品 manifest 与显式原生 extraResource，不复制工作区 `node_modules`。`prePackage` 复用 `verifyElectronRuntimeBundles`，发现 Node/Electron 内置模块之外的裸运行依赖立即拒绝打包，防止缺失依赖被无依赖发行布局掩盖。Rust sidecar、browser client、native helper 与插件仍按既有 manifest/哈希/签名闭包校验。架构影响 major（发行输入边界收敛）；root 于2026-10-26确认：`Vite bundles -> Forge + explicit resources -> packaged verifier -> packaged Electron -> same App Server`，业务主链与 owner 不变。
 
 任务防休眠沿 `App Server canonical Thread/Turn -> DesktopPreferencesHost -> PowerSaveHost -> Electron powerSaveBlocker` 投影。`desktop.preventSleepWhileRunning` 仍由唯一 ConfigManager 保存，缺省 false；非 Windows 的 General 与搜索消费同一偏好。Main 只持有原生资源 ID 和活动 identity：多个活动线程共用一个 `prevent-app-suspension` 资源，最后活动结束、偏好关闭、连接断开或退出时释放。投影消费 `thread/status/changed`、Thread 读取、`turn/start` 成功回执和 `turn/started`、`turn/completed` 通知；终态只接受 canonical completed/failed/interrupted，不由计时器或 legacy event 合成。同线程旧 Turn 完成不释放较新活动，终态后迟到的开始回执和读取不复活资源；连接代际阻止旧连接回写。真实连接缺少 started/status 通知的共享 runtime 缺口独立登记，资源投影不替代通知 owner。不新增 RPC、IPC、持久化或 runtime authority。REA 方法名 `updatePowerSaveBlocker` / `syncPowerSaveBlocker` 及必要宿主适配见[执行计划](../exec-plans/settings-prevent-sleep-20261025.md)。架构影响 minor，root 于 2026-10-25 确认 owner、依赖方向与资源生命周期；原生平台和整页验收按计划独立记录。
 
@@ -3663,7 +3676,7 @@ current owner 负责；它们不是 user-turn queue GUI 的兼容替身。
 | 纯逻辑/投影       | 定向 unit test。                                                          |
 | Rust domain       | 受影响 crate 的 test/check，再按风险扩大。                                |
 | JSON-RPC / bridge | `npm run test:contracts` + 定向 Rust/TS 测试。                            |
-| Agent runtime     | `npm run smoke:agent-runtime-current-fixture` + 相关 current fixture。    |
+| Agent runtime     | `npm run smoke:agent-runtime-current` + 相关 current fixture。    |
 | GUI 主路径        | `npm run verify:gui-smoke`。                                              |
 | 真实桌面闭环      | Gate B：Electron、preload、IPC、App Server、runtime/read model、可见 UI。 |
 | 发布/配置         | `npm run verify:app-version` 和对应 release/Forge 检查。                  |
@@ -7055,3 +7068,25 @@ flowchart LR
 Soul、style-pack RPC 与全局创作声线注入退出 current 主链。模型基础指令取自当前模型目录，不再由 memory.soul 控制口吻、进展或失败；Codex 原有 personality 与自定义指令语义保留。前端默认角色、执行车道、Browser Assist、创作模式与结构化创作记忆提示词构造链物理删除；GUI 不再传入隐式 systemPrompt。共享导出文案迁回 exports owner，不随 Soul 删除而丢失。root 确认此图与既有单一主链一致；验证与删除闭包见浏览器执行计划，未通过前不进入 release evidence。
 
 本地 nickname/bio 资料表单与 user_profile 配置也已删除。真正账号会话由原 Account Center owner 承接，仅 OEM 运行时可用；非 OEM 不再显示或回退到本地资料。设置搜索直接消费同一现役章节与 Memory 指令目标，没有新增身份存储或兼容服务。root 确认，2026-10-25。
+
+## 2026-10-25 浏览器重载与图片结果主链
+
+```mermaid
+flowchart LR
+  Reload[Renderer 重载] --> Revoke[BrowserTabHost 销毁旧页面和控制权]
+  Reload --> Hint[同 Thread 的呈现偏好和安全 URL]
+  Hint --> Identity[App Server 新 identity]
+  Identity --> Native[BrowserTabHost 新原生页面]
+  Model[模型 image tool] --> Task[现役 durable media task worker]
+  Task --> Sidecar[终态图片与 sidecar]
+  Sidecar --> Tool[同一次 tool completion]
+  Tool --> Items[canonical media Item started / completed]
+  Items --> Store[Thread Store 和事件通道]
+  Store --> GUI[实时显示与 thread/read 恢复]
+```
+
+`renderer-navigation` 关闭事件只撤销旧 renderer 的原生资源，不代表用户主动收起；退出文档不得将呈现偏好覆盖成 null。显式收起仍保存 null，重载后保持收起。持久化只含 tab 选择和安全 HTTP(S) 导航提示，恢复时重新申请 canonical identity，不恢复旧授权、token 或 turn。
+
+Lime 多协议图片执行继续归现役 `media-runtime` worker 和 App Server image gateway。模型工具等待同一 durable task 的成功/部分成功结果及 sidecar；回合取消和超时取消同一任务。Host 的异步 task API 不改变。`completed_tool_media_item` 统一转换 sidecar，App Server 通过既有事件 sink 顺序写入工具完成和图片 Item 生命周期，现役 Thread Store、实时通知和 `thread/read` 共用同一结果；失败、取消、pending 和缺 sidecar 不生成图片。公共 v2 `AgentMessage.contentParts` 保留同一 typed `MessageContentPart`，是 Lime 多协议媒体差异的必要适配；读历史与通知共用 `project_item`，拒绝 inline 媒体引用。前端 canonical reader 消费同一字段，不从 task store 建立第二结果通道。旧读取适配委托同一转换并按 Item ID 去重，不恢复前端 image workflow 或第二图片 owner。
+
+来源：Codex `codex-rs/ext/image-generation/src/tool.rs` 的实际请求完成后发出图片 Item；其上游账号和图像服务不覆盖 Lime 的 Provider/worker 差异。Desktop 重载按既有 REA 合同适配，公开源码无该前端实现。Architecture impact: minor；责任开发者 root 于 2026-10-25 确认该图的 owner、取消与持久化方向。验收范围见 `internal/exec-plans/browser-completion-20261025.md`，不将此图计为原生引擎或 Windows 包通过。

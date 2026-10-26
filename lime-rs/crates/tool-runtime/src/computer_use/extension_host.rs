@@ -10,12 +10,14 @@ use uuid::Uuid;
 
 pub const CHROME_EXTENSION_ORIGIN: &str = "chrome-extension://okipgpdaiijkenehohfgochhhlbifcbc/";
 
-pub fn run_native_messaging_host() -> Result<(), String> {
-    run().map_err(|e| e.0)
+pub fn run_native_messaging_host(paths: ComputerUsePaths) -> Result<(), String> {
+    run(paths).map_err(|e| e.0)
 }
 
-fn run() -> ComputerUseResult<()> {
-    let root = mailbox::root()?.join(Uuid::new_v4().to_string());
+fn run(paths: ComputerUsePaths) -> ComputerUseResult<()> {
+    let sessions = paths.sessions();
+    mailbox::private_directory(&sessions)?;
+    let root = sessions.join(Uuid::new_v4().to_string());
     mailbox::private_directory(&root)?;
     mailbox::private_directory(&root.join("requests"))?;
     mailbox::private_directory(&root.join("responses"))?;

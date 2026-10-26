@@ -5,7 +5,7 @@ import {
   openSettings,
   waitForPageCondition,
 } from "../mcp-config-fixture-smoke.mjs";
-import { invokeAppServerFromPage } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../../lib/chat-fixture/rpc.mjs";
 
 export async function runSettingsExecutionPolicyNavigationScenario({
   page,

@@ -1,6 +1,6 @@
 //! Local HTTPS transport for the Excel add-in. It never creates agent turns.
 
-use super::{denied, mailbox, ComputerUseResult};
+use super::{denied, mailbox, ComputerUsePaths, ComputerUseResult};
 use axum::{
     extract::{DefaultBodyLimit, State},
     http::{header, HeaderMap, StatusCode},
@@ -24,23 +24,25 @@ const CSS: &str = include_str!("../../../../../extensions/lime-excel/taskpane.cs
 const MANIFEST: &str = include_str!("../../../../../extensions/lime-excel/manifest.xml");
 const INSTALL: &str = include_str!("../../../../../extensions/lime-excel/README.md");
 
+#[cfg(test)]
+#[path = "document_host_tests.rs"]
+mod tests;
+
 #[derive(Clone)]
 struct Host {
     token: String,
     sessions: Arc<Mutex<HashMap<String, u64>>>,
+    directory: PathBuf,
 }
 
-fn directory() -> ComputerUseResult<PathBuf> {
-    let path = lime_core::app_paths::preferred_data_dir()
-        .map_err(denied)?
-        .join("computer-use")
-        .join("excel");
+fn directory(paths: &ComputerUsePaths) -> ComputerUseResult<PathBuf> {
+    let path = paths.root.join("excel");
     mailbox::private_directory(&path)?;
     Ok(path)
 }
 
-pub(super) async fn install() -> ComputerUseResult<()> {
-    let root = directory()?;
+pub(super) async fn install(paths: &ComputerUsePaths) -> ComputerUseResult<()> {
+    let root = directory(paths)?;
     let cert = root.join("localhost.pem");
     let key = root.join("localhost-key.pem");
     if !cert.exists() || !key.exists() {
@@ -63,13 +65,12 @@ pub(super) async fn install() -> ComputerUseResult<()> {
     let setup = root.join("setup");
     mailbox::private_directory(&setup)?;
     private_write(&setup.join("Lime.xml"), manifest.as_bytes())?;
-    private_write(&setup.join("localhost.cer"), &fs::read(&cert).map_err(|e| denied(e.to_string()))?)?;
+    private_write(
+        &setup.join("localhost.cer"),
+        &fs::read(&cert).map_err(|e| denied(e.to_string()))?,
+    )?;
     private_write(&setup.join("INSTALL.md"), INSTALL.as_bytes())?;
-    #[cfg(target_os = "macos")]
-    {
-        let wef = dirs::home_dir()
-            .ok_or_else(|| denied("User home directory unavailable"))?
-            .join("Library/Containers/com.microsoft.Excel/Data/Documents/wef");
+    if let Some(wef) = &paths.excel_sideload {
         // Only sideload when the actual application container already exists.
         if wef.ancestors().nth(2).is_some_and(|p| p.is_dir()) {
             fs::create_dir_all(&wef).map_err(|e| denied(e.to_string()))?;
@@ -136,12 +137,12 @@ fn private_write(path: &std::path::Path, bytes: &[u8]) -> ComputerUseResult<()> 
         .map_err(|e| denied(e.to_string()))
 }
 
-pub async fn run_document_host() -> Result<(), String> {
-    run().await.map_err(|e| e.0)
+pub async fn run_document_host(paths: ComputerUsePaths) -> Result<(), String> {
+    run(paths).await.map_err(|e| e.0)
 }
-async fn run() -> ComputerUseResult<()> {
+async fn run(paths: ComputerUsePaths) -> ComputerUseResult<()> {
     use fs2::FileExt;
-    let root = directory()?;
+    let root = directory(&paths)?;
     let lock_path = root.join("host.lock");
     if !lock_path.exists() {
         private_write(&lock_path, b"")?;
@@ -168,9 +169,12 @@ async fn run() -> ComputerUseResult<()> {
     )
     .await
     .map_err(|e| denied(e.to_string()))?;
+    let sessions = paths.sessions();
+    mailbox::private_directory(&sessions)?;
     let state = Host {
         token,
         sessions: Default::default(),
+        directory: sessions,
     };
     let router = Router::new()
         .route("/health", get(|| async { Json(json!({"protocol":1})) }))
@@ -209,7 +213,7 @@ async fn connect(State(host): State<Host>, headers: HeaderMap) -> axum::response
     }
     let result = (|| -> ComputerUseResult<Value> {
         let id = Uuid::new_v4().to_string();
-        let root = mailbox::root()?.join(&id);
+        let root = host.directory.join(&id);
         for directory in [&root, &root.join("requests"), &root.join("responses")] {
             mailbox::private_directory(directory)?;
         }
@@ -222,9 +226,7 @@ async fn connect(State(host): State<Host>, headers: HeaderMap) -> axum::response
             if now.saturating_sub(*updated) <= 60_000 {
                 return true;
             }
-            if let Ok(root) = mailbox::root() {
-                let _ = fs::remove_dir_all(root.join(session));
-            }
+            let _ = fs::remove_dir_all(host.directory.join(session));
             false
         });
         if sessions.len() >= 64 {
@@ -268,7 +270,7 @@ async fn poll(
         {
             return Err(denied("Document identity mismatch"));
         }
-        super::extension_host::exchange(&mailbox::root()?.join(id), message, "office")
+        super::extension_host::exchange(&host.directory.join(id), message, "office")
     })();
     respond(result)
 }
@@ -279,12 +281,27 @@ fn respond(result: ComputerUseResult<Value>) -> axum::response::Response {
     }
 }
 
-async fn disconnect(State(host): State<Host>, headers: HeaderMap, Json(message): Json<Value>) -> axum::response::Response {
-    if !authorized(&host,&headers) { return StatusCode::FORBIDDEN.into_response(); }
+async fn disconnect(
+    State(host): State<Host>,
+    headers: HeaderMap,
+    Json(message): Json<Value>,
+) -> axum::response::Response {
+    if !authorized(&host, &headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
     let result = (|| -> ComputerUseResult<Value> {
-        let id = message["sessionId"].as_str().filter(|id| mailbox::message_id(id)).ok_or_else(|| denied("Invalid document session"))?;
-        if host.sessions.lock().map_err(|_| denied("Document session unavailable"))?.remove(id).is_some() {
-            fs::remove_dir_all(mailbox::root()?.join(id)).map_err(|e| denied(e.to_string()))?;
+        let id = message["sessionId"]
+            .as_str()
+            .filter(|id| mailbox::message_id(id))
+            .ok_or_else(|| denied("Invalid document session"))?;
+        if host
+            .sessions
+            .lock()
+            .map_err(|_| denied("Document session unavailable"))?
+            .remove(id)
+            .is_some()
+        {
+            fs::remove_dir_all(host.directory.join(id)).map_err(|e| denied(e.to_string()))?;
         }
         Ok(json!({"disconnected":true}))
     })();

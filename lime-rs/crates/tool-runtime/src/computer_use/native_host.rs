@@ -1,9 +1,10 @@
 //! Bounded JSON-lines client for the existing platform helper, independent of Electron.
 
 use super::native_resources::NativeResource;
-use super::{denied, ComputerUseResult};
+use super::{denied, ComputerUseError, ComputerUseOwner, ComputerUseResult};
 use serde_json::{json, Value};
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
@@ -12,9 +13,10 @@ use tokio_util::sync::CancellationToken;
 
 const MAX_FRAME_BYTES: usize = 32 * 1024 * 1024;
 
+#[derive(Clone)]
 pub(super) struct NativeHost {
     resource: Option<NativeResource>,
-    state: Mutex<State>,
+    state: Arc<Mutex<State>>,
 }
 
 #[derive(Default)]
@@ -109,20 +111,36 @@ impl Session {
                     .get("result")
                     .cloned()
                     .ok_or_else(|| denied("Missing native result")),
-                Some(false) => Err(denied(format!(
-                    "Native helper rejected {method}: {} ({})",
-                    value
-                        .pointer("/error/code")
-                        .and_then(Value::as_str)
-                        .unwrap_or("operation_failed"),
-                    value
-                        .pointer("/error/message")
-                        .and_then(Value::as_str)
-                        .unwrap_or("Native operation failed")
-                        .chars()
-                        .take(512)
-                        .collect::<String>()
-                ))),
+                Some(false) => {
+                    let code = value.pointer("/error/code").and_then(Value::as_str);
+                    let message = format!(
+                        "Native helper rejected {method}: {} ({})",
+                        code.unwrap_or("operation_failed"),
+                        value
+                            .pointer("/error/message")
+                            .and_then(Value::as_str)
+                            .unwrap_or("Native operation failed")
+                            .chars()
+                            .take(512)
+                            .collect::<String>()
+                    );
+                    Err(
+                        if method == "computerUse.execute"
+                            && matches!(
+                                code,
+                                Some(
+                                    "user_intervened"
+                                        | "input_monitor_unavailable"
+                                        | "desktop_locked"
+                                )
+                            )
+                        {
+                            ComputerUseError::interrupted(message)
+                        } else {
+                            denied(message)
+                        },
+                    )
+                }
                 None => Err(denied("Invalid native helper response")),
             };
         }
@@ -134,7 +152,7 @@ impl NativeHost {
     pub(super) fn new() -> Self {
         Self {
             resource: None,
-            state: Mutex::new(State::default()),
+            state: Arc::new(Mutex::new(State::default())),
         }
     }
 
@@ -142,8 +160,38 @@ impl NativeHost {
     pub(super) fn with_resource(resource: NativeResource) -> Self {
         Self {
             resource: Some(resource),
-            state: Mutex::new(State::default()),
+            state: Arc::new(Mutex::new(State::default())),
         }
+    }
+
+    pub(super) fn finish_turn(
+        &self,
+        owner: &ComputerUseOwner,
+        session: u64,
+    ) -> Option<tokio::task::JoinHandle<()>> {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            // Shutdown outside a runtime cannot leave a persistent overlay.
+            if let Ok(mut state) = self.state.try_lock() {
+                if state.generation == session {
+                    state.session.take();
+                }
+            }
+            return None;
+        };
+        let host = self.clone();
+        let params = json!({"owner": owner});
+        Some(runtime.spawn(async move {
+            // Cleanup never discovers/spawns a helper or crosses a restart.
+            // The helper also scopes presentation to this exact turn owner.
+            let _ = host
+                .invoke_cancel(
+                    "computerUse.finishTurn",
+                    params,
+                    CancellationToken::new(),
+                    Some(session),
+                )
+                .await;
+        }))
     }
 
     pub(super) async fn invoke(
@@ -180,14 +228,29 @@ impl NativeHost {
         let mut session = match state.session.take() {
             Some(session) => session,
             None => {
-                let resource = match &self.resource {
-                    Some(resource) => Some(resource.clone()),
-                    None => NativeResource::discover()?,
+                // Manifest verification reads and hashes the complete host and
+                // helper. Keep this blocking work off the runtime's IO workers.
+                let configured = self.resource.clone();
+                let discovery = tokio::task::spawn_blocking(
+                    move || -> ComputerUseResult<Option<NativeResource>> {
+                        let resource = match configured {
+                            Some(resource) => Some(resource),
+                            None => NativeResource::discover()?,
+                        };
+                        if let Some(resource) = &resource {
+                            resource.verify()?;
+                        }
+                        Ok(resource)
+                    },
+                );
+                let resource = tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => return Err(denied("Native helper request canceled")),
+                    result = discovery => result.map_err(|e| denied(format!("Native resource verification failed: {e}")))??,
                 };
                 let Some(resource) = resource else {
                     return Ok(None);
                 };
-                resource.verify()?;
                 let mut command = Command::new(&resource.path);
                 command
                     .stdin(Stdio::piped())
@@ -221,10 +284,10 @@ impl NativeHost {
             .checked_add(1)
             .ok_or_else(|| denied("Native request id exhausted"))?;
         let id = state.next_id.to_string();
-        let timeout = if method == "computerUse.setup" {
-            Duration::from_secs(120)
-        } else {
-            Duration::from_secs(15)
+        let timeout = match method {
+            "computerUse.setup" => Duration::from_secs(120),
+            "computerUse.finishTurn" => Duration::from_secs(3),
+            _ => Duration::from_secs(15),
         };
         let result = session.request(&id, method, params, cancel, timeout).await;
         let result = match result {

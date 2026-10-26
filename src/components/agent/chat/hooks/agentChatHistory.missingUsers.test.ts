@@ -226,18 +226,16 @@ describe("agentChatHistory missing user recovery", () => {
     });
     expect(messages[1]).toMatchObject({
       role: "assistant",
-      content: expect.stringContaining("执行失败："),
+      content: internalRuntimeErrorMessage,
       isThinking: false,
       runtimeTurnId: "turn-news-failed",
       runtimeStatus: {
         phase: "failed",
-        title: "当前处理失败",
+        title: "处理失败",
         detail: internalRuntimeErrorMessage,
       },
     });
-    expect(messages[1]?.content).toBe(
-      `执行失败：${internalRuntimeErrorMessage}`,
-    );
+    expect(messages[1]?.content).toBe(internalRuntimeErrorMessage);
     expect(messages[1]?.content).not.toContain("token-plan-cn.xiaomimimo.com");
     expect(messages[1]?.contentParts).toEqual([
       {

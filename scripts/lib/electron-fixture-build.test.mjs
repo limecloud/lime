@@ -381,6 +381,30 @@ describe("Electron renderer entry assets", () => {
 
 describe("electron fixture build freshness", () => {
   it.each([
+    "electron/native/computer-use-cursor-motion.h",
+    "electron/native/windows/windows-computer-use-cursor-frames.h",
+  ])("invalidates native helper artifacts when header %s changes", (header) => {
+    const rootDir = createTempRoot();
+    writeRequiredFiles(rootDir, new Date("2026-01-01T00:10:00.000Z"));
+    expect(inspectElectronFixtureBuildFreshness({ rootDir }).ready).toBe(true);
+    writeFile(
+      path.join(rootDir, header),
+      "// changed native input",
+      new Date("2026-01-01T00:20:00.000Z"),
+    );
+    expect(inspectElectronFixtureBuildFreshness({ rootDir })).toMatchObject({
+      ready: false,
+      reason: "stale-source",
+      staleSegments: ["host"],
+      segments: {
+        host: { newestSource: { relativePath: header } },
+        renderer: { ready: true },
+        appServer: { ready: true },
+      },
+    });
+  });
+
+  it.each([
     ["src/index.testFixtures.tsx", "src/App.tsx", "renderer"],
     ["electron/preload.testFixtures.ts", "electron/main.ts", "host"],
   ])(

@@ -78,7 +78,7 @@ import {
 } from "../utils/toolResultDetailText";
 import { ToolCallDisplayResultPanel } from "./ToolCallDisplayResultPanel";
 import { stripTerminalControlSequences } from "../utils/terminalOutputText";
-import { isDynamicToolCall } from "../utils/toolNameFamily";
+import { isDynamicToolCall, isMcpToolCall } from "../utils/toolNameFamily";
 import { McpToolItemContent } from "./mcp-tool-item-content";
 import {
   ToolCallSkillContentButton,
@@ -100,8 +100,12 @@ interface ToolCallDisplayProps {
 }
 
 export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = (props) =>
-  isDynamicToolCall(props.toolCall) ? (
-    <McpToolItemContent key={props.toolCall.id} toolCall={props.toolCall} />
+  isDynamicToolCall(props.toolCall) || isMcpToolCall(props.toolCall) ? (
+    <McpToolItemContent
+      key={props.toolCall.id}
+      toolCall={props.toolCall}
+      defaultExpanded={props.defaultExpanded}
+    />
   ) : (
     <ToolCallDisplayContent {...props} />
   );

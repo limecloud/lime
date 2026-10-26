@@ -30,6 +30,30 @@ function fixture() {
 }
 
 describe("browser history native owner", () => {
+  it("validates removals before pruning recovery and keeps history when pruning fails", async () => {
+    const beforeRemove = vi.fn(async () => undefined);
+    const store = new BrowserHistoryStore(directory, { now: () => 100 });
+    const host = new BrowserHistoryHost(() => undefined, {
+      createStore: () => store,
+      beforeRemove,
+    });
+    await host.committed("view", { url: "https://example.com/" });
+    await expect(
+      host.invoke("browser_history_clear", { unexpected: true }),
+    ).rejects.toThrow();
+    await expect(
+      host.invoke("browser_history_remove", { entries: "invalid" }),
+    ).rejects.toThrow();
+    expect(beforeRemove).not.toHaveBeenCalled();
+    beforeRemove.mockRejectedValueOnce(new Error("recovery disk unavailable"));
+    await expect(host.invoke("browser_history_clear", {})).rejects.toThrow(
+      "recovery disk",
+    );
+    expect((await store.list()).entries).toHaveLength(1);
+    await host.invoke("browser_history_clear", {});
+    expect((await store.list()).entries).toHaveLength(0);
+    expect(beforeRemove).toHaveBeenCalledTimes(2);
+  });
   it("initializes lazily and records committed visits separately from matching title updates", async () => {
     const f = fixture();
     expect(f.createStore).not.toHaveBeenCalled();

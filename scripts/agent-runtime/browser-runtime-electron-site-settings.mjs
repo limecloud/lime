@@ -1,6 +1,6 @@
 import path from "node:path";
 import { clickNativeMenuItem } from "./browser-runtime-gate-a.mjs";
-import { assert, sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { assert, sleep } from "../lib/chat-fixture/utils.mjs";
 
 /** Real settings UI -> preload/IPC -> persistent rules -> original native page. */
 export async function runBrowserSiteSettingsControls({

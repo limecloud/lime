@@ -6,7 +6,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.171.0"
+version = "1.172.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -245,3 +245,7 @@ string_slice = "warn"
 
 [patch.crates-io]
 crossterm = { git = "https://github.com/openai-oss-forks/crossterm", rev = "45fecb9508105988f42fe6ff0441783ed3717f92" }
+
+# 原生资源启动时校验完整 App Server；避免 debug 的软件 SHA 阻塞真实宿主发现。
+[profile.dev.package.sha2]
+opt-level = 3

@@ -210,11 +210,17 @@ export class BrowserSession {
         (lease) => lease.turnId === owner.turnId,
       );
       const { close, release, deliverable, handoff } = Bf(leases);
-      await this.groups.releaseTabsFromManagedGroups(
-        deliverable.filter(
-          (id) => session.leases[String(id)].origin === "agent",
-        ),
+      const delivered = deliverable.filter(
+        (id) => session.leases[String(id)].origin === "agent",
       );
+      await this.groups.releaseTabsFromManagedGroups(delivered);
+      // The copied manager treats Chrome edit errors as best effort. Retain
+      // ownership for bounded retries until independent readback confirms it.
+      for (const tabId of delivered) {
+        const tab = await chrome.tabs.get(tabId).catch(() => null);
+        if (tab && this.groups.managedGroupIds.has(tab.groupId))
+          throw new Error("Deliverable tab remained in the managed task group");
+      }
       // Only agent-created, unmarked pages are closed; never close a user's page.
       for (const tabId of close) {
         const tab = await chrome.tabs.get(tabId).catch(() => null);

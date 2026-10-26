@@ -8,9 +8,9 @@ import {
   assert,
   sanitizeJson,
   sanitizeText,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 import fs from "node:fs/promises";
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
 
 /** Both history entry points must mount a new page in the same canonical owner. */
 export async function reopenBrowserHistoryEntry({

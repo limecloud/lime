@@ -20,7 +20,7 @@ import {
   fingerprintSources,
   sha256,
 } from "./lib/sidebar-layout-fixture-evidence.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import { inspectElectronFixtureBuildFreshness } from "../lib/electron-fixture-build.mjs";
 import {
   electronAppServerBinaryDestination,

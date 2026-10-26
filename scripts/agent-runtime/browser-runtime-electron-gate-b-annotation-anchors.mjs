@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import {
   readBrowserAnnotationNativeIdentity,
   waitForBrowserAnnotationState as waitFor,

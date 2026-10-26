@@ -3,10 +3,11 @@
 use super::{RuntimeCore, RuntimeCoreError};
 use app_server_protocol::protocol::v2::*;
 use app_server_protocol::AgentTurnStatus;
-use lime_core::config::ConfigManager;
+use lime_core::config::{ConfigManager, YamlService};
 use std::sync::Arc;
 use tool_runtime::computer_use::{
-    ComputerUseError, ComputerUseOwner, ComputerUsePolicy, ComputerUseResult, ComputerUseService,
+    ComputerUseError, ComputerUseOwner, ComputerUsePaths, ComputerUsePolicy,
+    ComputerUsePolicyStore, ComputerUseResult, ComputerUseService, ComputerUseTarget,
 };
 
 mod gateway;
@@ -14,11 +15,21 @@ mod gateway;
 impl RuntimeCore {
     /// Resolve the signed product's resource manifest lazily; missing resources
     /// remain not_installed, with no Electron callback or PATH fallback.
-    pub fn with_native_computer_use(mut self) -> Self {
-        self.computer_use = Arc::new(ComputerUseService::default().with_adapter(Arc::new(
-            tool_runtime::computer_use::NativeAdapter::default(),
-        )).with_adapter(Arc::new(tool_runtime::computer_use::ExtensionAdapter::new(ComputerUseAdapterKind::Chrome)))
-          .with_adapter(Arc::new(tool_runtime::computer_use::OfficeAdapter::default())));
+    pub fn with_native_computer_use(mut self, paths: ComputerUsePaths) -> Self {
+        self.computer_use = Arc::new(
+            ComputerUseService::default()
+                .with_control_directory(paths.root.clone())
+                .with_adapter(Arc::new(
+                    tool_runtime::computer_use::NativeAdapter::default(),
+                ))
+                .with_adapter(Arc::new(tool_runtime::computer_use::ExtensionAdapter::new(
+                    ComputerUseAdapterKind::Chrome,
+                    paths.clone(),
+                )))
+                .with_adapter(Arc::new(tool_runtime::computer_use::OfficeAdapter::new(
+                    paths,
+                ))),
+        );
         self
     }
 
@@ -37,11 +48,15 @@ impl RuntimeCore {
         connection: &str,
         params: ComputerUseStatusParams,
     ) -> Result<ComputerUseStatusResponse, RuntimeCoreError> {
-        let mut response = self.computer_use
+        let mut response = self
+            .computer_use
             .status(params, || self.computer_use_policy())
             .await
             .map_err(policy_error)?;
-        response.grants = self.computer_use.grants_for_connection(connection).map_err(policy_error)?;
+        response.grants = self
+            .computer_use
+            .grants_for_connection(connection)
+            .map_err(policy_error)?;
         Ok(response)
     }
 
@@ -49,9 +64,18 @@ impl RuntimeCore {
         &self,
         connection: &str,
         params: ComputerUseSetupParams,
+        canceled: impl Fn() -> bool + Send + Sync,
     ) -> Result<ComputerUseSetupResponse, RuntimeCoreError> {
         self.computer_use
-            .setup(connection, params, || self.computer_use_policy())
+            .setup(
+                connection,
+                params,
+                PolicyStore {
+                    config_path: &self.app_config_path,
+                    requirements_path: self.requirements_path.as_deref(),
+                    canceled: &canceled,
+                },
+            )
             .await
             .map_err(policy_error)
     }
@@ -114,17 +138,82 @@ fn load_policy(
     requirements_path: Option<&std::path::Path>,
 ) -> ComputerUseResult<ComputerUsePolicy> {
     let _lock = lime_core::config::config_file_lock();
-    let config =
-        ConfigManager::load(config_path).map_err(|error| ComputerUseError(error.to_string()))?;
+    let config = ConfigManager::load(config_path)
+        .map_err(|error| ComputerUseError::new(error.to_string()))?;
+    policy_from_config(config.config(), requirements_path)
+}
+
+struct PolicyStore<'a> {
+    config_path: &'a std::path::Path,
+    requirements_path: Option<&'a std::path::Path>,
+    canceled: &'a (dyn Fn() -> bool + Sync),
+}
+
+impl ComputerUsePolicyStore for PolicyStore<'_> {
+    fn load(&self) -> ComputerUseResult<ComputerUsePolicy> {
+        if (self.canceled)() {
+            return Err(ComputerUseError::new("Computer Use setup canceled".into()));
+        }
+        load_policy(self.config_path, self.requirements_path)
+    }
+
+    fn save_approval(
+        &self,
+        adapter: ComputerUseAdapterKind,
+        target: &ComputerUseTarget,
+    ) -> ComputerUseResult<()> {
+        let _lock = lime_core::config::config_file_lock();
+        if (self.canceled)() {
+            return Err(ComputerUseError::new("Computer Use setup canceled".into()));
+        }
+        let mut manager = ConfigManager::load(self.config_path)
+            .map_err(|error| ComputerUseError::new(error.to_string()))?;
+        let policy = policy_from_config(manager.config(), self.requirements_path)?
+            .with_persistent_approval(adapter, target)
+            .map_err(|error| ComputerUseError::new(error.into()))?;
+        manager.config_mut().computer_use = policy.user;
+        if (self.canceled)() {
+            return Err(ComputerUseError::new("Computer Use setup canceled".into()));
+        }
+        YamlService::save_preserve_comments(self.config_path, manager.config())
+            .map_err(|error| ComputerUseError::new(error.to_string()))
+    }
+}
+
+fn policy_from_config(
+    config: &lime_core::config::Config,
+    requirements_path: Option<&std::path::Path>,
+) -> ComputerUseResult<ComputerUsePolicy> {
     let requirements = super::config_requirements::read_config_requirements_at(requirements_path)
-        .map_err(|error| ComputerUseError(error.to_string()))?;
+        .map_err(|error| ComputerUseError::new(error.to_string()))?;
     Ok(ComputerUsePolicy {
-        native_enabled: Some(config.config().features.entries.get("computer_use").copied().unwrap_or(false)),
-        chrome_enabled: Some(config.config().features.entries.get("chrome_use").copied().unwrap_or(false)),
-        office_enabled: Some(config.config().features.entries.get("office_use").copied().unwrap_or(false)),
-        browser: config.config().browser_use.clone(),
+        native_enabled: Some(
+            config
+                .features
+                .entries
+                .get("computer_use")
+                .copied()
+                .unwrap_or(false),
+        ),
+        chrome_enabled: Some(
+            config
+                .features
+                .entries
+                .get("chrome_use")
+                .copied()
+                .unwrap_or(false),
+        ),
+        office_enabled: Some(
+            config
+                .features
+                .entries
+                .get("office_use")
+                .copied()
+                .unwrap_or(false),
+        ),
+        browser: config.browser_use.clone(),
         browser_admin: requirements.as_ref().and_then(|r| r.browser_use.clone()),
-        user: config.config().computer_use.clone(),
+        user: config.computer_use.clone(),
         admin: requirements.as_ref().and_then(|r| r.computer_use.clone()),
         allow_browser_and_computer_use: requirements.and_then(|r| r.allow_browser_and_computer_use),
     })

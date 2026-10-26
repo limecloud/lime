@@ -177,7 +177,7 @@ describe("Browser Electron Gate B", () => {
       "browser-runtime-electron-gate-b-annotation-design-summary.json",
     );
     expect(() => parseArgs(["--scenario", "unknown"])).toThrow(
-      /--scenario 必须是 .*，收到: unknown/,
+      /--scenario 不支持: unknown/,
     );
   });
 

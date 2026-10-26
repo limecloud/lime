@@ -5,9 +5,9 @@ import {
   APP_SERVER_METHOD_MEDIA_TASK_ARTIFACT_LIST,
   APP_SERVER_METHOD_SESSION_READ,
   APP_SERVER_METHOD_WORKFLOW_READ,
-} from "./claw-chat-current-fixture-constants.mjs";
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
-import { sanitizeJson, sleep } from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/constants.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
+import { sanitizeJson, sleep } from "../lib/chat-fixture/utils.mjs";
 import { normalizedString } from "./claw-image-live-smoke-common.mjs";
 import { IMAGE_WORKFLOW_KEY } from "./claw-image-live-smoke-options.mjs";
 

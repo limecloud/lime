@@ -2,7 +2,7 @@ import http from "node:http";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { appServerCallFromPage } from "../mcp-config-fixture-smoke.mjs";
-import { sendPromptFromGui } from "../../agent-runtime/claw-chat-current-fixture-gui-actions.mjs";
+import { sendPromptFromGui } from "../../lib/chat-fixture/gui-actions.mjs";
 import {
   captureInvokeTraceCollector,
   validateInvokeTraceCollectorCapture,

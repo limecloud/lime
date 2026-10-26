@@ -19,6 +19,10 @@ import {
 } from "./appDataPaths";
 import { ElectronAppServerHost } from "./appServerHost";
 import { DesktopPreferencesHost } from "./desktopPreferencesHost";
+import { DesktopPermissionsHost } from "./desktopPermissionsHost";
+import { readDesktopDiskAccess } from "./desktopDiskAccess";
+import { nativeDesktopPermission } from "./desktopPermissionsNative";
+import { desktopApplicationPath } from "./desktopResources";
 import {
   WindowCloseConfirmation,
   WindowCloseConfirmationHost,
@@ -73,6 +77,8 @@ import {
   screen,
   session,
   safeStorage,
+  systemPreferences,
+  Notification,
   type MenuItemConstructorOptions,
   protocol,
   shell,
@@ -202,6 +208,26 @@ const persistedAtomHost = new PersistedAtomHost(
   desktopStorageRoots.appDataRoot,
   broadcast,
 );
+const desktopPermissionsHost = new DesktopPermissionsHost({
+  platform: process.platform,
+  appDataRoot: desktopStorageRoots.appDataRoot,
+  applicationPath: desktopApplicationPath(app.getPath("exe"), process.platform),
+  packaged: app.isPackaged && process.defaultApp !== true,
+  homeDirectory: app.getPath("home"),
+  nativeInvoke: (method, params) => hostCommands.invoke("macos_native_host_invoke", { method, params }),
+  safeStorage,
+  mediaStatus: (kind) => systemPreferences.getMediaAccessStatus(kind),
+  requestMedia: (kind) => systemPreferences.askForMediaAccess(kind),
+  diskAccess: readDesktopDiskAccess,
+  nativePermission: nativeDesktopPermission,
+  notificationsSupported: () => Notification.isSupported(),
+  openExternal: (url) => shell.openExternal(url),
+  revealApplication: () => shell.showItemInFolder(desktopApplicationPath(app.getPath("exe"), process.platform)),
+  chooseDirectory: async () => {
+    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  },
+});
 const updateHost = new ElectronUpdateHost(broadcast, {
   open: openUpdateNotificationWindow,
   close: closeUpdateNotificationWindow,
@@ -1182,6 +1208,9 @@ async function handleHostInvoke(
     throw new Error(`Electron host command is not supported: ${command}`);
   }
   const request = args?.request;
+  if (DesktopPermissionsHost.supports(command)) {
+    return desktopPermissionsHost.invoke(command, args);
+  }
   if (isElectronAppServerCommand(command)) {
     if (command === "app_server_handle_json_lines") {
       return await appServerHost.handleJsonLines(

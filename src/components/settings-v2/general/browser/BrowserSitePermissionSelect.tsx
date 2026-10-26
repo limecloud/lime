@@ -92,10 +92,10 @@ export function BrowserSitePermissionSelect({
           data-browser-permission-pattern={pattern}
           data-browser-permission-effective={cell.effectiveValue}
           disabled={locked}
-          aria-label={`${name} · ${t(`settings.browser.permissionAction.${action}`)}`}
+          aria-label={`${name} ${t(`settings.browser.permissionAction.${action}`)}`}
           aria-describedby={described ? descriptionId : undefined}
           title={explanation || undefined}
-          className={`min-w-max max-w-full rounded-lg border border-border bg-background py-1.5 pl-2 pr-7 text-xs focus-visible:outline-ring disabled:opacity-50 ${cell.inherited ? "text-muted-foreground" : ""}`}
+          className={`min-w-max max-w-full rounded-lg border-[0.5px] border-border bg-background py-1.5 pl-2 pr-7 text-xs focus-visible:outline-ring disabled:opacity-50 ${cell.inherited ? "text-muted-foreground" : ""}`}
           onChange={(event) => {
             const next = event.target.value as BrowserSitePermission;
             if (
@@ -130,7 +130,7 @@ export function BrowserSitePermissionSelect({
       {described ? (
         <p
           id={descriptionId}
-          className="text-[11px] leading-4 text-muted-foreground"
+          className="text-xs leading-4 text-muted-foreground"
         >
           {showEffective
             ? t("settings.browser.sitePermissions.effectiveValue", {

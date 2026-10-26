@@ -96,9 +96,9 @@ export const settingsSources = [
   "scripts/electron/lib/settings-web-search-navigation-scenario.mjs",
   "scripts/electron/mcp-config-fixture-smoke.mjs",
   "scripts/electron/lib/persisted-atom-fixture-driver.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-teardown.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-rpc.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-backend-script.mjs",
+  "scripts/lib/chat-fixture/teardown.mjs",
+  "scripts/lib/chat-fixture/rpc.mjs",
+  "scripts/lib/chat-fixture/backend-script.mjs",
   "scripts/lib/invoke-trace-collector.mjs",
   "scripts/lib/electron-fixture-build.mjs",
   ...["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"].map(

@@ -1,5 +1,5 @@
 import { summarizeLongListUserMessageProbe } from "./session-history-user-collapse-fixture.mjs";
-import { summarizeClipboardCopyProof } from "../../agent-runtime/claw-chat-current-fixture-user-message-collapse-clipboard-observation.mjs";
+import { summarizeClipboardCopyProof } from "../../lib/chat-fixture/user-message-collapse-clipboard-observation.mjs";
 import {
   COLLAPSE_SELECTORS,
   assert,

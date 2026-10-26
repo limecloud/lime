@@ -11,27 +11,23 @@ use uuid::Uuid;
 
 pub struct ExtensionAdapter {
     kind: ComputerUseAdapterKind,
-    #[cfg(test)]
-    directory: Option<PathBuf>,
+    paths: ComputerUsePaths,
     observed: Mutex<(u64, Vec<(PathBuf, ComputerUseSnapshot)>, bool)>,
 }
 
 impl ExtensionAdapter {
-    pub fn new(kind: ComputerUseAdapterKind) -> Self {
+    pub fn new(kind: ComputerUseAdapterKind, paths: ComputerUsePaths) -> Self {
         Self {
             kind,
-            #[cfg(test)]
-            directory: None,
+            paths,
             observed: Mutex::new((1, vec![], false)),
         }
     }
 
     fn directory(&self) -> ComputerUseResult<PathBuf> {
-        #[cfg(test)]
-        if let Some(directory) = &self.directory {
-            return Ok(directory.clone());
-        }
-        mailbox::root()
+        let directory = self.paths.sessions();
+        mailbox::private_directory(&directory)?;
+        Ok(directory)
     }
 
     fn sessions(&self) -> ComputerUseResult<Vec<(PathBuf, ComputerUseSnapshot)>> {
@@ -172,8 +168,8 @@ impl ComputerUseAdapter for ExtensionAdapter {
     }
     async fn snapshot(&self) -> ComputerUseResult<ComputerUseSnapshot> {
         let sessions = self.sessions()?;
-        let installed = self.kind != ComputerUseAdapterKind::Chrome
-            || super::installation::chrome_manifest()?.is_file();
+        let installed =
+            self.kind != ComputerUseAdapterKind::Chrome || self.paths.chrome_manifest.is_file();
         let mut observed = self
             .observed
             .lock()
@@ -249,11 +245,11 @@ impl ComputerUseAdapter for ExtensionAdapter {
     ) -> ComputerUseResult<ComputerUseSetupOutcome> {
         let Some(target) = &params.target else {
             if self.kind == ComputerUseAdapterKind::Chrome {
-                super::installation::install_chrome_host()?;
-                super::installation::reveal_chrome()?;
+                super::installation::install_chrome_host(&self.paths)?;
+                super::installation::reveal(&self.paths.root.join("chrome"))?;
             }
             if self.kind == ComputerUseAdapterKind::Office {
-                super::document_host::install().await?;
+                super::document_host::install(&self.paths).await?;
             }
             return Ok(ComputerUseSetupOutcome {
                 accepted: true,
@@ -274,6 +270,7 @@ impl ComputerUseAdapter for ExtensionAdapter {
             accepted,
             approved_target: accepted.then(|| target.clone()),
             generation: snapshot.generation,
+            ..Default::default()
         })
     }
     async fn execute(

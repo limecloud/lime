@@ -16,7 +16,8 @@ excluded from DOM observation; screenshots and other page text may still contain
 sensitive information visible on the page.
 
 Chrome storage keeps a random local profile identifier, connection status,
-task names, and tab-group metadata. Session approval is separate from creating a
+task names, tab-group metadata, and temporary task/turn ownership and finalization
+marks. Session approval is separate from creating a
 tab group. Navigation or disconnection invalidates extension-side approval;
 the Lime runtime also checks target-bound grants, cancellation, and leases.
 
@@ -37,7 +38,9 @@ involved in the task as normal browser activity.
 
 - `tabs`, `activeTab`, and HTTP/HTTPS host access: discover selectable targets and
   work with user-selected regular webpages.
-- `tabGroups`: create and name native task groups and group their child tabs.
+- `tabGroups`: create and name native task groups, group child tabs, and release
+  completed deliverable tabs. Temporary agent tabs close at the end of a task turn;
+  handoff tabs stay for a later turn. Existing user tabs stay open.
 - `debugger`: take page screenshots and submit approved mouse/keyboard input.
 - `scripting`: observe an approved page's rendered content on demand.
 - `nativeMessaging`: connect to the locally installed Lime host.

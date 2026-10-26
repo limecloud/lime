@@ -40,6 +40,7 @@ use std::path::Path;
 
 mod idempotency;
 mod sidecar;
+pub(crate) use sidecar::image_outputs_are_ready;
 
 const AUDIO_TASK_COMPLETION_WORKER_ID: &str = "app-server-audio-output-writer";
 const IMAGE_TASK_COMPLETION_WORKER_ID: &str = "app-server-image-output-writer";

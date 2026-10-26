@@ -2,7 +2,10 @@ use super::base_item;
 use super::compact_json;
 use super::event_metadata;
 use super::StoredSession;
-use agent_protocol::{ItemStatus, ThreadItem, ThreadItemPayload, ToolOutput};
+use agent_protocol::response_item::MessagePhase;
+use agent_protocol::{
+    ItemId, ItemKind, ItemStatus, MessageContentPart, ThreadItem, ThreadItemPayload, ToolOutput,
+};
 use app_server_protocol::AgentEvent;
 use runtime_core::runtime_media_part_from_reference;
 use runtime_core::RuntimeMediaPartInput;
@@ -41,12 +44,40 @@ pub(super) fn upsert_from_event(
 }
 
 fn item_from_event(stored: &StoredSession, event: &AgentEvent) -> Option<Value> {
-    let tool = completed_tool(event)?;
-    let metadata = &tool.metadata;
-    let response = structured_response(&tool.output);
+    if event.event_type != "item.completed" {
+        return None;
+    }
+    let item = serde_json::from_value::<ThreadItem>(event.payload.get("item")?.clone()).ok()?;
+    let mut media = completed_tool_media_item(&item)?;
+    media.session_id = agent_protocol::SessionId::new(stored.session.session_id.clone());
+    Some(super::super::read_model::canonical_item_to_agent_detail(
+        &media,
+    ))
+}
+
+/// Project the durable image result through the same canonical Item channel as
+/// the completed tool. The legacy read adapter delegates to this projection.
+pub(crate) fn completed_tool_media_item(item: &ThreadItem) -> Option<ThreadItem> {
+    if item.status != ItemStatus::Completed {
+        return None;
+    }
+    let ThreadItemPayload::Tool {
+        call_id,
+        name,
+        output: Some(output),
+        ..
+    } = &item.payload
+    else {
+        return None;
+    };
+    if output.error.is_some() {
+        return None;
+    }
+    let metadata = &item.metadata;
+    let response = structured_response(output);
     let record = object_field(metadata, &["record"])
         .or_else(|| response.and_then(|value| object_field(value, &["record"])))?;
-    if !is_image_task_result(&tool.name, metadata, response, record) {
+    if !is_image_task_result(name, metadata, response, record) {
         return None;
     }
 
@@ -76,30 +107,48 @@ fn item_from_event(stored: &StoredSession, event: &AgentEvent) -> Option<Value> 
         })
     })
     .or_else(|| string_field(record, &["normalized_status", "normalizedStatus", "status"]))?;
-    if normalized_status != "succeeded" {
+    if !matches!(normalized_status.as_str(), "succeeded" | "partial") {
         return None;
     }
     let artifact_path = string_field(metadata, &["artifact_path", "artifactPath"]).or_else(|| {
         response.and_then(|value| string_field(value, &["artifact_path", "artifactPath"]))
     });
-    let item = item_from_task_record_with_source(
-        stored,
-        MediaTaskRecordProjectionInput {
-            task_id: &task_id,
-            task_type: &task_type,
-            normalized_status: &normalized_status,
-            artifact_path: artifact_path.as_deref(),
-            record,
-            thread_id: event.thread_id.as_deref(),
-            turn_id: event.turn_id.as_deref(),
-            sequence: event.sequence,
-            timestamp: &event.timestamp,
-        },
-        EVENT_OWNER_FACTS_SOURCE,
-        Some(event),
-        Some((&tool.call_id, &tool.name)),
-    )?;
-    Some(item)
+    let content_parts = record
+        .pointer("/result/images")?
+        .as_array()?
+        .iter()
+        .enumerate()
+        .filter_map(|(index, image)| {
+            media_content_part_from_image(image, index, EVENT_OWNER_FACTS_SOURCE)
+        })
+        .filter_map(|part| serde_json::from_value::<MessageContentPart>(part).ok())
+        .filter(MessageContentPart::is_safe)
+        .collect::<Vec<_>>();
+    if content_parts.is_empty() {
+        return None;
+    }
+    let mut media = item.clone();
+    media.item_id = media_item_id(item.turn_id.as_str(), &task_id);
+    media.ordinal = 0;
+    media.kind = ItemKind::AgentMessage;
+    media.created_at_ms = item.completed_at_ms.unwrap_or(item.updated_at_ms);
+    media.payload = ThreadItemPayload::AgentMessage {
+        text: String::new(),
+        phase: Some(MessagePhase::FinalAnswer),
+        content_parts,
+        delivery: None,
+        questions: None,
+    };
+    media.metadata = json!({
+        "source": EVENT_OWNER_FACTS_SOURCE,
+        "task_id": task_id,
+        "task_type": task_type,
+        "normalized_status": normalized_status,
+        "artifact_path": artifact_path,
+        "tool_call_id": call_id,
+        "tool_name": name,
+    });
+    Some(media)
 }
 
 pub(in crate::runtime) fn item_from_task_record(
@@ -154,16 +203,14 @@ fn item_from_task_record_with_source(
             "normalized_status": input.normalized_status,
         }),
     });
-    let item_id = format!(
-        "media-task-result:{}:{}",
+    let item_id = media_item_id(
         input.turn_id.unwrap_or("session"),
-        input.task_id
+        input.task_id,
     );
     let metadata = item_metadata(
         &event,
         source,
         tool_identity,
-        input.record,
         input.task_id,
         input.task_type,
         input.normalized_status,
@@ -184,37 +231,8 @@ fn item_from_task_record_with_source(
     ))
 }
 
-struct CompletedTool {
-    metadata: Value,
-    call_id: String,
-    name: String,
-    output: ToolOutput,
-}
-
-fn completed_tool(event: &AgentEvent) -> Option<CompletedTool> {
-    if event.event_type != "item.completed" {
-        return None;
-    }
-    let item = serde_json::from_value::<ThreadItem>(event.payload.get("item")?.clone()).ok()?;
-    if item.status != ItemStatus::Completed {
-        return None;
-    }
-    let ThreadItemPayload::Tool {
-        call_id,
-        name,
-        output: Some(output),
-        ..
-    } = item.payload
-    else {
-        return None;
-    };
-
-    Some(CompletedTool {
-        metadata: item.metadata,
-        call_id,
-        name,
-        output,
-    })
+fn media_item_id(turn_id: &str, task_id: &str) -> ItemId {
+    ItemId::new(format!("media-task-result:{turn_id}:{task_id}"))
 }
 
 fn record_with_result_field(record: &Value, result: &Value) -> Value {
@@ -323,7 +341,6 @@ fn item_metadata(
     event: &AgentEvent,
     source: &str,
     tool_identity: Option<(&str, &str)>,
-    record: &Value,
     task_id: &str,
     task_type: &str,
     normalized_status: &str,
@@ -343,9 +360,6 @@ fn item_metadata(
     if let Some((call_id, name)) = tool_identity {
         object.insert("tool_call_id".to_string(), json!(call_id));
         object.insert("tool_name".to_string(), json!(name));
-    }
-    if let Some(result) = record.get("result").cloned() {
-        object.insert("media_task_result".to_string(), result);
     }
     Value::Object(object.clone())
 }
@@ -494,7 +508,7 @@ mod tests {
         let mut items = HashMap::new();
         upsert_from_event(&stored, &stored.events[0], &mut items);
         let item = items
-            .remove("media-task-result:turn-1:task-image-1")
+            .remove("item_media-task-result:turn-1:task-image-1")
             .expect("synthetic media item");
 
         assert_eq!(item["type"], "agent_message");
@@ -520,7 +534,7 @@ mod tests {
 
         let projected = super::super::thread_items_from_events(&stored);
         assert!(projected.iter().any(|item| {
-            item.get("id").and_then(Value::as_str) == Some("media-task-result:turn-1:task-image-1")
+            item.get("id").and_then(Value::as_str) == Some("item_media-task-result:turn-1:task-image-1")
                 && item
                     .pointer("/contentParts/0/reference/uri")
                     .and_then(Value::as_str)
@@ -548,6 +562,29 @@ mod tests {
     }
 
     #[test]
+    fn canonical_media_history_and_tool_result_restore_one_image() {
+        let tool_event = canonical_tool_event(
+            ItemStatus::Completed,
+            "partial",
+            image_record_with_sidecar(),
+        );
+        let tool = serde_json::from_value(tool_event.payload["item"].clone()).unwrap();
+        let media = completed_tool_media_item(&tool).expect("partial image result");
+        let mut media_event = tool_event.clone();
+        media_event.event_id = "evt-media-result".to_string();
+        media_event.sequence += 1;
+        media_event.payload = json!({"item": media});
+        let stored = stored_session(vec![tool_event, media_event]);
+        let items = super::super::thread_items_from_events(&stored);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["id"], "item_media-task-result:turn-1:task-image-1");
+        assert_eq!(
+            items[0]["contentParts"][0]["reference"]["uri"],
+            "sidecar://media/image-1"
+        );
+    }
+
+    #[test]
     fn non_terminal_or_pending_image_tool_does_not_project_final_media() {
         let events = [
             canonical_tool_event(
@@ -558,6 +595,12 @@ mod tests {
             canonical_tool_event(
                 ItemStatus::Completed,
                 "pending",
+                image_record_with_sidecar(),
+            ),
+            canonical_tool_event(ItemStatus::Completed, "failed", image_record_with_sidecar()),
+            canonical_tool_event(
+                ItemStatus::Completed,
+                "cancelled",
                 image_record_with_sidecar(),
             ),
         ];

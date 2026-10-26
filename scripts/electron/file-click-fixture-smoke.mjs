@@ -1,3 +1,4 @@
+import { writeFixtureBackend } from "../lib/chat-fixture/backend-script.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -15,7 +16,7 @@ import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs"
 import {
   createTempRuntimeEnv,
   startTextProviderFixtureServer,
-} from "../agent-runtime/claw-chat-current-fixture-backend-file.mjs";
+} from "../lib/chat-fixture/backend-file.mjs";
 import {
   initializeAppServer,
   ensureDefaultWorkspace,
@@ -24,19 +25,19 @@ import {
   reloadRendererDocument,
   invokeAppServerFromPage,
   collectTraceRequestMethods,
-} from "../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { sendPromptFromGui } from "../agent-runtime/claw-chat-current-fixture-gui-actions.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
 import {
   GREETING_PROMPT,
   GREETING_DONE_TEXT,
   GREETING_SUMMARY_TEXT,
-} from "../agent-runtime/claw-chat-current-fixture-constants.mjs";
-import { waitForSessionReadCompleted } from "../agent-runtime/claw-chat-current-fixture-read-model-waits.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+} from "../lib/chat-fixture/constants.mjs";
+import { waitForSessionReadCompleted } from "../lib/chat-fixture/read-model-waits.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import {
   readJsonl,
   sanitizeText,
-} from "../agent-runtime/claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 import {
   electronAppServerBinaryDestination,
   resolveElectronAppServerRuntimeEnv,
@@ -84,17 +85,12 @@ const clickedNames = [
   "stored-note.md",
   "reports/stored-note.md",
 ];
-const marker = 'if (input.kind === "turnStart") {';
-const backend = fs.readFileSync(runtimeEnv.backendPath, "utf8");
-assert.equal(backend.split(marker).length, 2);
-const toolEvents =
-  "for (const [index, name] of " +
-  JSON.stringify(clickedNames) +
-  ".entries()) { const facts = {sessionId: input.request?.session?.sessionId, threadId: currentThreadId(), turnId: currentTurnId(), itemId: 'file-click-' + index, ordinal: index + 2, callId: 'file-click-' + index, name: 'read_file', arguments: {file_path: name}}; emitEvents([{type: 'item.started', payload: buildCanonicalToolItem(facts)}, {type: 'item.completed', payload: buildCanonicalToolItem({...facts, status: 'completed', output: {text: index === 1 || index === 2 ? '' : 'STALE_CACHE_COPY'}})}]); }";
-fs.writeFileSync(
-  runtimeEnv.backendPath,
-  backend.replace(marker, marker + toolEvents),
-);
+writeFixtureBackend(runtimeEnv.backendPath, {
+  toolCalls: clickedNames.map((name, index) => ({
+    name: "read_file", arguments: { file_path: name },
+    output: { text: index === 1 || index === 2 ? "" : "STALE_CACHE_COPY" },
+  })),
+});
 const summary = {
   runId,
   ok: false,
@@ -152,7 +148,6 @@ try {
         runtimeEnv.backendPath,
         runtimeEnv.backendLedgerPath,
         runtimeEnv.cancelSignalPath,
-        runtimeEnv.typedErrorSignalPath,
       ]),
       APP_SERVER_BACKEND_TIMEOUT_MS: "10000",
       LIME_ALLOW_LIVE_PROVIDER_SMOKE: "0",

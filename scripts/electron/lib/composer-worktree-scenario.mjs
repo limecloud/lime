@@ -18,7 +18,7 @@ import {
   captureFirstSendResources,
   newEditText,
 } from "./composer-first-send-evidence.mjs";
-import { summarizeRichInputSubmission } from "../../agent-runtime/claw-chat-current-fixture-rich-input-evidence.mjs";
+import { summarizeRichInputSubmission } from "../../lib/chat-fixture/rich-input-evidence.mjs";
 import {
   assertWorktreeColdRead,
   assertWorktreeStaged,
@@ -279,8 +279,8 @@ export const worktreeSubmissionScenario = {
     "scripts/electron/lib/composer-worktree-evidence.test.mjs",
     "scripts/electron/lib/composer-worktree-git.mjs",
     "scripts/electron/lib/composer-first-send-evidence.mjs",
-    "scripts/agent-runtime/claw-chat-current-fixture-rich-input-evidence.mjs",
-    "scripts/agent-runtime/claw-chat-current-fixture-skill-identity.mjs",
+    "scripts/lib/chat-fixture/rich-input-evidence.mjs",
+    "scripts/lib/chat-fixture/skill-identity.mjs",
     "src/components/agent/chat/components/WorktreeEnvironmentDropdown.tsx",
     "src/components/agent/chat/components/Inputbar/components/ComposerUtilityBar.tsx",
     "src/hooks/useLocalEnvironmentSelection.ts",

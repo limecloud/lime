@@ -17,7 +17,7 @@ export async function snapshotTerminalGateBinaries({
   const sources = [
     ["cliBinaryPath", !env.LIME_CLI_BIN?.trim()],
     ["appServerBinaryPath", !env.APP_SERVER_BIN?.trim()],
-  ].filter(([, built]) => built);
+  ].filter(([key, built]) => built && paths[key] !== undefined);
   if (sources.length === 0) return paths;
   await mkdir(directory, { recursive: true });
   const sourceDirectories = new Set();

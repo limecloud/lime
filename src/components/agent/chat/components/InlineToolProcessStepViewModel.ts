@@ -119,7 +119,7 @@ export function summarizeToolSearchPreview(
     "toolCall.inline.toolSearchPreview.withTools",
     {
       countLabel: prefix,
-      tools: toolNames.join(" · "),
+      tools: toolNames.join(" "),
     },
   );
 }

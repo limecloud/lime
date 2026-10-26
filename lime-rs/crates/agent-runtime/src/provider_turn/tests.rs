@@ -1,4 +1,6 @@
 use super::*;
+#[path = "tests/interruption.rs"]
+mod interruption;
 use crate::reply_input::RuntimeReplyInput;
 use crate::session_loop::{RuntimeSessionClosureTask, RuntimeSessionInput, RuntimeSessionRegistry};
 use ::code_mode::{

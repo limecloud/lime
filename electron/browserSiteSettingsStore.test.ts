@@ -36,6 +36,44 @@ function fixture(initial: Record<string, string> = {}) {
 }
 
 describe("BrowserSiteSettingsStore", () => {
+  it("upgrades the existing profile and persists image defaults and site overrides", async () => {
+    const { images: _images, ...defaults } = DEFAULT_BROWSER_SITE_SETTINGS;
+    const f = fixture({
+      "/lime-data/browser/site-settings.json": JSON.stringify({
+        schemaVersion: 4,
+        revision: 9,
+        defaults: { ...defaults, microphone: "block" },
+        sites: [{ origin: "https://example.com", camera: "allow" }],
+      }),
+    });
+    const store = f.create();
+    await store.ready;
+    expect(store.decision("https://example.com", "images")).toBe("allow");
+    await store.update({
+      origin: null,
+      permission: "images",
+      setting: "block",
+    });
+    await store.update({
+      origin: "https://example.com",
+      permission: "images",
+      setting: "allow",
+    });
+    const reloaded = f.create();
+    await reloaded.ready;
+    expect(reloaded.decision("https://other.example", "images")).toBe("block");
+    expect(reloaded.decision("https://example.com", "images")).toBe("allow");
+    expect(reloaded.decision("https://example.com", "camera")).toBe("allow");
+    expect(reloaded.decision("https://example.com", "microphone")).toBe(
+      "block",
+    );
+    await reloaded.update({
+      origin: "https://example.com",
+      permission: "images",
+      setting: null,
+    });
+    expect(reloaded.decision("https://example.com", "images")).toBe("block");
+  });
   it("upgrades v3 in place, preserves existing rules and persists new decisions and inheritance", async () => {
     const f = fixture({
       "/lime-data/browser/site-settings.json": JSON.stringify({
@@ -90,12 +128,12 @@ describe("BrowserSiteSettingsStore", () => {
     expect(
       JSON.parse(f.files.get("/lime-data/browser/site-settings.json")!)
         .schemaVersion,
-    ).toBe(4);
+    ).toBe(5);
   });
   it("rejects unavailable protected-content writes without mutating the saved profile", async () => {
     const f = fixture({
       "/lime-data/browser/site-settings.json": JSON.stringify({
-        schemaVersion: 4,
+        schemaVersion: 5,
         revision: 7,
         defaults: {
           ...DEFAULT_BROWSER_SITE_SETTINGS,
@@ -159,6 +197,7 @@ describe("BrowserSiteSettingsStore", () => {
         sound: null,
         protectedContent: null,
         automaticDownloads: null,
+        images: null,
       },
       {
         origin: "https://inherited.example",
@@ -170,6 +209,7 @@ describe("BrowserSiteSettingsStore", () => {
         sound: null,
         protectedContent: null,
         automaticDownloads: null,
+        images: null,
       },
     ]);
     expect(
@@ -270,7 +310,7 @@ describe("BrowserSiteSettingsStore", () => {
     expect(
       JSON.parse(f.files.get("/lime-data/browser/site-settings.json")!)
         .schemaVersion,
-    ).toBe(4);
+    ).toBe(5);
   });
 
   it("fails closed when the persisted file is corrupt", async () => {

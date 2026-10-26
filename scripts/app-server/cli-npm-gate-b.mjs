@@ -28,6 +28,7 @@ const PLATFORM = resolvePlatform();
 
 async function main() {
   const tempDir = await mkdtemp(path.join(tmpdir(), "cli-npm-gate-b-"));
+  const startedAt = Date.now();
   try {
     const version = JSON.parse(
       await readFile(path.join(rootDir, "package.json"), "utf8"),
@@ -35,6 +36,13 @@ async function main() {
     const scenarios = (
       process.env.LIME_CLI_NPM_GATE_SCENARIOS || "cli,tui"
     ).split(",");
+    const wpsWorkbook = path.resolve(
+      process.env.LIME_WPS_FIXTURE_WORKBOOK ||
+        path.join(
+          rootDir,
+          ".lime/qc/computer-use-integrations-20261025/wps-live.xlsx",
+        ),
+    );
     if (
       !scenarios.every((scenario) => ["cli", "tui", "wps"].includes(scenario))
     )
@@ -125,7 +133,10 @@ async function main() {
     if (scenarios.includes("wps"))
       await run(
         process.execPath,
-        [path.join(rootDir, "scripts/app-server/computer-use-wps-fixture.mjs")],
+        [
+          path.join(rootDir, "scripts/app-server/computer-use-wps-fixture.mjs"),
+          wpsWorkbook,
+        ],
         {
           APP_SERVER_BIN: packagedAppServer,
           LIME_CLI_BIN: launcherPath,
@@ -135,14 +146,20 @@ async function main() {
       );
 
     if (scenarios.includes("wps")) {
-      const evidenceDir = path.join(
-        rootDir,
-        ".lime/qc/computer-use-integrations-20261025",
+      const evidenceDir = path.resolve(
+        process.env.LIME_WPS_EVIDENCE_DIR || path.dirname(wpsWorkbook),
       );
       const wps = JSON.parse(
         await readFile(path.join(evidenceDir, "wps-cli.json"), "utf8"),
       );
       if (wps.result !== "pass") throw new Error("packaged WPS receipt failed");
+      if (
+        Date.parse(wps.startedAt) < startedAt ||
+        !Number.isFinite(Date.parse(wps.startedAt)) ||
+        wps.adapter !== (process.env.LIME_WPS_ADAPTER || "office") ||
+        wps.target.type !== wps.adapter
+      )
+        throw new Error("packaged WPS receipt identity mismatch");
       const manifest = JSON.parse(
         await readFile(
           path.join(
@@ -152,6 +169,19 @@ async function main() {
           "utf8",
         ),
       );
+      const appServerSha256 = await digest(packagedAppServer);
+      if (
+        wps.manifest.resources.find((entry) => entry.id === "app-server")
+          ?.sha256 !== appServerSha256 ||
+        wps.packagedManifestSha256 !==
+          (await digest(
+            path.join(
+              path.dirname(packagedAppServer),
+              "desktop-resources.manifest.json",
+            ),
+          ))
+      )
+        throw new Error("packaged WPS runtime payload mismatch");
       await writeFile(
         path.join(evidenceDir, "wps-cli-package.json"),
         JSON.stringify(
@@ -160,6 +190,7 @@ async function main() {
             checkedAt: new Date().toISOString(),
             platform: process.platform,
             arch: process.arch,
+            adapter: wps.adapter,
             version,
             claimBoundary:
               "Local npm tarballs installed into isolated optional platform package; real Node launcher, sibling lime/App Server/helper and WPS; HTTP model fixture, no release signature or other-platform claim",
@@ -171,7 +202,7 @@ async function main() {
                 `lime${executableSuffix}`,
               ),
             ),
-            appServerSha256: await digest(packagedAppServer),
+            appServerSha256,
             manifest,
             wpsReceipt: "wps-cli.json",
             threadId: wps.turns[0].threadId,

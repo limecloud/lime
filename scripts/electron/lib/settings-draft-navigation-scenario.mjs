@@ -18,7 +18,7 @@ export const SETTINGS_DRAFT_FIXTURE_SOURCES = [
   "scripts/electron/lib/settings-mcp-lifecycle-fixture-evidence.mjs",
   "scripts/electron/lib/mcp-config-fixture-evidence.mjs",
   "scripts/electron/lib/persisted-atom-fixture-driver.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-teardown.mjs",
+  "scripts/lib/chat-fixture/teardown.mjs",
   "scripts/lib/electron-fixture-build.mjs",
   "src/components/settings-v2/integrations/plugins/index.tsx",
   "src/components/settings-v2/integrations/plugins/McpServerManager.tsx",

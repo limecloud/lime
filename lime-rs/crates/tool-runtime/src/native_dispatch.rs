@@ -425,14 +425,15 @@ mod tests {
         async fn create_image_media_task_artifact(
             &self,
             params: MediaTaskArtifactImageCreateParams,
+            _cancel_token: Option<tokio_util::sync::CancellationToken>,
         ) -> Result<MediaTaskArtifactResponse, String> {
             Ok(MediaTaskArtifactResponse {
                 success: true,
                 task_id: "task-image-1".to_string(),
                 task_type: "image_generate".to_string(),
                 task_family: "image".to_string(),
-                status: "pending".to_string(),
-                normalized_status: "pending".to_string(),
+                status: "succeeded".to_string(),
+                normalized_status: "succeeded".to_string(),
                 artifact_path: ".lime/tasks/image_generate/task-image-1.json".to_string(),
                 record: json!({
                     "task_type": "image_generate",

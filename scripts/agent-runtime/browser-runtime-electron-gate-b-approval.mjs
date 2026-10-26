@@ -1,5 +1,5 @@
 import { readInvokeDiagnostics } from "./browser-runtime-electron-gate-b-cancel.mjs";
-import { sanitizeJson, sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { sanitizeJson, sleep } from "../lib/chat-fixture/utils.mjs";
 
 export async function installBrowserApprovalPage(app, webContentsId) {
   return await app.evaluate(async ({ webContents }, targetId) => {

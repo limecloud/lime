@@ -5,7 +5,7 @@ import {
   assert,
   sleep,
   sanitizeText,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 async function waitFor(options, read, predicate, label) {
   const until = Date.now() + Math.min(options.timeoutMs, 20000);

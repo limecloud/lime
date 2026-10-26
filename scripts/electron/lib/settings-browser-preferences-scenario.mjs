@@ -8,7 +8,7 @@ import {
   readConfigFromPage,
   waitForPageCondition,
 } from "../mcp-config-fixture-smoke.mjs";
-import { reloadRendererDocument } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { reloadRendererDocument } from "../../lib/chat-fixture/rpc.mjs";
 import {
   captureInvokeTraceCollector,
   validateInvokeTraceCollectorCapture,

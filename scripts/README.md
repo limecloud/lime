@@ -354,12 +354,6 @@ Execution Policy子场景由`electron/lib/settings-execution-policy-navigation-s
 
 rich-input/Steer oracle 同时检查完整 typed input、UTF8 textElements、同 Thread/Turn/client identity 的唯一 canonical User Item。内联图片 lower 为 sidecar URI 后，按预期 PNG SHA256 校验并经同 Thread `media/read` 回读完整字节；预览 DOM 不能代替媒体入库证据。Steer 必须命中 current `turn/steer`，不能用 queue mutation 或同文字符串冒充同一输入。
 
-`smoke:claw-chat-current-fixture -- --scenario inputbar-rich-restore` 还验证 Composer IME 编辑边界：
-真实 Electron 内合成 compositionstart/isComposing/Process/keyCode229，跨渲染帧后确认无提交请求、草稿不变及
-同线程 canonical 空历史，再用真实发送按钮提交文字/图片/路径/Skill，经 backend ledger 和 read model 验证取消与完整恢复。
-`claw-chat-current-fixture-composer-ime` 的缺失/错线程/非法trace/意外提交负向 oracle 阻止空证据通过。
-该场景不证明操作系统候选窗口或 Codex 实时 GUI，附件迟到读取由两个 hook 的 deferred FileReader 回归单独覆盖。
-
 `npm run smoke:scheduled-tasks-electron-fixture -- --timeout-ms 180000` 从真实 Electron 一级导航创建已安排任务并立即运行，要求命中 `scheduledTask/list|create|read|run/list|run/start`、RuntimeCore provider、canonical Thread/Turn/read model 与运行历史。fixture 使用隔离 userData 和 localhost OpenAI-compatible provider，不调用正式模型；旧 `automationJob/*`、`automationSchedule/*`、`automationScheduler/*`、legacy Desktop 命令与生产 mock fallback 命中必须为零。
 
 `npm run smoke:settings-execution-policy-electron-fixture -- --run-id <run-id>` 验证 Execution Policy Settings 的持久化策略输入和 App Server 错误恢复：从 GUI 保存严格工作区限制与 Bash warning-bypass 输入，冷重启读回；再在隔离 userData 中把临时 `config.yaml` 短暂替换成同名目录，要求页面显示安全错误并保留草稿，dirty Reload 必须禁用。独立 probe 经同一 preload/IPC/App Server 边界核实 `config/batchWrite` 的 JSON-RPC IO 错误原因，仅记录 method、errorCode 与 ioCauseVerified，不冒充 GUI 响应捕获。恢复文件后用 Save 重试、恢复原策略并再次冷重启读回。成功 IPC 仅证明 transport；三次 GUI 保存确认、三次真实冷启动与原15秒内三次 Main 正常退出分别断言，forced cleanup 不计通过。freshness 前后检查，finally 清理后保存最终结果；所有意外 transport 错误拒绝。evidence 不保存配置值、规则、prompt、路径或错误正文。该 B-F claim 不证明 RuntimeCore 实际执行某条允许/拒绝工具，后者必须单列 B-R。
@@ -461,29 +455,17 @@ surface 的证据。聚合器只读取 evidence JSON 中显式声明的 `surface
 
 Agent Runtime smoke 与 Service Skill 入口 smoke 已迁到 `scripts/agent-runtime/`。对外继续使用 `package.json` 里的 `smoke:agent-runtime-*` 与 `smoke:agent-service-skill-entry` npm scripts，不直接依赖根目录脚本路径。
 
-`npm run smoke:agent-runtime-current-fixture` 是 Claw / Agent Runtime current 主路径的离线 fixture 回归聚合入口，覆盖历史 / 缓存恢复、流式终态收尾、Claw 终态 UI、Electron session history / 代码产物工作台 fixture guard、真实 GUI coding 输入到 Coding Workbench Electron fixture、Claw GUI current fixture guard，以及真实 Electron `cancel-then-continue` 场景。它默认禁止 live Provider 和 mock backend，只能作为进入 Electron / Playwright 真实闭环前的快速回归门槛，不能替代完整 GUI E2E。
-
 `npm run smoke:browser-runtime-gate-a` 是 Browser Workspace 的独立 Gate A 投影回归：在真实 Electron fixture 中建立 canonical Right Surface，但不启动 Agent turn；通过固定 chrome test id 验证首屏 tab、同 tab 导航、查找、缩放、新建/选择/关闭 tab、收起/恢复、桌面视口 resize、canonical session/thread 投影和无横向溢出。证据写入 `.lime/qc/gui-evidence/browser-runtime-gate-a/`，明确标记 `proofLevel=Gate A`，不能证明 Agent 与用户操作同一 WebContents；同一 WebContents 和 runtime/tool/approval 仍由 `smoke:browser-runtime-electron-gate-b` 取证。
 
 `npm run smoke:browser-runtime-locale-matrix` 顺序启动五个隔离的真实 Electron lifecycle Gate B（`zh-CN`、`zh-TW`、`en-US`、`ja-JP`、`ko-KR`），通过真实侧边栏语言菜单切换并断言 `document.documentElement.lang`，为 renderer loading/ready、Browser loaded、Agent control、user takeover、released、destroyed 采集 35 张截图，同时聚合 approval/artifact/cancel/disconnect/download/permission/user-control/window-close 行为矩阵。`--aggregate-only` 只重建汇总，不重新启动 Electron。证据写入 `.lime/qc/gui-evidence/browser-runtime-electron-gate-b/browser-runtime-locale-matrix-summary.json`；它不把普通 Chrome、mock 或单测当作 Gate B，也不扩大 open/reveal/clipboard/upload 的 Host 单测边界。
 
-`npm run smoke:hook-lifecycle-gate-b` 复用 Claw 的真实 Electron `turn-plan-update` provider/tool-call 场景，并在隔离 `LIME_HOME` 中注册受信 `PreToolUse(update_plan)` command Hook。门禁要求 `hooks/list` 返回 trusted exact metadata、command 进程实际记录工具上下文、同一 run id 的 `hook/started -> hook/completed` 被 Electron recent-notification bridge 观察、public `thread/read(includeTurns:true)` 恢复 completed canonical Hook Item，且 GUI 出现 `timeline-hook`。该入口使用 localhost OpenAI-compatible fixture，不调用 live Provider、不使用 App Server mock backend，也不把通用 GUI smoke 冒充 Hook 闭环。
-
 `npm run smoke:agent-runtime-soak-current-fixture` 在同一真实 Electron/App Server 生命周期连续运行 10 轮 AgentControl current fixture，并执行两次 cold restart。它逐轮读取 public JSON-RPC 的 Thread/Turn/Item、PID/RSS 和 terminal 状态，重启后比较所有 canonical identity，最后验证 6 条工具 row、4 条 SubAgent activity、零 invoke/console error 和全部进程退出。该入口使用 localhost controlled provider，只关闭 fixture 的 idle connection；active provider request 必须由 Lime 正常释放，因此不会用强制断连掩盖 SSE 生命周期缺陷。它证明本地 SOAK 实现合同，不替代 live Provider、冻结 RC 或真实平台长稳。
 
-`npm run smoke:agent-session-recovery-cdp-gate` 是未完成 Agent 会话恢复的真实 Electron CDP Gate B 骨架入口：启动 Electron Desktop Host，通过 `chromium.connectOverCDP` attach 到真实 renderer，验证 `window.__LIME_ELECTRON__`、preload invoke、`app_server_handle_json_lines`、`agentSession/start/read/list` 与侧栏打开同一 session。它使用 `APP_SERVER_BACKEND_MODE=unavailable`，不触发 `agentSession/turn/start`，不调用正式模型后端，也不证明 live Provider 或运行中 turn 输出。
-
-`npm run smoke:expert-skills-live-gate` 是专家 Skills Runtime 的证据门禁：默认只读取 `.lime/qc` 中的确定性 Electron fixture summary，确认专家 declared / selected / invoked、`skill_search -> SKILL.md body read -> Skill gate -> Skill invocation`、Harness GUI Evidence Pack 导出与专家面板复盘证据完整；缺少显式 live Provider summary 时返回 `pending_live_provider`，不调用真实模型，也不把 deterministic fixture 误当完整 live 验收。
-
-`npm run smoke:expert-skills-live-runner` 是专家 Skills Runtime 的 live Provider 验收入口骨架：默认 fail-fast，必须显式传 `--allow-live-provider` 或设置 live Provider smoke 环境变量。它可用 `--live-summary <path>` 归一化已有 live evidence，也可在额外传 `--execute-live-runtime` 时通过 App Server current JSON-RPC 提交真实 Provider turn，并输出 `.lime/qc/expert-skills-live-runner-summary.json` 供 `smoke:expert-skills-live-gate -- --live-summary <path>` 审计。
+`npm run smoke:agent-session-recovery-cdp-gate` 是未完成 Agent 会话恢复的真实 Electron CDP Gate B 骨架入口：启动 Electron Desktop Host，通过 `chromium.connectOverCDP` attach 到真实 renderer，验证 `window.__LIME_ELECTRON__`、preload invoke、`app_server_handle_json_lines`、`thread/start/read/list` 与侧栏打开同一 session。它使用 `APP_SERVER_BACKEND_MODE=unavailable`，不触发 `turn/start`，不调用正式模型后端，也不证明 live Provider 或运行中 turn 输出。
 
 `npm run smoke:agent-session-history-electron-fixture` 是真实 Electron 历史恢复 fixture：通过 preload `app_server_handle_json_lines` 验证 App Server current `agentSession/start/read/update/list` 形状、最近对话可见和 hydrate detail 数组；它使用 `APP_SERVER_BACKEND_MODE=unavailable`，不触发 turn，也不调用模型后端。
 
 `npm run smoke:code-artifact-workbench-electron-fixture` 是真实 Electron 代码产物工作台 fixture：使用本地 external backend fixture 生成 `artifact.snapshot`、标准 coding facts 与 current `turn.completed`，再从 GUI 历史会话打开工作台，验证代码产物入口、变更 / 输出 / 日志面板和工作台可见性；传入 `--scenario gui-coding-input` 时会先通过真实 GUI 输入框发送 coding 请求，再验证同一套 Workbench 证据。它不调用正式模型，不走 App Server mock backend。
-
-`npm run smoke:claw-chat-current-fixture` 是更重的真实 Electron GUI fixture：通过真实输入框发送“整理今天的国际新闻”，验证用户输入可见、assistant 完成态输出可见、输入框不消失、App Server `agentSession/turn/start` 走 current JSON-RPC、WebSearch 不按关键词强制 required，并使用本地 external backend fixture 代替正式模型后端。修 Agent Runtime / Claw 输入、流式卡住、历史 hydrate 或新闻请求链路时，先跑聚合 guard，再按需要显式跑该入口；修无法停止或停止后无法继续输出时，还必须跑 `--scenario cancel-then-continue`，证明同一 current session 停止后能再次从 GUI 输入“继续输出”并完成第二轮。
-
-`npm run smoke:unknown-item-recovery-electron-fixture` 复用同一真实 Electron fixture 注入一个受控 future Item type，验证 `item.started -> item.completed -> turn.completed` 经 preload/IPC、App Server runtime/read model 与 direct TurnTimeline fail-visible；GUI 和 cold read 只保留 upstream type 与脱敏字段名，不允许原始字段值、secret、raw payload 或生产 mock fallback。
 
 `npm run smoke:claw-image-live` 是 `@配图` 真实 Provider live 验收入口：默认 fail-closed，必须显式传 `--allow-live-provider` 或设置 `LIME_ALLOW_LIVE_PROVIDER_SMOKE=1 / LIME_REAL_API_TEST=1`。它启动真实 Electron Desktop Host 与 `APP_SERVER_BACKEND_MODE=runtime`，通过 GUI 输入框发送 `@配图`，验证 Agent 普通对话流里的思考 / 引导文字、`Image Generation` 图片任务卡、真实图片预览、Token 显示、右侧 viewer 不自动展开，以及普通 UI 不暴露 task path、workflow 字段、provider 内部字段或模板 task id。传 `--setup-agnes-from-env` 时只从 `AGNES_API_KEY`（或 `--api-key-env` 指定变量）读取 key，summary 仅记录 `apiKeyConfigured: true`，不记录 key 值。该入口还会经 `mediaTaskArtifact/list|get`、`workflow/read` 与 task audit JSONL 验证后端事实源，确保图片任务只落可审计 JSONL / workflow summary，不靠 mock worker、renderer mock fallback 或右侧 viewer 展示内部 JSON。
 
@@ -520,3 +502,6 @@ npm run heatmap:project
 - `internal/aiprompts/project-heatmap.md`
 
 Profile 原生夹具当前使用 displayName/bio 编辑（本地 nickname/bio 配置映射），经公开配置边界建立非 null 双字段基线，再做整份配置精确恢复。导航场景检查732px宽度、无嵌套滚动、64/140 DOM限制及四主题；冷启动证据护栏要求 displayNameFailureRetained/bioFailureRetained。旧标签选择器/Tag正向场景已删除。当前实现的本轮原生验证状态见 `internal/exec-plans/codex-gui-alignment-current-plan.md`，历史冻结结果不替代新源码验证。
+
+
+`npm run smoke:agent-runtime-current` 聚合 Code Mode、会话恢复和运行中 Turn 恢复三个现役 Electron 入口。共享测试能力位于 `scripts/lib/chat-fixture/`，受控 external backend 仅提供完成、持续运行和无输出取消；不替代真实 runtime/provider 验收。旧聊天场景 runner、专用伪事件和旧 evidence 聚合已删除。

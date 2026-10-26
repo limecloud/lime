@@ -85,7 +85,7 @@ describe("AgentThreadTimeline", () => {
       container.querySelector('[data-testid="agent-thread-focus"]'),
     ).toBeNull();
     expect(container.textContent).toContain("已完成页面检查");
-    expect(container.textContent).toContain("打开了 https://mp.weixin.qq.com");
+    expect(container.textContent).toContain("打开 https://mp.weixin.qq.com");
     expect(container.textContent).toContain("browser_click");
     expect(container.textContent).not.toContain("请确认是否发布文章");
   });
@@ -677,7 +677,7 @@ describe("AgentThreadTimeline", () => {
       { deferCompletedSingleDetails: true },
     );
 
-    expect(container.textContent).toContain("已确认可用工具 1 个 · 搜索网页");
+    expect(container.textContent).toContain("已确认可用工具 1 个 搜索网页");
     expect(container.textContent).not.toContain('"caller"');
     expect(container.textContent).not.toContain('"tools"');
     expect(container.textContent).not.toContain('"call_name"');

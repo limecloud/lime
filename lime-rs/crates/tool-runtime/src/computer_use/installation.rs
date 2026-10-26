@@ -1,36 +1,9 @@
-use super::{denied, ComputerUseResult};
-use std::path::PathBuf;
+use super::{denied, ComputerUsePaths, ComputerUseResult};
 
-pub(super) const NATIVE_HOST: &str = "com.limecloud.lime.computer_use";
+pub const NATIVE_HOST: &str = "com.limecloud.lime.computer_use";
 
-pub(super) fn chrome_manifest() -> ComputerUseResult<PathBuf> {
-    #[cfg(target_os = "macos")]
-    {
-        return Ok(dirs::data_dir()
-            .ok_or_else(|| denied("User application data directory unavailable"))?
-            .join("Google/Chrome/NativeMessagingHosts")
-            .join(format!("{NATIVE_HOST}.json")));
-    }
-    #[cfg(target_os = "windows")]
-    {
-        return Ok(lime_core::app_paths::preferred_data_dir()
-            .map_err(denied)?
-            .join("computer-use")
-            .join(format!("{NATIVE_HOST}.json")));
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        Ok(dirs::config_dir()
-            .ok_or_else(|| denied("User config directory unavailable"))?
-            .join("google-chrome/NativeMessagingHosts")
-            .join(format!("{NATIVE_HOST}.json")))
-    }
-}
-
-pub(super) fn install_chrome_host() -> ComputerUseResult<()> {
-    let extension = lime_core::app_paths::preferred_data_dir()
-        .map_err(denied)?
-        .join("computer-use/chrome");
+pub(super) fn install_chrome_host(paths: &ComputerUsePaths) -> ComputerUseResult<()> {
+    let extension = paths.root.join("chrome");
     super::mailbox::private_directory(&extension)?;
     macro_rules! asset {
         ($path:literal) => {
@@ -62,7 +35,7 @@ pub(super) fn install_chrome_host() -> ComputerUseResult<()> {
         super::mailbox::private_directory(destination.parent().unwrap())?;
         super::mailbox::write_bytes(&destination, bytes)?;
     }
-    let path = chrome_manifest()?;
+    let path = &paths.chrome_manifest;
     std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| denied(e.to_string()))?;
     let executable = std::env::current_exe().map_err(|e| denied(e.to_string()))?;
     super::mailbox::write(
@@ -110,12 +83,4 @@ pub(super) fn reveal(path: &std::path::Path) -> ComputerUseResult<()> {
             });
         })
         .map_err(|e| denied(e.to_string()))
-}
-
-pub(super) fn reveal_chrome() -> ComputerUseResult<()> {
-    reveal(
-        &lime_core::app_paths::preferred_data_dir()
-            .map_err(denied)?
-            .join("computer-use/chrome"),
-    )
 }

@@ -98,7 +98,7 @@ export function buildToolSearchPostSummary(output: string): string | null {
     "toolCall.processSummary.toolSearch.confirmedWithTools",
     {
       countLabel: prefix,
-      tools: toolNames.join(" · "),
+      tools: toolNames.join(" "),
     },
   );
 }

@@ -3,8 +3,8 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { assert, sleep } from "./claw-chat-current-fixture-utils.mjs";
-import { mergeInvokeTraceEvidence } from "./claw-chat-current-fixture-invoke-trace.mjs";
+import { assert, sleep } from "../lib/chat-fixture/utils.mjs";
+import { mergeInvokeTraceEvidence } from "../lib/chat-fixture/invoke-trace.mjs";
 import {
   downloadHistoryMatchesDisk,
   downloadHistoryPublicEvidence,

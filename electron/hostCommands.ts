@@ -179,20 +179,6 @@ export class ElectronHostCommands {
         return await this.#voiceModelHost.download(args);
       case "voice_models_delete":
         return await this.#voiceModelHost.delete(args);
-      case "get_browser_connector_settings_cmd":
-        return this.#systemUtilityHost.getBrowserConnectorSettings();
-      case "get_browser_connector_install_status_cmd":
-        return this.#systemUtilityHost.getBrowserConnectorInstallStatus();
-      case "get_chrome_profile_sessions":
-        return this.#systemUtilityHost.getChromeProfileSessions();
-      case "get_chrome_bridge_endpoint_info":
-        return this.#systemUtilityHost.getChromeBridgeEndpointInfo();
-      case "get_chrome_bridge_status":
-        return this.#systemUtilityHost.getChromeBridgeStatus();
-      case "get_browser_backend_policy":
-        return this.#systemUtilityHost.getBrowserBackendPolicy();
-      case "get_browser_backends_status":
-        return this.#systemUtilityHost.getBrowserBackendsStatus();
       case "report_frontend_debug_log":
         this.#reportFrontendDebugLog(args);
         return null;

@@ -4,6 +4,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 struct ActionAdapter {
     inner: TestAdapter,
     calls: AtomicUsize,
+    interrupted: std::sync::atomic::AtomicBool,
+    finished: Mutex<Vec<ComputerUseOwner>>,
     probe_gate: Mutex<Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>>,
 }
 
@@ -11,6 +13,9 @@ struct ActionAdapter {
 impl ComputerUseAdapter for ActionAdapter {
     fn kind(&self) -> ComputerUseAdapterKind {
         ComputerUseAdapterKind::Native
+    }
+    fn finish_turn(&self, owner: &ComputerUseOwner) {
+        self.finished.lock().unwrap().push(owner.clone());
     }
     async fn snapshot(&self) -> ComputerUseResult<ComputerUseSnapshot> {
         let gate = self.probe_gate.lock().unwrap().take();
@@ -33,6 +38,9 @@ impl ComputerUseAdapter for ActionAdapter {
         _: tokio_util::sync::CancellationToken,
     ) -> ComputerUseResult<serde_json::Value> {
         self.calls.fetch_add(1, Ordering::SeqCst);
+        if self.interrupted.load(Ordering::SeqCst) {
+            return Err(ComputerUseError::interrupted("User took control".into()));
+        }
         Ok(serde_json::json!({"status":"submitted"}))
     }
 }
@@ -42,6 +50,8 @@ fn fixture() -> (tempfile::TempDir, ComputerUseService, Arc<ActionAdapter>) {
     let adapter = Arc::new(ActionAdapter {
         inner: TestAdapter::new(true),
         calls: AtomicUsize::new(0),
+        interrupted: Default::default(),
+        finished: Default::default(),
         probe_gate: Mutex::new(None),
     });
     (directory, service.with_adapter(adapter.clone()), adapter)
@@ -88,6 +98,35 @@ fn observe() -> ComputerUseAction {
         max_depth: 2,
         max_nodes: 32,
     }
+}
+
+#[tokio::test]
+async fn takeover_revokes_turn_admission_and_releases_control_for_explicit_new_turn() {
+    let (_directory, service, adapter) = fixture();
+    grant(&service).await;
+    service.bind_turn(owner()).unwrap();
+    adapter.interrupted.store(true, Ordering::SeqCst);
+    assert!(service
+        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+        .await
+        .unwrap_err()
+        .is_interrupted());
+    assert!(service
+        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+        .await
+        .is_err());
+    assert_eq!(adapter.calls.load(Ordering::SeqCst), 1);
+    let mut next = owner();
+    next.turn_id = "explicit-resume".into();
+    service.bind_turn(next).unwrap();
+    adapter.interrupted.store(false, Ordering::SeqCst);
+    assert!(service
+        .execute_for_turn("thread-1", "explicit-resume", target(), observe(), || Ok(
+            allow()
+        ))
+        .await
+        .is_ok());
+    assert_eq!(adapter.calls.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test]
@@ -170,4 +209,57 @@ async fn terminal_turn_and_disconnect_remove_automatic_action_authority() {
         .await
         .is_err());
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 0);
+    let mut next = owner();
+    next.turn_id = "turn-2".into();
+    assert_eq!(*adapter.finished.lock().unwrap(), vec![owner(), next]);
+}
+
+#[tokio::test]
+async fn presentation_outlives_one_action_but_finishes_on_revocation_or_policy_change() {
+    for policy_change in [false, true] {
+        let (directory, service, adapter) = fixture();
+        let grant = grant(&service).await;
+        service.bind_turn(owner()).unwrap();
+        service
+            .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+            .await
+            .unwrap();
+        let available =
+            super::super::broker::ControlBroker::at(directory.path().join("computer-use"))
+                .acquire()
+                .expect("presentation must not hold the OS input lease");
+        drop(available);
+        assert!(
+            adapter.finished.lock().unwrap().is_empty(),
+            "one tool result is not the task terminal"
+        );
+        if policy_change {
+            service.policy_changed();
+        } else {
+            service.revoke("local-1", &grant.id).unwrap();
+        }
+        assert_eq!(
+            *adapter.finished.lock().unwrap(),
+            vec![owner()],
+            "idle presentation must close immediately"
+        );
+    }
+}
+
+#[tokio::test]
+async fn disconnect_closes_all_presentations_when_it_invalidates_global_authority() {
+    let (_directory, service, adapter) = fixture();
+    grant(&service).await;
+    let first = owner();
+    let second = ComputerUseOwner {
+        connection: "connection-b".into(),
+        thread_id: "thread-b".into(),
+        turn_id: "turn-b".into(),
+    };
+    service.bind_turn(first.clone()).unwrap();
+    service.bind_turn(second.clone()).unwrap();
+    service.disconnect(&first.connection);
+    let finished = adapter.finished.lock().unwrap();
+    assert_eq!(finished.len(), 2);
+    assert!(finished.contains(&first) && finished.contains(&second));
 }

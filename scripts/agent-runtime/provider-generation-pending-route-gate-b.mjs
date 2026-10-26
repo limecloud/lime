@@ -19,7 +19,7 @@ import {
   ensureDefaultWorkspace,
   initializeAppServer,
   invokeAppServerFromPage,
-} from "./claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 
 const LOG_PREFIX = "[smoke:provider-generation-pending-route-gate-b]";
 const DEFAULT_OUTPUT = path.resolve(

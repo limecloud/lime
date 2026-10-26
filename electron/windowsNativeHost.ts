@@ -7,6 +7,7 @@ import {
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import path from "node:path";
 import { app } from "./electronRuntime";
+import { resolveDesktopResourcesRoot } from "./desktopResources";
 
 const RESOURCE_MANIFEST = "desktop-resources.manifest.json";
 const RESOURCE_SCHEMA_VERSION = 1;
@@ -197,10 +198,13 @@ export class NativeHostError extends Error {
 
 export function resolveWindowsNativeHostPath(): string | null {
   if (process.platform !== "win32") return null;
-  const resourcesRoot =
-    app?.isPackaged === true && process.resourcesPath?.trim()
-      ? process.resourcesPath
-      : path.resolve(process.cwd(), "dist-electron");
+  const resourcesRoot = resolveDesktopResourcesRoot({
+    isPackaged: app?.isPackaged === true,
+    defaultApp: process.defaultApp,
+    resourcesPath: process.resourcesPath,
+    appPath: app?.getAppPath?.() ?? process.cwd(),
+  });
+  if (!resourcesRoot) return null;
   const manifestPath = path.join(resourcesRoot, RESOURCE_MANIFEST);
   if (!existsSync(manifestPath)) return null;
   let manifest: {

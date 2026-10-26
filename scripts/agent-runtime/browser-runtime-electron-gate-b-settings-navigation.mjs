@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { clickNativeMenuItem } from "./browser-runtime-gate-a.mjs";
-import { assert, sanitizeText } from "./claw-chat-current-fixture-utils.mjs";
+import { assert, sanitizeText } from "../lib/chat-fixture/utils.mjs";
 import { runBrowserSiteSettingsControls } from "./browser-runtime-electron-site-settings.mjs";
 
 /** Real settings routes and native browser identity; no synthetic route or turn. */

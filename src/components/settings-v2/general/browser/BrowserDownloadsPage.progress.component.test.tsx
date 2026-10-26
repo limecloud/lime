@@ -50,6 +50,7 @@ describe("download progress during history pagination", () => {
       .mockReturnValueOnce(pending.promise);
     await render();
     await flush();
+    expect(row("live").textContent).not.toContain("·");
     await click(button("Load more"));
     await act(async () => {
       receive(changed(2, 20));

@@ -8,9 +8,9 @@
 
 唯一传输链：MV3 → Chrome Native Messaging → App Server 可执行文件的纯适配器模式 → 私有本机消息目录 → tool-runtime 的 ComputerUseService。Native Messaging 模式不启动第二 runtime；业务授权、策略、回合租约、互斥、取消和历史仍由现役 App Server 管理。
 
-运行真实 Google Chrome 回归：`node scripts/chrome-bridge-e2e.mjs`。测试使用隔离 profile、真实 Native Messaging 和 runtime，并通过本地模型协议 fixture 检查 canonical 工具结果与页面回读；不代表真实模型或 Desktop/CLI Host 的完整 Gate B。
+运行真实 Google Chrome adapter 回归：`node scripts/chrome-bridge-e2e.mjs`。测试使用隔离 profile、真实 Native Messaging 和 runtime，并通过本地模型协议 fixture 检查 canonical 工具结果与页面回读。指定 `LIME_COMPUTER_USE_HOST=desktop|cli|tui` 可分别从真实 Desktop Composer、CLI exec 或 TUI/PTY 发起同一分组用例；默认 adapter 回归不替代这三个产品入口，所有 fixture 均不代表 live model 验收。
 
-公开上游没有对应插件源码，本目录属于根据已记录 REA 合同实施的 Lime 适配，不标记为源码复制。
+公开上游没有对应插件原始源码。`tab-groups.js` 与 `Bf` 分类函数直接提取自已安装 ChatGPT 扩展 1.26.1020.11845 的发货 bundle，其余接线为 Lime 适配；不得将整个目录标记为公开 Codex 源码复制。
 
 扩展弹窗支持输入任务名称（含 emoji）和起始网址，创建 Chrome 原生标签页分组。
 任务页打开的子页自动加入同组；接管用户已有标签页时保留原分组。组标题、颜色和
@@ -26,4 +26,4 @@
 其余生命周期接线是 Lime 适配；分组管理仅改默认产品名和模块导出。
 方法名沿用发货属性名，压缩符号不是上游原始源码名。来源、摘要、必要适配、测试和
 商店状态见[执行记录](../../internal/exec-plans/native-computer-use-chrome-groups-20261025.md)。
-旧 WebSocket 后端路由残余的清理进度单列于总交付文档。
+旧 WebSocket 后端路由及诊断 IPC 已删除，回流守卫接入 contracts。macOS Desktop、CLI、TUI 分组专项各两轮 **10/10**，源码、安装器导出与候选 ZIP 的 **16/16** 运行资源一致；详见[真实 Host 验收](../../internal/exec-plans/native-computer-use-chrome-hosts-20261026.md)。Windows 实机、live model、签名发行及商店发布仍未完成，不包含在该专项通过范围内。

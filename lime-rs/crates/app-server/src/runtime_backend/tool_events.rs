@@ -10,7 +10,6 @@ use lime_agent::AgentEvent as RuntimeAgentEvent;
 use model_provider::safety::SAFETY_BUFFERING_RUNTIME_EVENT_KIND;
 use serde_json::{json, Value};
 
-
 pub(super) fn runtime_events_from_agent_event(
     event: &RuntimeAgentEvent,
 ) -> Result<Vec<RuntimeEvent>, RuntimeCoreError> {
@@ -50,10 +49,7 @@ pub(super) fn runtime_events_from_agent_event(
     if let Some(payload_object) = payload.as_object_mut() {
         payload_object.insert("backend".to_string(), Value::String("runtime".to_string()));
         payload_object.insert("runtimeEvent".to_string(), runtime_event);
-        tool_process_runtime_metadata::enrich_runtime_tool_process_payload(
-            event,
-            payload_object,
-        );
+        tool_process_runtime_metadata::enrich_runtime_tool_process_payload(event, payload_object);
         enrich_reasoning_payload(event, payload_object);
     }
     let mut events = vec![RuntimeEvent::new(
@@ -62,6 +58,21 @@ pub(super) fn runtime_events_from_agent_event(
     )];
     if let Some(plan_event) = update_plan_event_from_completed_tool(event) {
         events.push(plan_event);
+    }
+    if let RuntimeAgentEvent::ItemCompleted { item } = event {
+        if let Some(media) = crate::runtime::completed_tool_media_item(item) {
+            let mut started = media.clone();
+            started.status = agent_protocol::ItemStatus::InProgress;
+            started.completed_at_ms = None;
+            events.push(RuntimeEvent::new(
+                "item.started",
+                json!({ "item": started }),
+            ));
+            events.push(RuntimeEvent::new(
+                "item.completed",
+                json!({ "item": media }),
+            ));
+        }
     }
     Ok(events)
 }
@@ -707,7 +718,6 @@ mod tests {
             assert_eq!(events[0].payload["runtimeToolName"], "mcp__docs__search");
         }
     }
-
 
     #[test]
     fn canonical_tool_completion_preserves_output_and_metadata() {

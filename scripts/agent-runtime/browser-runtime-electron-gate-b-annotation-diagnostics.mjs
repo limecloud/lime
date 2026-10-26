@@ -1,4 +1,4 @@
-import { sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { sleep } from "../lib/chat-fixture/utils.mjs";
 
 /** Observe real IPC without replacing its result or granting a test capability. */
 export async function observeBrowserAnnotationInputs(

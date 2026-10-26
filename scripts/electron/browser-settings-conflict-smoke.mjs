@@ -8,11 +8,11 @@ import { parse } from "yaml";
 import { ensureElectronFixtureBuild } from "../lib/electron-fixture-build.mjs";
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
-import { createTempRuntimeEnv } from "../agent-runtime/claw-chat-current-fixture-backend-file.mjs";
+import { createTempRuntimeEnv } from "../lib/chat-fixture/backend-file.mjs";
 import {
   initializeAppServer,
   waitForRendererReady,
-} from "../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 import {
   readConfigFromPage,
   writeConfigEditsFromPage,

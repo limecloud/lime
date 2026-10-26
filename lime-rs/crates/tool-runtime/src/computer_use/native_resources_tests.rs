@@ -61,6 +61,24 @@ fn manifest_identity_server_ownership_and_digests_are_required() {
 }
 
 #[test]
+fn verification_reads_the_tail_and_rejects_same_length_tampering() {
+    let mut helper = vec![b'x'; 192 * 1024 + 1];
+    let (_temp, _, resource) = fixture(&helper);
+    resource.verify().unwrap();
+    *helper.last_mut().unwrap() = b'y';
+    fs::write(&resource.path, helper).unwrap();
+    assert!(resource.verify().is_err());
+}
+
+#[test]
+fn modified_app_server_is_rejected_even_with_an_unchanged_helper() {
+    let (temp, executable, resource) = fixture(b"helper");
+    fs::write(&executable, b"changed app-server").unwrap();
+    resource.verify().unwrap();
+    assert!(NativeResource::from_root(temp.path(), &executable).is_err());
+}
+
+#[test]
 fn traversal_duplicate_resources_and_oversized_manifest_are_rejected() {
     let (temp, executable, _) = fixture(b"helper");
     let path = temp.path().join(MANIFEST);

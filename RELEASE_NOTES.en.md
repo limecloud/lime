@@ -1,35 +1,37 @@
-## Lime v1.171.0
+## Lime v1.172.0
 
 Simplified Chinese release notes are the primary version.
 
 ### Features
 
-- Add Computer Use settings, adapter installation and grant management; extend Chrome and Excel/Office integration through the shared App Server and package CLI resources.
-- Add the macOS Computer Use cursor and Windows cursor assets, plus Chrome extension sessions, tab groups, and interface resources in five languages.
+- Add desktop permission setup with status checks, system settings shortcuts, and rechecks; reopen setup from settings, with all five interface languages covered.
+- Support policy-controlled persistent Computer Use approvals for native apps and WPS, with target validation across sessions and turns.
 
 ### Fixes
 
-- Persist and restore the selected browser tab and page URL for conversations; improve navigation and site permission handling.
-- Fix Chinese Markdown link detection and refine MCP tool activity and message timeline rendering.
-- Improve application shutdown cleanup, tool output conversion, model catalog metadata, and baseline chat protocol capabilities.
+- Fix lost browser navigation state, repeated mounts overwriting the current page, and native image display.
+- Keep image generation tools open until the actual task result is available, propagate cancellation and timeouts, and share media projection between live messages and history recovery.
+- Improve MCP tool display and message grouping, preserving server identity and separate tool entries while reducing repeated protocol content.
+- Improve native input, cursor presentation, and user intervention handling on macOS and Windows.
 
 ### Improvements and Refactoring
 
-- Keep light, dark, and system appearance modes; remove custom themes, skins, random switching, and home decorations.
-- Remove legacy personal style configuration, profile pages, and duplicate Skills entry points; synchronize protocols, generated clients, settings search, and five-language copy.
-- Refine the conversation sidebar, composer, and local conversation page while preserving Lime branding, multiple models, expert marketplace, and messaging channels.
+- Consolidate native, Chrome, and Office Computer Use execution boundaries; remove the retired Chrome Bridge service and duplicate command entries.
+- Package Electron JavaScript bundles and explicit native resources, validating the runtime dependency closure before packaging.
 
 ### Tests and Quality
 
-- Update targeted regression coverage and fixtures for browser restoration, tool output, Computer Use, Chrome/Office, and interface behavior.
-- Prioritize commit, tag, and push as requested. See the release execution record for checks and outstanding GUI, Rust, and packaged platform validation; these notes do not claim complete platform acceptance.
+- Add regression coverage for browser navigation recovery, desktop permissions, media projection, persistent approvals, and native hosts.
+- Remove obsolete chat fixtures, synthetic scenario backends, and related logic; share lean infrastructure across current recovery, draft, and browser tests.
+- Update Electron, CLI, Computer Use, and image generation fixtures and packaged resource guards.
 
 ### Documentation
 
-- Update architecture, command boundaries, source alignment rules, and related execution plans.
+- Update architecture documentation for desktop permissions, browser recovery, media projection, and package inputs.
+- Update Chrome extension documentation, privacy policy, and submission guidance.
 
 ### Other
 
-- Align app, CLI, and Rust workspace versions to 1.171.0.
+- Align app, CLI, and Rust workspace versions to 1.172.0.
 
-**Full changes**: `v1.170.0` -> `v1.171.0`
+**Full changes**: `v1.171.0` -> `v1.172.0`

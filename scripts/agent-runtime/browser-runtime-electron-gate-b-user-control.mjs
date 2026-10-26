@@ -4,7 +4,7 @@ import {
   waitForApprovalPrompt,
 } from "./browser-runtime-electron-gate-b-approval.mjs";
 import { readInvokeDiagnostics } from "./browser-runtime-electron-gate-b-cancel.mjs";
-import { sanitizeJson, sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { sanitizeJson, sleep } from "../lib/chat-fixture/utils.mjs";
 
 export async function clickBrowserPageAsUser(app, webContentsId) {
   return await app.evaluate(async ({ webContents }, targetId) => {

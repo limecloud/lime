@@ -3,8 +3,8 @@ import path from "node:path";
 import {
   updateConfigFromPage,
   invokeAppServerFromPage,
-} from "./claw-chat-current-fixture-rpc.mjs";
-import { assert, sanitizeJson } from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
+import { assert, sanitizeJson } from "../lib/chat-fixture/utils.mjs";
 import { normalizedString } from "./claw-image-live-smoke-common.mjs";
 
 const AGNES_PROVIDER_NAME = "Agnes";

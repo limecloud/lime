@@ -1,5 +1,5 @@
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import { createBrowserAnnotationControlResponses } from "./browser-runtime-electron-gate-b-annotation-control-provider.mjs";
 import {
   annotationTextOf,

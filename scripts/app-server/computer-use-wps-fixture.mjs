@@ -6,8 +6,12 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
+import { wpsFixtureAdapter } from "./computer-use-wps-adapter.mjs";
 import {
   assertWpsCell,
+  assertWpsSubmitted,
+  wpsCellReadbackReady,
+  wpsSelectCellOperations,
   wpsWriteCellOperations,
 } from "./computer-use-wps-workbook.mjs";
 import { prepareLocalAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
@@ -39,6 +43,7 @@ const cliSource = path.resolve(
   process.env.LIME_CLI_BIN || "lime-rs/target/debug/lime",
 );
 const terminalHost = ["cli", "tui"].includes(host);
+const adapter = wpsFixtureAdapter(process.env.LIME_WPS_ADAPTER || "office");
 const workbook = path.resolve(
   process.argv[2] ||
     ".lime/qc/computer-use-integrations-20261025/wps-live.xlsx",
@@ -48,15 +53,20 @@ assert.equal(
   "wps-live.xlsx",
   "use only the isolated fixture workbook",
 );
+const evidenceDir = path.resolve(
+  process.env.LIME_WPS_EVIDENCE_DIR || path.dirname(workbook),
+);
+await fs.mkdir(evidenceDir, { recursive: true });
 const evidence = path.join(
-  path.dirname(workbook),
+  evidenceDir,
   host === "app-server" ? "wps.json" : `wps-${host}.json`,
 );
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "lime-wps-live-"));
 const receipt = {
   startedAt: new Date().toISOString(),
-  claimBoundary: `Real ${host} host -> App Server runtime -> shared ComputerUseService -> manifested native helper -> real WPS macOS; canonical tools and HTTP model fixture; no live model, other-host, signed release or Windows Gate B claim`,
+  claimBoundary: `Real ${host} host -> App Server runtime -> shared ComputerUseService/${adapter.kind} adapter -> manifested native helper -> real WPS macOS; canonical tools and HTTP model fixture; no live model, other-host, signed release or Windows Gate B claim`,
   host,
+  adapter: adapter.kind,
   checks: [],
   turns: [],
 };
@@ -72,6 +82,24 @@ const request = (method, params = {}) =>
         const id = ++seq;
         const timer = setTimeout(() => {
           pending.delete(id);
+          // Preserve a real-process diagnosis before fixture teardown. A timeout
+          // alone does not establish whether the helper or runtime is blocked.
+          const samplePath = path.join(
+            evidenceDir,
+            `wps-${host}-request-timeout.sample.txt`,
+          );
+          const sample = spawnSync(
+            "/usr/bin/sample",
+            [String(child.pid), "1", "-file", samplePath],
+            { encoding: "utf8", timeout: 5000 },
+          );
+          receipt.requestTimeout = {
+            method,
+            pid: child.pid,
+            samplePath,
+            sampleExit: sample.status,
+            sampleError: sample.error?.message,
+          };
           reject(new Error(`${method} timed out: ${stderr}`));
         }, 70000);
         pending.set(id, {
@@ -187,11 +215,22 @@ try {
   run("/usr/bin/open", ["-a", "/Applications/wpsoffice.app", workbook]);
   await fs.writeFile(
     path.join(root, "config.yaml"),
-    "server:\n  api_key: fixture-only\nfeatures:\n  computer_use: false\n  chrome_use: false\n  office_use: true\n",
+    JSON.stringify({
+      server: { api_key: "fixture-only" },
+      features: adapter.features,
+    }),
   );
   if (host === "desktop") {
-    const { startWpsDesktop } = await import("./computer-use-wps-desktop.mjs");
-    desktop = await startWpsDesktop({ root, binaries, receipt });
+    const { startComputerUseDesktop } =
+      await import("./computer-use-desktop.mjs");
+    desktop = await startComputerUseDesktop({
+      root,
+      binaries,
+      receipt,
+      features: adapter.features,
+      finalText: "WPS_FIXTURE_TURN_COMPLETE",
+      artifactPrefix: "wps",
+    });
   } else {
     child = spawn(
       binaries.appServerBinaryPath,
@@ -249,16 +288,25 @@ try {
   console.log("[wps-live] discover real WPS window");
   let target;
   for (let attempt = 0; attempt < 80; attempt++) {
-    const status = await request("computerUse/status", { adapter: "office" });
-    receipt.officeStatus = status.adapters[0];
+    const status = await request("computerUse/status", {
+      adapter: adapter.kind,
+    });
+    const { targets, ...summary } = status.adapters[0];
+    target = adapter.selectTarget(targets, path.basename(workbook));
+    receipt[`${adapter.kind}Status`] = {
+      ...summary,
+      targetCount: targets?.length ?? 0,
+      targets: target ? [target] : [],
+    };
+    if (attempt === 0)
+      console.log(
+        `[wps-live] ${adapter.kind} status`,
+        JSON.stringify(receipt[`${adapter.kind}Status`]),
+      );
     assert.notEqual(
       status.adapters[0].reason,
       "desktop_locked",
       "unlock the desktop before WPS live verification",
-    );
-    target = status.adapters[0].targets?.find(
-      (entry) =>
-        entry.host === "WPS" && entry.workbookName === path.basename(workbook),
     );
     if (target) break;
     await delay(100);
@@ -266,12 +314,12 @@ try {
   assert(target, "real WPS fixture window must be discovered");
   receipt.target = target;
   assert.equal(
-    (await request("computerUse/status", { adapter: "native" })).adapters[0]
-      .readiness,
+    (await request("computerUse/status", { adapter: adapter.inactiveKind }))
+      .adapters[0].readiness,
     "disabled",
   );
   receipt.checks.push(
-    "WPS target discovered while native switch is off; independent office switch is on",
+    `WPS ${adapter.kind} target discovered while ${adapter.inactiveKind} is disabled`,
   );
   run("swiftc", [
     "-O",
@@ -304,7 +352,7 @@ try {
     const consentExit = startConsent(desktop?.pid ?? child.pid);
     console.log("[wps-live] approve exact fixture consent UI");
     grant = await request("computerUse/setup", {
-      adapter: "office",
+      adapter: adapter.kind,
       target,
       grantScope: "session",
     });
@@ -320,20 +368,49 @@ try {
   }
   let queue = [];
   let operationError;
+  let previousInput;
+  let readbackReady;
+  let issuedToolIds;
   let finalText = "WPS_FIXTURE_TURN_COMPLETE";
   fixture = await startOpenAiCompatibleFixtureServer({
     modelToolMode: "direct",
     scriptedResponses: [
       async ({ body }) => {
         await delay(120);
-        const next = queue.shift();
-        if (typeof next?.arguments?.operation === "function") {
-          try {
+        let next;
+        try {
+          // A denied input must end the script before another key is issued.
+          // Preserve that error instead of masking it with a later AX assertion.
+          if (previousInput) assertWpsSubmitted(body, previousInput.id);
+          next = queue.shift();
+          if (typeof next?.arguments?.operation === "function")
             next.arguments.operation = next.arguments.operation(body);
-          } catch (error) {
-            operationError = String(error);
-            queue = [];
+          if (!next && readbackReady && !readbackReady(body)) {
+            next = {
+              type: "tool_call",
+              id: `wps-${++call}`,
+              name: "computer_use",
+              arguments: {
+                target,
+                operation: { action: "observe", max_depth: 8, max_nodes: 256 },
+              },
+            };
+            issuedToolIds.push(next.id);
           }
+          previousInput = ["click", "key", "type", "scroll", "drag"].includes(
+            next?.arguments?.operation?.action,
+          )
+            ? { id: next.id, operation: next.arguments.operation }
+            : null;
+        } catch (error) {
+          operationError = String(error);
+          receipt.operationFailure = {
+            previousInput,
+            lastToolMessage: body.messages.findLast(
+              (entry) => entry.role === "tool",
+            ),
+          };
+          queue = [];
         }
         if (operationError)
           return {
@@ -387,7 +464,13 @@ try {
     "--cd",
     root,
   ];
-  const runOperations = async (operations, expectedFailure = false) => {
+  const runOperations = async (
+    operations,
+    expectedFailure = false,
+    readback,
+  ) => {
+    previousInput = null;
+    readbackReady = readback;
     queue = operations.map((operation) => ({
       type: "tool_call",
       id: `wps-${++call}`,
@@ -395,6 +478,7 @@ try {
       arguments: { target, operation },
     }));
     const ids = queue.map((entry) => entry.id);
+    issuedToolIds = ids;
     finalText =
       host === "tui"
         ? `WPS_FIXTURE_TURN_COMPLETE_${call}`
@@ -406,7 +490,7 @@ try {
       const prompt =
         "Operate only the approved WPS fixture workbook and report observed results.";
       const tuiTranscript = path.join(
-        path.dirname(workbook),
+        evidenceDir,
         `wps-tui-terminal-${call}.log`,
       );
       const tuiArgs = [
@@ -501,7 +585,7 @@ try {
       receipt.lastTurnDiagnostics = { canonical, stdout, stderr };
       assert(!operationError, operationError);
       assert.equal(canonical.status, "completed");
-      assert.equal(tools.length, operations.length);
+      assert.equal(tools.length, ids.length);
       assert(
         tools.every(
           (item) => item.status === (expectedFailure ? "failed" : "completed"),
@@ -564,8 +648,7 @@ try {
       if (canonical && canonical.status !== "inProgress") break;
       await delay(30);
     }
-    assert.equal(canonical?.status, "completed");
-    const tools = canonical.items.filter(
+    const tools = (canonical?.items || []).filter(
       (item) => item.type === "dynamicToolCall" && item.tool === "computer_use",
     );
     receipt.lastTurnDiagnostics = {
@@ -583,8 +666,9 @@ try {
         }),
       ),
     };
+    assert.equal(canonical?.status, "completed");
     assert(!operationError, operationError);
-    assert.equal(tools.length, operations.length);
+    assert.equal(tools.length, ids.length);
     assert(
       tools.every(
         (item) => item.status === (expectedFailure ? "failed" : "completed"),
@@ -606,10 +690,21 @@ try {
   const key = (key, modifiers = []) => ({ action: "key", key, modifiers });
   const observe = { action: "observe", max_depth: 8, max_nodes: 256 };
   const writeCell = async (address, text) => {
-    const result = await runOperations(
+    await runOperations(
       wpsWriteCellOperations(address, text, (selection) => {
         (receipt.selectedCells ??= []).push(selection);
       }),
+    );
+    // Do not infer selection from the application's Enter movement preference.
+    // Read back in a separate real turn with the same bounded completion check.
+    const result = await runOperations(
+      wpsSelectCellOperations(address),
+      false,
+      (body) => {
+        const ready = wpsCellReadbackReady(body, address, text);
+        (receipt.readbackObservations ??= []).push({ address, ready });
+        return ready;
+      },
     );
     assertWpsCell(fixture.requests.at(-1).body, address, text);
     return result;
@@ -646,7 +741,7 @@ try {
   collectImages(fixture.requests.at(-1).body);
   assert(images.length, "the real WPS screenshot must reach the provider");
   const screenshot = path.join(
-    path.dirname(workbook),
+    evidenceDir,
     host === "app-server" ? "wps-readback.png" : `wps-${host}-readback.png`,
   );
   await fs.writeFile(
@@ -689,13 +784,16 @@ try {
       : "revocation prevents further canonical WPS observation",
   );
   receipt.liveModelUsed = false;
-  await desktop?.verifyVisible(thread, path.dirname(workbook));
+  await desktop?.verifyVisible(thread, evidenceDir);
   delete receipt.lastTurnDiagnostics;
   receipt.result = "pass";
 } catch (error) {
   receipt.result = "fail";
   receipt.error = String(error);
   receipt.stderr = stderr;
+  await desktop?.captureFailure(evidenceDir).catch((error) => {
+    receipt.diagnosticsError = String(error);
+  });
 } finally {
   consent?.kill();
   await desktop?.close().catch((error) => {

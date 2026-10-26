@@ -18,6 +18,7 @@ fn assistant_item(text: &str) -> ThreadItem {
         text: text.to_string(),
         phase: None,
         memory_citation: None,
+        content_parts: Vec::new(),
         delivery: None,
         questions: None,
     }

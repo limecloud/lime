@@ -1,8 +1,16 @@
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
 #include <windows.h>
 #include <ole2.h>
 #include <oleauto.h>
 #include <UIAutomation.h>
+
+#include "windows-native-protocol.h"
+#include "windows-computer-use.h"
+#include "windows-computer-use-cursor.h"
 
 #include <atomic>
 #include <chrono>
@@ -19,97 +27,13 @@
 
 namespace {
 
+using native_protocol::Json;
+using native_protocol::Request;
+using native_protocol::RequestQueue;
+using computer_use::jsonEscape;
+using computer_use::utf8FromWide;
+
 std::mutex outputMutex;
-
-std::string utf8FromWide(const std::wstring& value) {
-  if (value.empty()) return {};
-  const int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
-                                       static_cast<int>(value.size()), nullptr, 0,
-                                       nullptr, nullptr);
-  if (size <= 0) return {};
-  std::string result(static_cast<size_t>(size), '\0');
-  WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
-                      static_cast<int>(value.size()), result.data(), size,
-                      nullptr, nullptr);
-  return result;
-}
-
-std::string jsonEscape(const std::string& value) {
-  std::ostringstream out;
-  for (unsigned char ch : value) {
-    switch (ch) {
-      case '"': out << "\\\""; break;
-      case '\\': out << "\\\\"; break;
-      case '\b': out << "\\b"; break;
-      case '\f': out << "\\f"; break;
-      case '\n': out << "\\n"; break;
-      case '\r': out << "\\r"; break;
-      case '\t': out << "\\t"; break;
-      default:
-        if (ch < 0x20) {
-          out << "\\u" << std::hex << std::setw(4) << std::setfill('0')
-              << static_cast<int>(ch) << std::dec;
-        } else {
-          out << static_cast<char>(ch);
-        }
-    }
-  }
-  return out.str();
-}
-
-bool jsonString(const std::string& json, const std::string& key,
-                std::string* value) {
-  const std::string needle = "\"" + key + "\"";
-  const size_t keyPos = json.find(needle);
-  if (keyPos == std::string::npos) return false;
-  size_t pos = json.find(':', keyPos + needle.size());
-  if (pos == std::string::npos) return false;
-  pos = json.find('"', pos + 1);
-  if (pos == std::string::npos) return false;
-  std::string result;
-  for (++pos; pos < json.size(); ++pos) {
-    const char ch = json[pos];
-    if (ch == '"') {
-      *value = result;
-      return true;
-    }
-    if (ch != '\\') {
-      result.push_back(ch);
-      continue;
-    }
-    if (++pos >= json.size()) return false;
-    switch (json[pos]) {
-      case '"': result.push_back('"'); break;
-      case '\\': result.push_back('\\'); break;
-      case '/': result.push_back('/'); break;
-      case 'n': result.push_back('\n'); break;
-      case 'r': result.push_back('\r'); break;
-      case 't': result.push_back('\t'); break;
-      default: return false;
-    }
-  }
-  return false;
-}
-
-bool jsonUInt64(const std::string& json, const std::string& key,
-                uint64_t* value) {
-  const std::string needle = "\"" + key + "\"";
-  const size_t keyPos = json.find(needle);
-  if (keyPos == std::string::npos) return false;
-  size_t pos = json.find(':', keyPos + needle.size());
-  if (pos == std::string::npos) return false;
-  while (++pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) {}
-  if (pos >= json.size() || json[pos] < '0' || json[pos] > '9') return false;
-  uint64_t result = 0;
-  while (pos < json.size() && json[pos] >= '0' && json[pos] <= '9') {
-    const uint64_t digit = static_cast<uint64_t>(json[pos] - '0');
-    if (result > (UINT64_MAX - digit) / 10) return false;
-    result = result * 10 + digit;
-    ++pos;
-  }
-  *value = result;
-  return true;
-}
 
 void writeLine(const std::string& line) {
   std::lock_guard<std::mutex> lock(outputMutex);
@@ -544,9 +468,16 @@ class NativeHost {
   NativeHost() {
     const HRESULT status = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     shouldUninitialize_ = SUCCEEDED(status);
-    if (FAILED(status) && status != RPC_E_CHANGED_MODE) return;
-    CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER,
-                     IID_PPV_ARGS(&automation_));
+    if (SUCCEEDED(status) || status == RPC_E_CHANGED_MODE)
+      CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&automation_));
+    computerUse_ = std::make_unique<computer_use::Driver>(automation_ != nullptr,
+        [this](HWND window, int depth, int nodes) {
+          std::string code, message;
+          HRESULT result = S_OK;
+          auto value = readAutomationWindow(window, depth, nodes, &code, &message, &result);
+          if (!code.empty()) throw computer_use::Error(code, message);
+          return value;
+        });
   }
 
   ~NativeHost() {
@@ -556,22 +487,28 @@ class NativeHost {
     if (shouldUninitialize_) CoUninitialize();
   }
 
-  std::string dispatch(const std::string& method, const std::string& request,
+  uint64_t physicalInputEpoch() const { return computerUse_->physicalInputEpoch(); }
+  void stopPointer() { computerUse_->stopPointer(); }
+
+  std::string dispatch(const std::string& method, const Json& params,
+                       const computer_use::Canceled& canceled,
                        std::string* errorCode, std::string* errorMessage,
                        HRESULT* errorStatus) {
     if (method == "computerUse.snapshot") {
-      return "{\"generation\":1,\"readiness\":\"unavailable\",\"targets\":[],\"reason\":\"windows_control_driver_not_implemented\",\"setupSteps\":[]}";
+      return computerUse_->snapshot();
     }
     if (method == "computerUse.setup") {
-      return "{\"outcome\":{\"accepted\":false,\"approvedTarget\":null,\"generation\":1},\"snapshot\":{\"generation\":1,\"readiness\":\"unavailable\",\"targets\":[],\"reason\":\"windows_control_driver_not_implemented\",\"setupSteps\":[]}}";
+      return computerUse_->setup(params, canceled);
     }
+    if (method == "computerUse.execute") return computerUse_->execute(params, canceled);
+    if (method == "computerUse.finishTurn") return computerUse_->finishTurn(params);
     if (method == "windows.uiAutomation.capabilities") {
       return "{\"uiAutomation\":\"" +
              std::string(automation_ ? "ready" : "unavailable") +
              "\",\"rawInput\":\"ready\",\"windowEnumeration\":\"ready\",\"displayEnumeration\":\"ready\",\"displayWatcher\":\"ready\",\"readOnly\":true}";
     }
     if (method == "windows.uiAutomation.read") {
-      return readAutomation(request, errorCode, errorMessage, errorStatus);
+      return readAutomation(params, errorCode, errorMessage, errorStatus);
     }
     if (method == "windows.window.read") {
       return readWindows();
@@ -611,7 +548,7 @@ class NativeHost {
   }
 
  private:
-  std::string readAutomation(const std::string& request,
+  std::string readAutomation(const Json& params,
                              std::string* errorCode,
                              std::string* errorMessage, HRESULT* errorStatus) {
     if (!automation_) {
@@ -621,27 +558,35 @@ class NativeHost {
     }
     int maxDepth = 4;
     int maxNodes = 128;
-    uint64_t value = 0;
-    if (jsonUInt64(request, "maxDepth", &value)) maxDepth = static_cast<int>(value > 8 ? 8 : value);
-    if (jsonUInt64(request, "maxNodes", &value)) maxNodes = static_cast<int>(value > 256 ? 256 : value);
+    if (const auto* depth = params.find("maxDepth")) {
+      const auto value = depth->unsignedInteger();
+      maxDepth = static_cast<int>(value > 8 ? 8 : value);
+    }
+    if (const auto* nodes = params.find("maxNodes")) {
+      const auto value = nodes->unsignedInteger();
+      maxNodes = static_cast<int>(value > 256 ? 256 : value);
+    }
     if (maxDepth < 1 || maxNodes < 1) {
       *errorCode = "invalid_argument";
       *errorMessage = "maxDepth and maxNodes must be positive.";
       return {};
     }
-    IUIAutomationElement* root = nullptr;
-    uint64_t hwndValue = 0;
-    HRESULT status = S_OK;
-    if (jsonUInt64(request, "windowHandle", &hwndValue)) {
-      if (hwndValue == 0 || hwndValue > UINTPTR_MAX) {
-        *errorCode = "invalid_argument";
-        *errorMessage = "windowHandle is invalid.";
-        return {};
-      }
-      status = automation_->ElementFromHandle(reinterpret_cast<HWND>(static_cast<uintptr_t>(hwndValue)), &root);
-    } else {
-      status = automation_->GetFocusedElement(&root);
+    HWND window = nullptr;
+    if (const auto* handle = params.find("windowHandle")) {
+      const uint64_t value = handle->unsignedInteger();
+      if (!value || value > UINTPTR_MAX) throw native_protocol::InvalidRequest("Invalid windowHandle");
+      window = reinterpret_cast<HWND>(static_cast<uintptr_t>(value));
     }
+    return readAutomationWindow(window, maxDepth, maxNodes, errorCode, errorMessage, errorStatus);
+  }
+
+  std::string readAutomationWindow(HWND window, int maxDepth, int maxNodes,
+                                  std::string* errorCode, std::string* errorMessage, HRESULT* errorStatus) {
+    if (!automation_) throw computer_use::Error("unavailable", "UI Automation is unavailable.");
+    IUIAutomationElement* root = nullptr;
+    HRESULT status = S_OK;
+    if (window) status = automation_->ElementFromHandle(window, &root);
+    else status = automation_->GetFocusedElement(&root);
     if (FAILED(status) || !root) {
       *errorCode = "unavailable";
       *errorMessage = "UI Automation element could not be resolved.";
@@ -671,29 +616,37 @@ class NativeHost {
   bool shouldUninitialize_ = false;
   RawInputMonitor rawInput_;
   DisplayWatcher displayWatcher_;
+  std::unique_ptr<computer_use::Driver> computerUse_;
 };
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  std::ios::sync_with_stdio(false);
+  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+  try {
+    if (auto recovery = computer_use::runPointerRecovery(argc, argv)) return *recovery;
+  } catch (const std::exception&) { return 2; }
   NativeHost host;
-  std::string line;
-  while (std::getline(std::cin, line)) {
-    std::string id;
-    std::string method;
-    if (!jsonString(line, "id", &id) || !jsonString(line, "method", &method)) {
-      writeError(id, "invalid_request", "Request must include string id and method.");
-      continue;
-    }
-    std::string code;
-    std::string message;
-    HRESULT status = S_OK;
-    const std::string result = host.dispatch(method, line, &code, &message, &status);
-    if (!code.empty()) {
-      writeError(id, code, message, status);
-    } else {
-      writeSuccess(id, result);
-    }
-  }
+  native_protocol::serve(
+      std::cin,
+      [&](const Request& request, const RequestQueue& queue) {
+        std::string code;
+        std::string message;
+        HRESULT status = S_OK;
+        try {
+          const std::string result = host.dispatch(request.method, request.params,
+              [&] {
+                if (request.method == "computerUse.execute" && queue.intervened(request))
+                  throw computer_use::Error("user_intervened", "The user took control; input stopped.");
+                return queue.canceled(request, request.method != "computerUse.setup");
+              }, &code, &message, &status);
+          if (!code.empty()) writeError(request.id, code, message, status);
+          else writeSuccess(request.id, result);
+        } catch (const computer_use::Error& error) { writeError(request.id, error.code, error.what()); }
+      },
+      [](const std::string& id, const std::string& code, const std::string& message) {
+        writeError(id, code, message);
+      }, [&] { return host.physicalInputEpoch(); }, [&] { host.stopPointer(); });
   return 0;
 }

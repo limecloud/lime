@@ -114,7 +114,7 @@ export const sourcePaths = [
   "scripts/electron/lib/workbook-clipboard-scenario.mjs",
   "scripts/electron/lib/workbook-clipboard-scenario-oracle.mjs",
   "scripts/lib/electron-fixture-build.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-backend-script.mjs",
+  "scripts/lib/chat-fixture/backend-script.mjs",
   "scripts/agent-runtime/runtime-input-image-evidence.mjs",
   ...["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"].map(
     (locale) => `src/i18n/resources/${locale}/workspace.json`,

@@ -54,6 +54,7 @@ impl ComputerUseAdapter for TestAdapter {
             readiness: ComputerUseReadiness::Ready,
             targets: vec![ComputerUseTarget {
                 identity: target(),
+                revision: None,
                 native_app: Some(NativeAppIdentity::Macos {
                     bundle_id: "com.example.ProviderFixture".into(),
                 }),
@@ -76,6 +77,7 @@ impl ComputerUseAdapter for TestAdapter {
             accepted: true,
             approved_target: None,
             generation: 1,
+            ..Default::default()
         })
     }
 
@@ -98,7 +100,7 @@ impl ComputerUseAdapter for TestAdapter {
             cancel.cancelled().await;
             self.canceled.store(true, Ordering::Release);
             self.stopped.notify_one();
-            return Err(ComputerUseError("test adapter canceled".into()));
+            return Err(ComputerUseError::new("test adapter canceled".into()));
         }
         Ok(match action {
             ComputerUseAction::Screenshot {} => {

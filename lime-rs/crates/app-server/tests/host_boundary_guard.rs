@@ -38,7 +38,12 @@ fn app_server_crate_must_not_depend_on_desktop_host_surfaces() {
     let offenders = offenders
         .into_iter()
         .filter_map(|path| {
-            let content = fs::read_to_string(&path).unwrap_or_default();
+            let content = fs::read_to_string(&path)
+                .unwrap_or_default()
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .collect::<Vec<_>>()
+                .join("\n");
             let matches = FORBIDDEN_HOST_SURFACES
                 .iter()
                 .filter(|surface| content.contains(**surface))

@@ -16,6 +16,7 @@ import { AppPageContent } from "./components/AppPageContent";
 import type { AgentBackgroundSessionRuntimeSnapshot } from "./components/agent/chat";
 import { AppServerConfigWarningToastBridge } from "./components/AppServerConfigWarningToastBridge";
 import { ScheduledTaskNotificationBridge } from "./components/ScheduledTaskNotificationBridge";
+import { PermissionsSetup } from "./components/permissions/PermissionsSetup";
 import { SplashScreen } from "./components/SplashScreen";
 import { AppSidebar } from "./components/AppSidebar";
 import {
@@ -538,6 +539,7 @@ function AppContent() {
 
         <AppServerConfigWarningToastBridge />
         <ScheduledTaskNotificationBridge />
+        <PermissionsSetup />
       </AppContainer>
     </AppShell>
   );

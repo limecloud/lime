@@ -3,7 +3,6 @@
 #![allow(clippy::all)]
 
 pub mod auth;
-pub mod chrome_bridge;
 pub mod client_detector;
 pub mod middleware;
 
@@ -1070,14 +1069,6 @@ async fn run_server(
         // WebSocket 路由
         .route("/v1/ws", get(handlers::ws_upgrade_handler))
         .route("/ws", get(handlers::ws_upgrade_handler))
-        .route(
-            "/lime-chrome-observer/:lime_key",
-            get(handlers::chrome_observer_ws_upgrade),
-        )
-        .route(
-            "/lime-chrome-control/:lime_key",
-            get(handlers::chrome_control_ws_upgrade),
-        )
         .layer(cors_layer)
         .layer(DefaultBodyLimit::max(body_limit))
         .layer(TimeoutLayer::with_status_code(

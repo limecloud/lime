@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { JSDOM } from "jsdom";
 import { readWorktreeSurfaceDom } from "./composer-worktree-scenario.mjs";
-import { openSessionFromSidebar } from "../../agent-runtime/claw-chat-current-fixture-session.mjs";
+import { openSessionFromSidebar } from "../../lib/chat-fixture/session.mjs";
 import {
   assertWorktreeColdRead,
   assertWorktreeStaged,

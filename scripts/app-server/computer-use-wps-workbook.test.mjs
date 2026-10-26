@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assertWpsCell,
+  assertWpsSubmitted,
+  wpsCellReadbackReady,
   wpsWriteCellOperations,
 } from "./computer-use-wps-workbook.mjs";
 
@@ -34,6 +36,31 @@ const observation = ({
 });
 
 describe("WPS observed input", () => {
+  it("stops on the first failed input result and preserves its actual denial", () => {
+    const body = {
+      messages: [
+        {
+          role: "tool",
+          tool_call_id: "previous",
+          content: '{"outcome":"submitted"}',
+        },
+        {
+          role: "tool",
+          tool_call_id: "current",
+          content: "Target window ownership or geometry changed.",
+        },
+      ],
+    };
+    expect(() => assertWpsSubmitted(body, "current")).toThrow(
+      /geometry changed/,
+    );
+    expect(() => assertWpsSubmitted(body, "missing")).toThrow(/must reach/);
+    body.messages[1].content = JSON.stringify([
+      { type: "inputText", text: '{"outcome":"submitted","fence":294}' },
+    ]);
+    expect(() => assertWpsSubmitted(body, "current")).not.toThrow();
+  });
+
   it("derives the next click from current banner geometry and window origin", () => {
     const click = wpsWriteCellOperations("A1", "new marker")[2];
     expect(click(observation({ y: 180 }))).toMatchObject({ x: 83, y: 165 });
@@ -90,5 +117,28 @@ describe("WPS observed input", () => {
     expect(() =>
       assertWpsCell(observation(), "A1", "new marker"),
     ).not.toThrow();
+  });
+
+  it("waits only for the matching cell's disabled navigation to become ready", () => {
+    const body = observation();
+    const value = JSON.parse(body.messages[0].content);
+    value.tree.children[0].enabled = false;
+    body.messages[0].content = JSON.stringify(value);
+    expect(wpsCellReadbackReady(body, "A1", "new marker")).toBe(false);
+    expect(() => assertWpsCell(body, "A1", "new marker")).toThrow(/name box/);
+    expect(() => wpsCellReadbackReady(body, "B1", "new marker")).toThrow(
+      /selected address/,
+    );
+    expect(() => wpsCellReadbackReady(body, "A1", "other marker")).toThrow(
+      /formula bar readback/,
+    );
+    value.tree.children[0].enabled = true;
+    body.messages[0].content = JSON.stringify(value);
+    expect(wpsCellReadbackReady(body, "A1", "new marker")).toBe(true);
+    value.tree.children.push({ ...value.tree.children[0] });
+    body.messages[0].content = JSON.stringify(value);
+    expect(() => wpsCellReadbackReady(body, "A1", "new marker")).toThrow(
+      /unambiguous/,
+    );
   });
 });

@@ -49,14 +49,6 @@ function buildBaseMetadata(
   };
 }
 
-function contentPartTextFallback(params: {
-  caption: string | null;
-  title: string | null;
-  uri: string;
-}): string {
-  return params.caption ?? params.title ?? params.uri;
-}
-
 function mediaKindFromMimeType(mimeType: string | null): string {
   const [kind] = mimeType?.toLowerCase().split("/", 1) ?? [];
   return kind || "file";
@@ -197,10 +189,6 @@ function buildMediaReferenceContentPart(
     sha256,
     byteSize,
   });
-  if (!mediaReference.caption && !mediaReference.title) {
-    mediaReference.caption = contentPartTextFallback({ caption, title, uri });
-  }
-
   return {
     type: "media_reference",
     reference: mediaReference,

@@ -91,7 +91,7 @@ describe("reopen running turn CDP Gate", () => {
     expect(content).toContain("hasSuccessfulTraceEvidence");
     expect(
       fs.readFileSync(
-        "scripts/agent-runtime/claw-chat-current-fixture-gui-actions.mjs",
+        "scripts/lib/chat-fixture/gui-actions.mjs",
         "utf8",
       ),
     ).toContain("transport: entry.transport");
@@ -228,7 +228,7 @@ describe("reopen running turn CDP Gate", () => {
       content.indexOf("async function sampleGuiHomeBackgroundRecoveryState"),
     );
     const guiActions = fs.readFileSync(
-      "scripts/agent-runtime/claw-chat-current-fixture-gui-actions.mjs",
+      "scripts/lib/chat-fixture/gui-actions.mjs",
       "utf8",
     );
 

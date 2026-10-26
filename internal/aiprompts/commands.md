@@ -490,7 +490,7 @@ Codex 不定义 portable signed receipt，也不为 task、tool、approval、art
 | Typed client / protocol | `npm run test:contracts`                              |
 | Rust domain             | `npm run test:rust:related -- <paths...>`             |
 | Desktop bridge          | `npm run test:contracts` + `npm run verify:gui-smoke` |
-| Agent 主链              | `npm run smoke:agent-runtime-current-fixture`         |
+| Agent 主链              | `npm run smoke:agent-runtime-current`         |
 | 真实桌面闭环            | Gate B Electron fixture / GUI smoke                   |
 
 具体质量选择见 [quality-workflow.md](quality-workflow.md)。

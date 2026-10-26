@@ -15,6 +15,7 @@ fn page(ids: &[&str], next_cursor: Option<&str>) -> ThreadItemsListResponse {
                     text: (*id).to_string(),
                     phase: None,
                     memory_citation: None,
+                    content_parts: Vec::new(),
                     delivery: None,
                     questions: None,
                 },

@@ -1,4 +1,4 @@
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 
 /** Script only provider responses; every tool still executes through RuntimeCore and the native Host. */
 export function createBrowserAnnotationControlResponses(readers) {

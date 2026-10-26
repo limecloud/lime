@@ -1,5 +1,5 @@
-import { APP_SERVER_METHOD_SESSION_TURN_CANCEL } from "./claw-chat-current-fixture-constants.mjs";
-import { sanitizeJson, sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { APP_SERVER_METHOD_SESSION_TURN_CANCEL } from "../lib/chat-fixture/constants.mjs";
+import { sanitizeJson, sleep } from "../lib/chat-fixture/utils.mjs";
 
 const CANCELED_TURN_STATUSES = new Set([
   "interrupted",

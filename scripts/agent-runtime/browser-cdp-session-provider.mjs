@@ -1,4 +1,4 @@
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 
 export function completedBrowserCdpResult(value, depth = 0) {
   if (depth > 12) return null;

@@ -20,14 +20,10 @@ impl ControlBroker {
     }
 
     pub(super) fn acquire(&self) -> ComputerUseResult<ControlLease> {
-        // Deliberately independent of workspace, config path and AgentRuntimeRoot:
-        // changing a thread's storage location must not create another desktop lock.
-        let directory = match &self.directory {
-            Some(directory) => directory.clone(),
-            None => lime_core::app_paths::preferred_data_dir()
-                .map_err(denied)?
-                .join("computer-use"),
-        };
+        let directory = self
+            .directory
+            .as_ref()
+            .ok_or_else(|| denied("Computer Use control directory was not supplied by the host"))?;
         let mut builder = fs::DirBuilder::new();
         builder.recursive(true);
         #[cfg(unix)]

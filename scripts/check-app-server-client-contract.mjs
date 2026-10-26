@@ -4535,8 +4535,8 @@ const checks = [
       "src/lib/api/agentRuntime/threadClient.ts",
       "scripts/claw-chat-ready-streaming-smoke.mjs",
       "scripts/lib/agent-runtime-smoke-core.mjs",
-      "scripts/agent-runtime/claw-chat-current-fixture-backend-script.mjs",
-      "scripts/agent-runtime/claw-chat-current-fixture-backend-ledger.mjs",
+      "scripts/lib/chat-fixture/backend-script.mjs",
+      "scripts/lib/chat-fixture/backend-ledger.mjs",
     ],
     snippets: ["runtimeRequest", "AgentSessionTurnStartParams"],
     absentSnippets: [

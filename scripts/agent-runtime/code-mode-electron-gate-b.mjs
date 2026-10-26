@@ -23,7 +23,7 @@ import {
   initializeAppServer,
   invokeAppServerFromPage,
   waitForRendererReady,
-} from "./claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 
 import {
   codeModeResponses,

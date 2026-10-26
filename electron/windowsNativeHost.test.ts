@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import process from "node:process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { appState } = vi.hoisted(() => ({
@@ -32,7 +33,7 @@ const originalPlatform = process.platform;
 const originalResourcesPath = process.resourcesPath;
 const roots: string[] = [];
 
-function setPlatform(platform: NodeJS.Platform): void {
+function setPlatform(platform: typeof process.platform): void {
   Object.defineProperty(process, "platform", {
     configurable: true,
     value: platform,
@@ -80,7 +81,8 @@ function createFixture(content = "windows native host") {
         windowsHelper: {
           id: "windows-native-host",
           path: "native/windows/windows-native-host.exe",
-          readOnly: true,
+          readOnly: false,
+          computerUseProtocolVersion: 1,
         },
       },
     }),

@@ -56,6 +56,9 @@ pub enum ThreadItem {
     AgentMessage {
         id: String,
         text: String,
+        // Lime's multi-protocol media results use durable references, never inline payloads.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        content_parts: Vec<agent_protocol::MessageContentPart>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         phase: Option<agent_protocol::response_item::MessagePhase>,
         #[serde(default, skip_serializing_if = "Option::is_none")]

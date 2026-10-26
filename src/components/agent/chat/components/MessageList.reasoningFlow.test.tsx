@@ -1,4 +1,3 @@
-import { act } from "react";
 import { describe, expect, it } from "vitest";
 import {
   findStreamingRendererCallByContent,
@@ -740,18 +739,15 @@ describe("MessageList reasoning flow", () => {
         '[data-testid="conversation-turn-timeline"][data-runtime-turn-id="turn-web-tools-inline-owner"]',
       ),
     ).not.toBeNull();
-    const preview = container.querySelector<HTMLButtonElement>(
-      '[data-testid="message-list-historical-timeline-preview:leading"]',
-    );
-    expect(preview).not.toBeNull();
-    act(() => preview?.click());
     expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
       expect.objectContaining({
+        turn: expect.objectContaining({ id: "turn-web-tools-inline-owner" }),
         items: expect.arrayContaining([
           expect.objectContaining({ id: "web-search-web-tools-inline-owner" }),
           expect.objectContaining({ id: "reasoning-web-tools-inline-owner" }),
           expect.objectContaining({ id: "web-fetch-web-tools-inline-owner" }),
         ]),
+        showOperationalDetails: true,
       }),
     );
     expect(

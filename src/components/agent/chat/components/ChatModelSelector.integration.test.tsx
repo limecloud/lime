@@ -618,7 +618,7 @@ describe("ChatModelSelector + useAgentChat 集成", () => {
 
     await flushEffects();
 
-    expect(container.textContent).toContain("工具模型未配置");
+    expect(container.textContent).toContain("尚未配置服务商");
 
     const configButton = findButtonByText("配置");
     await act(async () => {
@@ -645,10 +645,10 @@ describe("ChatModelSelector + useAgentChat 集成", () => {
 
     await flushEffects();
 
-    expect(container.textContent).toContain("工具模型未配置");
+    expect(container.textContent).toContain("尚未配置服务商");
 
     const dismissButton = container.querySelector(
-      'button[aria-label="关闭工具模型未配置提示"]',
+      'button[aria-label="关闭服务商未配置提示"]',
     ) as HTMLButtonElement | null;
     if (!dismissButton) {
       throw new Error("未找到关闭引导按钮");
@@ -658,7 +658,7 @@ describe("ChatModelSelector + useAgentChat 集成", () => {
       dismissButton.click();
     });
 
-    expect(container.textContent ?? "").not.toContain("工具模型未配置");
+    expect(container.textContent ?? "").not.toContain("尚未配置服务商");
   });
 
   it("关闭后台预加载时，应在打开选择器后再加载 Provider 和模型", async () => {

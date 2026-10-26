@@ -1,4 +1,3 @@
-import { act } from "react";
 import { describe, expect, it } from "vitest";
 import {
   mockStreamingRenderer,
@@ -630,7 +629,7 @@ describe("MessageList reasoning persistence", () => {
     expect(reasoningSummary?.textContent).toContain("Analyzing file sizes");
   });
 
-  it("已完成短答也应把持久化 reasoning 收拢到 compact 执行摘要", () => {
+  it("已完成短答保留同一回合的持久化 reasoning 与单条最终正文", () => {
     const now = new Date("2026-05-09T06:02:56.361Z");
     const messages: Message[] = [
       {
@@ -720,27 +719,13 @@ describe("MessageList reasoning persistence", () => {
       ],
     });
 
-    expect(
-      container.querySelector(
-        '[data-testid="message-list-historical-timeline-preview:leading"]',
-      ),
-    ).not.toBeNull();
-    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
     expect(container.textContent).toContain("好");
-    expect(container.textContent).toContain("Processed for 2s");
     const answers = container.querySelectorAll<HTMLElement>(
       '[data-testid="streaming-renderer"]',
     );
     expect(answers).toHaveLength(1);
     expect(answers[0].textContent).toBe("好");
     expect(answers[0].dataset.hasThinkingContent).toBe("no");
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="message-list-historical-timeline-preview:leading"]',
-        )
-        ?.click();
-    });
     expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
       expect.objectContaining({
         turn: expect.objectContaining({ id: "turn-fast-plain-answer" }),
@@ -751,6 +736,7 @@ describe("MessageList reasoning persistence", () => {
             text: "我们被要求只回答一个字：好。直接回复即可。",
           }),
         ]),
+        showOperationalDetails: true,
       }),
     );
   });

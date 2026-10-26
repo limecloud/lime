@@ -22,7 +22,7 @@ import {
 } from "./lib/settings-web-search-fixture-evidence.mjs";
 
 import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import {
   openSearchConfiguration,
   inspectSearchMode,

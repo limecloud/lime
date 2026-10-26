@@ -348,7 +348,7 @@ it("edits all agent permission categories, normalizes a site exception, and reje
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
   };
-  await setSelect("Default · Browsing", "deny");
+  await setSelect("Default Browsing", "deny");
   await act(async () =>
     section
       .querySelector<HTMLButtonElement>(
@@ -356,7 +356,7 @@ it("edits all agent permission categories, normalizes a site exception, and reje
       )!
       .click(),
   );
-  await setSelect("Default · Uploads", "allow");
+  await setSelect("Default Uploads", "allow");
   await act(async () =>
     section
       .querySelector<HTMLButtonElement>(
@@ -364,7 +364,7 @@ it("edits all agent permission categories, normalizes a site exception, and reje
       )!
       .click(),
   );
-  await setSelect("Default · Site tools", "deny");
+  await setSelect("Default Site tools", "deny");
   expect(persisted.browser_use).toMatchObject({
     default_origin_policy: { access: "deny", uploads: "allow" },
   });
@@ -531,7 +531,7 @@ it("restores remote permissions after CAS rejection, preserves the draft and ret
   ).toBe("https://example.com");
   expect(
     container.querySelector<HTMLSelectElement>(
-      'select[aria-label="Default · Browsing"]',
+      'select[aria-label="Default Browsing"]',
     )!.value,
   ).toBe("deny");
   expect(currentBrowser().agent_permissions.sites).toEqual([]);

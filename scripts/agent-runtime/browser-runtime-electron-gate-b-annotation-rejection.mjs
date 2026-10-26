@@ -1,5 +1,5 @@
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
-import { assert, sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
+import { assert, sleep } from "../lib/chat-fixture/utils.mjs";
 import { startOpenAiCompatibleFixtureServer } from "../lib/openai-compatible-fixture-server.mjs";
 import {
   composerEditorSelector,

@@ -12,6 +12,21 @@ use std::time::Duration;
 const MAX_MEDIA_SIDECAR_WRITE_BYTES: usize = 32 * 1024 * 1024;
 const REMOTE_MEDIA_SIDECAR_TIMEOUT_SECS: u64 = 10;
 
+pub(crate) fn image_outputs_are_ready(record: &Value) -> bool {
+    record
+        .pointer("/result/images")
+        .and_then(Value::as_array)
+        .is_some_and(|images| {
+            !images.is_empty()
+                && images.iter().all(|image| {
+                    image
+                        .get("sidecarRef")
+                        .or_else(|| image.get("sidecar_ref"))
+                        .is_some()
+                })
+        })
+}
+
 pub(super) struct MediaSidecarContext<'a> {
     store: &'a SidecarStore,
     workspace_root: &'a Path,

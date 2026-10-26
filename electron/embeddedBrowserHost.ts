@@ -1,6 +1,7 @@
 import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { EmbeddedBrowserSiteAudio } from "./embeddedBrowserSiteAudio";
+import { allowsEmbeddedBrowserImage } from "./embeddedBrowserImages";
 import {
   effectiveBrowserSettings,
   validateBrowserSettings,
@@ -245,6 +246,21 @@ export class ElectronEmbeddedBrowserHost {
     | null = null;
   readonly #requestPermissions = new BrowserPermissionRequests({
     networkAllows: (url) => this.#networkPolicy.allows(url),
+    imageAllows: (url) =>
+      this.#sitePermissionDecisionHandler?.decision(
+        new URL(url).origin,
+        "images",
+      ) === "allow",
+    resourceAllows: (details) =>
+      allowsEmbeddedBrowserImage(
+        details,
+        [...this.#entries.values()].find(
+          (entry) => entry.view.webContents.id === details.webContentsId,
+        )?.view.webContents ?? null,
+        (origin) =>
+          this.#sitePermissionDecisionHandler?.decision(origin, "images") ??
+          "block",
+      ),
     refreshNetwork: async () => {
       if (!this.#networkRequirementsProvider)
         throw new Error("Browser managed network authority is unavailable");

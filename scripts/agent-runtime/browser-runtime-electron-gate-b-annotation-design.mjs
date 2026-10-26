@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { appServerCallFromPage } from "../electron/mcp-config-fixture-smoke.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import {
   observeBrowserAnnotationInputs,
   readBrowserAnnotationCommands,

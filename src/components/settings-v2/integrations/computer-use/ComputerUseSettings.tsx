@@ -219,7 +219,12 @@ export function ComputerUseSettings() {
                     status={status}
                     pending={pending || unavailable}
                     onRefresh={settings.refresh}
-                    onSetup={(target) => settings.setup(row.adapter, target)}
+                    onSetup={(target, scope) =>
+                      settings.setup(row.adapter, target, scope)
+                    }
+                    persistentApprovalAllowed={
+                      snapshot?.persistentApprovalAllowed === true
+                    }
                     enabled={
                       snapshot?.enabled[row.adapter] === true &&
                       !snapshot?.managed[row.adapter]

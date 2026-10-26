@@ -65,7 +65,8 @@ func computerUseSnapshot() -> [String: Any] {
     let accessibility = AXIsProcessTrusted()
     let screenCapture = CGPreflightScreenCaptureAccess()
     let locked = computerUseLocked()
-    let ready = accessibility && screenCapture && !locked
+    let monitor = accessibility && screenCapture && !locked && computerUseInputMonitorReady()
+    let ready = accessibility && screenCapture && !locked && monitor
     var targets: [[String: Any]] = []
     if ready {
         let windows = readWindows()["windows"] as? [[String: Any]] ?? []
@@ -101,6 +102,7 @@ func computerUseSnapshot() -> [String: Any] {
     var steps: [String] = []
     if !accessibility { steps.append("grant_accessibility") }
     if !screenCapture { steps.append("grant_screen_recording") }
+    if accessibility && screenCapture && !locked && !monitor { steps.append("grant_input_monitoring") }
     if locked { steps.append("unlock_desktop") }
     let status: [String: Any] = [
         "readiness": locked ? "blocked" : ready ? "ready" : "permission_required",
@@ -149,7 +151,16 @@ func computerUseSnapshot() -> [String: Any] {
     while computerUseIssuedSnapshots.count > 32, let oldest = computerUseIssuedSnapshots.keys.min() {
         computerUseIssuedSnapshots.removeValue(forKey: oldest)
     }
-    return status.merging(["generation": computerUseGeneration]) { _, value in value }
+    var response = status
+    response["targets"] = (status["targets"] as? [[String: Any]] ?? []).map { target in
+        var annotated = target
+        if let identity = target["identity"] as? [String: Any],
+           let key = computerUseTargetKey(identity), let revision = revisions[key] {
+            annotated["revision"] = String(revision)
+        }
+        return annotated
+    }
+    return response.merging(["generation": computerUseGeneration]) { _, value in value }
 }
 
 func computerUseTarget(_ requested: [String: Any], in snapshot: [String: Any]) -> [String: Any]? {
@@ -165,8 +176,23 @@ func computerUseTarget(_ requested: [String: Any], in snapshot: [String: Any]) -
     }
 }
 
-private func computerUseConsentText() -> (String, String, String, String) {
+private func computerUseConsentText(persistent: Bool) -> (String, String, String, String) {
     let language = Locale.preferredLanguages.first ?? "en"
+    if persistent {
+        if language.hasPrefix("zh-Hant") || language.hasPrefix("zh-TW") || language.hasPrefix("zh-HK") {
+            return ("一律允許 Lime 使用此應用程式？", "Lime 將記住此應用程式的授權，在日後連線時讀取和操控其視窗。你可以隨時在設定的「一律允許的應用程式」中移除授權。", "一律允許", "取消")
+        }
+        if language.hasPrefix("zh") {
+            return ("始终允许 Lime 使用此应用？", "Lime 将保存此应用的授权，在后续连接中读取和操控其窗口。你可以随时在设置的「始终允许的应用」中移除授权。", "始终允许", "取消")
+        }
+        if language.hasPrefix("ja") {
+            return ("Lime にこのアプリの使用を常に許可しますか？", "Lime はこのアプリの許可を保存し、今後の接続でもウインドウを読み取り、操作します。設定の「常に許可するアプリ」でいつでも削除できます。", "常に許可", "キャンセル")
+        }
+        if language.hasPrefix("ko") {
+            return ("Lime이 이 앱을 항상 사용하도록 허용할까요?", "Lime이 이 앱의 권한을 저장하여 이후 연결에서도 창을 읽고 제어합니다. 설정의 '항상 허용된 앱'에서 언제든지 삭제할 수 있습니다.", "항상 허용", "취소")
+        }
+        return ("Always allow Lime to use this application?", "Lime will remember this application approval and read and control its windows in future connections. You can remove it from Always-allowed apps in Settings at any time.", "Always allow", "Cancel")
+    }
     if language.hasPrefix("zh-Hant") || language.hasPrefix("zh-TW") || language.hasPrefix("zh-HK") {
         return ("允許 Lime 使用此應用程式？", "Lime 將在本次連線中讀取和操控下列應用程式視窗。你可以隨時在 Lime 中撤銷授權。", "允許本次連線", "取消")
     }
@@ -186,17 +212,33 @@ func computerUseSetup(params: [String: Any]) throws -> [String: Any] {
     guard params["adapter"] as? String == "native" else {
         throw HostError.invalidArgument("Native setup requires the native adapter.")
     }
+    guard let scope = params["grantScope"] as? String, ["session", "persistent"].contains(scope) else {
+        throw HostError.invalidArgument("Invalid native grant scope.")
+    }
+    if params["application"] != nil {
+        guard params["application"] as? String == "WPS", scope == "session",
+              params["target"] == nil || params["target"] is NSNull else {
+            throw HostError.invalidArgument("Application setup requires WPS without a target.")
+        }
+        guard let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.kingsoft.wpsoffice.mac"),
+              NSWorkspace.shared.open(application) else {
+            throw HostError.operationFailed("WPS is not installed or could not be opened.")
+        }
+    }
     if !AXIsProcessTrusted() {
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
     }
     if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+    if AXIsProcessTrusted() && !computerUseInputMonitorReady() && !CGPreflightListenEventAccess() {
+        _ = CGRequestListenEventAccess()
+    }
     var snapshot = computerUseSnapshot()
     var approved: Any = NSNull()
     var accepted = true
     if let requested = params["target"] as? [String: Any],
        let target = computerUseTarget(requested, in: snapshot),
        snapshot["readiness"] as? String == "ready" {
-        let (title, message, allow, cancel) = computerUseConsentText()
+        let (title, message, allow, cancel) = computerUseConsentText(persistent: params["grantScope"] as? String == "persistent")
         // The stdio helper normally runs only a Foundation run loop. Initialize
         // AppKit explicitly before presenting consent, including CLI-only use.
         let application = NSApplication.shared

@@ -6,14 +6,14 @@ import {
   appServerCallFromPage,
   writeConfigEditsFromPage,
 } from "../electron/mcp-config-fixture-smoke.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { waitForGuiChatCompleted } from "./claw-chat-current-fixture-gui-completion-waits.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
+import { waitForGuiChatCompleted } from "../lib/chat-fixture/gui-completion-waits.mjs";
 import {
   waitForApprovalPrompt,
   clickApprovalDecision,
 } from "./browser-runtime-electron-gate-b-approval.mjs";
 import { waitForBrowserAnnotationState as waitFor } from "./browser-runtime-electron-gate-b-annotation-diagnostics.mjs";
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 
 /** Real GUI/config/runtime/native-history path. Hidden windows use synthetic DOM input. */
 export async function runBrowserHistoryAccessScenario(ctx) {

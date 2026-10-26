@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { assert, sanitizeText } from "./claw-chat-current-fixture-utils.mjs";
+import { assert, sanitizeText } from "../lib/chat-fixture/utils.mjs";
 import { parseJsonRpcRequestsFromInvokeTrace } from "../electron/lib/mcp-config-fixture-evidence.mjs";
 
 /** Uses only the launcher's isolated Profile and the existing canonical native tab. */

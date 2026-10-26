@@ -6,12 +6,12 @@ import {
 import { readInvokeDiagnostics } from "./browser-runtime-electron-gate-b-cancel.mjs";
 import { parseJsonRpcRequestsFromInvokeTrace } from "../electron/lib/mcp-config-fixture-evidence.mjs";
 import { clickBrowserPageAsUser } from "./browser-runtime-electron-gate-b-user-control.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
 import {
   assert,
   sanitizeJson,
   sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 /** Follow-up turns use the real provider/runtime path, without direct tool calls. */
 export function createBrowserReceiptResponses(scenario, helpers) {

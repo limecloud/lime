@@ -51,7 +51,7 @@ GUI 复刻使用 [lime-design-language](.codex/skills/lime-design-language/SKILL
 
 1. 改 Electron/App Server 命令时，同步 Desktop Host/preload、JSON-RPC protocol/client、前端 gateway、catalog 与测试 fixture，并执行 `npm run test:contracts`。
 2. 普通改动优先运行受影响的定向测试；Rust 变更先用 `npm run test:rust:related -- <paths...>` 或对应 crate 测试，再按风险扩大。
-3. GUI、Bridge、Workspace 或 Desktop Agent 主路径改动至少运行 `npm run verify:gui-smoke`；Agent chat current fixture 改动先运行 `npm run smoke:agent-runtime-current-fixture`。CLI/TUI 改动先运行对应 Rust crate 测试，再补真实 stdio App Server fixture。
+3. GUI、Bridge、Workspace 或 Desktop Agent 主路径改动至少运行 `npm run verify:gui-smoke`；Agent chat current fixture 改动先运行 `npm run smoke:agent-runtime-current`。CLI/TUI 改动先运行对应 Rust crate 测试，再补真实 stdio App Server fixture。
 4. 真实交互证据分级：浏览器投影是 Gate A；Desktop Gate B 必须证明真实 Electron、preload/IPC、`app_server_handle_json_lines`、App Server JSON-RPC、runtime/read model 和用户可见状态；CLI Gate B 必须证明真实 `lime exec`、stdio transport、App Server JSON-RPC 与同一 canonical Thread/Turn/Item 投影；TUI Gate B 还必须经过真实 PTY、alternate screen、键盘输入和终端恢复。Computer Use Gate B 还要分别证明 native helper 的 macOS TCC/AX 与 Windows UIA/输入失败路径、Chrome MV3/Native Messaging/受信 proxy 与同一 turn 绑定、Office task pane/session/schema/command 与 stale session 拒绝；Electron 退出后仍需通过 CLI 复验共享链路。
 5. 默认本地门禁为 `npm run verify:local`。全量前端测试优先用 `npm run test:resume` 续跑，避免无差别重跑。
 6. 更新版本、Forge、Electron 或 workspace manifest 时执行 `npm run verify:app-version`。
@@ -81,8 +81,7 @@ GUI 复刻使用 [lime-design-language](.codex/skills/lime-design-language/SKILL
 npm run verify:local
 npm run test:contracts
 npm run verify:gui-smoke
-npm run smoke:agent-runtime-current-fixture
-npm run smoke:claw-chat-current-fixture
+npm run smoke:agent-runtime-current
 npm run governance:legacy-report
 npm run governance:scripts
 npm run electron:dev

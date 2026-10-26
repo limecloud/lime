@@ -33,10 +33,10 @@ by the model provider the user configures in Lime.
 | ---------------- | ------------------------------------------------------------------ |
 | debugger         | 获批标签页截图与坐标鼠标/键盘输入；保留 Chrome 标准调试提示        |
 | tabs / activeTab | 报告可选 HTTP/HTTPS 标签页身份、URL；按目标授权执行                |
-| tabGroups        | 原生任务名称、颜色、子标签页分组；不移动用户已有分组               |
+| tabGroups        | 原生任务名称、颜色、子标签页分组与交付页脱组；用户已有分组保留     |
 | scripting        | 获批标签页按需读取渲染内容，不常驻全站 content script              |
 | nativeMessaging  | 与本机 `com.limecloud.lime.computer_use` host 通信                 |
-| storage          | 随机 profile ID、任务名称、组/标签页关联、连接状态                 |
+| storage          | 随机 profile ID、任务名、组/页关联、临时回合归属/标记与连接状态    |
 | alarms           | MV3 断线重连                                                       |
 | all_urls         | 用户可选择任意常规 HTTP/HTTPS 网页；实际发现/执行过滤为 HTTP/HTTPS |
 
@@ -51,6 +51,8 @@ by the model provider the user configures in Lime.
 审核步骤：安装兼容 Lime → 开启 Chrome 通道并注册 Native Host → 安装此扩展 →
 打开测试 HTTP/HTTPS 页面 → 在 Lime 选择目标并请求连接 → 扩展弹窗明确允许 →
 请求一次观察/输入/截图并核对页面 → 撤销授权。分组可从扩展 popup 输入任务名和起始网址创建。
+模型任务还支持命名、创建任务页、标记 deliverable/handoff；验证回合结束关闭临时页、
+交付页脱组保留、接续页下轮重新命名和标记。新增标签页需要单独授权才能读取或输入。
 真实本机测试为隔离 Chrome + 本地模型协议 fixture，不声称真实模型或 Windows 已验收。
 
 ## 上传前核对

@@ -1,22 +1,22 @@
 // Real Chrome MV3 -> Native Messaging -> shared App Server -> canonical tool loop.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import readline from "node:readline";
 import { createServer } from "node:http";
 import { chromium } from "playwright";
 import { prepareLocalAppServerBinary } from "./lib/electron-dev-sidecar.mjs";
-import { terminalGateRuntimeEnvironment } from "./app-server/terminal-gate-binaries.mjs";
+import { snapshotTerminalGateBinaries } from "./app-server/terminal-gate-binaries.mjs";
+import { startChromeHost } from "./app-server/computer-use-chrome-host.mjs";
 import { startOpenAiCompatibleFixtureServer } from "./lib/openai-compatible-fixture-server.mjs";
 import {
   buildToolExecutionThreadStartParams,
   provisionToolExecutionFixtureProvider,
 } from "./agent-runtime/tool-execution-current-contract.mjs";
 
-const source = path.resolve(
+let source = path.resolve(
   process.env.APP_SERVER_BIN ||
     `lime-rs/target/debug/app-server${process.platform === "win32" ? ".exe" : ""}`,
 );
@@ -24,11 +24,14 @@ const evidence = path.resolve(
   process.env.LIME_CHROME_EVIDENCE ||
     ".lime/qc/computer-use-integrations-20261025/chrome.json",
 );
+const host = process.env.LIME_COMPUTER_USE_HOST || "app-server";
+assert(["app-server", "desktop", "cli", "tui"].includes(host));
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "lime-chrome-native-"));
+const chromeLog = path.join(root, "chrome.log");
 const receipt = {
   startedAt: new Date().toISOString(),
-  claimBoundary:
-    "Real installed Google Chrome, MV3, Native Messaging, runtime stdio App Server and canonical model tool loop; loopback provider fixture, no live model or Desktop/CLI-host Gate B claim",
+  claimBoundary: `Real ${host} Host, installed Google Chrome, MV3, Native Messaging and canonical model tool loop; loopback provider fixture, no live model, signed package, other Host or Windows Gate B claim`,
+  host,
   checks: [],
 };
 const nativeManifest =
@@ -46,13 +49,7 @@ const nativeManifest =
           os.homedir(),
           ".config/google-chrome/NativeMessagingHosts/com.limecloud.lime.computer_use.json",
         );
-let originalManifest,
-  child,
-  lines,
-  context,
-  providerFixture,
-  stderr = "";
-const pending = new Map();
+let originalManifest, productHost, context, providerFixture;
 const fixture = createServer((_request, response) => {
   response.writeHead(200, { "Content-Type": "text/html" });
   response.end(
@@ -66,34 +63,37 @@ const waitUntil = async (fn, timeout = 15000) => {
     if (value) return value;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error("Condition timed out");
+  throw new Error(
+    `Condition timed out during ${receipt.stage || "initialization"}`,
+  );
 };
-let seq = 0;
 function request(method, params = {}) {
-  return new Promise((resolve, reject) => {
-    const id = ++seq;
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error(`${method} timed out`));
-    }, 70000);
-    pending.set(id, {
-      resolve(value) {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      reject(error) {
-        clearTimeout(timer);
-        reject(error);
-      },
-    });
-    child.stdin.write(
-      JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n",
-    );
-  });
+  return productHost.request(method, params);
 }
 try {
+  receipt.stage = "register-native-host";
   await fs.mkdir(path.dirname(evidence), { recursive: true });
+  const binaries = await snapshotTerminalGateBinaries({
+    appServerBinaryPath: source,
+    cliBinaryPath: ["cli", "tui"].includes(host)
+      ? path.resolve(
+          process.env.LIME_CLI_BIN ||
+            `lime-rs/target/debug/lime${process.platform === "win32" ? ".exe" : ""}`,
+        )
+      : undefined,
+    directory: path.join(root, "bin"),
+  });
+  source = binaries.appServerBinaryPath;
   prepareLocalAppServerBinary({ binaryPath: source });
+  const binaryDigest = createHash("sha256");
+  for await (const bytes of createReadStream(source))
+    binaryDigest.update(bytes);
+  receipt.appServerBinary = {
+    path: source,
+    sha256: binaryDigest.digest("hex"),
+    platform: process.platform,
+    arch: process.arch,
+  };
   originalManifest = await fs.readFile(nativeManifest).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -102,59 +102,21 @@ try {
     path.join(root, "config.yaml"),
     "server:\n  api_key: fixture-only\nfeatures:\n  computer_use: false\n  chrome_use: true\n  office_use: false\n",
   );
-  child = spawn(
-    source,
-    [
-      "--backend",
-      "runtime",
-      "--data-dir",
-      path.join(root, "data"),
-      "--app-data-dir",
-      path.join(root, "app"),
-    ],
-    {
-      env: {
-        ...terminalGateRuntimeEnvironment({ appServerBinaryPath: source }),
-        LIME_CONFIG_PATH: path.join(root, "config.yaml"),
-        LIME_AGENT_RUNTIME_ROOT: path.join(root, "runtime"),
-      },
-      stdio: ["pipe", "pipe", "pipe"],
-    },
-  );
-  child.stderr.on("data", (bytes) => {
-    stderr = (stderr + bytes).slice(-6000);
+  productHost = await startChromeHost({
+    host,
+    root,
+    binaries,
+    receipt,
+    evidenceDir: path.dirname(evidence),
   });
-  child.on("exit", (code) => {
-    for (const call of pending.values())
-      call.reject(new Error(`App Server exited ${code}: ${stderr}`));
-    pending.clear();
-  });
-  lines = readline.createInterface({ input: child.stdout });
-  lines.on("line", (line) => {
-    try {
-      const value = JSON.parse(line);
-      const call = pending.get(value.id);
-      if (!call) return;
-      pending.delete(value.id);
-      value.error
-        ? call.reject(new Error(JSON.stringify(value.error)))
-        : call.resolve(value.result);
-    } catch {}
-  });
-  await request("initialize", {
-    clientInfo: { name: "chrome-native-fixture", version: "1" },
-  });
-  child.stdin.write(
-    JSON.stringify({ jsonrpc: "2.0", method: "initialized" }) + "\n",
-  );
   const installed = await request("computerUse/setup", {
     adapter: "chrome",
     grantScope: "session",
   });
   assert.equal(installed.accepted, true);
-  const host = JSON.parse(await fs.readFile(nativeManifest, "utf8"));
-  assert.equal(host.path, source);
-  assert.deepEqual(host.allowed_origins, [
+  const registeredHost = JSON.parse(await fs.readFile(nativeManifest, "utf8"));
+  assert.equal(registeredHost.path, source);
+  assert.deepEqual(registeredHost.allowed_origins, [
     "chrome-extension://okipgpdaiijkenehohfgochhhlbifcbc/",
   ]);
   receipt.checks.push(
@@ -185,6 +147,8 @@ try {
       "--enable-unsafe-extension-debugging",
       "--no-first-run",
       "--no-default-browser-check",
+      "--enable-logging",
+      `--log-file=${chromeLog}`,
     ],
   });
   receipt.browserLogs = [];
@@ -234,6 +198,7 @@ try {
     path: extensionDirectory,
   });
   assert.equal(extension.id, "okipgpdaiijkenehohfgochhhlbifcbc");
+  receipt.stage = "popup-native-tab-group";
   await page.goto(url);
   const worker = await waitUntil(() => context.serviceWorkers()[0]);
   const userGroup = await worker.evaluate(async (url) => {
@@ -308,6 +273,7 @@ try {
   await childPage.close();
   await taskPage.close();
   await popup.close();
+  receipt.stage = "native-messaging-target-discovery";
   const target = await waitUntil(async () => {
     const status = await request("computerUse/status", { adapter: "chrome" });
     receipt.lastDiscovery = status.adapters[0];
@@ -316,23 +282,53 @@ try {
   receipt.checks.push(
     "isolated real Chrome loaded MV3 and discovered the exact profile/tab through native messaging",
   );
-  const approveTarget = async () => {
-    const setup = request("computerUse/setup", {
-      adapter: "chrome",
-      target,
-      grantScope: "session",
-    });
-    void setup.catch(() => {});
-    const approval = await waitUntil(() =>
-      context
+  const approveConsent = async (getFailure = () => null) => {
+    const approval = await waitUntil(() => {
+      const failure = getFailure();
+      if (failure) throw failure;
+      return context
         .pages()
-        .find((p) => p.url().includes("computer-use.html?request=")),
-    );
+        .find((p) => p.url().includes("computer-use.html?request="));
+    });
     await approval
       .getByRole("button", {
         name: /Allow this tab|允许此标签页|允許此分頁|このタブを許可|이 탭 허용/,
       })
       .click();
+  };
+  const approveTarget = async () => {
+    receipt.stage = "wait-for-native-target-snapshot";
+    // Wait for popup/temporary-tab removals to reach Native Messaging before
+    // opening consent. A stale generation must fail rather than be auto-approved.
+    await waitUntil(async () => {
+      const actual = await worker.evaluate(async () =>
+        (await chrome.tabs.query({}))
+          .filter((tab) => /^https?:\/\//.test(tab.url || ""))
+          .map((tab) => ({ tabId: String(tab.id), url: tab.url })),
+      );
+      const status = await request("computerUse/status", { adapter: "chrome" });
+      const targets = status.adapters[0].targets ?? [];
+      return (
+        targets.length === actual.length &&
+        actual.every((tab) =>
+          targets.some(
+            (candidate) =>
+              candidate.tabId === tab.tabId && candidate.url === tab.url,
+          ),
+        )
+      );
+    });
+    receipt.stage = "native-target-consent";
+    const setup = request("computerUse/setup", {
+      adapter: "chrome",
+      target,
+      grantScope: "session",
+    });
+    let failure;
+    void setup.catch((error) => {
+      failure = error;
+    });
+    await approveConsent(() => failure);
     return setup;
   };
   let grant = await approveTarget();
@@ -350,6 +346,7 @@ try {
   receipt.checks.push(
     "explicit extension approval produced a connection-bound session grant",
   );
+  receipt.stage = "canonical-model-tool-loop";
   const box = await page.locator("#result").boundingBox();
   const marker = "Lime Chrome 原生连接 🟢";
   const operation = (id, operation) => ({
@@ -358,7 +355,7 @@ try {
     name: "computer_use",
     arguments: { target, operation },
   });
-  const runtimeTabs = {};
+  const runtimeTabs = (receipt.runtimeGroups = {});
   const readTaskTabs = () =>
     worker.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
@@ -414,23 +411,38 @@ try {
         runtimeTabs.deliverable = tabs.find((tab) =>
           tab.url.endsWith("=deliverable"),
         ).id;
-        const status = await request("computerUse/status", {
-          adapter: "chrome",
-        });
-        const unapproved = status.adapters[0].targets.find(
-          (t) => t.tabId === String(runtimeTabs.deliverable),
-        );
-        await assert.rejects(
-          request("computerUse/lease/acquire", {
+        const unapproved = await waitUntil(async () => {
+          const status = await request("computerUse/status", {
             adapter: "chrome",
+          });
+          return status.adapters[0].targets.find(
+            (t) => t.tabId === String(runtimeTabs.deliverable),
+          );
+        });
+        return {
+          type: "tool_call",
+          id: "chrome-unapproved-observe",
+          name: "computer_use",
+          arguments: {
             target: unapproved,
-            threadId: thread.id,
-            turnId: turn.id,
-            capability: "observe",
-            grantId: grant.grant.id,
-          }),
-          /Grant does not cover/,
+            operation: { action: "observe", max_depth: 1, max_nodes: 8 },
+          },
+        };
+      },
+      async ({ body }) => {
+        const denied = body.messages.find(
+          (message) =>
+            message.role === "tool" &&
+            message.tool_call_id === "chrome-unapproved-observe",
         );
+        assert(
+          denied && /grant|approv|授权/i.test(JSON.stringify(denied.content)),
+          JSON.stringify(denied),
+        );
+        receipt.unapprovedPageProbe = {
+          modelToolCallId: denied.tool_call_id,
+          rejection: denied.content,
+        };
         return operation("chrome-mark-deliverable", {
           action: "mark_tab",
           tab_id: runtimeTabs.deliverable,
@@ -488,18 +500,18 @@ try {
     buildToolExecutionThreadStartParams({
       provider,
       title: "Chrome native fixture",
-      workspaceRoot: root,
+      workspaceRoot: productHost.workspaceRoot,
     }),
   );
-  const { turn } = await request("turn/start", {
-    threadId: thread.id,
-    input: [
-      {
-        type: "text",
-        text: "Write the fixture marker in the approved tab, observe it, and capture a screenshot.",
-      },
-    ],
-    approvalPolicy: "never",
+  await productHost.prepareThread(thread, provider);
+  const { turn } = await productHost.startTurn({
+    thread,
+    provider,
+    target,
+    approveConsent,
+    finalText: "CHROME_NATIVE_READBACK_OK",
+    prompt:
+      "Write the fixture marker in the approved tab, observe it, and capture a screenshot.",
   });
   const canonical = await waitUntil(async () => {
     const { thread: read } = await request("thread/read", {
@@ -509,13 +521,41 @@ try {
     const found = read.turns.find((t) => t.id === turn.id);
     return found?.status !== "inProgress" ? found : null;
   }, 60000);
-  assert.equal(canonical.status, "completed");
+  receipt.canonicalTurn = {
+    id: canonical.id,
+    status: canonical.status,
+    error: canonical.error,
+    providerRequests: providerFixture.requests.length,
+    items: canonical.items.map(
+      ({ id, type, tool, status, success, contentItems }) => ({
+        id,
+        type,
+        tool,
+        status,
+        success,
+        contentItems: contentItems?.map((content) =>
+          typeof content.text === "string"
+            ? { type: content.type, text: content.text.slice(0, 4096) }
+            : { type: content.type },
+        ),
+      }),
+    ),
+  };
+  assert.equal(
+    canonical.status,
+    "completed",
+    JSON.stringify(receipt.canonicalTurn),
+  );
   const tools = canonical.items.filter(
     (item) => item.type === "dynamicToolCall" && item.tool === "computer_use",
   );
-  assert.equal(tools.length, 10);
+  assert.equal(tools.length, 11);
   assert(
-    tools.every((tool) => tool.status === "completed"),
+    tools.every(
+      (tool) =>
+        tool.status ===
+        (tool.id === "item_chrome-unapproved-observe" ? "failed" : "completed"),
+    ),
     JSON.stringify(
       tools.map(({ id, status, result, error }) => ({
         id,
@@ -525,6 +565,7 @@ try {
       })),
     ),
   );
+  await productHost.finishTurn(thread, canonical, "CHROME_NATIVE_READBACK_OK");
   assert.equal(await page.locator("#result").inputValue(), marker);
   assert.equal(await page.locator("#readback").textContent(), marker);
   const readback = providerFixture.requests
@@ -547,8 +588,10 @@ try {
   receipt.checks.push(
     "canonical click/type/DOM observe/screenshot completed and marker reached actual page and provider readback",
   );
+  receipt.stage = "first-turn-browser-cleanup";
   await waitUntil(async () => {
     const tabs = await readTaskTabs();
+    receipt.lastTaskTabs = tabs;
     return (
       !tabs.some((tab) => tab.id === runtimeTabs.temporary) &&
       tabs.some(
@@ -580,16 +623,16 @@ try {
   // Closing temporary pages invalidates document authority, so request fresh consent.
   await request("computerUse/status", { adapter: "chrome" });
   grant = await approveTarget();
-  const resumed = await request("turn/start", {
-    threadId: thread.id,
-    input: [
-      {
-        type: "text",
-        text: "Resume the handoff task, rename it and finish without preserving it again.",
-      },
-    ],
-    approvalPolicy: "never",
+  const resumed = await productHost.startTurn({
+    thread,
+    provider,
+    target,
+    approveConsent,
+    finalText: "CHROME_HANDOFF_RESUMED",
+    prompt:
+      "Resume the handoff task, rename it and finish without preserving it again.",
   });
+  receipt.stage = "resumed-canonical-model-turn";
   const resumedCanonical = await waitUntil(async () => {
     const { thread: read } = await request("thread/read", {
       threadId: thread.id,
@@ -607,6 +650,13 @@ try {
     "completed",
     JSON.stringify(resumedCanonical),
   );
+  await productHost.finishTurn(
+    thread,
+    resumedCanonical,
+    "CHROME_HANDOFF_RESUMED",
+  );
+  await productHost.verifyVisible(thread);
+  receipt.stage = "resumed-turn-browser-cleanup";
   await waitUntil(
     async () =>
       !(await readTaskTabs()).some((tab) => tab.id === runtimeTabs.handoff),
@@ -634,16 +684,24 @@ try {
   });
   await context.close();
   context = null;
+  receipt.stage = "chrome-disconnect";
   await waitUntil(async () => {
     const state = await request("computerUse/status", { adapter: "chrome" });
     return state.adapters[0].readiness !== "ready";
   });
   receipt.checks.push("Chrome exit invalidated connected target readiness");
+  receipt.stage = "complete";
   receipt.result = "pass";
 } catch (error) {
   receipt.result = "fail";
-  receipt.error = String(error);
-  receipt.stderr = stderr;
+  receipt.error = error.stack || String(error);
+  receipt.providerErrors = providerFixture?.requests
+    .filter((entry) => entry.responseError)
+    .map(({ responseError }) => ({ responseError }));
+  receipt.stderr = productHost?.stderr;
+  await productHost?.captureFailure().catch((error) => {
+    receipt.desktopCaptureError = String(error);
+  });
   receipt.extensionState = await context
     ?.serviceWorkers()[0]
     ?.evaluate(() => chrome.storage.session.get(["connected", "error"]))
@@ -652,30 +710,71 @@ try {
     ?.serviceWorkers()[0]
     ?.evaluate(() => chrome.storage.local.get(["profileId", "TAB_GROUPS"]))
     .catch(() => null);
+  receipt.extensionTasks = await context
+    ?.serviceWorkers()[0]
+    ?.evaluate(() => chrome.storage.session.get(["TASK_TABS", "ENDED_TURNS"]))
+    .catch(() => null);
+  // Probe a separate framing connection only after failure. This distinguishes
+  // host launch/loader errors from a stalled extension connection without
+  // creating a grant or manufacturing a runtime tool result.
+  receipt.nativeHostProbe = await context
+    ?.serviceWorkers()[0]
+    ?.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const probe = chrome.runtime.connectNative(
+            "com.limecloud.lime.computer_use",
+          );
+          let finished = false;
+          const finish = (result) => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            resolve(result);
+            probe.disconnect();
+          };
+          const timer = setTimeout(
+            () => finish({ error: "Native host probe timed out" }),
+            5000,
+          );
+          probe.onDisconnect.addListener(() =>
+            finish({
+              error:
+                chrome.runtime.lastError?.message || "Native host disconnected",
+            }),
+          );
+          probe.onMessage.addListener((message) =>
+            finish({ protocol: message.protocol }),
+          );
+          probe.postMessage({
+            snapshot: {
+              generation: 1,
+              readiness: "ready",
+              targets: [],
+              reason: null,
+              setupSteps: [],
+            },
+            responses: [],
+          });
+        }),
+    )
+    .catch((error) => ({ error: String(error) }));
 } finally {
   await context?.close().catch(() => {});
+  receipt.chromeLog = (
+    await fs.readFile(chromeLog, "utf8").catch(() => "")
+  ).slice(-12000);
   await providerFixture?.close?.();
   await new Promise((resolve) => fixture.close(resolve));
-  lines?.close();
-  if (child && child.exitCode === null) {
-    child.stdin.end();
-    await Promise.race([
-      new Promise((resolve) => child.once("exit", resolve)),
-      new Promise((resolve) =>
-        setTimeout(() => {
-          child.kill();
-          resolve();
-        }, 3000),
-      ),
-    ]);
-  }
+  await productHost?.close();
   if (originalManifest)
     await fs.writeFile(nativeManifest, originalManifest, { mode: 0o600 });
-  else await fs.rm(nativeManifest, { force: true });
+  else if (originalManifest === null)
+    await fs.rm(nativeManifest, { force: true });
   await fs.mkdir(path.dirname(evidence), { recursive: true });
   receipt.completedAt = new Date().toISOString();
   await fs.writeFile(evidence, JSON.stringify(receipt, null, 2) + "\n");
-  await fs.rm(root, { recursive: true, force: true });
+  await fs.rm(root, { recursive: true, force: true, maxRetries: 5 });
   console.log(JSON.stringify(receipt, null, 2));
 }
 process.exitCode = receipt.result === "pass" ? 0 : 1;

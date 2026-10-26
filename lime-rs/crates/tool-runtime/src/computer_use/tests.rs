@@ -4,6 +4,8 @@ use lime_core::AllowDenyRequirementToml::{Allow, Deny};
 use std::sync::{Arc, Mutex};
 
 mod chrome;
+mod native_snapshot;
+mod persistent;
 mod turn;
 
 struct TestAdapter {
@@ -21,6 +23,7 @@ impl TestAdapter {
                 readiness: ComputerUseReadiness::Ready,
                 targets: vec![ComputerUseTarget {
                     identity: target(),
+                    revision: None,
                     native_app: Some(NativeAppIdentity::Macos {
                         bundle_id: "com.example.Editor".into(),
                     }),
@@ -60,6 +63,7 @@ impl ComputerUseAdapter for TestAdapter {
             accepted: true,
             approved_target: self.consent.then(target),
             generation: 1,
+            ..Default::default()
         })
     }
 }
@@ -234,9 +238,7 @@ async fn consent_is_required_and_cannot_override_admin_or_user_denials() {
     assert!(service
         .setup("local-1", persistent, || Ok(Default::default()))
         .await
-        .unwrap()
-        .grant
-        .is_none());
+        .is_err());
 }
 
 #[tokio::test]

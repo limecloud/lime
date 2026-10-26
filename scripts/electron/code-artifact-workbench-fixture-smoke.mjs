@@ -20,7 +20,7 @@ import {
 } from "./lib/sidebar-layout-fixture-evidence.mjs";
 import { withElectronFixtureSystemPath } from "../lib/electron-fixture-runtime-env.mjs";
 import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import {
   captureInvokeTraceCollector,
   installInvokeTraceCollector,

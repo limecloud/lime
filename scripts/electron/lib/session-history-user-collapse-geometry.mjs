@@ -1,7 +1,7 @@
 import {
   extractClipboardCopyEvidence,
   summarizeClipboardCopyProof,
-} from "../../agent-runtime/claw-chat-current-fixture-user-message-collapse-clipboard-observation.mjs";
+} from "../../lib/chat-fixture/user-message-collapse-clipboard-observation.mjs";
 
 export const COLLAPSE_SELECTORS = Object.freeze({
   scroll: '[data-testid="message-list-scroll-container"]',

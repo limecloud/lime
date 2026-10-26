@@ -60,6 +60,10 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
       ),
     );
     const explicit = select("browse", "https://app.example.com");
+    expect(explicit.getAttribute("aria-label")).toContain(
+      "https://app.example.com",
+    );
+    expect(explicit.getAttribute("aria-label")).not.toContain("·");
     expect(explicit.value).toBe("allow");
     expect(explicit.dataset.browserPermissionEffective).toBe("deny");
     const description = document.getElementById(

@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+mod snapshot;
 mod turn;
 
 const LEASE_LIFETIME: Duration = Duration::from_secs(30);
@@ -44,6 +45,24 @@ struct State {
 }
 
 impl State {
+    fn owners(&self) -> Vec<ComputerUseOwner> {
+        let mut owners: Vec<_> = self
+            .turn_connections
+            .iter()
+            .map(|((thread_id, turn_id), connection)| ComputerUseOwner {
+                connection: connection.clone(),
+                thread_id: thread_id.clone(),
+                turn_id: turn_id.clone(),
+            })
+            .collect();
+        for lease in self.leases.values() {
+            if !owners.contains(&lease.owner) {
+                owners.push(lease.owner.clone());
+            }
+        }
+        owners
+    }
+
     fn refresh(&mut self, policy: ComputerUseResult<ComputerUsePolicy>) -> ComputerUseResult<()> {
         match policy {
             Ok(policy) => {
@@ -91,7 +110,14 @@ impl State {
             self.invalidate();
             return Err(denied("Adapter generation must be nonzero"));
         }
+        if kind == ComputerUseAdapterKind::Native && !snapshot::unique_native_targets(&snapshot) {
+            self.invalidate();
+            return Err(denied(
+                "Native snapshot target identities must be unique and complete",
+            ));
+        }
         if let Some(previous) = self.snapshots.get(&kind) {
+            let previous_generation = previous.generation;
             if snapshot.generation < previous.generation {
                 return Err(denied("Stale adapter generation"));
             }
@@ -103,7 +129,13 @@ impl State {
                 self.snapshots.insert(kind, snapshot);
                 return Ok(());
             }
-            let previous_generation = previous.generation;
+            if kind == ComputerUseAdapterKind::Native {
+                if let Some(retained) = snapshot::retained_native_targets(previous, &snapshot) {
+                    self.retain_native_authority(&retained);
+                    self.snapshots.insert(kind, snapshot);
+                    return Ok(());
+                }
+            }
             self.invalidate();
             if snapshot.generation == previous_generation {
                 return Err(denied("Adapter changed without advancing its generation"));
@@ -349,12 +381,12 @@ impl ComputerUseService {
         &self,
         connection: &str,
         params: ComputerUseSetupParams,
-        load: impl Fn() -> ComputerUseResult<ComputerUsePolicy> + Send,
+        policy: impl ComputerUsePolicyStore,
     ) -> ComputerUseResult<ComputerUseSetupResponse> {
         // Check global authority before triggering installation or permission UI.
         {
             let mut state = self.lock()?;
-            state.refresh(load())?;
+            state.refresh(policy.load())?;
             if state
                 .policy
                 .as_ref()
@@ -370,13 +402,32 @@ impl ComputerUseService {
                 });
             }
         }
-        let outcome = match self.adapters.get(&params.adapter) {
-            Some(adapter) => adapter.setup(&params).await?,
-            None => ComputerUseSetupOutcome::default(),
+        let preapproved = if let Some(requested) = &params.target {
+            self.probe(params.adapter).await?;
+            let mut state = self.lock()?;
+            state.refresh(policy.load())?;
+            state.target(params.adapter, requested).is_ok_and(|target| {
+                state
+                    .admit(params.adapter, target, params.grant_scope, false)
+                    .is_ok()
+            })
+        } else {
+            false
+        };
+        let outcome = if preapproved {
+            ComputerUseSetupOutcome {
+                accepted: true,
+                ..Default::default()
+            }
+        } else {
+            match self.adapters.get(&params.adapter) {
+                Some(adapter) => adapter.setup(&params).await?,
+                None => ComputerUseSetupOutcome::default(),
+            }
         };
         self.probe(params.adapter).await?;
         let mut state = self.lock()?;
-        state.refresh(load())?;
+        state.refresh(policy.load())?;
         let mut status = state.status(params.adapter);
         let Some(requested) = &params.target else {
             return Ok(ComputerUseSetupResponse {
@@ -392,13 +443,39 @@ impl ComputerUseService {
                 grant: None,
             });
         }
-        let target = state.target(params.adapter, requested)?;
-        let consent = state.snapshots[&params.adapter].generation == outcome.generation
-            && outcome
-                .approved_target
+        let target = state.target(params.adapter, requested)?.clone();
+        let consent = (if let Some(revision) = &outcome.approved_revision {
+            // A native consent snapshot may differ only in unrelated windows.
+            // Session-stamped target revisions retire on any protected change.
+            outcome.generation > 0
+                && outcome.generation <= state.snapshots[&params.adapter].generation
+                && target.revision.as_ref() == Some(revision)
+        } else {
+            state.snapshots[&params.adapter].generation == outcome.generation
+        }) && outcome
+            .approved_target
+            .as_ref()
+            .is_some_and(|approved| same_target(approved, &target.identity));
+        if params.grant_scope == ComputerUseGrantScope::Persistent && consent {
+            state.admit(
+                params.adapter,
+                &target,
+                ComputerUseGrantScope::Session,
+                true,
+            )?;
+            state
+                .policy
                 .as_ref()
-                .is_some_and(|approved| same_target(approved, &target.identity));
-        if let Err(error) = state.admit(params.adapter, target, params.grant_scope, consent) {
+                .unwrap()
+                .with_persistent_approval(params.adapter, &target)
+                .map_err(denied)?;
+            // The host reloads and rechecks policy under the existing config lock.
+            // No durable rule or grant may be created by an RPC-provided identity.
+            policy.save_approval(params.adapter, &target)?;
+            state.refresh(policy.load())?;
+            status = state.status(params.adapter);
+        }
+        if let Err(error) = state.admit(params.adapter, &target, params.grant_scope, consent) {
             status.reason = Some(error.0);
             return Ok(ComputerUseSetupResponse {
                 accepted: outcome.accepted,
@@ -644,20 +721,27 @@ impl ComputerUseService {
             return Err(denied("Grant belongs to another connection"));
         }
         let revoked = state.grants.contains_key(id);
+        let owners = if revoked { state.owners() } else { vec![] };
         if revoked {
             state.invalidate();
         }
-        Ok(ComputerUseRevokeResponse {
+        let response = ComputerUseRevokeResponse {
             revoked,
             epoch: state.epoch,
-        })
+        };
+        drop(state);
+        self.finish_turns(owners);
+        Ok(response)
     }
 
     pub fn policy_changed(&self) {
+        let mut owners = Vec::new();
         if let Ok(mut state) = self.state.lock() {
+            owners = state.owners();
             state.invalidate();
             state.policy = None;
         }
+        self.finish_turns(owners);
     }
 }
 

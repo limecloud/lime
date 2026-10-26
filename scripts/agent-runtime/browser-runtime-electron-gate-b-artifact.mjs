@@ -4,7 +4,7 @@ import {
 } from "./browser-runtime-electron-gate-b-approval.mjs";
 import http from "node:http";
 import { readInvokeDiagnostics } from "./browser-runtime-electron-gate-b-cancel.mjs";
-import { sanitizeJson, sleep } from "./claw-chat-current-fixture-utils.mjs";
+import { sanitizeJson, sleep } from "../lib/chat-fixture/utils.mjs";
 
 const DOWNLOAD_EVENT = "browser-tab-download";
 const DOWNLOAD_FILENAME = "browser-artifact-gate-b.txt";

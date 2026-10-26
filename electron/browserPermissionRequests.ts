@@ -7,6 +7,7 @@ type Registration = {
   refresh: ApplicationNetworkRefresh;
   managed: boolean;
   webSocketsMayBeActive: boolean;
+  imageHeadersInstalled: boolean;
 };
 const registrations = new WeakMap<Session, Registration>();
 
@@ -27,6 +28,10 @@ export class BrowserPermissionRequests {
   readonly #allows: (viewId: string, url: string) => boolean;
   readonly #blocked: (viewId: string, url: string, reason: string) => void;
   readonly #networkAllows: (url: string) => boolean;
+  readonly #resourceAllows: (
+    details: OnBeforeRequestListenerDetails,
+  ) => boolean;
+  readonly #imageAllows: ((documentUrl: string) => boolean) | undefined;
   readonly #refreshNetwork: (() => Promise<void>) | undefined;
   readonly #managed: boolean;
   readonly #sessions = new Set<Session>();
@@ -38,12 +43,16 @@ export class BrowserPermissionRequests {
     blocked: (viewId: string, url: string, reason: string) => void;
     networkAllows?: (url: string) => boolean;
     refreshNetwork?: () => Promise<void>;
+    resourceAllows?: (details: OnBeforeRequestListenerDetails) => boolean;
+    imageAllows?: (documentUrl: string) => boolean;
   }) {
     this.#viewId = options.viewId;
     this.#allows = options.allows;
     this.#blocked = options.blocked;
     this.#networkAllows = options.networkAllows ?? (() => true);
     this.#refreshNetwork = options.refreshNetwork;
+    this.#resourceAllows = options.resourceAllows ?? (() => true);
+    this.#imageAllows = options.imageAllows;
     this.#managed = options.networkAllows !== undefined;
   }
 
@@ -56,12 +65,23 @@ export class BrowserPermissionRequests {
         refresh: new ApplicationNetworkRefresh(),
         managed: false,
         webSocketsMayBeActive: false,
+        imageHeadersInstalled: false,
       };
       registrations.set(session, registration);
       const current = registration;
       session.webRequest.onBeforeRequest(
         { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] },
         (details, callback) => {
+          const frame = details.frame;
+          let frameUrl: string | undefined;
+          let frameOrigin: string | undefined;
+          try {
+            frameUrl = frame?.url;
+            frameOrigin = frame?.origin;
+          } catch {
+            callback({ cancel: true });
+            return;
+          }
           const complete = (allowed: boolean) => {
             if (allowed && /^wss?:/i.test(details.url))
               current.webSocketsMayBeActive = true;
@@ -72,8 +92,17 @@ export class BrowserPermissionRequests {
             return;
           }
           const decide = () => {
+            // A refresh can yield while the native requesting document navigates.
+            if (
+              frame &&
+              (frame.detached ||
+                frame.url !== frameUrl ||
+                frame.origin !== frameOrigin)
+            )
+              return false;
             for (const owner of current.owners) {
               if (!owner.#allowsNetwork(details)) return false;
+              if (!owner.#resourceAllows(details)) return false;
             }
             // Agent approval still applies only to main-frame navigation.
             if (details.resourceType !== "mainFrame") return true;
@@ -120,6 +149,39 @@ export class BrowserPermissionRequests {
       );
     }
     registration.managed ||= this.#managed;
+    if (this.#imageAllows && !registration.imageHeadersInstalled) {
+      const current = registration;
+      session.webRequest.onHeadersReceived(
+        { urls: ["http://*/*", "https://*/*"] },
+        (details, callback) => {
+          if (!["mainFrame", "subFrame"].includes(details.resourceType)) {
+            callback({});
+            return;
+          }
+          let blocked = !current.owners.size && current.managed;
+          try {
+            for (const owner of current.owners)
+              if (owner.#imageAllows?.(details.url) === false) blocked = true;
+          } catch {
+            blocked = true;
+          }
+          if (!blocked) {
+            callback({});
+            return;
+          }
+          // An additional policy intersects with the site's policies. It also
+          // covers data/blob images and inherited about:blank/srcdoc documents.
+          const headers = { ...details.responseHeaders };
+          const key =
+            Object.keys(headers).find(
+              (name) => name.toLowerCase() === "content-security-policy",
+            ) ?? "Content-Security-Policy";
+          headers[key] = [...(headers[key] ?? []), "img-src 'none'"];
+          callback({ responseHeaders: headers });
+        },
+      );
+      registration.imageHeadersInstalled = true;
+    }
     registration.refresh.invalidate();
     registration.owners.add(this);
     this.#sessions.add(session);
@@ -198,6 +260,8 @@ export class BrowserPermissionRequests {
       // A worker can outlive every view. Retain a closed gate until the next network owner.
       if (registration?.owners.size === 0 && !registration.managed) {
         session.webRequest.onBeforeRequest(null);
+        if (registration.imageHeadersInstalled)
+          session.webRequest.onHeadersReceived(null);
         registrations.delete(session);
       }
     }

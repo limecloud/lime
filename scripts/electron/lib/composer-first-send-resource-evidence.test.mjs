@@ -16,16 +16,16 @@ import {
 // Load the current independent fixture/oracle; do not reproduce lowering here.
 const fromFormal = (name) =>
   import(
-    pathToFileURL(path.join(process.cwd(), "scripts/agent-runtime", name))
+    pathToFileURL(path.join(process.cwd(), "scripts/lib/chat-fixture", name))
   );
 const { summarizeRichInputSubmission, richInputImageUrl } = await fromFormal(
-  "claw-chat-current-fixture-rich-input-evidence.mjs",
+  "rich-input-evidence.mjs",
 );
 const { composerMarksFixture } = await fromFormal(
-  "claw-chat-current-fixture-composer-marks.mjs",
+  "composer-marks.mjs",
 );
 const { ensureUserVisibleCapabilityReportSkill } = await fromFormal(
-  "claw-chat-current-fixture-skills-workspace.mjs",
+  "skills-workspace.mjs",
 );
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 let fixtureRoot;

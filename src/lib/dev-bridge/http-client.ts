@@ -94,6 +94,19 @@ export function resolveBridgeRequestTimeoutMs(
   cmd: string,
   args?: unknown,
 ): number {
+  // OS prompts and file panels are user-driven; the short RPC timeout must not
+  // abandon a pending system dialog or report a successful request as failed.
+  if (cmd === "desktop_permissions_request") return 0;
+  if (
+    cmd === "desktop_permissions_read" ||
+    cmd === "desktop_permissions_targets"
+  )
+    return 30_000;
+  if (
+    cmd === "desktop_permissions_open_settings" ||
+    cmd === "desktop_permissions_complete"
+  )
+    return 10_000;
   if (cmd === "app_server_handle_json_lines") {
     const commandTimeout = commandExecBridgeTimeout(args);
     if (commandTimeout !== null) return commandTimeout;

@@ -128,7 +128,7 @@ describe("ToolCallDisplay tool search and actions", () => {
       { grouped: true },
     );
 
-    expect(container.textContent).toContain("已确认可用工具 1 个 · 搜索网页");
+    expect(container.textContent).toContain("已确认可用工具 1 个 搜索网页");
     expect(container.textContent).not.toContain("已搜索 可用工具");
     expect(container.textContent).not.toContain("确认 工具入口");
     expect(container.textContent).not.toContain("WebSearch");

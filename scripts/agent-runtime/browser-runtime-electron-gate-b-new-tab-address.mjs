@@ -4,7 +4,7 @@ import {
   assert,
   sanitizeText,
   sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 /** Real New tab drafts and navigation; no injected tab state or Agent turn. */
 export async function runBrowserNewTabAddressScenario({

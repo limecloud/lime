@@ -60,7 +60,7 @@ const {
   const getSessionUserAgentMock = vi.fn();
   const setSessionUserAgentMock = vi.fn();
   const sessionFromPartitionMock = vi.fn(() => ({
-    webRequest: { onBeforeRequest: vi.fn() },
+    webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
     closeAllConnections: vi.fn(async () => {}),
     getUserAgent: getSessionUserAgentMock,
     on: vi.fn((eventName: string, handler: (...args: unknown[]) => void) => {

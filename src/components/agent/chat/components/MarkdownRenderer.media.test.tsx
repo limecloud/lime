@@ -15,7 +15,7 @@ describe("MarkdownRenderer media and links", () => {
 
     const container = render(content);
 
-    expect(container.textContent).toContain("图片 · 点击查看大图");
+    expect(container.textContent).toContain("图片 点击查看大图");
   });
 
   it("markdown 图片加载失败时不应暴露 alt 文本", () => {

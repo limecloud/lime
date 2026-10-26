@@ -173,15 +173,58 @@ describe("Computer Use settings through existing owners", () => {
     api.status.mockRejectedValue(new Error("transport closed"));
     await expect(getComputerUseSettings()).rejects.toThrow("transport closed");
   });
+
+  it("requests persistent setup through the shared RPC and reflects administrator restrictions", async () => {
+    const target = { type: "native" as const, appId: "com.example.App" };
+    api.setup.mockResolvedValue({
+      accepted: true,
+      status: { readiness: "ready" },
+      grant: { target, scope: "persistent" },
+    });
+    await setupComputerUseAdapter("native", target, "persistent");
+    expect(api.setup).toHaveBeenCalledWith({
+      adapter: "native",
+      target,
+      grantScope: "persistent",
+    });
+    expect(api.update).not.toHaveBeenCalled();
+    expect((await getComputerUseSettings()).persistentApprovalAllowed).toBe(
+      true,
+    );
+    api.requirements.mockResolvedValue({
+      computerUse: { allowPersistentApproval: false },
+    });
+    expect((await getComputerUseSettings()).persistentApprovalAllowed).toBe(
+      false,
+    );
+  });
 });
 
 it("preserves independent adapter flags and refuses unconfirmed target approval", async () => {
   await setComputerUseEnabled(true, false, "chrome");
-  expect(config.features).toEqual({ computer_use: false, chrome_use: true, other: true });
+  expect(config.features).toEqual({
+    computer_use: false,
+    chrome_use: true,
+    other: true,
+  });
   await setComputerUseEnabled(true, false, "office");
   expect(config.features?.computer_use).toBe(false);
-  expect((await getComputerUseSettings()).enabled).toEqual({ native: false, chrome: true, office: true });
-  const target = { type: "office" as const, host: "Excel", sessionId: "session", workbookId: "book" };
-  api.setup.mockResolvedValue({ accepted: true, status: { readiness: "ready" } });
-  await expect(setupComputerUseAdapter("office", target)).rejects.toThrow("not approved");
+  expect((await getComputerUseSettings()).enabled).toEqual({
+    native: false,
+    chrome: true,
+    office: true,
+  });
+  const target = {
+    type: "office" as const,
+    host: "Excel",
+    sessionId: "session",
+    workbookId: "book",
+  };
+  api.setup.mockResolvedValue({
+    accepted: true,
+    status: { readiness: "ready" },
+  });
+  await expect(setupComputerUseAdapter("office", target)).rejects.toThrow(
+    "not approved",
+  );
 });

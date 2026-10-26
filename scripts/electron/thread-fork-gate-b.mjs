@@ -24,7 +24,7 @@ import {
   waitForPageCondition,
 } from "./mcp-config-fixture-smoke.mjs";
 import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import {
   clickConversation,
   readThreadDom,

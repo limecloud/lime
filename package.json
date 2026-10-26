@@ -5,7 +5,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "version": "1.171.0",
+  "version": "1.172.0",
   "description": "Open-source full-stack desktop AI agent for global users: coding, research, content, files, terminals, tools, multimodal work, and multi-agent workflows.",
   "keywords": [
     "ai",
@@ -224,7 +224,6 @@
     "smoke:site-adapters": "node scripts/site-adapter-catalog-smoke.mjs",
     "smoke:agent-runtime-tool-surface": "node scripts/agent-runtime/tool-surface-smoke.mjs",
     "smoke:agent-runtime-tool-surface-page": "node scripts/agent-runtime/tool-surface-page-smoke.mjs",
-    "smoke:agent-runtime-current-fixture": "node scripts/agent-runtime/current-fixture-regression-smoke.mjs",
     "smoke:agent-runtime-multimodal-capture": "node scripts/agent-runtime/multimodal-provider-capture-smoke.mjs",
     "smoke:code-mode-electron-gate-b": "node scripts/agent-runtime/code-mode-electron-gate-b.mjs",
     "smoke:macos-native-host-gate-b": "node scripts/electron/macos-native-host-gate-b.mjs",
@@ -235,8 +234,6 @@
     "smoke:browser-runtime-locale-matrix": "node scripts/agent-runtime/browser-runtime-locale-matrix.mjs",
     "smoke:agent-session-recovery-cdp-gate": "node scripts/agent-runtime/agent-session-recovery-cdp-gate.mjs",
     "smoke:reopen-running-turn-cdp-gate": "node scripts/agent-runtime/reopen-running-turn-cdp-gate.mjs",
-    "smoke:expert-skills-live-gate": "node scripts/agent-runtime/expert-skills-live-gate.mjs --allow-missing-live",
-    "smoke:expert-skills-live-runner": "node scripts/agent-runtime/expert-skills-live-runner.mjs",
     "smoke:agent-session-history-electron-fixture": "node scripts/electron/session-history-fixture-smoke.mjs",
     "smoke:session-files-electron-fixture": "node scripts/electron/session-files-fixture-smoke.mjs",
     "smoke:mcp-config-electron-fixture": "node scripts/electron/mcp-config-fixture-smoke.mjs",
@@ -267,9 +264,6 @@
     "smoke:orchestrator-skills-gate-b": "node scripts/electron/orchestrator-skills-gate-b.mjs",
     "smoke:plugin-package-electron-gate-b": "node scripts/electron/plugin-package-electron-gate-b.mjs",
     "smoke:code-artifact-workbench-electron-fixture": "node scripts/electron/code-artifact-workbench-fixture-smoke.mjs",
-    "smoke:claw-chat-current-fixture": "node scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs",
-    "smoke:hook-lifecycle-gate-b": "node scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs --scenario turn-plan-update --hook-fixture --evidence-dir .lime/qc/gui-evidence/hook-lifecycle-gate-b --prefix hook-lifecycle-gate-b",
-    "smoke:unknown-item-recovery-electron-fixture": "node scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs --scenario unknown-item --prefix claw-chat-current-fixture-unknown-item-regression --timeout-ms 240000",
     "smoke:claw-image-live": "node scripts/agent-runtime/claw-image-live-smoke.mjs",
     "smoke:claw-chat-ready-streaming": "node scripts/claw-chat-ready-streaming-smoke.mjs",
     "smoke:at-command-registry": "node scripts/at-command-registry-e2e.mjs",
@@ -292,7 +286,8 @@
     "agent-qc:project-gate-coverage": "node scripts/agent-qc/project-gate-coverage.mjs",
     "agent-qc:project-gate-settings-a": "node scripts/agent-qc/project-gate-settings-a.mjs",
     "agent-qc:project-gate-settings-b": "node scripts/agent-qc/project-gate-settings-b.mjs",
-    "smoke:settings-local-environments-electron-fixture": "node scripts/electron/lib/settings-local-environments-fixture.mjs"
+    "smoke:settings-local-environments-electron-fixture": "node scripts/electron/lib/settings-local-environments-fixture.mjs",
+    "smoke:agent-runtime-current": "npm run smoke:code-mode-electron-gate-b && npm run smoke:agent-session-recovery-cdp-gate && npm run smoke:reopen-running-turn-cdp-gate"
   },
   "dependencies": {
     "@aiden0z/pptx-renderer": "1.3.0",

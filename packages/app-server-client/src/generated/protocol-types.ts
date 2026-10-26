@@ -10434,6 +10434,7 @@ export type ThreadItem =
       type: "hookPrompt";
     }
   | {
+      contentParts?: MessageContentPart[];
       delivery?: AgentMessageDelivery | null;
       id: string;
       memoryCitation?: MemoryCitation | null;
@@ -11908,6 +11909,30 @@ export type HookRunStatus =
 export type HookScope = "thread" | "turn";
 
 export type AgentMessageDelivery = "async";
+
+export type MessageContentPart =
+  | {
+      text: string;
+      type: "text";
+    }
+  | {
+      caption?: null | string;
+      kind: string;
+      reference: MessageContentReference;
+      type: "media";
+    };
+
+export interface MessageContentReference {
+  byte_size?: number | null;
+  mime_type: string;
+  preview_url?: null | string;
+  sha256?: null | string;
+  sidecar_ref?: unknown;
+  source_path?: null | string;
+  source_uri?: null | string;
+  title?: null | string;
+  uri: string;
+}
 
 export type MessagePhase = "commentary" | "final_answer" | "partial_answer";
 

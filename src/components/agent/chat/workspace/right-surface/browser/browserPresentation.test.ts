@@ -20,6 +20,18 @@ beforeEach(() => {
 });
 
 describe("browser presentation recovery", () => {
+  it("does not let a stale teardown null suppress canonical browser recovery", async () => {
+    localStorage.setItem(
+      `browser-presentation:${JSON.stringify([owner.sessionId, owner.threadId])}`,
+      "null",
+    );
+    const presentation = await import("./browserPresentation");
+    expect(presentation.hasBrowserPresentation(owner)).toBe(false);
+    presentation.rememberBrowserPresentation(owner, null);
+    expect(presentation.hasBrowserPresentation(owner)).toBe(true);
+    expect(presentation.readBrowserPresentation(owner)).toBeNull();
+  });
+
   it("restores the selected native tab after the renderer module is recreated", async () => {
     const first = await import("./browserPresentation");
     first.rememberBrowserPresentation(owner, "native-tab");

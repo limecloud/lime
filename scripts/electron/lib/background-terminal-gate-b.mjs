@@ -21,8 +21,8 @@ import {
   initializeAppServer,
   invokeAppServerFromPage,
   waitForRendererReady,
-} from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { settleFixtureResources } from "../../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+} from "../../lib/chat-fixture/rpc.mjs";
+import { settleFixtureResources } from "../../lib/chat-fixture/teardown.mjs";
 import { captureMainProcessExit } from "./persisted-atom-fixture-driver.mjs";
 import {
   BACKGROUND_FINAL,

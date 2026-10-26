@@ -247,6 +247,7 @@ mod tests {
                 text: "done".into(),
                 phase: None,
                 memory_citation: None,
+                content_parts: Vec::new(),
                 delivery: None,
                 questions: None,
             }]),
@@ -379,6 +380,7 @@ mod tests {
             text: id.to_string(),
             phase: None,
             memory_citation: None,
+            content_parts: Vec::new(),
             delivery: None,
             questions: None,
         }

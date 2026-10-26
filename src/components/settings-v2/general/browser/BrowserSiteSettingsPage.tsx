@@ -29,6 +29,7 @@ const permissionLabels: Record<BrowserSitePermission, string> = {
   sound: "browserSiteSettings.sound",
   protectedContent: "browserSiteSettings.protectedContent",
   automaticDownloads: "browserSiteSettings.automaticDownloads",
+  images: "browserSiteSettings.images",
 };
 
 export function BrowserSiteSettingsPage({ onBack }: { onBack: () => void }) {

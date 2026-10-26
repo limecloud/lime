@@ -26,6 +26,7 @@ impl ComputerUseAdapter for ChromeAdapter {
             accepted: true,
             approved_target: params.target.clone(),
             generation: self.snapshot.lock().unwrap().generation,
+            ..Default::default()
         })
     }
     async fn execute(

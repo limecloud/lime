@@ -85,27 +85,6 @@ describe("pluginFixtureBoundary", () => {
       "utf8",
     );
     expect(articleAction).not.toMatch(/workspacePluginPaneAction|pane_action/);
-    for (const name of [
-      "content-factory-workspace-patches",
-      "content-factory-article-workspace",
-      "content-factory-assertions",
-      "inline-image-article-workspace",
-      "constants",
-    ]) {
-      const source = readFileSync(
-        join(
-          REPO_ROOT,
-          `scripts/agent-runtime/claw-chat-current-fixture-${name}.mjs`,
-        ),
-        "utf8",
-      );
-      expect(source, name).not.toMatch(
-        /rendererContract|renderer_contract|app_declared|host_placeholder|StoryboardRendererContract|workerTaskId|expectedWorkerTaskId/,
-      );
-      if (name === "inline-image-article-workspace") {
-        expect(source).not.toMatch(/\bFIXTURE_(PROVIDER|MODEL)\b/);
-      }
-    }
     for (const locale of ["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"]) {
       const messages = JSON.parse(
         readFileSync(

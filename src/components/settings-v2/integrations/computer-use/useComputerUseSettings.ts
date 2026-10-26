@@ -11,6 +11,7 @@ import {
 import type {
   ComputerUseAdapterKind,
   ComputerUseTargetIdentity,
+  ComputerUseGrantScope,
 } from "@limecloud/app-server-client";
 
 export function useComputerUseSettings() {
@@ -107,6 +108,11 @@ export function useComputerUseSettings() {
     setup: (
       adapter: ComputerUseAdapterKind,
       target?: ComputerUseTargetIdentity,
-    ) => mutate(() => setupComputerUseAdapter(adapter, target), "setup"),
+      grantScope: ComputerUseGrantScope = "session",
+    ) =>
+      mutate(
+        () => setupComputerUseAdapter(adapter, target, grantScope),
+        "setup",
+      ),
   };
 }

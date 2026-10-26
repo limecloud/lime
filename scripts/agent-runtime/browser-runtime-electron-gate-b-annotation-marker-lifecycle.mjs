@@ -1,4 +1,4 @@
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import { verifyBrowserAnnotationControl } from "./browser-runtime-electron-gate-b-annotation-control.mjs";
 import {
   readBrowserAnnotationNativeIdentity,

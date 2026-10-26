@@ -31,7 +31,7 @@ type StoredSite = { origin: string } & Partial<
   Record<BrowserSitePermission, BrowserSitePermissionSetting>
 >;
 type Envelope = {
-  schemaVersion: 4;
+  schemaVersion: 5;
   revision: number;
   defaults: BrowserSiteSettingsSnapshot["defaults"];
   sites: StoredSite[];
@@ -143,7 +143,7 @@ export class BrowserSiteSettingsStore {
     return this.#run(async () => {
       const current = await this.#load();
       return this.#commit(current, {
-        schemaVersion: 4,
+        schemaVersion: 5,
         revision: current.revision,
         defaults: { ...DEFAULT_BROWSER_SITE_SETTINGS },
         sites: [],
@@ -217,6 +217,7 @@ export class BrowserSiteSettingsStore {
         sound: site.sound ?? null,
         protectedContent: site.protectedContent ?? null,
         automaticDownloads: site.automaticDownloads ?? null,
+        images: site.images ?? null,
       })),
     };
   }
@@ -296,7 +297,7 @@ export class BrowserSiteSettingsStore {
 
 function emptyEnvelope(): Envelope {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     revision: 0,
     defaults: { ...DEFAULT_BROWSER_SITE_SETTINGS },
     sites: [],
@@ -311,7 +312,7 @@ function assertEnvelope(value: unknown): asserts value is Envelope {
     "sites",
   ]);
   if (
-    record.schemaVersion !== 4 ||
+    record.schemaVersion !== 5 ||
     typeof record.revision !== "number" ||
     !Number.isSafeInteger(record.revision) ||
     record.revision < 0 ||
@@ -346,7 +347,7 @@ function upgradeEnvelope(value: unknown): unknown {
     !value ||
     typeof value !== "object" ||
     !("schemaVersion" in value) ||
-    ![1, 2, 3].includes(value.schemaVersion as number)
+    ![1, 2, 3, 4].includes(value.schemaVersion as number)
   )
     return value;
   const record = exactRecord(value, [
@@ -360,14 +361,25 @@ function upgradeEnvelope(value: unknown): unknown {
       ? ["camera", "microphone"]
       : record.schemaVersion === 2
         ? ["camera", "microphone", "geolocation", "notifications"]
-        : [
-            "camera",
-            "microphone",
-            "geolocation",
-            "notifications",
-            "clipboard",
-            "sound",
-          ];
+        : record.schemaVersion === 3
+          ? [
+              "camera",
+              "microphone",
+              "geolocation",
+              "notifications",
+              "clipboard",
+              "sound",
+            ]
+          : [
+              "camera",
+              "microphone",
+              "geolocation",
+              "notifications",
+              "clipboard",
+              "sound",
+              "protectedContent",
+              "automaticDownloads",
+            ];
   const defaults = exactRecord(record.defaults, permissions);
   for (const permission of permissions)
     parseBrowserSitePermissionSetting(defaults[permission], permission);
@@ -385,7 +397,7 @@ function upgradeEnvelope(value: unknown): unknown {
   }
   return {
     ...record,
-    schemaVersion: 4,
+    schemaVersion: 5,
     defaults: { ...DEFAULT_BROWSER_SITE_SETTINGS, ...defaults },
   };
 }

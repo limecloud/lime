@@ -137,6 +137,7 @@ pub(super) async fn execute_calls(
                 lifecycle_emitter: lifecycle_emitter.clone(),
                 notification_sink: notification_sink.clone(),
                 closed: Arc::new(AtomicBool::new(false)),
+                turn_cancel_token: cancel_token.clone(),
             });
         execute_call(
             session.clone(),
@@ -503,6 +504,7 @@ struct RuntimeCodeModeNestedToolDelegate {
     lifecycle_emitter: Arc<dyn ToolLifecycleEmitter>,
     notification_sink: CodeModeNotificationSink,
     closed: Arc<AtomicBool>,
+    turn_cancel_token: Option<CancellationToken>,
 }
 
 impl RuntimeCodeModeSessionDelegate for RuntimeCodeModeNestedToolDelegate {
@@ -553,6 +555,7 @@ impl RuntimeCodeModeSessionDelegate for RuntimeCodeModeNestedToolDelegate {
                 cancel_token: Some(cancellation_token),
                 workspace_sandbox: None,
             })
+            .with_turn_cancel_token(self.turn_cancel_token.clone())
             .with_optional_filesystem_gateway(self.filesystem_gateway.clone());
             let call = ToolCall::new(
                 self.turn_id.clone(),

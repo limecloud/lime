@@ -49,6 +49,15 @@ export function useWorkspaceBrowserTabProjection({
     const receive = (change: BrowserTabChange) => {
       const state = change.kind === "state" ? change.state : change.event;
       if (disposed || state.threadId !== threadId) return;
+      // The outgoing document loses its native views on reload or shutdown. This revokes
+      // control, but must not overwrite the next renderer's navigation hint.
+      if (
+        change.kind === "closed" &&
+        ["renderer-navigation", "window-closed", "host-dispose"].includes(
+          change.event.reason,
+        )
+      )
+        return;
       if (pending) {
         changes.push(change);
         return;
@@ -88,6 +97,7 @@ export function useWorkspaceBrowserTabProjection({
           ...identity,
           threadId,
           url: resumeUrl,
+          restoreNavigation: true,
           selected: true,
           visible: false,
           bounds: { x: 0, y: 0, width: 0, height: 0 },

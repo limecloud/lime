@@ -10,7 +10,7 @@ import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { writeJsonFile } from "../mcp/lib/current-smoke-transport.mjs";
 import { inspectElectronFixtureBuildFreshness } from "../lib/electron-fixture-build.mjs";
 import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 import {
   captureSettingsDraftFixtureSources,
   observeSettingsDraftReadback,

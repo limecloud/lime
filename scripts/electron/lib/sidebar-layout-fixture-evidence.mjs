@@ -55,7 +55,7 @@ export const SIDEBAR_LAYOUT_SOURCE_FILES = [
   "packages/app-server-client/src/request-client-methods.ts",
   "scripts/electron/mcp-config-fixture-smoke.mjs",
   "scripts/electron/lib/persisted-atom-fixture-driver.mjs",
-  "scripts/agent-runtime/claw-chat-current-fixture-teardown.mjs",
+  "scripts/lib/chat-fixture/teardown.mjs",
   "scripts/lib/electron-fixture-build.mjs",
   "scripts/electron/sidebar-layout-fixture-smoke.mjs",
   "scripts/electron/lib/sidebar-layout-fixture-evidence.mjs",

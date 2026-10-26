@@ -53,6 +53,7 @@ beforeEach(async () => {
     enabled: { native: false, chrome: false, office: false },
     managed: { native: false, chrome: false, office: false },
     allowedApps: [],
+    persistentApprovalAllowed: true,
     status: {
       epoch: 1,
       grants: [],
@@ -208,6 +209,62 @@ it("offers system permission setup only after native use is enabled", async () =
   expect(api.setup).toHaveBeenCalledOnce();
 });
 
+it("sends the selected persistent scope and reloads the saved allowed application", async () => {
+  snapshot.enabled.native = true;
+  const target = {
+    type: "native" as const,
+    appId: "com.example.Editor",
+    title: "Editor",
+  };
+  snapshot.status.adapters[0] = {
+    adapter: "native",
+    readiness: "ready",
+    epoch: 1,
+    targets: [target],
+  };
+  api.setup.mockImplementation(async () => {
+    snapshot.allowedApps = [
+      {
+        id: "bundle:com.example.Editor",
+        name: "com.example.Editor",
+        field: "bundle",
+        key: "com.example.Editor",
+        platform: "macos",
+        managed: false,
+      },
+    ];
+  });
+  await mount();
+  await click(
+    container.querySelector<HTMLButtonElement>(
+      '[aria-label="Manage Any app"]',
+    )!,
+  );
+  await click(button("Always allow"));
+  expect(api.setup).toHaveBeenCalledWith("native", target, "persistent");
+  await click(button("Close"));
+  expect(container.textContent).toContain("com.example.Editor");
+});
+
+it("does not offer persistent approval when administrators disallow it", async () => {
+  snapshot.enabled.native = true;
+  snapshot.persistentApprovalAllowed = false;
+  snapshot.status.adapters[0] = {
+    adapter: "native",
+    readiness: "ready",
+    epoch: 1,
+    targets: [{ type: "native", appId: "com.example.Editor" }],
+  };
+  await mount();
+  await click(
+    container.querySelector<HTMLButtonElement>(
+      '[aria-label="Manage Any app"]',
+    )!,
+  );
+  expect(button("Always allow")).toBeUndefined();
+  expect(button("Approve this session")).toBeDefined();
+});
+
 it("ignores a late request after unmount and serializes repeated toggle clicks", async () => {
   let resolveSave!: () => void;
   api.toggle.mockReturnValue(
@@ -226,14 +283,22 @@ it("ignores a late request after unmount and serializes repeated toggle clicks",
 });
 
 it.each([
-  ["zh-CN", "电脑操控", "始终允许的应用"],
-  ["zh-TW", "電腦操控", "一律允許的應用程式"],
-  ["en-US", "Computer use", "Always-allowed apps"],
-  ["ja-JP", "コンピューター操作", "常に許可するアプリ"],
-  ["ko-KR", "컴퓨터 제어", "항상 허용된 앱"],
+  ["zh-CN", "电脑操控", "始终允许的应用", "始终允许"],
+  ["zh-TW", "電腦操控", "一律允許的應用程式", "一律允許"],
+  ["en-US", "Computer use", "Always-allowed apps", "Always allow"],
+  ["ja-JP", "コンピューター操作", "常に許可するアプリ", "常に許可"],
+  ["ko-KR", "컴퓨터 제어", "항상 허용된 앱", "항상 허용"],
 ])(
   "%s translates the page and accessible control labels",
-  async (locale, title, allowed) => {
+  async (locale, title, allowed, always) => {
+    snapshot.enabled.native = true;
+    const target = { type: "native" as const, appId: "com.example.Editor" };
+    snapshot.status.adapters[0] = {
+      adapter: "native",
+      readiness: "ready",
+      epoch: 1,
+      targets: [target],
+    };
     await changeLimeLocale(locale);
     await mount();
     expect(container.querySelector("h1")?.textContent).toBe(title);
@@ -244,6 +309,13 @@ it.each([
         document.getElementById(control.getAttribute("aria-labelledby")!)
           ?.textContent,
       ).toBeTruthy();
+    await click(
+      container.querySelector<HTMLButtonElement>(
+        "#computer-use-native button[aria-label]",
+      )!,
+    );
+    await click(button(always));
+    expect(api.setup).toHaveBeenCalledWith("native", target, "persistent");
   },
 );
 
@@ -279,5 +351,5 @@ it("enables Chrome independently and requests consent only for the selected live
     target.url,
   );
   await click(button("Approve this session"));
-  expect(api.setup).toHaveBeenCalledWith("chrome", target);
+  expect(api.setup).toHaveBeenCalledWith("chrome", target, "session");
 });

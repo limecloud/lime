@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type {
   ComputerUseAdapterStatus,
   ComputerUseTargetIdentity,
+  ComputerUseGrantScope,
 } from "@limecloud/app-server-client";
 import type { AllowedComputerApp } from "@/lib/api/computerUseSettings";
 import { SettingsAction } from "../../SettingsPrimitives";
@@ -105,19 +106,27 @@ export function ComputerUseAdapterDialog({
   onRefresh,
   onSetup,
   enabled,
+  persistentApprovalAllowed,
 }: {
   title: string;
   description: string;
   status: ComputerUseAdapterStatus | undefined;
   pending: boolean;
   onRefresh: () => Promise<void>;
-  onSetup: (target?: ComputerUseTargetIdentity) => Promise<boolean>;
+  onSetup: (
+    target?: ComputerUseTargetIdentity,
+    scope?: ComputerUseGrantScope,
+  ) => Promise<boolean>;
   enabled: boolean;
+  persistentApprovalAllowed: boolean;
 }) {
   const { t } = useTranslation("settings");
   const [failed, setFailed] = useState(false);
-  const setup = async (target?: ComputerUseTargetIdentity) => {
-    setFailed(!(await onSetup(target)));
+  const setup = async (
+    target?: ComputerUseTargetIdentity,
+    scope: ComputerUseGrantScope = "session",
+  ) => {
+    setFailed(!(await onSetup(target, scope)));
   };
   return (
     <Dialog.Root>
@@ -166,12 +175,25 @@ export function ComputerUseAdapterDialog({
                   className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-[13px]"
                 >
                   <span className="min-w-0 break-all">{label}</span>
-                  <SettingsAction
-                    disabled={pending || !enabled}
-                    onClick={() => void setup(target)}
-                  >
-                    {t("settings.computerUse.approveTarget")}
-                  </SettingsAction>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <SettingsAction
+                      disabled={pending || !enabled}
+                      onClick={() => void setup(target)}
+                    >
+                      {t("settings.computerUse.approveTarget")}
+                    </SettingsAction>
+                    {persistentApprovalAllowed &&
+                      (target.type === "native" ||
+                        (target.type === "office" &&
+                          target.host === "WPS")) && (
+                        <SettingsAction
+                          disabled={pending || !enabled}
+                          onClick={() => void setup(target, "persistent")}
+                        >
+                          {t("settings.computerUse.approveAlways")}
+                        </SettingsAction>
+                      )}
+                  </div>
                 </div>
               );
             })}

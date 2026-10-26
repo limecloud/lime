@@ -23,8 +23,8 @@ import {
   initializeAppServer,
   invokeAppServerFromPage,
   waitForRendererReady,
-} from "../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { setInputbarAccessMode } from "../agent-runtime/claw-chat-current-fixture-gui-actions.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
+import { setInputbarAccessMode } from "../lib/chat-fixture/gui-actions.mjs";
 import {
   createToolExecutionThreadCurrent,
   normalizeToolExecutionThreadReadResponse,

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startOpenAiCompatibleFixtureServer } from "../lib/openai-compatible-fixture-server.mjs";
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../lib/chat-fixture/rpc.mjs";
 
 const OFFICIAL_OPENAI_BASE_URL = "http://api.openai.com/v1";
 export const MODEL_NAME = "fixture-code-mode";

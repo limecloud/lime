@@ -158,6 +158,7 @@ export interface BrowserTabMountParams extends Record<string, unknown> {
   threadId: string;
   url: string;
   visible: boolean;
+  restoreNavigation?: boolean;
 }
 
 export interface BrowserTabEventIdentity {

@@ -3,8 +3,8 @@ import {
   readMutationCount,
   waitForApprovalPrompt,
 } from "./browser-runtime-electron-gate-b-approval.mjs";
-import { updateConfigFromPage } from "./claw-chat-current-fixture-rpc.mjs";
-import { assert, sanitizeJson } from "./claw-chat-current-fixture-utils.mjs";
+import { updateConfigFromPage } from "../lib/chat-fixture/rpc.mjs";
+import { assert, sanitizeJson } from "../lib/chat-fixture/utils.mjs";
 
 /** Lifecycle fixtures opt into allow; the dedicated approval scenario keeps production ask. */
 export async function configureBrowserFixturePermissions(

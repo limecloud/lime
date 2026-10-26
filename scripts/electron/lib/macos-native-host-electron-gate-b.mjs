@@ -11,7 +11,7 @@ import {
 import {
   ensureDefaultWorkspace,
   initializeAppServer,
-} from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+} from "../../lib/chat-fixture/rpc.mjs";
 
 const APP_SERVER_COMMAND = "app_server_handle_json_lines";
 const NATIVE_HOST_COMMAND = "macos_native_host_invoke";

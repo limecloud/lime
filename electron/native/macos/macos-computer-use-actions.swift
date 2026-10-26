@@ -56,14 +56,16 @@ func computerUseCancelLine(_ line: String) -> Bool {
     return true
 }
 
-private func checkComputerUseCancellation() throws {
+private func checkComputerUseCancellation(intervention: Bool = true) throws {
     computerUseCancelLock.lock()
     let canceled = computerUseCanceled
     computerUseCancelLock.unlock()
     if canceled { throw HostError.operationFailed("Computer Use canceled; outcome may be unknown.") }
-    guard !computerUseLocked(), AXIsProcessTrusted() else {
+    if computerUseLocked() { throw HostError.desktopLocked("Computer Use stopped because the desktop is locked.") }
+    guard AXIsProcessTrusted() else {
         throw HostError.notGranted("Computer Use requires an unlocked desktop and Accessibility permission.")
     }
+    if intervention { try checkComputerUseInputTurn() }
 }
 
 private func exactComputerUseWindow(pid: pid_t, frame: CGRect) throws -> AXUIElement {
@@ -125,7 +127,7 @@ private func actionPoint(_ operation: [String: Any], x: String, y: String, frame
 }
 
 private func postMouse(_ type: CGEventType, point: CGPoint, button: CGMouseButton, pid: pid_t, window: AXUIElement, count: Int = 1) throws {
-    guard let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: button) else {
+    guard let event = CGEvent(mouseEventSource: try computerUseInputSource(), mouseType: type, mouseCursorPosition: point, mouseButton: button) else {
         throw HostError.operationFailed("The mouse event could not be created.")
     }
     event.setIntegerValueField(.mouseEventClickState, value: Int64(count))
@@ -144,9 +146,17 @@ private func postMouse(_ type: CGEventType, point: CGPoint, button: CGMouseButto
         }
     }
     if type == .mouseMoved || type == .leftMouseDragged {
-        showComputerUsePointer(at: point, ownerPID: pid)
+        guard showComputerUsePointer(at: point, ownerPID: pid) else {
+            throw HostError.unavailable("The native input indicator is unavailable.")
+        }
     }
+    markComputerUseInput(event)
     event.post(tap: .cghidEventTap)
+    if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(type) {
+        pressComputerUsePointer(true)
+    } else if [.leftMouseUp, .rightMouseUp, .otherMouseUp].contains(type) {
+        pressComputerUsePointer(false)
+    }
 }
 
 private func computerUseKeyCode(_ name: String) -> CGKeyCode? {
@@ -166,11 +176,12 @@ private func computerUseKeyCode(_ name: String) -> CGKeyCode? {
 
 func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
     defer {
+        detachComputerUsePointer()
         computerUseCancelLock.lock()
         computerUseCanceled = false
         computerUseCancelLock.unlock()
     }
-    try checkComputerUseCancellation()
+    try checkComputerUseCancellation(intervention: false)
     let snapshot = computerUseSnapshot()
     guard let requested = params["target"] as? [String: Any],
           let generation = params["generation"] as? NSNumber,
@@ -188,19 +199,27 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
     // A rejected fence must not poison the high-water mark for later actions.
     try checkComputerUseFence(fence.uint64Value)
     computerUseFence = fence.uint64Value
+    let owner = try beginComputerUseInputTurn(params["owner"])
     let pid = rawPID.int32Value
     let frame = try windowBounds(windowID: windowID)
     let window = try exactComputerUseWindow(pid: pid, frame: frame)
+    if action == "observe" || action == "screenshot" {
+        beginComputerUsePointer(owner: owner, windowID: windowID, ownerPID: pid, frame: frame)
+    }
     if action == "observe" {
         let depth = (operation["max_depth"] as? NSNumber)?.intValue ?? 0
         let nodes = (operation["max_nodes"] as? NSNumber)?.intValue ?? 0
         guard (1...8).contains(depth), (1...512).contains(nodes) else {
             throw HostError.invalidArgument("Accessibility observation bounds are invalid.")
         }
-        return try readAccessibilityTree(windowID: windowID, params: ["maxDepth": depth, "maxNodes": nodes])
+        let result = try readAccessibilityTree(windowID: windowID, params: ["maxDepth": depth, "maxNodes": nodes])
+        try checkComputerUseCancellation()
+        return result
     }
     if action == "screenshot" {
-        return try screenCaptureSnapshot(params: ["windowId": windowID])
+        let result = try screenCaptureSnapshot(params: ["windowId": windowID])
+        try checkComputerUseCancellation()
+        return result
     }
     guard let application = NSRunningApplication(processIdentifier: pid),
           activateComputerUseApplication(application),
@@ -214,6 +233,7 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
     }
     try inputComputerUseTarget(windowID: windowID, pid: pid, window: window, frame: frame)
+    beginComputerUsePointer(owner: owner, windowID: windowID, ownerPID: pid, frame: frame)
     switch action {
     case "click":
         let point = try actionPoint(operation, x: "x", y: "y", frame: frame)
@@ -249,6 +269,8 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
                 down.keyboardSetUnicodeString(stringLength: part.count, unicodeString: buffer.baseAddress!)
                 up.keyboardSetUnicodeString(stringLength: part.count, unicodeString: buffer.baseAddress!)
             }
+            markComputerUseInput(down)
+            markComputerUseInput(up)
             down.postToPid(pid)
             up.postToPid(pid)
             start = end
@@ -274,6 +296,8 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
         }
         down.flags = flags
         up.flags = flags
+        markComputerUseInput(down)
+        markComputerUseInput(up)
         down.postToPid(pid)
         up.postToPid(pid)
     case "scroll":
@@ -281,12 +305,13 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
         let dx = (operation["delta_x"] as? NSNumber)?.int32Value ?? 0
         let dy = (operation["delta_y"] as? NSNumber)?.int32Value ?? 0
         guard abs(Int64(dx)) <= 10_000, abs(Int64(dy)) <= 10_000,
-              let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0) else {
+              let event = CGEvent(scrollWheelEvent2Source: try computerUseInputSource(), units: .pixel, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0) else {
             throw HostError.invalidArgument("Scroll bounds are invalid.")
         }
         event.location = point
         try postMouse(.mouseMoved, point: point, button: .left, pid: pid, window: window)
         try inputComputerUseTarget(windowID: windowID, pid: pid, window: window, frame: frame)
+        markComputerUseInput(event)
         event.post(tap: .cghidEventTap)
     case "drag":
         let from = try actionPoint(operation, x: "x", y: "y", frame: frame)
@@ -312,5 +337,6 @@ func computerUseExecute(params: [String: Any]) throws -> [String: Any] {
     default:
         throw HostError.invalidArgument("Unsupported Computer Use action.")
     }
+    try checkComputerUseCancellation()
     return ["outcome": "submitted", "windowId": rawID, "fence": fence]
 }

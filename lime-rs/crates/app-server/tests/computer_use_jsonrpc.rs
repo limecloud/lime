@@ -15,6 +15,9 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tool_runtime::computer_use::*;
 
+#[path = "computer_use_jsonrpc/persistent.rs"]
+mod persistent;
+
 struct TestAdapter;
 
 fn target() -> ComputerUseTargetIdentity {
@@ -37,6 +40,7 @@ impl ComputerUseAdapter for TestAdapter {
             readiness: ComputerUseReadiness::Ready,
             targets: vec![ComputerUseTarget {
                 identity: target(),
+                revision: None,
                 native_app: Some(NativeAppIdentity::Macos {
                     bundle_id: "com.example.Editor".into(),
                 }),
@@ -55,6 +59,7 @@ impl ComputerUseAdapter for TestAdapter {
             accepted: true,
             approved_target: None,
             generation: 1,
+            ..Default::default()
         })
     }
     async fn execute(
@@ -302,6 +307,15 @@ async fn model_gateway_uses_the_rpc_turns_connection_grant_and_rejects_terminal_
 #[tokio::test]
 async fn uninstalled_adapters_are_visible_and_setup_never_synthesizes_a_grant() {
     let fixture = Fixture::new(false).await;
+    ok(
+        &fixture.server,
+        "config/value/write",
+        json!({
+            "keyPath":"features", "value":{"computer_use":true,"chrome_use":true,"office_use":true},
+            "mergeStrategy":"replace"
+        }),
+    )
+    .await;
     let status = ok(&fixture.server, "computerUse/status", json!({})).await;
     let adapters = status["adapters"].as_array().unwrap();
     assert_eq!(adapters.len(), 3);

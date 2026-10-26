@@ -5,15 +5,39 @@ use tokio_util::sync::CancellationToken;
 
 fn fixture() -> (tempfile::TempDir, ExtensionAdapter, PathBuf, Value) {
     let temp = tempfile::tempdir().unwrap();
-    let root = temp.path().join(Uuid::new_v4().to_string());
+    let paths = ComputerUsePaths {
+        root: temp.path().to_owned(),
+        chrome_manifest: temp.path().join("native-host.json"),
+        excel_sideload: None,
+    };
+    let root = paths.sessions().join(Uuid::new_v4().to_string());
     for path in [&root, &root.join("requests"), &root.join("responses")] {
         mailbox::private_directory(path).unwrap();
     }
-    let mut adapter = ExtensionAdapter::new(ComputerUseAdapterKind::Chrome);
-    adapter.directory = Some(temp.path().to_owned());
+    let adapter = ExtensionAdapter::new(ComputerUseAdapterKind::Chrome, paths);
     let message = json!({"snapshot":{"generation":1,"readiness":"ready","targets":[{"identity":{"type":"chrome","origin":"https://example.test","profileId":"profile-a","tabId":"1","url":"https://example.test/"},"nativeApp":null,"locked":false,"capabilities":["observe","type"]}],"reason":null,"setupSteps":[]},"responses":[]});
     exchange(&root, message.clone(), "chrome").unwrap();
     (temp, adapter, root, message)
+}
+
+#[tokio::test]
+async fn readiness_uses_the_host_supplied_installation_and_mailbox() {
+    let (temp, adapter, root, message) = fixture();
+    fs::remove_dir_all(&root).unwrap();
+    let absent = adapter.snapshot().await.unwrap();
+    assert_eq!(absent.readiness, ComputerUseReadiness::NotInstalled);
+    fs::write(temp.path().join("native-host.json"), b"{}").unwrap();
+    let installed = adapter.snapshot().await.unwrap();
+    assert_eq!(installed.readiness, ComputerUseReadiness::Disconnected);
+    assert!(installed.generation > absent.generation);
+    for path in [&root, &root.join("requests"), &root.join("responses")] {
+        mailbox::private_directory(path).unwrap();
+    }
+    exchange(&root, message, "chrome").unwrap();
+    let connected = adapter.snapshot().await.unwrap();
+    assert_eq!(connected.readiness, ComputerUseReadiness::Ready);
+    assert_eq!(connected.targets.len(), 1);
+    assert!(connected.generation > installed.generation);
 }
 
 #[tokio::test]

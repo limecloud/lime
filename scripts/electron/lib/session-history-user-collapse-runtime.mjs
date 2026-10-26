@@ -5,12 +5,12 @@ import {
   collapseTextIdentity,
   summarizeCollapseInputBoundary,
   summarizeUserMessageCanonicalPreservation,
-} from "../../agent-runtime/claw-chat-current-fixture-user-message-collapse-evidence.mjs";
-import { copyUserMessageFullText } from "../../agent-runtime/claw-chat-current-fixture-user-message-collapse.mjs";
+} from "../../lib/chat-fixture/user-message-collapse-evidence.mjs";
+import { copyUserMessageFullText } from "../../lib/chat-fixture/user-message-collapse.mjs";
 import {
   extractClipboardCopyEvidence,
   summarizeClipboardCopyProof,
-} from "../../agent-runtime/claw-chat-current-fixture-user-message-collapse-clipboard-observation.mjs";
+} from "../../lib/chat-fixture/user-message-collapse-clipboard-observation.mjs";
 import {
   captureInvokeTraceCollector,
   withInvokeTraceCollector,

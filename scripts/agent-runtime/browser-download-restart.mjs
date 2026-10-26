@@ -11,21 +11,21 @@ import { ensureElectronFixtureBuild } from "../lib/electron-fixture-build.mjs";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { startOpenAiCompatibleFixtureServer } from "../lib/openai-compatible-fixture-server.mjs";
-import { createTempRuntimeEnv } from "./claw-chat-current-fixture-backend-file.mjs";
+import { createTempRuntimeEnv } from "../lib/chat-fixture/backend-file.mjs";
 import {
   bindGuiWorkspaceAndModelPreferences,
   ensureDefaultWorkspace,
   initializeAppServer,
   invokeAppServerFromPage,
   waitForRendererReady,
-} from "./claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 import {
   createFixtureSession,
   navigateGuiToWorkspaceScopedAgent,
   openFixtureSessionFromSidebar,
   waitForGuiSessionVisible,
-} from "./claw-chat-current-fixture-session.mjs";
-import { startInvokeTraceEvidenceCollector } from "./claw-chat-current-fixture-invoke-trace.mjs";
+} from "../lib/chat-fixture/session.mjs";
+import { startInvokeTraceEvidenceCollector } from "../lib/chat-fixture/invoke-trace.mjs";
 import {
   closeElectronFixture,
   openSettings,

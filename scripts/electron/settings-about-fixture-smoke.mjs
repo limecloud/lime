@@ -10,7 +10,7 @@ import {
 } from "../lib/electron-fixture-build.mjs";
 import { artifactFingerprints } from "./lib/settings-navigation-fixture-identity.mjs";
 import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
 
 import {
   electronAppServerBinaryDestination,

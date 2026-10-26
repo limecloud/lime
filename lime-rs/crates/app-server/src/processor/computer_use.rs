@@ -38,22 +38,27 @@ impl RequestProcessor {
         let connection = connection(request);
         let result = self
             .runtime
-            .computer_use_setup(&connection, parse_params(params)?)
-            .await
-            .map_err(to_jsonrpc_error)?;
+            .computer_use_setup(&connection, parse_params(params)?, || {
+                request_id
+                    .as_ref()
+                    .is_some_and(|id| self.is_request_canceled(id))
+            })
+            .await;
         if request_id
             .as_ref()
             .is_some_and(|id| self.is_request_canceled(id))
         {
-            if let Some(grant) = result.grant {
-                let _ = self.runtime.computer_use.revoke(&connection, &grant.id);
+            if let Ok(response) = &result {
+                if let Some(grant) = &response.grant {
+                    let _ = self.runtime.computer_use.revoke(&connection, &grant.id);
+                }
             }
             return Err(JsonRpcError::new(
                 error_codes::REQUEST_CANCELLED,
                 "Computer Use setup canceled",
             ));
         }
-        dispatch_result(result)
+        dispatch_result(result.map_err(to_jsonrpc_error)?)
     }
 
     pub(super) async fn handle_computer_use_acquire(

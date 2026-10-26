@@ -11,7 +11,7 @@ import {
   assert,
   sanitizeText,
   sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 /** Test-only history, written before launch and only inside a fresh temporary profile. */
 export async function prepareBrowserHistoryManagementSeed(userDataDir) {

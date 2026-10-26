@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { usePermissionsSetupVisible } from "@/lib/permissionsSetup";
 import {
   isBrowserTabHostAvailable,
   listenBrowserTabCommand,
@@ -70,7 +71,7 @@ interface BrowserWorkspaceProps {
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 export const BrowserWorkspace = memo(function BrowserWorkspace({
-  active = true,
+  active: paneActive = true,
   tabId,
   ensureOwner,
   initialUrl,
@@ -82,6 +83,8 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
   onNavigate,
   onSelectedStateChange,
 }: BrowserWorkspaceProps) {
+  const permissionsSetupVisible = usePermissionsSetupVisible();
+  const active = paneActive && !permissionsSetupVisible;
   const { t } = useTranslation("agent");
   const translate = useCallback<Translate>(
     (key, options) => String(t(key as never, options as never)),

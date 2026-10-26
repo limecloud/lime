@@ -35,13 +35,6 @@ const {
   showDesktopNotificationMock,
   showOpenDialogMock,
   showItemInFolderMock,
-  systemUtilityHostGetBrowserBackendPolicyMock,
-  systemUtilityHostGetBrowserBackendsStatusMock,
-  systemUtilityHostGetBrowserConnectorInstallStatusMock,
-  systemUtilityHostGetBrowserConnectorSettingsMock,
-  systemUtilityHostGetChromeBridgeEndpointInfoMock,
-  systemUtilityHostGetChromeBridgeStatusMock,
-  systemUtilityHostGetChromeProfileSessionsMock,
   systemUtilityHostInvokeMacOSNativeHostMock,
   systemUtilityHostInvokeWindowsNativeHostMock,
   systemUtilityHostOpenExternalUrlMock,
@@ -119,13 +112,6 @@ const {
     showDesktopNotificationMock: vi.fn(() => ({ status: "sent" })),
     showOpenDialogMock: vi.fn(),
     showItemInFolderMock: vi.fn(),
-    systemUtilityHostGetBrowserBackendPolicyMock: vi.fn(),
-    systemUtilityHostGetBrowserBackendsStatusMock: vi.fn(),
-    systemUtilityHostGetBrowserConnectorInstallStatusMock: vi.fn(),
-    systemUtilityHostGetBrowserConnectorSettingsMock: vi.fn(),
-    systemUtilityHostGetChromeBridgeEndpointInfoMock: vi.fn(),
-    systemUtilityHostGetChromeBridgeStatusMock: vi.fn(),
-    systemUtilityHostGetChromeProfileSessionsMock: vi.fn(),
     systemUtilityHostInvokeMacOSNativeHostMock: vi.fn(),
     systemUtilityHostInvokeWindowsNativeHostMock: vi.fn(),
     systemUtilityHostOpenExternalUrlMock: vi.fn(),
@@ -193,16 +179,6 @@ vi.mock("./fileShellHost", () => ({
 
 vi.mock("./systemUtilityHost", () => ({
   SystemUtilityHost: vi.fn(() => ({
-    getBrowserBackendPolicy: systemUtilityHostGetBrowserBackendPolicyMock,
-    getBrowserBackendsStatus: systemUtilityHostGetBrowserBackendsStatusMock,
-    getBrowserConnectorInstallStatus:
-      systemUtilityHostGetBrowserConnectorInstallStatusMock,
-    getBrowserConnectorSettings:
-      systemUtilityHostGetBrowserConnectorSettingsMock,
-    getChromeBridgeEndpointInfo:
-      systemUtilityHostGetChromeBridgeEndpointInfoMock,
-    getChromeBridgeStatus: systemUtilityHostGetChromeBridgeStatusMock,
-    getChromeProfileSessions: systemUtilityHostGetChromeProfileSessionsMock,
     invokeMacOSNativeHost: systemUtilityHostInvokeMacOSNativeHostMock,
     invokeWindowsNativeHost: systemUtilityHostInvokeWindowsNativeHostMock,
     openExternalUrl: systemUtilityHostOpenExternalUrlMock,
@@ -1161,25 +1137,6 @@ describe("ElectronHostCommands system utilities", () => {
     systemUtilityHostInvokeWindowsNativeHostMock.mockResolvedValueOnce({
       status: "ready",
     });
-    systemUtilityHostGetBrowserConnectorSettingsMock.mockReturnValueOnce({
-      enabled: true,
-    });
-    systemUtilityHostGetBrowserConnectorInstallStatusMock.mockReturnValueOnce({
-      status: "not_installed",
-    });
-    systemUtilityHostGetChromeProfileSessionsMock.mockReturnValueOnce([]);
-    systemUtilityHostGetChromeBridgeEndpointInfoMock.mockReturnValueOnce({
-      server_running: false,
-    });
-    systemUtilityHostGetChromeBridgeStatusMock.mockReturnValueOnce({
-      observer_count: 0,
-    });
-    systemUtilityHostGetBrowserBackendPolicyMock.mockReturnValueOnce({
-      priority: ["lime_extension_bridge", "cdp_direct"],
-    });
-    systemUtilityHostGetBrowserBackendsStatusMock.mockReturnValueOnce({
-      backends: [],
-    });
     const userDataDir = await createTempUserDataDir();
     const host = createHost(userDataDir);
 
@@ -1207,27 +1164,6 @@ describe("ElectronHostCommands system utilities", () => {
     await expect(
       host.invoke("windows_native_host_invoke", windowsNativeArgs),
     ).resolves.toEqual({ status: "ready" });
-    await expect(
-      host.invoke("get_browser_connector_settings_cmd"),
-    ).resolves.toEqual({ enabled: true });
-    await expect(
-      host.invoke("get_browser_connector_install_status_cmd"),
-    ).resolves.toEqual({ status: "not_installed" });
-    await expect(host.invoke("get_chrome_profile_sessions")).resolves.toEqual(
-      [],
-    );
-    await expect(
-      host.invoke("get_chrome_bridge_endpoint_info"),
-    ).resolves.toEqual({ server_running: false });
-    await expect(host.invoke("get_chrome_bridge_status")).resolves.toEqual({
-      observer_count: 0,
-    });
-    await expect(host.invoke("get_browser_backend_policy")).resolves.toEqual({
-      priority: ["lime_extension_bridge", "cdp_direct"],
-    });
-    await expect(host.invoke("get_browser_backends_status")).resolves.toEqual({
-      backends: [],
-    });
 
     expect(systemUtilityHostOpenExternalUrlMock).toHaveBeenCalledWith(
       externalArgs,
@@ -1241,23 +1177,6 @@ describe("ElectronHostCommands system utilities", () => {
     expect(systemUtilityHostInvokeWindowsNativeHostMock).toHaveBeenCalledWith(
       windowsNativeArgs,
     );
-    expect(
-      systemUtilityHostGetBrowserConnectorSettingsMock,
-    ).toHaveBeenCalledOnce();
-    expect(
-      systemUtilityHostGetBrowserConnectorInstallStatusMock,
-    ).toHaveBeenCalledOnce();
-    expect(
-      systemUtilityHostGetChromeProfileSessionsMock,
-    ).toHaveBeenCalledOnce();
-    expect(
-      systemUtilityHostGetChromeBridgeEndpointInfoMock,
-    ).toHaveBeenCalledOnce();
-    expect(systemUtilityHostGetChromeBridgeStatusMock).toHaveBeenCalledOnce();
-    expect(systemUtilityHostGetBrowserBackendPolicyMock).toHaveBeenCalledOnce();
-    expect(
-      systemUtilityHostGetBrowserBackendsStatusMock,
-    ).toHaveBeenCalledOnce();
   });
 
   it("voice_models_* 命令应只分发到 VoiceModelHost", async () => {

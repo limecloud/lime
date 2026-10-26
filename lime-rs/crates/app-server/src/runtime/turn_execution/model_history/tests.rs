@@ -41,6 +41,7 @@ fn fixture(status: AgentTurnStatus) -> (tempfile::TempDir, AppendingRuntimeEvent
         });
     let sink = AppendingRuntimeEventSink::with_hub(
         runtime.state.clone(),
+        runtime.computer_use.clone(),
         runtime.file_checkpoint_snapshot_store.clone(),
         runtime.output_snapshot_store.clone(),
         runtime.sidecar_store.clone(),
@@ -55,6 +56,52 @@ fn fixture(status: AgentTurnStatus) -> (tempfile::TempDir, AppendingRuntimeEvent
         runtime.event_hub.clone(),
     );
     (temp, sink)
+}
+
+#[tokio::test]
+async fn recorded_terminal_releases_computer_use_owner() {
+    use app_server_protocol::protocol::v2::{ComputerUseAdapterKind, ComputerUseSetupParams};
+    use tool_runtime::computer_use::*;
+    struct Adapter(Arc<Mutex<Vec<ComputerUseOwner>>>);
+    #[async_trait::async_trait]
+    impl ComputerUseAdapter for Adapter {
+        fn kind(&self) -> ComputerUseAdapterKind {
+            ComputerUseAdapterKind::Chrome
+        }
+        fn finish_turn(&self, owner: &ComputerUseOwner) {
+            self.0.lock().unwrap().push(owner.clone());
+        }
+        async fn snapshot(&self) -> ComputerUseResult<ComputerUseSnapshot> {
+            Err(ComputerUseError::new("unused by terminal hook".into()))
+        }
+        async fn setup(
+            &self,
+            _: &ComputerUseSetupParams,
+        ) -> ComputerUseResult<ComputerUseSetupOutcome> {
+            Err(ComputerUseError::new("unused by terminal hook".into()))
+        }
+    }
+    for terminal in ["turn.completed", "turn.failed", "turn.canceled"] {
+        let (_dir, mut sink) = fixture(AgentTurnStatus::Running);
+        let finished = Arc::new(Mutex::new(Vec::new()));
+        sink.computer_use = Arc::new(
+            ComputerUseService::default().with_adapter(Arc::new(Adapter(finished.clone()))),
+        );
+        let owner = ComputerUseOwner {
+            connection: "host".into(),
+            thread_id: "history-thread".into(),
+            turn_id: "history-turn".into(),
+        };
+        sink.computer_use.bind_turn(owner.clone()).unwrap();
+        sink.emit_recorded(RuntimeEvent::new("turn.started", json!({})))
+            .unwrap();
+        assert!(finished.lock().unwrap().is_empty());
+        sink.emit_recorded(RuntimeEvent::new(terminal, json!({})))
+            .unwrap();
+        assert_eq!(*finished.lock().unwrap(), vec![owner], "{terminal}");
+        let _ = sink.emit_recorded(RuntimeEvent::new(terminal, json!({})));
+        assert_eq!(finished.lock().unwrap().len(), 1, "{terminal}");
+    }
 }
 
 #[test]

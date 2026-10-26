@@ -15,6 +15,7 @@ import type {
 import {
   isBrowserToolName,
   isDynamicToolCall,
+  isMcpToolCall,
   isUnifiedWebFetchToolName,
   isUnifiedWebSearchToolName,
 } from "./toolNameFamily";
@@ -88,7 +89,7 @@ function shouldSplitProcessBlockBeforeItem(
     return false;
   }
 
-  // Desktop 的 dynamic-tool-call 保留独立工具呈现，不能压成通用步骤计数。
+  // Desktop 的 MCP 和 dynamic tool 保留独立工具呈现，不能压成通用步骤计数。
   if (
     isStandaloneProcessItem(item) ||
     current.items.some(isStandaloneProcessItem)
@@ -120,7 +121,9 @@ export function isStandaloneProcessItem(item: AgentThreadItem): boolean {
     item.type === "turn_summary" ||
     item.type === "context_compaction" ||
     (item.type === "tool_call" &&
-      (isDynamicToolCall(item) || isBrowserToolName(item.tool_name)))
+      (isDynamicToolCall(item) ||
+        isMcpToolCall(item) ||
+        isBrowserToolName(item.tool_name)))
   );
 }
 

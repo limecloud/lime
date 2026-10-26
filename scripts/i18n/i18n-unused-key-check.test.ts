@@ -50,6 +50,28 @@ afterEach(() => {
 });
 
 describe("i18n unused key scan", () => {
+  it("应识别显式命名空间 key 且继续报告未引用资源", () => {
+    const root = createTempDir();
+    writeResource(root, "zh-CN", "settings", {
+      "settings.channels.config.open": "开放",
+      "settings.channels.config.unused": "未引用",
+    });
+    writeFile(
+      root,
+      "src/components/Channels.tsx",
+      'export const label = t("settings:settings.channels.config.open");\n',
+    );
+    const result = scanUnusedI18nKeys({
+      resourcesDir: path.join(root, "resources"),
+      sourceDirs: [path.join(root, "src")],
+      protectedPrefixes: [],
+    });
+    expect(result.referencedKeys).toEqual(["settings.channels.config.open"]);
+    expect(result.unusedKeys).toEqual([
+      { namespace: "settings", key: "settings.channels.config.unused" },
+    ]);
+  });
+
   it("应报告未被生产源码字面量引用的 source locale key", () => {
     const root = createTempDir();
     writeResource(root, "zh-CN", "common", {
@@ -215,7 +237,7 @@ describe("i18n unused key scan", () => {
         "const TOOL_DISPLAY_LABEL_KEYS = {",
         '  "文件读取": "toolCall.label.fileRead",',
         "};",
-        "const OTHER_KEY = \"toolCall.userFacing.fileRead\";",
+        'const OTHER_KEY = "toolCall.userFacing.fileRead";',
         "",
       ].join("\n"),
     );
@@ -291,7 +313,7 @@ describe("i18n unused key scan", () => {
       root,
       "src/components/toolProcessSummary.ts",
       [
-        "function demo(phase: \"pre\" | \"post\", subject: string | null) {",
+        'function demo(phase: "pre" | "post", subject: string | null) {',
         "  return resolvePhasedProcessSummaryCopy(",
         '    "toolCall.processSummary.vision.view",',
         "    phase,",

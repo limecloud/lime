@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
 import { readConfigFromPage } from "../electron/mcp-config-fixture-smoke.mjs";
-import { assert, sanitizeText } from "./claw-chat-current-fixture-utils.mjs";
+import { assert, sanitizeText } from "../lib/chat-fixture/utils.mjs";
 import { isObservedPreloadAppServerResponse } from "../electron/lib/mcp-config-fixture-evidence.mjs";
 
 import { annotationImageSummary } from "./browser-runtime-electron-gate-b-annotation-evidence.mjs";

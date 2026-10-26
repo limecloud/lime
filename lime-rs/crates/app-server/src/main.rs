@@ -29,6 +29,8 @@ use std::sync::Arc;
 const APP_SERVER_DATA_DIR_ENV: &str = "APP_SERVER_DATA_DIR";
 const APP_SERVER_APP_DATA_DIR_ENV: &str = "APP_SERVER_APP_DATA_DIR";
 
+mod computer_use_host;
+
 struct InitializedDatabase {
     db: DbConnection,
     storage_roots: Option<StorageRoots>,
@@ -36,10 +38,19 @@ struct InitializedDatabase {
 
 fn main() -> anyhow::Result<()> {
     if std::env::args().nth(1).as_deref() == Some("--computer-use-document-host") {
-        return tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(tool_runtime::computer_use::run_document_host()).map_err(anyhow::Error::msg);
+        return tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?
+            .block_on(tool_runtime::computer_use::run_document_host(
+                computer_use_host::paths()?,
+            ))
+            .map_err(anyhow::Error::msg);
     }
-    if std::env::args().nth(1).as_deref() == Some(tool_runtime::computer_use::CHROME_EXTENSION_ORIGIN) {
-        return tool_runtime::computer_use::run_native_messaging_host().map_err(anyhow::Error::msg);
+    if std::env::args().nth(1).as_deref()
+        == Some(tool_runtime::computer_use::CHROME_EXTENSION_ORIGIN)
+    {
+        return tool_runtime::computer_use::run_native_messaging_host(computer_use_host::paths()?)
+            .map_err(anyhow::Error::msg);
     }
     if std::env::args_os().nth(1).as_deref()
         == Some(std::ffi::OsStr::new(
@@ -205,7 +216,7 @@ async fn build_app_server(config: &CliConfig) -> anyhow::Result<AppServer> {
         }
     }
     .with_app_data_source(app_data_source)
-    .with_native_computer_use()
+    .with_native_computer_use(computer_use_host::paths()?)
     .with_account_store_root(&app_data_root)
     .with_primary_runtime_root(app_data_root.join("runtimes"))?;
     if let Some(storage_roots) = initialized.storage_roots {
@@ -278,9 +289,13 @@ async fn build_app_server(config: &CliConfig) -> anyhow::Result<AppServer> {
 fn resolve_app_data_root(config: &CliConfig) -> anyhow::Result<PathBuf> {
     match config.app_data_dir.as_ref() {
         Some(app_data_dir) => Ok(app_data_dir.clone()),
-        None => app_paths::preferred_data_dir()
-            .map_err(|error| anyhow::anyhow!("failed to resolve AppDataRoot: {error}")),
+        None => resolve_platform_app_data_root(),
     }
+}
+
+fn resolve_platform_app_data_root() -> anyhow::Result<PathBuf> {
+    app_paths::preferred_data_dir()
+        .map_err(|error| anyhow::anyhow!("failed to resolve AppDataRoot: {error}"))
 }
 
 fn initialize_database(config: &CliConfig) -> anyhow::Result<InitializedDatabase> {

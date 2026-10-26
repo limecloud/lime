@@ -10,15 +10,15 @@ import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-a
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { ensureElectronFixtureBuild } from "../lib/electron-fixture-build.mjs";
 import { captureMainProcessExit } from "../electron/lib/persisted-atom-fixture-driver.mjs";
-import { settleFixtureResources } from "./claw-chat-current-fixture-teardown.mjs";
-import { createTempRuntimeEnv } from "./claw-chat-current-fixture-backend-file.mjs";
+import { settleFixtureResources } from "../lib/chat-fixture/teardown.mjs";
+import { createTempRuntimeEnv } from "../lib/chat-fixture/backend-file.mjs";
 import { verifyRestartTurnContinuation } from "./reopen-turn-continuation.mjs";
 import {
   waitForBackendLedgerEntry,
   waitForBackendLedgerTurnStart,
   sanitizeBackendLedgerForEvidence,
   summarizeBackendLedger,
-} from "./claw-chat-current-fixture-backend-ledger.mjs";
+} from "../lib/chat-fixture/backend-ledger.mjs";
 import {
   APP_SERVER_HANDLE_JSON_LINES_COMMAND,
   APP_SERVER_METHOD_SESSION_LIST,
@@ -29,22 +29,22 @@ import {
   APP_SERVER_METHOD_SESSION_TURN_START,
   FIXTURE_MODEL,
   FIXTURE_PROVIDER,
-  NEWS_PROMPT,
+  RECOVERY_PROMPT,
   SESSION_TITLE,
-} from "./claw-chat-current-fixture-constants.mjs";
-import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
+} from "../lib/chat-fixture/constants.mjs";
+import { sendPromptFromGui } from "../lib/chat-fixture/gui-actions.mjs";
 import {
   waitForGuiChatCanceled,
   waitForStopButtonVisibleAndClick,
-} from "./claw-chat-current-fixture-gui-completion-waits.mjs";
+} from "../lib/chat-fixture/gui-completion-waits.mjs";
 import {
   collectReadModelTurns,
   readModelLatestTurnStatus,
   readModelTurnId,
   readModelTurnStatus,
   summarizeReadModelQueueState,
-} from "./claw-chat-current-fixture-read-model-core.mjs";
-import { waitForSessionReadCanceled } from "./claw-chat-current-fixture-read-model-waits.mjs";
+} from "../lib/chat-fixture/read-model-core.mjs";
+import { waitForSessionReadCanceled } from "../lib/chat-fixture/read-model-waits.mjs";
 import {
   bindGuiWorkspaceAndModelPreferences,
   clearInvokeBuffers,
@@ -59,13 +59,13 @@ import {
   summarizeRuntimeEvents,
   waitForAppUrlReady,
   waitForRendererReady,
-} from "./claw-chat-current-fixture-rpc.mjs";
+} from "../lib/chat-fixture/rpc.mjs";
 import {
   createFixtureSession,
   navigateGuiToWorkspaceScopedAgent,
   openFixtureSessionFromSidebar,
   waitForGuiSessionVisible,
-} from "./claw-chat-current-fixture-session.mjs";
+} from "../lib/chat-fixture/session.mjs";
 import {
   assert,
   cleanupTempRoot,
@@ -74,7 +74,7 @@ import {
   sanitizeText,
   sleep,
   writeJsonFile,
-} from "./claw-chat-current-fixture-utils.mjs";
+} from "../lib/chat-fixture/utils.mjs";
 
 const LOG_PREFIX = "[cdp:reopen-running-turn]";
 const DEFAULTS = {
@@ -93,7 +93,7 @@ const DEFAULTS = {
 const REOPEN_MODES = new Set(["reload", "restart"]);
 const PRESENTATION_MODES = new Set(["foreground", "background"]);
 const MULTI_RUNNING_SECONDARY_TITLE = "CDP 多运行会话后台任务";
-const MULTI_RUNNING_SECONDARY_PROMPT = "整理今天的国际新闻（后台第二会话）";
+const MULTI_RUNNING_SECONDARY_PROMPT = "验证运行中会话恢复（后台第二会话）";
 let primaryIdentity = { sessionId: "", threadId: "" };
 
 function printHelp() {
@@ -331,7 +331,7 @@ function buildElectronLaunchEnv(options, runtimeEnv, appServerEnv) {
       runtimeEnv.cancelSignalPath,
     ]),
     APP_SERVER_BACKEND_TIMEOUT_MS: String(options.timeoutMs),
-    CLAW_CHAT_FIXTURE_SCENARIO: "cancel",
+    LIME_CHAT_FIXTURE_MODE: "running",
     ELECTRON_E2E_USER_DATA_DIR: runtimeEnv.electronUserDataDir,
     LIME_ALLOW_LIVE_PROVIDER_SMOKE: "0",
     LIME_REAL_API_TEST: "0",
@@ -801,7 +801,7 @@ function summarizeReadModelRunningState(readModel, turnId, prompt) {
     matchedTurn,
     turns,
     includesPrompt: serialized.includes(prompt),
-    includesInitialOutput: serialized.includes("以下是今日国际新闻简要整理"),
+    includesInitialOutput: serialized.includes("会话恢复测试正在运行"),
     sameActiveTurn: queueState.activeTurnId === turnId,
     hasRunningStatus,
     hasTerminalStatus,
@@ -820,7 +820,7 @@ async function waitForReadModelRunning(
     requireContent = true,
     sessionId = primaryIdentity.sessionId,
     threadId = primaryIdentity.threadId,
-    prompt = NEWS_PROMPT,
+    prompt = RECOVERY_PROMPT,
   } = {},
 ) {
   const startedAt = Date.now();
@@ -893,7 +893,7 @@ async function waitForReadModelInterrupted(
   {
     sessionId = primaryIdentity.sessionId,
     threadId = primaryIdentity.threadId,
-    prompt = NEWS_PROMPT,
+    prompt = RECOVERY_PROMPT,
     requireContent = true,
   } = {},
 ) {
@@ -1055,7 +1055,7 @@ function buildRunningSessionSpec(overrides = {}) {
     sessionId: overrides.sessionId ?? primaryIdentity.sessionId,
     threadId: overrides.threadId ?? primaryIdentity.threadId,
     title: overrides.title ?? SESSION_TITLE,
-    prompt: overrides.prompt ?? NEWS_PROMPT,
+    prompt: overrides.prompt ?? RECOVERY_PROMPT,
   };
 }
 
@@ -1361,7 +1361,7 @@ async function cancelSecondaryRunningSession(
     {
       threadId: secondary.spec.threadId,
       prompt: MULTI_RUNNING_SECONDARY_PROMPT,
-      partialText: "以下是今日国际新闻简要整理",
+      partialText: "会话恢复测试正在运行",
     },
   );
   const sessionListNotRunning = await waitForSessionListNotRunning(
@@ -1492,7 +1492,7 @@ async function sampleGuiHomeBackgroundRecoveryState(
         sidebarStatusNode?.getAttribute("data-status") || "";
       const mainPromptVisible = mainText.includes(prompt);
       const mainAssistantOutputVisible =
-        mainText.includes("以下是今日国际新闻简要整理");
+        mainText.includes("会话恢复测试正在运行");
       const activeSessionTextareaVisible = editors.some(
         (editor) =>
           runningSessionIds.has(editor.dataset.sessionId) && isVisible(editor),
@@ -1548,7 +1548,7 @@ async function sampleGuiHomeBackgroundRecoveryState(
       };
     },
     {
-      prompt: NEWS_PROMPT,
+      prompt: RECOVERY_PROMPT,
       title: SESSION_TITLE,
       sessionId: primaryIdentity.sessionId,
       turnId,
@@ -1827,7 +1827,7 @@ async function sampleGuiRunningState(page, turnId) {
       return {
         url: window.location.href,
         hasPrompt: scopedText.includes(prompt),
-        hasAssistantOutput: scopedText.includes("以下是今日国际新闻简要整理"),
+        hasAssistantOutput: scopedText.includes("会话恢复测试正在运行"),
         hasTurnIdInDom: turnId ? scopedText.includes(turnId) : null,
         statusNodes,
         mainRunningStatus:
@@ -1858,7 +1858,7 @@ async function sampleGuiRunningState(page, turnId) {
         scopedText,
       };
     },
-    { prompt: NEWS_PROMPT, title: SESSION_TITLE, turnId },
+    { prompt: RECOVERY_PROMPT, title: SESSION_TITLE, turnId },
   );
 }
 
@@ -2036,7 +2036,7 @@ async function run() {
     cdpPort: options.cdpPort,
     sessionId: null,
     threadId: null,
-    prompt: NEWS_PROMPT,
+    prompt: RECOVERY_PROMPT,
     checkedAt: new Date().toISOString(),
     tempRoot: options.keepTemp ? runtimeEnv.tempRoot : null,
     electronUserDataDir: options.keepTemp
@@ -2182,7 +2182,7 @@ async function run() {
 
     logStage("send-running-turn");
     summary.inputSend = sanitizeJson(
-      await sendPromptFromGui(page, options, NEWS_PROMPT, {
+      await sendPromptFromGui(page, options, RECOVERY_PROMPT, {
         expectedSessionId: primaryIdentity.sessionId,
         expectedThreadId: primaryIdentity.threadId,
         requireTurnStart: true,
@@ -2190,7 +2190,7 @@ async function run() {
     );
     const backendTurn = await waitForBackendLedgerTurnStart(
       runtimeEnv.backendLedgerPath,
-      NEWS_PROMPT,
+      RECOVERY_PROMPT,
       options,
     );
     const turnId = String(backendTurn.entry?.turnId || "").trim();
@@ -2592,8 +2592,8 @@ async function run() {
       logStage("stop-after-reload");
       summary.stopClick = sanitizeJson(
         await waitForStopButtonVisibleAndClick(page, options, {
-          prompt: NEWS_PROMPT,
-          visibleOutputText: "以下是今日国际新闻简要整理",
+          prompt: RECOVERY_PROMPT,
+          visibleOutputText: "会话恢复测试正在运行",
           requireVisibleOutput: true,
         }),
       );
@@ -2630,14 +2630,14 @@ async function run() {
       summary.readModelCanceled = sanitizeJson(
         await waitForSessionReadCanceled(page, options, requestLog, {
           threadId: primaryIdentity.threadId,
-          prompt: NEWS_PROMPT,
-          partialText: "以下是今日国际新闻简要整理",
+          prompt: RECOVERY_PROMPT,
+          partialText: "会话恢复测试正在运行",
         }),
       );
       summary.guiCanceled = sanitizeJson(
         await waitForGuiChatCanceled(page, options, {
-          prompt: NEWS_PROMPT,
-          partialText: "以下是今日国际新闻简要整理",
+          prompt: RECOVERY_PROMPT,
+          partialText: "会话恢复测试正在运行",
         }),
       );
       summary.sessionListAfterCancel = sanitizeJson(
@@ -2720,7 +2720,7 @@ async function run() {
       sessionId: primaryIdentity.sessionId,
       threadId: primaryIdentity.threadId,
       turnId,
-      prompt: NEWS_PROMPT,
+      prompt: RECOVERY_PROMPT,
     });
 
     const methods = new Set(summary.traceSummary.methods ?? []);

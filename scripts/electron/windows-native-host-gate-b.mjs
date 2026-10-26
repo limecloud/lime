@@ -94,7 +94,10 @@ function readInstalledHelper(resourcesRoot) {
   const metadata = manifest.native?.windowsHelper;
   if (
     metadata?.id !== "windows-native-host" ||
-    metadata.readOnly !== true ||
+    metadata.readOnly !== false ||
+    metadata.computerUseProtocolVersion !== 1 ||
+    !Array.isArray(metadata.api) ||
+    !metadata.api.includes("ComputerUse") ||
     metadata.path !== "native/windows/windows-native-host.exe"
   ) {
     throw new Error("Installed Windows native helper metadata is invalid");
@@ -205,8 +208,11 @@ class NativeHostClient {
         this.#settle(
           response.id,
           null,
-          new Error(
-            response.error?.message || "Windows native host request failed",
+          Object.assign(
+            new Error(
+              response.error?.message || "Windows native host request failed",
+            ),
+            { code: response.error?.code },
           ),
         );
       }
@@ -231,6 +237,54 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+export function assertComputerUseSnapshot(snapshot) {
+  assert(snapshot?.readiness === "ready", "Computer Use driver is not ready");
+  assert(
+    Number.isSafeInteger(snapshot.generation) && snapshot.generation > 0,
+    "Computer Use snapshot has no valid generation",
+  );
+  assert(
+    Array.isArray(snapshot.targets) && snapshot.targets.length > 0,
+    "Computer Use found no verifiable native targets",
+  );
+  for (const target of snapshot.targets) {
+    const identity = target?.identity;
+    const app = target?.nativeApp;
+    assert(
+      identity?.type === "native" &&
+        typeof identity.appId === "string" &&
+        identity.appId.startsWith("win32:") &&
+        Number.isSafeInteger(identity.processId) &&
+        identity.processId > 0 &&
+        typeof identity.windowId === "string" &&
+        /^\d+:\d+$/.test(identity.windowId),
+      "Computer Use target has no exact Windows identity",
+    );
+    assert(
+      app?.type === "windows" &&
+        [app.publisherName, app.productName, app.binaryName].every(
+          (value) => typeof value === "string" && value.length > 0,
+        ),
+      "Computer Use target has no signed application identity",
+    );
+    assert(
+      target.locked === false &&
+        Array.isArray(target.capabilities) &&
+        [
+          "observe",
+          "screenshot",
+          "click",
+          "type",
+          "key",
+          "scroll",
+          "drag",
+        ].every((capability) => target.capabilities?.includes(capability)),
+      "Computer Use target is locked or lacks driver capabilities",
+    );
+  }
+  return snapshot.targets[0].identity;
+}
+
 export async function runWindowsNativeHostGateB(options) {
   const resourcesRoot = resolveInstalledResourcesRoot(
     options.electronExecutable,
@@ -244,7 +298,10 @@ export async function runWindowsNativeHostGateB(options) {
     const capabilities = await client.invoke(
       "windows.uiAutomation.capabilities",
     );
-    assert(capabilities?.readOnly === true, "native helper must be read-only");
+    assert(
+      capabilities?.readOnly === true,
+      "legacy UI Automation API must be read-only",
+    );
     assert(
       capabilities?.uiAutomation === "ready",
       "UI Automation COM is unavailable",
@@ -305,6 +362,33 @@ export async function runWindowsNativeHostGateB(options) {
     assert(rawInput?.started === true, "Raw Input monitor did not start");
     await client.invoke("windows.bareModifierMonitor.stop");
     checks.push({ name: "rawInput.start-stop", status: "passed" });
+
+    const snapshot = await client.invoke("computerUse.snapshot");
+    const identity = assertComputerUseSnapshot(snapshot);
+    checks.push({
+      name: "computerUse.discovery",
+      count: snapshot.targets.length,
+      status: "passed",
+    });
+    let refused = false;
+    try {
+      await client.invoke("computerUse.execute", {
+        owner: {
+          connection: "windows-native-host-gate-b",
+          thread_id: "zero-fence",
+          turn_id: "zero-fence",
+        },
+        generation: snapshot.generation,
+        fence: 0,
+        target: identity,
+        operation: { action: "observe", max_depth: 2, max_nodes: 32 },
+      });
+    } catch (error) {
+      refused = error.code === "not_granted";
+      if (!refused) throw error;
+    }
+    assert(refused, "Computer Use admitted an action without a control lease");
+    checks.push({ name: "computerUse.zero-fence-rejected", status: "passed" });
   } catch (error) {
     failure = error instanceof Error ? error : new Error(String(error));
   } finally {
@@ -316,6 +400,8 @@ export async function runWindowsNativeHostGateB(options) {
   const summary = {
     result: failure ? "failed" : "passed",
     evidenceLevel: "gate-b",
+    claimBoundary:
+      "Installed Windows native helper discovery/observation and no-lease rejection; no authorized input, Desktop/CLI runtime or canonical projection claim",
     platform: "win32",
     arch: "x64",
     candidateRunId: process.env.LIME_GATE_RUN_ID?.trim() || null,
@@ -332,7 +418,9 @@ export async function runWindowsNativeHostGateB(options) {
       packagedSha256: helper.sha256,
       digestMatches: true,
       api: helper.manifest.native.windowsHelper.api,
-      readOnly: true,
+      readOnly: false,
+      computerUseProtocolVersion: 1,
+      computerUseInputTested: false,
     },
     observedEventTypes,
   };

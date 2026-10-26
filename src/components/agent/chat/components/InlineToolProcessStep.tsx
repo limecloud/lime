@@ -27,6 +27,7 @@ import {
 } from "../utils/searchResultPreview";
 import {
   isDynamicToolCall,
+  isMcpToolCall,
   isUnifiedWebFetchToolName,
 } from "../utils/toolNameFamily";
 import { attachUrlPreviewSnapshotsToSearchResults } from "../utils/urlPreviewSnapshot";
@@ -92,7 +93,7 @@ interface InlineToolProcessStepProps {
 export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = (
   props,
 ) =>
-  isDynamicToolCall(props.toolCall) ? (
+  isDynamicToolCall(props.toolCall) || isMcpToolCall(props.toolCall) ? (
     <McpToolItemContent key={props.toolCall.id} toolCall={props.toolCall} />
   ) : (
     <InlineToolProcessStepContent {...props} />

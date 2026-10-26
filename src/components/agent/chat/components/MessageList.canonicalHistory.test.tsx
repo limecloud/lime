@@ -1,4 +1,3 @@
-import { act } from "react";
 import { describe, expect, it } from "vitest";
 import {
   mockAgentThreadTimeline,
@@ -240,34 +239,6 @@ describe("MessageList canonical history canonical history", () => {
         '[data-testid="conversation-turn-timeline"][data-runtime-turn-id="turn-canonical-history"]',
       ),
     ).not.toBeNull();
-    const preview = container.querySelector<HTMLButtonElement>(
-      '[data-testid="message-list-historical-timeline-preview:leading"]',
-    );
-    expect(preview).not.toBeNull();
-    expect(preview?.tagName).toBe("BUTTON");
-    expect(
-      container.querySelector(
-        '[data-testid="historical-file-artifact-summary"]',
-      ),
-    ).not.toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="historical-file-artifact-summary"]',
-      )?.textContent,
-    ).toContain("src/lib.rs");
-    expect(
-      container.querySelector(
-        '[data-testid="historical-file-artifact-summary"]',
-      )?.textContent,
-    ).toMatch(/(?:1\s+files?|1\s*个文件)/i);
-    expect(
-      container.querySelector(
-        '[data-testid="historical-file-artifact-summary"]',
-      )?.textContent,
-    ).not.toContain("canonical-preview");
-    expect(
-      container.querySelector('[data-testid="historical-file-artifact-group"]'),
-    ).toBeNull();
     const canonicalAssistantRendererCall =
       mockStreamingRenderer.mock.calls.find(([props]) => {
         const rendererProps = props as {
@@ -284,16 +255,21 @@ describe("MessageList canonical history canonical history", () => {
       "我会先运行测试并检查失败。",
     );
     expect(canonicalAssistantRendererCall?.contentParts).toBeUndefined();
-    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
-
-    act(() => preview?.click());
     expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
       expect.objectContaining({
+        turn: expect.objectContaining({ id: canonicalTurn.id }),
         items: expect.arrayContaining([
-          expect.objectContaining({ id: "canonical-patch" }),
-          expect.objectContaining({ id: "canonical-file-artifact" }),
+          expect.objectContaining({
+            id: "canonical-patch",
+            paths: ["/workspace/canonical-codex/src/lib.rs"],
+          }),
+          expect.objectContaining({
+            id: "canonical-file-artifact",
+            path: "/workspace/canonical-codex/src/lib.rs",
+          }),
         ]),
-        expandCompletedProcessDetails: true,
+        deferCompletedSingleDetails: true,
+        showOperationalDetails: true,
       }),
     );
   });

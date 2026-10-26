@@ -76,6 +76,7 @@ describe("Browser site settings typed gateway", () => {
       { origin: null, permission: "camera", setting: "prompt" },
       { origin: null, permission: "sound", setting: "ask" },
       { origin: "https://example.com", permission: "sound", setting: "ask" },
+      { origin: null, permission: "images", setting: "ask" },
     ])
       expect(() => parseBrowserSiteSettingsUpdate(value)).toThrow();
     expect(() =>

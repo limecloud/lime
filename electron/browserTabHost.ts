@@ -29,6 +29,7 @@ import {
   type PendingBrowserApproval,
 } from "./browserActionApprovals";
 import { BrowserHistoryTool } from "./browserHistoryTool";
+import { BrowserTabNavigation } from "./browserTabNavigation";
 import { executeCdpCommand, isBrowserCdpTool } from "./browserCdp";
 import { BrowserCdpSessions } from "./browserCdpSessions";
 import { BrowserCdpEvents } from "./browserCdpEvents";
@@ -255,6 +256,7 @@ export class ElectronBrowserTabHost {
   readonly #overlay: BrowserOverlayHost;
   readonly #sitePermissions: BrowserSitePermissionPrompt;
   readonly #history: BrowserHistoryHost;
+  readonly #navigation: BrowserTabNavigation;
   readonly #historyTool: BrowserHistoryTool;
   readonly #downloads: BrowserDownloadsHost;
   readonly #siteSettings: BrowserSiteSettingsStore;
@@ -268,6 +270,7 @@ export class ElectronBrowserTabHost {
     emit: HostEventEmitter = () => undefined,
     options: {
       history?: BrowserHistoryHost;
+      navigation?: BrowserTabNavigation;
       siteSettings?: BrowserSiteSettingsStore;
       resolveWindow?: (owner: number) => BrowserWindow | undefined;
     } = {},
@@ -349,10 +352,12 @@ export class ElectronBrowserTabHost {
         );
       },
     });
+    this.#navigation = options.navigation ?? new BrowserTabNavigation();
     this.#history =
       options.history ??
-      new BrowserHistoryHost((revision) =>
-        this.#emit("browser-history-changed", { revision }),
+      new BrowserHistoryHost(
+        (revision) => this.#emit("browser-history-changed", { revision }),
+        { beforeRemove: () => this.#navigation.clear() },
       );
     this.#siteSettings =
       options.siteSettings ??
@@ -1379,9 +1384,21 @@ export class ElectronBrowserTabHost {
     }
   }
 
-  prepareShutdown(): Promise<void> {
+  async prepareShutdown(): Promise<void> {
     this.#embeddedHost.prepareDownloadShutdown();
-    return this.#downloads.prepareShutdown();
+    for (const route of this.#routesByTabId.values()) {
+      const native = this.#embeddedHost.resolveNativeView(route.viewId);
+      if (native)
+        this.#navigation.capture(
+          route.threadId,
+          route.selected,
+          native.view.webContents,
+        );
+    }
+    await Promise.all([
+      this.#downloads.prepareShutdown(),
+      this.#navigation.flush(),
+    ]);
   }
 
   dispose(): void {
@@ -1417,12 +1434,26 @@ export class ElectronBrowserTabHost {
       this.#tabIdsByViewId.set(identity.viewId, identity.tabId);
     }
     const route = existing ?? identity;
+    let navigation =
+      !existing && args?.restoreNavigation === true
+        ? await this.#navigation.read(
+            route.threadId,
+            readString(args, "url") ?? "",
+          )
+        : null;
+    if (this.#routesByTabId.get(route.tabId) !== route)
+      throw new Error("Browser navigation recovery owner became stale");
+    const mountedWhileReading = Boolean(
+      this.#embeddedHost.resolveNativeView(route.viewId),
+    );
+    if (mountedWhileReading) navigation = null;
     // A remount only restores the existing native view; reapplying the initial
     // URL here would silently undo user navigation after Right Surface restore.
-    const mountArgs = existing
-      ? { ...asRecord(args), url: undefined }
-      : asRecord(args);
-    const state = await this.#embeddedHost.invoke(
+    const mountArgs =
+      existing || mountedWhileReading || navigation
+        ? { ...asRecord(args), url: undefined }
+        : asRecord(args);
+    let state = await this.#embeddedHost.invoke(
       window,
       "embedded_browser_view_mount",
       {
@@ -1431,6 +1462,22 @@ export class ElectronBrowserTabHost {
         visible: route.selected && args?.visible !== false,
       },
     );
+    if (navigation) {
+      const restored = await this.#navigation.restore(
+        this.#nativeRoute(route).view.webContents,
+        navigation,
+      );
+      if (!restored)
+        await this.#embeddedHost.invoke(
+          window,
+          "embedded_browser_view_navigate",
+          {
+            viewId: route.viewId,
+            url: readString(args, "url"),
+          },
+        );
+      state = this.#nativeRoute(route).state;
+    }
     assertEmbeddedState(state);
     this.#annotations.revalidateView(route.viewId);
     this.#observeNativeUserControl(route);
@@ -2470,6 +2517,11 @@ export class ElectronBrowserTabHost {
       native.view.webContents.id,
     );
     route.lastPageStateKey = browserPageStateKey(next);
+    this.#navigation.capture(
+      route.threadId,
+      route.selected,
+      native.view.webContents,
+    );
     this.#emit("browser-tab-state", next);
     this.#annotations.revalidateView(route.viewId);
     return next;

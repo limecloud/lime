@@ -351,7 +351,7 @@ describe("agentThreadGrouping", () => {
     const model = buildAgentThreadDisplayModel(items);
 
     expect(model.groups[0]?.previewLines).toEqual([
-      "已确认可用工具 2 个 · 查看文件 · 保存文件",
+      "已确认可用工具 2 个 查看文件 保存文件",
     ]);
   });
 

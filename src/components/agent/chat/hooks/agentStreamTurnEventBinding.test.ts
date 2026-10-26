@@ -295,11 +295,11 @@ describe("agentStreamTurnEventBinding", () => {
 
     await vi.advanceTimersByTimeAsync(12_100);
 
-    expect(messages[0]?.content).toContain("执行失败");
+    expect(messages[0]?.content).toBe(messages[0]?.runtimeStatus?.detail);
     expect(messages[0]?.content).toContain("运行时未返回任何进度事件");
     expect(messages[0]?.runtimeStatus).toMatchObject({
       phase: "failed",
-      title: "当前处理失败",
+      title: "处理失败",
       detail: expect.stringContaining("执行已中断"),
     });
     expect(clearActiveStreamIfMatch).toHaveBeenCalledWith("event-timeout");
@@ -482,7 +482,7 @@ describe("agentStreamTurnEventBinding", () => {
 
     await vi.advanceTimersByTimeAsync(120_100);
 
-    expect(messages[0]?.content).toContain("执行失败");
+    expect(messages[0]?.content).toBe(messages[0]?.runtimeStatus?.detail);
     expect(messages[0]?.content).toContain("长时间没有返回新进度");
     expect(messages[0]?.runtimeStatus?.detail).toContain("执行已中断");
     expect(messages[0]?.runtimeStatus?.detail).toContain(
@@ -804,7 +804,7 @@ describe("agentStreamTurnEventBinding", () => {
 
     await vi.advanceTimersByTimeAsync(120_100);
 
-    expect(messages[0]?.content).toContain("执行失败");
+    expect(messages[0]?.content).toBe(messages[0]?.runtimeStatus?.detail);
     expect(messages[0]?.content).toContain("长时间没有返回新进度");
     expect(messages[0]?.runtimeStatus?.detail).toContain("执行已中断");
     expect(clearActiveStreamIfMatch).toHaveBeenCalledWith(
@@ -914,11 +914,10 @@ describe("agentStreamTurnEventBinding", () => {
     }
     (streamHandler as (event: { payload: unknown }) => void)({ payload });
 
-    expect(messages[0]?.content).toContain("执行失败");
-    expect(messages[0]?.content).toContain("Plugin worker failed");
+    expect(messages[0]?.content).toBe("Plugin worker failed");
     expect(messages[0]?.runtimeStatus).toMatchObject({
       phase: "failed",
-      title: "当前处理失败",
+      title: "处理失败",
     });
     expect(clearActiveStreamIfMatch).toHaveBeenCalledWith(
       "agent_stream_runtime-error",
@@ -1029,11 +1028,11 @@ describe("agentStreamTurnEventBinding", () => {
 
     await vi.advanceTimersByTimeAsync(120_100);
 
-    expect(messages[0]?.content).toContain("执行失败");
+    expect(messages[0]?.content).toBe(messages[0]?.runtimeStatus?.detail);
     expect(messages[0]?.content).toContain("长时间没有返回新进度");
     expect(messages[0]?.runtimeStatus).toMatchObject({
       phase: "failed",
-      title: "当前处理失败",
+      title: "处理失败",
       detail: expect.stringContaining("执行已中断"),
     });
     expect(clearActiveStreamIfMatch).toHaveBeenCalledWith("event-inactivity");
@@ -1150,7 +1149,7 @@ describe("agentStreamTurnEventBinding", () => {
     await vi.advanceTimersByTimeAsync(120_100);
 
     expect(streamActivated).toBe(true);
-    expect(messages[0]?.content).not.toContain("执行失败");
+    expect(messages[0]?.runtimeStatus?.phase).not.toBe("failed");
     expect(messages[0]?.isThinking).toBe(true);
     expect(attemptSilentTurnRecovery).toHaveBeenCalledWith(
       "session-running-read-model",

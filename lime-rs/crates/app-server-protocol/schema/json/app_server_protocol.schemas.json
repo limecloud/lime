@@ -31191,6 +31191,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -31359,6 +31459,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -33155,6 +33261,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -33323,6 +33529,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -58940,6 +59152,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -59115,6 +59427,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -66638,6 +66956,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -67626,6 +68044,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -74912,6 +75336,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -75128,6 +75652,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -77318,6 +77848,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -77718,6 +78348,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -79633,6 +80269,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -79939,6 +80675,12 @@
         },
         {
           "properties": {
+            "contentParts": {
+              "items": {
+                "$ref": "#/$defs/MessageContentPart"
+              },
+              "type": "array"
+            },
             "delivery": {
               "anyOf": [
                 {
@@ -81002,6 +81744,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -81170,6 +82012,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -82438,6 +83286,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -82606,6 +83554,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -84173,6 +85127,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -84549,6 +85603,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -86275,6 +87335,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -86651,6 +87811,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -88939,6 +90105,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -89114,6 +90380,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -90996,6 +92268,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -91372,6 +92744,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -93250,6 +94628,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -93650,6 +95128,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -95317,6 +96801,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -95693,6 +97277,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -97514,6 +99104,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -97890,6 +99580,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -99469,6 +101165,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -99845,6 +101641,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -102419,6 +104221,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -102819,6 +104721,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -104428,6 +106336,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -104804,6 +106812,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -106696,6 +108710,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -106871,6 +108985,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -108369,6 +110489,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -108745,6 +110965,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -110594,6 +112820,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -110769,6 +113095,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -112205,6 +114537,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -112380,6 +114812,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -114630,6 +117068,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -114805,6 +117343,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -116252,6 +118796,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -116427,6 +119071,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {
@@ -118141,6 +120791,106 @@
           ],
           "type": "object"
         },
+        "MessageContentPart": {
+          "oneOf": [
+            {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "caption": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "reference": {
+                  "$ref": "#/$defs/MessageContentReference"
+                },
+                "type": {
+                  "const": "media",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "MessageContentReference": {
+          "properties": {
+            "byte_size": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "preview_url": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sidecar_ref": true,
+            "source_path": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source_uri": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mime_type",
+            "uri"
+          ],
+          "type": "object"
+        },
         "MessagePhase": {
           "description": "Assistant message phase; absent phase remains unknown for providers that omit it.",
           "enum": [
@@ -118316,6 +121066,12 @@
             },
             {
               "properties": {
+                "contentParts": {
+                  "items": {
+                    "$ref": "#/$defs/MessageContentPart"
+                  },
+                  "type": "array"
+                },
                 "delivery": {
                   "anyOf": [
                     {

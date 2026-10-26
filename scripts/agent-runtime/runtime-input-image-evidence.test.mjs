@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { writeFixtureBackend } from "./claw-chat-current-fixture-backend-script.mjs";
+import { writeFixtureBackend } from "../lib/chat-fixture/backend-script.mjs";
 
 describe("runtime input image evidence", () => {
   it("generated independent backend records real image bytes after Vitest transforms its producer", () => {

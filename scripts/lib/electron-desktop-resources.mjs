@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { compileDesktopPermissions } from "./desktop-permissions-build.mjs";
 
 export const DESKTOP_RESOURCES_MANIFEST_NAME =
   "desktop-resources.manifest.json";
@@ -19,6 +20,10 @@ export const DESKTOP_APPLICATION_ID = "com.limecloud.lime";
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
+);
+const CURSOR_MOTION_HEADER = path.join(
+  REPO_ROOT,
+  "electron/native/computer-use-cursor-motion.h",
 );
 const MAC_NATIVE_HOST_SOURCE = path.join(
   REPO_ROOT,
@@ -35,6 +40,10 @@ const MAC_COMPUTER_USE_SOURCE = path.join(
 const MAC_COMPUTER_USE_ACTIONS_SOURCE = path.join(
   REPO_ROOT,
   "electron/native/macos/macos-computer-use-actions.swift",
+);
+const MAC_COMPUTER_USE_INPUT_SOURCE = path.join(
+  REPO_ROOT,
+  "electron/native/macos/macos-computer-use-input.swift",
 );
 const MAC_COMPUTER_USE_CURSOR_SOURCES = [
   "macos-computer-use-cursor.swift",
@@ -68,6 +77,15 @@ const WINDOWS_NATIVE_HOST_SOURCE = path.join(
   REPO_ROOT,
   "electron/native/windows/windows-native-host.cpp",
 );
+const WINDOWS_COMPUTER_USE_SOURCES = [
+  "windows-computer-use.cpp",
+  "windows-computer-use-apps.cpp",
+  "windows-computer-use-actions.cpp",
+  "windows-computer-use-capture.cpp",
+  "windows-computer-use-input.cpp",
+  "windows-computer-use-cursor.cpp",
+  "windows-computer-use-cursor-recovery.cpp",
+].map((file) => path.join(REPO_ROOT, "electron/native/windows", file));
 const MAC_NATIVE_HOST_BUNDLE_RELATIVE_PATH =
   "native/macos/macos-native-host.app";
 const MAC_NATIVE_HOST_RELATIVE_PATH = `${MAC_NATIVE_HOST_BUNDLE_RELATIVE_PATH}/Contents/MacOS/macos-native-host`;
@@ -305,6 +323,7 @@ function prepareDesktopResourcesFromRoot({
         MAC_SCREEN_CAPTURE_SOURCE,
         MAC_COMPUTER_USE_SOURCE,
         MAC_COMPUTER_USE_ACTIONS_SOURCE,
+        MAC_COMPUTER_USE_INPUT_SOURCE,
         ...MAC_COMPUTER_USE_CURSOR_SOURCES,
         MAC_SECURITY_SOURCE,
         MAC_WINDOW_ORCHESTRATION_SOURCE,
@@ -323,6 +342,13 @@ function prepareDesktopResourcesFromRoot({
       "utf8",
     );
     files["macos-native-host"] = MAC_NATIVE_HOST_RELATIVE_PATH;
+    if (!localSidecar) {
+      const relativePath = "native/macos/desktop-permissions.node";
+      compileDesktopPermissions({
+        outputPath: path.join(resourcesRoot, relativePath), arch, execFileSyncImpl,
+      });
+      files["desktop-permissions"] = relativePath;
+    }
     native = {
       helper: {
         id: "macos-native-host",
@@ -370,8 +396,10 @@ function prepareDesktopResourcesFromRoot({
           "WindowEnumeration",
           "DisplayEnumeration",
           "DisplayWatcher",
+          "ComputerUse",
         ],
-        readOnly: true,
+        readOnly: false,
+        computerUseProtocolVersion: 1,
         signedByForge: nativeSignedByForge,
       },
     };
@@ -431,6 +459,7 @@ function compileMacNativeHost({
   for (const sourcePath of sourcePaths) {
     assertRegularFile(sourcePath, "macOS native host source");
   }
+  assertRegularFile(CURSOR_MOTION_HEADER, "native cursor motion header");
   const targetArch = arch === "x64" ? "x86_64" : "arm64";
   execFileSyncImpl(
     "swiftc",
@@ -438,6 +467,8 @@ function compileMacNativeHost({
       "-O",
       "-target",
       `${targetArch}-apple-macos13.0`,
+      "-import-objc-header",
+      CURSOR_MOTION_HEADER,
       "-framework",
       "AppKit",
       "-framework",
@@ -467,6 +498,22 @@ function compileWindowsNativeHost({
   execFileSyncImpl,
 }) {
   assertRegularFile(sourcePath, "Windows native host source");
+  for (const source of WINDOWS_COMPUTER_USE_SOURCES)
+    assertRegularFile(source, "Windows Computer Use source");
+  const libraries = [
+    "ole32",
+    "oleaut32",
+    "user32",
+    "uiautomationcore",
+    "gdi32",
+    "windowscodecs",
+    "wintrust",
+    "crypt32",
+    "version",
+    "shell32",
+    "advapi32",
+    "wtsapi32",
+  ];
   const compiler = String(process.env.CXX || "cl").trim() || "cl";
   const isMsvc =
     /(?:^|[\\/])(?:cl|clang-cl)(?:\.exe)?$/iu.test(compiler) ||
@@ -476,22 +523,19 @@ function compileWindowsNativeHost({
         "/nologo",
         "/std:c++17",
         "/EHsc",
+        "/utf-8",
         "/O2",
         sourcePath,
+        ...WINDOWS_COMPUTER_USE_SOURCES,
         `/Fe:${outputPath}`,
-        "ole32.lib",
-        "oleaut32.lib",
-        "user32.lib",
-        "uiautomationcore.lib",
+        ...libraries.map((name) => `${name}.lib`),
       ]
     : [
         "-std=c++17",
         "-O2",
         sourcePath,
-        "-lole32",
-        "-loleaut32",
-        "-luser32",
-        "-luiautomationcore",
+        ...WINDOWS_COMPUTER_USE_SOURCES,
+        ...libraries.map((name) => `-l${name}`),
         "-o",
         outputPath,
       ];

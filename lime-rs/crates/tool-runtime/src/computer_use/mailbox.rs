@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -27,15 +27,6 @@ pub(super) fn now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
-}
-
-pub(super) fn root() -> ComputerUseResult<PathBuf> {
-    let path = lime_core::app_paths::preferred_data_dir()
-        .map_err(denied)?
-        .join("computer-use")
-        .join("sessions");
-    private_directory(&path)?;
-    Ok(path)
 }
 
 pub(super) fn private_directory(path: &Path) -> ComputerUseResult<()> {

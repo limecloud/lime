@@ -417,7 +417,14 @@ export class ElectronAppServerHost {
   async drainEvents(
     request: DrainEventsRequest = {},
   ): Promise<{ lines: string[] }> {
-    const connected = await this.#connect();
+    // Renderer polling can outlive the sidecar while Main drains its owners.
+    // Closing a read stream is empty; new business requests still fail closed.
+    if (this.#stopping) return { lines: [] };
+    const connected = await this.#connect().catch((error: unknown) => {
+      if (this.#stopping) return null;
+      throw error;
+    });
+    if (!connected || this.#stopping) return { lines: [] };
     const limit = normalizeDrainEventsLimit(
       request.limit,
       request.includeRecent === true
@@ -431,7 +438,7 @@ export class ElectronAppServerHost {
     }
     const drained: JsonRpcMessage[] = [];
 
-    while (drained.length < limit) {
+    while (!this.#stopping && drained.length < limit) {
       let message: JsonRpcMessage;
       try {
         message = await connected.connection.nextServerMessage(
@@ -442,6 +449,7 @@ export class ElectronAppServerHost {
       } catch {
         break;
       }
+      if (this.#stopping) return { lines: [] };
       if (tryHandleCurrentTimeRead(connected.connection, message)) {
         continue;
       }
@@ -457,6 +465,7 @@ export class ElectronAppServerHost {
       }
     }
 
+    if (this.#stopping) return { lines: [] };
     const rendererMessages = drained;
     this.#rememberRecentNotifications(rendererMessages);
     const messages =

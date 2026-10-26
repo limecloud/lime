@@ -120,12 +120,12 @@ it("distinguishes completed category sizes from partial and failed measurements"
   ).toBe("Chats 1 KB");
   expect(
     labels.find((entry) => entry.textContent?.startsWith("Other"))?.textContent,
-  ).toContain("1 KB · Updating…");
+  ).toContain("1 KB Updating…");
   await act(async () => root.unmount());
   root = createRoot(container);
   api.readStorage.mockResolvedValue(state("error", ["threads"]));
   await mount();
-  expect(container.textContent).toContain("1 KB · Incomplete");
+  expect(container.textContent).toContain("1 KB Incomplete");
   expect(container.textContent).toContain("Chats 1 KB");
 });
 

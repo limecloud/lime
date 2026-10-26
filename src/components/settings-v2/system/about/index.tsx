@@ -18,6 +18,7 @@ import {
 import { getRuntimeAppVersion } from "@/lib/appVersion";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LINKS } from "@/lib/productLinks";
+import { openPermissionsSetup } from "@/lib/permissionsSetup";
 import {
   SettingsAction,
   SettingsGroup,
@@ -362,6 +363,14 @@ export function AboutSection() {
               </SettingsAction>
             </div>
           ) : null}
+          <SettingsRow
+            label={t("settings.permissionsSetup.title")}
+            targetId="about-permissions-setup"
+          >
+            <SettingsAction type="button" onClick={openPermissionsSetup}>
+              {t("settings.permissionsSetup.openGuide")}
+            </SettingsAction>
+          </SettingsRow>
         </SettingsGroup>
         {isWindows ? (
           <p className="text-[12px] leading-4 text-muted-foreground">

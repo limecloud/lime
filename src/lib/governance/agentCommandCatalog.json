@@ -48,21 +48,13 @@
     "browser_site_settings_update",
     "browser_site_settings_remove"
   ],
-  "browserConnectorCommands": [
-    "disconnect_browser_connector_session",
-    "get_browser_connector_settings_cmd",
-    "set_browser_connector_install_root_cmd",
-    "set_browser_connector_enabled_cmd",
-    "set_system_connector_enabled_cmd",
-    "set_browser_action_capability_enabled_cmd",
-    "get_browser_connector_install_status_cmd",
-    "install_browser_connector_extension_cmd",
-    "open_browser_extensions_page_cmd",
-    "open_browser_remote_debugging_page_cmd",
-    "open_browser_connector_guide_window"
-  ],
   "persistedAtomCommands": ["persisted_atom_read", "persisted_atom_update"],
   "systemUtilityCommands": [
+    "desktop_permissions_read",
+    "desktop_permissions_request",
+    "desktop_permissions_open_settings",
+    "desktop_permissions_targets",
+    "desktop_permissions_complete",
     "open_external_url",
     "is_default_browser",
     "show_desktop_notification",

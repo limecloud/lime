@@ -2,8 +2,8 @@ import {
   captureInvokeTraceCollector,
   validateInvokeTraceCollectorCapture,
 } from "../../lib/invoke-trace-collector.mjs";
-import { collectTraceRequestMethods } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { sanitizeText } from "../../agent-runtime/claw-chat-current-fixture-utils.mjs";
+import { collectTraceRequestMethods } from "../../lib/chat-fixture/rpc.mjs";
+import { sanitizeText } from "../../lib/chat-fixture/utils.mjs";
 
 /** 只读取错误名和消息；不记录任意控制台参数或配置。 */
 export function observePreviewConsoleError(message, stage, details, pending) {

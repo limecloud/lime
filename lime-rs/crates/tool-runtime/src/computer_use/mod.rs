@@ -13,6 +13,7 @@ mod native;
 mod native_host;
 mod native_resources;
 mod office;
+mod paths;
 mod policy;
 mod state;
 #[cfg(test)]
@@ -29,8 +30,10 @@ pub use executor::{
 };
 pub use extension::ExtensionAdapter;
 pub use extension_host::{run_native_messaging_host, CHROME_EXTENSION_ORIGIN};
+pub use installation::NATIVE_HOST;
 pub use native::NativeAdapter;
 pub use office::OfficeAdapter;
+pub use paths::ComputerUsePaths;
 pub use policy::{ComputerUsePolicy, NativeAppIdentity};
 pub use state::{ComputerUseLease, ComputerUseService};
 
@@ -38,6 +41,9 @@ pub use state::{ComputerUseLease, ComputerUseService};
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComputerUseTarget {
     pub identity: ComputerUseTargetIdentity,
+    /// Helper-observed continuity, scoped to the trusted helper session by NativeAdapter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
     pub native_app: Option<NativeAppIdentity>,
     pub capabilities: Vec<ComputerUseCapability>,
     pub locked: bool,
@@ -62,9 +68,34 @@ pub struct ComputerUseSetupOutcome {
     /// Adapter-observed consent; a client request is never evidence of approval.
     pub approved_target: Option<ComputerUseTargetIdentity>,
     pub generation: u64,
+    /// Trusted adapter-only continuity of the confirmed target, including helper session.
+    /// Never deserialize this proof from helper, model or public RPC JSON.
+    #[serde(skip)]
+    pub approved_revision: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Host-owned configuration authority. Read-only callers cannot create durable approvals.
+pub trait ComputerUsePolicyStore: Send {
+    fn load(&self) -> ComputerUseResult<ComputerUsePolicy>;
+    fn save_approval(
+        &self,
+        _adapter: ComputerUseAdapterKind,
+        _target: &ComputerUseTarget,
+    ) -> ComputerUseResult<()> {
+        Err(denied("Persistent approval storage is unavailable"))
+    }
+}
+
+impl<F> ComputerUsePolicyStore for F
+where
+    F: Fn() -> ComputerUseResult<ComputerUsePolicy> + Send,
+{
+    fn load(&self) -> ComputerUseResult<ComputerUsePolicy> {
+        self()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct ComputerUseOwner {
     pub connection: String,
     pub thread_id: String,
@@ -72,7 +103,22 @@ pub struct ComputerUseOwner {
 }
 
 #[derive(Debug, Clone)]
-pub struct ComputerUseError(pub String);
+pub struct ComputerUseError(pub String, bool);
+
+impl ComputerUseError {
+    pub fn new(message: String) -> Self {
+        Self(message, false)
+    }
+
+    // Only trusted adapter/host failures may interrupt the canonical turn.
+    pub(super) fn interrupted(message: String) -> Self {
+        Self(message, true)
+    }
+
+    pub fn is_interrupted(&self) -> bool {
+        self.1
+    }
+}
 
 impl std::fmt::Display for ComputerUseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -125,7 +171,7 @@ fn chrome_target_addition(previous: &ComputerUseSnapshot, next: &ComputerUseSnap
 pub type ComputerUseResult<T> = Result<T, ComputerUseError>;
 
 fn denied(message: impl Into<String>) -> ComputerUseError {
-    ComputerUseError(message.into())
+    ComputerUseError::new(message.into())
 }
 
 fn same_target(left: &ComputerUseTargetIdentity, right: &ComputerUseTargetIdentity) -> bool {

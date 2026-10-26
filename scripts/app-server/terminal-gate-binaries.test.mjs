@@ -124,6 +124,34 @@ describe("terminal Gate B binaries", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it("snapshots a server-only fixture with its loader without requiring a CLI artifact", async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), "server-gate-artifacts-"),
+    );
+    try {
+      const source = path.join(directory, "target");
+      await mkdir(source);
+      const appServerBinaryPath = path.join(source, "app-server");
+      await writeFile(appServerBinaryPath, "server");
+      await writeFile(path.join(source, "runtime.dylib"), "loader");
+      const snapshot = path.join(directory, "snapshot");
+      const paths = await snapshotTerminalGateBinaries({
+        env: {},
+        appServerBinaryPath,
+        directory: snapshot,
+      });
+      expect(paths.cliBinaryPath).toBeUndefined();
+      expect(paths.appServerBinaryPath).toBe(path.join(snapshot, "app-server"));
+      await rm(source, { recursive: true });
+      expect(await readFile(paths.appServerBinaryPath, "utf8")).toBe("server");
+      expect(await readFile(path.join(snapshot, "runtime.dylib"), "utf8")).toBe(
+        "loader",
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 function assertSnapshotPaths(paths, directory) {

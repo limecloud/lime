@@ -182,8 +182,9 @@ function createResourceRoot({
       windowsHelper: {
         id: "windows-native-host",
         path: "native/windows/windows-native-host.exe",
-        api: ["UIAutomation", "RawInput"],
-        readOnly: true,
+        api: ["UIAutomation", "RawInput", "ComputerUse"],
+        readOnly: false,
+        computerUseProtocolVersion: 1,
         signedByForge: false,
       },
       helper: null,
@@ -195,6 +196,11 @@ function createResourceRoot({
     mkdirSync(nativeDir, { recursive: true });
     const nativePath = path.join(nativeDir, "macos-native-host");
     const nativeContent = "signed native host";
+    writeFileSync(path.join(nativeDir, "desktop-permissions.node"), "desktop permissions");
+    resourceEntries.push({
+      id: "desktop-permissions", kind: "helper",
+      path: "native/macos/desktop-permissions.node", sha256: sha256("desktop permissions"), required: true,
+    });
     writeFileSync(nativePath, nativeContent);
     resourceEntries.push({
       id: "macos-native-host",
@@ -338,6 +344,15 @@ describe("verify-electron-package-resources runtime bundles", () => {
 });
 
 describe("verify-electron-package-resources sidecar integrity", () => {
+  it.each(["darwin-arm64", "darwin-x64"])("rejects missing and tampered in-process permission bindings on %s", (platformKey) => {
+    const root = createResourceRoot({ appServer: "app-server", codeModeHost: "code-mode-host", platformKey });
+    const options = { platform: "darwin", arch: platformKey.split("-")[1], execFileSyncImpl: () => { throw new Error("unsigned fixture"); } };
+    const file = path.join(root, "native/macos/desktop-permissions.node");
+    writeFileSync(file, "tampered permissions binding");
+    expect(() => verifyResourceRoot(root, options)).toThrow(/sha256/);
+    unlinkSync(file);
+    expect(() => verifyResourceRoot(root, options)).toThrow(/missing/i);
+  });
   it.each(["darwin-arm64", "darwin-x64", "win32-x64"])(
     "rejects missing, tampered, and redirected browser client resources on %s",
     (platformKey) => {
@@ -753,7 +768,7 @@ describe("verify-electron-package-resources sidecar integrity", () => {
     expect(codesignCalled).toBe(false);
   });
 
-  it("校验 Windows native helper 的只读 API 元数据和路径", () => {
+  it("校验 Windows native helper 的 Computer Use 协议元数据和路径", () => {
     const root = createResourceRoot({
       platformKey: "win32-x64",
       appServer: "app-server",
@@ -772,13 +787,13 @@ describe("verify-electron-package-resources sidecar integrity", () => {
     expect(
       verifyResourceRoot(root, { platform: "win32", arch: "x64" })
         .desktopManifest.native.windowsHelper,
-    ).toMatchObject({ readOnly: true });
+    ).toMatchObject({ readOnly: false, computerUseProtocolVersion: 1 });
 
-    manifest.native.windowsHelper.readOnly = false;
+    manifest.native.windowsHelper.readOnly = true;
     writeFileSync(manifestPath, JSON.stringify(manifest));
     expect(() =>
       verifyResourceRoot(root, { platform: "win32", arch: "x64" }),
-    ).toThrow(/must be read-only/u);
+    ).toThrow(/Computer Use metadata mismatch/u);
   });
 });
 

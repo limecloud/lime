@@ -29,7 +29,7 @@ Desktop Host / CLI-TUI Host
 | React 组件/hook                                    | related unit/component；用户可见变更补五语言与稳定 DOM 断言                                                             |
 | Rust crate                                         | `npm run test:rust:related -- <paths...>`；跨 crate 行为追加 integration layer                                          |
 | App Server method/protocol/schema/generated client | `npm run test:contracts` + 公共 JSON-RPC 集成测试                                                                       |
-| Agent loop/queue/turn/item/read model              | Rust related/integration + `npm run smoke:agent-runtime-current-fixture`                                                |
+| Agent loop/queue/turn/item/read model              | Rust related/integration + `npm run smoke:agent-runtime-current`                                                |
 | App Server Rust session/transport                  | `cargo test --manifest-path "lime-rs/Cargo.toml" -p app-server-client` + `npm run smoke:app-server-stdio`               |
 | TUI reducer/render/composer                        | `cargo test --manifest-path "lime-rs/Cargo.toml" -p tui` + 稳定 TestBackend 断言；交互变更补 `npm run smoke:tui-gate-b` |
 | CLI 参数/非交互 Agent 流程                         | `cargo test --manifest-path "lime-rs/Cargo.toml" -p cli` + `npm run smoke:cli-gate-b` 或受影响 CLI surface fixture      |
@@ -82,7 +82,7 @@ GUI 对齐范围及用户明确保留差异以 [design-language.md](design-langu
 
 `npm run test:e2e` 是 Vitest 的 e2e 分层入口，不等于 Electron Gate B。Gate A 不能替代 Gate B。
 
-`smoke:agent-runtime-current-fixture` 是混合聚合入口，包含定向测试与真实 Electron 子场景。只计实际成功执行且满足合同的场景；没有启动、提前失败或仅静态 guard 通过均不能写 Gate B。explicit external / unavailable backend 要记录绕过的执行层，不冒充 live provider 或完整 production backend 证据。
+`smoke:agent-runtime-current` 聚合 Code Mode、会话恢复和运行中 Turn 恢复三个真实 Electron 入口。只计实际成功执行且满足合同的场景；没有启动、提前失败或仅静态 guard 通过均不能写 Gate B。explicit external / unavailable backend 要记录绕过的执行层，不冒充 live provider 或完整 production backend 证据。
 
 ## 测试作者合同
 
@@ -177,7 +177,7 @@ CLI npm packaged evidence 还必须通过 `npm run smoke:cli-npm-gate-b` 从实�
 npm run test:related -- <paths...>
 npm run test:rust:related -- <paths...>
 npm run test:contracts
-npm run smoke:agent-runtime-current-fixture
+npm run smoke:agent-runtime-current
 npm run verify:gui-smoke
 npm run governance:legacy-report
 npm run verify:local

@@ -107,10 +107,7 @@ describe("agentStreamSubmitDraft browser paint boundary", () => {
       role: "assistant",
       content: "准备执行中",
     });
-    expect(assistantMsg.runtimeStatus?.title).toBe("正在启动处理流程");
-    expect(assistantMsg.runtimeStatus?.detail).toBe(
-      "已开始处理，正在准备环境并等待第一条进展。",
-    );
+    expect(assistantMsg.runtimeStatus).toBe(waitingRuntimeStatus);
     expect(isSending).toBe(true);
   });
 

@@ -10,6 +10,7 @@ import {
   readFiniteNumber,
   readString,
 } from "./appServerEventPayloadUtils";
+import { readCanonicalMessageContentParts } from "./appServerCanonicalMessageContent";
 
 type ItemStatus = "in_progress" | "completed" | "failed";
 
@@ -80,10 +81,13 @@ export function readCanonicalThreadItem(
       if (text === undefined) {
         return null;
       }
+      const contentParts = readCanonicalMessageContentParts(item.contentParts);
+      if (contentParts === null) return null;
       return {
         ...lifecycle,
         type: "agent_message",
         text,
+        ...(contentParts?.length ? { contentParts } : {}),
         phase: readMessagePhase(item.phase),
         delivery: item.delivery === "async" ? "async" : undefined,
         questions: readAsyncUserInputQuestions(item.questions),

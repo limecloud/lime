@@ -66,6 +66,7 @@ fn reader(streaming_tail: bool) -> (App, Terminal<TestBackend>) {
                     text: tail,
                     phase: None,
                     memory_citation: None,
+                    content_parts: Vec::new(),
                     delivery: None,
                     questions: None,
                 },
@@ -263,6 +264,7 @@ fn page_join_before_resize_retains_the_group_in_the_full_composer_layout() {
             .join("\n"),
         phase: None,
         memory_citation: None,
+        content_parts: Vec::new(),
         delivery: None,
         questions: None,
     });

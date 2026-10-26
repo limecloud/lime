@@ -1,4 +1,4 @@
-// Test-only driver: approve the exact fixture window in Lime's own consent UI.
+// Test-only driver: select an explicit choice in the exact fixture's consent UI.
 import AppKit
 import ApplicationServices
 import Foundation
@@ -14,6 +14,13 @@ func descendants(_ node: AXUIElement, depth: Int = 0) -> [AXUIElement] {
 }
 let parent = CommandLine.arguments[1]
 let document = CommandLine.arguments[2]
+let appID = CommandLine.arguments.count > 3 ? CommandLine.arguments[3] : "com.kingsoft.wpsoffice.mac"
+let scope = CommandLine.arguments.count > 4 ? CommandLine.arguments[4] : "session"
+let titles = scope == "persistent"
+    ? ["始终允许", "一律允許", "Always allow", "常に許可", "항상 허용"]
+    : scope == "cancel"
+        ? ["取消", "Cancel", "キャンセル", "취소"]
+        : ["允许本次连接", "允許本次連線", "Allow this connection", "この接続で許可", "이번 연결 허용"]
 let deadline = Date(timeIntervalSinceNow: 55)
 while Date() < deadline {
     let task = Process()
@@ -38,13 +45,21 @@ while Date() < deadline {
         for window in (attribute(app, kAXWindowsAttribute) as? [AXUIElement]) ?? [] {
             let nodes = descendants(window)
             let text = nodes.flatMap { node in [kAXTitleAttribute, kAXValueAttribute].compactMap { attribute(node, $0) as? String } }.joined(separator: "\n")
-            guard text.contains(document), text.contains("com.kingsoft.wpsoffice.mac") else { continue }
+            guard text.contains(document), text.contains(appID) else { continue }
             for node in nodes {
                 guard attribute(node, kAXRoleAttribute) as? String == kAXButtonRole,
                       let title = attribute(node, kAXTitleAttribute) as? String,
-                      ["允许本次连接", "允許本次連線", "Allow this connection", "この接続で許可", "이번 연결 허용"].contains(title) else { continue }
+                      titles.contains(title) else { continue }
+                if CommandLine.arguments.count > 5 {
+                    let gate = CommandLine.arguments[5]
+                    FileManager.default.createFile(atPath: gate + ".ready", contents: Data())
+                    while !FileManager.default.fileExists(atPath: gate + ".continue") && Date() < deadline {
+                        Thread.sleep(forTimeInterval: 0.02)
+                    }
+                    guard FileManager.default.fileExists(atPath: gate + ".continue") else { exit(3) }
+                }
                 guard AXUIElementPerformAction(node, kAXPressAction as CFString) == .success else { exit(2) }
-                print("approved exact WPS fixture consent")
+                print("selected exact fixture consent: \(scope)")
                 exit(0)
             }
         }

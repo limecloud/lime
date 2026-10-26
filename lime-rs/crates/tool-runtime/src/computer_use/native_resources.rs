@@ -4,6 +4,7 @@ use super::{denied, ComputerUseResult};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::fs;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 const MANIFEST: &str = "desktop-resources.manifest.json";
@@ -122,8 +123,19 @@ impl NativeResource {
         if !self.path.is_file() || self.sha256.len() != 64 {
             return Err(denied("Native helper is not a manifested regular file"));
         }
-        let bytes = fs::read(&self.path).map_err(|e| denied(e.to_string()))?;
-        if hex::encode(Sha256::digest(bytes)) != self.sha256 {
+        // App Server debug artifacts can be hundreds of MB. Verify every byte
+        // without allocating the whole executable during target discovery.
+        let mut file = fs::File::open(&self.path).map_err(|e| denied(e.to_string()))?;
+        let mut digest = Sha256::new();
+        let mut buffer = [0; 64 * 1024];
+        loop {
+            let count = file.read(&mut buffer).map_err(|e| denied(e.to_string()))?;
+            if count == 0 {
+                break;
+            }
+            digest.update(&buffer[..count]);
+        }
+        if hex::encode(digest.finalize()) != self.sha256 {
             return Err(denied("Native helper integrity verification failed"));
         }
         Ok(())

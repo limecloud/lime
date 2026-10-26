@@ -288,7 +288,7 @@ async fn load_session_current_enriches_completed_media_task_store_results() {
         .and_then(|items| {
             items.iter().find(|item| {
                 item.get("id").and_then(serde_json::Value::as_str)
-                    == Some("media-task-result:turn-media-task-read-model:task-image-read-model")
+                    == Some("item_media-task-result:turn-media-task-read-model:task-image-read-model")
             })
         })
         .expect("media task synthetic item");

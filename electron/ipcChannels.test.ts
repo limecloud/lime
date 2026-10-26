@@ -82,16 +82,18 @@ describe("electron/ipcChannels", () => {
     expect(isElectronHostCommand("get_model_usage_ranking")).toBe(false);
     expect(isElectronHostCommand("get_daily_usage_trends")).toBe(false);
     expect(isElectronHostCommand("get_browser_connector_settings_cmd")).toBe(
-      true,
+      false,
     );
     expect(
       isElectronHostCommand("get_browser_connector_install_status_cmd"),
-    ).toBe(true);
-    expect(isElectronHostCommand("get_chrome_profile_sessions")).toBe(true);
-    expect(isElectronHostCommand("get_chrome_bridge_endpoint_info")).toBe(true);
-    expect(isElectronHostCommand("get_chrome_bridge_status")).toBe(true);
-    expect(isElectronHostCommand("get_browser_backend_policy")).toBe(true);
-    expect(isElectronHostCommand("get_browser_backends_status")).toBe(true);
+    ).toBe(false);
+    expect(isElectronHostCommand("get_chrome_profile_sessions")).toBe(false);
+    expect(isElectronHostCommand("get_chrome_bridge_endpoint_info")).toBe(
+      false,
+    );
+    expect(isElectronHostCommand("get_chrome_bridge_status")).toBe(false);
+    expect(isElectronHostCommand("get_browser_backend_policy")).toBe(false);
+    expect(isElectronHostCommand("get_browser_backends_status")).toBe(false);
     expect(isElectronHostCommand("get_voice_input_config")).toBe(false);
     expect(isElectronHostCommand("get_asr_credentials")).toBe(false);
     expect(isElectronHostCommand("list_audio_devices")).toBe(false);

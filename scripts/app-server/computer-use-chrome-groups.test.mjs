@@ -291,3 +291,35 @@ test("a queued creation revalidates authority immediately before its side effect
   );
   assert.deepEqual([...f.tabs.keys()], [user.id]);
 });
+
+test("failed Chrome ungrouping retains task ownership for a terminal retry", async () => {
+  const f = fixture();
+  const user = await chrome.tabs.create({ url: "https://example.org/user" });
+  const temporary = await f.browser.createTab(
+    owner,
+    user.id,
+    "https://example.org/temp",
+  );
+  const delivery = await f.browser.createTab(
+    owner,
+    user.id,
+    "https://example.org/final",
+  );
+  await f.browser.markTab(owner, user.id, delivery.tabId, "deliverable");
+  const ungroup = chrome.tabs.ungroup;
+  chrome.tabs.ungroup = async () => {
+    throw new Error("Tabs cannot be edited right now");
+  };
+  await assert.rejects(f.browser.endTurn(owner), /Deliverable tab remained/);
+  assert(f.tabs.has(temporary.tabId));
+  assert(
+    Object.values(f.session.TASK_TABS).some(
+      (task) => task.turnId === owner.turnId,
+    ),
+  );
+  chrome.tabs.ungroup = ungroup;
+  await f.browser.endTurn(owner);
+  assert(!f.tabs.has(temporary.tabId));
+  assert.equal(f.tabs.get(delivery.tabId).groupId, -1);
+  assert(f.tabs.has(user.id));
+});

@@ -3,6 +3,7 @@ import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { BrowserHistoryStore } from "./browserHistoryStore";
 import {
   normalizeBrowserHistoryUrl,
+  parseBrowserHistoryClear,
   type BrowserHistoryClear,
   type BrowserHistoryQuery,
 } from "../src/lib/api/browserHistoryTypes";
@@ -27,6 +28,7 @@ export function isBrowserHistoryCommand(
 export class BrowserHistoryHost {
   readonly #createStore: () => BrowserHistoryStore;
   readonly #changed: (revision: number) => void;
+  readonly #beforeRemove: () => Promise<void>;
   #store: BrowserHistoryStore | null = null;
   #tail: Promise<void> = Promise.resolve();
   #lastRevision = -1;
@@ -34,9 +36,13 @@ export class BrowserHistoryHost {
 
   constructor(
     changed: (revision: number) => void,
-    options: { createStore?: () => BrowserHistoryStore } = {},
+    options: {
+      createStore?: () => BrowserHistoryStore;
+      beforeRemove?: () => Promise<void>;
+    } = {},
   ) {
     this.#changed = changed;
+    this.#beforeRemove = options.beforeRemove ?? (async () => undefined);
     this.#createStore =
       options.createStore ??
       (() =>
@@ -72,10 +78,16 @@ export class BrowserHistoryHost {
           !("entries" in args)
         )
           throw new Error("Invalid browser history visit removal");
-        result = await store.removeVisits(
-          parseBrowserHistoryVisitTargets(args.entries),
+        const entries = parseBrowserHistoryVisitTargets(args.entries);
+        await this.#beforeRemove();
+        result = await store.removeVisits(entries);
+      } else {
+        const request = parseBrowserHistoryClear(
+          (args ?? {}) as BrowserHistoryClear,
         );
-      } else result = await store.clear((args ?? {}) as BrowserHistoryClear);
+        await this.#beforeRemove();
+        result = await store.clear(request);
+      }
       this.#publish(result.revision);
       return result;
     });

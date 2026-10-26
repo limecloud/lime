@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { waitForPageCondition } from "../mcp-config-fixture-smoke.mjs";
-import { invokeAppServerFromPage } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
-import { GREETING_SUMMARY_TEXT } from "../../agent-runtime/claw-chat-current-fixture-constants.mjs";
+import { invokeAppServerFromPage } from "../../lib/chat-fixture/rpc.mjs";
+import { GREETING_SUMMARY_TEXT } from "../../lib/chat-fixture/constants.mjs";
 
 /** 工作区由同一canonical线程核验；不恢复已删除的页头目录副本。 */
 export async function readSettingsNavigationSurface(page, options, sessionId) {

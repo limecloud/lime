@@ -167,7 +167,7 @@ describe("claw image live smoke guard", () => {
   it("checks backend audit facts through current App Server methods", () => {
     const content = readLiveSmokeContent();
     const constantsContent = fs.readFileSync(
-      "scripts/agent-runtime/claw-chat-current-fixture-constants.mjs",
+      "scripts/lib/chat-fixture/constants.mjs",
       "utf8",
     );
 

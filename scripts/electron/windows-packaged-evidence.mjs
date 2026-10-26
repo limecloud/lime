@@ -305,7 +305,7 @@ export function buildWindowsPackagedEvidenceSummary({
     );
     requireEqual(
       nativeHostSummary.helper?.readOnly,
-      true,
+      false,
       "native host readOnly",
     );
     requireEqual(

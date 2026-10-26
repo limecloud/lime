@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { openSettings } from "../mcp-config-fixture-smoke.mjs";
-import { invokeAppServerFromPage } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { invokeAppServerFromPage } from "../../lib/chat-fixture/rpc.mjs";
 
 export const WEB_SEARCH_MODES = ["disabled", "cached", "indexed", "live"];
 export async function readSearchConfig(page) {

@@ -7,6 +7,7 @@ import process from "node:process";
 import os from "node:os";
 import { ElectronBrowserTabHost, type BrowserToolCall } from "./browserTabHost";
 import type { BrowserHistoryHost } from "./browserHistoryHost";
+import type { BrowserTabNavigation } from "./browserTabNavigation";
 export { isBrowserTabCommand } from "./browserTabHost";
 
 const {
@@ -48,7 +49,12 @@ vi.mock("./electronRuntime", async () => {
   };
 });
 
-export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
+export function createHarness(
+  options: {
+    history?: BrowserHistoryHost;
+    navigation?: BrowserTabNavigation;
+  } = {},
+) {
   clipboardReadTextMock.mockClear();
   clipboardWriteTextMock.mockClear();
   shellOpenPathMock.mockClear();
@@ -145,6 +151,13 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
     embeddedHost as never,
     (event, payload) => events.push({ event, payload }),
     {
+      navigation: {
+        capture: vi.fn(),
+        read: vi.fn(async () => null),
+        restore: vi.fn(async () => false),
+        clear: vi.fn(async () => undefined),
+        flush: vi.fn(async () => undefined),
+      } as never,
       ...options,
       resolveWindow: (owner) =>
         owner === window.webContents.id ? (window as never) : undefined,

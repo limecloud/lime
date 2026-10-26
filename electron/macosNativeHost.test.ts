@@ -280,6 +280,27 @@ describe("MacOSNativeHostClient", () => {
     vi.useRealTimers();
   });
 
+  it("授权请求等待用户确认，不使用普通查询的10秒超时", async () => {
+    vi.useFakeTimers();
+    const { client } = createClient(`
+      const readline = require("node:readline");
+      readline.createInterface({ input: process.stdin });
+      setInterval(() => {}, 1000);
+    `);
+    try {
+      let settled = false;
+      const pending = client.invoke({ method: "appleEvents.request", params: { targetBundleId: "app.test" } });
+      const assertion = expect(pending).rejects.toThrow("macOS native host stopped");
+      void pending.then(() => { settled = true; }, () => { settled = true; });
+      await vi.advanceTimersByTimeAsync(10_001);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(110_000);
+      expect(settled).toBe(false);
+      client.dispose();
+      await assertion;
+    } finally { client.dispose(); vi.useRealTimers(); }
+  });
+
   it("通过 JSONL 边界传递 Apple Events 目标和授权查询方法", async () => {
     const { client } = createClient(`
       const readline = require("node:readline");

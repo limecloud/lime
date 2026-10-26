@@ -298,6 +298,10 @@ function normalizeAgentChatPartialKey(value: string): string | null {
 
 function addLiteralReference(literals: Set<string>, value: string): void {
   literals.add(value);
+  const namespacedKey = /^[a-zA-Z][\w-]*:([\w.-]+)$/.exec(value)?.[1];
+  if (namespacedKey) {
+    literals.add(namespacedKey);
+  }
   const normalizedAgentChatKey = normalizeAgentChatPartialKey(value);
   if (normalizedAgentChatKey) {
     literals.add(normalizedAgentChatKey);

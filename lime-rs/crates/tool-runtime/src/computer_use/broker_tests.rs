@@ -2,6 +2,12 @@ use super::*;
 use std::process::Command;
 
 #[test]
+fn missing_host_directory_rejects_control_without_resolving_a_default() {
+    let error = ControlBroker::default().acquire().unwrap_err();
+    assert!(error.0.contains("not supplied by the host"));
+}
+
+#[test]
 fn independent_processes_exclude_and_crashed_owner_releases_os_lock() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("computer-use");

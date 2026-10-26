@@ -511,6 +511,7 @@ impl RuntimeEventTarget<'_> {
 
 pub(in crate::runtime) struct AppendingRuntimeEventSink<'a> {
     state: Arc<Mutex<RuntimeCoreState>>,
+    computer_use: Arc<tool_runtime::computer_use::ComputerUseService>,
     file_checkpoint_snapshot_store: Arc<dyn FileCheckpointSnapshotStore>,
     output_snapshot_store: Arc<dyn output_refs::OutputSnapshotStore>,
     sidecar_store: Option<Arc<SidecarStore>>,
@@ -533,6 +534,7 @@ pub(in crate::runtime) struct AppendingRuntimeEventSink<'a> {
 impl<'a> AppendingRuntimeEventSink<'a> {
     fn new(
         state: Arc<Mutex<RuntimeCoreState>>,
+        computer_use: Arc<tool_runtime::computer_use::ComputerUseService>,
         file_checkpoint_snapshot_store: Arc<dyn FileCheckpointSnapshotStore>,
         output_snapshot_store: Arc<dyn output_refs::OutputSnapshotStore>,
         sidecar_store: Option<Arc<SidecarStore>>,
@@ -555,6 +557,7 @@ impl<'a> AppendingRuntimeEventSink<'a> {
             .unwrap_or_default();
         Self {
             state,
+            computer_use,
             file_checkpoint_snapshot_store,
             output_snapshot_store,
             sidecar_store,
@@ -577,6 +580,7 @@ impl<'a> AppendingRuntimeEventSink<'a> {
 
     fn with_hub(
         state: Arc<Mutex<RuntimeCoreState>>,
+        computer_use: Arc<tool_runtime::computer_use::ComputerUseService>,
         file_checkpoint_snapshot_store: Arc<dyn FileCheckpointSnapshotStore>,
         output_snapshot_store: Arc<dyn output_refs::OutputSnapshotStore>,
         sidecar_store: Option<Arc<SidecarStore>>,
@@ -599,6 +603,7 @@ impl<'a> AppendingRuntimeEventSink<'a> {
             .unwrap_or_default();
         AppendingRuntimeEventSink {
             state,
+            computer_use,
             file_checkpoint_snapshot_store,
             output_snapshot_store,
             sidecar_store,
@@ -801,6 +806,12 @@ impl AppendingRuntimeEventSink<'_> {
             &mut next_message_lifecycle,
         )?;
         self.message_lifecycle = next_message_lifecycle;
+        super::computer_use::cancel_terminal_computer_use(
+            &self.computer_use,
+            &self.thread_id,
+            Some(&self.turn_id),
+            &events,
+        );
         for event in events.drain(..) {
             let budget_exhausted = if event.event_type == "provider.usage" {
                 let attempt = event
@@ -1731,6 +1742,7 @@ impl RuntimeCore {
             };
             let mut sink = AppendingRuntimeEventSink::with_hub(
                 self.state.clone(),
+                self.computer_use.clone(),
                 self.file_checkpoint_snapshot_store.clone(),
                 self.output_snapshot_store.clone(),
                 self.sidecar_store.clone(),
@@ -1914,6 +1926,7 @@ impl RuntimeCore {
         let backend_events = if let Some(event_callback) = event_callback {
             let mut sink = AppendingRuntimeEventSink::new(
                 self.state.clone(),
+                self.computer_use.clone(),
                 self.file_checkpoint_snapshot_store.clone(),
                 self.output_snapshot_store.clone(),
                 self.sidecar_store.clone(),
@@ -1983,6 +1996,7 @@ impl RuntimeCore {
             let mut ignore_event = |_event: AgentEvent| Ok(());
             let mut sink = AppendingRuntimeEventSink::new(
                 self.state.clone(),
+                self.computer_use.clone(),
                 self.file_checkpoint_snapshot_store.clone(),
                 self.output_snapshot_store.clone(),
                 self.sidecar_store.clone(),

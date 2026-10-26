@@ -90,14 +90,8 @@ const mockGetSkillCatalog = vi.hoisted(() =>
   })),
 );
 
-const {
-  mockGatewayChannelStatus,
-  mockGetBrowserConnectorSettings,
-  mockGetChromeBridgeStatus,
-} = vi.hoisted(() => ({
+const { mockGatewayChannelStatus } = vi.hoisted(() => ({
   mockGatewayChannelStatus: vi.fn(),
-  mockGetBrowserConnectorSettings: vi.fn(),
-  mockGetChromeBridgeStatus: vi.fn(),
 }));
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -126,11 +120,6 @@ vi.mock("@/lib/api/skillCatalog", async (importOriginal) => {
     subscribeSkillCatalogChanged: () => () => undefined,
   };
 });
-
-vi.mock("@/lib/webview-api", () => ({
-  getBrowserConnectorSettings: mockGetBrowserConnectorSettings,
-  getChromeBridgeStatus: mockGetChromeBridgeStatus,
-}));
 
 vi.mock("@/components/projects/ProjectSelector", () => ({
   ProjectSelector: (props: {
@@ -322,20 +311,6 @@ beforeEach(async () => {
     status: {
       running_accounts: 0,
     },
-  });
-  mockGetBrowserConnectorSettings.mockResolvedValue({
-    enabled: true,
-    system_connectors: [
-      {
-        connector_type: "chrome",
-        available: true,
-        authorization_status: "authorized",
-      },
-    ],
-  });
-  mockGetChromeBridgeStatus.mockResolvedValue({
-    observer_count: 1,
-    control_count: 0,
   });
   mockReadProjectGitStatus.mockResolvedValue({
     rootPath: "/workspace/lime",

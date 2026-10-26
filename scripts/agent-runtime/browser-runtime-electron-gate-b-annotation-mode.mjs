@@ -1,4 +1,4 @@
-import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { assert } from "../lib/chat-fixture/utils.mjs";
 import {
   waitForBrowserAnnotationState as waitFor,
   readBrowserAnnotationNativeIdentity,

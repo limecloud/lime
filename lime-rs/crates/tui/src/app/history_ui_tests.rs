@@ -337,6 +337,7 @@ fn raw_main_preserves_markdown_source_while_detailed_pager_retains_reasoning() {
             text: "- first\n\n| A | B |\n| - | - |".to_string(),
             phase: None,
             memory_citation: None,
+            content_parts: Vec::new(),
             delivery: None,
             questions: None,
         },

@@ -214,7 +214,6 @@ export interface AgentSiteSkillLaunchParams {
   profileKey?: string;
   targetId?: string;
   requireAttachedSession?: boolean;
-  preferredBackend?: "lime_extension_bridge" | "cdp_direct";
   autoLaunch?: boolean;
   saveTitle?: string;
   skillTitle?: string;
