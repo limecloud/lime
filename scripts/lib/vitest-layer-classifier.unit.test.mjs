@@ -55,6 +55,22 @@ describe("vitest-layer-classifier unit boundary", () => {
     });
   });
 
+  it("Vitest 异步断言轮询不属于 React 组件边界", () => {
+    expect(
+      classifyVitestTestFile({
+        filePath: "electron/host.test.ts",
+        source: "await vi.waitFor(() => expect(connection.ready).toBe(true));",
+      }),
+    ).toMatchObject({ layer: "unit", reasons: ["default:unit"] });
+
+    expect(
+      classifyVitestTestFile({
+        filePath: "src/hooks/composer.test.ts",
+        source: "await waitFor(() => expect(editor.ready).toBe(true));",
+      }),
+    ).toMatchObject({ layer: "component", reasons: ["react-render"] });
+  });
+
   it("普通字符串或注释中的浏览器词不应误归为 component", () => {
     expect(
       classifyVitestTestFile({

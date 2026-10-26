@@ -76,3 +76,11 @@
 - `npm run verify:app-version`、完整 `npm run test:contracts` 与暂存 diff 检查：通过。未在 macOS 冒充 MSVC 编译通过，Windows 修复需新 SHA 的 Windows 构建确认。
 
 已有 commit/push 授权继续用于修复提交；原 `v1.172.0` 标签已推送，重指向远端标签需单独明确确认。确认前只递交 main 的修复并观察 Quality；不覆盖标签、不修改原失败 run、不绕过签名或证据校验。
+
+修复提交 `183b6b714bafadce043c8978f85c413ac54c75fa` 已推送 main。用户随后再次明确确认将标签重指向此提交；使用期望旧 SHA 的 `--force-with-lease` 更新远端 `v1.172.0`，远端 main/tag 同 SHA，新 Release run `40330431329` 已触发，草稿 release 的目标由流程同步更新。
+
+Quality run `40329480101` 的 typecheck 已通过，随后测试分层预算报 40/38。继续按测试真实边界修复，没有放宽预算或移除用例：
+
+- `vitest-layer-classifier.mjs` 不再将 `vi.waitFor` 等对象方法轮询当成 React Testing Library 的独立 `waitFor`，保留真正 DOM 和组件检测；补正反回归。`electron/appServerHost.test.ts` 的受控连接测试无 DOM，恢复 unit 分类。
+- `composerCodeBlockHighlight.test.ts` 中的 5 个纯 grammar/parser/loader 回归迁入 `composerCodeBlockParser.unit.test.ts`；其余 17 个 ProseMirror 投影和编辑器生命周期回归迁为显式 `composerCodeBlockHighlight.component.test.ts`。没有改变产品代码或删除断言，避免导入 helper 的 DOM 行为被误标为 unit。
+- 分层预算恢复 38/38；classifier、budget、Host、parser 和 component 合计 5 文件 / 80 测试通过。完整 typecheck 复核。此增量只影响质量工具和测试，发布产物仍固定在用户批准的 `183b6b714`，无需反复移动标签重启构建。

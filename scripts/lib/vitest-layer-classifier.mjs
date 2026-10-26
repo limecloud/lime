@@ -96,7 +96,7 @@ const COMPONENT_PATTERNS = [
   { reason: "render-hook", pattern: /\brenderHook\s*\(/ },
   {
     reason: "react-render",
-    pattern: /\brender\s*\(|\bscreen\.|\bfireEvent\.|\buserEvent\.|\bwithin\s*\(|\bwaitFor\s*\(/,
+    pattern: /\brender\s*\(|\bscreen\.|\bfireEvent\.|\buserEvent\.|\bwithin\s*\(|(?<![\w$.])waitFor\s*\(/,
   },
 ];
 
