@@ -55,3 +55,24 @@
 完成 metadata 与门禁后，列出完整候选和验证结果，按用户危险操作约定请求一次 commit/tag/push 确认。确认后连续完成 release commit、新标签、main 与标签显式推送及远端 SHA 复核。
 
 递交与打标签推送以本地和远端 main/tag 同一 SHA 为完成条件；安装包发布以 GitHub Release 与实际 workflow/asset 状态为准，流水线触发不等于产物发布完成。
+
+## 发布失败修复
+
+用户已确认发布，`946beb41f980cda00d7bd872413ac06b8bf68c06`（Release v1.172.0）已提交并推送 main 与标签，远端同 SHA。Release run `40311917585` 与 Quality run `40311860974` 失败后，用户要求修复。GitHub Release 当前为 draft、资产为空，尚未完成安装包发布。
+
+事实与窄写集：
+
+- Windows MSVC 在 `windows-computer-use-actions.cpp` 引入 `UIAutomation.h` 时缺少 COM 定义，导致 UIAutomationCore.h 的接口前置声明失败。补充 `<ole2.h>`，与现役 `windows-native-host.cpp` 的 SDK 依赖顺序一致；不改变权限、输入或业务逻辑。Windows 原生证据缺失与后续 identity 失败是构建提前终止的后果，保留原门禁。
+- Ubuntu TypeScript 报 `mdast` / `unist` 缺失。`remarkCjkAutolinks.ts` 直接使用这两个类型包，本地 hoisted 残留掩盖了未声明依赖。`package.json` 与 `pnpm-lock.yaml` 显式加入 `@types/mdast ^4.0.4`、`@types/unist ^3.0.3`，版本已存在于锁文件，不引入运行依赖或更新传递版本。
+- Rust workspace 报 `provider_turn/code_mode/output/tests.rs` 缺失。根 `.gitignore` 的 `output/` 误忽略合法模块，改为 `/output/`，移除另一处模块的特例，纳入实际已有的 3 个 Code Mode 媒体回归。扫描 `src`、`electron`、`packages`、`lime-rs/crates` 的被忽略源文件，排除构建和 node_modules 后没有其他漏项。
+- 原候选 manifest 保持冻结，记录最初发布提交的输入；本节与本次修复 Git diff 记录修复增量。不恢复旧聊天夹具、场景后端、入口或兼容壳。分类为 current 构建接线与 test-only 回归，无新增 compat/deprecated。
+
+验证：
+
+- 完整 `npm run typecheck`：通过。
+- `npx --yes pnpm@9.15.9 install --lockfile-only --frozen-lockfile --offline --ignore-scripts`：通过，9 个 workspace 项目。系统 Corepack 旧签名密钥导致原 `pnpm` shim 启动失败，使用项目锁定的同版本 pnpm 执行，没有更改全局工具或关闭签名校验。保留最小锁文件差异，其 YAML 对象与 pnpm 实际生成结果严格一致。
+- Markdown autolink 与 Electron resources 定向回归：2 文件、39 测试通过。
+- `npm run test:rust:unit -- -p agent-runtime provider_turn::code_mode::output::tests`：3/3 通过，包含真实 code-mode-host 中脚本失败前已生成图片的保留行为；编译了完整 agent-runtime 测试模块。
+- `npm run verify:app-version`、完整 `npm run test:contracts` 与暂存 diff 检查：通过。未在 macOS 冒充 MSVC 编译通过，Windows 修复需新 SHA 的 Windows 构建确认。
+
+已有 commit/push 授权继续用于修复提交；原 `v1.172.0` 标签已推送，重指向远端标签需单独明确确认。确认前只递交 main 的修复并观察 Quality；不覆盖标签、不修改原失败 run、不绕过签名或证据校验。

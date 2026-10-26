@@ -1,4 +1,5 @@
 #include "windows-computer-use.h"
+#include <ole2.h>
 #include <UIAutomation.h>
 #include <algorithm>
 #include <chrono>

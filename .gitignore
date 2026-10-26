@@ -12,10 +12,7 @@ windows-test-package/
 lime-rs/.cargo/
 *.exe
 *.pdb
-output/
-# Rust module sources are not build output.
-!lime-rs/crates/agent-runtime/src/context_history/output/
-!lime-rs/crates/agent-runtime/src/context_history/output/tests.rs
+/output/
 docs/.data/
 docs/.nuxt/
 docs/.output/
