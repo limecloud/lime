@@ -135,7 +135,7 @@ describe("LocalConversationPage 侧栏显示控制", () => {
     ).toBe(false);
   });
 
-  it("new-task 执行态也不再通过顶栏展开旧对话侧栏", async () => {
+  it("已激活任务执行态打开工具侧面板时不应恢复旧对话侧栏", async () => {
     installMockAgentChatUnifiedState(
       createMockAgentChatUnifiedState({
         messages: [{ id: "msg-new-task", role: "user", content: "继续执行" }],
@@ -144,7 +144,8 @@ describe("LocalConversationPage 侧栏显示控制", () => {
     );
 
     const container = renderPage({
-      agentEntry: "new-task",
+      agentEntry: "conversation",
+      initialSessionId: "session-1",
       showChatPanel: false,
       theme: "general",
     });

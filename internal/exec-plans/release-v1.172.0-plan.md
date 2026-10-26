@@ -95,3 +95,13 @@ Quality run `40329480101` 的 typecheck 已通过，随后测试分层预算报 
 全量第 4 批又复现 `index.autoGuide01.test.tsx` 要求前端注入“任务已进入处理队列…”助手消息。current `buildInitialDispatchPreviewMessages` 只回显用户输入，助手消息来自 canonical runtime；迁移这一过期正向断言，保留首条意图被消费后用户输入仍可见的检查，完整数组断言同时禁止伪造助手消息。该批 10 测试通过后续跑。修复写集增加此测试，仍仅为 test-only；无新增 compat/deprecated。
 
 Release 的三个 Electron 平台构建及各自现役 packaged 门禁现均成功，GitHub Electron 资产已上传并公开；R2 updater、四平台 CLI 构建与 npm 发布继续跟进，尚不记完整发布成功。
+
+后续全量验证的 test-only 修复：
+
+- 第 13 批 `index.sidebar.test.tsx` 将 `new-task` 空白页与旧后台 runtime 的 sending/messages 混用，却要求已激活会话的工具侧面板。改为显式 `conversation` 路由与同一 `session-1` identity，继续验证执行中打开工具侧面板不恢复旧对话列表；7/7 通过。
+- 第 24 批下载用例的旧 fixture 未同步当前授权和导航失效合同：恢复授权断言补 `recovered=true` 与 `AbortSignal`；原生源 WebContents 夹具改为 `EventEmitter`，支持当前导航/销毁监听。保留授权前不可控、稳定 downloadId、完成态及拒绝/关闭等原有检查，该批 16 文件 / 123 测试通过。
+- Quality `40329480101` 的 Rust Full 在 `agent-protocol` 失败，环境清理实现使用 `LIME_EXEC_SERVER_NOISE_AUTH_TOKEN`，测试仍输入旧名称；tool call id 的 Windows 大小写样本同样未完成迁移。只将 Lime 自有测试输入/预期迁为 current `LIME_*` 大小写，外部固定名称保留，不增加旧变量兼容。`npm run test:rust:unit -- -p agent-protocol shell_environment` 为 7/7，整个 `agent-protocol` 单元为 56/56，含真实子进程环境清理；Windows 分支仍交由 CI 实跑。
+- 所有增量仅修改测试及本记录，发布标签仍为 `183b6b714`；无新增产品路径、compat/deprecated 或架构变更。Rustfmt、定向 ESLint 与 diff 检查通过；前端全量继续从独立状态续跑。
+- R2 updater 发布已成功，GitHub Release 已非 draft，含 9 个 Electron 资产；四平台 CLI 仍在编译，尚未判完整发布通过。
+
+第 38 批 `scripts/electron/current-rules-guard.test.mjs` 仍要求每个 skill 内联同一段测试护栏措辞，并正向保留旧自定义视觉主题、旧 Desktop 说明。现役 GUI skill 已委托质量事实源，且用户取消主题例外；将守卫收敛到有效事实源链接、质量 skill 的测试护栏、三种外观模式、禁止恢复皮肤、多模型/自有服务端保留及 Desktop 源码/REA 证据规则，避免为了旧文案恢复已取消的产品规则。该增量同样只修改测试；本轮完整 typecheck 再次通过。

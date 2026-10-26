@@ -211,7 +211,6 @@ describe("Electron current repository rules guard", () => {
       }
       expect(content, filePath).toContain("Thread/Turn/Item");
       expect(content, filePath).toContain("App Server");
-      expect(content, filePath).toMatch(/测试.*护栏|护栏.*测试/);
     }
 
     const quality = readFile(".codex/skills/lime-quality-workflow/SKILL.md");
@@ -225,13 +224,17 @@ describe("Electron current repository rules guard", () => {
     expect(quality).toContain("npm run verify:local");
     expect(quality).toContain("npm run test:resume");
     expect(quality).toContain("internal/aiprompts/governance.md");
+    expect(quality).toContain("测试与护栏");
 
     const design = readFile(".codex/skills/lime-design-language/SKILL.md");
-    expect(design).toContain("视觉主题、多模型支持");
+    expect(design).toContain("浅色、深色、跟随系统模式");
+    expect(design).toContain("禁止恢复皮肤 catalog");
+    expect(design).toContain("多模型/多协议");
+    expect(design).toContain("自有服务端");
     expect(design).toContain("专家广场、消息渠道");
-    expect(design).not.toContain("主题、多模型支持、首页 Banner");
     expect(design).toContain("reverse-engineer-anything");
-    expect(design).toContain("不能由 TUI 布局推断 GUI");
+    expect(design).toContain("公开仓库没有 Desktop 前端源码时");
+    expect(design).toContain("安装包中的合法可用实现与 REA 数据流");
   });
 
   it("keeps testing rules on Electron current evidence", () => {

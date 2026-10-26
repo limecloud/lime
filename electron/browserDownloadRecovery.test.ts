@@ -70,6 +70,8 @@ describe("native interrupted download association", () => {
     expect(canDownload).toHaveBeenCalledWith(
       request.viewId,
       request.urlChain[0],
+      true,
+      expect.any(AbortSignal),
     );
     expect(findEntryByWebContents).not.toHaveBeenCalled();
     expect(resolveSavePath).not.toHaveBeenCalled();

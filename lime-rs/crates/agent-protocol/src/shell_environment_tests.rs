@@ -89,11 +89,11 @@ fn tool_call_id_replaces_platform_equivalent_names() {
         let mut env = HashMap::from([
             ("LIME_TOOL_CALL_ID".to_string(), "stale-call".to_string()),
             (
-                "Codex_Tool_Call_Id".to_string(),
+                "Lime_Tool_Call_Id".to_string(),
                 "mixed-case-call".to_string(),
             ),
             (
-                "unrelated_tool_call_id".to_string(),
+                "lime_tool_call_id".to_string(),
                 "lowercase-call".to_string(),
             ),
             ("OTHER".to_string(), "unchanged".to_string()),
@@ -105,11 +105,11 @@ fn tool_call_id_replaces_platform_equivalent_names() {
         #[cfg(not(windows))]
         expected.extend([
             (
-                "Codex_Tool_Call_Id".to_string(),
+                "Lime_Tool_Call_Id".to_string(),
                 "mixed-case-call".to_string(),
             ),
             (
-                "unrelated_tool_call_id".to_string(),
+                "lime_tool_call_id".to_string(),
                 "lowercase-call".to_string(),
             ),
         ]);
@@ -138,7 +138,7 @@ fn non_inheritable_environment_is_removed_after_policy_overrides() {
             r#"{"instance_id":"box-one"}"#.to_string(),
         ),
         (
-            "codex_exec_server_noise_auth_token".to_string(),
+            "lime_exec_server_noise_auth_token".to_string(),
             "inherited-noise-token".to_string(),
         ),
     ];
@@ -157,7 +157,7 @@ fn non_inheritable_environment_is_removed_after_policy_overrides() {
                 "/run/identity-token".to_string(),
             ),
             (
-                "Codex_Exec_Server_Noise_Auth_Token".to_string(),
+                "Lime_Exec_Server_Noise_Auth_Token".to_string(),
                 "configured-noise-token".to_string(),
             ),
         ]),
@@ -186,10 +186,7 @@ fn command_scrubber_removes_names_from_real_child_environment() {
                 "OpenAI_Workload_Identity_Context",
                 r#"{"instance_id":"box-one"}"#,
             )
-            .env(
-                "Codex_Exec_Server_Noise_Auth_Token",
-                "inherited-noise-token",
-            )
+            .env("Lime_Exec_Server_Noise_Auth_Token", "inherited-noise-token")
             .output()
             .expect("run inherited-environment test process");
         assert!(

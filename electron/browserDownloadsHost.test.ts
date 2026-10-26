@@ -355,7 +355,7 @@ describe("native Browser download management", () => {
       }),
       cancel: vi.fn(),
     });
-    const source = {};
+    const source = new EventEmitter();
     installEmbeddedBrowserDownloadHandling(
       session as never,
       {
