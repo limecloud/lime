@@ -64,6 +64,7 @@ memory store folder
 - memory tools：`memory_list`、`memory_read`、`memory_search`、`memory_add_note`
 - prompt contributor：只读 `memory_summary.md`
 - memory store layout：`memory_summary.md`、`MEMORY.md`、`rollout_summaries/`、`extensions/ad_hoc/notes/`、`index/`
+- 前端 memory store 网关：`src/lib/api/memoryStore.ts`；设置与应用配置共用类型：`src/lib/api/memoryConfigTypes.ts`。
 
 固定规则：
 

@@ -1147,7 +1147,8 @@
         "lime-rs/crates/app-server/src/runtime/read_model/runtime_items.rs",
         "packages/app-server-client/src/server-notifications.ts",
         "src/lib/api/agentRuntime/appServerV2Notification.ts",
-        "scripts/agent-runtime/claw-chat-current-fixture-typed-error.mjs"
+        "lime-rs/crates/app-server/src/runtime/tests/read_model/messages_diagnostics.rs",
+        "src/lib/api/agentRuntime/appServerV2Notification.test.ts"
       ],
       "methods": ["error", "warning"]
     },
@@ -1220,8 +1221,7 @@
       "gap": "Exact Hook lifecycle notifications are projected from paired current hook run events.",
       "evidence": [
         "lime-rs/crates/app-server/src/processor/v2_notifications/hook.rs",
-        "src/lib/api/agentRuntime/appServerV2Notification.test.ts",
-        "scripts/agent-runtime/claw-chat-current-fixture-rpc.mjs"
+        "src/lib/api/agentRuntime/appServerV2Notification.test.ts"
       ],
       "methods": ["hook/completed", "hook/started"]
     },
@@ -1396,7 +1396,7 @@
         "lime-rs/crates/app-server/src/skills_watcher.rs",
         "lime-rs/crates/app-server-protocol/src/protocol/v2/notification.rs",
         "src/components/agent/chat/hooks/useLimeSkills.ts",
-        "scripts/agent-runtime/claw-chat-current-fixture-skills-workspace.mjs"
+        "lime-rs/crates/app-server/tests/skills_jsonrpc.rs"
       ],
       "methods": ["skills/changed"]
     },
@@ -1498,7 +1498,7 @@
         "lime-rs/crates/app-server/src/runtime_backend/plan_events.rs",
         "packages/app-server-client/src/server-notifications.ts",
         "src/lib/api/agentRuntime/appServerV2Notification.ts",
-        "scripts/agent-runtime/claw-chat-current-fixture-turn-plan-update.mjs"
+        "src/lib/api/agentRuntime/appServerV2Notification.test.ts"
       ],
       "methods": ["turn/plan/updated"]
     },

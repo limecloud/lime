@@ -109,6 +109,10 @@ const CURRENT_HOST_USER_DATA_CHILDREN: UsageBaseline = {
 };
 
 const CURRENT_APP_DATA_ROOT_CHILDREN: UsageBaseline = {
+  // Native navigation hints only; no Chromium pageState or control receipts.
+  "electron/browserNavigationStore.ts": { browser: 1 },
+  // Host guide preferences only; never OS permission or Agent grant receipts.
+  "electron/desktopPermissionsSetupStore.ts": { permissions: 1 },
   // Single Host-owned preference value; no machine-asset directory or runtime root.
   "electron/fileTargetPreferences.ts": { "open-in-target-preferences.json": 1 },
   "electron/systemUtilityHost.ts": { connectors: 2, macos: 1 },

@@ -228,8 +228,9 @@ async fn mcp_event_stream_uses_public_transport_and_cleans_up_on_stop() {
     )
     .expect("decode resource metadata");
     assert_eq!(
-        resource_meta.pointer("/x-lime-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
-        Some(&json!("calendar"))
+        resource_meta.pointer("/x-codex-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
+        Some(&json!("calendar")),
+        "MCP resources/read must carry selected connector metadata: {resource_meta:#}"
     );
     assert_eq!(resource["result"]["originCallId"], Value::Null);
 

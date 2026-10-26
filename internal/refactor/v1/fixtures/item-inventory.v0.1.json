@@ -172,6 +172,7 @@
       "type": "agentMessage",
       "referenceFields": ["id", "text", "phase", "memoryCitation"],
       "limeFields": [
+        "contentParts",
         "delivery",
         "id",
         "text",

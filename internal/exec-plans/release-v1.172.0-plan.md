@@ -105,3 +105,26 @@ Release 的三个 Electron 平台构建及各自现役 packaged 门禁现均成�
 - R2 updater 发布已成功，GitHub Release 已非 draft，含 9 个 Electron 资产；四平台 CLI 仍在编译，尚未判完整发布通过。
 
 第 38 批 `scripts/electron/current-rules-guard.test.mjs` 仍要求每个 skill 内联同一段测试护栏措辞，并正向保留旧自定义视觉主题、旧 Desktop 说明。现役 GUI skill 已委托质量事实源，且用户取消主题例外；将守卫收敛到有效事实源链接、质量 skill 的测试护栏、三种外观模式、禁止恢复皮肤、多模型/自有服务端保留及 Desktop 源码/REA 证据规则，避免为了旧文案恢复已取消的产品规则。该增量同样只修改测试；本轮完整 typecheck 再次通过。
+
+上述修复已以 `3c780e681` 推送 main，Quality `40335624397` 运行中。两个已被替代且继续使用旧测试的 Quality run `40331728498`、`40333968699` 已请求取消，保留原始失败日志，不继续占用执行器。
+
+- 第 38 批续跑 16 文件 / 127 测试通过。
+- 第 41 批移除 `AppSidebar.test.tsx`、`AppSidebar.account.test.tsx` 中要求旧外观快捷面板存在的 2 条正向断言；账号、设置、折叠和导航行为保留，旧皮肤无法恢复入口由 current preferences 测试覆盖。该批 16 文件 / 146 测试通过。
+- 第 54 批删除 `InlineControlLayout.test.tsx`：3 个用例要求 `AdaptiveFooter` 使用已退出接线的 JS 宽度隐藏算法，实际 current Footer 使用 CSS container 布局，未调用该 hook。当前草稿、选择区、焦点及布局/听写切换由 `ComposerLayout.component.test.tsx` 覆盖，模型加载与选择由 `ModelSelector.test.tsx` 覆盖；不为旧用例恢复隐藏模型入口的实现。续跑该批 15 文件 / 294 测试通过。此次仅删除过期测试，不变更产品布局。
+
+用户明确指定 Quality run `40335624397` 继续修复。该 run 已完成：GUI Smoke、Windows Shell Runtime、Integrity 成功；Frontend Full 为上述 2 条旧外观断言，Rust Full 为 `mcp_exact_jsonrpc` 的外部协议字段断言漂移：
+
+- current App Server 与 MCP manager 发送 `x-codex-turn-metadata`，`internal/aiprompts/commands.md` 已登记该外部字段及消费者；集成测试误断言 `x-lime-turn-metadata`。恢复外部固定协议字段的检查，补实际 metadata 到失败诊断，保留真实 JSON-lines、plugin/MCP 子进程、事件顺序、停止和 transport 关闭检查。产品运行逻辑无变化。
+- 全量第 64 批的记忆守卫要求文档列出仍被 settings/app config 实际消费的 `memoryConfigTypes.ts`。文档入口地图遗漏了它，补充 current `memoryStore.ts` 网关与该共享配置类型，保留守卫，不恢复 retired memory runtime。
+- 本轮继续使用已有全量状态续跑，MCP public JSON-RPC 定向验证进行中；最终提交与新 Quality 结果待验证后记录。
+
+继续验证结果：
+
+- 使用隔离配置与仓库 V8 resolver 执行精确 Cargo target `-p app-server --test mcp_exact_jsonrpc`，3/3 通过。最初 integration wrapper 自带 `--tests` 扩大选择到整个 crate，已停止该自有进程及其子进程后切换精确目标，不将中断的大范围执行记为通过。
+- 完整 typecheck、contracts、定向 ESLint、rustfmt、diff 检查通过；分层预算仍为 38/38。
+- 第 64 批记忆文档修复后 16 文件 / 133 测试通过；第 71 批补齐现役 Item inventory 的 `agentMessage.contentParts`，保留 canonical schema 对比守卫。
+- 第 74 批补登记 BrowserNavigationStore 的 `browser/navigation.json` 与 DesktopPermissionsSetupStore 的 `permissions/setup.json` 两个 Host store：均由组合根注入 AppDataRoot，前者仅保存 HTTP(S) 导航提示，后者仅保存引导偏好，不承载 Chromium pageState、OS 权限或 Agent grant authority。路径守卫只增加这两个具体文件/目录各 1 次使用，其他 root/owner 限制保留。
+- 同批清掉能力目录中 runtime diagnostics、hooks、skills、turn plan 的 4 个已删除聊天夹具证据引用，改用现役 projector/read model、`skills_jsonrpc` 与 Renderer typed notification 回归；不恢复旧文件。目录 evidence 路径扫描无缺失，该批 16 文件 / 83 测试通过。
+- 发布 run `40330431329` 最终 `success`，GitHub Release 非 draft、14 个资产；R2、四平台 CLI 与 npm 发布任务全部成功。npm 官方 registry 已确认根包 `@limecloud/lime@1.172.0`，平台依赖版本与目标一致。后续增量仍仅为 test-only / 文档与清单，发布标签无需重指向。
+
+本轮本地全量前端收口：独立状态 `repair-vitest-full-state.json` 的 147/147 批均为 passed，续跑进程退出 0；按每批最后一次结果统计 18,234 项通过、2 项既有跳过。所有已暴露失败均从原状态续跑，没有放宽分层预算、过滤失败或恢复旧聊天夹具。完整 typecheck、contracts、定向 ESLint、MCP 精确集成 3/3、rustfmt 与 diff 检查已通过。本轮 9 个文件仅涉及 test-only、失效测试删除、清单和文档同步；无新增 compat/deprecated，无产品逻辑或架构变更。沿用用户已有 commit/push 授权递交 main，发布标签保持 `183b6b714`；新 SHA 的 Quality 实际结果继续跟进。

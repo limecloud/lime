@@ -72,9 +72,6 @@ describe("AppSidebar profile footer", () => {
       footer.querySelector('[data-testid="app-sidebar-nav-settings"]'),
     ).not.toBeNull();
     expect(
-      footer.querySelector('[data-testid="app-sidebar-appearance"]'),
-    ).not.toBeNull();
-    expect(
       container.querySelector('[data-testid="app-sidebar-cloud-account-card"]'),
     ).toBeNull();
 

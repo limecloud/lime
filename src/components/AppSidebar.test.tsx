@@ -240,9 +240,6 @@ describe("AppSidebar navigation", () => {
     expect(getComputedStyle(menuScroll as Element).flexShrink).toBe("1");
     expect(settingsRailButton).not.toBeNull();
     expect(
-      container.querySelector('[data-testid="app-sidebar-appearance"]'),
-    ).not.toBeNull();
-    expect(
       rail.querySelector('[data-testid="app-sidebar-account-button"]'),
     ).not.toBeNull();
   });
