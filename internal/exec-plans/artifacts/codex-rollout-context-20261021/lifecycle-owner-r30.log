@@ -1,8 +1,0 @@
-   Compiling app-server v1.165.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/app-server)
-error: could not parse/generate dep info at: /tmp/lime-rollout-compressed-target-20261021/debug/deps/app_server-b549ab0288f9bd8f.d
-
-Caused by:
-  failed to write `/tmp/lime-rollout-compressed-target-20261021/debug/.fingerprint/app-server-b549ab0288f9bd8f/dep-test-lib-app_server`
-
-Caused by:
-  No such file or directory (os error 2)

@@ -1,8 +1,0 @@
-{
-  "sourceCommit": "3eea646e7330b4a39d85e6786914d8332f4bc9a2",
-  "sha256": {
-    "app-server": "7fc5ea3c84d82cc427d535f53c288e42a5b055d395f8b2386058d0a04f5d6997",
-    "lime": "d1b937075f86000f23607aec3fdfa9515890a20a1ebf71a33727ad3cedbd7252",
-    "code-mode-host": "80ffb05b07e4f540671adb40150119216202fd4524ba15da9b8e2741b68d408b"
-  }
-}

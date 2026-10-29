@@ -1,1 +1,0 @@
-{"observation":"old_artifact_regression_reproduced","binarySha256":"d7a55d126ab669ac61c0c48adf18e99b6a31ed7d8443ff01d86e8e8bdec34588","transport":"stdio","backend":"unavailable","fixtureRoot":"unique /tmp child","requestedScope":"cwd_only_no_implicit_temp","siblingWriteSucceeded":true,"normalExit":true,"liveProviderUsed":false}

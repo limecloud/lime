@@ -1,4 +1,0 @@
-
-> @limecloud/app-server-client@1.83.0 build
-> tsc --project tsconfig.json
-

@@ -1,5 +1,0 @@
-
-> lime@1.164.0 test:rust:unit
-> node scripts/run-rust-layer.mjs unit -p tool-runtime sandbox::
-
-[rust-layer] running cargo test --manifest-path lime-rs/Cargo.toml --lib -p tool-runtime sandbox::

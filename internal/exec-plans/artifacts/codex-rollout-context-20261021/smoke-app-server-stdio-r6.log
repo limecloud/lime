@@ -1,9 +1,0 @@
-
-> lime@1.164.0 smoke:app-server-stdio
-> npm --prefix "packages/app-server-client" run build && node scripts/app-server/stdio-smoke.mjs
-
-
-> @limecloud/app-server-client@1.83.0 build
-> tsc --project tsconfig.json
-
-[smoke:app-server-stdio] ok binary=/tmp/lime-thread-fork-target-20261021/debug/app-server source=env protocol=appserver.v0 backend=unavailable thread=fail-closed

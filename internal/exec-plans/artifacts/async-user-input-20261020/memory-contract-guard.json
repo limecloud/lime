@@ -1,7 +1,0 @@
-{
-  "status": "proposal-not-applied-owner-unconfirmed",
-  "path": "scripts/check-app-server-client-contract.mjs",
-  "sha256": "9f9d4168b54c4bccdd71e388d0212c582b31b0f5d201c694f633a2c1abcc25cf",
-  "reason": "Current memory consolidation resolves a runtime route and delegates to the backend; the old direct-data-source string guard no longer matches.",
-  "productionChanged": false
-}

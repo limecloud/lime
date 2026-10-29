@@ -1,6 +1,0 @@
-npm warn Unknown user config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
-
-> lime@1.164.0 docs:boundary
-> node scripts/check-docs-boundary.mjs
-
-docs 边界检查通过

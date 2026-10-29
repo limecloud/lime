@@ -1,7 +1,0 @@
-{
-  "command": "npm run test:contracts",
-  "exitCode": 0,
-  "seconds": 24.67,
-  "log": "contracts.log.gz",
-  "recordedAt": "2026-10-21T14:11:45.724558+00:00"
-}

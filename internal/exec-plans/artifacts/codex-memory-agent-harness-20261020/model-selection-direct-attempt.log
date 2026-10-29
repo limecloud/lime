@@ -1,3 +1,0 @@
-dyld[52095]: Library not loaded: @rpath/libsherpa-onnx-c-api.dylib
-  Referenced from: <A6876547-A974-34E8-A5BA-437074A4DFAD> /Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/target/debug/deps/app_server-c0494ce983d12898
-  Reason: no LC_RPATH's found

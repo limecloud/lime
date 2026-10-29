@@ -1,8 +1,0 @@
-{
-  "sourceCommit": "4ffd025662b675900e036e36eaabc2fa114d8e0f",
-  "qualification": "Production source is identical in test-only follow-up 3eea646. Copied built binaries before further cargo writes.",
-  "sha256": {
-    "code-mode-host": "eaad452064b4a954207edd9c4636723d042af3810f40647ff7fe44a352717bfa",
-    "app-server": "e4f0ad7066a5e52f320f3553c77c69d5a2336b045d40e231ee3d0402b713c0a9"
-  }
-}

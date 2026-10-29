@@ -1,5 +1,0 @@
-Cargo suite ["test","--manifest-path","lime-rs/Cargo.toml","-p","app-server","--lib","thread_fork","-j","4"]
-   Compiling app-server v1.164.0 (/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/app-server)
-Cargo terminal {"code":null,"signal":"SIGINT"}
-
-Terminal: runner exit 1 after owner SIGINT to its Cargo PID 94800; lib test did not execute, no pass claimed. Subsequent rollout_path_lookup, ephemeral and thread_usage suites were not executed.

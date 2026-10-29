@@ -1,6 +1,0 @@
-{
-  "proofLevel": "targeted real PTY",
-  "backend": "external controlled fixture",
-  "ok": false,
-  "error": "error(25, 'Inappropriate ioctl for device')"
-}

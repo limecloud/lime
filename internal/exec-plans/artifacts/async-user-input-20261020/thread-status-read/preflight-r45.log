@@ -1,3 +1,0 @@
-[request-user-input-fixture] stage=verify-current-artifacts
-[request-user-input-fixture] failed: stale build: appServer
-[request-user-input-fixture] evidence=/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/qc/gui-evidence/request-user-input/codex-question-20261020-r45 result=fail

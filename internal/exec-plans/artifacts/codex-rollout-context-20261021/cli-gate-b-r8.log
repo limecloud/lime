@@ -1,5 +1,0 @@
-CLI_EXEC_JSON_STREAM_OK thread=01a15c6e-b90f-7073-87c9-7870230d1258 turn=turn_d8522479ef84400694ebe1b485dfd7f4 realtime=ok stable-id=ok cold=ok usage=total
-[smoke:cli-gate-b] failed: json: no extra provider turn after interrupt
-
-2 !== 1
-

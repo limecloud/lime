@@ -1,3 +1,0 @@
-dyld[54614]: Library not loaded: @rpath/libsherpa-onnx-c-api.dylib
-  Referenced from: <BA32CDED-F694-3E7C-BFE7-6A98F125B428> /private/tmp/lime-rollout-compressed-target-20261021/debug/deps/app_server-b549ab0288f9bd8f
-  Reason: no LC_RPATH's found

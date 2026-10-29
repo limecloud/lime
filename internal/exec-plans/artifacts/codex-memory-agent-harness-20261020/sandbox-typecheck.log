@@ -1,4 +1,0 @@
-
-> lime@1.164.0 typecheck
-> tsc --noEmit --project tsconfig.renderer.json && tsc --noEmit --project tsconfig.node.json
-

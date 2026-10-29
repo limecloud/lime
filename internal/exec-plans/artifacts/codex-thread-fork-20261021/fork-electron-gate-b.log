@@ -1,6 +1,0 @@
-
-> lime@1.164.0 smoke:thread-fork-electron-gate-b
-> node scripts/electron/thread-fork-gate-b.mjs --prefix codex-fork-20261021
-
-[[smoke:thread-fork-gate-b]] waiting for Electron fixture packaged renderer/assets build lock
-Fork Electron terminal {"code":null,"signal":"SIGTERM"}
