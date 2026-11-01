@@ -6,11 +6,12 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.172.0"
+version = "1.173.0"
 edition = "2021"
 authors = ["coso"]
-repository = "https://github.com/aiclientproxy/lime"
-homepage = "https://github.com/aiclientproxy/lime"
+repository = "https://github.com/limecloud/lime"
+homepage = "https://github.com/limecloud/lime"
+license = "GPL-3.0-only"
 
 [workspace.dependencies]
 # 项目内 crate 依赖
@@ -136,6 +137,8 @@ webbrowser = "1.0"
 base64 = "0.22"
 bytes = "1"
 rand = "0.8"
+age = "0.12.1"
+keyring = { version = "3.6", default-features = false }
 sha2 = "0.10"
 open = "5"
 url = "2"

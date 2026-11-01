@@ -38,6 +38,7 @@ afterEach(() => {
     });
     mounted.container.remove();
   }
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
 });
@@ -277,6 +278,7 @@ describe("BaseComposer", () => {
   ])(
     "$signal 候选确认及合成结束不发送，下一次 Enter 才发送",
     async ({ signal, key, isComposing, keyCode }) => {
+      vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
       const rafCallbacks: Array<(timestamp: number) => void> = [];
       vi.stubGlobal(
         "requestAnimationFrame",
@@ -316,11 +318,15 @@ describe("BaseComposer", () => {
       expect(imeEnterEvent.defaultPrevented).toBe(false);
       expect(getComposerEditorText(editor)).toBe("你好");
       expect(onSend).not.toHaveBeenCalled();
-      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
+      });
 
       act(() => {
-        const nextEnter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
-        Object.defineProperty(nextEnter, "timeStamp", { value: imeEnterEvent.timeStamp + 600 });
+        const nextEnter = new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+        });
         editor.dispatchEvent(nextEnter);
         rafCallbacks.splice(0).forEach((callback) => callback(0));
       });

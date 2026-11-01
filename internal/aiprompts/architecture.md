@@ -7090,3 +7090,25 @@ flowchart LR
 Lime 多协议图片执行继续归现役 `media-runtime` worker 和 App Server image gateway。模型工具等待同一 durable task 的成功/部分成功结果及 sidecar；回合取消和超时取消同一任务。Host 的异步 task API 不改变。`completed_tool_media_item` 统一转换 sidecar，App Server 通过既有事件 sink 顺序写入工具完成和图片 Item 生命周期，现役 Thread Store、实时通知和 `thread/read` 共用同一结果；失败、取消、pending 和缺 sidecar 不生成图片。公共 v2 `AgentMessage.contentParts` 保留同一 typed `MessageContentPart`，是 Lime 多协议媒体差异的必要适配；读历史与通知共用 `project_item`，拒绝 inline 媒体引用。前端 canonical reader 消费同一字段，不从 task store 建立第二结果通道。旧读取适配委托同一转换并按 Item ID 去重，不恢复前端 image workflow 或第二图片 owner。
 
 来源：Codex `codex-rs/ext/image-generation/src/tool.rs` 的实际请求完成后发出图片 Item；其上游账号和图像服务不覆盖 Lime 的 Provider/worker 差异。Desktop 重载按既有 REA 合同适配，公开源码无该前端实现。Architecture impact: minor；责任开发者 root 于 2026-10-25 确认该图的 owner、取消与持久化方向。验收范围见 `internal/exec-plans/browser-completion-20261025.md`，不将此图计为原生引擎或 Windows 包通过。
+
+
+## Provider 凭据持久化 owner（2026-10-30）
+
+```mermaid
+flowchart LR
+    Surface[Desktop / CLI] --> RPC[App Server JSON-RPC]
+    RPC --> Service[services: ApiKeyProviderService]
+    Service --> DB[(Product DB: opaque secret reference)]
+    Service --> Adapter[services: ProviderCredentialStore + bounded process lock]
+    Adapter --> Secrets[infra: secrets / keyring_store]
+    Secrets --> OS[OS keyring: random passphrase]
+    Secrets --> Age[(LIME_HOME/secrets/local.age)]
+    Adapter --> File[explicit file mode + infra secure_file]
+    Service --> Provider[existing model-provider wire owner]
+```
+
+`infra` 直接承接 Codex 通用 secrets/keyring 源码；`services` 负责 Provider 引用、存储选择与数据库补偿，不新增 runtime、账号或网络 owner。默认 keyring-backed age 加密；headless 显式 file 模式复用 Grok-build secure_file 的 Unix0600/Windows ACL。共享目录的 keyring 初始化与 age 读改写持有有界进程锁，不删除锁文件。OS 错误不得静默降级，旧 XOR reader/writer 已删除；DB 字段保留但内容为 opaque reference。跨存储不具备崩溃原子性：数据库提交后的清理失败必须报告，不能声称 SQLite 事务涵盖 keyring。详细配置和恢复约束见公开 Provider 凭据说明。
+
+Forge resources 与 CLI staging 携带 LICENSE/NOTICE/许可范围与上游法律材料；Apache-2.0/MIT launcher 与 GPL 平台二进制分别声明。来源 revision、哈希和适配见 `internal/exec-plans/issue-155-source-copy-ledger.json`，可发布来源摘要见 `licenses/README.md`。
+
+Architecture impact: major。责任开发者 root 于 2026-10-30 确认该图的 owner、依赖方向、跨进程锁与非原子边界；该确认不是 Windows/OS keyring/packaged 产品验收证据。实施与验证状态见 `internal/exec-plans/issue-155-implementation-plan.md`。

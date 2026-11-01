@@ -281,9 +281,14 @@ test("staging creates Lime root platform dependencies and a real npm tarball", (
   assert.deepEqual(packageJson.files, [
     "bin/lime.js",
     "exec-events.schema.json",
+    "LICENSE",
+    "NOTICE",
+    "LICENSES.md",
+    "licenses",
   ]);
   const archive = gunzipSync(readFileSync(tarball));
   let packagedSchema;
+  const packagedFiles = new Set();
   for (let offset = 0; offset + 512 <= archive.length; ) {
     const header = archive.subarray(offset, offset + 512);
     const name = header
@@ -291,6 +296,7 @@ test("staging creates Lime root platform dependencies and a real npm tarball", (
       .toString("utf8")
       .replace(/\0.*$/su, "");
     const size = parseInt(header.subarray(124, 136).toString("utf8"), 8) || 0;
+    packagedFiles.add(name);
     if (name === "package/exec-events.schema.json") {
       packagedSchema = archive
         .subarray(offset + 512, offset + 512 + size)
@@ -298,6 +304,16 @@ test("staging creates Lime root platform dependencies and a real npm tarball", (
     }
     offset += 512 + Math.ceil(size / 512) * 512;
   }
+  for (const material of [
+    "LICENSE",
+    "NOTICE",
+    "LICENSES.md",
+    "licenses/GPL-3.0-only.txt",
+    "licenses/OpenAI-NOTICE.txt",
+  ]) {
+    assert.ok(packagedFiles.has(`package/${material}`), material);
+  }
+  assert.equal(packageJson.license, "Apache-2.0 AND MIT");
   assert.equal(
     packagedSchema,
     schema,
@@ -371,6 +387,17 @@ test("platform staging requires the complete App Server runtime payload", (t) =>
     readFileSync(path.join(staging, "package.json"), "utf8"),
   );
   assert.equal(packageJson.name, "@limecloud/lime-darwin-arm64");
+  assert.equal(packageJson.license, "GPL-3.0-only");
+  assert.match(
+    readFileSync(path.join(staging, "LICENSE"), "utf8"),
+    /GNU GENERAL PUBLIC LICENSE/,
+  );
+  for (const material of [
+    "NOTICE",
+    "LICENSES.md",
+    "licenses/OpenAI-NOTICE.txt",
+  ])
+    assert.ok(existsSync(path.join(staging, material)));
   assert.equal(packageJson.version, "1.2.3-darwin-arm64");
   assert.deepEqual(packageJson.os, ["darwin"]);
   assert.deepEqual(packageJson.cpu, ["arm64"]);

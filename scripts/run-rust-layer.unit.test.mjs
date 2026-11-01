@@ -76,6 +76,10 @@ describe("run-rust-layer unit helpers", () => {
     const run = () =>
       withRustTestConfig(env, (isolated) => {
         firstPath = isolated.LIME_CONFIG_PATH;
+        expect(isolated.LIME_CREDENTIALS_STORE).toBe("file");
+        expect(isolated.LIME_HOME).toBe(
+          path.join(path.dirname(firstPath), "lime"),
+        );
         expect(fs.readFileSync(firstPath, "utf8")).toBe("{}\n");
         withRustTestConfig(env, (second) => {
           expect(second.LIME_CONFIG_PATH).not.toBe(firstPath);
@@ -101,7 +105,9 @@ describe("run-rust-layer unit helpers", () => {
       const env = { LIME_CONFIG_PATH: configPath };
       expect(
         withRustTestConfig(env, (actual) => {
-          expect(actual).toBe(env);
+          expect(actual.LIME_CONFIG_PATH).toBe(configPath);
+          expect(actual.LIME_CREDENTIALS_STORE).toBe("file");
+          expect(actual.LIME_HOME).not.toBe(process.env.LIME_HOME);
           return 0;
         }),
       ).toBe(0);
@@ -148,7 +154,8 @@ syncBuiltinESMExports();
         {
           encoding: "utf8",
           maxBuffer: 2 * 1024 * 1024,
-          env: { ...process.env, LIME_CONFIG_PATH: "" },
+          // Cargo is intercepted above; this unit fixture does not need V8 downloads.
+          env: { ...process.env, LIME_CONFIG_PATH: "", V8_FROM_SOURCE: "1" },
         },
       );
       expect(result.error).toBeUndefined();

@@ -141,7 +141,9 @@ fn insert_chat_provider(db: &DbConnection) {
         &ApiKeyEntry {
             id: format!("{provider_id}-key"),
             provider_id: provider_id.to_string(),
-            api_key_encrypted: ApiKeyProviderService::new().encrypt_api_key("fixture-key"),
+            api_key_encrypted: ApiKeyProviderService::new()
+                .save_api_key("fixture-key")
+                .expect("persist fixture credential"),
             alias: None,
             enabled: true,
             usage_count: 0,

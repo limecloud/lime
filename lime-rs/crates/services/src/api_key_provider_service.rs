@@ -10,7 +10,6 @@ use crate::provider_type_mapping::{
     api_provider_type_to_runtime_provider_type, is_custom_provider_id,
     resolve_runtime_provider_type, runtime_provider_type_to_api_type,
 };
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use futures::StreamExt;
 use lime_core::api_host_utils::is_openai_responses_compatible_host;
@@ -35,7 +34,6 @@ use model_provider::runtime_provider::{
     RuntimeProviderAuth, RuntimeProviderConfig, RuntimeProviderProtocol,
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::RwLock;
@@ -68,11 +66,9 @@ mod tests {
         ApiKeyProviderService, SENSENOVA_OLD_OPENAI_COMPATIBLE_API_HOST,
         SENSENOVA_OPENAI_COMPATIBLE_API_HOST,
     };
-    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-    use chrono::Utc;
     use lime_core::database::dao::api_key_provider::ApiProviderType;
     use lime_core::database::dao::api_key_provider::{
-        ApiKeyEntry, ApiKeyProviderDao, ApiProviderPromptCacheMode,
+        ApiKeyProviderDao, ApiProviderPromptCacheMode,
     };
     use lime_core::database::dao::route_state::RouteStateDao;
     use lime_core::database::{init_database, migration, schema, DbConnection};
@@ -84,51 +80,16 @@ mod tests {
     use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    fn resolve_legacy_machine_id() -> String {
-        if let Ok(id) = std::fs::read_to_string("/etc/machine-id") {
-            return id.trim().to_string();
-        }
-        if let Ok(id) = std::fs::read_to_string("/var/lib/dbus/machine-id") {
-            return id.trim().to_string();
-        }
-        #[cfg(target_os = "macos")]
-        {
-            if let Ok(output) = std::process::Command::new("ioreg")
-                .args(["-rd1", "-c", "IOPlatformExpertDevice"])
-                .output()
-            {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                for line in stdout.lines() {
-                    if line.contains("IOPlatformUUID") {
-                        if let Some(uuid) = line.split('"').nth(3) {
-                            return uuid.to_string();
-                        }
-                    }
-                }
-            }
-        }
-        "proxycast-default-machine-id".to_string()
+    pub(super) fn test_service() -> ApiKeyProviderService {
+        static ROOT: std::sync::LazyLock<tempfile::TempDir> =
+            std::sync::LazyLock::new(|| tempfile::tempdir().expect("credential fixture root"));
+        let mut service = ApiKeyProviderService::new();
+        service.credentials =
+            crate::provider_credentials::ProviderCredentialStore::file(ROOT.path().to_path_buf());
+        service
     }
 
-    fn encrypt_with_legacy_proxycast_format(plaintext: &str) -> String {
-        use sha2::{Digest, Sha256};
-
-        let machine_id = resolve_legacy_machine_id();
-        let mut hasher = Sha256::new();
-        hasher.update(machine_id.as_bytes());
-        hasher.update(b"proxycast-api-key-encryption-salt");
-        let key = hasher.finalize().to_vec();
-
-        let encrypted: Vec<u8> = plaintext
-            .as_bytes()
-            .iter()
-            .enumerate()
-            .map(|(i, b)| b ^ key[i % key.len()])
-            .collect();
-        BASE64.encode(encrypted)
-    }
-
-    fn init_test_database() -> DbConnection {
+    pub(super) fn init_test_database() -> DbConnection {
         let conn = Connection::open_in_memory().expect("创建内存数据库失败");
         schema::create_tables(&conn).expect("初始化表结构失败");
         migration::migrate_from_json(&conn).expect("执行数据库迁移失败");
@@ -277,7 +238,7 @@ mod tests {
     #[test]
     fn test_system_provider_type_can_be_updated() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         service
             .initialize_system_providers(&db)
@@ -314,7 +275,7 @@ mod tests {
     #[test]
     fn test_initialize_system_providers_updates_legacy_sensenova_default_host() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         service
             .initialize_system_providers(&db)
@@ -348,7 +309,7 @@ mod tests {
     #[test]
     fn test_initialize_system_providers_keeps_user_custom_sensenova_host() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         service
             .initialize_system_providers(&db)
@@ -382,7 +343,7 @@ mod tests {
     #[test]
     fn test_initialize_system_providers_updates_azure_api_version() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         service
             .initialize_system_providers(&db)
@@ -411,7 +372,7 @@ mod tests {
     #[test]
     fn test_add_custom_provider_should_force_known_anthropic_compatible_host_to_automatic() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         let provider = service
             .add_custom_provider(
@@ -450,7 +411,7 @@ mod tests {
     #[test]
     fn test_update_provider_should_force_known_anthropic_compatible_host_to_automatic() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         let provider = service
             .add_custom_provider(
@@ -499,7 +460,7 @@ mod tests {
     #[test]
     fn test_provider_and_key_readiness_mutations_advance_route_generation() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         let provider = service
             .add_custom_provider(
@@ -584,7 +545,7 @@ mod tests {
     #[test]
     fn test_system_initialization_and_import_only_advance_for_actual_writes() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         assert!(
             service
@@ -632,48 +593,9 @@ mod tests {
     }
 
     #[test]
-    fn test_legacy_proxycast_api_key_can_be_read_and_reencrypted() {
-        let db = init_test_database();
-        let service = ApiKeyProviderService::new();
-
-        service
-            .initialize_system_providers(&db)
-            .expect("初始化系统 Provider 失败");
-
-        let legacy_ciphertext = encrypt_with_legacy_proxycast_format("sk-legacy-compatible");
-        {
-            let conn = db.lock().expect("获取数据库锁失败");
-            let key = ApiKeyEntry {
-                id: "legacy-key".to_string(),
-                provider_id: "openai".to_string(),
-                api_key_encrypted: legacy_ciphertext.clone(),
-                alias: Some("legacy".to_string()),
-                enabled: true,
-                usage_count: 0,
-                error_count: 0,
-                last_used_at: None,
-                created_at: Utc::now(),
-            };
-            ApiKeyProviderDao::insert_api_key(&conn, &key).expect("插入 legacy key 失败");
-        }
-
-        let api_key = service
-            .get_next_api_key(&db, "openai")
-            .expect("读取 API Key 失败")
-            .expect("应返回 API Key");
-        assert_eq!(api_key, "sk-legacy-compatible");
-
-        let conn = db.lock().expect("获取数据库锁失败");
-        let persisted = ApiKeyProviderDao::get_api_key_by_id(&conn, "legacy-key")
-            .expect("读取 API Key 失败")
-            .expect("legacy key 应存在");
-        assert_ne!(persisted.api_key_encrypted, legacy_ciphertext);
-    }
-
-    #[test]
     fn test_add_api_key_replace_existing_keeps_only_new_key() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         let provider = service
             .add_custom_provider(
@@ -716,7 +638,7 @@ mod tests {
     #[test]
     fn test_add_api_key_replace_existing_reuses_matching_history_key() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         let provider = service
             .add_custom_provider(
@@ -762,7 +684,7 @@ mod tests {
     #[test]
     fn exact_runtime_credential_ref_requires_enabled_key_owned_by_provider() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
         let provider = service
             .add_custom_provider(
                 &db,
@@ -865,7 +787,7 @@ mod tests {
     #[test]
     fn exact_runtime_credential_ref_rejects_non_runtime_reference() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         assert!(service
             .select_runtime_credential_by_ref(&db, "provider", "raw-key-id")
@@ -876,7 +798,7 @@ mod tests {
     #[tokio::test]
     async fn runtime_selection_skips_excluded_keys_without_crossing_provider_boundary() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
         let provider = service
             .add_custom_provider(
                 &db,
@@ -963,7 +885,7 @@ mod tests {
     #[tokio::test]
     async fn runtime_selection_skips_credential_until_server_cooldown_expires() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
         let provider = service
             .add_custom_provider(
                 &db,
@@ -1011,7 +933,7 @@ mod tests {
     #[tokio::test]
     async fn unsupported_provider_tests_fail_before_network() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
 
         for provider_type in [ApiProviderType::AwsBedrock, ApiProviderType::Fal] {
             let provider = service
@@ -1068,7 +990,7 @@ mod tests {
     #[test]
     fn keyless_ollama_provider_tests_use_responses_without_credential() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
         let provider = service
             .add_custom_provider(
                 &db,
@@ -1107,7 +1029,7 @@ mod tests {
     #[test]
     fn azure_provider_tests_use_dedicated_responses_protocol_and_api_key() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
         let provider = service
             .add_custom_provider(
                 &db,
@@ -1150,7 +1072,7 @@ mod tests {
     #[test]
     fn vertex_provider_projects_context_into_dedicated_runtime_credential() {
         let db = init_test_database();
-        let service = ApiKeyProviderService::new();
+        let service = test_service();
         let provider = service
             .add_custom_provider(
                 &db,
@@ -1197,7 +1119,9 @@ mod tests {
         assert_eq!(location, "us-central1");
         assert_eq!(
             base_url.as_deref(),
-            Some("https://us-central1-aiplatform.googleapis.com/v1/projects/project-alpha/locations/us-central1/publishers/google")
+            Some(
+                "https://us-central1-aiplatform.googleapis.com/v1/projects/project-alpha/locations/us-central1/publishers/google"
+            )
         );
     }
 
@@ -1259,9 +1183,18 @@ mod tests {
             let request_body =
                 String::from_utf8_lossy(&buffer[header_end..header_end + content_length])
                     .to_string();
-            let response_text = response_body.to_string();
+            let delta = serde_json::json!({
+                "type": "response.output_text.delta",
+                "item_id": "message-1",
+                "delta": response_body["output_text"],
+            });
+            let completed = serde_json::json!({
+                "type": "response.completed",
+                "response": { "id": response_body["id"], "output": [] },
+            });
+            let response_text = format!("data: {delta}\n\ndata: {completed}\n\n");
             let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
                 response_text.len(),
                 response_text
             );
@@ -1277,10 +1210,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "当前沙箱禁止本地 TCP 监听，需在本机放行后运行"]
     async fn test_openai_response_chat_uses_responses_endpoint_and_fallback_model() {
-        let db = init_database().expect("初始化数据库失败");
-        let service = ApiKeyProviderService::new();
+        let db = init_test_database();
+        let service = test_service();
         let response_body = serde_json::json!({
             "id": "resp_test",
             "output_text": "OK"
@@ -1329,7 +1261,7 @@ mod tests {
         let request_json: serde_json::Value =
             serde_json::from_str(&request_body).expect("请求体应为 JSON");
         assert_eq!(request_json["model"].as_str(), Some("gpt-4.1-mini"));
-        assert_eq!(request_json["stream"].as_bool(), Some(false));
+        assert_eq!(request_json["stream"].as_bool(), Some(true));
         assert_eq!(
             request_json["input"][0]["content"][0]["text"].as_str(),
             Some("hello")
@@ -1337,10 +1269,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "当前沙箱禁止本地 TCP 监听，需在本机放行后运行"]
     async fn test_openai_response_connection_prefers_responses_endpoint() {
-        let db = init_database().expect("初始化数据库失败");
-        let service = ApiKeyProviderService::new();
+        let db = init_test_database();
+        let service = test_service();
         let response_body = serde_json::json!({
             "id": "resp_test",
             "output_text": "OK"
@@ -1442,164 +1373,13 @@ pub struct ChatTestResult {
 }
 
 // ============================================================================
-// 加密服务
-// ============================================================================
-
-/// 简单的 API Key 加密服务
-/// 使用 XOR 加密 + Base64 编码
-/// 注意：这是一个简单的混淆方案，不是强加密
-struct EncryptionService {
-    /// 当前加密密钥（Lime）
-    current_key: Vec<u8>,
-    /// 兼容旧版 ProxyCast 的历史加密密钥
-    legacy_keys: Vec<Vec<u8>>,
-}
-
-struct DecryptionResult {
-    plaintext: String,
-    used_legacy_key: bool,
-}
-
-impl EncryptionService {
-    const CURRENT_SALT: &'static [u8] = b"lime-api-key-encryption-salt";
-    const LEGACY_SALT: &'static [u8] = b"proxycast-api-key-encryption-salt";
-    const CURRENT_DEFAULT_MACHINE_ID: &'static str = "lime-default-machine-id";
-    const LEGACY_DEFAULT_MACHINE_ID: &'static str = "proxycast-default-machine-id";
-
-    /// 创建新的加密服务
-    fn new() -> Self {
-        // 使用机器特定信息生成密钥
-        let machine_id = Self::get_machine_id();
-        let current_key = Self::derive_key(&machine_id, Self::CURRENT_SALT);
-        let mut legacy_keys = vec![Self::derive_key(&machine_id, Self::LEGACY_SALT)];
-
-        if machine_id == Self::CURRENT_DEFAULT_MACHINE_ID {
-            legacy_keys.push(Self::derive_key(
-                Self::LEGACY_DEFAULT_MACHINE_ID,
-                Self::LEGACY_SALT,
-            ));
-        }
-
-        Self {
-            current_key,
-            legacy_keys,
-        }
-    }
-
-    /// 获取机器 ID
-    fn get_machine_id() -> String {
-        // 尝试获取机器 ID，失败则使用默认值
-        if let Ok(id) = std::fs::read_to_string("/etc/machine-id") {
-            return id.trim().to_string();
-        }
-        if let Ok(id) = std::fs::read_to_string("/var/lib/dbus/machine-id") {
-            return id.trim().to_string();
-        }
-        // macOS: 使用 IOPlatformUUID
-        #[cfg(target_os = "macos")]
-        {
-            if let Ok(output) = std::process::Command::new("ioreg")
-                .args(["-rd1", "-c", "IOPlatformExpertDevice"])
-                .output()
-            {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                for line in stdout.lines() {
-                    if line.contains("IOPlatformUUID") {
-                        if let Some(uuid) = line.split('"').nth(3) {
-                            return uuid.to_string();
-                        }
-                    }
-                }
-            }
-        }
-        // 默认值
-        Self::CURRENT_DEFAULT_MACHINE_ID.to_string()
-    }
-
-    fn derive_key(machine_id: &str, salt: &[u8]) -> Vec<u8> {
-        let mut hasher = Sha256::new();
-        hasher.update(machine_id.as_bytes());
-        hasher.update(salt);
-        hasher.finalize().to_vec()
-    }
-
-    fn xor_bytes(input: &[u8], key: &[u8]) -> Vec<u8> {
-        input
-            .iter()
-            .enumerate()
-            .map(|(i, b)| b ^ key[i % key.len()])
-            .collect()
-    }
-
-    fn looks_like_api_key_candidate(value: &str) -> bool {
-        let trimmed = value.trim();
-        trimmed.len() >= 8
-            && trimmed.is_ascii()
-            && !trimmed
-                .chars()
-                .any(|ch| ch.is_ascii_control() || ch.is_whitespace())
-    }
-
-    /// 加密 API Key
-    fn encrypt(&self, plaintext: &str) -> String {
-        let encrypted = Self::xor_bytes(plaintext.as_bytes(), &self.current_key);
-        BASE64.encode(encrypted)
-    }
-
-    fn decrypt_with_compatibility(&self, ciphertext: &str) -> Result<DecryptionResult, String> {
-        let encrypted = BASE64
-            .decode(ciphertext)
-            .map_err(|e| format!("Base64 解码失败: {e}"))?;
-
-        let mut last_error: Option<String> = None;
-
-        for (key, used_legacy_key) in std::iter::once((&self.current_key, false))
-            .chain(self.legacy_keys.iter().map(|key| (key, true)))
-        {
-            let decrypted = Self::xor_bytes(&encrypted, key);
-            match String::from_utf8(decrypted) {
-                Ok(plaintext) if Self::looks_like_api_key_candidate(&plaintext) => {
-                    return Ok(DecryptionResult {
-                        plaintext,
-                        used_legacy_key,
-                    });
-                }
-                Ok(_) => {
-                    last_error = Some("解密结果不符合 API Key 格式".to_string());
-                }
-                Err(_error) => {
-                    last_error = Some("解密结果不是有效 UTF-8".to_string());
-                }
-            }
-        }
-
-        Err(last_error.unwrap_or_else(|| "API Key 解密失败".to_string()))
-    }
-
-    /// 解密 API Key
-    fn decrypt(&self, ciphertext: &str) -> Result<String, String> {
-        self.decrypt_with_compatibility(ciphertext)
-            .map(|result| result.plaintext)
-    }
-
-    /// 检查是否为加密后的值（非明文）
-    fn is_encrypted(&self, value: &str) -> bool {
-        // 加密后的值是 Base64 编码的，通常不包含常见的 API Key 前缀
-        !value.starts_with("sk-")
-            && !value.starts_with("pk-")
-            && !value.starts_with("api-")
-            && BASE64.decode(value).is_ok()
-    }
-}
-
-// ============================================================================
 // API Key Provider 服务
 // ============================================================================
 
 /// API Key Provider 管理服务
 pub struct ApiKeyProviderService {
-    /// 加密服务
-    encryption: EncryptionService,
+    /// Provider 凭据存储
+    credentials: crate::provider_credentials::ProviderCredentialStore,
     /// 轮询索引（按 provider_id 分组）
     round_robin_index: RwLock<HashMap<String, AtomicUsize>>,
     /// 只记录上游明确给出的恢复窗口；credential identity 不进入日志或外部 evidence。
@@ -1616,7 +1396,7 @@ impl ApiKeyProviderService {
     /// 创建新的服务实例
     pub fn new() -> Self {
         Self {
-            encryption: EncryptionService::new(),
+            credentials: crate::provider_credentials::ProviderCredentialStore::new(),
             round_robin_index: RwLock::new(HashMap::new()),
             credential_cooldowns: RwLock::new(HashMap::new()),
         }
@@ -1712,30 +1492,6 @@ impl ApiKeyProviderService {
         }
     }
 
-    fn decrypt_api_key_entry_with_migration(
-        &self,
-        conn: &rusqlite::Connection,
-        key: &ApiKeyEntry,
-    ) -> Result<String, String> {
-        let result = self
-            .encryption
-            .decrypt_with_compatibility(&key.api_key_encrypted)?;
-
-        if result.used_legacy_key {
-            let reencrypted = self.encryption.encrypt(&result.plaintext);
-            if reencrypted != key.api_key_encrypted {
-                ApiKeyProviderDao::update_api_key_encrypted(conn, &key.id, &reencrypted)
-                    .map_err(|e| format!("升级旧版 API Key 加密格式失败: {e}"))?;
-                tracing::info!(
-                    "[ApiKeyProviderService] 已自动升级旧版 API Key 加密格式: {}",
-                    key.id
-                );
-            }
-        }
-
-        Ok(result.plaintext)
-    }
-
     fn next_round_robin_candidate_indices(
         &self,
         scope: &str,
@@ -1758,22 +1514,21 @@ impl ApiKeyProviderService {
 
     fn log_skipped_invalid_api_key(&self, key: &ApiKeyEntry, error: &str) {
         tracing::debug!(
-            "[ApiKeyProviderService] 跳过不可解密 API Key {} (provider={}): {}",
+            "[ApiKeyProviderService] 跳过不可读取 API Key {} (provider={}): {}",
             key.id,
             key.provider_id,
             error
         );
     }
 
-    fn select_next_decryptable_api_key<'a>(
+    fn select_next_readable_api_key<'a>(
         &self,
-        conn: &rusqlite::Connection,
         scope: &str,
         keys: &'a [ApiKeyEntry],
     ) -> Result<Option<(&'a ApiKeyEntry, String)>, String> {
         for index in self.next_round_robin_candidate_indices(scope, keys.len())? {
             let candidate = &keys[index];
-            match self.decrypt_api_key_entry_with_migration(conn, candidate) {
+            match self.read_api_key(&candidate.api_key_encrypted) {
                 Ok(api_key) => return Ok(Some((candidate, api_key))),
                 Err(error) => self.log_skipped_invalid_api_key(candidate, &error),
             }
@@ -1782,61 +1537,20 @@ impl ApiKeyProviderService {
         Ok(None)
     }
 
-    fn select_next_decryptable_api_key_with_provider<'a>(
+    fn select_next_readable_api_key_with_provider<'a>(
         &self,
-        conn: &rusqlite::Connection,
         scope: &str,
         keys: &'a [(ApiKeyEntry, ApiKeyProvider)],
     ) -> Result<Option<(&'a ApiKeyEntry, &'a ApiKeyProvider, String)>, String> {
         for index in self.next_round_robin_candidate_indices(scope, keys.len())? {
             let (candidate, provider) = &keys[index];
-            match self.decrypt_api_key_entry_with_migration(conn, candidate) {
+            match self.read_api_key(&candidate.api_key_encrypted) {
                 Ok(api_key) => return Ok(Some((candidate, provider, api_key))),
                 Err(error) => self.log_skipped_invalid_api_key(candidate, &error),
             }
         }
 
         Ok(None)
-    }
-
-    pub fn migrate_legacy_api_key_encryption(&self, db: &DbConnection) -> Result<usize, String> {
-        let conn = lime_core::database::lock_db(db)?;
-        let providers = ApiKeyProviderDao::get_all_providers_with_keys(&conn)
-            .map_err(|e| format!("读取 API Key 列表失败: {e}"))?;
-
-        let mut migrated = 0usize;
-        for provider in providers {
-            for key in provider.api_keys {
-                match self
-                    .encryption
-                    .decrypt_with_compatibility(&key.api_key_encrypted)
-                {
-                    Ok(result) if result.used_legacy_key => {
-                        let reencrypted = self.encryption.encrypt(&result.plaintext);
-                        if reencrypted != key.api_key_encrypted {
-                            ApiKeyProviderDao::update_api_key_encrypted(
-                                &conn,
-                                &key.id,
-                                &reencrypted,
-                            )
-                            .map_err(|e| format!("升级 API Key 加密格式失败: {e}"))?;
-                            migrated += 1;
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(error) => {
-                        tracing::info!(
-                            "[ApiKeyProviderService] 跳过异常 API Key {} (provider={}): {}",
-                            key.id,
-                            provider.provider.id,
-                            error
-                        );
-                    }
-                }
-            }
-        }
-
-        Ok(migrated)
     }
 
     pub async fn test_chat(
@@ -2650,11 +2364,14 @@ impl ApiKeyProviderService {
             return Err("不允许删除系统 Provider".to_string());
         }
 
+        let keys = ApiKeyProviderDao::get_api_keys_by_provider(&tx, id)
+            .map_err(|error| error.to_string())?;
         let deleted = ApiKeyProviderDao::delete_provider(&tx, id).map_err(|e| e.to_string())?;
         if deleted {
             RouteStateDao::advance_generation(&tx).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
+        self.delete_credentials(&keys)?;
         Ok(deleted)
     }
 
@@ -2663,7 +2380,7 @@ impl ApiKeyProviderService {
     /// 添加 API Key
     ///
     /// 当添加第一个 API Key 时，会自动启用 Provider
-    /// 使用数据库事务确保操作的原子性
+    /// 数据库元数据用事务提交，凭据写入失败单独补偿。
     pub fn add_api_key(
         &self,
         db: &DbConnection,
@@ -2680,7 +2397,7 @@ impl ApiKeyProviderService {
 
         let mut conn = lime_core::database::lock_db(db)?;
 
-        // 使用事务确保操作的原子性
+        // 数据库元数据用事务提交，凭据存储不在该事务内。
         let tx = conn
             .transaction()
             .map_err(|e| format!("开始事务失败: {e}"))?;
@@ -2705,12 +2422,11 @@ impl ApiKeyProviderService {
             existing_keys.len()
         );
 
-        // 检查是否有相同的 API Key（比较加密后的值）
-        let encrypted_input = self.encryption.encrypt(api_key);
-        if let Some(existing_key) = existing_keys
-            .iter()
-            .find(|existing_key| existing_key.api_key_encrypted == encrypted_input)
-        {
+        // 加密存储使用随机身份，重复检测比较解密后的值。
+        if let Some(existing_key) = existing_keys.iter().find(|existing_key| {
+            self.read_api_key(&existing_key.api_key_encrypted)
+                .is_ok_and(|value| value == api_key)
+        }) {
             if !replace_existing {
                 return Err("该 API Key 已存在".to_string());
             }
@@ -2752,6 +2468,12 @@ impl ApiKeyProviderService {
                 replacement_key.id
             );
 
+            for stale in existing_keys
+                .iter()
+                .filter(|key| key.id != replacement_key.id)
+            {
+                self.credentials.delete(&stale.api_key_encrypted)?;
+            }
             return Ok(replacement_key);
         }
 
@@ -2769,7 +2491,7 @@ impl ApiKeyProviderService {
         let key = ApiKeyEntry {
             id: uuid::Uuid::new_v4().to_string(),
             provider_id: provider_id.to_string(),
-            api_key_encrypted: encrypted_input,
+            api_key_encrypted: self.save_api_key(api_key)?,
             alias: alias.clone(),
             enabled: true,
             usage_count: 0,
@@ -2778,32 +2500,45 @@ impl ApiKeyProviderService {
             created_at: now,
         };
 
-        // 插入 API Key
-        ApiKeyProviderDao::insert_api_key(&tx, &key).map_err(|e| e.to_string())?;
+        let persisted = (|| -> Result<(), String> {
+            // 插入 API Key
+            ApiKeyProviderDao::insert_api_key(&tx, &key).map_err(|e| e.to_string())?;
 
-        tracing::info!(
-            "[ApiKeyProviderService] API Key 已插入: id={}, provider_id={}",
-            key.id,
-            key.provider_id
-        );
-
-        // 如果是第一个 API Key，自动启用 Provider
-        if should_enable_provider {
-            let mut updated_provider = provider;
-            updated_provider.enabled = true;
-            updated_provider.updated_at = now;
-            ApiKeyProviderDao::update_provider(&tx, &updated_provider)
-                .map_err(|e| e.to_string())?;
             tracing::info!(
-                "[ApiKeyProviderService] 自动启用 Provider: {} (添加了第一个 API Key)",
-                provider_id
+                "[ApiKeyProviderService] API Key 已插入: id={}, provider_id={}",
+                key.id,
+                key.provider_id
             );
+
+            // 如果是第一个 API Key，自动启用 Provider
+            if should_enable_provider {
+                let mut updated_provider = provider;
+                updated_provider.enabled = true;
+                updated_provider.updated_at = now;
+                ApiKeyProviderDao::update_provider(&tx, &updated_provider)
+                    .map_err(|e| e.to_string())?;
+                tracing::info!(
+                    "[ApiKeyProviderService] 自动启用 Provider: {} (添加了第一个 API Key)",
+                    provider_id
+                );
+            }
+
+            RouteStateDao::advance_generation(&tx).map_err(|e| e.to_string())?;
+
+            // 提交事务
+            tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
+
+            Ok(())
+        })();
+        if let Err(error) = persisted {
+            self.credentials
+                .delete(&key.api_key_encrypted)
+                .map_err(|_| "credential_store_rollback_cleanup_failed".to_string())?;
+            return Err(error);
         }
-
-        RouteStateDao::advance_generation(&tx).map_err(|e| e.to_string())?;
-
-        // 提交事务
-        tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
+        if replace_existing {
+            self.delete_credentials(&existing_keys)?;
+        }
 
         tracing::info!(
             "[ApiKeyProviderService] 成功添加 API Key: provider={}, alias={:?}",
@@ -2820,12 +2555,24 @@ impl ApiKeyProviderService {
         let tx = conn
             .transaction()
             .map_err(|e| format!("开始事务失败: {e}"))?;
+        let key =
+            ApiKeyProviderDao::get_api_key_by_id(&tx, key_id).map_err(|error| error.to_string())?;
         let deleted = ApiKeyProviderDao::delete_api_key(&tx, key_id).map_err(|e| e.to_string())?;
         if deleted {
             RouteStateDao::advance_generation(&tx).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
+        if let Some(key) = key {
+            self.credentials.delete(&key.api_key_encrypted)?;
+        }
         Ok(deleted)
+    }
+
+    fn delete_credentials(&self, keys: &[ApiKeyEntry]) -> Result<(), String> {
+        for key in keys {
+            self.credentials.delete(&key.api_key_encrypted)?;
+        }
+        Ok(())
     }
 
     /// 切换 API Key 启用状态
@@ -2893,11 +2640,9 @@ impl ApiKeyProviderService {
         }
 
         let Some((_selected_key, decrypted)) =
-            self.select_next_decryptable_api_key(&conn, provider_id, &keys)?
+            self.select_next_readable_api_key(provider_id, &keys)?
         else {
-            return Err(format!(
-                "Provider {provider_id} 的所有已启用 API Key 都无法解密"
-            ));
+            return Err("credential_store_read_failed".to_string());
         };
 
         Ok(Some(decrypted))
@@ -2920,11 +2665,9 @@ impl ApiKeyProviderService {
         }
 
         let Some((selected_key, decrypted)) =
-            self.select_next_decryptable_api_key(&conn, provider_id, &keys)?
+            self.select_next_readable_api_key(provider_id, &keys)?
         else {
-            return Err(format!(
-                "Provider {provider_id} 的所有已启用 API Key 都无法解密"
-            ));
+            return Err("credential_store_read_failed".to_string());
         };
 
         Ok(Some((selected_key.id.clone(), decrypted)))
@@ -2972,11 +2715,9 @@ impl ApiKeyProviderService {
         }
 
         let Some((_selected_key, decrypted)) =
-            self.select_next_decryptable_api_key(&conn, provider_id, &keys)?
+            self.select_next_readable_api_key(provider_id, &keys)?
         else {
-            return Err(format!(
-                "Provider {provider_id} 的所有已启用 API Key 都无法解密"
-            ));
+            return Err("credential_store_read_failed".to_string());
         };
 
         Ok(Some((decrypted, provider)))
@@ -3001,11 +2742,9 @@ impl ApiKeyProviderService {
 
         let type_key = format!("type:{provider_type}");
         let Some((selected_key, provider, decrypted)) =
-            self.select_next_decryptable_api_key_with_provider(&conn, &type_key, &keys)?
+            self.select_next_readable_api_key_with_provider(&type_key, &keys)?
         else {
-            return Err(format!(
-                "Provider 类型 {provider_type} 的所有已启用 API Key 都无法解密"
-            ));
+            return Err("credential_store_read_failed".to_string());
         };
 
         Ok(Some((selected_key.id.clone(), decrypted, provider.clone())))
@@ -3017,21 +2756,16 @@ impl ApiKeyProviderService {
         ApiKeyProviderDao::increment_api_key_error(&conn, key_id).map_err(|e| e.to_string())
     }
 
-    // ==================== 加密相关 ====================
+    // ==================== 凭据存储 ====================
 
-    /// 检查 API Key 是否已加密
-    pub fn is_encrypted(&self, value: &str) -> bool {
-        self.encryption.is_encrypted(value)
+    /// 从现役凭据存储读取 API Key；旧 XOR 值不再是运行时来源。
+    pub fn read_api_key(&self, reference: &str) -> Result<String, String> {
+        self.credentials.load(reference)
     }
 
-    /// 解密 API Key（用于 API 调用）
-    pub fn decrypt_api_key(&self, encrypted: &str) -> Result<String, String> {
-        self.encryption.decrypt(encrypted)
-    }
-
-    /// 加密 API Key（用于存储）
-    pub fn encrypt_api_key(&self, plaintext: &str) -> String {
-        self.encryption.encrypt(plaintext)
+    /// 保存 API Key，返回不含秘密的持久化引用。
+    pub fn save_api_key(&self, plaintext: &str) -> Result<String, String> {
+        self.credentials.save(plaintext)
     }
 
     // ==================== UI 状态 ====================
@@ -3188,7 +2922,7 @@ impl ApiKeyProviderService {
     /// 按 durable runtime credential ref 精确读取可执行凭证。
     ///
     /// 精确恢复不参与 round-robin；只有 ref 指向指定且已启用 Provider 下的已启用 Key
-    /// 时才返回凭证。API Key 的读取、迁移和解密仍由本 service 独占。
+    /// 时才返回凭证。API Key 引用的解析和读取仍由本 service 独占。
     pub fn select_runtime_credential_by_ref(
         &self,
         db: &DbConnection,
@@ -3216,7 +2950,7 @@ impl ApiKeyProviderService {
             return Ok(None);
         }
 
-        let api_key = self.decrypt_api_key_entry_with_migration(&conn, &key)?;
+        let api_key = self.read_api_key(&key.api_key_encrypted)?;
         self.convert_provider_to_credential(&provider, &key.id, &api_key)
             .map(Some)
     }
@@ -3441,7 +3175,7 @@ impl ApiKeyProviderService {
             }
 
             let Some((selected_key, api_key)) =
-                self.select_next_decryptable_api_key(&conn, &provider.id, &keys)?
+                self.select_next_readable_api_key(&provider.id, &keys)?
             else {
                 continue;
             };
@@ -3490,7 +3224,10 @@ impl ApiKeyProviderService {
                 Some(p) if p.enabled => {
                     tracing::debug!(
                         "[find_by_provider_id] 找到已启用的 provider: id={}, name={}, api_host={}, type={:?}",
-                        p.id, p.name, p.api_host, p.provider_type
+                        p.id,
+                        p.name,
+                        p.api_host,
+                        p.provider_type
                     );
                     p
                 }
@@ -3533,8 +3270,7 @@ impl ApiKeyProviderService {
         for index in self.next_round_robin_candidate_indices(&provider.id, keys.len())? {
             let candidate_key = &keys[index];
             let api_key = {
-                let conn = lime_core::database::lock_db(db)?;
-                match self.decrypt_api_key_entry_with_migration(&conn, candidate_key) {
+                match self.read_api_key(&candidate_key.api_key_encrypted) {
                     Ok(api_key) => api_key,
                     Err(error) => {
                         self.log_skipped_invalid_api_key(candidate_key, &error);
@@ -4019,3 +3755,7 @@ pub struct ImportResult {
     pub skipped_providers: usize,
     pub errors: Vec<String>,
 }
+
+#[cfg(test)]
+#[path = "api_key_provider_credentials_tests.rs"]
+mod credential_tests;

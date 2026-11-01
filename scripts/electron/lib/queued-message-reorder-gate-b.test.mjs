@@ -1,3 +1,4 @@
+// @vitest-environment node
 import assert from "node:assert/strict";
 import { test as nodeTest } from "node:test";
 import { assertQueuedMessageReorderEvidence } from "./queued-message-reorder-gate-b.mjs";

@@ -129,6 +129,8 @@ export function createTempRuntimeEnv() {
     env: {
       ...process.env,
       HOME: home,
+      LIME_HOME: path.join(home, ".lime"),
+      LIME_CREDENTIALS_STORE: "file",
       XDG_DATA_HOME: xdgDataHome,
       APPDATA: roamingAppData,
       LOCALAPPDATA: localAppData,

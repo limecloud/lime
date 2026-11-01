@@ -10,6 +10,7 @@ import { withNativeSystemPath } from "./lib/native-executable-env.mjs";
 import { resolveRustyV8CargoEnv } from "./lib/rusty-v8-artifacts.mjs";
 import { planQualityTasks, resolveDiffBase } from "./quality-task-planner.mjs";
 import { findFirstResumableBatchIndex } from "./run-vitest-smart.mjs";
+import { withRustTestConfig } from "./run-rust-layer.mjs";
 
 const options = parseArgs(process.argv.slice(2));
 const rootDir = process.cwd();
@@ -92,19 +93,34 @@ function runCommand(command, args) {
     command === cargoCommand
       ? { ...baseEnv, ...resolveRustyV8CargoEnv({ env: baseEnv }) }
       : baseEnv;
-  const result = spawnSync(command, args, {
-    cwd: rootDir,
-    stdio: "inherit",
-    env,
-  });
+  const run = (testEnv) =>
+    spawnSync(command, args, {
+      cwd: rootDir,
+      stdio: "inherit",
+      env: testEnv,
+    });
+  const result =
+    command === cargoCommand && args[0] === "test"
+      ? withRustTestConfig(env, run)
+      : run(env);
 
-  if (typeof result.status === "number" && result.status !== 0) {
-    process.exit(result.status);
+  const status = commandExitStatus(result);
+  if (status !== 0) {
+    process.exit(status);
   }
+}
 
+export function commandExitStatus(result) {
   if (result.error) {
     throw result.error;
   }
+  if (result.signal) {
+    throw new Error(`[local-ci] 子进程被信号 ${result.signal} 中断，校验未完成。`);
+  }
+  if (typeof result.status !== "number") {
+    throw new Error("[local-ci] 子进程未返回退出状态，校验未完成。");
+  }
+  return result.status;
 }
 
 export function frontendTestArgs(state) {

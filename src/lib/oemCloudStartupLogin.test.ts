@@ -39,7 +39,7 @@ describe("oemCloudStartupLogin", () => {
     delete window.__LIME_OEM_CLOUD__;
 
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    mockGetPublicAuthCatalog.mockResolvedValue({
+    mockGetPublicAuthCatalog.mockReset().mockResolvedValue({
       providers: [
         {
           provider: "google",
@@ -54,7 +54,7 @@ describe("oemCloudStartupLogin", () => {
         primaryProvider: "google",
       },
     });
-    mockStartOemCloudLogin.mockResolvedValue({
+    mockStartOemCloudLogin.mockReset().mockResolvedValue({
       mode: "desktop_auth",
       openedUrl: "https://user.limeai.run/oauth/desktop/authorize",
     });

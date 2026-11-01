@@ -112,7 +112,7 @@ describe("run-vitest-layer 运行参数", () => {
         files: ["src/lib/foo.unit.test.ts"],
         env: {},
       }),
-    ).not.toContain("--poolOptions.forks.singleFork");
+    ).not.toContain("--maxWorkers=1");
   });
 
   it("unit 层默认使用 node 环境", () => {
@@ -178,7 +178,7 @@ describe("run-vitest-layer 运行参数", () => {
         files: ["src/lib/foo.test.tsx"],
         env: {},
       }),
-    ).toContain("--poolOptions.forks.singleFork");
+    ).toContain("--maxWorkers=1");
   });
 
   it("unit 层可通过选项或环境变量强制 single fork", () => {

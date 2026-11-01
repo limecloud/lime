@@ -207,5 +207,6 @@
   "errors.reactRenderer.action.retry": "Retry",
   "errors.reactRenderer.action.recompile": "Recompile",
   "errors.reactRenderer.section.sourceContent": "Source content:",
-  "errors.reactRenderer.empty.noComponentContent": "No component content yet"
+  "errors.reactRenderer.empty.noComponentContent": "No component content yet",
+  "errors.providerCredentials.unavailable": "Unable to access Provider credentials. Check storage permissions, or remove the old entry and add the API key again."
 }

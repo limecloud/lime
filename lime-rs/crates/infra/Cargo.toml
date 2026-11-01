@@ -1,7 +1,8 @@
 [package]
 name = "lime-infra"
 version.workspace = true
-edition.workspace = true
+edition = "2024"
+license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
@@ -37,7 +38,31 @@ parking_lot.workspace = true
 dashmap.workspace = true
 dirs.workspace = true
 tiktoken-rs.workspace = true
+anyhow.workspace = true
+base64.workspace = true
+sha2.workspace = true
+regex.workspace = true
+rand = { package = "rand", version = "0.9" }
+age.workspace = true
+keyring = { workspace = true, features = ["crypto-rust"] }
+schemars = "0.8.22"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+secret-service = "4"
+keyring = { workspace = true, features = ["linux-native-async-persistent"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+keyring = { workspace = true, features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61", features = ["Win32_Security", "Win32_Security_Authorization", "Win32_Foundation", "Win32_System_Threading"] }
+keyring = { workspace = true, features = ["windows-native"] }
+
+[target.'cfg(any(target_os = "freebsd", target_os = "openbsd"))'.dependencies]
+keyring = { workspace = true, features = ["sync-secret-service"] }
 
 [dev-dependencies]
 proptest.workspace = true
 tempfile.workspace = true
+pretty_assertions.workspace = true

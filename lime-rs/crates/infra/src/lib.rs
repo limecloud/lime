@@ -7,6 +7,10 @@
 //! - telemetry: 遥测统计
 //!
 pub mod injection;
+#[path = "keyring-store/lib.rs"]
+pub mod keyring_store;
+#[path = "secrets/lib.rs"]
+pub mod secrets;
 pub mod process;
 pub mod proxy;
 pub mod resilience;
@@ -28,3 +32,6 @@ pub use telemetry::{
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
+
+// Provider 文件模式的跨平台权限保护。
+pub mod secure_file;

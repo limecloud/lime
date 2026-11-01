@@ -28,7 +28,9 @@ vi.mock("@/lib/dev-bridge", () => ({
   safeListen: vi.fn(),
 }));
 vi.mock("@/lib/api/appServer", () => ({
-  AppServerClient: vi.fn(() => fsClient),
+  AppServerClient: vi.fn(function () {
+    return fsClient;
+  }),
 }));
 vi.mock("@/lib/api/agentRuntime/threadGoalClient", () => ({
   setThreadGoal: setThreadGoalMock,

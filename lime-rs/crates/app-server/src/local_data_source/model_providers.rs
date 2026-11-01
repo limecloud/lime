@@ -615,7 +615,7 @@ fn provider_to_value(provider: &ApiKeyProvider, api_key_count: usize) -> Value {
 
 fn api_key_to_value(api_key: &ApiKeyEntry, service: &ApiKeyProviderService) -> Value {
     let api_key_masked = service
-        .decrypt_api_key(&api_key.api_key_encrypted)
+        .read_api_key(&api_key.api_key_encrypted)
         .map(|decrypted| mask_api_key(&decrypted))
         .unwrap_or_else(|_| "****".to_string());
     json!({

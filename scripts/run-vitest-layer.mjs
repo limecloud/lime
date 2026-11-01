@@ -132,13 +132,14 @@ export function buildLayerPoolArgs(
   options = {},
   env = process.env,
 ) {
-  if (layer !== "unit" || hasVitestPoolArg(vitestArgs)) {
+  if (hasVitestPoolArg(vitestArgs)) {
     return [];
   }
 
   if (shouldUseSingleFork(layer, options, env)) {
     return ["--pool", "forks"];
   }
+  if (layer !== "unit") return [];
 
   return [
     "--pool",
@@ -167,10 +168,11 @@ export function buildVitestCliArgs({
     "--run",
     "--silent=passed-only",
     "--disableConsoleIntercept",
+    "--reporter=default",
   ];
 
   if (shouldUseSingleFork(layer, options, env)) {
-    args.push("--poolOptions.forks.singleFork");
+    args.push("--maxWorkers=1");
   }
 
   return [

@@ -1026,7 +1026,9 @@ fn insert_image_provider_with_key(db: &DbConnection, provider_id: &str, model: &
     let key = ApiKeyEntry {
         id: format!("{provider_id}-key"),
         provider_id: provider_id.to_string(),
-        api_key_encrypted: ApiKeyProviderService::new().encrypt_api_key("test-key"),
+        api_key_encrypted: ApiKeyProviderService::new()
+            .save_api_key("test-key")
+            .expect("persist fixture credential"),
         alias: None,
         enabled: true,
         usage_count: 0,
@@ -1072,7 +1074,9 @@ fn insert_audio_provider_with_key(db: &DbConnection, provider_id: &str, model: &
     let key = ApiKeyEntry {
         id: format!("{provider_id}-key"),
         provider_id: provider_id.to_string(),
-        api_key_encrypted: ApiKeyProviderService::new().encrypt_api_key("test-key"),
+        api_key_encrypted: ApiKeyProviderService::new()
+            .save_api_key("test-key")
+            .expect("persist fixture credential"),
         alias: None,
         enabled: true,
         usage_count: 0,
@@ -1126,7 +1130,9 @@ fn insert_chat_provider_with_key(db: &DbConnection, provider_id: &str, model: &s
     let key = ApiKeyEntry {
         id: format!("{provider_id}-key"),
         provider_id: provider_id.to_string(),
-        api_key_encrypted: ApiKeyProviderService::new().encrypt_api_key("test-key"),
+        api_key_encrypted: ApiKeyProviderService::new()
+            .save_api_key("test-key")
+            .expect("persist fixture credential"),
         alias: None,
         enabled: true,
         usage_count: 0,
@@ -1177,7 +1183,9 @@ fn insert_video_provider_with_key(
     let key = ApiKeyEntry {
         id: format!("{provider_id}-key"),
         provider_id: provider_id.to_string(),
-        api_key_encrypted: ApiKeyProviderService::new().encrypt_api_key("test-key"),
+        api_key_encrypted: ApiKeyProviderService::new()
+            .save_api_key("test-key")
+            .expect("persist fixture credential"),
         alias: None,
         enabled: true,
         usage_count: 0,
@@ -1228,7 +1236,9 @@ fn insert_xai_video_provider_with_key(
     let key = ApiKeyEntry {
         id: format!("{provider_id}-key"),
         provider_id: provider_id.to_string(),
-        api_key_encrypted: ApiKeyProviderService::new().encrypt_api_key("test-key"),
+        api_key_encrypted: ApiKeyProviderService::new()
+            .save_api_key("test-key")
+            .expect("persist fixture credential"),
         alias: None,
         enabled: true,
         usage_count: 0,

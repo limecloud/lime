@@ -1,0 +1,220 @@
+use std::fmt;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use anyhow::Result;
+use crate::keyring_store::DefaultKeyringStore;
+use crate::keyring_store::KeyringStore;
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde::Serialize;
+use sha2::Digest;
+use sha2::Sha256;
+
+mod local;
+mod sanitizer;
+
+pub use local::LocalSecretsBackend;
+pub use local::LocalSecretsNamespace;
+pub use sanitizer::redact_secrets;
+
+const KEYRING_SERVICE: &str = "lime";
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SecretName(String);
+
+impl SecretName {
+    pub fn new(raw: &str) -> Result<Self> {
+        let trimmed = raw.trim();
+        anyhow::ensure!(!trimmed.is_empty(), "secret name must not be empty");
+        anyhow::ensure!(
+            trimmed
+                .chars()
+                .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_'),
+            "secret name must contain only A-Z, 0-9, or _"
+        );
+        Ok(Self(trimmed.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for SecretName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SecretScope {
+    Global,
+    Environment(String),
+}
+
+impl SecretScope {
+    pub fn environment(environment_id: impl Into<String>) -> Result<Self> {
+        let env_id = environment_id.into();
+        let trimmed = env_id.trim();
+        anyhow::ensure!(!trimmed.is_empty(), "environment id must not be empty");
+        Ok(Self::Environment(trimmed.to_string()))
+    }
+
+    pub fn canonical_key(&self, name: &SecretName) -> String {
+        // Stable, env-safe identifier used as the on-disk map key.
+        match self {
+            Self::Global => format!("global/{}", name.as_str()),
+            Self::Environment(environment_id) => {
+                format!("env/{environment_id}/{}", name.as_str())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecretListEntry {
+    pub scope: SecretScope,
+    pub name: SecretName,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SecretsBackendKind {
+    #[default]
+    Local,
+}
+
+pub trait SecretsBackend: Send + Sync {
+    fn set(&self, scope: &SecretScope, name: &SecretName, value: &str) -> Result<()>;
+    fn get(&self, scope: &SecretScope, name: &SecretName) -> Result<Option<String>>;
+    fn delete(&self, scope: &SecretScope, name: &SecretName) -> Result<bool>;
+    fn list(&self, scope_filter: Option<&SecretScope>) -> Result<Vec<SecretListEntry>>;
+}
+
+#[derive(Clone)]
+pub struct SecretsManager {
+    backend: Arc<dyn SecretsBackend>,
+}
+
+impl SecretsManager {
+    pub fn new(lime_home: PathBuf, backend_kind: SecretsBackendKind) -> Self {
+        let backend: Arc<dyn SecretsBackend> = match backend_kind {
+            SecretsBackendKind::Local => {
+                let keyring_store: Arc<dyn KeyringStore> = Arc::new(DefaultKeyringStore);
+                Arc::new(LocalSecretsBackend::new(lime_home, keyring_store))
+            }
+        };
+        Self { backend }
+    }
+
+    pub fn new_with_keyring_store(
+        lime_home: PathBuf,
+        backend_kind: SecretsBackendKind,
+        keyring_store: Arc<dyn KeyringStore>,
+    ) -> Self {
+        let backend: Arc<dyn SecretsBackend> = match backend_kind {
+            SecretsBackendKind::Local => {
+                Arc::new(LocalSecretsBackend::new(lime_home, keyring_store))
+            }
+        };
+        Self { backend }
+    }
+
+    pub fn new_with_keyring_store_and_namespace(
+        lime_home: PathBuf,
+        backend_kind: SecretsBackendKind,
+        keyring_store: Arc<dyn KeyringStore>,
+        namespace: LocalSecretsNamespace,
+    ) -> Self {
+        let backend: Arc<dyn SecretsBackend> = match backend_kind {
+            SecretsBackendKind::Local => Arc::new(LocalSecretsBackend::new_with_namespace(
+                lime_home,
+                keyring_store,
+                namespace,
+            )),
+        };
+        Self { backend }
+    }
+
+    pub fn set(&self, scope: &SecretScope, name: &SecretName, value: &str) -> Result<()> {
+        self.backend.set(scope, name, value)
+    }
+
+    pub fn get(&self, scope: &SecretScope, name: &SecretName) -> Result<Option<String>> {
+        self.backend.get(scope, name)
+    }
+
+    pub fn delete(&self, scope: &SecretScope, name: &SecretName) -> Result<bool> {
+        self.backend.delete(scope, name)
+    }
+
+    pub fn list(&self, scope_filter: Option<&SecretScope>) -> Result<Vec<SecretListEntry>> {
+        self.backend.list(scope_filter)
+    }
+}
+
+/// Computes the OS keyring account name used to store a local namespace's passphrase.
+/// Existing namespaces retain their shared key; gateway credentials use an independent key.
+pub fn compute_keyring_account(lime_home: &Path, namespace: LocalSecretsNamespace) -> String {
+    let canonical = lime_home
+        .canonicalize()
+        .unwrap_or_else(|_| lime_home.to_path_buf())
+        .to_string_lossy()
+        .into_owned();
+    let mut hasher = Sha256::new();
+    hasher.update(canonical.as_bytes());
+    let digest = hasher.finalize();
+    let hex = format!("{digest:x}");
+    let short = hex.get(..16).unwrap_or(hex.as_str());
+    let home_account = format!("secrets|{short}");
+    // Separate keys also prevent concurrent first writes to the gateway and primary
+    // stores from overwriting each other's newly generated encryption key.
+    match namespace {
+        LocalSecretsNamespace::GatewayOAuth => format!("{home_account}|gateway-oauth"),
+        LocalSecretsNamespace::ManagedSecrets
+        | LocalSecretsNamespace::LimeAuth
+        | LocalSecretsNamespace::McpOAuth => home_account,
+    }
+}
+
+pub(crate) fn keyring_service() -> &'static str {
+    KEYRING_SERVICE
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::secrets::local::SECRETS_CACHE_TEST_LOCK;
+    use crate::keyring_store::tests::MockKeyringStore;
+    use pretty_assertions::assert_eq;
+    use std::sync::PoisonError;
+
+    #[test]
+    fn manager_round_trips_local_backend() -> Result<()> {
+        let _cache_lock = SECRETS_CACHE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let lime_home = tempfile::tempdir().expect("tempdir");
+        let keyring = Arc::new(MockKeyringStore::default());
+        let manager = SecretsManager::new_with_keyring_store(
+            lime_home.path().to_path_buf(),
+            SecretsBackendKind::Local,
+            keyring,
+        );
+        let scope = SecretScope::Global;
+        let name = SecretName::new("GITHUB_TOKEN")?;
+
+        manager.set(&scope, &name, "token-1")?;
+        assert_eq!(manager.get(&scope, &name)?, Some("token-1".to_string()));
+
+        let listed = manager.list(/*scope_filter*/ None)?;
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].name, name);
+
+        assert!(manager.delete(&scope, &name)?);
+        assert_eq!(manager.get(&scope, &name)?, None);
+        Ok(())
+    }
+}

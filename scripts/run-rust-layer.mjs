@@ -63,12 +63,18 @@ export function resolveRustTestEnv(
 }
 
 export function withRustTestConfig(env, run) {
-  if (env.LIME_CONFIG_PATH?.trim()) return run(env);
+  if (env.LIME_REAL_API_TEST === "1" || env.PROXYCAST_REAL_API_TEST === "1")
+    return run(env);
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lime-rust-config-"));
   try {
     const configPath = path.join(directory, "config.yaml");
     fs.writeFileSync(configPath, "{}\n", { flag: "wx", mode: 0o600 });
-    return run({ ...env, LIME_CONFIG_PATH: configPath });
+    return run({
+      ...env,
+      LIME_CONFIG_PATH: env.LIME_CONFIG_PATH?.trim() || configPath,
+      LIME_CREDENTIALS_STORE: "file",
+      LIME_HOME: path.join(directory, "lime"),
+    });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

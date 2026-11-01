@@ -8,6 +8,7 @@
  */
 
 import { AppServerClient } from "@/lib/api/appServer";
+import i18n from "i18next";
 import type { ProviderDeclaredPromptCacheMode } from "@/lib/types/provider";
 import {
   METHOD_MODEL_PROVIDER_CATALOG_LIST,
@@ -73,7 +74,8 @@ function cloneProviderModel(model: ProviderModelConfig): ProviderModelConfig {
                   ? {
                       ...capability.capabilities.reasoningEffort,
                       levels: [
-                        ...(capability.capabilities.reasoningEffort.levels ?? []),
+                        ...(capability.capabilities.reasoningEffort.levels ??
+                          []),
                       ],
                       options: (
                         capability.capabilities.reasoningEffort.options ?? []
@@ -129,8 +131,22 @@ async function requestApiKeyProviderAppServer<T>(
   params: unknown,
   appServerClient: ApiKeyProviderAppServerClient = new AppServerClient(),
 ): Promise<T> {
-  const response = await appServerClient.request<T>(method, params);
-  return response.result;
+  try {
+    const response = await appServerClient.request<T>(method, params);
+    return response.result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      /\bcredential_(?:store_[a-z_]+|reference_invalid|not_found|value_empty)\b/.test(
+        message,
+      )
+    ) {
+      throw new Error(
+        i18n.t("errors.providerCredentials.unavailable", { ns: "errors" }),
+      );
+    }
+    throw error;
+  }
 }
 
 function cloneProviderList(

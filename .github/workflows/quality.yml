@@ -98,6 +98,31 @@ jobs:
       - name: Verify app version consistency
         run: npm run verify:app-version
 
+  dependency_review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    needs: changed
+    if: ${{ needs.changed.outputs.docs_only != 'true' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install locked JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit JavaScript production dependencies
+        run: npm run audit:js
+      - name: Audit Rust licenses, advisories and sources
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@9c67a826e39827395bfa619cd85cb2aaeb43cfaa # verified cargo-deny action revision
+        with:
+          rust-version: 1.95.0
+          manifest-path: ./lime-rs/Cargo.toml
+          arguments: --config ./lime-rs/deny.toml
+
   frontend:
     name: Frontend Quick
     runs-on: ubuntu-latest
@@ -329,6 +354,8 @@ jobs:
 
       - name: Test Rust workspace
         env:
+          LIME_CREDENTIALS_STORE: file
+          LIME_HOME: ${{ runner.temp }}/rust-full/lime
           TMPDIR: ${{ runner.temp }}/rust-full
           TEMP: ${{ runner.temp }}/rust-full
           TMP: ${{ runner.temp }}/rust-full
@@ -417,6 +444,7 @@ jobs:
       - changed
       - architecture_confirmation
       - integrity
+      - dependency_review
       - frontend
       - frontend_full
       - bridge_contracts
@@ -489,6 +517,11 @@ jobs:
           echo "rust_quick  : ${RUST_RESULT}"
           echo "rust_full   : ${RUST_FULL_RESULT}"
           echo "windows_shell_runtime: ${WINDOWS_SHELL_RESULT}"
+
+          if [[ '${{ needs.dependency_review.result }}' == 'failure' || '${{ needs.dependency_review.result }}' == 'cancelled' ]]; then
+            echo "Dependency review failed; inspect the dependency_review job."
+            exit 1
+          fi
 
           FINAL_STATUS="success"
           FAILURE_REASON=""

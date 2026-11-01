@@ -18,22 +18,24 @@ const {
   const loadUrlMock = vi.fn();
   const showWindowMock = vi.fn();
   const focusWindowMock = vi.fn();
-  const browserWindowCtorMock = vi.fn(() => ({
-    focus: focusWindowMock,
-    isDestroyed: () => false,
-    loadURL: loadUrlMock,
-    off: vi.fn(),
-    on: vi.fn(),
-    once: vi.fn((event: string, callback: () => void) => {
-      if (event === "ready-to-show") {
-        callback();
-      }
-    }),
-    show: showWindowMock,
-    webContents: {
-      getURL: () => "",
-    },
-  }));
+  const browserWindowCtorMock = vi.fn(function () {
+    return {
+      focus: focusWindowMock,
+      isDestroyed: () => false,
+      loadURL: loadUrlMock,
+      off: vi.fn(),
+      on: vi.fn(),
+      once: vi.fn((event: string, callback: () => void) => {
+        if (event === "ready-to-show") {
+          callback();
+        }
+      }),
+      show: showWindowMock,
+      webContents: {
+        getURL: () => "",
+      },
+    };
+  });
   const browserWindowGetAllWindowsMock = vi.fn((): MockBrowserWindow[] => []);
   return {
     browserWindowCtorMock,

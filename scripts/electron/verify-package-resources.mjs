@@ -182,6 +182,19 @@ export function verifyResourceRoot(
   root,
   { platform, arch, execFileSyncImpl = execFileSync },
 ) {
+  for (const material of [
+    "LICENSE",
+    "NOTICE",
+    "LICENSES.md",
+    "licenses/Apache-2.0.txt",
+    "licenses/OpenAI-NOTICE.txt",
+    "licenses/SpaceXAI-LICENSE.txt",
+  ]) {
+    assertFile(path.join(root, material), `license material ${material}`);
+    if (statSync(path.join(root, material)).size === 0) {
+      throw new Error(`license material is empty: ${material}`);
+    }
+  }
   const manifestPath = path.join(root, "app-server.release.json");
   const desktopManifestPath = path.join(root, DESKTOP_RESOURCES_MANIFEST_NAME);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -386,7 +399,9 @@ function verifyDesktopResourceManifest(
         !signedMacNativeHost ||
         (id !== "macos-native-host" && id !== "desktop-permissions") ||
         !isMacCodeSigned(
-          id === "macos-native-host" ? signedMacNativeHostPath ?? resourcePath : resourcePath,
+          id === "macos-native-host"
+            ? (signedMacNativeHostPath ?? resourcePath)
+            : resourcePath,
           execFileSyncImpl,
         )
       ) {
@@ -656,7 +671,9 @@ function expectedDesktopResourcePath(id, key, platform) {
         ? `app-server/${key}/windows-sandbox-setup.exe`
         : null;
     case "desktop-permissions":
-      return platform === "darwin" ? "native/macos/desktop-permissions.node" : null;
+      return platform === "darwin"
+        ? "native/macos/desktop-permissions.node"
+        : null;
     case "windows-sandbox-runner":
       return platform === "win32"
         ? `app-server/${key}/windows-sandbox-runner.exe`

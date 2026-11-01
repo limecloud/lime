@@ -207,5 +207,6 @@
   "errors.reactRenderer.action.retry": "重試",
   "errors.reactRenderer.action.recompile": "重新編譯",
   "errors.reactRenderer.section.sourceContent": "原始碼內容：",
-  "errors.reactRenderer.empty.noComponentContent": "目前沒有元件內容"
+  "errors.reactRenderer.empty.noComponentContent": "目前沒有元件內容",
+  "errors.providerCredentials.unavailable": "無法存取 Provider 憑證。請檢查儲存權限，或刪除舊項目後重新新增 API Key。"
 }

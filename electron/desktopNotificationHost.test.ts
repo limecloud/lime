@@ -8,7 +8,7 @@ const {
 } = vi.hoisted(() => {
   const notificationOptions: unknown[] = [];
   const notificationShowMock = vi.fn();
-  const notificationCtorMock = vi.fn((options: unknown) => {
+  const notificationCtorMock = vi.fn(function (options: unknown) {
     notificationOptions.push(options);
     return {
       show: notificationShowMock,
@@ -34,7 +34,7 @@ import { showDesktopNotification } from "./desktopNotificationHost";
 describe("showDesktopNotification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    notificationCtorMock.mockImplementation((options: unknown) => {
+    notificationCtorMock.mockImplementation(function (options: unknown) {
       notificationOptions.push(options);
       return {
         show: notificationShowMock,
@@ -104,7 +104,7 @@ describe("showDesktopNotification", () => {
   });
 
   it("通知构造或 show 失败时返回 failed", () => {
-    notificationCtorMock.mockImplementationOnce(() => {
+    notificationCtorMock.mockImplementationOnce(function () {
       throw new Error("notification blocked");
     });
 

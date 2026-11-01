@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "@/i18n/config";
 import { safeInvoke } from "@/lib/dev-bridge";
 import {
   apiKeyProviderApi,
@@ -10,9 +11,9 @@ import {
 const appServerRequestMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/appServer", () => ({
-  AppServerClient: vi.fn(() => ({
-    request: appServerRequestMock,
-  })),
+  AppServerClient: vi.fn(function () {
+    return { request: appServerRequestMock };
+  }),
 }));
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -396,4 +397,27 @@ describe("apiKeyProvider API", () => {
     expectAppServerRequest(3, "modelProvider/list", {});
     expect(safeInvoke).not.toHaveBeenCalled();
   });
+});
+
+describe("Provider credential errors", () => {
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "uses localized credential errors for %s",
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      appServerRequestMock.mockRejectedValueOnce(
+        new Error("credential_store_write_failed"),
+      );
+      await expect(
+        apiKeyProviderApi.addApiKey({
+          provider_id: "fixture",
+          api_key: "fixture",
+        }),
+      ).rejects.toThrow(
+        i18n.t("errors.providerCredentials.unavailable", { ns: "errors" }),
+      );
+      expect(
+        i18n.t("errors.providerCredentials.unavailable", { ns: "errors" }),
+      ).not.toContain("errors.");
+    },
+  );
 });

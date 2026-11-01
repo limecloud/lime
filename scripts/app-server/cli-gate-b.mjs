@@ -444,6 +444,8 @@ async function isolatedEnvironment(tempDir) {
   const environment = {
     ...process.env,
     HOME: home,
+    LIME_HOME: path.join(home, ".lime"),
+    LIME_CREDENTIALS_STORE: "file",
     XDG_CONFIG_HOME: path.join(tempDir, "xdg-config"),
     XDG_DATA_HOME: path.join(tempDir, "xdg-data"),
     APPDATA: appData,

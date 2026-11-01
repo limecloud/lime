@@ -243,12 +243,14 @@ No. Describe the goal, constraints, context, and acceptance criteria. Reusable p
 
 ---
 
+Build from source and contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities: [SECURITY.md](SECURITY.md).
+
 ## License
 
-[GNU General Public License v3 (GPLv3)](https://www.gnu.org/licenses/gpl-3.0)
+[GPL-3.0-only](LICENSE). Component licenses and distribution scope: [LICENSES.md](LICENSES.md).
 
 ## Disclaimer
 
-This project is provided for learning and research purposes only. Users are responsible for their own use and risk.
+Lime is provided as is, without warranty, under its applicable licenses. Users are responsible for their configuration and use.
 
 Lime does not directly provide AI model services. Model capabilities are provided by third-party AI service providers configured by the user.

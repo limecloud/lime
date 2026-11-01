@@ -36,7 +36,7 @@
     "README.md"
   ],
   "dependencies": {
-    "ws": "^8.18.3"
+    "ws": "^8.21.0"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

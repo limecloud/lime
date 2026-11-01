@@ -1,10 +1,10 @@
 import {
-  Inputbar,
   mountedRoots,
   renderInputbar,
   expectInputbarSend,
   mockInputbarCore,
 } from "./Inputbar.testFixtures";
+import { Inputbar } from "./index";
 import React from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";

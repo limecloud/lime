@@ -8,7 +8,6 @@ import os from "node:os";
 import { ElectronBrowserTabHost, type BrowserToolCall } from "./browserTabHost";
 import type { BrowserHistoryHost } from "./browserHistoryHost";
 import type { BrowserTabNavigation } from "./browserTabNavigation";
-export { isBrowserTabCommand } from "./browserTabHost";
 
 const {
   clipboardReadTextMock,

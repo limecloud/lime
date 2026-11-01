@@ -12,7 +12,9 @@ vi.mock("@/lib/dev-bridge", () => ({
 }));
 
 vi.mock("@/lib/api/appServer", () => ({
-  AppServerClient: vi.fn(() => appServerMock),
+  AppServerClient: vi.fn(function () {
+    return appServerMock;
+  }),
 }));
 
 describe("capabilityDraftsApi", () => {

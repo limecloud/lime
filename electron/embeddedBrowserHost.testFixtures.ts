@@ -114,57 +114,59 @@ const {
     menuPopupMock,
     webContentsEventHandlers,
     webContentsState,
-    webContentsViewCtorMock: vi.fn(() => ({
-      setBackgroundColor: vi.fn(),
-      setBounds: setBoundsMock,
-      setVisible: setVisibleMock,
-      webContents: {
-        enableDeviceEmulation: vi.fn(),
-        disableDeviceEmulation: vi.fn(),
-        close: closeMock,
-        copyImageAt: copyImageAtMock,
-        downloadURL: downloadUrlMock,
-        findInPage: findInPageMock,
-        getTitle: () => webContentsState.title,
-        getURL: () => webContentsState.url,
-        getZoomFactor: getZoomFactorMock,
-        isDestroyed: () => webContentsState.destroyed,
-        isLoading: () => webContentsState.isLoading,
-        isAudioMuted: () => webContentsState.audioMuted,
-        setAudioMuted: (muted: boolean) => {
-          webContentsState.audioMuted = muted;
-        },
-        loadURL: loadUrlMock,
-        navigationHistory: {
-          canGoBack: () => false,
-          canGoForward: () => false,
-          goBack: vi.fn(),
-          goForward: vi.fn(),
-        },
-        on: vi.fn(
-          (eventName: string, handler: (...args: unknown[]) => void) => {
-            const handlers = webContentsEventHandlers.get(eventName) || [];
-            handlers.push(handler);
-            webContentsEventHandlers.set(eventName, handlers);
+    webContentsViewCtorMock: vi.fn(function () {
+      return {
+        setBackgroundColor: vi.fn(),
+        setBounds: setBoundsMock,
+        setVisible: setVisibleMock,
+        webContents: {
+          enableDeviceEmulation: vi.fn(),
+          disableDeviceEmulation: vi.fn(),
+          close: closeMock,
+          copyImageAt: copyImageAtMock,
+          downloadURL: downloadUrlMock,
+          findInPage: findInPageMock,
+          getTitle: () => webContentsState.title,
+          getURL: () => webContentsState.url,
+          getZoomFactor: getZoomFactorMock,
+          isDestroyed: () => webContentsState.destroyed,
+          isLoading: () => webContentsState.isLoading,
+          isAudioMuted: () => webContentsState.audioMuted,
+          setAudioMuted: (muted: boolean) => {
+            webContentsState.audioMuted = muted;
           },
-        ),
-        off: vi.fn(
-          (eventName: string, handler: (...args: unknown[]) => void) => {
-            const handlers = webContentsEventHandlers.get(eventName) || [];
-            webContentsEventHandlers.set(
-              eventName,
-              handlers.filter((item) => item !== handler),
-            );
+          loadURL: loadUrlMock,
+          navigationHistory: {
+            canGoBack: () => false,
+            canGoForward: () => false,
+            goBack: vi.fn(),
+            goForward: vi.fn(),
           },
-        ),
-        reload: reloadMock,
-        setZoomFactor: setZoomFactorMock,
-        stop: stopMock,
-        stopFindInPage: stopFindInPageMock,
-        setUserAgent: setWebContentsUserAgentMock,
-        setWindowOpenHandler: setWindowOpenHandlerMock,
-      },
-    })),
+          on: vi.fn(
+            (eventName: string, handler: (...args: unknown[]) => void) => {
+              const handlers = webContentsEventHandlers.get(eventName) || [];
+              handlers.push(handler);
+              webContentsEventHandlers.set(eventName, handlers);
+            },
+          ),
+          off: vi.fn(
+            (eventName: string, handler: (...args: unknown[]) => void) => {
+              const handlers = webContentsEventHandlers.get(eventName) || [];
+              webContentsEventHandlers.set(
+                eventName,
+                handlers.filter((item) => item !== handler),
+              );
+            },
+          ),
+          reload: reloadMock,
+          setZoomFactor: setZoomFactorMock,
+          stop: stopMock,
+          stopFindInPage: stopFindInPageMock,
+          setUserAgent: setWebContentsUserAgentMock,
+          setWindowOpenHandler: setWindowOpenHandlerMock,
+        },
+      };
+    }),
     setWindowOpenHandlerMock,
     shellOpenExternalMock,
     stopMock,

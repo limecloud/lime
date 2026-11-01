@@ -91,6 +91,7 @@ function renderHook(props?: Partial<HookProps>) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   (
     globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;

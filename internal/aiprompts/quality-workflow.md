@@ -44,8 +44,8 @@ Desktop Host / CLI-TUI Host
 | legacy/dead surface 删除                           | `npm run governance:legacy-report` + 相关负向回流守卫                                                                   |
 
 默认本地入口是 `npm run verify:local`。需要完整本地门禁时使用 `npm run verify:local:full`。前端全量测试中断后使用 `npm run test:resume`，不要从第一批无差别重跑。
-Rust 分层测试入口默认通过独立临时 `LIME_CONFIG_PATH` 运行，结束后清理，避免读取或改写开发者配置；显式传入该变量时保留调用方夹具。直接运行 `cargo test` 时需自行提供隔离配置，不能把本机配置污染导致的失败改成生产静默 fallback。
-`verify:local` 进入前端测试前同样读取既有 Vitest 状态；存在失败、中断、运行中或未完成批次时委托 `npm test -- --resume`。完成态不能作为新源码的测试缓存，无未完成批次时仍运行新一轮；损坏状态显式失败。标准和 smoke Vitest 配置都排除 `.lime` 生成产物，发布候选副本不参与源码测试发现。
+Rust 分层测试入口和本地门禁的 Cargo 测试默认通过独立临时 `LIME_CONFIG_PATH`、`LIME_HOME` 和显式 `LIME_CREDENTIALS_STORE=file` 运行，结束后清理，避免读取或改写开发者配置与系统密钥库；显式传入配置路径时保留该文件，凭据仍隔离。显式 live 测试保留调用方环境。直接运行 `cargo test` 时需自行提供隔离配置与凭据环境；真实 OS keyring 测试使用独立随机身份并自行清理，不能把本机配置污染导致的失败改成生产静默 fallback。
+`verify:local` 进入前端测试前同样读取既有 Vitest 状态；存在失败、中断、运行中或未完成批次时委托 `npm test -- --resume`。完成态不能作为新源码的测试缓存，无未完成批次时仍运行新一轮；损坏状态显式失败。子进程被信号中断、启动失败或未返回退出状态时，聚合门禁必须失败；后续单项通过不能覆盖已中断阶段。标准和 smoke Vitest 配置都排除 `.lime` 生成产物，发布候选副本不参与源码测试发现。
 续跑复用当前测试发现与live过滤，新增文件追加pending批次，保留旧批次与失败起点并跳过已passed批次。它不按源码摘要失效旧通过结果；续跑期间改动已通过的测试或其owner时，另跑受影响定向回归并记录证据。
 
 Agent / GUI 主链实现前，在执行计划填写 [Agent Verification Contract](../exec-plans/templates/agent-verification-contract.md)。先定向验证，再运行受影响 current fixture、GUI smoke 与默认本地门禁；新改动、失败或未关闭风险才触发扩大或重跑。

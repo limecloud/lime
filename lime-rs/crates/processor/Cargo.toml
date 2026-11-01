@@ -1,6 +1,7 @@
 [package]
 name = "lime-processor"
 version.workspace = true
+license.workspace = true
 edition.workspace = true
 authors.workspace = true
 

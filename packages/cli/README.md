@@ -179,3 +179,7 @@ python3 scripts/build_npm_package.py \
 ```
 
 平台包使用 `--package lime-<platform>-<arch> --vendor-src <vendor-root>` staging。`vendor-root` 必须使用 `vendor/<target-triple>/bin` 布局并包含完整 runtime payload。发布工作流先串行发布四个平台版本，最后发布 `@limecloud/lime` 根版本。
+
+## Licenses
+
+The JavaScript launcher combines Apache-2.0 Codex-derived code and MIT Lime portions; see LICENSE and NOTICE. Platform packages contain the GPL-3.0-only Rust product and carry their own license materials.

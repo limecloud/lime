@@ -140,9 +140,9 @@ lime exec \
 
 ## 开源协议
 
-[GNU General Public License v3 (GPLv3)](https://www.gnu.org/licenses/gpl-3.0)
+[GPL-3.0-only](LICENSE)，组件授权与分发范围见 [LICENSES.md](LICENSES.md)。
 
-本项目仅供学习研究使用，用户需自行承担使用风险。模型能力由用户配置的第三方服务提供。
+本项目按适用许可证以“现状”提供，不提供担保；用户对自己的配置和使用负责。模型能力由用户配置的第三方服务提供。
 
 ---
 
@@ -155,3 +155,5 @@ lime exec \
 扫码加微信，备注 `Lime`，拉你进群讨论。
 
 </div>
+
+源码启动与贡献见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全问题见 [SECURITY.md](SECURITY.md)。

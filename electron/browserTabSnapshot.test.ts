@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  createHarness,
-  isBrowserTabCommand,
-  mount,
-} from "./browserTabHost.testHarness";
+import { createHarness, mount } from "./browserTabHost.testHarness";
+import { isBrowserTabCommand } from "./browserTabCommands";
 import { resolveBrowserTabOwnerWindow } from "./browserTabSnapshot";
 
 const scope = { browserSessionId: "browser-session-1", threadId: "thread-1" };

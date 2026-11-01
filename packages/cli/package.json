@@ -1,6 +1,6 @@
 {
   "name": "@limecloud/lime",
-  "version": "1.172.0",
+  "version": "1.173.0",
   "packageManager": "pnpm@9.15.9",
   "description": "Lime CLI is an agent that runs in your terminal.",
   "bin": {
@@ -19,9 +19,11 @@
     "url": "git+https://github.com/limecloud/lime.git",
     "directory": "packages/cli"
   },
-  "license": "MIT",
+  "license": "Apache-2.0 AND MIT",
   "files": [
     "bin/lime.js",
-    "exec-events.schema.json"
+    "exec-events.schema.json",
+    "LICENSE",
+    "NOTICE"
   ]
 }

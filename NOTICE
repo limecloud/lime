@@ -1,0 +1,14 @@
+Lime
+https://github.com/limecloud/lime
+
+Lime is distributed under GPL-3.0-only, except for components with an explicit
+license of their own. See LICENSES.md and the notices under licenses/.
+
+This product includes software developed by OpenAI (https://openai.com/).
+Codex-derived sources retain their Apache-2.0 license and required notices.
+See licenses/Apache-2.0.txt and licenses/OpenAI-NOTICE.txt.
+
+The secure_file module is derived from Grok-build, copyright 2023-2026 SpaceXAI,
+under Apache-2.0. See licenses/SpaceXAI-LICENSE.txt.
+
+These acknowledgments identify source provenance and do not imply endorsement.

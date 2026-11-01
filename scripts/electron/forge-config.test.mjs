@@ -255,11 +255,19 @@ describe("Electron Forge config", () => {
       "node_modules/.pnpm/echarts/package.json",
     ]) {
       expect(ignorePackagerInput(dependencyPath)).toBe(true);
-      expect(ignorePackagerInput(`${process.cwd()}/${dependencyPath}`)).toBe(true);
+      expect(ignorePackagerInput(`${process.cwd()}/${dependencyPath}`)).toBe(
+        true,
+      );
     }
     expect(
       ignorePackagerInput(`${process.cwd()}/scripts/electron/smoke.mjs`),
     ).toBe(true);
+  });
+
+  it("includes the product and upstream license material", () => {
+    for (const resource of ["LICENSE", "NOTICE", "LICENSES.md", "licenses"]) {
+      expect(forgeConfig.packagerConfig.extraResource).toContain(resource);
+    }
   });
 
   it("packages the bundled Plugin marketplace beside the app-server resources", () => {

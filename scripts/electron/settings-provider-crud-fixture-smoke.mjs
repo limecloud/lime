@@ -68,7 +68,7 @@ async function startProviderAuthFixture() {
     unauthorizedRequestCount: 0,
     authorizedRequestCount: 0,
   };
-  const server = http.createServer((request, response) => {
+  const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://127.0.0.1");
     const isModelsRequest =
       request.method === "GET" && url.pathname === "/v1/models";
@@ -91,7 +91,33 @@ async function startProviderAuthFixture() {
 
     state.authorizedRequestCount += 1;
     if (isChatRequest) {
-      request.resume();
+      let body = "";
+      for await (const chunk of request) body += chunk;
+      let streaming = false;
+      try {
+        streaming = JSON.parse(body).stream === true;
+      } catch {
+        jsonResponse(response, 400, {
+          error: { message: "invalid fixture request" },
+        });
+        return;
+      }
+      if (streaming) {
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        const chunk = (delta, finishReason) => ({
+          id: "chatcmpl-settings-fixture",
+          object: "chat.completion.chunk",
+          created: 1_770_000_000,
+          model: FIXTURE_MODEL,
+          choices: [{ index: 0, delta, finish_reason: finishReason }],
+        });
+        response.end(
+          `data: ${JSON.stringify(chunk({ role: "assistant", content: "READY" }, null))}\n\n` +
+            `data: ${JSON.stringify(chunk({}, "stop"))}\n\n` +
+            "data: [DONE]\n\n",
+        );
+        return;
+      }
       jsonResponse(response, 200, {
         id: "chatcmpl-settings-fixture",
         object: "chat.completion",
@@ -171,6 +197,7 @@ async function waitForFixtureRequests(state, key, minimum, options) {
 
 async function openProviderSettings(page, options) {
   await openSettings(page, options);
+  await page.getByTestId("settings-sidebar-tab-providers").click();
   await page.locator('[data-testid="provider-settings-title"]').waitFor({
     state: "visible",
     timeout: Math.min(options.timeoutMs, 45_000),
@@ -252,7 +279,11 @@ async function waitForSuccessTone(locator, options, message) {
   while (Date.now() - startedAt < Math.min(options.timeoutMs, 45_000)) {
     if (await locator.isVisible().catch(() => false)) {
       const className = (await locator.getAttribute("class")) || "";
-      if (className.includes("emerald")) return;
+      if (
+        className.includes("emerald") ||
+        className.includes("var(--lime-success)")
+      )
+        return;
     }
     await sleep(options.intervalMs);
   }
@@ -524,8 +555,12 @@ async function run() {
         fixture.state.unauthorizedRequestCount > 0 &&
         fixture.state.authorizedRequestCount > 0,
       modelSelected:
-        configured.provider?.models?.some((model) => model?.id === FIXTURE_MODEL) === true &&
-        recovered.provider?.models?.some((model) => model?.id === FIXTURE_MODEL) === true,
+        configured.provider?.models?.some(
+          (model) => model?.id === FIXTURE_MODEL,
+        ) === true &&
+        recovered.provider?.models?.some(
+          (model) => model?.id === FIXTURE_MODEL,
+        ) === true,
       connectionReady,
       restartReadback: Boolean(recovered.provider),
       guiDeleted: trace.methods.includes("modelProvider/delete"),

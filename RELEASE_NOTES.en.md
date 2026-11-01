@@ -1,37 +1,34 @@
-## Lime v1.172.0
+## Lime v1.173.0
 
 Simplified Chinese release notes are the primary version.
 
 ### Features
 
-- Add desktop permission setup with status checks, system settings shortcuts, and rechecks; reopen setup from settings, with all five interface languages covered.
-- Support policy-controlled persistent Computer Use approvals for native apps and WPS, with target validation across sessions and turns.
+- Encrypt Provider credentials with a random passphrase held in the system keyring. Environments without a keyring can explicitly select storage protected by file permissions.
 
 ### Fixes
 
-- Fix lost browser navigation state, repeated mounts overwriting the current page, and native image display.
-- Keep image generation tools open until the actual task result is available, propagate cancellation and timeouts, and share media projection between live messages and history recovery.
-- Improve MCP tool display and message grouping, preserving server identity and separate tool entries while reducing repeated protocol content.
-- Improve native input, cursor presentation, and user intervention handling on macOS and Windows.
+- Remove the legacy XOR credential format and machine-derived fixed keys. Legacy credentials must be removed and entered again; storage failures are reported explicitly.
+- Improve multi-Provider and multi-key save, reopen, and delete flows, concurrent-write locking, and failure compensation.
 
 ### Improvements and Refactoring
 
-- Consolidate native, Chrome, and Office Computer Use execution boundaries; remove the retired Chrome Bridge service and duplicate command entries.
-- Package Electron JavaScript bundles and explicit native resources, validating the runtime dependency closure before packaging.
+- Remove unused Fabric and React Router dependencies and update production dependencies to address identified critical/high advisories.
+- Migrate to Vitest 4 and Vite 6, adapting isolation, constructor mocks, and shared test fixtures.
 
 ### Tests and Quality
 
-- Add regression coverage for browser navigation recovery, desktop permissions, media projection, persistent approvals, and native hosts.
-- Remove obsolete chat fixtures, synthetic scenario backends, and related logic; share lean infrastructure across current recovery, draft, and browser tests.
-- Update Electron, CLI, Computer Use, and image generation fixtures and packaged resource guards.
+- Pass all 147 standard frontend batches covering 2,034 test files and all 24 real Electron smoke assertions under the new toolchain.
+- Add dependency review, credential storage, and CLI/Electron license distribution checks.
+- Full development dependency and Rust audits still have unresolved advisories. Cross-platform keyring and this version’s packaged-app validation remain incomplete.
 
 ### Documentation
 
-- Update architecture documentation for desktop permissions, browser recovery, media projection, and package inputs.
-- Update Chrome extension documentation, privacy policy, and submission guidance.
+- Add license and attribution materials, contribution and security reporting guidance, and credential storage modes and limitations.
 
 ### Other
 
-- Align app, CLI, and Rust workspace versions to 1.172.0.
+- Align app, CLI, and Rust workspace versions to 1.173.0.
+- Development requires Node 22 or Node 24 and later; Node 23 is unsupported.
 
-**Full changes**: `v1.171.0` -> `v1.172.0`
+**Full changes**: `v1.172.0` -> `v1.173.0`

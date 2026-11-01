@@ -6,9 +6,9 @@ import { mcpApi, type McpServer } from "./mcp";
 const appServerRequestMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/appServer", () => ({
-  AppServerClient: vi.fn().mockImplementation(() => ({
-    request: appServerRequestMock,
-  })),
+  AppServerClient: vi.fn().mockImplementation(function () {
+    return { request: appServerRequestMock };
+  }),
 }));
 
 vi.mock("@/lib/dev-bridge", () => ({

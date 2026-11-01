@@ -23,9 +23,9 @@ const appServerRequestMock = vi.hoisted(() => vi.fn());
 const subscribeAppServerNotificationsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/appServer", () => ({
-  AppServerClient: vi.fn(() => ({
-    request: appServerRequestMock,
-  })),
+  AppServerClient: vi.fn(function () {
+    return { request: appServerRequestMock };
+  }),
 }));
 
 vi.mock("@/lib/api/appServerEventBus", () => ({

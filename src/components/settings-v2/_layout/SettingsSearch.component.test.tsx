@@ -19,6 +19,7 @@ afterEach(async () => {
   container.remove();
   delete window.__LIME_OEM_CLOUD__;
   await changeLimeLocale("zh-CN");
+  vi.unstubAllGlobals();
 });
 
 it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
@@ -169,10 +170,11 @@ it("pointer selection keeps the input available for dirty-navigation focus resto
   );
 });
 it("narrow-screen shortcut focuses the same search and preserves keyboard navigation", async () => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({ matches: true } as MediaQueryList),
+  );
   const { select } = await mountSidebar();
-  vi.spyOn(window, "matchMedia").mockReturnValue({
-    matches: true,
-  } as MediaQueryList);
   await key(document.body, "f", { ctrlKey: true });
   const input = container.querySelector<HTMLInputElement>(
     '[data-testid="settings-sidebar-search"]',
@@ -187,5 +189,4 @@ it("narrow-screen shortcut focuses the same search and preserves keyboard naviga
   await key(input, "Escape");
   expect(input.value).toBe("");
   expect(document.activeElement).toBe(input);
-  vi.restoreAllMocks();
 });

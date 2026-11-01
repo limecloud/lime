@@ -233,6 +233,7 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.mocked(createAppServerClient).mockReset();
+  vi.mocked(logAgentDebug).mockClear();
 });
 
 afterEach(() => {

@@ -207,5 +207,6 @@
   "errors.reactRenderer.action.retry": "再試行",
   "errors.reactRenderer.action.recompile": "再コンパイル",
   "errors.reactRenderer.section.sourceContent": "ソース内容:",
-  "errors.reactRenderer.empty.noComponentContent": "コンポーネント内容はまだありません"
+  "errors.reactRenderer.empty.noComponentContent": "コンポーネント内容はまだありません",
+  "errors.providerCredentials.unavailable": "Provider の認証情報にアクセスできません。保存先の権限を確認するか、古い項目を削除して API キーを追加し直してください。"
 }

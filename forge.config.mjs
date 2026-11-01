@@ -266,6 +266,10 @@ export default {
         ? "lime-rs/icons/icon.ico"
         : "lime-rs/icons/icon.icns",
     extraResource: [
+      "LICENSE",
+      "NOTICE",
+      "LICENSES.md",
+      "licenses",
       "dist-electron/desktop-assets",
       "dist-electron/plugins",
       "dist-electron/app-server.release.json",

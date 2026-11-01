@@ -129,13 +129,15 @@ describe("Codex model input modality policy origin", () => {
       return;
     }
 
-    expect(historySource).toContain(
-      "pub(crate) fn for_prompt(self, input_modalities: &[InputModality])",
+    expect(historySource).toMatch(
+      /pub\(crate\) async fn for_prompt\(\s*self,\s*input_modalities: &\[InputModality\],\s*image_store: &dyn AttachmentStore,/u,
     );
     expect(historySource).toContain(
-      "self.for_prompt_annotated(input_modalities)",
+      "self.for_prompt_annotated(input_modalities, image_store)",
     );
-    expect(historySource).toContain("pub(crate) fn for_prompt_annotated(");
+    expect(historySource).toContain(
+      "pub(crate) async fn for_prompt_annotated(",
+    );
     expect(historySource).toContain("self.normalize_history(input_modalities)");
     expect(normalizeSource).toMatch(
       /fn strip_images_when_unsupported\(\s*input_modalities:/u,

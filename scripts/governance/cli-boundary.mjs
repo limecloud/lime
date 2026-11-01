@@ -203,12 +203,14 @@ export function checkCliBoundary(repoRoot = process.cwd()) {
   }
   if (
     !Array.isArray(npmPackage.files) ||
-    npmPackage.files.length !== 2 ||
+    npmPackage.files.length !== 4 ||
     npmPackage.files[0] !== "bin/lime.js" ||
-    npmPackage.files[1] !== "exec-events.schema.json"
+    npmPackage.files[1] !== "exec-events.schema.json" ||
+    npmPackage.files[2] !== "LICENSE" ||
+    npmPackage.files[3] !== "NOTICE"
   ) {
     failures.push(
-      "CLI npm root package must publish the launcher and exec event schema",
+      "CLI npm root package must publish the launcher, exec event schema and launcher license/notice",
     );
   }
 

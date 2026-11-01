@@ -7,7 +7,6 @@ import { StyleSheetManager } from "styled-components";
 import { createTestStyleSheet } from "@/test/createTestStyleSheet";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import { Inputbar } from "./index";
-export { Inputbar } from "./index";
 import { changeLimeLocale } from "@/i18n/createI18n";
 
 import type { Skill } from "@/lib/api/skills";

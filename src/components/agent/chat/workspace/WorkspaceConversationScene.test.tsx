@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceConversationScene } from "./WorkspaceConversationScene";
 import { ComposerController, ComposerEditor } from "@/components/input-kit";
 import { getComposerEditorText } from "@/components/input-kit/composerEditor.testUtils";
+import { changeLimeLocale } from "@/i18n/createI18n";
 
 const {
   mockChatNavbar,
@@ -320,7 +321,8 @@ function renderScene(props?: RenderSceneProps) {
   return container;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await changeLimeLocale("zh-CN");
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -413,13 +415,7 @@ describe("WorkspaceConversationScene", () => {
     expect(banner).not.toBeNull();
     expect(bannerText?.textContent).toContain("欢迎回来");
     expect(closeButton).not.toBeNull();
-    expect(
-      [
-        "关闭",
-        "Close",
-        "agentChat.workspaceConversation.entryBanner.close",
-      ].includes(closeButton?.textContent || ""),
-    ).toBe(true);
+    expect(closeButton?.textContent).toBe("关闭");
 
     act(() => {
       closeButton?.click();

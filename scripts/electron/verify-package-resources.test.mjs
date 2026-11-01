@@ -3,6 +3,7 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  copyFileSync,
   unlinkSync,
   rmSync,
   writeFileSync,
@@ -77,6 +78,17 @@ function createResourceRoot({
   const root = mkdtempSync(path.join(tmpdir(), "lime-electron-resources-"));
   tmpRoots.push(root);
   const sidecarDir = path.join(root, "app-server", platformKey);
+  mkdirSync(path.join(root, "licenses"), { recursive: true });
+  for (const material of [
+    "LICENSE",
+    "NOTICE",
+    "LICENSES.md",
+    "licenses/Apache-2.0.txt",
+    "licenses/OpenAI-NOTICE.txt",
+    "licenses/SpaceXAI-LICENSE.txt",
+  ]) {
+    copyFileSync(path.resolve(material), path.join(root, material));
+  }
   const desktopAssetsDir = path.join(root, "desktop-assets");
   const clientContent = "export const connect = () => {};\n";
   mkdirSync(path.join(root, "browser-client"), { recursive: true });
@@ -196,10 +208,16 @@ function createResourceRoot({
     mkdirSync(nativeDir, { recursive: true });
     const nativePath = path.join(nativeDir, "macos-native-host");
     const nativeContent = "signed native host";
-    writeFileSync(path.join(nativeDir, "desktop-permissions.node"), "desktop permissions");
+    writeFileSync(
+      path.join(nativeDir, "desktop-permissions.node"),
+      "desktop permissions",
+    );
     resourceEntries.push({
-      id: "desktop-permissions", kind: "helper",
-      path: "native/macos/desktop-permissions.node", sha256: sha256("desktop permissions"), required: true,
+      id: "desktop-permissions",
+      kind: "helper",
+      path: "native/macos/desktop-permissions.node",
+      sha256: sha256("desktop permissions"),
+      required: true,
     });
     writeFileSync(nativePath, nativeContent);
     resourceEntries.push({
@@ -344,15 +362,35 @@ describe("verify-electron-package-resources runtime bundles", () => {
 });
 
 describe("verify-electron-package-resources sidecar integrity", () => {
-  it.each(["darwin-arm64", "darwin-x64"])("rejects missing and tampered in-process permission bindings on %s", (platformKey) => {
-    const root = createResourceRoot({ appServer: "app-server", codeModeHost: "code-mode-host", platformKey });
-    const options = { platform: "darwin", arch: platformKey.split("-")[1], execFileSyncImpl: () => { throw new Error("unsigned fixture"); } };
-    const file = path.join(root, "native/macos/desktop-permissions.node");
-    writeFileSync(file, "tampered permissions binding");
-    expect(() => verifyResourceRoot(root, options)).toThrow(/sha256/);
-    unlinkSync(file);
-    expect(() => verifyResourceRoot(root, options)).toThrow(/missing/i);
+  it("rejects omitted license material from a staged package", () => {
+    const root = createResourceRoot();
+    unlinkSync(path.join(root, "NOTICE"));
+    expect(() =>
+      verifyResourceRoot(root, { platform: "darwin", arch: "arm64" }),
+    ).toThrow(/license material NOTICE is missing/);
   });
+  it.each(["darwin-arm64", "darwin-x64"])(
+    "rejects missing and tampered in-process permission bindings on %s",
+    (platformKey) => {
+      const root = createResourceRoot({
+        appServer: "app-server",
+        codeModeHost: "code-mode-host",
+        platformKey,
+      });
+      const options = {
+        platform: "darwin",
+        arch: platformKey.split("-")[1],
+        execFileSyncImpl: () => {
+          throw new Error("unsigned fixture");
+        },
+      };
+      const file = path.join(root, "native/macos/desktop-permissions.node");
+      writeFileSync(file, "tampered permissions binding");
+      expect(() => verifyResourceRoot(root, options)).toThrow(/sha256/);
+      unlinkSync(file);
+      expect(() => verifyResourceRoot(root, options)).toThrow(/missing/i);
+    },
+  );
   it.each(["darwin-arm64", "darwin-x64", "win32-x64"])(
     "rejects missing, tampered, and redirected browser client resources on %s",
     (platformKey) => {

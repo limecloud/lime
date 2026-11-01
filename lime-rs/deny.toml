@@ -1,0 +1,34 @@
+# 按 Lime 实际交付平台构建依赖图；不继承上游例外或忽略项。
+[graph]
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+]
+
+[advisories]
+ignore = []
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+    "GPL-3.0-only", "Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause",
+    "ISC", "Zlib", "BSL-1.0", "CC0-1.0", "Unlicense", "Unicode-3.0",
+    "Unicode-DFS-2016", "MPL-2.0", "MIT-0", "CDLA-Permissive-2.0",
+]
+
+[bans]
+# 多版本依赖由实际闭包评估；漏洞和来源审查仍是硬门禁。
+multiple-versions = "warn"
+# 当前告警均为 workspace path 边；包未声明 publish=false，不能用私有包豁免。
+# 保留告警，避免凭空改变所有 crate 的发布合同。漏洞、许可和来源仍阻断。
+wildcards = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# 当前 TUI patch，Cargo.toml/lock 固定 revision 45fecb9508105988f42fe6ff0441783ed3717f92。
+allow-git = ["https://github.com/openai-oss-forks/crossterm"]
+required-git-spec = "rev"

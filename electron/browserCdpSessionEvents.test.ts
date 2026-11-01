@@ -5,14 +5,14 @@ import { createHarness, mount } from "./browserTabHost.testHarness";
 
 let sessions: BrowserCdpSessions;
 let native: WebContents;
-let changed: ReturnType<typeof vi.fn>;
+let changed: ReturnType<typeof vi.fn<() => void>>;
 
 beforeEach(async () => {
   const h = createHarness();
   const state = (await mount(h)) as { viewId: string };
   native = h.views.get(state.viewId)!.webContents as unknown as WebContents;
   sessions = new BrowserCdpSessions();
-  changed = vi.fn();
+  changed = vi.fn<() => void>();
   await sessions.attachDebugger("tab-1", native, vi.fn(), changed);
 });
 

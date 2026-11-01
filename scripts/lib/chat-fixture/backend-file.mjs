@@ -108,6 +108,8 @@ export function createTempRuntimeEnv() {
       APPDATA: roamingAppData,
       LOCALAPPDATA: localAppData,
       LIME_AGENT_RUNTIME_ROOT: agentRoot,
+      LIME_HOME: path.join(home, ".lime"),
+      LIME_CREDENTIALS_STORE: "file",
     }),
   };
 }

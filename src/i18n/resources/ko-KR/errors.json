@@ -207,5 +207,6 @@
   "errors.reactRenderer.action.retry": "다시 시도",
   "errors.reactRenderer.action.recompile": "다시 컴파일",
   "errors.reactRenderer.section.sourceContent": "소스 내용:",
-  "errors.reactRenderer.empty.noComponentContent": "아직 컴포넌트 콘텐츠가 없습니다"
+  "errors.reactRenderer.empty.noComponentContent": "아직 컴포넌트 콘텐츠가 없습니다",
+  "errors.providerCredentials.unavailable": "Provider 인증 정보에 접근할 수 없습니다. 저장소 권한을 확인하거나 기존 항목을 삭제한 후 API 키를 다시 추가하세요."
 }

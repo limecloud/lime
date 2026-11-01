@@ -6,7 +6,9 @@ const boundary = vi.hoisted(() => ({
   write: vi.fn(),
 }));
 vi.mock("./appServer", () => ({
-  AppServerClient: vi.fn(() => ({ getMetadata: boundary.metadata })),
+  AppServerClient: vi.fn(function () {
+    return { getMetadata: boundary.metadata };
+  }),
 }));
 vi.mock("./fileBrowser", () => ({
   readFileBytes: boundary.read,

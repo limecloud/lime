@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { frontendTestArgs } from "../local-ci.mjs";
+import { spawnSync } from "node:child_process";
+import { commandExitStatus, frontendTestArgs } from "../local-ci.mjs";
 
 function state(statuses) {
   return {
@@ -30,5 +31,30 @@ describe("local CI frontend continuation", () => {
     expect(() =>
       frontendTestArgs({ ...state(["pending"]), schema_version: 2 }),
     ).toThrow("续跑状态无效");
+  });
+});
+
+describe("local CI child completion", () => {
+  it("retains actual successful and failed process exit codes", () => {
+    for (const status of [0, 7]) {
+      const result = spawnSync(process.execPath, ["-e", `process.exit(${status})`]);
+      expect(commandExitStatus(result)).toBe(status);
+    }
+  });
+
+  it("rejects a real signal termination instead of reporting success", () => {
+    const result = spawnSync(process.execPath, [
+      "-e",
+      'process.kill(process.pid, "SIGTERM")',
+    ]);
+    expect(result.status).toBeNull();
+    expect(result.signal).toBe("SIGTERM");
+    expect(() => commandExitStatus(result)).toThrow("SIGTERM");
+  });
+
+  it("rejects spawn errors and missing completion state", () => {
+    const error = new Error("spawn failed");
+    expect(() => commandExitStatus({ error, status: null })).toThrow(error);
+    expect(() => commandExitStatus({ status: null })).toThrow("未返回退出状态");
   });
 });

@@ -112,6 +112,13 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
     if readme_src.exists():
         shutil.copy2(readme_src, staging_dir / "README.md")
 
+    repo_root = CLI_ROOT.parent.parent
+    for filename in ("NOTICE", "LICENSES.md"):
+        shutil.copy2(repo_root / filename, staging_dir / filename)
+    shutil.copytree(repo_root / "licenses", staging_dir / "licenses")
+    shutil.copy2(repo_root / "LICENSE", staging_dir / "licenses" / "GPL-3.0-only.txt")
+    shutil.copy2(CLI_ROOT / "LICENSE" if package == "lime" else repo_root / "LICENSE", staging_dir / "LICENSE")
+
     with open(CLI_ROOT / "package.json", "r", encoding="utf-8") as source:
         root_package_json = json.load(source)
 
@@ -123,7 +130,7 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         shutil.copy2(CLI_ROOT / "exec-events.schema.json", staging_dir / "exec-events.schema.json")
         package_json = dict(root_package_json)
         package_json["version"] = version
-        package_json["files"] = ["bin/lime.js", "exec-events.schema.json"]
+        package_json["files"] = ["bin/lime.js", "exec-events.schema.json", "LICENSE", "NOTICE", "LICENSES.md", "licenses"]
         package_json.pop("scripts", None)
         package_json["optionalDependencies"] = {
             config["npm_name"]: compute_platform_package_version(
@@ -137,10 +144,10 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
             "name": platform["npm_name"],
             "version": compute_platform_package_version(version, platform["npm_tag"]),
             "description": root_package_json.get("description"),
-            "license": root_package_json.get("license", "MIT"),
+            "license": "GPL-3.0-only",
             "os": [platform["os"]],
             "cpu": [platform["cpu"]],
-            "files": ["vendor"],
+            "files": ["vendor", "LICENSE", "NOTICE", "LICENSES.md", "licenses"],
             "repository": root_package_json.get("repository"),
         }
         if isinstance(root_package_json.get("engines"), dict):

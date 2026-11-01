@@ -3,7 +3,9 @@ import { pickFilesFromDialog } from "./filePicker";
 
 const { getMetadata } = vi.hoisted(() => ({ getMetadata: vi.fn() }));
 vi.mock("./appServer", () => ({
-  AppServerClient: vi.fn(() => ({ getMetadata })),
+  AppServerClient: vi.fn(function () {
+    return { getMetadata };
+  }),
 }));
 const openDialog = vi.fn();
 

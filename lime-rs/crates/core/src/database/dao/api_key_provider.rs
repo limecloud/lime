@@ -1210,18 +1210,6 @@ impl ApiKeyProviderDao {
         Ok(())
     }
 
-    pub fn update_api_key_encrypted(
-        conn: &Connection,
-        id: &str,
-        api_key_encrypted: &str,
-    ) -> Result<(), rusqlite::Error> {
-        conn.execute(
-            "UPDATE api_keys SET api_key_encrypted = ?2 WHERE id = ?1",
-            params![id, api_key_encrypted],
-        )?;
-        Ok(())
-    }
-
     /// 删除 API Key
     pub fn delete_api_key(conn: &Connection, id: &str) -> Result<bool, rusqlite::Error> {
         let affected = conn.execute("DELETE FROM api_keys WHERE id = ?1", [id])?;

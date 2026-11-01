@@ -50,51 +50,55 @@ const {
   const contentViewRemoveChildViewMock = vi.fn();
   const showWindowMock = vi.fn();
   const focusWindowMock = vi.fn();
-  const browserWindowCtorMock = vi.fn(() => ({
-    contentView: {
-      addChildView: contentViewAddChildViewMock,
-      removeChildView: contentViewRemoveChildViewMock,
-    },
-    focus: focusWindowMock,
-    isDestroyed: () => false,
-    loadURL: loadUrlMock,
-    off: vi.fn(),
-    on: vi.fn(),
-    once: vi.fn((event: string, callback: () => void) => {
-      if (event === "ready-to-show") {
-        callback();
-      }
-    }),
-    show: showWindowMock,
-    webContents: {
-      getURL: () => "",
-    },
-  }));
+  const browserWindowCtorMock = vi.fn(function () {
+    return {
+      contentView: {
+        addChildView: contentViewAddChildViewMock,
+        removeChildView: contentViewRemoveChildViewMock,
+      },
+      focus: focusWindowMock,
+      isDestroyed: () => false,
+      loadURL: loadUrlMock,
+      off: vi.fn(),
+      on: vi.fn(),
+      once: vi.fn((event: string, callback: () => void) => {
+        if (event === "ready-to-show") {
+          callback();
+        }
+      }),
+      show: showWindowMock,
+      webContents: {
+        getURL: () => "",
+      },
+    };
+  });
   const webContentsLoadUrlMock = vi.fn();
   const webContentsReloadMock = vi.fn();
   const webContentsDestroyMock = vi.fn();
-  const webContentsViewCtorMock = vi.fn(() => ({
-    setBackgroundColor: vi.fn(),
-    setBounds: vi.fn(),
-    setVisible: vi.fn(),
-    webContents: {
-      destroy: webContentsDestroyMock,
-      getTitle: () => "Example",
-      getURL: () => "https://example.com/",
-      isDestroyed: () => false,
-      isLoading: () => false,
-      loadURL: webContentsLoadUrlMock,
-      navigationHistory: {
-        canGoBack: () => false,
-        canGoForward: () => false,
-        goBack: vi.fn(),
-        goForward: vi.fn(),
+  const webContentsViewCtorMock = vi.fn(function () {
+    return {
+      setBackgroundColor: vi.fn(),
+      setBounds: vi.fn(),
+      setVisible: vi.fn(),
+      webContents: {
+        destroy: webContentsDestroyMock,
+        getTitle: () => "Example",
+        getURL: () => "https://example.com/",
+        isDestroyed: () => false,
+        isLoading: () => false,
+        loadURL: webContentsLoadUrlMock,
+        navigationHistory: {
+          canGoBack: () => false,
+          canGoForward: () => false,
+          goBack: vi.fn(),
+          goForward: vi.fn(),
+        },
+        on: vi.fn(),
+        reload: webContentsReloadMock,
+        setWindowOpenHandler: vi.fn(),
       },
-      on: vi.fn(),
-      reload: webContentsReloadMock,
-      setWindowOpenHandler: vi.fn(),
-    },
-  }));
+    };
+  });
   const browserWindowGetAllWindowsMock = vi.fn((): MockBrowserWindow[] => []);
   return {
     browserWindowCtorMock,
@@ -168,31 +172,37 @@ vi.mock("./desktopNotificationHost", () => ({
 }));
 
 vi.mock("./fileShellHost", () => ({
-  FileShellHost: vi.fn(() => ({
-    ...fileShellTargets,
-    getFileIconDataUrl: fileShellHostGetFileIconDataUrlMock,
-    getHomeDir: fileShellHostGetHomeDirMock,
-    openFilePreviewWindow: fileShellHostOpenFilePreviewWindowMock,
-    revealInFinder: fileShellHostRevealInFinderMock,
-  })),
+  FileShellHost: vi.fn(function () {
+    return {
+      ...fileShellTargets,
+      getFileIconDataUrl: fileShellHostGetFileIconDataUrlMock,
+      getHomeDir: fileShellHostGetHomeDirMock,
+      openFilePreviewWindow: fileShellHostOpenFilePreviewWindowMock,
+      revealInFinder: fileShellHostRevealInFinderMock,
+    };
+  }),
 }));
 
 vi.mock("./systemUtilityHost", () => ({
-  SystemUtilityHost: vi.fn(() => ({
-    invokeMacOSNativeHost: systemUtilityHostInvokeMacOSNativeHostMock,
-    invokeWindowsNativeHost: systemUtilityHostInvokeWindowsNativeHostMock,
-    openExternalUrl: systemUtilityHostOpenExternalUrlMock,
-    openSystemSettingsUrl: systemUtilityHostOpenSystemSettingsUrlMock,
-  })),
+  SystemUtilityHost: vi.fn(function () {
+    return {
+      invokeMacOSNativeHost: systemUtilityHostInvokeMacOSNativeHostMock,
+      invokeWindowsNativeHost: systemUtilityHostInvokeWindowsNativeHostMock,
+      openExternalUrl: systemUtilityHostOpenExternalUrlMock,
+      openSystemSettingsUrl: systemUtilityHostOpenSystemSettingsUrlMock,
+    };
+  }),
 }));
 
 vi.mock("./voiceModelHost", () => ({
-  VoiceModelHost: vi.fn(() => ({
-    delete: voiceModelHostDeleteMock,
-    download: voiceModelHostDownloadMock,
-    getInstallState: voiceModelHostGetInstallStateMock,
-    listCatalog: voiceModelHostListCatalogMock,
-  })),
+  VoiceModelHost: vi.fn(function () {
+    return {
+      delete: voiceModelHostDeleteMock,
+      download: voiceModelHostDownloadMock,
+      getInstallState: voiceModelHostGetInstallStateMock,
+      listCatalog: voiceModelHostListCatalogMock,
+    };
+  }),
 }));
 
 function createHost(

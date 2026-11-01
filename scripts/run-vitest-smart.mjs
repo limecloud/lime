@@ -319,7 +319,9 @@ export function buildVitestCommandArgs(args, options = {}) {
     ...(command === "related" ? ["related", "--run"] : ["--run"]),
     "--silent=passed-only",
     "--disableConsoleIntercept",
-    "--poolOptions.forks.singleFork",
+    "--reporter=default",
+    "--pool=forks",
+    "--maxWorkers=1",
   ];
 
   return [...baseArgs, ...args];
@@ -667,10 +669,6 @@ function runFullSuite(options) {
 
     const status = runVitest(
       [
-        "--maxWorkers",
-        "1",
-        "--minWorkers",
-        "1",
         "--no-file-parallelism",
         ...batches[batchIndex],
       ],
@@ -757,10 +755,6 @@ function runChangedMode(args, changedRef) {
   for (const [batchIndex, batch] of batches.entries()) {
     const status = runVitest(
       [
-        "--maxWorkers",
-        "1",
-        "--minWorkers",
-        "1",
         "--no-file-parallelism",
         ...batch,
         ...args,

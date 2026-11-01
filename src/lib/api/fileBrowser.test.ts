@@ -33,15 +33,17 @@ const {
 }));
 
 vi.mock("@/lib/api/appServer", () => ({
-  AppServerClient: vi.fn(() => ({
-    createDirectory: appServerCreateDirectoryMock,
-    copy: appServerCopyMock,
-    getMetadata: appServerGetMetadataMock,
-    readDirectory: appServerReadDirectoryMock,
-    readFile: appServerReadFileMock,
-    remove: appServerRemoveMock,
-    writeFile: appServerWriteFileMock,
-  })),
+  AppServerClient: vi.fn(function () {
+    return {
+      createDirectory: appServerCreateDirectoryMock,
+      copy: appServerCopyMock,
+      getMetadata: appServerGetMetadataMock,
+      readDirectory: appServerReadDirectoryMock,
+      readFile: appServerReadFileMock,
+      remove: appServerRemoveMock,
+      writeFile: appServerWriteFileMock,
+    };
+  }),
 }));
 
 vi.mock("@/lib/dev-bridge", () => ({

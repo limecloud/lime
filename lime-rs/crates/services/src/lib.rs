@@ -61,4 +61,5 @@ pub mod session_context_service;
 
 // 依赖 providers 的服务
 pub mod api_key_provider_service;
+mod provider_credentials;
 pub mod provider_type_mapping;
