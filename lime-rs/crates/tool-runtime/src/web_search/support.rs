@@ -53,6 +53,9 @@ enum SearchProviderKind {
     BingSearchApi,
     GoogleCustomSearch,
     DuckduckgoInstant,
+    /// Opt-in only (not in the default priority): select it with
+    /// WEB_SEARCH_PROVIDER=keenable or WEB_SEARCH_PROVIDER_PRIORITY.
+    Keenable,
 }
 
 impl SearchProviderKind {
@@ -63,6 +66,7 @@ impl SearchProviderKind {
             Self::BingSearchApi => "bing_search_api",
             Self::GoogleCustomSearch => "google_custom_search",
             Self::DuckduckgoInstant => "duckduckgo_instant",
+            Self::Keenable => "keenable",
         }
     }
 
@@ -73,6 +77,7 @@ impl SearchProviderKind {
             "bing_search_api" => Some(Self::BingSearchApi),
             "google_custom_search" => Some(Self::GoogleCustomSearch),
             "duckduckgo_instant" => Some(Self::DuckduckgoInstant),
+            "keenable" => Some(Self::Keenable),
             _ => None,
         }
     }
