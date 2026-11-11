@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { requestCloudDesktop } from "@/lib/api/cloud";
 import { SettingsAction } from "../../SettingsPrimitives";
-import { object } from "./CloudDesktopPrimitives";
+import { object } from "./cloudDesktopData";
 
 type Connection = {
   status: "disconnected" | "preparing" | "authorizing" | "connected" | "failed";

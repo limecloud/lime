@@ -188,10 +188,10 @@ async fn await_request(
             Ok(result) => result.map_err(|_error| ServiceError::TransportClosed)?,
             Err(()) => {
                 let _ = peer.send_notification(
-                    CancelledNotification::new(CancelledNotificationParam {
-                            request_id,
-                            reason: Some("timed out".to_owned()),
-                        })
+                    CancelledNotification::new(CancelledNotificationParam::new(
+                            Some(request_id),
+                            Some("timed out".to_owned()),
+                        ))
                     .into(),
                 ).await;
                 Err(ServiceError::Timeout{timeout})
@@ -199,10 +199,10 @@ async fn await_request(
         },
         _ = cancel_token.cancelled() => {
             let _ = peer.send_notification(
-                CancelledNotification::new(CancelledNotificationParam {
-                        request_id,
-                        reason: Some("operation cancelled".to_owned()),
-                    })
+                CancelledNotification::new(CancelledNotificationParam::new(
+                        Some(request_id),
+                        Some("operation cancelled".to_owned()),
+                    ))
                 .into(),
             ).await;
             Err(ServiceError::Cancelled { reason: None })
@@ -214,7 +214,7 @@ async fn await_request(
 mod tests {
     use super::*;
     use futures::StreamExt;
-    use rmcp::model::{Content, ProgressNotificationParam, ServerCapabilities, ServerInfo};
+    use rmcp::model::{ContentBlock, ProgressNotificationParam, ServerCapabilities, ServerInfo};
     use rmcp::service::{RequestContext, RoleServer, RunningServiceCancellationToken};
     use rmcp::{ServerHandler, ServiceExt};
 
@@ -233,13 +233,11 @@ mod tests {
             &self,
             _request: CallToolRequestParams,
             context: RequestContext<RoleServer>,
-        ) -> Result<CallToolResult, rmcp::ErrorData> {
+        ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
             self.request_started.cancel();
             context.ct.cancelled().await;
             self.cancellation_observed.cancel();
-            Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-                "cancelled",
-            )]))
+            Ok(CallToolResult::success(vec![rmcp::model::ContentBlock::text("cancelled")]).into())
         }
     }
 
@@ -378,7 +376,7 @@ mod tests {
             &self,
             request: CallToolRequestParams,
             context: RequestContext<RoleServer>,
-        ) -> Result<CallToolResult, rmcp::ErrorData> {
+        ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
             let label = request
                 .arguments
                 .as_ref()
@@ -397,17 +395,14 @@ mod tests {
                 .ok_or_else(|| rmcp::ErrorData::invalid_params("missing progress token", None))?;
             context
                 .peer
-                .notify_progress(ProgressNotificationParam {
-                    progress_token,
-                    progress: 1.0,
-                    total: Some(1.0),
-                    message: Some(format!("progress-{label}")),
-                })
+                .notify_progress(
+                    ProgressNotificationParam::new(progress_token, 1.0)
+                        .with_total(1.0)
+                        .with_message(format!("progress-{label}")),
+                )
                 .await
                 .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
-            Ok(CallToolResult::success(vec![Content::text(format!(
-                "result-{label}"
-            ))]))
+            Ok(CallToolResult::success(vec![ContentBlock::text(format!("result-{label}"))]).into())
         }
     }
 

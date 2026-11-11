@@ -563,13 +563,36 @@ describe("Windows Squirrel RC smoke", () => {
     expect(compareVersions("1.107.0", "1.106.0")).toBe(1);
   });
 
-  it("从稳定 tag 中选择严格小于候选的最近版本", () => {
+  it("从已发布且有完整 Windows 安装包的版本中选择最近基线", () => {
+    const release = (version, overrides = {}) => ({
+      tag_name: `v${version}`,
+      draft: false,
+      prerelease: false,
+      assets: [
+        { name: `Lime-${version}.Setup.exe`, state: "uploaded", size: 42 },
+      ],
+      ...overrides,
+    });
     expect(
       selectNMinusOneVersion({
-        candidateVersion: "1.106.0",
-        tags: ["v1.104.0", "v1.106.0", "v1.105.0", "v1.106.0-rc.1"],
+        candidateVersion: "1.174.1",
+        releases: [
+          release("1.171.0"),
+          release("1.172.0"),
+          release("1.173.0", { draft: true }),
+          release("1.174.0", { assets: [] }),
+          release("1.174.1"),
+          release("1.174.2"),
+          release("1.174.0-rc.1", { prerelease: true }),
+        ],
       }),
-    ).toBe("1.105.0");
+    ).toBe("1.172.0");
+    expect(() =>
+      selectNMinusOneVersion({
+        candidateVersion: "1.174.1",
+        releases: [release("1.174.0", { assets: [] })],
+      }),
+    ).toThrow("no published stable Windows installer");
   });
 
   it("候选 feed 必须由 RELEASES 精确引用 full nupkg", () => {
@@ -818,7 +841,9 @@ describe("Windows Squirrel RC smoke", () => {
       );
 
       expect(download?.run).toContain("gh release download");
-      expect(download?.run).toContain("selectNMinusOneVersion");
+      expect(download?.run).toContain(
+        "scripts/electron/select-windows-update-baseline.mjs",
+      );
       expect(installDependencies?.run).toContain(
         "pnpm install --frozen-lockfile",
       );

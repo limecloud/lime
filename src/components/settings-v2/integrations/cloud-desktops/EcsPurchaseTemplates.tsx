@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import type { EcsDesktopSpec } from "@limecloud/app-server-client";
 import { requestCloudDesktop } from "@/lib/api/cloud";
 import { SettingsAction } from "../../SettingsPrimitives";
-import { CloudSelect, object } from "./CloudDesktopPrimitives";
+import { CloudSelect } from "./CloudDesktopPrimitives";
+import { object } from "./cloudDesktopData";
 import type { useCloudPurchase } from "./useCloudPurchase";
 
 type Template = { id: string; name: string; version: number };

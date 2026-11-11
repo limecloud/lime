@@ -2,7 +2,7 @@ use super::*;
 use agent_runtime::action_required::ActionRequiredRequest;
 use app_server_protocol::protocol::v2::GrantedPermissionProfile;
 use rmcp::model::{
-    Content, NumberOrString, ProgressNotification, ProgressNotificationParam, ProgressToken,
+    ContentBlock, NumberOrString, ProgressNotification, ProgressNotificationParam, ProgressToken,
     PromptListChangedNotification, ResourceListChangedNotification, ToolListChangedNotification,
 };
 
@@ -133,7 +133,7 @@ async fn mcp_call_emits_only_non_empty_progress_notifications() {
     let call = tool_runtime::mcp_connection::McpConnectionCall {
         response: Box::pin(async {
             tokio::task::yield_now().await;
-            Ok(CallToolResult::success(vec![Content::text("done")]))
+            Ok(CallToolResult::success(vec![ContentBlock::text("done")]))
         }),
         notifications: Box::pin(futures::stream::iter([
             progress_notification(Some("   ")),
@@ -194,7 +194,7 @@ async fn mcp_call_emits_supported_list_changed_notifications() {
     let call = tool_runtime::mcp_connection::McpConnectionCall {
         response: Box::pin(async {
             tokio::task::yield_now().await;
-            Ok(CallToolResult::success(vec![Content::text("done")]))
+            Ok(CallToolResult::success(vec![ContentBlock::text("done")]))
         }),
         notifications: Box::pin(futures::stream::iter([
             ServerNotification::ToolListChangedNotification(ToolListChangedNotification {
@@ -248,10 +248,8 @@ async fn mcp_call_emits_supported_list_changed_notifications() {
 }
 
 fn progress_notification(message: Option<&str>) -> ServerNotification {
-    ServerNotification::ProgressNotification(ProgressNotification::new(ProgressNotificationParam {
-        progress_token: ProgressToken(NumberOrString::Number(1)),
-        progress: 1.0,
-        total: Some(2.0),
-        message: message.map(str::to_string),
-    }))
+    let mut params = ProgressNotificationParam::new(ProgressToken(NumberOrString::Number(1)), 1.0)
+        .with_total(2.0);
+    params.message = message.map(str::to_string);
+    ServerNotification::ProgressNotification(ProgressNotification::new(params))
 }

@@ -4,7 +4,9 @@ use std::cell::Cell;
 fn watch_state(root: PathBuf) -> WatchState {
     WatchState {
         roots: Arc::new(Mutex::new(registration::RootRegistry::new([root]))),
-        watcher: Mutex::new(notify::recommended_watcher(|_: notify::Result<Event>| {}).unwrap()),
+        watcher: Mutex::new(Some(
+            notify::recommended_watcher(|_: notify::Result<Event>| {}).unwrap(),
+        )),
         watched: Mutex::new(HashMap::new()),
         rearm: Arc::new(Mutex::new(HashSet::new())),
     }

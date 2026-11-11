@@ -129,11 +129,13 @@ fn streaming_provider_response(
         ]);
     }
 
-    let turn_number = messages
+    // 环境上下文也使用 user role；调用编号只统计已完成的工具调用。
+    let call_number = messages[..current_turn_start]
         .iter()
-        .filter(|message| message["role"] == "user")
-        .count();
-    let tool_call_id = format!("{call_prefix}-{turn_number}");
+        .filter(|message| message["role"] == "tool")
+        .count()
+        + 1;
+    let tool_call_id = format!("{call_prefix}-{call_number}");
 
     sse(&[
         json!({

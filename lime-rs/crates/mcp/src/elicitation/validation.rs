@@ -1,6 +1,7 @@
 use super::{ElicitationResponse, ElicitationRouterError};
 use rmcp::model::{
-    ElicitationSchema, EnumSchema, MultiSelectEnumSchema, PrimitiveSchema, SingleSelectEnumSchema,
+    ElicitationSchema, EnumSchema, MultiSelectEnumSchema, PrimitiveSchemaDefinition,
+    SingleSelectEnumSchema,
 };
 use serde_json::Value;
 
@@ -33,11 +34,11 @@ pub(super) fn validate_response_content(
 
 pub(super) fn validate_primitive(
     name: &str,
-    schema: &PrimitiveSchema,
+    schema: &PrimitiveSchemaDefinition,
     value: &Value,
 ) -> Result<(), ElicitationRouterError> {
     let valid = match schema {
-        PrimitiveSchema::String(schema) => value.as_str().is_some_and(|value| {
+        PrimitiveSchemaDefinition::String(schema) => value.as_str().is_some_and(|value| {
             let length = value.chars().count() as u32;
             schema.min_length.is_none_or(|minimum| length >= minimum)
                 && schema.max_length.is_none_or(|maximum| length <= maximum)
@@ -45,16 +46,17 @@ pub(super) fn validate_primitive(
                     .format
                     .is_none_or(|format| validate_string_format(format, value))
         }),
-        PrimitiveSchema::Number(schema) => value.as_f64().is_some_and(|value| {
+        PrimitiveSchemaDefinition::Number(schema) => value.as_f64().is_some_and(|value| {
             schema.minimum.is_none_or(|minimum| value >= minimum)
                 && schema.maximum.is_none_or(|maximum| value <= maximum)
         }),
-        PrimitiveSchema::Integer(schema) => value.as_i64().is_some_and(|value| {
+        PrimitiveSchemaDefinition::Integer(schema) => value.as_i64().is_some_and(|value| {
             schema.minimum.is_none_or(|minimum| value >= minimum)
                 && schema.maximum.is_none_or(|maximum| value <= maximum)
         }),
-        PrimitiveSchema::Boolean(_) => value.is_boolean(),
-        PrimitiveSchema::Enum(schema) => validate_enum(schema, value),
+        PrimitiveSchemaDefinition::Boolean(_) => value.is_boolean(),
+        PrimitiveSchemaDefinition::Enum(schema) => validate_enum(schema, value),
+        _ => false,
     };
 
     if valid {
@@ -91,6 +93,7 @@ fn validate_enum(schema: &EnumSchema, value: &Value) -> bool {
                     .any(|allowed| allowed.const_ == value)
             })
         }
+        _ => false,
     }
 }
 
@@ -118,6 +121,7 @@ fn validate_string_format(format: rmcp::model::StringFormat, value: &str) -> boo
             chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
         }
         rmcp::model::StringFormat::DateTime => chrono::DateTime::parse_from_rfc3339(value).is_ok(),
+        _ => false,
     }
 }
 

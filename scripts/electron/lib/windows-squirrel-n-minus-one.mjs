@@ -57,16 +57,29 @@ export function compareVersions(left, right) {
   return leftVersion.prerelease.localeCompare(rightVersion.prerelease);
 }
 
-export function selectNMinusOneVersion({ candidateVersion, tags }) {
+export function selectNMinusOneVersion({ candidateVersion, releases }) {
   const candidate = normalizeVersion(candidateVersion);
-  const versions = [...new Set(tags)]
-    .map((tag) => String(tag).trim())
-    .filter((tag) => /^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(tag))
-    .map(normalizeVersion)
+  const versions = releases
+    .filter(
+      (release) => release.draft === false && release.prerelease === false,
+    )
+    .filter((release) => /^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(release.tag_name))
+    .filter((release) => {
+      const version = normalizeVersion(release.tag_name);
+      return release.assets?.some(
+        (asset) =>
+          asset.name === `Lime-${version}.Setup.exe` &&
+          asset.state === "uploaded" &&
+          asset.size > 0,
+      );
+    })
+    .map((release) => normalizeVersion(release.tag_name))
     .filter((version) => compareVersions(version, candidate) < 0)
     .sort((left, right) => compareVersions(right, left));
   if (versions.length === 0) {
-    throw new Error(`no stable N-1 release tag exists below ${candidate}`);
+    throw new Error(
+      `no published stable Windows installer exists below ${candidate}`,
+    );
   }
   return versions[0];
 }

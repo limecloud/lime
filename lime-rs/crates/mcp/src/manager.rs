@@ -296,10 +296,10 @@ impl McpClientManager {
                 },
                 _ = task_cancellation.cancelled() => {
                     let _ = peer.send_notification(
-                        ClientNotification::CancelledNotification(CancelledNotification::new(CancelledNotificationParam {
-                                request_id,
-                                reason: Some("MCP event stream closed".to_string()),
-                            })),
+                        ClientNotification::CancelledNotification(CancelledNotification::new(CancelledNotificationParam::new(
+                                Some(request_id),
+                                Some("MCP event stream closed".to_string()),
+                            ))),
                     ).await;
                     Err("MCP event stream cancelled".to_string())
                 },

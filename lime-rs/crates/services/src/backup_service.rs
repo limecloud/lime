@@ -6,7 +6,7 @@
 
 use chrono::{DateTime, Duration, Utc};
 use lime_core::database::{get_db_path, DbConnection};
-use rusqlite::DatabaseName;
+use rusqlite::MAIN_DB;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
@@ -47,7 +47,7 @@ impl BackupService {
         let backup_path = self.backup_dir.join(format!("lime_{timestamp}.db"));
         let conn = db.lock().map_err(|_| "数据库锁已被占用".to_string())?;
         let progress: Option<fn(rusqlite::backup::Progress)> = None;
-        conn.backup(DatabaseName::Main, &backup_path, progress)
+        conn.backup(MAIN_DB, &backup_path, progress)
             .map_err(|e| format!("备份失败: {e}"))?;
 
         self.cleanup_old_backups()?;
@@ -99,7 +99,7 @@ impl BackupService {
         }
         let mut conn = db.lock().map_err(|_| "数据库锁已被占用".to_string())?;
         let progress: Option<fn(rusqlite::backup::Progress)> = None;
-        conn.restore(DatabaseName::Main, backup_path, progress)
+        conn.restore(MAIN_DB, backup_path, progress)
             .map_err(|e| format!("恢复失败: {e}"))?;
         Ok(())
     }
@@ -141,5 +141,40 @@ impl BackupService {
 
     pub fn backup_dir(&self) -> &PathBuf {
         &self.backup_dir
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn connection_backup_restores_the_main_database() {
+        let directory = tempfile::tempdir().unwrap();
+        let service = BackupService::new(directory.path().to_path_buf(), 7).unwrap();
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE records (value TEXT); INSERT INTO records VALUES ('before');",
+            )
+            .unwrap();
+        let db = Arc::new(Mutex::new(connection));
+
+        let backup = service.backup_database_with_connection(&db).unwrap();
+        db.lock()
+            .unwrap()
+            .execute("UPDATE records SET value = 'after'", [])
+            .unwrap();
+        service
+            .restore_database_with_connection(&db, &backup)
+            .unwrap();
+
+        let restored: String = db
+            .lock()
+            .unwrap()
+            .query_row("SELECT value FROM records", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(restored, "before");
     }
 }

@@ -248,7 +248,11 @@ pub fn project_mcp_notification(
         }
         // URL elicitation is not advertised by the current form-only client.
         // Its completion cannot complete a tool or resolve a pending form.
-        ServerNotification::ElicitationCompletionNotification(_) => Vec::new(),
+        ServerNotification::CustomNotification(notification)
+            if notification.method == "notifications/elicitation/complete" =>
+        {
+            Vec::new()
+        }
         ServerNotification::CustomNotification(notification) => {
             let mut metadata = metadata_with_kind("mcp_custom");
             metadata.insert(
@@ -279,6 +283,7 @@ pub fn project_mcp_notification(
                 },
             }]
         }
+        _ => Vec::new(),
     }
 }
 
@@ -305,12 +310,9 @@ mod tests {
         let events = project_mcp_notification(
             "tool-1",
             ServerNotification::ProgressNotification(ProgressNotification::new(
-                ProgressNotificationParam {
-                    progress_token: ProgressToken(NumberOrString::Number(7)),
-                    progress: 2.0,
-                    total: Some(4.0),
-                    message: Some("正在处理第 2 项".to_string()),
-                },
+                ProgressNotificationParam::new(ProgressToken(NumberOrString::Number(7)), 2.0)
+                    .with_total(4.0)
+                    .with_message("正在处理第 2 项"),
             )),
         );
 
@@ -339,10 +341,9 @@ mod tests {
         let events = project_mcp_notification(
             "tool-1",
             ServerNotification::LoggingMessageNotification(LoggingMessageNotification::new(
-                LoggingMessageNotificationParam {
-                    level: LoggingLevel::Info,
-                    logger: Some("runner".to_string()),
-                    data: serde_json::json!({
+                LoggingMessageNotificationParam::new(
+                    LoggingLevel::Info,
+                    serde_json::json!({
                         "message": "已生成一段工具输出",
                         "processId": "process-tool-1",
                         "executionProcessStatus": "running",
@@ -352,7 +353,8 @@ mod tests {
                         "outputSequence": 3,
                         "outputKind": "stdout"
                     }),
-                },
+                )
+                .with_logger("runner"),
             )),
         );
 
@@ -405,10 +407,9 @@ mod tests {
         let events = project_mcp_notification(
             "tool-1",
             ServerNotification::LoggingMessageNotification(LoggingMessageNotification::new(
-                LoggingMessageNotificationParam {
-                    level: LoggingLevel::Info,
-                    logger: Some("runner".to_string()),
-                    data: serde_json::json!({
+                LoggingMessageNotificationParam::new(
+                    LoggingLevel::Info,
+                    serde_json::json!({
                         "message": "",
                         "delta": "",
                         "processId": "process-tool-1",
@@ -418,7 +419,8 @@ mod tests {
                         "stdinWritable": true,
                         "phase": "started"
                     }),
-                },
+                )
+                .with_logger("runner"),
             )),
         );
 

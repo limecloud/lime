@@ -9,7 +9,7 @@ use std::time::Duration;
 
 #[test]
 fn app_tool_authority_uses_exact_connector_link_and_account_requirement() {
-    let meta = rmcp::model::Meta(
+    let meta = rmcp::model::MetaObject(
         serde_json::json!({
             "connector_id": " calendar ",
             "link_id": "link-calendar",
@@ -590,7 +590,7 @@ async fn test_call_tool_invalid_arguments() {
 
 #[test]
 fn test_convert_content_text() {
-    let content = rmcp::model::Content::text("Hello, World!");
+    let content = rmcp::model::ContentBlock::text("Hello, World!");
     let mcp_content = McpClientManager::convert_content(content);
 
     match mcp_content {
@@ -603,8 +603,9 @@ fn test_convert_content_text() {
 
 #[test]
 fn test_convert_call_tool_result_preserves_structured_content() {
-    let mut result =
-        rmcp::model::CallToolResult::success(vec![rmcp::model::Content::text("structured result")]);
+    let mut result = rmcp::model::CallToolResult::success(vec![rmcp::model::ContentBlock::text(
+        "structured result",
+    )]);
     result.structured_content = Some(serde_json::json!({
         "results": [
             { "title": "MCP current" }
@@ -630,7 +631,7 @@ fn test_convert_call_tool_result_preserves_structured_content() {
 
 #[test]
 fn test_convert_content_image() {
-    let content = rmcp::model::Content::image("base64data", "image/png");
+    let content = rmcp::model::ContentBlock::image("base64data", "image/png");
     let mcp_content = McpClientManager::convert_content(content);
 
     match mcp_content {

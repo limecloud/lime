@@ -1304,6 +1304,7 @@ async fn finish_json_lines(
     server.cancel_pending_server_requests("App Server transport stopped");
     mcp_elicitation_shutdown.cancel();
     let _ = mcp_elicitation_pump.await;
+    server.processor.shutdown_skills_watcher().await;
     server.thread_states.clear_all_listeners().await;
     let shutdown_result = server.processor.runtime().shutdown().await;
     server.clear_transport_writers().await;

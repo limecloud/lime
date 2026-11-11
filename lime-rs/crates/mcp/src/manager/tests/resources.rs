@@ -2,9 +2,9 @@ use crate::manager::McpClientManager;
 use crate::types::McpError;
 use rmcp::{
     model::{
-        AnnotateAble, ListResourcesResult, ListToolsResult, PaginatedRequestParams, RawResource,
-        ReadResourceRequestParams, ReadResourceResult, ResourceContents, ServerCapabilities,
-        ServerInfo, SubscribeRequestParams, UnsubscribeRequestParams,
+        ListResourcesResult, ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        SubscribeRequestParams, UnsubscribeRequestParams,
     },
     service::RequestContext,
     RoleServer, ServerHandler, ServiceExt,
@@ -66,30 +66,24 @@ impl ServerHandler for ExactTargetResourceServer {
             Some("next") => ("second", None),
             Some(_) => return Ok(ListResourcesResult::default()),
         };
-        Ok(ListResourcesResult {
-            meta: None,
-            next_cursor,
-            resources: vec![RawResource::new(
-                format!("skill://{}/{suffix}", self.name),
-                suffix.to_string(),
-            )
-            .no_annotation()],
-        })
+        let mut result = ListResourcesResult::with_all_items(vec![Resource::new(
+            format!("skill://{}/{suffix}", self.name),
+            suffix.to_string(),
+        )]);
+        result.next_cursor = next_cursor;
+        Ok(result)
     }
 
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, rmcp::ErrorData> {
+    ) -> Result<rmcp::model::ReadResourceResponse, rmcp::ErrorData> {
         self.read_meta
             .lock()
             .await
-            .push(serde_json::Value::Object(context.meta.0));
-        Ok(ReadResourceResult::new(vec![ResourceContents::text(
-            self.name,
-            request.uri,
-        )]))
+            .push(serde_json::Value::Object(context.meta.0 .0));
+        Ok(ReadResourceResult::new(vec![ResourceContents::text(self.name, request.uri)]).into())
     }
 
     async fn subscribe(
@@ -443,20 +437,12 @@ async fn origin_resource_read_rejects_tools_disabled_in_current_catalog() {
 
 #[test]
 fn test_convert_resource_to_definition() {
-    use rmcp::model::{AnnotateAble, RawResource};
-
     // 创建一个 rmcp Resource
-    let raw_resource = RawResource {
-        uri: "file:///test/resource.txt".to_string(),
-        name: "resource.txt".to_string(),
-        title: Some("Test Resource".to_string()),
-        description: Some("A test resource".to_string()),
-        mime_type: Some("text/plain".to_string()),
-        size: Some(1024),
-        icons: None,
-        meta: None,
-    };
-    let resource = raw_resource.no_annotation();
+    let resource = Resource::new("file:///test/resource.txt", "resource.txt")
+        .with_title("Test Resource")
+        .with_description("A test resource")
+        .with_mime_type("text/plain")
+        .with_size(1024);
 
     // 转换为 McpResourceDefinition
     let definition =
@@ -472,12 +458,8 @@ fn test_convert_resource_to_definition() {
 
 #[test]
 fn test_convert_resource_to_definition_minimal() {
-    use rmcp::model::{AnnotateAble, RawResource};
-
     // 创建一个最小的 rmcp Resource（只有必需字段）
-    let raw_resource =
-        RawResource::new("file:///minimal.txt".to_string(), "minimal.txt".to_string());
-    let resource = raw_resource.no_annotation();
+    let resource = Resource::new("file:///minimal.txt", "minimal.txt");
 
     // 转换为 McpResourceDefinition
     let definition =
@@ -493,17 +475,10 @@ fn test_convert_resource_to_definition_minimal() {
 
 #[test]
 fn test_convert_resource_template_to_definition() {
-    use rmcp::model::{AnnotateAble, RawResourceTemplate};
-
-    let raw_template = RawResourceTemplate {
-        uri_template: "file:///{path}".to_string(),
-        name: "workspace-file".to_string(),
-        title: Some("Workspace File".to_string()),
-        description: Some("Read a workspace file by path".to_string()),
-        mime_type: Some("text/plain".to_string()),
-        icons: None,
-    };
-    let template = raw_template.no_annotation();
+    let template = rmcp::model::ResourceTemplate::new("file:///{path}", "workspace-file")
+        .with_title("Workspace File")
+        .with_description("Read a workspace file by path")
+        .with_mime_type("text/plain");
 
     let definition =
         McpClientManager::convert_resource_template_to_definition(template, "docs".to_string());
@@ -532,7 +507,7 @@ fn test_convert_read_resource_result_text() {
 
     // 验证转换结果
     assert_eq!(mcp_content.uri, "file:///test.txt");
-    assert_eq!(mcp_content.mime_type, Some("text".to_string()));
+    assert_eq!(mcp_content.mime_type, Some("text/plain".to_string()));
     assert_eq!(mcp_content.text, Some("Hello, World!".to_string()));
     assert!(mcp_content.blob.is_none());
     assert!(mcp_content.meta.is_none());
@@ -540,7 +515,7 @@ fn test_convert_read_resource_result_text() {
 
 #[test]
 fn test_convert_read_resource_result_preserves_meta() {
-    let mut meta = rmcp::model::Meta::new();
+    let mut meta = rmcp::model::MetaObject::new();
     meta.0.insert(
         "ui".to_string(),
         serde_json::json!({

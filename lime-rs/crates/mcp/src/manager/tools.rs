@@ -455,18 +455,17 @@ impl McpClientManager {
         }
     }
 
-    /// 转换 rmcp Content 为 McpContent
-    pub(super) fn convert_content(content: rmcp::model::Content) -> McpContent {
-        // Content 是 Annotated<RawContent>，需要访问内部的 raw 字段
-        match content.raw {
-            rmcp::model::RawContent::Text(text_content) => McpContent::Text {
+    /// 转换 rmcp ContentBlock 为 McpContent
+    pub(super) fn convert_content(content: rmcp::model::ContentBlock) -> McpContent {
+        match content {
+            rmcp::model::ContentBlock::Text(text_content) => McpContent::Text {
                 text: text_content.text,
             },
-            rmcp::model::RawContent::Image(image_content) => McpContent::Image {
+            rmcp::model::ContentBlock::Image(image_content) => McpContent::Image {
                 data: image_content.data,
                 mime_type: image_content.mime_type,
             },
-            rmcp::model::RawContent::Resource(resource_content) => {
+            rmcp::model::ContentBlock::Resource(resource_content) => {
                 let (uri, text, blob) = match resource_content.resource {
                     rmcp::model::ResourceContents::TextResourceContents { uri, text, .. } => {
                         (uri, Some(text), None)
@@ -474,27 +473,36 @@ impl McpClientManager {
                     rmcp::model::ResourceContents::BlobResourceContents { uri, blob, .. } => {
                         (uri, None, Some(blob))
                     }
+                    resource => {
+                        return McpContent::Text {
+                            text: serde_json::to_string(&resource)
+                                .expect("MCP resource serializes to JSON"),
+                        }
+                    }
                 };
                 McpContent::Resource { uri, text, blob }
             }
-            rmcp::model::RawContent::Audio(audio_content) => {
+            rmcp::model::ContentBlock::Audio(audio_content) => {
                 // 将音频内容作为 Image 类型处理（因为 McpContent 没有 Audio 变体）
                 McpContent::Image {
                     data: audio_content.data,
                     mime_type: audio_content.mime_type,
                 }
             }
-            rmcp::model::RawContent::ResourceLink(resource_link) => McpContent::Resource {
+            rmcp::model::ContentBlock::ResourceLink(resource_link) => McpContent::Resource {
                 uri: resource_link.uri.clone(),
                 text: Some(resource_link.name.clone()),
                 blob: None,
+            },
+            content => McpContent::Text {
+                text: serde_json::to_string(&content).expect("MCP content serializes to JSON"),
             },
         }
     }
 }
 
 pub(super) fn app_tool_authority_from_meta(
-    meta: Option<&rmcp::model::Meta>,
+    meta: Option<&rmcp::model::MetaObject>,
 ) -> McpAppToolAuthority {
     let connector_id = meta.and_then(|meta| non_empty_meta_string(meta, "connector_id"));
     let link_id = meta.and_then(|meta| non_empty_meta_string(meta, "link_id"));
@@ -511,7 +519,7 @@ pub(super) fn app_tool_authority_from_meta(
     }
 }
 
-fn non_empty_meta_string(meta: &rmcp::model::Meta, key: &str) -> Option<String> {
+fn non_empty_meta_string(meta: &rmcp::model::MetaObject, key: &str) -> Option<String> {
     meta.get(key)
         .and_then(serde_json::Value::as_str)
         .map(str::trim)

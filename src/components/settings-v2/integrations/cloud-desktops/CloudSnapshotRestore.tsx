@@ -8,9 +8,9 @@ import {
   CloudSelect,
   Field,
   inputClass,
-  object,
   type CloudRequest,
 } from "./CloudDesktopPrimitives";
+import { object } from "./cloudDesktopData";
 
 export function CloudRestoreVerification({
   receipt,

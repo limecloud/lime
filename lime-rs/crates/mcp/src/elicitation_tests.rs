@@ -4,7 +4,7 @@ use crate::{LimeMcpClientService, McpRuntimeOwner};
 use rmcp::model::{
     BooleanSchema, CallToolRequestParams, CallToolResult,
     ElicitationAction as RmcpElicitationAction, ElicitationSchema, EnumSchema, IntegerSchema,
-    PrimitiveSchema, StringSchema,
+    PrimitiveSchemaDefinition, StringSchema,
 };
 use rmcp::service::{PeerRequestOptions, RequestContext, RoleServer};
 use rmcp::{ServerHandler, ServiceExt};
@@ -13,20 +13,23 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Barrier;
 
-fn form_request() -> CreateElicitationRequestParams {
-    CreateElicitationRequestParams::FormElicitationParams {
+fn form_request() -> ElicitRequestParams {
+    ElicitRequestParams::FormElicitationParams {
         meta: None,
         message: "Provide release details".to_string(),
         requested_schema: ElicitationSchema::builder()
             .required_property(
                 "name",
-                PrimitiveSchema::String(StringSchema::new().min_length(1)),
+                PrimitiveSchemaDefinition::String(StringSchema::new().min_length(1)),
             )
             .required_property(
                 "count",
-                PrimitiveSchema::Integer(IntegerSchema::new().range(1, 10)),
+                PrimitiveSchemaDefinition::Integer(IntegerSchema::new().range(1, 10)),
             )
-            .property("confirmed", PrimitiveSchema::Boolean(BooleanSchema::new()))
+            .property(
+                "confirmed",
+                PrimitiveSchemaDefinition::Boolean(BooleanSchema::new()),
+            )
             .required_enum_schema(
                 "channel",
                 EnumSchema::builder(vec!["stable".to_string(), "preview".to_string()]).build(),
@@ -48,7 +51,7 @@ async fn url_elicitation_is_declined_without_registering_or_forwarding_a_form() 
         .request_for_test(
             "url-server".to_string(),
             call_scope(),
-            CreateElicitationRequestParams::UrlElicitationParams {
+            ElicitRequestParams::UrlElicitationParams {
                 meta: None,
                 message: "Open a page".to_string(),
                 url: "https://elicitation.invalid/confirm".to_string(),
@@ -95,18 +98,18 @@ impl ServerHandler for ScopedElicitationServer {
         &self,
         _request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, rmcp::ErrorData> {
+    ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
         assert!(context.meta.get(MCP_PROGRESS_TOKEN_META_KEY).is_some());
-        let mut meta = rmcp::model::Meta::new();
+        let mut meta = rmcp::model::RequestMetaObject::new();
         meta.insert("persist".to_string(), json!(["session", "always"]));
         let mut options = PeerRequestOptions::no_options();
         options.meta = Some(meta);
         let result = context
             .peer
             .send_request_with_option(
-                rmcp::model::ServerRequest::CreateElicitationRequest(
-                    rmcp::model::CreateElicitationRequest::new(form_request()),
-                ),
+                rmcp::model::ServerRequest::ElicitRequest(rmcp::model::ElicitRequest::new(
+                    form_request(),
+                )),
                 options,
             )
             .await
@@ -114,16 +117,19 @@ impl ServerHandler for ScopedElicitationServer {
             .await_response()
             .await
             .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
-        let rmcp::model::ClientResult::CreateElicitationResult(result) = result else {
+        let rmcp::model::ClientResult::ElicitResult(result) = result else {
             return Err(rmcp::ErrorData::internal_error(
                 "unexpected elicitation response",
                 None,
             ));
         };
         assert_eq!(result.action, RmcpElicitationAction::Accept);
-        Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-            "elicitation accepted",
-        )]))
+        Ok(
+            CallToolResult::success(vec![rmcp::model::ContentBlock::text(
+                "elicitation accepted",
+            )])
+            .into(),
+        )
     }
 }
 
@@ -729,7 +735,7 @@ fn string_formats_are_enforced() {
             "2026-07-13 11:00:00",
         ),
     ] {
-        let schema = PrimitiveSchema::String(schema);
+        let schema = PrimitiveSchemaDefinition::String(schema);
         assert!(validate_primitive(name, &schema, &json!(valid)).is_ok());
         assert!(matches!(
             validate_primitive(name, &schema, &json!(invalid)),
@@ -742,7 +748,7 @@ fn string_formats_are_enforced() {
 async fn call_owner_gate_serializes_scoped_and_unscoped_owners() {
     let gate = ElicitationOwnerGate::default();
     let scoped = gate.enter(Some(call_scope())).await;
-    let mut meta = rmcp::model::Meta::new();
+    let mut meta = rmcp::model::RequestMetaObject::new();
     meta.insert(
         MCP_PROGRESS_TOKEN_META_KEY.to_string(),
         json!("rmcp-progress-token"),
@@ -761,7 +767,7 @@ async fn call_owner_gate_serializes_scoped_and_unscoped_owners() {
 
     let unscoped = unscoped.await.expect("unscoped owner task");
     assert_eq!(
-        gate.resolve_request_meta(rmcp::model::Meta::new()),
+        gate.resolve_request_meta(rmcp::model::RequestMetaObject::new()),
         (None, None)
     );
     drop(unscoped);

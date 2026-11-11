@@ -94,7 +94,7 @@ impl Service<RoleClient> for LimeMcpClientService {
         context: RequestContext<RoleClient>,
     ) -> Result<ClientResult, rmcp::ErrorData> {
         match request {
-            ServerRequest::CreateElicitationRequest(request) => {
+            ServerRequest::ElicitRequest(request) => {
                 let (scope, meta) = self.handler.resolve_elicitation_request_meta(context.meta);
                 let response = match scope {
                     Some(scope) => self

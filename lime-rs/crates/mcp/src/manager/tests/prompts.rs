@@ -2,8 +2,8 @@ use crate::manager::McpClientManager;
 use crate::types::{McpContent, McpError};
 use rmcp::{
     model::{
-        GetPromptRequestParams, GetPromptResult, PromptMessage, PromptMessageRole,
-        ServerCapabilities, ServerInfo,
+        GetPromptRequestParams, GetPromptResult, PromptMessage, Role, ServerCapabilities,
+        ServerInfo,
     },
     service::RequestContext,
     RoleServer, ServerHandler, ServiceExt,
@@ -21,12 +21,12 @@ impl ServerHandler for ExactTargetPromptServer {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, rmcp::ErrorData> {
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            self.0,
-        )])
-        .with_description(format!("{}:{}", self.0, request.name)))
+    ) -> Result<rmcp::model::GetPromptResponse, rmcp::ErrorData> {
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, self.0)])
+                .with_description(format!("{}:{}", self.0, request.name))
+                .into(),
+        )
     }
 }
 
@@ -202,10 +202,7 @@ fn test_convert_prompt_to_definition_no_arguments() {
 #[test]
 fn test_convert_prompt_message_user() {
     // 创建一个用户消息
-    let msg = rmcp::model::PromptMessage::new_text(
-        rmcp::model::PromptMessageRole::User,
-        "Hello, assistant!",
-    );
+    let msg = rmcp::model::PromptMessage::new_text(rmcp::model::Role::User, "Hello, assistant!");
 
     // 转换为 McpPromptMessage
     let mcp_msg = McpClientManager::convert_prompt_message(msg);
@@ -223,10 +220,7 @@ fn test_convert_prompt_message_user() {
 #[test]
 fn test_convert_prompt_message_assistant() {
     // 创建一个助手消息
-    let msg = rmcp::model::PromptMessage::new_text(
-        rmcp::model::PromptMessageRole::Assistant,
-        "Hello, user!",
-    );
+    let msg = rmcp::model::PromptMessage::new_text(rmcp::model::Role::Assistant, "Hello, user!");
 
     // 转换为 McpPromptMessage
     let mcp_msg = McpClientManager::convert_prompt_message(msg);
@@ -242,33 +236,11 @@ fn test_convert_prompt_message_assistant() {
 }
 
 #[test]
-fn test_convert_prompt_message_content_text() {
-    // 创建文本内容
-    let content = rmcp::model::PromptMessageContent::Text {
-        text: "Test text content".to_string(),
-    };
-
-    // 转换为 McpContent
-    let mcp_content = McpClientManager::convert_prompt_message_content(content);
-
-    // 验证转换结果
-    match mcp_content {
-        McpContent::Text { text } => {
-            assert_eq!(text, "Test text content");
-        }
-        _ => panic!("Expected Text content"),
-    }
-}
-
-#[test]
 fn test_convert_get_prompt_result() {
     // 创建 GetPromptResult
     let result = rmcp::model::GetPromptResult::new(vec![
-        rmcp::model::PromptMessage::new_text(rmcp::model::PromptMessageRole::User, "User message"),
-        rmcp::model::PromptMessage::new_text(
-            rmcp::model::PromptMessageRole::Assistant,
-            "Assistant response",
-        ),
+        rmcp::model::PromptMessage::new_text(rmcp::model::Role::User, "User message"),
+        rmcp::model::PromptMessage::new_text(rmcp::model::Role::Assistant, "Assistant response"),
     ])
     .with_description("Test prompt result");
 

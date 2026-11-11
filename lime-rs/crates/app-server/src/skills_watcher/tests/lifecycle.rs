@@ -190,3 +190,26 @@ async fn successful_config_write_broadcasts_and_failed_write_does_not() {
         Err(tokio::sync::broadcast::error::TryRecvError::Empty)
     ));
 }
+
+#[tokio::test]
+async fn shutdown_releases_native_watcher_before_thread_registrations() {
+    let temp = tempfile::tempdir().unwrap();
+    let first = temp.path().join("first");
+    let second = temp.path().join("second");
+    fs::create_dir_all(&first).unwrap();
+    fs::create_dir_all(&second).unwrap();
+    let server = AppServer::new();
+    let watcher =
+        SkillsWatcher::start(server.event_bridge(), [], Duration::from_millis(20)).unwrap();
+    watcher.register_runtime_extra_roots([first.clone()]);
+    let registration = watcher.register_roots([second.clone()]);
+    assert!(!watcher.state.watched.lock().unwrap().is_empty());
+
+    watcher.shutdown().await;
+    assert!(watcher.state.watcher.lock().unwrap().is_none());
+    assert!(watcher.state.watched.lock().unwrap().is_empty());
+    drop(registration);
+    let _late = watcher.register_roots([first, second]);
+    assert!(watcher.state.watcher.lock().unwrap().is_none());
+    assert!(watcher.state.watched.lock().unwrap().is_empty());
+}

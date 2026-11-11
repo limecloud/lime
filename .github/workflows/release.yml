@@ -475,22 +475,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
-          N_MINUS_ONE_VERSION="$({
-            CANDIDATE_VERSION="$VERSION" node --input-type=module <<'NODE'
-          import { execFileSync } from "node:child_process";
-          import { selectNMinusOneVersion } from "./scripts/electron/windows-squirrel-rc-smoke.mjs";
-
-          const tags = execFileSync("git", ["tag", "--list"], {
-            encoding: "utf8",
-          }).split(/\r?\n/);
-          process.stdout.write(
-            selectNMinusOneVersion({
-              candidateVersion: process.env.CANDIDATE_VERSION,
-              tags,
-            }),
-          );
-          NODE
-          })"
+          N_MINUS_ONE_VERSION="$(node scripts/electron/select-windows-update-baseline.mjs "$VERSION")"
           N_MINUS_ONE_TAG="v$N_MINUS_ONE_VERSION"
           mkdir -p windows-n-minus-one-package
           gh release download "$N_MINUS_ONE_TAG" \

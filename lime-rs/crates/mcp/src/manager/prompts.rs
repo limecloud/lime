@@ -186,42 +186,13 @@ impl McpClientManager {
     /// 转换 rmcp PromptMessage 为 McpPromptMessage
     pub(super) fn convert_prompt_message(msg: rmcp::model::PromptMessage) -> McpPromptMessage {
         let role = match msg.role {
-            rmcp::model::PromptMessageRole::User => "user".to_string(),
-            rmcp::model::PromptMessageRole::Assistant => "assistant".to_string(),
+            rmcp::model::Role::User => "user".to_string(),
+            rmcp::model::Role::Assistant => "assistant".to_string(),
         };
 
-        let content = Self::convert_prompt_message_content(msg.content);
+        let content = Self::convert_content(msg.content);
 
         McpPromptMessage { role, content }
-    }
-
-    /// 转换 rmcp PromptMessageContent 为 McpContent
-    pub(super) fn convert_prompt_message_content(
-        content: rmcp::model::PromptMessageContent,
-    ) -> McpContent {
-        match content {
-            rmcp::model::PromptMessageContent::Text { text } => McpContent::Text { text },
-            rmcp::model::PromptMessageContent::Image { image } => McpContent::Image {
-                data: image.data.clone(),
-                mime_type: image.mime_type.clone(),
-            },
-            rmcp::model::PromptMessageContent::Resource { resource } => {
-                let (uri, text, blob) = match &resource.resource {
-                    rmcp::model::ResourceContents::TextResourceContents { uri, text, .. } => {
-                        (uri.clone(), Some(text.clone()), None)
-                    }
-                    rmcp::model::ResourceContents::BlobResourceContents { uri, blob, .. } => {
-                        (uri.clone(), None, Some(blob.clone()))
-                    }
-                };
-                McpContent::Resource { uri, text, blob }
-            }
-            rmcp::model::PromptMessageContent::ResourceLink { link } => McpContent::Resource {
-                uri: link.uri.clone(),
-                text: Some(link.name.clone()),
-                blob: None,
-            },
-        }
     }
 }
 

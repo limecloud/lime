@@ -1,7 +1,9 @@
 use super::*;
 use crate::mcp_connection::{McpConnection, McpConnectionError, McpConnectionRegistry};
 use async_trait::async_trait;
-use rmcp::model::{CallToolResult, Content, JsonObject, ListToolsResult, Meta, ToolAnnotations};
+use rmcp::model::{
+    CallToolResult, ContentBlock, JsonObject, ListToolsResult, MetaObject, ToolAnnotations,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::Mutex;
 
@@ -59,7 +61,7 @@ impl McpConnection for TestConnection {
                     *observed_scope.lock().await = Some(scope);
                 }
                 call_count.fetch_add(1, Ordering::SeqCst);
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{output}:{name}"
                 ))]))
             }),
@@ -227,7 +229,7 @@ async fn snapshot_freezes_plugin_identity_and_mcp_app_resource_uri() {
         None,
     );
     let mut app_tool = tool("search", None);
-    app_tool.meta = Some(Meta(
+    app_tool.meta = Some(MetaObject(
         serde_json::json!({
             "ui": { "resourceUri": "ui://plugin/docs.html" },
             "ui/resourceUri": "ui://plugin/flat.html",
@@ -563,7 +565,7 @@ async fn assistant_snapshot_filters_and_rechecks_per_tool_caller_policy() {
 #[test]
 fn lime_apps_route_context_comes_from_trusted_tool_metadata() {
     let mut tool = tool("calendar_search", None);
-    tool.meta = Some(Meta(
+    tool.meta = Some(MetaObject(
         serde_json::json!({
             "connector_id": "calendar",
             "connector_name": "Calendar",

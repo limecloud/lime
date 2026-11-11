@@ -89,6 +89,10 @@ async fn spawn_test_oauth_provider_with_header(
     };
     let app = Router::new()
         .route(
+            "/.well-known/oauth-protected-resource/mcp",
+            get(test_oauth_resource_metadata),
+        )
+        .route(
             "/.well-known/oauth-authorization-server",
             get(test_oauth_metadata),
         )
@@ -133,6 +137,18 @@ fn oauth_browser_client() -> reqwest::Client {
         .expect("OAuth browser client")
 }
 
+async fn test_oauth_resource_metadata(
+    State(state): State<TestOAuthProviderState>,
+    headers: HeaderMap,
+) -> Json<serde_json::Value> {
+    require_test_header(&state, &headers);
+    Json(serde_json::json!({
+        "resource": format!("{}/mcp", state.base_url),
+        "authorization_servers": [state.base_url],
+        "scopes_supported": ["search.read", " search.write ", "search.read", ""]
+    }))
+}
+
 async fn test_oauth_metadata(
     State(state): State<TestOAuthProviderState>,
     headers: HeaderMap,
@@ -144,6 +160,7 @@ async fn test_oauth_metadata(
         "token_endpoint": format!("{}/token", state.base_url),
         "registration_endpoint": format!("{}/register", state.base_url),
         "response_types_supported": ["code"],
+        "authorization_response_iss_parameter_supported": true,
         "scopes_supported": ["search.read", " search.write ", "search.read", ""]
     }))
 }
@@ -170,12 +187,13 @@ async fn test_oauth_authorize(
         .expect("authorize queries lock")
         .push(params.clone());
     let redirect_uri = params.get("redirect_uri").expect("redirect_uri");
-    let state = params.get("state").expect("state");
+    let csrf_state = params.get("state").expect("state");
     let mut callback_url = reqwest::Url::parse(redirect_uri).expect("redirect uri URL");
     callback_url
         .query_pairs_mut()
         .append_pair("code", "auth-code")
-        .append_pair("state", state);
+        .append_pair("state", csrf_state)
+        .append_pair("iss", &state.base_url);
     let mut headers = HeaderMap::new();
     headers.insert(
         LOCATION,
@@ -312,6 +330,11 @@ async fn start_login_completes_against_local_oauth_provider_and_persists_token()
         .expect("load credentials")
         .expect("credentials should be persisted");
     assert_eq!(credentials.client_id, "dynamic-client");
+    assert_eq!(
+        credentials.issuer.as_deref(),
+        Some(provider.base_url.as_str())
+    );
+    assert!(credentials.token_received_at.is_some());
     let token_response = credentials
         .token_response
         .expect("token response should be persisted");
@@ -471,4 +494,44 @@ async fn oauth_callback_provider_error_returns_without_timeout() {
         .expect_err("provider error should fail OAuth completion");
     assert!(error.to_string().contains("invalid_scope"));
     assert!(error.to_string().contains("scope rejected"));
+}
+
+#[tokio::test]
+async fn oauth_callback_rejects_mismatched_issuer_without_saving_token() {
+    let provider = spawn_test_oauth_provider().await;
+    let server_url = format!("{}/mcp", provider.base_url);
+    let config = dynamic_oauth_config(server_url.clone());
+    let temp = tempfile::tempdir().expect("tempdir");
+    let store_root = temp.path().join("oauth-store");
+    let registry = McpOAuthRegistry::new_in(&store_root);
+    let login = registry
+        .start_login("remote-docs", &config, None, Some(30))
+        .await
+        .expect("start OAuth login");
+    let authorization_url = reqwest::Url::parse(&login.authorization_url).unwrap();
+    let query = authorization_url
+        .query_pairs()
+        .into_owned()
+        .collect::<HashMap<_, _>>();
+    let mut callback_url = reqwest::Url::parse(&query["redirect_uri"]).unwrap();
+    callback_url
+        .query_pairs_mut()
+        .append_pair("code", "auth-code")
+        .append_pair("state", &query["state"])
+        .append_pair("iss", "https://other-issuer.invalid");
+    oauth_browser_client()
+        .get(callback_url)
+        .send()
+        .await
+        .expect("send callback");
+    let error = tokio::time::timeout(Duration::from_secs(5), login.wait())
+        .await
+        .expect("issuer rejection should complete")
+        .expect_err("mismatched issuer must fail");
+    assert!(error.to_string().contains("issuer mismatch"), "{error}");
+    let store = PersistentCredentialStore::new_in(&store_root, "remote-docs", &server_url);
+    assert!(!store
+        .has_credentials()
+        .await
+        .expect("read credential state"));
 }

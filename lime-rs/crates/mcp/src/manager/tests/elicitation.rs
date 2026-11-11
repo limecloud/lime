@@ -2,8 +2,8 @@ use super::common::create_test_client;
 use crate::elicitation::{ElicitationAction, ElicitationRequestRouter, ElicitationResponse};
 use crate::manager::McpClientManager;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, CreateElicitationRequestParams, ElicitationSchema,
-    PrimitiveSchema, StringSchema,
+    CallToolRequestParams, CallToolResult, ElicitRequestParams, ElicitationSchema,
+    PrimitiveSchemaDefinition, StringSchema,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::{ServerHandler, ServiceExt};
@@ -19,14 +19,17 @@ impl ServerHandler for FormServer {
         &self,
         _request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, rmcp::ErrorData> {
+    ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
         let result = context
             .peer
-            .create_elicitation(CreateElicitationRequestParams::FormElicitationParams {
+            .create_elicitation(ElicitRequestParams::FormElicitationParams {
                 meta: None,
                 message: "Provide a name".into(),
                 requested_schema: ElicitationSchema::builder()
-                    .required_property("name", PrimitiveSchema::String(StringSchema::new()))
+                    .required_property(
+                        "name",
+                        PrimitiveSchemaDefinition::String(StringSchema::new()),
+                    )
                     .build()
                     .unwrap(),
             })
@@ -34,7 +37,7 @@ impl ServerHandler for FormServer {
             .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
         let mut response = CallToolResult::success(vec![]);
         response.structured_content = Some(serde_json::to_value(result).unwrap());
-        Ok(response)
+        Ok(response.into())
     }
 }
 

@@ -1,7 +1,8 @@
 use super::McpClientManager;
 use crate::types::*;
 use rmcp::model::{
-    ClientRequest, Extensions, Meta, ReadResourceRequest, ReadResourceRequestParams, ServerResult,
+    ClientRequest, Extensions, ReadResourceRequest, ReadResourceRequestParams, RequestMetaObject,
+    ServerResult,
 };
 use tracing::{debug, error, info, warn};
 
@@ -256,7 +257,7 @@ impl McpClientManager {
                 )
             })?;
             let mut extensions = Extensions::new();
-            extensions.insert(Meta(meta));
+            extensions.insert(RequestMetaObject(rmcp::model::MetaObject(meta)));
             request.extensions = extensions;
         }
         let result = service
@@ -438,6 +439,15 @@ impl McpClientManager {
                     text: None,
                     blob: Some(blob),
                     meta: meta.map(|value| serde_json::Value::Object(value.0)),
+                },
+                content => McpResourceContent {
+                    uri: uri.to_string(),
+                    mime_type: Some("application/json".to_string()),
+                    text: Some(
+                        serde_json::to_string(&content).expect("MCP resource serializes to JSON"),
+                    ),
+                    blob: None,
+                    meta: None,
                 },
             }
         } else {

@@ -6,7 +6,9 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::Router;
-use rmcp::transport::auth::{AuthorizationManager, CredentialStore, OAuthState, StoredCredentials};
+use rmcp::transport::auth::{
+    AuthorizationManager, AuthorizationRequest, CredentialStore, OAuthState,
+};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::net::SocketAddr;
@@ -139,15 +141,18 @@ impl McpOAuthRegistry {
         let mut auth_state = OAuthState::new(url.as_str(), Some(client))
             .await
             .map_err(oauth_error)?;
+        if let OAuthState::Unauthorized(manager) = &mut auth_state {
+            manager.set_credential_store(store);
+        }
         let (callback_tx, callback_rx) = oneshot::channel::<OAuthCallbackResult>();
         let redirect_uri = spawn_callback_server(callback_tx, server_name).await?;
         let resolved_scopes = resolve_login_scopes(scopes, config, discovered_scopes);
-        let scope_refs = resolved_scopes
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
         auth_state
-            .start_authorization(&scope_refs, redirect_uri.as_str(), Some("Lime MCP Client"))
+            .start_authorization(
+                AuthorizationRequest::new(redirect_uri.as_str())
+                    .with_scopes(resolved_scopes)
+                    .with_client_name("Lime MCP Client"),
+            )
             .await
             .map_err(oauth_error)?;
         let authorization_url = auth_state
@@ -160,14 +165,8 @@ impl McpOAuthRegistry {
             .unwrap_or(DEFAULT_OAUTH_TIMEOUT_SECS)
             .clamp(30, 900);
         let completion = async move {
-            let result = complete_oauth_login(
-                auth_state,
-                store,
-                callback_rx,
-                wait_secs,
-                server_name.clone(),
-            )
-            .await;
+            let result =
+                complete_oauth_login(auth_state, callback_rx, wait_secs, server_name.clone()).await;
             if let Err(error) = &result {
                 tracing::warn!(
                     server_name = %server_name,
@@ -297,6 +296,7 @@ struct OAuthCallbackState {
 struct OAuthCallbackParams {
     code: Option<String>,
     state: Option<String>,
+    iss: Option<String>,
     error: Option<String>,
     error_description: Option<String>,
 }
@@ -306,6 +306,7 @@ enum OAuthCallbackResult {
     Success {
         code: String,
         state: String,
+        issuer: Option<String>,
     },
     ProviderError {
         error: Option<String>,
@@ -316,7 +317,11 @@ enum OAuthCallbackResult {
 impl OAuthCallbackResult {
     fn from_params(params: OAuthCallbackParams) -> Self {
         match (params.code, params.state) {
-            (Some(code), Some(state)) => Self::Success { code, state },
+            (Some(code), Some(state)) => Self::Success {
+                code,
+                state,
+                issuer: params.iss,
+            },
             _ => Self::ProviderError {
                 error: params.error,
                 error_description: params.error_description,
@@ -398,7 +403,6 @@ async fn handle_oauth_callback(
 
 async fn complete_oauth_login(
     mut auth_state: OAuthState,
-    store: PersistentCredentialStore,
     callback_rx: oneshot::Receiver<OAuthCallbackResult>,
     timeout_secs: u64,
     server_name: String,
@@ -411,8 +415,12 @@ async fn complete_oauth_login(
         .map_err(|error| {
             McpError::ProtocolError(format!("MCP OAuth callback canceled: {error}"))
         })?;
-    let (code, state) = match params {
-        OAuthCallbackResult::Success { code, state } => (code, state),
+    let (code, state, issuer) = match params {
+        OAuthCallbackResult::Success {
+            code,
+            state,
+            issuer,
+        } => (code, state, issuer),
         OAuthCallbackResult::ProviderError {
             error,
             error_description,
@@ -429,26 +437,9 @@ async fn complete_oauth_login(
     tokio::time::timeout(remaining, async {
         tracing::debug!(server_name = %server_name, "MCP OAuth callback received; exchanging token");
         auth_state
-            .handle_callback(&code, &state)
+            .handle_callback_with_issuer(&code, &state, issuer.as_deref())
             .await
             .map_err(oauth_error)?;
-        let (client_id, token_response) =
-            auth_state.get_credentials().await.map_err(oauth_error)?;
-        let mut manager = auth_state.into_authorization_manager().ok_or_else(|| {
-            McpError::ProtocolError(
-                "MCP OAuth flow completed without authorization manager".to_string(),
-            )
-        })?;
-        let granted_scopes = manager.get_current_scopes().await;
-        let token_received_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|error| McpError::ProtocolError(format!("invalid OAuth token receipt time: {error}")))?
-            .as_secs();
-        store
-            .save(StoredCredentials::new(client_id, token_response, granted_scopes, Some(token_received_at)))
-            .await
-            .map_err(oauth_error)?;
-        manager.set_credential_store(store);
         Ok::<(), McpError>(())
     })
     .await
@@ -462,8 +453,8 @@ async fn discover_supported_scopes(
 ) -> Result<Option<Vec<String>>, McpError> {
     let mut manager = AuthorizationManager::new(url).await.map_err(oauth_error)?;
     manager.with_client(client).map_err(oauth_error)?;
-    match manager.discover_metadata().await {
-        Ok(metadata) => Ok(normalize_scopes(metadata.scopes_supported)),
+    match manager.resolve_metadata().await {
+        Ok(metadata) => Ok(normalize_scopes(metadata.metadata.scopes_supported)),
         Err(error) => {
             tracing::debug!(
                 url = %url,

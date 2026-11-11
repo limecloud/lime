@@ -1,11 +1,11 @@
 use super::*;
-use rmcp::model::Content;
+use rmcp::model::ContentBlock;
 
 #[test]
 fn gateway_screenshot_survives_the_agent_tool_projection() {
     let result = CallToolResult::success(vec![
-        Content::text("Screenshot of the approved window"),
-        Content::image("iVBORw0KGgo=", "image/png"),
+        ContentBlock::text("Screenshot of the approved window"),
+        ContentBlock::image("iVBORw0KGgo=", "image/png"),
     ]);
     let projected = project_call_result(Ok(result)).unwrap();
     assert_eq!(projected.output, "Screenshot of the approved window");

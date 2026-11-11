@@ -48,5 +48,9 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # 当前 TUI patch，Cargo.toml/lock 固定 revision 45fecb9508105988f42fe6ff0441783ed3717f92。
-allow-git = ["https://github.com/openai-oss-forks/crossterm"]
+# file-search 复用 Codex 的 nucleo 源码依赖，manifest/lock 固定 revision 4253de9faabb4e5c6d81d946a5e35a90f87347ee。
+allow-git = [
+    "https://github.com/openai-oss-forks/crossterm",
+    "https://github.com/helix-editor/nucleo.git",
+]
 required-git-spec = "rev"

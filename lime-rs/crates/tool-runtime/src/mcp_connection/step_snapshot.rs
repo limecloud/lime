@@ -357,7 +357,7 @@ fn mcp_app_context(
     })
 }
 
-fn non_empty_meta_string(meta: &rmcp::model::Meta, key: &str) -> Option<String> {
+fn non_empty_meta_string(meta: &rmcp::model::MetaObject, key: &str) -> Option<String> {
     meta.get(key)
         .and_then(Value::as_str)
         .map(str::trim)

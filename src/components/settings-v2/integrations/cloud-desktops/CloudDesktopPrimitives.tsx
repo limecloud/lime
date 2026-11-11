@@ -5,14 +5,11 @@ import type {
   CloudDesktopParams,
   CloudDesktopResponse,
 } from "@limecloud/app-server-client";
+import { object } from "./cloudDesktopData";
 
 export type CloudRequest = (
   params: CloudDesktopParams,
 ) => Promise<CloudDesktopResponse>;
-export const object = (value: unknown): Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 
 export function Field({
   name,

@@ -50,12 +50,32 @@ impl Drop for WatchRegistration {
 
 pub(super) struct WatchState {
     pub(super) roots: Arc<Mutex<RootRegistry>>,
-    pub(super) watcher: Mutex<RecommendedWatcher>,
+    pub(super) watcher: Mutex<Option<RecommendedWatcher>>,
     pub(super) watched: Mutex<HashMap<PathBuf, RecursiveMode>>,
     pub(super) rearm: Arc<Mutex<HashSet<PathBuf>>>,
 }
 
 impl WatchState {
+    pub(super) fn shutdown(&self) {
+        let watcher = self
+            .watcher
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .take();
+        self.watched
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.roots
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .registrations
+            .clear();
+        // FSEvents restarts its stream for each unwatch. Shutdown releases the
+        // native watcher once instead of rebuilding it for every registration.
+        drop(watcher);
+    }
+
     pub(super) fn replace_extra_roots(&self, roots: impl IntoIterator<Item = PathBuf>) {
         self.roots
             .lock()
@@ -89,6 +109,9 @@ impl WatchState {
             .watcher
             .lock()
             .unwrap_or_else(|error| error.into_inner());
+        let Some(watcher) = watcher.as_mut() else {
+            return false;
+        };
         let roots = self
             .roots
             .lock()
@@ -101,32 +124,41 @@ impl WatchState {
             .watched
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        let mut changed = false;
-        for (path, mode) in watched.clone() {
-            if expected.get(&path) == Some(&mode) && !rearm.contains(&path) {
-                continue;
-            }
-            if let Err(error) = watcher.unwatch(&path) {
+        let removed = watched
+            .iter()
+            .filter(|(path, mode)| expected.get(*path) != Some(*mode) || rearm.contains(*path))
+            .map(|(path, _)| path.clone())
+            .collect::<Vec<_>>();
+        let added = expected
+            .into_iter()
+            .filter(|(path, _)| !watched.contains_key(path) || removed.contains(path))
+            .collect::<Vec<_>>();
+        if removed.is_empty() && added.is_empty() {
+            return false;
+        }
+        // Apply the whole scope change in one native transaction. In particular,
+        // FSEvents must not stop and restart its stream once for every path.
+        let mut paths = watcher.paths_mut();
+        for path in removed {
+            if let Err(error) = paths.remove(&path) {
                 tracing::debug!(path = %path.display(), %error, "Skill path was already unwatched");
             }
             watched.remove(&path);
-            changed = true;
         }
-        for (path, mode) in expected {
-            if watched.contains_key(&path) {
-                continue;
-            }
-            match watcher.watch(&path, mode) {
+        for (path, mode) in added {
+            match paths.add(&path, mode) {
                 Ok(()) => {
                     watched.insert(path, mode);
-                    changed = true;
                 }
                 Err(error) => {
                     tracing::warn!(path = %path.display(), %error, "failed to watch Skill path");
                 }
             }
         }
-        changed
+        if let Err(error) = paths.commit() {
+            tracing::warn!(%error, "failed to commit Skill watch scope");
+        }
+        true
     }
 }
 

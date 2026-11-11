@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import type { CloudDesktopResource } from "@limecloud/app-server-client";
 import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
 import { SettingsAction } from "../../SettingsPrimitives";
-import { object, type CloudRequest } from "./CloudDesktopPrimitives";
+import type { CloudRequest } from "./CloudDesktopPrimitives";
+import { object } from "./cloudDesktopData";
 
 export function CloudDesktopTunnel({
   resource,

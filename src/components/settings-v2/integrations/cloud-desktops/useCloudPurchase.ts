@@ -3,7 +3,8 @@ import type {
   EcsDesktopSpec,
   WuyingDesktopSpec,
 } from "@limecloud/app-server-client";
-import { object, type CloudRequest } from "./CloudDesktopPrimitives";
+import type { CloudRequest } from "./CloudDesktopPrimitives";
+import { object } from "./cloudDesktopData";
 
 export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
   initialSpec,

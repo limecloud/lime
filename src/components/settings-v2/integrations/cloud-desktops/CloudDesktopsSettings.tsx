@@ -11,12 +11,8 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../../SettingsPrimitives";
-import {
-  CloudReceipt,
-  Field,
-  inputClass,
-  object,
-} from "./CloudDesktopPrimitives";
+import { CloudReceipt, Field, inputClass } from "./CloudDesktopPrimitives";
+import { object } from "./cloudDesktopData";
 import { CloudResourceActions } from "./CloudResourceActions";
 import {
   CloudSnapshotRestore,

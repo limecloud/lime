@@ -17,7 +17,7 @@ use crate::tool_executor::{
     RuntimeToolExecutionResult, RuntimeToolExecutor, RuntimeToolExecutorHandle,
     RuntimeToolPolicyErrorKind,
 };
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
@@ -128,7 +128,7 @@ fn call_tool_result_to_runtime_result(result: CallToolResult) -> RuntimeToolExec
     )
 }
 
-fn content_text(content: &Content) -> Option<String> {
+fn content_text(content: &ContentBlock) -> Option<String> {
     content.as_text().map(|text| text.text.clone())
 }
 
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn call_tool_result_preserves_error_and_structured_metadata() {
-        let mut result = CallToolResult::error(vec![Content::text("denied")]);
+        let mut result = CallToolResult::error(vec![ContentBlock::text("denied")]);
         result.structured_content = Some(json!({ "reason": "policy" }));
         let result = call_tool_result_to_runtime_result(result);
         assert!(!result.success);

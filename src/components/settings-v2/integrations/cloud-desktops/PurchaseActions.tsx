@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { SettingsAction } from "../../SettingsPrimitives";
-import { CloudReceipt, object } from "./CloudDesktopPrimitives";
+import { CloudReceipt } from "./CloudDesktopPrimitives";
+import { object } from "./cloudDesktopData";
 import type { useCloudPurchase } from "./useCloudPurchase";
 
 type PurchaseState = Pick<

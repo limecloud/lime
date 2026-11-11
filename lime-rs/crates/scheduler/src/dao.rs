@@ -251,6 +251,8 @@ impl SchedulerDao {
         conn: &Connection,
         limit: usize,
     ) -> Result<Vec<ScheduledTask>, rusqlite::Error> {
+        let limit = i64::try_from(limit)
+            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, task_type, params, provider_type, model,
                     status, scheduled_at, started_at, completed_at, result, error_message,

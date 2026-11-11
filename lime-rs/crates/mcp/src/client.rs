@@ -15,9 +15,9 @@ use lime_core::DynEmitter;
 use rmcp::{
     handler::client::progress::{ProgressDispatcher, ProgressSubscriber},
     model::{
-        ClientCapabilities, ClientInfo, CreateElicitationRequestParams, ElicitationCapability,
-        Implementation, LoggingMessageNotificationParam, ProgressNotificationParam, ProgressToken,
-        ProtocolVersion, ResourceUpdatedNotificationParam,
+        ClientCapabilities, ClientInfo, ElicitRequestParams, ElicitationCapability, Implementation,
+        LoggingMessageNotificationParam, ProgressNotificationParam, ProgressToken, ProtocolVersion,
+        ResourceUpdatedNotificationParam,
     },
     service::NotificationContext,
     ClientHandler, RoleClient,
@@ -123,7 +123,7 @@ impl LimeMcpClient {
 
     pub(crate) async fn handle_form_elicitation(
         &self,
-        request: CreateElicitationRequestParams,
+        request: ElicitRequestParams,
         scope: McpCallScope,
         meta: Option<serde_json::Value>,
         cancellation: tokio_util::sync::CancellationToken,
@@ -158,7 +158,7 @@ impl LimeMcpClient {
 
     pub(crate) fn resolve_elicitation_request_meta(
         &self,
-        meta: rmcp::model::Meta,
+        meta: rmcp::model::RequestMetaObject,
     ) -> (Option<McpCallScope>, Option<serde_json::Value>) {
         self.elicitation_owner.resolve_request_meta(meta)
     }
@@ -472,7 +472,7 @@ mod tests {
         let waiter = tokio::spawn(async move {
             request_client
                 .handle_form_elicitation(
-                    CreateElicitationRequestParams::FormElicitationParams {
+                    ElicitRequestParams::FormElicitationParams {
                         meta: None,
                         message: "Confirm".to_string(),
                         requested_schema: rmcp::model::ElicitationSchema::builder()
@@ -592,12 +592,11 @@ mod tests {
 
         client
             .progress_dispatcher
-            .handle_notification(ProgressNotificationParam {
-                progress_token: token_b.clone(),
-                progress: 1.0,
-                total: Some(2.0),
-                message: Some("progress-b".to_string()),
-            })
+            .handle_notification(
+                ProgressNotificationParam::new(token_b.clone(), 1.0)
+                    .with_total(2.0)
+                    .with_message("progress-b"),
+            )
             .await;
 
         let notification_b = progress_b.next().await.expect("progress for token B");
@@ -611,12 +610,11 @@ mod tests {
 
         client
             .progress_dispatcher
-            .handle_notification(ProgressNotificationParam {
-                progress_token: token_a.clone(),
-                progress: 2.0,
-                total: Some(2.0),
-                message: Some("progress-a".to_string()),
-            })
+            .handle_notification(
+                ProgressNotificationParam::new(token_a.clone(), 2.0)
+                    .with_total(2.0)
+                    .with_message("progress-a"),
+            )
             .await;
 
         let notification_a = progress_a.next().await.expect("progress for token A");

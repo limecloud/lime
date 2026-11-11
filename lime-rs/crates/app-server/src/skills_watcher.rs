@@ -33,6 +33,15 @@ impl SkillsWatcher {
         Self::start(bridge, [], WATCHER_THROTTLE_INTERVAL)
     }
 
+    pub(crate) async fn shutdown(&self) {
+        self.reconcile_task.abort();
+        self.notifier.cancel_pending();
+        let state = self.state.clone();
+        if let Err(error) = tokio::task::spawn_blocking(move || state.shutdown()).await {
+            tracing::warn!(%error, "skills watcher shutdown failed");
+        }
+    }
+
     pub(crate) fn register_runtime_extra_roots(&self, roots: impl IntoIterator<Item = PathBuf>) {
         self.state.replace_extra_roots(roots);
     }
@@ -104,7 +113,7 @@ impl SkillsWatcher {
         };
         let state = Arc::new(WatchState {
             roots,
-            watcher: Mutex::new(watcher),
+            watcher: Mutex::new(Some(watcher)),
             watched: Mutex::new(HashMap::new()),
             rearm,
         });

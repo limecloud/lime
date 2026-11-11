@@ -60,6 +60,18 @@ function createOAuthProviderServer() {
 
       if (
         request.method === "GET" &&
+        url.pathname === "/.well-known/oauth-protected-resource/mcp"
+      ) {
+        jsonResponse(response, 200, {
+          resource: `${state.baseUrl}/mcp`,
+          authorization_servers: [state.baseUrl],
+          scopes_supported: ["fixture.read", "fixture.write"],
+        });
+        return;
+      }
+
+      if (
+        request.method === "GET" &&
         (url.pathname === "/.well-known/oauth-authorization-server" ||
           url.pathname === "/.well-known/oauth-authorization-server/mcp" ||
           url.pathname === "/mcp/.well-known/oauth-authorization-server")
@@ -70,6 +82,7 @@ function createOAuthProviderServer() {
           token_endpoint: `${state.baseUrl}/token`,
           registration_endpoint: `${state.baseUrl}/register`,
           response_types_supported: ["code"],
+          authorization_response_iss_parameter_supported: true,
           scopes_supported: ["fixture.read", "fixture.write"],
         });
         return;
@@ -106,6 +119,7 @@ function createOAuthProviderServer() {
         const callback = new URL(redirectUri);
         callback.searchParams.set("code", "fixture-auth-code");
         callback.searchParams.set("state", oauthState);
+        callback.searchParams.set("iss", state.baseUrl);
         response.writeHead(302, { location: callback.toString() });
         response.end();
         return;

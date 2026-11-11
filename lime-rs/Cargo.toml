@@ -103,7 +103,7 @@ reqwest = { version = "0.12", features = ["json", "stream", "multipart", "gzip",
 httpdate = "1"
 
 # 数据库
-rusqlite = { version = "0.31", features = ["bundled", "backup"] }
+rusqlite = { version = "0.41", features = ["bundled", "backup"] }
 
 # 时间和 UUID
 chrono = { version = "0.4", features = ["serde"] }
@@ -132,7 +132,7 @@ zip = { version = "9.4.1", default-features = false, features = ["aes-crypto", "
 bzip2 = "0.4"
 zstd = "0.14.3"
 dashmap = "5"
-notify = { version = "6", default-features = false, features = ["macos_fsevent"] }
+notify = { version = "8.2.0", default-features = false, features = ["macos_fsevent"] }
 parking_lot = "0.12"
 tiktoken-rs = "0.6"
 webbrowser = "1.0"
@@ -190,7 +190,7 @@ if-addrs = "0.13"
 enigo = "0.3"
 
 # MCP (Model Context Protocol)
-rmcp = { version = "1.4.0", default-features = false, features = ["auth", "client", "elicitation", "transport-io", "transport-child-process", "transport-streamable-http-client-reqwest", "reqwest-native-tls"] }
+rmcp = { version = "3.9.0", default-features = false, features = ["auth", "client", "elicitation", "transport-io", "transport-child-process", "transport-streamable-http-client-reqwest", "reqwest-native-tls"] }
 
 # 测试
 proptest = "1"

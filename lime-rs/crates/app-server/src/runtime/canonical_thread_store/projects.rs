@@ -37,7 +37,7 @@ pub(super) fn list_projects(
         )
         .map_err(error)?;
     let rows = statement
-        .query_map(params![anchor_position, anchor_id, limit + 1], |row| {
+        .query_map(params![anchor_position, anchor_id, limit as i64 + 1], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,

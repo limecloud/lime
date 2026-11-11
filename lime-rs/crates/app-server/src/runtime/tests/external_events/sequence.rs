@@ -159,7 +159,8 @@ async fn regular_canonical_projection_failure_is_returned_after_event_log_append
         .expect("events before projection failure")
         .len();
 
-    let next_item_ordinal = u64::try_from(memory_event_count).expect("event count") + 1;
+    let event_sequence = i64::try_from(memory_event_count).expect("event count");
+    let next_item_ordinal = event_sequence + 1;
     rusqlite::Connection::open(&database_path)
         .expect("open projection database")
         .execute(
@@ -171,7 +172,7 @@ async fn regular_canonical_projection_failure_is_returned_after_event_log_append
                 turn.turn_id.as_str(),
                 "forced-ordinal-conflict",
                 next_item_ordinal,
-                memory_event_count,
+                event_sequence,
                 "{}"
             ],
         )

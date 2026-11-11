@@ -13,12 +13,16 @@ Simplified Chinese release notes are the primary version.
 - Fix overlapping permission labels while a reply disables the access mode control.
 - Default Provider credentials to files protected by access permissions, with explicit system keyring selection. Unreadable credentials prompt users to save their API key again.
 - Align model capability provenance, MCP form validation, OAuth persistence, model list expectations, and Windows update checks.
+- Select the Windows update baseline from published stable releases with a complete installer, avoiding draft releases without assets.
+- Fix frontend quality checks by separating the cloud desktop data helper from component exports.
+- Batch skill watcher path updates and stop the native watcher once at shutdown, preventing repeated macOS watcher rebuilds from blocking session startup or exit.
 
 ### Improvements and Refactoring
 
 - Align the home screen, contextual sidebar, scheduled tasks, Skills, and plugin catalog layouts, with copy updates in five languages.
 - Consolidate file search, permissions, and path handling. Remove obsolete session DAOs, duplicate repositories, and unused embedding code.
 - Update Rust HTTP/TLS, async runtime, archive, MCP, and terminal dependencies and include the required license materials.
+- Resolve SQLite, OpenSSL, and MCP SDK security advisories and adapt MCP types and SQLite backup calls.
 
 ### Tests and Quality
 

@@ -116,7 +116,7 @@ fn canonical_store_connections_wait_for_transient_sqlite_locks() {
     let (_temp, store) = store();
     let conn = store.open_thread_store().expect("open canonical store");
     let busy_timeout_ms = conn
-        .query_row("PRAGMA busy_timeout", [], |row| row.get::<_, u64>(0))
+        .query_row("PRAGMA busy_timeout", [], |row| row.get::<_, i64>(0))
         .expect("read SQLite busy timeout");
 
     assert_eq!(busy_timeout_ms, 5_000);

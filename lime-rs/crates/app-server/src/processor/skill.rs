@@ -20,6 +20,12 @@ use app_server_protocol::{
 use serde::Serialize;
 
 impl RequestProcessor {
+    pub(crate) async fn shutdown_skills_watcher(&self) {
+        if let Some(watcher) = &self.skills_watcher {
+            watcher.shutdown().await;
+        }
+    }
+
     pub(crate) fn with_skills_watcher(
         mut self,
         watcher: Option<std::sync::Arc<crate::skills_watcher::SkillsWatcher>>,

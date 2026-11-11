@@ -1,6 +1,6 @@
 use super::*;
 use async_trait::async_trait;
-use rmcp::model::{CallToolResult, Content, JsonObject, ListToolsResult};
+use rmcp::model::{CallToolResult, ContentBlock, JsonObject, ListToolsResult};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -41,7 +41,7 @@ impl McpConnection for HangingMcpConnection {
 
 #[test]
 fn tool_result_projection_keeps_text_and_structured_content() {
-    let mut result = CallToolResult::success(vec![Content::text("workspace result")]);
+    let mut result = CallToolResult::success(vec![ContentBlock::text("workspace result")]);
     result.structured_content = Some(serde_json::json!({ "path": "README.md" }));
     let result = project_call_result(Ok(result)).expect("tool result");
 

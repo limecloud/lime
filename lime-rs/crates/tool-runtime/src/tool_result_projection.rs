@@ -1,6 +1,6 @@
 use crate::tool_executor::RuntimeToolExecutionOutcome;
 use crate::tool_io::{ToolOutputReference, ToolOutputTruncation};
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -152,7 +152,9 @@ fn parse_model_visible_image_data_url(data_url: &str) -> Option<(String, String)
     }
 }
 
-fn runtime_tool_model_visible_image_content(metadata: &HashMap<String, Value>) -> Option<Content> {
+fn runtime_tool_model_visible_image_content(
+    metadata: &HashMap<String, Value>,
+) -> Option<ContentBlock> {
     let model_visible_image = metadata
         .get("model_visible_image")
         .or_else(|| metadata.get("modelVisibleImage"))
@@ -167,7 +169,7 @@ fn runtime_tool_model_visible_image_content(metadata: &HashMap<String, Value>) -
         .or_else(|| metadata.get("imageUrl"))
         .and_then(Value::as_str)?;
     let (mime_type, data) = parse_model_visible_image_data_url(image_url)?;
-    Some(Content::image(data, mime_type))
+    Some(ContentBlock::image(data, mime_type))
 }
 
 fn remove_model_visible_image_transport_metadata(metadata: &mut HashMap<String, Value>) {
@@ -214,7 +216,7 @@ pub fn runtime_tool_result_to_call_tool_result(result: RuntimeToolResultParts) -
             .unwrap_or_default()
     };
 
-    let mut content = vec![Content::text(text)];
+    let mut content = vec![ContentBlock::text(text)];
     if let Some(image_content) = image_content {
         content.push(image_content);
     }

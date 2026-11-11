@@ -428,7 +428,7 @@ function assertBuildSteps(buildJob) {
     "Windows Squirrel N-1 download condition",
   );
   for (const required of [
-    "selectNMinusOneVersion",
+    "scripts/electron/select-windows-update-baseline.mjs",
     "gh release download",
     "Lime-$N_MINUS_ONE_VERSION.Setup.exe",
   ]) {

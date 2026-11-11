@@ -9,7 +9,7 @@ use validation::validate_primitive;
 use validation::validate_response_content;
 
 use crate::McpRuntimeOwner;
-use rmcp::model::{CreateElicitationRequestParams, ElicitationSchema};
+use rmcp::model::{ElicitRequestParams, ElicitationSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -90,7 +90,7 @@ impl ElicitationOwnerGate {
 
     pub(crate) fn resolve_request_meta(
         &self,
-        mut meta: rmcp::model::Meta,
+        mut meta: rmcp::model::RequestMetaObject,
     ) -> (Option<McpCallScope>, Option<Value>) {
         // Standard progressToken belongs to RMCP and must not escape into
         // product metadata. Request ownership comes from the serialized call
@@ -105,8 +105,8 @@ impl ElicitationOwnerGate {
     }
 }
 
-fn public_meta(meta: rmcp::model::Meta) -> Option<Value> {
-    (!meta.is_empty()).then(|| Value::Object(meta.0))
+fn public_meta(meta: rmcp::model::RequestMetaObject) -> Option<Value> {
+    (!meta.is_empty()).then(|| Value::Object(meta.0 .0))
 }
 
 pub(crate) struct ElicitationOwnerGuard {
@@ -460,11 +460,11 @@ impl ElicitationRequestRouter {
         server_name: String,
         runtime_owner: McpRuntimeOwner,
         scope: McpCallScope,
-        params: CreateElicitationRequestParams,
+        params: ElicitRequestParams,
         meta: Option<Value>,
         cancellation: CancellationToken,
     ) -> Result<ElicitationResponse, ElicitationRouterError> {
-        let CreateElicitationRequestParams::FormElicitationParams {
+        let ElicitRequestParams::FormElicitationParams {
             message,
             requested_schema,
             ..
@@ -549,7 +549,7 @@ impl ElicitationRequestRouter {
         &self,
         server_name: String,
         scope: McpCallScope,
-        params: CreateElicitationRequestParams,
+        params: ElicitRequestParams,
         meta: Option<Value>,
         cancellation: CancellationToken,
     ) -> Result<ElicitationResponse, ElicitationRouterError> {
