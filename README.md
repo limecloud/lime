@@ -198,6 +198,20 @@ lime exec \
 
 To build the Linux cloud guest from source on a native Linux x64 host, run `node scripts/app-server/linux-guest-build.mjs --out <new-absolute-directory>`. The output includes an archive and integrity digests. Select a trusted package under Cloud computers → Install runtime to save the task connection with platform encryption after installation. The target requires prepared desktop dependencies, a public IPv4, and temporary upload port 8787 accessible only from your outbound IP; Lime does not change security groups. See the [Cloud execution plan](internal/exec-plans/cloud-desktop-byoc-plan.md) for installation arguments and verification boundaries.
 
+### Web search API endpoints
+
+Set these optional variables in the environment that starts Lime or its App Server. They affect the local `bing_search_api` and `google_custom_search` tools; model Provider endpoints are configured separately. Unset or blank values use the vendor addresses. Overrides must use HTTP or HTTPS and return the corresponding Bing v7 or Google Custom Search JSON format.
+
+| Variable | Purpose | Default / requirement |
+| --- | --- | --- |
+| `BING_SEARCH_ENDPOINT` | Full Bing-compatible search URL | `https://api.bing.microsoft.com/v7.0/search` |
+| `BING_SEARCH_API_KEY` | Bing-compatible API credential | Required when using this provider |
+| `GOOGLE_SEARCH_ENDPOINT` | Full Google-compatible search URL | `https://www.googleapis.com/customsearch/v1` |
+| `GOOGLE_SEARCH_API_KEY` | Google-compatible API credential | Required when using this provider |
+| `GOOGLE_SEARCH_ENGINE_ID` | Google search engine identifier | Required when using this provider |
+
+Choose an endpoint you trust to receive the search query and the provider credential. Invalid endpoint values fail that provider and continue through the existing search fallback chain; an endpoint override does not change the required request or response format.
+
 ### First run (Desktop or CLI/TUI)
 
 1. Open the Desktop app, or run `lime` for CLI/TUI; configure a Provider and test a model connection.
