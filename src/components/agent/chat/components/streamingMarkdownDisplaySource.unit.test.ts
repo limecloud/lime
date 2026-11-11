@@ -32,4 +32,35 @@ describe("streamingMarkdownDisplaySource", () => {
       pendingTail: "",
     });
   });
+
+  it("流式 Markdown 应只把完整换行前的源码交给 Markdown renderer", () => {
+    expect(
+      resolveStreamingMarkdownDisplaySource(
+        "| 来源 | 结论 |\n| --- | --- |\n| Codex",
+        true,
+      ),
+    ).toEqual({
+      markdown: "| 来源 | 结论 |\n| --- | --- |\n",
+      pendingTail: "| Codex",
+    });
+
+    expect(resolveStreamingMarkdownDisplaySource("## 标题", true)).toEqual({
+      markdown: "",
+      pendingTail: "## 标题",
+    });
+
+    expect(resolveStreamingMarkdownDisplaySource("## 标题", false)).toEqual({
+      markdown: "## 标题",
+      pendingTail: "",
+    });
+
+    expect(
+      resolveStreamingMarkdownDisplaySource("- 半截列表\n- 仍在输出", true, {
+        deferMarkdownUntilComplete: true,
+      }),
+    ).toEqual({
+      markdown: "",
+      pendingTail: "- 半截列表\n- 仍在输出",
+    });
+  });
 });
