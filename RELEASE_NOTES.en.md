@@ -21,6 +21,7 @@ Simplified Chinese release notes are the primary version.
 - Fix a race between cloud runtime installation completion and status reads that could stop UI polling early.
 - Explicitly release the Computer Use control lock so concurrently launched child processes cannot retain an ended control lease.
 - Preserve model catalog instructions and multi-agent message configuration instead of replacing them with bundled defaults.
+- Remove the Start menu shortcut created for Electron notifications during Windows uninstall, preventing a stale entry after the installation is removed.
 
 ### Improvements and Refactoring
 

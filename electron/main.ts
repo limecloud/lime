@@ -60,7 +60,10 @@ import {
 import { installMainWindowPermissionHandlers } from "./mainWindowPermissions";
 import { ElectronUpdateHost } from "./updateHost";
 import { createElectronSmokeRunner } from "./smokeChecks";
-import { resolveWindowsSquirrelStartupPlan } from "./windowsSquirrelStartup";
+import {
+  removeWindowsNotificationShortcut,
+  resolveWindowsSquirrelStartupPlan,
+} from "./windowsSquirrelStartup";
 import {
   buildUpdateNotificationWindowBounds,
   type RectangleLike,
@@ -1707,6 +1710,19 @@ function handleWindowsSquirrelStartup(): boolean {
         );
       },
     );
+    if (plan.args[0] === "--removeShortcut") {
+      removeWindowsNotificationShortcut({
+        appDataPath: app.getPath("appData"),
+        execPath: process.execPath,
+        appUserModelId: APP_BUNDLE_IDENTIFIER,
+        readShortcutLink: (shortcutPath) => shell.readShortcutLink(shortcutPath),
+        onError: (error) =>
+          console.warn(
+            "[electron-host] Notification shortcut cleanup failed",
+            error,
+          ),
+      });
+    }
     // Squirrel gives lifecycle handlers a short deadline. Update.exe is detached,
     // so the host should not wait for its process lifetime before quitting.
     setTimeout(() => app.quit(), 1_000);
