@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { link, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +15,7 @@ const tempRoots: string[] = [];
 function createSafeStorage(available = true): SafeStorageLike {
   return {
     isEncryptionAvailable: () => available,
+    getSelectedStorageBackend: () => "gnome_libsecret",
     encryptString: (plainText) =>
       Buffer.from(Buffer.from(plainText, "utf8").toString("base64url"), "utf8"),
     decryptString: (encrypted) =>
@@ -93,6 +95,7 @@ describe("ElectronSecureCredentialStore", () => {
     async (backend) => {
       const root = await createRoot();
       const storage = createSafeStorage();
+      delete storage.getSelectedStorageBackend;
       if (backend) storage.getSelectedStorageBackend = () => backend;
       const store = new ElectronSecureCredentialStore(root, storage, "linux");
       await expect(
