@@ -20,6 +20,7 @@ Simplified Chinese release notes are the primary version.
 - Restore the sidebar expert directory entry and preserve project scope across expert, Skills, and plugin pages.
 - Fix a race between cloud runtime installation completion and status reads that could stop UI polling early.
 - Explicitly release the Computer Use control lock so concurrently launched child processes cannot retain an ended control lease.
+- Preserve model catalog instructions and multi-agent message configuration instead of replacing them with bundled defaults.
 
 ### Improvements and Refactoring
 

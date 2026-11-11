@@ -361,7 +361,7 @@ jobs:
           TMP: ${{ runner.temp }}/rust-full
         run: |
           mkdir -p "$TMPDIR"
-          npm run test:rust
+          npm run test:rust -- --no-fail-fast
 
   windows_shell_runtime:
     name: Windows Shell Runtime

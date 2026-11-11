@@ -50,7 +50,9 @@ pub(super) fn apply_model_info(metadata: &mut EnhancedModelMetadata) {
     let Some(model) = model_info_from_slug(&metadata.id) else {
         return;
     };
-    metadata.model_messages = model.model_messages.clone();
+    if metadata.model_messages.is_none() {
+        metadata.model_messages = model.model_messages.clone();
+    }
     metadata.capability_provenance = ModelCapabilityProvenance::Canonical;
     metadata.input_modalities = model
         .input_modalities
@@ -145,6 +147,52 @@ mod tests {
         assert!(model_info_from_slug("openai/gpt-6.1-sol").is_some());
         assert!(model_info_from_slug("not-gpt-6.1-sol").is_none());
         assert!(model_info_from_slug("gpt-6.1-sol-fake").is_none());
+    }
+
+    #[test]
+    fn api_model_without_messages_uses_the_bundled_descriptor() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let service = ModelRegistryService::new(std::sync::Arc::new(std::sync::Mutex::new(conn)));
+        let response = ModelRegistryService::parse_openai_models_response(
+            r#"{"data":[{"id":"gpt-5.6-sol"}]}"#,
+        )
+        .expect("parse model without messages");
+        let metadata = service.convert_api_model(response.into_iter().next().unwrap(), "openai", 0);
+        let bundled = model_info_from_slug("gpt-5.6-sol").expect("bundled descriptor");
+
+        assert!(metadata.model_messages.is_some());
+        assert_eq!(metadata.model_messages, bundled.model_messages);
+        assert!(metadata.capabilities.tools && metadata.capabilities.streaming);
+    }
+
+    #[test]
+    fn explicit_api_model_messages_are_preserved_with_bundled_capabilities() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let service = ModelRegistryService::new(std::sync::Arc::new(std::sync::Mutex::new(conn)));
+        for messages in [
+            serde_json::json!({
+                "instructions_template": "provider-owned instructions",
+                "instructions_variables": {"personality": "provider personality"},
+                "multi_agent": {"mode": {"proactive": "delegate independently"}},
+                "tools": {"spawn_agent": {"description": "provider tool instructions"}}
+            }),
+            serde_json::json!({"instructions_template": ""}),
+            serde_json::json!({}),
+        ] {
+            let response = ModelRegistryService::parse_openai_models_response(
+                &serde_json::json!({"data": [{
+                    "id": "gpt-5.6-sol",
+                    "model_messages": messages
+                }]})
+                .to_string(),
+            )
+            .expect("parse explicit model messages");
+            let metadata =
+                service.convert_api_model(response.into_iter().next().unwrap(), "openai", 0);
+
+            assert_eq!(metadata.model_messages, Some(messages));
+            assert!(metadata.capabilities.tools && metadata.capabilities.streaming);
+        }
     }
 
     #[test]
