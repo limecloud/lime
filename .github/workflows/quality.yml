@@ -290,6 +290,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Linux Rust build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libasound2-dev libxdo-dev
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
