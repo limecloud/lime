@@ -276,6 +276,18 @@ impl RuntimeWebSearchExecutor {
                     metadata: json!({ "provider": provider.as_env_value() }),
                 })
             }
+            SearchProviderKind::Keenable => {
+                // Keenable works without an API key; KEENABLE_API_KEY is optional.
+                let api_key = std::env::var("KEENABLE_API_KEY")
+                    .ok()
+                    .map(|key| key.trim().to_string())
+                    .filter(|key| !key.is_empty());
+                let results = self.search_with_keenable(query, api_key.as_deref()).await?;
+                Ok(SearchProviderOutput {
+                    results,
+                    metadata: json!({ "provider": provider.as_env_value() }),
+                })
+            }
             SearchProviderKind::DuckduckgoInstant => {
                 let results = self.search_with_duckduckgo(query).await?;
                 Ok(SearchProviderOutput {
@@ -284,6 +296,42 @@ impl RuntimeWebSearchExecutor {
                 })
             }
         }
+    }
+
+    async fn search_with_keenable(
+        &self,
+        query: &str,
+        api_key: Option<&str>,
+    ) -> Result<Vec<SearchResult>, String> {
+        let endpoint = if api_key.is_some() {
+            KEENABLE_KEYED_SEARCH_URL
+        } else {
+            KEENABLE_PUBLIC_SEARCH_URL
+        };
+        let mut request = self
+            .client
+            .post(endpoint)
+            .header("X-Keenable-Title", "Lime")
+            .json(&json!({ "query": query, "max_results": 10 }));
+        if let Some(key) = api_key {
+            request = request.header("X-API-Key", key);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|error| format!("Keenable Search API 请求失败: {error}"))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("Keenable API 返回错误 {status}: {text}"));
+        }
+
+        let data = response
+            .json::<Value>()
+            .await
+            .map_err(|error| format!("解析 Keenable 响应失败: {error}"))?;
+        Ok(parse_keenable_results(&data))
     }
 
     async fn search_with_tavily(
@@ -626,6 +674,49 @@ include!("web_search/support.rs");
 #[cfg(test)]
 mod access_tests;
 
+const KEENABLE_PUBLIC_SEARCH_URL: &str = "https://api.keenable.ai/v1/search/public";
+const KEENABLE_KEYED_SEARCH_URL: &str = "https://api.keenable.ai/v1/search";
+const KEENABLE_SNIPPET_MAX_CHARS: usize = 1000;
+
+/// Prefer Keenable's short `description`; fall back to a truncated `snippet`.
+fn parse_keenable_results(data: &Value) -> Vec<SearchResult> {
+    let items = data
+        .get("results")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+
+    items
+        .iter()
+        .filter_map(|item| {
+            let url = item.get("url")?.as_str()?.trim();
+            if url.is_empty() {
+                return None;
+            }
+            let snippet = item
+                .get("description")
+                .and_then(Value::as_str)
+                .filter(|text| !text.trim().is_empty())
+                .map(str::to_string)
+                .or_else(|| {
+                    item.get("snippet")
+                        .and_then(Value::as_str)
+                        .map(|text| text.chars().take(KEENABLE_SNIPPET_MAX_CHARS).collect())
+                });
+            Some(SearchResult {
+                title: item
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or(url)
+                    .to_string(),
+                url: url.to_string(),
+                snippet,
+                publish_date: None,
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -654,6 +745,39 @@ mod tests {
         assert!(config
             .priority
             .contains(&SearchProviderKind::DuckduckgoInstant));
+    }
+
+    #[test]
+    fn search_runtime_config_keenable_is_opt_in() {
+        let default_config = SearchRuntimeConfig::from_env_map(&HashMap::new());
+        assert!(!default_config
+            .priority
+            .contains(&SearchProviderKind::Keenable));
+
+        let env = HashMap::from([("WEB_SEARCH_PROVIDER".to_string(), "keenable".to_string())]);
+        let config = SearchRuntimeConfig::from_env_map(&env);
+        assert_eq!(config.priority[0], SearchProviderKind::Keenable);
+    }
+
+    #[test]
+    fn keenable_results_prefer_description_and_skip_missing_urls() {
+        let long = "x".repeat(2000);
+        let data = json!({
+            "results": [
+                { "title": "A", "url": "https://a.example", "description": "short", "snippet": "long" },
+                { "title": "No URL", "description": "dropped" },
+                { "title": "B", "url": "https://b.example", "snippet": long }
+            ]
+        });
+
+        let results = parse_keenable_results(&data);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].snippet.as_deref(), Some("short"));
+        assert_eq!(
+            results[1].snippet.as_ref().map(|text| text.chars().count()),
+            Some(KEENABLE_SNIPPET_MAX_CHARS)
+        );
     }
 
     #[test]
