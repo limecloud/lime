@@ -285,7 +285,7 @@ jobs:
 
   rust:
     name: Rust Quick
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     needs: changed
     if: ${{ github.event_name == 'pull_request' && (needs.changed.outputs.rust == 'true' || needs.changed.outputs.fallback == 'true' || needs.changed.outputs.workflow == 'true') }}
