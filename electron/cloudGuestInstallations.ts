@@ -138,12 +138,14 @@ export class CloudGuestInstallations {
     const available = this.#file(key).available;
     if (!available)
       return { kind: "installation", available, exists: false, busy: false };
+    const busy = this.#jobs.has(key);
     const state = await this.#read(key, resource);
     return {
       kind: "installation",
       available,
       exists: Boolean(state),
-      busy: this.#jobs.has(key),
+      // Keep polling if the disk snapshot predates a job that completed during read.
+      busy: busy || this.#jobs.has(key),
       ...(state
         ? {
             operationId: state.operationId,

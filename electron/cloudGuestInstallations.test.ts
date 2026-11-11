@@ -158,6 +158,72 @@ async function fixture() {
 }
 
 describe("private cloud runtime orchestration", () => {
+  it("keeps polling when the job completes while a status snapshot is being read", async () => {
+    const f = await fixture();
+    const deferred = () => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    };
+    const finishReached = deferred();
+    const releaseFinish = deferred();
+    const snapshotRead = deferred();
+    const releaseSnapshot = deferred();
+    const transport = f.transport.getMockImplementation()!;
+    f.transport.mockImplementation(async (...args) => {
+      if (args[2] === "/finish") {
+        finishReached.resolve();
+        await releaseFinish.promise;
+      }
+      return transport(...args);
+    });
+    const read = ElectronEncryptedStateFile.prototype.read;
+    let holdSnapshot = false;
+    const spy = vi
+      .spyOn(ElectronEncryptedStateFile.prototype, "read")
+      .mockImplementation(async function (this: ElectronEncryptedStateFile) {
+        const state = await read.call(this);
+        if (
+          holdSnapshot &&
+          (state as { phase?: string } | null)?.phase === "finishPending"
+        ) {
+          holdSnapshot = false;
+          snapshotRead.resolve();
+          await releaseSnapshot.promise;
+        }
+        return state;
+      });
+    try {
+      await f.start();
+      await finishReached.promise;
+      holdSnapshot = true;
+      const pending = f.manager.status("key", resource);
+      await snapshotRead.promise;
+      releaseFinish.resolve();
+      expect(await f.idle()).toMatchObject({ phase: "complete", busy: false });
+      releaseSnapshot.resolve();
+      expect(await pending).toMatchObject({
+        phase: "finishPending",
+        busy: true,
+      });
+      expect(await f.manager.status("key", resource)).toMatchObject({
+        phase: "complete",
+        busy: false,
+      });
+      expect(f.save).toHaveBeenCalledTimes(1);
+      expect(
+        f.transport.mock.calls.filter((call) => call[2] === "/finish"),
+      ).toHaveLength(1);
+    } finally {
+      releaseFinish.resolve();
+      releaseSnapshot.resolve();
+      spy.mockRestore();
+      await f.manager.stop();
+    }
+  });
+
   it("keeps saved credentials on a lost finish response and resumes only closing the service", async () => {
     const f = await fixture();
     const normal = f.transport.getMockImplementation()!;

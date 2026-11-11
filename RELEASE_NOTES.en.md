@@ -18,6 +18,7 @@ Simplified Chinese release notes are the primary version.
 - Batch skill watcher path updates and stop the native watcher once at shutdown, preventing repeated macOS watcher rebuilds from blocking session startup or exit.
 - Fix unauthenticated MCP OAuth servers being shown as signed in and hiding the Authenticate button.
 - Restore the sidebar expert directory entry and preserve project scope across expert, Skills, and plugin pages.
+- Fix a race between cloud runtime installation completion and status reads that could stop UI polling early.
 
 ### Improvements and Refactoring
 
@@ -35,6 +36,7 @@ Simplified Chinese release notes are the primary version.
 ### Documentation
 
 - Update credential storage guidance, the cloud desktop plan, architecture boundaries, protocol documentation, and source provenance records.
+- Add a Wuying Windows cloud testing skill for candidate synchronization, desktop evidence, and resource cleanup.
 
 ### Other
 
