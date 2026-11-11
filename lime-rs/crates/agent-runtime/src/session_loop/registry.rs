@@ -29,12 +29,27 @@ impl RuntimeSessionRegistry {
         session_id: &str,
         thread_id: &str,
     ) -> Result<RuntimeSessionHandle, RuntimeSessionLoopError> {
+        self.get_or_create_if(session_id, thread_id, || true)
+            .await
+            .map(|handle| handle.expect("unconditional session admission"))
+    }
+
+    /// Evaluate admission while holding the same lock as actor lookup and creation.
+    pub async fn get_or_create_if(
+        &self,
+        session_id: &str,
+        thread_id: &str,
+        admit: impl FnOnce() -> bool,
+    ) -> Result<Option<RuntimeSessionHandle>, RuntimeSessionLoopError> {
         if session_id.trim().is_empty() || thread_id.trim().is_empty() {
             return Err(RuntimeSessionLoopError::InvalidTask(
                 "runtime session actor requires canonical session_id and thread_id".to_string(),
             ));
         }
         let mut sessions = self.sessions.lock().await;
+        if !admit() {
+            return Ok(None);
+        }
         if let Some(handle) = sessions.get(session_id) {
             if handle.thread_id() != thread_id {
                 return Err(RuntimeSessionLoopError::InvalidTask(format!(
@@ -42,7 +57,7 @@ impl RuntimeSessionRegistry {
                     handle.thread_id()
                 )));
             }
-            return Ok(handle.clone());
+            return Ok(Some(handle.clone()));
         }
         let handle = RuntimeSessionActor::spawn(
             session_id.to_string(),
@@ -50,7 +65,7 @@ impl RuntimeSessionRegistry {
             self.code_mode_factory.as_ref(),
         );
         sessions.insert(session_id.to_string(), handle.clone());
-        Ok(handle)
+        Ok(Some(handle))
     }
 
     pub async fn shutdown(&self, session_id: &str) -> Result<(), RuntimeSessionLoopError> {
@@ -114,5 +129,61 @@ impl RuntimeSessionRegistry {
             return Ok(None);
         };
         handle.snapshot().await.map(Some)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[tokio::test]
+    async fn admission_is_checked_after_the_registry_lock_without_creating_a_rejected_actor() {
+        let registry = RuntimeSessionRegistry::default();
+        let admitted = Arc::new(AtomicBool::new(true));
+        let guard = registry.sessions.lock().await;
+        let (started, waiting) = tokio::sync::oneshot::channel();
+        let creation = tokio::spawn({
+            let registry = registry.clone();
+            let admitted = admitted.clone();
+            async move {
+                started.send(()).unwrap();
+                registry
+                    .get_or_create_if("rejected-session", "rejected-thread", || {
+                        admitted.load(Ordering::SeqCst)
+                    })
+                    .await
+            }
+        });
+        waiting.await.unwrap();
+        admitted.store(false, Ordering::SeqCst);
+        drop(guard);
+        assert!(creation.await.unwrap().unwrap().is_none());
+        assert!(registry.get_existing("rejected-session").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn denied_admission_preserves_the_existing_actor_for_its_shutdown_owner() {
+        let registry = RuntimeSessionRegistry::default();
+        let actor = registry
+            .get_or_create_if("owned-session", "owned-thread", || true)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(registry
+            .get_or_create_if("owned-session", "owned-thread", || false)
+            .await
+            .unwrap()
+            .is_none());
+        actor
+            .snapshot()
+            .await
+            .expect("rejection must not close the actor");
+        registry.shutdown("owned-session").await.unwrap();
+        assert!(registry.get_existing("owned-session").await.is_none());
+        assert!(matches!(
+            actor.snapshot().await,
+            Err(RuntimeSessionLoopError::Closed)
+        ));
     }
 }

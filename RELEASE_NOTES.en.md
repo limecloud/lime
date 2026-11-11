@@ -22,6 +22,7 @@ Simplified Chinese release notes are the primary version.
 - Explicitly release the Computer Use control lock so concurrently launched child processes cannot retain an ended control lease.
 - Preserve model catalog instructions and multi-agent message configuration instead of replacing them with bundled defaults.
 - Remove the Start menu shortcut created for Electron notifications during Windows uninstall, preventing a stale entry after the installation is removed.
+- Fix a race between background input and session cleanup so rejected input cannot prematurely close a shared session.
 
 ### Improvements and Refactoring
 

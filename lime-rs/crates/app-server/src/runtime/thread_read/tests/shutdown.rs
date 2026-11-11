@@ -254,6 +254,69 @@ async fn closing_session_rejects_turn_admission_and_resume_without_creating_loop
 }
 
 #[tokio::test]
+async fn rejected_input_must_not_shutdown_the_actor_owned_by_session_cleanup() {
+    for shutting_down in [false, true] {
+        let (_temp, runtime, _backend) = prepared_runtime().await;
+        let actor = runtime
+            .session_loop_for_input("shutdown-session", "shutdown-thread")
+            .await
+            .unwrap();
+        let task = actor
+            .submit(
+                Arc::new(agent_runtime::session_loop::RuntimeSessionClosureTask::new(
+                    "cleanup-owned-turn",
+                    Vec::new(),
+                    |_context, _input, cancellation| {
+                        Box::pin(async move {
+                            cancellation.cancelled().await;
+                            Ok(())
+                        })
+                    },
+                )),
+                false,
+            )
+            .await
+            .unwrap();
+        {
+            let mut state = runtime.state.lock().unwrap();
+            state.shutting_down = shutting_down;
+            if !shutting_down {
+                state
+                    .closing_sessions
+                    .insert("shutdown-session".to_string());
+            }
+        }
+        let rejected = runtime
+            .session_loop_for_input("shutdown-session", "shutdown-thread")
+            .await;
+        assert!(
+            matches!(rejected, Err(RuntimeCoreError::InvalidRequest(ref message))
+            if message == "runtime session is shutting down: shutdown-session")
+        );
+        assert!(actor
+            .interrupt_for_turn(Some("cleanup-owned-turn"))
+            .await
+            .expect("rejected input must retain the cleanup owner's actor"));
+        assert_eq!(
+            task.completion.await.unwrap().unwrap(),
+            agent_runtime::session_loop::RuntimeSessionTaskOutcome::Interrupted
+        );
+        runtime
+            .state
+            .lock()
+            .unwrap()
+            .closing_sessions
+            .remove("shutdown-session");
+        runtime.shutdown().await.unwrap();
+        assert!(runtime
+            .session_loops
+            .get_existing("shutdown-session")
+            .await
+            .is_none());
+    }
+}
+
+#[tokio::test]
 async fn transport_shutdown_waits_for_idle_cleanup_and_blocks_new_sessions() {
     let (_temp, runtime, backend) = prepared_runtime().await;
     backend.pause.store(true, Ordering::SeqCst);

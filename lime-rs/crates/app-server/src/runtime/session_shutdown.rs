@@ -223,34 +223,32 @@ impl RuntimeCore {
         session_id: &str,
         thread_id: &str,
     ) -> Result<RuntimeSessionHandle, RuntimeCoreError> {
+        let mut admission = Ok(());
         let session = self
             .session_loops
-            .get_or_create(session_id, thread_id)
+            .get_or_create_if(session_id, thread_id, || {
+                // Shutdown marks state before taking the registry lock. Admission
+                // must share that lock so rejected input cannot close its actor.
+                let state = self
+                    .state
+                    .lock()
+                    .expect("runtime core state mutex poisoned");
+                admission = state
+                    .ensure_session_accepts_input(session_id)
+                    .and_then(|()| {
+                        state
+                            .sessions
+                            .contains_key(session_id)
+                            .then_some(())
+                            .ok_or_else(|| {
+                                RuntimeCoreError::SessionNotFound(session_id.to_string())
+                            })
+                    });
+                admission.is_ok()
+            })
             .await
             .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?;
-        let admission = {
-            let state = self
-                .state
-                .lock()
-                .expect("runtime core state mutex poisoned");
-            state
-                .ensure_session_accepts_input(session_id)
-                .and_then(|()| {
-                    state
-                        .sessions
-                        .contains_key(session_id)
-                        .then_some(())
-                        .ok_or_else(|| RuntimeCoreError::SessionNotFound(session_id.to_string()))
-                })
-        };
-        if let Err(error) = admission {
-            // A preparing request may have raced with shutdown while creating its actor.
-            self.session_loops
-                .shutdown(session_id)
-                .await
-                .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?;
-            return Err(error);
-        }
-        Ok(session)
+        admission?;
+        Ok(session.expect("successful admission retains a runtime session actor"))
     }
 }
