@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
   act,
+  changeLimeLocale,
   cleanupAppSidebarTest,
   flushEffects,
   mockGetConfig,
@@ -88,6 +89,63 @@ describe("AppSidebar preferences", () => {
 
     expect(onNavigate).toHaveBeenCalledWith("plugins", {});
   });
+
+  it.each([
+    ["zh-CN", "专家"],
+    ["zh-TW", "專家"],
+    ["en-US", "Experts"],
+    ["ja-JP", "専門家"],
+    ["ko-KR", "전문가"],
+  ] as const)(
+    "%s 专家入口应只展示一次并携带当前项目导航",
+    async (locale, label) => {
+      await changeLimeLocale(locale);
+      const onNavigate = vi.fn();
+      const container = mountSidebarContainer({
+        currentPage: "plugins",
+        currentPageParams: { currentProjectId: "project-1" },
+        onNavigate,
+      });
+      await flushEffects();
+
+      const buttons = container.querySelectorAll<HTMLButtonElement>(
+        '[data-testid="app-sidebar-customization-experts"]',
+      );
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0].textContent).toBe(label);
+      expect(buttons[0].getAttribute("aria-current")).toBeNull();
+
+      act(() => buttons[0].click());
+
+      expect(onNavigate).toHaveBeenCalledExactlyOnceWith("experts", {
+        currentProjectId: "project-1",
+        projectId: "project-1",
+      });
+    },
+  );
+
+  it.each(["currentProjectId", "projectId"] as const)(
+    "从专家页进入 Skills 应保留路由中的 %s 项目作用域",
+    async (projectKey) => {
+      const onNavigate = vi.fn();
+      const container = mountSidebarContainer({
+        currentPage: "experts",
+        currentPageParams: { [projectKey]: "expert-project" },
+        onNavigate,
+      });
+      await flushEffects();
+
+      const button = container.querySelector<HTMLButtonElement>(
+        '[data-testid="app-sidebar-customization-skills"]',
+      );
+      expect(button).not.toBeNull();
+      act(() => button?.click());
+
+      expect(onNavigate).toHaveBeenCalledExactlyOnceWith("skills", {
+        creationProjectId: "expert-project",
+      });
+    },
+  );
 
   it("从项目会话进入插件工作台应保留当前项目作用域", async () => {
     const onNavigate = vi.fn();

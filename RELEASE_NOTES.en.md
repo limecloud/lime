@@ -17,6 +17,7 @@ Simplified Chinese release notes are the primary version.
 - Fix frontend quality checks by separating the cloud desktop data helper from component exports.
 - Batch skill watcher path updates and stop the native watcher once at shutdown, preventing repeated macOS watcher rebuilds from blocking session startup or exit.
 - Fix unauthenticated MCP OAuth servers being shown as signed in and hiding the Authenticate button.
+- Restore the sidebar expert directory entry and preserve project scope across expert, Skills, and plugin pages.
 
 ### Improvements and Refactoring
 
