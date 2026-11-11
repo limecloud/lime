@@ -14,6 +14,7 @@ const retired = catalog.imports.find(
 const mainPath = "electron/main.ts";
 const mainOwner = "electron/mainWindowPermissions.ts";
 const embeddedOwner = "electron/embeddedBrowserPermissions.ts";
+const cloudOwner = "electron/cloudDesktopWindowFactory.ts";
 const currentSources = {
   [mainPath]: `
     import { installMainWindowPermissionHandlers as installPermissions } from "./mainWindowPermissions";
@@ -30,6 +31,12 @@ const currentSources = {
   [embeddedOwner]: `
     export function installEmbeddedBrowserPermissionHandling(browserSession) {
       browserSession.setPermissionRequestHandler(() => {});
+    }
+  `,
+  [cloudOwner]: `
+    export function createCloudDesktopWindow() {
+      cloudSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+      cloudSession.setPermissionCheckHandler(() => false);
     }
   `,
 };
@@ -146,6 +153,53 @@ describe("main-window permission owner regression guard", () => {
       },
       "main-setter-count",
       mainOwner,
+    );
+  });
+
+  it("allows the isolated cloud owner only with both deny-all handlers", () => {
+    expect(fixture()).toEqual([]);
+  });
+
+  it.each([
+    ["callback(false)", "callback(true)"],
+    ["callback(false)", 'callback(_permission === "media")'],
+    ["callback(false)", "callback()"],
+    ["callback(false)", "callback(false, true)"],
+    ["callback(false)", "otherCallback(false)"],
+    ["() => false", "() => true"],
+    ["() => false", '(permission) => permission === "media"'],
+    ["() => false", "checkPermission"],
+  ])("rejects a cloud policy change from %s to %s", (before, after) => {
+    expectViolation(
+      { [cloudOwner]: currentSources[cloudOwner].replace(before, after) },
+      "cloud-permission-policy",
+      cloudOwner,
+    );
+  });
+
+  it("rejects duplicate cloud setter registrations", () => {
+    expectViolation(
+      {
+        [cloudOwner]: `${currentSources[cloudOwner]}\ncloudSession.setPermissionCheckHandler(() => false);`,
+      },
+      "cloud-setter-count",
+      cloudOwner,
+    );
+  });
+
+  it("rejects a missing cloud handler", () => {
+    expectViolation(
+      { [cloudOwner]: "export {};" },
+      "cloud-setter-count",
+      cloudOwner,
+    );
+  });
+
+  it("rejects cloud handlers moved outside their registered owner", () => {
+    expectViolation(
+      { "electron/cloudDesktopWindow.ts": currentSources[cloudOwner] },
+      "setter-outside-owner",
+      "electron/cloudDesktopWindow.ts",
     );
   });
 

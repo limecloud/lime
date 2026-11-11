@@ -5,6 +5,7 @@ import ts from "typescript";
 const mainPath = "electron/main.ts";
 const mainOwner = "electron/mainWindowPermissions.ts";
 const embeddedOwner = "electron/embeddedBrowserPermissions.ts";
+const cloudOwner = "electron/cloudDesktopWindowFactory.ts";
 const mainInstaller = "installMainWindowPermissionHandlers";
 const retiredIdentifiers = new Set([
   "installMainWindowMediaPermissionHandler",
@@ -128,6 +129,36 @@ function isInstallerCall(node, bindings) {
   );
 }
 
+function isDenyAllPermissionSetter(node, setter) {
+  const call = node.parent;
+  if (
+    !ts.isCallExpression(call) ||
+    call.expression !== node ||
+    call.arguments.length !== 1
+  ) {
+    return false;
+  }
+  const handler = call.arguments[0];
+  if (!ts.isArrowFunction(handler) || handler.modifiers?.length) return false;
+  if (setter === "setPermissionCheckHandler") {
+    return (
+      handler.parameters.length === 0 &&
+      handler.body.kind === ts.SyntaxKind.FalseKeyword
+    );
+  }
+  const callback = handler.parameters[2]?.name;
+  return (
+    handler.parameters.length === 3 &&
+    callback &&
+    ts.isIdentifier(callback) &&
+    ts.isCallExpression(handler.body) &&
+    ts.isIdentifier(handler.body.expression) &&
+    handler.body.expression.text === callback.text &&
+    handler.body.arguments.length === 1 &&
+    handler.body.arguments[0].kind === ts.SyntaxKind.FalseKeyword
+  );
+}
+
 // 测试侧治理扫描：同一检测器用于真实 Electron 目录与恢复反例，不执行目标源码。
 export function findPermissionOwnerViolations(repoRoot, retiredTargets) {
   const violations = retiredTargets
@@ -135,6 +166,9 @@ export function findPermissionOwnerViolations(repoRoot, retiredTargets) {
     .map((target) => ({ code: "retired-file", path: target }));
   const retiredModules = new Set(retiredTargets.map(moduleStem));
   const setterCounts = new Map(
+    [...permissionSetters].map((setter) => [setter, 0]),
+  );
+  const cloudSetterCounts = new Map(
     [...permissionSetters].map((setter) => [setter, 0]),
   );
   let mainInstallations = 0;
@@ -174,6 +208,11 @@ export function findPermissionOwnerViolations(repoRoot, retiredTargets) {
       if (setter) {
         if (relativePath === mainOwner) {
           setterCounts.set(setter, setterCounts.get(setter) + 1);
+        } else if (relativePath === cloudOwner) {
+          cloudSetterCounts.set(setter, cloudSetterCounts.get(setter) + 1);
+          if (!isDenyAllPermissionSetter(node, setter)) {
+            report("cloud-permission-policy", node);
+          }
         } else if (relativePath !== embeddedOwner) {
           report("setter-outside-owner", node);
         }
@@ -199,6 +238,16 @@ export function findPermissionOwnerViolations(repoRoot, retiredTargets) {
       violations.push({
         code: "main-setter-count",
         path: mainOwner,
+        setter,
+        count,
+      });
+    }
+  }
+  for (const [setter, count] of cloudSetterCounts) {
+    if (count !== 1) {
+      violations.push({
+        code: "cloud-setter-count",
+        path: cloudOwner,
         setter,
         count,
       });

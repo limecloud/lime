@@ -83,6 +83,11 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     owner: "settings/desktop-host/app-server",
   },
   {
+    id: "cloud-desktops-lifecycle",
+    tab: "cloud-desktops",
+    owner: "settings/app-server",
+  },
+  {
     id: "local-environments-lifecycle",
     tab: "local-environments",
     owner: "settings/app-server",

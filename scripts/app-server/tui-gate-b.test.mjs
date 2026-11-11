@@ -996,7 +996,12 @@ describe("TUI Gate B", () => {
     expect(gateSource).toContain("LIME_TEST_TERMINAL_CWD: scenarioDir");
     expect(gateSource).toContain('"--exact"');
     expect(gateSource).toContain("writeTerminalExternalBackend");
-    expect(ptyTestSource).toContain('OsString::from("tui")');
+    expect(ptyTestSource).toContain(
+      'let agents_command = scenario == "agents-command";',
+    );
+    expect(ptyTestSource).toContain(
+      'OsString::from(if agents_command { "agents" } else { "tui" })',
+    );
     expect(gateSource).toContain(
       "runtime::pty_tests::real_pty_restores_terminal_after_visible_turn_completion",
     );
@@ -1213,7 +1218,7 @@ describe("TUI Gate B", () => {
       'event.payload?.source === "thread/queue/delete"',
     );
     expect(gateSource).toContain(
-      '"complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,large-paste,diff-display,images,skills"',
+      '"complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills"',
     );
   });
 

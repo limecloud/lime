@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "account": {
+    "cli_profile": "<EXISTING_CLI_PROFILE>",
+    "cli_path": null,
+    "region_id": "<REGION_ID>",
+    "office_site_id": "<OFFICE_SITE_ID>",
+    "end_user_id": "<END_USER_ID>",
+    "keychain_service": null,
+    "keychain_account": null
+  },
+  "resource_preferences": {
+    "provider": "aliyun-wuying-enterprise",
+    "charge_type": "PostPaid",
+    "os": "Windows x64",
+    "reuse_existing": true,
+    "requote_before_purchase": true,
+    "paid_extras_require_authorization": true
+  },
+  "session": {
+    "max_total_cny": null,
+    "retain_until": null,
+    "after_testing": "current_user_choice",
+    "cloud_root_prefix": "C:/Users/Public/LimeTest-",
+    "during_local_development": "Stopped_StopCharging",
+    "storage_still_billed": true
+  }
+}

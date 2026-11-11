@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lime Windows 云端测试"
+  short_description: "复用阿里云无影电脑验证 Lime Windows 安装、会话与原生界面并导出证据"
+  default_prompt: "使用 $lime-windows-cloud-test 在已授权的无影 Windows 云电脑验证当前 Lime 候选，保存真实桌面证据并按本次预算和保留策略收尾。"

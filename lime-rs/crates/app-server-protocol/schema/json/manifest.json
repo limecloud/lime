@@ -2339,6 +2339,7 @@
       "CloudDesktopProvider",
       "CloudDesktopResource",
       "CloudDesktopResponse",
+      "CloudDesktopTunnelChannel",
       "CloudRequestMethod",
       "CloudRequestParams",
       "CloudRequestResponse",

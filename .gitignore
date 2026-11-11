@@ -654,6 +654,16 @@ nul
 !.codex/skills/lime-release-workflow/
 .codex/skills/lime-release-workflow/*
 !.codex/skills/lime-release-workflow/SKILL.md
+!.codex/skills/lime-windows-cloud-test/
+.codex/skills/lime-windows-cloud-test/*
+!.codex/skills/lime-windows-cloud-test/SKILL.md
+!.codex/skills/lime-windows-cloud-test/agents/
+!.codex/skills/lime-windows-cloud-test/agents/openai.yaml
+!.codex/skills/lime-windows-cloud-test/references/
+!.codex/skills/lime-windows-cloud-test/references/*.md
+!.codex/skills/lime-windows-cloud-test/references/*.json
+!.codex/skills/lime-windows-cloud-test/scripts/
+!.codex/skills/lime-windows-cloud-test/scripts/*.py
 openspec
 
 # Build artifacts (alternate cargo target dirs)

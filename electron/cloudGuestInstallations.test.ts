@@ -27,6 +27,7 @@ const resource: CloudDesktopResource = {
 };
 const safeStorage = {
   isEncryptionAvailable: () => true,
+  getSelectedStorageBackend: () => "gnome_libsecret",
   encryptString: (value: string) =>
     Buffer.from(Buffer.from(value).toString("base64")),
   decryptString: (value: Buffer) =>

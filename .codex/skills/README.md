@@ -8,6 +8,7 @@
 - `lime-governance`：治理收口、事实源识别、compat / deprecated 收口
 - `lime-design-language`：基于 Codex Desktop 证据对齐 GUI 结构、交互与命名，保留主题、多模型和首页 Banner
 - `lime-quality-workflow`：按 current owner 选择定向验证，区分 Desktop / CLI / TUI 证据，迁移过期测试与护栏
+- `lime-windows-cloud-test`：复用无影 Windows 云电脑测试 Lime，导出 Electron/安装包证据并按预算关机或释放
 - `lime-command-boundary`：Electron IPC、App Server JSON-RPC、legacy adapter、前端网关、mock 同步
 - `lime-playwright-e2e`：GUI 续测、Playwright MCP、bridge / mock 缺口分类
 - `lime-product-e2e-loop`：产品化 E2E 闭环、真实用户路径、最小修复与复测记录

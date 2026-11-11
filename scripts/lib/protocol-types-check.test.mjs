@@ -11,6 +11,9 @@ const generator = path.join(repository, "scripts/generate-protocol-types.mjs");
 const protocol = "lime-rs/crates/app-server-protocol";
 const output = "packages/app-server-client/src/generated/protocol-types.ts";
 const expected = fs.readFileSync(path.join(repository, output));
+const generatorTimeoutMs = 20_000;
+// 外层 deadline 必须覆盖真实子进程预算与结果断言，避免先超时后清理仍运行的夹具。
+const testTimeoutMs = generatorTimeoutMs + 5_000;
 
 function snapshot(filePath) {
   const stat = fs.statSync(filePath, { bigint: true });
@@ -28,7 +31,7 @@ function snapshot(filePath) {
   };
 }
 
-describe("协议类型生成器的只读漂移检查", () => {
+describe("协议类型生成器的只读漂移检查", { timeout: testTimeoutMs }, () => {
   let directory, canonical;
   beforeEach(() => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), "lime-protocol-check-"));
@@ -66,7 +69,7 @@ describe("协议类型生成器的只读漂移检查", () => {
         {
           cwd: directory,
           encoding: "utf8",
-          timeout: 20_000,
+          timeout: generatorTimeoutMs,
           maxBuffer: 16 * 1024 * 1024,
         },
         (error, stdout, stderr) => {
