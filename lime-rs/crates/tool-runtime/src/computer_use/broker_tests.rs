@@ -66,6 +66,28 @@ fn child_process_lock() {
     println!("control-lock-child-ok");
 }
 
+#[cfg(unix)]
+#[test]
+fn last_lease_reference_releases_lock_with_duplicated_handle() {
+    let temp = tempfile::tempdir().unwrap();
+    let broker = ControlBroker::at(temp.path().join("computer-use"));
+    let lease = std::sync::Arc::new(broker.acquire().unwrap());
+    let first_fence = lease.fence;
+    let inflight = std::sync::Arc::clone(&lease);
+    // Share the open file description as fork would, without inheriting
+    // unrelated descriptors from other tests.
+    let inherited = lease._file.try_clone().unwrap();
+    drop(lease);
+    assert!(broker.acquire().unwrap_err().0.contains("busy"));
+    drop(inflight);
+    let next = broker
+        .acquire()
+        .expect("the inherited descriptor must not retain a dropped lease's lock");
+    assert_eq!(next.fence, first_fence + 1);
+    drop(next);
+    drop(inherited);
+}
+
 #[test]
 fn corrupt_and_exhausted_fence_never_reset_to_a_new_generation() {
     let temp = tempfile::tempdir().unwrap();

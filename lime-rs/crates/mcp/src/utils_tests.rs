@@ -1,7 +1,43 @@
 use super::create_env_for_mcp_server;
+use rmcp::transport::Transport as _;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::process::Command;
+use std::sync::{Arc, Mutex};
+
+#[cfg(target_os = "macos")]
+const PROBE_LOADER_ENV_VARS: &[&str] = &["DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH"];
+#[cfg(target_os = "linux")]
+const PROBE_LOADER_ENV_VARS: &[&str] = &["LD_LIBRARY_PATH"];
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+const PROBE_LOADER_ENV_VARS: &[&str] = &[];
+
+struct ProbeDiagnostics(Arc<Mutex<String>>);
+
+impl tracing::Subscriber for ProbeDiagnostics {
+    fn enabled(&self, metadata: &tracing::Metadata<'_>) -> bool {
+        metadata.target() == "lime_mcp::stdio_launcher"
+    }
+
+    fn new_span(&self, _: &tracing::span::Attributes<'_>) -> tracing::span::Id {
+        tracing::span::Id::from_u64(1)
+    }
+
+    fn record(&self, _: &tracing::span::Id, _: &tracing::span::Record<'_>) {}
+    fn record_follows_from(&self, _: &tracing::span::Id, _: &tracing::span::Id) {}
+    fn enter(&self, _: &tracing::span::Id) {}
+    fn exit(&self, _: &tracing::span::Id) {}
+
+    fn event(&self, event: &tracing::Event<'_>) {
+        use std::fmt::Write;
+        let mut diagnostics = self.0.lock().unwrap();
+        event.record(
+            &mut |field: &tracing::field::Field, value: &dyn std::fmt::Debug| {
+                writeln!(diagnostics, "{}={value:?}", field.name()).unwrap();
+            },
+        );
+    }
+}
 
 #[test]
 fn passthrough_reaches_the_real_stdio_launcher_without_implicit_inheritance() {
@@ -29,6 +65,19 @@ async fn passthrough_child() {
     }
     let directory = tempfile::tempdir().unwrap();
     let receipt = directory.path().join("environment.json");
+    let diagnostics = Arc::new(Mutex::new(String::new()));
+    tracing::subscriber::set_global_default(ProbeDiagnostics(diagnostics.clone())).unwrap();
+    // Cargo 的完整 workspace 测试二进制可能动态链接本机原生库；仅为夹具显式继承 loader 路径。
+    let env_vars = [
+        "MCP_VISIBLE",
+        "MCP_OVERRIDE",
+        "NODE_REPL_AUTH_TOKEN",
+        "MCP_MISSING",
+    ]
+    .into_iter()
+    .chain(PROBE_LOADER_ENV_VARS.iter().copied())
+    .map(str::to_owned)
+    .collect();
     let config = crate::types::McpServerConfig {
         transport: crate::types::McpServerTransport::Stdio {
             command: std::env::current_exe()
@@ -48,26 +97,47 @@ async fn passthrough_child() {
                 ("MCP_OVERRIDE".into(), " explicit value ".into()),
                 ("node_repl_auth_token".into(), "not forwarded".into()),
             ]),
-            env_vars: vec![
-                "MCP_VISIBLE".into(),
-                "MCP_OVERRIDE".into(),
-                "NODE_REPL_AUTH_TOKEN".into(),
-                "MCP_MISSING".into(),
-            ],
+            env_vars,
             cwd: None,
         },
         ..Default::default()
     };
     config.validate().unwrap();
-    let launched = crate::stdio_launcher::LocalStdioLauncher::launch("env-probe", &config).unwrap();
-    for _ in 0..200 {
-        if receipt.exists() {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    let crate::stdio_launcher::StdioLaunch {
+        mut transport,
+        process,
+        stderr_task,
+    } = crate::stdio_launcher::LocalStdioLauncher::launch("env-probe", &config).unwrap();
+    let status = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        // 保留并读完 libtest stdout，避免先释放 transport 关闭读端导致子进程 Broken pipe。
+        assert!(transport.receive().await.is_none());
+        let mut child = transport.into_inner().unwrap();
+        child.wait().await
+    })
+    .await
+    .unwrap_or_else(|error| {
+        panic!(
+            "native probe did not exit: {error}; stderr: {}",
+            diagnostics.lock().unwrap()
+        )
+    })
+    .unwrap();
+    if let Some(task) = stderr_task {
+        task.await.unwrap();
     }
+    assert!(
+        status.success(),
+        "native probe exited {status}; stderr: {}",
+        diagnostics.lock().unwrap()
+    );
     let actual: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(receipt).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(receipt).unwrap_or_else(|error| {
+            panic!(
+                "native probe receipt missing: {error}; stderr: {}",
+                diagnostics.lock().unwrap()
+            )
+        }))
+        .unwrap();
     assert_eq!(actual["MCP_VISIBLE"], " inherited value ");
     assert_eq!(actual["MCP_OVERRIDE"], " explicit value ");
     for name in [
@@ -78,7 +148,7 @@ async fn passthrough_child() {
     ] {
         assert_eq!(actual[name], serde_json::Value::Null, "{name}");
     }
-    drop(launched);
+    drop(process);
 }
 
 #[test]

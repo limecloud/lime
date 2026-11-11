@@ -1,5 +1,7 @@
 //! Per-user OS lock shared by independently started Desktop and CLI App Servers.
-//! This is a Lime host adaptation; no corresponding public upstream source is available.
+//! Lime host adaptation. Only the explicit unlock-on-drop pattern is adapted from:
+//! Codex revision 1885417cd45a8da5bfdeb7864a5380a7481d48f2,
+//! codex-rs/app-server-daemon/src/backend/pid.rs::EmptyPidProbeLock (Apache-2.0).
 
 use super::{denied, ComputerUseResult};
 use fs2::FileExt;
@@ -35,7 +37,9 @@ impl ControlBroker {
         check_path(&directory, true)?;
         #[cfg(target_os = "linux")]
         if fs::symlink_metadata(directory.join("human-control")).is_ok() {
-            return Err(denied("Human desktop control is active; explicitly return control to AI"));
+            return Err(denied(
+                "Human desktop control is active; explicitly return control to AI",
+            ));
         }
 
         // Never unlink/replace this file: doing so would split the resource into two
@@ -48,7 +52,7 @@ impl ControlBroker {
             use std::os::unix::fs::OpenOptionsExt;
             options.mode(0o600);
         }
-        let mut file = match options.open(&path) {
+        let file = match options.open(&path) {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 check_path(&path, false)?;
@@ -70,6 +74,11 @@ impl ControlBroker {
             }
         })?;
 
+        let mut lease = ControlLease {
+            _file: file,
+            fence: 0,
+        };
+        let file = &mut lease._file;
         let length = file.metadata().map_err(io_error)?.len();
         let previous = match length {
             0 => 0,
@@ -86,7 +95,8 @@ impl ControlBroker {
         file.seek(SeekFrom::Start(0)).map_err(io_error)?;
         file.write_all(&fence.to_be_bytes()).map_err(io_error)?;
         file.sync_all().map_err(io_error)?;
-        Ok(ControlLease { _file: file, fence })
+        lease.fence = fence;
+        Ok(lease)
     }
 }
 
@@ -123,10 +133,20 @@ pub(super) fn check_path(path: &Path, directory: bool) -> ComputerUseResult<()> 
 
 #[derive(Debug)]
 pub(super) struct ControlLease {
-    // Dropping the last action/lease reference closes the OS handle. Cancellation
+    // Dropping the last action/lease reference releases the OS lock. Cancellation
     // alone must not unlock a resource while an in-flight action still holds it.
     _file: File,
     pub(super) fence: u64,
+}
+
+impl Drop for ControlLease {
+    fn drop(&mut self) {
+        // Closing alone leaves the lock held by any concurrent fork. Release it
+        // on every exit, including errors while reading or updating the fence.
+        if let Err(error) = FileExt::unlock(&self._file) {
+            tracing::warn!(%error, "failed to unlock Computer Use desktop resource");
+        }
+    }
 }
 
 #[cfg(test)]

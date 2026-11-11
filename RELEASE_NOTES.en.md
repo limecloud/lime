@@ -19,6 +19,7 @@ Simplified Chinese release notes are the primary version.
 - Fix unauthenticated MCP OAuth servers being shown as signed in and hiding the Authenticate button.
 - Restore the sidebar expert directory entry and preserve project scope across expert, Skills, and plugin pages.
 - Fix a race between cloud runtime installation completion and status reads that could stop UI polling early.
+- Explicitly release the Computer Use control lock so concurrently launched child processes cannot retain an ended control lease.
 
 ### Improvements and Refactoring
 
