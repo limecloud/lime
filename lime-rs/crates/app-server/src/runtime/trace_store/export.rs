@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::CompressionMethod;
 use zip::ZipWriter;
 
@@ -63,7 +63,7 @@ pub(super) fn write_trace_export_zip(
         )
     })?;
     let mut writer = ZipWriter::new(file);
-    let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
 
     write_zip_json(
         &mut writer,
@@ -112,7 +112,7 @@ fn write_zip_json<T: Serialize>(
     writer: &mut ZipWriter<fs::File>,
     path: &str,
     value: &T,
-    options: FileOptions,
+    options: SimpleFileOptions,
 ) -> Result<(), String> {
     writer
         .start_file(path, options)

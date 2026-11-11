@@ -233,10 +233,7 @@ mod tests {
     use super::*;
 
     fn credentials(client_id: &str) -> StoredCredentials {
-        StoredCredentials {
-            client_id: client_id.to_string(),
-            token_response: None,
-        }
+        StoredCredentials::new(client_id.to_string(), None, vec![], None)
     }
 
     #[test]
@@ -256,7 +253,15 @@ mod tests {
             "https://example.com/mcp",
         );
 
-        store.save(credentials("client-1")).await.expect("save");
+        store
+            .save(StoredCredentials::new(
+                "client-1".to_string(),
+                None,
+                vec!["docs.read".to_string()],
+                Some(1_700_000_000),
+            ))
+            .await
+            .expect("save");
 
         let restored = PersistentCredentialStore::new_in(
             temp.path(),
@@ -269,6 +274,8 @@ mod tests {
         .expect("credentials");
 
         assert_eq!(restored.client_id, "client-1");
+        assert_eq!(restored.granted_scopes, ["docs.read"]);
+        assert_eq!(restored.token_received_at, Some(1_700_000_000));
     }
 
     #[tokio::test]

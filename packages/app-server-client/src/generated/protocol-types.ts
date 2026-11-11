@@ -38,6 +38,7 @@ export const METHOD_ARTIFACT_WRITE = "artifact/write";
 export const METHOD_STRICT_REVIEW_REQUIRED =
   "autoApprovalReview/strictReviewRequired";
 export const METHOD_CAPABILITY_LIST = "capability/list";
+export const METHOD_CLOUD_DESKTOP = "cloud/desktop";
 export const METHOD_CLOUD_REQUEST = "cloud/request";
 export const METHOD_COLLABORATION_MODE_LIST = "collaborationMode/list";
 export const METHOD_COMMAND_EXEC = "command/exec";
@@ -591,6 +592,10 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "capability/list",
+  },
+  {
+    kind: "request",
+    method: "cloud/desktop",
   },
   {
     kind: "request",
@@ -4414,6 +4419,11 @@ export type ClientNotification = {
 export type ClientRequest =
   | {
       id: number | string;
+      method: "cloud/desktop";
+      params: CloudDesktopParams;
+    }
+  | {
+      id: number | string;
       method: "cloud/request";
       params: CloudRequestParams;
     }
@@ -5100,6 +5110,234 @@ export interface ClientResponse {
   id: number | string;
   result: unknown;
 }
+
+export type CloudDesktopParams =
+  | {
+      action: "connectAlibaba";
+      regionId: string;
+    }
+  | {
+      action: "readAlibabaConnection";
+    }
+  | {
+      action: "listResources";
+    }
+  | {
+      action: "bind";
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "quoteWuying";
+      spec: WuyingDesktopSpec;
+    }
+  | {
+      action: "purchaseWuying";
+      confirmation: string;
+      desktopName: string;
+      operationId: string;
+      quoteId: string;
+      spec: WuyingDesktopSpec;
+    }
+  | {
+      action: "quoteEcs";
+      spec: EcsDesktopSpec;
+    }
+  | {
+      action: "listEcsTemplates";
+      profile: string;
+      regionId: string;
+    }
+  | {
+      action: "quoteEcsTemplate";
+      launchTemplateId: string;
+      profile: string;
+      regionId: string;
+      version: number;
+    }
+  | {
+      action: "purchaseEcs";
+      confirmation: string;
+      desktopName: string;
+      operationId: string;
+      quoteId: string;
+      spec: EcsDesktopSpec;
+    }
+  | {
+      action: "exportArchive";
+      includeCredentials: boolean;
+      outputPath: string;
+      paths: string[];
+      recipient: string;
+      sourceRoot: string;
+      workSaved: boolean;
+    }
+  | {
+      action: "prepareArchiveDownload";
+      includeCredentials: boolean;
+      paths: string[];
+      recipient: string;
+      sourceRoot: string;
+      workSaved: boolean;
+    }
+  | {
+      action: "readArchiveDownload";
+      archiveId: string;
+      offset: number;
+    }
+  | {
+      action: "closeArchiveDownload";
+      archiveId: string;
+    }
+  | {
+      action: "beginArchiveRestore";
+      folderName: string;
+    }
+  | {
+      action: "writeArchiveRestore";
+      archiveId: string;
+      data: string;
+      offset: number;
+    }
+  | {
+      action: "finishArchiveRestore";
+      archiveId: string;
+      bytes: number;
+      sha256: string;
+    }
+  | {
+      action: "cancelArchiveRestore";
+      archiveId: string;
+    }
+  | {
+      action: "rewrapArchiveForRestore";
+      archivePath: string;
+      expectedSha256: string;
+      identityFile: string;
+      outputPath: string;
+      recipient: string;
+    }
+  | {
+      action: "restoreArchive";
+      archivePath: string;
+      destination: string;
+      expectedSha256: string;
+      identityFile: string;
+      maxBytes: number;
+    }
+  | {
+      action: "transferArchive";
+      expectedSha256: string;
+      localPath: string;
+      remote: string;
+      upload: boolean;
+    }
+  | {
+      action: "inspect";
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "openEcsTunnel";
+      channel: CloudDesktopTunnelChannel;
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "readEcsTunnel";
+      channel: CloudDesktopTunnelChannel;
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "closeEcsTunnel";
+      channel: CloudDesktopTunnelChannel;
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "prepareEcsDesktop";
+      confirmation: string;
+      installSystemPackages: boolean;
+      operationId: string;
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "startEcsRuntimeInstallation";
+      archiveBytes: number;
+      archiveSha256: string;
+      capabilitySha256: string;
+      confirmation: string;
+      createDesktopUser: boolean;
+      manifestSha256: string;
+      operationId: string;
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "start";
+      confirmation: string;
+      operationId: string;
+      resource: CloudDesktopResource;
+    }
+  | {
+      action: "stop";
+      confirmation: string;
+      operationId: string;
+      resource: CloudDesktopResource;
+      workSaved: boolean;
+    }
+  | {
+      action: "release";
+      confirmation: string;
+      discardData: boolean;
+      operationId: string;
+      resource: CloudDesktopResource;
+      workSaved: boolean;
+    }
+  | {
+      action: "snapshot";
+      confirmation: string;
+      diskId: string;
+      operationId: string;
+      resource: CloudDesktopResource;
+      workSaved: boolean;
+    }
+  | {
+      action: "inspectSnapshot";
+      diskId: string;
+      resource: CloudDesktopResource;
+      snapshotId: string;
+    }
+  | {
+      action: "restoreSnapshot";
+      confirmation: string;
+      discardChanges: boolean;
+      diskId: string;
+      operationId: string;
+      resource: CloudDesktopResource;
+      snapshotId: string;
+      workSaved: boolean;
+    }
+  | {
+      action: "verifySnapshotRestore";
+      applicationsValidated: boolean;
+      confirmation: string;
+      operationId: string;
+    }
+  | {
+      action: "readOperation";
+      operationId: string;
+    };
+
+export type CloudDesktopProvider = "ecs" | "wuying";
+
+export interface CloudDesktopResource {
+  profile: string;
+  provider: CloudDesktopProvider;
+  regionId: string;
+  resourceId: string;
+}
+
+export interface CloudDesktopResponse {
+  data: unknown;
+}
+
+export type CloudDesktopTunnelChannel = "appServer" | "desktop";
 
 export type CloudRequestMethod = "DELETE" | "GET" | "POST" | "PUT";
 
@@ -5922,6 +6160,18 @@ export type DynamicToolNamespaceTool = DynamicToolFunctionSpec;
 export type DynamicToolSpec =
   | DynamicToolFunctionSpec
   | DynamicToolNamespaceSpec;
+
+export interface EcsDesktopSpec {
+  imageId: string;
+  instanceType: string;
+  keyPairName: string;
+  outboundMbps: number;
+  profile: string;
+  regionId: string;
+  securityGroupId: string;
+  systemDiskGib: number;
+  vSwitchId: string;
+}
 
 export interface EndpointInfo {
   apiVersion?: null | string;
@@ -7648,6 +7898,7 @@ export type Method =
   | "app/list"
   | "app/read"
   | "artifact/write"
+  | "cloud/desktop"
   | "cloud/request"
   | "collaborationMode/list"
   | "command/exec"
@@ -11775,6 +12026,18 @@ export interface WorkspaceUpdateResponse {
 }
 
 export type WriteStatus = "ok" | "okOverridden";
+
+export interface WuyingDesktopSpec {
+  dataDiskGib: number;
+  desktopType: string;
+  endUserId: string;
+  imageId: string;
+  officeSiteId: string;
+  policyGroupId: string;
+  profile: string;
+  regionId: string;
+  systemDiskGib: number;
+}
 
 export interface jsonRpcError {
   error: {

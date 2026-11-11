@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   BookOpen,
+  Check,
   Download,
   FolderOpen,
   MessageCircle,
@@ -23,94 +24,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { InstalledSkillPresentationCopy } from "./installedSkillPresentation";
 import { resolveInstalledSkillPromise } from "./installedSkillPresentation";
-import {
-  isSkillAutoLoadEnabled,
-  type SkillAutoLoadPreferences,
-} from "./skillAutoLoadPreferences";
 import { SkillTileSvg } from "./SkillsWorkspacePageVisuals";
-
-function ProtocolEnabledControl({
-  onChange,
-  pending,
-  skill,
-  state,
-}: {
-  onChange: (skill: Skill, enabled: boolean) => void;
-  pending: boolean;
-  skill: Skill;
-  state: ProtocolSkillEnabledState;
-}) {
-  const { t } = useTranslation("agent");
-
-  return (
-    <div className="flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-      <div className="hidden min-w-[72px] sm:block">
-        <div className="text-[11px] font-semibold leading-4 text-slate-700">
-          {t("skills.workspace.configEnabled.label")}
-        </div>
-        <div className="text-[10px] leading-3 text-slate-400">
-          {state.enabled
-            ? t("skills.workspace.configEnabled.on")
-            : t("skills.workspace.configEnabled.off")}
-        </div>
-      </div>
-      <Switch
-        checked={state.enabled}
-        disabled={pending}
-        onCheckedChange={(nextEnabled) => onChange(skill, nextEnabled)}
-        aria-label={t("skills.workspace.configEnabled.aria", {
-          name: skill.name,
-        })}
-        data-testid="skills-protocol-enabled-switch"
-      />
-    </div>
-  );
-}
-
-function AutoLoadControl({
-  onChange,
-  preferences,
-  skill,
-}: {
-  onChange: (skill: Skill, enabled: boolean) => void;
-  preferences: SkillAutoLoadPreferences;
-  skill: Skill;
-}) {
-  const { t } = useTranslation("agent");
-  const enabled = isSkillAutoLoadEnabled(skill, preferences);
-
-  return (
-    <div className="flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-      <div className="hidden min-w-[86px] sm:block">
-        <div className="text-[11px] font-semibold leading-4 text-slate-700">
-          {t("skills.workspace.autoLoad.label")}
-        </div>
-        <div className="text-[10px] leading-3 text-slate-400">
-          {enabled
-            ? t("skills.workspace.autoLoad.on")
-            : t("skills.workspace.autoLoad.off")}
-        </div>
-      </div>
-      <Switch
-        checked={enabled}
-        onCheckedChange={(nextEnabled) => onChange(skill, nextEnabled)}
-        aria-label={t("skills.workspace.autoLoad.aria", {
-          name: skill.name,
-        })}
-      />
-    </div>
-  );
-}
 
 export function InstalledSkillActionMenu({
   exportingSkillDirectory,
+  autoLoadEnabled,
   onDetailOpen,
   onExport,
   onRename,
+  onToggleAutoLoad,
+  onToggleProtocol,
+  protocolEnabledState,
+  protocolPending,
   onReplace,
   onReveal,
   onSelect,
@@ -121,9 +49,14 @@ export function InstalledSkillActionMenu({
   skill,
   uninstallingSkillDirectory,
 }: {
+  autoLoadEnabled?: boolean;
   exportingSkillDirectory: string | null;
   onDetailOpen: (directory: string) => void;
   onExport: (skill: Skill) => void;
+  onToggleAutoLoad?: (skill: Skill, enabled: boolean) => void;
+  onToggleProtocol?: (skill: Skill, enabled: boolean) => void;
+  protocolEnabledState?: ProtocolSkillEnabledState | null;
+  protocolPending?: boolean;
   onRename: (skill: Skill) => void;
   onReplace: (skill: Skill) => void;
   onReveal: (skill: Skill) => void;
@@ -166,6 +99,49 @@ export function InstalledSkillActionMenu({
         align="end"
         className="z-[80] min-w-[210px] rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-1 text-[color:var(--lime-text)] shadow-lg"
       >
+        {protocolEnabledState && onToggleProtocol ? (
+          <DropdownMenuItem
+            className={cn(
+              "rounded-lg px-3 py-2 text-[13px] font-medium hover:bg-[color:var(--lime-surface-hover)]",
+              protocolPending && "pointer-events-none opacity-50",
+            )}
+            onClick={() => {
+              if (protocolPending) return;
+              onToggleProtocol(skill, !protocolEnabledState.enabled);
+            }}
+          >
+            {protocolEnabledState.enabled ? (
+              <Check className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <Check className="h-4 w-4 text-slate-300" />
+            )}
+            {t("skills.workspace.configEnabled.label")}
+            <span className="ml-auto pl-2 text-[11px] text-slate-400">
+              {protocolEnabledState.enabled
+                ? t("skills.workspace.configEnabled.on")
+                : t("skills.workspace.configEnabled.off")}
+            </span>
+          </DropdownMenuItem>
+        ) : null}
+        {onToggleAutoLoad ? (
+          <DropdownMenuItem
+            className="rounded-lg px-3 py-2 text-[13px] font-medium hover:bg-[color:var(--lime-surface-hover)]"
+            onClick={() => onToggleAutoLoad(skill, !autoLoadEnabled)}
+          >
+            {autoLoadEnabled ? (
+              <Check className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <Check className="h-4 w-4 text-slate-300" />
+            )}
+            {t("skills.workspace.autoLoad.label")}
+            <span className="ml-auto pl-2 text-[11px] text-slate-400">
+              {autoLoadEnabled
+                ? t("skills.workspace.autoLoad.on")
+                : t("skills.workspace.autoLoad.off")}
+            </span>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuSeparator className="bg-[color:var(--lime-surface-border)]" />
         <DropdownMenuItem
           className="rounded-lg px-3 py-2 text-[13px] font-medium hover:bg-[color:var(--lime-surface-hover)]"
           onClick={() => onSelect(skill)}
@@ -247,29 +223,20 @@ export function InstalledSkillActionMenu({
 export function LocalSkillRow({
   highlighted,
   installedSkillPresentationCopy,
-  onAutoLoadChange,
   onDetailOpen,
-  onProtocolSkillEnabledChange,
   onSelect,
-  preferences,
-  protocolSkillEnabledPendingKey,
   protocolSkillEnabledStates = [],
   skill,
   actionMenu,
 }: {
   highlighted?: boolean;
   installedSkillPresentationCopy: InstalledSkillPresentationCopy;
-  onAutoLoadChange: (skill: Skill, enabled: boolean) => void;
   onDetailOpen: (directory: string) => void;
-  onProtocolSkillEnabledChange?: (skill: Skill, enabled: boolean) => void;
   onSelect?: (skill: Skill) => void;
-  preferences: SkillAutoLoadPreferences;
-  protocolSkillEnabledPendingKey?: string | null;
   protocolSkillEnabledStates?: readonly ProtocolSkillEnabledState[];
   skill: Skill;
   actionMenu?: ReactNode;
 }) {
-  const { t } = useTranslation("agent");
   const protocolSkillEnabled = matchProtocolSkillEnabledState(
     skill,
     protocolSkillEnabledStates,
@@ -280,47 +247,45 @@ export function LocalSkillRow({
       data-testid="skills-local-skill-row"
       data-skill-directory={skill.directory}
       className={cn(
-        "flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-b-0",
+        "group flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2 text-left",
         highlighted ? "bg-emerald-50/60" : "hover:bg-slate-50",
       )}
     >
-      <SkillTileSvg tone={highlighted ? "emerald" : "slate"} />
-      <div className="min-w-0 flex-1">
-        <div className="line-clamp-1 text-sm font-semibold text-slate-900">
-          {skill.name}
+      <div className="flex min-w-0 items-start gap-3">
+        <SkillTileSvg tone={highlighted ? "emerald" : "slate"} />
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            className="line-clamp-1 max-w-full text-left text-sm font-semibold text-slate-900 hover:underline"
+            onClick={() => onDetailOpen(skill.directory)}
+            data-testid="skills-local-skill-detail"
+          >
+            {skill.name}
+          </button>
+          <p className="line-clamp-2 text-xs leading-5 text-slate-500">
+            {skill.description ||
+              resolveInstalledSkillPromise(skill, installedSkillPresentationCopy)}
+          </p>
         </div>
-        <p className="line-clamp-1 text-xs leading-5 text-slate-500">
-          {skill.description ||
-            resolveInstalledSkillPromise(skill, installedSkillPresentationCopy)}
-        </p>
-        <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-slate-400">
-          {t("skills.workspace.autoLoad.description")}
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {protocolSkillEnabled && onProtocolSkillEnabledChange ? (
-          <ProtocolEnabledControl
-            skill={skill}
-            state={protocolSkillEnabled}
-            pending={protocolSkillEnabledPendingKey === skill.key}
-            onChange={onProtocolSkillEnabledChange}
-          />
-        ) : null}
-        <AutoLoadControl
-          skill={skill}
-          preferences={preferences}
-          onChange={onAutoLoadChange}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 rounded-full border-slate-200 bg-white px-3 text-xs text-slate-700 shadow-none hover:bg-slate-50"
-          onClick={() => onDetailOpen(skill.directory)}
+        <span
+          className="flex shrink-0 items-center gap-1 pt-0.5"
+          data-testid="skills-installed-check"
         >
-          {t("skills.workspace.marketplace.action.detail")}
-        </Button>
-        {onSelect ? actionMenu : null}
+          <Check
+            className={cn(
+              "h-4 w-4 shrink-0",
+              protocolSkillEnabled && !protocolSkillEnabled.enabled
+                ? "text-slate-300"
+                : "text-emerald-600",
+            )}
+            aria-hidden="true"
+          />
+        </span>
+        {onSelect ? (
+          <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            {actionMenu}
+          </span>
+        ) : null}
       </div>
     </div>
   );

@@ -55,6 +55,11 @@ impl RequestProcessor {
         self.fs.connection_closed(connection_id).await;
     }
 
+    pub(crate) fn close_cloud_archive_connection(&self, connection_id: ConnectionId) {
+        self.cloud_archive_downloads.clear(connection_id, None);
+        self.cloud_archive_restores.clear(connection_id, None);
+    }
+
     pub(crate) async fn publish_server_notification(&self, notification: ServerNotification) {
         if let Some(hook) = self.server_notification_hook.as_ref() {
             hook(notification).await;

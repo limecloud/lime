@@ -2,7 +2,7 @@ use super::*;
 use crate::local_data_source::skills::common::resolve_skill_package_dir;
 use std::io::Write;
 use tempfile::TempDir;
-use zip::write::FileOptions as TestZipFileOptions;
+use zip::write::SimpleFileOptions as TestZipFileOptions;
 use zip::ZipWriter;
 
 fn build_skill_zip(entries: &[(&str, &str)]) -> Vec<u8> {
@@ -93,6 +93,7 @@ fn export_local_skill_package_to_path_writes_skill_zip() {
                 .by_index(index)
                 .expect("zip entry")
                 .name()
+                .expect("zip entry name")
                 .to_string(),
         );
     }

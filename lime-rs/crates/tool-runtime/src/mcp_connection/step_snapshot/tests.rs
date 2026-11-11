@@ -284,15 +284,9 @@ async fn read_only_tool_annotation_allows_parallel_execution_without_server_opt_
         None,
     );
     let mut readonly = tool("readonly", None);
-    readonly.annotations = Some(ToolAnnotations {
-        read_only_hint: Some(true),
-        ..ToolAnnotations::default()
-    });
+    readonly.annotations = Some(ToolAnnotations::new().read_only(true));
     let mut mutating = tool("mutating", None);
-    mutating.annotations = Some(ToolAnnotations {
-        read_only_hint: Some(false),
-        ..ToolAnnotations::default()
-    });
+    mutating.annotations = Some(ToolAnnotations::new().read_only(false));
     register_connection(
         &registry,
         "docs",

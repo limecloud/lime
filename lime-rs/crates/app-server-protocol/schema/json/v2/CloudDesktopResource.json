@@ -1,0 +1,36 @@
+{
+  "$defs": {
+    "CloudDesktopProvider": {
+      "enum": [
+        "ecs",
+        "wuying"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "User-owned ECS resource. Credentials stay in the local Alibaba CLI profile.",
+  "properties": {
+    "profile": {
+      "type": "string"
+    },
+    "provider": {
+      "$ref": "#/$defs/CloudDesktopProvider"
+    },
+    "regionId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile",
+    "provider",
+    "regionId",
+    "resourceId"
+  ],
+  "title": "CloudDesktopResource",
+  "type": "object"
+}

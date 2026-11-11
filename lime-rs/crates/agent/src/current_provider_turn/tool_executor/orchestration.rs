@@ -14,7 +14,7 @@ use crate::request_tool_policy::is_same_tool;
 use crate::runtime_state::EffectivePermissionGrant;
 use app_server_protocol::protocol::v2::{FileSystemAccessMode, GrantedPermissionProfile};
 use attempt::CurrentToolAttemptRunner;
-use rmcp::model::CallToolRequestParam;
+use rmcp::model::CallToolRequestParams;
 use serde_json::{json, Value};
 #[cfg(test)]
 use std::collections::HashMap;
@@ -319,10 +319,8 @@ async fn execute_current_tool_attempt(
     }
 
     let cancel_token = request_cancel_token(request.context.cancel_token());
-    let mcp_request = CallToolRequestParam {
-        name: request.tool_name.to_string().into(),
-        arguments: request.params.as_object().cloned(),
-    };
+    let mut mcp_request = CallToolRequestParams::new(request.tool_name.to_string());
+    mcp_request.arguments = request.params.as_object().cloned();
     let mcp_scope = mcp_call_scope(request).map_err(RuntimeToolExecutionError::before_handler)?;
     let tool_id = mcp_tool_id(request).map_err(RuntimeToolExecutionError::before_handler)?;
     let mcp_route = executor

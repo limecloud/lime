@@ -1,5 +1,5 @@
 import { act } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Skill } from "@/lib/api/skills";
 import {
   createDefaultLocalSkills,
@@ -9,6 +9,34 @@ import {
   renderPage,
   useSkillsWorkspacePageTestLifecycle,
 } from "./SkillsWorkspacePage.testFixtures";
+
+
+
+async function clickInstalledMarketplaceAction(
+  card: Element | null,
+  label: string,
+): Promise<void> {
+  const trigger = card?.querySelector<HTMLButtonElement>(
+    '[data-testid="skills-marketplace-actions"]',
+  );
+  expect(trigger).toBeTruthy();
+  await act(async () => {
+    trigger!.click();
+    await Promise.resolve();
+  });
+  const item = await vi.waitFor(() => {
+    const found = [...document.querySelectorAll<HTMLElement>(
+      '[role="menuitem"]',
+    )].find((element) => element.textContent?.trim() === label);
+    expect(found).toBeTruthy();
+    return found!;
+  });
+  await act(async () => {
+    item.click();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
 
 describe("SkillsWorkspacePage marketplace", () => {
   useSkillsWorkspacePageTestLifecycle();
@@ -66,7 +94,7 @@ describe("SkillsWorkspacePage marketplace", () => {
       container.querySelector('[data-testid="skills-installed-view"]'),
     ).toBeTruthy();
     expect(container.textContent).toContain("数据分析");
-    expect(container.textContent).toContain("使用");
+    expect(container.textContent).toContain("已安装");
   });
 
   it("技能广场点击详情应打开当前技能的 SKILL.md 内容", async () => {
@@ -78,7 +106,11 @@ describe("SkillsWorkspacePage marketplace", () => {
     ).toBeNull();
 
     await act(async () => {
-      findButtonIn(card!, "详情")?.click();
+      card
+        ?.querySelector<HTMLButtonElement>(
+          '[data-testid="skills-marketplace-open"]',
+        )
+        ?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -124,11 +156,10 @@ describe("SkillsWorkspacePage marketplace", () => {
     const { container, onNavigate } = renderPage();
     const card = findMarketplaceCard(container, "数据分析");
 
-    await act(async () => {
-      findButtonIn(card!, "使用")?.click();
-    });
+    await clickInstalledMarketplaceAction(card, "使用");
 
-    expect(onNavigate).toHaveBeenCalledWith(
+    await vi.waitFor(() =>
+      expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
         agentEntry: "new-task",
@@ -142,6 +173,7 @@ describe("SkillsWorkspacePage marketplace", () => {
           requestKey: expect.any(Number),
         },
       }),
+      ),
     );
   });
 
@@ -161,13 +193,11 @@ describe("SkillsWorkspacePage marketplace", () => {
     const { container, onNavigate } = renderPage();
     const card = findMarketplaceCard(container, "数据分析");
 
-    await act(async () => {
-      findButtonIn(card!, "卸载")?.click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await clickInstalledMarketplaceAction(card, "卸载");
 
-    expect(mocks.uninstallLocalSkill).toHaveBeenCalledWith("analysis");
+    await vi.waitFor(() =>
+      expect(mocks.uninstallLocalSkill).toHaveBeenCalledWith("analysis"),
+    );
     expect(onNavigate).not.toHaveBeenCalled();
   });
 

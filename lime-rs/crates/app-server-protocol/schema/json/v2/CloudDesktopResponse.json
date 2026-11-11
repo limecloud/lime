@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "data": {
+      "description": "Sanitized provider state or a durable operation receipt; never CLI credentials."
+    }
+  },
+  "required": [
+    "data"
+  ],
+  "title": "CloudDesktopResponse",
+  "type": "object"
+}

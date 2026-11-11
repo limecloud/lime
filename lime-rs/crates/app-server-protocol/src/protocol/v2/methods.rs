@@ -5,6 +5,7 @@ pub const METHOD_ACCOUNT_LOGIN_START: &str = "account/login/start";
 pub const METHOD_ACCOUNT_READ: &str = "account/read";
 pub const METHOD_ACCOUNT_LOGOUT: &str = "account/logout";
 pub const METHOD_CLOUD_REQUEST: &str = "cloud/request";
+pub const METHOD_CLOUD_DESKTOP: &str = "cloud/desktop";
 pub const METHOD_ACCOUNT_UPDATED: &str = "account/updated";
 
 pub const METHOD_THREAD_START: &str = "thread/start";
@@ -403,6 +404,8 @@ pub enum Method {
     AccountLogout,
     #[serde(rename = "cloud/request")]
     CloudRequest,
+    #[serde(rename = "cloud/desktop")]
+    CloudDesktop,
     #[serde(rename = "marketplace/add")]
     MarketplaceAdd,
     #[serde(rename = "marketplace/remove")]
@@ -590,6 +593,7 @@ impl Method {
             Self::AccountRead => METHOD_ACCOUNT_READ,
             Self::AccountLogout => METHOD_ACCOUNT_LOGOUT,
             Self::CloudRequest => METHOD_CLOUD_REQUEST,
+            Self::CloudDesktop => METHOD_CLOUD_DESKTOP,
             Self::MarketplaceAdd => METHOD_MARKETPLACE_ADD,
             Self::MarketplaceRemove => METHOD_MARKETPLACE_REMOVE,
             Self::MarketplaceUpgrade => METHOD_MARKETPLACE_UPGRADE,
@@ -738,6 +742,7 @@ impl Method {
             METHOD_ACCOUNT_READ => Some(Self::AccountRead),
             METHOD_ACCOUNT_LOGOUT => Some(Self::AccountLogout),
             METHOD_CLOUD_REQUEST => Some(Self::CloudRequest),
+            METHOD_CLOUD_DESKTOP => Some(Self::CloudDesktop),
             METHOD_MARKETPLACE_ADD => Some(Self::MarketplaceAdd),
             METHOD_MARKETPLACE_REMOVE => Some(Self::MarketplaceRemove),
             METHOD_MARKETPLACE_UPGRADE => Some(Self::MarketplaceUpgrade),
@@ -880,6 +885,7 @@ pub const METHODS: &[&str] = &[
     METHOD_ACCOUNT_READ,
     METHOD_ACCOUNT_LOGOUT,
     METHOD_CLOUD_REQUEST,
+    METHOD_CLOUD_DESKTOP,
     METHOD_MARKETPLACE_ADD,
     METHOD_MARKETPLACE_REMOVE,
     METHOD_MARKETPLACE_UPGRADE,

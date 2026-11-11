@@ -2,7 +2,7 @@ use crate::manager::McpClientManager;
 use crate::types::{McpContent, McpError};
 use rmcp::{
     model::{
-        GetPromptRequestParam, GetPromptResult, PromptMessage, PromptMessageRole,
+        GetPromptRequestParams, GetPromptResult, PromptMessage, PromptMessageRole,
         ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
@@ -14,21 +14,19 @@ struct ExactTargetPromptServer(&'static str);
 
 impl ServerHandler for ExactTargetPromptServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            capabilities: ServerCapabilities::builder().enable_prompts().build(),
-            ..Default::default()
-        }
+        ServerInfo::new(ServerCapabilities::builder().enable_prompts().build())
     }
 
     async fn get_prompt(
         &self,
-        request: GetPromptRequestParam,
+        request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<GetPromptResult, rmcp::ErrorData> {
-        Ok(GetPromptResult {
-            description: Some(format!("{}:{}", self.0, request.name)),
-            messages: vec![PromptMessage::new_text(PromptMessageRole::User, self.0)],
-        })
+        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
+            PromptMessageRole::User,
+            self.0,
+        )])
+        .with_description(format!("{}:{}", self.0, request.name)))
     }
 }
 
@@ -142,27 +140,19 @@ async fn get_prompt_routes_same_name_to_exact_server() {
 #[test]
 fn test_convert_prompt_to_definition() {
     // 创建一个 rmcp Prompt
-    let prompt = rmcp::model::Prompt {
-        name: "test_prompt".into(),
-        title: Some("Test Prompt Title".into()),
-        description: Some("A test prompt description".into()),
-        arguments: Some(vec![
-            rmcp::model::PromptArgument {
-                name: "arg1".to_string(),
-                title: None,
-                description: Some("First argument".to_string()),
-                required: Some(true),
-            },
-            rmcp::model::PromptArgument {
-                name: "arg2".to_string(),
-                title: None,
-                description: Some("Second argument".to_string()),
-                required: Some(false),
-            },
+    let prompt = rmcp::model::Prompt::new(
+        "test_prompt",
+        Some("A test prompt description"),
+        Some(vec![
+            rmcp::model::PromptArgument::new("arg1")
+                .with_description("First argument")
+                .with_required(true),
+            rmcp::model::PromptArgument::new("arg2")
+                .with_description("Second argument")
+                .with_required(false),
         ]),
-        icons: None,
-        meta: None,
-    };
+    )
+    .with_title("Test Prompt Title");
 
     // 转换为 McpPromptDefinition
     let definition =
@@ -197,14 +187,7 @@ fn test_convert_prompt_to_definition() {
 #[test]
 fn test_convert_prompt_to_definition_no_arguments() {
     // 创建一个没有参数的 rmcp Prompt
-    let prompt = rmcp::model::Prompt {
-        name: "simple_prompt".into(),
-        title: None,
-        description: None,
-        arguments: None,
-        icons: None,
-        meta: None,
-    };
+    let prompt = rmcp::model::Prompt::new("simple_prompt", None::<String>, None);
 
     // 转换为 McpPromptDefinition
     let definition = McpClientManager::convert_prompt_to_definition(prompt, "server1".to_string());
@@ -280,19 +263,14 @@ fn test_convert_prompt_message_content_text() {
 #[test]
 fn test_convert_get_prompt_result() {
     // 创建 GetPromptResult
-    let result = rmcp::model::GetPromptResult {
-        description: Some("Test prompt result".into()),
-        messages: vec![
-            rmcp::model::PromptMessage::new_text(
-                rmcp::model::PromptMessageRole::User,
-                "User message",
-            ),
-            rmcp::model::PromptMessage::new_text(
-                rmcp::model::PromptMessageRole::Assistant,
-                "Assistant response",
-            ),
-        ],
-    };
+    let result = rmcp::model::GetPromptResult::new(vec![
+        rmcp::model::PromptMessage::new_text(rmcp::model::PromptMessageRole::User, "User message"),
+        rmcp::model::PromptMessage::new_text(
+            rmcp::model::PromptMessageRole::Assistant,
+            "Assistant response",
+        ),
+    ])
+    .with_description("Test prompt result");
 
     // 转换为 McpPromptResult
     let mcp_result = McpClientManager::convert_get_prompt_result(result);

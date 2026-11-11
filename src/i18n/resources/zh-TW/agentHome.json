@@ -8,5 +8,6 @@
   "agentChat.serviceSkills.catalogSource.synced": "已同步做法",
   "agentChat.home.composer.placeholder": "隨心輸入",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "請查看這些檔案或資料夾。",
-  "agentChat.home.title": "我們要建置什麼？"
+  "agentChat.home.title": "我們要建置什麼？",
+  "agentChat.home.titleInProject": "我們要在 <projectSelect>{{projectName}}</projectSelect> 裡建置什麼？"
 }

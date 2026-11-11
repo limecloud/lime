@@ -6,6 +6,18 @@ import {
 } from "./rendererEventPolicy";
 
 describe("renderer event broadcast authority", () => {
+  it("routes isolated window events without broadcasting into local windows", () => {
+    const on = vi.fn();
+    const broadcast = vi.fn();
+    const route = vi.fn(() => true);
+    registerRendererEventHandler({ on }, broadcast, route);
+    const sender = { sender: { id: 7 } };
+    on.mock.calls[0][1](sender, "config-changed", { scope: "cloud" });
+    expect(route).toHaveBeenCalledExactlyOnceWith(sender, "config-changed", {
+      scope: "cloud",
+    });
+    expect(broadcast).not.toHaveBeenCalled();
+  });
   it("allows existing renderer events and rejects Main persistence notifications", () => {
     expect(canBroadcastRendererEvent("config-changed")).toBe(true);
     expect(canBroadcastRendererEvent("persisted-atom-update")).toBe(false);

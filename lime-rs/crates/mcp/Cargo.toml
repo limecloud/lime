@@ -22,7 +22,7 @@ tracing.workspace = true
 thiserror.workspace = true
 rmcp.workspace = true
 dirs.workspace = true
-reqwest.workspace = true
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "stream", "native-tls"] }
 axum.workspace = true
 chrono.workspace = true
 email_address.workspace = true
@@ -30,6 +30,8 @@ url.workspace = true
 libc = "0.2"
 
 [dev-dependencies]
+# In-memory protocol fixtures act as servers; production only enables the client.
+rmcp = { workspace = true, features = ["server"] }
 futures.workspace = true
 tempfile.workspace = true
 # Match the CLI/workspace feature graph when testing the real MCP wire.

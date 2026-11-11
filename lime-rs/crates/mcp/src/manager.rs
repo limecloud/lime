@@ -296,14 +296,10 @@ impl McpClientManager {
                 },
                 _ = task_cancellation.cancelled() => {
                     let _ = peer.send_notification(
-                        ClientNotification::CancelledNotification(CancelledNotification {
-                            method: rmcp::model::CancelledNotificationMethod,
-                            params: CancelledNotificationParam {
+                        ClientNotification::CancelledNotification(CancelledNotification::new(CancelledNotificationParam {
                                 request_id,
                                 reason: Some("MCP event stream closed".to_string()),
-                            },
-                            extensions: Default::default(),
-                        }),
+                            })),
                     ).await;
                     Err("MCP event stream cancelled".to_string())
                 },
@@ -550,7 +546,7 @@ impl McpClientManager {
             }
             server_tools.sort_by(|left, right| left.name.cmp(&right.name));
 
-            let server_info = running_service.peer_info().cloned();
+            let server_info = running_service.peer_info();
             let description = server_info
                 .as_ref()
                 .and_then(|info| info.instructions.clone())

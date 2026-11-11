@@ -54,6 +54,9 @@ function passingLayout(): ElectronSmokeLayoutEvidence {
     nodes,
     assertions: {
       windowSizeMatchesRequest: true,
+      viewportFillsNativeContent: true,
+      mainSurfaceFillsViewport: true,
+      accessModeLabelDoesNotOverlap: true,
       requiredNodesVisible: true,
       requiredNodesWithinViewport: true,
       contentSurfacePresent: true,

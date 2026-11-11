@@ -1,10 +1,15 @@
 //! MCP form elicitation request routing.
 //!
-//! Adapted from Codex `codex-rs/codex-mcp/src/elicitation.rs`
+//! Adapted from upstream `mcp/src/elicitation.rs`
 //! at `5c19155cbd93bfa099016e7487259f61669823ff` (Apache-2.0).
 
+mod validation;
+#[cfg(test)]
+use validation::validate_primitive;
+use validation::validate_response_content;
+
 use crate::McpRuntimeOwner;
-use rmcp::model::{CreateElicitationRequestParam, ElicitationSchema, PrimitiveSchema};
+use rmcp::model::{CreateElicitationRequestParams, ElicitationSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -455,10 +460,18 @@ impl ElicitationRequestRouter {
         server_name: String,
         runtime_owner: McpRuntimeOwner,
         scope: McpCallScope,
-        params: CreateElicitationRequestParam,
+        params: CreateElicitationRequestParams,
         meta: Option<Value>,
         cancellation: CancellationToken,
     ) -> Result<ElicitationResponse, ElicitationRouterError> {
+        let CreateElicitationRequestParams::FormElicitationParams {
+            message,
+            requested_schema,
+            ..
+        } = params
+        else {
+            return Ok(ElicitationResponse::Decline);
+        };
         let request_sender = lock_request_sender(&self.state)
             .clone()
             .ok_or(ElicitationRouterError::NoRequestConsumer)?;
@@ -470,7 +483,7 @@ impl ElicitationRequestRouter {
                 request_id.clone(),
                 PendingRequest {
                     session_id: runtime_owner.session_id.clone(),
-                    requested_schema: params.requested_schema.clone(),
+                    requested_schema: requested_schema.clone(),
                     responder,
                     closed: closed.clone(),
                     forwarded: false,
@@ -487,8 +500,8 @@ impl ElicitationRequestRouter {
             snapshot_generation: scope.snapshot_generation(),
             auth_scopes: scope.auth_scopes().map(ToOwned::to_owned),
             meta,
-            message: params.message,
-            requested_schema: params.requested_schema,
+            message,
+            requested_schema,
             closed,
         };
 
@@ -536,7 +549,7 @@ impl ElicitationRequestRouter {
         &self,
         server_name: String,
         scope: McpCallScope,
-        params: CreateElicitationRequestParam,
+        params: CreateElicitationRequestParams,
         meta: Option<Value>,
         cancellation: CancellationToken,
     ) -> Result<ElicitationResponse, ElicitationRouterError> {
@@ -711,81 +724,6 @@ async fn settle_local_termination(
     receiver
         .await
         .map_err(|_| ElicitationRouterError::ResponseReceiverClosed(request_id.clone()))
-}
-
-fn validate_response_content(
-    schema: &ElicitationSchema,
-    response: &ElicitationResponse,
-) -> Result<(), ElicitationRouterError> {
-    let Some(content) = response.content.as_ref() else {
-        return Ok(());
-    };
-
-    for required in schema.required.as_deref().unwrap_or_default() {
-        if !content.contains_key(required) {
-            return Err(ElicitationRouterError::InvalidContent(format!(
-                "required field `{required}` is missing"
-            )));
-        }
-    }
-
-    for (name, value) in content {
-        let Some(property) = schema.properties.get(name) else {
-            return Err(ElicitationRouterError::InvalidContent(format!(
-                "field `{name}` is not declared by the requested schema"
-            )));
-        };
-        validate_primitive(name, property, value)?;
-    }
-    Ok(())
-}
-
-fn validate_primitive(
-    name: &str,
-    schema: &PrimitiveSchema,
-    value: &Value,
-) -> Result<(), ElicitationRouterError> {
-    let valid = match schema {
-        PrimitiveSchema::String(schema) => value.as_str().is_some_and(|value| {
-            let length = value.chars().count() as u32;
-            schema.min_length.is_none_or(|minimum| length >= minimum)
-                && schema.max_length.is_none_or(|maximum| length <= maximum)
-                && schema
-                    .format
-                    .is_none_or(|format| validate_string_format(format, value))
-        }),
-        PrimitiveSchema::Number(schema) => value.as_f64().is_some_and(|value| {
-            schema.minimum.is_none_or(|minimum| value >= minimum)
-                && schema.maximum.is_none_or(|maximum| value <= maximum)
-        }),
-        PrimitiveSchema::Integer(schema) => value.as_i64().is_some_and(|value| {
-            schema.minimum.is_none_or(|minimum| value >= minimum)
-                && schema.maximum.is_none_or(|maximum| value <= maximum)
-        }),
-        PrimitiveSchema::Boolean(_) => value.is_boolean(),
-        PrimitiveSchema::Enum(schema) => value
-            .as_str()
-            .is_some_and(|value| schema.enum_values.iter().any(|allowed| allowed == value)),
-    };
-
-    if valid {
-        Ok(())
-    } else {
-        Err(ElicitationRouterError::InvalidContent(format!(
-            "field `{name}` does not match its requested primitive schema"
-        )))
-    }
-}
-
-fn validate_string_format(format: rmcp::model::StringFormat, value: &str) -> bool {
-    match format {
-        rmcp::model::StringFormat::Email => value.parse::<email_address::EmailAddress>().is_ok(),
-        rmcp::model::StringFormat::Uri => url::Url::parse(value).is_ok(),
-        rmcp::model::StringFormat::Date => {
-            chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
-        }
-        rmcp::model::StringFormat::DateTime => chrono::DateTime::parse_from_rfc3339(value).is_ok(),
-    }
 }
 
 #[cfg(test)]

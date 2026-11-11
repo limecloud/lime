@@ -12,6 +12,7 @@ export type AppServerClientMethodSpec = {
 };
 
 export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
+  { name: "requestCloudDesktop", method: constants.APP_SERVER_METHOD_CLOUD_DESKTOP, params: "required" },
   {
     name: "readComputerUseStatus",
     method: constants.APP_SERVER_METHOD_COMPUTER_USE_STATUS,

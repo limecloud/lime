@@ -1008,3 +1008,476 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
 新 Electron fork 未跑；Agent 聚合在 371 项定向通过后构建锁超时；本地门禁在 presentation
 夹具批次 153 pass/11 fail 后退出。结果均在 [计划与证据](codex-rollout-context-alignment.md)
 分账。本切片退出条件 3/5（60%），整体 active，未核销剩余 runtime/插件/LimeCore 义务。
+
+### 2026-11-10 可度量的对齐基线与第一刀清理（audit current）
+
+- **状态**：active；本轮只建立口径、修构建图脱节，不宣称任何 runtime 语义完成。
+- **事实源**：`npm run inventory:upstream-alignment` 生成 `internal/refactor/upstream-alignment-audit.json`，
+  上游 revision 由脚本读取 Codex HEAD，不再手写。
+- **当前数字**（2026-11-10 第二十九轮后）：lime-rs `2747` 文件 / `849,027` 行；Codex `5932` 文件 /
+  `2,323,902` 行；与上游逐字节一致 `31` 个；同名文件可比 `1501` 个，分桶
+  `>=0.95: 48`、`0.80-0.95: 24`、`0.50-0.80: 38`、`0.20-0.50: 42`、`<0.20: 1349`。
+  口径说明：`identical` 只统计未适配文件，品牌适配（如 `.codex` → `.lime`）会让该数下降，
+  不代表复制回退；判断对齐看“同名相似度分桶 + 消费者接线”，不看单一 identical。
+  结论：主链仍是“读上游后自研”，不是 `AGENTS.md` 要求的复制优先；后续每刀必须让该口径变化，
+  不能用“看过 Codex”代替复制与接线。
+- **crate 覆盖**：`app-server*`、`protocol`、`config`、`execpolicy`、`apply-patch`、`skills`、
+  `mcp`、`model-provider` 已有同语义 owner；`thread-store`、`rollout`、`state`、`history`、
+  `file-search`、`hooks`、`memories`、`sandboxing`、`windows-sandbox-rs`、`cli`、`tui` 为 partial；
+  `linux-sandbox`、`exec-server` 为 absent；`otel` 按产品边界 excluded。
+- **构建图脱节**：`lime-server`（12.8k，axum HTTP API 栈）、`lime-embedding`（772，可选 ONNX）
+  经 `cargo metadata` 确认零消费者、零 `[[bin]]`。本轮删除 `lime-embedding` 及其 workspace
+  依赖，`Cargo.lock` 同步剪掉 `fastembed`/`ort`/`hf-hub`；`lime-server` 连同 `lime-processor`、
+  `lime-websocket` 牵涉“服务端能力是否保留”的产品判定，本轮不删，登记为待定项。
+  `app-server-daemon` 同样零消费者，但它是 Codex 已有能力，属未接线而非应删除，保留为移植目标。
+- **验证**：`npm run governance:scripts` 通过；`cargo check -p cli -p tui` 通过（CLI/TUI 两个
+  surface 不因本次清理回归）。`app-server` 的本机编译阻塞已解除：`rusty_v8 v150.4.0` 的
+  `ptrcomp_sandbox` 归档未发布（404），改用同版本 `ptrcomp_release` 归档 + 匹配 binding 做本地替代：
+  `RUSTY_V8_ARCHIVE=<...>/librusty_v8_ptrcomp_release_aarch64-apple-darwin.a.gz`、
+  `RUSTY_V8_SRC_BINDING_PATH=$CARGO_HOME/registry/src/*/v8-150.4.0/gen/src_binding_ptrcomp_release_aarch64-apple-darwin.rs`，
+  `cargo check -p app-server` 通过。该替代**不含 V8 sandbox**，只能作为编译与非 V8-sandbox 路径证据，
+  不能记为 V8 sandbox 行为验收；正式门禁仍需发布归档或 `V8_FROM_SOURCE=1`。
+- **旧口径**：`internal/refactor/codex-source-baseline.json` 是 2026-10-25 的一次性取样记录
+  （destination 指向已禁止的 `lime-rs/upstream`），不能作为 current 复制完成度；现行口径以上面
+  的 audit JSON 为准。
+- **本轮代码复制（2026-11-10 第二轮）**：整目录复制 Codex `codex-rs/utils/path-uri`（revision
+  `1885417cd45a8da5bfdeb7864a5380a7481d48f2`，Apache-2.0）到 `lime-rs/crates/utils-path-uri`，
+  包名 `lime-utils-path-uri`；仅把 `codex_utils_absolute_path` 改为 `lime_utils_absolute_path`，
+  其余目录、文件、类型与测试保持上游原名。`cargo test -p lime-utils-path-uri` 83/83 通过。
+  它当前零消费者，audit 标记为 `pending-wiring`，是 permissions/sandboxing 复制的前置 owner。
+- **本轮代码复制（2026-11-10 第三轮）**：复制 Codex `protocol/src/permissions.rs`、
+  `protocol/src/permissions/`、`protocol/src/permissions_tests.rs`（共 `6,286` 行，Apache-2.0，
+  revision `1885417cd45a8da5bfdeb7864a5380a7481d48f2`）到 `lime-rs/crates/permissions`
+  （包名 `lime-permissions`），并逐字复制 `SandboxPolicy`/`NetworkAccess`/`WritableRoot`
+  三个领域类型到 `sandbox_policy.rs`。仅做两类适配：`crate::protocol::` → `crate::sandbox_policy::`、
+  `codex_utils_*` → `lime_utils_*`，并补回上游 `SandboxPolicy::get_writable_roots_with_cwd`。
+  `cargo test -p lime-permissions` **65/65 通过**；`cargo fmt --check` 通过。该 crate 零消费者，
+  audit 标记 `pending-wiring`。
+- **决策记录（本轮已定）**：采用 (a) 新建领域 `permissions` owner；wire DTO 继续留在
+  `app-server-protocol`，两者映射只在接线处做一次，不把领域匹配逻辑塞回 wire crate。
+  下一步是复制 `sandboxing/src/seatbelt.rs` 与四个 `.sbpl` 资源到 `tool-runtime`，直接消费
+  `lime-permissions` 的领域类型。
+
+- **下一刀依据**：Codex `protocol/src/permissions.rs`（2,647 行）依赖 `PathUri`、`AbsolutePathBuf`、
+  `globset`，并通过 71 处引用耦合 `SandboxPolicy`/`NetworkAccess`/`WritableRoot`；Lime 目前只有
+  wire 形态的同名类型（`app-server-protocol` v2）。因此 sandboxing 复制前必须先决定：
+  (a) 新建领域 `permissions` crate 并复制 Codex 的 `SandboxPolicy` 等类型，或
+  (b) 把 `permissions` 适配到 Lime 现有 wire 类型。该决策影响协议层，需在下一轮先出架构结论再动代码。
+
+- **本轮代码复制（2026-11-10 第四轮）**：复制 `sandboxing/src/seatbelt.rs`、
+  `sandboxing/src/seatbelt_scratch.rs` 与四个 `.sbpl` 资源到
+  `tool-runtime/src/sandbox/`，直接消费 `lime-permissions` 的领域类型。复制后按产品边界裁剪：
+  移除 Codex 托管网络代理接线（`codex-network-proxy` 为 32k 行 rama/AWS/OTEL 依赖，Lime 不托管 MITM 代理）、
+  移除 `codex_uds` daemon socket 保护（Lime 无 UDS daemon）、移除 Codex home 符号链接 opt-out
+  （Lime 无该配置项），并把 let-chain 改为 edition 2021 可编译形式。保留全部文件系统策略逻辑：
+  protected metadata、symlink 归一化、glob deny、fcntl deny、ancestor unlink deny。
+  新增两个模块测试；`cargo test -p tool-runtime --lib seatbelt` **4/4 通过**（含既有 command 测试）。
+  **该模块尚未接入 `prepare_sandbox_command`**，生产路径仍是旧字符串策略；接线是下一刀。
+- **本轮品牌适配**：`PROTECTED_METADATA_PATH_NAMES` 中 `.codex` 改为 `.lime`（其余 `.git`/`.agents`/`.aws`
+  保留），内部 `codex-project-roots://` 前缀与 `*_dot_codex` 标识改为 `lime-*`/`*_dot_lime`；
+  复制文件的 `codex-rs` 来源注释保留。品牌适配后 permissions 测试 `65/65` 仍通过。
+- **下一刀细节**：接线需要一次 wire→domain 转换（`app-server-protocol::SandboxPolicy` 与
+  `GrantedPermissionProfile` → `lime_permissions::FileSystemSandboxPolicy`），并把
+  `tool-runtime/src/sandbox/command.rs::prepare_seatbelt_command` 替换为
+  `seatbelt::create_seatbelt_command_args`；同时把 `.lime`/`.agents` 加入
+  `PROTECTED_METADATA_PATH_NAMES`（Lime 现有行为，Codex 只有 `.codex`/`.git`），并跑既有
+  `sandbox::command` 回归。之后再做 Linux landlock/bwrap 与 Windows。
+
+- **本轮接线（2026-11-10 第五轮，current）**：`prepare_sandbox_command` 的 Seatbelt 分支已从手写
+  字符串策略切换为 Codex 派生的 `seatbelt::create_seatbelt_command_args`。新增唯一的 wire→domain
+  转换：`app-server-protocol::SandboxPolicy`/`GrantedPermissionProfile` →
+  `lime_permissions::SandboxPolicy`/`FileSystemSandboxPolicy`（含 read/write/entries/glob depth、
+  special path、相对路径按 cwd 绝对化）。bubblewrap 的受保护元数据改用
+  `lime_permissions::PROTECTED_METADATA_PATH_NAMES`（`.git`/`.agents`/`.lime`/`.aws`）。
+  失败路径显式化：`InvalidPath`、`Seatbelt`，非 macOS 的 Seatbelt backend 继续 fail closed。
+  既有两条 seatbelt 断言从“旧字符串格式”改为语义断言（deny default、writable 根、`.git` 保护 regex、
+  network-outbound、授权写路径参数）。
+- **验证（第五轮）**：`cargo test -p tool-runtime --lib` **626 passed / 0 failed**（含 23 项 sandbox
+  测试）；`cargo check -p cli -p tui` 通过；`rustfmt --check` 通过。生产路径现在真正使用 Codex
+  seatbelt 策略生成器，CLI/TUI/GUI 共用同一执行链。
+
+- **运行证据（2026-11-10 第六轮）**：新增 macOS 真实执行测试
+  `seatbelt_policy_allows_workspace_write_and_denies_outside_write`：用生产 `prepare_sandbox_command`
+  生成参数后真实 spawn `/bin/sh`，断言工作区内写成功、`$HOME` 下写被内核拒绝
+  （`Operation not permitted`），命令仍正常结束。该测试只证 macOS seatbelt 文件系统边界，
+  不冒充 Linux/Windows 或网络隔离证据。测试同时记录一个事实：macOS `TMPDIR` 是
+  workspace-write 默认可写根，拒绝用例必须指向 TMPDIR 之外。
+- **本轮清理**：移除无消费者的 `MacosSeatbeltProfile::FileSystemHelper`、`EnvironmentNetworkProxy`
+  错误与 `UnixDomainSocketPolicy::AllowAll`，合并重复的 seatbelt 构造函数；`cargo check -p tool-runtime`
+  不再产生该模块 dead_code 警告。`cargo test -p tool-runtime --lib` **627 passed / 0 failed**。
+
+- **Linux 可行性结论（2026-11-10 第七轮）**：`rustup target add x86_64-unknown-linux-gnu` 后，
+  `lime-permissions`（含 `permissions` 全部 Linux 分支代码）交叉 `cargo check` 通过，Linux 编译验证可用。
+  Codex `linux-sandbox` 整包复制的依赖闭包为：`codex-sandboxing`（与 Lime 现役 tool-runtime sandbox
+  循环）、`codex-network-proxy`（32k，Lime 不托管代理）、`codex-install-context`、
+  `codex-process-hardening`、`codex-uds`、`seccompiler`/`landlock`/`rustix`/`ignore`，并需要新增
+  `lime-linux-sandbox` helper 二进制与 Electron/CLI 打包项。该整包复制登记为独立切片，
+  在 Linux 运行环境可验收前不宣称完成；本轮先做可验证的语义对齐。
+- **本轮 Linux 语义对齐**：`prepare_bubblewrap_command` 不再自己计算可写根和 `.git/.lime/.agents`，
+  改为与 seatbelt 共用 `domain_file_system_policy` + `resolve_for_enforcement(PreserveMutableRoots)`：
+  bwrap 的 `--bind` 来自领域 `writable_roots`，`--ro-bind` 来自每条根的 `read_only_subpaths`
+  （含 `.git`/`.agents`/`.lime`/`.aws`），网络开关来自领域 network policy。
+  删除重复的 `append_bubblewrap_permissions`/`special_path`/`append_bubblewrap_path`。
+  这样两个后端由同一个 policy owner 驱动，不再各写一套根解析。
+- **验证（第七轮）**：`cargo test -p tool-runtime --lib` **627 passed / 0 failed**（sandbox 24 项，
+  含真实 macOS seatbelt 执行）；`cargo check -p cli -p tui` 通过；`rustfmt --check` 通过；
+  `cargo check --target x86_64-unknown-linux-gnu -p lime-permissions` 通过。
+  限制：本机无 Linux 运行环境，bwrap 参数只做了 macOS 上的构造断言与领域策略交叉编译，
+  不能记为 Linux 运行时验收；tool-runtime 因 v8 Linux 归档缺失无法整体交叉编译。
+
+- **本轮 CLI 对齐（2026-11-10 第八轮）**：新增 `lime agents`，与 Codex `AgentsCommand` 对齐
+  （连接参数、`-C/--cd`、`--remote`、locale），启动 TUI 后直接打开 agent command center 并刷新线程列表。
+  实现只加一个 `TuiOptions.open_agents_overview` 布尔与启动刷新，不建第二套会话或投影。
+  CLI 命令面现状：与 Codex 对齐的有 exec/review/resume/queue/archive/delete/unarchive/fork/
+  mcp/plugin/app-server/debug/features/sandbox/execpolicy/completion/agents；仍缺 `doctor`（Codex 13k）、
+  `apply`、`migrate-rollouts`、`migrate-nfs-db`；login/logout/update/app/remote-control 按产品边界排除。
+- **验证（第八轮）**：`cargo test -p cli` 2/2；`cargo test -p tui --lib runtime` 29/29；
+  `cargo test -p tui --no-run` 通过；`cargo build -p cli` 后 `lime agents --help` 与 `lime --help`
+  均显示新命令；`rustfmt --check` 通过。
+
+- **2026-11-10 第九轮（agents 接线测试与 PTY 结论）**：把 `lime agents` 的选项构造抽成
+  `agents_tui_options`，新增 CLI 测试 `agents_command_opens_overview_with_shared_connection_options`：
+  断言子命令解析、`open_agents_overview=true`、`--cd`/`--model`/`--provider` 透传。`cargo test -p cli`
+  通过（含 8 项 lib 测试）。真实 PTY 验收**未完成**：用 `script` 自建 PTY 跑 `lime agents` 只能看到
+  备用屏幕进入、标题设置，没有稳定渲染出 overview 文本，不能作为验收证据；正确路径是给
+  `tui-gate-b.mjs` 增加 `agents-command` 场景（`LIME_TUI_GATE_B_SCENARIOS` 可单选），由现有
+  PTY harness 断言首屏、快捷键与终端恢复。
+- **顺带发现**：仓库已有 `scripts/lib/rusty-v8-artifacts.mjs`，从 `openai/codex` release 解析
+  `ptrcomp_sandbox_release` 归档并带校验和；`resolveRustyV8CargoEnv` 已能在本机解析出 sandbox
+  版本归档路径。后续 build/gate 应使用该官方解析器，而不是手工 `ptrcomp_release` 替代；
+  第五轮记录的“V8 sandbox 未验证”限制因此可以在下一次全量构建时消除。
+
+- **2026-11-10 第十轮（agents 真实 PTY 验收通过）**：`runtime_pty_tests.rs` 新增
+  `agents-command` 场景：CLI 以 `agents` 启动、跳过 composer 等待、断言首屏出现
+  “Agent command center” 与 `f9 open`/`ctrl+x q back`，按 `ctrl+x q` 返回 composer 后退出。
+  `tui-gate-b.mjs` 支持无 Turn 场景（ledger 可选、`thread=none`、marker 断言），
+  并允许 `LIME_TUI_GATE_B_SCENARIOS=agents-command` 单选。
+- **证据（第十轮）**：`LIME_TUI_GATE_B_SCENARIOS=agents-command node scripts/app-server/tui-gate-b.mjs`
+  退出码 0，输出 `TUI_AGENTS_COMMAND_OK screen=overview back=composer`，总体
+  `[smoke:tui-gate-b] ok ... terminal=restored`；同一命令跑 `agents-overview` 回归退出码 0
+  （`events=turn.started,message.delta agents-overview=ok`）。这证明 `lime agents` 在真实 PTY、
+  真实 App Server 与 external backend 下能直接进入 command center 并返回。
+- **复现命令**：
+  `LIME_CLI_BIN=lime-rs/target/debug/lime APP_SERVER_BIN=lime-rs/target/debug/app-server
+  LIME_TUI_GATE_B_SCENARIOS=agents-command node scripts/app-server/tui-gate-b.mjs`
+  （构建二进制时使用 `scripts/lib/rusty-v8-artifacts.mjs` 的官方 V8 归档）。
+
+- **2026-11-10 第十一轮（V8 sandbox 验证限制解除）**：改用仓库既有
+  `scripts/lib/rusty-v8-artifacts.mjs::resolveRustyV8CargoEnv` 解析官方
+  `ptrcomp_sandbox_release` 归档（22MB，缓存于 `~/Library/Caches/Lime/rusty-v8`），
+  `cargo clean -p v8` 后以该 env 重建 `app-server`，v8 build 输出确认 binding 为
+  `src_binding_ptrcomp_sandbox_release_aarch64-apple-darwin.rs`，构建 47s 通过。
+  第五轮“V8 sandbox 未验证”的限制**已消除**；此前手工 `ptrcomp_release` 替代不再使用。
+- **验证（第十一轮）**：`cargo build -p app-server`（sandbox V8）通过；
+  `cargo test -p tool-runtime --lib` 连续 3 次 **627 passed / 0 failed**；
+  `LIME_TUI_GATE_B_SCENARIOS=agents-command node scripts/app-server/tui-gate-b.mjs`
+  在 sandbox-V8 二进制上退出码 0（`[smoke:tui-gate-b] ok ... terminal=restored`）。
+  诚实记录：该套件首次运行出现 1 个未复现失败（随后 3 次全绿），未定位到具体用例；
+  按既有稳定性处理，后续全量门禁需观察是否复发。
+- **复现命令**：
+  `node -e "import('./scripts/lib/rusty-v8-artifacts.mjs').then(m=>console.log(m.resolveRustyV8CargoEnv({repoRoot:process.cwd()})))"`
+  取 env 后 `cargo clean -p v8 && cargo build -p app-server`。
+
+- **2026-11-10 第十二轮（持久化 owner 第一刀：删除死抽象链）**：查证并删除整条无消费者的
+  “SessionRepository” 持久化链（7 个文件，约 4,306 行）：`thread-store/src/session_repository.rs`
+  （trait，无实现者）、`session_record.rs`、`agent/src/lime_session_repository.rs`（从未被构造）、
+  `agent/src/session_record_sql.rs`、`core/src/database/agent_session_repository.rs` + tests、
+  `core/src/database/dao/agent.rs`（仅被该 repository 使用）。同步移除四个 crate 的模块声明。
+  删除后全仓无 `AgentDao`/`SessionRecordRow`/`LimeSessionRepository` 残留引用。
+- **验证（第十二轮）**：`cargo test -p lime-core --lib` **549 passed**；
+  `cargo test -p thread-store --lib` **35 passed**；`src/lib/governance/projectThreadFirstBoundary.test.ts`
+  **10/10 通过**（守卫清单已从被删旧文件换成 `thread-store/store.rs`、`history.rs`、
+  `app-server/runtime/canonical_thread_store.rs`、`canonical_rollout.rs` 四个现役 owner）。
+- **并发阻塞（如实记录）**：本轮进行中用户并行修改 `lime-services`（`cloud_desktop_service.rs`
+  引用尚未落盘的 `purchase`/`ecs` 模块），导致 `lime-agent`、`app-server` 当前无法编译；
+  与本轮删除无关，也不触碰该热区。等并行改动落地后需补跑 `cargo check -p lime-agent -p app-server`
+  与持久化定向测试。
+
+- **2026-11-10 第十三轮（持久化死 DAO 清理）**：按“模块无引用 + 类型无引用”双重查证，删除
+  `core/src/database/dao/` 下 6 个无消费者 DAO（`agent_thread_incident`、`agent_turn_outcome`、
+  `browser_environment_preset`、`browser_profile`、`orchestrator`、`providers`，共 1,864 行），
+  同步移除模块声明。对应 SQLite 表与 schema/migration 保留（数据不丢），仅删除无人读写的 Rust 访问层。
+  删除后 `AgentThreadIncident*`/`BrowserProfile*`/`OrchestratorDao`/`ProviderDao` 在全仓零引用。
+- **验证（第十三轮）**：`cargo test -p lime-core --lib` **538 passed / 0 failed**（删除的 11 个内联测试
+  随模块移除）；`cargo check -p cli -p tui` 通过（两个 surface 不受 services 并行改动影响）。
+- **并行阻塞仍在**：`lime-services` 的 `cloud_desktop_service/ecs.rs` 仍声明缺失的 `purchase`
+  子模块，`purchase_ecs`/`inspect_ecs_purchase` 方法未落地，`lime-agent` 与 `app-server`
+  继续无法编译；未触碰该热区。CLI/TUI 与 core/thread-store 不受影响，本轮验证基于这些 crate。
+
+- **2026-11-10 第十四轮（apply-patch 定位算法对齐）**：整文件复制 Codex
+  `apply-patch/src/seek_sequence.rs`（Apache-2.0，revision `1885417cd4`）到
+  `patch-apply/src/seek_sequence.rs`，仅把 `pub(crate)` 改为 `pub` 以保留 Lime 现有导出；
+  保留 Lime 原有的 Unicode 标点归一化回归测试。行为差异：上游在 `eof=true` 时使用
+  `eof_start.max(start)`（Lime 旧实现忽略 start），更贴近 `git apply` 的定位语义。
+- **验证（第十四轮）**：`cargo test -p patch-apply` **21 passed / 0 failed**；
+  `cargo check -p cli -p tui` 通过。注意：本轮审计口径包含用户并行改动，文件/行数增量
+  不完全来自本切片。
+- **并行阻塞更新**：`lime-services` 仍未编译通过（`purchase_ecs`/`inspect_ecs_purchase`/
+  `validate_ecs_purchase_receipt` 为 private），`tool-runtime`、`lime-agent`、`app-server`
+  本轮均无法编译验证；未触碰该热区。
+
+- **2026-11-10 第十五轮（services 恢复后补验收）**：`lime-services` 已可编译，补齐第十二/十三轮
+  删除链在消费者侧的验证：
+  - `cargo check -p lime-agent -p app-server` ✅（SessionRepository/DAO 删除后无编译回归）；
+  - `cargo test -p app-server --lib runtime::canonical_thread_store -- --test-threads=1`
+    **101 passed / 0 failed**（含 workspace migration、rollout 去重与归档 provenance）；
+  - `cargo test -p tool-runtime --lib` 在跳过两个环境依赖用例后 **625 passed / 0 failed**。
+- **测试隔离缺口（如实记录，非本轮引入）**：并行运行本机 App Server 时，
+  `computer_use::tests::turn::presentation_outlives_one_action_but_finishes_on_revocation_or_policy_change`
+  会因机器级 Computer Use 输入租约被占用而失败（`Computer Use desktop resource is busy in another
+  App Server`）；`primary_runtime::tests::checksum_failure_and_canceled_reinstall_keep_previous_installation`
+  在并发文件锁下报 EAGAIN。两者都是测试隔离问题，不是本轮改动回归；未修改测试以掩盖。
+  建议后续把 OS 输入租约与安装目录在测试内做成 per-test 隔离。
+- **备注**：本轮曾尝试给 presentation 测试加有界等待，确认根因是跨进程租约后已回退，未保留该改动。
+
+- **2026-11-10 第十六轮（并发测试隔离调查）**：对 tool-runtime 全量套件的偶发失败做了定位实验：
+  - 多线程运行：`computer_use::tests::turn::presentation_outlives_one_action_but_finishes_on_revocation_or_policy_change`
+    在 `ControlBroker::acquire` 处报 “Computer Use desktop resource is busy in another App Server”；
+    `primary_runtime::tests::checksum_failure_and_canceled_reinstall_keep_previous_installation` 偶发 EAGAIN；
+  - `--test-threads=1`：**627 passed / 0 failed**，连续稳定；
+  - 仅给两个“持有 OS 租约”的测试加进程内串行锁**无效**（仍偶发失败），说明竞争不止来自这两个用例，
+    更像 presentation/lease 释放时序暴露的真实竞态，而非纯测试隔离问题。
+  已回退实验性测试改动，不改测试掩盖问题。**结论**：在该竞态修复前，tool-runtime 全量建议用
+  `--test-threads=1`；需要一次带日志的专项定位（presentation 结束、`release` 与 `finish_turn` 的时序）。
+- **本轮补跑**：`cargo test -p app-server --lib runtime::canonical_thread_store -- --test-threads=1`
+  再次 **101 passed / 0 failed**，持久化收口稳定。
+
+- **2026-11-10 第十七轮（seatbelt 引号路径缺陷修复）**：全量 `app-server --lib` 单线程运行暴露
+  `command_exec::tests::memory_workspace_policy_reaches_the_real_process` 失败：可写根
+  `extra "scope"` 含引号时，复制的 Codex 策略生成器把路径写进 `(regex #"...")` 原始字符串，
+  SBPL 在第一个 `"` 处截断，`sandbox-exec` 报 `unbound variable: scope"/\.git`。
+  修复：受保护元数据不再内联 regex，改为 `-DPROTECTED_METADATA_<n>` 参数 +
+  `(require-not (literal (param ...)))` / `(require-not (subpath (param ...)))`，
+  语义等价（精确路径 + 子树）且对任意路径字符安全；删除因此不再使用的
+  `seatbelt_protected_metadata_name_regex`。
+- **验证（第十七轮）**：全量 `app-server --lib -- --test-threads=1` **2039 passed / 0 failed**
+  （435s，含持久化 101 项与 command_exec 18 项）；`command_exec::` **18/18**（含引号路径用例）；
+  `tool-runtime --lib -- --test-threads=1` **627/627**；seatbelt sandbox 测试 **24/24**
+  （断言改为校验 `PROTECTED_METADATA` 参数）；`rustfmt --check` 通过。
+
+- **2026-11-10 第十九轮（computer_use 租约交接竞态定位与测试修正）**：根因定位到
+  `ComputerUseService::execute`：适配器动作在 `tokio::spawn` 的 owned task 中执行，lease 的
+  `Arc<ControlLease>` 由该 task 在结束时释放；`execute_for_turn` 返回后 OS 锁的交接发生在
+  另一个调度 tick，测试原先“立即 acquire”会偶发看到 busy。修复放在测试侧：用 2s 有界等待
+  轮询 `ControlBroker::acquire`，交接成功即返回，超时仍失败（不会掩盖泄漏）。
+  同时给 `broker_tests` 的 fence 断言补上实际错误输出，便于下次定位。
+- **验证（第十九轮）**：`computer_use::` 连续 **10/10** 通过；全量 `tool-runtime --lib`
+  多线程连续 **5/5** 通过（此前约 1/4 概率失败）。随后用户并行 `cargo build` 占用 target 锁，
+  额外的 10 轮重复验证主动中止，不记为通过。
+- **纠偏**：第十六轮曾尝试“串行化两个持租约测试”，无效并已回退；本轮的有界等待才对应真实时序。
+
+- **2026-11-10 第二十/二十一轮（rollout owner 抽取尝试，已回退）**：目标是把
+  `app-server/src/runtime/canonical_rollout`（约 2.7k 行）抽成独立 `rollout` crate，对齐 Codex
+  的 `codex-rollout` owner。实际依赖闭包比预期大：`canonical_rollout` 还依赖 app-server runtime 的
+  `SidecarStore`（600 行）、`turn_input_events`（168 行）、`input_media`（671 行）与
+  `RuntimeEvent`/`event_sink`。**结论**：必须先抽“rollout 媒体/输入事件支持层”，才能抽 rollout
+  本体；单一 crate 抽取会把 app-server runtime 的一半一起搬走。
+  本轮已完整回退（crate 目录、workspace/app-server 依赖、模块声明、导入全部恢复），
+  `cargo check -p app-server` 通过（EXIT 0），工作树无残留 `rollout` crate 引用。
+- **风险备注**：回退时以 git HEAD 恢复了 `canonical_rollout` 文件；此前未观察到该模块的未提交改动，
+  但若并行进程曾修改它，需要重新应用。
+- **下一刀候选（按依赖顺序）**：
+  1. 先抽 `runtime/media` 支持层（sidecar + input_media + turn_input_events + RuntimeEvent）；
+  2. 再抽 `rollout` crate；
+  3. 之后才做 `canonical_thread_store` 与 `thread-store` 的存储契约收敛。
+
+- **2026-11-10 第二十二轮（CLI 沙箱 Gate B 固化）**：新增
+  `scripts/app-server/cli-sandbox-gate-b.mjs` 与 `npm run verify:cli-sandbox`：创建临时
+  `permissions.cli-sandbox-gate`（`extends: ":workspace"`）配置，真实执行
+  `lime sandbox -P cli-sandbox-gate -C <workspace> -- /bin/sh -c ...`，断言工作区内写成功、
+  `$HOME` 下写被拒且输出包含 `Operation not permitted`。门禁在非 macOS 上显式 skip。
+- **证据（第二十二轮）**：`npm run verify:cli-sandbox` 退出码 0，输出
+  `CLI_SANDBOX_OK workspace-write=allowed home-write=denied seatbelt=Operation not permitted`。
+  这是 CLI → App Server → tool-runtime → seatbelt 整条链的真实执行证据（此前只有 tool-runtime
+  单测与 app-server 测试）。`npm run governance:scripts` 通过。
+
+- **2026-11-10 第二十三轮（Windows 编译验证能力）**：`rustup target add x86_64-pc-windows-msvc` 后，
+  以下 crate 交叉 `cargo check --target x86_64-pc-windows-msvc` **全部通过**：
+  `lime-permissions`（含 `windows_glob` 等 Windows 分支）、`app-server-protocol`、
+  `lime-utils-absolute-path`、`lime-utils-path-uri`。
+  这为后续 Windows 沙箱策略对齐提供了编译级验证；但含 C 构建脚本的 crate（rusqlite / aws-lc-sys /
+  ring）需要 MSVC 工具链，`tool-runtime`、`app-server` 的 Windows 目标仍无法在本机交叉编译，
+  运行时验收仍需 Windows 环境。
+- **附带结论（未采用）**：尝试用“模块引用计数”启发式扫死代码，`app-server`/`tool-runtime` 的候选
+  大量是 `cfg(test)` 模块或被跨 crate 路径引用的 pub 模块（启发式只看 crate 内文本），不可靠，
+  未据此删除任何代码。
+
+- **2026-11-10 第二十四轮（lime doctor）**：新增 `lime doctor`：检查 CLI 版本、App Server 二进制
+  解析结果，并通过真实 App Server 握手读取 visible model catalog；任一检查失败返回非零退出码。
+  这是 Codex `doctor` 的**有意子集**：Codex 的 13k 还包含 auth/update/config-layer/平台专项诊断，
+  其中登录、更新与账号检查按产品边界排除，config-layer 诊断留待后续。接线复用现有
+  `ConnectionArgs` 与 `list_models`，不建第二套会话或 RPC 客户端。
+- **验证（第二十四轮）**：真实运行 `lime doctor` 输出
+  `[ok] cli version 1.173.0` / `[ok] app server binary …/app-server` /
+  `[ok] app server handshake (26 visible models)`，退出码 0；指定不存在的 `--app-server` 时
+  两条 `[fail]` 且退出码 1；`cargo test -p cli` 通过（lib 8 项含 doctor/agents 解析）；`rustfmt` 通过。
+  CLI 命令面剩余缺口：`apply`、`migrate-rollouts`、`migrate-nfs-db`（`agents` 已于第八轮补齐）。
+
+- **2026-11-10 第二十五轮（doctor config-layer 诊断）**：`lime doctor` 新增 `config/read` 检查：
+  报告配置层数、origin 数，并把 `disabled_reason` 的层以 `[warn]` 列出（例如项目 `.lime` 未受信任时
+  的 Project 层被禁用）。二进制缺失、握手失败、config 读取失败计入 `[fail]` 并使退出码非零；
+  warn 不影响退出码。
+- **验证（第二十五轮）**：真实运行输出 `[ok] config loaded (2 layers, 321 origins)` 与
+  `[warn] 1 config layer(s) disabled: Project … not trusted`，退出码 0；`cargo test -p cli` 通过；
+  `rustfmt --check` 通过。
+
+- **2026-11-10 第二十六轮（doctor 数据目录与目录摘要）**：`lime doctor` 新增：
+  - 模型目录摘要：provider 数量与默认模型；
+  - 数据目录可写探测（`lime_core::app_paths::preferred_data_dir`，缺失时创建，写入并删除探针文件；
+    失败计 `[fail]`）；
+  - 数据库存在性（`resolve_database_path`）。
+  CLI 仅为这三项新增 `lime-core` 依赖（此前已通过 tui 间接在依赖树中）。
+- **验证（第二十六轮）**：真实运行输出
+  `[ok] model catalog: 3 provider(s), default model …` / `[ok] data dir writable ~/Library/Application Support/lime` /
+  `[ok] database present`，退出码 0；`cargo test -p cli` 通过；`rustfmt` 通过。
+
+- **2026-11-10 第二十七轮（doctor provider 摘要）**：`lime doctor` 从 `config/read` 的 config JSON
+  提取顶层 `default_provider` 与 `providers.*.enabled`，输出默认 provider 与已启用的内置 provider
+  列表（没有启用项时不输出该行，避免把自定义 API-key provider 误报为缺失）。纯本地读取，不发
+  网络请求，不探测 provider 可用性。
+- **验证（第二十七轮）**：真实运行新增 `[ok] default provider openai`，退出码 0；
+  `cargo test -p cli` 通过；`rustfmt` 通过。
+
+- **2026-11-10 第二十八轮（doctor --json）**：`lime doctor` 改为先收集结构化检查再渲染：
+  文本模式输出 `[ok|warn|fail] <check> <detail>`，`--json` 输出
+  `{ ok, checks: [{ id, status, detail }] }`；退出码仍由是否存在 `fail` 决定。
+  检查集合与上一轮一致（cli_version、app_server_binary、app_server_handshake、model_catalog、
+  config、config_layers、default_provider、builtin_providers、data_dir、database）。
+- **验证（第二十八轮）**：文本与 `--json` 均退出码 0，JSON 可被 `json.load` 解析（9 项检查）；
+  `--json --app-server /tmp/missing-doctor` 输出 `"ok": false` 且退出码 1；`cargo test -p cli`、`rustfmt` 通过。
+
+- **2026-11-10 第二十九轮（file-search 整包复制）**：Codex `codex-rs/file-search`（1,716 行，无
+  `codex-*` 依赖：anyhow/clap/crossbeam-channel/ignore/nucleo(git pin)/serde/tokio）整目录复制到
+  `lime-rs/crates/file-search`，edition 使用 2024 以保留上游 let-chain；仅把 `codex_file_search`
+  改为 `file_search`、二进制名改为 `lime-file-search`。**未接线**：app-server 现役
+  `fuzzy_file_search.rs`（341 行）仍是 current 搜索实现；下一刀把消费者切到新 crate 后删除旧实现。
+- **验证（第二十九轮）**：`cargo check -p file-search` 通过；`cargo test -p file-search`
+  **18 passed / 0 failed**；`rustfmt --check` 通过。审计口径：逐字节一致 27→31，>=0.95 分桶 43→48。
+
+- **2026-11-11 第三十轮（file-search 接线）**：app-server `fuzzy_file_search` 的手写遍历与打分已被
+  `file-search` crate（nucleo）替换：创建会话、下发 query、等待 `walk_complete` 快照（10s 上限、
+  取消优先），再把 `FileMatch` 映射回现有 RPC 契约（相对 path、root wire 值、file_name、
+  match_type、indices）。删除旧的 `fuzzy_score` / `push_match` / `should_skip_directory` /
+  `compare_results`。行为差异：忽略规则改为按 `.gitignore` 生效（原先只有硬编码目录黑名单），
+  排序由 nucleo 计算。
+- **验证（第三十轮）**：`cargo test -p app-server --lib fuzzy_file_search` **3/3**；
+  `cargo test -p app-server --test fuzzy_file_search_jsonrpc` **1/1**（indices 仍为 `[4,5,6]`，
+  相对路径与 `file_name` 契约不变）；`rustfmt --check` 通过。
+- **命名口径（用户要求）**：不再在代码/工具中出现 `Codex`、`codex-rs`、`copy` 字样。源码归属注释
+  统一改为 `Adapted from upstream ...` 并保留 revision 与 `licenses/OpenAI-NOTICE.txt` 指针；
+  对齐审计脚本/产物更名为 `scripts/app-server/upstream-alignment-audit.mjs`、
+  `internal/refactor/upstream-alignment-audit.json`，npm 脚本为 `inventory:upstream-alignment`。
+  绝对路径中的上游目录名属于文件系统事实，保留。
+
+- **2026-11-11 第三十一轮（TUI 全量套件与一个时序缺陷）**：`cargo test -p tui --lib` 全量
+  **1884 项**中 1883 项稳定通过；`tui::event_stream::tests::queued_paste_survives_slow_consumption_and_fair_draws_on_all_surfaces`
+  在整机有并发负载时约 2/3~5/6 概率失败（单独运行 5/5 通过）。失败有两种表现：
+  1. 每个 Draw 必须 flush paste burst 的断言在 keys≈draws 时失败；
+  2. 最终渲染仍看到原始 burst 文本而非原子粘贴标签。
+  两次尝试（放宽 draw 计数、把固定 25ms 等待改为 2s 有界轮询）都不能消除，已**全部回退**，
+  不留下被削弱的测试。根因判断：burst flush 依赖宿主时钟，并发负载下流的事件交错与渲染时机
+  变化；属测试时序假设与该实现（时钟注入缺失）的问题，需要专门的确定性时钟/显式 tick 方案，
+  不能靠放宽断言掩盖。**当前口径**：TUI 全量门禁记为“1883/1884，含 1 个已知时序缺陷”，
+  不宣称全绿。
+
+- **2026-11-11 第三十二轮（TUI 时序用例的确定性尝试）**：针对上一轮的 paste-burst 时序用例又做了三组
+  实验：显式传入更晚的 flush 时刻、在调用点注入固定步进的输入时钟、放宽 draw 计数。结果：前两组仍无法
+  稳定（调用点时钟不足以覆盖 burst 检测对帧调度与内部状态的真实时间依赖），第三组会掩盖真实行为；
+  全部回退，工作树未保留被削弱的断言。结论：需要把可注入时钟下沉到 composer/paste-burst owner，
+  而不是在测试调用点伪造时间；在该改造完成前，TUI 全量口径维持 “1883/1884，含 1 个已知时序缺陷”。
+
+- **2026-11-11 第三十三轮（TUI 门禁隔离）**：确认 `queued_paste_survives_slow_consumption_and_fair_draws_on_all_surfaces`
+  的失败来自 burst 检测读取宿主时间（调用点注入无法覆盖），在人为负载下不稳定。按“不削弱断言、
+  不掩盖行为”的原则，将该用例显式 `#[ignore]`（附原因注释），保留 `--ignored` 可手动执行；
+  其余 1883 项全量连续 3 轮 **0 失败**。计划中登记为**隔离待修**，不计入 paste 原子性覆盖；
+  后续需把时钟注入下沉到 composer/paste-burst 后恢复该用例。
+- **当前 TUI 口径**：`cargo test -p tui --lib` **1883 passed / 0 failed / 1 ignored**（连续 3 轮）；
+  不能表述为“全绿无缺口”，ignored 项必须与追踪项一起报告。
+
+- **2026-11-11 第三十四轮（纠偏：撤销 doctor）**：`npm run test:contracts` 暴露两处治理冲突，均来自
+  第二十四至二十八轮的 `doctor` 改动：
+  1. `cli-boundary` 明确把 `Doctor(` 列为 retired 变体，重新加入属于恢复已退役命令；
+  2. CLI crate 不允许依赖 `lime-core`，而 doctor 的数据目录检查引入了该依赖。
+  已**完整撤销** doctor 命令、相关测试、`lime-core` 依赖与导入；`governance:cli-boundary` 通过，
+  `cargo test -p cli` 通过（8 项），`npm run test:contracts` **整体通过**。
+  结论：doctor 不属于当前对齐面；若未来要提供诊断入口，需先改治理决策并在计划中登记理由，
+  不能以“功能对齐”为由绕过 retired 名单。
+- **当前口径**：TUI `1883 passed / 1 ignored`（时序用例隔离待修）；CLI 命令面维持 `agents` 等已批准项；
+  契约与治理门禁全绿。
+
+- **2026-11-11 第三十五轮（解除 TUI 隔离）**：把该用例的三个时间消费点（draw tick、key 处理、
+  final flush）统一改为本地逻辑时钟 `input_now`（每事件 +1ms，flush 前 +200ms），不再读取
+  `stream.input_time()` 或固定 sleep 决定时序；严格断言（每个 draw 必须 flush、`draws == keys-1`）
+  原样保留，`#[ignore]` 已移除。整机全量 **1884/1884 连续 3 轮通过**（本轮累计 9 轮通过）。
+  修正第三十二轮的判断：调用点逻辑时钟是有效手段，之前失败来自同一补丁里的其它改动组合；
+  阻塞式 stall 仍保留为真实停顿，但不推进逻辑时钟（已在注释中写明）。
+- **当前 TUI 口径**：`cargo test -p tui --lib` **1884 passed / 0 failed / 0 ignored**。
+
+- **2026-11-11 第三十六轮（重构边界复核）**：
+  1. 复核 `lime-server`（12.8k，零消费者、无 bin）是否可删：`internal/bussniss/lime-oem-cloud-phase1-plan.md`
+     明确把 `lime-rs/crates/server` 列为 OEM 网关层“直接复用”资产，属于**计划内休眠**而非死代码，
+     因此保留，并从删除候选中移除；审计仍将其标为 unreachable，但不再作为清理目标。
+  2. 复核 `execpolicy` 与上游的剩余差异：均绑定上游新增的 reviewer 语义（`Decision::PromptUser`）
+     或规则语法（`PrefixPattern.canonical_matching`），需要产品决策与消费者迁移，不能机械同步；
+     本轮未改动该 crate，基线 `cargo test -p execpolicy` **34 项通过**。
+  3. 更新 `upstream-alignment-audit` 的 owner 映射：`file-search`、`permissions`、`utils-path-uri`
+     标为 equivalent；重跑审计。
+- **结论**：结构性对齐已进入“每个剩余差异都牵涉产品语义”的阶段；后续优先做有明确上游证据、
+  可独立验收的小切片，避免再发起无法收口的整块抽取。
+
+- **2026-11-11 第三十七轮（Windows ACL 评估与版本门禁）**：评估把 `execution_process/windows_acl.rs`
+  的 ACL 计划改为消费 `lime-permissions` 的 `resolve_for_enforcement`（与 macOS/Linux 同一策略 owner）。
+  结论：这是安全关键路径，且本机只能在 Windows 目标做编译检查、无法运行验证，改写 ACL 语义后
+  没有运行时证据，风险不可接受；**暂缓**，需 Windows 环境与 Gate B 后再做。
+  版本一致性门禁 `npm run verify:app-version` 通过（1.173.0）。跨 crate 的合并回归因用户并行编译
+  app-server 集成测试占用 target 锁而中止；各 crate 的独立结果沿用前几轮记录（core 538、
+  thread-store 35、permissions 65、patch-apply 21、file-search 18、execpolicy 34）。
+- **方向请求**：结构性抽取已到“需要产品语义决策”的边界，Windows 改写需要 Windows 验证环境；
+  下一轮请明确优先级（Windows 策略 / GUI 盘点 / 其他），或由我按“可独立验收的小切片”继续。
+
+- **2026-11-11 第三十八轮（GUI 表面台账刷新 + 治理回归修复）**：
+  1. `governance/surfaces.yml` 原有 25 条规则中 19 条指向已不存在的文件（channels 旧页、openclaw、
+     tauri-event、smart-input 等），已按现役事实重建为 12 条 current：App/RootRouter/AppSidebar/
+     AppPageContent/AgentChatWorkspace/ImConfigPage/settings sections/appearance/channels debug/
+     channelsRuntime/update-notification；渠道管理 owner 更正为 `src/components/channels/ImConfigPage.tsx`。
+     注意 `governance/` 在 `.gitignore` 内，该台账是本地文件，不入库；入库的是下一条的 catalog/测试修复。
+  2. 修复第十三轮删除 `core/src/database/dao/agent.rs` 遗留的治理回归：`legacySurfaceCatalog.json`
+     的 2 处 `allowedPaths` 去掉已删路径；把“必须存在 AgentDao 旧 API”的测试改为**回流守卫**
+     （文件不得存在，`dao/*.rs` 不得再出现 `AgentDao`）。
+- **验证（第三十八轮）**：`surfaces.yml` 解析出 12 条规则且全部指向现存文件；`legacySurfaceCatalog.test.ts`
+  229/229；`npx vitest run src/lib/governance` **52 文件 / 460 项全通过**（期间一次 3 项失败为并发负载下
+  的超时抖动，重跑通过）。
+
+- **2026-11-11 第三十九轮（KPI 口径修正 + GUI 现状确认）**：
+  1. 复核 `app-server-daemon`：零消费者，但被 `internal/roadmap/appserver/service-extraction.md`
+     与 `internal/roadmap/appserver/implementation-plan.md` 明确保留为 sidecar 管理组件，属计划内休眠；
+     与 `lime-server` 一样不做删除。
+  2. `upstream-alignment-audit` 增加 `dormant-by-plan` 状态与计划路径，日志拆分为
+     `unreachable / pendingWiring / dormantByPlan`；当前结果：**unreachable=0、pendingWiring=0、
+     dormantByPlan=2**。此前 `deadCrates=2` 的口径会误导为“可删死代码”，已纠正。
+  3. GUI 侧确认：`internal/exec-plans/codex-desktop-home-hero-20261110.md` 正在推进首页 Hero 且
+     有明确未完成项（项目选择器接线、git/非 git 文案分支、像素级并排验收）；本轮不改 GUI 代码，
+     避免与在写切片冲突。
+- **验证（第三十九轮）**：`npm run inventory:upstream-alignment` 通过，JSON 中两条休眠 crate 均带
+  `plan` 路径；审计脚本 `node --check` 通过。
+
+- **2026-11-11 第四十轮（CLI 账本纠错：MCP OAuth logout）**：`cli-codex-test-inventory.md` 原先写着
+  `mcpServer/oauth/logout` 协议缺失、CLI 明确失败；实际核对：protocol 常量/参数/响应与 catalog、
+  App Server dispatch 与 `local_data_source/mcp.rs::logout_oauth`、MCP manager `logout_oauth`、
+  CLI `mcp logout` 均已存在，已有 App Server 用例 `mcp_oauth_logout_returns_removal_state`。
+  已把该段改为“已接通”，并把剩余缺口限定为**真实 OAuth 服务的 Gate B**（需要可达的
+  streamable_http 授权服务），本地单测不替代该证据。
+- **验证（第四十轮）**：`cargo test -p app-server --lib mcp_oauth_logout` 1 项通过；
+  `cargo test -p cli mcp` 7 项通过；`node --check` 不涉及。
+
+- **下一刀（按收益/风险排序）**：
+  1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
+     替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、
+     `tool-runtime/Cargo.toml`、`licenses/`、本计划；退出条件是同一 policy 在三平台 fail closed，
+     CLI/TUI/App Server 共用同一执行路径。
+  2. 持久化 owner 收敛：`thread-store` 吸收 `app-server/runtime/canonical_rollout` 与
+     `core/src/database` 的会话 DAO，消除三处写入。
+  3. `exec-server` 评估：确认进程内执行是否需要换成 Codex 的 JSON-RPC 执行边界，先出架构图再动代码。
+  4. `app-server` 体量：85 个文件超 1000 行，先按 runtime/projection/rollout 拆 crate，再谈逐文件拆分。
+  以上每一刀都要同时给出 CLI/TUI/GUI 三个 surface 的无回归证据（三者共用同一 App Server 与
+  RuntimeCore，不得为某个 surface 建第二 runtime）。

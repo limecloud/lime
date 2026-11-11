@@ -23,7 +23,7 @@ describe("SkillsWorkspacePage local actions", () => {
     const { container, onNavigate } = renderPage();
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
     openLocalSkillMenu(container);
     await act(async () => {
@@ -57,7 +57,7 @@ describe("SkillsWorkspacePage local actions", () => {
     const { container } = renderPage();
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
 
     expect(
@@ -72,7 +72,7 @@ describe("SkillsWorkspacePage local actions", () => {
     const { container } = renderPage();
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
     openLocalSkillMenu(container);
     await act(async () => {
@@ -107,7 +107,7 @@ describe("SkillsWorkspacePage local actions", () => {
     const { container, onNavigate } = renderPage();
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
 
     openLocalSkillMenu(container);
@@ -170,7 +170,7 @@ describe("SkillsWorkspacePage local actions", () => {
     const { container } = renderPage();
 
     await act(async () => {
-      findButton(container, "安装技能")?.click();
+      findButton(container, "添加")?.click();
       await Promise.resolve();
       await Promise.resolve();
     });

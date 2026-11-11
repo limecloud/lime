@@ -192,7 +192,7 @@ async fn run(paths: ComputerUsePaths) -> ComputerUseResult<()> {
         .route("/api/disconnect", post(disconnect))
         .layer(DefaultBodyLimit::max(mailbox::MAX_BYTES as usize))
         .with_state(state);
-    axum_server::bind_rustls(([127, 0, 0, 1], 32147).into(), tls)
+    axum_server::bind_rustls(std::net::SocketAddr::from(([127, 0, 0, 1], 32147)), tls)
         .serve(router.into_make_service())
         .await
         .map_err(|e| denied(e.to_string()))?;

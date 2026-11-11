@@ -21,13 +21,14 @@ use std::process::{Command, ExitCode};
 use anyhow::{bail, Context, Result};
 use app_server_client::{ClientSession, RemoteTransportConfig, StdioTransportConfig};
 use app_server_protocol::protocol::v2::{
-    ExperimentalFeature, ExperimentalFeatureEnablementSetParams,
-    ExperimentalFeatureEnablementSetResponse, ExperimentalFeatureListParams,
-    ExperimentalFeatureListResponse, ExperimentalFeatureStage, MemoryResetResponse, Model,
-    ModelListParams, ModelListResponse, SkillsListParams, SkillsListResponse, ThreadArchiveParams,
-    ThreadArchiveResponse, ThreadDeleteParams, ThreadDeleteResponse, ThreadForkParams,
-    ThreadForkResponse, ThreadListParams, ThreadListResponse, ThreadReadParams, ThreadReadResponse,
-    ThreadUnarchiveParams, ThreadUnarchiveResponse, METHOD_EXPERIMENTAL_FEATURE_ENABLEMENT_SET,
+    ExperimentalFeature,
+    ExperimentalFeatureEnablementSetParams, ExperimentalFeatureEnablementSetResponse,
+    ExperimentalFeatureListParams, ExperimentalFeatureListResponse, ExperimentalFeatureStage,
+    MemoryResetResponse, Model, ModelListParams, ModelListResponse, SkillsListParams,
+    SkillsListResponse, ThreadArchiveParams, ThreadArchiveResponse, ThreadDeleteParams,
+    ThreadDeleteResponse, ThreadForkParams, ThreadForkResponse, ThreadListParams,
+    ThreadListResponse, ThreadReadParams, ThreadReadResponse, ThreadUnarchiveParams,
+    ThreadUnarchiveResponse, METHOD_EXPERIMENTAL_FEATURE_ENABLEMENT_SET,
     METHOD_EXPERIMENTAL_FEATURE_LIST, METHOD_MEMORY_RESET, METHOD_MODEL_LIST, METHOD_SKILLS_LIST,
     METHOD_THREAD_ARCHIVE, METHOD_THREAD_DELETE, METHOD_THREAD_FORK, METHOD_THREAD_LIST,
     METHOD_THREAD_READ, METHOD_THREAD_UNARCHIVE,
@@ -54,6 +55,14 @@ pub(crate) struct TuiCli {
 pub(crate) struct ResumeCommand {
     /// 要恢复的 canonical Thread id。
     thread_id: Option<String>,
+    #[command(flatten)]
+    connection: ConnectionArgs,
+    #[arg(long, value_name = "LOCALE")]
+    locale: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct AgentsCli {
     #[command(flatten)]
     connection: ConnectionArgs,
     #[arg(long, value_name = "LOCALE")]
@@ -153,6 +162,29 @@ impl Default for TuiCli {
 
 pub(crate) async fn run_interactive_tui(args: TuiCli) -> ExitCode {
     let options = match tui_options(args.connection, None, args.locale) {
+        Ok(options) => options,
+        Err(error) => {
+            eprintln!("{error:#}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match tui::run_tui(options).await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error:#}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+pub(crate) fn agents_tui_options(args: AgentsCli) -> Result<TuiOptions> {
+    let mut options = tui_options(args.connection, None, args.locale)?;
+    options.open_agents_overview = true;
+    Ok(options)
+}
+
+pub(crate) async fn run_agents(args: AgentsCli) -> ExitCode {
+    let options = match agents_tui_options(args) {
         Ok(options) => options,
         Err(error) => {
             eprintln!("{error:#}");
@@ -477,6 +509,7 @@ fn tui_options(
         sandbox_policy: permission_settings.sandbox_policy,
         locale,
         resume_thread,
+        open_agents_overview: false,
     })
 }
 
@@ -854,6 +887,9 @@ enum Subcommand {
     /// Run a code review non-interactively.
     Review(review_cmd::ReviewCommand),
 
+    /// Open the agent command center to browse and switch threads.
+    Agents(AgentsCli),
+
     /// Resume a previous interactive thread.
     Resume(ResumeCommand),
 
@@ -956,3 +992,35 @@ fn run_execpolicycheck(command: ExecPolicyCheckCommand) -> ExitCode {
 
 #[cfg(test)]
 mod command_tests;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn agents_command_opens_overview_with_shared_connection_options() {
+        let cli = MultitoolCli::try_parse_from([
+            "lime",
+            "agents",
+            "--cd",
+            "/tmp/agents-cwd",
+            "--model",
+            "fixture-model",
+            "--provider",
+            "fixture-provider",
+        ])
+        .expect("parse lime agents");
+        let Some(Subcommand::Agents(args)) = cli.subcommand else {
+            panic!("expected agents subcommand");
+        };
+        let options = agents_tui_options(args).expect("agents options");
+        assert!(options.open_agents_overview);
+        assert_eq!(
+            options.cwd.as_deref(),
+            Some(std::path::Path::new("/tmp/agents-cwd"))
+        );
+        assert_eq!(options.model.as_deref(), Some("fixture-model"));
+        assert_eq!(options.model_provider.as_deref(), Some("fixture-provider"));
+    }
+}

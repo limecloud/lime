@@ -518,18 +518,15 @@ export function WorkspaceConversationScene({
         summaryToggle={
           <ThreadSummaryToggle state={summary} panel={summaryPanel} />
         }
-        actions={
-          <>
-            <ThreadProjectSelector
-              threadId={currentThreadId}
-              workspaceName={currentWorkspaceName}
-              workspaceRootPath={projectRootPath}
-              compact
-              className="text-[color:var(--lime-chrome-muted)] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-chrome-text)]"
-            />
-            {taskCenterUtilityToolbarNode}
-          </>
+        leading={
+          <ThreadProjectSelector
+            threadId={currentThreadId}
+            workspaceName={currentWorkspaceName}
+            workspaceRootPath={projectRootPath}
+            iconOnly
+          />
         }
+        actions={<>{rightSurfaceLauncher}</>}
       />
     ) : null;
   const chatNavbarProps = buildWorkspaceNavbarProps({

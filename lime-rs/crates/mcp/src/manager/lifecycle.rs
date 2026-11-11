@@ -115,7 +115,7 @@ impl McpClientManager {
         // 获取服务器信息
         let server_info = running_service
             .peer_info()
-            .map(Self::server_capabilities_from_peer_info);
+            .map(|info| Self::server_capabilities_from_peer_info(&info));
 
         // 创建客户端包装器
         let mut wrapper = crate::client::McpClientWrapper::new(
@@ -206,7 +206,7 @@ impl McpClientManager {
 
         let server_info = running_service
             .peer_info()
-            .map(Self::server_capabilities_from_peer_info);
+            .map(|info| Self::server_capabilities_from_peer_info(&info));
         let mut wrapper = crate::client::McpClientWrapper::new(
             name.to_string(),
             config.clone(),

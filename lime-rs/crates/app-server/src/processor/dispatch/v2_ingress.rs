@@ -92,6 +92,7 @@ pub(super) fn into_parts(
     request: ClientRequest,
 ) -> Result<(RequestId, String, Option<serde_json::Value>), JsonRpcError> {
     match request {
+        ClientRequest::CloudDesktop { id, params } => parts(id, Method::CloudDesktop, params),
         ClientRequest::CloudRequest { id, params } => parts(id, Method::CloudRequest, params),
         ClientRequest::AccountLoginStart { id, params } => {
             parts(id, Method::AccountLoginStart, params)

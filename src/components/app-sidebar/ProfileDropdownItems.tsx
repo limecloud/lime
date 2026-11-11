@@ -12,6 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
 import type { CloudAccountView } from "@/lib/cloudAccount";
 import { SettingsTabs } from "@/types/settings";
 
@@ -41,6 +42,12 @@ export function ProfileDropdownItems({
   onOpenKeyboardShortcuts: () => void;
 }) {
   const { t } = useTranslation("navigation");
+  const settingsShortcutLabel =
+    resolveHotkeyPlatform(
+      typeof navigator === "undefined" ? undefined : navigator,
+    ) === "mac"
+      ? "⌘,"
+      : "Ctrl+,";
   const helpTriggerRef = useRef<HTMLDivElement>(null);
   const [helpContent, setHelpContent] = useState<HTMLDivElement | null>(null);
   const [helpAlignOffset, setHelpAlignOffset] = useState(0);
@@ -95,6 +102,9 @@ export function ProfileDropdownItems({
       >
         <Settings />
         {t("navigation.sidebar.items.settings")}
+        <span className="ml-auto pl-2 text-xs text-muted-foreground">
+          {settingsShortcutLabel}
+        </span>
       </Menu.Item>
       <Menu.Separator className="my-1 h-px bg-border" />
       <Menu.Sub>

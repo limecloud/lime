@@ -61,6 +61,9 @@ export interface ElectronSmokeLayoutViewportEvidence {
   nodes: Record<string, ElectronSmokeLayoutNodeEvidence>;
   assertions: {
     windowSizeMatchesRequest: boolean;
+    viewportFillsNativeContent: boolean;
+    mainSurfaceFillsViewport: boolean;
+    accessModeLabelDoesNotOverlap: boolean;
     requiredNodesVisible: boolean;
     requiredNodesWithinViewport: boolean;
     contentSurfacePresent: boolean;

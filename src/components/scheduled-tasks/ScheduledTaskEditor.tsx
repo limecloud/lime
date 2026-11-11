@@ -363,14 +363,21 @@ function CompactScheduledTaskEditor({
           </label>
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm text-slate-700">
             <span>{t("scheduledTasks.editor.field.time")}</span>
-            <Input
-              type="time"
-              value={form.time}
-              disabled={saving}
-              onChange={(event) => update("time", event.target.value)}
-              aria-invalid={Boolean(errors.time)}
-              className="h-8 w-auto border-0 bg-transparent p-0 text-right text-sm text-slate-500 shadow-none focus-visible:ring-0"
-            />
+            <span className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">
+                {form.timezone === "Asia/Shanghai"
+                  ? t("scheduledTasks.timezone.china")
+                  : form.timezone}
+              </span>
+              <Input
+                type="time"
+                value={form.time}
+                disabled={saving}
+                onChange={(event) => update("time", event.target.value)}
+                aria-invalid={Boolean(errors.time)}
+                className="h-8 w-auto border-0 bg-transparent p-0 text-right text-sm text-slate-500 shadow-none focus-visible:ring-0"
+              />
+            </span>
           </label>
         </div>
 
@@ -467,7 +474,12 @@ function CompactScheduledTaskEditor({
         <Button variant="ghost" size="sm" disabled={saving} onClick={onCancel}>
           {t("scheduledTasks.action.cancel")}
         </Button>
-        <Button size="sm" className="rounded-full bg-slate-900 px-4 hover:bg-slate-800" disabled={saving} onClick={onSave}>
+        <Button
+          size="sm"
+          className="rounded-full bg-slate-900 px-4 hover:bg-slate-800"
+          disabled={saving || !form.prompt.trim()}
+          onClick={onSave}
+        >
           {saving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
           {t(mode === "create" ? "scheduledTasks.action.create" : "scheduledTasks.action.save")}
         </Button>

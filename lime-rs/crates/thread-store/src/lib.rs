@@ -4,8 +4,6 @@ pub mod agent_mailbox;
 pub mod history;
 pub mod projects;
 pub mod runtime_snapshot;
-pub mod session_record;
-pub mod session_repository;
 pub mod store;
 pub mod task_board;
 pub mod types;

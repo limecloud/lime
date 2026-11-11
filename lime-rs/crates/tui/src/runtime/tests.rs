@@ -64,6 +64,7 @@ fn model_route_requires_model_and_provider_together() {
         sandbox_policy: None,
         locale: None,
         resume_thread: None,
+        open_agents_overview: false,
     };
 
     assert_eq!(
@@ -106,6 +107,7 @@ fn stdio_config_appends_host_arguments_after_the_current_runtime_default() {
         sandbox_policy: None,
         locale: None,
         resume_thread: None,
+        open_agents_overview: false,
     };
 
     let config = stdio_config(&options).expect("stdio config");

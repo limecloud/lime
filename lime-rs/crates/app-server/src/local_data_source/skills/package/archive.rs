@@ -159,13 +159,17 @@ pub(crate) fn read_skill_zip_package(bytes: &[u8]) -> Result<SkillZipPackage, St
         if file.is_dir() {
             continue;
         }
-        if file.name().contains('\\') {
-            return Err(format!("Invalid skill zip entry path: {}", file.name()));
+        let name = file
+            .name()
+            .map_err(|error| format!("Invalid skill zip entry name: {error}"))?
+            .into_owned();
+        if name.contains('\\') {
+            return Err(format!("Invalid skill zip entry path: {name}"));
         }
         let enclosed = file
             .enclosed_name()
-            .ok_or_else(|| format!("Invalid skill zip entry path: {}", file.name()))?;
-        let normalized = normalize_zip_entry_path(enclosed)?;
+            .ok_or_else(|| format!("Invalid skill zip entry path: {name}"))?;
+        let normalized = normalize_zip_entry_path(&enclosed)?;
         if is_ignorable_zip_entry(&normalized) {
             continue;
         }
@@ -175,7 +179,7 @@ pub(crate) fn read_skill_zip_package(bytes: &[u8]) -> Result<SkillZipPackage, St
 
         let mut content = Vec::new();
         file.read_to_end(&mut content)
-            .map_err(|error| format!("Failed to read skill zip entry {}: {error}", file.name()))?;
+            .map_err(|error| format!("Failed to read skill zip entry {name}: {error}"))?;
         if content.len() > MAX_SKILL_PACKAGE_BYTES {
             return Err("Skill package file is too large".to_string());
         }

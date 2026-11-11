@@ -2,9 +2,9 @@ use super::*;
 use crate::client::LimeMcpClient;
 use crate::{LimeMcpClientService, McpRuntimeOwner};
 use rmcp::model::{
-    BooleanSchema, CallToolRequestParam, CallToolResult,
-    ElicitationAction as RmcpElicitationAction, ElicitationSchema, IntegerSchema, PrimitiveSchema,
-    StringSchema,
+    BooleanSchema, CallToolRequestParams, CallToolResult,
+    ElicitationAction as RmcpElicitationAction, ElicitationSchema, EnumSchema, IntegerSchema,
+    PrimitiveSchema, StringSchema,
 };
 use rmcp::service::{PeerRequestOptions, RequestContext, RoleServer};
 use rmcp::{ServerHandler, ServiceExt};
@@ -13,8 +13,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Barrier;
 
-fn form_request() -> CreateElicitationRequestParam {
-    CreateElicitationRequestParam {
+fn form_request() -> CreateElicitationRequestParams {
+    CreateElicitationRequestParams::FormElicitationParams {
+        meta: None,
         message: "Provide release details".to_string(),
         requested_schema: ElicitationSchema::builder()
             .required_property(
@@ -26,7 +27,10 @@ fn form_request() -> CreateElicitationRequestParam {
                 PrimitiveSchema::Integer(IntegerSchema::new().range(1, 10)),
             )
             .property("confirmed", PrimitiveSchema::Boolean(BooleanSchema::new()))
-            .required_enum("channel", vec!["stable".to_string(), "preview".to_string()])
+            .required_enum_schema(
+                "channel",
+                EnumSchema::builder(vec!["stable".to_string(), "preview".to_string()]).build(),
+            )
             .build()
             .expect("valid elicitation schema"),
     }
@@ -34,6 +38,33 @@ fn form_request() -> CreateElicitationRequestParam {
 
 fn call_scope() -> tool_runtime::mcp_connection::McpCallScope {
     call_scope_for("turn-1")
+}
+
+#[tokio::test]
+async fn url_elicitation_is_declined_without_registering_or_forwarding_a_form() {
+    let router = ElicitationRequestRouter::default();
+    let mut requests = router.subscribe().expect("request consumer");
+    let response = router
+        .request_for_test(
+            "url-server".to_string(),
+            call_scope(),
+            CreateElicitationRequestParams::UrlElicitationParams {
+                meta: None,
+                message: "Open a page".to_string(),
+                url: "https://elicitation.invalid/confirm".to_string(),
+                elicitation_id: "url-1".to_string(),
+            },
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("decline URL elicitation");
+    assert_eq!(response, ElicitationResponse::Decline);
+    assert_eq!(router.pending_count(), 0);
+    assert!(matches!(
+        requests.try_recv(),
+        Err(mpsc::error::TryRecvError::Empty)
+    ));
 }
 
 fn call_scope_for(turn_id: &str) -> tool_runtime::mcp_connection::McpCallScope {
@@ -62,26 +93,21 @@ struct ScopedElicitationServer;
 impl ServerHandler for ScopedElicitationServer {
     async fn call_tool(
         &self,
-        _request: CallToolRequestParam,
+        _request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         assert!(context.meta.get(MCP_PROGRESS_TOKEN_META_KEY).is_some());
         let mut meta = rmcp::model::Meta::new();
         meta.insert("persist".to_string(), json!(["session", "always"]));
+        let mut options = PeerRequestOptions::no_options();
+        options.meta = Some(meta);
         let result = context
             .peer
             .send_request_with_option(
                 rmcp::model::ServerRequest::CreateElicitationRequest(
-                    rmcp::model::CreateElicitationRequest {
-                        method: Default::default(),
-                        params: form_request(),
-                        extensions: Default::default(),
-                    },
+                    rmcp::model::CreateElicitationRequest::new(form_request()),
                 ),
-                PeerRequestOptions {
-                    timeout: None,
-                    meta: Some(meta),
-                },
+                options,
             )
             .await
             .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?

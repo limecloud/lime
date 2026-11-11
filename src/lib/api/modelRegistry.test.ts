@@ -242,6 +242,55 @@ describe("modelRegistry API", () => {
     expectAppServerRequest(2, "model/list", { cursor: "1" });
   });
 
+  it("model/list 应保留协议默认能力来源并加载混合目录", async () => {
+    const model = createCatalogModel("custom-provider", "configured-chat");
+    resolveAppServerRequest({
+      data: [
+        createCatalogModel(),
+        {
+          ...model,
+          capabilitySnapshot: {
+            ...model.capabilitySnapshot,
+            source: "protocol_default",
+            reasonCode: "configured_chat_protocol_defaults",
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+
+    await expect(getModelRegistry()).resolves.toMatchObject([
+      { capability_provenance: "provider_explicit" },
+      {
+        id: "configured-chat",
+        capability_provenance: "protocol_default",
+        capabilities: { vision: false, reasoning: false },
+        input_modalities: ["text"],
+        output_modalities: ["text"],
+      },
+    ]);
+  });
+
+  it.each([undefined, "unknown"])(
+    "model/list 应拒绝未知能力来源 %s",
+    async (source) => {
+      const model = createCatalogModel();
+      resolveAppServerRequest({
+        data: [
+          {
+            ...model,
+            capabilitySnapshot: { ...model.capabilitySnapshot, source },
+          },
+        ],
+        nextCursor: null,
+      });
+
+      await expect(getModelRegistry()).rejects.toThrow(
+        "App Server model/list returned invalid capability source",
+      );
+    },
+  );
+
   it("model/list 的 provider 与 opaque route 不一致时应 fail closed", async () => {
     resolveAppServerRequest({
       data: [
@@ -310,11 +359,17 @@ describe("modelRegistry API", () => {
     expect(result).toMatchObject([
       {
         reasoning_policy: { supports_reasoning_summaries: true },
-        reasoning_output_policy: { support_verbosity: true, can_set_verbosity: true },
+        reasoning_output_policy: {
+          support_verbosity: true,
+          can_set_verbosity: true,
+        },
       },
       {
         reasoning_policy: { supports_reasoning_summaries: false },
-        reasoning_output_policy: { support_verbosity: false, can_set_verbosity: false },
+        reasoning_output_policy: {
+          support_verbosity: false,
+          can_set_verbosity: false,
+        },
       },
     ]);
   });

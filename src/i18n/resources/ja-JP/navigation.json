@@ -31,7 +31,7 @@
   "navigation.sidebar.actions.expand": "ナビゲーションを展開",
   "navigation.sidebar.home.ariaLabel": "Lime ホームへ戻る",
   "navigation.sidebar.home.label": "Lime ホーム",
-  "navigation.sidebar.items.scheduledTasks": "スケジュール済みタスク",
+  "navigation.sidebar.items.scheduledTasks": "スケジュールされたタスク",
   "navigation.sidebar.items.channels": "メッセージチャネル",
   "navigation.sidebar.items.plugins": "プラグイン",
   "navigation.sidebar.items.settings": "設定",
@@ -141,5 +141,7 @@
   "navigation.sidebar.account.profile": "プロフィール",
   "navigation.sidebar.account.login.action": "ログイン",
   "navigation.sidebar.account.logout": "ログアウト",
-  "navigation.sidebar.account.logoutFailed": "ログアウトに失敗しました"
+  "navigation.sidebar.account.logoutFailed": "ログアウトに失敗しました",
+  "commands.showSettings.title": "設定を開く",
+  "commands.showSettings.description": "設定ページを開きます。"
 }

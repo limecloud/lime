@@ -216,16 +216,42 @@ async fn model_list_uses_exact_v2_shape_and_runtime_ready_catalog() {
     .await;
     assert_eq!(
         second_page.pointer("/result/data/0/model"),
-        Some(&json!("enabled-model-2"))
+        Some(&json!("inferred-hint-model"))
     );
     assert_eq!(
-        second_page.pointer("/result/nextCursor"),
-        Some(&Value::Null)
+        second_page.pointer("/result/data/0/capabilitySnapshot/source"),
+        Some(&json!("protocol_default"))
     );
+    assert_eq!(
+        second_page.pointer("/result/data/0/capabilitySnapshot/taskFamilies"),
+        Some(&json!(["chat"]))
+    );
+    assert_eq!(
+        second_page.pointer("/result/data/0/capabilitySnapshot/outputModalities"),
+        Some(&json!(["text"]))
+    );
+    assert_eq!(
+        second_page.pointer("/result/data/0/inputModalities"),
+        Some(&json!(["text"]))
+    );
+    assert_eq!(second_page.pointer("/result/nextCursor"), Some(&json!("2")));
+
+    let last_page = request(
+        &app.server,
+        4,
+        METHOD_MODEL_LIST,
+        json!({ "cursor": "2", "limit": 1, "includeHidden": false }),
+    )
+    .await;
+    assert_eq!(
+        last_page.pointer("/result/data/0/model"),
+        Some(&json!("enabled-model-2"))
+    );
+    assert_eq!(last_page.pointer("/result/nextCursor"), Some(&Value::Null));
 
     let full_list = request(
         &app.server,
-        4,
+        5,
         METHOD_MODEL_LIST,
         json!({ "includeHidden": true }),
     )
@@ -239,7 +265,7 @@ async fn model_list_uses_exact_v2_shape_and_runtime_ready_catalog() {
             .iter()
             .filter_map(|model| model.get("model").and_then(Value::as_str))
             .collect::<Vec<_>>(),
-        vec!["enabled-model", "enabled-model-2"]
+        vec!["enabled-model", "inferred-hint-model", "enabled-model-2"]
     );
     assert!(!all_models.iter().any(|model| {
         matches!(
@@ -248,7 +274,6 @@ async fn model_list_uses_exact_v2_shape_and_runtime_ready_catalog() {
                 "disabled-model"
                     | "missing-key-model"
                     | "stale-registry-model"
-                    | "inferred-hint-model"
                     | "image-generation-model"
             )
         )

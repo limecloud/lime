@@ -1,13 +1,11 @@
-import {
-  access,
-  mkdir,
-  readFile,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { access, lstat, mkdir, open, rename, rm } from "node:fs/promises";
+import { constants } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { Buffer } from "node:buffer";
+import process from "node:process";
 import path from "node:path";
 import { isIP } from "node:net";
+import type { CloudDesktopConnectionTransport } from "../src/lib/desktop-host/cloudDesktopConnection";
 
 const CREDENTIALS_DIRECTORY = "credentials";
 const CREDENTIAL_FILE_NAME = "app-server-session.v1";
@@ -20,6 +18,7 @@ export type CloudSessionCredential = {
   tenantId: string;
   endpoint: string;
   token: string;
+  transport?: CloudDesktopConnectionTransport;
 };
 
 export type CloudSessionCredentialMetadata = {
@@ -28,6 +27,7 @@ export type CloudSessionCredentialMetadata = {
   tenantId?: string;
   endpoint?: string;
   updatedAt?: string;
+  transport?: CloudDesktopConnectionTransport;
 };
 
 export interface SecureCredentialStore {
@@ -41,6 +41,7 @@ export interface SecureCredentialStore {
 
 export interface SafeStorageLike {
   isEncryptionAvailable(): boolean;
+  getSelectedStorageBackend?(): string;
   encryptString(plainText: string): Buffer;
   decryptString(encrypted: Buffer): string;
 }
@@ -51,17 +52,130 @@ type CredentialEnvelope = {
   updatedAt: string;
 };
 
+/** Shared safeStorage persistence for session credentials and private installation recovery. */
+export class ElectronEncryptedStateFile {
+  readonly filePath: string;
+  constructor(
+    root: string,
+    name: string,
+    readonly safeStorage: SafeStorageLike,
+    readonly platform: typeof process.platform = process.platform,
+  ) {
+    if (!/^[a-z][a-z0-9.-]+$/u.test(name))
+      throw new Error("invalid encrypted state name");
+    this.filePath = path.join(path.resolve(root), CREDENTIALS_DIRECTORY, name);
+  }
+  get available(): boolean {
+    try {
+      if (!this.safeStorage.isEncryptionAvailable()) return false;
+      if (this.platform !== "linux") return true;
+      return ["gnome_libsecret", "kwallet", "kwallet5", "kwallet6"].includes(
+        this.safeStorage.getSelectedStorageBackend?.() ?? "",
+      );
+    } catch {
+      return false;
+    }
+  }
+  assertAvailable(): void {
+    if (!this.available)
+      throw new Error("secure credential storage is unavailable");
+  }
+  async write(value: unknown): Promise<void> {
+    this.assertAvailable();
+    const encrypted = this.safeStorage.encryptString(JSON.stringify(value));
+    if (encrypted.length > 128 * 1024)
+      throw new Error("encrypted state is too large");
+    const directory = path.dirname(this.filePath);
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    const info = await lstat(directory);
+    if (
+      !info.isDirectory() ||
+      (this.platform !== "win32" &&
+        ((info.mode & 0o077) !== 0 || info.uid !== process.getuid?.()))
+    )
+      throw new Error("encrypted state directory must be private");
+    const temporary = `${this.filePath}.${randomUUID()}.tmp`;
+    try {
+      const file = await open(temporary, "wx", 0o600);
+      try {
+        await file.writeFile(encrypted);
+        await file.sync();
+      } finally {
+        await file.close();
+      }
+      // Preserve the old record if replacement fails; never delete it first.
+      await rename(temporary, this.filePath);
+      if (this.platform !== "win32") {
+        const parent = await open(directory, "r");
+        try {
+          await parent.sync();
+        } finally {
+          await parent.close();
+        }
+      }
+    } finally {
+      await rm(temporary, { force: true }).catch(() => undefined);
+    }
+  }
+  async read(): Promise<unknown | null> {
+    this.assertAvailable();
+    let file;
+    try {
+      file = await open(
+        this.filePath,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+      );
+    } catch (error) {
+      if ((error as { code?: string }).code === "ENOENT") return null;
+      throw new Error("encrypted state is invalid");
+    }
+    try {
+      const info = await file.stat();
+      if (
+        !info.isFile() ||
+        // Atomic replacement may unlink this already-open snapshot. Multiple
+        // hard links remain invalid; an unlinked descriptor is still private.
+        info.nlink > 1 ||
+        info.size < 1 ||
+        info.size > 128 * 1024 ||
+        (this.platform !== "win32" &&
+          ((info.mode & 0o077) !== 0 || info.uid !== process.getuid?.()))
+      )
+        throw new Error("encrypted state is invalid");
+      return JSON.parse(
+        this.safeStorage.decryptString(await file.readFile()),
+      ) as unknown;
+    } catch {
+      throw new Error("encrypted state is invalid");
+    } finally {
+      await file.close();
+    }
+  }
+  async delete(): Promise<void> {
+    await rm(this.filePath, { force: true });
+  }
+}
+
 export class ElectronSecureCredentialStore implements SecureCredentialStore {
   readonly #filePath: string;
-  readonly #safeStorage: SafeStorageLike;
+  readonly #state: ElectronEncryptedStateFile;
 
-  constructor(appDataRoot: string, safeStorage: SafeStorageLike) {
+  constructor(
+    appDataRoot: string,
+    safeStorage: SafeStorageLike,
+    platform: typeof process.platform = process.platform,
+  ) {
     this.#filePath = path.join(
       path.resolve(appDataRoot),
       CREDENTIALS_DIRECTORY,
       CREDENTIAL_FILE_NAME,
     );
-    this.#safeStorage = safeStorage;
+    this.#state = new ElectronEncryptedStateFile(
+      appDataRoot,
+      CREDENTIAL_FILE_NAME,
+      safeStorage,
+      platform,
+    );
   }
 
   async setCloudSessionCredential(
@@ -75,33 +189,7 @@ export class ElectronSecureCredentialStore implements SecureCredentialStore {
       credential: normalized,
       updatedAt: new Date().toISOString(),
     };
-    const encrypted = this.#safeStorage.encryptString(JSON.stringify(envelope));
-    const directory = path.dirname(this.#filePath);
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-
-    const tempPath = `${this.#filePath}.${process.pid}.${Date.now()}.tmp`;
-    let moved = false;
-    try {
-      await writeFile(tempPath, encrypted, { mode: 0o600 });
-      try {
-        await rename(tempPath, this.#filePath);
-      } catch (error) {
-        const code =
-          error && typeof error === "object"
-            ? (error as NodeJS.ErrnoException).code
-            : undefined;
-        if (code !== "EEXIST" && code !== "EPERM") {
-          throw error;
-        }
-        await rm(this.#filePath, { force: true });
-        await rename(tempPath, this.#filePath);
-      }
-      moved = true;
-    } finally {
-      if (!moved) {
-        await rm(tempPath, { force: true }).catch(() => undefined);
-      }
-    }
+    await this.#state.write(envelope);
 
     return metadataFromEnvelope(envelope, true);
   }
@@ -137,22 +225,14 @@ export class ElectronSecureCredentialStore implements SecureCredentialStore {
     this.#assertEncryptionAvailable();
 
     try {
-      const encrypted = await readFile(this.#filePath);
-      const decoded = JSON.parse(
-        this.#safeStorage.decryptString(encrypted),
-      ) as unknown;
-      return parseEnvelope(decoded);
+      return parseEnvelope(await this.#state.read());
     } catch {
       throw new Error("stored Cloud session credential is invalid");
     }
   }
 
   #isEncryptionAvailable(): boolean {
-    try {
-      return this.#safeStorage.isEncryptionAvailable();
-    } catch {
-      return false;
-    }
+    return this.#state.available;
   }
 
   #assertEncryptionAvailable(): void {
@@ -172,7 +252,15 @@ function normalizeCredential(
   );
   const endpoint = normalizeEndpoint(credential.endpoint);
   const token = normalizeField(credential.token, "token", MAX_TOKEN_LENGTH);
-  return { tenantId, endpoint, token };
+  const transport = credential.transport;
+  if (
+    transport !== undefined &&
+    transport !== "direct" &&
+    transport !== "ecsTunnel"
+  ) {
+    throw new Error("unsupported Cloud connection transport");
+  }
+  return { tenantId, endpoint, token, ...(transport ? { transport } : {}) };
 }
 
 function normalizeField(
@@ -190,7 +278,12 @@ function normalizeField(
   if (normalized.length > maxLength) {
     throw new Error(`${name} exceeds the maximum length`);
   }
-  if (/[\u0000-\u001f\u007f]/u.test(normalized)) {
+  if (
+    [...normalized].some(
+      (character) =>
+        character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+    )
+  ) {
     throw new Error(`${name} contains control characters`);
   }
   return normalized;
@@ -263,6 +356,9 @@ function metadataFromEnvelope(
     tenantId: envelope.credential.tenantId,
     endpoint: envelope.credential.endpoint,
     updatedAt: envelope.updatedAt,
+    ...(envelope.credential.transport
+      ? { transport: envelope.credential.transport }
+      : {}),
   };
 }
 

@@ -39,6 +39,12 @@ pub(super) async fn initialize_app(
         app.begin_startup_input_boundary();
         let settings =
             crate::app::startup::initialize_session(options, &mut session, &mut app).await?;
+        if options.open_agents_overview {
+            app.open_agents_overview();
+            if let Err(error) = app.refresh_agents_overview_threads(&session).await {
+                app.projection.set_status(error.to_string());
+            }
+        }
         Ok::<_, anyhow::Error>((app, settings))
     }
     .await;

@@ -209,6 +209,13 @@ export async function waitForNMinusOneAutomaticUpdate(
         const session = await readSession();
         if (!session || session.stage !== "idle") return session;
         try {
+          // A fresh N-1 profile opens permission setup. Dismiss through its
+          // normal UI without granting permissions or bypassing the updater.
+          const permissions = page.getByTestId("permissions-setup");
+          if (await permissions.isVisible()) {
+            await permissions.press("Escape", { timeout: 2_000 });
+            await permissions.waitFor({ state: "hidden", timeout: 2_000 });
+          }
           const about = page.getByTestId("settings-sidebar-tab-about");
           const target = (await about.isVisible())
             ? about

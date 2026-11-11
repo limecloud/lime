@@ -14,6 +14,7 @@ import {
   buildDesktopResourcesManifest,
   desktopResourcePlatformKey,
   preparePackagedDesktopResources,
+  prepareLocalComputerUseResources,
 } from "./electron-desktop-resources.mjs";
 
 const roots = [];
@@ -51,6 +52,19 @@ function createWindowsPackage() {
 }
 
 describe("electron desktop resource manifest", () => {
+  it("Linux 独立 App Server 装配可执行且有哈希的 X11 helper", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "lime-linux-resources-"));
+    roots.push(root);
+    const binaryPath = path.join(root, "app-server");
+    writeFileSync(binaryPath, "app-server fixture");
+    const result = prepareLocalComputerUseResources({ binaryPath, platform: "linux", arch: "x64", version: "1.2.3" });
+    expect(result.manifest.resources.map((resource) => resource.id)).toEqual(["app-server", "linux-native-host"]);
+    expect(result.manifest.resources[1]).toMatchObject({ path: "native/linux/linux-native-host", sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(readFileSync(path.join(root, "native/linux/linux-native-host"), "utf8")).toBe(readFileSync("electron/native/linux/linux-native-host.py", "utf8"));
+    expect(result.manifest.native.linuxHelper.sessionType).toBe("x11");
+    expect(() => prepareLocalComputerUseResources({ binaryPath, platform: "linux", arch: "arm64", version: "1.2.3" })).toThrow("requires x64");
+  });
+
   it("Windows native host 使用 SDK UIA_HWND 类型接收窗口句柄", () => {
     const source = readFileSync(
       "electron/native/windows/windows-native-host.cpp",

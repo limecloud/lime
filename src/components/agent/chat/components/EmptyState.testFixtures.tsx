@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { stubSuggestionGeometry } from "./Inputbar/components/contextualSuggestions.testFixtures";
 // eslint-disable-next-line no-restricted-imports -- 测试夹具注入真实草稿协调器的 bridge 边界。
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";

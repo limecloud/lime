@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Boxes, PackageCheck, Search, Sparkles, Users } from "lucide-react";
+import { Boxes, Search, Sparkles } from "lucide-react";
 import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import type {
@@ -7,7 +7,6 @@ import type {
   PageParams,
   PluginsPageParams,
   SkillsPageParams,
-  ExpertsPageParams,
 } from "@/types/page";
 import type { AppServerPluginSummary } from "@/lib/api/appServerTypes";
 import { getProject } from "@/lib/api/project";
@@ -93,8 +92,6 @@ export function AppSidebarCustomization({
   const scopedProjectId =
     (currentPage === "skills"
       ? (pageParams as SkillsPageParams | undefined)?.creationProjectId
-      : currentPage === "experts"
-        ? (pageParams as ExpertsPageParams | undefined)?.currentProjectId
         : pluginParams?.currentProjectId) ??
     projectId ??
     undefined;
@@ -165,29 +162,6 @@ export function AppSidebarCustomization({
           "skills",
           scopedProjectId ? { creationProjectId: scopedProjectId } : undefined,
         ),
-    },
-    {
-      id: "experts",
-      label: t("navigation.pluginWorkspace.tabs.experts"),
-      icon: Users,
-      active: currentPage === "experts",
-      onClick: () =>
-        onNavigate(
-          "experts",
-          scopedProjectId
-            ? { currentProjectId: scopedProjectId, projectId: scopedProjectId }
-            : undefined,
-        ),
-    },
-    {
-      id: "installed",
-      label: t("navigation.sidebar.customization.installed"),
-      icon: PackageCheck,
-      active:
-        currentPage === "plugins" &&
-        pluginParams?.statusFilter === "installed" &&
-        !pluginParams.selectedPluginId,
-      onClick: () => navigatePlugins({ statusFilter: "installed" }),
     },
   ];
 

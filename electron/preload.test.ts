@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import process from "node:process";
 import { buildAgentRootArgument } from "./agentRoot";
 import { decodeLocalAssetFilePath } from "./localAsset";
+import { CLOUD_DESKTOP_WINDOW_ARGUMENT } from "../src/lib/desktop-host/cloudDesktopConnection";
 
 import {
   ELECTRON_HOST_COMMANDS,
@@ -118,6 +119,45 @@ describe("electron/preload", () => {
     process.argv = ["electron"];
     const api = await loadPreloadApi();
     expect(api.agentRoot).toBeUndefined();
+  });
+
+  it("云窗口不投影本机根，不暴露本机工具或文件 URL", async () => {
+    process.argv = [
+      "electron",
+      buildAgentRootArgument("/tmp/local-root"),
+      CLOUD_DESKTOP_WINDOW_ARGUMENT +
+        encodeURIComponent(
+          JSON.stringify({
+            kind: "cloud",
+            resource: {
+              provider: "wuying",
+              profile: "test",
+              regionId: "cn-test",
+              resourceId: "ecd-test",
+            },
+            endpoint: "wss://cloud.test/rpc",
+          }),
+        ),
+    ];
+    const api = await loadPreloadApi();
+    expect(api.agentRoot).toBeUndefined();
+    expect(api.supportsCommand("app_server_handle_json_lines")).toBe(true);
+    for (const command of [
+      "cloud_session_credential_status",
+      "macos_native_host_invoke",
+      "browser_tab_mount",
+      "open_in_open",
+      "cloud_desktop_connection",
+    ]) {
+      expect(api.supportsCommand(command)).toBe(false);
+      await expect(api.invoke(command)).rejects.toThrow(
+        /local host capability/,
+      );
+    }
+    expect(() => api.convertFileSrc("/tmp/local-secret")).toThrow(
+      /local file URLs/,
+    );
+    expect(ipcInvoke).not.toHaveBeenCalled();
   });
 
   it.each([true, false])(

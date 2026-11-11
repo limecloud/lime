@@ -73,9 +73,17 @@ fn corrupt_and_exhausted_fence_never_reset_to_a_new_generation() {
     let broker = ControlBroker::at(path.clone());
     drop(broker.acquire().unwrap());
     fs::write(path.join("desktop.lock"), [0, 1, 2]).unwrap();
-    assert!(broker.acquire().unwrap_err().0.contains("corrupt"));
+    let corrupt = broker.acquire().unwrap_err();
+    assert!(
+        corrupt.0.contains("corrupt"),
+        "unexpected corrupt error: {corrupt:?}"
+    );
     fs::write(path.join("desktop.lock"), u64::MAX.to_be_bytes()).unwrap();
-    assert!(broker.acquire().unwrap_err().0.contains("exhausted"));
+    let exhausted = broker.acquire().unwrap_err();
+    assert!(
+        exhausted.0.contains("exhausted"),
+        "unexpected exhausted error: {exhausted:?}"
+    );
 }
 
 #[cfg(unix)]

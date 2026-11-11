@@ -7,6 +7,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 impl RuntimeCore {
+    pub async fn request_cloud_desktop(
+        &self,
+        params: app_server_protocol::protocol::v2::CloudDesktopParams,
+    ) -> Result<app_server_protocol::protocol::v2::CloudDesktopResponse, RuntimeCoreError> {
+        let roots = self.storage_roots.as_ref().ok_or_else(|| RuntimeCoreError::Backend("Cloud desktop storage is not configured".into()))?;
+        lime_services::cloud_desktop_service::CloudDesktopService::new(roots.app_data_root.join("cloud-desktops"))
+            .request(params).await.map_err(RuntimeCoreError::Backend)
+    }
+
     pub fn with_account_store_root(mut self, app_data_root: impl AsRef<Path>) -> Self {
         self.account_manager = Some(Arc::new(crate::account::AccountManager::new(
             app_data_root.as_ref(),

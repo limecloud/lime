@@ -224,10 +224,20 @@ async fn presentation_outlives_one_action_but_finishes_on_revocation_or_policy_c
             .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
             .await
             .unwrap();
-        let available =
-            super::super::broker::ControlBroker::at(directory.path().join("computer-use"))
-                .acquire()
-                .expect("presentation must not hold the OS input lease");
+        // The action runs in an owned task that hands the OS lock over after the
+        // adapter returns; observe the handover with a bounded wait instead of
+        // assuming the same scheduler tick.
+        let broker = super::super::broker::ControlBroker::at(directory.path().join("computer-use"));
+        let available = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                match broker.acquire() {
+                    Ok(lease) => break lease,
+                    Err(_) => tokio::task::yield_now().await,
+                }
+            }
+        })
+        .await
+        .expect("presentation must not hold the OS input lease");
         drop(available);
         assert!(
             adapter.finished.lock().unwrap().is_empty(),

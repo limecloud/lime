@@ -29,7 +29,7 @@ Desktop Host / CLI-TUI Host
 | React 组件/hook                                    | related unit/component；用户可见变更补五语言与稳定 DOM 断言                                                             |
 | Rust crate                                         | `npm run test:rust:related -- <paths...>`；跨 crate 行为追加 integration layer                                          |
 | App Server method/protocol/schema/generated client | `npm run test:contracts` + 公共 JSON-RPC 集成测试                                                                       |
-| Agent loop/queue/turn/item/read model              | Rust related/integration + `npm run smoke:agent-runtime-current`                                                |
+| Agent loop/queue/turn/item/read model              | Rust related/integration + `npm run smoke:agent-runtime-current`                                                        |
 | App Server Rust session/transport                  | `cargo test --manifest-path "lime-rs/Cargo.toml" -p app-server-client` + `npm run smoke:app-server-stdio`               |
 | TUI reducer/render/composer                        | `cargo test --manifest-path "lime-rs/Cargo.toml" -p tui` + 稳定 TestBackend 断言；交互变更补 `npm run smoke:tui-gate-b` |
 | CLI 参数/非交互 Agent 流程                         | `cargo test --manifest-path "lime-rs/Cargo.toml" -p cli` + `npm run smoke:cli-gate-b` 或受影响 CLI surface fixture      |
@@ -49,6 +49,14 @@ Rust 分层测试入口和本地门禁的 Cargo 测试默认通过独立临时 `
 续跑复用当前测试发现与live过滤，新增文件追加pending批次，保留旧批次与失败起点并跳过已passed批次。它不按源码摘要失效旧通过结果；续跑期间改动已通过的测试或其owner时，另跑受影响定向回归并记录证据。
 
 Agent / GUI 主链实现前，在执行计划填写 [Agent Verification Contract](../exec-plans/templates/agent-verification-contract.md)。先定向验证，再运行受影响 current fixture、GUI smoke 与默认本地门禁；新改动、失败或未关闭风险才触发扩大或重跑。
+
+## Rust 依赖审计
+
+`lime-rs/deny.toml` 是 Rust 许可、公告和来源门禁的唯一配置。安全漏洞与 unsoundness 必须修复，不能降级或用停维例外代替修复。`advisories.ignore` 只登记已核对的具体停维公告；每项必须记录实际依赖链、运行时输入边界、无安全升级路径的依据和负责迁移的现役 owner。依赖或消费者变化、出现对应安全公告时重新复核；每次发布复核现有例外并清理已不再命中的项。
+
+本地加密凭据采用 age 的 scrypt 接口和安全维护分支，不启用 HPKE/P-256。TUI 从 `two-face` 加载内置语法和主题，不启用 `syntect/yaml-load` 或加载外部 bincode。配置与技能 frontmatter 使用 YAML 官方组织维护的 `yaml_serde`，通过 Cargo package rename 保留现有 `serde_yaml` 调用名；没有第二套解析器。
+
+Linux 密钥库仍通过 `infra` 的 keyring/Secret Service owner；zbus 类型合并的停维通知不等于原生凭据迁移完成。更换该依赖链必须验证 Linux 的密钥库不可用/锁定、类型化错误、加解密与权限合同，并补 macOS/Windows 原生回归。
 
 ## Codex 对齐与旧资产迁移
 

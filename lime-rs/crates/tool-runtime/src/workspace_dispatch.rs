@@ -174,12 +174,9 @@ mod tests {
 
     #[test]
     fn call_tool_result_preserves_error_and_structured_metadata() {
-        let result = call_tool_result_to_runtime_result(CallToolResult {
-            content: vec![Content::text("denied")],
-            structured_content: Some(json!({ "reason": "policy" })),
-            is_error: Some(true),
-            meta: None,
-        });
+        let mut result = CallToolResult::error(vec![Content::text("denied")]);
+        result.structured_content = Some(json!({ "reason": "policy" }));
+        let result = call_tool_result_to_runtime_result(result);
         assert!(!result.success);
         assert_eq!(result.error.as_deref(), Some("denied"));
         assert_eq!(result.metadata.get("reason"), Some(&json!("policy")));

@@ -9,7 +9,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::CompressionMethod;
 use zip::ZipWriter;
 
@@ -180,7 +180,7 @@ pub(crate) fn export_local_skill_package_to_path(
         )
     })?;
     let mut writer = ZipWriter::new(export_file);
-    let file_options = FileOptions::default()
+    let file_options = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .unix_permissions(0o644);
 

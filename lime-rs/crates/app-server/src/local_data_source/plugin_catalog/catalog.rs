@@ -269,13 +269,17 @@ pub(super) fn build_summary(
     auth_policy: PluginAuthPolicy,
 ) -> Result<PluginSummary, String> {
     let manifest = manifest::read_manifest_with_name(package_root, Some(&id.name))?;
-    let mut interface: PluginInterface = serde_json::from_value(
-        manifest
-            .get("interface")
-            .cloned()
-            .unwrap_or_else(|| serde_json::json!({})),
-    )
-    .map_err(|error| format!("Plugin interface 不合法: {error}"))?;
+    let interface_value = manifest
+        .get("interface")
+        .cloned()
+        .or_else(|| {
+            manifest
+                .pointer("/extensions/com.openai/interface")
+                .cloned()
+        })
+        .unwrap_or_else(|| serde_json::json!({}));
+    let mut interface: PluginInterface = serde_json::from_value(interface_value)
+        .map_err(|error| format!("Plugin interface 不合法: {error}"))?;
     interface
         .display_name
         .get_or_insert_with(|| id.name.clone());

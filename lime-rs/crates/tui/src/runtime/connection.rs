@@ -22,6 +22,8 @@ pub struct TuiOptions {
     pub sandbox_policy: Option<String>,
     pub locale: Option<String>,
     pub resume_thread: Option<String>,
+    /// Open the agent command center instead of the empty composer on startup.
+    pub open_agents_overview: bool,
 }
 
 pub(super) fn validate_model_route(options: &TuiOptions) -> Result<()> {

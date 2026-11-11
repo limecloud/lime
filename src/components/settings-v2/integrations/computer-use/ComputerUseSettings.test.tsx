@@ -83,6 +83,7 @@ it("registers Computer use between Plugins and Browser in the integrations group
     SettingsTabs.Plugins,
     SettingsTabs.ComputerUse,
     SettingsTabs.Browser,
+    SettingsTabs.CloudDesktops,
   ]);
 });
 

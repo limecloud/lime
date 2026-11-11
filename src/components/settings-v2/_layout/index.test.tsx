@@ -373,7 +373,7 @@ describe("SettingsPage layout", () => {
       (navigation as HTMLElement).style.getPropertyValue(
         "--sidebar-preferred-width",
       ),
-    ).toBe("290px");
+    ).toBe("356px");
     expect(button?.getAttribute("aria-label")).toBe("Back");
     expect(navigation?.querySelector("h2")).toBeNull();
     expect(

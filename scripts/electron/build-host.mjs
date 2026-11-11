@@ -20,6 +20,12 @@ const appServerClientSource = path.resolve(
 async function buildMain() {
   await build({
     configFile: false,
+    // Vite represents missing optional peers as empty modules. ws would treat
+    // those as usable native accelerators; keep its portable JS implementation.
+    define: {
+      "process.env.WS_NO_BUFFER_UTIL": '"1"',
+      "process.env.WS_NO_UTF_8_VALIDATE": '"1"',
+    },
     ssr: ssrBundleRuntimeDependencies,
     resolve: {
       alias: [

@@ -100,14 +100,33 @@ describe("useSettingsCategory", () => {
     const generalKeys = generalGroup?.items.map((item) => item.key) ?? [];
 
     expect(generalKeys).toContain(SettingsTabs.Appearance);
-    expect(generalKeys).toContain(SettingsTabs.Configuration);
-    expect(
-      generalGroup?.items.find(
-        (item) => item.key === SettingsTabs.Configuration,
-      )?.label,
-    ).toBe("Configuration");
-    expect(generalKeys).toContain(SettingsTabs.Memory);
     expect(generalKeys).toContain(SettingsTabs.ArchivedConversations);
+    expect(generalKeys).toContain(SettingsTabs.Configuration);
+    expect(generalKeys).toEqual(
+      expect.arrayContaining([SettingsTabs.Memory, SettingsTabs.KeyboardShortcuts]),
+    );
+    expect(
+      groups.find((group) => group.key === SettingsGroupKey.Configuration),
+    ).toBeUndefined();
+  });
+
+  it("分组顺序与 Codex 一致：个人 → 集成 → 编码", () => {
+    let groups: CategoryGroup[] = [];
+
+    renderHookProbe((nextGroups) => {
+      groups = nextGroups;
+    });
+
+    expect(
+      groups
+        .map((group) => group.key)
+        .filter((key) => key !== null)
+        .slice(0, 3),
+    ).toEqual([
+      SettingsGroupKey.Personal,
+      SettingsGroupKey.Integrations,
+      SettingsGroupKey.Coding,
+    ]);
   });
 });
 

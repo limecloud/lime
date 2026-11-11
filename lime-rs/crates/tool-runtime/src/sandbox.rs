@@ -6,6 +6,8 @@ use serde_json::Value as JsonValue;
 mod command;
 mod enforcement;
 pub(crate) mod policy;
+#[cfg(target_os = "macos")]
+pub mod seatbelt;
 
 pub use command::{prepare_sandbox_command, SandboxCommandError, SandboxCommandRequest};
 pub use policy::{sandbox_policy_from_label, sandbox_policy_label};

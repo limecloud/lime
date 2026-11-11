@@ -136,9 +136,20 @@
   "target": {
     "bundle": "/Applications/ChatGPT.app",
     "bundle_id": "com.openai.codex",
-    "display_name": "ChatGPT",
-    "version": "26.1007.30912",
-    "build": "20156"
+    "display_name": "Codex（安装包文件名仍为 ChatGPT.app）",
+    "version": "26.1103.60933",
+    "build": "25894",
+    "asar_sha256": "a77588b2dcfa9b394d722dd8c2c8b13d3a09bacd49c839cc715245742dba6048",
+    "asar_bytes": 761294031,
+    "baseline_date": "2026-11-10",
+    "previous_targets": [
+      {
+        "version": "26.1007.30912",
+        "build": "20156",
+        "asar_sha256": "75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af",
+        "note": "2026-11-10 之前条目的参考身份；旧研究文档保留原摘要，不回写"
+      }
+    ]
   },
   "shared_runtime_check": {
     "checked_date": "2026-10-14",
@@ -11938,5 +11949,31 @@
     },
     "standardGuiSmokeRunId": "standalone-shell-01-20261020015412-79399",
     "asyncQuestions": "not covered; fresh trusted-context implementation and combined scenario pending"
+  },
+  "desktop_rebaseline_261103": {
+    "checked_date": "2026-11-10",
+    "rea_evidence_id": "ev_1677595b045b9358162e6c763c8a564f4fb848ad6853d9a36166a352e9bc0c07",
+    "source_path": "webview/assets/async/634175.4437e0034c.js",
+    "source_sha256": "e21e10ed45db9613ef69a54a65a06e1deb595ddb38352626e5bb4f864a476f23",
+    "ast_nodes": 74377,
+    "parse_failures": 0,
+    "findings": {
+      "home_hero_no_project": "home.hero.noProjectWhatShouldWeBuild",
+      "home_hero_in_selected_project": "home.hero.whatShouldWeBuildInSelectedProject",
+      "home_hero_non_git_project": "home.hero.whatShouldWeWorkOnInProject",
+      "hero_container": "flex min-h-28 w-full items-end justify-center",
+      "hero_stack": "flex w-full flex-col items-center gap-6",
+      "hero_heading": "heading-xl font-normal, 2rem/2.375rem, text-center",
+      "composer_anchor": "homeFooter inset-block-start from --home-composer-top at 42svh"
+    },
+    "product_slice": "internal/exec-plans/codex-desktop-home-hero-20261110.md",
+    "report": "internal/research/codex-desktop-rea/rebaseline-261103.md",
+    "not_claimed": [
+      "live window",
+      "bundle execution",
+      "Windows",
+      "packaged",
+      "full GUI parity"
+    ]
   }
 }

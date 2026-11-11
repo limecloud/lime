@@ -85,7 +85,7 @@ export function SettingsNavigation({
   onBack,
 }: SettingsNavigationProps) {
   const { t } = useTranslation("settings");
-  const { width, setWidth } = useSidebarWidth(290, 275);
+  const { width, setWidth } = useSidebarWidth(356, 356);
 
   return (
     <Navigation

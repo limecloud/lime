@@ -50,7 +50,7 @@
 
 对齐GUI、排版、交互、目录职责、可确认的函数/类型/类与调用链，同时迁移或删除旧代码、文档、测试、fixture、snapshot及冲突护栏。只保留Lime主题、多模型/多协议、首页Banner，分别由现有token/skin、catalog/provider与Home presentation持有，不建立平行runtime。
 
-- Desktop参考：`/Applications/ChatGPT.app`，Bundle ID `com.openai.codex`，26.1007.30912/build20156；ASAR SHA `75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af`。
+- Desktop参考：`/Applications/ChatGPT.app`，Bundle ID `com.openai.codex`，26.1103.60933/build25894；ASAR SHA-256 `a77588b2dcfa9b394d722dd8c2c8b13d3a09bacd49c839cc715245742dba6048`。2026-11-10 重新基线，见[26.1103 证据](../research/codex-desktop-rea/rebaseline-261103.md)与[首页 Hero 计划](codex-desktop-home-hero-20261110.md)；旧 26.1007.30912/build20156、ASAR `75e397…` 及第 196 行等历史记录只代表当时安装包。
 - 使用REA6.4.0及独立Node24.21.0，复用认证原件。静态代码不证明参考运行；压缩符号、chunk hash不作为原始源码命名。
 - 协议/runtime参考`/Users/coso/Documents/dev/rust/codex`。公开Rust源码不包含Desktop前端，不能从TUI推断GUI；包内CLI与公开HEAD的精确构建等价未确认。
 - 唯一业务链：`Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection`。Desktop与CLI/TUI共用协议、runtime、工具、持久化及read model。

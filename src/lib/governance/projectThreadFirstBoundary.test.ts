@@ -13,9 +13,10 @@ const FORBIDDEN_AGENT_FIRST_ID_FIELD_PATTERN =
 
 const PROJECT_THREAD_IDENTITY_BOUNDARY_FILES = [
   "lime-rs/crates/core/src/database/schema.rs",
-  "lime-rs/crates/core/src/database/agent_session_repository.rs",
-  "lime-rs/crates/thread-store/src/session_record.rs",
-  "lime-rs/crates/thread-store/src/session_repository.rs",
+  "lime-rs/crates/thread-store/src/store.rs",
+  "lime-rs/crates/thread-store/src/history.rs",
+  "lime-rs/crates/app-server/src/runtime/canonical_thread_store.rs",
+  "lime-rs/crates/app-server/src/runtime/canonical_rollout.rs",
   "lime-rs/crates/app-server/src/runtime/session_lifecycle.rs",
   "lime-rs/crates/app-server/src/runtime/session_list_scope.rs",
   "lime-rs/crates/app-server/src/runtime/memory.rs",

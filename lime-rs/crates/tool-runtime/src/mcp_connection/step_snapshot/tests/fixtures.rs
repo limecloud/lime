@@ -4,7 +4,7 @@ use crate::mcp_connection::{
     McpCallScope, McpConnectionHandle, McpConnectionProvenance, McpConnectionRegistry,
 };
 use crate::tool_extension::{RuntimeExtensionConfig, RuntimeToolCaller};
-use rmcp::model::{CallToolRequestParam, CallToolResult, JsonObject, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, JsonObject, Tool};
 use std::collections::HashSet;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
@@ -120,23 +120,15 @@ pub(super) fn tool(name: &str, allowed_callers: Option<&[&str]>) -> Tool {
         .expect("tool schema object")
         .clone()
     });
-    Tool {
-        name: name.to_string().into(),
-        title: None,
-        description: Some(format!("{name} tool").into()),
-        input_schema: Arc::new(input_schema),
-        output_schema: None,
-        annotations: None,
-        icons: None,
-        meta: None,
-    }
+    Tool::new(
+        name.to_string(),
+        format!("{name} tool"),
+        Arc::new(input_schema),
+    )
 }
 
-pub(super) fn call(name: &str) -> CallToolRequestParam {
-    CallToolRequestParam {
-        name: name.to_string().into(),
-        arguments: None,
-    }
+pub(super) fn call(name: &str) -> CallToolRequestParams {
+    CallToolRequestParams::new(name.to_string())
 }
 
 pub(super) fn scope() -> McpCallScope {

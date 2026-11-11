@@ -539,7 +539,7 @@ describe("AppSidebar conversations", () => {
     ]);
 
     const container = mountSidebarContainer({
-      currentPage: "scheduled-tasks",
+      currentPage: "home",
     });
     await flushEffects(2);
 
@@ -805,7 +805,7 @@ describe("AppSidebar conversations", () => {
     ]);
 
     const container = mountSidebarContainer({
-      currentPage: "scheduled-tasks",
+      currentPage: "home",
     });
     await flushEffects(2);
 
@@ -834,7 +834,7 @@ describe("AppSidebar conversations", () => {
 
     try {
       const container = mountSidebarContainer({
-        currentPage: "scheduled-tasks",
+        currentPage: "home",
       });
       await flushEffects(3);
 

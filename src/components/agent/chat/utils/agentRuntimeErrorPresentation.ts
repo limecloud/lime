@@ -235,6 +235,23 @@ export function resolveAgentRuntimeErrorPresentation(error: unknown): {
       : null;
 
   if (
+    reasonCode === "resolved_credential_unavailable" ||
+    includesAny(lowerMessage, [
+      "resolved_credential_unavailable",
+      "credential_store_read_failed",
+      "credential_store_permissions_failed",
+      "credential_reference_invalid",
+      "credential_not_found",
+    ])
+  ) {
+    const message = readAgentRuntimeCopy(
+      "agentChat.runtimeError.providerCredentialUnavailable",
+      "无法读取当前服务商的 API Key。请前往设置 → AI 服务商重新保存 API Key 后重试。",
+    );
+    return { displayMessage: message, toastMessage: message };
+  }
+
+  if (
     reasonCode === "capability_snapshot_missing" ||
     lowerMessage.includes("capability_snapshot_missing")
   ) {

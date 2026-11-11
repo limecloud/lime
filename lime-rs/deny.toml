@@ -1,4 +1,4 @@
-# 按 Lime 实际交付平台构建依赖图；不继承上游例外或忽略项。
+# 按 Lime 实际交付平台构建依赖图；例外只覆盖下列已复核的停维公告。
 [graph]
 targets = [
     "aarch64-apple-darwin",
@@ -8,7 +8,19 @@ targets = [
 ]
 
 [advisories]
-ignore = []
+# 2026-11-07 复核；均无可兼容替换的上游发行版，未豁免漏洞或 unsoundness。
+# 变更对应 owner/依赖版本或发现安全公告时重新复核；依据见 quality-workflow.md。
+ignore = [
+    { id = "RUSTSEC-2026-0374", reason = "basic-toml 0.1.10 仅由 age -> i18n-config 的构建期本地化宏读取受控源码配置；i18n-config 最新 0.4.8 仍依赖它，infra owner 随上游迁移移除。" },
+    { id = "RUSTSEC-2025-0141", reason = "bincode 1.3.3 由 TUI syntect/two-face 加载随二进制交付的内置语法和主题；不加载外部 bincode，最新 syntect 5.3.0 尚无替代接口，TUI owner 随上游迁移移除。" },
+    { id = "RUSTSEC-2024-0388", reason = "derivative 2.2.0 是 execpolicy 的 starlark 0.14.2 编译期派生宏；上游最新发行版仍依赖它，execpolicy owner 随上游宏迁移移除。" },
+    { id = "RUSTSEC-2025-0057", reason = "fxhash 0.2.1 用于 starlark_map 的非密码学哈希，消费者是本地执行策略；最新 starlark 0.14.2 仍依赖它，execpolicy owner 随上游容器迁移移除。" },
+    { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 是 starlark 0.14.2 与固定 V8 150.4.0 的编译期标识符宏；不处理运行时输入，execpolicy/code-mode-runtime owner 随上游宏迁移移除。" },
+    { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 2.0.1 仅供 age 0.11.5 的 i18n-embed-fl 0.9.4 编译期诊断；运行时不链接宏，infra owner 随该安全维护分支的本地化依赖迁移移除。" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names 3.0.0 属于 keyring 3.6.3/secret-service 4 的 Linux 系统密钥库 D-Bus 协议；合并到 zbus 6 后尚无对应稳定 Secret Service 发行版，infra owner 在完整原生密钥库回归后迁移。" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant 4.2.0 属于 keyring/secret-service 的 Linux D-Bus wire 实现；公告仅为合并进 zbus 6 的停维通知，infra owner 随稳定 Secret Service API 迁移，不变更凭据存储或错误边界。" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 4.2.0 是上述 Linux D-Bus 类型的编译期派生宏；随 secret-service 迁移到 zbus 6 一并移除，由 infra owner 复核原生密钥库行为。" },
+]
 
 [licenses]
 confidence-threshold = 0.8
@@ -17,6 +29,12 @@ allow = [
     "ISC", "Zlib", "BSL-1.0", "CC0-1.0", "Unlicense", "Unicode-3.0",
     "Unicode-DFS-2016", "MPL-2.0", "MIT-0", "CDLA-Permissive-2.0",
 ]
+
+[[licenses.exceptions]]
+name = "libbz2-rs-sys"
+version = "=0.2.6"
+allow = ["bzip2-1.0.6"]
+# ZIP 的 bzip2 后端；已核对原文，保留署名、不歪曲来源并随包分发 licenses/bzip2-LICENSE.txt。
 
 [bans]
 # 多版本依赖由实际闭包评估；漏洞和来源审查仍是硬门禁。

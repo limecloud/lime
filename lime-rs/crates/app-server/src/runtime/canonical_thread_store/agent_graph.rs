@@ -1,4 +1,4 @@
-// Adapted from Codex state/src/runtime/threads.rs and agent-graph-store/local.rs
+// Adapted from upstream state/src/runtime/threads.rs and agent-graph-store/local.rs
 // (5c19155cbd93bfa099016e7487259f61669823ff), Apache-2.0; see repository NOTICE.
 
 use agent_protocol::ThreadId;

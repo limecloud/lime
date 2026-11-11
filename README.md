@@ -196,6 +196,8 @@ lime exec \
   "review this diff"
 ```
 
+To build the Linux cloud guest from source on a native Linux x64 host, run `node scripts/app-server/linux-guest-build.mjs --out <new-absolute-directory>`. The output includes an archive and integrity digests. Select a trusted package under Cloud computers → Install runtime to save the task connection with platform encryption after installation. The target requires prepared desktop dependencies, a public IPv4, and temporary upload port 8787 accessible only from your outbound IP; Lime does not change security groups. See the [Cloud execution plan](internal/exec-plans/cloud-desktop-byoc-plan.md) for installation arguments and verification boundaries.
+
 ### First run (Desktop or CLI/TUI)
 
 1. Open the Desktop app, or run `lime` for CLI/TUI; configure a Provider and test a model connection.
@@ -224,6 +226,8 @@ lime exec \
 ### Does Lime provide AI models?
 
 No. Lime is an Agent host and workspace, not a model vendor. Configure an available Provider, model, and credential.
+
+Provider credentials default to files restricted to the current user, without Keychain password prompts. See [credential storage](docs/content/03.providers/2.credential-storage.md) for paths and explicit keyring configuration.
 
 ### Can the Agent edit code and run commands?
 

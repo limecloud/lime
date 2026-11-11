@@ -3162,6 +3162,7 @@ impl ApiKeyProviderService {
         }
 
         // 尝试从每个匹配的 Provider 获取可用的 API Key
+        let mut unreadable_keys = false;
         for provider in matching_providers {
             let keys = ApiKeyProviderDao::get_enabled_api_keys_by_provider(&conn, &provider.id)
                 .map_err(|e| e.to_string())?;
@@ -3177,6 +3178,7 @@ impl ApiKeyProviderService {
             let Some((selected_key, api_key)) =
                 self.select_next_readable_api_key(&provider.id, &keys)?
             else {
+                unreadable_keys = true;
                 continue;
             };
 
@@ -3199,6 +3201,9 @@ impl ApiKeyProviderService {
             return Ok(Some(credential));
         }
 
+        if unreadable_keys {
+            return Err("credential_store_read_failed".to_string());
+        }
         Ok(None)
     }
 
@@ -3267,6 +3272,7 @@ impl ApiKeyProviderService {
 
         // 轮询选择 API Key，但需要检查客户端兼容性
         let mut selected_key = None;
+        let mut unreadable_keys = false;
         for index in self.next_round_robin_candidate_indices(&provider.id, keys.len())? {
             let candidate_key = &keys[index];
             let api_key = {
@@ -3274,6 +3280,7 @@ impl ApiKeyProviderService {
                     Ok(api_key) => api_key,
                     Err(error) => {
                         self.log_skipped_invalid_api_key(candidate_key, &error);
+                        unreadable_keys = true;
                         continue;
                     }
                 }
@@ -3320,6 +3327,7 @@ impl ApiKeyProviderService {
 
         let (selected_key, api_key) = match selected_key {
             Some(selected) => selected,
+            None if unreadable_keys => return Err("credential_store_read_failed".to_string()),
             None => {
                 tracing::debug!(
                     "[find_by_provider_id] provider '{provider_id}' 没有未排除且可用于当前客户端的 API Key ({client_type:?})"

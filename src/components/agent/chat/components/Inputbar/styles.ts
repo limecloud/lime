@@ -36,6 +36,10 @@ export const MetaSelectWrap = styled.label`
     color: var(--lime-warning, #d97706);
   }
 
+  &:has(select:disabled) {
+    opacity: 0.58;
+  }
+
   &:focus-within {
     outline: 1px solid hsl(var(--ring));
     outline-offset: 1px;
@@ -81,7 +85,6 @@ export const MetaSelect = styled.select`
 
   &:disabled {
     cursor: default;
-    opacity: 0.58;
   }
 `;
 
@@ -335,26 +338,15 @@ export const InputIconButton = styled.button<{
   align-items: center;
   justify-content: center;
   gap: 0;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border-radius: 999px;
-  border: 1px solid
-    ${({ $primary, $destructive }) =>
-      $primary
-        ? "rgba(15, 23, 42, 0.12)"
-        : $destructive
-          ? "rgba(225, 29, 72, 0.28)"
-          : "var(--lime-surface-border, hsl(var(--border)))"};
-  background: ${({ $primary, $destructive }) =>
-    $primary
-      ? "var(--lime-brand, #10b981)"
-      : $destructive
-        ? "rgba(255, 226, 234, 0.92)"
-        : "var(--lime-surface, hsl(var(--card)))"};
+  border: 1px solid transparent;
+  background: transparent;
   color: ${({ $primary, $destructive }) =>
     $primary
-      ? "#f0fdf4"
+      ? "#ffffff"
       : $destructive
         ? "#be123c"
         : "hsl(var(--muted-foreground))"};
@@ -366,13 +358,12 @@ export const InputIconButton = styled.button<{
     color 0.2s ease;
 
   &:hover:not(:disabled) {
-    transform: translateY(-1px);
     background: ${({ $primary, $destructive }) =>
       $primary
-        ? "var(--lime-brand-strong, #166534)"
+        ? "var(--lime-text-strong, #1a1c1f)"
         : $destructive
           ? "rgba(255, 221, 229, 1)"
-          : "rgba(255, 255, 255, 1)"};
+          : "rgba(15, 23, 42, 0.05)"};
     color: ${({ $primary, $destructive }) =>
       $primary
         ? "#ffffff"
@@ -452,7 +443,9 @@ export const InputIconButton = styled.button<{
 export const SendButton = styled(InputIconButton).attrs({
   $primary: true,
 })`
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  border-color: transparent;
+  background: var(--lime-text-strong, #1a1c1f);
+  box-shadow: none;
 
   svg {
     width: 16px;
@@ -460,11 +453,11 @@ export const SendButton = styled(InputIconButton).attrs({
   }
 
   &:disabled {
-    border-color: rgba(148, 163, 184, 0.24);
-    background: rgba(226, 232, 240, 0.92);
-    color: #64748b;
+    border-color: transparent;
+    background: var(--lime-text-strong, #1a1c1f);
+    color: var(--lime-surface, #ffffff);
     opacity: 1;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+    box-shadow: none;
   }
 `;
 

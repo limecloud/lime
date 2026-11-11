@@ -8,13 +8,12 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ChevronDown,
   CircleAlert,
   LoaderCircle,
-  PackageCheck,
+  Plus,
   RefreshCw,
   Search,
-  SlidersHorizontal,
+  Settings,
   Sparkles,
   X,
 } from "lucide-react";
@@ -25,12 +24,15 @@ import type {
   AppServerPluginMarketplaceEntry,
 } from "@/lib/api/appServerTypes";
 import {
+  addMarketplace,
   installPlugin,
   listPlugins,
   reconcilePlugins,
+  removeMarketplace,
   readPlugin,
   setPluginEnabled,
   uninstallPlugin,
+  upgradeMarketplace,
 } from "@/lib/api/pluginCatalog";
 import type { PluginsPageParams } from "@/types/page";
 import { getProject } from "@/lib/api/project";
@@ -52,6 +54,24 @@ import {
   type PluginCatalogEntry,
   type PluginCatalogView,
 } from "./PluginCatalogPageViewModel";
+
+function groupPluginsByCategory(
+  entries: PluginCatalogEntry[],
+  otherLabel: string,
+): Array<{ category: string; entries: PluginCatalogEntry[] }> {
+  const groups = new Map<string, PluginCatalogEntry[]>();
+  for (const entry of entries) {
+    const category =
+      entry.plugin.interface?.category?.trim() || otherLabel;
+    const bucket = groups.get(category);
+    if (bucket) bucket.push(entry);
+    else groups.set(category, [entry]);
+  }
+  return [...groups.entries()].map(([category, groupEntries]) => ({
+    category,
+    entries: groupEntries,
+  }));
+}
 
 export function PluginCatalogPage({
   pageParams,
@@ -75,15 +95,27 @@ export function PluginCatalogPage({
     () => entries.map((entry) => entry.plugin),
     [entries],
   );
+  const [addMarketplaceOpen, setAddMarketplaceOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [marketplaceRemoving, setMarketplaceRemoving] = useState<string | null>(
+    null,
+  );
+  const [marketplaceUpgrading, setMarketplaceUpgrading] = useState<
+    string | null
+  >(null);
+  const [marketplaceSource, setMarketplaceSource] = useState("");
+  const [marketplaceAdding, setMarketplaceAdding] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(
     pageParams?.selectedPluginId ?? null,
   );
   const [detail, setDetail] = useState<AppServerPluginDetail | null>(null);
+  const [detailOpen, setDetailOpen] = useState(
+    Boolean(pageParams?.selectedPluginId),
+  );
   const [view, setView] = useState<PluginCatalogView>(
     pageParams?.statusFilter === "installed" ? "installed" : "all",
   );
   const [query, setQuery] = useState(pageParams?.query ?? "");
-  const [source, setSource] = useState("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +138,6 @@ export function PluginCatalogPage({
     setSelectedId(pageParams?.selectedPluginId ?? null);
     setView(pageParams?.statusFilter === "installed" ? "installed" : "all");
     setQuery(pageParams?.query ?? "");
-    setSource("all");
   }, [pageParams]);
 
   const refresh = useCallback(async () => {
@@ -258,15 +289,8 @@ export function PluginCatalogPage({
   }, [entries, selectedId, accountIdentity, t]);
 
   const filteredPlugins = useMemo(
-    () => filterPluginCatalog(entries, { query, source, view }),
-    [entries, query, source, view],
-  );
-  const sources = useMemo(
-    () =>
-      Array.from(
-        new Set(marketplaces.map((marketplace) => marketplace.name)),
-      ).sort(),
-    [marketplaces],
+    () => filterPluginCatalog(entries, { query, source: "all", view }),
+    [entries, query, view],
   );
   const selectedSummary =
     plugins.find((plugin) => plugin.id === selectedId) ?? null;
@@ -359,83 +383,28 @@ export function PluginCatalogPage({
   return (
     <div className="lime-workbench-theme-scope lime-workbench-surface-scope flex min-h-0 flex-1 flex-col overflow-auto bg-[color:var(--lime-surface-soft)]">
       <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-6 py-7 xl:px-8">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--lime-text-muted)]">
-              <PackageCheck size={15} />
-              {t("plugin.catalog.v2.eyebrow")}
-            </div>
-            <h1 className="mt-2 text-[28px] font-semibold text-[color:var(--lime-text-strong)]">
+            <h1 className="text-[24px] font-semibold leading-8 text-[color:var(--lime-text-strong)]">
               {t("plugin.catalog.v2.title")}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--lime-text-muted)]">
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-[color:var(--lime-text-muted)]">
               {t("plugin.catalog.v2.description")}
             </p>
           </div>
-        </header>
-
-        <section className="flex flex-col gap-3 border-b border-[color:var(--lime-surface-border)] pb-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {(["all", "installed"] as const).map((nextView) => (
-              <button
-                key={nextView}
-                type="button"
-                className={`inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
-                  view === nextView
-                    ? "bg-[color:var(--lime-text-strong)] text-[color:var(--lime-surface)]"
-                    : "text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)]"
-                }`}
-                onClick={() => setView(nextView)}
-                data-testid={`plugin-catalog-view-${nextView}`}
-              >
-                {t(`plugin.catalog.v2.view.${nextView}`)}
-                <span className="text-xs opacity-70">
-                  {nextView === "all"
-                    ? plugins.length
-                    : plugins.filter((plugin) => plugin.installed).length}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-            <label className="relative min-w-0 sm:w-[310px]">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="relative min-w-0 sm:w-[240px]">
               <Search
-                size={17}
+                size={16}
                 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--lime-text-muted)]"
               />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
-                className="h-9 w-full rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] pl-10 pr-4 text-sm text-[color:var(--lime-text-strong)] outline-none placeholder:text-[color:var(--lime-text-muted)] focus:border-[color:var(--lime-surface-border-strong)]"
+                className="h-9 w-full rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] pl-9 pr-4 text-sm text-[color:var(--lime-text-strong)] outline-none placeholder:text-[color:var(--lime-text-muted)] focus:border-[color:var(--lime-surface-border-strong)]"
                 placeholder={t("plugin.catalog.v2.searchPlaceholder")}
                 aria-label={t("plugin.catalog.v2.searchLabel")}
                 data-testid="plugin-catalog-search"
-              />
-            </label>
-            <label className="relative flex min-w-[150px] items-center">
-              <SlidersHorizontal
-                size={15}
-                className="pointer-events-none absolute left-3 text-[color:var(--lime-text-muted)]"
-              />
-              <select
-                value={source}
-                onChange={(event) => setSource(event.currentTarget.value)}
-                className="h-9 w-full appearance-none rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] pl-9 pr-8 text-sm font-medium text-[color:var(--lime-text-strong)] outline-none focus:border-[color:var(--lime-surface-border-strong)]"
-                aria-label={t("plugin.catalog.v2.sourceLabel")}
-                data-testid="plugin-catalog-source-filter"
-              >
-                <option value="all">{t("plugin.catalog.v2.source.all")}</option>
-                {sources.map((item) => (
-                  <option key={item} value={item}>
-                    {marketplaces.find(
-                      (marketplace) => marketplace.name === item,
-                    )?.interface?.displayName || item}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={15}
-                className="pointer-events-none absolute right-3 text-[color:var(--lime-text-muted)]"
               />
             </label>
             <button
@@ -449,7 +418,49 @@ export function PluginCatalogPage({
             >
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             </button>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text-muted)] transition hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)]"
+              onClick={() => setSettingsOpen(true)}
+              aria-label={t("plugin.catalog.v2.settings")}
+              title={t("plugin.catalog.v2.settings")}
+              data-testid="plugin-catalog-settings"
+            >
+              <Settings size={16} />
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[color:var(--lime-text-strong)] px-4 text-sm font-semibold text-[color:var(--lime-surface)] shadow-none hover:opacity-90"
+              onClick={() => setAddMarketplaceOpen(true)}
+              data-testid="plugin-catalog-add"
+            >
+              <Plus size={16} />
+              {t("plugin.catalog.v2.add")}
+            </button>
           </div>
+        </header>
+
+        <section className="flex flex-wrap items-center gap-2 border-b border-[color:var(--lime-surface-border)] pb-3">
+          {(["all", "installed"] as const).map((nextView) => (
+            <button
+              key={nextView}
+              type="button"
+              className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition ${
+                view === nextView
+                  ? "bg-[color:var(--lime-surface-hover)] text-[color:var(--lime-text-strong)]"
+                  : "text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-text-strong)]"
+              }`}
+              onClick={() => setView(nextView)}
+              data-testid={`plugin-catalog-view-${nextView}`}
+            >
+              {t(`plugin.catalog.v2.view.${nextView}`)}
+              <span className="text-xs opacity-70">
+                {nextView === "all"
+                  ? plugins.length
+                  : plugins.filter((plugin) => plugin.installed).length}
+              </span>
+            </button>
+          ))}
         </section>
 
         {error ? (
@@ -500,20 +511,58 @@ export function PluginCatalogPage({
               {t("plugin.catalog.v2.empty.description")}
             </p>
           </div>
+        ) : detailOpen && selectedSummary ? (
+          <PluginDetailPanel
+            summary={selectedSummary}
+            detail={detail}
+            t={t}
+            onClose={() => {
+              setDetailOpen(false);
+              setSelectedId(null);
+            }}
+            onInstall={
+              selectedSummary.installed
+                ? undefined
+                : () => {
+                    const entry = entries.find(
+                      (candidate) =>
+                        candidate.plugin.id === selectedSummary.id,
+                    );
+                    if (entry) setInstallTarget(entry);
+                  }
+            }
+            onToggle={() => {
+              void handleToggle(selectedSummary);
+            }}
+            onUninstall={() => setUninstallTarget(selectedSummary)}
+            busy={busyId === selectedSummary.id}
+          />
         ) : (
-          <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-            <section
-              className="grid min-w-0 grid-cols-1 content-start gap-3 md:grid-cols-2"
+          <div className="grid min-w-0 grid-cols-1 gap-5">
+            <div
+              className="flex min-w-0 flex-col gap-6"
               data-testid="plugin-catalog-list"
             >
-              {filteredPlugins.map((entry) => (
-                <PluginCatalogCard
+              {groupPluginsByCategory(
+                filteredPlugins,
+                t("plugin.catalog.v2.category.other"),
+              ).map((group) => (
+                <section key={group.category} className="min-w-0">
+                  <h2 className="mb-3 text-[17px] font-semibold text-[color:var(--lime-text-strong)]">
+                    {group.category}
+                  </h2>
+                  <div className="grid min-w-0 grid-cols-1 content-start gap-3 md:grid-cols-2">
+                    {group.entries.map((entry) => (
+                      <PluginCatalogCard
                   key={entry.plugin.id}
                   entry={entry}
-                  isSelected={selectedId === entry.plugin.id}
+                  isSelected={detailOpen && selectedId === entry.plugin.id}
                   busyId={busyId}
                   menuOpen={actionMenuId === entry.plugin.id}
-                  onSelect={() => setSelectedId(entry.plugin.id)}
+                  onSelect={() => {
+                    setSelectedId(entry.plugin.id);
+                    setDetailOpen(true);
+                  }}
                   onMenuToggle={() =>
                     setActionMenuId((current) =>
                       current === entry.plugin.id ? null : entry.plugin.id,
@@ -532,19 +581,243 @@ export function PluginCatalogPage({
                       ? () => setShareTarget({ entry, accountIdentity })
                       : undefined
                   }
-                />
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
-            </section>
-
-            <PluginDetailPanel
-              summary={selectedSummary}
-              detail={detail}
-              t={t}
-              onClose={() => setSelectedId(null)}
-            />
+            </div>
           </div>
         )}
       </div>
+
+      {settingsOpen ? (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/25 px-4"
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-[520px] rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="plugin-catalog-settings-title"
+            data-testid="plugin-catalog-settings-dialog"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2
+                className="text-base font-semibold text-[color:var(--lime-text-strong)]"
+                id="plugin-catalog-settings-title"
+              >
+                {t("plugin.catalog.v2.settingsTitle")}
+              </h2>
+              <button
+                type="button"
+                className="rounded-full p-1 text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)]"
+                aria-label={t("plugin.catalog.v2.settingsClose")}
+                onClick={() => setSettingsOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[color:var(--lime-text-muted)]">
+              {t("plugin.catalog.v2.settingsMarkets")}
+            </h3>
+            {marketplaces.length === 0 ? (
+              <p className="mt-2 text-sm text-[color:var(--lime-text-muted)]">
+                {t("plugin.catalog.v2.settingsEmpty")}
+              </p>
+            ) : (
+              <ul className="mt-2 divide-y divide-[color:var(--lime-surface-border)]">
+                {marketplaces.map((marketplace) => (
+                  <li
+                    key={marketplace.name}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-[color:var(--lime-text-strong)]">
+                        {marketplace.interface?.displayName ||
+                          marketplace.name}
+                      </div>
+                      <div className="truncate text-[11px] text-[color:var(--lime-text-muted)]">
+                        {t("plugin.catalog.v2.settingsPluginCount", {
+                          count: marketplace.plugins.length,
+                        })}
+                        {marketplace.path ? ` · ${marketplace.path}` : ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-full border border-[color:var(--lime-surface-border)] px-3 py-1.5 text-xs font-medium text-[color:var(--lime-text)] disabled:opacity-50"
+                      disabled={
+                        marketplaceUpgrading === marketplace.name ||
+                        marketplaceRemoving === marketplace.name
+                      }
+                      data-testid={`plugin-catalog-upgrade-marketplace-${marketplace.name}`}
+                      onClick={() => {
+                        if (marketplaceUpgrading || marketplaceRemoving) return;
+                        setMarketplaceUpgrading(marketplace.name);
+                        void upgradeMarketplace({
+                          marketplaceName: marketplace.name,
+                        })
+                          .then(async () => {
+                            toast.success(
+                              t("plugin.catalog.v2.settingsUpdateSuccess"),
+                            );
+                            await refresh();
+                          })
+                          .catch(() => {
+                            toast.error(
+                              t("plugin.catalog.v2.settingsUpdateFailed"),
+                            );
+                          })
+                          .finally(() => setMarketplaceUpgrading(null));
+                      }}
+                    >
+                      {t("plugin.catalog.v2.settingsUpdate")}
+                    </button>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-full border border-[color:var(--lime-surface-border)] px-3 py-1.5 text-xs font-medium text-[color:var(--lime-warning)] disabled:opacity-50"
+                      disabled={
+                        marketplaceRemoving === marketplace.name ||
+                        marketplaceUpgrading === marketplace.name
+                      }
+                      data-testid={`plugin-catalog-remove-marketplace-${marketplace.name}`}
+                      onClick={() => {
+                        if (marketplaceRemoving) return;
+                        setMarketplaceRemoving(marketplace.name);
+                        void removeMarketplace({
+                          marketplaceName: marketplace.name,
+                        })
+                          .then(async () => {
+                            toast.success(
+                              t("plugin.catalog.v2.settingsRemoveSuccess"),
+                            );
+                            await refresh();
+                          })
+                          .catch(() => {
+                            toast.error(
+                              t("plugin.catalog.v2.settingsRemoveFailed"),
+                            );
+                          })
+                          .finally(() => setMarketplaceRemoving(null));
+                      }}
+                    >
+                      {t("plugin.catalog.v2.settingsRemove")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-5 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[color:var(--lime-surface-border)] px-4 text-sm font-medium text-[color:var(--lime-text)]"
+                data-testid="plugin-catalog-settings-add"
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setAddMarketplaceOpen(true);
+                }}
+              >
+                <Plus size={15} />
+                {t("plugin.catalog.v2.addTitle")}
+              </button>
+              <button
+                type="button"
+                className="h-9 rounded-full border border-[color:var(--lime-surface-border)] px-4 text-sm font-medium text-[color:var(--lime-text)]"
+                onClick={() => setSettingsOpen(false)}
+              >
+                {t("plugin.catalog.v2.settingsClose")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {addMarketplaceOpen ? (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/25 px-4"
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-[480px] rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="plugin-catalog-add-marketplace-title"
+            data-testid="plugin-catalog-add-marketplace"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2
+                className="text-base font-semibold text-[color:var(--lime-text-strong)]"
+                id="plugin-catalog-add-marketplace-title"
+              >
+                {t("plugin.catalog.v2.addTitle")}
+              </h2>
+              <button
+                type="button"
+                className="rounded-full p-1 text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)]"
+                aria-label={t("plugin.catalog.v2.addCancel")}
+                onClick={() => setAddMarketplaceOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <label className="mt-4 block">
+              <span className="text-xs font-medium text-[color:var(--lime-text-muted)]">
+                {t("plugin.catalog.v2.addSourceLabel")}
+              </span>
+              <input
+                value={marketplaceSource}
+                onChange={(event) =>
+                  setMarketplaceSource(event.currentTarget.value)
+                }
+                className="mt-1 h-10 w-full rounded-lg border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 text-sm text-[color:var(--lime-text-strong)] outline-none focus:border-[color:var(--lime-surface-border-strong)]"
+                placeholder={t("plugin.catalog.v2.addSourcePlaceholder")}
+                aria-label={t("plugin.catalog.v2.addSourceLabel")}
+                data-testid="plugin-catalog-add-source"
+              />
+            </label>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="h-9 rounded-full border border-[color:var(--lime-surface-border)] px-4 text-sm font-medium text-[color:var(--lime-text)]"
+                onClick={() => setAddMarketplaceOpen(false)}
+              >
+                {t("plugin.catalog.v2.addCancel")}
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[color:var(--lime-text-strong)] px-4 text-sm font-semibold text-[color:var(--lime-surface)] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  marketplaceAdding || marketplaceSource.trim().length === 0
+                }
+                data-testid="plugin-catalog-add-confirm"
+                onClick={() => {
+                  const source = marketplaceSource.trim();
+                  if (!source || marketplaceAdding) return;
+                  setMarketplaceAdding(true);
+                  void addMarketplace({ source })
+                    .then(async () => {
+                      toast.success(t("plugin.catalog.v2.addSuccess"));
+                      setAddMarketplaceOpen(false);
+                      setMarketplaceSource("");
+                      await refresh();
+                    })
+                    .catch(() => {
+                      toast.error(t("plugin.catalog.v2.addFailed"));
+                    })
+                    .finally(() => setMarketplaceAdding(false));
+                }}
+              >
+                {marketplaceAdding ? (
+                  <LoaderCircle size={15} className="animate-spin" />
+                ) : null}
+                {t("plugin.catalog.v2.addConfirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <PluginCatalogDialogs
         installTarget={installTarget}

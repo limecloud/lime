@@ -169,6 +169,35 @@ lime tui --remote ws://127.0.0.1:4500
 
 远端 token 只从环境变量读取；token 连接要求 `wss://` 或 loopback `ws://`。当前仅提供 transport foundation，不代表生产 Cloud endpoint、租户或账号能力已启用。
 
+### Linux 持久桌面源码装配
+
+在原生 Linux x64 构建机，从仓库根目录生成同源 CLI、App Server、Code Mode Host 和 native helper；输出目录必须不存在。构建使用仓库固定的 Rust 工具链和 Cargo.lock，当前装配产物为 dev profile，不能替代正式平台包。
+
+```bash
+node scripts/app-server/linux-guest-build.mjs --out "/tmp/lime-linux-guest"
+sha256sum "/tmp/lime-linux-guest/guest-manifest.json"
+```
+
+目标机需要 Python 3、`python3-xlib`、`python3-pil`、`zenity`、`xfce4`、`xfce4-screensaver`、`tigervnc-standalone-server`、`tigervnc-tools`、`novnc`、`websockify`、`dbus-x11`、`xauth`、`x11-utils` 和 `gnome-keyring`。以具有密码、已启动 systemd 用户 manager 的普通桌面用户安装；不要用 root 运行。可信 manifest 摘要应来自已核验的构建结果。
+
+```bash
+python3 "/tmp/lime-linux-guest/install.py" install --manifest-sha256 <TRUSTED_SHA256> --start
+python3 "$HOME/.local/share/lime/guest/current/install.py" control human
+python3 "$HOME/.local/share/lime/guest/current/install.py" control ai
+```
+
+安装器校验完整文件清单，保留已有连接凭据，生成 systemd 用户服务，并将版本放入 `~/.local/share/lime/guest/releases/`。App Server、VNC 和 noVNC 只监听 loopback，通过 SSH 隧道访问；关闭本机 Lime 或查看器不会停掉云机。
+
+```bash
+ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 -L 127.0.0.1:6080:127.0.0.1:6080 <DESKTOP_USER>@<HOST>
+```
+
+本机 Lime 的云任务连接使用 `ws://127.0.0.1:8787`；桌面查看器使用 `http://127.0.0.1:6080/vnc.html`。连接 token 与查看器密码分别保存在云端用户的 `~/.config/lime/guest/token` 和 `viewer-password`，不得放入 URL、命令参数或日志。用户的模型凭据继续使用现役 Secret Service 密钥库，需要单独配置与解锁；安装器不复制本机模型或云管理凭据，也不保存解锁密码。
+
+默认禁用查看器键鼠、剪贴板同步和远程改分辨率。人工接管与系统授权弹窗持有共享输入锁；关闭查看器后仍需显式交还控制，交还不会恢复旧授权。Computer Use 默认关闭，启用后仍需逐会话批准具体窗口；锁屏、输入监视不可用和 Caps Lock 导致无法保证准确文本时明确拒绝操作。X11 同一用户下的应用共享信任边界。
+
+真实 Linux 构建、Electron 远程连接、原生输入和加密文件往返的验收边界见 `internal/exec-plans/cloud-desktop-byoc-plan.md`；完整模型任务、对象存储和认证跨启停分别验收。
+
 ## 发布
 
 ```bash

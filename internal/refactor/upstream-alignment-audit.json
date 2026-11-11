@@ -1,0 +1,982 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-10T18:12:57.266Z",
+  "sources": {
+    "lime": "lime-rs/crates",
+    "upstreamRoot": "/Users/coso/Documents/dev/rust/codex/codex-rs",
+    "upstreamRevision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2"
+  },
+  "totals": {
+    "limeFiles": 2751,
+    "limeLines": 849953,
+    "upstreamFiles": 5932,
+    "upstreamLines": 2323902
+  },
+  "copyFidelity": {
+    "identicalFiles": 31,
+    "identical": [
+      {
+        "lime": "lime-rs/crates/app-server-transport/src/websocket_auth/auth_tests.rs",
+        "upstream": "websocket-auth/src/auth_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/core/src/config/browser_use.rs",
+        "upstream": "config/src/browser_use.rs"
+      },
+      {
+        "lime": "lime-rs/crates/core/src/config/computer_use.rs",
+        "upstream": "config/src/computer_use.rs"
+      },
+      {
+        "lime": "lime-rs/crates/core/src/config/in_app_browser_requirements.rs",
+        "upstream": "config/src/in_app_browser_requirements.rs"
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/error.rs",
+        "upstream": "execpolicy/src/error.rs"
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/execpolicycheck.rs",
+        "upstream": "execpolicy/src/execpolicycheck.rs"
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/executable_name.rs",
+        "upstream": "execpolicy/src/executable_name.rs"
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/lib.rs",
+        "upstream": "execpolicy/src/lib.rs"
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/cli.rs",
+        "upstream": "file-search/src/cli.rs"
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/lib_tests.rs",
+        "upstream": "file-search/src/lib_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/matcher_tests.rs",
+        "upstream": "file-search/src/matcher_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/snapshot.rs",
+        "upstream": "file-search/src/snapshot.rs"
+      },
+      {
+        "lime": "lime-rs/crates/infra/src/keyring-store/error_display_tests.rs",
+        "upstream": "keyring-store/src/error_display_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/infra/src/keyring-store/error_kind_tests.rs",
+        "upstream": "keyring-store/src/error_kind_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/infra/src/secrets/sanitizer.rs",
+        "upstream": "secrets/src/sanitizer.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/live_wrap.rs",
+        "upstream": "tui/src/live_wrap.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/render/line_utils.rs",
+        "upstream": "tui/src/render/line_utils.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/render/renderable_tests.rs",
+        "upstream": "tui/src/render/renderable_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/terminal_probe/windows_replay.rs",
+        "upstream": "tui/src/terminal_probe/windows_replay.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/test_backend.rs",
+        "upstream": "tui/src/test_backend.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/tui/frame_rate_limiter.rs",
+        "upstream": "tui/src/tui/frame_rate_limiter.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/tests/all.rs",
+        "upstream": "tui/tests/all.rs"
+      },
+      {
+        "lime": "lime-rs/crates/tui/tests/test_backend.rs",
+        "upstream": "tui/tests/test_backend.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-absolute-path/src/absolutize.rs",
+        "upstream": "utils/absolute-path/src/absolutize.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-absolute-path/src/system_aliases.rs",
+        "upstream": "utils/absolute-path/src/system_aliases.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-absolute-path/src/system_aliases_tests.rs",
+        "upstream": "utils/absolute-path/src/system_aliases_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/absolute_path_normalization.rs",
+        "upstream": "utils/path-uri/src/absolute_path_normalization.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/config_path_tests.rs",
+        "upstream": "utils/path-uri/src/config_path_tests.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/native_path_bytes.rs",
+        "upstream": "utils/path-uri/src/native_path_bytes.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/platform.rs",
+        "upstream": "utils/path-uri/src/platform.rs"
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/platform_tests.rs",
+        "upstream": "utils/path-uri/src/platform_tests.rs"
+      }
+    ],
+    "sameNameCompared": 1504,
+    "similarityBuckets": {
+      "0.00-0.20": 1352,
+      "0.20-0.50": 42,
+      "0.50-0.80": 38,
+      "0.80-0.95": 24,
+      "0.95-1.00": 48
+    },
+    "highSimilarityFiles": 110,
+    "topSimilarity": [
+      {
+        "lime": "lime-rs/crates/execpolicy/src/lib.rs",
+        "upstream": "execpolicy/src/lib.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/lib.rs",
+        "upstream": "file-search/src/lib.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/core/src/config/computer_use.rs",
+        "upstream": "config/src/computer_use.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/error.rs",
+        "upstream": "execpolicy/src/error.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/snapshot.rs",
+        "upstream": "file-search/src/snapshot.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/app-server-transport/src/websocket_auth/auth_tests.rs",
+        "upstream": "websocket-auth/src/auth_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/cli.rs",
+        "upstream": "file-search/src/cli.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/core/src/config/browser_use.rs",
+        "upstream": "config/src/browser_use.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/core/src/config/in_app_browser_requirements.rs",
+        "upstream": "config/src/in_app_browser_requirements.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/infra/src/secrets/sanitizer.rs",
+        "upstream": "secrets/src/sanitizer.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/execpolicycheck.rs",
+        "upstream": "execpolicy/src/execpolicycheck.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/executable_name.rs",
+        "upstream": "execpolicy/src/executable_name.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/lib_tests.rs",
+        "upstream": "file-search/src/lib_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/file-search/src/matcher_tests.rs",
+        "upstream": "file-search/src/matcher_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/infra/src/keyring-store/error_display_tests.rs",
+        "upstream": "keyring-store/src/error_display_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/infra/src/keyring-store/error_kind_tests.rs",
+        "upstream": "keyring-store/src/error_kind_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/live_wrap.rs",
+        "upstream": "tui/src/live_wrap.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/render/line_utils.rs",
+        "upstream": "tui/src/render/line_utils.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/render/renderable_tests.rs",
+        "upstream": "tui/src/render/renderable_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/terminal_probe/windows_replay.rs",
+        "upstream": "tui/src/terminal_probe/windows_replay.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/test_backend.rs",
+        "upstream": "tui/src/test_backend.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/tests/test_backend.rs",
+        "upstream": "tui/tests/test_backend.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/src/tui/frame_rate_limiter.rs",
+        "upstream": "tui/src/tui/frame_rate_limiter.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/tui/tests/all.rs",
+        "upstream": "tui/tests/all.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-absolute-path/src/absolutize.rs",
+        "upstream": "utils/absolute-path/src/absolutize.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-absolute-path/src/system_aliases.rs",
+        "upstream": "utils/absolute-path/src/system_aliases.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-absolute-path/src/system_aliases_tests.rs",
+        "upstream": "utils/absolute-path/src/system_aliases_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/absolute_path_normalization.rs",
+        "upstream": "utils/path-uri/src/absolute_path_normalization.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/config_path_tests.rs",
+        "upstream": "utils/path-uri/src/config_path_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/native_path_bytes.rs",
+        "upstream": "utils/path-uri/src/native_path_bytes.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/platform.rs",
+        "upstream": "utils/path-uri/src/platform.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/platform_tests.rs",
+        "upstream": "utils/path-uri/src/platform_tests.rs",
+        "similarity": 1
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/tests.rs",
+        "upstream": "utils/path-uri/src/tests.rs",
+        "similarity": 0.995
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/lib.rs",
+        "upstream": "utils/path-uri/src/lib.rs",
+        "similarity": 0.992
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/api_path_string_tests.rs",
+        "upstream": "utils/path-uri/src/api_path_string_tests.rs",
+        "similarity": 0.99
+      },
+      {
+        "lime": "lime-rs/crates/permissions/src/permissions/target_tests.rs",
+        "upstream": "protocol/src/permissions/target_tests.rs",
+        "similarity": 0.985
+      },
+      {
+        "lime": "lime-rs/crates/utils-path-uri/src/api_path_string.rs",
+        "upstream": "utils/path-uri/src/api_path_string.rs",
+        "similarity": 0.982
+      },
+      {
+        "lime": "lime-rs/crates/infra/src/keyring-store/lib.rs",
+        "upstream": "keyring-store/src/lib.rs",
+        "similarity": 0.979
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/parser.rs",
+        "upstream": "execpolicy/src/parser.rs",
+        "similarity": 0.973
+      },
+      {
+        "lime": "lime-rs/crates/execpolicy/src/amend.rs",
+        "upstream": "execpolicy/src/amend.rs",
+        "similarity": 0.966
+      }
+    ]
+  },
+  "crateCoverage": [
+    {
+      "upstreamCrate": "core",
+      "limeCrates": [
+        "agent",
+        "agent-runtime",
+        "runtime-core",
+        "tool-runtime"
+      ],
+      "capability": "split",
+      "owner": null,
+      "limeLines": 131447
+    },
+    {
+      "upstreamCrate": "protocol",
+      "limeCrates": [
+        "agent-protocol"
+      ],
+      "capability": "split",
+      "owner": null,
+      "limeLines": 5318
+    },
+    {
+      "upstreamCrate": "app-server-protocol",
+      "limeCrates": [
+        "app-server-protocol"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 27881
+    },
+    {
+      "upstreamCrate": "app-server-transport",
+      "limeCrates": [
+        "app-server-transport"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 2673
+    },
+    {
+      "upstreamCrate": "app-server-client",
+      "limeCrates": [
+        "app-server-client"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 5889
+    },
+    {
+      "upstreamCrate": "app-server",
+      "limeCrates": [
+        "app-server"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 317765
+    },
+    {
+      "upstreamCrate": "app-server-daemon",
+      "limeCrates": [
+        "app-server-daemon"
+      ],
+      "capability": "partial",
+      "owner": null,
+      "limeLines": 2270
+    },
+    {
+      "upstreamCrate": "app-server-test-client",
+      "limeCrates": [
+        "app-server-test-client"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 904
+    },
+    {
+      "upstreamCrate": "config",
+      "limeCrates": [
+        "config",
+        "core"
+      ],
+      "capability": "split",
+      "owner": null,
+      "limeLines": 44496
+    },
+    {
+      "upstreamCrate": "execpolicy",
+      "limeCrates": [
+        "execpolicy"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 2988
+    },
+    {
+      "upstreamCrate": "apply-patch",
+      "limeCrates": [
+        "patch-apply"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 1726
+    },
+    {
+      "upstreamCrate": "tools",
+      "limeCrates": [
+        "tool-runtime"
+      ],
+      "capability": "split",
+      "owner": null,
+      "limeLines": 65104
+    },
+    {
+      "upstreamCrate": "sandboxing",
+      "limeCrates": [],
+      "capability": "partial",
+      "owner": "tool-runtime/src/sandbox"
+    },
+    {
+      "upstreamCrate": "linux-sandbox",
+      "limeCrates": [],
+      "capability": "absent",
+      "owner": null
+    },
+    {
+      "upstreamCrate": "windows-sandbox-rs",
+      "limeCrates": [],
+      "capability": "partial",
+      "owner": "tool-runtime/src/execution_process/windows_*"
+    },
+    {
+      "upstreamCrate": "exec-server",
+      "limeCrates": [],
+      "capability": "absent",
+      "owner": null
+    },
+    {
+      "upstreamCrate": "thread-store",
+      "limeCrates": [
+        "thread-store"
+      ],
+      "capability": "partial",
+      "owner": null,
+      "limeLines": 3951
+    },
+    {
+      "upstreamCrate": "permissions",
+      "limeCrates": [
+        "permissions"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 6592
+    },
+    {
+      "upstreamCrate": "utils-path-uri",
+      "limeCrates": [
+        "utils-path-uri"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 4241
+    },
+    {
+      "upstreamCrate": "rollout",
+      "limeCrates": [],
+      "capability": "partial",
+      "owner": "app-server/src/runtime/canonical_rollout"
+    },
+    {
+      "upstreamCrate": "state",
+      "limeCrates": [],
+      "capability": "partial",
+      "owner": "core/src/database"
+    },
+    {
+      "upstreamCrate": "history",
+      "limeCrates": [],
+      "capability": "partial",
+      "owner": "thread-store/src/history"
+    },
+    {
+      "upstreamCrate": "file-search",
+      "limeCrates": [
+        "file-search"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 1724
+    },
+    {
+      "upstreamCrate": "skills",
+      "limeCrates": [
+        "skills"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 6193
+    },
+    {
+      "upstreamCrate": "hooks",
+      "limeCrates": [],
+      "capability": "partial",
+      "owner": "tool-runtime/src/hook_*"
+    },
+    {
+      "upstreamCrate": "memories",
+      "limeCrates": [],
+      "capability": "partial",
+      "owner": "tool-runtime/src/memory_store"
+    },
+    {
+      "upstreamCrate": "mcp",
+      "limeCrates": [
+        "mcp"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 14095
+    },
+    {
+      "upstreamCrate": "model-provider",
+      "limeCrates": [
+        "model-provider"
+      ],
+      "capability": "equivalent",
+      "owner": null,
+      "limeLines": 23921
+    },
+    {
+      "upstreamCrate": "otel",
+      "limeCrates": [],
+      "capability": "excluded",
+      "owner": null
+    },
+    {
+      "upstreamCrate": "cli",
+      "limeCrates": [
+        "cli"
+      ],
+      "capability": "partial",
+      "owner": null,
+      "limeLines": 9850
+    },
+    {
+      "upstreamCrate": "tui",
+      "limeCrates": [
+        "tui"
+      ],
+      "capability": "partial",
+      "owner": null,
+      "limeLines": 138504
+    }
+  ],
+  "deadCrates": [
+    {
+      "crate": "app-server-daemon",
+      "dependents": 0,
+      "status": "dormant-by-plan",
+      "plan": "internal/roadmap/appserver/service-extraction.md"
+    },
+    {
+      "crate": "lime-server",
+      "dependents": 0,
+      "status": "dormant-by-plan",
+      "plan": "internal/bussniss/lime-oem-cloud-phase1-plan.md"
+    }
+  ],
+  "oversizedCrates": [
+    {
+      "file": "lime-rs/crates/services/src/model_registry_service.rs",
+      "lines": 5983
+    },
+    {
+      "file": "lime-rs/crates/core/src/config/types.rs",
+      "lines": 4806
+    },
+    {
+      "file": "lime-rs/crates/agent-runtime/src/provider_turn/tests.rs",
+      "lines": 4687
+    },
+    {
+      "file": "lime-rs/crates/app-server-client/src/lib.rs",
+      "lines": 4041
+    },
+    {
+      "file": "lime-rs/crates/model-provider/src/current_client.rs",
+      "lines": 3847
+    },
+    {
+      "file": "lime-rs/crates/services/src/api_key_provider_service.rs",
+      "lines": 3770
+    },
+    {
+      "file": "lime-rs/crates/app-server-protocol/src/protocol/v2/tests.rs",
+      "lines": 3610
+    },
+    {
+      "file": "lime-rs/crates/tui/src/locale.rs",
+      "lines": 3513
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/turn_execution.rs",
+      "lines": 3238
+    },
+    {
+      "file": "lime-rs/crates/server/src/handlers/image_api_provider.rs",
+      "lines": 3136
+    },
+    {
+      "file": "lime-rs/crates/server/src/handlers/api.rs",
+      "lines": 3003
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/canonical_thread_store_tests.rs",
+      "lines": 2795
+    },
+    {
+      "file": "lime-rs/crates/permissions/src/permissions.rs",
+      "lines": 2650
+    },
+    {
+      "file": "lime-rs/crates/core/src/config/tests.rs",
+      "lines": 2628
+    },
+    {
+      "file": "lime-rs/crates/agent-runtime/src/provider_turn.rs",
+      "lines": 2579
+    },
+    {
+      "file": "lime-rs/crates/tui/src/app/tests.rs",
+      "lines": 2320
+    },
+    {
+      "file": "lime-rs/crates/tui/src/projection_tests.rs",
+      "lines": 2225
+    },
+    {
+      "file": "lime-rs/crates/app-server-protocol/src/protocol/v2/envelopes.rs",
+      "lines": 2181
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/turn_lifecycle.rs",
+      "lines": 2132
+    },
+    {
+      "file": "lime-rs/crates/app-server-protocol/src/protocol/v0/catalog.rs",
+      "lines": 2099
+    },
+    {
+      "file": "lime-rs/crates/runtime-core/src/model_route.rs",
+      "lines": 2085
+    },
+    {
+      "file": "lime-rs/crates/agent-runtime/src/session_loop/tests.rs",
+      "lines": 2067
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/lib.rs",
+      "lines": 2042
+    },
+    {
+      "file": "lime-rs/crates/permissions/src/permissions_tests.rs",
+      "lines": 2019
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/processor/environment.rs",
+      "lines": 2016
+    },
+    {
+      "file": "lime-rs/crates/agent/src/agent_tools/inventory.rs",
+      "lines": 1982
+    },
+    {
+      "file": "lime-rs/crates/gateway/src/feishu.rs",
+      "lines": 1933
+    },
+    {
+      "file": "lime-rs/crates/gateway/src/telegram.rs",
+      "lines": 1910
+    },
+    {
+      "file": "lime-rs/crates/services/src/skill_service.rs",
+      "lines": 1877
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/agent_control/restart.rs",
+      "lines": 1795
+    },
+    {
+      "file": "lime-rs/crates/app-server/tests/thread_v2_jsonrpc.rs",
+      "lines": 1769
+    },
+    {
+      "file": "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+      "lines": 1729
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/sessions.rs",
+      "lines": 1728
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/agent_control.rs",
+      "lines": 1648
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/projection_store.rs",
+      "lines": 1633
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/thread_listener_tests.rs",
+      "lines": 1629
+    },
+    {
+      "file": "lime-rs/crates/gateway/src/discord.rs",
+      "lines": 1609
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/read_model/artifacts.rs",
+      "lines": 1602
+    },
+    {
+      "file": "lime-rs/crates/model-provider/src/provider_stream/tests.rs",
+      "lines": 1594
+    },
+    {
+      "file": "lime-rs/crates/app-server-daemon/src/lib.rs",
+      "lines": 1438
+    },
+    {
+      "file": "lime-rs/crates/app-server/tests/media_task_jsonrpc.rs",
+      "lines": 1432
+    },
+    {
+      "file": "lime-rs/crates/utils-path-uri/src/tests.rs",
+      "lines": 1428
+    },
+    {
+      "file": "lime-rs/crates/core/src/database/dao/api_key_provider.rs",
+      "lines": 1385
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/canonical_thread_store/goal_projection_tests.rs",
+      "lines": 1380
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/automation_execution.rs",
+      "lines": 1367
+    },
+    {
+      "file": "lime-rs/crates/agent-runtime/src/reply_stream.rs",
+      "lines": 1365
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/execution_process.rs",
+      "lines": 1363
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/agent_control_gateway.rs",
+      "lines": 1360
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime_backend/tests/model_selection.rs",
+      "lines": 1330
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/main.rs",
+      "lines": 1313
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/memory_store.rs",
+      "lines": 1300
+    },
+    {
+      "file": "lime-rs/crates/core/src/database/schema.rs",
+      "lines": 1298
+    },
+    {
+      "file": "lime-rs/crates/server/src/lib.rs",
+      "lines": 1274
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/agent_mailbox_delivery.rs",
+      "lines": 1266
+    },
+    {
+      "file": "lime-rs/crates/app-server-protocol/src/schema_export/registry.rs",
+      "lines": 1263
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/thread_item_projection/typed_tests.rs",
+      "lines": 1255
+    },
+    {
+      "file": "lime-rs/crates/model-provider/src/current_client/health.rs",
+      "lines": 1247
+    },
+    {
+      "file": "lime-rs/crates/core/src/config/yaml.rs",
+      "lines": 1240
+    },
+    {
+      "file": "lime-rs/crates/agent-protocol/src/thread.rs",
+      "lines": 1206
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime_backend/initialization_tests.rs",
+      "lines": 1200
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime_backend/model_route_contract.rs",
+      "lines": 1189
+    },
+    {
+      "file": "lime-rs/crates/agent/src/runtime_state.rs",
+      "lines": 1179
+    },
+    {
+      "file": "lime-rs/crates/server/src/handlers/provider_calls.rs",
+      "lines": 1171
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/execution_process/tests.rs",
+      "lines": 1168
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/session_operations.rs",
+      "lines": 1167
+    },
+    {
+      "file": "lime-rs/crates/mcp/src/elicitation_tests.rs",
+      "lines": 1153
+    },
+    {
+      "file": "lime-rs/crates/core/src/database/dao/agent_timeline.rs",
+      "lines": 1150
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/local_data_source/media_tasks.rs",
+      "lines": 1148
+    },
+    {
+      "file": "lime-rs/crates/core/src/tool_calling.rs",
+      "lines": 1148
+    },
+    {
+      "file": "lime-rs/crates/agent/src/write_artifact_events.rs",
+      "lines": 1141
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/agent_terminal_activity.rs",
+      "lines": 1127
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime_backend/model_route_resolver.rs",
+      "lines": 1116
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/tests/queue.rs",
+      "lines": 1098
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/event_log.rs",
+      "lines": 1098
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/model_providers/selection.rs",
+      "lines": 1094
+    },
+    {
+      "file": "lime-rs/crates/server-utils/src/lib.rs",
+      "lines": 1090
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/workflow/control.rs",
+      "lines": 1088
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/runtime/read_model/tests.rs",
+      "lines": 1072
+    },
+    {
+      "file": "lime-rs/crates/tool-runtime/src/file_search_execution.rs",
+      "lines": 1070
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/media_task_worker/route.rs",
+      "lines": 1053
+    },
+    {
+      "file": "lime-rs/crates/services/src/context_memory_service.rs",
+      "lines": 1050
+    },
+    {
+      "file": "lime-rs/crates/utils-path-uri/src/lib.rs",
+      "lines": 1047
+    },
+    {
+      "file": "lime-rs/crates/tool-runtime/src/execution_process.rs",
+      "lines": 1045
+    },
+    {
+      "file": "lime-rs/crates/cli/src/main.rs",
+      "lines": 1027
+    },
+    {
+      "file": "lime-rs/crates/thread-store/src/history.rs",
+      "lines": 1017
+    },
+    {
+      "file": "lime-rs/crates/tool-runtime/src/agent_control.rs",
+      "lines": 1016
+    },
+    {
+      "file": "lime-rs/crates/app-server/src/media_task.rs",
+      "lines": 1015
+    },
+    {
+      "file": "lime-rs/crates/tui/src/app/history_ui_tests.rs",
+      "lines": 1008
+    },
+    {
+      "file": "lime-rs/crates/app-server-protocol/src/protocol/v2/methods.rs",
+      "lines": 1007
+    }
+  ]
+}

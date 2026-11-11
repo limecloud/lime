@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Fixed loopback services in the user's persistent Linux desktop.",
+  "enum": [
+    "appServer",
+    "desktop"
+  ],
+  "title": "CloudDesktopTunnelChannel",
+  "type": "string"
+}

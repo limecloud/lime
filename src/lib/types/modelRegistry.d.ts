@@ -34,10 +34,11 @@ export interface ModelCapabilities {
   /** 是否支持可选推理强度；仅当模型接口明确声明时填充 */
   reasoning_effort?: ModelReasoningEffortSupport | null;
 }
-/** 模型能力快照来源；inferred_hint 只能用于目录展示。 */
+/** 模型能力快照来源；protocol_default 来自已配置聊天协议，inferred_hint 只能用于目录展示。 */
 export type ModelCapabilityProvenance =
   | "canonical"
   | "provider_explicit"
+  | "protocol_default"
   | "inferred_hint";
 /** 模型推理强度档位 */
 export type ModelReasoningEffortLevel = ModelReasoningEffort;

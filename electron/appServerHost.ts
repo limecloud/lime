@@ -35,6 +35,10 @@ import {
   type RequestId,
   type SidecarLaunchConfig,
 } from "@limecloud/app-server-client";
+import {
+  AppServerRemoteConnection,
+  type AppServerHostConnection,
+} from "./appServerRemoteConnection";
 import { app, session } from "./electronRuntime";
 import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -206,8 +210,8 @@ function readDiagnosticStderrLines(error: unknown): readonly string[] {
 
 export class ElectronAppServerHost {
   #lifecycle: AppServerSidecarLifecycle | null = null;
-  #connected: ConnectedAppServerSidecar | null = null;
-  #connectPromise: Promise<ConnectedAppServerSidecar> | null = null;
+  #connected: AppServerHostConnection | null = null;
+  #connectPromise: Promise<AppServerHostConnection> | null = null;
   #nextProxyRequestId = 1;
   #activeProxyRequestIds = new Map<RequestId, RequestId>();
   #consumedServerRequestTokens = new Set<string>();
@@ -220,22 +224,25 @@ export class ElectronAppServerHost {
   #stage: AppServerHostStage = "idle";
   #lastFailure: AppServerHostFailure | null = null;
   #stopping = false;
-  readonly #dynamicToolHost: AppServerDynamicToolHost;
+  readonly #dynamicToolHost: AppServerDynamicToolHost | null;
   readonly #browserBridge: BrowserAppServerBridge | null;
 
   constructor(
     browserHost: ElectronBrowserTabHost | null = null,
     readonly desktopPreferencesHost: DesktopPreferencesHost | null = null,
+    readonly remote: AppServerRemoteConnection | null = null,
   ) {
-    this.#browserBridge = browserHost
-      ? new BrowserAppServerBridge(browserHost, (method, params) =>
-          this.request(method, params),
-        )
-      : null;
-    this.#dynamicToolHost = new AppServerDynamicToolHost(
-      undefined,
-      browserHost,
-    );
+    if (remote && (browserHost || desktopPreferencesHost))
+      throw new Error("remote App Server hosts cannot own local desktop tools");
+    this.#browserBridge =
+      !remote && browserHost
+        ? new BrowserAppServerBridge(browserHost, (method, params) =>
+            this.request(method, params),
+          )
+        : null;
+    this.#dynamicToolHost = remote
+      ? null
+      : new AppServerDynamicToolHost(undefined, browserHost);
   }
 
   async warmup(): Promise<InitializeResponse> {
@@ -255,12 +262,20 @@ export class ElectronAppServerHost {
     );
     return {
       schema_version: APP_SERVER_HOST_DIAGNOSTIC_SCHEMA_VERSION,
-      stage: this.#stage,
-      connected: Boolean(connected && this.#lifecycle?.connected === connected),
+      stage:
+        this.remote && !this.remote.connected && this.#stage === "ready"
+          ? "failed"
+          : this.#stage,
+      connected: Boolean(
+        connected &&
+        (this.remote
+          ? this.remote.connected === connected
+          : this.#lifecycle?.connected === connected),
+      ),
       connection_generation: this.#connectionGeneration,
       restart_pending: this.#restartWaiter !== null,
       resume_recovery_pending: this.#resumeRecoveryPromise !== null,
-      sidecar: connected
+      sidecar: sidecar
         ? {
             pid: child?.pid ?? null,
             running,
@@ -301,9 +316,10 @@ export class ElectronAppServerHost {
 
   async request<T>(method: string, params: unknown = {}): Promise<T> {
     const connected = await this.#connect();
-    const request = this.#dynamicToolHost.prepareClientRequest(
-      connected.client.request(method, params ?? {}),
-    );
+    const request =
+      this.#dynamicToolHost?.prepareClientRequest(
+        connected.client.request(method, params ?? {}),
+      ) ?? connected.client.request(method, params ?? {});
     const response = await this.#requestAppServer<T>(
       connected,
       request,
@@ -312,7 +328,7 @@ export class ElectronAppServerHost {
         timeoutMs: resolveAppServerRequestTimeoutMs(method, undefined, params),
       },
     );
-    this.#dynamicToolHost.observeClientResult(method, response.result);
+    this.#dynamicToolHost?.observeClientResult(method, response.result);
     await this.#browserBridge?.observeResult(method, params, response.result);
     if (this.#connected === connected && !this.#stopping)
       await this.desktopPreferencesHost?.observeResult(
@@ -332,6 +348,8 @@ export class ElectronAppServerHost {
     const responses: JsonRpcMessage[] = [];
 
     for (const message of messages) {
+      if (this.remote && this.remote.connected !== connected)
+        throw new Error("remote App Server session changed");
       if (isInitializedNotification(message)) {
         continue;
       }
@@ -350,7 +368,7 @@ export class ElectronAppServerHost {
       }
       if (isJsonRpcRequestLike(message)) {
         const preparedMessage =
-          this.#dynamicToolHost.prepareClientRequest(message);
+          this.#dynamicToolHost?.prepareClientRequest(message) ?? message;
         const proxiedMessage = this.#proxyRequestMessage(preparedMessage);
         const timeoutMs = resolveAppServerRequestTimeoutMs(
           proxiedMessage.message.method,
@@ -369,7 +387,7 @@ export class ElectronAppServerHost {
                 { timeoutMs },
               ),
           );
-          this.#dynamicToolHost.observeClientResult(
+          this.#dynamicToolHost?.observeClientResult(
             proxiedMessage.message.method,
             result.result,
             owner,
@@ -449,13 +467,20 @@ export class ElectronAppServerHost {
       } catch {
         break;
       }
-      if (this.#stopping) return { lines: [] };
-      if (tryHandleCurrentTimeRead(connected.connection, message)) {
+      if (
+        this.#stopping ||
+        (this.remote && this.remote.connected !== connected)
+      )
+        return { lines: [] };
+      if (
+        !this.remote &&
+        tryHandleCurrentTimeRead(connected.connection, message)
+      ) {
         continue;
       }
-      this.#dynamicToolHost.observeServerMessage(message);
+      this.#dynamicToolHost?.observeServerMessage(message);
       if (
-        await this.#dynamicToolHost.tryHandle(connected.connection, message)
+        await this.#dynamicToolHost?.tryHandle(connected.connection, message)
       ) {
         continue;
       }
@@ -465,7 +490,8 @@ export class ElectronAppServerHost {
       }
     }
 
-    if (this.#stopping) return { lines: [] };
+    if (this.#stopping || (this.remote && this.remote.connected !== connected))
+      return { lines: [] };
     const rendererMessages = drained;
     this.#rememberRecentNotifications(rendererMessages);
     const messages =
@@ -492,8 +518,9 @@ export class ElectronAppServerHost {
     this.#stopping = true;
     this.#browserBridge?.reset();
     this.desktopPreferencesHost?.reset();
-    this.#dynamicToolHost.connectionLost("app-server-stopped");
+    this.#dynamicToolHost?.connectionLost("app-server-stopped");
     this.#rejectRestartWaiter(this.#lifecycle, appServerHostStoppingError());
+    await this.remote?.stop();
     await this.#lifecycle?.stop();
     this.#lifecycle = null;
     this.#connected = null;
@@ -501,7 +528,7 @@ export class ElectronAppServerHost {
     this.#consumedServerRequestTokens.clear();
     this.#serverRequestRawIdsByToken.clear();
     this.#serverRequestTokensByRawId.clear();
-    this.#dynamicToolHost.reset();
+    this.#dynamicToolHost?.reset();
     this.#stage = "stopped";
   }
 
@@ -559,6 +586,10 @@ export class ElectronAppServerHost {
       typeof message.id !== "string" ||
       !message.id.startsWith(APP_SERVER_SERVER_REQUEST_TOKEN_PREFIX)
     ) {
+      if (this.remote)
+        throw new Error(
+          "remote server-request responses require a current action token",
+        );
       return message;
     }
     if (this.#consumedServerRequestTokens.has(message.id)) {
@@ -603,7 +634,7 @@ export class ElectronAppServerHost {
     return token;
   }
 
-  async #connect(): Promise<ConnectedAppServerSidecar> {
+  async #connect(): Promise<AppServerHostConnection> {
     if (this.#stopping) {
       throw appServerHostStoppingError();
     }
@@ -611,7 +642,9 @@ export class ElectronAppServerHost {
       await this.#resumeRecoveryPromise;
     }
     if (this.#connected) {
-      const lifecycleConnected = this.#lifecycle?.connected;
+      const lifecycleConnected = this.remote
+        ? this.remote.connected
+        : this.#lifecycle?.connected;
       if (lifecycleConnected && lifecycleConnected !== this.#connected) {
         this.#connected = lifecycleConnected;
         return lifecycleConnected;
@@ -658,14 +691,7 @@ export class ElectronAppServerHost {
     ].slice(-APP_SERVER_RECENT_NOTIFICATION_LIMIT);
   }
 
-  async #start(): Promise<ConnectedAppServerSidecar> {
-    this.#stage = "resolving";
-    const launchConfig = await resolveLaunchConfig();
-    this.#stage = "starting";
-    const sidecarEnv = await resolveAppServerSidecarEnv(
-      launchConfig.config.binaryPath,
-      launchConfig.config.dataDir ?? resolveAppServerDataDir(),
-    );
+  async #start(): Promise<AppServerHostConnection> {
     const initializeParams: InitializeParams = {
       clientInfo: {
         name: "desktop",
@@ -692,6 +718,27 @@ export class ElectronAppServerHost {
       },
     };
 
+    if (this.remote) {
+      this.#stage = "initializing";
+      const connected = await this.remote.connect(initializeParams);
+      this.#connected = connected;
+      this.#recentNotifications = [];
+      this.#activeProxyRequestIds.clear();
+      this.#consumedServerRequestTokens.clear();
+      this.#serverRequestRawIdsByToken.clear();
+      this.#serverRequestTokensByRawId.clear();
+      this.#installServerRequestHandler(connected);
+      this.#stage = "ready";
+      this.#lastFailure = null;
+      return connected;
+    }
+    this.#stage = "resolving";
+    const launchConfig = await resolveLaunchConfig();
+    this.#stage = "starting";
+    const sidecarEnv = await resolveAppServerSidecarEnv(
+      launchConfig.config.binaryPath,
+      launchConfig.config.dataDir ?? resolveAppServerDataDir(),
+    );
     this.#stage = "initializing";
     let lifecycle: AppServerSidecarLifecycle;
     lifecycle = new AppServerSidecarLifecycle(
@@ -716,7 +763,7 @@ export class ElectronAppServerHost {
           if (this.#lifecycle === lifecycle) {
             this.#stage = "restarting";
             this.#lastFailure = failure;
-            this.#dynamicToolHost.connectionLost("app-server-disconnected");
+            this.#dynamicToolHost?.connectionLost("app-server-disconnected");
             this.desktopPreferencesHost?.connectionLost();
             this.#browserBridge?.reset();
             this.#connected = null;
@@ -751,7 +798,7 @@ export class ElectronAppServerHost {
             event.attempt >= APP_SERVER_RESTART_MAX_ATTEMPTS
           ) {
             this.#stage = "failed";
-            this.#dynamicToolHost.connectionLost("app-server-restart-failed");
+            this.#dynamicToolHost?.connectionLost("app-server-restart-failed");
             this.desktopPreferencesHost?.connectionLost();
             this.#connected = null;
             this.#lifecycle = null;
@@ -828,12 +875,14 @@ export class ElectronAppServerHost {
     waiter.reject(error);
   }
 
-  #installServerRequestHandler(connected: ConnectedAppServerSidecar): void {
+  #installServerRequestHandler(connected: AppServerHostConnection): void {
     const connectionGeneration = ++this.#connectionGeneration;
     const isCurrentConnection = (): boolean =>
       !this.#stopping &&
       this.#connected === connected &&
-      this.#lifecycle?.connected === connected &&
+      (this.remote
+        ? this.remote.connected === connected
+        : this.#lifecycle?.connected === connected) &&
       this.#connectionGeneration === connectionGeneration;
 
     connected.connection.setNotificationObserver((message) => {
@@ -869,18 +918,29 @@ export class ElectronAppServerHost {
       if (!isCurrentConnection()) {
         return false;
       }
-      if (tryHandleCurrentTimeRead(connected.connection, message)) {
+      if (
+        !this.remote &&
+        tryHandleCurrentTimeRead(connected.connection, message)
+      ) {
         return true;
       }
-      this.#dynamicToolHost.observeServerMessage(message);
-      return await this.#dynamicToolHost.tryHandle(
-        connected.connection,
-        message,
+      this.#dynamicToolHost?.observeServerMessage(message);
+      return (
+        (await this.#dynamicToolHost?.tryHandle(
+          connected.connection,
+          message,
+        )) ?? false
       );
     });
   }
 
   async #recoverAfterSystemResume(): Promise<void> {
+    if (this.remote) {
+      this.#connected = null;
+      await this.remote.reset();
+      await this.#start();
+      return;
+    }
     const lifecycle = this.#lifecycle;
     if (!lifecycle || this.#stopping) {
       return;
@@ -893,7 +953,7 @@ export class ElectronAppServerHost {
 
     this.#stage = "recovering";
     this.#connected = null;
-    this.#dynamicToolHost.connectionLost("app-server-system-resume");
+    this.#dynamicToolHost?.connectionLost("app-server-system-resume");
     this.desktopPreferencesHost?.connectionLost();
     try {
       const connected = await lifecycle.restart();
@@ -945,12 +1005,13 @@ export class ElectronAppServerHost {
     try {
       return await run();
     } finally {
-      this.#activeProxyRequestIds.delete(originalId);
+      if (this.#activeProxyRequestIds.get(originalId) === proxiedId)
+        this.#activeProxyRequestIds.delete(originalId);
     }
   }
 
   #forwardCancelRequest(
-    connected: ConnectedAppServerSidecar,
+    connected: AppServerHostConnection,
     message: JsonRpcMessage,
   ): void {
     const originalId = readCancelRequestId(message);
@@ -965,15 +1026,24 @@ export class ElectronAppServerHost {
   }
 
   async #requestAppServer<T>(
-    connected: ConnectedAppServerSidecar,
+    connected: AppServerHostConnection,
     request: JsonRpcRequest,
     method: string,
     options: AppServerRequestOptions,
   ): Promise<AppServerRequestResult<T>> {
     try {
-      return await connected.connection.request<T>(request, method, options);
+      const result = await connected.connection.request<T>(
+        request,
+        method,
+        options,
+      );
+      if (this.remote && this.remote.connected !== connected)
+        throw new Error(
+          "remote App Server response belongs to a disconnected session",
+        );
+      return result;
     } catch (error) {
-      if (!isStaleSidecarConnectionError(error)) {
+      if (this.remote || !isStaleSidecarConnectionError(error)) {
         throw error;
       }
       if (this.#stopping) {
@@ -1003,7 +1073,7 @@ export class ElectronAppServerHost {
     this.#lifecycle = null;
     this.#connected = null;
     this.#connectPromise = null;
-    this.#dynamicToolHost.connectionLost("app-server-stale-connection");
+    this.#dynamicToolHost?.connectionLost("app-server-stale-connection");
     this.desktopPreferencesHost?.connectionLost();
     try {
       await lifecycle?.stop();

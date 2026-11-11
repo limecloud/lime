@@ -55,14 +55,14 @@ export function collectPersistedAtomContractFailures(readSource) {
   require(main, /new PersistedAtomHost\(\s*desktopStorageRoots\.appDataRoot,\s*broadcast,?\s*\)/, "Persisted UI files must use the resolved platform AppDataRoot and Main broadcast owner");
   require(main, /if\s*\(command === "persisted_atom_read"\)\s*\{\s*return persistedAtomHost\.sendPersistedAtomState\(args\);\s*\}/, "Read IPC must delegate to the unique persisted atom Host");
   require(main, /if\s*\(command === "persisted_atom_update"\)\s*\{\s*return persistedAtomHost\.updatePersistedAtomState\(args\);\s*\}/, "Update IPC must delegate to the unique persisted atom Host");
-  require(main, /registerRendererEventHandler\(ipcMain, broadcast\)/, "Main must register the tested renderer event authority");
+  require(main, /registerRendererEventHandler\(\s*ipcMain,\s*broadcast(?:,|\s*\))/, "Main must register the tested renderer event authority");
   forbid(
     main,
     /ipcMain\.on\(\s*IPC_EMIT_CHANNEL/,
     "Generic renderer emission cannot bypass the Main event authority",
   );
   require("electron/rendererEventPolicy.ts", /event !== "persisted-atom-update"/, "Renderer cannot forge persisted-state acknowledgements");
-  require("electron/rendererEventPolicy.ts", /if\s*\(canBroadcastRendererEvent\(event\)\)\s*broadcast\(event, payload\)/, "The actual IPC listener must enforce renderer event authority");
+  require("electron/rendererEventPolicy.ts", /if\s*\(canBroadcastRendererEvent\(event\)\s*&&\s*!route\?\.\(sender, event, payload\)\)\s*broadcast\(event, payload\)/, "The actual IPC listener must enforce renderer event authority and isolate routed windows");
   require("electron/preload.ts", /emit:[\s\S]*?canBroadcastRendererEvent\(event\)[\s\S]*?send:[\s\S]*?canBroadcastRendererEvent\(event\)/, "Both preload event entry points must reject Main notifications");
   const gateway = "src/lib/api/persistedAtoms.ts";
   require("eslint.config.js", /agentCommandCatalog\.persistedAtomCommands/, "Persisted Host commands must stay behind their typed API gateway");

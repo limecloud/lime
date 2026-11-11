@@ -7100,15 +7100,143 @@ flowchart LR
     RPC --> Service[services: ApiKeyProviderService]
     Service --> DB[(Product DB: opaque secret reference)]
     Service --> Adapter[services: ProviderCredentialStore + bounded process lock]
-    Adapter --> Secrets[infra: secrets / keyring_store]
+    Adapter --> File[default file mode + infra secure_file]
+    Adapter --> Secrets[explicit keyring: infra secrets / keyring_store]
     Secrets --> OS[OS keyring: random passphrase]
     Secrets --> Age[(LIME_HOME/secrets/local.age)]
-    Adapter --> File[explicit file mode + infra secure_file]
     Service --> Provider[existing model-provider wire owner]
 ```
 
-`infra` 直接承接 Codex 通用 secrets/keyring 源码；`services` 负责 Provider 引用、存储选择与数据库补偿，不新增 runtime、账号或网络 owner。默认 keyring-backed age 加密；headless 显式 file 模式复用 Grok-build secure_file 的 Unix0600/Windows ACL。共享目录的 keyring 初始化与 age 读改写持有有界进程锁，不删除锁文件。OS 错误不得静默降级，旧 XOR reader/writer 已删除；DB 字段保留但内容为 opaque reference。跨存储不具备崩溃原子性：数据库提交后的清理失败必须报告，不能声称 SQLite 事务涵盖 keyring。详细配置和恢复约束见公开 Provider 凭据说明。
+`infra` 直接承接 Codex 通用 secrets/keyring 源码；`services` 负责 Provider 引用、存储选择与数据库补偿，不新增 runtime、账号或网络 owner。Provider 默认 File，按 Codex 的 `AuthCredentialsStoreMode::File` 策略复用现役 secure_file 的 Unix0600/Windows ACL，日常读取不访问 OS 密钥库；只有显式 `LIME_CREDENTIALS_STORE=keyring` 使用 keyring-backed age 加密。共享目录的 keyring 初始化与 age 读改写持有有界进程锁，不删除锁文件。OS 错误不得静默降级，旧 XOR reader/writer 已删除；DB 字段保留但内容为 opaque reference。跨存储不具备崩溃原子性：数据库提交后的清理失败必须报告，不能声称 SQLite 事务涵盖 keyring。详细配置和恢复约束见公开 Provider 凭据说明。
 
 Forge resources 与 CLI staging 携带 LICENSE/NOTICE/许可范围与上游法律材料；Apache-2.0/MIT launcher 与 GPL 平台二进制分别声明。来源 revision、哈希和适配见 `internal/exec-plans/issue-155-source-copy-ledger.json`，可发布来源摘要见 `licenses/README.md`。
 
 Architecture impact: major。责任开发者 root 于 2026-10-30 确认该图的 owner、依赖方向、跨进程锁与非原子边界；该确认不是 Windows/OS keyring/packaged 产品验收证据。实施与验证状态见 `internal/exec-plans/issue-155-implementation-plan.md`。
+
+## BYOC 持久云桌面（2026-11-10）
+
+用户自付的 Cloud 管理沿 `Settings -> cloud/desktop -> App Server -> lime-services`，不创建第二 runtime。
+开源 BYOC 不依赖 Lime 运营方的云账号、凭据代理或跨账号委托；资源、账单、对象存储与可撤销授权均归用户。
+Lime 产品账号与供应商授权独立，官方 CLI OAuth 使用用户自己的阿里云身份，凭据保留在用户本机。
+`cloud_desktop_service` 拥有 Alibaba CLI 供应商适配、绑定、核价/购买、启停/快照/释放和持久操作收据；
+同 owner 的 `prepare` 经用户自己的 ECS 云助手下发固定 Ubuntu 24.04 x64 桌面依赖脚本，
+先保存 unknown 再发送单次 RunCommand。响应丢失只按原操作标签和精确实例查询执行，
+不重发安装；未决准备阻止同资源的另一项变更。仅投影固定状态/失败码，屏蔽原始输出。
+`dependenciesReady` 仅表示系统依赖验证通过，`runtimeInstalled/desktopReady` 保持 false；
+Lime 运行包部署使用同 owner 的 `runtime_install` 固定启动器，不建立 SSH 或任意脚本入口。
+Linux 构建入口额外交付相邻 `.tar.gz` 和含压缩包/清单 SHA-256 的 `.tar.gz.json`；
+`linux-guest.py install-archive` 在私有空目录流式解包，只接受一个顶层目录和普通文件，
+拒绝链接、特殊/扩展头、重复/越界路径和超限内容，完整白名单与实际字节通过后委托现役安装器。
+普通目录安装与归档安装共用每用户排他锁，不执行归档元数据或以 root 执行上传内容。
+`linux-guest-bootstrap.py` 是最长 30 分钟的临时制品上传入口，使用 guest 自签证书、
+capability 摘要与固定包摘要；正常 App Server、桌面与 Thread/Turn/Item owner 不变。
+它只提供固定状态/上传/凭据交付/关闭，失败或重启中断不重放安装，关闭终止上传与安装子进程，
+清除本操作的压缩包和 TLS 私钥，保留不含秘密的收据。凭据仅经已认证 TLS 返回。
+`runtime_install` 经云助手准备专属普通用户和短期 systemd 安装服务；root 只执行内置启动器，
+不执行上传内容。目标地址从精确 ECS 身份读取，仅绑定单一私网 IPv4；原始 capability 和任务令牌
+不进入供应商命令/输出。启动器和依赖准备复用 `cloud_assistant` 的精确查询和 unknown 恢复。
+Main 的 `CloudGuestInstallations` 经原生 picker 选择可信包与相邻摘要，以 `safeStorage` 加密保存
+capability、包路径、上传意图和恢复状态，再请求固定启动动作。它只接受管理路径返回的公证书，
+验证 TLS 和目标 IP，拒绝重定向；Renderer 仅经原有 `cloud_desktop_connection` 消费进度。
+上传前持久化意图，断线后只查询原操作与固定状态，不重复启动或 PUT；成功后先将任务凭据交给
+现役连接 owner 加密保存，再关闭临时服务。查看器密码只保留于 Main 的加密安装记录；
+显式查看使用本机原生对话框，密码不进入 Renderer。
+普通状态轮询不会恢复变更；重启后必须显式继续原安装。`dependenciesReady`、上传就绪和安装完成
+均不自动证明桌面、Computer Use 或模型任务可用；本地夹具与云端实机分别验收。
+同 owner 的 `tunnel` 通过用户自己的 ECS `StartTerminalSession` 连接实例本机的
+8787/6080，只在本机回环地址监听。供应商会话 URL 与字节流仅留后端内存，WebSocket
+流隔离依赖库的详细诊断，不写入操作收据；关闭拥有全部连接任务，空闲监听有界退出。
+帧解析接受官方当前使用的 1.00 状态帧与 1.01 数据帧，输入按官方客户端发送 1.01。
+阿里云仍检查实例入站安全组规则；用户须允许当前网络访问对应端口，Lime 不自动改规则。
+云端桌面服务继续绑定回环地址，安全组放行与公网监听分别核对，不能宣称空规则即可连接。
+临时端口不持久化，也不自动重连或重放数据。Cloud 设置的桌面入口只投影通道状态，
+通过现役系统浏览器入口打开 noVNC；本机监听成功不等于桌面或 Computer Use 就绪。
+`cloud_archive_service` 拥有 age 文件归档、本机恢复和加密文件 rclone 传输。Renderer 只拥有表单、
+显示和原收据恢复；云凭据由本机已登录 CLI profile 提供，密钥不经过 Renderer。
+归档传输在本机私有临时副本上核对可信 SHA-256 与 age 文件头，上传不再重新打开原文件；
+下载经相同检查后才无覆盖发布。临时副本需要额外密文磁盘空间，传输不持有恢复私钥，
+完整密文认证仍归恢复操作。Unix 恢复仅保留所有者执行位并收紧为 0700/0600，不执行内容。
+云电脑下载通过现役认证 App Server，由 `cloud_archive_download` 按连接暂存和读取 age 密文；
+归档本身复用 `cloud_archive_service`。Desktop Main 在用户选择的本机目录写私有暂存并校验，
+Renderer 只接收保存结果。断开和超时回收云端暂存，不新增下载服务或用户凭据代理。
+恢复到新云机沿相同边界：目标 App Server 只为认证连接创建一次性接收方，本机 App Server 验证并重新加密原归档，Desktop Main 只上传密文。原恢复身份留在本机；目标 guest 的临时私钥只在内存中。目标复用安全解包并原子发布新目录，提交结果未知时由用户检查目录；归档完成不代表应用或登录恢复。
+同 owner 的 `auth` 使用官方 CLI OAuth 浏览器授权与自动刷新，连接任务以本机文件锁串行化，
+只向 Renderer 投影连接状态和 profile。专用 OAuth 配置、连接元数据与固定版本工具放在
+`cloud-desktops/auth/`，独立于用户默认 CLI 配置和购买 unknown 收据；进程重启后未持租约的
+pending 登录显示已中断，不自行再次打开浏览器。首次官方应用安装遵循阿里云管理员授权。
+`ecs/templates` 只读取启动模板的白名单规格和精确版本，继续调用现役核价/购买 owner，
+不把模板 UserData、密码、额外资源或任意执行内容传入 RunInstances。账号/区域变化清理旧报价。
+AWS、Google Cloud、Cloudflare、腾讯云只展示待实现，不建立空运行时实现。
+同 owner 的 `ecs` 校验既有网络、Ubuntu x86 镜像、无 GPU 规格与 SSH keypair；`purchase`
+共享私有报价、15 分钟确认与跨 profile 别名去重。ECS 固定单台 PostPaid、加密 ESSD、按公网
+流量计费且不自动续费。RunInstances 使用唯一 ClientToken 与操作标签，先持久 unknown，
+之后只查询原操作。锁内只读预检失败返回 `notSubmitted + submitted=false`，允许重新核价，
+不把此状态混为已发送请求的 unknown；旧报价和已发送操作继续去重。仅在精确规格、标签和真实系统盘加密全部核验后绑定并记录 `provisioned`；
+此状态只表示实例创建，桌面与 Lime 安装及任务可用性独立验收。Renderer 的两种购买表单
+共用同一 `useCloudPurchase` 与报价确认组件，不复制供应商状态机或云凭据 authority。
+私有绑定与收据由同模块 `receipts` 管理；释放限定已停机的按量 Wuying/ECS，操作前必须明确丢弃磁盘。
+ECS 只发送非强制 DeleteInstance，不退订包年包月；磁盘遵循供应商现有删除策略，保留盘需单独核对。
+删除仅发送一次，同资源未决释放阻止更换编号重复变更；原收据查询核验精确资源不存在后才记录 released、移出活动列表，异常查询保留未决状态。
+不自动删除快照、共享网络或历史绑定，不将实例释放解释成所有费用归零，也不隐式启用定时释放。
+同 owner 的 `snapshots` 子模块负责精确快照查询与原盘回滚；ECS ResetDisk、无影 ResetSnapshot
+共用现役私有收据与操作锁，不新增 runtime。跨进程操作锁显式解锁，避免 fork/exec 期间重复文件描述符延迟释放。
+回滚前校验停机、原盘归属、可用快照与覆盖确认，未决回滚阻止新编号覆盖或释放。
+受理与供应商观察不能证明应用恢复；启动后由用户验证文件、应用和登录，再沿原收据记录
+`verified + userConfirmed`。该字段是用户确认事实，不是自动应用探测或完整产品实机验收。
+
+```mermaid
+flowchart LR
+  Settings[现役 Cloud 设置] --> RPC[cloud/desktop JSON-RPC]
+  RPC --> Local[本机 App Server processor]
+  Local --> Lifecycle[services 生命周期与收据]
+  Lifecycle --> Ali[本机 Alibaba CLI]
+  Ali --> VM[用户专属持久 Linux 桌面]
+  Local --> Archive[services age 归档与恢复]
+  Archive --> Storage[用户本机或 S3 OSS]
+  RemoteClient[现役远程 session client] --> Auth[认证 WebSocket transport]
+  Auth --> Remote[同源 App Server 与 RuntimeCore]
+  Remote --> Canonical[唯一 Thread Turn Item]
+  Remote --> Native[现役 native adapter 与 Linux helper]
+```
+
+认证 transport 直接接入从 Codex 复制的 `websocket_auth`；非 loopback 无认证与带 Origin 的
+升级请求失败关闭。WebSocket processor 禁止本机云管理、rclone 和恢复私钥操作；文件备份允许使用
+调用方公钥导出远端文件，开启认证后也可在原连接下载密文。云端任务仍由同一
+RuntimeCore/ThreadStore 独占，客户端不复制转录或另建 loop。
+
+Desktop 的 `CloudDesktopWindows` 在 Main 按可信 webContents ID 绑定独立 `ElectronAppServerHost`，
+该 Host 复用现役 `connectRemoteAppServer` 与 JSON-RPC 代理，不建立第二客户端转录或 runtime。
+`AppServerRemoteConnection` 只管理认证连接、显式重连与关闭；断线不重放请求、不回退 stdio。
+云窗口禁用本机动态工具与偏好同步，Main、preload 和隔离 session 分别拒绝本机 IPC、文件 URL、
+浏览器、原生权限与凭据操作；窗口事件与 Host UI persisted atoms 按资源、连接方式与稳定目标隔离。
+`cloud_desktop_connection` 是本机 Host 的连接配置命令，凭据沿用 safeStorage owner，按资源单独
+落在 `cloud-desktop-connections`，不覆盖现有账号 Cloud slot；token 不投影回 Renderer。
+ECS 会话转发保存固定 guest 服务目标和加密 token，Main 在显式打开时委托本机
+`cloud/desktop` 获取临时地址；该地址不持久化，也不参与窗口 namespace。
+显式重连只重建此资源的 appServer 通道，然后重新认证；状态轮询不创建通道或重放任务。
+手工地址连接复用同一凭据和窗口 owner；阿里云管理凭据始终留在本机。
+窗口关闭只断开客户端，云资源生命周期仍归 `cloud/desktop`；任务实际断连行为须以云端验收为准。
+云窗口不投影本机 agentRoot，工作目录来自远端 RPC。重连清除旧审批 token，并刷新 Renderer
+以丢弃旧连接缓存；Linux 部署、原生任务和恢复仍按执行计划逐组验收。
+
+Linux helper 支持 X11 截图/窗口/XTest，并保留既有 grant、lease、fence 与撤销检查；没有
+可靠的锁屏状态或输入监视时返回 blocked。Wuying ASP 实机缺 GNOME ScreenShield，当前
+不得标为 Computer Use ready。备份仅为选定文件，不能代替整机快照或应用恢复验证；已知
+控制目录与恢复身份排除，任意文件中的秘密不保证自动识别。
+
+普通 Linux VM 的 guest 装配归 `electron/native/linux/linux-guest.py`，构建入口为
+`scripts/app-server/linux-guest-build.mjs`。构建复用当前 Cargo runtime、官方校验的 V8
+沙箱产物和现役 native manifest 生成器；安装验证可信 manifest 摘要及实际复制字节，
+按不可变 release 部署，同一用户的 token、桌面文件与应用资料不随升级重建。
+用户 systemd 管理 Xvnc、Xfce、同源 App Server 与 noVNC；监听全部限定 loopback，SSH
+拥有远程接入，不在 guest 保存供应商 profile 或恢复私钥。默认凭据 owner 不降级为明文。
+人工接管与 managed VNC 的系统授权弹窗共用跨进程输入锁；弹窗期间的独立 consent latch
+取消既有 AI 输入，结束后先禁用 VNC 输入再释放锁。禁用失败时保持 blocked；回到 AI
+需显式恢复，不能把查看端关闭解释成同意自动继续。TigerVNC 仅允许受管键鼠参数动态
+切换，每次写入后读回实际值；退出码不能代替状态确认。剪贴板同步与远程改分辨率默认
+关闭。Linux target revision 使用共享协议的非零 u64 序列，窗口消失或锁屏后不复用旧值；
+文本输入在 Caps Lock 开启时拒绝，避免静默改变大小写。安装与平台实测分别记录。
+
+架构责任 root 确认上述 owner、图与依赖方向；实现/真实验收分开记账。完整远程连接、接管、
+云端恢复和发布验收见 [执行计划](../exec-plans/cloud-desktop-byoc-plan.md)，
+来源见 [复制账本](../refactor/cloud-desktop-copy-ledger.json)。

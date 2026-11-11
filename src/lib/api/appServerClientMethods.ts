@@ -12,6 +12,9 @@ type AppServerClientRequestRunner = {
 
 declare module "./appServerClient" {
   interface AppServerClient {
+    requestCloudDesktop(
+      params: appServer.AppServerCloudDesktopParams,
+    ): Promise<appServer.AppServerRequestResult<appServer.AppServerCloudDesktopResponse>>;
     readComputerUseStatus(
       params?: appServer.AppServerComputerUseStatusParams,
     ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseStatusResponse>>;

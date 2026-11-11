@@ -7,6 +7,7 @@ import { PluginCatalogPage } from "./PluginCatalogPage";
 
 const mocks = vi.hoisted(() => ({
   accountId: null as string | null,
+  addMarketplace: vi.fn(),
   accountListeners: new Set<() => void>(),
   appsSubscription: null as null | {
     onUpdate: (apps: unknown[]) => void;
@@ -18,9 +19,11 @@ const mocks = vi.hoisted(() => ({
   reconcilePlugins: vi.fn(),
   readAppsReadiness: vi.fn(),
   readPlugin: vi.fn(),
+  removeMarketplace: vi.fn(),
   setPluginEnabled: vi.fn(),
   subscribeAppsListUpdates: vi.fn(),
   uninstallPlugin: vi.fn(),
+  upgradeMarketplace: vi.fn(),
   toastSuccess: vi.fn(),
 }));
 
@@ -65,12 +68,15 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/api/pluginCatalog", () => ({
+  addMarketplace: (...args: unknown[]) => mocks.addMarketplace(...args),
   installPlugin: (...args: unknown[]) => mocks.installPlugin(...args),
   listPlugins: (...args: unknown[]) => mocks.listPlugins(...args),
   reconcilePlugins: (...args: unknown[]) => mocks.reconcilePlugins(...args),
   readPlugin: (...args: unknown[]) => mocks.readPlugin(...args),
+  removeMarketplace: (...args: unknown[]) => mocks.removeMarketplace(...args),
   setPluginEnabled: (...args: unknown[]) => mocks.setPluginEnabled(...args),
   uninstallPlugin: (...args: unknown[]) => mocks.uninstallPlugin(...args),
+  upgradeMarketplace: (...args: unknown[]) => mocks.upgradeMarketplace(...args),
 }));
 
 function summary(
@@ -346,7 +352,7 @@ describe("PluginCatalogPage", () => {
   it("从 v2 catalog 展示安装状态并读取详情", async () => {
     const container = await renderPage();
 
-    expect(container.textContent).toContain("插件中心");
+    expect(container.textContent).toContain("插件");
     expect(
       container.querySelector(
         '[data-testid="plugin-catalog-card-writer-plugin@personal"]',
@@ -357,6 +363,12 @@ describe("PluginCatalogPage", () => {
       marketplacePath: "/tmp/marketplace.json",
       pluginName: "writer-plugin",
     });
+    await click(
+      container.querySelector(
+        '[data-testid="plugin-catalog-select-writer-plugin@personal"]',
+      ),
+    );
+    await flush();
     expect(container.textContent).toContain("Article Writing");
     expect(
       container
@@ -652,6 +664,14 @@ describe("PluginCatalogPage", () => {
 
   it("收到 typed app/list/updated 后刷新 Apps readiness", async () => {
     const container = await renderPage();
+    await click(
+      container.querySelector(
+        '[data-testid="plugin-catalog-select-writer-plugin@personal"]',
+      ),
+    );
+    await flush();
+    const readinessCallsBeforeUpdate =
+      mocks.readAppsReadiness.mock.calls.length;
     mocks.readAppsReadiness.mockResolvedValueOnce({
       apps: [],
       installed: [
@@ -671,7 +691,9 @@ describe("PluginCatalogPage", () => {
     });
     await flush();
 
-    expect(mocks.readAppsReadiness).toHaveBeenCalledTimes(2);
+    expect(mocks.readAppsReadiness).toHaveBeenCalledTimes(
+      readinessCallsBeforeUpdate + 1,
+    );
     const row = container.querySelector(
       '[data-testid="plugin-catalog-app-readiness-writer-app"]',
     );
@@ -810,14 +832,14 @@ describe("PluginCatalogPage", () => {
   });
 
   it.each([
-    ["zh-CN", "管理市场中的插件，查看详情并安装到当前环境。"],
-    ["zh-TW", "管理市集中的外掛，檢視詳情並安裝到目前環境。"],
+    ["zh-CN", "连接插件，让 Lime 在你的各类工具中协同工作。"],
+    ["zh-TW", "連接外掛，讓 Lime 在你的各種工具中協同工作。"],
     [
       "en-US",
-      "Browse marketplace plugins, inspect their details, and install them.",
+      "Connect plugins so Lime can work with your tools.",
     ],
-    ["ja-JP", "マーケットプレイスのプラグインを確認し、インストールします。"],
-    ["ko-KR", "마켓플레이스 플러그인의 세부 정보를 확인하고 설치합니다."],
+    ["ja-JP", "プラグインを接続して、Lime をさまざまなツールで活用しましょう。"],
+    ["ko-KR", "플러그인을 연결해 Lime이 다양한 도구에서 함께 작동하도록 하세요."],
   ] as const)("%s 展示市场安装文案", async (locale, description) => {
     await changeLimeLocale(locale);
     const container = await renderPage();
@@ -825,5 +847,173 @@ describe("PluginCatalogPage", () => {
     expect(
       container.querySelector('[data-testid="plugin-catalog-install-local"]'),
     ).toBeNull();
+  });
+  it("头部添加按钮提交市场来源并刷新目录", async () => {
+    mocks.addMarketplace.mockResolvedValue({});
+    const container = await renderPage();
+    await click(
+      container.querySelector('[data-testid="plugin-catalog-add"]'),
+    );
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="plugin-catalog-add-source"]',
+    );
+    expect(input).not.toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    await act(async () => {
+      setter.call(input, "https://example.com/marketplace.git");
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const callsBefore = mocks.listPlugins.mock.calls.length;
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="plugin-catalog-add-confirm"]',
+        )
+        ?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mocks.addMarketplace).toHaveBeenCalledWith({
+      source: "https://example.com/marketplace.git",
+    });
+    await vi.waitFor(() =>
+      expect(mocks.listPlugins.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+  });
+  it("插件设置对话框可移除市场并刷新目录", async () => {
+    mocks.removeMarketplace.mockResolvedValue({});
+    const container = await renderPage();
+    await click(
+      container.querySelector('[data-testid="plugin-catalog-settings"]'),
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="plugin-catalog-settings-dialog"]',
+      ),
+    ).not.toBeNull();
+    const callsBefore = mocks.listPlugins.mock.calls.length;
+    await click(
+      container.querySelector(
+        '[data-testid="plugin-catalog-remove-marketplace-personal"]',
+      ),
+    );
+    await flush();
+    expect(mocks.removeMarketplace).toHaveBeenCalledWith({
+      marketplaceName: "personal",
+    });
+    await vi.waitFor(() =>
+      expect(mocks.listPlugins.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+  });
+  it("插件设置对话框可更新市场并刷新目录", async () => {
+    mocks.upgradeMarketplace.mockResolvedValue({});
+    const container = await renderPage();
+    await click(
+      container.querySelector('[data-testid="plugin-catalog-settings"]'),
+    );
+    const callsBefore = mocks.listPlugins.mock.calls.length;
+    await click(
+      container.querySelector(
+        '[data-testid="plugin-catalog-upgrade-marketplace-personal"]',
+      ),
+    );
+    await flush();
+    expect(mocks.upgradeMarketplace).toHaveBeenCalledWith({
+      marketplaceName: "personal",
+    });
+    await vi.waitFor(() =>
+      expect(mocks.listPlugins.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+  });
+  it("设置对话框可直接转到添加市场", async () => {
+    const container = await renderPage();
+    await click(
+      container.querySelector('[data-testid="plugin-catalog-settings"]'),
+    );
+    await click(
+      container.querySelector('[data-testid="plugin-catalog-settings-add"]'),
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="plugin-catalog-add-marketplace"]',
+      ),
+    ).not.toBeNull();
+  });
+  it("按插件 interface.category 分组展示", async () => {
+    mocks.listPlugins.mockResolvedValue({
+      marketplaces: [
+        {
+          name: "personal",
+          path: "/tmp/marketplace.json",
+          plugins: [
+            summary({
+              id: "writer@personal",
+              interface: {
+                displayName: "Writer",
+                shortDescription: "Write",
+                category: "Productivity",
+              },
+            }),
+            summary({
+              id: "slack@personal",
+              interface: {
+                displayName: "Slack",
+                shortDescription: "Chat",
+                category: "Communication",
+              },
+            }),
+          ],
+        },
+      ],
+    });
+    const container = await renderPage();
+    expect(container.textContent).toContain("Productivity");
+    expect(container.textContent).toContain("Communication");
+  });
+  it("未安装插件的详情页显示安装入口", async () => {
+    mocks.listPlugins.mockResolvedValue({
+      marketplaces: [
+        {
+          name: "personal",
+          path: "/tmp/marketplace.json",
+          plugins: [summary({ installed: false })],
+        },
+      ],
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <PluginCatalogPage
+          pageParams={{ selectedPluginId: "writer-plugin@personal" }}
+        />,
+      );
+    });
+    await flush();
+    mounted.push({ container, root });
+    const detail = container.querySelector(
+      '[data-testid="plugin-catalog-detail"]',
+    );
+    expect(detail).not.toBeNull();
+    expect(detail?.textContent).toContain("安装插件");
+  });
+  it("插件详情展示信息表与版本", async () => {
+    const container = await renderPage();
+    await click(
+      container.querySelector(
+        '[data-testid="plugin-catalog-select-writer-plugin@personal"]',
+      ),
+    );
+    await flush();
+    const detail = container.querySelector(
+      '[data-testid="plugin-catalog-detail"]',
+    );
+    expect(detail?.textContent).toContain("信息");
+    expect(detail?.textContent).toContain("版本");
+    expect(detail?.textContent).toContain("1.2.3");
   });
 });

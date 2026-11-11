@@ -6761,7 +6761,6 @@
       "allowedPaths": [
         "lime-rs/crates/app-server/src/local_data_source/legacy_message_backfill_source.rs",
         "lime-rs/crates/app-server/src/local_data_source/tests.rs",
-        "lime-rs/crates/core/src/database/dao/agent.rs",
         "lime-rs/crates/core/src/database/dao/chat.rs",
         "lime-rs/crates/core/src/database/migration/general_chat_migration.rs"
       ]
@@ -6780,7 +6779,6 @@
       "allowedPaths": [
         "lime-rs/crates/app-server/src/local_data_source/legacy_message_backfill_source.rs",
         "lime-rs/crates/app-server/src/local_data_source/tests.rs",
-        "lime-rs/crates/core/src/database/dao/agent.rs",
         "lime-rs/crates/core/src/database/dao/chat.rs",
         "lime-rs/crates/core/src/database/migration/general_chat_migration.rs",
         "lime-rs/crates/agent/src/agent_session_store/legacy_conversation.rs",

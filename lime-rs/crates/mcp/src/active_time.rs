@@ -1,6 +1,6 @@
 //! Connection-local active-time accounting for MCP operations.
 //!
-//! Adapted from Codex commit `68a1d82a413630892b64258fd3e79786fc419312`
+//! Adapted from upstream commit `68a1d82a413630892b64258fd3e79786fc419312`
 //! (`fix(mcp) pause timer for elicitations (#17566)`).
 
 use std::future::Future;

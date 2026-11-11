@@ -23,6 +23,7 @@ impl RequestProcessor {
             v2::METHOD_COMPUTER_USE_LEASE_RELEASE => ready(self.handle_computer_use_release(params, connection_request_id)).boxed(),
             v2::METHOD_ROLLOUT_COMPRESS => self.handle_rollout_compress().boxed(),
             v2::METHOD_ACCOUNT_LOGIN_START => self.handle_account_login_start(params).boxed(),
+            v2::METHOD_CLOUD_DESKTOP => self.handle_cloud_desktop(params, connection_request_id).boxed(),
             v2::METHOD_CLOUD_REQUEST => self.handle_cloud_request(params).boxed(),
             v2::METHOD_ACCOUNT_READ => self.handle_account_read(params).boxed(),
             v2::METHOD_ACCOUNT_LOGOUT => self.handle_account_logout(params).boxed(),

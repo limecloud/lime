@@ -1,5 +1,7 @@
 mod outgoing_message;
 mod transport;
+#[path = "websocket_auth/lib.rs"]
+pub mod websocket_auth;
 
 use app_server_protocol::JsonRpcMessage;
 pub use outgoing_message::ConnectionId;

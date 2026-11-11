@@ -39,7 +39,6 @@ describe("ProtocolSkillEnabledControl", () => {
       root.render(
         <LocalSkillRow
           installedSkillPresentationCopy={{}}
-          onAutoLoadChange={vi.fn()}
           onDetailOpen={vi.fn()}
           preferences={{}}
           skill={skill}
@@ -49,10 +48,8 @@ describe("ProtocolSkillEnabledControl", () => {
     });
   }
 
-  it("唯一协议路径匹配时可以切换启用状态", () => {
-    const onProtocolSkillEnabledChange = vi.fn();
+  it("唯一协议路径启用时显示绿色勾选", () => {
     renderRow({
-      onProtocolSkillEnabledChange,
       protocolSkillEnabledStates: [
         {
           name: "writer",
@@ -62,20 +59,33 @@ describe("ProtocolSkillEnabledControl", () => {
       ],
     });
 
-    const toggle = container.querySelector(
-      '[data-testid="skills-protocol-enabled-switch"]',
-    ) as HTMLButtonElement | null;
-    expect(toggle?.getAttribute("aria-checked")).toBe("true");
-    act(() => {
-      toggle?.click();
-    });
-    expect(onProtocolSkillEnabledChange).toHaveBeenCalledWith(skill, false);
+    const check = container.querySelector(
+      '[data-testid="skills-installed-check"]',
+    );
+    expect(check).not.toBeNull();
+    expect(check?.innerHTML).toContain("text-emerald-600");
   });
 
-  it("没有唯一匹配时不显示启用开关", () => {
+  it("唯一协议路径停用时勾选置灰", () => {
+    renderRow({
+      protocolSkillEnabledStates: [
+        {
+          name: "writer",
+          path: "/skills/writer/SKILL.md",
+          enabled: false,
+        },
+      ],
+    });
+
+    const check = container.querySelector(
+      '[data-testid="skills-installed-check"]',
+    );
+    expect(check?.innerHTML).toContain("text-slate-300");
+  });
+
+  it("没有唯一匹配时保持默认勾选", () => {
     renderRow({
       skill: { ...skill, localDirectoryPath: "/skills" },
-      onProtocolSkillEnabledChange: vi.fn(),
       protocolSkillEnabledStates: [
         {
           name: "writer",
@@ -90,8 +100,9 @@ describe("ProtocolSkillEnabledControl", () => {
       ],
     });
 
-    expect(
-      container.querySelector('[data-testid="skills-protocol-enabled-switch"]'),
-    ).toBeNull();
+    const check = container.querySelector(
+      '[data-testid="skills-installed-check"]',
+    );
+    expect(check?.innerHTML).toContain("text-emerald-600");
   });
 });

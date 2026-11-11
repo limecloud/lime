@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dataDiskGib": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "desktopType": {
+      "type": "string"
+    },
+    "endUserId": {
+      "type": "string"
+    },
+    "imageId": {
+      "type": "string"
+    },
+    "officeSiteId": {
+      "type": "string"
+    },
+    "policyGroupId": {
+      "type": "string"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "regionId": {
+      "type": "string"
+    },
+    "systemDiskGib": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "dataDiskGib",
+    "desktopType",
+    "endUserId",
+    "imageId",
+    "officeSiteId",
+    "policyGroupId",
+    "profile",
+    "regionId",
+    "systemDiskGib"
+  ],
+  "title": "WuyingDesktopSpec",
+  "type": "object"
+}

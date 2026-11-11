@@ -104,11 +104,12 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     let expected_permission_profile = std::env::var("LIME_TEST_PERMISSION_PROFILE").ok();
     let scenario =
         std::env::var("LIME_TEST_TERMINAL_SCENARIO").unwrap_or_else(|_| "complete".to_string());
+    let agents_command = scenario == "agents-command";
     // Keep the interrupt backend alive long enough for the real PTY event
     // loop to deliver turn/interrupt before the fixture timeout fires.
     let backend_timeout_ms = if matches!(
         scenario.as_str(),
-        "interrupt" | "queue-edit" | "agents-overview"
+        "interrupt" | "queue-edit" | "agents-overview" | "agents-command"
     ) {
         "30000"
     } else {
@@ -124,7 +125,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
 
     let mut command = CommandBuilder::new(cli_bin);
     for argument in [
-        OsString::from("tui"),
+        OsString::from(if agents_command { "agents" } else { "tui" }),
         OsString::from("--cd"),
         cwd.as_os_str().to_os_string(),
         OsString::from("--model"),
@@ -212,13 +213,15 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         reasoning_shortcuts::respond_to_palette_probes(&mut writer, &output_rx, &mut output);
     }
 
-    wait_for_marker(
-        &output_rx,
-        &mut output,
-        "Ask Lime to do anything",
-        Duration::from_secs(10),
-    );
-    terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
+    if !agents_command {
+        wait_for_marker(
+            &output_rx,
+            &mut output,
+            "Ask Lime to do anything",
+            Duration::from_secs(10),
+        );
+        terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
+    }
     if scenario == "complete" {
         composer::exercise_multiline_surface(
             &mut writer,
@@ -361,6 +364,33 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         agents_overview_resumed_screen = Some(terminal_screen_text(&output));
         terminal_title::wait_for_named_thread(&output_rx, &mut output, "Gate B background");
         thread_input::exercise_round_trip(&mut writer, &output_rx, &mut output, &ledger_path);
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+    } else if scenario == "agents-command" {
+        wait_for_screen(
+            &output_rx,
+            &mut output,
+            "lime agents starts directly in the Agent command center",
+            |screen| screen.contains("Agent command center"),
+        );
+        wait_for_screen_marker(&output_rx, &mut output, "f9 open", Duration::from_secs(10));
+        wait_for_screen_marker(
+            &output_rx,
+            &mut output,
+            "ctrl+x q back",
+            Duration::from_secs(10),
+        );
+        writer
+            .write_all(b"\x18q")
+            .expect("configured back chord leaves Agent command center");
+        writer.flush().expect("flush center back chord");
+        wait_for_screen(
+            &output_rx,
+            &mut output,
+            "back chord returns to the composer",
+            |screen| !screen.contains("Agent command center"),
+        );
+        eprintln!("TUI_AGENTS_COMMAND_OK screen=overview back=composer");
         writer.write_all(&[4]).expect("exit TUI");
         writer.flush().expect("flush TUI exit");
     } else if scenario == "complete" {
@@ -573,7 +603,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     } else {
         write_typed_text(&mut writer, prompt.as_bytes());
     }
-    if scenario != "agents-overview" {
+    if !matches!(scenario.as_str(), "agents-overview" | "agents-command") {
         // A scheduler can coalesce typed bytes into a paste burst. An explicit
         // editing key flushes that burst before Enter without timing guesses.
         writer
@@ -587,13 +617,13 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush prompt");
     }
     let visible_result = match scenario.as_str() {
-        "agents-overview" => "Agent command center",
+        "agents-overview" | "agents-command" => "Agent command center",
         "interrupt" => "INTERRUPT_READY",
         "queue-edit" => &queue_prompt,
         "failure" => "fixture backend failure",
         _ => &completed_text,
     };
-    if scenario != "agents-overview" {
+    if !matches!(scenario.as_str(), "agents-overview" | "agents-command") {
         let marker = match scenario.as_str() {
             "approval" => "Allow terminal command?",
             // Cursor-addressed renders may split the full question across writes; the

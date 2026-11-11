@@ -72,6 +72,7 @@
 - Codex 设置与队列接续：[MCP 草稿](./codex-settings-mcp-draft.md)、[Experimental 草稿](./codex-settings-experimental-draft.md)、[Media 草稿](./codex-settings-media-draft.md)、[Developer/Media 搜索](./codex-settings-search-developer-media.md)、[真实设置导航验收](./codex-settings-draft-native.md)、[Queue 拖拽](./codex-queue-drag-alignment.md)。
 - Agent Phase 6 Provider Reply Backend 执行计划：`internal/exec-plans/agent-phase6-provider-reply-backend-plan.md`
 - 云端套餐与支付边界收口计划：`internal/exec-plans/cloud-commerce-user-center-boundary.md`
+- 用户自付持久云桌面、Computer Use 与加密备份：[BYOC Cloud 方案与执行计划](./cloud-desktop-byoc-plan.md)
 - Agent QC 运营级测试体系执行计划：`internal/exec-plans/agent-qc-ops-testing-plan.md`
 - Agent App v2 独立安装与 Runtime 底座拆分执行计划：`internal/exec-plans/agentapp-v2-standalone-runtime.md`
 - Codex 插件重构与 LimeCore 联动：`internal/exec-plans/codex-plugin-reconstruction.md`

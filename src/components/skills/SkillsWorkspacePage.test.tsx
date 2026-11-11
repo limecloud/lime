@@ -14,10 +14,11 @@ import {
   useSkillsWorkspacePageTestLifecycle,
 } from "./SkillsWorkspacePage.testFixtures";
 
+
 describe("SkillsWorkspacePage", () => {
   useSkillsWorkspacePageTestLifecycle();
 
-  it("应按分页隔离技能广场、内置、用户安装", () => {
+  it("已安装区常驻顶部，技能广场/内置按标签切换", () => {
     const { container } = renderPage();
 
     expect(
@@ -28,18 +29,18 @@ describe("SkillsWorkspacePage", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="skills-installed-view"]'),
-    ).toBeNull();
-    expect(container.textContent).toContain("技能广场");
-    expect(container.textContent).toContain("官方精选");
+    ).toBeTruthy();
+    expect(container.textContent).toContain("推荐");
+    expect(container.textContent).toContain("个技能");
     expect(container.textContent).toContain("数据分析");
     expect(container.textContent).not.toContain("深度研究");
-    expect(container.textContent).not.toContain("写作助手");
+    expect(container.textContent).toContain("写作助手");
     expect(
       findButtonIn(findMarketplaceCard(container, "数据分析")!, "卸载"),
     ).toBeUndefined();
 
     act(() => {
-      findButton(container, "内置")?.click();
+      findButton(container, "系统")?.click();
     });
 
     expect(
@@ -49,12 +50,11 @@ describe("SkillsWorkspacePage", () => {
       container.querySelector('[data-testid="skills-builtin-view"]'),
     ).toBeTruthy();
     expect(container.textContent).toContain("ASP.NET Core");
-    expect(container.textContent).toContain("自动加载");
-    expect(container.textContent).not.toContain("写作助手");
-    expect(container.textContent).not.toContain("卸载");
+    expect(container.textContent).toContain("已安装");
+    expect(container.textContent).toContain("写作助手");
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
 
     expect(
@@ -64,7 +64,7 @@ describe("SkillsWorkspacePage", () => {
       container.querySelector('[data-testid="skills-installed-view"]'),
     ).toBeTruthy();
     expect(container.textContent).toContain("写作助手");
-    expect(container.textContent).toContain("自动加载");
+    expect(container.textContent).toContain("已安装");
     openLocalSkillMenu(container);
     expect(container.textContent).toContain("在聊天中试用");
     expect(container.textContent).toContain("重命名");
@@ -83,13 +83,17 @@ describe("SkillsWorkspacePage", () => {
     expect(shell?.querySelector("main")?.className).toContain(
       "bg-[color:var(--lime-surface)]",
     );
-    expect(card?.className).toContain("bg-[color:var(--lime-surface)]");
     expect(card?.className).toContain(
-      "border-[color:var(--lime-surface-border)]",
+      "hover:bg-[color:var(--lime-surface-hover)]",
     );
+    expect(card?.className).toContain("rounded-lg");
 
     await act(async () => {
-      findButtonIn(card!, "详情")?.click();
+      card
+        ?.querySelector<HTMLButtonElement>(
+          '[data-testid="skills-marketplace-open"]',
+        )
+        ?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -107,7 +111,7 @@ describe("SkillsWorkspacePage", () => {
     const { container, onNavigate } = renderPage();
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
     openLocalSkillMenu(container);
     await act(async () => {
@@ -675,14 +679,18 @@ describe("SkillsWorkspacePage", () => {
     const { container } = renderPage();
 
     act(() => {
-      findButton(container, "内置")?.click();
+      findButton(container, "系统")?.click();
     });
 
     const row = findLocalSkillRow(container, "aspnet-core");
     expect(row).toBeTruthy();
 
     await act(async () => {
-      findButtonIn(row!, "详情")?.click();
+      row
+        ?.querySelector<HTMLButtonElement>(
+          '[data-testid="skills-local-skill-detail"]',
+        )
+        ?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -704,14 +712,18 @@ describe("SkillsWorkspacePage", () => {
     const { container } = renderPage();
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
 
     const row = findLocalSkillRow(container, "writer");
     expect(row).toBeTruthy();
 
     await act(async () => {
-      findButtonIn(row!, "详情")?.click();
+      row
+        ?.querySelector<HTMLButtonElement>(
+          '[data-testid="skills-local-skill-detail"]',
+        )
+        ?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -782,12 +794,16 @@ describe("SkillsWorkspacePage", () => {
     const { container } = renderPage();
 
     act(() => {
-      findButton(container, "用户安装")?.click();
+      findButton(container, "个人")?.click();
     });
 
     const row = findLocalSkillRow(container, "writer");
     await act(async () => {
-      findButtonIn(row!, "详情")?.click();
+      row
+        ?.querySelector<HTMLButtonElement>(
+          '[data-testid="skills-local-skill-detail"]',
+        )
+        ?.click();
       await Promise.resolve();
       await Promise.resolve();
     });

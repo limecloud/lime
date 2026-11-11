@@ -12,13 +12,10 @@ import {
 import { FileDiff, Files, Globe, SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
-import { SettingsTabs } from "@/types/settings";
 import {
   readProjectGitStatus,
   type ProjectGitStatus,
 } from "@/lib/api/projectGit";
-import { LocalConversationActions } from "./LocalConversationActions";
 import { ThreadSidePanelLauncher } from "./right-surface/ThreadSidePanelLauncher";
 import { FileTabLifecycleProvider } from "./text-file-editor/FileTabLifecycle";
 import { FileTabDraftContext } from "./text-file-editor/fileTabDraftContext";
@@ -143,7 +140,6 @@ export function useWorkspaceRightSurfaceHostRuntime({
   );
   const { t } = useTranslation("agent");
   const root = hostRuntimeParams.canvasWorkbenchRootPath?.trim() || null;
-  const navigate = useAppNavigationRequest();
   const openLink = useWorkspaceLinkOpening({
     sessionId: hostRuntimeParams.sceneSessionId,
     threadId: hostRuntimeParams.sceneThreadId,
@@ -159,7 +155,7 @@ export function useWorkspaceRightSurfaceHostRuntime({
       ),
   });
   const gitContext = useMemo(() => ({ root }), [root]);
-  const [gitRefresh, setGitRefresh] = useState(0);
+  const [gitRefresh] = useState(0);
   const [gitStatus, setGitStatus] = useState<{
     context: typeof gitContext;
     available: boolean;
@@ -352,28 +348,12 @@ export function useWorkspaceRightSurfaceHostRuntime({
     launcher: createElement(
       Fragment,
       null,
-      root && hostRuntimeParams.sceneSessionId && available.has("shell")
-        ? createElement(LocalConversationActions, {
-            key: JSON.stringify([hostRuntimeParams.sceneSessionId, root]),
-            workspaceRoot: root,
-            status: gitStatus?.context === gitContext ? gitStatus.status : null,
-            loading: gitStatus?.context !== gitContext,
-            failed: gitStatus?.context === gitContext && gitStatus.failed,
-            onRefresh: () => setGitRefresh((value) => value + 1),
-            onRunAction: rightSurfaceRuntime.handleRunAction,
-            onConfigureActions: navigate
-              ? (configPath: string | null) =>
-                  navigate("settings", {
-                    tab: SettingsTabs.LocalEnvironments,
-                    localEnvironmentFocus: {
-                      workspaceRoot: root,
-                      ...(configPath ? { configPath } : {}),
-                      requestKey: Date.now(),
-                    },
-                  })
-              : undefined,
-          })
-        : null,
+      createElement("span", {
+        key: "header-panel-divider",
+        "aria-hidden": true,
+        className:
+          "mx-0.5 h-4 w-px shrink-0 bg-[color:var(--lime-chrome-border)]",
+      }),
       createElement(ThreadSidePanelLauncher, {
         open: rightSurfaceRuntime.rightSurfaceState.activeSurface !== null,
         onToggle: () =>

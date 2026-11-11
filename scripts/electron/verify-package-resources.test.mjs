@@ -86,6 +86,7 @@ function createResourceRoot({
     "licenses/Apache-2.0.txt",
     "licenses/OpenAI-NOTICE.txt",
     "licenses/SpaceXAI-LICENSE.txt",
+    "licenses/bzip2-LICENSE.txt",
   ]) {
     copyFileSync(path.resolve(material), path.join(root, material));
   }

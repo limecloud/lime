@@ -4,37 +4,9 @@ use app_server_protocol::protocol::v2::{
     GrantedPermissionProfile, SandboxPolicy,
 };
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 const MACOS_SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
-const PROTECTED_METADATA_NAMES: [&str; 3] = [".git", ".lime", ".agents"];
-
-const SEATBELT_BASE_POLICY: &str = r#"
-(version 1)
-(deny default)
-(allow process-exec)
-(allow process-fork)
-(allow signal (target same-sandbox))
-(allow process-info* (target same-sandbox))
-(allow file-read*)
-(allow file-map-executable)
-(allow file-write-data (literal "/dev/null"))
-(allow file-read* file-write* (literal "/dev/null"))
-(allow file-read* file-write* (subpath "/dev/fd"))
-(allow sysctl-read)
-(allow mach-lookup)
-(allow ipc-posix-sem)
-(allow ipc-posix-shm-read*)
-(allow ipc-posix-shm-write-create)
-(allow ipc-posix-shm-write-data)
-(allow ipc-posix-shm-write-unlink)
-(allow user-preference-read)
-(allow pseudo-tty)
-(allow file-read* file-write* file-ioctl (literal "/dev/ptmx"))
-(allow file-read* file-write* file-ioctl (regex #"^/dev/ttys[0-9]+"))
-(allow network-outbound (literal "/private/var/run/syslog"))
-"#;
-
 #[derive(Debug)]
 pub struct SandboxCommandRequest<'a> {
     pub backend: SandboxBackend,
@@ -49,6 +21,9 @@ pub enum SandboxCommandError {
     EmptyCommand,
     UnsupportedBackend(SandboxBackend),
     UnsupportedPolicy(String),
+    InvalidPath(String),
+    Policy(String),
+    Seatbelt(String),
 }
 
 impl fmt::Display for SandboxCommandError {
@@ -65,6 +40,9 @@ impl fmt::Display for SandboxCommandError {
             Self::UnsupportedPolicy(policy) => {
                 write!(formatter, "sandbox policy '{policy}' is unsupported")
             }
+            Self::InvalidPath(path) => write!(formatter, "sandbox path '{path}' is invalid"),
+            Self::Policy(message) => write!(formatter, "sandbox policy failed: {message}"),
+            Self::Seatbelt(message) => write!(formatter, "seatbelt policy failed: {message}"),
         }
     }
 }
@@ -87,65 +65,209 @@ pub fn prepare_sandbox_command(
     }
 
     match request.backend {
-        SandboxBackend::Seatbelt => Ok(prepare_seatbelt_command(
+        SandboxBackend::Seatbelt => {
+            #[cfg(target_os = "macos")]
+            {
+                prepare_seatbelt_command(
+                    request.command,
+                    request.working_directory,
+                    request.policy,
+                    request.granted_permissions,
+                )
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                Err(SandboxCommandError::UnsupportedBackend(request.backend))
+            }
+        }
+        SandboxBackend::LinuxSandbox => prepare_bubblewrap_command(
             request.command,
             request.working_directory,
             request.policy,
             request.granted_permissions,
-        )),
-        SandboxBackend::LinuxSandbox => Ok(prepare_bubblewrap_command(
-            request.command,
-            request.working_directory,
-            request.policy,
-            request.granted_permissions,
-        )),
+        ),
         SandboxBackend::None | SandboxBackend::RestrictedToken => {
             Err(SandboxCommandError::UnsupportedBackend(request.backend))
         }
     }
 }
 
+#[cfg(target_os = "macos")]
 fn prepare_seatbelt_command(
     command: Vec<String>,
     working_directory: &Path,
     policy: &SandboxPolicy,
     granted_permissions: Option<&GrantedPermissionProfile>,
-) -> Vec<String> {
-    let mut profile = SEATBELT_BASE_POLICY.to_string();
-    let mut parameters = Vec::new();
-    for (index, root) in policy::writable_roots(policy, working_directory)
-        .iter()
-        .enumerate()
-    {
-        profile.push_str(&format!(
-            "\n(allow file-write* (subpath (param \"WRITABLE_ROOT_{index}\")))\n"
-        ));
-        parameters.push(format!(
-            "-DWRITABLE_ROOT_{index}={}",
-            root.to_string_lossy()
-        ));
-        for name in PROTECTED_METADATA_NAMES {
-            profile.push_str(&format!(
-                "(deny file-write* (subpath (param \"PROTECTED_{index}_{name}\")))\n"
-            ));
-            parameters.push(format!(
-                "-DPROTECTED_{index}_{name}={}",
-                root.join(name).to_string_lossy()
-            ));
+) -> Result<Vec<String>, SandboxCommandError> {
+    let file_system = domain_file_system_policy(policy, granted_permissions, working_directory)?;
+    let network = if granted_network_enabled(policy, granted_permissions) {
+        lime_permissions::NetworkSandboxPolicy::Enabled
+    } else {
+        lime_permissions::NetworkSandboxPolicy::Restricted
+    };
+    let args = super::seatbelt::create_seatbelt_command_args(
+        super::seatbelt::CreateSeatbeltCommandArgsParams {
+            command,
+            file_system_sandbox_policy: &file_system,
+            network_sandbox_policy: network,
+            sandbox_policy_cwd: working_directory,
+            extra_allow_unix_sockets: &[],
+        },
+    )
+    .map_err(|error| SandboxCommandError::Seatbelt(error.to_string()))?;
+    let mut wrapped = vec![MACOS_SANDBOX_EXEC.to_string()];
+    wrapped.extend(args);
+    Ok(wrapped)
+}
+
+fn domain_file_system_policy(
+    policy: &SandboxPolicy,
+    granted_permissions: Option<&GrantedPermissionProfile>,
+    working_directory: &Path,
+) -> Result<lime_permissions::FileSystemSandboxPolicy, SandboxCommandError> {
+    let domain_policy = domain_sandbox_policy(policy)?;
+    let mut file_system = lime_permissions::FileSystemSandboxPolicy::from(&domain_policy);
+    if let Some(permissions) = granted_permissions.and_then(|value| value.file_system.as_ref()) {
+        file_system
+            .entries
+            .extend(domain_file_system_entries(permissions, working_directory)?);
+        if let Some(depth) = permissions.glob_scan_max_depth {
+            file_system.glob_scan_max_depth = Some(depth);
         }
     }
-    if policy::allows_network(policy) {
-        profile.push_str("\n(allow network*)\n");
-    }
-    if let Some(permissions) = granted_permissions {
-        append_seatbelt_permissions(&mut profile, permissions, working_directory);
-    }
+    Ok(file_system)
+}
 
-    let mut wrapped = vec![MACOS_SANDBOX_EXEC.to_string(), "-p".to_string(), profile];
-    wrapped.extend(parameters);
-    wrapped.push("--".to_string());
-    wrapped.extend(command);
-    wrapped
+fn domain_sandbox_policy(
+    policy: &SandboxPolicy,
+) -> Result<lime_permissions::SandboxPolicy, SandboxCommandError> {
+    Ok(match policy {
+        SandboxPolicy::DangerFullAccess => lime_permissions::SandboxPolicy::DangerFullAccess,
+        SandboxPolicy::ReadOnly { network_access } => lime_permissions::SandboxPolicy::ReadOnly {
+            network_access: *network_access,
+        },
+        SandboxPolicy::ExternalSandbox { network_access } => {
+            lime_permissions::SandboxPolicy::ExternalSandbox {
+                network_access: match network_access {
+                    app_server_protocol::protocol::v2::NetworkAccess::Enabled => {
+                        lime_permissions::NetworkAccess::Enabled
+                    }
+                    app_server_protocol::protocol::v2::NetworkAccess::Restricted => {
+                        lime_permissions::NetworkAccess::Restricted
+                    }
+                },
+            }
+        }
+        SandboxPolicy::WorkspaceWrite {
+            writable_roots,
+            network_access,
+            exclude_tmpdir_env_var,
+            exclude_slash_tmp,
+        } => lime_permissions::SandboxPolicy::WorkspaceWrite {
+            writable_roots: writable_roots
+                .iter()
+                .map(|root| {
+                    lime_utils_absolute_path::AbsolutePathBuf::from_absolute_path(root.as_ref())
+                        .map_err(|error| SandboxCommandError::InvalidPath(error.to_string()))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            network_access: *network_access,
+            exclude_tmpdir_env_var: *exclude_tmpdir_env_var,
+            exclude_slash_tmp: *exclude_slash_tmp,
+        },
+    })
+}
+
+fn granted_network_enabled(
+    policy: &SandboxPolicy,
+    granted_permissions: Option<&GrantedPermissionProfile>,
+) -> bool {
+    policy::allows_network(policy)
+        || granted_permissions
+            .and_then(|permissions| permissions.network.as_ref())
+            .and_then(|network| network.enabled)
+            .unwrap_or(false)
+}
+
+fn domain_file_system_entries(
+    permissions: &AdditionalFileSystemPermissions,
+    cwd: &Path,
+) -> Result<Vec<lime_permissions::FileSystemSandboxEntry>, SandboxCommandError> {
+    let mut entries = Vec::new();
+    for path in permissions.read.as_deref().unwrap_or_default() {
+        entries.push(domain_entry(
+            &FileSystemPath::Path { path: path.clone() },
+            FileSystemAccessMode::Read,
+            cwd,
+        )?);
+    }
+    for path in permissions.write.as_deref().unwrap_or_default() {
+        entries.push(domain_entry(
+            &FileSystemPath::Path { path: path.clone() },
+            FileSystemAccessMode::Write,
+            cwd,
+        )?);
+    }
+    for entry in permissions.entries.as_deref().unwrap_or_default() {
+        entries.push(domain_entry(&entry.path, entry.access, cwd)?);
+    }
+    Ok(entries)
+}
+
+fn domain_entry(
+    path: &FileSystemPath,
+    access: FileSystemAccessMode,
+    cwd: &Path,
+) -> Result<lime_permissions::FileSystemSandboxEntry, SandboxCommandError> {
+    let path = match path {
+        FileSystemPath::Path { path } => {
+            let absolute = Path::new(path);
+            let absolute = if absolute.is_absolute() {
+                absolute.to_path_buf()
+            } else {
+                cwd.join(absolute)
+            };
+            let absolute = lime_utils_absolute_path::AbsolutePathBuf::from_absolute_path(absolute)
+                .map_err(|error| SandboxCommandError::InvalidPath(error.to_string()))?;
+            lime_permissions::FileSystemPath::Path {
+                path: lime_utils_path_uri::PathUri::from_abs_path(&absolute),
+            }
+        }
+        FileSystemPath::GlobPattern { pattern } => lime_permissions::FileSystemPath::GlobPattern {
+            pattern: pattern.clone(),
+        },
+        FileSystemPath::Special { value } => lime_permissions::FileSystemPath::Special {
+            value: domain_special_path(value),
+        },
+    };
+    Ok(lime_permissions::FileSystemSandboxEntry::new(
+        path,
+        match access {
+            FileSystemAccessMode::Read => lime_permissions::FileSystemAccessMode::Read,
+            FileSystemAccessMode::Write => lime_permissions::FileSystemAccessMode::Write,
+            FileSystemAccessMode::Deny => lime_permissions::FileSystemAccessMode::Deny,
+        },
+    ))
+}
+
+fn domain_special_path(value: &FileSystemSpecialPath) -> lime_permissions::FileSystemSpecialPath {
+    match value {
+        FileSystemSpecialPath::Root => lime_permissions::FileSystemSpecialPath::Root,
+        FileSystemSpecialPath::Minimal => lime_permissions::FileSystemSpecialPath::Minimal,
+        FileSystemSpecialPath::ProjectRoots { subpath } => {
+            lime_permissions::FileSystemSpecialPath::ProjectRoots {
+                subpath: subpath.clone(),
+            }
+        }
+        FileSystemSpecialPath::Tmpdir => lime_permissions::FileSystemSpecialPath::Tmpdir,
+        FileSystemSpecialPath::SlashTmp => lime_permissions::FileSystemSpecialPath::SlashTmp,
+        FileSystemSpecialPath::Unknown { path, subpath } => {
+            lime_permissions::FileSystemSpecialPath::Unknown {
+                path: path.clone(),
+                subpath: subpath.clone(),
+            }
+        }
+    }
 }
 
 fn prepare_bubblewrap_command(
@@ -153,7 +275,14 @@ fn prepare_bubblewrap_command(
     working_directory: &Path,
     policy: &SandboxPolicy,
     granted_permissions: Option<&GrantedPermissionProfile>,
-) -> Vec<String> {
+) -> Result<Vec<String>, SandboxCommandError> {
+    let file_system = domain_file_system_policy(policy, granted_permissions, working_directory)?;
+    let resolved = file_system
+        .resolve_for_enforcement(
+            working_directory,
+            lime_permissions::FileSystemPolicyProjection::PreserveMutableRoots,
+        )
+        .map_err(|error| SandboxCommandError::Policy(error.to_string()))?;
     let cwd = working_directory.to_string_lossy().to_string();
     let mut wrapped = vec![
         "bwrap".to_string(),
@@ -172,175 +301,30 @@ fn prepare_bubblewrap_command(
         "--proc".to_string(),
         "/proc".to_string(),
     ];
-    if !policy::allows_network(policy)
-        && !granted_permissions
-            .and_then(|permissions| permissions.network.as_ref())
-            .and_then(|network| network.enabled)
-            .unwrap_or(false)
-    {
-        wrapped.insert(7, "--unshare-net".to_string());
+    if !granted_network_enabled(policy, granted_permissions) {
+        wrapped.push("--unshare-net".to_string());
     }
-    for root in policy::writable_roots(policy, working_directory) {
-        let path = root.to_string_lossy().into_owned();
+    for writable_root in &resolved.writable_roots {
+        let path = writable_root.root.to_string_lossy().into_owned();
         wrapped.extend(["--bind".to_string(), path.clone(), path]);
-        for name in PROTECTED_METADATA_NAMES {
-            let path = root.join(name);
-            if path.exists() {
-                let path = path.to_string_lossy().to_string();
-                wrapped.extend(["--ro-bind".to_string(), path.clone(), path]);
+        for read_only in &writable_root.read_only_subpaths {
+            if !read_only.as_path().exists() {
+                continue;
             }
+            let path = read_only.to_string_lossy().into_owned();
+            wrapped.extend(["--ro-bind".to_string(), path.clone(), path]);
         }
-    }
-    if let Some(file_system) = granted_permissions.and_then(|value| value.file_system.as_ref()) {
-        append_bubblewrap_permissions(&mut wrapped, file_system, working_directory);
     }
     wrapped.extend(["--chdir".to_string(), cwd, "--".to_string()]);
     wrapped.extend(command);
-    wrapped
-}
-
-fn append_seatbelt_permissions(
-    profile: &mut String,
-    permissions: &GrantedPermissionProfile,
-    working_directory: &Path,
-) {
-    if permissions
-        .network
-        .as_ref()
-        .and_then(|network| network.enabled)
-        .unwrap_or(false)
-    {
-        profile.push_str("\n(allow network*)\n");
-    }
-    let Some(file_system) = permissions.file_system.as_ref() else {
-        return;
-    };
-    for path in file_system.read.as_deref().unwrap_or_default() {
-        append_seatbelt_path(profile, Path::new(path), FileSystemAccessMode::Read);
-    }
-    for path in file_system.write.as_deref().unwrap_or_default() {
-        append_seatbelt_path(profile, Path::new(path), FileSystemAccessMode::Write);
-    }
-    for entry in file_system.entries.as_deref().unwrap_or_default() {
-        match &entry.path {
-            FileSystemPath::Path { path } => {
-                append_seatbelt_path(profile, Path::new(path), entry.access)
-            }
-            FileSystemPath::GlobPattern { pattern } => {
-                append_seatbelt_pattern(profile, pattern, entry.access)
-            }
-            FileSystemPath::Special { value } => {
-                if let Some(path) = special_path(value, working_directory) {
-                    append_seatbelt_path(profile, &path, entry.access);
-                }
-            }
-        }
-    }
-}
-
-fn append_seatbelt_path(profile: &mut String, path: &Path, access: FileSystemAccessMode) {
-    let escaped = regex::escape(&path.to_string_lossy());
-    append_seatbelt_regex(profile, &format!("^{escaped}(/.*)?$"), access);
-}
-
-fn append_seatbelt_pattern(profile: &mut String, pattern: &str, access: FileSystemAccessMode) {
-    append_seatbelt_regex(profile, &glob_pattern_regex(pattern), access);
-}
-
-fn append_seatbelt_regex(profile: &mut String, pattern: &str, access: FileSystemAccessMode) {
-    let operation = match access {
-        FileSystemAccessMode::Read => "allow file-read*",
-        FileSystemAccessMode::Write => "allow file-read* file-write*",
-        FileSystemAccessMode::Deny => "deny file-read* file-write*",
-    };
-    profile.push_str(&format!("\n({operation} (regex #\"{pattern}\"))\n"));
-}
-
-fn glob_pattern_regex(pattern: &str) -> String {
-    let mut regex = String::from("^");
-    let mut chars = pattern.chars().peekable();
-    while let Some(character) = chars.next() {
-        match character {
-            '*' if chars.peek() == Some(&'*') => {
-                chars.next();
-                regex.push_str(".*");
-            }
-            '*' => regex.push_str("[^/]*"),
-            '?' => regex.push_str("[^/]"),
-            character => regex.push_str(&regex::escape(&character.to_string())),
-        }
-    }
-    regex.push('$');
-    regex
-}
-
-fn append_bubblewrap_permissions(
-    wrapped: &mut Vec<String>,
-    file_system: &AdditionalFileSystemPermissions,
-    working_directory: &Path,
-) {
-    for path in file_system.read.as_deref().unwrap_or_default() {
-        append_bubblewrap_path(wrapped, Path::new(path), false);
-    }
-    for path in file_system.write.as_deref().unwrap_or_default() {
-        append_bubblewrap_path(wrapped, Path::new(path), true);
-    }
-    for entry in file_system.entries.as_deref().unwrap_or_default() {
-        let path = match &entry.path {
-            FileSystemPath::Path { path } => Some(PathBuf::from(path)),
-            FileSystemPath::Special { value } => special_path(value, working_directory),
-            FileSystemPath::GlobPattern { .. } => None,
-        };
-        if let Some(path) = path {
-            match entry.access {
-                FileSystemAccessMode::Read => append_bubblewrap_path(wrapped, &path, false),
-                FileSystemAccessMode::Write => append_bubblewrap_path(wrapped, &path, true),
-                FileSystemAccessMode::Deny => {}
-            }
-        }
-    }
-}
-
-fn append_bubblewrap_path(wrapped: &mut Vec<String>, path: &Path, writable: bool) {
-    if !path.exists() {
-        return;
-    }
-    let path = path.to_string_lossy().into_owned();
-    wrapped.extend([
-        if writable { "--bind" } else { "--ro-bind" }.to_string(),
-        path.clone(),
-        path,
-    ]);
-}
-
-fn special_path(value: &FileSystemSpecialPath, working_directory: &Path) -> Option<PathBuf> {
-    match value {
-        FileSystemSpecialPath::Root => Some(PathBuf::from("/")),
-        FileSystemSpecialPath::ProjectRoots { subpath } => Some(
-            subpath
-                .as_deref()
-                .map(|subpath| working_directory.join(subpath))
-                .unwrap_or_else(|| working_directory.to_path_buf()),
-        ),
-        FileSystemSpecialPath::Tmpdir => Some(std::env::temp_dir()),
-        FileSystemSpecialPath::SlashTmp => Some(PathBuf::from("/tmp")),
-        FileSystemSpecialPath::Unknown { path, subpath } => {
-            let path = PathBuf::from(path);
-            path.is_absolute().then(|| {
-                subpath
-                    .as_deref()
-                    .map(|subpath| path.join(subpath))
-                    .unwrap_or(path)
-            })
-        }
-        FileSystemSpecialPath::Minimal => None,
-    }
+    Ok(wrapped)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use app_server_protocol::protocol::v2::AdditionalNetworkPermissions;
+    use std::path::PathBuf;
 
     #[test]
     fn seatbelt_workspace_write_wraps_command_and_protects_metadata() {
@@ -355,22 +339,71 @@ mod tests {
         .expect("seatbelt command");
 
         assert_eq!(command[0], MACOS_SANDBOX_EXEC);
-        assert!(command[2].contains("(allow file-write* (subpath (param \"WRITABLE_ROOT_"));
-        let protected = format!(
-            "={}",
-            std::fs::canonicalize(workspace.path())
-                .unwrap()
-                .join(".git")
-                .display()
-        );
-        assert!(command
-            .iter()
-            .any(|argument| argument.ends_with(&protected)));
+        assert_eq!(command[1], "-p");
+        let policy = &command[2];
+        assert!(policy.contains("(deny default)"));
+        assert!(policy.contains("(allow file-write*"));
+        assert!(policy.contains("WRITABLE_ROOT_0"));
+        // Protected workspace metadata stays denied even under a writable root.
+        assert!(policy.contains("PROTECTED_METADATA"));
+        assert!(command.iter().any(|argument| {
+            argument.starts_with("-D")
+                && argument.contains("PROTECTED_METADATA")
+                && argument.ends_with(".git")
+        }));
+        let workspace_root = std::fs::canonicalize(workspace.path()).unwrap();
+        assert!(command.iter().any(|argument| {
+            argument
+                .strip_prefix("-DWRITABLE_ROOT_0=")
+                .is_some_and(|value| Path::new(value) == workspace_root)
+        }));
         let delimiter = command
             .iter()
             .position(|argument| argument == "--")
             .unwrap();
         assert_eq!(&command[delimiter + 1..], ["sh", "-c", "pwd"]);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_policy_allows_workspace_write_and_denies_outside_write() {
+        let workspace = tempfile::tempdir().unwrap();
+        let workspace = std::fs::canonicalize(workspace.path()).unwrap();
+        // TMPDIR is a workspace-write default root on macOS, so the denied
+        // target must live outside the temporary directory entirely.
+        let outside = dirs::home_dir()
+            .expect("home dir")
+            .join(format!(".lime-sandbox-e2e-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&outside);
+        std::fs::create_dir_all(&outside).expect("outside directory");
+        let outside = std::fs::canonicalize(&outside).unwrap();
+        let inside_file = workspace.join("inside.txt");
+        let outside_file = outside.join("outside.txt");
+        let script = format!(
+            "echo ok > {}; echo bad > {}; true",
+            inside_file.display(),
+            outside_file.display()
+        );
+        let policy = crate::sandbox::sandbox_policy_from_label(Some("workspace-write")).unwrap();
+        let command = prepare_sandbox_command(SandboxCommandRequest {
+            backend: SandboxBackend::Seatbelt,
+            policy: &policy,
+            command: vec!["/bin/sh".to_string(), "-c".to_string(), script],
+            working_directory: &workspace,
+            granted_permissions: None,
+        })
+        .expect("seatbelt command");
+        let status = std::process::Command::new(&command[0])
+            .args(&command[1..])
+            .status()
+            .expect("run sandboxed command");
+        assert!(status.success(), "sandboxed shell should complete");
+        assert!(inside_file.exists(), "workspace write must succeed");
+        assert!(
+            !outside_file.exists(),
+            "write outside workspace must be denied"
+        );
+        let _ = std::fs::remove_dir_all(&outside);
     }
 
     #[test]
@@ -433,9 +466,11 @@ mod tests {
         })
         .expect("seatbelt command");
 
-        assert!(command[2].contains("(allow network*)"));
-        assert!(command[2].contains("allow file-read* file-write*"));
-        assert!(command[2].contains("^/tmp/shared\\-output(/.*)?$"));
+        assert!(command[2].contains("(allow network-outbound)"));
+        assert!(command[2].contains("(allow file-write*"));
+        assert!(command.iter().any(|argument| {
+            argument.starts_with("-DWRITABLE_ROOT_") && argument.ends_with("/tmp/shared-output")
+        }));
     }
 
     #[test]
@@ -463,6 +498,7 @@ mod tests {
         })
         .expect("granted bubblewrap command");
         assert!(!granted.iter().any(|argument| argument == "--unshare-net"));
+        let writable = std::fs::canonicalize(&writable).expect("canonical writable");
         let writable = writable.to_string_lossy();
         assert!(granted.windows(3).any(|arguments| {
             arguments[0] == "--bind"
@@ -499,11 +535,12 @@ mod tests {
             granted_permissions: None,
         })
         .unwrap();
-        let binds = command
+        let mut binds = command
             .windows(3)
             .filter(|args| args[0] == "--bind")
             .map(|args| PathBuf::from(&args[1]))
             .collect::<Vec<_>>();
+        binds.sort();
         let mut expected = vec![
             std::fs::canonicalize(memory.path()).unwrap(),
             std::fs::canonicalize(extra.path()).unwrap(),

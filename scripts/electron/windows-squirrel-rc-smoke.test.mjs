@@ -378,7 +378,9 @@ describe("Windows Squirrel RC smoke", () => {
       getByTestId: vi.fn((id) => ({
         isVisible: vi
           .fn()
-          .mockResolvedValue(settingsClick.mock.calls.length > 0),
+          .mockResolvedValue(
+            id !== "permissions-setup" && settingsClick.mock.calls.length > 0,
+          ),
         click: id === "app-sidebar-nav-settings" ? settingsClick : aboutClick,
       })),
     };
@@ -387,8 +389,10 @@ describe("Windows Squirrel RC smoke", () => {
       checking,
     );
     expect(page.getByTestId.mock.calls).toEqual([
+      ["permissions-setup"],
       ["settings-sidebar-tab-about"],
       ["app-sidebar-nav-settings"],
+      ["permissions-setup"],
       ["settings-sidebar-tab-about"],
     ]);
     expect(settingsClick.mock.invocationCallOrder[0]).toBeLessThan(
@@ -409,8 +413,8 @@ describe("Windows Squirrel RC smoke", () => {
         .mockResolvedValueOnce({ stage: "idle" })
         .mockResolvedValueOnce({ stage: "idle" })
         .mockResolvedValue(checking),
-      getByTestId: vi.fn(() => ({
-        isVisible: vi.fn().mockResolvedValue(true),
+      getByTestId: vi.fn((id) => ({
+        isVisible: vi.fn().mockResolvedValue(id !== "permissions-setup"),
         click: aboutClick,
       })),
     };
@@ -434,11 +438,68 @@ describe("Windows Squirrel RC smoke", () => {
     expect(page.getByTestId).not.toHaveBeenCalled();
   });
 
+  it("N-1 新配置先通过 Escape 关闭权限引导，再导航更新入口", async () => {
+    const checking = { stage: "checking", currentVersion: "1.172.0" };
+    const permissions = {
+      isVisible: vi.fn().mockResolvedValue(true),
+      press: vi.fn().mockResolvedValue(undefined),
+      waitFor: vi.fn().mockResolvedValue(undefined),
+    };
+    const settings = {
+      isVisible: vi.fn().mockResolvedValue(false),
+      click: vi.fn().mockResolvedValue(undefined),
+    };
+    const page = {
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce({ stage: "idle" })
+        .mockResolvedValue(checking),
+      getByTestId: vi.fn((id) =>
+        id === "permissions-setup" ? permissions : settings,
+      ),
+    };
+
+    await expect(waitForNMinusOneAutomaticUpdate(page)).resolves.toEqual(
+      checking,
+    );
+    expect(permissions.press).toHaveBeenCalledWith("Escape", {
+      timeout: 2_000,
+    });
+    expect(permissions.waitFor).toHaveBeenCalledWith({
+      state: "hidden",
+      timeout: 2_000,
+    });
+    expect(permissions.waitFor.mock.invocationCallOrder[0]).toBeLessThan(
+      settings.click.mock.invocationCallOrder[0],
+    );
+    expect(settings.click).toHaveBeenCalledWith({ timeout: 2_000 });
+  });
+
+  it("权限引导无法关闭时不点击遮罩下的设置，也不伪造更新会话", async () => {
+    const failure = new Error("permissions setup stayed open");
+    const permissions = {
+      isVisible: vi.fn().mockResolvedValue(true),
+      press: vi.fn().mockResolvedValue(undefined),
+      waitFor: vi.fn().mockRejectedValue(failure),
+    };
+    const page = {
+      evaluate: vi.fn().mockResolvedValue({ stage: "idle" }),
+      getByTestId: vi.fn(() => permissions),
+    };
+
+    await expect(
+      waitForNMinusOneAutomaticUpdate(page, { timeoutMs: 1 }),
+    ).rejects.toThrow("navigation: permissions setup stayed open");
+    expect(
+      page.getByTestId.mock.calls.every(([id]) => id === "permissions-setup"),
+    ).toBe(true);
+  });
+
   it("关于页面未启动检查时仍失败，不伪造非 idle 会话", async () => {
     const page = {
       evaluate: vi.fn().mockResolvedValue({ stage: "idle" }),
-      getByTestId: vi.fn(() => ({
-        isVisible: vi.fn().mockResolvedValue(true),
+      getByTestId: vi.fn((id) => ({
+        isVisible: vi.fn().mockResolvedValue(id !== "permissions-setup"),
         click: vi.fn().mockResolvedValue(undefined),
       })),
     };

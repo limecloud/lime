@@ -83,7 +83,7 @@ export function ScheduledTaskDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        maxWidth="max-w-[548px]"
+        maxWidth="max-w-[676px]"
         className="lime-workbench-theme-scope overflow-hidden rounded-[20px] border border-slate-200 bg-white p-0 shadow-2xl"
       >
         {form ? (

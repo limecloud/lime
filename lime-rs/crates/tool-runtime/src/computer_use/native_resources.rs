@@ -36,7 +36,7 @@ struct Resource {
 
 impl NativeResource {
     pub(super) fn discover() -> ComputerUseResult<Option<Self>> {
-        if !cfg!(any(target_os = "macos", target_os = "windows")) {
+        if !cfg!(any(target_os = "macos", target_os = "windows", target_os = "linux")) {
             return Ok(None);
         }
         let executable = std::env::current_exe().map_err(|e| denied(e.to_string()))?;
@@ -157,6 +157,8 @@ fn platform_identity() -> (&'static str, &'static str, &'static str) {
     };
     let id = if cfg!(target_os = "windows") {
         "windows-native-host"
+    } else if cfg!(target_os = "linux") {
+        "linux-native-host"
     } else {
         "macos-native-host"
     };

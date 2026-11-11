@@ -12,6 +12,7 @@ import {
   Image,
   Puzzle,
   MousePointer2,
+  Cloud,
   ShieldCheck,
   Variable,
   Info,
@@ -126,6 +127,13 @@ const PluginsSettings = lazy(() =>
 );
 
 const loadComputerUse = () => import("./integrations/computer-use");
+const loadCloudDesktops = () =>
+  import("./integrations/cloud-desktops/CloudDesktopsSettings");
+const CloudDesktopsSettings = lazy(() =>
+  loadCloudDesktops().then((module) => ({
+    default: module.CloudDesktopsSettings,
+  })),
+);
 const ComputerUseSettings = lazy(() =>
   loadComputerUse().then((module) => ({ default: module.ComputerUseSettings })),
 );
@@ -306,6 +314,14 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.layout.loading.browser",
     preload: loadBrowser,
     render: (context) => <BrowserUseSettings page={context.browserPage} />,
+  },
+  {
+    key: SettingsTabs.CloudDesktops,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.cloudDesktop.title",
+    icon: Cloud,
+    preload: loadCloudDesktops,
+    render: () => <CloudDesktopsSettings />,
   },
   {
     key: SettingsTabs.ExecutionPolicy,

@@ -5,6 +5,7 @@ use super::TransportEvent;
 use crate::serialize_outgoing_message;
 use crate::QueuedOutgoingMessage;
 use crate::CHANNEL_CAPACITY;
+use crate::websocket_auth::{authorize_upgrade, is_unauthenticated_non_loopback_listener, WebsocketAuthPolicy};
 use axum::body::Body;
 use axum::extract::ws::Message as AxumWebSocketMessage;
 use axum::extract::ws::WebSocketUpgrade;
@@ -40,6 +41,7 @@ const _: () = assert!(WEBSOCKET_OUTBOUND_CHANNEL_CAPACITY > CHANNEL_CAPACITY);
 #[derive(Clone)]
 struct WebSocketListenerState {
     transport_event_tx: mpsc::Sender<TransportEvent>,
+    auth_policy: WebsocketAuthPolicy,
 }
 
 async fn health_check_handler() -> StatusCode {
@@ -66,8 +68,11 @@ async fn websocket_upgrade_handler(
     websocket: WebSocketUpgrade,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     State(state): State<WebSocketListenerState>,
-    _headers: HeaderMap,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
+    if let Err(error) = authorize_upgrade(&headers, &state.auth_policy) {
+        return error.status_code().into_response();
+    }
     info!(%peer_addr, "app-server websocket client connected");
     websocket
         .on_upgrade(move |stream| async move {
@@ -82,12 +87,13 @@ pub async fn start_websocket_acceptor(
     bind_address: SocketAddr,
     transport_event_tx: mpsc::Sender<TransportEvent>,
     shutdown_token: CancellationToken,
+    auth_policy: WebsocketAuthPolicy,
 ) -> IoResult<(SocketAddr, JoinHandle<()>)> {
-    if !bind_address.ip().is_loopback() {
+    if is_unauthenticated_non_loopback_listener(bind_address, &auth_policy) {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!(
-                "refusing to start unauthenticated websocket listener {bind_address}; app-server transport only permits loopback"
+                "refusing to start unauthenticated websocket listener {bind_address}; configure --ws-auth or use loopback"
             ),
         ));
     }
@@ -101,7 +107,7 @@ pub async fn start_websocket_acceptor(
         .route("/healthz", get(health_check_handler))
         .fallback(any(websocket_upgrade_handler))
         .layer(middleware::from_fn(reject_requests_with_origin_header))
-        .with_state(WebSocketListenerState { transport_event_tx });
+        .with_state(WebSocketListenerState { transport_event_tx, auth_policy });
     let server = axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
@@ -343,6 +349,7 @@ mod tests {
             "127.0.0.1:0".parse().unwrap(),
             transport_event_tx,
             shutdown_token.clone(),
+            WebsocketAuthPolicy::default(),
         )
         .await
         .expect("websocket acceptor should start");
@@ -492,12 +499,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn websocket_auth_rejects_before_opening_runtime_connection() {
+        use crate::websocket_auth::{policy_from_settings, WebsocketAuthArgs, WebsocketAuthCliMode};
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        let directory = tempfile::tempdir().unwrap();
+        let token_file = directory.path().join("token");
+        std::fs::write(&token_file, "test-session-credential\n").unwrap();
+        let settings = WebsocketAuthArgs {
+            ws_auth: Some(WebsocketAuthCliMode::CapabilityToken),
+            ws_token_file: Some(token_file),
+            ..Default::default()
+        }.try_into_settings().unwrap();
+        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let shutdown = CancellationToken::new();
+        let (address, handle) = start_websocket_acceptor(
+            "127.0.0.1:0".parse().unwrap(), tx, shutdown.clone(), policy_from_settings(&settings).unwrap(),
+        ).await.unwrap();
+        for token in [None, Some("Bearer wrong"), Some("Basic test-session-credential")] {
+            let mut request = format!("ws://{address}").into_client_request().unwrap();
+            if let Some(token) = token {
+                request.headers_mut().insert("authorization", token.parse().unwrap());
+            }
+            let error = connect_async(request).await.unwrap_err();
+            assert!(matches!(error, tokio_tungstenite::tungstenite::Error::Http(response) if response.status() == 401));
+            assert!(rx.try_recv().is_err(), "rejected upgrades must not enter the runtime");
+        }
+        let mut request = format!("ws://{address}").into_client_request().unwrap();
+        request.headers_mut().insert("authorization", "Bearer test-session-credential".parse().unwrap());
+        // Authentication does not weaken the existing browser Origin boundary.
+        request.headers_mut().insert("origin", "https://attacker.test".parse().unwrap());
+        let error = connect_async(request.clone()).await.unwrap_err();
+        assert!(matches!(error, tokio_tungstenite::tungstenite::Error::Http(response) if response.status() == 403));
+        request.headers_mut().remove("origin");
+        let (mut socket, _) = connect_async(request).await.unwrap();
+        assert!(matches!(timeout(Duration::from_secs(1), rx.recv()).await.unwrap(), Some(TransportEvent::ConnectionOpened { .. })));
+        socket.close(None).await.unwrap();
+        timeout(Duration::from_secs(1), rx.recv()).await.unwrap();
+        shutdown.cancel();
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn websocket_acceptor_rejects_non_loopback_listener() {
         let (transport_event_tx, _transport_event_rx) = mpsc::channel(CHANNEL_CAPACITY);
         let error = start_websocket_acceptor(
             "0.0.0.0:0".parse().expect("address"),
             transport_event_tx,
             CancellationToken::new(),
+            WebsocketAuthPolicy::default(),
         )
         .await
         .expect_err("unauthenticated non-loopback listener must fail closed");

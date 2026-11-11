@@ -13,6 +13,7 @@ use lime_core::AllowDenyRequirementToml::{self, Allow, Deny};
     deny_unknown_fields
 )]
 pub enum NativeAppIdentity {
+    Linux { executable: String },
     Macos {
         bundle_id: String,
     },
@@ -27,6 +28,7 @@ pub enum NativeAppIdentity {
 impl NativeAppIdentity {
     pub(super) fn is_wps(&self) -> bool {
         match self {
+            Self::Linux { .. } => false,
             Self::Macos { bundle_id } => bundle_id == "com.kingsoft.wpsoffice.mac",
             Self::Windows {
                 aumid,
@@ -120,6 +122,7 @@ impl ComputerUsePolicy {
         }
         let user = policy.user.get_or_insert_with(Default::default);
         match identity {
+            NativeAppIdentity::Linux { .. } => return Err("Linux requires session approval"),
             NativeAppIdentity::Macos { bundle_id } => {
                 user.macos
                     .get_or_insert_with(Default::default)
@@ -257,6 +260,7 @@ impl ComputerUsePolicy {
             return Err("Computer Use is disabled in settings");
         }
         let identity_verified = match identity {
+            NativeAppIdentity::Linux { executable } => std::path::Path::new(executable).is_absolute() && !executable.contains('\0'),
             NativeAppIdentity::Macos { bundle_id } => !bundle_id.trim().is_empty(),
             NativeAppIdentity::Windows {
                 aumid,
@@ -272,6 +276,11 @@ impl ComputerUsePolicy {
         };
         if !identity_verified {
             return Err("Native application identity could not be verified");
+        }
+        if matches!(identity, NativeAppIdentity::Linux { .. })
+            && (scope != ComputerUseGrantScope::Session || !session_consent)
+        {
+            return Err("Linux requires explicit session approval");
         }
         if self.allow_browser_and_computer_use == Some(false) {
             return Err("Computer Use is disabled by administrator policy");
@@ -308,6 +317,7 @@ impl ComputerUsePolicy {
     fn user_access(&self, identity: &NativeAppIdentity) -> Option<AllowDenyRequirementToml> {
         let config = self.user.as_ref()?;
         let specific = match identity {
+            NativeAppIdentity::Linux { .. } => None,
             NativeAppIdentity::Macos { bundle_id } => config
                 .macos
                 .as_ref()
@@ -351,6 +361,7 @@ impl ComputerUsePolicy {
     fn admin_access(&self, identity: &NativeAppIdentity) -> Option<AllowDenyRequirementToml> {
         let config = self.admin.as_ref()?;
         let specific = match identity {
+            NativeAppIdentity::Linux { .. } => None,
             NativeAppIdentity::Macos { bundle_id } => config
                 .macos
                 .as_ref()

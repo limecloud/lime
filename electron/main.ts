@@ -18,6 +18,9 @@ import {
   resolveCurrentDesktopStorageRoots,
 } from "./appDataPaths";
 import { ElectronAppServerHost } from "./appServerHost";
+import { CloudDesktopWindows } from "./cloudDesktopWindows";
+import { createCloudDesktopWindow } from "./cloudDesktopWindowFactory";
+import type { CloudDesktopConnectionRequest } from "../src/lib/desktop-host/cloudDesktopConnection";
 import { DesktopPreferencesHost } from "./desktopPreferencesHost";
 import { DesktopPermissionsHost } from "./desktopPermissionsHost";
 import { readDesktopDiskAccess } from "./desktopDiskAccess";
@@ -131,6 +134,29 @@ const appServerHost: ElectronAppServerHost = new ElectronAppServerHost(
   browserTabHost,
   desktopPreferencesHost,
 );
+const cloudDesktopWindows = new CloudDesktopWindows(
+  desktopStorageRoots.appDataRoot,
+  safeStorage,
+  createCloudDesktopWindow,
+  (params) => appServerHost.request("cloud/desktop", params),
+  async () => {
+    const selection = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [{ name: "Lime Linux runtime", extensions: ["tar.gz"] }],
+    });
+    return selection.canceled ? undefined : selection.filePaths[0];
+  },
+  async (password) => {
+    await dialog.showMessageBox({ type: "info", title: "Lime", message: password });
+  },
+  async () => {
+    const selection = await dialog.showSaveDialog({
+      defaultPath: "lime-cloud-backup.age",
+      filters: [{ name: "age", extensions: ["age"] }],
+    });
+    return selection.canceled ? undefined : selection.filePath;
+  },
+);
 const windowCloseConfirmationHost = new WindowCloseConfirmationHost();
 const windowCloseConfirmation = new WindowCloseConfirmation<BrowserWindow>({
   getPreference: () => desktopPreferencesHost.confirmBeforeClose,
@@ -214,7 +240,8 @@ const desktopPermissionsHost = new DesktopPermissionsHost({
   applicationPath: desktopApplicationPath(app.getPath("exe"), process.platform),
   packaged: app.isPackaged && process.defaultApp !== true,
   homeDirectory: app.getPath("home"),
-  nativeInvoke: (method, params) => hostCommands.invoke("macos_native_host_invoke", { method, params }),
+  nativeInvoke: (method, params) =>
+    hostCommands.invoke("macos_native_host_invoke", { method, params }),
   safeStorage,
   mediaStatus: (kind) => systemPreferences.getMediaAccessStatus(kind),
   requestMedia: (kind) => systemPreferences.askForMediaAccess(kind),
@@ -222,10 +249,15 @@ const desktopPermissionsHost = new DesktopPermissionsHost({
   nativePermission: nativeDesktopPermission,
   notificationsSupported: () => Notification.isSupported(),
   openExternal: (url) => shell.openExternal(url),
-  revealApplication: () => shell.showItemInFolder(desktopApplicationPath(app.getPath("exe"), process.platform)),
+  revealApplication: () =>
+    shell.showItemInFolder(
+      desktopApplicationPath(app.getPath("exe"), process.platform),
+    ),
   chooseDirectory: async () => {
-    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
-    return result.canceled ? null : result.filePaths[0] ?? null;
+    const result = await dialog.showOpenDialog({
+      properties: ["openDirectory"],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
   },
 });
 const updateHost = new ElectronUpdateHost(broadcast, {
@@ -1108,6 +1140,7 @@ function configureElectronSessionDataPath(hostSessionData: string): void {
 
 function broadcast(event: string, payload?: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
+    if (cloudDesktopWindows.isCloud(window.webContents.id)) continue;
     window.webContents.send(`evt:${event}`, { event, payload });
   }
   devHttpBridge?.broadcast(event, payload);
@@ -1143,9 +1176,17 @@ function registerIpcHandlers(): void {
     },
   );
 
-  registerRendererEventHandler(ipcMain, broadcast);
+  registerRendererEventHandler(ipcMain, broadcast, (source, name, payload) => {
+    const event = source as Electron.IpcMainEvent;
+    if (!cloudDesktopWindows.isCloud(event.sender.id)) return false;
+    const entry = cloudDesktopWindows.get(event.sender.id);
+    if (entry && !entry.window.isDestroyed())
+      entry.window.webContents.send(`evt:${name}`, { event: name, payload });
+    return true;
+  });
 
-  ipcMain.handle(IPC_DIALOG_OPEN_CHANNEL, async (_event, options) => {
+  ipcMain.handle(IPC_DIALOG_OPEN_CHANNEL, async (event, options) => {
+    rejectCloudLocalCapability(event);
     const normalizedOptions = normalizeOpenDialogOptions(options);
     const result = await dialog.showOpenDialog(normalizedOptions.options);
     if (result.canceled) {
@@ -1156,14 +1197,16 @@ function registerIpcHandlers(): void {
       : (result.filePaths[0] ?? null);
   });
 
-  ipcMain.handle(IPC_DIALOG_SAVE_CHANNEL, async (_event, options) => {
+  ipcMain.handle(IPC_DIALOG_SAVE_CHANNEL, async (event, options) => {
+    rejectCloudLocalCapability(event);
     const result = await dialog.showSaveDialog({
       ...normalizeSaveDialogOptions(options),
     });
     return result.canceled ? null : (result.filePath ?? null);
   });
 
-  ipcMain.handle(IPC_SHELL_OPEN_CHANNEL, async (_event, target: string) => {
+  ipcMain.handle(IPC_SHELL_OPEN_CHANNEL, async (event, target: string) => {
+    rejectCloudLocalCapability(event);
     if (/^https?:\/\//i.test(target)) {
       await shell.openExternal(target);
       return;
@@ -1174,6 +1217,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle(
     IPC_WINDOW_COMMAND_CHANNEL,
     async (event, command: string, ...args: unknown[]) => {
+      if (
+        cloudDesktopWindows.isCloud(event.sender.id) &&
+        !cloudDesktopWindows.get(event.sender.id)
+      )
+        throw new Error("cloud desktop window is closed");
       const window = currentWindow(event);
       if (!window) {
         return null;
@@ -1188,15 +1236,27 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(
     IPC_GLOBAL_SHORTCUT_COMMAND_CHANNEL,
-    async (_event, command: string, shortcut?: string) => {
+    async (event, command: string, shortcut?: string) => {
+      rejectCloudLocalCapability(event);
       return handleGlobalShortcutCommand(command, shortcut);
     },
   );
 
-  ipcMain.handle(IPC_DEEP_LINK_GET_URLS_CHANNEL, async () => pendingDeepLinks);
-  ipcMain.handle(IPC_DEEP_LINK_GET_CURRENT_CHANNEL, async () =>
-    pendingDeepLinks.length > 0 ? pendingDeepLinks : null,
+  ipcMain.handle(IPC_DEEP_LINK_GET_URLS_CHANNEL, async (event) =>
+    cloudDesktopWindows.isCloud(event.sender.id) ? [] : pendingDeepLinks,
   );
+  ipcMain.handle(IPC_DEEP_LINK_GET_CURRENT_CHANNEL, async (event) =>
+    !cloudDesktopWindows.isCloud(event.sender.id) && pendingDeepLinks.length > 0
+      ? pendingDeepLinks
+      : null,
+  );
+}
+
+function rejectCloudLocalCapability(event: IpcMainInvokeEvent): void {
+  if (cloudDesktopWindows.isCloud(event.sender.id))
+    throw new Error(
+      "local host capability is unavailable in a cloud desktop window",
+    );
 }
 
 async function handleHostInvoke(
@@ -1204,10 +1264,20 @@ async function handleHostInvoke(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<unknown> {
+  if (event && event.senderFrame !== event.sender.mainFrame)
+    throw new Error("host IPC requires the main frame");
+  if (event && cloudDesktopWindows.isCloud(event.sender.id)) {
+    const entry = cloudDesktopWindows.get(event.sender.id);
+    if (!entry) throw new Error("cloud desktop window is closed");
+    return cloudDesktopWindows.invokeWindow(entry, command, args);
+  }
   if (!isElectronHostCommand(command)) {
     throw new Error(`Electron host command is not supported: ${command}`);
   }
   const request = args?.request;
+  if (command === "cloud_desktop_connection") {
+    return cloudDesktopWindows.invoke(request as CloudDesktopConnectionRequest);
+  }
   if (DesktopPermissionsHost.supports(command)) {
     return desktopPermissionsHost.invoke(command, args);
   }
@@ -1603,7 +1673,10 @@ installAppQuitLifecycle(app, {
     try {
       await browserTabHost.prepareShutdown();
     } finally {
-      await appServerHost.stop();
+      await Promise.allSettled([
+        cloudDesktopWindows.stop(),
+        appServerHost.stop(),
+      ]);
     }
   },
   onError: (error) => {

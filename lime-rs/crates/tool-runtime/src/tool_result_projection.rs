@@ -219,12 +219,13 @@ pub fn runtime_tool_result_to_call_tool_result(result: RuntimeToolResultParts) -
         content.push(image_content);
     }
 
-    CallToolResult {
-        content,
-        structured_content,
-        is_error: Some(!success),
-        meta: None,
-    }
+    let mut result = if success {
+        CallToolResult::success(content)
+    } else {
+        CallToolResult::error(content)
+    };
+    result.structured_content = structured_content;
+    result
 }
 
 pub fn runtime_tool_result_surface_updated(result: &CallToolResult) -> bool {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import styled from "styled-components";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { LIME_BRAND_LOGO_SRC } from "@/lib/branding";
 import {
   EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
@@ -29,13 +29,13 @@ const ContentWrapper = styled.div.attrs({
 
 const Welcome = styled.div`
   display: flex;
-  min-height: 120px;
+  min-height: 7rem;
   flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  padding: 24px 0;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
   color: var(--lime-text-strong);
 
   img {
@@ -46,10 +46,40 @@ const Welcome = styled.div`
 
   h1 {
     margin: 0;
-    font-size: 22px;
-    font-weight: 500;
-    line-height: 1.4;
+    max-width: 100%;
+    font-size: 2rem;
+    font-weight: 400;
+    line-height: 2.375rem;
     text-align: center;
+    overflow-wrap: anywhere;
+  }
+`;
+
+const ProjectSelectButton = styled.button`
+  display: inline;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--lime-text-muted);
+  text-underline-offset: 4px;
+  overflow-wrap: anywhere;
+
+  &:hover {
+    color: var(--lime-text-strong);
+    text-decoration-style: solid;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--lime-brand-strong);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 `;
 
@@ -62,7 +92,7 @@ const ComposerRegion = styled.div`
   position: relative;
   z-index: 50;
   display: flex;
-  width: min(100%, 36rem);
+  width: min(100%, 46rem);
   min-width: 0;
   min-height: fit-content;
   flex-direction: column;
@@ -82,19 +112,45 @@ export function EmptyStateComposerFrame({ children }: { children: ReactNode }) {
 interface EmptyStateLayoutProps {
   composer: ReactNode;
   children?: ReactNode;
+  projectName?: string | null;
+  onProjectSelect?: () => void;
 }
 
 export function EmptyStateLayout({
   composer,
   children,
+  projectName,
+  onProjectSelect,
 }: EmptyStateLayoutProps) {
   const { t } = useTranslation("agent");
+  const normalizedProjectName = projectName?.trim() ?? "";
+  const title = normalizedProjectName ? (
+    <Trans
+      ns="agent"
+      t={t}
+      i18nKey="agentChat.home.titleInProject"
+      values={{ projectName: normalizedProjectName }}
+      components={{
+        projectSelect: onProjectSelect ? (
+          <ProjectSelectButton
+            type="button"
+            data-testid="home-hero-project-select"
+            onClick={onProjectSelect}
+          />
+        ) : (
+          <span />
+        ),
+      }}
+    />
+  ) : (
+    t("agentChat.home.title")
+  );
   return (
     <PageContainer data-testid="home-composer-page">
       <ContentWrapper data-testid="empty-state-first-screen">
         <Welcome data-testid="home-welcome">
           <img src={LIME_BRAND_LOGO_SRC} alt="" aria-hidden="true" />
-          <h1>{t("agentChat.home.title")}</h1>
+          <h1>{title}</h1>
         </Welcome>
         <ComposerRegion>{composer}</ComposerRegion>
       </ContentWrapper>

@@ -115,3 +115,50 @@ fn store_failure_does_not_write_database_or_fall_back() {
         .api_keys
         .is_empty());
 }
+
+#[tokio::test]
+async fn runtime_reports_unreadable_keys_for_explicit_and_type_selection() {
+    let db = init_test_database();
+    let service = test_service();
+    let provider = provider(&service, &db);
+    let key = service
+        .add_api_key(&db, &provider.id, "fixture-key", None, false)
+        .unwrap();
+    service.credentials.delete(&key.api_key_encrypted).unwrap();
+
+    for provider_id in [Some(provider.id.as_str()), None] {
+        let result = service
+            .select_runtime_credential(&db, Some(&RuntimeProviderType::OpenAI), provider_id, None)
+            .await;
+        assert_eq!(result.unwrap_err(), "credential_store_read_failed");
+    }
+}
+
+#[tokio::test]
+async fn runtime_skips_unreadable_key_when_another_key_is_available() {
+    let db = init_test_database();
+    let service = test_service();
+    let provider = provider(&service, &db);
+    let missing = service
+        .add_api_key(&db, &provider.id, "missing-key", None, false)
+        .unwrap();
+    service
+        .credentials
+        .delete(&missing.api_key_encrypted)
+        .unwrap();
+    let available = service
+        .add_api_key(&db, &provider.id, "available-key", None, false)
+        .unwrap();
+
+    for _ in 0..3 {
+        let selected = service
+            .select_credential_for_provider(&db, &provider.id, Some(&provider.id), None)
+            .await
+            .unwrap()
+            .expect("可读取的 Key 必须继续可用");
+        assert_eq!(
+            selected.uuid,
+            runtime_api_key_credential_uuid(&available.id)
+        );
+    }
+}

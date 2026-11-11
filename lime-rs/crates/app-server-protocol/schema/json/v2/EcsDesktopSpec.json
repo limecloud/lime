@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One user-paid Linux VM. Network and SSH keypair must already exist.\nPurchase always requests an encrypted ESSD system disk; no private key is sent.",
+  "properties": {
+    "imageId": {
+      "type": "string"
+    },
+    "instanceType": {
+      "type": "string"
+    },
+    "keyPairName": {
+      "type": "string"
+    },
+    "outboundMbps": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "regionId": {
+      "type": "string"
+    },
+    "securityGroupId": {
+      "type": "string"
+    },
+    "systemDiskGib": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "vSwitchId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "imageId",
+    "instanceType",
+    "keyPairName",
+    "outboundMbps",
+    "profile",
+    "regionId",
+    "securityGroupId",
+    "systemDiskGib",
+    "vSwitchId"
+  ],
+  "title": "EcsDesktopSpec",
+  "type": "object"
+}

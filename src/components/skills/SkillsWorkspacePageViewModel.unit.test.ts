@@ -13,7 +13,6 @@ import {
   isMarketplaceSkillInstalledAsLocalSkill,
   matchesSkillsText,
   normalizeSkillsKeyword,
-  splitFeaturedSkillStoreItems,
 } from "./SkillsWorkspacePageViewModel";
 import type { InstalledSkillPresentationCopy } from "./installedSkillPresentation";
 
@@ -262,17 +261,7 @@ describe("SkillsWorkspacePageViewModel", () => {
     expect(visibleByCapability).toHaveLength(1);
   });
 
-  it("拆分精选商店项，并按来源区分内置与用户可管理已安装 Skill", () => {
-    const storeItems = Array.from({ length: 4 }, (_, index) => ({
-      source: "official" as const,
-      skill: createMarketplaceSkill({ id: `official-${index}` }),
-    }));
-
-    expect(splitFeaturedSkillStoreItems(storeItems, 2)).toEqual({
-      featuredStoreItems: storeItems.slice(0, 2),
-      otherStoreItems: storeItems.slice(2),
-    });
-
+  it("按来源区分内置与用户可管理已安装 Skill", () => {
     const builtin = createSkill({
       directory: "builtin",
       sourceKind: "builtin",

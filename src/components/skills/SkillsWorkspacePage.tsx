@@ -30,7 +30,6 @@ import {
   getVisibleSkillStoreItems,
   getVisibleUserInstalledSkills,
   isMarketplaceSkillInstalledAsLocalSkill,
-  splitFeaturedSkillStoreItems,
   type SkillsWorkspaceView,
   type SkillStoreItem,
 } from "./SkillsWorkspacePageViewModel";
@@ -345,10 +344,6 @@ export function SkillsWorkspacePage({
         serviceSkillPresentationCopy,
       }),
     [searchQuery, serviceSkillPresentationCopy, skillStoreItems],
-  );
-  const { featuredStoreItems, otherStoreItems } = useMemo(
-    () => splitFeaturedSkillStoreItems(visibleStoreItems),
-    [visibleStoreItems],
   );
   const selectedStoreItem = useMemo(() => {
     if (!selectedMarketplaceSkillName) {
@@ -787,7 +782,6 @@ export function SkillsWorkspacePage({
         detailInstalledSkill={detailInstalledSkill}
         detailStoreItem={detailStoreItem}
         exportingSkillDirectory={exportingSkillDirectory}
-        featuredStoreItems={featuredStoreItems}
         findInstalledMarketplaceLocalSkill={findInstalledMarketplaceLocalSkill}
         getMarketplaceSkillActionLabel={getMarketplaceSkillActionLabel}
         highlightedInstalledSkillDirectory={highlightedInstalledSkillDirectory}
@@ -800,7 +794,6 @@ export function SkillsWorkspacePage({
         officialMarketplaceError={officialMarketplaceError}
         officialMarketplaceLoading={officialMarketplaceLoading}
         officialMarketplaceSkillCount={officialMarketplaceSkills.length}
-        otherStoreItems={otherStoreItems}
         registeredSkillsRefreshSignal={registeredSkillsRefreshSignal}
         renamingSkillDirectory={renamingSkillDirectory}
         replacingSkillDirectory={replacingSkillDirectory}

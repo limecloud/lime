@@ -4075,7 +4075,6 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.allowedPaths).toEqual([
       "lime-rs/crates/app-server/src/local_data_source/legacy_message_backfill_source.rs",
       "lime-rs/crates/app-server/src/local_data_source/tests.rs",
-      "lime-rs/crates/core/src/database/dao/agent.rs",
       "lime-rs/crates/core/src/database/dao/chat.rs",
       "lime-rs/crates/core/src/database/migration/general_chat_migration.rs",
     ]);
@@ -4098,7 +4097,6 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.allowedPaths).toEqual([
       "lime-rs/crates/app-server/src/local_data_source/legacy_message_backfill_source.rs",
       "lime-rs/crates/app-server/src/local_data_source/tests.rs",
-      "lime-rs/crates/core/src/database/dao/agent.rs",
       "lime-rs/crates/core/src/database/dao/chat.rs",
       "lime-rs/crates/core/src/database/migration/general_chat_migration.rs",
       "lime-rs/crates/agent/src/agent_session_store/legacy_conversation.rs",
@@ -4159,31 +4157,21 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.allowedPaths).toEqual([]);
   });
 
-  it("应只在测试编译图保留 AgentDao 旧消息 API", () => {
-    const agentDaoSource = readFileSync(
-      join(REPO_ROOT, "lime-rs/crates/core/src/database/dao/agent.rs"),
-      "utf8",
+  it("不应恢复已删除的 AgentDao 旧消息 API", () => {
+    const agentDaoPath = join(
+      REPO_ROOT,
+      "lime-rs/crates/core/src/database/dao/agent.rs",
     );
-    const legacyMethods = [
-      "add_message",
-      "delete_messages",
-      "update_latest_assistant_message_usage",
-      "get_message_window_info",
-      "get_message_timestamp_by_id",
-      "get_session_with_messages",
-      "get_message_count",
-      "get_messages",
-      "get_messages_tail",
-      "get_messages_tail_page",
-      "get_messages_before",
-    ];
+    expect(existsSync(agentDaoPath)).toBe(false);
 
-    for (const method of legacyMethods) {
-      expect(agentDaoSource).toMatch(
-        new RegExp(
-          `#\\[cfg\\(test\\)\\][\\s\\S]{0,160}pub fn ${method}\\s*\\(`,
-        ),
-      );
+    const daoDir = join(REPO_ROOT, "lime-rs/crates/core/src/database/dao");
+    for (const entry of readdirSync(daoDir)) {
+      if (!entry.endsWith(".rs")) continue;
+      const source = readFileSync(join(daoDir, entry), "utf8");
+      expect(
+        /\bAgentDao\b/.test(source),
+        `${entry} restores the retired AgentDao owner`,
+      ).toBe(false);
     }
   });
 

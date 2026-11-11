@@ -1,6 +1,6 @@
 export const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 export const APP_SIDEBAR_COLLAPSE_EVENT = "lime:app-sidebar-collapse";
-export const APP_SIDEBAR_WIDTH = 340;
+export const APP_SIDEBAR_WIDTH = 348;
 export const APP_SIDEBAR_MIN_WIDTH = 290;
 export const APP_SIDEBAR_MAX_WIDTH = 520;
 export const SIDEBAR_WIDTH_STORAGE_KEY = "sidebar-width";

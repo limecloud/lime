@@ -60,7 +60,7 @@ export const ModelSelectorTrigger = forwardRef<
       title={compact ? label : undefined}
       className={cn(
         compact
-          ? "h-7 max-w-[224px] justify-start gap-1 rounded-md border-[0.5px] border-transparent bg-transparent font-normal text-foreground shadow-none hover:bg-muted"
+          ? "h-7 max-w-[224px] justify-start gap-1 rounded-full border-[0.5px] border-transparent bg-transparent text-[13px] font-normal text-foreground shadow-none hover:bg-muted"
           : "h-9 w-full min-w-0 justify-start gap-2 rounded-md border-[0.5px] border-border bg-background px-3 font-normal text-foreground shadow-none hover:border-border hover:bg-muted",
         compact &&
           (hideLabel ? "w-8 min-w-8 justify-center px-0" : "min-w-0 px-1"),

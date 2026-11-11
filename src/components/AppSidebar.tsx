@@ -36,6 +36,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LIME_BRAND_NAME } from "@/lib/branding";
 import { useCommand } from "@/lib/commands/useCommand";
 import { AppSidebarCustomization } from "@/components/app-sidebar/AppSidebarCustomization";
+import { ContextualSidebarOutlet } from "@/components/app-shell/ContextualSidebarOutlet";
 import { HeaderAction } from "@/components/app-shell/AppShell";
 import {
   AppNavigationRail,
@@ -735,7 +736,9 @@ export function AppSidebar({
           $collapsed={collapsed}
           data-testid="app-sidebar-contextual"
         >
-          {isCustomizationPage && !collapsed ? (
+          {activePage === "scheduled-tasks" ? (
+            <ContextualSidebarOutlet page="scheduled-tasks" />
+          ) : isCustomizationPage && !collapsed ? (
             <AppSidebarCustomization
               currentPage={activePage}
               pageParams={activePageParams}

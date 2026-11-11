@@ -237,19 +237,6 @@ export function getVisibleSkillStoreItems({
   );
 }
 
-export function splitFeaturedSkillStoreItems(
-  visibleStoreItems: SkillStoreItem[],
-  featuredLimit = 9,
-): {
-  featuredStoreItems: SkillStoreItem[];
-  otherStoreItems: SkillStoreItem[];
-} {
-  return {
-    featuredStoreItems: visibleStoreItems.slice(0, featuredLimit),
-    otherStoreItems: visibleStoreItems.slice(featuredLimit),
-  };
-}
-
 export function getVisibleBuiltinLocalSkills({
   localSkills,
   searchQuery,

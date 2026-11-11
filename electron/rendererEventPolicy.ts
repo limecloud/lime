@@ -19,8 +19,10 @@ type RendererEventListener = (
 export function registerRendererEventHandler(
   ipc: { on(channel: string, listener: RendererEventListener): unknown },
   broadcast: (event: string, payload?: unknown) => void,
+  route?: (sender: unknown, event: string, payload?: unknown) => boolean,
 ): void {
-  ipc.on(IPC_EMIT_CHANNEL, (_sender, event, payload) => {
-    if (canBroadcastRendererEvent(event)) broadcast(event, payload);
+  ipc.on(IPC_EMIT_CHANNEL, (sender, event, payload) => {
+    if (canBroadcastRendererEvent(event) && !route?.(sender, event, payload))
+      broadcast(event, payload);
   });
 }

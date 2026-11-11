@@ -307,7 +307,7 @@ function ComposerUtilityBarWorkspace({
           <button
             type="button"
             className={cn(
-              "inline-flex h-7 min-w-0 max-w-[180px] items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition",
+              "inline-flex h-7 min-w-0 max-w-[180px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium transition",
               "text-[color:var(--lime-text)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)] hover:shadow-[0_1px_2px_var(--lime-shadow-color)] ",
               projectTriggerClassName,
             )}

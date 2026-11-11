@@ -34,6 +34,8 @@
 
 // 无外部依赖的服务
 pub mod context_memory_service;
+pub mod cloud_desktop_service;
+pub mod cloud_archive_service;
 pub mod project_git_service;
 pub mod sysinfo_service;
 pub mod update_check_service;

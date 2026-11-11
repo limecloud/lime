@@ -15,7 +15,16 @@ struct Configuration {
 }
 
 impl Configuration {
-    // Desktop 与独立 CLI 共享同一 age 文件，锁覆盖 keyring 初始化和完整读改写。
+    fn new(root: PathBuf, mode: Option<&str>) -> Result<Self, String> {
+        let mode = match mode {
+            None | Some("file") => StoreMode::File,
+            Some("keyring") => StoreMode::Keyring,
+            _ => return Err("credential_store_mode_invalid".to_string()),
+        };
+        Ok(Self { root, mode })
+    }
+
+    // Desktop 与独立 CLI 共享凭据目录；锁覆盖文件读改写和显式 keyring 初始化。
     fn lock(&self) -> Result<std::fs::File, String> {
         let directory = self.root.join("credentials");
         let mut builder = std::fs::DirBuilder::new();
@@ -65,12 +74,11 @@ impl ProviderCredentialStore {
                 let root = lime_core::app_paths::resolve_lime_home_dir()
                     .ok_or_else(|| "credential_store_home_unavailable".to_string())?;
                 let mode = match std::env::var("LIME_CREDENTIALS_STORE") {
-                    Err(std::env::VarError::NotPresent) => StoreMode::Keyring,
-                    Ok(value) if value == "keyring" => StoreMode::Keyring,
-                    Ok(value) if value == "file" => StoreMode::File,
+                    Err(std::env::VarError::NotPresent) => None,
+                    Ok(value) => Some(value),
                     _ => return Err("credential_store_mode_invalid".to_string()),
                 };
-                Ok(Configuration { root, mode })
+                Configuration::new(root, mode.as_deref())
             })(),
         }
     }
@@ -212,6 +220,22 @@ fn reference_name(reference: &str) -> Result<SecretName, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_credentials_reopen_without_a_keyring() {
+        let root = tempfile::tempdir().unwrap();
+        let open = || ProviderCredentialStore {
+            configuration: Configuration::new(root.path().to_path_buf(), None),
+        };
+        let reference = open().save("fixture-key").unwrap();
+        // 模拟 Desktop、CLI 与重启后的独立 store；默认路径无需系统授权。
+        for _ in 0..4 {
+            assert_eq!(open().load(&reference).unwrap(), "fixture-key");
+        }
+        assert!(!root.path().join("secrets/local.age").exists());
+        open().delete(&reference).unwrap();
+        assert!(open().load(&reference).is_err());
+    }
 
     #[test]
     fn file_credentials_reopen_delete_and_reject_legacy_values() {

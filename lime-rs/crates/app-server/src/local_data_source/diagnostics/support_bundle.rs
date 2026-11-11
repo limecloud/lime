@@ -14,7 +14,7 @@ use std::io;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::CompressionMethod;
 use zip::ZipWriter;
 
@@ -280,8 +280,8 @@ fn add_directory_to_zip<W: Write + io::Seek>(
     root: &Path,
     current: &Path,
 ) -> Result<(), String> {
-    let file_options = FileOptions::default().compression_method(CompressionMethod::Deflated);
-    let dir_options = FileOptions::default().compression_method(CompressionMethod::Stored);
+    let file_options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    let dir_options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
 
     for entry in fs::read_dir(current)
         .map_err(|error| format!("读取支持包目录失败 {}: {error}", current.display()))?

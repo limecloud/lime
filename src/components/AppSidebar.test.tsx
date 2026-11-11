@@ -201,7 +201,7 @@ describe("AppSidebar navigation", () => {
     expect(container.textContent).not.toContain("专家");
     expect(container.textContent).not.toContain("Skills");
     expect(container.textContent).toContain("插件");
-    expect(container.textContent).toContain("已安排任务");
+    expect(container.textContent).toContain("定时任务");
     expect(container.textContent).not.toContain("项目资料");
     expect(container.textContent).not.toContain("灵感");
     expect(container.textContent).toContain("设置");
@@ -254,7 +254,7 @@ describe("AppSidebar navigation", () => {
     );
 
     expect(button).not.toBeNull();
-    expect(button?.getAttribute("aria-label")).toBe("已安排任务");
+    expect(button?.getAttribute("aria-label")).toBe("定时任务");
 
     act(() => {
       button?.click();

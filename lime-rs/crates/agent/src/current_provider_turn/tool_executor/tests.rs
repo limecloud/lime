@@ -2,9 +2,8 @@ use super::*;
 use agent_runtime::action_required::ActionRequiredRequest;
 use app_server_protocol::protocol::v2::GrantedPermissionProfile;
 use rmcp::model::{
-    Content, NumberOrString, ProgressNotification, ProgressNotificationMethod,
-    ProgressNotificationParam, ProgressToken, PromptListChangedNotification,
-    ResourceListChangedNotification, ToolListChangedNotification,
+    Content, NumberOrString, ProgressNotification, ProgressNotificationParam, ProgressToken,
+    PromptListChangedNotification, ResourceListChangedNotification, ToolListChangedNotification,
 };
 
 #[test]
@@ -249,14 +248,10 @@ async fn mcp_call_emits_supported_list_changed_notifications() {
 }
 
 fn progress_notification(message: Option<&str>) -> ServerNotification {
-    ServerNotification::ProgressNotification(ProgressNotification {
-        method: ProgressNotificationMethod,
-        params: ProgressNotificationParam {
-            progress_token: ProgressToken(NumberOrString::Number(1)),
-            progress: 1.0,
-            total: Some(2.0),
-            message: message.map(str::to_string),
-        },
-        extensions: Default::default(),
-    })
+    ServerNotification::ProgressNotification(ProgressNotification::new(ProgressNotificationParam {
+        progress_token: ProgressToken(NumberOrString::Number(1)),
+        progress: 1.0,
+        total: Some(2.0),
+        message: message.map(str::to_string),
+    }))
 }

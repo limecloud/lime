@@ -83,7 +83,7 @@ pub fn extract_docx_text(
 
     for index in 0..archive.len() {
         let mut file = archive.by_index(index)?;
-        let name = file.name().to_string();
+        let name = file.name()?.into_owned();
         if !is_docx_text_entry(&name) {
             continue;
         }
@@ -124,7 +124,7 @@ pub fn extract_xlsx_text(
 
     for index in 0..archive.len() {
         let mut file = archive.by_index(index)?;
-        let name = file.name().to_string();
+        let name = file.name()?.into_owned();
         if !is_xlsx_sheet_entry(&name) {
             continue;
         }
@@ -150,7 +150,7 @@ pub fn extract_pptx_text(
 
     for index in 0..archive.len() {
         let mut file = archive.by_index(index)?;
-        let name = file.name().to_string();
+        let name = file.name()?.into_owned();
         if !is_pptx_slide_entry(&name) {
             continue;
         }
@@ -802,7 +802,7 @@ mod tests {
         let mut buffer = Cursor::new(Vec::new());
         {
             let mut writer = zip::ZipWriter::new(&mut buffer);
-            let options = zip::write::FileOptions::default();
+            let options = zip::write::SimpleFileOptions::default();
             for (name, content) in entries {
                 writer.start_file(*name, options).expect("应创建 zip entry");
                 writer

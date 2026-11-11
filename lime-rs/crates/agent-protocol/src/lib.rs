@@ -87,7 +87,7 @@ id_type!(ModelId);
 
 /// Stable canonical identity for a persisted ThreadItem.
 ///
-/// Adapted from Codex `ResponseItemId` (`5c19155cbd93bfa099016e7487259f61669823ff`),
+/// Adapted from upstream `ResponseItemId` (`5c19155cbd93bfa099016e7487259f61669823ff`),
 /// Apache-2.0; see the repository's recorded provenance and NOTICE. New IDs are
 /// generated with a domain prefix; existing source identities are retained.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]

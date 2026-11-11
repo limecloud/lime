@@ -422,7 +422,7 @@ describe("ModelSelector", () => {
     expect(setProviderType).not.toHaveBeenCalledWith("lime-hub");
   });
 
-  it("Lime Hub 有声明模型时应自动选中 provider 和默认模型", async () => {
+  it("已登录 Lime Hub 有声明模型时应自动选中 provider 和默认模型", async () => {
     const setProviderType = vi.fn();
     const setModel = vi.fn();
     mockUseConfiguredProviders.mockReturnValue({
@@ -435,7 +435,7 @@ describe("ModelSelector", () => {
           providerId: "lime-hub",
           apiHost: "https://llm.limeai.run#lime_tenant_id=tenant-0001",
           models: ["gpt-5.2-pro"],
-          authStatus: "login_required",
+          authStatus: "ready",
         },
       ],
       loading: false,
@@ -456,7 +456,7 @@ describe("ModelSelector", () => {
     expect(setModel).toHaveBeenCalledWith("gpt-5.2-pro");
   });
 
-  it("Lime Hub 有声明模型时应展示模型列表而不是登录阻断空态", () => {
+  it("已登录 Lime Hub 有声明模型时应展示模型列表", () => {
     mockUseConfiguredProviders.mockReturnValue({
       providers: [
         {
@@ -467,7 +467,7 @@ describe("ModelSelector", () => {
           providerId: "lime-hub",
           apiHost: "https://llm.limeai.run#lime_tenant_id=tenant-0001",
           models: ["gpt-5.2-pro"],
-          authStatus: "login_required",
+          authStatus: "ready",
         },
       ],
       loading: false,

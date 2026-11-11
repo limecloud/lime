@@ -434,18 +434,20 @@ async fn complete_oauth_login(
             .map_err(oauth_error)?;
         let (client_id, token_response) =
             auth_state.get_credentials().await.map_err(oauth_error)?;
-        store
-            .save(StoredCredentials {
-                client_id,
-                token_response,
-            })
-            .await
-            .map_err(oauth_error)?;
         let mut manager = auth_state.into_authorization_manager().ok_or_else(|| {
             McpError::ProtocolError(
                 "MCP OAuth flow completed without authorization manager".to_string(),
             )
         })?;
+        let granted_scopes = manager.get_current_scopes().await;
+        let token_received_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|error| McpError::ProtocolError(format!("invalid OAuth token receipt time: {error}")))?
+            .as_secs();
+        store
+            .save(StoredCredentials::new(client_id, token_response, granted_scopes, Some(token_received_at)))
+            .await
+            .map_err(oauth_error)?;
         manager.set_credential_store(store);
         Ok::<(), McpError>(())
     })

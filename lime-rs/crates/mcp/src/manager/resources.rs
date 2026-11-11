@@ -1,7 +1,7 @@
 use super::McpClientManager;
 use crate::types::*;
 use rmcp::model::{
-    ClientRequest, Extensions, Meta, ReadResourceRequest, ReadResourceRequestParam, ServerResult,
+    ClientRequest, Extensions, Meta, ReadResourceRequest, ReadResourceRequestParams, ServerResult,
 };
 use tracing::{debug, error, info, warn};
 
@@ -29,8 +29,8 @@ impl McpClientManager {
             .running_service()
             .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?;
         let result = service
-            .list_resources(cursor.map(|cursor| rmcp::model::PaginatedRequestParam {
-                cursor: Some(cursor),
+            .list_resources(cursor.map(|cursor| {
+                rmcp::model::PaginatedRequestParams::default().with_cursor(Some(cursor))
             }))
             .await
             .map_err(|error| McpError::ProtocolError(error.to_string()))?;
@@ -247,9 +247,7 @@ impl McpClientManager {
             .running_service()
             .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?;
 
-        let read_param = ReadResourceRequestParam {
-            uri: uri.to_string(),
-        };
+        let read_param = ReadResourceRequestParams::new(uri);
         let mut request = ReadResourceRequest::new(read_param);
         if let Some(meta) = meta {
             let meta = meta.as_object().cloned().ok_or_else(|| {
@@ -364,9 +362,7 @@ impl McpClientManager {
             .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?;
 
         service
-            .subscribe(rmcp::model::SubscribeRequestParam {
-                uri: uri.to_string(),
-            })
+            .subscribe(rmcp::model::SubscribeRequestParams::new(uri))
             .await
             .map_err(|error| {
                 error!(
@@ -395,9 +391,7 @@ impl McpClientManager {
             .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?;
 
         service
-            .unsubscribe(rmcp::model::UnsubscribeRequestParam {
-                uri: uri.to_string(),
-            })
+            .unsubscribe(rmcp::model::UnsubscribeRequestParams::new(uri))
             .await
             .map_err(|error| {
                 error!(

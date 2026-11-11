@@ -1,11 +1,11 @@
 //! Normalize shared options once before dispatching a command.
 
 use super::{
-    exec, queue_cmd, review_cmd, run, run_archive, run_debug_command, run_delete,
-    run_execpolicycheck, run_features_command, run_fork, run_interactive_tui, run_resume,
-    run_skills, run_thread, run_unarchive, sandbox_setup, DebugSubcommand, ExecpolicyCommand,
-    ExecpolicySubcommand, FeaturesSubcommand, MultitoolCli, SkillsSubcommand, Subcommand,
-    ThreadSubcommand,
+    exec, queue_cmd, review_cmd, run, run_agents, run_archive, run_debug_command, run_delete,
+    run_execpolicycheck, run_features_command, run_fork, run_interactive_tui,
+    run_resume, run_skills, run_thread, run_unarchive, sandbox_setup, DebugSubcommand,
+    ExecpolicyCommand, ExecpolicySubcommand, FeaturesSubcommand, MultitoolCli, SkillsSubcommand,
+    Subcommand, ThreadSubcommand,
 };
 use crate::connection::ConnectionArgs;
 use clap::CommandFactory;
@@ -29,6 +29,7 @@ pub(crate) fn inherit_root_options(cli: &mut MultitoolCli) {
     let locale = match command {
         Subcommand::Tui(args) => Some(&mut args.locale),
         Subcommand::Exec(args) => Some(&mut args.locale),
+        Subcommand::Agents(args) => Some(&mut args.locale),
         Subcommand::Resume(args) => Some(&mut args.locale),
         _ => None,
     };
@@ -44,6 +45,7 @@ impl Subcommand {
         Some(match self {
             Self::Tui(args) => &mut args.connection,
             Self::Exec(args) => &mut args.connection,
+            Self::Agents(args) => &mut args.connection,
             Self::Resume(args) => &mut args.connection,
             Self::Review(args) => args.connection_mut(),
             Self::Queue(args) => args.connection_mut(),
@@ -83,6 +85,7 @@ pub(crate) async fn run_cli(mut cli: MultitoolCli) -> ExitCode {
         None => run_interactive_tui(cli.interactive).await,
         Some(Subcommand::Tui(args)) => run_interactive_tui(args).await,
         Some(Subcommand::Exec(args)) => exec::run(args).await,
+        Some(Subcommand::Agents(args)) => run_agents(args).await,
         Some(Subcommand::Resume(args)) => run_resume(args).await,
         Some(Subcommand::Review(args)) => review_cmd::run_review_command(args, root_locale).await,
         Some(Subcommand::Queue(args)) => queue_cmd::run_queue_command(args).await,

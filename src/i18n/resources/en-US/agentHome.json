@@ -8,5 +8,6 @@
   "agentChat.serviceSkills.catalogSource.synced": "Synced playbooks",
   "agentChat.home.composer.placeholder": "Ask anything",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "Please review these files or folders.",
-  "agentChat.home.title": "What should we build?"
+  "agentChat.home.title": "What should we build?",
+  "agentChat.home.titleInProject": "What should we build in <projectSelect>{{projectName}}</projectSelect>?"
 }

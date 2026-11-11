@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
+  Clock,
   LoaderCircle,
   RefreshCw,
 } from "lucide-react";
@@ -13,6 +14,7 @@ import {
 } from "@/components/agent/chat/hooks/agentProjectStorage";
 import { resolveWorkspaceAgentPreferences } from "@/components/agent/chat/hooks/agentChatStorage";
 import { Button } from "@/components/ui/button";
+import { useContextualSidebar } from "@/components/app-shell/useContextualSidebar";
 import { isAppServerBridgeAvailable } from "@/lib/api/appServerBridgeAvailability";
 import {
   scheduledTasksApi,
@@ -55,6 +57,7 @@ export function ScheduledTasksPage({
   );
   const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null);
   const selectedIdRef = useRef(selectedId);
+  const didAutoSelectRef = useRef(false);
   const [runs, setRuns] = useState<ScheduledTaskRunSummary[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ScheduledTaskFilter>("all");
@@ -86,6 +89,10 @@ export function ScheduledTasksPage({
       setSelectedId((current) => {
         if (current && response.items.some((item) => item.id === current)) {
           return current;
+        }
+        if (!didAutoSelectRef.current && response.items.length > 0) {
+          didAutoSelectRef.current = true;
+          return response.items[0].id;
         }
         return null;
       });
@@ -392,6 +399,31 @@ export function ScheduledTasksPage({
     [onNavigate, selectedTask],
   );
 
+  const taskListPanel = (
+    <ScheduledTaskList
+      tasks={filteredTasks}
+      selectedId={selectedId}
+      query={query}
+      filter={filter}
+      locale={i18n.language}
+      loading={loading}
+      t={t}
+      onQueryChange={setQuery}
+      onFilterChange={setFilter}
+      onSelect={(id) => {
+        setEditorMode(null);
+        setSelectedId(id);
+      }}
+      onCreate={() => startCreate()}
+      onCreateWithLime={createWithLime}
+      inSidebar
+    />
+  );
+  const sidebarAvailable = useContextualSidebar(
+    "scheduled-tasks",
+    taskListPanel,
+  );
+
   return (
     <div className="lime-workbench-theme-scope flex h-full min-h-0 flex-1 flex-col bg-white">
       {loadError ? (
@@ -411,29 +443,23 @@ export function ScheduledTasksPage({
           </Button>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <div className={selectedId || editorMode ? "hidden md:flex" : "flex"}>
-            <ScheduledTaskList
-              tasks={filteredTasks}
-              selectedId={selectedId}
-              query={query}
-              filter={filter}
-              locale={i18n.language}
-              loading={loading}
-              t={t}
-              onQueryChange={setQuery}
-              onFilterChange={setFilter}
-              onSelect={(id) => {
-                setEditorMode(null);
-                setSelectedId(id);
-              }}
-              onCreate={() => startCreate()}
-              onCreateWithLime={createWithLime}
-            />
-          </div>
+        <div
+          className={
+            sidebarAvailable
+              ? "flex min-h-0 flex-1 flex-col"
+              : "flex min-h-0 flex-1 flex-col md:flex-row"
+          }
+        >
+          {sidebarAvailable ? null : (
+            <div
+              className={selectedId || editorMode ? "hidden md:flex" : "flex"}
+            >
+              {taskListPanel}
+            </div>
+          )}
           <main
             className={
-              selectedId
+              sidebarAvailable || selectedId
                 ? "min-h-0 flex-1"
                 : "hidden min-h-0 flex-1 md:block"
             }
@@ -510,17 +536,25 @@ function EmptyWorkbench({
 }) {
   return (
     <div className="flex h-full min-h-[420px] items-center justify-center overflow-y-auto px-6 py-10">
-      <div className="w-full max-w-md text-center">
-        <CalendarClock className="mx-auto h-10 w-10 text-slate-400" />
-        <h2 className="mt-4 text-base font-semibold text-slate-900">
-          {t("scheduledTasks.empty.workbenchTitle")}
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">
-          {t("scheduledTasks.empty.workbenchDescription")}
-        </p>
+      <div className="flex w-full max-w-md flex-col items-center text-center">
+        <div className="flex flex-col items-center gap-3">
+          <Clock
+            className="h-7 w-7 text-slate-500"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+          <div className="flex flex-col items-center gap-0.5">
+            <h1 className="text-[18px] leading-[26px] font-normal tracking-[-0.025em] text-slate-900">
+              {t("scheduledTasks.empty.workbenchTitle")}
+            </h1>
+            <p className="text-[14px] leading-5 font-normal tracking-[-0.01em] text-slate-500">
+              {t("scheduledTasks.empty.workbenchDescription")}
+            </p>
+          </div>
+        </div>
         <Button
           size="sm"
-          className="mt-6 rounded-full bg-slate-900 px-4 text-xs hover:bg-slate-800"
+          className="mt-11 h-9 rounded-full bg-slate-900 px-4 text-[13px] font-medium hover:bg-slate-800"
           onClick={() => onCreate()}
         >
           {t("scheduledTasks.sidebar.newTask", "新建任务")}

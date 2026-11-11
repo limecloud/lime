@@ -84,7 +84,7 @@ const scrollableCompletedText = [
 ].join("\n");
 const selectedScenarios = (
   process.env.LIME_TUI_GATE_B_SCENARIOS ||
-  "complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,large-paste,diff-display,images,skills"
+  "complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills"
 )
   .split(",")
   .map((scenario) => scenario.trim())
@@ -308,6 +308,13 @@ async function main() {
 
         testOptions,
       );
+      if (scenario === "agents-command") {
+        const marker = "TUI_AGENTS_COMMAND_OK screen=overview back=composer";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`agents-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
       if (scenario === "diff-display") {
         const marker =
           "TUI_EFFORT_ANIMATION_OK palette=probed ignition=tinted ultra=assembled status=restored frames=shared";
@@ -659,8 +666,16 @@ async function main() {
       completedText,
     });
 
-    const ledger = await readJsonLines(ledgerPath);
-    const turnStarts = scenarios.map((scenario) => {
+    const ledger = (await access(ledgerPath).then(
+      () => true,
+      () => false,
+    ))
+      ? await readJsonLines(ledgerPath)
+      : [];
+    const turnScenarios = scenarios.filter(
+      (scenario) => scenario !== "agents-command",
+    );
+    const turnStarts = turnScenarios.map((scenario) => {
       const expectedPrompt = scenarioPrompt(scenario);
       const entry = ledger.find(
         (candidate) =>
@@ -697,7 +712,7 @@ async function main() {
       "copy-mode":
         "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
     };
-    for (const [index, scenario] of scenarios.entries()) {
+    for (const [index, scenario] of turnScenarios.entries()) {
       assertEqual(
         turnStarts[index].eventTypes.join(","),
         expectedSequences[scenario],
@@ -873,9 +888,9 @@ async function main() {
         "[smoke:tui-gate-b] ok",
         `cli=${cliBinaryPath}`,
         `appServer=${appServerBinaryPath}`,
-        `thread=${turnStart.threadId}`,
-        `turn=${turnStart.turnId}`,
-        `events=${turnStart.eventTypes.join(",")}`,
+        turnStart ? `thread=${turnStart.threadId}` : "thread=none",
+        turnStart ? `turn=${turnStart.turnId}` : "turn=none",
+        turnStart ? `events=${turnStart.eventTypes.join(",")}` : "events=none",
         threadInputEvidence
           ? `thread-input-stdio=ok input-root=${threadInputEvidence[1]} input-child=${threadInputEvidence[2]} input-turns=${threadInputEvidence[3]},${threadInputEvidence[4]}`
           : null,

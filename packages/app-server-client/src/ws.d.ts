@@ -1,4 +1,7 @@
 declare module "ws" {
+  import { EventEmitter } from "node:events";
+  import type { IncomingMessage } from "node:http";
+  import type { AddressInfo } from "node:net";
   type WebSocketData = string | ArrayBuffer | Buffer | Buffer[];
 
   type WebSocketMessageListener = (
@@ -38,5 +41,18 @@ declare module "ws" {
     terminate(): void;
   }
 
+  class WebSocketServer extends EventEmitter {
+    constructor(options: { host?: string; port: number });
+    readonly clients: Set<WebSocket>;
+    address(): AddressInfo | string | null;
+    on(
+      event: "connection",
+      listener: (socket: WebSocket, request: IncomingMessage) => void,
+    ): this;
+    on(event: string, listener: (...args: any[]) => void): this;
+    close(callback?: () => void): void;
+  }
+
+  export { WebSocket, WebSocketServer };
   export default WebSocket;
 }

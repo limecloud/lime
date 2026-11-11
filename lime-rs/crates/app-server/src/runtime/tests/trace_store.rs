@@ -181,7 +181,8 @@ fn trace_writer_exports_summary_only_zip() {
                 .by_index(index)
                 .expect("zip entry")
                 .name()
-                .to_string(),
+                .expect("zip entry name")
+                .into_owned(),
         );
     }
     assert_eq!(

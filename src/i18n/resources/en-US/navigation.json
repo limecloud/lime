@@ -31,7 +31,7 @@
   "navigation.sidebar.actions.expand": "Expand navigation",
   "navigation.sidebar.home.ariaLabel": "Back to Lime Home",
   "navigation.sidebar.home.label": "Lime Home",
-  "navigation.sidebar.items.scheduledTasks": "Scheduled Tasks",
+  "navigation.sidebar.items.scheduledTasks": "Scheduled tasks",
   "navigation.sidebar.items.channels": "Channels",
   "navigation.sidebar.items.plugins": "Plugins",
   "navigation.sidebar.items.settings": "Settings",
@@ -141,5 +141,7 @@
   "navigation.sidebar.account.profile": "Profile",
   "navigation.sidebar.account.login.action": "Sign in",
   "navigation.sidebar.account.logout": "Log out",
-  "navigation.sidebar.account.logoutFailed": "Failed to log out"
+  "navigation.sidebar.account.logoutFailed": "Failed to log out",
+  "commands.showSettings.title": "Open settings",
+  "commands.showSettings.description": "Open the settings page."
 }

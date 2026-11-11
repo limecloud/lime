@@ -33,6 +33,10 @@ impl ControlBroker {
         }
         builder.create(&directory).map_err(io_error)?;
         check_path(&directory, true)?;
+        #[cfg(target_os = "linux")]
+        if fs::symlink_metadata(directory.join("human-control")).is_ok() {
+            return Err(denied("Human desktop control is active; explicitly return control to AI"));
+        }
 
         // Never unlink/replace this file: doing so would split the resource into two
         // independently lockable inodes while an old process is still using it.

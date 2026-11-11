@@ -34,6 +34,7 @@ fn wps_identity(target: &ComputerUseTarget, session: u64) -> Option<ComputerUseT
     };
     let native_app = target.native_app.as_ref()?;
     let app_matches = match native_app {
+        NativeAppIdentity::Linux { .. } => false,
         NativeAppIdentity::Macos { bundle_id } => app_id == bundle_id,
         NativeAppIdentity::Windows { binary_name, .. } => {
             app_id.starts_with("win32:\\\\?\\")

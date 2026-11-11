@@ -1,4 +1,4 @@
-// Adapted from Codex hook protocol contracts
+// Adapted from upstream hook protocol contracts
 // (c4f42d161ae44a8d696ee9fb595709661979d187), Apache-2.0.
 
 use schemars::JsonSchema;

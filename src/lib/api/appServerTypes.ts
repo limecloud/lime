@@ -7,6 +7,8 @@ export type AppServerStorageDeleteParams = protocol.StorageDeleteParams;
 export type AppServerStorageDeleteResponse = protocol.StorageDeleteResponse;
 
 export type AppServerCloudRequestParams = protocol.CloudRequestParams;
+export type AppServerCloudDesktopParams = protocol.CloudDesktopParams;
+export type AppServerCloudDesktopResponse = protocol.CloudDesktopResponse;
 export type AppServerCloudRequestResponse = protocol.CloudRequestResponse;
 export type AppServerAccount = protocol.Account;
 export type AppServerLoginAccountParams = protocol.LoginAccountParams;

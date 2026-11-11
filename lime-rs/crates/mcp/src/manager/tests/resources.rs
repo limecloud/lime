@@ -2,9 +2,9 @@ use crate::manager::McpClientManager;
 use crate::types::McpError;
 use rmcp::{
     model::{
-        AnnotateAble, ListResourcesResult, ListToolsResult, PaginatedRequestParam, RawResource,
-        ReadResourceRequestParam, ReadResourceResult, ResourceContents, ServerCapabilities,
-        ServerInfo, SubscribeRequestParam, UnsubscribeRequestParam,
+        AnnotateAble, ListResourcesResult, ListToolsResult, PaginatedRequestParams, RawResource,
+        ReadResourceRequestParams, ReadResourceResult, ResourceContents, ServerCapabilities,
+        ServerInfo, SubscribeRequestParams, UnsubscribeRequestParams,
     },
     service::RequestContext,
     RoleServer, ServerHandler, ServiceExt,
@@ -22,19 +22,18 @@ struct ExactTargetResourceServer {
 
 impl ServerHandler for ExactTargetResourceServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            capabilities: ServerCapabilities::builder()
+        ServerInfo::new(
+            ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
                 .enable_resources_subscribe()
                 .build(),
-            ..Default::default()
-        }
+        )
     }
 
     async fn list_tools(
         &self,
-        _request: Option<PaginatedRequestParam>,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, rmcp::ErrorData> {
         let tool = serde_json::from_value(serde_json::json!({
@@ -58,7 +57,7 @@ impl ServerHandler for ExactTargetResourceServer {
 
     async fn list_resources(
         &self,
-        request: Option<PaginatedRequestParam>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, rmcp::ErrorData> {
         let page = request.and_then(|request| request.cursor);
@@ -80,21 +79,22 @@ impl ServerHandler for ExactTargetResourceServer {
 
     async fn read_resource(
         &self,
-        request: ReadResourceRequestParam,
+        request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, rmcp::ErrorData> {
         self.read_meta
             .lock()
             .await
             .push(serde_json::Value::Object(context.meta.0));
-        Ok(ReadResourceResult {
-            contents: vec![ResourceContents::text(self.name, request.uri)],
-        })
+        Ok(ReadResourceResult::new(vec![ResourceContents::text(
+            self.name,
+            request.uri,
+        )]))
     }
 
     async fn subscribe(
         &self,
-        request: SubscribeRequestParam,
+        request: SubscribeRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<(), rmcp::ErrorData> {
         self.subscriptions.lock().await.push(request.uri);
@@ -103,7 +103,7 @@ impl ServerHandler for ExactTargetResourceServer {
 
     async fn unsubscribe(
         &self,
-        request: UnsubscribeRequestParam,
+        request: UnsubscribeRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<(), rmcp::ErrorData> {
         self.unsubscriptions.lock().await.push(request.uri);
@@ -501,6 +501,7 @@ fn test_convert_resource_template_to_definition() {
         title: Some("Workspace File".to_string()),
         description: Some("Read a workspace file by path".to_string()),
         mime_type: Some("text/plain".to_string()),
+        icons: None,
     };
     let template = raw_template.no_annotation();
 
@@ -521,12 +522,10 @@ fn test_convert_resource_template_to_definition() {
 #[test]
 fn test_convert_read_resource_result_text() {
     // 创建文本资源内容
-    let result = rmcp::model::ReadResourceResult {
-        contents: vec![rmcp::model::ResourceContents::text(
-            "Hello, World!",
-            "file:///test.txt",
-        )],
-    };
+    let result = rmcp::model::ReadResourceResult::new(vec![rmcp::model::ResourceContents::text(
+        "Hello, World!",
+        "file:///test.txt",
+    )]);
 
     // 转换为 McpResourceContent
     let mcp_content = McpClientManager::convert_read_resource_result("file:///test.txt", result);
@@ -551,14 +550,14 @@ fn test_convert_read_resource_result_preserves_meta() {
             }
         }),
     );
-    let result = rmcp::model::ReadResourceResult {
-        contents: vec![rmcp::model::ResourceContents::TextResourceContents {
+    let result = rmcp::model::ReadResourceResult::new(vec![
+        rmcp::model::ResourceContents::TextResourceContents {
             uri: "ui://plugin/report.html".to_string(),
             mime_type: Some("text/html".to_string()),
             text: "<main>report</main>".to_string(),
             meta: Some(meta),
-        }],
-    };
+        },
+    ]);
 
     let content = McpClientManager::convert_read_resource_result("ui://plugin/report.html", result);
 
@@ -578,14 +577,14 @@ fn test_convert_read_resource_result_preserves_meta() {
 #[test]
 fn test_convert_read_resource_result_blob() {
     // 创建二进制资源内容
-    let result = rmcp::model::ReadResourceResult {
-        contents: vec![rmcp::model::ResourceContents::BlobResourceContents {
+    let result = rmcp::model::ReadResourceResult::new(vec![
+        rmcp::model::ResourceContents::BlobResourceContents {
             uri: "file:///test.bin".to_string(),
             mime_type: Some("application/octet-stream".to_string()),
             blob: "base64encodeddata".to_string(),
             meta: None,
-        }],
-    };
+        },
+    ]);
 
     // 转换为 McpResourceContent
     let mcp_content = McpClientManager::convert_read_resource_result("file:///test.bin", result);
@@ -604,7 +603,7 @@ fn test_convert_read_resource_result_blob() {
 #[test]
 fn test_convert_read_resource_result_empty() {
     // 创建空的资源结果
-    let result = rmcp::model::ReadResourceResult { contents: vec![] };
+    let result = rmcp::model::ReadResourceResult::new(vec![]);
 
     // 转换为 McpResourceContent
     let mcp_content = McpClientManager::convert_read_resource_result("file:///empty.txt", result);

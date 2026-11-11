@@ -1,4 +1,4 @@
-// Adapted from Codex app-server-protocol v2 thread_data/turn/item contracts
+// Adapted from upstream app-server-protocol v2 thread_data/turn/item contracts
 // (5c19155cbd93bfa099016e7487259f61669823ff), Apache-2.0; see repository NOTICE.
 
 use schemars::JsonSchema;

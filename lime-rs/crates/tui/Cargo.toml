@@ -35,14 +35,14 @@ pulldown-cmark = { workspace = true, features = ["html"] }
 serde.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 shlex = "1"
-syntect = "5"
+syntect = { version = "5", default-features = false, features = ["parsing", "regex-onig"] }
 tokio.workspace = true
 tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util = { workspace = true, features = ["time"] }
 tempfile.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-two-face = { version = "0.5", default-features = false, features = ["syntect-default-onig"] }
+two-face = { version = "0.5", default-features = false, features = ["syntect-onig"] }
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 textwrap.workspace = true

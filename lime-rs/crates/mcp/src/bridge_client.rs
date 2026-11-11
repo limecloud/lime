@@ -2,9 +2,9 @@ use crate::active_time::active_time_timeout;
 use crate::client_service::LimeMcpClientService;
 use rmcp::handler::client::progress::ProgressSubscriber;
 use rmcp::model::{
-    CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
-    CancelledNotificationMethod, CancelledNotificationParam, ClientRequest, Extensions, JsonObject,
-    ListToolsRequest, ListToolsResult, PaginatedRequestParam, ProgressToken, ServerResult,
+    CallToolRequest, CallToolRequestParams, CallToolResult, CancelledNotification,
+    CancelledNotificationParam, ClientRequest, Extensions, JsonObject, ListToolsRequest,
+    ListToolsResult, PaginatedRequestParams, ProgressToken, ServerResult,
 };
 use rmcp::service::{PeerRequestOptions, RequestHandle, RunningService, ServiceError};
 use rmcp::RoleClient;
@@ -52,7 +52,7 @@ impl McpBridgeClient {
         let res = self
             .send_request(
                 ClientRequest::ListToolsRequest(ListToolsRequest {
-                    params: Some(PaginatedRequestParam { cursor }),
+                    params: Some(PaginatedRequestParams::default().with_cursor(cursor)),
                     method: Default::default(),
                     extensions,
                 }),
@@ -81,16 +81,13 @@ impl McpBridgeClient {
             .handler()
             .enter_elicitation_owner(scope.cloned())
             .await;
+        let mut params = CallToolRequestParams::new(name.to_string());
+        params.arguments = arguments;
+        let mut request = CallToolRequest::new(params);
+        request.extensions = extensions;
         let res = self
             .send_request(
-                ClientRequest::CallToolRequest(CallToolRequest {
-                    params: CallToolRequestParam {
-                        name: name.to_string().into(),
-                        arguments,
-                    },
-                    method: Default::default(),
-                    extensions,
-                }),
+                ClientRequest::CallToolRequest(request),
                 cancel_token,
                 self.tool_timeout,
             )
@@ -116,17 +113,14 @@ impl McpBridgeClient {
             .handler()
             .enter_elicitation_owner(scope.cloned())
             .await;
+        let mut params = CallToolRequestParams::new(name.to_string());
+        params.arguments = arguments;
+        let mut request = CallToolRequest::new(params);
+        request.extensions = extensions;
         let handle = self
             .service
             .send_cancellable_request(
-                ClientRequest::CallToolRequest(CallToolRequest {
-                    params: CallToolRequestParam {
-                        name: name.to_string().into(),
-                        arguments,
-                    },
-                    method: Default::default(),
-                    extensions,
-                }),
+                ClientRequest::CallToolRequest(request),
                 PeerRequestOptions::no_options(),
             )
             .await?;
@@ -194,14 +188,10 @@ async fn await_request(
             Ok(result) => result.map_err(|_error| ServiceError::TransportClosed)?,
             Err(()) => {
                 let _ = peer.send_notification(
-                    CancelledNotification {
-                        params: CancelledNotificationParam {
+                    CancelledNotification::new(CancelledNotificationParam {
                             request_id,
                             reason: Some("timed out".to_owned()),
-                        },
-                        method: CancelledNotificationMethod,
-                        extensions: Default::default(),
-                    }
+                        })
                     .into(),
                 ).await;
                 Err(ServiceError::Timeout{timeout})
@@ -209,14 +199,10 @@ async fn await_request(
         },
         _ = cancel_token.cancelled() => {
             let _ = peer.send_notification(
-                CancelledNotification {
-                    params: CancelledNotificationParam {
+                CancelledNotification::new(CancelledNotificationParam {
                         request_id,
                         reason: Some("operation cancelled".to_owned()),
-                    },
-                    method: CancelledNotificationMethod,
-                    extensions: Default::default(),
-                }
+                    })
                 .into(),
             ).await;
             Err(ServiceError::Cancelled { reason: None })
@@ -240,15 +226,12 @@ mod tests {
 
     impl ServerHandler for CancellationAwareToolServer {
         fn get_info(&self) -> ServerInfo {
-            ServerInfo {
-                capabilities: ServerCapabilities::builder().enable_tools().build(),
-                ..Default::default()
-            }
+            ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
         }
 
         async fn call_tool(
             &self,
-            _request: CallToolRequestParam,
+            _request: CallToolRequestParams,
             context: RequestContext<RoleServer>,
         ) -> Result<CallToolResult, rmcp::ErrorData> {
             self.request_started.cancel();
@@ -388,15 +371,12 @@ mod tests {
 
     impl ServerHandler for ProgressToolServer {
         fn get_info(&self) -> ServerInfo {
-            ServerInfo {
-                capabilities: ServerCapabilities::builder().enable_tools().build(),
-                ..Default::default()
-            }
+            ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
         }
 
         async fn call_tool(
             &self,
-            request: CallToolRequestParam,
+            request: CallToolRequestParams,
             context: RequestContext<RoleServer>,
         ) -> Result<CallToolResult, rmcp::ErrorData> {
             let label = request

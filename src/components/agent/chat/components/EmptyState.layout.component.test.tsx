@@ -63,4 +63,35 @@ describe("EmptyState layout current integration", () => {
     ) as HTMLButtonElement | null;
     expect(expandedGlobeToggle).toBeNull();
   });
+
+  it("标题内联项目名打开 Composer 的项目选择器", async () => {
+    const container = renderEmptyState({
+      projectId: "lime",
+      openedProjects: [{ id: "lime", name: "Lime" }],
+    });
+    await flushAsyncEffects();
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hero-project-select"]',
+    );
+    expect(trigger).toBeTruthy();
+    act(() => trigger?.click());
+    await flushAsyncEffects(6);
+
+    expect(
+      document.querySelector('[data-testid="composer-utility-menu"]'),
+    ).toBeTruthy();
+  });
+
+  it("首页标题随当前项目切换为 Codex 的项目内文案", async () => {
+    const container = renderEmptyState({
+      projectId: "lime",
+      openedProjects: [{ id: "lime", name: "Lime" }],
+    });
+    await flushAsyncEffects();
+
+    expect(container.querySelector("h1")?.textContent).toBe(
+      "我们要在 Lime 里构建什么？",
+    );
+  });
 });

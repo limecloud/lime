@@ -1,4 +1,4 @@
-// Adapted from Codex 970111f6cb62cc02fe36a82ea7d71b37a2889c97, Apache-2.0.
+// Adapted from upstream 970111f6cb62cc02fe36a82ea7d71b37a2889c97, Apache-2.0.
 use crate::config_types::EnvironmentVariablePattern;
 use crate::config_types::ShellEnvironmentPolicy;
 use crate::config_types::ShellEnvironmentPolicyInherit;

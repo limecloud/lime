@@ -170,6 +170,25 @@ describe("Permission setup flow", () => {
     await settle();
     expect(document.querySelector('[role="dialog"]')).toBeTruthy();
   });
+  it("dismisses first-run setup with Escape without requesting system access", async () => {
+    snapshot.platform = "win32";
+    await mount();
+    const dialog = document.querySelector('[data-testid="permissions-setup"]')!;
+    expect(dialog).toBeTruthy();
+
+    act(() => {
+      dialog.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    });
+    await settle();
+
+    expect(api.complete).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(api.request).not.toHaveBeenCalled();
+    expect(api.settings).not.toHaveBeenCalled();
+    expect(api.notify).not.toHaveBeenCalled();
+  });
   it("updates OS consent without a focus event and stops rechecking after closing", async () => {
     vi.useFakeTimers();
     try {

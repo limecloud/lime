@@ -8,7 +8,7 @@
  * _需求: 2.2, 3.2, 5.2_
  */
 
-import React, { Suspense, lazy, useState, useCallback, useEffect } from "react";
+import React, { Suspense, lazy, useState, useCallback, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import { withI18nPatch } from "./i18n/withI18nPatch";
@@ -16,9 +16,13 @@ import { AppPageContent } from "./components/AppPageContent";
 import type { AgentBackgroundSessionRuntimeSnapshot } from "./components/agent/chat";
 import { AppServerConfigWarningToastBridge } from "./components/AppServerConfigWarningToastBridge";
 import { ScheduledTaskNotificationBridge } from "./components/ScheduledTaskNotificationBridge";
+import { CloudWindowBoundary } from "./components/cloud/CloudWindowBoundary";
+import { getElectronHostBridge } from "./lib/electron-host";
+import type { Page, PageParams } from "./types/page";
 import { PermissionsSetup } from "./components/permissions/PermissionsSetup";
 import { SplashScreen } from "./components/SplashScreen";
 import { AppSidebar } from "./components/AppSidebar";
+import { useCommand } from "@/lib/commands/useCommand";
 import {
   AppShell,
   AppShellContent,
@@ -69,7 +73,7 @@ import {
 
 const AppContainer = styled.div`
   display: flex;
-  height: 100vh;
+  height: var(--lime-window-content-height, 100vh);
   width: 100vw;
   background: var(--lime-app-bg, hsl(var(--background)));
   overflow: hidden;
@@ -131,6 +135,28 @@ const ConnectConfirmDialog = lazy(() =>
   })),
 );
 
+function LocalDesktopEffects({
+  currentPage,
+  pageParams,
+  onNavigate,
+}: {
+  currentPage: Page;
+  pageParams?: PageParams;
+  onNavigate: (page: Page, params?: PageParams) => void;
+}) {
+  useSkillCatalogBootstrap();
+  useServiceSkillCatalogBootstrap();
+  useOemLimeHubProviderSync();
+  useGlobalTrayModelSync({
+    currentPage,
+    pageParams,
+  });
+  useSkillPackageOpenRequests({
+    onNavigate,
+  });
+  return null;
+}
+
 function AppContent() {
   startupTracker.mark("AppContent: render start");
 
@@ -163,6 +189,19 @@ function AppContent() {
     navigate: handleNavigate,
     tryNavigate,
   });
+  const showSettingsCommand = useMemo(
+    () => ({
+      id: "showSettings",
+      titleKey: "commands.showSettings.title",
+      descriptionKey: "commands.showSettings.description",
+      section: "navigation" as const,
+      bindings: ["CommandOrControl+,"],
+      handler: () => handleNavigate("settings"),
+    }),
+    [handleNavigate],
+  );
+  useCommand(showSettingsCommand);
+
   const [agentHasMessages, setAgentHasMessages] = useState(false);
   const activeAgentSessionId = agentLocation?.sessionId ?? null;
   const [activeAgentStreaming, setActiveAgentStreaming] = useState(false);
@@ -178,16 +217,6 @@ function AppContent() {
     projectName: string;
   } | null>(null);
 
-  useSkillCatalogBootstrap();
-  useServiceSkillCatalogBootstrap();
-  useOemLimeHubProviderSync();
-  useGlobalTrayModelSync({
-    currentPage,
-    pageParams,
-  });
-  useSkillPackageOpenRequests({
-    onNavigate: handleNavigate,
-  });
   useEffect(
     () =>
       listenOpenVoiceModelSettingsRequest((detail) => {
@@ -425,125 +454,150 @@ function AppContent() {
     [],
   );
 
+  const localDesktopEffects = !getElectronHostBridge()?.cloudDesktop ? (
+    <LocalDesktopEffects
+      currentPage={currentPage}
+      pageParams={pageParams}
+      onNavigate={handleNavigate}
+    />
+  ) : null;
   if (showSplash) {
     startupTracker.mark("AppContent: showing splash");
-    return <SplashScreen onComplete={handleSplashComplete} />;
+    return (
+      <>
+        {localDesktopEffects}
+        <SplashScreen onComplete={handleSplashComplete} />
+      </>
+    );
   }
 
   startupTracker.mark("AppContent: rendering main app");
 
   return (
-    <AppShell>
-      <MainContentLayout layout="default" fallback />
-      <AppContainer>
-        <AppShellHeader reserveWindowControls={reserveMacWindowControls} />
-        {hasDesktopHostRuntime ? (
-          <WindowDragLayer aria-hidden="true">
-            <WindowTopDragRegion
-              $reserveMacWindowControls={reserveMacWindowControls}
-              data-lime-window-drag-region
-              onMouseDown={handleWindowDragStart}
+    <>
+      {localDesktopEffects}
+      <AppShell>
+        <MainContentLayout layout="default" fallback />
+        <AppContainer>
+          <AppShellHeader reserveWindowControls={reserveMacWindowControls} />
+          {hasDesktopHostRuntime ? (
+            <WindowDragLayer aria-hidden="true">
+              <WindowTopDragRegion
+                $reserveMacWindowControls={reserveMacWindowControls}
+                data-lime-window-drag-region
+                onMouseDown={handleWindowDragStart}
+              />
+              <WindowSideDragRegion
+                $side="left"
+                data-lime-window-drag-region
+                onMouseDown={handleWindowDragStart}
+              />
+              <WindowSideDragRegion
+                $side="right"
+                data-lime-window-drag-region
+                onMouseDown={handleWindowDragStart}
+              />
+            </WindowDragLayer>
+          ) : null}
+          {shouldShowAppSidebar && (
+            <AppSidebar
+              currentPage={currentPage}
+              currentPageParams={pageParams}
+              activeAgentSessionId={activeAgentSessionId}
+              activeAgentStreaming={activeAgentStreaming}
+              backgroundAgentSessionRuntime={backgroundAgentSessionRuntime}
+              requestedPage={requestedPage}
+              requestedPageParams={requestedPageParams}
+              onNavigate={handleNavigate}
+              onStartNewConversation={startNewConversation}
+              onStartWindowDrag={handleWindowDragStart}
             />
-            <WindowSideDragRegion
-              $side="left"
-              data-lime-window-drag-region
-              onMouseDown={handleWindowDragStart}
-            />
-            <WindowSideDragRegion
-              $side="right"
-              data-lime-window-drag-region
-              onMouseDown={handleWindowDragStart}
-            />
-          </WindowDragLayer>
-        ) : null}
-        {shouldShowAppSidebar && (
-          <AppSidebar
-            currentPage={currentPage}
-            currentPageParams={pageParams}
-            activeAgentSessionId={activeAgentSessionId}
-            activeAgentStreaming={activeAgentStreaming}
-            backgroundAgentSessionRuntime={backgroundAgentSessionRuntime}
-            requestedPage={requestedPage}
-            requestedPageParams={requestedPageParams}
-            onNavigate={handleNavigate}
-            onStartNewConversation={startNewConversation}
-            onStartWindowDrag={handleWindowDragStart}
-          />
-        )}
-        <AppShellContent
-          pageSurface={shouldShowAppSidebar}
-          data-lime-window-drag-region
-          onMouseDown={(event) => {
-            void startWindowDragFromMouseEvent(event, {
-              allowDescendantTargets: false,
-              source: "main_content",
-            });
-          }}
-        >
-          <Suspense fallback={pageLoadingFallback}>
-            <AppNavigationContext.Provider value={navigateFromBrowser}>
-              <BrowserHistoryNavigationContext.Provider value={openHistoryUrl}>
-                <AppPageContent
-                  currentPage={currentPage}
-                  pageParams={pageParams}
-                  requestedPage={requestedPage}
-                  requestedPageParams={requestedPageParams}
-                  onNavigate={handleNavigate}
-                  onStartNewConversation={startNewConversation}
-                  onAgentHasMessagesChange={setAgentHasMessages}
-                  onAgentLocationChange={reportAgentLocation}
-                  onSettingsBack={returnFromSettings}
-                  navigationGuard={navigationGuard}
-                  onAgentStreamingChange={setActiveAgentStreaming}
-                  onBackgroundSessionRuntimeChange={
-                    handleBackgroundSessionRuntimeChange
-                  }
-                />
-              </BrowserHistoryNavigationContext.Provider>
-            </AppNavigationContext.Provider>
-          </Suspense>
-        </AppShellContent>
-        <Suspense fallback={null}>
-          <RecentImageInsertFloating onNavigate={handleNavigate} />
-        </Suspense>
-
-        <Suspense fallback={null}>
-          <ConnectConfirmDialog
-            open={isDialogOpen}
-            relay={relayInfo}
-            relayId={connectPayload?.relay ?? ""}
-            apiKey={connectPayload?.key ?? ""}
-            keyName={connectPayload?.name}
-            isVerified={isVerified}
-            isSaving={isSaving}
-            error={error}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-          />
-        </Suspense>
-
-        <Suspense fallback={null}>
-          <CreateProjectDialog
-            open={projectDialogOpen}
-            onOpenChange={(open) => {
-              setProjectDialogOpen(open);
-              if (!open) {
-                setPendingRecommendation(null);
-              }
+          )}
+          <AppShellContent
+            pageSurface={shouldShowAppSidebar}
+            data-lime-window-drag-region
+            onMouseDown={(event) => {
+              void startWindowDragFromMouseEvent(event, {
+                allowDescendantTargets: false,
+                source: "main_content",
+              });
             }}
-            onSubmit={handleCreateProjectFromRecommendation}
-            defaultType={pendingRecommendation?.projectType}
-            defaultName={pendingRecommendation?.projectName}
-          />
-        </Suspense>
+          >
+            <Suspense fallback={pageLoadingFallback}>
+              <AppNavigationContext.Provider value={navigateFromBrowser}>
+                <BrowserHistoryNavigationContext.Provider
+                  value={openHistoryUrl}
+                >
+                  <AppPageContent
+                    currentPage={currentPage}
+                    pageParams={pageParams}
+                    requestedPage={requestedPage}
+                    requestedPageParams={requestedPageParams}
+                    onNavigate={handleNavigate}
+                    onStartNewConversation={startNewConversation}
+                    onAgentHasMessagesChange={setAgentHasMessages}
+                    onAgentLocationChange={reportAgentLocation}
+                    onSettingsBack={returnFromSettings}
+                    navigationGuard={navigationGuard}
+                    onAgentStreamingChange={setActiveAgentStreaming}
+                    onBackgroundSessionRuntimeChange={
+                      handleBackgroundSessionRuntimeChange
+                    }
+                  />
+                </BrowserHistoryNavigationContext.Provider>
+              </AppNavigationContext.Provider>
+            </Suspense>
+          </AppShellContent>
+          <Suspense fallback={null}>
+            <RecentImageInsertFloating onNavigate={handleNavigate} />
+          </Suspense>
 
-        <AppServerConfigWarningToastBridge />
-        <ScheduledTaskNotificationBridge />
-        <PermissionsSetup />
-      </AppContainer>
-    </AppShell>
+          <Suspense fallback={null}>
+            <ConnectConfirmDialog
+              open={isDialogOpen}
+              relay={relayInfo}
+              relayId={connectPayload?.relay ?? ""}
+              apiKey={connectPayload?.key ?? ""}
+              keyName={connectPayload?.name}
+              isVerified={isVerified}
+              isSaving={isSaving}
+              error={error}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
+            />
+          </Suspense>
+
+          <Suspense fallback={null}>
+            <CreateProjectDialog
+              open={projectDialogOpen}
+              onOpenChange={(open) => {
+                setProjectDialogOpen(open);
+                if (!open) {
+                  setPendingRecommendation(null);
+                }
+              }}
+              onSubmit={handleCreateProjectFromRecommendation}
+              defaultType={pendingRecommendation?.projectType}
+              defaultName={pendingRecommendation?.projectName}
+            />
+          </Suspense>
+
+          <AppServerConfigWarningToastBridge />
+          <ScheduledTaskNotificationBridge />
+          {!getElectronHostBridge()?.cloudDesktop && (
+            <>
+              <PermissionsSetup />
+            </>
+          )}
+        </AppContainer>
+      </AppShell>
+    </>
   );
 }
 
-const App = withI18nPatch(AppContent);
+const App = withI18nPatch(() => (
+  <CloudWindowBoundary>
+    <AppContent />
+  </CloudWindowBoundary>
+));
 export default App;

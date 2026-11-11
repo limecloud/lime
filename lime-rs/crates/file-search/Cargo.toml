@@ -1,0 +1,30 @@
+[package]
+name = "file-search"
+version.workspace = true
+license.workspace = true
+edition = "2024"
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "file_search"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "lime-file-search"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+crossbeam-channel = "0.5.15"
+ignore.workspace = true
+nucleo = { git = "https://github.com/helix-editor/nucleo.git", rev = "4253de9faabb4e5c6d81d946a5e35a90f87347ee" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true

@@ -603,16 +603,13 @@ fn test_convert_content_text() {
 
 #[test]
 fn test_convert_call_tool_result_preserves_structured_content() {
-    let result = rmcp::model::CallToolResult {
-        content: vec![rmcp::model::Content::text("structured result")],
-        structured_content: Some(serde_json::json!({
-            "results": [
-                { "title": "MCP current" }
-            ]
-        })),
-        is_error: Some(false),
-        meta: None,
-    };
+    let mut result =
+        rmcp::model::CallToolResult::success(vec![rmcp::model::Content::text("structured result")]);
+    result.structured_content = Some(serde_json::json!({
+        "results": [
+            { "title": "MCP current" }
+        ]
+    }));
 
     let mcp_result = McpClientManager::convert_call_tool_result(result);
 

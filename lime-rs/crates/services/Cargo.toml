@@ -12,6 +12,12 @@ local-whisper = ["voice-core/local-whisper"]
 local-sensevoice = ["voice-core/local-sensevoice"]
 
 [dependencies]
+app-server-protocol.workspace = true
+fs2.workspace = true
+age.workspace = true
+tar.workspace = true
+flate2.workspace = true
+zstd.workspace = true
 # 项目内 crate
 lime-core.workspace = true
 lime-infra.workspace = true
@@ -28,6 +34,7 @@ serde_yaml.workspace = true
 tokio.workspace = true
 async-trait.workspace = true
 futures.workspace = true
+tokio-tungstenite.workspace = true
 
 # 错误处理
 thiserror.workspace = true
@@ -68,6 +75,9 @@ rusqlite.workspace = true
 [dev-dependencies]
 proptest.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(windows)'.dependencies]
-winapi.workspace = true
+winapi = { workspace = true, features = ["winbase"] }
 winreg.workspace = true

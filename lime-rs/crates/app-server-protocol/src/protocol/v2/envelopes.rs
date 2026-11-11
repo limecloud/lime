@@ -138,6 +138,11 @@ pub const V2_ENVELOPE_SCHEMA_TYPE_NAMES: &[&str] = &[
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method")]
 pub enum ClientRequest {
+    #[serde(rename = "cloud/desktop")]
+    CloudDesktop {
+        id: RequestId,
+        params: super::CloudDesktopParams,
+    },
     #[serde(rename = "cloud/request")]
     CloudRequest {
         id: RequestId,
@@ -889,6 +894,7 @@ impl ClientRequest {
             | Self::AccountRead { id, .. }
             | Self::AccountLogout { id, .. }
             | Self::CloudRequest { id, .. }
+            | Self::CloudDesktop { id, .. }
             | Self::MarketplaceAdd { id, .. }
             | Self::MarketplaceRemove { id, .. }
             | Self::MarketplaceUpgrade { id, .. }
@@ -1037,6 +1043,7 @@ impl ClientRequest {
             Self::AccountRead { .. } => Method::AccountRead,
             Self::AccountLogout { .. } => Method::AccountLogout,
             Self::CloudRequest { .. } => Method::CloudRequest,
+            Self::CloudDesktop { .. } => Method::CloudDesktop,
             Self::MarketplaceAdd { .. } => Method::MarketplaceAdd,
             Self::MarketplaceRemove { .. } => Method::MarketplaceRemove,
             Self::MarketplaceUpgrade { .. } => Method::MarketplaceUpgrade,

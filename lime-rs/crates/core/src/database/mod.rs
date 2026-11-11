@@ -1,4 +1,3 @@
-pub mod agent_session_repository;
 pub mod dao;
 pub mod migration;
 mod migration_support;

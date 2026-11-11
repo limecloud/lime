@@ -2,6 +2,8 @@ import { canBroadcastRendererEvent } from "./rendererEventPolicy";
 import { contextBridge, ipcRenderer } from "electron";
 import process from "node:process";
 import { readAgentRootArgument } from "./agentRoot";
+import { readCloudDesktopWindowArgument } from "../src/lib/desktop-host/cloudDesktopConnection";
+import { isCloudWindowHostCommand } from "./cloudWindowPolicy";
 import {
   ELECTRON_HOST_COMMANDS,
   IPC_DEEP_LINK_GET_CURRENT_CHANNEL,
@@ -16,7 +18,12 @@ import {
   type ElectronInvokeResponse,
 } from "./ipcChannels";
 
-const supportedCommands = new Set<string>(ELECTRON_HOST_COMMANDS);
+const cloudDesktop = readCloudDesktopWindowArgument(process.argv);
+const supportedCommands = new Set<string>(
+  ELECTRON_HOST_COMMANDS.filter(
+    (command) => !cloudDesktop || isCloudWindowHostCommand(command),
+  ),
+);
 
 function unwrapInvokeResponse<T>(response: ElectronInvokeResponse<T>): T {
   if (response.ok) {
@@ -31,13 +38,18 @@ function unwrapInvokeResponse<T>(response: ElectronInvokeResponse<T>): T {
 }
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  agentRoot: readAgentRootArgument(process.argv),
+  agentRoot: cloudDesktop ? undefined : readAgentRootArgument(process.argv),
+  cloudDesktop,
   devBridgeFallback: false,
   supportsCommand: (command: string) => supportedCommands.has(command),
   invoke: async <T = unknown>(
     command: string,
     args?: Record<string, unknown>,
   ): Promise<T> => {
+    if (cloudDesktop && !supportedCommands.has(command))
+      throw new Error(
+        "local host capability is unavailable in a cloud desktop window",
+      );
     const response = (await ipcRenderer.invoke(
       IPC_INVOKE_CHANNEL,
       command,
@@ -76,6 +88,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send(IPC_EMIT_CHANNEL, event, payload);
   },
   convertFileSrc: (filePath: string, protocol = "file") => {
+    if (cloudDesktop)
+      throw new Error(
+        "local file URLs are unavailable in a cloud desktop window",
+      );
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(filePath)) {
       return filePath;
     }

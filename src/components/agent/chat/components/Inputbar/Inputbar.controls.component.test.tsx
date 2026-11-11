@@ -108,6 +108,28 @@ describe("Inputbar controls current integration", () => {
     expect(container.textContent).not.toContain("coding execution");
   });
 
+  it("禁用权限选择时只保留一层权限文案", async () => {
+    const { container } = renderInputbar({
+      isLoading: true,
+      disabled: true,
+      accessMode: "full-access",
+      setAccessMode: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const select = container.querySelector(
+      '[data-testid="inputbar-access-mode-select"]',
+    ) as HTMLSelectElement;
+    const label = select.closest("label")!;
+
+    expect(select.disabled).toBe(true);
+    expect(select.value).toBe("full-access");
+    expect(label.querySelectorAll("[data-access-mode-label]")).toHaveLength(1);
+  });
+
   it("受控模式下不再渲染联网搜索前置开关", async () => {
     const onToolStatesChange = vi.fn();
     const container = document.createElement("div");

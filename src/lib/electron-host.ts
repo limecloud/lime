@@ -1,5 +1,6 @@
 import type { OpenDialogOptions } from "./desktop-host/dialogOptions";
 import type { WindowCloseConfirmationResponse } from "./desktop-host/windowCloseConfirmation";
+import type { CloudDesktopWindowContext } from "./desktop-host/cloudDesktopConnection";
 
 export type ElectronHostEvent<T = unknown> = {
   event: string;
@@ -58,6 +59,7 @@ export interface ElectronHostDeepLinkBridge {
 
 export interface ElectronHostBridge {
   readonly agentRoot?: string;
+  readonly cloudDesktop?: CloudDesktopWindowContext;
   invoke: ElectronHostInvoke;
   devBridgeFallback?: boolean;
   supportsCommand?(command: string): boolean;

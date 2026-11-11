@@ -41,13 +41,9 @@ impl McpConnection for HangingMcpConnection {
 
 #[test]
 fn tool_result_projection_keeps_text_and_structured_content() {
-    let result = project_call_result(Ok(CallToolResult {
-        content: vec![Content::text("workspace result")],
-        structured_content: Some(serde_json::json!({ "path": "README.md" })),
-        is_error: Some(false),
-        meta: None,
-    }))
-    .expect("tool result");
+    let mut result = CallToolResult::success(vec![Content::text("workspace result")]);
+    result.structured_content = Some(serde_json::json!({ "path": "README.md" }));
+    let result = project_call_result(Ok(result)).expect("tool result");
 
     assert!(result.success);
     assert_eq!(result.output, "workspace result");

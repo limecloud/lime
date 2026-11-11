@@ -247,6 +247,11 @@ impl State {
             .native_app
             .as_ref()
             .ok_or_else(|| denied("Verified native application identity is required"))?;
+        if let NativeAppIdentity::Linux { executable } = identity {
+            if !matches!(&target.identity, ComputerUseTargetIdentity::Native { app_id, .. } if app_id == executable) {
+                return Err(denied("Native application identity mismatch"));
+            }
+        }
         if let (
             NativeAppIdentity::Macos { bundle_id },
             ComputerUseTargetIdentity::Native { app_id, .. },

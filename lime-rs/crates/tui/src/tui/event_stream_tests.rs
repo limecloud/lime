@@ -159,26 +159,31 @@ async fn queued_paste_survives_slow_consumption_and_fair_draws_on_all_surfaces()
         let frames = super::super::FrameRequester::test_dummy();
         let mut keys = 0;
         let mut draws = 0;
+        // Drive the input clock deterministically so burst cadence cannot depend
+        // on host scheduling. The blocking stall below still exercises slow
+        // consumption; it deliberately does not move this logical clock.
+        let mut input_now = std::time::Instant::now();
         while keys < text.chars().count() {
             draw_tx.send(()).unwrap();
             let event = stream.next().await.unwrap();
             match event {
                 TuiEvent::Draw => {
                     draws += 1;
+                    input_now += Duration::from_millis(1);
                     assert!(
-                        app.chat_widget
-                            .handle_paste_burst_tick(&frames, stream.input_time()),
+                        app.chat_widget.handle_paste_burst_tick(&frames, input_now),
                         "{surface}: keys={keys} draws={draws}"
                     );
                 }
                 TuiEvent::Key(_) => {
                     keys += 1;
+                    input_now += Duration::from_millis(1);
                     if keys == 214 {
                         // Already queued input must survive a consumer stall beyond the paste threshold.
                         std::thread::sleep(Duration::from_millis(25));
                     }
                     assert!(matches!(
-                        app.handle_tui_event_runtime(event, true, stream.input_time()),
+                        app.handle_tui_event_runtime(event, true, input_now),
                         AppAction::None | AppAction::ScheduleFrameIn(_)
                     ));
                 }
@@ -193,9 +198,8 @@ async fn queued_paste_survives_slow_consumption_and_fair_draws_on_all_surfaces()
         let waker = futures::task::noop_waker();
         let mut cx = Context::from_waker(&waker);
         assert!(stream.poll_crossterm_event(&mut cx).is_pending());
-        tokio::time::sleep(Duration::from_millis(25)).await;
-        app.chat_widget
-            .handle_paste_burst_tick(&frames, stream.input_time());
+        input_now += Duration::from_millis(200);
+        app.chat_widget.handle_paste_burst_tick(&frames, input_now);
 
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();

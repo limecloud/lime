@@ -145,7 +145,7 @@ describe("buildConfiguredProviders", () => {
     expect(providers).toEqual([]);
   });
 
-  it("OEM Runtime 未登录时应展示 Lime Hub 登录提示 Provider", () => {
+  it("OEM Runtime 未登录时不应展示 Lime Hub", () => {
     const providers = buildConfiguredProviders(
       [
         createApiKeyProvider({
@@ -162,18 +162,10 @@ describe("buildConfiguredProviders", () => {
       },
     );
 
-    expect(providers).toEqual([
-      expect.objectContaining({
-        key: "lime-hub",
-        providerId: "lime-hub",
-        label: "Lime 云端",
-        authStatus: "login_required",
-        models: [],
-      }),
-    ]);
+    expect(providers).toEqual([]);
   });
 
-  it("OEM Runtime 未登录但托管网关已有声明模型时应作为可选 Provider", () => {
+  it("OEM Runtime 未登录时即使已有声明模型也不应展示 Lime Hub", () => {
     const providers = buildConfiguredProviders(
       [
         createApiKeyProvider({
@@ -190,31 +182,15 @@ describe("buildConfiguredProviders", () => {
       },
     );
 
-    expect(providers).toEqual([
-      expect.objectContaining({
-        key: "lime-hub",
-        providerId: "lime-hub",
-        label: "Lime 云端",
-        authStatus: "ready",
-        models: ["agnes-2.0-flash"],
-      }),
-    ]);
+    expect(providers).toEqual([]);
   });
 
-  it("后端未返回 Lime Hub 但 OEM Runtime 未登录时应合成登录提示 Provider", () => {
+  it("后端未返回 Lime Hub 时不应合成登录提示 Provider", () => {
     const providers = buildConfiguredProviders([], {
       oemRuntime: createOemRuntime({ accountSessionId: null }),
     });
 
-    expect(providers).toEqual([
-      expect.objectContaining({
-        key: "lime-hub",
-        providerId: "lime-hub",
-        label: "Lime 云端",
-        authStatus: "login_required",
-        apiHost: "https://llm.limeai.run#lime_tenant_id=tenant-0001",
-      }),
-    ]);
+    expect(providers).toEqual([]);
   });
 
   it("OEM Runtime 已登录但无 Key 时不应合成 Lime Hub 登录提示 Provider", () => {
@@ -253,7 +229,7 @@ describe("buildConfiguredProviders", () => {
     ]);
   });
 
-  it("tenant Lime Hub 后端暂未返回模型目录时应使用默认聊天模型", () => {
+  it("已登录 tenant Lime Hub 后端暂未返回模型目录时应使用默认聊天模型", () => {
     const providers = buildConfiguredProviders(
       [
         createApiKeyProvider({
@@ -266,7 +242,7 @@ describe("buildConfiguredProviders", () => {
         }),
       ],
       {
-        oemRuntime: createOemRuntime({ accountSessionId: null }),
+        oemRuntime: createOemRuntime({ accountSessionId: "session-token" }),
       },
     );
 
@@ -279,6 +255,21 @@ describe("buildConfiguredProviders", () => {
       }),
     ]);
   });
+
+  it.each([null, createOemRuntime({ accountSessionId: "   " })])(
+    "没有有效登录会话时应隐藏已有 Key 的 Lime Hub，并保留其他渠道",
+    (oemRuntime) => {
+      const providers = buildConfiguredProviders(
+        [
+          createApiKeyProvider({ id: "lime-hub", api_key_count: 1 }),
+          createApiKeyProvider({ id: "openai", api_key_count: 1 }),
+        ],
+        { oemRuntime },
+      );
+
+      expect(providers.map((provider) => provider.key)).toEqual(["openai"]);
+    },
+  );
 
   it("无 Key 的 Ollama 缺少地址或被禁用时不应展示", () => {
     const missingHostProviders = buildConfiguredProviders([

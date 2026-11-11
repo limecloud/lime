@@ -1,0 +1,1053 @@
+{
+  "$defs": {
+    "CloudDesktopProvider": {
+      "enum": [
+        "ecs",
+        "wuying"
+      ],
+      "type": "string"
+    },
+    "CloudDesktopResource": {
+      "additionalProperties": false,
+      "description": "User-owned ECS resource. Credentials stay in the local Alibaba CLI profile.",
+      "properties": {
+        "profile": {
+          "type": "string"
+        },
+        "provider": {
+          "$ref": "#/$defs/CloudDesktopProvider"
+        },
+        "regionId": {
+          "type": "string"
+        },
+        "resourceId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "provider",
+        "regionId",
+        "resourceId"
+      ],
+      "type": "object"
+    },
+    "CloudDesktopTunnelChannel": {
+      "description": "Fixed loopback services in the user's persistent Linux desktop.",
+      "enum": [
+        "appServer",
+        "desktop"
+      ],
+      "type": "string"
+    },
+    "EcsDesktopSpec": {
+      "additionalProperties": false,
+      "description": "One user-paid Linux VM. Network and SSH keypair must already exist.\nPurchase always requests an encrypted ESSD system disk; no private key is sent.",
+      "properties": {
+        "imageId": {
+          "type": "string"
+        },
+        "instanceType": {
+          "type": "string"
+        },
+        "keyPairName": {
+          "type": "string"
+        },
+        "outboundMbps": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        },
+        "securityGroupId": {
+          "type": "string"
+        },
+        "systemDiskGib": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "vSwitchId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "imageId",
+        "instanceType",
+        "keyPairName",
+        "outboundMbps",
+        "profile",
+        "regionId",
+        "securityGroupId",
+        "systemDiskGib",
+        "vSwitchId"
+      ],
+      "type": "object"
+    },
+    "WuyingDesktopSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "dataDiskGib": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "desktopType": {
+          "type": "string"
+        },
+        "endUserId": {
+          "type": "string"
+        },
+        "imageId": {
+          "type": "string"
+        },
+        "officeSiteId": {
+          "type": "string"
+        },
+        "policyGroupId": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        },
+        "systemDiskGib": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dataDiskGib",
+        "desktopType",
+        "endUserId",
+        "imageId",
+        "officeSiteId",
+        "policyGroupId",
+        "profile",
+        "regionId",
+        "systemDiskGib"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "connectAlibaba",
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "regionId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "readAlibabaConnection",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "listResources",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "bind",
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "quoteWuying",
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/WuyingDesktopSpec"
+        }
+      },
+      "required": [
+        "action",
+        "spec"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "purchaseWuying",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "desktopName": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "quoteId": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/WuyingDesktopSpec"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "desktopName",
+        "operationId",
+        "quoteId",
+        "spec"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "quoteEcs",
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/EcsDesktopSpec"
+        }
+      },
+      "required": [
+        "action",
+        "spec"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "listEcsTemplates",
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "profile",
+        "regionId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "quoteEcsTemplate",
+          "type": "string"
+        },
+        "launchTemplateId": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        },
+        "version": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "launchTemplateId",
+        "profile",
+        "regionId",
+        "version"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "purchaseEcs",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "desktopName": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "quoteId": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/EcsDesktopSpec"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "desktopName",
+        "operationId",
+        "quoteId",
+        "spec"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "exportArchive",
+          "type": "string"
+        },
+        "includeCredentials": {
+          "type": "boolean"
+        },
+        "outputPath": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "recipient": {
+          "type": "string"
+        },
+        "sourceRoot": {
+          "type": "string"
+        },
+        "workSaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "includeCredentials",
+        "outputPath",
+        "paths",
+        "recipient",
+        "sourceRoot",
+        "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Stage selected files as age ciphertext for this authenticated connection.",
+      "properties": {
+        "action": {
+          "const": "prepareArchiveDownload",
+          "type": "string"
+        },
+        "includeCredentials": {
+          "type": "boolean"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "recipient": {
+          "type": "string"
+        },
+        "sourceRoot": {
+          "type": "string"
+        },
+        "workSaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "includeCredentials",
+        "paths",
+        "recipient",
+        "sourceRoot",
+        "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "readArchiveDownload",
+          "type": "string"
+        },
+        "archiveId": {
+          "type": "string"
+        },
+        "offset": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "archiveId",
+        "offset"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "closeArchiveDownload",
+          "type": "string"
+        },
+        "archiveId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "archiveId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Generate a short-lived recipient on the destination desktop.",
+      "properties": {
+        "action": {
+          "const": "beginArchiveRestore",
+          "type": "string"
+        },
+        "folderName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "folderName"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "writeArchiveRestore",
+          "type": "string"
+        },
+        "archiveId": {
+          "type": "string"
+        },
+        "data": {
+          "type": "string"
+        },
+        "offset": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "archiveId",
+        "data",
+        "offset"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "finishArchiveRestore",
+          "type": "string"
+        },
+        "archiveId": {
+          "type": "string"
+        },
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "archiveId",
+        "bytes",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "cancelArchiveRestore",
+          "type": "string"
+        },
+        "archiveId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "archiveId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Local control only; the source recovery key never crosses the desktop connection.",
+      "properties": {
+        "action": {
+          "const": "rewrapArchiveForRestore",
+          "type": "string"
+        },
+        "archivePath": {
+          "type": "string"
+        },
+        "expectedSha256": {
+          "type": "string"
+        },
+        "identityFile": {
+          "type": "string"
+        },
+        "outputPath": {
+          "type": "string"
+        },
+        "recipient": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "archivePath",
+        "expectedSha256",
+        "identityFile",
+        "outputPath",
+        "recipient"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Restore only into a new directory. Identity is read locally, never sent as JSON.",
+      "properties": {
+        "action": {
+          "const": "restoreArchive",
+          "type": "string"
+        },
+        "archivePath": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        },
+        "expectedSha256": {
+          "type": "string"
+        },
+        "identityFile": {
+          "type": "string"
+        },
+        "maxBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "archivePath",
+        "destination",
+        "expectedSha256",
+        "identityFile",
+        "maxBytes"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "transferArchive",
+          "type": "string"
+        },
+        "expectedSha256": {
+          "type": "string"
+        },
+        "localPath": {
+          "type": "string"
+        },
+        "remote": {
+          "type": "string"
+        },
+        "upload": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "expectedSha256",
+        "localPath",
+        "remote",
+        "upload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "inspect",
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Start an in-memory loopback tunnel; no supplier session credential is returned.",
+      "properties": {
+        "action": {
+          "const": "openEcsTunnel",
+          "type": "string"
+        },
+        "channel": {
+          "$ref": "#/$defs/CloudDesktopTunnelChannel"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "channel",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "readEcsTunnel",
+          "type": "string"
+        },
+        "channel": {
+          "$ref": "#/$defs/CloudDesktopTunnelChannel"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "channel",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "closeEcsTunnel",
+          "type": "string"
+        },
+        "channel": {
+          "$ref": "#/$defs/CloudDesktopTunnelChannel"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "channel",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Install fixed desktop dependencies through the user's ECS Cloud Assistant.\nThis does not install the Lime runtime or expose a remote listener.",
+      "properties": {
+        "action": {
+          "const": "prepareEcsDesktop",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "installSystemPackages": {
+          "type": "boolean"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "installSystemPackages",
+        "operationId",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Start a bounded, unprivileged runtime upload service using fixed Cloud Assistant code.\nOnly capability and artifact digests cross this management boundary.",
+      "properties": {
+        "action": {
+          "const": "startEcsRuntimeInstallation",
+          "type": "string"
+        },
+        "archiveBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "archiveSha256": {
+          "type": "string"
+        },
+        "capabilitySha256": {
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "createDesktopUser": {
+          "type": "boolean"
+        },
+        "manifestSha256": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "archiveBytes",
+        "archiveSha256",
+        "capabilitySha256",
+        "confirmation",
+        "createDesktopUser",
+        "manifestSha256",
+        "operationId",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "start",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "operationId",
+        "resource"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "StopCharging requests compute release; inspect must verify the actual mode.",
+      "properties": {
+        "action": {
+          "const": "stop",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        },
+        "workSaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "operationId",
+        "resource",
+        "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Release a stopped PostPaid desktop; disks follow the provider's deletion policy.",
+      "properties": {
+        "action": {
+          "const": "release",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "discardData": {
+          "type": "boolean"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        },
+        "workSaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "discardData",
+        "operationId",
+        "resource",
+        "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "snapshot",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "diskId": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        },
+        "workSaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "diskId",
+        "operationId",
+        "resource",
+        "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "inspectSnapshot",
+          "type": "string"
+        },
+        "diskId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        },
+        "snapshotId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "diskId",
+        "resource",
+        "snapshotId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Roll back the original disk of a stopped desktop; later writes are lost.",
+      "properties": {
+        "action": {
+          "const": "restoreSnapshot",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "discardChanges": {
+          "type": "boolean"
+        },
+        "diskId": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        },
+        "snapshotId": {
+          "type": "string"
+        },
+        "workSaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "discardChanges",
+        "diskId",
+        "operationId",
+        "resource",
+        "snapshotId",
+        "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Records explicit user validation after restarting and checking applications.",
+      "properties": {
+        "action": {
+          "const": "verifySnapshotRestore",
+          "type": "string"
+        },
+        "applicationsValidated": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "applicationsValidated",
+        "confirmation",
+        "operationId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "readOperation",
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "operationId"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "CloudDesktopParams"
+}

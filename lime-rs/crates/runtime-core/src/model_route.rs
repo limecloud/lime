@@ -638,7 +638,6 @@ fn protocol_supported_for_task(task_kind: ModelTaskKind, protocol: &ProtocolKind
                 | ProtocolKind::AnthropicMessages
                 | ProtocolKind::GeminiGenerateContent
                 | ProtocolKind::VertexGemini
-                | ProtocolKind::OpenaiResponses
         ),
         ModelTaskKind::VideoGenerate => {
             matches!(protocol, ProtocolKind::Fal | ProtocolKind::XaiVideo)

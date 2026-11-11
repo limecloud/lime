@@ -1,3 +1,4 @@
+import process from "node:process";
 import { commandExecRequestTimeoutMs } from "../packages/app-server-client/src/command-exec-timeout";
 
 const DEFAULT_APP_SERVER_REQUEST_TIMEOUT_MS = 30_000;
@@ -19,6 +20,14 @@ export function resolveAppServerRequestTimeoutMs(
 ): number | undefined {
   if (method === "command/exec")
     return commandExecRequestTimeoutMs(params) || undefined;
+  if (
+    method === "cloud/desktop" &&
+    params &&
+    typeof params === "object" &&
+    "action" in params &&
+    params.action === "rewrapArchiveForRestore"
+  )
+    return APP_SERVER_REQUEST_TIMEOUT_OVERRIDE_CEILING_MS;
   const defaultTimeoutMs = resolveDefaultAppServerRequestTimeoutMs(method);
   const overrideTimeoutMs = parsePositiveIntegerValue(requestedTimeoutMs);
   if (!overrideTimeoutMs) {

@@ -9,8 +9,8 @@ use lime_mcp::{
 };
 use rmcp::model::{
     ErrorCode, ErrorData, Extensions, JsonObject, ListToolsResult, ProgressNotification,
-    ProgressNotificationMethod, PromptListChangedNotification, ResourceListChangedNotification,
-    ServerNotification, ToolListChangedNotification,
+    PromptListChangedNotification, ResourceListChangedNotification, ServerNotification,
+    ToolListChangedNotification,
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -182,11 +182,7 @@ impl McpConnection for McpBridgeClient {
             .await?;
         let response = call.response;
         let notifications = call.progress.map(|params| {
-            ServerNotification::ProgressNotification(ProgressNotification {
-                params,
-                method: ProgressNotificationMethod,
-                extensions: Default::default(),
-            })
+            ServerNotification::ProgressNotification(ProgressNotification::new(params))
         });
         let server_name = self.server_name.clone();
         let list_changed_notifications =

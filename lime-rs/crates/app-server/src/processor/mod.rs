@@ -1,4 +1,6 @@
 mod account;
+mod cloud_archive_download;
+mod cloud_archive_restore;
 mod agent_session;
 mod app;
 mod artifact;
@@ -110,6 +112,10 @@ pub(crate) use crate::fs::FsNotificationHook;
 pub(crate) use crate::process::ProcessNotificationHook;
 #[derive(Clone)]
 pub struct RequestProcessor {
+    cloud_desktop_local_control: bool,
+    cloud_archive_transfer_enabled: bool,
+    cloud_archive_downloads: Arc<cloud_archive_download::CloudArchiveDownloads>,
+    cloud_archive_restores: Arc<cloud_archive_restore::CloudArchiveRestores>,
     client_context: ClientContext,
     connection_contexts: Arc<Mutex<HashMap<ConnectionId, ClientContext>>>,
     runtime: Arc<RuntimeCore>,
@@ -195,6 +201,10 @@ impl RequestProcessor {
             CommandExecServer::default().with_process_server(execution_process_server);
         runtime.command_exec = command_exec.clone();
         Self {
+            cloud_desktop_local_control: true,
+            cloud_archive_transfer_enabled: false,
+            cloud_archive_downloads: Arc::default(),
+            cloud_archive_restores: Arc::default(),
             client_context: ClientContext::default(),
             connection_contexts: Arc::new(Mutex::new(HashMap::new())),
             runtime: Arc::new(runtime),

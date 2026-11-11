@@ -18,6 +18,8 @@ use app_server::TraceEventWriter;
 use app_server::DEFAULT_EXTERNAL_BACKEND_TIMEOUT_MS;
 use app_server_transport::AppServerTransport;
 use app_server_transport::DEFAULT_LISTEN_URL;
+use app_server_transport::websocket_auth::{policy_from_settings, WebsocketAuthArgs, WebsocketAuthSettings};
+use clap::Parser;
 use lime_core::app_paths;
 use lime_core::database;
 use lime_core::database::DbConnection;
@@ -30,6 +32,8 @@ const APP_SERVER_DATA_DIR_ENV: &str = "APP_SERVER_DATA_DIR";
 const APP_SERVER_APP_DATA_DIR_ENV: &str = "APP_SERVER_APP_DATA_DIR";
 
 mod computer_use_host;
+#[cfg(test)]
+mod websocket_args_tests;
 
 struct InitializedDatabase {
     db: DbConnection,
@@ -102,13 +106,15 @@ async fn async_main() -> anyhow::Result<()> {
     }
 
     let _otel_guard = init_app_server_otel_from_env()?;
-    run_transport(build_app_server(&config).await?, transport).await?;
+    let auth_policy = policy_from_settings(&config.websocket_auth)?;
+    run_transport(build_app_server(&config).await?, transport, auth_policy).await?;
 
     Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CliConfig {
+    websocket_auth: WebsocketAuthSettings,
     listen: String,
     backend_mode: AppServerBackendMode,
     app_policy_path: Option<String>,
@@ -118,6 +124,12 @@ struct CliConfig {
     data_dir: Option<PathBuf>,
     app_data_dir: Option<PathBuf>,
     model_control_source: Option<PathBuf>,
+}
+
+#[derive(Parser)]
+struct WebsocketAuthCli {
+    #[command(flatten)]
+    auth: WebsocketAuthArgs,
 }
 
 impl CliConfig {
@@ -532,8 +544,17 @@ fn parse_args_from_with_env(
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
     let mut model_control_source = None;
+    let mut websocket_auth_args = vec!["app-server".to_string()];
 
     while let Some(arg) = args.next() {
+        if arg.starts_with("--ws-") {
+            let inline_value = arg.contains('=');
+            websocket_auth_args.push(arg.clone());
+            if !inline_value {
+                websocket_auth_args.push(args.next().ok_or_else(|| anyhow::anyhow!("{arg} requires a value"))?);
+            }
+            continue;
+        }
         if let Some(value) = arg.strip_prefix("--data-dir=") {
             data_dir = Some(validate_data_dir(PathBuf::from(value), "--data-dir")?);
             data_dir_from_cli = true;
@@ -616,7 +637,7 @@ fn parse_args_from_with_env(
             }
             "--help" | "-h" => {
                 println!(
-                    "Usage: app-server [--stdio] [--listen stdio://|unix://PATH|ws://127.0.0.1:PORT|off] [--backend external|runtime|mock|unavailable] [--backend-command path] [--backend-arg value] [--backend-timeout-ms ms] [--app-policy path] [--data-dir path] [--app-data-dir path] [--model-control-source path]"
+                    "Usage: app-server [--stdio] [--listen stdio://|unix://PATH|ws://IP:PORT|off] [--ws-auth capability-token|signed-bearer-token] [--ws-token-file PATH|--ws-token-sha256 HEX] [--ws-shared-secret-file PATH] [--ws-issuer ISSUER] [--ws-audience AUDIENCE] [--ws-max-clock-skew-seconds SECONDS] [--backend external|runtime|mock|unavailable] [--backend-command path] [--backend-arg value] [--backend-timeout-ms ms] [--app-policy path] [--data-dir path] [--app-data-dir path] [--model-control-source path]"
                 );
                 std::process::exit(0);
             }
@@ -634,7 +655,12 @@ fn parse_args_from_with_env(
         anyhow::bail!("--model-control-source requires an explicit --data-dir");
     }
 
+    let websocket_auth = WebsocketAuthCli::try_parse_from(websocket_auth_args)?.auth.try_into_settings()?;
+    if websocket_auth.config.is_some() && !listen.starts_with("ws://") {
+        anyhow::bail!("--ws-auth requires a WebSocket --listen URL");
+    }
     Ok(CliConfig {
+        websocket_auth,
         listen,
         backend_mode,
         app_policy_path,
@@ -899,6 +925,7 @@ mod tests {
         let app_data_dir = temp_dir.path().join("desktop-platform");
         let data_dir = app_data_dir.join("app-server");
         let config = CliConfig {
+            websocket_auth: Default::default(),
             listen: DEFAULT_LISTEN_URL.to_string(),
             backend_mode: AppServerBackendMode::Unavailable,
             app_policy_path: None,
@@ -983,6 +1010,7 @@ mod tests {
         drop(previous_db_conn);
 
         let config = CliConfig {
+            websocket_auth: Default::default(),
             listen: DEFAULT_LISTEN_URL.to_string(),
             backend_mode: AppServerBackendMode::Unavailable,
             app_policy_path: None,

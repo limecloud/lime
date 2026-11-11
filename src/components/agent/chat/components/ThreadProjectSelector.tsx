@@ -15,6 +15,7 @@ interface ThreadProjectSelectorProps {
   workspaceName?: string | null;
   workspaceRootPath?: string | null;
   compact?: boolean;
+  iconOnly?: boolean;
   className?: string;
 }
 
@@ -23,6 +24,7 @@ export function ThreadProjectSelector({
   workspaceName,
   workspaceRootPath,
   compact = false,
+  iconOnly = false,
   className,
 }: ThreadProjectSelectorProps) {
   const { t } = useTranslation("agent");
@@ -67,8 +69,10 @@ export function ThreadProjectSelector({
           variant="ghost"
           size="sm"
           className={cn(
-            "h-8 min-w-0 max-w-[220px] shrink-0 gap-1.5 rounded-[14px] border border-transparent px-2.5 text-xs font-medium text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text)]",
-            compact && "max-w-[180px]",
+            iconOnly
+              ? "h-7 w-7 shrink-0 rounded-[10px] border border-transparent p-0 text-[color:var(--lime-chrome-muted)] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-chrome-text)]"
+              : "h-8 min-w-0 max-w-[220px] shrink-0 gap-1.5 rounded-[14px] border border-transparent px-2.5 text-xs font-medium text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text)]",
+            compact && !iconOnly && "max-w-[180px]",
             className,
           )}
           aria-label={buttonLabel}
@@ -78,12 +82,19 @@ export function ThreadProjectSelector({
           disabled={directory.mutating}
         >
           <FolderTree className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 truncate">{currentLabel}</span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {iconOnly ? null : (
+            <>
+              <span className="min-w-0 truncate">{currentLabel}</span>
+              <ChevronDown
+                className="h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+            </>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align={iconOnly ? "start" : "end"}
         side="bottom"
         sideOffset={8}
         className="w-[min(320px,calc(100vw-24px))] p-2"

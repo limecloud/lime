@@ -708,7 +708,7 @@ impl SkillService {
             let mut file = archive
                 .by_index(index)
                 .context("Failed to read ZIP entry")?;
-            let archive_path = PathBuf::from(file.name());
+            let archive_path = PathBuf::from(file.name()?.as_ref());
 
             let Some((directory, relative_path)) =
                 Self::skill_file_marker_from_archive_path(&archive_path)
@@ -1085,7 +1085,7 @@ impl SkillService {
 
         for index in 0..archive.len() {
             let mut file = archive.by_index(index)?;
-            let archive_path = PathBuf::from(file.name());
+            let archive_path = PathBuf::from(file.name()?.as_ref());
             let Some((entry_directory, relative_path)) =
                 Self::skill_file_marker_from_archive_path(&archive_path)
             else {
@@ -1128,7 +1128,7 @@ impl SkillService {
         let mut candidates = Vec::new();
         for index in 0..archive.len() {
             let file = archive.by_index(index)?;
-            let archive_path = PathBuf::from(file.name());
+            let archive_path = PathBuf::from(file.name()?.as_ref());
             let Some((entry_directory, relative_path)) =
                 Self::skill_file_marker_from_archive_path(&archive_path)
             else {
@@ -1513,7 +1513,7 @@ mod tests {
         let mut buffer = Cursor::new(Vec::new());
         {
             let mut writer = zip::ZipWriter::new(&mut buffer);
-            let options = zip::write::FileOptions::default();
+            let options = zip::write::SimpleFileOptions::default();
             for (path, content) in entries {
                 writer.start_file(*path, options).unwrap();
                 writer.write_all(content.as_bytes()).unwrap();

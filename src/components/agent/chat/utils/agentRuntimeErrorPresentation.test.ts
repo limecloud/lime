@@ -9,6 +9,49 @@ import {
 } from "./agentRuntimeErrorPresentation";
 
 describe("agentRuntimeErrorPresentation", () => {
+  it("凭据读取失败应覆盖未选模型提示并提供五语言恢复路径", async () => {
+    const copy = {
+      "zh-CN":
+        "无法读取当前服务商的 API Key。请前往设置 → AI 服务商重新保存 API Key 后重试。",
+      "zh-TW":
+        "無法讀取目前服務商的 API Key。請前往設定 → AI 服務商重新儲存 API Key 後重試。",
+      "en-US":
+        "Unable to read this provider’s API key. Save the API key again in Settings → AI Providers, then retry.",
+      "ja-JP":
+        "このプロバイダーの API キーを読み込めません。設定 → AI プロバイダーで API キーを保存し直してから再試行してください。",
+      "ko-KR":
+        "현재 제공업체의 API 키를 읽을 수 없습니다. 설정 → AI 제공업체에서 API 키를 다시 저장한 후 재시도하세요.",
+    };
+    try {
+      for (const [locale, message] of Object.entries(copy)) {
+        await changeLimeLocale(
+          locale as Parameters<typeof changeLimeLocale>[0],
+        );
+        const pending = Object.assign(
+          new Error(
+            "App Server runtime backend requires provider/model selection.",
+          ),
+          { data: { reasonCode: "resolved_credential_unavailable" } },
+        );
+        for (const error of [
+          pending,
+          new Error("execution backend error: credential_store_read_failed"),
+          new Error("credential_reference_invalid"),
+          new Error("credential_not_found"),
+          new Error("credential_store_permissions_failed"),
+        ]) {
+          expect(resolveAgentRuntimeErrorPresentation(error)).toEqual({
+            displayMessage: message,
+            toastMessage: message,
+          });
+          expect(resolveAgentRuntimeSubmitErrorMessage(error)).toBe(message);
+        }
+      }
+    } finally {
+      await changeLimeLocale("zh-CN");
+    }
+  });
+
   it("429 限流应覆盖重复的后端错误前缀，并提供五语言提示", async () => {
     const copy = {
       "zh-CN":

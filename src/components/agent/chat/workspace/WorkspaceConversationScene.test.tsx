@@ -388,7 +388,7 @@ describe("WorkspaceConversationScene", () => {
 
     expect(
       container.querySelector(
-        '[data-header-action-id="unified-workspace-controls"] [data-testid="thread-project-selector"]',
+        '[data-testid="thread-workspace-header-leading"] [data-testid="thread-project-selector"]',
       ),
     ).not.toBeNull();
     expect(mockThreadProjectSelector).toHaveBeenLastCalledWith(
@@ -561,15 +561,17 @@ describe("WorkspaceConversationScene", () => {
       ).toBe("对齐 Codex App GUI");
       expect(
         container.querySelector(
-          '[data-header-action-id="unified-workspace-controls"] [data-testid="task-center-utility-toolbar-stub"]',
+          '[data-testid="thread-workspace-header-leading"] [data-testid="thread-project-selector"]',
         ),
       ).not.toBeNull();
       expect(
+        container.querySelector(
+          '[data-header-action-id="unified-workspace-controls"] [data-testid="task-center-utility-toolbar-stub"]',
+        ),
+      ).toBeNull();
+      expect(
         mockWorkspaceMainArea.mock.calls.at(-1)?.[0]?.mainToolbar,
       ).toBeTruthy();
-      expect(
-        mockTaskCenterUtilityToolbar.mock.calls.at(-1)?.[0]?.placement,
-      ).toBe("workbench-header");
     },
   );
 
@@ -788,4 +790,5 @@ describe("WorkspaceConversationScene", () => {
         ?.contains(spacer),
     ).toBe(true);
   });
+
 });

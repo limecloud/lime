@@ -1,7 +1,6 @@
 import {
   AlertCircle,
   Bot,
-  Bell,
   PenLine,
   Plus,
   Search,
@@ -23,9 +22,48 @@ import type { AutomationTaskSummary } from "@/lib/api/scheduledTasks";
 import {
   describeScheduledTaskSchedule,
   scheduledTaskPresentationCopy,
-  scheduledTaskStatusLabel,
 } from "./scheduledTaskPresentation";
 import type { ScheduledTaskFilter } from "./scheduledTaskViewModel";
+
+function describeTaskFrequency(
+  schedule: AutomationTaskSummary["schedule"],
+  t: TFunction<"workspace">,
+): string {
+  switch (schedule.type) {
+    case "hourly":
+      return t("scheduledTasks.repeat.hourly");
+    case "daily":
+      return t("scheduledTasks.repeat.daily");
+    case "weekdays":
+      return t("scheduledTasks.repeat.weekdays");
+    case "weekly":
+      return t("scheduledTasks.repeat.weekly");
+  }
+}
+
+function formatNextRunHint(
+  nextRunAt: string | null | undefined,
+  locale: string,
+  t: TFunction<"workspace">,
+): string {
+  if (!nextRunAt) return "";
+  const date = new Date(nextRunAt);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+  if (date.toDateString() === now.toDateString()) {
+    return t("scheduledTasks.relative.today", { time });
+  }
+  if (date.toDateString() === tomorrow.toDateString()) {
+    return t("scheduledTasks.relative.tomorrow", { time });
+  }
+  return "";
+}
 
 interface ScheduledTaskListProps {
   tasks: AutomationTaskSummary[];
@@ -40,6 +78,7 @@ interface ScheduledTaskListProps {
   onSelect: (id: string) => void;
   onCreate: () => void;
   onCreateWithLime: () => void;
+  inSidebar?: boolean;
 }
 
 const FILTERS: ScheduledTaskFilter[] = ["all", "enabled", "paused"];
@@ -57,14 +96,20 @@ export function ScheduledTaskList({
   onSelect,
   onCreate,
   onCreateWithLime,
+  inSidebar = false,
 }: ScheduledTaskListProps) {
   const copy = scheduledTaskPresentationCopy(t);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const newTaskLabel = t("scheduledTasks.sidebar.newTask", "新建任务");
-  const immediateLabel = t("scheduledTasks.sidebar.immediate", "即时执行");
   return (
-    <aside className="flex min-h-0 w-full shrink-0 flex-col border-b border-slate-200 bg-white md:w-[240px] md:border-b-0 md:border-r">
+    <aside
+      className={cn(
+        "flex h-full min-h-0 w-full shrink-0 flex-col border-b border-slate-200 bg-white md:border-b-0 md:border-r",
+        inSidebar ? "md:w-full md:border-r-0" : "md:w-[240px]",
+      )}
+      data-in-sidebar={inSidebar ? "true" : undefined}
+    >
       <div className="border-b border-slate-200 px-3 pb-3 pt-4">
         <div className="flex items-center justify-between gap-2">
           <h1 className="flex min-w-0 items-center gap-1 truncate text-[15px] font-semibold text-slate-900">
@@ -74,11 +119,12 @@ export function ScheduledTaskList({
             <button
               type="button"
               className="relative inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              aria-label={t("navigation.sidebar.notifications", "通知")}
-              title={t("navigation.sidebar.notifications", "通知")}
+              aria-label={t("scheduledTasks.filter.aria")}
+              title={t("scheduledTasks.filter.aria")}
+              aria-expanded={filterOpen}
+              onClick={() => setFilterOpen((value) => !value)}
             >
-              <Bell className="h-3.5 w-3.5" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-sky-500" />
+              <SlidersHorizontal className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
@@ -96,7 +142,7 @@ export function ScheduledTaskList({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="mt-3 flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+              className="mt-3 flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
               aria-label={newTaskLabel}
             >
               <Plus className="h-3.5 w-3.5 text-slate-500" />
@@ -114,16 +160,6 @@ export function ScheduledTaskList({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <button
-          type="button"
-          className="mt-3 flex h-7 w-full items-center justify-between rounded-md px-1 text-left text-xs text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-          aria-label={t("scheduledTasks.filter.aria")}
-          aria-expanded={filterOpen}
-          onClick={() => setFilterOpen((value) => !value)}
-        >
-          <span>{immediateLabel}</span>
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-        </button>
         {searchOpen ? (
           <div className="relative mt-2">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -179,58 +215,65 @@ export function ScheduledTaskList({
             ))}
           </div>
         ) : tasks.length ? (
-          <div className="space-y-1">
-            {tasks.map((task) => {
-              const selected = task.id === selectedId;
-              const status = scheduledTaskStatusLabel(
-                task.lastRun,
-                task.enabled,
-                task.attention,
-                copy,
+          <div className="space-y-3">
+            {(["enabled", "paused"] as const).map((group) => {
+              const groupTasks = tasks.filter((task) =>
+                group === "enabled" ? task.enabled : !task.enabled,
               );
+              if (!groupTasks.length) return null;
               return (
-                <button
-                  key={task.id}
-                  type="button"
-                  className={cn(
-                    "w-full rounded-md border border-transparent px-3 py-3 text-left transition-colors hover:bg-slate-50",
-                    selected && "border-emerald-200 bg-emerald-50",
-                  )}
-                  aria-current={selected ? "true" : undefined}
-                  onClick={() => onSelect(task.id)}
-                >
-                  <span className="flex items-start gap-3">
-                    <span
-                      className={cn(
-                        "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-300",
-                        task.enabled && !task.attention && "bg-emerald-500",
-                        task.attention && "bg-amber-500",
-                      )}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-slate-900" title={task.title}>
-                          {task.title}
+                <div key={group} className="space-y-1">
+                  <p className="px-3 pb-1 pt-1 text-[11px] font-medium text-slate-400">
+                    {t(`scheduledTasks.group.${group}`)}
+                  </p>
+                  {groupTasks.map((task) => {
+                    const selected = task.id === selectedId;
+                    const nextRunHint = task.enabled
+                      ? formatNextRunHint(task.nextRunAt, locale, t)
+                      : "";
+                    return (
+                      <button
+                        key={task.id}
+                        type="button"
+                        className={cn(
+                          "w-full rounded-md px-3 py-3 text-left transition-colors hover:bg-slate-50",
+                          selected && "bg-slate-100",
+                        )}
+                        aria-current={selected ? "true" : undefined}
+                        onClick={() => onSelect(task.id)}
+                      >
+                        <span className="block min-w-0">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span
+                              className="truncate text-sm font-semibold text-slate-900"
+                              title={task.title}
+                            >
+                              {task.title}
+                            </span>
+                            {task.attention ? (
+                              <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                            ) : null}
+                          </span>
+                          <span className="mt-1 block truncate text-xs text-slate-500">
+                            {nextRunHint
+                              ? `${nextRunHint} · ${describeTaskFrequency(task.schedule, t)}`
+                              : describeScheduledTaskSchedule(
+                                  task.schedule,
+                                  copy,
+                                  locale,
+                                )}
+                          </span>
                         </span>
-                        {task.attention ? (
-                          <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
-                        ) : null}
-                      </span>
-                      <span className="mt-1 block truncate text-xs text-slate-500">
-                        {describeScheduledTaskSchedule(task.schedule, copy, locale)}
-                      </span>
-                      <span className="mt-1 block text-xs font-medium text-slate-600">
-                        {status}
-                      </span>
-                    </span>
-                  </span>
-                </button>
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })}
           </div>
         ) : (
-          <div className="flex min-h-40 flex-col items-start justify-center px-3 text-left">
-            <p className="text-xs font-medium text-slate-400">
+          <div className="flex flex-col items-start px-3 pb-3 pt-1 text-left">
+            <p className="text-[13px] font-medium text-slate-400">
               {query || filter !== "all"
                 ? t("scheduledTasks.empty.filtered.title")
                 : t("scheduledTasks.sidebar.empty")}

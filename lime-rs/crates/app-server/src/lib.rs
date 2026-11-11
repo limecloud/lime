@@ -648,6 +648,7 @@ impl AppServer {
                 .close_command_exec_connection(connection_id)
                 .await;
             self.processor.close_fs_connection(connection_id).await;
+            self.processor.close_cloud_archive_connection(connection_id);
             self.processor.close_mcp_event_streams(connection_id).await;
             self.thread_states
                 .disconnect_connection(connection_id)
@@ -953,13 +954,17 @@ fn startup_lock_path_for_socket(socket_path: &Path) -> std::path::PathBuf {
 /// connection lifecycle, reverse requests, streaming responses, and backpressure
 /// in one owner instead of maintaining a second server implementation.
 pub async fn run_transport(
-    server: AppServer,
+    mut server: AppServer,
     transport: AppServerTransport,
+    websocket_auth: app_server_transport::websocket_auth::WebsocketAuthPolicy,
 ) -> Result<(), AppServerError> {
     let (transport_event_tx, transport_event_rx) = mpsc::channel(OUTBOUND_MESSAGE_CAPACITY);
     let shutdown_token = CancellationToken::new();
     let mut accept_handles = Vec::<JoinHandle<()>>::new();
     let single_client_mode = matches!(transport, AppServerTransport::Stdio);
+    if matches!(transport, AppServerTransport::WebSocket { .. }) {
+        server.processor.disable_cloud_desktop_local_control(websocket_auth.requires_credentials());
+    }
     let _unix_socket_startup_lock = match &transport {
         AppServerTransport::UnixSocket { socket_path } => {
             Some(acquire_app_server_startup_lock(startup_lock_path_for_socket(socket_path)).await?)
@@ -989,6 +994,7 @@ pub async fn run_transport(
                 bind_address,
                 transport_event_tx.clone(),
                 shutdown_token.clone(),
+                websocket_auth,
             )
             .await?;
             accept_handles.push(acceptor);
@@ -1068,6 +1074,7 @@ async fn run_transport_events(
                                 .close_command_exec_connection(connection_id)
                                 .await;
                             server.processor.close_fs_connection(connection_id).await;
+                            server.processor.close_cloud_archive_connection(connection_id);
                             server
                                 .processor
                                 .close_mcp_event_streams(connection_id)

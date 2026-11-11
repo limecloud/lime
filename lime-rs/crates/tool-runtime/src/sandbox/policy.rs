@@ -49,6 +49,7 @@ pub(crate) fn allows_network(policy: &SandboxPolicy) -> bool {
     }
 }
 
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 pub(crate) fn writable_roots(policy: &SandboxPolicy, cwd: &Path) -> Vec<PathBuf> {
     writable_roots_with_tmpdir(policy, cwd, std::env::var_os("TMPDIR").map(PathBuf::from))
 }
@@ -67,6 +68,7 @@ pub(crate) fn effective_permissions(
     permissions
 }
 
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 fn writable_roots_with_tmpdir(
     policy: &SandboxPolicy,
     cwd: &Path,

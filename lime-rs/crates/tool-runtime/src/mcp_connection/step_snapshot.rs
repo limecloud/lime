@@ -1,7 +1,7 @@
 use super::{McpCallScope, McpConnectionCall, McpConnectionHandle, McpConnectionProvenance};
 use crate::tool_extension::{RuntimeExtensionConfig, RuntimeToolCaller};
 use lime_core::tool_calling::extract_tool_surface_metadata;
-use rmcp::model::{CallToolRequestParam, ErrorCode, ErrorData, Tool};
+use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, Tool};
 use rmcp::service::ServiceError;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -120,7 +120,7 @@ impl McpStepSnapshot {
 
     pub async fn dispatch(
         &self,
-        tool_call: CallToolRequestParam,
+        tool_call: CallToolRequestParams,
         scope: McpCallScope,
         cancellation_token: CancellationToken,
     ) -> Result<McpConnectionCall, ErrorData> {
@@ -281,17 +281,10 @@ async fn capture_connection(
                         .as_ref()
                         .and_then(|annotations| annotations.read_only_hint)
                         .unwrap_or(false);
+                let mut tool = tool;
+                tool.name = prefixed_name.into();
                 entries.push((
-                    Tool {
-                        name: prefixed_name.into(),
-                        description: tool.description,
-                        input_schema: tool.input_schema,
-                        annotations: tool.annotations,
-                        output_schema: tool.output_schema,
-                        icons: tool.icons,
-                        title: tool.title,
-                        meta: tool.meta,
-                    },
+                    tool,
                     McpStepRoute {
                         server_name,
                         tool_name,

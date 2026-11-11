@@ -1,34 +1,37 @@
-## Lime v1.173.0
+## Lime v1.174.0
 
 Simplified Chinese release notes are the primary version.
 
 ### Features
 
-- Encrypt Provider credentials with a random passphrase held in the system keyring. Environments without a keyring can explicitly select storage protected by file permissions.
+- Add BYOC desktop entry points for Alibaba Cloud ECS/Wuying lifecycle management, existing desktop connections, and isolated remote task windows.
+- Add Linux guest installation packages, authenticated WebSocket connections, and encrypted archive, restore, and object storage transfers.
 
 ### Fixes
 
-- Remove the legacy XOR credential format and machine-derived fixed keys. Legacy credentials must be removed and entered again; storage failures are reported explicitly.
-- Improve multi-Provider and multi-key save, reopen, and delete flows, concurrent-write locking, and failure compensation.
+- Hide Lime Hub from conversation model selectors while signed out and restore available models after sign-in.
+- Fix overlapping permission labels while a reply disables the access mode control.
+- Default Provider credentials to files protected by access permissions, with explicit system keyring selection. Unreadable credentials prompt users to save their API key again.
+- Align model capability provenance, MCP form validation, OAuth persistence, model list expectations, and Windows update checks.
 
 ### Improvements and Refactoring
 
-- Remove unused Fabric and React Router dependencies and update production dependencies to address identified critical/high advisories.
-- Migrate to Vitest 4 and Vite 6, adapting isolation, constructor mocks, and shared test fixtures.
+- Align the home screen, contextual sidebar, scheduled tasks, Skills, and plugin catalog layouts, with copy updates in five languages.
+- Consolidate file search, permissions, and path handling. Remove obsolete session DAOs, duplicate repositories, and unused embedding code.
+- Update Rust HTTP/TLS, async runtime, archive, MCP, and terminal dependencies and include the required license materials.
 
 ### Tests and Quality
 
-- Pass all 147 standard frontend batches covering 2,034 test files and all 24 real Electron smoke assertions under the new toolchain.
-- Add dependency review, credential storage, and CLI/Electron license distribution checks.
-- Full development dependency and Rust audits still have unresolved advisories. Cross-platform keyring and this version’s packaged-app validation remain incomplete.
+- Complete a live hello conversation through Electron, with a completed canonical Turn and persisted user and assistant Items.
+- Add Electron regression checks for disabled permission labels, native content and renderer viewport agreement, and main content filling the window.
+- Full Cloud product acceptance remains incomplete, including remote model tasks, third-party sign-in, and cross-environment recovery. Local checks do not establish Windows, Intel Mac, or packaged-app acceptance.
 
 ### Documentation
 
-- Add license and attribution materials, contribution and security reporting guidance, and credential storage modes and limitations.
+- Update credential storage guidance, the cloud desktop plan, architecture boundaries, protocol documentation, and source provenance records.
 
 ### Other
 
-- Align app, CLI, and Rust workspace versions to 1.173.0.
-- Development requires Node 22 or Node 24 and later; Node 23 is unsupported.
+- Align app, CLI, and Rust workspace versions to 1.174.0.
 
-**Full changes**: `v1.172.0` -> `v1.173.0`
+**Full changes**: `v1.173.0` -> `v1.174.0`

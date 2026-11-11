@@ -5,7 +5,6 @@ import {
   HeaderAction,
 } from "@/components/app-shell/AppShell";
 import { AppNavigationContext } from "@/contexts/AppNavigationContext";
-import { SettingsTabs } from "@/types/settings";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -32,13 +31,6 @@ const links = vi.hoisted(() => ({
   preferences: vi.fn(),
   external: vi.fn(async () => undefined),
   newTab: vi.fn(),
-}));
-const actionsProbe = vi.hoisted(() => ({ render: vi.fn() }));
-vi.mock("./LocalConversationActions", () => ({
-  LocalConversationActions: (props: unknown) => {
-    actionsProbe.render(props);
-    return <button data-testid="actions-probe" />;
-  },
 }));
 vi.mock("@/lib/api/desktopPreferences", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/desktopPreferences")>()),
@@ -136,8 +128,7 @@ afterEach(() => {
 });
 
 describe("Recents production Host routing", () => {
-  it("mounts conversation Actions beside the existing launcher and delegates to the same coordinator", async () => {
-    actionsProbe.render.mockClear();
+  it("launcher 只保留侧边面板切换，不再挂载本地环境动作", async () => {
     const runAction = vi.fn();
     const navigate = vi.fn();
     const params = {
@@ -180,31 +171,11 @@ describe("Recents production Host routing", () => {
     );
     expect(
       container.querySelector('[data-testid="actions-probe"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="thread-side-panel-toggle"]'),
     ).not.toBeNull();
-    expect(actionsProbe.render).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        workspaceRoot: "/project",
-        onRunAction: runAction,
-        loading: false,
-        onConfigureActions: expect.any(Function),
-      }),
-    );
-    act(() =>
-      actionsProbe.render.mock.lastCall?.[0].onConfigureActions(
-        "/project/.lime/environments/environment.toml",
-      ),
-    );
-    expect(navigate).toHaveBeenCalledExactlyOnceWith("settings", {
-      tab: SettingsTabs.LocalEnvironments,
-      localEnvironmentFocus: {
-        workspaceRoot: "/project",
-        configPath: "/project/.lime/environments/environment.toml",
-        requestKey: expect.any(Number),
-      },
-    });
+    expect(runAction).not.toHaveBeenCalled();
   });
   it.each([
     { historical: false, applied: false, expected: "browser-request" },

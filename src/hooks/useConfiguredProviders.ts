@@ -13,10 +13,8 @@ import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCache
 import { isManagedLimeHubTenantModelEndpoint } from "@/lib/model/providerModelFetchSupport";
 import type { ProviderDeclaredPromptCacheMode } from "@/lib/types/provider";
 import {
-  buildOemLimeHubApiHost,
   DEFAULT_OEM_LIME_HUB_CHAT_MODEL,
   OEM_LIME_HUB_PROVIDER_ID,
-  resolveOemLimeHubProviderName,
 } from "@/lib/oemLimeHubProvider";
 import {
   resolveOemCloudRuntimeContext,
@@ -131,25 +129,6 @@ function hasOemCloudLogin(runtime?: OemCloudRuntimeContext | null): boolean {
   return Boolean(runtime?.accountSessionId?.trim());
 }
 
-function shouldExposeLimeHubLoginPrompt(
-  provider: ProviderWithKeysDisplay,
-  runtime?: OemCloudRuntimeContext | null,
-): boolean {
-  if (
-    hasConfiguredKeylessAccess(provider) &&
-    resolveConfiguredProviderCustomModels(provider).length > 0
-  ) {
-    return false;
-  }
-
-  return Boolean(
-    runtime &&
-    provider.enabled &&
-    isLimeHubProvider(provider) &&
-    !hasOemCloudLogin(runtime),
-  );
-}
-
 function resolveConfiguredProviderCustomModels(
   provider: ProviderWithKeysDisplay,
 ): string[] {
@@ -184,26 +163,6 @@ function buildConfiguredProviderFromApiKeyProvider(
   };
 }
 
-function buildSyntheticLimeHubLoginProvider(
-  runtime: OemCloudRuntimeContext,
-): ConfiguredProvider {
-  return {
-    key: OEM_LIME_HUB_PROVIDER_ID,
-    sortOrder: Number.MAX_SAFE_INTEGER,
-    label: resolveOemLimeHubProviderName(runtime),
-    registryId: OEM_LIME_HUB_PROVIDER_ID,
-    fallbackRegistryId: getRegistryIdFromType("openai", runtime.gatewayBaseUrl),
-    type: "openai",
-    credentialType: "openai_key",
-    providerId: OEM_LIME_HUB_PROVIDER_ID,
-    apiHost: buildOemLimeHubApiHost(runtime) ?? runtime.gatewayBaseUrl,
-    promptCacheMode: null,
-    models: [DEFAULT_OEM_LIME_HUB_CHAT_MODEL],
-    hasApiKey: false,
-    authStatus: "login_required",
-  };
-}
-
 export function buildConfiguredProviders(
   apiKeyProviders: ProviderWithKeysDisplay[],
   options: BuildConfiguredProvidersOptions = {},
@@ -215,31 +174,16 @@ export function buildConfiguredProviders(
   const providerMap = new Map<string, ConfiguredProvider>();
 
   safeApiKeyProviders.forEach((provider) => {
-    const loginRequired = shouldExposeLimeHubLoginPrompt(provider, oemRuntime);
-    if (
-      !providerMap.has(provider.id) &&
-      (isConfiguredApiKeyProvider(provider) || loginRequired)
-    ) {
+    if (isLimeHubProvider(provider) && !hasOemCloudLogin(oemRuntime)) {
+      return;
+    }
+    if (!providerMap.has(provider.id) && isConfiguredApiKeyProvider(provider)) {
       providerMap.set(
         provider.id,
-        buildConfiguredProviderFromApiKeyProvider(
-          provider,
-          loginRequired ? "login_required" : "ready",
-        ),
+        buildConfiguredProviderFromApiKeyProvider(provider),
       );
     }
   });
-
-  if (
-    oemRuntime &&
-    !hasOemCloudLogin(oemRuntime) &&
-    !providerMap.has(OEM_LIME_HUB_PROVIDER_ID)
-  ) {
-    providerMap.set(
-      OEM_LIME_HUB_PROVIDER_ID,
-      buildSyntheticLimeHubLoginProvider(oemRuntime),
-    );
-  }
 
   return Array.from(providerMap.values()).sort((a, b) => {
     const sortOrderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;

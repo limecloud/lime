@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BookOpen,
   ChevronRight,
@@ -5,6 +6,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings as SettingsIcon,
   Upload,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -35,8 +37,11 @@ import type {
   SkillsWorkspaceProjectState,
   SkillsWorkspaceViewTab,
 } from "./SkillsWorkspacePageTypes";
-import type { SkillAutoLoadPreferences } from "./skillAutoLoadPreferences";
-import { SkillsHeroBannerSvg } from "./SkillsWorkspacePageVisuals";
+import {
+  isSkillAutoLoadEnabled,
+  type SkillAutoLoadPreferences,
+} from "./skillAutoLoadPreferences";
+import { matchProtocolSkillEnabledState } from "@/lib/api/skillConfig";
 import {
   InstalledSkillDetailDialog,
   MarketplaceSkillDetailDialog,
@@ -53,7 +58,6 @@ interface SkillsWorkspacePageViewProps {
   detailContentState: MarketplaceSkillDetailContentState | null;
   detailInstalledSkill: Skill | null;
   detailStoreItem: SkillStoreItem | null;
-  featuredStoreItems: SkillStoreItem[];
   highlightedInstalledSkillDirectory: string | null;
   installedDetailContentState: InstalledSkillDetailContentState | null;
   installedDetailSelectedFilePath: string;
@@ -64,7 +68,6 @@ interface SkillsWorkspacePageViewProps {
   officialMarketplaceError?: string | null;
   officialMarketplaceLoading: boolean;
   officialMarketplaceSkillCount: number;
-  otherStoreItems: SkillStoreItem[];
   registeredSkillsRefreshSignal: number;
   searchQuery: string;
   selectedStoreItem: SkillStoreItem | null;
@@ -118,6 +121,13 @@ interface SkillsWorkspacePageViewProps {
 
 export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
   const { t, i18n } = useTranslation("agent");
+  const [showAllInstalledSkills, setShowAllInstalledSkills] = useState(false);
+  const installedSkillPreviewLimit = 6;
+  const installedSkillsOverflow =
+    props.visibleUserInstalledSkills.length > installedSkillPreviewLimit;
+  const visibleInstalledSkills = showAllInstalledSkills
+    ? props.visibleUserInstalledSkills
+    : props.visibleUserInstalledSkills.slice(0, installedSkillPreviewLimit);
 
   const cardProps = {
     findInstalledMarketplaceLocalSkill:
@@ -169,8 +179,10 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                 className="h-9 rounded-full border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 text-sm font-semibold text-[color:var(--lime-text-strong)] shadow-none hover:bg-[color:var(--lime-surface-hover)]"
                 aria-label={t("skills.workspace.manageMenu.trigger")}
               >
-                <Plus className="mr-1.5 h-4 w-4" />
-                {t("skills.workspace.manageMenu.trigger")}
+                <SettingsIcon className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">
+                  {t("skills.workspace.manageMenu.trigger")}
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -235,25 +247,12 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
           <div className="mx-auto w-full max-w-[900px] space-y-8">
             <section className="space-y-4">
               <div>
-                <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-[color:var(--lime-text-strong)]">
+                <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-[color:var(--lime-text-strong)]">
                   {t("skills.workspace.header.title")}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-[color:var(--lime-text-muted)]">
                   {t("skills.workspace.header.subtitle")}
                 </p>
-              </div>
-              <div className="relative h-[128px] overflow-hidden rounded-lg border border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)]">
-                <div className="absolute left-6 top-1/2 -translate-y-1/2">
-                  <div className="text-base font-semibold leading-6 text-[color:var(--lime-text-strong)]">
-                    {t("skills.workspace.hero.title")}
-                  </div>
-                  <p className="mt-2 text-sm leading-5 text-[color:var(--lime-text)]">
-                    {t("skills.workspace.hero.description")}
-                  </p>
-                </div>
-                <div className="pointer-events-none absolute right-2 top-1/2 hidden h-[142px] w-[320px] -translate-y-1/2 sm:block">
-                  <SkillsHeroBannerSvg />
-                </div>
               </div>
             </section>
 
@@ -275,158 +274,7 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
               </section>
             )}
 
-            <nav className="flex flex-wrap items-center justify-between gap-3">
-              <div
-                className="flex items-center gap-5"
-                role="tablist"
-                aria-label={t("skills.workspace.view.tabsLabel")}
-              >
-                {props.viewTabs.map((tab) => {
-                  const active = props.activeView === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      aria-controls={`skills-${tab.key}-view`}
-                      className={cn(
-                        "inline-flex h-8 items-center gap-2 rounded-full text-base font-semibold transition",
-                        active
-                          ? "text-[color:var(--lime-text-strong)]"
-                          : "text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-text-strong)]",
-                      )}
-                      onClick={() => props.onActiveViewChange(tab.key)}
-                    >
-                      {tab.label}
-                      {tab.key === "installed" &&
-                      typeof tab.count === "number" ? (
-                        <span className="text-xs text-[color:var(--lime-text-muted)]">
-                          {formatNumber(tab.count, { locale: i18n.language })}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-              {props.activeView === "store" ? (
-                <div className="hidden items-center gap-2 sm:flex">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-lg border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 text-xs font-semibold text-[color:var(--lime-text)] shadow-none hover:bg-[color:var(--lime-surface-hover)]"
-                  >
-                    {t("skills.workspace.filter.all")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-lg border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 text-xs font-semibold text-[color:var(--lime-text)] shadow-none hover:bg-[color:var(--lime-surface-hover)]"
-                  >
-                    {t("skills.workspace.sort.hot")}
-                  </Button>
-                </div>
-              ) : null}
-            </nav>
-
-            {props.activeView === "store" ? (
-              <div
-                id="skills-store-view"
-                role="tabpanel"
-                className="space-y-6"
-                data-testid="skills-store-view"
-              >
-                <div className="space-y-5">
-                  {props.officialMarketplaceError &&
-                  props.officialMarketplaceSkillCount === 0 ? (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-700">
-                      {t("skills.workspace.marketplace.fallbackNotice")}
-                    </div>
-                  ) : null}
-                  {props.visibleStoreItems.length > 0 ? (
-                    <>
-                      <MarketplaceSkillSection
-                        title={t("skills.workspace.marketplace.featuredTitle")}
-                        items={props.featuredStoreItems}
-                        startIndex={0}
-                        meta={
-                          props.officialMarketplaceLoading
-                            ? t("skills.workspace.marketplace.syncing")
-                            : t("skills.workspace.marketplace.count", {
-                                count: props.skillStoreCount,
-                              })
-                        }
-                        {...cardProps}
-                      />
-                      <MarketplaceSkillSection
-                        title={t("skills.workspace.marketplace.otherTitle", {
-                          count: props.otherStoreItems.length,
-                        })}
-                        items={props.otherStoreItems}
-                        startIndex={props.featuredStoreItems.length}
-                        {...cardProps}
-                      />
-                    </>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      {t("skills.workspace.marketplace.empty")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : null}
-
-            {props.activeView === "builtin" ? (
-              <section
-                id="skills-builtin-view"
-                role="tabpanel"
-                className="space-y-3"
-                data-testid="skills-builtin-view"
-              >
-                <div>
-                  <h2 className="text-xs font-semibold text-slate-700">
-                    {t("skills.workspace.builtin.title")}
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {t("skills.workspace.builtin.subtitle")}
-                  </p>
-                </div>
-                {props.visibleBuiltinLocalSkills.length > 0 ? (
-                  <div className="rounded-lg border border-slate-200 bg-white">
-                    {props.visibleBuiltinLocalSkills.map((skill) => (
-                      <LocalSkillRow
-                        key={skill.key}
-                        skill={skill}
-                        preferences={props.skillAutoLoadPreferences}
-                        installedSkillPresentationCopy={
-                          props.installedSkillPresentationCopy
-                        }
-                        onAutoLoadChange={props.onSkillAutoLoadChange}
-                        onProtocolSkillEnabledChange={
-                          props.onProtocolSkillEnabledChange
-                        }
-                        protocolSkillEnabledPendingKey={
-                          props.protocolSkillEnabledPendingKey
-                        }
-                        protocolSkillEnabledStates={
-                          props.protocolSkillEnabledStates
-                        }
-                        onDetailOpen={props.onInstalledSkillDetailOpen}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                    {t("skills.workspace.builtin.empty")}
-                  </div>
-                )}
-              </section>
-            ) : null}
-
-            {props.activeView === "installed" ? (
-              <section
+                <section
                 id="skills-installed-view"
                 role="tabpanel"
                 className="space-y-3"
@@ -445,13 +293,10 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                   <h2 className="text-xs font-semibold text-slate-700">
                     {t("skills.workspace.installed.title")}
                   </h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {t("skills.workspace.installed.subtitle")}
-                  </p>
                 </div>
                 {props.visibleUserInstalledSkills.length > 0 ? (
-                  <div className="overflow-visible rounded-lg border border-slate-200 bg-white">
-                    {props.visibleUserInstalledSkills.map((skill) => (
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    {visibleInstalledSkills.map((skill) => (
                       <LocalSkillRow
                         key={skill.key}
                         skill={skill}
@@ -459,16 +304,8 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                           skill.directory ===
                           props.highlightedInstalledSkillDirectory
                         }
-                        preferences={props.skillAutoLoadPreferences}
                         installedSkillPresentationCopy={
                           props.installedSkillPresentationCopy
-                        }
-                        onAutoLoadChange={props.onSkillAutoLoadChange}
-                        onProtocolSkillEnabledChange={
-                          props.onProtocolSkillEnabledChange
-                        }
-                        protocolSkillEnabledPendingKey={
-                          props.protocolSkillEnabledPendingKey
                         }
                         protocolSkillEnabledStates={
                           props.protocolSkillEnabledStates
@@ -478,6 +315,21 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                         actionMenu={
                           <InstalledSkillActionMenu
                             skill={skill}
+                            autoLoadEnabled={isSkillAutoLoadEnabled(
+                              skill,
+                              props.skillAutoLoadPreferences,
+                            )}
+                            onToggleAutoLoad={props.onSkillAutoLoadChange}
+                            protocolEnabledState={matchProtocolSkillEnabledState(
+                              skill,
+                              props.protocolSkillEnabledStates ?? [],
+                            )}
+                            protocolPending={
+                              props.protocolSkillEnabledPendingKey === skill.key
+                            }
+                            onToggleProtocol={
+                              props.onProtocolSkillEnabledChange
+                            }
                             exportingSkillDirectory={
                               props.exportingSkillDirectory
                             }
@@ -510,8 +362,136 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                     {t("skills.workspace.sidebar.local.empty")}
                   </div>
                 )}
+                {installedSkillsOverflow ? (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline"
+                    data-testid="skills-installed-toggle-all"
+                    onClick={() => setShowAllInstalledSkills((value) => !value)}
+                  >
+                    {showAllInstalledSkills
+                      ? t("skills.workspace.installed.showLess")
+                      : t("skills.workspace.installed.showMore", {
+                          count:
+                            props.visibleUserInstalledSkills.length -
+                            installedSkillPreviewLimit,
+                        })}
+                  </button>
+                ) : null}
+              </section>
+
+            <nav className="flex flex-wrap items-center justify-between gap-3">
+              <div
+                className="flex items-center gap-5"
+                role="tablist"
+                aria-label={t("skills.workspace.view.tabsLabel")}
+              >
+                {props.viewTabs.map((tab) => {
+                  const active = props.activeView === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      aria-controls={`skills-${tab.key}-view`}
+                      className={cn(
+                        "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition",
+                        active
+                          ? "bg-[color:var(--lime-surface-hover)] text-[color:var(--lime-text-strong)]"
+                          : "text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-text-strong)]",
+                      )}
+                      onClick={() => props.onActiveViewChange(tab.key)}
+                    >
+                      {tab.label}
+                      {tab.key === "installed" &&
+                      typeof tab.count === "number" ? (
+                        <span className="text-xs text-[color:var(--lime-text-muted)]">
+                          {formatNumber(tab.count, { locale: i18n.language })}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+            </nav>
+
+            {props.activeView === "store" ? (
+              <div
+                id="skills-store-view"
+                role="tabpanel"
+                className="space-y-6"
+                data-testid="skills-store-view"
+              >
+                <div className="space-y-5">
+                  {props.officialMarketplaceError &&
+                  props.officialMarketplaceSkillCount === 0 ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-700">
+                      {t("skills.workspace.marketplace.fallbackNotice")}
+                    </div>
+                  ) : null}
+                  {props.visibleStoreItems.length > 0 ? (
+                    <>
+                      <MarketplaceSkillSection
+                        items={props.visibleStoreItems}
+                        startIndex={0}
+                        {...cardProps}
+                      />
+                      <p className="text-[12px] leading-5 text-[color:var(--lime-text-muted)]">
+                        {t("skills.workspace.marketplace.footerCount", {
+                          count: props.skillStoreCount,
+                        })}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                      {t("skills.workspace.marketplace.empty")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {props.activeView === "builtin" ? (
+              <section
+                id="skills-builtin-view"
+                role="tabpanel"
+                className="space-y-3"
+                data-testid="skills-builtin-view"
+              >
+                <div>
+                  <h2 className="text-xs font-semibold text-slate-700">
+                    {t("skills.workspace.builtin.title")}
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {t("skills.workspace.builtin.subtitle")}
+                  </p>
+                </div>
+                {props.visibleBuiltinLocalSkills.length > 0 ? (
+                  <div className="rounded-lg border border-slate-200 bg-white">
+                    {props.visibleBuiltinLocalSkills.map((skill) => (
+                      <LocalSkillRow
+                        key={skill.key}
+                        skill={skill}
+                        installedSkillPresentationCopy={
+                          props.installedSkillPresentationCopy
+                        }
+                        protocolSkillEnabledStates={
+                          props.protocolSkillEnabledStates
+                        }
+                        onDetailOpen={props.onInstalledSkillDetailOpen}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                    {t("skills.workspace.builtin.empty")}
+                  </div>
+                )}
               </section>
             ) : null}
+
           </div>
         </main>
       </div>

@@ -573,6 +573,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     onStop?.();
   }, [onStop]);
 
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+
   const composerPanel = (
     <EmptyStateComposerFrame>
       <EmptyStateComposerPanel
@@ -601,6 +603,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         projectId={projectId}
         openedProjects={openedProjects}
         onProjectContextChange={onProjectContextChange}
+        projectOpen={projectPickerOpen}
+        onProjectOpenChange={setProjectPickerOpen}
         sessionId={sessionId}
         copy={homeSurfaceCopy.composer}
         inputbarCopy={inputbarCoreCopy}
@@ -626,9 +630,21 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     </EmptyStateComposerFrame>
   );
 
+  const activeProjectName = useMemo(() => {
+    if (!projectId) {
+      return null;
+    }
+    const project = openedProjects.find((item) => item.id === projectId);
+    return project?.name?.trim() || null;
+  }, [openedProjects, projectId]);
+
   return (
     <EmptyStateLayout
       composer={composerPanel}
+      projectName={activeProjectName}
+      onProjectSelect={
+        activeProjectName ? () => setProjectPickerOpen(true) : undefined
+      }
     />
   );
 };

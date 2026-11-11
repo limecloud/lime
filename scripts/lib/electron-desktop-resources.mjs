@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -91,6 +92,7 @@ const MAC_NATIVE_HOST_BUNDLE_RELATIVE_PATH =
 const MAC_NATIVE_HOST_RELATIVE_PATH = `${MAC_NATIVE_HOST_BUNDLE_RELATIVE_PATH}/Contents/MacOS/macos-native-host`;
 const WINDOWS_NATIVE_HOST_RELATIVE_PATH =
   "native/windows/windows-native-host.exe";
+const LINUX_NATIVE_HOST_RELATIVE_PATH = "native/linux/linux-native-host";
 
 export function desktopResourcePlatformKey(
   platform = process.platform,
@@ -184,6 +186,7 @@ export function buildDesktopResourcesManifest({
     native: {
       helper: native.helper || null,
       windowsHelper: native.windowsHelper || null,
+      linuxHelper: native.linuxHelper || null,
       entitlements: native.entitlements || null,
     },
   };
@@ -403,6 +406,16 @@ function prepareDesktopResourcesFromRoot({
         signedByForge: nativeSignedByForge,
       },
     };
+  } else if (platform === "linux") {
+    if (arch !== "x64") throw new Error("Linux Computer Use requires x64");
+    const helperPath = path.join(resourcesRoot, LINUX_NATIVE_HOST_RELATIVE_PATH);
+    mkdirSync(path.dirname(helperPath), { recursive: true });
+    copyFileSync(path.join(REPO_ROOT, "electron/native/linux/linux-native-host.py"), helperPath);
+    chmodSync(helperPath, 0o755);
+    files["linux-native-host"] = LINUX_NATIVE_HOST_RELATIVE_PATH;
+    native = { linuxHelper: { id: "linux-native-host", path: LINUX_NATIVE_HOST_RELATIVE_PATH,
+      computerUseProtocolVersion: 1, sessionType: "x11", persistentApproval: false,
+      dependencies: ["python3-xlib", "python3-pil", "zenity", "xfce4-screensaver"] } };
   }
   const manifest = buildDesktopResourcesManifest({
     resourcesRoot,

@@ -246,6 +246,9 @@ pub fn project_mcp_notification(
                 },
             }]
         }
+        // URL elicitation is not advertised by the current form-only client.
+        // Its completion cannot complete a tool or resolve a pending form.
+        ServerNotification::ElicitationCompletionNotification(_) => Vec::new(),
         ServerNotification::CustomNotification(notification) => {
             let mut metadata = metadata_with_kind("mcp_custom");
             metadata.insert(
@@ -283,25 +286,32 @@ pub fn project_mcp_notification(
 mod tests {
     use super::*;
     use rmcp::model::{
-        LoggingLevel, LoggingMessageNotification, LoggingMessageNotificationMethod,
-        LoggingMessageNotificationParam, NumberOrString, ProgressNotification,
-        ProgressNotificationMethod, ProgressNotificationParam, ProgressToken,
+        LoggingLevel, LoggingMessageNotification, LoggingMessageNotificationParam, NumberOrString,
+        ProgressNotification, ProgressNotificationParam, ProgressToken,
     };
+
+    #[test]
+    fn url_elicitation_completion_does_not_project_tool_progress_or_output() {
+        let notification = serde_json::from_value(serde_json::json!({
+            "method": "notifications/elicitation/complete",
+            "params": { "elicitationId": "url-1" }
+        }))
+        .expect("URL elicitation completion");
+        assert!(project_mcp_notification("tool-1", notification).is_empty());
+    }
 
     #[test]
     fn project_progress_notification_should_keep_progress_metadata() {
         let events = project_mcp_notification(
             "tool-1",
-            ServerNotification::ProgressNotification(ProgressNotification {
-                method: ProgressNotificationMethod,
-                params: ProgressNotificationParam {
+            ServerNotification::ProgressNotification(ProgressNotification::new(
+                ProgressNotificationParam {
                     progress_token: ProgressToken(NumberOrString::Number(7)),
                     progress: 2.0,
                     total: Some(4.0),
                     message: Some("正在处理第 2 项".to_string()),
                 },
-                extensions: Default::default(),
-            }),
+            )),
         );
 
         assert_eq!(events.len(), 1);
@@ -328,9 +338,8 @@ mod tests {
     fn project_log_notification_should_preserve_process_metadata() {
         let events = project_mcp_notification(
             "tool-1",
-            ServerNotification::LoggingMessageNotification(LoggingMessageNotification {
-                method: LoggingMessageNotificationMethod,
-                params: LoggingMessageNotificationParam {
+            ServerNotification::LoggingMessageNotification(LoggingMessageNotification::new(
+                LoggingMessageNotificationParam {
                     level: LoggingLevel::Info,
                     logger: Some("runner".to_string()),
                     data: serde_json::json!({
@@ -344,8 +353,7 @@ mod tests {
                         "outputKind": "stdout"
                     }),
                 },
-                extensions: Default::default(),
-            }),
+            )),
         );
 
         assert_eq!(events.len(), 1);
@@ -396,9 +404,8 @@ mod tests {
     fn project_metadata_only_log_should_not_render_json_as_delta() {
         let events = project_mcp_notification(
             "tool-1",
-            ServerNotification::LoggingMessageNotification(LoggingMessageNotification {
-                method: LoggingMessageNotificationMethod,
-                params: LoggingMessageNotificationParam {
+            ServerNotification::LoggingMessageNotification(LoggingMessageNotification::new(
+                LoggingMessageNotificationParam {
                     level: LoggingLevel::Info,
                     logger: Some("runner".to_string()),
                     data: serde_json::json!({
@@ -412,8 +419,7 @@ mod tests {
                         "phase": "started"
                     }),
                 },
-                extensions: Default::default(),
-            }),
+            )),
         );
 
         assert_eq!(events.len(), 1);

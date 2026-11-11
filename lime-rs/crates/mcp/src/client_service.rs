@@ -1,6 +1,6 @@
 //! MCP client service with lossless elicitation response metadata.
 //!
-//! Adapted from Codex `codex-rs/rmcp-client/src/elicitation_client_service.rs`
+//! Adapted from upstream `rmcp-client/src/elicitation_client_service.rs`
 //! custom service boundary introduced at `7b6486a145e` and inspected at
 //! `5c19155cbd93bfa099016e7487259f61669823ff` (Apache-2.0).
 
@@ -155,13 +155,9 @@ fn normalize_notification(
                         None,
                     )
                 })?;
-            Ok(ServerNotification::ProgressNotification(
-                ProgressNotification {
-                    method: ProgressNotificationMethod,
-                    params,
-                    extensions: notification.extensions,
-                },
-            ))
+            let mut progress = ProgressNotification::new(params);
+            progress.extensions = notification.extensions;
+            Ok(ServerNotification::ProgressNotification(progress))
         }
         notification => Ok(notification),
     }

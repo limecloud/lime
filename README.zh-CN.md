@@ -121,12 +121,16 @@ lime exec \
   "review this diff"
 ```
 
+Linux 云端运行包的源码构建入口为 `node scripts/app-server/linux-guest-build.mjs --out <新的绝对目录>`，需要原生 Linux x64 构建环境。输出含校验摘要的归档包；在「云电脑 → 安装运行环境」选择可信包，安装后自动加密保存任务连接。目标须已准备桌面依赖、具有公网 IPv4，且仅向你的出口 IP 放行临时上传端口 8787；Lime 不自动修改安全组。安装参数与验证范围见 [Cloud 执行计划](internal/exec-plans/cloud-desktop-byoc-plan.md)。
+
 ### 第一次运行（Desktop 或 CLI/TUI）
 
 1. Desktop 打开 Lime，CLI/TUI 执行 `lime`；然后配置 Provider 并测试模型连接。
 2. 选择工作区，确认文件和终端权限。
 3. 新建 Agent Thread，写下目标和验收标准。
 4. 让 Agent 先规划，再批准需要执行的动作。
+
+Provider 凭据默认保存在仅当前用户可访问的文件中，无需钥匙串密码授权。存储路径和显式钥匙串配置见[凭据存储](docs/content/03.providers/2.credential-storage.md)。
 
 ## 数据与权限
 

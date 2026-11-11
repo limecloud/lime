@@ -107,6 +107,7 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         sandbox_policy: None,
         locale: Some("en-US".into()),
         resume_thread: None,
+        open_agents_overview: false,
     };
     assert!(app
         .resume_target_session(&mut session, "missing-thread".into(), &options)

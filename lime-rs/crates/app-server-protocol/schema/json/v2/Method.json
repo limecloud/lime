@@ -8,6 +8,7 @@
     "app/list",
     "app/read",
     "artifact/write",
+    "cloud/desktop",
     "cloud/request",
     "collaborationMode/list",
     "command/exec",

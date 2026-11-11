@@ -5,7 +5,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "version": "1.173.0",
+  "version": "1.174.0",
   "description": "Open-source full-stack desktop AI agent for global users: coding, research, content, files, terminals, tools, multimodal work, and multi-agent workflows.",
   "keywords": [
     "ai",
@@ -56,6 +56,7 @@
     "inventory:tui-structure": "node scripts/app-server/tui-structure-inventory.mjs",
     "inventory:cli-codex": "node scripts/app-server/cli-test-inventory.mjs",
     "inventory:cli-structure": "node scripts/app-server/cli-structure-inventory.mjs",
+    "inventory:upstream-alignment": "node scripts/app-server/upstream-alignment-audit.mjs",
     "generate:protocol-types": "node scripts/generate-protocol-types.mjs",
     "check:protocol-types": "node scripts/generate-protocol-types.mjs --check",
     "governance:import-boundaries": "node scripts/check-import-boundaries.mjs",
@@ -195,6 +196,7 @@
     "i18n:rtl-smoke": "node scripts/i18n/i18n-rtl-playwright-smoke.mjs",
     "verify:app-version": "node scripts/check-app-version-consistency.mjs",
     "verify:tasks": "node scripts/quality-task-selector.mjs --format json",
+    "verify:cli-sandbox": "node scripts/app-server/cli-sandbox-gate-b.mjs",
     "verify:gui-smoke": "npm run smoke:electron",
     "verify:local": "node scripts/local-ci.mjs",
     "verify:local:full": "node scripts/local-ci.mjs --full",

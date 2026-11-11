@@ -108,6 +108,10 @@
     },
     {
       "kind": "request",
+      "method": "cloud/desktop"
+    },
+    {
+      "kind": "request",
       "method": "cloud/request"
     },
     {
@@ -2331,6 +2335,10 @@
       "CancelInstallResponse",
       "ClientRequest",
       "ClientResponse",
+      "CloudDesktopParams",
+      "CloudDesktopProvider",
+      "CloudDesktopResource",
+      "CloudDesktopResponse",
       "CloudRequestMethod",
       "CloudRequestParams",
       "CloudRequestResponse",
@@ -2413,6 +2421,7 @@
       "DynamicToolNamespaceSpec",
       "DynamicToolNamespaceTool",
       "DynamicToolSpec",
+      "EcsDesktopSpec",
       "EnvironmentAddParams",
       "EnvironmentAddResponse",
       "EnvironmentInfoParams",
@@ -2880,7 +2889,8 @@
       "WindowsSandboxSetupStartParams",
       "WindowsSandboxSetupStartResponse",
       "WindowsWorldWritableWarningNotification",
-      "WriteStatus"
+      "WriteStatus",
+      "WuyingDesktopSpec"
     ]
   }
 }

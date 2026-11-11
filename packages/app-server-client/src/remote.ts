@@ -58,6 +58,10 @@ export class RemoteTransport implements AppServerMessageTransport {
   #closed = false;
   #closedError: Error | null = null;
 
+  get closed(): boolean {
+    return this.#closed;
+  }
+
   private constructor(
     socket: WebSocket,
     websocketUrl: string,

@@ -209,6 +209,7 @@ function capabilityProvenanceFromSnapshot(
   if (
     value === "canonical" ||
     value === "provider_explicit" ||
+    value === "protocol_default" ||
     value === "inferred_hint"
   ) {
     return value;
@@ -335,7 +336,8 @@ function toRegistryModel(model: Model): EnhancedModelMetadata {
     defaultServiceTier: model.defaultServiceTier,
     defaultReasoningLevel: model.defaultReasoningEffort,
     supportedReasoningLevels: reasoningOptions,
-    supportsReasoningSummaries: snapshot.capabilities.supportsReasoningSummaries,
+    supportsReasoningSummaries:
+      snapshot.capabilities.supportsReasoningSummaries,
     supportVerbosity: snapshot.capabilities.supportVerbosity,
     inputModalities,
   };

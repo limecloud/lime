@@ -15,7 +15,7 @@ use lime_core::DynEmitter;
 use rmcp::{
     handler::client::progress::{ProgressDispatcher, ProgressSubscriber},
     model::{
-        ClientCapabilities, ClientInfo, CreateElicitationRequestParam, ElicitationCapability,
+        ClientCapabilities, ClientInfo, CreateElicitationRequestParams, ElicitationCapability,
         Implementation, LoggingMessageNotificationParam, ProgressNotificationParam, ProgressToken,
         ProtocolVersion, ResourceUpdatedNotificationParam,
     },
@@ -123,7 +123,7 @@ impl LimeMcpClient {
 
     pub(crate) async fn handle_form_elicitation(
         &self,
-        request: CreateElicitationRequestParam,
+        request: CreateElicitationRequestParams,
         scope: McpCallScope,
         meta: Option<serde_json::Value>,
         cancellation: tokio_util::sync::CancellationToken,
@@ -207,23 +207,21 @@ impl ClientHandler for LimeMcpClient {
             self.elicitation_router.is_some() && self.runtime_owner.is_some();
         let mut capabilities = ClientCapabilities::default();
         if supports_runtime_elicitation {
+            // MCP 2025-06-18 represents form-only support with an empty capability.
             capabilities.elicitation = Some(ElicitationCapability::default());
         }
-        ClientInfo {
-            protocol_version: if supports_runtime_elicitation {
-                ProtocolVersion::V_2025_06_18
-            } else {
-                ProtocolVersion::V_2025_03_26
-            },
+        let mut info = ClientInfo::new(
             capabilities,
-            client_info: Implementation {
-                name: "lime".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_string(),
-                icons: None,
-                title: Some("Lime MCP Client".to_string()),
-                website_url: Some("https://github.com/aiclientproxy/lime".to_string()),
-            },
-        }
+            Implementation::new("lime", env!("CARGO_PKG_VERSION")),
+        );
+        info.protocol_version = if supports_runtime_elicitation {
+            ProtocolVersion::V_2025_06_18
+        } else {
+            ProtocolVersion::V_2025_03_26
+        };
+        info.client_info.title = Some("Lime MCP Client".to_string());
+        info.client_info.website_url = Some("https://github.com/aiclientproxy/lime".to_string());
+        info
     }
 
     async fn on_progress(
@@ -474,7 +472,8 @@ mod tests {
         let waiter = tokio::spawn(async move {
             request_client
                 .handle_form_elicitation(
-                    CreateElicitationRequestParam {
+                    CreateElicitationRequestParams::FormElicitationParams {
+                        meta: None,
                         message: "Confirm".to_string(),
                         requested_schema: rmcp::model::ElicitationSchema::builder()
                             .build()

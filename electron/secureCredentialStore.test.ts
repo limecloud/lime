@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { link, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
   ElectronSecureCredentialStore,
+  ElectronEncryptedStateFile,
   type SafeStorageLike,
 } from "./secureCredentialStore";
 
@@ -37,6 +38,101 @@ afterEach(async () => {
 });
 
 describe("ElectronSecureCredentialStore", () => {
+  it("原子替换时读取完整快照，仍拒绝多重硬链接", async () => {
+    const root = await createRoot();
+    const file = new ElectronEncryptedStateFile(
+      root,
+      "runtime-installation.v1",
+      createSafeStorage(),
+    );
+    await file.write({ revision: 0 });
+    await Promise.all([
+      (async () => {
+        for (let revision = 1; revision <= 80; revision++)
+          await file.write({ revision });
+      })(),
+      (async () => {
+        for (let i = 0; i < 160; i++)
+          expect(await file.read()).toMatchObject({
+            revision: expect.any(Number),
+          });
+      })(),
+    ]);
+    expect(await file.read()).toEqual({ revision: 80 });
+    await link(file.filePath, path.join(root, "alias"));
+    await expect(file.read()).rejects.toThrow("encrypted state is invalid");
+  });
+  it("保留加密的连接方式并拒绝未知方式", async () => {
+    const root = await createRoot();
+    const store = new ElectronSecureCredentialStore(root, createSafeStorage());
+    const credential = {
+      tenantId: "resource",
+      endpoint: "ws://127.0.0.1:8787/",
+      token: "guest-secret",
+      transport: "ecsTunnel" as const,
+    };
+    await expect(
+      store.setCloudSessionCredential(credential),
+    ).resolves.toMatchObject({ transport: "ecsTunnel" });
+    await expect(store.readCloudSessionCredential()).resolves.toEqual(
+      credential,
+    );
+    await expect(
+      store.setCloudSessionCredential({
+        ...credential,
+        transport: "unknown" as never,
+      }),
+    ).rejects.toThrow(/unsupported Cloud connection transport/);
+    await expect(store.readCloudSessionCredential()).resolves.toEqual(
+      credential,
+    );
+  });
+
+  it.each([undefined, "basic_text", "unknown", "future_backend"])(
+    "Linux 拒绝不可信凭据后端 %s",
+    async (backend) => {
+      const root = await createRoot();
+      const storage = createSafeStorage();
+      if (backend) storage.getSelectedStorageBackend = () => backend;
+      const store = new ElectronSecureCredentialStore(root, storage, "linux");
+      await expect(
+        store.setCloudSessionCredential({
+          tenantId: "tenant-001",
+          endpoint: "wss://gateway.example.test",
+          token: "session-secret",
+        }),
+      ).rejects.toThrow("secure credential storage is unavailable");
+      await expect(store.getCloudSessionCredentialMetadata()).resolves.toEqual({
+        available: false,
+        exists: false,
+      });
+    },
+  );
+
+  it("Linux 使用真实 keyring 后端，锁定后拒绝读取既有凭据", async () => {
+    const root = await createRoot();
+    let unlocked = true;
+    const storage = {
+      ...createSafeStorage(),
+      isEncryptionAvailable: () => unlocked,
+      getSelectedStorageBackend: () => "gnome_libsecret",
+    };
+    const store = new ElectronSecureCredentialStore(root, storage, "linux");
+    await store.setCloudSessionCredential({
+      tenantId: "tenant-001",
+      endpoint: "wss://gateway.example.test",
+      token: "session-secret",
+    });
+    unlocked = false;
+    await expect(store.readCloudSessionCredential()).rejects.toThrow(
+      "secure credential storage is unavailable",
+    );
+    await expect(store.getCloudSessionCredentialMetadata()).resolves.toEqual({
+      available: false,
+      exists: true,
+    });
+  });
+
   it("加密保存 Cloud session，并只返回不含 token 的 metadata", async () => {
     const root = await createRoot();
     const store = new ElectronSecureCredentialStore(root, createSafeStorage());

@@ -1,0 +1,195 @@
+{
+  "upstream_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+  "entries": [
+    {
+      "source_path": "codex-rs/websocket-auth/src/lib.rs",
+      "destination_path": "lime-rs/crates/app-server-transport/src/websocket_auth/lib.rs",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": "cf9da6b85fcb96c7429dabe06e690edbcee5aec5d84b04f6805385354bbd2fc7",
+      "destination_sha256": "f707c147e0584b0fb4f7295b545b4654c2fb6b52854ed3c51ecf271522ed670c",
+      "copy_status": "migrated-consumer",
+      "owner": "app-server-transport",
+      "consumers": [
+        "app-server-transport::transport::websocket",
+        "app-server CLI --ws-*"
+      ],
+      "brand_action": "codex_utils_absolute_path -> lime_utils_absolute_path; generic symbols retained",
+      "adaptations": [
+        "Rust 2024 let chains lowered to equivalent nested if statements for Lime edition 2021",
+        "Secret CLI paths use from_absolute_path_checked; TryFrom silently resolves relative paths against cwd and violates the declared absolute-path contract"
+      ],
+      "license": "Apache-2.0; licenses/Apache-2.0.txt and licenses/OpenAI-NOTICE.txt",
+      "validation": [
+        "source-copy report: cloud-desktop-source-copy-report.json",
+        "33 authentication and WebSocket handshake tests passed: /tmp/lime-cloud-release-transport-final.log",
+        "1 public cloud/desktop JSON-RPC boundary test and 2 CLI auth-argument tests passed with verified V8 sandbox assets",
+        "Real current App Server stdio/WebSocket process checks passed: /tmp/lime-cloud-release-real-rpc-summary.json"
+      ],
+      "unknowns": [
+        "Linux guest deployment and authenticated Electron/native-helper checks passed; real model Thread/Turn/Item tasks remain unverified"
+      ]
+    },
+    {
+      "source_path": "codex-rs/websocket-auth/src/auth_tests.rs",
+      "destination_path": "lime-rs/crates/app-server-transport/src/websocket_auth/auth_tests.rs",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": "2a4c8c804fea00737d5ac92c903c36298ca018842d632ebe7135a64552a7e090",
+      "destination_sha256": "2a4c8c804fea00737d5ac92c903c36298ca018842d632ebe7135a64552a7e090",
+      "copy_status": "migrated-consumer",
+      "owner": "app-server-transport",
+      "consumers": [
+        "app-server-transport::transport::websocket",
+        "app-server CLI --ws-*"
+      ],
+      "brand_action": "unchanged upstream authentication tests",
+      "adaptations": [],
+      "license": "Apache-2.0; licenses/Apache-2.0.txt and licenses/OpenAI-NOTICE.txt",
+      "validation": [
+        "source-copy report: cloud-desktop-source-copy-report.json",
+        "33 authentication and WebSocket handshake tests passed: /tmp/lime-cloud-release-transport-final.log",
+        "1 public cloud/desktop JSON-RPC boundary test and 2 CLI auth-argument tests passed with verified V8 sandbox assets",
+        "Real current App Server stdio/WebSocket process checks passed: /tmp/lime-cloud-release-real-rpc-summary.json"
+      ],
+      "unknowns": [
+        "Linux guest deployment and authenticated Electron/native-helper checks passed; real model Thread/Turn/Item tasks remain unverified"
+      ]
+    },
+    {
+      "source_path": "public Codex Cloud control plane: unavailable",
+      "destination_path": "lime-rs/crates/services/src/cloud_desktop_service.rs",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": null,
+      "destination_sha256": null,
+      "copy_status": "source-unavailable",
+      "owner": "lime-services",
+      "consumers": [
+        "cloud/desktop",
+        "Lime BYOC settings"
+      ],
+      "brand_action": "Lime-owned implementation; no upstream cloud endpoint, account or billing service copied",
+      "validation": [
+        "internal/exec-plans/cloud-desktop-byoc-plan.md"
+      ],
+      "unknowns": [
+        "This is an independent Lime adapter, not a claim of copying the private Codex Cloud product"
+      ]
+    },
+    {
+      "source_path": "public portable user-file archive implementation for this BYOC contract: unavailable",
+      "destination_path": "lime-rs/crates/services/src/cloud_archive_service.rs",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": null,
+      "destination_sha256": null,
+      "copy_status": "source-unavailable",
+      "owner": "lime-services",
+      "consumers": [
+        "cloud/desktop",
+        "Lime BYOC settings"
+      ],
+      "brand_action": "Lime-owned implementation; no upstream cloud endpoint, account or billing service copied",
+      "validation": [
+        "internal/exec-plans/cloud-desktop-byoc-plan.md"
+      ],
+      "unknowns": [
+        "This is an independent Lime adapter, not a claim of copying the private Codex Cloud product"
+      ]
+    },
+    {
+      "source_path": "public Linux native desktop helper: unavailable in the inspected upstream scope",
+      "destination_path": "electron/native/linux/linux-native-host.py",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": null,
+      "destination_sha256": null,
+      "copy_status": "source-unavailable",
+      "owner": "tool-runtime/computer_use + electron/native/linux",
+      "consumers": [
+        "cloud/desktop",
+        "existing Computer Use native adapter"
+      ],
+      "brand_action": "Lime-owned implementation; no upstream cloud endpoint, account or billing service copied",
+      "validation": [
+        "internal/exec-plans/cloud-desktop-byoc-plan.md"
+      ],
+      "unknowns": [
+        "This is an independent Lime adapter, not a claim of copying the private Codex Cloud product"
+      ]
+    },
+    {
+      "source_path": "public Codex Desktop BYOC settings UI: unavailable",
+      "destination_path": "src/components/settings-v2/integrations/cloud-desktops",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": null,
+      "destination_sha256": null,
+      "copy_status": "source-unavailable",
+      "owner": "settings-v2/integrations",
+      "consumers": [
+        "cloud/desktop",
+        "Lime BYOC settings"
+      ],
+      "brand_action": "Lime-owned implementation; no upstream cloud endpoint, account or billing service copied",
+      "validation": [
+        "internal/exec-plans/cloud-desktop-byoc-plan.md"
+      ],
+      "unknowns": [
+        "This is an independent Lime adapter, not a claim of copying the private Codex Cloud product"
+      ]
+    },
+    {
+      "source_path": "public Codex Desktop BYOC window registry and credential slots: unavailable",
+      "destination_path": "electron/cloudDesktopWindows.ts + electron/appServerRemoteConnection.ts + electron/cloudDesktopTaskTunnel.ts",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": null,
+      "destination_sha256": null,
+      "copy_status": "source-unavailable",
+      "owner": "Electron Desktop Host",
+      "consumers": [
+        "CloudTaskConnection",
+        "cloud_desktop_connection",
+        "ElectronAppServerHost"
+      ],
+      "brand_action": "Lime-owned BYOC client wiring; reuses the existing authenticated App Server client, proxy and canonical runtime",
+      "adaptations": [
+        "No upstream private cloud service or account implementation copied",
+        "RemoteTransport exposes read-only closed state; no second WebSocket protocol or transcript",
+        "ECS session forwarding resolves a temporary loopback endpoint through the local cloud/desktop owner only on explicit open or reconnect; safeStorage and window isolation retain the stable resource target"
+      ],
+      "validation": [
+        "internal/exec-plans/cloud-desktop-byoc-plan.md"
+      ],
+      "unknowns": [
+        "Live Linux Electron connection acceptance is separate from unverified real model task acceptance"
+      ]
+    },
+    {
+      "source_path": "public Codex Linux BYOC desktop guest installer: unavailable",
+      "destination_path": "electron/native/linux/linux-guest.py + electron/native/linux/linux-guest-bootstrap.py + scripts/app-server/linux-guest-build.mjs + scripts/app-server/linux-guest-package.mjs + lime-rs/crates/services/src/cloud_desktop_service/runtime_install + electron/cloudGuestInstallations.ts",
+      "source_revision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2",
+      "source_sha256": null,
+      "destination_sha256": null,
+      "copy_status": "source-unavailable",
+      "owner": "Linux guest assembly; current App Server and native resource owners retained",
+      "consumers": [
+        "BYOC Linux guest installation",
+        "current CLI and authenticated App Server"
+      ],
+      "brand_action": "Lime-owned systemd/Xfce assembly, not an upstream private cloud implementation",
+      "adaptations": [
+        "Uses the existing Cargo runtime, verified V8 sandbox artifacts and native resource manifest generator",
+        "Loopback-only listeners, per-user private credentials and trusted manifest digest",
+        "Human takeover and native consent hold the global input fence; VNC settings are read back before accepting control",
+        "Native revisions follow the shared numeric contract; no new execution runtime",
+        "Archive installation reuses the existing installer after bounded link-free extraction, trusted archive/manifest digests and exact file allowlist verification",
+        "Temporary unprivileged TLS upload uses a capability digest, fixed artifact identity, private operation lease and bounded lifetime; credentials are returned only over authenticated TLS",
+        "Fixed Cloud Assistant launcher creates an unprivileged desktop user and temporary service; Main pins the management-delivered public certificate and saves credentials before closing upload",
+        "Encrypted private operation recovery persists the original identity and upload intent; status polling never launches or uploads, and an unknown PUT is never replayed"
+      ],
+      "validation": [
+        "internal/exec-plans/cloud-desktop-byoc-plan.md"
+      ],
+      "unknowns": [
+        "Native Linux build and live guest acceptance are recorded separately from local unit tests",
+        "Cloud Assistant launcher and Main private installation recovery are wired; actual cloud installation and model task acceptance remain separate from local fixture tests"
+      ]
+    }
+  ]
+}

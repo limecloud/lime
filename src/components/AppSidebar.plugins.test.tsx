@@ -30,17 +30,11 @@ describe("AppSidebar Plugins", () => {
       container.querySelector('[data-testid="app-sidebar-main-nav"]'),
     ).toBeNull();
     expect(container.textContent).toContain("自定义");
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="app-sidebar-customization-installed"]',
-        )
-        ?.click();
-    });
-    expect(onNavigate).toHaveBeenLastCalledWith("plugins", {
-      statusFilter: "installed",
-      currentProjectId: "project-1",
-    });
+    expect(
+      container.querySelector(
+        '[data-testid="app-sidebar-customization-installed"]',
+      ),
+    ).toBeNull();
     act(() => {
       container
         .querySelector<HTMLButtonElement>(
@@ -212,7 +206,7 @@ describe("AppSidebar Plugins", () => {
     expect(container.textContent).toContain("暂时无法读取已安装插件");
   });
 
-  it("插件中心入口应常驻主导航并进入插件页", async () => {
+  it("插件入口应常驻主导航并进入插件页", async () => {
     const onNavigate = vi.fn();
     const container = mountSidebarContainer({ onNavigate });
     await flushEffects(2);
@@ -223,7 +217,7 @@ describe("AppSidebar Plugins", () => {
           '[data-testid="app-sidebar-rail"] [data-testid^="app-sidebar-nav-"]:not([data-testid="app-sidebar-nav-settings"])',
         ),
       ).map((button) => button.getAttribute("aria-label")),
-    ).toEqual(["已安排任务", "插件"]);
+    ).toEqual(["定时任务", "插件"]);
 
     act(() => {
       container
@@ -248,7 +242,7 @@ describe("AppSidebar Plugins", () => {
           '[data-testid="app-sidebar-rail"] [data-testid^="app-sidebar-nav-"]:not([data-testid="app-sidebar-nav-settings"])',
         ),
       ).map((button) => button.getAttribute("aria-label")),
-    ).toEqual(["已安排任务", "插件"]);
+    ).toEqual(["定时任务", "插件"]);
   });
 
   it("Plugin 变更事件不应影响侧栏聚合入口", async () => {
@@ -267,7 +261,7 @@ describe("AppSidebar Plugins", () => {
           '[data-testid="app-sidebar-rail"] [data-testid^="app-sidebar-nav-"]:not([data-testid="app-sidebar-nav-settings"])',
         ),
       ).map((button) => button.getAttribute("aria-label")),
-    ).toEqual(["已安排任务", "插件"]);
+    ).toEqual(["定时任务", "插件"]);
   });
 
   it("安装态读取失败不应影响静态 Plugins 聚合入口", async () => {

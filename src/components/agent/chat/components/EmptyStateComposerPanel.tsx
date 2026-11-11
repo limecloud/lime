@@ -91,6 +91,8 @@ interface EmptyStateComposerPanelProps {
   projectId?: string | null;
   openedProjects?: ComposerProject[];
   onProjectContextChange?: (projectId: string | null) => void;
+  projectOpen?: boolean;
+  onProjectOpenChange?: (open: boolean) => void;
   projectContextModeLabel?: string;
   projectContextBranchLabel?: string;
   sessionId?: string | null;
@@ -141,6 +143,8 @@ export function EmptyStateComposerPanel({
   projectId = null,
   openedProjects = [],
   onProjectContextChange,
+  projectOpen,
+  onProjectOpenChange,
   projectContextModeLabel,
   projectContextBranchLabel,
   sessionId = null,
@@ -317,6 +321,8 @@ export function EmptyStateComposerPanel({
         projectId={projectId}
         openedProjects={openedProjects}
         onProjectChange={onProjectContextChange}
+        projectOpen={projectOpen}
+        onProjectOpenChange={onProjectOpenChange}
         showModeControls={Boolean(projectId)}
         modeLabel={projectContextModeLabel}
         branchLabel={projectContextBranchLabel}

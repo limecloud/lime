@@ -189,6 +189,7 @@ export function verifyResourceRoot(
     "licenses/Apache-2.0.txt",
     "licenses/OpenAI-NOTICE.txt",
     "licenses/SpaceXAI-LICENSE.txt",
+    "licenses/bzip2-LICENSE.txt",
   ]) {
     assertFile(path.join(root, material), `license material ${material}`);
     if (statSync(path.join(root, material)).size === 0) {

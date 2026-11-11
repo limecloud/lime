@@ -9,6 +9,7 @@
  */
 export enum SettingsGroupKey {
   Personal = "personal",
+  Configuration = "configuration",
   Integrations = "integrations",
   Coding = "coding",
 }
@@ -35,6 +36,7 @@ export enum SettingsTabs {
   Providers = "providers",
   Plugins = "plugins-settings",
   ComputerUse = "computer-use",
+  CloudDesktops = "cloud-desktops",
   MediaServices = "media-services",
 
   // 系统

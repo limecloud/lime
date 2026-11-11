@@ -1,0 +1,27 @@
+[package]
+name = "lime-permissions"
+version.workspace = true
+edition = "2024"
+license = "Apache-2.0"
+description = "Domain filesystem and network sandbox policy model."
+
+[lib]
+doctest = false
+
+[dependencies]
+globset = "0.4"
+libc = "0.2"
+lime-utils-absolute-path = { workspace = true }
+lime-utils-path-uri = { workspace = true }
+schemars = "0.8.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+strum_macros = "0.28"
+tracing = "0.1"
+ts-rs = { version = "11", features = ["no-serde-warnings"] }
+
+[dev-dependencies]
+anyhow = "1"
+pretty_assertions = "1"
+serde_json = "1"
+tempfile = "3"

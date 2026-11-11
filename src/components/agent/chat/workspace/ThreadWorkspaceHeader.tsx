@@ -23,6 +23,7 @@ interface ThreadWorkspaceHeaderProps {
   onFork?: () => Promise<void>;
   actions?: ReactNode;
   summaryToggle?: ReactNode;
+  leading?: ReactNode;
 }
 
 function useHeaderToolbarActionContainer(children: ReactNode) {
@@ -42,6 +43,7 @@ export function ThreadWorkspaceHeader({
   onFork,
   actions,
   summaryToggle,
+  leading,
 }: ThreadWorkspaceHeaderProps) {
   const { t: tNavigation } = useTranslation("navigation");
   const [editingTitle, setEditingTitle] = useState(false);
@@ -160,6 +162,14 @@ export function ThreadWorkspaceHeader({
           className="flex min-w-0 flex-1 items-center gap-2.5"
           data-testid="thread-workspace-header-context"
         >
+          {leading ? (
+            <span
+              className="flex shrink-0 items-center"
+              data-testid="thread-workspace-header-leading"
+            >
+              {leading}
+            </span>
+          ) : null}
           {activeTitleEdit ? (
             <input
               ref={titleInputRef}
@@ -232,12 +242,6 @@ export function ThreadWorkspaceHeader({
             data-testid="thread-workspace-header-actions"
             data-header-action-overflow="tools"
           >
-            {summaryDestination === "window" ? (
-              <HeaderToolbarActionMount container={summaryActions.container} />
-            ) : null}
-            {actionDestination === "window" ? (
-              <HeaderToolbarActionMount container={threadActions.container} />
-            ) : null}
             {onRename || onArchive || onFork ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -305,6 +309,12 @@ export function ThreadWorkspaceHeader({
                   ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : null}
+            {summaryDestination === "window" ? (
+              <HeaderToolbarActionMount container={summaryActions.container} />
+            ) : null}
+            {actionDestination === "window" ? (
+              <HeaderToolbarActionMount container={threadActions.container} />
             ) : null}
           </HeaderToolbar.Actions>
         </HeaderAction>

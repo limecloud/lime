@@ -116,7 +116,7 @@ describe("Desktop persisted atom ownership guard", () => {
     expect(
       mutated("electron/main.ts", (text) =>
         text.replace(
-          "registerRendererEventHandler(ipcMain, broadcast)",
+          "registerRendererEventHandler(ipcMain, broadcast,",
           "ipcMain.on(IPC_EMIT_CHANNEL, (_sender, event, payload) => broadcast(event, payload))",
         ),
       ),

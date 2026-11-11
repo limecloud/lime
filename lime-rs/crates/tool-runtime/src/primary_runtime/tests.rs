@@ -317,7 +317,7 @@ fn archive_rejects_links_outside_bundle_and_zip_traversal() {
     );
     let source = temp.path().join("malicious.zip");
     let mut zip = zip::ZipWriter::new(std::fs::File::create(&source).unwrap());
-    zip.start_file("../escape", zip::write::FileOptions::default())
+    zip.start_file("../escape", zip::write::SimpleFileOptions::default())
         .unwrap();
     zip.finish().unwrap();
     let artifact = Artifact {

@@ -142,10 +142,8 @@ impl McpClientManager {
             Some(arguments)
         };
 
-        let get_prompt_param = rmcp::model::GetPromptRequestParam {
-            name: name.to_string(),
-            arguments: args,
-        };
+        let mut get_prompt_param = rmcp::model::GetPromptRequestParams::new(name);
+        get_prompt_param.arguments = args;
 
         let result = service.get_prompt(get_prompt_param).await.map_err(|e| {
             error!(

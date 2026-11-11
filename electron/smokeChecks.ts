@@ -670,6 +670,7 @@ async function readElectronSmokeLayoutViewport(
     `(() => {
       const requested = ${JSON.stringify(requested)};
       const windowSize = ${JSON.stringify(actualWindowSize)};
+      const contentSize = ${JSON.stringify(window.getContentSize())};
       const viewport = { width: window.innerWidth, height: window.innerHeight };
       const documentSize = {
         scrollWidth: Math.max(document.documentElement?.scrollWidth || 0, document.body?.scrollWidth || 0),
@@ -731,8 +732,24 @@ async function readElectronSmokeLayoutViewport(
         (nodes.messageListColumn.present && nodes.messageListColumn.visible) ||
         (nodes.emptyStateFirstScreen.present && nodes.emptyStateFirstScreen.visible),
       );
+      const accessSelect = document.querySelector('[data-testid="inputbar-access-mode-select"]');
+      let accessModeLabelDoesNotOverlap = false;
+      if (accessSelect && visible(accessSelect)) {
+        const wasDisabled = accessSelect.disabled;
+        try {
+          accessSelect.disabled = true;
+          accessModeLabelDoesNotOverlap = getComputedStyle(accessSelect).opacity === "0" &&
+            accessSelect.parentElement.querySelectorAll('[data-access-mode-label]').length === 1;
+        } finally {
+          accessSelect.disabled = wasDisabled;
+        }
+      }
+      const mainSurface = document.querySelector('[data-app-shell-content]')?.getBoundingClientRect();
       const assertions = {
         windowSizeMatchesRequest: Math.abs(windowSize.width - requested.width) <= 2 && Math.abs(windowSize.height - requested.height) <= 2,
+        viewportFillsNativeContent: Math.abs(viewport.width - contentSize[0]) <= 2 && Math.abs(viewport.height - contentSize[1]) <= 2,
+        mainSurfaceFillsViewport: Boolean(mainSurface && Math.abs(viewport.width - mainSurface.right) <= 4),
+        accessModeLabelDoesNotOverlap,
         requiredNodesVisible: requiredNodes.every((node) => node.present && node.visible),
         requiredNodesWithinViewport: requiredNodes.every((node) => node.withinViewport),
         contentSurfacePresent,

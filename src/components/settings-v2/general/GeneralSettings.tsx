@@ -183,6 +183,25 @@ export function GeneralSettings() {
               }
             />
           </SettingsRow>
+          {platform === "mac" ? (
+            <SettingsRow
+              label={t("settings.desktop.macMenuBar")}
+              description={t("settings.desktop.macMenuBarDescription")}
+              targetId="general-menu-bar"
+            >
+              <SettingsSwitch
+                aria-labelledby="general-menu-bar-label"
+                aria-describedby="general-menu-bar-description"
+                checked={preferences.macMenuBarEnabled}
+                disabled={pending || !preferences.config}
+                onCheckedChange={(enabled) =>
+                  void mutate(() =>
+                    preferences.handleMacMenuBarEnabledChange(enabled),
+                  )
+                }
+              />
+            </SettingsRow>
+          ) : null}
           <SettingsRow
             label={t("settings.general.confirmBeforeClose.label")}
             description={t(
@@ -208,25 +227,6 @@ export function GeneralSettings() {
               }
             />
           </SettingsRow>
-          {platform === "mac" ? (
-            <SettingsRow
-              label={t("settings.desktop.macMenuBar")}
-              description={t("settings.desktop.macMenuBarDescription")}
-              targetId="general-menu-bar"
-            >
-              <SettingsSwitch
-                aria-labelledby="general-menu-bar-label"
-                aria-describedby="general-menu-bar-description"
-                checked={preferences.macMenuBarEnabled}
-                disabled={pending || !preferences.config}
-                onCheckedChange={(enabled) =>
-                  void mutate(() =>
-                    preferences.handleMacMenuBarEnabledChange(enabled),
-                  )
-                }
-              />
-            </SettingsRow>
-          ) : null}
           <SettingsRow
             label={t("settings.desktop.plugins")}
             description={t("settings.desktop.pluginsDescription")}
