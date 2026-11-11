@@ -154,8 +154,11 @@ jobs:
       - name: Test layer budget
         run: node scripts/check-vitest-layer-budget.mjs --max-component-candidates 38
 
+      - name: Build App Server client test artifacts
+        run: npm --prefix packages/app-server-client run build
+
       - name: Unit tests
-        run: npm run test:unit
+        run: npm run test:unit -- --environment jsdom
 
       - name: Contract layer tests
         run: npm run test:contract
