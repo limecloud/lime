@@ -19,6 +19,16 @@ vi.mock("./session-history-user-collapse-gate.mjs", async (importOriginal) => ({
 vi.mock("./session-history-user-collapse-input.mjs", () => ({
   withLongListCollapseInputObservation: (_page, _probe, _phase, run) => run(),
 }));
+vi.mock("node:timers/promises", async (importOriginal) => {
+  const original = await importOriginal();
+  const timers = {
+    ...original.default,
+    setTimeout: async (milliseconds) => {
+      vi.advanceTimersByTime(milliseconds);
+    },
+  };
+  return { ...original, ...timers, default: timers };
+});
 import { runSessionHistoryUserCollapsePhase } from "./session-history-user-collapse-runtime.mjs";
 
 const page = { evaluate: async (callback, argument) => callback(argument) };
@@ -120,18 +130,22 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  window.__limeClipboardWriteObservation?.stop();
-  if (clipboardDescriptor)
-    Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
-  else delete navigator.clipboard;
-  await window.__limeInvokeTraceCollector?.stop();
-  for (const [name, descriptor] of Object.entries(descriptors))
-    Object.defineProperty(Storage.prototype, name, descriptor);
-  delete window.__limeInvokeTraceCollector;
-  Object.assign(THREAD_READ_LONG_LIST, previousFixtureIdentity);
-  vi.unstubAllGlobals();
-  gate.mockReset();
-  localStorage.clear();
+  try {
+    window.__limeClipboardWriteObservation?.stop();
+    if (clipboardDescriptor)
+      Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+    else delete navigator.clipboard;
+    await window.__limeInvokeTraceCollector?.stop();
+    for (const [name, descriptor] of Object.entries(descriptors))
+      Object.defineProperty(Storage.prototype, name, descriptor);
+    delete window.__limeInvokeTraceCollector;
+    Object.assign(THREAD_READ_LONG_LIST, previousFixtureIdentity);
+    vi.unstubAllGlobals();
+    gate.mockReset();
+    localStorage.clear();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 function expectRestored() {
@@ -141,6 +155,8 @@ function expectRestored() {
 }
 
 function copyHarness({ copiedText, clickError, nativeError } = {}) {
+  // Only polling advances time; host scheduling must not exhaust the 1ms budget.
+  vi.useFakeTimers({ toFake: ["Date"] });
   const original = "PRIVATE ORIGINAL CLIPBOARD 😀";
   let clipboardText = original;
   const clipboard = {
