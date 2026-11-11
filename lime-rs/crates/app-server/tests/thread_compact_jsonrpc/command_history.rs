@@ -2,6 +2,7 @@ use super::*;
 use model_fixture::Capture;
 
 const COMMAND: &str = "printf 'CMD-READY\\n'; IFS= read -r first; printf 'CMD-FIRST:%s\\n' \"$first\"; IFS= read -r second; printf 'CMD-SECOND:%s\\n' \"$second\"";
+const MAX_COMMAND_INVOCATIONS: usize = 16;
 
 fn session_id(value: &Value) -> Option<i64> {
     match value {
@@ -18,12 +19,12 @@ fn session_id(value: &Value) -> Option<i64> {
     }
 }
 
-fn script() -> impl FnMut(&Capture) -> Option<(String, String, Value)> + Send {
+fn script(wire: Wire) -> impl FnMut(&Capture) -> Option<(String, String, Value)> + Send {
     let mut step = 0;
     move |capture| {
         let invocation = match step {
             0 => Some((
-                "command-exec",
+                "command-exec".to_string(),
                 "exec_command",
                 json!({
                     "cmd": COMMAND, "shell":"/bin/sh", "login":false,
@@ -42,7 +43,8 @@ fn script() -> impl FnMut(&Capture) -> Option<(String, String, Value)> + Send {
                         "command-write-1"
                     } else {
                         "command-write-2"
-                    },
+                    }
+                    .to_string(),
                     "write_stdin",
                     json!({
                         "session_id":id, "chars":if step == 1 {"first-value\n"} else {"second-value\n"},
@@ -50,7 +52,33 @@ fn script() -> impl FnMut(&Capture) -> Option<(String, String, Value)> + Send {
                     }),
                 ))
             }
-            _ => None,
+            _ => {
+                let entries = invocations(capture, wire);
+                let result = serde_json::from_str::<Value>(
+                    entries.last().expect("command result")["output"]
+                        .as_str()
+                        .expect("structured command result"),
+                )
+                .expect("command result JSON");
+                if !result["exit_code"].is_null() {
+                    assert_eq!(result["exit_code"], 0, "command failed: {result}");
+                    return None;
+                }
+                assert!(
+                    step < MAX_COMMAND_INVOCATIONS,
+                    "command did not exit within the fixture call budget: {result}"
+                );
+                let id = session_id(capture.history()).expect("live command session");
+                // A yield need not finish the process. Drain it without resending input.
+                Some((
+                    format!("command-poll-{step}"),
+                    "write_stdin",
+                    json!({
+                        "session_id":id, "chars":"",
+                        "yield_time_ms":250, "max_output_tokens":2048,
+                    }),
+                ))
+            }
         };
         step += 1;
         invocation.map(|(id, name, args)| (id.to_string(), name.to_string(), args))
@@ -115,6 +143,92 @@ fn invocations(capture: &Capture, wire: Wire) -> Vec<Value> {
     entries
 }
 
+fn result_capture(wire: Wire, result: Value) -> Capture {
+    let output = result.to_string();
+    let body = match wire {
+        Wire::Chat => json!({"messages":[{"role":"tool","content":output}]}),
+        Wire::Responses => json!({"input":[{"type":"function_call_output","output":output}]}),
+        Wire::Anthropic => {
+            json!({"messages":[{"role":"user","content":[{"type":"tool_result","content":output}]}]})
+        }
+        Wire::Gemini => {
+            json!({"contents":[{"role":"user","parts":[{"functionResponse":{"response":{"content":output}}}]}]})
+        }
+    };
+    Capture {
+        path: String::new(),
+        headers: String::new(),
+        body,
+    }
+}
+
+#[test]
+fn command_script_polls_running_waiting_and_output_until_successful_exit() {
+    for wire in [Wire::Chat, Wire::Responses, Wire::Anthropic, Wire::Gemini] {
+        let running = result_capture(
+            wire,
+            json!({"session_id":1000,"output":"CMD-READY\n","process_status":"running"}),
+        );
+        let mut script = script(wire);
+        let mut calls = vec![script(&running).unwrap()];
+        for chars in ["first-value\n", "second-value\n"] {
+            let call = script(&running).unwrap();
+            assert_eq!(call.1, "write_stdin");
+            assert_eq!(call.2["chars"], chars);
+            calls.push(call);
+        }
+        for result in [
+            json!({"session_id":1000,"output":"","process_status":"running"}),
+            json!({"session_id":1000,"output":"","observation":{"kind":"waiting","process_active":true}}),
+            json!({"session_id":1000,"output":"CMD-SECOND:second-value\n","observation":{"kind":"output","process_active":true}}),
+            json!({"session_id":1000,"output":""}),
+        ] {
+            let call = script(&result_capture(wire, result)).expect("must drain the live command");
+            assert_eq!(call.1, "write_stdin");
+            assert_eq!(
+                call.2,
+                json!({"session_id":1000,"chars":"","yield_time_ms":250,"max_output_tokens":2048})
+            );
+            calls.push(call);
+        }
+        assert!(script(&result_capture(wire, json!({"exit_code":0,"output":""}))).is_none());
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| &call.0)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            calls.len(),
+            "every poll needs a distinct invocation identity"
+        );
+    }
+}
+
+#[test]
+fn command_script_rejects_unsuccessful_exit() {
+    for exit_code in [-1, 1] {
+        let running = result_capture(Wire::Anthropic, json!({"session_id":1000,"output":""}));
+        let mut script = script(Wire::Anthropic);
+        for _ in 0..3 {
+            assert!(script(&running).is_some());
+        }
+        let failed = result_capture(Wire::Anthropic, json!({"exit_code":exit_code,"output":""}));
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| script(&failed))).is_err()
+        );
+    }
+}
+
+#[test]
+fn command_script_bounds_unfinished_process_polling() {
+    let running = result_capture(Wire::Anthropic, json!({"session_id":1000,"output":""}));
+    let mut script = script(Wire::Anthropic);
+    for _ in 0..MAX_COMMAND_INVOCATIONS {
+        assert!(script(&running).is_some());
+    }
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| script(&running))).is_err());
+}
+
 async fn command_history(wire: Wire) {
     let temp = TempDir::new().unwrap();
     let fixture = ModelFixture::start_with_script(
@@ -123,7 +237,7 @@ async fn command_history(wire: Wire) {
             wire,
             agent_protocol::truncation::TruncationPolicy::Tokens(10000),
         ),
-        script(),
+        script(wire),
     )
     .await;
     let server = AppServer::with_runtime(catalog_truncation::runtime(&temp).await);
@@ -156,6 +270,9 @@ async fn command_history(wire: Wire) {
     )
     .await;
     let expected = invocations(&fixture.last_request(), wire);
+    assert!(expected.len() >= 6, "three input calls must be retained");
+    assert_eq!(expected.len() % 2, 0, "each call needs its result");
+    let invocation_count = expected.len() / 2;
     while let Ok(notification) = notifications.try_recv() {
         assert!(
             !serde_json::to_string(&notification)
@@ -184,7 +301,7 @@ async fn command_history(wire: Wire) {
         .collect::<Vec<_>>();
     assert_eq!(
         history.len(),
-        6,
+        expected.len(),
         "each model invocation/output must persist separately"
     );
     let call_ids = history
@@ -200,9 +317,19 @@ async fn command_history(wire: Wire) {
         .collect::<std::collections::HashSet<_>>();
     assert_eq!(
         call_ids.len(),
-        3,
+        invocation_count,
         "each invocation needs a distinct identity"
     );
+    for pair in history.chunks_exact(2) {
+        use model_provider::current_client::CurrentProviderContent;
+        let [CurrentProviderContent::ToolCall(call)] = pair[0].content.as_slice() else {
+            panic!("each persisted invocation must start with a tool call");
+        };
+        let [CurrentProviderContent::ToolResult(result)] = pair[1].content.as_slice() else {
+            panic!("each persisted invocation must end with a tool result");
+        };
+        assert_eq!(call.id, result.call_id, "call/result identity changed");
+    }
     let read = request(
         &server,
         4,
@@ -223,8 +350,10 @@ async fn command_history(wire: Wire) {
     assert_eq!(
         commands.len(),
         1,
-        "three model invocations still project as one command"
+        "all model invocations still project as one command"
     );
+    assert_eq!(commands[0]["status"], "completed");
+    assert_eq!(commands[0]["exitCode"], 0);
     let output = commands[0]["aggregatedOutput"].as_str().unwrap();
     for text in [
         "CMD-READY",
@@ -236,32 +365,48 @@ async fn command_history(wire: Wire) {
             "command projection lost output: {output}"
         );
     }
-    assert_eq!(
-        expected.len(),
-        6,
-        "three distinct calls and outputs: {expected:?}"
-    );
     assert_eq!(expected[0]["name"], "exec_command");
     assert_eq!(expected[2]["name"], "write_stdin");
     assert_eq!(expected[4]["name"], "write_stdin");
-    let outputs = [1, 3, 5].map(|index| {
-        serde_json::from_str::<Value>(expected[index]["output"].as_str().unwrap())
-            .expect("structured command result")
-    });
+    let outputs = expected
+        .chunks_exact(2)
+        .map(|pair| {
+            assert_eq!(pair[0]["kind"], "call");
+            assert_eq!(pair[1]["kind"], "result");
+            serde_json::from_str::<Value>(pair[1]["output"].as_str().unwrap())
+                .expect("structured command result")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        expected[0]["arguments"],
+        json!({"cmd":COMMAND,"shell":"/bin/sh","login":false,
+            "yield_time_ms":250,"max_output_tokens":2048})
+    );
+    for (index, pair) in expected.chunks_exact(2).enumerate().skip(1) {
+        assert_eq!(pair[0]["name"], "write_stdin");
+        assert_eq!(
+            pair[0]["arguments"],
+            json!({
+                "session_id":outputs[0]["session_id"],
+                "chars":match index { 1 => "first-value\n", 2 => "second-value\n", _ => "" },
+                "yield_time_ms":250,"max_output_tokens":2048,
+            }),
+            "only empty polls may follow the original input lines"
+        );
+    }
     // A yield can return before stdout is ready; later writes drain the same
-    // process. Preserve the exact ordered bytes without pinning chunk timing.
+    // process. Poll until exit and preserve every byte without pinning chunk timing.
     let stdout = outputs
         .iter()
         .map(|result| result["output"].as_str().unwrap())
         .collect::<String>();
     assert_eq!(
-        stdout,
-        "CMD-READY\nCMD-FIRST:first-value\nCMD-SECOND:second-value\n",
+        stdout, "CMD-READY\nCMD-FIRST:first-value\nCMD-SECOND:second-value\n",
         "{expected:?}"
     );
     assert_eq!(output, stdout, "projection and model history must agree");
     assert_eq!(outputs[0]["session_id"], outputs[1]["session_id"]);
-    assert_eq!(outputs[2]["exit_code"], 0);
+    assert_eq!(outputs.last().unwrap()["exit_code"], 0);
     drop(server);
 
     let server = AppServer::with_runtime(catalog_truncation::runtime(&temp).await);
