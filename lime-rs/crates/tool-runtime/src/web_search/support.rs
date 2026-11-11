@@ -86,6 +86,27 @@ const DEFAULT_SEARCH_PROVIDER_PRIORITY: [SearchProviderKind; 5] = [
     SearchProviderKind::DuckduckgoInstant,
 ];
 
+const BING_SEARCH_ENDPOINT_ENV: &str = "BING_SEARCH_ENDPOINT";
+const DEFAULT_BING_SEARCH_ENDPOINT: &str = "https://api.bing.microsoft.com/v7.0/search";
+const GOOGLE_SEARCH_ENDPOINT_ENV: &str = "GOOGLE_SEARCH_ENDPOINT";
+const DEFAULT_GOOGLE_SEARCH_ENDPOINT: &str = "https://www.googleapis.com/customsearch/v1";
+
+fn search_endpoint_from_env(key: &str, default: &str) -> Result<String, String> {
+    resolve_search_endpoint(std::env::var(key).ok().as_deref(), key, default)
+}
+
+fn resolve_search_endpoint(raw: Option<&str>, key: &str, default: &str) -> Result<String, String> {
+    let Some(value) = raw.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(default.to_string());
+    };
+    let url = url::Url::parse(value)
+        .map_err(|error| format!("环境变量 {key} 不是有效的 URL: {error}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(format!("环境变量 {key} 只支持 http 或 https 地址"));
+    }
+    Ok(value.to_string())
+}
+
 #[derive(Debug, Clone)]
 struct SearchRuntimeConfig {
     priority: Vec<SearchProviderKind>,

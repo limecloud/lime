@@ -154,8 +154,11 @@ jobs:
       - name: Test layer budget
         run: node scripts/check-vitest-layer-budget.mjs --max-component-candidates 38
 
+      - name: Build App Server client test artifacts
+        run: npm --prefix packages/app-server-client run build
+
       - name: Unit tests
-        run: npm run test:unit
+        run: npm run test:unit -- --environment jsdom
 
       - name: Contract layer tests
         run: npm run test:contract
@@ -282,13 +285,18 @@ jobs:
 
   rust:
     name: Rust Quick
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     needs: changed
     if: ${{ github.event_name == 'pull_request' && (needs.changed.outputs.rust == 'true' || needs.changed.outputs.fallback == 'true' || needs.changed.outputs.workflow == 'true') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Linux Rust build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libasound2-dev libxdo-dev
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

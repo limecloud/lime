@@ -2062,6 +2062,18 @@ action-required/approval 与 ask-user 的 live continuation 归 `agent-runtime` 
 | `patch-apply`                                    | 受控 patch 应用领域能力。                                                                                                                |
 | `browser-runtime`、`media-runtime`、`voice-core` | 浏览器、媒体、语音等独立 runtime domain。                                                                                                |
 
+本地网页搜索的地址配置仍归 `tool-runtime::web_search`：
+
+```text
+App Server / RuntimeCore tool dispatch
+  -> tool-runtime::web_search provider selection
+  -> search_endpoint_from_env -> HTTP(S) endpoint validation
+  -> existing Bing / Google request and response adapters
+  -> existing search fallback and tool result projection
+```
+
+`BING_SEARCH_ENDPOINT` 与 `GOOGLE_SEARCH_ENDPOINT` 仅覆盖对应工具 API 的完整 URL；缺省或空白继续使用供应商地址，非法 URL 或非 HTTP(S) scheme 作为单个提供商失败进入既有回退链。API key、Google engine ID、请求参数、响应格式及工具权限仍由原 owner 处理。该配置不属于模型 Provider 控制面，不新增持久化、协议、搜索后端或网络策略旁路。按敏感路径门禁完成架构确认；责任开发者 root 已核对目录归属、数据流、依赖方向、协议边界与定向回归，实际影响为既有工具 API 的配置扩展。
+
 Codex `thread/realtime/*` 的WebRTC/session control与通知已纳入planned，必须在同一App Server
 Thread/Turn生命周期中重建；当前没有该exact接线，不据此声明已交付。旧录音、麦克风和
 realtime voice GUI保持dead，不能恢复成第二套Thread lifecycle或Renderer音频后端。

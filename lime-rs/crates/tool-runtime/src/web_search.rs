@@ -259,7 +259,11 @@ impl RuntimeWebSearchExecutor {
             SearchProviderKind::BingSearchApi => {
                 let api_key = std::env::var("BING_SEARCH_API_KEY")
                     .map_err(|_| "缺少环境变量 BING_SEARCH_API_KEY".to_string())?;
-                let results = self.search_with_bing(query, &api_key).await?;
+                let endpoint = search_endpoint_from_env(
+                    BING_SEARCH_ENDPOINT_ENV,
+                    DEFAULT_BING_SEARCH_ENDPOINT,
+                )?;
+                let results = self.search_with_bing(&endpoint, query, &api_key).await?;
                 Ok(SearchProviderOutput {
                     results,
                     metadata: json!({ "provider": provider.as_env_value() }),
@@ -270,7 +274,13 @@ impl RuntimeWebSearchExecutor {
                     .map_err(|_| "缺少环境变量 GOOGLE_SEARCH_API_KEY".to_string())?;
                 let engine_id = std::env::var("GOOGLE_SEARCH_ENGINE_ID")
                     .map_err(|_| "缺少环境变量 GOOGLE_SEARCH_ENGINE_ID".to_string())?;
-                let results = self.search_with_google(query, &api_key, &engine_id).await?;
+                let endpoint = search_endpoint_from_env(
+                    GOOGLE_SEARCH_ENDPOINT_ENV,
+                    DEFAULT_GOOGLE_SEARCH_ENDPOINT,
+                )?;
+                let results = self
+                    .search_with_google(&endpoint, query, &api_key, &engine_id)
+                    .await?;
                 Ok(SearchProviderOutput {
                     results,
                     metadata: json!({ "provider": provider.as_env_value() }),
@@ -481,12 +491,13 @@ impl RuntimeWebSearchExecutor {
 
     async fn search_with_bing(
         &self,
+        endpoint: &str,
         query: &str,
         api_key: &str,
     ) -> Result<Vec<SearchResult>, String> {
         let response = self
             .client
-            .get("https://api.bing.microsoft.com/v7.0/search")
+            .get(endpoint)
             .query(&[("q", query), ("count", "10")])
             .header("Ocp-Apim-Subscription-Key", api_key)
             .send()
@@ -526,13 +537,14 @@ impl RuntimeWebSearchExecutor {
 
     async fn search_with_google(
         &self,
+        endpoint: &str,
         query: &str,
         api_key: &str,
         cx: &str,
     ) -> Result<Vec<SearchResult>, String> {
         let response = self
             .client
-            .get("https://www.googleapis.com/customsearch/v1")
+            .get(endpoint)
             .query(&[("key", api_key), ("cx", cx), ("q", query), ("num", "10")])
             .send()
             .await
@@ -654,6 +666,110 @@ mod tests {
         assert!(config
             .priority
             .contains(&SearchProviderKind::DuckduckgoInstant));
+    }
+
+    #[test]
+    fn search_endpoints_default_to_vendor_addresses() {
+        assert_eq!(
+            resolve_search_endpoint(None, BING_SEARCH_ENDPOINT_ENV, DEFAULT_BING_SEARCH_ENDPOINT),
+            Ok("https://api.bing.microsoft.com/v7.0/search".to_string())
+        );
+        assert_eq!(
+            resolve_search_endpoint(
+                Some("  "),
+                GOOGLE_SEARCH_ENDPOINT_ENV,
+                DEFAULT_GOOGLE_SEARCH_ENDPOINT
+            ),
+            Ok("https://www.googleapis.com/customsearch/v1".to_string())
+        );
+    }
+
+    #[test]
+    fn search_endpoints_accept_http_overrides_only() {
+        assert_eq!(
+            resolve_search_endpoint(
+                Some(" http://127.0.0.1:8080/customsearch/v1 "),
+                GOOGLE_SEARCH_ENDPOINT_ENV,
+                DEFAULT_GOOGLE_SEARCH_ENDPOINT
+            ),
+            Ok("http://127.0.0.1:8080/customsearch/v1".to_string())
+        );
+        let error = resolve_search_endpoint(
+            Some("file:///etc/passwd"),
+            BING_SEARCH_ENDPOINT_ENV,
+            DEFAULT_BING_SEARCH_ENDPOINT,
+        )
+        .expect_err("non http endpoint should fail");
+        assert!(error.contains(BING_SEARCH_ENDPOINT_ENV));
+        assert!(resolve_search_endpoint(
+            Some("not a url"),
+            GOOGLE_SEARCH_ENDPOINT_ENV,
+            DEFAULT_GOOGLE_SEARCH_ENDPOINT
+        )
+        .is_err());
+    }
+
+    async fn serve_once(body: &'static str) -> (String, tokio::task::JoinHandle<String>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let address = listener.local_addr().expect("local addr");
+        let handle = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept");
+            let mut buffer = vec![0_u8; 8192];
+            let read = socket.read(&mut buffer).await.expect("read");
+            let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            socket.write_all(response.as_bytes()).await.expect("write");
+            request
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    #[tokio::test]
+    async fn google_search_uses_configured_endpoint() {
+        let (base, server) = serve_once(
+            r#"{"items":[{"title":"Lime","link":"https://example.com/lime","snippet":"s"}]}"#,
+        )
+        .await;
+        let executor = RuntimeWebSearchExecutor::new();
+        let results = executor
+            .search_with_google(&format!("{base}/customsearch/v1"), "lime", "key", "cx")
+            .await
+            .expect("google search");
+        let request = server.await.expect("server");
+
+        assert!(request.starts_with("GET /customsearch/v1?"));
+        assert!(request.contains("cx=cx"));
+        assert!(request.contains("q=lime"));
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].url, "https://example.com/lime");
+    }
+
+    #[tokio::test]
+    async fn bing_search_uses_configured_endpoint() {
+        let (base, server) = serve_once(
+            r#"{"webPages":{"value":[{"name":"Lime","url":"https://example.com/lime","snippet":"s"}]}}"#,
+        )
+        .await;
+        let executor = RuntimeWebSearchExecutor::new();
+        let results = executor
+            .search_with_bing(&format!("{base}/v7.0/search"), "lime", "key")
+            .await
+            .expect("bing search");
+        let request = server.await.expect("server");
+
+        assert!(request.starts_with("GET /v7.0/search?"));
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("ocp-apim-subscription-key: key"));
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].title, "Lime");
     }
 
     #[test]

@@ -123,6 +123,20 @@ lime exec \
 
 Linux 云端运行包的源码构建入口为 `node scripts/app-server/linux-guest-build.mjs --out <新的绝对目录>`，需要原生 Linux x64 构建环境。输出含校验摘要的归档包；在「云电脑 → 安装运行环境」选择可信包，安装后自动加密保存任务连接。目标须已准备桌面依赖、具有公网 IPv4，且仅向你的出口 IP 放行临时上传端口 8787；Lime 不自动修改安全组。安装参数与验证范围见 [Cloud 执行计划](internal/exec-plans/cloud-desktop-byoc-plan.md)。
 
+### 网页搜索 API 地址
+
+在启动 Lime 或其 App Server 的进程环境中设置以下可选变量。它们用于本地 `bing_search_api` 和 `google_custom_search` 工具；模型 Provider 地址另行配置。未设置或空白时使用供应商地址，自定义地址只接受 HTTP 或 HTTPS，并须返回对应的 Bing v7 或 Google Custom Search JSON 格式。
+
+| 环境变量 | 用途 | 默认值 / 要求 |
+| --- | --- | --- |
+| `BING_SEARCH_ENDPOINT` | 完整的 Bing 兼容搜索 URL | `https://api.bing.microsoft.com/v7.0/search` |
+| `BING_SEARCH_API_KEY` | Bing 兼容 API 凭据 | 使用该提供商时必填 |
+| `GOOGLE_SEARCH_ENDPOINT` | 完整的 Google 兼容搜索 URL | `https://www.googleapis.com/customsearch/v1` |
+| `GOOGLE_SEARCH_API_KEY` | Google 兼容 API 凭据 | 使用该提供商时必填 |
+| `GOOGLE_SEARCH_ENGINE_ID` | Google 搜索引擎标识 | 使用该提供商时必填 |
+
+搜索词和对应凭据会发送到所配置的地址，请使用可信服务。地址非法时该提供商返回错误，继续现有搜索回退链；自定义地址不会改变请求参数或响应格式要求。
+
 ### 第一次运行（Desktop 或 CLI/TUI）
 
 1. Desktop 打开 Lime，CLI/TUI 执行 `lime`；然后配置 Provider 并测试模型连接。
