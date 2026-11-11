@@ -372,7 +372,7 @@ describe("LocalConversationPage 任务中心初始会话标签", { timeout: 20_0
     ).toBe("session-1");
     expect(
       mounted.container.querySelector(
-        '[data-testid="app-shell-header"] [data-testid="thread-workspace-header-tools"] [data-testid="thread-project-selector"]',
+        '[data-testid="app-shell-header"] [data-testid="thread-workspace-header-leading"] [data-testid="thread-project-selector"]',
       ),
     ).not.toBeNull();
     expect(

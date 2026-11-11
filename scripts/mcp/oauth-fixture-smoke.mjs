@@ -210,7 +210,7 @@ async function waitForAuthorizedStatus({
     );
     const server = findServer(result?.data, serverName);
     lastStatus = authStatusOf(server);
-    if (lastStatus === "oauth") {
+    if (lastStatus === "oAuth") {
       return { server, authStatus: lastStatus };
     }
     await new Promise((resolve) => setTimeout(resolve, options.intervalMs));

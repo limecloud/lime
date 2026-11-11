@@ -301,6 +301,7 @@ pub const V2_SCHEMA_TYPE_NAMES: &[&str] = &[
     "LogoutAccountResponse",
     "CloudDesktopParams",
     "CloudDesktopProvider",
+    "CloudDesktopTunnelChannel",
     "CloudDesktopResource",
     "CloudDesktopResponse",
     "WuyingDesktopSpec",

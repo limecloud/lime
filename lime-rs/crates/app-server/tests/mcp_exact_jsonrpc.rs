@@ -116,6 +116,107 @@ async fn exact_mcp_tool_call_requires_an_existing_thread() {
         .is_some_and(|message| message.contains("runtime backend does not execute MCP tools")));
 }
 
+#[tokio::test]
+async fn mcp_auth_inventory_requires_credentials_before_reporting_oauth() {
+    use lime_mcp::oauth_store::{oauth_store_root_for_app_data_root, PersistentCredentialStore};
+    use rmcp::transport::auth::{CredentialStore, StoredCredentials};
+
+    fn auth_status_for<'a>(response: &'a Value, name: &str) -> &'a str {
+        response["result"]["data"]
+            .as_array()
+            .expect("MCP auth inventory")
+            .iter()
+            .find(|entry| entry["name"] == name)
+            .and_then(|entry| entry["authStatus"].as_str())
+            .unwrap_or_else(|| panic!("missing MCP auth status for {name}: {response:#}"))
+    }
+
+    let temp = TempDir::new().expect("MCP auth inventory temp");
+    let app_data_root = temp.path().join("app-data");
+    let app_data_db = Arc::new(std::sync::Mutex::new(
+        rusqlite::Connection::open_in_memory().expect("MCP auth inventory db"),
+    ));
+    lime_core::database::schema::create_tables(&app_data_db.lock().expect("MCP auth db lock"))
+        .expect("MCP auth inventory schema");
+    let app_data_source = app_server::LocalAppDataSource::initialize_with_roots(
+        app_data_db,
+        &app_data_root,
+        temp.path().join("agent-data"),
+    )
+    .await
+    .expect("MCP auth data source")
+    .with_app_config_path(temp.path().join("config.yaml"));
+    let server = AppServer::with_runtime(
+        RuntimeCore::with_backend(Arc::new(MockBackend))
+            .with_app_data_source(Arc::new(app_data_source)),
+    );
+    initialize(&server).await;
+    let oauth_url = "https://oauth.fixture.test/mcp";
+    for (id, name, config) in [
+        (
+            2,
+            "oauth-docs",
+            json!({"type":"streamable_http", "url":oauth_url, "scopes":["docs.read"]}),
+        ),
+        (
+            3,
+            "bearer-docs",
+            json!({"type":"streamable_http", "url":"https://bearer.fixture.test/mcp", "bearer_token_env_var":"FIXTURE_MCP_TOKEN"}),
+        ),
+        (
+            4,
+            "public-docs",
+            json!({"type":"streamable_http", "url":"https://public.fixture.test/mcp"}),
+        ),
+    ] {
+        request(
+            &server,
+            id,
+            "mcpServer/create",
+            json!({"server":{
+                "id":name, "name":name, "server_config":config,
+                "enabled_lime":true, "created_at":1
+            }}),
+        )
+        .await;
+    }
+
+    let statuses = request(&server, 5, "mcpServerStatus/list", json!({})).await;
+    assert_eq!(auth_status_for(&statuses, "oauth-docs"), "notLoggedIn");
+    assert_eq!(auth_status_for(&statuses, "bearer-docs"), "bearerToken");
+    assert_eq!(auth_status_for(&statuses, "public-docs"), "unsupported");
+
+    let store = PersistentCredentialStore::new_in(
+        oauth_store_root_for_app_data_root(&app_data_root),
+        "oauth-docs",
+        oauth_url,
+    );
+    store
+        .save(
+            serde_json::from_value::<StoredCredentials>(json!({
+                "client_id":"fixture-client",
+                "token_response":{"access_token":"fixture-access", "token_type":"Bearer"}
+            }))
+            .expect("MCP fixture credentials"),
+        )
+        .await
+        .expect("save isolated MCP OAuth credentials");
+    let statuses = request(&server, 6, "mcpServerStatus/list", json!({})).await;
+    assert_eq!(auth_status_for(&statuses, "oauth-docs"), "oAuth");
+    assert_eq!(auth_status_for(&statuses, "bearer-docs"), "bearerToken");
+    assert_eq!(auth_status_for(&statuses, "public-docs"), "unsupported");
+
+    request(
+        &server,
+        7,
+        "mcpServer/oauth/logout",
+        json!({"name":"oauth-docs"}),
+    )
+    .await;
+    let statuses = request(&server, 8, "mcpServerStatus/list", json!({})).await;
+    assert_eq!(auth_status_for(&statuses, "oauth-docs"), "notLoggedIn");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn mcp_event_stream_uses_public_transport_and_cleans_up_on_stop() {
     let temp = TempDir::new().expect("MCP event stream temp");

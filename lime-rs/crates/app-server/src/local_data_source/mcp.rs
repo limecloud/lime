@@ -469,8 +469,10 @@ fn parse_mcp_server_config(config_value: &Value) -> McpServerConfig {
 
 fn lower_mcp_auth_status(status: &lime_mcp::McpServerAuthStatus) -> McpAuthStatus {
     match (status.mode.as_str(), status.available) {
-        ("oauth", true) => McpAuthStatus::OAuth,
-        ("oauth", false) => McpAuthStatus::NotLoggedIn,
+        ("oauth", true) if status.reason_code.is_none() && status.action_plan.is_none() => {
+            McpAuthStatus::OAuth
+        }
+        ("oauth", _) => McpAuthStatus::NotLoggedIn,
         ("static_headers", true) => McpAuthStatus::BearerToken,
         ("none", _) => McpAuthStatus::Unsupported,
         _ => McpAuthStatus::Unknown,
