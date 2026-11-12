@@ -1,3 +1,4 @@
+use super::windows_acl_plan::build_acl_plan;
 use super::*;
 use app_server_protocol::protocol::v2::GrantedPermissionProfile;
 use app_server_protocol::protocol::v2::SandboxPolicy;
@@ -60,7 +61,7 @@ use crate::windows_setup::{
     verify_windows_sandbox_group_membership, windows_sandbox_users_group_sid,
     WINDOWS_SANDBOX_OFFLINE_USERNAME, WINDOWS_SANDBOX_ONLINE_USERNAME,
 };
-use windows_acl::{build_acl_plan, AclLease};
+use windows_acl::AclLease;
 use windows_attr::ProcessAttributeList;
 pub(crate) use windows_audit::audit_world_writable;
 use windows_conpty::RestrictedConpty;
