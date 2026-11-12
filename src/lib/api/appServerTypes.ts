@@ -208,21 +208,6 @@ export type AppServerPluginInstalledParams = protocol.PluginInstalledParams;
 export type AppServerPluginInstalledResponse = protocol.PluginInstalledResponse;
 export type AppServerPluginReconcileParams = protocol.PluginReconcileParams;
 export type AppServerPluginReconcileResponse = protocol.PluginReconcileResponse;
-export type AppServerPluginShareSaveParams = protocol.PluginShareSaveParams;
-export type AppServerPluginShareSaveResponse = protocol.PluginShareSaveResponse;
-export type AppServerPluginShareListParams = protocol.PluginShareListParams;
-export type AppServerPluginShareListResponse = protocol.PluginShareListResponse;
-export type AppServerPluginShareUpdateTargetsParams =
-  protocol.PluginShareUpdateTargetsParams;
-export type AppServerPluginShareUpdateTargetsResponse =
-  protocol.PluginShareUpdateTargetsResponse;
-export type AppServerPluginShareCheckoutParams =
-  protocol.PluginShareCheckoutParams;
-export type AppServerPluginShareCheckoutResponse =
-  protocol.PluginShareCheckoutResponse;
-export type AppServerPluginShareDeleteParams = protocol.PluginShareDeleteParams;
-export type AppServerPluginShareDeleteResponse =
-  protocol.PluginShareDeleteResponse;
 export type AppServerPluginMarketplaceEntry = protocol.PluginMarketplaceEntry;
 export type AppServerAppSummary = protocol.AppSummary;
 export type AppServerAgentSessionToolInventoryReadParams =

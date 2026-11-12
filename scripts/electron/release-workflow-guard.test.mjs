@@ -45,6 +45,29 @@ describe("Electron release workflow guard", () => {
     expect(() => validateReleaseWorkflow()).not.toThrow();
   });
 
+  it("rejects publishing the application before its cloud guest is available", () => {
+    const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
+    const workflowPath = tempWorkflowPath(
+      current.replace("needs: [build, publish_cli_assets]", "needs: build"),
+    );
+    expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
+      /Cloud guest assets must be prepared/u,
+    );
+  });
+
+  it("rejects overwriting an existing versioned cloud runtime", () => {
+    const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
+    const workflowPath = tempWorkflowPath(
+      current.replace(
+        '"$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz.json" \\',
+        '"$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz.json" --clobber \\',
+      ),
+    );
+    expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
+      /preserve versioned assets/u,
+    );
+  });
+
   it("ignores local verification artifacts when checking retired packaging files", () => {
     const repositoryRoot = tempRepositoryRoot({
       ".lime/release/candidate/latest.yml": "local fixture",

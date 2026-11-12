@@ -123,7 +123,6 @@ beforeEach(async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   window.sessionStorage.clear();
   window.localStorage.clear();
-  window.__LIME_OEM_CLOUD__ = { enabled: false };
   api.getConfig
     .mockReset()
     .mockResolvedValue({ language: "en-US", memory: { enabled: true } });
@@ -143,7 +142,6 @@ afterEach(async () => {
   container.remove();
   window.sessionStorage.clear();
   window.localStorage.clear();
-  delete window.__LIME_OEM_CLOUD__;
   vi.restoreAllMocks();
 });
 

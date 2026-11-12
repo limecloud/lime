@@ -94,7 +94,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         app.chat_widget.settings_patch()
                         .with_policy(
                             approval_policy.clone(),
-                            approvals_reviewer.clone(),
+                            approvals_reviewer,
                             sandbox_policy.clone(),
                         ),
                     )));
@@ -311,6 +311,11 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 resume_picker_load_tx = None;
                                 app.chat_widget.clear_agents_overview();
                                 history_load_all_requested = false;
+                                crate::app::agents_overview_loading::draw(
+                                    &mut terminal,
+                                    &app,
+                                )
+                                .context("failed to render archived session loading state")?;
                                 match app.resume_target_session(
                                     session
                                         .as_mut()
@@ -837,8 +842,447 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 | PickerAction::Cancel => {}
                             }
                         }
+                        AppAction::ArchiveThread => {
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status("no active thread");
+                                continue;
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .thread_archive(thread_id)
+                                .await
+                            {
+                                Ok(()) => {
+                                    let archived =
+                                        app.chat_widget.locale.archived_thread().to_string();
+                                    match app
+                                        .start_new_thread(
+                                            session.as_mut().expect("session available during TUI"),
+                                        )
+                                        .await
+                                    {
+                                        Ok(()) => app.projection.set_status(archived),
+                                        Err(error) => app
+                                            .projection
+                                            .set_status(format!("{archived}; {error}")),
+                                    }
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::ListExperimentalFeatures => {
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .experimental_feature_list()
+                                .await
+                            {
+                                Ok(response) => {
+                                    let locale = app.chat_widget.locale;
+                                    let mut lines: Vec<ratatui::text::Line<'static>> = response
+                                        .data
+                                        .iter()
+                                        .map(|feature| {
+                                            let state = if feature.enabled {
+                                                locale.experimental_enabled_label()
+                                            } else {
+                                                locale.experimental_disabled_label()
+                                            };
+                                            let name = feature
+                                                .display_name
+                                                .clone()
+                                                .unwrap_or_else(|| feature.name.clone());
+                                            let description =
+                                                feature.description.clone().unwrap_or_default();
+                                            ratatui::text::Line::from(format!(
+                                                "• {name} ({}) — {state} · {description}",
+                                                feature.name
+                                            ))
+                                        })
+                                        .collect();
+                                    if lines.is_empty() {
+                                        lines.push(ratatui::text::Line::from(
+                                            locale.experimental_empty_message(),
+                                        ));
+                                    }
+                                    app.chat_widget.open_text_pager(
+                                        locale.experimental_title().to_string(),
+                                        lines,
+                                    );
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::SetExperimentalFeature { name, enabled } => {
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .experimental_feature_set(name.clone(), enabled)
+                                .await
+                            {
+                                Ok(()) => app.projection.set_status(
+                                    app.chat_widget.locale.experimental_updated(&name, enabled),
+                                ),
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::SelectPermissions(profile) => {
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .update_settings(None, None, None, Some(profile.clone()))
+                                .await
+                            {
+                                Ok(()) => {
+                                    app.chat_widget.apply_permissions(profile);
+                                    app.projection.set_status("settings updated");
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::SelectEffort(value) => {
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .update_settings(None, None, Some(value.clone()), None)
+                                .await
+                            {
+                                Ok(()) => {
+                                    app.chat_widget.apply_effort(value);
+                                    app.projection.set_status("settings updated");
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::ListKeymap => {
+                            let locale = app.chat_widget.locale;
+                            let lines = app
+                                .chat_widget
+                                .runtime_keymap
+                                .describe()
+                                .into_iter()
+                                .map(|entry| {
+                                    let keys = if entry.keys.is_empty() {
+                                        "—".to_string()
+                                    } else {
+                                        entry.keys.join(", ")
+                                    };
+                                    ratatui::text::Line::from(format!("{}: {keys}", entry.path))
+                                })
+                                .collect();
+                            app.chat_widget
+                                .open_text_pager(locale.keymap_title().to_string(), lines);
+                        }
+                        AppAction::ListSkills => {
+                            let locale = app.chat_widget.locale;
+                            let mut lines: Vec<ratatui::text::Line<'static>> = Vec::new();
+                            for skill in app.chat_widget.bottom_pane.skills() {
+                                let state = if skill.enabled {
+                                    locale.experimental_enabled_label()
+                                } else {
+                                    locale.experimental_disabled_label()
+                                };
+                                lines.push(ratatui::text::Line::from(format!(
+                                    "• {} — {state}",
+                                    skill.name
+                                )));
+                                if !skill.description.is_empty() {
+                                    lines.push(ratatui::text::Line::from(format!(
+                                        "  {}",
+                                        skill.description
+                                    )));
+                                }
+                                lines.push(ratatui::text::Line::from(format!(
+                                    "  {}: {}",
+                                    locale.hooks_source_label(),
+                                    skill.path.to_string_lossy()
+                                )));
+                            }
+                            if lines.is_empty() {
+                                lines.push(ratatui::text::Line::from(locale.skills_empty()));
+                            }
+                            app.chat_widget
+                                .open_text_pager(locale.skills_title().to_string(), lines);
+                        }
+                        AppAction::ListHooks => {
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .hooks_list(app.cwd.to_string_lossy().to_string())
+                                .await
+                            {
+                                Ok(response) => {
+                                    let locale = app.chat_widget.locale;
+                                    let mut lines: Vec<ratatui::text::Line<'static>> = Vec::new();
+                                    for entry in &response.data {
+                                        if entry.hooks.is_empty()
+                                            && entry.warnings.is_empty()
+                                            && entry.errors.is_empty()
+                                        {
+                                            continue;
+                                        }
+                                        lines.push(ratatui::text::Line::from(format!(
+                                            "{}",
+                                            entry.cwd.to_string_lossy()
+                                        )));
+                                        for hook in &entry.hooks {
+                                            let state = if hook.enabled {
+                                                locale.experimental_enabled_label()
+                                            } else {
+                                                locale.experimental_disabled_label()
+                                            };
+                                            lines.push(ratatui::text::Line::from(format!(
+                                                "• {} — {:?} — {state}",
+                                                hook.key, hook.event_name
+                                            )));
+                                            lines.push(ratatui::text::Line::from(format!(
+                                                "  {}: {}",
+                                                locale.hooks_source_label(),
+                                                hook.source_path.to_string_lossy()
+                                            )));
+                                        }
+                                        for warning in &entry.warnings {
+                                            lines.push(ratatui::text::Line::from(format!(
+                                                "! {warning}"
+                                            )));
+                                        }
+                                        for error in &entry.errors {
+                                            lines.push(ratatui::text::Line::from(format!(
+                                                "! {}",
+                                                error.message
+                                            )));
+                                        }
+                                    }
+                                    if lines.is_empty() {
+                                        lines.push(ratatui::text::Line::from(locale.hooks_empty()));
+                                    }
+                                    app.chat_widget
+                                        .open_text_pager(locale.hooks_title().to_string(), lines);
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::OpenConfigPanel => {
+                            app.chat_widget.open_config_menu();
+                        }
+                        AppAction::OpenModelPicker => {
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .list_models(100)
+                                .await
+                            {
+                                Ok(response) => {
+                                    app.chat_widget.open_model_picker(response.data);
+                                    app.projection.set_status("choose model");
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::OpenEffortPicker => {
+                            app.chat_widget.open_effort_picker();
+                        }
+                        AppAction::OpenPermissionsPicker => {
+                            if app.chat_widget.permission_profiles.is_empty() {
+                                app.projection.set_status(
+                                    app.chat_widget.locale.permissions_picker_empty(),
+                                );
+                            } else {
+                                app.chat_widget.open_permissions_picker();
+                            }
+                        }
+                        AppAction::OpenTitleSetup => {
+                            app.chat_widget.show_terminal_title_setup();
+                        }
+                        AppAction::OpenStatusLineSetup => {
+                            app.chat_widget.show_status_line_setup();
+                        }
+                        AppAction::ClearConversation => {
+                            let session = session.as_mut().expect("session available during TUI");
+                            let restored = app
+                                .start_new_thread(session)
+                                .await
+                                .map(|()| app.chat_widget.locale.cleared_conversation())
+                                .map_err(|error| error.to_string());
+                            match restored {
+                                Ok(status) => app.projection.set_status(status),
+                                Err(error) => app.projection.set_status(error),
+                            }
+                        }
+                        AppAction::ReviewBaseBranch { branch } => {
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status("no active thread");
+                                continue;
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .review_start(
+                                    thread_id,
+                                    app_server_protocol::protocol::v2::ReviewTarget::BaseBranch {
+                                        branch,
+                                    },
+                                )
+                                .await
+                            {
+                                Ok(response) => {
+                                    app.start_turn(response.turn.id);
+                                    app.projection
+                                        .set_status(app.chat_widget.locale.review_started());
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::ReviewCommit { sha } => {
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status("no active thread");
+                                continue;
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .review_start(
+                                    thread_id,
+                                    app_server_protocol::protocol::v2::ReviewTarget::Commit {
+                                        sha,
+                                        title: None,
+                                    },
+                                )
+                                .await
+                            {
+                                Ok(response) => {
+                                    app.start_turn(response.turn.id);
+                                    app.projection
+                                        .set_status(app.chat_widget.locale.review_started());
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::ReviewUncommitted => {
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status("no active thread");
+                                continue;
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .review_start(
+                                    thread_id,
+                                    app_server_protocol::protocol::v2::ReviewTarget::UncommittedChanges,
+                                )
+                                .await
+                            {
+                                Ok(response) => {
+                                    app.start_turn(response.turn.id);
+                                    app.projection
+                                        .set_status(app.chat_widget.locale.review_started());
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::ForkThread => {
+                            match app
+                                .fork_current_thread(
+                                    session.as_mut().expect("session available during TUI"),
+                                )
+                                .await
+                            {
+                                Ok(()) => {}
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::DeleteThread => {
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status("no active thread");
+                                continue;
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .thread_delete(thread_id)
+                                .await
+                            {
+                                Ok(()) => {
+                                    let deleted =
+                                        app.chat_widget.locale.deleted_thread().to_string();
+                                    match app
+                                        .start_new_thread(
+                                            session.as_mut().expect("session available during TUI"),
+                                        )
+                                        .await
+                                    {
+                                        Ok(()) => app.projection.set_status(deleted),
+                                        Err(error) => app
+                                            .projection
+                                            .set_status(format!("{deleted}; {error}")),
+                                    }
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::CompactThread => {
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status("no active thread");
+                                continue;
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .thread_compact_start(thread_id)
+                                .await
+                            {
+                                Ok(()) => app
+                                    .projection
+                                    .set_status(app.chat_widget.locale.compacting_thread()),
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::RenameThread { name } => {
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection
+                                    .set_status(app.chat_widget.locale.rename_usage());
+                                continue;
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .thread_set_name(thread_id.clone(), name.clone())
+                                .await
+                            {
+                                Ok(()) => {
+                                    app.chat_widget
+                                        .set_status_thread_name(thread_id, Some(name.clone()));
+                                    app.projection
+                                        .set_status(app.chat_widget.locale.renamed_thread(&name));
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::StartNewThread => {
+                            history_load_all_requested = false;
+                            crate::app::agents_overview_loading::draw(&mut terminal, &app)
+                                .context("failed to render new thread loading state")?;
+                            match app
+                                .start_new_thread(
+                                    session.as_mut().expect("session available during TUI"),
+                                )
+                                .await
+                            {
+                                Ok(()) => {}
+                                Err(error) => app
+                                    .projection
+                                    .set_status(format!("new thread failed: {error}")),
+                            }
+                        }
                         AppAction::SwitchThread(thread_id) => {
                             history_load_all_requested = false;
+                            // The loop cannot process scheduled frames while awaiting
+                            // the resume RPC, so show the loading state immediately.
+                            // The title carries the same label because a transient
+                            // frame alone cannot be observed by PTY-driven checks.
+                            crate::app::agents_overview_loading::draw(&mut terminal, &app)
+                                .context("failed to render agent loading state")?;
                             match app.resume_target_session(
                                 session.as_mut().expect("session available during TUI"),
                                 thread_id,

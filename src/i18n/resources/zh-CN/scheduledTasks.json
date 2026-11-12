@@ -167,5 +167,6 @@
   "scheduledTasks.group.enabled": "已开启",
   "scheduledTasks.group.paused": "已暂停",
   "scheduledTasks.relative.today": "今天 {{time}}",
-  "scheduledTasks.relative.tomorrow": "明天 {{time}}"
+  "scheduledTasks.relative.tomorrow": "明天 {{time}}",
+  "scheduledTasks.action.details": "任务详情"
 }

@@ -12,7 +12,6 @@ const mockGetSkillCatalog = vi.hoisted(() => vi.fn());
 const mockListSkillCatalogSceneEntries = vi.hoisted(() => vi.fn());
 const mockListServiceSkills = vi.hoisted(() => vi.fn());
 const mockGetOrCreateDefaultProject = vi.hoisted(() => vi.fn());
-const mockResolveOemCloudRuntimeContext = vi.hoisted(() => vi.fn());
 const mockSiteListAdapters = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/skillCatalog", () => ({
@@ -35,9 +34,6 @@ vi.mock("@/lib/api/project", () => ({
   getOrCreateDefaultProject: () => mockGetOrCreateDefaultProject(),
 }));
 
-vi.mock("@/lib/api/oemCloudRuntime", () => ({
-  resolveOemCloudRuntimeContext: () => mockResolveOemCloudRuntimeContext(),
-}));
 
 vi.mock("@/lib/webview-api", () => ({
   siteListAdapters: (...args: unknown[]) => mockSiteListAdapters(...args),
@@ -146,7 +142,6 @@ describe("serviceSkillSceneLaunch", () => {
     mockGetOrCreateDefaultProject.mockResolvedValue({
       id: "project-default",
     });
-    mockResolveOemCloudRuntimeContext.mockReturnValue(null);
     mockSiteListAdapters.mockResolvedValue([
       {
         name: "x/article-export",

@@ -1,4 +1,7 @@
-use super::{dispatch_result, parse_params, to_jsonrpc_error, ConnectionRequestId, RequestProcessor, RpcDispatch};
+use super::{
+    dispatch_result, parse_params, to_jsonrpc_error, ConnectionRequestId, RequestProcessor,
+    RpcDispatch,
+};
 use app_server_protocol::protocol::v2::{
     AccountUpdatedNotification, CloudRequestParams, GetAccountParams, LoginAccountParams,
     ServerNotification,
@@ -19,34 +22,80 @@ impl RequestProcessor {
         self.ensure_initialized()?;
         use app_server_protocol::protocol::v2::{CloudDesktopParams, CloudDesktopResponse};
         let params: CloudDesktopParams = parse_params(params)?;
-        let archive_error = |message: String| to_jsonrpc_error(crate::RuntimeCoreError::Backend(message));
+        let archive_error =
+            |message: String| to_jsonrpc_error(crate::RuntimeCoreError::Backend(message));
         let archive_owner = || {
-            connection_request.as_ref().map(|request| request.connection_id).filter(|_| self.cloud_archive_transfer_enabled)
-                .ok_or_else(|| JsonRpcError::new(app_server_protocol::error_codes::INVALID_REQUEST, "Archive transfer requires an authenticated remote App Server connection"))
+            connection_request
+                .as_ref()
+                .map(|request| request.connection_id)
+                .filter(|_| self.cloud_archive_transfer_enabled)
+                .ok_or_else(|| {
+                    JsonRpcError::new(
+                        app_server_protocol::error_codes::INVALID_REQUEST,
+                        "Archive transfer requires an authenticated remote App Server connection",
+                    )
+                })
         };
-        let archive_id = |value: &str| uuid::Uuid::parse_str(value)
-            .map_err(|_| JsonRpcError::new(app_server_protocol::error_codes::INVALID_PARAMS, "Invalid cloud archive ID"));
+        let archive_id = |value: &str| {
+            uuid::Uuid::parse_str(value).map_err(|_| {
+                JsonRpcError::new(
+                    app_server_protocol::error_codes::INVALID_PARAMS,
+                    "Invalid cloud archive ID",
+                )
+            })
+        };
         let data = match params {
-            CloudDesktopParams::PrepareArchiveDownload { source_root, paths, recipient, include_credentials, work_saved } => {
-                self.cloud_archive_downloads.prepare(archive_owner()?, super::cloud_archive_download::DownloadSelection {
-                    source_root, paths, recipient, include_credentials, work_saved,
-                }).await.map_err(archive_error)?
-            }
-            CloudDesktopParams::ReadArchiveDownload { archive_id: id, offset } => {
-                self.cloud_archive_downloads.read(archive_owner()?, archive_id(&id)?, offset).map_err(archive_error)?
-            }
+            CloudDesktopParams::PrepareArchiveDownload {
+                source_root,
+                paths,
+                recipient,
+                include_credentials,
+                work_saved,
+            } => self
+                .cloud_archive_downloads
+                .prepare(
+                    archive_owner()?,
+                    super::cloud_archive_download::DownloadSelection {
+                        source_root,
+                        paths,
+                        recipient,
+                        include_credentials,
+                        work_saved,
+                    },
+                )
+                .await
+                .map_err(archive_error)?,
+            CloudDesktopParams::ReadArchiveDownload {
+                archive_id: id,
+                offset,
+            } => self
+                .cloud_archive_downloads
+                .read(archive_owner()?, archive_id(&id)?, offset)
+                .map_err(archive_error)?,
             CloudDesktopParams::CloseArchiveDownload { archive_id: id } => {
                 serde_json::json!({"closed": self.cloud_archive_downloads.clear(archive_owner()?, Some(archive_id(&id)?))})
             }
-            CloudDesktopParams::BeginArchiveRestore { folder_name } => {
-                self.cloud_archive_restores.begin(archive_owner()?, &folder_name).map_err(archive_error)?
-            }
-            CloudDesktopParams::WriteArchiveRestore { archive_id: id, offset, data } => {
-                self.cloud_archive_restores.write(archive_owner()?, archive_id(&id)?, offset, &data).map_err(archive_error)?
-            }
-            CloudDesktopParams::FinishArchiveRestore { archive_id: id, sha256, bytes } => {
-                self.cloud_archive_restores.finish(archive_owner()?, archive_id(&id)?, sha256, bytes).await.map_err(archive_error)?
-            }
+            CloudDesktopParams::BeginArchiveRestore { folder_name } => self
+                .cloud_archive_restores
+                .begin(archive_owner()?, &folder_name)
+                .map_err(archive_error)?,
+            CloudDesktopParams::WriteArchiveRestore {
+                archive_id: id,
+                offset,
+                data,
+            } => self
+                .cloud_archive_restores
+                .write(archive_owner()?, archive_id(&id)?, offset, &data)
+                .map_err(archive_error)?,
+            CloudDesktopParams::FinishArchiveRestore {
+                archive_id: id,
+                sha256,
+                bytes,
+            } => self
+                .cloud_archive_restores
+                .finish(archive_owner()?, archive_id(&id)?, sha256, bytes)
+                .await
+                .map_err(archive_error)?,
             CloudDesktopParams::CancelArchiveRestore { archive_id: id } => {
                 serde_json::json!({"closed": self.cloud_archive_restores.clear(archive_owner()?, Some(archive_id(&id)?))})
             }
@@ -106,13 +155,6 @@ impl RequestProcessor {
             .login_account(params)
             .await
             .map_err(to_jsonrpc_error)?;
-        self.publish_server_notification(ServerNotification::AccountUpdated(
-            AccountUpdatedNotification {
-                auth_mode: Some("cloudAuthTokens".to_string()),
-                plan_type: None,
-            },
-        ))
-        .await;
         dispatch_result(response)
     }
 
@@ -125,6 +167,7 @@ impl RequestProcessor {
         dispatch_result(
             self.runtime
                 .read_account(params)
+                .await
                 .map_err(to_jsonrpc_error)?,
         )
     }
@@ -209,9 +252,14 @@ mod cloud_desktop_tests {
         let purchase = json!({"action":"purchaseEcs","spec":ecs_spec,"desktopName":"Lime-test",
             "operationId":"purchase-ecs","quoteId":"0".repeat(64),"confirmation":"not-confirmed"});
         let error = rpc(&processor, "cloud/desktop", purchase.clone()).await;
-        assert!(error["error"]["message"].as_str().unwrap().contains("Explicit purchase confirmation"));
+        assert!(error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Explicit purchase confirmation"));
         processor.disable_cloud_desktop_local_control(true);
         for request in [
+            json!({"action":"scheduleEcsRelease","resource":{"provider":"ecs","regionId":"cn-test","resourceId":"i-test","profile":"private"},"operationId":"schedule-remote","imageOperationId":"image-remote","releaseAt":"2099-01-01T00:00:00Z","confirmation":"not-confirmed","workSaved":true,"discardData":true}),
+            json!({"action":"cancelEcsRelease","resource":{"provider":"ecs","regionId":"cn-test","resourceId":"i-test","profile":"private"},"operationId":"cancel-remote","releaseAt":"2099-01-01T00:00:00Z","confirmation":"not-confirmed"}),
             json!({"action":"quoteEcs","spec":ecs_spec}),
             purchase,
             json!({"action":"listResources"}),
@@ -220,8 +268,13 @@ mod cloud_desktop_tests {
             json!({"action":"readEcsTunnel","resource":{"provider":"ecs","regionId":"cn-test","resourceId":"i-test","profile":"private"},"channel":"appServer"}),
             json!({"action":"closeEcsTunnel","resource":{"provider":"ecs","regionId":"cn-test","resourceId":"i-test","profile":"private"},"channel":"desktop"}),
             json!({"action":"bind","resource":{"provider":"wuying","regionId":"cn-test","resourceId":"ecd-test","profile":"private"}}),
+            json!({"action":"createArchiveIdentity","identityFile":"/offline-key"}),
             json!({"action":"restoreArchive","archivePath":"/archive","identityFile":"/offline-key","destination":"/new","expectedSha256":"0".repeat(64),"maxBytes":1024}),
             json!({"action":"transferArchive","localPath":"/archive","remote":"private:bucket/key","upload":true,"expectedSha256":"0".repeat(64)}),
+            json!({"action":"listOssBuckets","profile":"private","regionId":"cn-test"}),
+            json!({"action":"listEcsImages","profile":"private","regionId":"cn-test"}),
+            json!({"action":"createEcsImage","snapshotOperationId":"cold-snapshot","operationId":"image-remote","confirmation":"createEcsImage:cold-snapshot","includeCredentials":true}),
+            json!({"action":"transferOssArchive","profile":"private","regionId":"cn-test","bucket":"bucket-test","objectKey":"archive.age","localPath":"/archive.age","upload":true,"expectedSha256":"0".repeat(64)}),
             json!({"action":"release","resource":{"provider":"wuying","regionId":"cn-test","resourceId":"ecd-test","profile":"private"},"operationId":"release-2","confirmation":"release:cn-test:ecd-test:discard-data","workSaved":true,"discardData":true}),
         ] {
             let response = rpc(&processor, "cloud/desktop", request).await;

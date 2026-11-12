@@ -1,4 +1,4 @@
-//! 用户自付 ECS 的生命周期。复用本机 Alibaba CLI profile，不读取或转交云密钥。
+//! 用户自付云电脑的生命周期；管理身份保留在本机，OSS 仅向私有传输工具交付短期 STS。
 //! 先落 unknown 收据再发送变更；崩溃、超时或重发都不能悄悄重复副作用。
 
 use app_server_protocol::protocol::v2::{
@@ -6,6 +6,7 @@ use app_server_protocol::protocol::v2::{
     CloudDesktopTunnelChannel,
 };
 use fs2::FileExt;
+use lifecycle::LifecycleChange;
 use serde_json::{json, Value};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -67,6 +68,19 @@ impl CloudDesktopService {
             }
             CloudDesktopParams::QuoteWuying { spec } => self.quote_wuying(spec).await?,
             CloudDesktopParams::QuoteEcs { spec } => self.quote_ecs(spec).await?,
+            CloudDesktopParams::PrepareEcsPurchase {
+                region_id,
+                profile,
+                operation_id,
+                confirmation,
+            } => {
+                self.prepare_ecs_purchase(&region_id, &profile, &operation_id, &confirmation)
+                    .await?
+            }
+            CloudDesktopParams::ReadEcsPurchasePreparation { region_id, profile } => {
+                self.read_ecs_purchase_preparation(&region_id, &profile)
+                    .await?
+            }
             CloudDesktopParams::ListEcsTemplates { region_id, profile } => {
                 self.list_ecs_templates(&region_id, &profile).await?
             }
@@ -125,12 +139,34 @@ impl CloudDesktopService {
             | CloudDesktopParams::WriteArchiveRestore { .. }
             | CloudDesktopParams::FinishArchiveRestore { .. }
             | CloudDesktopParams::CancelArchiveRestore { .. } => {
-                return Err("Archive transfers require an authenticated App Server connection".into());
+                return Err(
+                    "Archive transfers require an authenticated App Server connection".into(),
+                );
             }
-            CloudDesktopParams::RewrapArchiveForRestore { archive_path, identity_file, output_path, expected_sha256, recipient } =>
-                tokio::task::spawn_blocking(move || crate::cloud_archive_service::rewrap_for_restore(
-                    Path::new(&archive_path), Path::new(&identity_file), Path::new(&output_path), &expected_sha256, &recipient,
-                )).await.map_err(|_| "Cloud restore worker failed")??,
+            CloudDesktopParams::CreateArchiveIdentity { identity_file } => {
+                tokio::task::spawn_blocking(move || {
+                    crate::cloud_archive_service::create_identity(Path::new(&identity_file))
+                })
+                .await
+                .map_err(|_| "Recovery identity worker failed")??
+            }
+            CloudDesktopParams::RewrapArchiveForRestore {
+                archive_path,
+                identity_file,
+                output_path,
+                expected_sha256,
+                recipient,
+            } => tokio::task::spawn_blocking(move || {
+                crate::cloud_archive_service::rewrap_for_restore(
+                    Path::new(&archive_path),
+                    Path::new(&identity_file),
+                    Path::new(&output_path),
+                    &expected_sha256,
+                    &recipient,
+                )
+            })
+            .await
+            .map_err(|_| "Cloud restore worker failed")??,
             CloudDesktopParams::RestoreArchive {
                 archive_path,
                 identity_file,
@@ -157,6 +193,29 @@ impl CloudDesktopService {
                 crate::cloud_archive_service::transfer(
                     Path::new(&local_path),
                     &remote,
+                    upload,
+                    &expected_sha256,
+                )
+                .await?
+            }
+            CloudDesktopParams::ListOssBuckets { profile, region_id } => {
+                self.list_oss_buckets(&profile, &region_id).await?
+            }
+            CloudDesktopParams::TransferOssArchive {
+                profile,
+                region_id,
+                bucket,
+                object_key,
+                local_path,
+                upload,
+                expected_sha256,
+            } => {
+                self.transfer_oss_archive(
+                    &profile,
+                    &region_id,
+                    &bucket,
+                    &object_key,
+                    Path::new(&local_path),
                     upload,
                     &expected_sha256,
                 )
@@ -213,6 +272,22 @@ impl CloudDesktopService {
                 )
                 .await?
             }
+            CloudDesktopParams::ReconnectEcsRuntime {
+                resource,
+                operation_id,
+                capability_sha256,
+                confirmation,
+                work_saved,
+            } => {
+                self.reconnect_ecs_runtime(
+                    resource,
+                    operation_id,
+                    capability_sha256,
+                    confirmation,
+                    work_saved,
+                )
+                .await?
+            }
             CloudDesktopParams::ReadOperation { operation_id } => {
                 validate_id(&operation_id)?;
                 self.inspect_operation(&operation_id).await?
@@ -224,6 +299,23 @@ impl CloudDesktopService {
             } => {
                 self.inspect_snapshot(&resource, &disk_id, &snapshot_id)
                     .await?
+            }
+            CloudDesktopParams::CreateEcsImage {
+                snapshot_operation_id,
+                operation_id,
+                confirmation,
+                include_credentials,
+            } => {
+                self.create_ecs_image(
+                    &snapshot_operation_id,
+                    &operation_id,
+                    &confirmation,
+                    include_credentials,
+                )
+                .await?
+            }
+            CloudDesktopParams::ListEcsImages { region_id, profile } => {
+                self.list_ecs_images(&region_id, &profile).await?
             }
             CloudDesktopParams::RestoreSnapshot {
                 resource,
@@ -258,8 +350,14 @@ impl CloudDesktopService {
                 operation_id,
                 confirmation,
             } => {
-                self.mutate(resource, operation_id, confirmation, "start", None, true)
-                    .await?
+                self.mutate(
+                    resource,
+                    operation_id,
+                    confirmation,
+                    LifecycleChange::Start,
+                    true,
+                )
+                .await?
             }
             CloudDesktopParams::Stop {
                 resource,
@@ -271,8 +369,7 @@ impl CloudDesktopService {
                     resource,
                     operation_id,
                     confirmation,
-                    "stop",
-                    None,
+                    LifecycleChange::Stop,
                     work_saved,
                 )
                 .await?
@@ -283,6 +380,7 @@ impl CloudDesktopService {
                 confirmation,
                 work_saved,
                 discard_data,
+                image_operation_id,
             } => {
                 if !discard_data {
                     return Err("Release requires explicit disk data discard".into());
@@ -291,11 +389,39 @@ impl CloudDesktopService {
                     resource,
                     operation_id,
                     confirmation,
-                    "release",
-                    None,
+                    LifecycleChange::Release(image_operation_id),
                     work_saved,
                 )
                 .await?
+            }
+            CloudDesktopParams::ScheduleEcsRelease {
+                resource,
+                operation_id,
+                image_operation_id,
+                release_at,
+                confirmation,
+                work_saved,
+                discard_data,
+            } => {
+                self.schedule_ecs_release(
+                    resource,
+                    operation_id,
+                    image_operation_id,
+                    release_at,
+                    confirmation,
+                    work_saved,
+                    discard_data,
+                )
+                .await?
+            }
+            CloudDesktopParams::CancelEcsRelease {
+                resource,
+                operation_id,
+                release_at,
+                confirmation,
+            } => {
+                self.cancel_ecs_release(resource, operation_id, release_at, confirmation)
+                    .await?
             }
             CloudDesktopParams::Snapshot {
                 resource,
@@ -309,8 +435,7 @@ impl CloudDesktopService {
                     resource,
                     operation_id,
                     confirmation,
-                    "snapshot",
-                    Some(disk_id),
+                    LifecycleChange::Snapshot(disk_id),
                     work_saved,
                 )
                 .await?
@@ -353,191 +478,17 @@ impl CloudDesktopService {
         let status = instance["Status"].as_str().ok_or("ECS status is missing")?;
         let mode = instance["StoppedMode"].as_str();
         let operation_blocked = has_operation_locks(instance, "LockReason")?;
+        let auto_release_time = scheduled_release::auto_release_time(instance)?;
         Ok(json!({
             "resource": resource, "name": instance["InstanceName"].as_str(), "status": status, "stoppedMode": mode,
             "instanceChargeType": instance["InstanceChargeType"].as_str(),
             "instanceType": instance["InstanceType"].as_str(),
             "operationBlocked": operation_blocked,
+            "autoReleaseTime": auto_release_time,
             "computeReleased": status == "Stopped" && mode == Some("StopCharging"),
             "retainedResourcesMayBeCharged": true,
             "desktopReady": false,
         }))
-    }
-
-    async fn mutate(
-        &self,
-        resource: CloudDesktopResource,
-        operation_id: String,
-        confirmation: String,
-        action: &str,
-        disk_id: Option<String>,
-        work_saved: bool,
-    ) -> Result<Value, String> {
-        validate_resource(&resource)?;
-        validate_id(&operation_id)?;
-        if resource.provider == CloudDesktopProvider::Wuying
-            && disk_id
-                .as_deref()
-                .is_some_and(|disk| !["system", "data"].contains(&disk))
-        {
-            return Err("Wuying snapshot source must be system or data".into());
-        }
-        let expected = format!(
-            "{action}:{}:{}{}",
-            resource.region_id,
-            resource.resource_id,
-            if action == "release" {
-                ":discard-data".into()
-            } else {
-                disk_id
-                    .as_ref()
-                    .map(|disk| format!(":{disk}"))
-                    .unwrap_or_default()
-            }
-        );
-        if confirmation != expected || !work_saved {
-            return Err(
-                "Explicit resource confirmation and saved/quiesced work are required".into(),
-            );
-        }
-        self.ensure_root()?;
-        let _lock = self.lock_operations()?;
-        let mut request = json!({ "resource": resource, "action": action, "diskId": disk_id });
-        if action == "release" {
-            request["discardData"] = json!(true);
-        }
-        if let Some(existing) = self.read_receipt(&operation_id)? {
-            if existing["request"] != request {
-                return Err("Operation ID belongs to a different request".into());
-            }
-            return Ok(existing);
-        }
-        self.check_change_available(&resource, action)?;
-        let observed = self.inspect(&resource).await?;
-        let state = observed["status"].as_str().unwrap_or("");
-        match action {
-            "start" if state != "Stopped" => {
-                return Err("Only a stopped cloud desktop can be started".into())
-            }
-            "stop" if state != "Running" => {
-                return Err("Only a running cloud desktop can be stopped".into())
-            }
-            "snapshot" if state != "Stopped" => {
-                return Err("Cold disk snapshots require a stopped, quiesced instance".into())
-            }
-            "release" if state != "Stopped" || observed["instanceChargeType"] != "PostPaid" => {
-                return Err("Only a stopped PostPaid cloud desktop can be released".into())
-            }
-            _ => {}
-        }
-        if let Some(disk) = disk_id
-            .as_ref()
-            .filter(|_| resource.provider == CloudDesktopProvider::Ecs)
-        {
-            let response = self
-                .call(
-                    &resource,
-                    &[
-                        "DescribeDisks".into(),
-                        "--DiskIds".into(),
-                        json!([disk]).to_string(),
-                    ],
-                )
-                .await?;
-            let disks = response
-                .pointer("/Disks/Disk")
-                .and_then(Value::as_array)
-                .ok_or("Invalid ECS disks response")?;
-            if disks.len() != 1
-                || disks[0]["DiskId"] != *disk
-                || disks[0]["InstanceId"] != resource.resource_id
-            {
-                return Err("Snapshot disk does not belong to the selected instance".into());
-            }
-        }
-        let mut receipt = json!({ "operationId": operation_id, "request": request, "outcome": "unknown",
-            "createdAt": chrono::Utc::now().to_rfc3339(), "observedBefore": observed,
-            "requiresInspection": true });
-        self.create_receipt(&operation_id, &receipt)?;
-        let args = if resource.provider == CloudDesktopProvider::Wuying {
-            match action {
-                "start" => vec![
-                    "StartDesktops".into(),
-                    "--DesktopId.1".into(),
-                    resource.resource_id.clone(),
-                ],
-                "stop" => vec![
-                    "StopDesktops".into(),
-                    "--DesktopId.1".into(),
-                    resource.resource_id.clone(),
-                    "--StoppedMode".into(),
-                    "StopCharging".into(),
-                ],
-                "release" => vec![
-                    "DeleteDesktops".into(),
-                    "--DesktopId.1".into(),
-                    resource.resource_id.clone(),
-                ],
-                "snapshot" => {
-                    let disk = disk_id.as_deref().unwrap_or("");
-                    vec![
-                        "CreateSnapshot".into(),
-                        "--DesktopId".into(),
-                        resource.resource_id.clone(),
-                        "--SourceDiskType".into(),
-                        disk.into(),
-                        "--SnapshotName".into(),
-                        format!("Lime-{operation_id}"),
-                    ]
-                }
-                _ => unreachable!(),
-            }
-        } else {
-            match action {
-                "start" => vec![
-                    "StartInstance".into(),
-                    "--InstanceId".into(),
-                    resource.resource_id.clone(),
-                ],
-                "stop" => vec![
-                    "StopInstance".into(),
-                    "--InstanceId".into(),
-                    resource.resource_id.clone(),
-                    "--StoppedMode".into(),
-                    "StopCharging".into(),
-                    "--ForceStop".into(),
-                    "false".into(),
-                ],
-                "release" => vec![
-                    "DeleteInstance".into(),
-                    "--InstanceId".into(),
-                    resource.resource_id.clone(),
-                    "--Force".into(),
-                    "false".into(),
-                    "--TerminateSubscription".into(),
-                    "false".into(),
-                ],
-                "snapshot" => vec![
-                    "CreateSnapshot".into(),
-                    "--DiskId".into(),
-                    disk_id.unwrap(),
-                    "--ClientToken".into(),
-                    operation_id.clone(),
-                ],
-                _ => unreachable!(),
-            }
-        };
-        match self.call(&resource, &args).await {
-            Ok(response) => {
-                // API acceptance is not a completed start, compute release or usable snapshot.
-                receipt["outcome"] = json!("accepted");
-                receipt["requestId"] = json!(response["RequestId"].as_str());
-                receipt["snapshotId"] = json!(response["SnapshotId"].as_str());
-            }
-            Err(error) => receipt["diagnostic"] = json!(error),
-        }
-        self.finalize_receipt(&operation_id, &receipt);
-        Ok(receipt)
     }
 
     async fn inspect_operation(&self, operation_id: &str) -> Result<Value, String> {
@@ -545,13 +496,28 @@ impl CloudDesktopService {
         let receipt = self
             .read_receipt(operation_id)?
             .ok_or("Cloud desktop operation does not exist")?;
+        if matches!(
+            receipt["request"]["action"].as_str(),
+            Some("scheduleEcsRelease" | "cancelEcsRelease")
+        ) {
+            return self.inspect_ecs_release_schedule(operation_id).await;
+        }
+        if receipt["request"]["action"] == "createEcsImage" {
+            return self.inspect_ecs_image_operation(operation_id).await;
+        }
         if receipt["request"]["action"] == "purchaseEcs" {
             return self.inspect_ecs_purchase(operation_id).await;
+        }
+        if receipt["request"]["action"] == "prepareEcsPurchase" {
+            return self.inspect_ecs_purchase_preparation(operation_id).await;
         }
         if receipt["request"]["action"] == "prepareEcsDesktop" {
             return self.inspect_ecs_preparation(operation_id).await;
         }
-        if receipt["request"]["action"] == "startEcsRuntimeInstallation" {
+        if matches!(
+            receipt["request"]["action"].as_str(),
+            Some("startEcsRuntimeInstallation" | "reconnectEcsRuntime")
+        ) {
             return self.inspect_ecs_runtime_installation(operation_id).await;
         }
         if matches!(
@@ -634,68 +600,15 @@ impl CloudDesktopService {
         profile: &str,
         args: &[String],
     ) -> Result<Value, String> {
-        let mut command = Command::new(&self.cli);
-        command.arg(product).args(args);
-        if let Some(config) = self.alibaba_config(profile)? {
-            command.arg("--config-path").arg(config);
-            command
-                .env_remove("ALIBABA_CLOUD_IGNORE_PROFILE")
-                .env_remove("ALIBABACLOUD_IGNORE_PROFILE");
-        }
-        if let Some(version) = version {
-            command.args(["--version", version, "--force"]);
-        }
-        command
-            // OAuth profiles can omit their default region. The CLI validates
-            // its global region before forwarding the API's RegionId parameter.
-            .args([
-                "--region",
-                region,
-                "--RegionId",
-                region,
-                "--profile",
-                profile,
-            ])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        let mut child = command
-            .spawn()
-            .map_err(|_| "Alibaba CLI unavailable; configure a local least-privilege profile")?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or("Cannot read Alibaba CLI response")?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or("Cannot read Alibaba CLI status")?;
-        let result = tokio::time::timeout(Duration::from_secs(45), async {
-            let mut bytes = Vec::new();
-            let mut errors = Vec::new();
-            let mut stdout = stdout.take(MAX_PROVIDER_BYTES + 1);
-            let mut stderr = stderr.take(16385);
-            tokio::try_join!(
-                stdout.read_to_end(&mut bytes),
-                stderr.read_to_end(&mut errors),
-            )
-            .map_err(|_| "Cannot read cloud response".to_owned())?;
-            if bytes.len() as u64 > MAX_PROVIDER_BYTES || errors.len() > 16384 {
-                return Err("Cloud response exceeds size limit".to_owned());
-            }
-            let status = child
-                .wait()
-                .await
-                .map_err(|_| "Cannot wait for cloud response".to_owned())?;
-            if !status.success() {
-                return Err(provider_diagnostic(&errors));
-            }
-            serde_json::from_slice(&bytes).map_err(|_| "Invalid cloud response".to_owned())
-        })
+        self.execute_cli(
+            product,
+            version,
+            region,
+            profile,
+            args,
+            self.alibaba_config(profile)?,
+        )
         .await
-        .map_err(|_| "Cloud request timed out; outcome may be unknown")?;
-        result
     }
 }
 
@@ -725,8 +638,8 @@ fn provider_diagnostic(stderr: &[u8]) -> String {
     let json = serde_json::from_slice::<Value>(stderr).ok();
     let mut fields = Vec::new();
     for (name, keys) in [
-        ("ErrorCode", &["ErrorCode", "Code"][..]),
-        ("RequestId", &["RequestId"][..]),
+        ("ErrorCode", &["ErrorCode", "Code", "error_code"][..]),
+        ("RequestId", &["RequestId", "request_id"][..]),
     ] {
         let value = keys
             .iter()
@@ -845,10 +758,14 @@ fn private_open(path: &Path, create_new: bool) -> Result<File, String> {
 mod auth;
 mod cloud_assistant;
 mod ecs;
+mod images;
+mod lifecycle;
+mod oss;
 mod prepare;
 mod purchase;
 mod receipts;
 mod runtime_install;
+mod scheduled_release;
 mod snapshots;
 mod tunnel;
 mod wuying;

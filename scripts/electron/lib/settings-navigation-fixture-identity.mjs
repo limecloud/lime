@@ -22,7 +22,7 @@ export const settingsSources = [
   "src/components/settings-v2/_layout/SettingsSidebar.tsx",
   "src/components/settings-v2/_layout/useSettingsSearchTarget.ts",
   "src/components/settings-v2/hooks/useSettingsCategory.ts",
-  "src/lib/api/oemCloudRuntime.ts",
+  "src/lib/cloudAccount.ts",
 
   "src/hooks/useAppNavigation.ts",
   "src/hooks/useAppShellLayout.ts",

@@ -23,6 +23,8 @@ import { CloudRuntimeInstallation } from "./CloudRuntimeInstallation";
 import { CloudDesktopTunnel } from "./CloudDesktopTunnel";
 import { CloudArchivePanel } from "./CloudArchivePanel";
 import { AddCloudDesktop, cloudTabClass } from "./AddCloudDesktop";
+import { CloudSystemImage } from "./CloudSystemImage";
+import { CloudScheduledRelease } from "./CloudScheduledRelease";
 
 function matchesResource(value: unknown, resource: CloudDesktopResource) {
   const target = object(value);
@@ -85,6 +87,22 @@ export function CloudDesktopsSettings() {
       ["accepted", "preparing"].includes(String(entry.outcome)) &&
       Date.now() - Date.parse(String(entry.createdAt)) < 1860000,
   );
+  const backupComputers = resources.flatMap((resource) => {
+    const state = states[key(resource)];
+    return state?.status === "Running" || state?.status === "Stopped"
+      ? [
+          {
+            key: key(resource),
+            resource,
+            running: state.status === "Running",
+            name:
+              typeof state.name === "string" && state.name
+                ? state.name
+                : resource.resourceId,
+          },
+        ]
+      : [];
+  });
 
   const refresh = useCallback(async () => {
     if (busy.current) return;
@@ -316,6 +334,16 @@ export function CloudDesktopsSettings() {
                           {t(
                             `settings.cloudDesktop.${item.provider === "wuying" ? "desktopConnection" : "ecsConnection"}`,
                           )}
+                          {typeof state.autoReleaseTime === "string" && (
+                            <p role="status" className="mt-1 text-destructive">
+                              {t("settings.cloudDesktop.releaseDeadline", {
+                                date: new Date(
+                                  state.autoReleaseTime,
+                                ).toLocaleString(),
+                              })}{" "}
+                              {t("settings.cloudDesktop.cancelBeforeUse")}
+                            </p>
+                          )}
                           {typeof state.error === "string" && (
                             <p role="alert" className="mt-1 text-destructive">
                               {state.error}
@@ -337,28 +365,50 @@ export function CloudDesktopsSettings() {
                     >
                       <CloudTaskConnection
                         resource={item}
-                        running={status === "Running"}
+                        running={status === "Running" && !state.autoReleaseTime}
                       />
                       {item.provider === "ecs" && (
                         <CloudRuntimeInstallation
                           resource={item}
-                          running={status === "Running"}
+                          running={
+                            status === "Running" && !state.autoReleaseTime
+                          }
                         />
                       )}
                       {item.provider === "ecs" && (
                         <CloudDesktopTunnel
                           resource={item}
-                          running={status === "Running"}
+                          running={
+                            status === "Running" && !state.autoReleaseTime
+                          }
                           request={requestCloudDesktop}
                         />
                       )}
                       <CloudResourceActions
                         resource={item}
+                        operations={operations}
                         status={status}
                         disabled={
-                          pending || isWaitingForState(item) || preparing(item)
+                          pending ||
+                          isWaitingForState(item) ||
+                          preparing(item) ||
+                          !!state.autoReleaseTime
                         }
                         canRelease={state.instanceChargeType === "PostPaid"}
+                        request={requestCloudDesktop}
+                        onChanged={() => void refresh()}
+                      />
+                      <CloudScheduledRelease
+                        resource={item}
+                        status={status}
+                        postPaid={state.instanceChargeType === "PostPaid"}
+                        autoReleaseTime={
+                          typeof state.autoReleaseTime === "string"
+                            ? state.autoReleaseTime
+                            : undefined
+                        }
+                        operations={operations}
+                        disabled={pending}
                         request={requestCloudDesktop}
                         onChanged={() => void refresh()}
                       />
@@ -368,6 +418,7 @@ export function CloudDesktopsSettings() {
                           status={status}
                           disabled={
                             pending ||
+                            !!state.autoReleaseTime ||
                             isWaitingForState(item) ||
                             preparing(item)
                           }
@@ -497,23 +548,15 @@ export function CloudDesktopsSettings() {
           )}
         </Tabs.Content>
         <Tabs.Content value="backups" className="outline-none">
+          <CloudSystemImage
+            operations={operations}
+            request={requestCloudDesktop}
+            onChanged={() => void refresh()}
+          />
           <CloudArchivePanel
             request={requestCloudDesktop}
-            computers={resources.flatMap((resource) => {
-              const state = states[key(resource)];
-              return state?.status === "Running"
-                ? [
-                    {
-                      key: key(resource),
-                      resource,
-                      name:
-                        typeof state.name === "string" && state.name
-                          ? state.name
-                          : resource.resourceId,
-                    },
-                  ]
-                : [];
-            })}
+            computers={backupComputers.filter((computer) => computer.running)}
+            backupSources={backupComputers}
           />
         </Tabs.Content>
       </Tabs.Root>

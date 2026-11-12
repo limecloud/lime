@@ -24,6 +24,7 @@ pub enum CloudDesktopProvider {
 pub enum CloudDesktopTunnelChannel {
     AppServer,
     Desktop,
+    Installation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -40,7 +41,7 @@ pub struct WuyingDesktopSpec {
     pub data_disk_gib: u32,
 }
 
-/// One user-paid Linux VM. Network and SSH keypair must already exist.
+/// One user-paid Linux VM. Network may be prepared by Lime; SSH keypair is optional.
 /// Purchase always requests an encrypted ESSD system disk; no private key is sent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -84,6 +85,19 @@ pub enum CloudDesktopParams {
     },
     QuoteEcs {
         spec: EcsDesktopSpec,
+    },
+    /// Read the original preparation, or explicitly authorize a network-only ROS stack.
+    /// No compute purchase occurs here. Unknown submissions are only inspected.
+    PrepareEcsPurchase {
+        region_id: String,
+        profile: String,
+        operation_id: String,
+        confirmation: String,
+    },
+    /// Find and inspect the durable preparation for this account profile and region.
+    ReadEcsPurchasePreparation {
+        region_id: String,
+        profile: String,
     },
     ListEcsTemplates {
         region_id: String,
@@ -142,6 +156,10 @@ pub enum CloudDesktopParams {
     CancelArchiveRestore {
         archive_id: String,
     },
+    /// Local control only; writes a new private file and returns only its public recipient.
+    CreateArchiveIdentity {
+        identity_file: String,
+    },
     /// Local control only; the source recovery key never crosses the desktop connection.
     RewrapArchiveForRestore {
         archive_path: String,
@@ -161,6 +179,20 @@ pub enum CloudDesktopParams {
     TransferArchive {
         local_path: String,
         remote: String,
+        upload: bool,
+        expected_sha256: String,
+    },
+    /// Local control only; reuses the user's managed Alibaba browser identity.
+    ListOssBuckets {
+        profile: String,
+        region_id: String,
+    },
+    TransferOssArchive {
+        profile: String,
+        region_id: String,
+        bucket: String,
+        object_key: String,
+        local_path: String,
         upload: bool,
         expected_sha256: String,
     },
@@ -200,6 +232,15 @@ pub enum CloudDesktopParams {
         confirmation: String,
         create_desktop_user: bool,
     },
+    /// Rebuild credentials for an existing managed guest without uploading a runtime.
+    /// Credentials remain on the pinned TLS channel, never the management receipt.
+    ReconnectEcsRuntime {
+        resource: CloudDesktopResource,
+        operation_id: String,
+        capability_sha256: String,
+        confirmation: String,
+        work_saved: bool,
+    },
     Start {
         resource: CloudDesktopResource,
         operation_id: String,
@@ -212,6 +253,24 @@ pub enum CloudDesktopParams {
         confirmation: String,
         work_saved: bool,
     },
+    /// User-confirmed provider deadline, protected by an exact private image.
+    /// The provider executes even when Lime is closed or the instance is running.
+    ScheduleEcsRelease {
+        resource: CloudDesktopResource,
+        operation_id: String,
+        image_operation_id: String,
+        release_at: String,
+        confirmation: String,
+        work_saved: bool,
+        discard_data: bool,
+    },
+    /// Cancel only the exact observed deadline, then inspect the original receipt.
+    CancelEcsRelease {
+        resource: CloudDesktopResource,
+        operation_id: String,
+        release_at: String,
+        confirmation: String,
+    },
     /// Release a stopped PostPaid desktop; disks follow the provider's deletion policy.
     Release {
         resource: CloudDesktopResource,
@@ -219,6 +278,9 @@ pub enum CloudDesktopParams {
         confirmation: String,
         work_saved: bool,
         discard_data: bool,
+        /// Retain and freshly verify this exact private system image before releasing the source.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        image_operation_id: Option<String>,
     },
     Snapshot {
         resource: CloudDesktopResource,
@@ -231,6 +293,19 @@ pub enum CloudDesktopParams {
         resource: CloudDesktopResource,
         disk_id: String,
         snapshot_id: String,
+    },
+    /// Preserve the entire encrypted system snapshot, including login state, as a private image.
+    /// The source must be a completed local cold-snapshot operation.
+    CreateEcsImage {
+        snapshot_operation_id: String,
+        operation_id: String,
+        confirmation: String,
+        include_credentials: bool,
+    },
+    /// Local control only; lists owned system images without requiring the original VM or disk.
+    ListEcsImages {
+        region_id: String,
+        profile: String,
     },
     /// Roll back the original disk of a stopped desktop; later writes are lost.
     RestoreSnapshot {

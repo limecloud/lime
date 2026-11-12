@@ -39,11 +39,14 @@ impl CloudDesktopService {
         self.ensure_root()?;
         let _lock = self.lock_operations()?;
         let request = json!({"action":"prepareEcsDesktop", "resource":resource, "installSystemPackages":true});
-        if let Some(existing) = self.read_receipt(&operation_id)? {
+        let existing = self.read_receipt(&operation_id)?;
+        if let Some(existing) = &existing {
             if existing["request"] != request {
                 return Err("Operation ID belongs to a different request".into());
             }
-            return Ok(existing);
+            if existing["outcome"] != "waitingForAgent" {
+                return Ok(existing.clone());
+            }
         }
         self.check_change_available(&resource, "prepareEcsDesktop")?;
         let token = format!(
@@ -53,21 +56,45 @@ impl CloudDesktopService {
                     .map_err(|_| "Cannot encode preparation identity")?
             )
         );
-        let mut receipt = json!({
+        let mut receipt = existing.clone().unwrap_or_else(|| json!({
             "operationId":operation_id, "request":request, "createdAt":chrono::Utc::now().to_rfc3339(),
             "scriptSha256":script_sha256(), "clientToken":token,
             "outcome":"unknown", "requiresInspection":true, "desktopReady":false,
             "runtimeInstalled":false, "packagesPrepared":false,
-        });
-        if let Err(error) = self.preflight_ecs_preparation(&resource).await {
-            receipt["outcome"] = json!("notSubmitted");
-            receipt["submitted"] = json!(false);
-            receipt["requiresInspection"] = json!(false);
-            receipt["diagnostic"] = json!(error);
-            self.create_receipt(&operation_id, &receipt)?;
-            return Ok(receipt);
+        }));
+        let persist = |receipt: &Value| {
+            if existing.is_some() {
+                self.replace_receipt(&operation_id, receipt)
+            } else {
+                self.create_receipt(&operation_id, receipt)
+            }
+        };
+        match self.ecs_preparation_ready(&resource).await {
+            Ok(true) => {}
+            result => {
+                receipt["outcome"] = json!(if result.is_ok() {
+                    "waitingForAgent"
+                } else {
+                    "notSubmitted"
+                });
+                receipt["submitted"] = json!(false);
+                receipt["requiresInspection"] = json!(false);
+                if let Err(error) = result {
+                    receipt["diagnostic"] = json!(error);
+                }
+                persist(&receipt)?;
+                if receipt["outcome"] == "waitingForAgent" {
+                    receipt["agentReady"] = json!(false);
+                }
+                return Ok(receipt);
+            }
         }
-        self.create_receipt(&operation_id, &receipt)?;
+        receipt["outcome"] = json!("unknown");
+        receipt["requiresInspection"] = json!(true);
+        receipt.as_object_mut().unwrap().remove("submitted");
+        receipt.as_object_mut().unwrap().remove("agentReady");
+        // A waiting receipt must become durable unknown before RunCommand can be sent.
+        persist(&receipt)?;
         let response = self
             .submit_ecs_command(
                 &resource,
@@ -102,7 +129,16 @@ impl CloudDesktopService {
         &self,
         resource: &CloudDesktopResource,
     ) -> Result<(), String> {
+        if self.ecs_preparation_ready(resource).await? {
+            Ok(())
+        } else {
+            Err("A connected Linux ECS Cloud Assistant is required".into())
+        }
+    }
+
+    async fn ecs_preparation_ready(&self, resource: &CloudDesktopResource) -> Result<bool, String> {
         let observed = self.inspect(resource).await?;
+        scheduled_release::require_no_deadline(&observed)?;
         if observed["status"] != "Running" || observed["operationBlocked"] != false {
             return Err("Desktop preparation requires an unlocked running ECS instance".into());
         }
@@ -120,14 +156,20 @@ impl CloudDesktopService {
             .pointer("/InstanceCloudAssistantStatusSet/InstanceCloudAssistantStatus")
             .and_then(Value::as_array)
             .ok_or("Invalid Cloud Assistant status response")?;
-        if agents.len() != 1
-            || agents[0]["InstanceId"] != resource.resource_id
-            || agents[0]["CloudAssistantStatus"] != "true"
-            || agents[0]["OSType"] != "Linux"
-        {
-            return Err("A connected Linux ECS Cloud Assistant is required".into());
+        if agents.is_empty() {
+            return Ok(false);
         }
-        Ok(())
+        if agents.len() != 1 || agents[0]["InstanceId"] != resource.resource_id {
+            return Err("Cloud Assistant status does not match the exact selected instance".into());
+        }
+        match (
+            agents[0]["CloudAssistantStatus"].as_str(),
+            agents[0]["OSType"].as_str(),
+        ) {
+            (Some("true"), Some("Linux")) => Ok(true),
+            (Some("false"), None | Some("" | "Linux")) => Ok(false),
+            _ => Err("A connected Linux ECS Cloud Assistant is required".into()),
+        }
     }
 
     pub(super) fn validate_preparation_receipt(&self, receipt: &Value) -> Result<(), String> {
@@ -147,7 +189,7 @@ impl CloudDesktopService {
         );
         let terminal = matches!(
             receipt["outcome"].as_str(),
-            Some("dependenciesReady" | "preparationFailed" | "notSubmitted")
+            Some("waitingForAgent" | "dependenciesReady" | "preparationFailed" | "notSubmitted")
         );
         if resource.provider != CloudDesktopProvider::Ecs
             || receipt["request"]["installSystemPackages"] != true
@@ -160,6 +202,7 @@ impl CloudDesktopService {
                 receipt["outcome"].as_str(),
                 Some(
                     "notSubmitted"
+                        | "waitingForAgent"
                         | "unknown"
                         | "accepted"
                         | "preparing"
@@ -171,18 +214,28 @@ impl CloudDesktopService {
             || receipt["requiresInspection"] != !terminal
             || (!matches!(
                 receipt["outcome"].as_str(),
-                Some("unknown" | "notSubmitted")
+                Some("unknown" | "notSubmitted" | "waitingForAgent")
             ) && receipt["invokeId"].is_null())
             || (receipt["outcome"] == "notSubmitted"
                 && (receipt["submitted"] != false || !receipt["invokeId"].is_null()))
             || (terminal
-                && receipt["outcome"] != "notSubmitted"
+                && !matches!(
+                    receipt["outcome"].as_str(),
+                    Some("notSubmitted" | "waitingForAgent")
+                )
                 && receipt["verifiedAt"]
                     .as_str()
                     .and_then(|time| chrono::DateTime::parse_from_rfc3339(time).ok())
                     .is_none())
         {
             return Err("Invalid desktop preparation receipt".into());
+        }
+        if receipt["outcome"] == "waitingForAgent"
+            && (receipt["submitted"] != false
+                || !receipt["invokeId"].is_null()
+                || !receipt["commandId"].is_null())
+        {
+            return Err("Invalid unsubmitted preparation receipt".into());
         }
         if !receipt["invokeId"].is_null() || !receipt["commandId"].is_null() {
             invocation_ids(
@@ -209,6 +262,11 @@ impl CloudDesktopService {
         let resource: CloudDesktopResource =
             serde_json::from_value(receipt["request"]["resource"].clone())
                 .map_err(|_| "Invalid preparation resource")?;
+        if receipt["outcome"] == "waitingForAgent" {
+            // Read-only readiness: only the original explicit prepare request may submit.
+            receipt["agentReady"] = json!(self.ecs_preparation_ready(&resource).await?);
+            return Ok(receipt);
+        }
         let Some(entry) = self
             .query_ecs_command_result(
                 operation_id,

@@ -2,12 +2,12 @@ import type { ExpertCatalog } from "./types";
 
 export const SEEDED_EXPERT_CATALOG_VERSION =
   "client-seed-2026-05-15-experts-p0";
-export const SEEDED_EXPERT_CATALOG_TENANT_ID = "local-seeded";
+export const SEEDED_EXPERT_CATALOG_ID = "local-seeded";
 export const SEEDED_EXPERT_CATALOG_SYNCED_AT = "2026-05-15T00:00:00.000Z";
 
 export const SEEDED_EXPERT_CATALOG: ExpertCatalog = {
   version: SEEDED_EXPERT_CATALOG_VERSION,
-  tenantId: SEEDED_EXPERT_CATALOG_TENANT_ID,
+  catalogId: SEEDED_EXPERT_CATALOG_ID,
   syncedAt: SEEDED_EXPERT_CATALOG_SYNCED_AT,
   categories: [
     { key: "all", title: "全部", sort: 0 },
@@ -49,7 +49,7 @@ export const SEEDED_EXPERT_CATALOG: ExpertCatalog = {
       avatar: { kind: "emoji", value: "📈" },
       category: "marketing",
       tags: ["growth", "campaign", "positioning"],
-      source: "seeded_fallback",
+      source: "builtin",
       stats: {
         usageCount: 9700,
         likeCount: 461,
@@ -83,7 +83,7 @@ export const SEEDED_EXPERT_CATALOG: ExpertCatalog = {
       avatar: { kind: "emoji", value: "🗂️" },
       category: "office",
       tags: ["knowledge", "research", "summary"],
-      source: "seeded_fallback",
+      source: "builtin",
       stats: { usageCount: 8300, likeCount: 392, hotScore: 0.86 },
       release: {
         releaseId: "rel-knowledge-organizer-20260515",
@@ -108,7 +108,7 @@ export const SEEDED_EXPERT_CATALOG: ExpertCatalog = {
       avatar: { kind: "emoji", value: "🧾" },
       category: "engineering",
       tags: ["code", "review", "docs"],
-      source: "seeded_fallback",
+      source: "builtin",
       stats: { usageCount: 55000, likeCount: 6700, hotScore: 0.94 },
       release: {
         releaseId: "rel-code-literature-20260515",
@@ -132,7 +132,7 @@ export const SEEDED_EXPERT_CATALOG: ExpertCatalog = {
       avatar: { kind: "emoji", value: "🎬" },
       category: "marketing",
       tags: ["video", "script", "douyin"],
-      source: "seeded_fallback",
+      source: "builtin",
       stats: { usageCount: 22000, likeCount: 1700, hotScore: 0.9 },
       release: {
         releaseId: "rel-short-video-scriptwriter-20260515",
@@ -156,7 +156,7 @@ export const SEEDED_EXPERT_CATALOG: ExpertCatalog = {
       avatar: { kind: "emoji", value: "⚖️" },
       category: "legal",
       tags: ["contract", "risk", "legal"],
-      source: "seeded_fallback",
+      source: "builtin",
       stats: { usageCount: 4100, likeCount: 287, hotScore: 0.78 },
       release: {
         releaseId: "rel-contract-reviewer-20260515",
@@ -180,7 +180,7 @@ export const SEEDED_EXPERT_CATALOG: ExpertCatalog = {
       avatar: { kind: "emoji", value: "📊" },
       category: "analytics",
       tags: ["data", "report", "insight"],
-      source: "seeded_fallback",
+      source: "builtin",
       stats: {
         usageCount: 64000,
         likeCount: 5400,

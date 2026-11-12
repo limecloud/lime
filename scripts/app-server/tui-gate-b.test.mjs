@@ -44,6 +44,255 @@ it("adds semantic copy navigation evidence without replacing the original comple
   );
 });
 
+it("proves the agent loading state through the terminal title", () => {
+  expect(gateSource).toContain("TUI_AGENTS_LOADING_OK label=localized");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_AGENTS_LOADING_OK label=localized");
+  expect(ptySource).toContain('"Loading task"');
+  const loadingSource = readFileSync(
+    "lime-rs/crates/tui/src/app/agents_overview_loading.rs",
+    "utf8",
+  );
+  expect(loadingSource).toContain('agent_center_label("Loading task…")');
+});
+
+it("keeps failure evidence when a PTY scenario fails", () => {
+  expect(gateSource).toContain("let failed = false;");
+  expect(gateSource).toContain("failed = true;");
+  expect(gateSource).toContain("failed)");
+  expect(gateSource).toContain("failure evidence: tui-backend.mjs");
+});
+
+it("forks the current thread and continues on the fork", () => {
+  expect(gateSource).toContain("TUI_FORK_COMMAND_OK thread=forked turn=new");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_FORK_COMMAND_OK thread=forked turn=new");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/fork")');
+});
+
+it("deletes the current thread after confirming and continues on a new one", () => {
+  expect(gateSource).toContain("TUI_DELETE_COMMAND_OK thread=deleted turn=new");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_DELETE_COMMAND_OK thread=deleted turn=new");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/delete")');
+  expect(ptySource).toContain('"Delete this session?"');
+});
+
+it("archives the current thread after confirming with the list accept key", () => {
+  expect(gateSource).toContain("TUI_ARCHIVE_COMMAND_OK thread=archived turn=new");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_ARCHIVE_COMMAND_OK thread=archived turn=new");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/archive")');
+  expect(ptySource).toContain('"Archive this session?"');
+});
+
+it("compacts the current thread through the compact slash command", () => {
+  expect(gateSource).toContain("TUI_COMPACT_COMMAND_OK");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_COMPACT_COMMAND_OK");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/compact")');
+  expect(ptySource).toContain('"compacting the conversation"');
+});
+
+it("renames the current thread without starting a turn", () => {
+  expect(gateSource).toContain("TUI_RENAME_COMMAND_OK name=Gate Renamed");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_RENAME_COMMAND_OK name=Gate Renamed");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/rename Gate Renamed")');
+});
+
+it("starts a second turn on a new thread through the new slash command", () => {
+  expect(gateSource).toContain("TUI_NEW_COMMAND_OK thread=changed");
+  expect(gateSource).toContain("new-command thread changed");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_NEW_COMMAND_OK thread=changed");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/new")');
+});
+
+it("lists effective key bindings through the keymap panel", () => {
+  expect(gateSource).toContain("TUI_KEYMAP_COMMAND_OK panel=keymap");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_KEYMAP_COMMAND_OK panel=keymap");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/keymap")');
+});
+
+it("lists available skills through the skills panel", () => {
+  expect(gateSource).toContain("TUI_SKILLS_COMMAND_OK panel=skills");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_SKILLS_COMMAND_OK panel=skills");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/skills")');
+});
+
+it("selects a permission profile from the permissions picker", () => {
+  expect(gateSource).toContain("TUI_PERMISSIONS_PICKER_OK profile=accepted");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_PERMISSIONS_PICKER_OK profile=accepted");
+  expect(ptySource).toContain('"Select permission profile"');
+});
+
+it("selects reasoning effort from the effort picker", () => {
+  expect(gateSource).toContain("TUI_EFFORT_PICKER_OK option=accepted");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_EFFORT_PICKER_OK option=accepted");
+  expect(ptySource).toContain('"Select reasoning effort"');
+});
+
+it("lists configured hooks through the hooks panel", () => {
+  expect(gateSource).toContain("TUI_HOOKS_COMMAND_OK panel=hooks");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_HOOKS_COMMAND_OK panel=hooks");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/hooks")');
+});
+
+it("opens the effective configuration panel", () => {
+  expect(gateSource).toContain("TUI_CONFIG_COMMAND_OK menu=model");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_CONFIG_COMMAND_OK menu=model");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/config")');
+});
+
+it("clears the transcript and continues on a new thread", () => {
+  expect(gateSource).toContain("TUI_CLEAR_COMMAND_OK status=cleared turn=new");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_CLEAR_COMMAND_OK status=cleared turn=new");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/clear")');
+});
+
+it("exits the TUI through the quit slash command", () => {
+  expect(gateSource).toContain("TUI_QUIT_COMMAND_OK exit=clean terminal=restored");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_QUIT_COMMAND_OK exit=clean terminal=restored");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/quit")');
+});
+
+it("lists and toggles experimental features", () => {
+  expect(gateSource).toContain(
+    "TUI_EXPERIMENTAL_COMMAND_OK list=ok toggle=off",
+  );
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_EXPERIMENTAL_COMMAND_OK list=ok toggle=off");
+  expect(ptySource).toContain('write_typed_text(&mut writer, b"/experimental")');
+});
+
+it("starts base-branch and commit reviews from explicit targets", () => {
+  expect(gateSource).toContain("TUI_REVIEW_BRANCH_OK target=base-branch turn=started");
+  expect(gateSource).toContain("TUI_REVIEW_COMMIT_OK target=commit turn=started");
+  expect(gateSource).toContain('git", ["-C", scenarioDir, "init", "-b", "main"]');
+});
+
+it("starts an uncommitted review from the preset picker", () => {
+  expect(gateSource).toContain(
+    "TUI_REVIEW_PICKER_OK preset=uncommitted turn=started",
+  );
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_REVIEW_PICKER_OK preset=uncommitted turn=started");
+  expect(ptySource).toContain('"Select a review preset"');
+});
+
+it("expands the review slash command into the review prompt", () => {
+  expect(gateSource).toContain("TUI_REVIEW_COMMAND_OK prompt=review turn=started");
+  expect(gateSource).toContain("Review the current repository changes");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_REVIEW_COMMAND_OK prompt=review turn=started");
+});
+
+it("expands the init slash command into the contributor guide prompt", () => {
+  expect(gateSource).toContain("TUI_INIT_COMMAND_OK prompt=contributor-guide");
+  expect(gateSource).toContain("Generate a file named AGENTS.md that serves as a contributor guide");
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain("TUI_INIT_COMMAND_OK prompt=contributor-guide");
+});
+
+it("checks the localized reason label in the exec approval details", () => {
+  expect(gateSource).toContain("TUI_EXEC_APPROVAL_REASON_OK label=localized");
+  const approvalSource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests/approval.rs",
+    "utf8",
+  );
+  expect(approvalSource).toContain(
+    "TUI_EXEC_APPROVAL_REASON_OK label=localized",
+  );
+  expect(approvalSource).toContain('"reason: Allow terminal command?"');
+});
+
+it("covers a file change approval with localized details before accepting", () => {
+  expect(gateSource).toContain(
+    "TUI_FILE_CHANGE_APPROVAL_OK title=localized description=ok destinations=add,move",
+  );
+  const ptySource = readFileSync(
+    "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+    "utf8",
+  );
+  expect(ptySource).toContain(
+    "TUI_FILE_CHANGE_APPROVAL_OK title=localized description=ok destinations=add,move",
+  );
+  expect(ptySource).toContain('"file-change-approval" => "Approve file changes?"');
+  const fixtureSource = readFileSync(
+    "scripts/app-server/terminal-gate-fixture.mjs",
+    "utf8",
+  );
+  expect(fixtureSource).toContain('=== "file-change-approval"');
+  expect(fixtureSource).toContain("fileChangePatch");
+  expect(gateSource).toContain('"*** Move to: gate/moved.rs"');
+});
+
 it("keeps MCP tool completion before stdio shutdown within the original exit budget", () => {
   const fixture = readFileSync(
     "lime-rs/crates/tui/src/bottom_pane/mcp_server_elicitation/pty_tests.rs",
@@ -1218,7 +1467,7 @@ describe("TUI Gate B", () => {
       'event.payload?.source === "thread/queue/delete"',
     );
     expect(gateSource).toContain(
-      '"complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills"',
+      '"complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"',
     );
   });
 

@@ -15,7 +15,6 @@ vi.mock("@/lib/commands/preferences", () => ({
 vi.mock("@/lib/cloudAccount", () => ({
   getCloudAccount: () => null,
   subscribeCloudAccount: () => () => {},
-  getOemCloudBootstrapSnapshot: () => null,
   logoutCloudAccount: vi.fn(),
 }));
 

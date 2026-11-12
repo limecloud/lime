@@ -165,7 +165,7 @@ export function usePluginsSettings() {
         if (!installed.remotePluginId)
           throw new Error("Remote plugin identity unavailable");
         await setPluginEnabled({
-          remotePluginId: installed.remotePluginId,
+          pluginId: installed.id,
           enabled,
         });
       } else await setPluginEnabled({ pluginId: installed.id, enabled });

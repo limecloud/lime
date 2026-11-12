@@ -22,6 +22,15 @@ if args[0]=='configure':
  while not (root/'finish').exists(): time.sleep(0.02)
  if (root/'fail').exists(): sys.exit(1)
  config.write_text('{"syntheticToken":"must-not-project-refresh-token"}')
+elif args[0]=='sts':
+ assert args[1]=='GetCallerIdentity' and 'syntheticToken' in config.read_text()
+ assert '--RegionId' not in args
+ (root/'verification-started').write_text('')
+ while (root/'hold-verification').exists() and not (root/'allow-verification').exists(): time.sleep(0.02)
+ if (root/'fail-verification').exists():
+  print('must-not-project-provider-details',file=sys.stderr); sys.exit(1)
+ identity=root/'identity.json'
+ print(identity.read_text() if identity.exists() else json.dumps({'AccountId':'1000000000000000'}))
 else:
  assert 'syntheticToken' in config.read_text()
  assert args[args.index('--region')+1] == args[args.index('--RegionId')+1]
@@ -153,4 +162,179 @@ async fn managed_profiles_require_their_own_private_completed_authorization() {
     assert!(!config.exists());
     symlink(&moved, &config).unwrap();
     assert!(service.alibaba_config(profile).is_err());
+}
+
+#[tokio::test]
+async fn an_existing_service_uses_the_cli_installed_after_it_was_created() {
+    let (directory, service) = fixture();
+    fs::write(directory.path().join("finish"), "").unwrap();
+    service.connect_alibaba("cn-test").unwrap();
+    let connected = finish(&service).await;
+    let stale = CloudDesktopService {
+        root: service.root.clone(),
+        cli: directory.path().join("not-installed-yet"),
+    };
+    let installed = cli::installed_path(&stale.root);
+    fs::create_dir_all(installed.parent().unwrap()).unwrap();
+    fs::set_permissions(
+        installed.parent().unwrap(),
+        fs::Permissions::from_mode(0o700),
+    )
+    .unwrap();
+    fs::copy(&service.cli, &installed).unwrap();
+    let templates = stale
+        .list_ecs_templates("cn-test", connected["profile"].as_str().unwrap())
+        .await
+        .expect("the same service must use the newly installed official CLI");
+    assert_eq!(templates, json!({"templates":[]}));
+    assert_eq!(cli::ensure_available(&stale).await.unwrap(), installed);
+    assert!(!stale.cli.exists());
+}
+
+#[tokio::test]
+async fn a_successful_browser_login_is_verified_before_becoming_connected() {
+    let (directory, service) = fixture();
+    fs::write(directory.path().join("finish"), "").unwrap();
+    fs::write(directory.path().join("hold-verification"), "").unwrap();
+    service.connect_alibaba("cn-test").unwrap();
+    let verifying = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let value = service.read_alibaba_connection().unwrap();
+            assert_ne!(
+                value["status"], "connected",
+                "OAuth completion alone is not connection readiness"
+            );
+            if value["status"] == "verifying" {
+                break value;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!verifying.to_string().contains("syntheticToken"));
+    assert!(
+        service
+            .alibaba_config(verifying["profile"].as_str().unwrap())
+            .is_err(),
+        "ordinary cloud operations must wait for verified connectivity"
+    );
+    fs::write(directory.path().join("allow-verification"), "").unwrap();
+    let connected = finish(&service).await;
+    assert_eq!(connected["status"], "connected");
+    assert!(!connected.to_string().contains("1000000000000000"));
+    assert!(directory.path().join("verification-started").is_file());
+}
+
+#[tokio::test]
+async fn explicit_verification_retry_reuses_the_completed_browser_authorization() {
+    let (directory, service) = fixture();
+    fs::write(directory.path().join("finish"), "").unwrap();
+    fs::write(directory.path().join("fail-verification"), "").unwrap();
+    let original = service.connect_alibaba("cn-test").unwrap();
+    let failed = finish(&service).await;
+    assert_eq!(failed["status"], "failed");
+    assert_eq!(failed["errorCode"], "verificationFailed");
+    assert!(!failed.to_string().contains("must-not-project"));
+    fs::remove_file(directory.path().join("fail-verification")).unwrap();
+    let retry = service.connect_alibaba("cn-test").unwrap();
+    assert_eq!(retry["status"], "verifying");
+    assert_eq!(retry["profile"], original["profile"]);
+    assert_eq!(finish(&service).await["status"], "connected");
+    let calls: Vec<Vec<String>> = fs::read_to_string(directory.path().join("calls"))
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(
+        calls.iter().filter(|args| args[0] == "configure").count(),
+        1
+    );
+    assert_eq!(calls.iter().filter(|args| args[0] == "sts").count(), 2);
+}
+
+#[tokio::test]
+async fn interrupted_verification_is_read_only_until_explicitly_resumed() {
+    let (directory, service) = fixture();
+    let state = Connection {
+        profile: format!("{PROFILE_PREFIX}{}", uuid::Uuid::new_v4().simple()),
+        region_id: "cn-test".into(),
+        status: "verifying".into(),
+        error_code: None,
+    };
+    let config = service
+        .auth_directory(&state.profile)
+        .unwrap()
+        .join("aliyun.json");
+    private_open(&config, true)
+        .unwrap()
+        .write_all(b"{\"syntheticToken\":\"must-not-project-refresh-token\"}")
+        .unwrap();
+    service
+        .write_connection_file(
+            &service.auth_directory("").unwrap().join("active.json"),
+            &state,
+        )
+        .unwrap();
+    for _ in 0..2 {
+        let observed = service.clone().read_alibaba_connection().unwrap();
+        assert_eq!(observed["status"], "failed");
+        assert_eq!(observed["errorCode"], "verificationInterrupted");
+    }
+    assert!(!directory.path().join("calls").exists());
+    let resumed = service.connect_alibaba("cn-test").unwrap();
+    assert_eq!(resumed["profile"], state.profile);
+    assert_eq!(resumed["status"], "verifying");
+    assert_eq!(finish(&service).await["status"], "connected");
+    let calls = fs::read_to_string(directory.path().join("calls")).unwrap();
+    let calls: Vec<Vec<String>> = calls
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0][0], "sts");
+}
+
+#[tokio::test]
+async fn successful_sts_without_a_valid_account_does_not_connect() {
+    for account in [json!(null), json!(123), json!(""), json!(" "), json!("abc")] {
+        let (directory, service) = fixture();
+        fs::write(directory.path().join("finish"), "").unwrap();
+        fs::write(
+            directory.path().join("identity.json"),
+            json!({"AccountId":account}).to_string(),
+        )
+        .unwrap();
+        let pending = service.connect_alibaba("cn-test").unwrap();
+        let failed = finish(&service).await;
+        assert_eq!(failed["status"], "failed", "invalid account: {account}");
+        assert_eq!(failed["errorCode"], "verificationFailed");
+        assert!(service
+            .alibaba_config(pending["profile"].as_str().unwrap())
+            .is_err());
+    }
+}
+
+#[tokio::test]
+async fn lost_authorization_does_not_create_an_empty_config_and_loop_verification() {
+    let (directory, service) = fixture();
+    fs::write(directory.path().join("finish"), "").unwrap();
+    fs::write(directory.path().join("fail-verification"), "").unwrap();
+    let original = service.connect_alibaba("cn-test").unwrap();
+    assert_eq!(finish(&service).await["errorCode"], "verificationFailed");
+    let missing = service
+        .root
+        .join("auth")
+        .join(original["profile"].as_str().unwrap())
+        .join("aliyun.json");
+    fs::remove_file(&missing).unwrap();
+    fs::remove_file(directory.path().join("fail-verification")).unwrap();
+    let retry = service.connect_alibaba("cn-test").unwrap();
+    assert_eq!(retry["status"], "preparing");
+    assert_ne!(retry["profile"], original["profile"]);
+    assert!(
+        !missing.exists(),
+        "resuming must not fabricate an empty OAuth config"
+    );
+    assert_eq!(finish(&service).await["status"], "connected");
 }

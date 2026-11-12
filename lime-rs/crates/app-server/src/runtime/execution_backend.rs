@@ -5,6 +5,15 @@ use tokio_util::sync::CancellationToken;
 
 #[async_trait]
 pub trait ExecutionBackend: Send + Sync {
+    fn set_account_tools(
+        &self,
+        _tools: Vec<
+            tool_runtime::gateway_dispatch_execution::RuntimeGatewayToolExecutionRegistration,
+        >,
+    ) -> Result<(), RuntimeCoreError> {
+        Ok(())
+    }
+
     fn set_computer_use_gateway(
         &self,
         _gateway: Arc<dyn tool_runtime::computer_use::ComputerUseGateway>,

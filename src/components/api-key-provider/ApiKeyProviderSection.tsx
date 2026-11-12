@@ -53,10 +53,7 @@ export interface ApiKeyProviderSectionProps {
   className?: string;
   /** 设置页深链焦点 */
   initialFocus?: ProviderSettingsFocusContext | null;
-  /** 是否展示 OEM Lime Hub 未登录提示入口 */
-  exposeOemLoginPrompt?: boolean;
-  /** 触发 OEM Lime Hub 登录 */
-  onOemLogin?: () => void | Promise<void>;
+
 }
 
 export interface ApiKeyProviderSectionRef {
@@ -131,7 +128,7 @@ export const ApiKeyProviderSection = forwardRef<
   ApiKeyProviderSectionProps
 >(
   (
-    { className, initialFocus, exposeOemLoginPrompt = false, onOemLogin },
+    { className, initialFocus },
     ref,
   ) => {
     const { t } = useTranslation("settings");
@@ -151,9 +148,7 @@ export const ApiKeyProviderSection = forwardRef<
       exportConfig,
       importConfig,
       refresh,
-    } = useApiKeyProvider({
-      allowOemManagedSelection: exposeOemLoginPrompt,
-    });
+    } = useApiKeyProvider();
 
     // 暴露 refresh 方法给父组件
     useImperativeHandle(
@@ -206,10 +201,8 @@ export const ApiKeyProviderSection = forwardRef<
       () =>
         buildApiKeyProviderSectionViewModel({
           providers,
-          selectedProvider,
-          exposeOemLoginPrompt,
         }),
-      [exposeOemLoginPrompt, providers, selectedProvider],
+      [providers],
     );
 
     const requestProviderSelection = useCallback(
@@ -448,7 +441,6 @@ export const ApiKeyProviderSection = forwardRef<
             {/* 左侧：已启用模型列表 */}
             <ModelProviderList
               providers={providers}
-              options={{ exposeOemLoginPrompt }}
               selectedProviderId={selectedProviderId}
               onProviderSelect={handleSelectEnabledModel}
               onAddModel={() => setShowAddModelFlow(true)}
@@ -481,12 +473,6 @@ export const ApiKeyProviderSection = forwardRef<
                   onTestConnection={handleTestConnection}
                   onDeleteProvider={handleDeleteProviderConfig}
                   onDraftStateChange={setProviderDraftState}
-                  authStatus={
-                    viewModel.selectedProviderLoginRequired
-                      ? "login_required"
-                      : "ready"
-                  }
-                  onLogin={onOemLogin}
                   loading={loading}
                   className="h-full"
                 />

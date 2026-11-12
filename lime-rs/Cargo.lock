@@ -96,7 +96,7 @@ dependencies = [
 
 [[package]]
 name = "agent-protocol"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "schemars 1.2.1",
  "serde",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "agent-runtime"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "ansi-escape"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "ansi-to-tui",
  "ratatui",
@@ -314,7 +314,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "app-server"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "agent-runtime",
@@ -335,6 +335,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonschema",
+ "jsonwebtoken",
  "lime-agent",
  "lime-core",
  "lime-gateway",
@@ -384,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-client"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "app-server-protocol",
  "app-server-transport",
@@ -400,7 +401,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-daemon"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "app-server-protocol",
  "app-server-transport",
@@ -412,7 +413,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-protocol"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "schemars 1.2.1",
@@ -424,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-test-client"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "anyhow",
  "app-server-client",
@@ -435,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "app-server-transport"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "anyhow",
  "app-server-protocol",
@@ -1363,7 +1364,7 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "cli"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -1425,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "anyhow",
  "code-mode-host",
@@ -1443,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-host"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "axum",
  "code-mode-protocol",
@@ -1459,7 +1460,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-protocol"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
@@ -1473,7 +1474,7 @@ dependencies = [
 
 [[package]]
 name = "code-mode-runtime"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "base64 0.22.1",
  "code-mode-protocol",
@@ -2274,7 +2275,7 @@ dependencies = [
 
 [[package]]
 name = "document-preview"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "flate2",
  "tempfile",
@@ -2535,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "execpolicy"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2660,7 +2661,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "file-search"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -4245,7 +4246,7 @@ checksum = "2e126dda6f34391ab7b444f9922055facc83c07a910da3eb16f1e4d9c45dc777"
 
 [[package]]
 name = "lime-agent"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "agent-runtime",
@@ -4280,7 +4281,7 @@ dependencies = [
 
 [[package]]
 name = "lime-config"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -4296,7 +4297,7 @@ dependencies = [
 
 [[package]]
 name = "lime-core"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "async-trait",
@@ -4337,7 +4338,7 @@ dependencies = [
 
 [[package]]
 name = "lime-gateway"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "aes 0.8.4",
  "async-trait",
@@ -4365,7 +4366,7 @@ dependencies = [
 
 [[package]]
 name = "lime-infra"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "age",
  "anyhow",
@@ -4399,7 +4400,7 @@ dependencies = [
 
 [[package]]
 name = "lime-mcp"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "async-trait",
@@ -4425,7 +4426,7 @@ dependencies = [
 
 [[package]]
 name = "lime-media-runtime"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -4444,7 +4445,7 @@ dependencies = [
 
 [[package]]
 name = "lime-permissions"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "anyhow",
  "globset",
@@ -4463,7 +4464,7 @@ dependencies = [
 
 [[package]]
 name = "lime-processor"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -4503,7 +4504,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "async-stream",
@@ -4546,7 +4547,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server-utils"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "axum",
  "futures",
@@ -4561,13 +4562,14 @@ dependencies = [
 
 [[package]]
 name = "lime-services"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "age",
  "anyhow",
  "app-server-protocol",
  "async-trait",
  "base64 0.22.1",
+ "bzip2 0.4.4",
  "chrono",
  "dashmap 5.5.3",
  "dirs 5.0.1",
@@ -4613,7 +4615,7 @@ dependencies = [
 
 [[package]]
 name = "lime-skills"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -4635,7 +4637,7 @@ dependencies = [
 
 [[package]]
 name = "lime-utils-absolute-path"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "dirs 6.0.0",
  "dunce",
@@ -4649,7 +4651,7 @@ dependencies = [
 
 [[package]]
 name = "lime-utils-path-uri"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "base64 0.22.1",
  "lime-utils-absolute-path",
@@ -4665,7 +4667,7 @@ dependencies = [
 
 [[package]]
 name = "lime-websocket"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "axum",
  "chrono",
@@ -4950,7 +4952,7 @@ dependencies = [
 
 [[package]]
 name = "model-provider"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -5744,7 +5746,7 @@ checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
 
 [[package]]
 name = "patch-apply"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "tempfile",
  "thiserror 1.0.69",
@@ -6864,7 +6866,7 @@ dependencies = [
 
 [[package]]
 name = "runtime-core"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "app-server-protocol",
@@ -8249,7 +8251,7 @@ dependencies = [
 
 [[package]]
 name = "thread-store"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "chrono",
@@ -8538,7 +8540,7 @@ dependencies = [
 
 [[package]]
 name = "tool-runtime"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "app-server-protocol",
@@ -8821,7 +8823,7 @@ dependencies = [
 
 [[package]]
 name = "tui"
-version = "1.174.0"
+version = "1.175.0"
 dependencies = [
  "agent-protocol",
  "ansi-escape",

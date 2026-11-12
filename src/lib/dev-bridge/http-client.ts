@@ -24,6 +24,7 @@ import {
   isPersistedAtomCommand,
 } from "./invokeDiagnostics";
 import { commandExecBridgeTimeout } from "./commandExecTimeout";
+import { cloudDesktopBridgeTimeout } from "./cloudDesktopTimeout";
 
 const BRIDGE_URL = "http://127.0.0.1:3030/invoke";
 const BRIDGE_HEALTH_URL = "http://127.0.0.1:3030/health";
@@ -109,7 +110,10 @@ export function resolveBridgeRequestTimeoutMs(
     return 10_000;
   if (cmd === "app_server_handle_json_lines") {
     const commandTimeout = commandExecBridgeTimeout(args);
-    if (commandTimeout !== null) return commandTimeout;
+    if (commandTimeout === 0) return 0;
+    const archiveTimeout = cloudDesktopBridgeTimeout(args);
+    if (commandTimeout !== null || archiveTimeout !== null)
+      return Math.max(commandTimeout ?? 0, archiveTimeout ?? 0);
   }
   switch (resolveDevBridgeCommandTimeoutProfile(cmd, args)) {
     case "startup-truth":

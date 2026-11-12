@@ -178,9 +178,8 @@ describe("i18n namespace loader", () => {
         "agentChat.decisionPanel.permission.resultLabel",
         "agentChat.decisionPanel.permission.result.allowed",
         "agentChat.decisionPanel.permission.result.denied",
-        "agentChat.messageList.history.persistedEntrySummary",
+        "agentChat.messageList.history.showEarlier",
         "agentChat.messageList.history.loadingMore",
-        "agentChat.messageList.history.loadMore",
         "agentChat.messageList.taskCenterEmpty.title",
         "agentChat.navbar.appSwitcher.open",
         "agentChat.navbar.appSwitcher.toast.noProjectRoot",
@@ -415,36 +414,6 @@ describe("i18n namespace loader", () => {
       );
       expect(resources[locale].common).toHaveProperty(
         "common.execution.latestRunStatus.status.success",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.auth.googleSynced",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.auth.browserPreopenTitle",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.auth.systemBrowserOpenFailedWithMessage",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.payment.returnSyncing",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.session.refreshSuccess",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.emailCode.sent",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.apiKey.createSuccess",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemCloudAccess.label.accessMode.session",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemLimeHubProviderSync.managedKeyAlias",
-      );
-      expect(resources[locale].common).toHaveProperty(
-        "common.oemLimeHubProviderSync.cloudTokenName",
       );
       expect(resources[locale].common).toHaveProperty(
         "common.modelSelector.header.title",
@@ -1038,56 +1007,6 @@ describe("i18n namespace loader", () => {
         "common.execution.latestRunStatus.status.success"
       ],
     ).toBe("成功");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.auth.googleSynced"
-      ],
-    ).toBe("Google 登录成功，已同步云端目录。");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.auth.browserPreopenTitle"
-      ],
-    ).toBe("正在打开登录页...");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.auth.systemBrowserOpenFailedWithMessage"
-      ],
-    ).toBe("系统浏览器打开失败：{{message}}");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.payment.returnSyncing"
-      ],
-    ).toBe("已回到 Lime，正在同步支付状态、权益与账本。");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.session.refreshSuccess"
-      ],
-    ).toBe("已同步最新云端会话、服务目录与服务技能快照。");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.emailCode.sent"
-      ],
-    ).toBe("验证码已发送至 {{maskedEmail}}，有效期约 {{minutes}} 分钟。");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.apiKey.createSuccess"
-      ],
-    ).toBe("已创建 Lime API Key，明文只会在当前页面显示一次。");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemCloudAccess.label.accessMode.session"
-      ],
-    ).toBe("登录会话");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemLimeHubProviderSync.managedKeyAlias"
-      ],
-    ).toBe("Lime 云端模型");
-    expect(
-      loadNamespaceResource("fr-FR", "common")[
-        "common.oemLimeHubProviderSync.cloudTokenName"
-      ],
-    ).toBe("Lime Desktop Cloud Model Key");
     expect(
       loadNamespaceResource("fr-FR", "agent")[
         "agentChat.browserWorkspace.address"

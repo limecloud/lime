@@ -323,6 +323,58 @@
         },
         {
           "additionalProperties": false,
+          "description": "Read the original preparation, or explicitly authorize a network-only ROS stack.\nNo compute purchase occurs here. Unknown submissions are only inspected.",
+          "properties": {
+            "action": {
+              "const": "prepareEcsPurchase",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "operationId",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Find and inspect the durable preparation for this account profile and region.",
+          "properties": {
+            "action": {
+              "const": "readEcsPurchasePreparation",
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "action": {
               "const": "listEcsTemplates",
@@ -614,6 +666,24 @@
         },
         {
           "additionalProperties": false,
+          "description": "Local control only; writes a new private file and returns only its public recipient.",
+          "properties": {
+            "action": {
+              "const": "createArchiveIdentity",
+              "type": "string"
+            },
+            "identityFile": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "identityFile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Local control only; the source recovery key never crosses the desktop connection.",
           "properties": {
             "action": {
@@ -707,6 +777,69 @@
             "expectedSha256",
             "localPath",
             "remote",
+            "upload"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Local control only; reuses the user's managed Alibaba browser identity.",
+          "properties": {
+            "action": {
+              "const": "listOssBuckets",
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "transferOssArchive",
+              "type": "string"
+            },
+            "bucket": {
+              "type": "string"
+            },
+            "expectedSha256": {
+              "type": "string"
+            },
+            "localPath": {
+              "type": "string"
+            },
+            "objectKey": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            },
+            "upload": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "bucket",
+            "expectedSha256",
+            "localPath",
+            "objectKey",
+            "profile",
+            "regionId",
             "upload"
           ],
           "type": "object"
@@ -872,6 +1005,40 @@
         },
         {
           "additionalProperties": false,
+          "description": "Rebuild credentials for an existing managed guest without uploading a runtime.\nCredentials remain on the pinned TLS channel, never the management receipt.",
+          "properties": {
+            "action": {
+              "const": "reconnectEcsRuntime",
+              "type": "string"
+            },
+            "capabilitySha256": {
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudDesktopResource"
+            },
+            "workSaved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "capabilitySha256",
+            "confirmation",
+            "operationId",
+            "resource",
+            "workSaved"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "action": {
               "const": "start",
@@ -927,6 +1094,78 @@
         },
         {
           "additionalProperties": false,
+          "description": "User-confirmed provider deadline, protected by an exact private image.\nThe provider executes even when Lime is closed or the instance is running.",
+          "properties": {
+            "action": {
+              "const": "scheduleEcsRelease",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "discardData": {
+              "type": "boolean"
+            },
+            "imageOperationId": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "releaseAt": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudDesktopResource"
+            },
+            "workSaved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "discardData",
+            "imageOperationId",
+            "operationId",
+            "releaseAt",
+            "resource",
+            "workSaved"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Cancel only the exact observed deadline, then inspect the original receipt.",
+          "properties": {
+            "action": {
+              "const": "cancelEcsRelease",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "releaseAt": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudDesktopResource"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "operationId",
+            "releaseAt",
+            "resource"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Release a stopped PostPaid desktop; disks follow the provider's deletion policy.",
           "properties": {
             "action": {
@@ -938,6 +1177,13 @@
             },
             "discardData": {
               "type": "boolean"
+            },
+            "imageOperationId": {
+              "description": "Retain and freshly verify this exact private system image before releasing the source.",
+              "type": [
+                "null",
+                "string"
+              ]
             },
             "operationId": {
               "type": "string"
@@ -1014,6 +1260,58 @@
             "diskId",
             "resource",
             "snapshotId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Preserve the entire encrypted system snapshot, including login state, as a private image.\nThe source must be a completed local cold-snapshot operation.",
+          "properties": {
+            "action": {
+              "const": "createEcsImage",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "includeCredentials": {
+              "type": "boolean"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "snapshotOperationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "includeCredentials",
+            "operationId",
+            "snapshotOperationId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Local control only; lists owned system images without requiring the original VM or disk.",
+          "properties": {
+            "action": {
+              "const": "listEcsImages",
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "profile",
+            "regionId"
           ],
           "type": "object"
         },
@@ -1140,16 +1438,15 @@
       "description": "Fixed loopback services in the user's persistent Linux desktop.",
       "enum": [
         "appServer",
-        "desktop"
+        "desktop",
+        "installation"
       ],
       "type": "string"
     },
     "CloudRequestMethod": {
       "enum": [
-        "DELETE",
         "GET",
-        "POST",
-        "PUT"
+        "POST"
       ],
       "type": "string"
     },
@@ -1158,18 +1455,43 @@
       "description": "Authenticated client APIs at the current account's issuer. No caller credentials or URL.",
       "properties": {
         "body": true,
+        "language": {
+          "type": "string"
+        },
         "method": {
           "$ref": "#/$defs/CloudRequestMethod"
         },
+        "operationKey": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "path": {
           "type": "string"
+        },
+        "taskId": {
+          "type": [
+            "null",
+            "string"
+          ]
         }
       },
       "required": [
+        "language",
         "method",
         "path"
       ],
       "type": "object"
+    },
+    "CloudResource": {
+      "enum": [
+        "connections",
+        "default",
+        "market",
+        "web"
+      ],
+      "type": "string"
     },
     "CollaborationMode": {
       "description": "Collaboration mode for a session or turn.",
@@ -1727,6 +2049,22 @@
       ],
       "type": "object"
     },
+    "ConnectionInstallation": {
+      "additionalProperties": false,
+      "properties": {
+        "installationId": {
+          "type": "string"
+        },
+        "spaceId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "installationId",
+        "spaceId"
+      ],
+      "type": "object"
+    },
     "DiagnoseDependenciesParams": {
       "additionalProperties": false,
       "properties": {
@@ -1828,7 +2166,7 @@
     },
     "EcsDesktopSpec": {
       "additionalProperties": false,
-      "description": "One user-paid Linux VM. Network and SSH keypair must already exist.\nPurchase always requests an encrypted ESSD system disk; no private key is sent.",
+      "description": "One user-paid Linux VM. Network may be prepared by Lime; SSH keypair is optional.\nPurchase always requests an encrypted ESSD system disk; no private key is sent.",
       "properties": {
         "imageId": {
           "type": "string"
@@ -2118,9 +2456,13 @@
       "type": "object"
     },
     "GetAccountParams": {
+      "additionalProperties": false,
       "properties": {
-        "refreshToken": {
-          "type": "boolean"
+        "authorizationId": {
+          "type": [
+            "null",
+            "string"
+          ]
         }
       },
       "type": "object"
@@ -2245,28 +2587,39 @@
       "type": "object"
     },
     "LoginAccountParams": {
-      "description": "External LimeCore sessions share the account boundary used by every surface.",
+      "description": "The native owner creates PKCE and receives the callback. No imported tokens.",
       "oneOf": [
         {
+          "additionalProperties": false,
           "properties": {
-            "accessToken": {
-              "type": "string"
-            },
             "baseUrl": {
               "type": "string"
             },
-            "tenantId": {
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ConnectionInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "language": {
               "type": "string"
             },
+            "resource": {
+              "$ref": "#/$defs/CloudResource",
+              "default": "default"
+            },
             "type": {
-              "const": "cloudAuthTokens",
+              "const": "cloud",
               "type": "string"
             }
           },
           "required": [
-            "accessToken",
             "baseUrl",
-            "tenantId",
+            "language",
             "type"
           ],
           "type": "object"
@@ -2639,11 +2992,8 @@
     },
     "PluginListMarketplaceKind": {
       "enum": [
-        "created-by-me-remote",
-        "local",
-        "shared-with-me",
-        "vertical",
-        "workspace-directory"
+        "cloud",
+        "local"
       ],
       "type": "string"
     },
@@ -2765,139 +3115,6 @@
         "workspace"
       ],
       "type": "string"
-    },
-    "PluginShareCheckoutParams": {
-      "properties": {
-        "remotePluginId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "remotePluginId"
-      ],
-      "type": "object"
-    },
-    "PluginShareDeleteParams": {
-      "properties": {
-        "remotePluginId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "remotePluginId"
-      ],
-      "type": "object"
-    },
-    "PluginShareDiscoverability": {
-      "enum": [
-        "LISTED",
-        "PRIVATE",
-        "UNLISTED"
-      ],
-      "type": "string"
-    },
-    "PluginShareListParams": {
-      "type": "object"
-    },
-    "PluginSharePrincipalType": {
-      "enum": [
-        "group",
-        "user",
-        "workspace"
-      ],
-      "type": "string"
-    },
-    "PluginShareSaveParams": {
-      "properties": {
-        "discoverability": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PluginShareDiscoverability"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "pluginPath": {
-          "$ref": "#/$defs/AbsolutePathBuf"
-        },
-        "remotePluginId": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "shareTargets": {
-          "items": {
-            "$ref": "#/$defs/PluginShareTarget"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "pluginPath"
-      ],
-      "type": "object"
-    },
-    "PluginShareTarget": {
-      "properties": {
-        "principalId": {
-          "type": "string"
-        },
-        "principalType": {
-          "$ref": "#/$defs/PluginSharePrincipalType"
-        },
-        "role": {
-          "$ref": "#/$defs/PluginShareTargetRole"
-        }
-      },
-      "required": [
-        "principalId",
-        "principalType",
-        "role"
-      ],
-      "type": "object"
-    },
-    "PluginShareTargetRole": {
-      "enum": [
-        "editor",
-        "reader"
-      ],
-      "type": "string"
-    },
-    "PluginShareUpdateDiscoverability": {
-      "enum": [
-        "LISTED",
-        "PRIVATE",
-        "UNLISTED"
-      ],
-      "type": "string"
-    },
-    "PluginShareUpdateTargetsParams": {
-      "properties": {
-        "discoverability": {
-          "$ref": "#/$defs/PluginShareUpdateDiscoverability"
-        },
-        "remotePluginId": {
-          "type": "string"
-        },
-        "shareTargets": {
-          "items": {
-            "$ref": "#/$defs/PluginShareTarget"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "discoverability",
-        "remotePluginId",
-        "shareTargets"
-      ],
-      "type": "object"
     },
     "PluginSkillReadParams": {
       "properties": {
@@ -7607,106 +7824,6 @@
         },
         "params": {
           "$ref": "#/$defs/PluginReconcileParams"
-        }
-      },
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        },
-        "method": {
-          "const": "plugin/share/save",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PluginShareSaveParams"
-        }
-      },
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        },
-        "method": {
-          "const": "plugin/share/list",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PluginShareListParams"
-        }
-      },
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        },
-        "method": {
-          "const": "plugin/share/updateTargets",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PluginShareUpdateTargetsParams"
-        }
-      },
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        },
-        "method": {
-          "const": "plugin/share/checkout",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PluginShareCheckoutParams"
-        }
-      },
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        },
-        "method": {
-          "const": "plugin/share/delete",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PluginShareDeleteParams"
         }
       },
       "required": [

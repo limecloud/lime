@@ -1,16 +1,10 @@
-import { requestControlPlane } from "@/lib/api/oemCloudControlPlaneRuntime";
-import {
-  hasOemCloudSession,
-  resolveOemCloudRuntimeContext,
-} from "@/lib/api/oemCloudRuntime";
-
 const EXPERT_AGENT_INSTANCES_STORAGE_KEY = "lime:expert-agent-instances:v1";
 const MAX_EXPERT_AGENT_INSTANCES = 100;
 
 export type ExpertAgentInstanceStatus = "active" | "archived";
 
 export interface ExpertAgentInstanceIdentity {
-  tenantId: string;
+  catalogId: string;
   projectId?: string | null;
   expertId: string;
   releaseId: string;
@@ -25,10 +19,6 @@ export interface ExpertAgentInstanceRecord extends ExpertAgentInstanceIdentity {
   createdAt: number;
   updatedAt: number;
   lastStartedAt: number;
-}
-
-interface CloudExpertAgentInstanceListPayload {
-  items?: unknown[];
 }
 
 function normalizeText(value: unknown): string | null {
@@ -81,7 +71,7 @@ export function buildExpertAgentInstanceKey(
   identity: ExpertAgentInstanceIdentity,
 ): string {
   const projectId = normalizeProjectScopeId(identity.projectId);
-  return [identity.tenantId, projectId, identity.expertId, identity.releaseId]
+  return [identity.catalogId, projectId, identity.expertId, identity.releaseId]
     .filter((item): item is string => Boolean(item))
     .map((item) => item.trim())
     .join(":");
@@ -100,15 +90,15 @@ function normalizeExpertAgentInstanceRecord(
     return null;
   }
   const record = value as Record<string, unknown>;
-  const tenantId = normalizeText(record.tenantId);
+  const catalogId = normalizeText(record.catalogId);
   const projectId = normalizeProjectScopeId(record.projectId);
   const expertId = normalizeText(record.expertId);
   const releaseId = normalizeText(record.releaseId);
-  if (!tenantId || !expertId || !releaseId) {
+  if (!catalogId || !expertId || !releaseId) {
     return null;
   }
   const identity = {
-    tenantId,
+    catalogId,
     ...(projectId ? { projectId } : {}),
     expertId,
     releaseId,
@@ -208,7 +198,7 @@ export function upsertExpertAgentInstance(
   const existing = current.find((item) => item.agentInstanceKey === key);
   const record: ExpertAgentInstanceRecord = {
     ...(existing ?? {
-      tenantId: identity.tenantId.trim(),
+      catalogId: identity.catalogId.trim(),
       ...(projectId ? { projectId } : {}),
       expertId: identity.expertId.trim(),
       releaseId: identity.releaseId.trim(),
@@ -244,90 +234,6 @@ export function updateExpertAgentInstanceSkillRefs(
     ...identity,
     skillRefsOverride: identity.skillRefsOverride,
   });
-}
-
-function normalizeCloudExpertAgentInstance(
-  value: unknown,
-  tenantId: string,
-): ExpertAgentInstanceRecord | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  const record = value as Record<string, unknown>;
-  return normalizeExpertAgentInstanceRecord({
-    tenantId,
-    projectId: record.projectId,
-    expertId: record.expertId,
-    releaseId: record.releaseId,
-    agentInstanceId: record.id,
-    catalogVersion: record.catalogVersion,
-    skillRefsOverride: record.skillRefsOverride,
-    status: record.status,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    lastStartedAt: record.lastStartedAt,
-  });
-}
-
-function mergeCloudExpertAgentInstances(
-  tenantId: string,
-  cloudRecords: ExpertAgentInstanceRecord[],
-): ExpertAgentInstanceRecord[] {
-  const cloudKeys = new Set(
-    cloudRecords.map((record) => record.agentInstanceKey),
-  );
-  const localOnlyRecords = readExpertAgentInstances().filter((record) => {
-    if (record.tenantId !== tenantId) {
-      return true;
-    }
-    return !cloudKeys.has(record.agentInstanceKey);
-  });
-  return saveExpertAgentInstances([...cloudRecords, ...localOnlyRecords]);
-}
-
-export async function refreshExpertAgentInstancesFromCloud(): Promise<
-  ExpertAgentInstanceRecord[]
-> {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!hasOemCloudSession(runtime)) {
-    return readExpertAgentInstances();
-  }
-
-  const data = await requestControlPlane<CloudExpertAgentInstanceListPayload>(
-    `/v1/public/tenants/${encodeURIComponent(runtime.tenantId)}/client/expert-agent-instances?status=active`,
-    { auth: true },
-  );
-  const cloudRecords = (Array.isArray(data.items) ? data.items : [])
-    .map((item) => normalizeCloudExpertAgentInstance(item, runtime.tenantId))
-    .filter((item): item is ExpertAgentInstanceRecord => Boolean(item));
-  return mergeCloudExpertAgentInstances(runtime.tenantId, cloudRecords);
-}
-
-export async function syncExpertAgentInstanceToCloud(
-  record: ExpertAgentInstanceRecord,
-): Promise<void> {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!hasOemCloudSession(runtime)) {
-    return;
-  }
-  if (runtime.tenantId !== record.tenantId) {
-    return;
-  }
-
-  await requestControlPlane(
-    `/v1/public/tenants/${encodeURIComponent(runtime.tenantId)}/client/expert-agent-instances`,
-    {
-      method: "POST",
-      auth: true,
-      payload: {
-        projectId: record.projectId,
-        expertId: record.expertId,
-        releaseId: record.releaseId,
-        catalogVersion: record.catalogVersion,
-        skillRefsOverride: record.skillRefsOverride,
-      },
-    },
-  );
 }
 
 export const expertAgentInstanceStorageKeys = {

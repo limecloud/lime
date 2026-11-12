@@ -188,6 +188,13 @@
     },
     "FileChangeRequestApprovalParams": {
       "properties": {
+        "destinations": {
+          "description": "Paths the patch writes to, sorted and deduplicated.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "grantRoot": {
           "default": null,
           "type": [

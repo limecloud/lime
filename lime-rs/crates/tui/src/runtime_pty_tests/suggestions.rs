@@ -27,7 +27,7 @@ pub(super) fn exercise_suggestion_menus(
         .write_all(b"\x1b[1;1:2A")
         .expect("repeat wraps slash selection to last command");
     writer.flush().unwrap();
-    wait_for_screen_marker(output_rx, output, "› /vim", Duration::from_secs(10));
+    wait_for_screen_marker(output_rx, output, "› /keymap", Duration::from_secs(10));
     writer
         .write_all(b"\x1b")
         .expect("cancel slash suggestions without submitting draft");

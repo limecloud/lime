@@ -79,8 +79,7 @@ export function usePluginSkillPreferences(
     try {
       if (enabled !== null) {
         await setPluginSkillEnabled({
-          remotePluginId: remoteId,
-          skillName,
+          path: projected.skills.find(skill => skill.name === skillName)?.path ?? (() => { throw new Error("skill path required"); })(),
           enabled,
         });
         saved = true;

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-10T18:12:57.266Z",
+  "generatedAt": "2026-11-11T13:35:50.528Z",
   "sources": {
     "lime": "lime-rs/crates",
     "upstreamRoot": "/Users/coso/Documents/dev/rust/codex/codex-rs",
     "upstreamRevision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2"
   },
   "totals": {
-    "limeFiles": 2751,
-    "limeLines": 849953,
+    "limeFiles": 2769,
+    "limeLines": 856181,
     "upstreamFiles": 5932,
     "upstreamLines": 2323902
   },
@@ -140,9 +140,9 @@
         "upstream": "utils/path-uri/src/platform_tests.rs"
       }
     ],
-    "sameNameCompared": 1504,
+    "sameNameCompared": 1513,
     "similarityBuckets": {
-      "0.00-0.20": 1352,
+      "0.00-0.20": 1361,
       "0.20-0.50": 42,
       "0.50-0.80": 38,
       "0.80-0.95": 24,
@@ -363,7 +363,7 @@
       ],
       "capability": "split",
       "owner": null,
-      "limeLines": 131447
+      "limeLines": 131710
     },
     {
       "upstreamCrate": "protocol",
@@ -381,7 +381,7 @@
       ],
       "capability": "equivalent",
       "owner": null,
-      "limeLines": 27881
+      "limeLines": 28000
     },
     {
       "upstreamCrate": "app-server-transport",
@@ -390,7 +390,7 @@
       ],
       "capability": "equivalent",
       "owner": null,
-      "limeLines": 2673
+      "limeLines": 2679
     },
     {
       "upstreamCrate": "app-server-client",
@@ -408,7 +408,7 @@
       ],
       "capability": "equivalent",
       "owner": null,
-      "limeLines": 317765
+      "limeLines": 318604
     },
     {
       "upstreamCrate": "app-server-daemon",
@@ -463,7 +463,7 @@
       ],
       "capability": "split",
       "owner": null,
-      "limeLines": 65104
+      "limeLines": 65298
     },
     {
       "upstreamCrate": "sandboxing",
@@ -571,7 +571,7 @@
       ],
       "capability": "equivalent",
       "owner": null,
-      "limeLines": 14095
+      "limeLines": 14171
     },
     {
       "upstreamCrate": "model-provider",
@@ -712,7 +712,7 @@
     },
     {
       "file": "lime-rs/crates/app-server/src/lib.rs",
-      "lines": 2042
+      "lines": 2045
     },
     {
       "file": "lime-rs/crates/permissions/src/permissions_tests.rs",
@@ -840,7 +840,7 @@
     },
     {
       "file": "lime-rs/crates/app-server-protocol/src/schema_export/registry.rs",
-      "lines": 1263
+      "lines": 1264
     },
     {
       "file": "lime-rs/crates/app-server/src/runtime/thread_item_projection/typed_tests.rs",
@@ -884,7 +884,7 @@
     },
     {
       "file": "lime-rs/crates/mcp/src/elicitation_tests.rs",
-      "lines": 1153
+      "lines": 1159
     },
     {
       "file": "lime-rs/crates/core/src/database/dao/agent_timeline.rs",
@@ -947,12 +947,12 @@
       "lines": 1050
     },
     {
-      "file": "lime-rs/crates/utils-path-uri/src/lib.rs",
-      "lines": 1047
+      "file": "lime-rs/crates/tool-runtime/src/execution_process.rs",
+      "lines": 1048
     },
     {
-      "file": "lime-rs/crates/tool-runtime/src/execution_process.rs",
-      "lines": 1045
+      "file": "lime-rs/crates/utils-path-uri/src/lib.rs",
+      "lines": 1047
     },
     {
       "file": "lime-rs/crates/cli/src/main.rs",

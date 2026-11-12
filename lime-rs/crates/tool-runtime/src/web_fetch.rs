@@ -145,6 +145,11 @@ impl RuntimeWebFetchExecutor {
                 request.tool_name
             )));
         }
+        if request.params.get("operation_key").is_some() {
+            return Err(runtime_web_fetch_error(
+                "web_operation_recovery_requires_account",
+            ));
+        }
         let mode = request
             .turn_context
             .and_then(|context| context.web_search_mode)
@@ -358,6 +363,11 @@ pub fn web_fetch_tool_definition() -> RuntimeToolDefinition {
                     "type": "integer",
                     "minimum": 1,
                     "description": "可选。动态过滤保留的最大内容片段数，默认 8"
+                },
+                "operation_key": {
+                    "type": "string",
+                    "pattern": "^tool_[a-f0-9]{64}$",
+                    "description": "恢复原读取时传入结果中的 operationKey，并保留原参数；仅查询原结果，不重新读取来源"
                 }
             },
             "required": ["url", "prompt"]

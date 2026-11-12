@@ -306,6 +306,21 @@ describe("appServerCanonicalThreadProjection", () => {
     expect(sessions?.[0]).not.toHaveProperty("queuedTurnCount");
   });
 
+  it("projects forkedFromId into the canonical read model", () => {
+    const detail = readCanonicalThreadDetail({
+      thread: {
+        id: "thread-fork",
+        sessionId: "session-fork",
+        forkedFromId: "thread-parent",
+        status: { type: "idle" },
+        createdAt: CREATED_AT_SECONDS,
+        updatedAt: CREATED_AT_SECONDS,
+        turns: [],
+      },
+    });
+    expect(detail?.thread_read?.forked_from_id).toBe("thread-parent");
+  });
+
   it("保留 App Server parent-owned direct-input policy", () => {
     const detail = readCanonicalThreadDetail({
       thread: {

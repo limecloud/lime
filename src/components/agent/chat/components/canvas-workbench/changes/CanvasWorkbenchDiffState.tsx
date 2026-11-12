@@ -261,9 +261,9 @@ export function CanvasWorkbenchDiffState({
               className={cn(
                 "grid grid-cols-[52px_28px_minmax(0,1fr)] border-b border-[color:var(--lime-surface-border)] border-l-2 font-mono text-[12px] leading-6",
                 line.type === "add" &&
-                  "border-l-[color:var(--lime-brand)] bg-[color:var(--lime-brand-soft)] text-[color:var(--lime-text-strong)]",
+                  "border-l-[color:var(--lime-diff-add-border)] bg-[color:var(--lime-diff-add-bg)] text-[color:var(--lime-text-strong)]",
                 line.type === "remove" &&
-                  "border-l-[color:var(--lime-danger)] bg-[color:var(--lime-danger-soft)] text-[color:var(--lime-text-strong)]",
+                  "border-l-[color:var(--lime-diff-remove-border)] bg-[color:var(--lime-diff-remove-bg)] text-[color:var(--lime-text-strong)]",
                 line.type === "context" &&
                   "border-l-transparent bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]",
               )}
@@ -272,9 +272,9 @@ export function CanvasWorkbenchDiffState({
                 className={cn(
                   "select-none border-r border-[color:var(--lime-surface-border)] px-2 py-1.5 text-right text-[11px] text-[color:var(--lime-text-muted)]",
                   line.type === "add" &&
-                    "bg-[color:var(--lime-brand-muted)] text-[color:var(--lime-text-strong)]",
+                    "bg-[color:var(--lime-diff-add-number-bg)] text-[color:var(--lime-text-strong)]",
                   line.type === "remove" &&
-                    "bg-[color:var(--lime-danger-border)] text-[color:var(--lime-text-strong)]",
+                    "bg-[color:var(--lime-diff-remove-number-bg)] text-[color:var(--lime-text-strong)]",
                 )}
               >
                 {displayedLineNumber}
@@ -282,8 +282,10 @@ export function CanvasWorkbenchDiffState({
               <span
                 className={cn(
                   "select-none border-r border-[color:var(--lime-surface-border)] px-1 py-1.5 text-center font-semibold",
-                  line.type === "add" && "text-[color:var(--lime-brand)]",
-                  line.type === "remove" && "text-[color:var(--lime-danger)]",
+                  line.type === "add" &&
+                    "text-[color:var(--lime-diff-add-border)]",
+                  line.type === "remove" &&
+                    "text-[color:var(--lime-diff-remove-border)]",
                   line.type === "context" &&
                     "text-[color:var(--lime-text-muted)]",
                 )}

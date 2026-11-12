@@ -7,7 +7,7 @@ import { buildExpertSkillRuntimeCandidates } from "./expertSkillRuntimeCandidate
 
 const TEST_CATALOG: SkillCatalog = {
   version: "test",
-  tenantId: "local",
+  catalogId: "local",
   syncedAt: "2026-06-21T00:00:00.000Z",
   items: [],
   entries: [

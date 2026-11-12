@@ -281,6 +281,21 @@ fn runtime_result_from_content(
     )
 }
 
+/// Apply the same local excerpt policy to text returned by a trusted web gateway.
+/// The text remains external data; this function never runs another network request.
+pub fn prepare_web_page_text(text: &str, input: &WebFetchInput) -> (String, bool) {
+    prepare_response_content(
+        text,
+        WebFetchContentOptions {
+            prompt: &input.prompt,
+            focus_query: input.focus_query.as_deref(),
+            dynamic_filter: input.dynamic_filter,
+            max_chars: input.max_chars,
+            max_chunks: input.max_chunks,
+        },
+    )
+}
+
 fn runtime_result_from_redirect(
     url: &str,
     input: &WebFetchInput,

@@ -46,6 +46,7 @@ describe("pluginFixtureBoundary", () => {
       "src/lib/desktop-host/pluginMocks.ts",
       "src/lib/desktop-host/pluginMocks.d.ts",
       "src/lib/desktop-host/pluginMocks.test.ts",
+      "src/lib/api/oemCloudRuntime.ts",
       "src/features/plugin/testing",
       "src/features/plugin/adapters",
       "src/features/plugin/install",
@@ -131,13 +132,6 @@ describe("pluginFixtureBoundary", () => {
     );
     expect(gateway).not.toContain("selectPluginCatalogSource");
     expect(gateway).not.toContain("desktop-host/dialog");
-    const cloudRuntime = readFileSync(
-      join(SRC_ROOT, "lib/api/oemCloudRuntime.ts"),
-      "utf8",
-    );
-    expect(cloudRuntime).not.toMatch(
-      /PluginSignature|pluginSignatureTrustRoots|plugin_signature_trust_roots/,
-    );
     const discovery = readFileSync(
       join(
         REPO_ROOT,

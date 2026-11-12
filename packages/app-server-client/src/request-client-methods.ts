@@ -719,36 +719,6 @@ export const APP_SERVER_REQUEST_CLIENT_METHODS: readonly AppServerRequestClientM
       params: "optional-empty",
     },
     {
-      name: "savePluginShare",
-      method: protocol.METHOD_PLUGIN_SHARE_SAVE,
-      kind: "request",
-      params: "required",
-    },
-    {
-      name: "listPluginShares",
-      method: protocol.METHOD_PLUGIN_SHARE_LIST,
-      kind: "request",
-      params: "optional-empty",
-    },
-    {
-      name: "updatePluginShareTargets",
-      method: protocol.METHOD_PLUGIN_SHARE_UPDATE_TARGETS,
-      kind: "request",
-      params: "required",
-    },
-    {
-      name: "checkoutPluginShare",
-      method: protocol.METHOD_PLUGIN_SHARE_CHECKOUT,
-      kind: "request",
-      params: "required",
-    },
-    {
-      name: "deletePluginShare",
-      method: protocol.METHOD_PLUGIN_SHARE_DELETE,
-      kind: "request",
-      params: "required",
-    },
-    {
       name: "reconcilePlugins",
       method: protocol.METHOD_PLUGIN_RECONCILE,
       kind: "request",

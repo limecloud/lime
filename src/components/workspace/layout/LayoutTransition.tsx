@@ -188,6 +188,8 @@ interface LayoutTransitionProps {
   transitionConfig?: TransitionConfig;
   mainToolbar?: React.ReactNode;
   sidePanelTabStrip?: React.ReactNode;
+  inlineMainToolbar?: boolean;
+  inlineSidePanelTabs?: boolean;
   mainTabLabel?: string;
   /** chat-canvas 模式下聊天面板宽度 */
   chatPanelWidth?: string;
@@ -209,6 +211,8 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
     transitionConfig,
     mainToolbar,
     sidePanelTabStrip,
+    inlineMainToolbar = false,
+    inlineSidePanelTabs = false,
     mainTabLabel,
     chatPanelWidth,
     contentPaneDefaultWidth,
@@ -242,7 +246,8 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
     >(null);
     const [resizingChatPanel, setResizingChatPanel] = useState(false);
     const hasCanvasContent = React.Children.count(canvasContent) > 0;
-    const hasSidePanelTabs = React.Children.count(sidePanelTabStrip) > 0;
+    const hasSidePanelTabs =
+      inlineSidePanelTabs || React.Children.count(sidePanelTabStrip) > 0;
     const effectiveMode: LayoutMode = hasCanvasContent ? mode : "chat";
     const effectiveChatPanelWidth = useMemo(
       () =>
@@ -629,8 +634,9 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
       >
         <UnifiedTabStrip
           mode={isCompactChatCanvas ? "full" : "split"}
-          isVisible={effectiveMode !== "chat"}
+          isVisible={inlineMainToolbar || effectiveMode !== "chat"}
           desktopPlacement="titlebar"
+          inlineMainToolbar={inlineMainToolbar}
           mainTabId={mainTabId}
           mainTabPanelId={mainTabPanelId}
           sidePanelActive={!canvasHidden}
@@ -641,10 +647,18 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
               id={!isCompactChatCanvas ? mainTabId : undefined}
               className="h-full min-w-0 flex-1"
             >
-              {mainToolbar ?? (
-                <HeaderToolbar>
-                  {mainTabLabel ?? t("workspace.layout.compactMode.chat")}
-                </HeaderToolbar>
+              {inlineMainToolbar ? (
+                <SidePanelActivationContext.Provider
+                  value={activateSidePanel}
+                >
+                  {mainToolbar}
+                </SidePanelActivationContext.Provider>
+              ) : (
+                (mainToolbar ?? (
+                  <HeaderToolbar>
+                    {mainTabLabel ?? t("workspace.layout.compactMode.chat")}
+                  </HeaderToolbar>
+                ))
               )}
             </div>
           }
@@ -652,7 +666,11 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
             <div
               className="flex h-full min-w-0 items-center"
               onClickCapture={(event) => {
-                if ((event.target as Element).closest('[role="tab"]'))
+                if (
+                  (event.target as Element).closest(
+                    '[data-inline-side-panel-tabs] [role="tab"]',
+                  )
+                )
                   setCompactPrimaryPanel("canvas");
               }}
             >
@@ -660,7 +678,7 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
                 <SidePanelActivationContext.Provider value={activateSidePanel}>
                   {sidePanelTabStrip}
                 </SidePanelActivationContext.Provider>
-              ) : (
+              ) : inlineSidePanelTabs ? null : (
                 <button
                   type="button"
                   role="tab"
@@ -678,7 +696,7 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
             </div>
           }
         >
-          {isCompactChatCanvas ? (
+          {isCompactChatCanvas && !inlineMainToolbar ? (
             <button
               type="button"
               role="tab"

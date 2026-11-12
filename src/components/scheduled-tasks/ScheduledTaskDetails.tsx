@@ -29,6 +29,7 @@ export function ScheduledTaskDetails({ task, runs, loadingRuns, busyAction, loca
   const currentRun = runs.find((run) => run.status === "running" || run.status === "queued") ?? task.lastRunSummary;
   const status = scheduledTaskStatusLabel(currentRun, task.enabled, Boolean(currentRun?.error), copy);
   const running = currentRun?.status === "running" || currentRun?.status === "queued";
+  const latestSessionRun = runs.find((run) => run.sessionId);
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
       <header className="flex min-h-16 items-center gap-3 border-b border-slate-200 px-4 py-3 sm:px-7">
@@ -40,6 +41,14 @@ export function ScheduledTaskDetails({ task, runs, loadingRuns, busyAction, loca
           </div>
           <h2 className="mt-0.5 truncate text-lg font-semibold text-slate-950" title={task.title}>{task.title}</h2>
         </div>
+        {!running && latestSessionRun?.sessionId ? (
+          <Button
+            variant="outline"
+            onClick={() => onOpenRun(latestSessionRun)}
+          >
+            {t("scheduledTasks.action.openRun")}
+          </Button>
+        ) : null}
         {running && currentRun?.sessionId ? (
           <Button className="bg-slate-900 hover:bg-slate-800" onClick={() => onOpenRun(currentRun)}>{t("scheduledTasks.action.openRun")}</Button>
         ) : (

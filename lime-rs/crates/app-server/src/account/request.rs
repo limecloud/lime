@@ -1,147 +1,417 @@
-use super::{cloud, store, AccountManager};
-use app_server_protocol::protocol::v2::{
-    Account, CloudRequestMethod, CloudRequestParams, CloudRequestResponse,
+use super::{
+    cloud, credentials::ensure_credential, oauth::validate_language, operations::Operation, store,
+    AccountManager,
 };
-use futures::StreamExt;
-
-const MAX_BODY_BYTES: usize = 4 * 1024 * 1024;
+use app_server_protocol::protocol::v2::{
+    Account, CloudOperationReference, CloudRequestMethod, CloudRequestParams, CloudRequestResponse,
+    CloudResource,
+};
 
 impl AccountManager {
     pub(crate) async fn request(
         &self,
         params: CloudRequestParams,
     ) -> Result<CloudRequestResponse, String> {
-        let credential = store::load(&self.path)?.ok_or("cloud account is not logged in")?;
-        let Account::Cloud {
-            base_url,
-            tenant_id,
-            expires_at,
-            ..
-        } = &credential.account;
-        if let Some(expires_at) = expires_at {
-            let expires = chrono::DateTime::parse_from_rfc3339(expires_at)
-                .map_err(|_| "cloud account expiresAt is invalid")?;
-            if expires <= chrono::Utc::now() {
-                return Err("cloud account has expired".to_string());
+        validate_language(&params.language)?;
+        let epoch = store::load(&self.path)?.epoch;
+        if !params.path.starts_with("/operations/") {
+            route(&params.path, params.method)?;
+            if params.path.starts_with("/catalog/")
+                || params.path.starts_with("/market/")
+                || params.path.starts_with("/web/")
+                || params.path.starts_with("/connections/")
+                || params.path.starts_with("/connection-")
+            {
+                self.ensure_product_user(&params.language, &epoch).await?;
             }
         }
-        let (mut base, loopback) = cloud::validated_base_url(base_url)?;
-        let base_path = base.path().trim_end_matches('/').to_string();
-        base.path_segments_mut()
-            .map_err(|_| "cloud account URL cannot be a base")?
-            .pop_if_empty()
-            .extend(["api", "v1", "public", "tenants", tenant_id, "client", ""]);
-        let prefix = base.path().to_string();
-        // Encoded separators in an opaque query cursor do not alter the URL path.
-        let lowered = params
-            .path
-            .split('?')
-            .next()
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if !params.path.starts_with('/')
-            || params.path.starts_with("//")
-            || params.path.contains(['\\', '#'])
-            || params.path.chars().any(char::is_control)
-            || ["%2f", "%5c", "%2e"]
-                .iter()
-                .any(|part| lowered.contains(part))
+        self.dispatch(params, &epoch).await
+    }
+
+    pub(super) async fn dispatch(
+        &self,
+        params: CloudRequestParams,
+        expected_epoch: &str,
+    ) -> Result<CloudRequestResponse, String> {
+        self.dispatch_with_cancel(params, expected_epoch, None)
+            .await
+    }
+
+    pub(super) async fn dispatch_with_cancel(
+        &self,
+        params: CloudRequestParams,
+        expected_epoch: &str,
+        cancel: Option<&tokio_util::sync::CancellationToken>,
+    ) -> Result<CloudRequestResponse, String> {
+        validate_language(&params.language)?;
+        // Native operation reads restore the original task and input; they never
+        // dispatch a Cloud request or import a caller-supplied credential.
+        if let Some(key) = params.path.strip_prefix("/operations/") {
+            if params.method != CloudRequestMethod::Get
+                || params.body.is_some()
+                || params.operation_key.is_some()
+                || params.task_id.is_some()
+            {
+                return Err("cloud_request_invalid".into());
+            }
+            return store::with_lock(&self.path, || {
+                let account = self
+                    .read(Default::default())?
+                    .account
+                    .ok_or("account_login_required")?;
+                let value = self.operation(&account, key)?;
+                Ok(CloudRequestResponse {
+                    account,
+                    status: if value.is_some() { 200 } else { 404 },
+                    body: serde_json::to_value(value).map_err(|_| "operation_store_invalid")?,
+                    operation: None,
+                })
+            });
+        }
+        let (resource, recovery_prefix) = route(&params.path, params.method)?;
+        let post = params.method == CloudRequestMethod::Post;
+        if post != params.body.is_some()
+            || !post && (params.operation_key.is_some() || params.task_id.is_some())
         {
-            return Err("cloud request path is invalid".to_string());
+            return Err("cloud_request_invalid".into());
         }
-        let url = reqwest::Url::parse(&format!("{base_url}/api{}", params.path))
-            .map_err(|_| "cloud request URL is invalid")?;
-        if url.origin() != base.origin()
-            || !url.path().starts_with(&prefix)
-            || !url.path().starts_with(&format!("{base_path}/api/"))
-            || !url.username().is_empty()
-            || url.password().is_some()
-        {
-            return Err(
-                "cloud request must target the current account tenant client API".to_string(),
-            );
-        }
-        let method = match params.method {
-            CloudRequestMethod::Get => reqwest::Method::GET,
-            CloudRequestMethod::Post => reqwest::Method::POST,
-            CloudRequestMethod::Put => reqwest::Method::PUT,
-            CloudRequestMethod::Delete => reqwest::Method::DELETE,
-        };
-        if method == reqwest::Method::GET && params.body.is_some() {
-            return Err("cloud GET request cannot include a body".to_string());
-        }
-        let client = if loopback {
-            &self.loopback_client
-        } else {
-            &self.client
-        };
-        let mut request = client
-            .request(method, url.clone())
-            .header(reqwest::header::ACCEPT, "application/json")
-            .bearer_auth(&credential.access_token);
-        if let Some(body) = params.body {
-            let bytes = serde_json::to_vec(&body).map_err(|_| "cloud request body is invalid")?;
-            if bytes.len() > MAX_BODY_BYTES {
-                return Err("cloud request body exceeds size limit".to_string());
+        let operation = if post {
+            let key = params
+                .operation_key
+                .as_deref()
+                .ok_or("operation_key_required")?;
+            let task_id = params.task_id.as_deref().ok_or("task_id_required")?;
+            if task_id.is_empty() || task_id.len() > 256 || task_id.chars().any(char::is_control) {
+                return Err("task_id_invalid".into());
             }
-            request = request
-                .header(reqwest::header::CONTENT_TYPE, "application/json")
-                .body(bytes);
-        }
-        let response = request.send().await.map_err(|_| "cloud request failed")?;
-        let status = response.status().as_u16();
-        if response.status().is_redirection() {
-            return Err("cloud request redirects are not allowed".to_string());
-        }
-        let mut bytes = Vec::new();
-        let mut stream = response.bytes_stream();
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|_| "failed to read cloud response")?;
-            if bytes.len().saturating_add(chunk.len()) > MAX_BODY_BYTES {
-                return Err("cloud response exceeds size limit".to_string());
+            let input = params.body.clone().ok_or("cloud_request_invalid")?;
+            if !input.is_object()
+                || serde_json::to_vec(&input)
+                    .map_err(|_| "cloud_request_invalid")?
+                    .len()
+                    > 128 * 1024
+            {
+                return Err("cloud_request_invalid".into());
             }
-            bytes.extend_from_slice(&chunk);
-        }
-        let mut body: serde_json::Value = if bytes.is_empty() {
-            serde_json::Value::Null
+            let recovery_path = if recovery_prefix == "/product-users/self" {
+                recovery_prefix.into()
+            } else {
+                format!("{recovery_prefix}{key}")
+            };
+            Some(Operation {
+                key: key.into(),
+                task_id: task_id.into(),
+                path: params.path.clone(),
+                input,
+                language: params.language.clone(),
+                recovery_path,
+                status: "outcome_unknown".into(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+            })
         } else {
-            serde_json::from_slice(&bytes).map_err(|_| "cloud response is not JSON")?
+            None
         };
-        // Session/bootstrap metadata may include the issuer's login token. It stays in this owner.
-        if matches!(url.path().rsplit('/').next(), Some("session" | "bootstrap")) {
-            if let Some(data) = body.get_mut("data") {
-                if let Some(session) = data
-                    .get_mut("session")
-                    .and_then(|value| value.as_object_mut())
+        if let Some(value) = &operation {
+            // A saved dispatch is recovered locally even when the resource
+            // token expired or its rotating refresh result is unknown.
+            let previous = store::with_lock(&self.path, || {
+                let metadata = self
+                    .read(Default::default())?
+                    .account
+                    .ok_or("account_login_required")?;
+                let Some(original) = self.operation(&metadata, &value.key)? else {
+                    return Ok(None);
+                };
+                if original.task_id != value.task_id
+                    || original.path != value.path
+                    || original.input != value.input
                 {
-                    session.remove("token");
+                    return Err("operation_key_conflict".into());
                 }
-                if let Some(data) = data.as_object_mut() {
-                    data.remove("token");
-                    data.remove("sessionToken");
-                }
+                Ok(Some(duplicate(metadata, &original)))
+            })?;
+            if let Some(previous) = previous {
+                return Ok(previous);
             }
         }
-        if contains_credential(&body, &credential.access_token) {
-            return Err("cloud response contains an account credential".to_string());
+        let (epoch, account, credential) = self.credential(resource, &params.language).await?;
+        if epoch != expected_epoch {
+            return Err("account_changed".into());
         }
-        Ok(CloudRequestResponse {
-            account: credential.account,
-            status,
-            body,
+        let Account::Cloud { base_url, .. } = &account;
+        if cancel.is_some_and(|token| token.is_cancelled()) {
+            return Err("cloud_tool_cancelled".into());
+        }
+        if let Some(operation) = &operation {
+            if !self.begin_operation(&account, &epoch, operation)? {
+                let original = self
+                    .operation(&account, &operation.key)?
+                    .ok_or("operation_store_invalid")?;
+                let metadata = self
+                    .read(Default::default())?
+                    .account
+                    .ok_or("account_changed")?;
+                return Ok(duplicate(metadata, &original));
+            }
+        }
+        let method = if post {
+            reqwest::Method::POST
+        } else {
+            reqwest::Method::GET
+        };
+        let mut request = self
+            .http(base_url)?
+            .request(
+                method,
+                format!("{base_url}{}{}", cloud::PREFIX, params.path),
+            )
+            .header("Accept", "application/json")
+            .header("Accept-Language", &params.language)
+            .bearer_auth(&credential.tokens.access_token);
+        if let Some(value) = &operation {
+            request = request
+                .header("Idempotency-Key", &value.key)
+                .json(&value.input);
+        }
+        let result = async {
+            let response = request.send().await.map_err(|_| "cloud_unavailable")?;
+            if response.status().is_redirection() {
+                return Err("cloud_response_invalid");
+            }
+            let status = response.status().as_u16();
+            let bytes = cloud::response_bytes(response)
+                .await
+                .map_err(|_| "cloud_unavailable")?;
+            let body: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(|_| "cloud_response_invalid")?;
+            let state = store::load(&self.path).map_err(|_| "account_store_unavailable")?;
+            for token in state
+                .credentials
+                .values()
+                .flat_map(|c| {
+                    [
+                        Some(c.tokens.access_token.as_str()),
+                        c.tokens.refresh_token.as_deref(),
+                        c.tokens.id_token.as_deref(),
+                    ]
+                })
+                .flatten()
+            {
+                if contains_credential(&body, token) {
+                    return Err("cloud_response_invalid");
+                }
+            }
+            Ok((status, body))
+        }
+        .await;
+        let (status, body) = match result {
+            Ok(value) => value,
+            Err(error) if !post => return Err(error.into()),
+            Err(_) => (502, serde_json::json!({"error":"outcome_unknown"})),
+        };
+        // Publication and journal updates share the same short local lock.
+        // Logout or refresh cannot replace identity between the final fence and
+        // the metadata projection. No network request is made under this lock.
+        store::with_lock(&self.path, || {
+            ensure_credential(
+                &store::load(&self.path)?,
+                &epoch,
+                resource,
+                &credential.tokens.access_token,
+            )?;
+            let mut operation = operation;
+            if !post && status == 200 {
+                if let Some(key) = params
+                    .path
+                    .rsplit('/')
+                    .next()
+                    .filter(|key| operation_key(key))
+                {
+                    if let Some(mut saved) = self.operation(&account, key)? {
+                        if saved.recovery_path == params.path {
+                            if saved.status != "resolved" {
+                                saved.status = result_status(&body).into();
+                            }
+                            self.save_operation(&account, &saved)?;
+                            operation = Some(saved);
+                        }
+                    }
+                }
+            }
+            if post {
+                if let Some(value) = &mut operation {
+                    value.status = if (200..300).contains(&status) {
+                        result_status(&body)
+                    } else {
+                        "outcome_unknown"
+                    }
+                    .into();
+                    self.save_operation(&account, value)?;
+                }
+            }
+            let metadata = self
+                .read(Default::default())?
+                .account
+                .ok_or("account_changed")?;
+            Ok(CloudRequestResponse {
+                account: metadata,
+                status,
+                body,
+                operation: operation.as_ref().map(reference),
+            })
         })
     }
 }
 
-fn contains_credential(value: &serde_json::Value, credential: &str) -> bool {
+fn duplicate(account: Account, value: &Operation) -> CloudRequestResponse {
+    let resolved = value.status == "resolved";
+    CloudRequestResponse {
+        account,
+        status: if resolved { 409 } else { 502 },
+        body: serde_json::json!({"error": if resolved { "operation_already_dispatched" } else { "outcome_unknown" }}),
+        operation: Some(reference(value)),
+    }
+}
+
+fn result_status(body: &serde_json::Value) -> &'static str {
+    if body
+        .get("status")
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| matches!(s, "running" | "outcome_unknown"))
+    {
+        "outcome_unknown"
+    } else {
+        "resolved"
+    }
+}
+
+fn reference(value: &Operation) -> CloudOperationReference {
+    CloudOperationReference {
+        key: value.key.clone(),
+        task_id: value.task_id.clone(),
+        recovery_path: value.recovery_path.clone(),
+        status: value.status.clone(),
+    }
+}
+
+fn route(path: &str, method: CloudRequestMethod) -> Result<(CloudResource, &'static str), String> {
+    if path.len() > 8192
+        || !path.starts_with('/')
+        || path.starts_with("//")
+        || path.contains(['\\', '#'])
+        || path.chars().any(char::is_control)
+    {
+        return Err("cloud_request_invalid".into());
+    }
+    let (pathname, query) = path.split_once('?').unwrap_or((path, ""));
+    if pathname.contains('%') {
+        return Err("cloud_request_invalid".into());
+    }
+    let parts: Vec<_> = pathname.trim_start_matches('/').split('/').collect();
+    if !query.is_empty() {
+        let catalog_release = matches!(parts.as_slice(), ["catalog", "skills" | "experts", _])
+            && query.strip_prefix("releaseId=").is_some_and(|id| {
+                id.len() == 64
+                    && id
+                        .bytes()
+                        .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+            });
+        if method != CloudRequestMethod::Get || !(pathname == "/market/items" || catalog_release) {
+            return Err("cloud_request_invalid".into());
+        }
+    }
+    use CloudRequestMethod::{Get, Post};
+    use CloudResource::{Connections, Default, Market, Web};
+    let selected = match (method, parts.as_slice()) {
+        (
+            Get,
+            ["account"]
+            | ["product-users", "self"]
+            | ["catalog", "skills"]
+            | ["catalog", "experts"],
+        ) => (Default, ""),
+        (Get, ["catalog", "skills" | "experts", id])
+            if (1..=80).contains(&id.len())
+                && id.as_bytes()[0].is_ascii_alphanumeric()
+                && id
+                    .bytes()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-') =>
+        {
+            (Default, "")
+        }
+        (Post, ["product-users"]) => (Default, "/product-users/self"),
+        (Get, ["market", "items"] | ["market", "featured"]) => (Market, ""),
+        (Get, ["market", "items" | "releases" | "acquisitions", id]) if cloud::identifier(id) => {
+            (Market, "")
+        }
+        (Get, ["market", "operations", key]) if operation_key(key) => (Market, ""),
+        (Post, ["market", "acquisitions"]) => (Market, "/market/operations/"),
+        (Post, ["market", "acquisitions", id, "download-tickets" | "revocations"])
+            if cloud::identifier(id) =>
+        {
+            (Market, "/market/operations/")
+        }
+        (Post, ["web", "searches" | "pages"]) => (Web, "/web/operations/"),
+        (Get, ["web", "operations", key]) if operation_key(key) => (Web, ""),
+        (Post, ["connection-requests"]) => (Connections, "/connection-requests/operations/"),
+        (Get, ["connection-requests" | "connection-file-operations", id])
+            if cloud::identifier(id) =>
+        {
+            (Connections, "")
+        }
+        (Get, ["connection-requests" | "connection-file-operations", "operations", key])
+            if operation_key(key) =>
+        {
+            (Connections, "")
+        }
+        (Post, ["connections", id, "file-reads"]) if cloud::identifier(id) => {
+            (Connections, "/connection-file-operations/operations/")
+        }
+        _ => return Err("cloud_route_unavailable".into()),
+    };
+    Ok(selected)
+}
+
+fn operation_key(value: &str) -> bool {
+    (16..=128).contains(&value.len())
+        && value
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+}
+
+fn contains_credential(value: &serde_json::Value, token: &str) -> bool {
     match value {
-        serde_json::Value::String(text) => text.contains(credential),
-        serde_json::Value::Array(values) => values
-            .iter()
-            .any(|value| contains_credential(value, credential)),
+        serde_json::Value::String(text) => text.contains(token),
+        serde_json::Value::Array(values) => values.iter().any(|v| contains_credential(v, token)),
         serde_json::Value::Object(values) => values
             .iter()
-            .any(|(key, value)| key.contains(credential) || contains_credential(value, credential)),
+            .any(|(k, v)| k.contains(token) || contains_credential(v, token)),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn product_catalog_routes_use_full_slug_and_only_exact_release_query() {
+        let key = format!("a{}", "b".repeat(79));
+        let release = "a".repeat(64);
+        assert!(route(
+            &format!("/catalog/experts/{key}?releaseId={release}"),
+            CloudRequestMethod::Get
+        )
+        .is_ok());
+        for path in [
+            format!("/catalog/experts/{key}b"),
+            "/catalog/experts/Upper".into(),
+            "/catalog/skills/../experts".into(),
+            format!("/catalog/experts/research?releaseId={release}&other=1"),
+            "/catalog/experts/research?releaseId=invalid".into(),
+            "/catalog/experts/research?url=https://untrusted.test".into(),
+        ] {
+            assert!(route(&path, CloudRequestMethod::Get).is_err(), "{path}");
+        }
     }
 }

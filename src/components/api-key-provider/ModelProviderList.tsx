@@ -13,12 +13,10 @@ import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
 import { Plus, Settings2 } from "lucide-react";
 import {
   buildEnabledModelItems,
-  type EnabledModelListOptions,
 } from "./ModelProviderList.utils";
 
 export interface ModelProviderListProps {
   providers: ProviderWithKeysDisplay[];
-  options?: EnabledModelListOptions;
   selectedProviderId?: string | null;
   onProviderSelect?: (providerId: string) => void;
   onAddModel?: () => void;
@@ -28,7 +26,6 @@ export interface ModelProviderListProps {
 
 export const ModelProviderList: React.FC<ModelProviderListProps> = ({
   providers,
-  options,
   selectedProviderId,
   onProviderSelect,
   onAddModel,
@@ -36,7 +33,7 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
   className,
 }) => {
   const { t } = useTranslation("settings");
-  const items = buildEnabledModelItems(providers, options);
+  const items = buildEnabledModelItems(providers);
 
   return (
     <aside
@@ -96,16 +93,11 @@ export const ModelProviderList: React.FC<ModelProviderListProps> = ({
                       ) : null}
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-[color:var(--lime-text-muted)]">
-                      {item.status === "login_required"
-                        ? t(
-                            "settings.providers.modelList.status.loginRequired",
-                            "需要登录",
-                          )
-                        : (item.modelId ??
+                      {item.modelId ??
                           t(
                             "settings.providers.modelList.status.modelPending",
                             "模型待指定",
-                          ))}
+                          )}
                     </span>
                   </span>
                 </button>

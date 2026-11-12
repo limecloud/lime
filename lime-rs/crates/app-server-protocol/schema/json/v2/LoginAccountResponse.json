@@ -1,14 +1,69 @@
 {
+  "$defs": {
+    "AccountAuthorization": {
+      "properties": {
+        "expiresAt": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudResource"
+        },
+        "status": {
+          "$ref": "#/$defs/AccountAuthorizationStatus"
+        }
+      },
+      "required": [
+        "expiresAt",
+        "id",
+        "resource",
+        "status"
+      ],
+      "type": "object"
+    },
+    "AccountAuthorizationStatus": {
+      "enum": [
+        "cancelled",
+        "completed",
+        "denied",
+        "exchanging",
+        "expired",
+        "failed",
+        "outcome_unknown",
+        "pending"
+      ],
+      "type": "string"
+    },
+    "CloudResource": {
+      "enum": [
+        "connections",
+        "default",
+        "market",
+        "web"
+      ],
+      "type": "string"
+    }
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
       "properties": {
+        "authUrl": {
+          "type": "string"
+        },
+        "authorization": {
+          "$ref": "#/$defs/AccountAuthorization"
+        },
         "type": {
-          "const": "cloudAuthTokens",
+          "const": "cloud",
           "type": "string"
         }
       },
       "required": [
+        "authUrl",
+        "authorization",
         "type"
       ],
       "type": "object"

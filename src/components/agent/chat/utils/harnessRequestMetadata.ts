@@ -12,24 +12,6 @@ import {
   type WorkspaceSkillRuntimeEnableInput,
 } from "./workspaceSkillBindingsMetadata";
 
-export interface HarnessOemRoutingRequestMetadata {
-  tenant_id: string;
-  provider_source?: string;
-  provider_key?: string;
-  default_model?: string;
-  config_mode?: string;
-  offer_state?: string;
-  quota_status?: string;
-  fallback_to_local_allowed?: boolean;
-  can_invoke?: boolean;
-}
-
-export interface HarnessTenantFeatureFlagsRequestMetadata {
-  tenant_id: string;
-  source?: string;
-  flags: Record<string, boolean>;
-}
-
 export interface BuildHarnessRequestMetadataOptions {
   base?: Record<string, unknown>;
   theme: string;
@@ -49,8 +31,6 @@ export interface BuildHarnessRequestMetadataOptions {
   workspaceSkillBindings?: AgentRuntimeWorkspaceSkillBinding[] | null;
   workspaceSkillRuntimeEnable?: WorkspaceSkillRuntimeEnableInput | null;
   agentResponseLanguage?: string | null;
-  oemRouting?: HarnessOemRoutingRequestMetadata | null;
-  tenantFeatureFlags?: HarnessTenantFeatureFlagsRequestMetadata | null;
 }
 
 export function extractExistingHarnessMetadata(
@@ -156,8 +136,6 @@ export function buildHarnessRequestMetadata(
     workspaceSkillBindings,
     workspaceSkillRuntimeEnable,
     agentResponseLanguage,
-    oemRouting,
-    tenantFeatureFlags,
   } = options;
 
   const normalizedSessionMode =
@@ -209,8 +187,6 @@ export function buildHarnessRequestMetadata(
       base?.workspace_skill_runtime_enable ??
       base?.workspaceSkillRuntimeEnable,
     agent_response_language: resolvedAgentResponseLanguage,
-    oem_routing: oemRouting || undefined,
-    tenant_feature_flags: tenantFeatureFlags || undefined,
     browser_requirement: browserRequirement || undefined,
     browser_requirement_reason: browserRequirementReason || undefined,
     browser_launch_url: browserLaunchUrl || undefined,

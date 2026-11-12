@@ -3,33 +3,37 @@
     "Account": {
       "oneOf": [
         {
+          "additionalProperties": false,
           "properties": {
+            "applicationId": {
+              "type": "string"
+            },
             "baseUrl": {
               "type": "string"
             },
+            "clientId": {
+              "type": "string"
+            },
             "displayName": {
-              "type": [
-                "null",
-                "string"
-              ]
+              "type": "string"
             },
             "email": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "expiresAt": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "sessionId": {
               "type": "string"
             },
-            "tenantId": {
+            "environment": {
               "type": "string"
+            },
+            "generation": {
+              "type": "string"
+            },
+            "issuer": {
+              "type": "string"
+            },
+            "resources": {
+              "items": {
+                "$ref": "#/$defs/CloudResourceCredential"
+              },
+              "type": "array"
             },
             "type": {
               "const": "cloud",
@@ -40,15 +44,90 @@
             }
           },
           "required": [
+            "applicationId",
             "baseUrl",
-            "sessionId",
-            "tenantId",
+            "clientId",
+            "displayName",
+            "email",
+            "environment",
+            "generation",
+            "issuer",
+            "resources",
             "type",
             "userId"
           ],
           "type": "object"
         }
       ]
+    },
+    "CloudCredentialStatus": {
+      "enum": [
+        "connected",
+        "expired",
+        "outcome_unknown",
+        "refreshing",
+        "verification_required"
+      ],
+      "type": "string"
+    },
+    "CloudOperationReference": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "recoveryPath": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "recoveryPath",
+        "status",
+        "taskId"
+      ],
+      "type": "object"
+    },
+    "CloudResource": {
+      "enum": [
+        "connections",
+        "default",
+        "market",
+        "web"
+      ],
+      "type": "string"
+    },
+    "CloudResourceCredential": {
+      "properties": {
+        "audience": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudResource"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CloudCredentialStatus"
+        }
+      },
+      "required": [
+        "audience",
+        "expiresAt",
+        "resource",
+        "scope",
+        "status"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -57,6 +136,16 @@
       "$ref": "#/$defs/Account"
     },
     "body": true,
+    "operation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CloudOperationReference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "status": {
       "format": "uint16",
       "maximum": 65535,

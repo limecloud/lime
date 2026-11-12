@@ -1,7 +1,4 @@
-export type ExpertCatalogSource =
-  | "cloud_catalog"
-  | "seeded_fallback"
-  | "local_custom";
+export type ExpertCatalogSource = "cloud_catalog" | "builtin" | "local_custom";
 
 export type ExpertAvatar =
   | { kind: "emoji"; value: string }
@@ -72,7 +69,7 @@ export interface ExpertCategory {
 
 export interface ExpertCatalog {
   version: string;
-  tenantId: string;
+  catalogId: string;
   syncedAt: string;
   items: ExpertProfile[];
   rankings: ExpertRanking[];
@@ -132,7 +129,7 @@ export interface ExpertCatalogProjectionRanking extends ExpertRanking {
 
 export interface ExpertCatalogProjection {
   version: string;
-  tenantId: string;
+  catalogId: string;
   syncedAt: string;
   categories: ExpertCategory[];
   items: ExpertCatalogProjectionItem[];

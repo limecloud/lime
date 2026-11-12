@@ -55,8 +55,23 @@ const scenarioPrompt = (scenario) =>
       ? imagePrompt
       : scenario === "skills"
         ? skillPrompt
-        : prompt;
+        : scenario === "init-command"
+          ? "/init"
+          : scenario === "review-command"
+            ? "/review focus on runtime errors"
+            : prompt;
 const queuePrompt = "queued follow-up for editing";
+const fileChangePatch = [
+  "*** Begin Patch",
+  "*** Add File: gate/fixture-approved.rs",
+  "+fn approved() {}",
+  "*** Update File: gate/existing.rs",
+  "*** Move to: gate/moved.rs",
+  "@@",
+  "-old",
+  "+new",
+  "*** End Patch",
+].join("\n");
 const completedText = "TUI_GATE_B_COMPLETED";
 const reasoningText = "TUI_GATE_B_REASONING_DETAIL";
 const rawText = "TUI_GATE_B_RAW_SOURCE";
@@ -84,7 +99,7 @@ const scrollableCompletedText = [
 ].join("\n");
 const selectedScenarios = (
   process.env.LIME_TUI_GATE_B_SCENARIOS ||
-  "complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills"
+  "complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"
 )
   .split(",")
   .map((scenario) => scenario.trim())
@@ -108,6 +123,7 @@ async function main() {
     assertBinaryExists(appServerBinaryPath, "app-server"),
   ]);
   const tempDir = await mkdtemp(path.join(tmpdir(), "tui-gate-b-"));
+  let failed = false;
   try {
     ({ cliBinaryPath, appServerBinaryPath } =
       await snapshotTerminalGateBinaries({
@@ -208,11 +224,16 @@ async function main() {
     let backtrackEvidence = null;
     let backtrackStdioEvidence = null;
     let threadInputEvidence = null;
+    const reviewCommitShas = new Map();
     for (const scenario of scenarios) {
       const scenarioDir = path.join(tempDir, scenario);
       await mkdir(scenarioDir, { recursive: true });
       scenarioDirs.set(scenario, scenarioDir);
-      if (scenario === "complete" || scenario === "skills") {
+      if (
+        scenario === "complete" ||
+        scenario === "skills" ||
+        scenario === "skills-command"
+      ) {
         const suggestionDir = path.join(
           scenarioDir,
           "long_directory_for_filename_identity_".repeat(3),
@@ -234,6 +255,42 @@ async function main() {
           );
         }
       }
+      let reviewCommitSha = null;
+      if (scenario === "review-branch" || scenario === "review-commit") {
+        await execFileAsync("git", ["-C", scenarioDir, "init", "-b", "main"], {
+          encoding: "utf8",
+        });
+        await execFileAsync(
+          "git",
+          ["-C", scenarioDir, "config", "user.email", "gate@example.com"],
+          { encoding: "utf8" },
+        );
+        await execFileAsync(
+          "git",
+          ["-C", scenarioDir, "config", "user.name", "Gate Fixture"],
+          { encoding: "utf8" },
+        );
+        await writeFile(
+          path.join(scenarioDir, "review-fixture.txt"),
+          "review fixture\n",
+        );
+        await execFileAsync("git", ["-C", scenarioDir, "add", "."], {
+          encoding: "utf8",
+        });
+        await execFileAsync(
+          "git",
+          ["-C", scenarioDir, "commit", "-m", "review fixture"],
+          { encoding: "utf8" },
+        );
+        const head = await execFileAsync(
+          "git",
+          ["-C", scenarioDir, "rev-parse", "HEAD"],
+          { encoding: "utf8" },
+        );
+        reviewCommitSha = head.stdout.trim();
+        reviewCommitShas.set(scenario, reviewCommitSha);
+      }
+
       const backendOptions = {
         completedText:
           scenario === "complete"
@@ -255,6 +312,8 @@ async function main() {
             }
           : {}),
         scenario,
+        fileChangePatch:
+          scenario === "file-change-approval" ? fileChangePatch : null,
         taskProgress: scenario === "complete",
         tokenUsage: scenario === "complete",
         followupQuestion: scenario === "user-input",
@@ -286,6 +345,7 @@ async function main() {
           LIME_TEST_PERMISSION_CONFIG:
             scenario === "complete" ? editorConfigPath : permissionConfigPath,
           LIME_TEST_PERMISSION_PROFILE: "named-fixture",
+          LIME_TEST_REVIEW_COMMIT: reviewCommitSha ?? "",
         },
         maxBuffer: 2 * 1024 * 1024,
         // Complete exercises the full editor/history/status/title flow; predicates stay bounded.
@@ -308,6 +368,176 @@ async function main() {
 
         testOptions,
       );
+      if (scenario === "approval") {
+        const marker = "TUI_EXEC_APPROVAL_REASON_OK label=localized";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`approval PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "new-command") {
+        const marker = "TUI_NEW_COMMAND_OK thread=changed";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`new-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "rename-command") {
+        const marker = "TUI_RENAME_COMMAND_OK name=Gate Renamed";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`rename-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "fork-command") {
+        const marker = "TUI_FORK_COMMAND_OK thread=forked turn=new";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`fork-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "delete-command") {
+        const marker = "TUI_DELETE_COMMAND_OK thread=deleted turn=new";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`delete-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "archive-command") {
+        const marker = "TUI_ARCHIVE_COMMAND_OK thread=archived turn=new";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`archive-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "compact-command") {
+        const marker = "TUI_COMPACT_COMMAND_OK";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`compact-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "keymap-command") {
+        const marker = "TUI_KEYMAP_COMMAND_OK panel=keymap";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`keymap-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "skills-command") {
+        const marker = "TUI_SKILLS_COMMAND_OK panel=skills";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`skills-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "permissions-picker") {
+        const marker = "TUI_PERMISSIONS_PICKER_OK profile=accepted";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`permissions-picker PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "effort-picker") {
+        const marker = "TUI_EFFORT_PICKER_OK option=accepted";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`effort-picker PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "hooks-command") {
+        const marker = "TUI_HOOKS_COMMAND_OK panel=hooks";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`hooks-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "config-command") {
+        const marker = "TUI_CONFIG_COMMAND_OK menu=model";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`config-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "clear-command") {
+        const marker = "TUI_CLEAR_COMMAND_OK status=cleared turn=new";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`clear-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "quit-command") {
+        const marker = "TUI_QUIT_COMMAND_OK exit=clean terminal=restored";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`quit-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "experimental-command") {
+        const marker = "TUI_EXPERIMENTAL_COMMAND_OK list=ok toggle=off";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`experimental-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "review-branch") {
+        const marker = "TUI_REVIEW_BRANCH_OK target=base-branch turn=started";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`review-branch PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "review-commit") {
+        const marker = "TUI_REVIEW_COMMIT_OK target=commit turn=started";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`review-commit PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "review-picker") {
+        const marker = "TUI_REVIEW_PICKER_OK preset=uncommitted turn=started";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`review-picker PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "review-command") {
+        const marker = "TUI_REVIEW_COMMAND_OK prompt=review turn=started";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`review-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "permissions-approval") {
+        const marker =
+          "TUI_PERMISSIONS_APPROVAL_OK reason=localized scope=filesystem";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`permissions-approval PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "init-command") {
+        const marker = "TUI_INIT_COMMAND_OK prompt=contributor-guide";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`init-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "file-change-approval") {
+        const marker =
+          "TUI_FILE_CHANGE_APPROVAL_OK title=localized description=ok destinations=add,move";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`file-change-approval PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "agents-overview") {
+        const marker = "TUI_AGENTS_LOADING_OK label=localized";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`agents-overview PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
       if (scenario === "agents-command") {
         const marker = "TUI_AGENTS_COMMAND_OK screen=overview back=composer";
         if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
@@ -673,21 +903,66 @@ async function main() {
       ? await readJsonLines(ledgerPath)
       : [];
     const turnScenarios = scenarios.filter(
-      (scenario) => scenario !== "agents-command",
+      (scenario) =>
+        scenario !== "agents-command" &&
+        scenario !== "rename-command" &&
+        scenario !== "compact-command" &&
+        scenario !== "experimental-command" &&
+        scenario !== "quit-command" &&
+        scenario !== "config-command" &&
+        scenario !== "hooks-command" &&
+        scenario !== "effort-picker" &&
+        scenario !== "permissions-picker" &&
+        scenario !== "skills-command" &&
+        scenario !== "keymap-command",
     );
     const turnStarts = turnScenarios.map((scenario) => {
       const expectedPrompt = scenarioPrompt(scenario);
       const entry = ledger.find(
         (candidate) =>
-          candidate?.kind === "turnStart" &&
-          candidate.scenario === scenario &&
-          candidate.inputText === expectedPrompt,
+          candidate?.kind === "turnStart" && candidate.scenario === scenario,
       );
       if (!entry)
         throw new Error(
           `external backend did not record TUI turnStart for ${scenario}`,
         );
-      assertEqual(entry.inputText, expectedPrompt, `${scenario} backend input`);
+      if (scenario === "init-command") {
+        assertEqual(
+          entry.inputText.startsWith(
+            "Generate a file named AGENTS.md that serves as a contributor guide",
+          ),
+          true,
+          "init backend input",
+        );
+      } else if (scenario === "review-picker") {
+        assertEqual(
+          entry.inputText.toLowerCase().includes("review"),
+          true,
+          "review-picker backend input",
+        );
+      } else if (scenario === "review-branch") {
+        assertEqual(
+          entry.inputText.includes("main"),
+          true,
+          "review-branch backend input",
+        );
+      } else if (scenario === "review-commit") {
+        assertEqual(
+          entry.inputText.includes(reviewCommitShas.get(scenario) ?? ""),
+          true,
+          "review-commit backend input",
+        );
+      } else if (scenario === "review-command") {
+        assertEqual(
+          entry.inputText.startsWith(
+            "Review the current repository changes. Focus on the following instructions: focus on runtime errors",
+          ),
+          true,
+          "review backend input",
+        );
+      } else {
+        assertEqual(entry.inputText, expectedPrompt, `${scenario} backend input`);
+      }
       assertNonEmptyString(entry.threadId, `${scenario} canonical thread id`);
       assertNonEmptyString(entry.turnId, `${scenario} canonical turn id`);
       return entry;
@@ -696,6 +971,28 @@ async function main() {
       complete:
         "turn.started,turn.plan.updated,message.delta,item.started,item.completed,item.started,item.completed,provider.usage,turn.completed",
       approval: "turn.started,item.started,action.required",
+      "file-change-approval": "turn.started,item.started,action.required",
+      "permissions-approval": "turn.started,item.started,action.required",
+      "new-command":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "review-picker":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "clear-command":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "review-branch":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "review-commit":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "review-command":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "init-command":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "archive-command":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "delete-command":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "fork-command":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
       "user-input": "turn.started,item.started,action.required",
       interrupt: "turn.started,message.delta",
       failure: "turn.started,runtime.error,turn.failed",
@@ -712,6 +1009,18 @@ async function main() {
       "copy-mode":
         "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
     };
+    if (scenarios.includes("new-command")) {
+      const starts = ledger.filter(
+        (entry) =>
+          entry?.kind === "turnStart" && entry.scenario === "new-command",
+      );
+      assertEqual(starts.length, 2, "new-command turns");
+      assertEqual(
+        starts[0].threadId !== starts[1].threadId,
+        true,
+        "new-command thread changed",
+      );
+    }
     for (const [index, scenario] of turnScenarios.entries()) {
       assertEqual(
         turnStarts[index].eventTypes.join(","),
@@ -947,11 +1256,24 @@ async function main() {
         .filter(Boolean)
         .join(" "),
     );
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    if (process.env.LIME_KEEP_TUI_GATE_B_TMP !== "1") {
-      await rm(tempDir, { recursive: true, force: true });
-    } else {
+    if (process.env.LIME_KEEP_TUI_GATE_B_TMP === "1") {
       console.error(`[smoke:tui-gate-b] kept temp dir ${tempDir}`);
+    } else if (failed) {
+      // The binary snapshot is a full CLI/App Server copy (~600MB); failure
+      // evidence lives in the backend script, ledger, scenario dirs and PTY output.
+      await rm(path.join(tempDir, "binaries"), {
+        recursive: true,
+        force: true,
+      });
+      console.error(
+        `[smoke:tui-gate-b] kept temp dir ${tempDir} (failure evidence: tui-backend.mjs, tui-backend.jsonl, scenario dirs, PTY output)`,
+      );
+    } else {
+      await rm(tempDir, { recursive: true, force: true });
     }
   }
 }

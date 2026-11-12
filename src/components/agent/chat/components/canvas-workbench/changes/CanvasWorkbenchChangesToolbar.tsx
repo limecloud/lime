@@ -10,6 +10,7 @@ import {
   Loader2,
   MoreHorizontal,
   GitBranch,
+  RotateCw,
 } from "lucide-react";
 import type {
   CanvasWorkbenchChangeDiffStats,
@@ -285,32 +286,33 @@ export function CanvasWorkbenchChangesToolbar({
           className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-[color:var(--lime-surface-border)] pt-1 font-mono text-[11px] text-[color:var(--lime-text-muted)]"
           data-testid="canvas-workbench-changes-summary"
         >
-          {gitSummary?.currentRef ? (
+          {gitSummary?.currentRef || gitSummary?.comparisonBaseRef ? (
             <span
-              className="inline-flex min-w-0 items-center gap-1"
-              data-testid="canvas-workbench-changes-current-ref"
+              className="inline-flex min-w-0 items-center gap-1.5"
+              data-testid="canvas-workbench-changes-branch-summary"
             >
               <GitBranch className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]" />
-              <span
-                className="max-w-[min(32vw,280px)] truncate"
-                title={gitSummary.currentRef}
-              >
-                {gitSummary.currentRef}
+              <span>
+                {translateWorkbench(
+                  "agentChat.canvasWorkbench.coding.changes.summary.branch",
+                )}
               </span>
-            </span>
-          ) : null}
-          {gitSummary?.comparisonBaseRef ? (
-            <span
-              className="truncate"
-              data-testid="canvas-workbench-changes-comparison-base"
-              title={gitSummary.comparisonBaseRef}
-            >
-              {translateWorkbench(
-                "agentChat.canvasWorkbench.coding.changes.summary.base",
-                {
-                  base: gitSummary.comparisonBaseRef,
-                },
-              )}
+              <span className="font-semibold">
+                <DiffStats stats={diffStats} />
+              </span>
+              <span className="min-w-0 max-w-[min(32vw,280px)] truncate text-[color:var(--lime-text-strong)]">
+                <span data-testid="canvas-workbench-changes-current-ref">
+                  {gitSummary?.currentRef ?? ""}
+                </span>
+                {gitSummary?.comparisonBaseRef ? (
+                  <>
+                    {" → "}
+                    <span data-testid="canvas-workbench-changes-comparison-base">
+                      {gitSummary.comparisonBaseRef}
+                    </span>
+                  </>
+                ) : null}
+              </span>
             </span>
           ) : null}
           {changeFileCount > 0 ? (
@@ -341,6 +343,23 @@ export function CanvasWorkbenchChangesToolbar({
       ) : null}
 
       <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          disabled={!onRefreshChanges || actionsDisabled}
+          onClick={() => {
+            void onRefreshChanges?.();
+          }}
+          data-testid="canvas-workbench-changes-refresh"
+          aria-label={translateWorkbench(
+            "agentChat.canvasWorkbench.coding.changes.refresh",
+          )}
+          title={translateWorkbench(
+            "agentChat.canvasWorkbench.coding.changes.refresh",
+          )}
+          className={toolbarButtonClassName}
+        >
+          <RotateCw className="h-4 w-4" />
+        </button>
         <button
           type="button"
           disabled={!onOpenFile || reviewActionBusy}

@@ -1,27 +1,65 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "External LimeCore sessions share the account boundary used by every surface.",
-  "oneOf": [
-    {
+  "$defs": {
+    "CloudResource": {
+      "enum": [
+        "connections",
+        "default",
+        "market",
+        "web"
+      ],
+      "type": "string"
+    },
+    "ConnectionInstallation": {
+      "additionalProperties": false,
       "properties": {
-        "accessToken": {
+        "installationId": {
           "type": "string"
         },
-        "baseUrl": {
-          "type": "string"
-        },
-        "tenantId": {
-          "type": "string"
-        },
-        "type": {
-          "const": "cloudAuthTokens",
+        "spaceId": {
           "type": "string"
         }
       },
       "required": [
-        "accessToken",
+        "installationId",
+        "spaceId"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The native owner creates PKCE and receives the callback. No imported tokens.",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "baseUrl": {
+          "type": "string"
+        },
+        "installation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConnectionInstallation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "language": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudResource",
+          "default": "default"
+        },
+        "type": {
+          "const": "cloud",
+          "type": "string"
+        }
+      },
+      "required": [
         "baseUrl",
-        "tenantId",
+        "language",
         "type"
       ],
       "type": "object"

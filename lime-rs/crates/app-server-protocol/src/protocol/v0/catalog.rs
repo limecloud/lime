@@ -1765,26 +1765,6 @@ pub const APP_SERVER_REQUEST_SERIALIZATION_SCOPES: &[AppServerRequestSerializati
         scope: AppServerRequestSerializationScope::AccountAuth,
     },
     AppServerRequestSerializationScopeSpec {
-        method: crate::protocol::v2::METHOD_PLUGIN_SHARE_SAVE,
-        scope: AppServerRequestSerializationScope::AccountAuth,
-    },
-    AppServerRequestSerializationScopeSpec {
-        method: crate::protocol::v2::METHOD_PLUGIN_SHARE_LIST,
-        scope: AppServerRequestSerializationScope::AccountAuth,
-    },
-    AppServerRequestSerializationScopeSpec {
-        method: crate::protocol::v2::METHOD_PLUGIN_SHARE_UPDATE_TARGETS,
-        scope: AppServerRequestSerializationScope::AccountAuth,
-    },
-    AppServerRequestSerializationScopeSpec {
-        method: crate::protocol::v2::METHOD_PLUGIN_SHARE_CHECKOUT,
-        scope: AppServerRequestSerializationScope::AccountAuth,
-    },
-    AppServerRequestSerializationScopeSpec {
-        method: crate::protocol::v2::METHOD_PLUGIN_SHARE_DELETE,
-        scope: AppServerRequestSerializationScope::AccountAuth,
-    },
-    AppServerRequestSerializationScopeSpec {
         method: crate::protocol::v2::METHOD_CLOUD_REQUEST,
         scope: AppServerRequestSerializationScope::AccountAuth,
     },

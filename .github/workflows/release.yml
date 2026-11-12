@@ -602,8 +602,8 @@ jobs:
 
   publish_release_assets:
     name: Publish Electron release assets
-    needs: build
-    if: needs.build.result == 'success'
+    needs: [build, publish_cli_assets]
+    if: needs.build.result == 'success' && needs.publish_cli_assets.result == 'success'
     runs-on: ubuntu-22.04
 
     steps:
@@ -781,8 +781,8 @@ jobs:
 
   publish_cli_assets:
     name: Build CLI npm ${{ matrix.npm_tag }}
-    needs: publish_release_assets
-    if: needs.publish_release_assets.result == 'success'
+    needs: prepare_release
+    if: needs.prepare_release.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -960,6 +960,42 @@ jobs:
           test -f "$ASSET_PATH"
           echo "asset_path=$ASSET_PATH" >> "$GITHUB_OUTPUT"
 
+      - name: Package Linux cloud guest from the same release runtime
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          node scripts/app-server/linux-guest-release.mjs \
+            --runtime-dir "$GITHUB_WORKSPACE/lime-rs/target/${{ matrix.target }}/release" \
+            --out "$RUNNER_TEMP/lime-guest-linux-x64-$VERSION" \
+            --version "$VERSION"
+
+      - name: Upload Linux cloud guest to GitHub Release
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          gh release upload "$RELEASE_TAG" \
+            "$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz" \
+            "$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz.json" \
+            --repo "$GITHUB_REPOSITORY"
+
+      - name: Upload Linux cloud guest build artifact
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-guest-linux-x64
+          path: ${{ runner.temp }}/lime-guest-linux-x64-*.tar.gz*
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload CLI npm tarball to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -991,8 +1027,8 @@ jobs:
 
   publish_cli_npm:
     name: Publish CLI npm packages
-    needs: publish_cli_assets
-    if: needs.publish_cli_assets.result == 'success'
+    needs: [publish_cli_assets, publish_release_assets]
+    if: needs.publish_cli_assets.result == 'success' && needs.publish_release_assets.result == 'success'
     runs-on: ubuntu-22.04
     permissions:
       contents: write

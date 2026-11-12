@@ -41,20 +41,6 @@ function assertI18nKeyTypes() {
   i18n.t("common.app.startup.windows.warningTitle", { ns: "common" });
   i18n.t("common.updateNotification.version.new", { ns: "common" });
   i18n.t("common.execution.latestRunStatus.status.success", { ns: "common" });
-  i18n.t("common.oemCloudAccess.auth.googleSynced", { ns: "common" });
-  i18n.t("common.oemCloudAccess.auth.browserPreopenTitle", { ns: "common" });
-  i18n.t("common.oemCloudAccess.auth.systemBrowserOpenFailedWithMessage", {
-    ns: "common",
-  });
-  i18n.t("common.oemCloudAccess.payment.returnSyncing", { ns: "common" });
-  i18n.t("common.oemCloudAccess.session.refreshSuccess", { ns: "common" });
-  i18n.t("common.oemCloudAccess.emailCode.sent", { ns: "common" });
-  i18n.t("common.oemCloudAccess.apiKey.createSuccess", { ns: "common" });
-  i18n.t("common.oemCloudAccess.label.accessMode.session", {
-    ns: "common",
-  });
-  i18n.t("common.oemLimeHubProviderSync.managedKeyAlias", { ns: "common" });
-  i18n.t("common.oemLimeHubProviderSync.cloudTokenName", { ns: "common" });
   i18n.t("common.modelSelector.header.title", { ns: "common" });
   i18n.t("common.modelSelector.noProvider.dismissAria", { ns: "common" });
   i18n.t("common.modelSelector.state.loginRequired", { ns: "common" });

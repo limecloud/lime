@@ -21,6 +21,7 @@ export function PluginDetailPanel({
   onInstall,
   onToggle,
   onUninstall,
+  onTryPrompt,
   busy,
 }: {
   summary: AppServerPluginSummary | null;
@@ -30,9 +31,11 @@ export function PluginDetailPanel({
   onInstall?: () => void;
   onToggle?: () => void;
   onUninstall?: () => void;
+  onTryPrompt?: (prompt: string) => void;
   busy?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const primaryPrompt = summary?.interface?.defaultPrompt?.[0] ?? null;
   if (!summary) {
     return (
       <aside className="hidden min-h-[300px] rounded-lg border border-dashed border-[color:var(--lime-surface-border)] px-5 py-6 text-sm text-[color:var(--lime-text-muted)] xl:block">
@@ -131,6 +134,15 @@ export function PluginDetailPanel({
             ) : null}
           </div>
         ) : null}
+        {summary.installed && primaryPrompt && onTryPrompt ? (
+          <button
+            type="button"
+            className="ml-auto inline-flex h-8 shrink-0 items-center rounded-full bg-[color:var(--lime-text-strong)] px-3 text-xs font-semibold text-[color:var(--lime-surface)] hover:opacity-90"
+            onClick={() => onTryPrompt(primaryPrompt)}
+          >
+            {t("plugin.catalog.v2.detail.tryNow")}
+          </button>
+        ) : null}
         {!summary.installed && onInstall ? (
           <button
             type="button"
@@ -147,6 +159,25 @@ export function PluginDetailPanel({
           pluginDescription(summary) ||
           t("plugin.catalog.v2.descriptionFallback")}
       </p>
+      {summary.installed && primaryPrompt && onTryPrompt ? (
+        <div className="mt-5 rounded-xl bg-[linear-gradient(100deg,#e4e7ff_0%,#efe4ff_55%,#ffe6dc_100%)] px-6 py-7">
+          <button
+            type="button"
+            className="flex w-full max-w-[560px] items-center gap-3 rounded-lg bg-white/85 px-4 py-3 text-left text-sm text-[color:var(--lime-text-strong)] shadow-sm transition hover:bg-white"
+            onClick={() => onTryPrompt(primaryPrompt)}
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {pluginDisplayName(summary)} · {primaryPrompt}
+            </span>
+            <span
+              aria-hidden="true"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--lime-surface-soft)] text-[color:var(--lime-text-muted)]"
+            >
+              →
+            </span>
+          </button>
+        </div>
+      ) : null}
       {detail ? (
         <div className="mt-5 space-y-4 border-t border-[color:var(--lime-surface-border)] pt-4">
           <PluginSkillsSection detail={detail} t={t} />

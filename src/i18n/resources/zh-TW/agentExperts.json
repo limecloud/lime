@@ -117,5 +117,9 @@
   "agentExperts.info.skills.timeline.invocationRunning": "執行中",
   "agentExperts.info.skills.timeline.invocationCompleted": "執行完成",
   "agentExperts.info.skills.timeline.invocationFailed": "執行失敗",
-  "agentExperts.info.skills.timeline.invocationUnknown": "執行待確認"
+  "agentExperts.info.skills.timeline.invocationUnknown": "執行待確認",
+  "agentExperts.loading": "正在載入專家",
+  "agentExperts.loadFailed": "專家目錄載入失敗",
+  "agentExperts.retry": "重試",
+  "agentExperts.launchFailed": "專家啟動失敗，請重試"
 }

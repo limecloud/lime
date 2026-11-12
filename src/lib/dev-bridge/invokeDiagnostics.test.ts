@@ -1,14 +1,14 @@
 import { expect, it, vi } from "vitest";
 import { invokeArgsPreview } from "./invokeDiagnostics";
 
-it("keeps account import credentials out of JSONL diagnostic persistence", () => {
+it("keeps untrusted account fields out of JSONL diagnostic persistence", () => {
   const secret = 'short-"credential';
   const request = {
     jsonrpc: "2.0",
     id: 7,
     method: "account/login/start",
     params: {
-      type: "cloudAuthTokens",
+      type: "cloud",
       accessToken: secret,
       unknownSecret: secret,
     },
@@ -23,7 +23,7 @@ it("keeps account import credentials out of JSONL diagnostic persistence", () =>
           jsonrpc: "2.0",
           id: 7,
           method: "account/login/start",
-          params: { type: "cloudAuthTokens" },
+          params: { type: "cloud" },
         }),
       ],
     },

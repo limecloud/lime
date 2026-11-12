@@ -2,11 +2,8 @@
   "$defs": {
     "PluginListMarketplaceKind": {
       "enum": [
-        "created-by-me-remote",
-        "local",
-        "shared-with-me",
-        "vertical",
-        "workspace-directory"
+        "cloud",
+        "local"
       ],
       "type": "string"
     }

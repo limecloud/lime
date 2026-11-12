@@ -262,11 +262,6 @@ export const METHOD_PLUGIN_LIST = "plugin/list";
 export const METHOD_PLUGIN_READ = "plugin/read";
 export const METHOD_PLUGIN_RECONCILE = "plugin/reconcile";
 export const METHOD_PLUGIN_SEARCH = "plugin/search";
-export const METHOD_PLUGIN_SHARE_CHECKOUT = "plugin/share/checkout";
-export const METHOD_PLUGIN_SHARE_DELETE = "plugin/share/delete";
-export const METHOD_PLUGIN_SHARE_LIST = "plugin/share/list";
-export const METHOD_PLUGIN_SHARE_SAVE = "plugin/share/save";
-export const METHOD_PLUGIN_SHARE_UPDATE_TARGETS = "plugin/share/updateTargets";
 export const METHOD_PLUGIN_SKILL_READ = "plugin/skill/read";
 export const METHOD_PLUGIN_UNINSTALL = "plugin/uninstall";
 export const METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL =
@@ -1335,26 +1330,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   },
   {
     kind: "request",
-    method: "plugin/share/checkout",
-  },
-  {
-    kind: "request",
-    method: "plugin/share/delete",
-  },
-  {
-    kind: "request",
-    method: "plugin/share/list",
-  },
-  {
-    kind: "request",
-    method: "plugin/share/save",
-  },
-  {
-    kind: "request",
-    method: "plugin/share/updateTargets",
-  },
-  {
-    kind: "request",
     method: "plugin/skill/read",
   },
   {
@@ -2178,26 +2153,6 @@ export const GENERATED_APP_SERVER_REQUEST_SERIALIZATION_SCOPES = [
     scope: "mcpOauth",
   },
   {
-    method: "plugin/share/checkout",
-    scope: "accountAuth",
-  },
-  {
-    method: "plugin/share/delete",
-    scope: "accountAuth",
-  },
-  {
-    method: "plugin/share/list",
-    scope: "accountAuth",
-  },
-  {
-    method: "plugin/share/save",
-    scope: "accountAuth",
-  },
-  {
-    method: "plugin/share/updateTargets",
-    scope: "accountAuth",
-  },
-  {
     method: "plugin/skill/read",
     scope: "accountAuth",
   },
@@ -2316,12 +2271,15 @@ export type GeneratedAppServerRequestSerializationScope =
 export type AbsolutePathBuf = string;
 
 export type Account = {
+  applicationId: string;
   baseUrl: string;
-  displayName?: null | string;
-  email?: null | string;
-  expiresAt?: null | string;
-  sessionId: string;
-  tenantId: string;
+  clientId: string;
+  displayName: string;
+  email: string;
+  environment: string;
+  generation: string;
+  issuer: string;
+  resources: CloudResourceCredential[];
   type: "cloud";
   userId: string;
 };
@@ -4972,31 +4930,6 @@ export type ClientRequest =
     }
   | {
       id: number | string;
-      method: "plugin/share/save";
-      params: PluginShareSaveParams;
-    }
-  | {
-      id: number | string;
-      method: "plugin/share/list";
-      params: PluginShareListParams;
-    }
-  | {
-      id: number | string;
-      method: "plugin/share/updateTargets";
-      params: PluginShareUpdateTargetsParams;
-    }
-  | {
-      id: number | string;
-      method: "plugin/share/checkout";
-      params: PluginShareCheckoutParams;
-    }
-  | {
-      id: number | string;
-      method: "plugin/share/delete";
-      params: PluginShareDeleteParams;
-    }
-  | {
-      id: number | string;
       method: "turn/start";
       params: TurnStartParams;
     }
@@ -5143,6 +5076,18 @@ export type CloudDesktopParams =
       spec: EcsDesktopSpec;
     }
   | {
+      action: "prepareEcsPurchase";
+      confirmation: string;
+      operationId: string;
+      profile: string;
+      regionId: string;
+    }
+  | {
+      action: "readEcsPurchasePreparation";
+      profile: string;
+      regionId: string;
+    }
+  | {
       action: "listEcsTemplates";
       profile: string;
       regionId: string;
@@ -5209,6 +5154,10 @@ export type CloudDesktopParams =
       archiveId: string;
     }
   | {
+      action: "createArchiveIdentity";
+      identityFile: string;
+    }
+  | {
       action: "rewrapArchiveForRestore";
       archivePath: string;
       expectedSha256: string;
@@ -5229,6 +5178,21 @@ export type CloudDesktopParams =
       expectedSha256: string;
       localPath: string;
       remote: string;
+      upload: boolean;
+    }
+  | {
+      action: "listOssBuckets";
+      profile: string;
+      regionId: string;
+    }
+  | {
+      action: "transferOssArchive";
+      bucket: string;
+      expectedSha256: string;
+      localPath: string;
+      objectKey: string;
+      profile: string;
+      regionId: string;
       upload: boolean;
     }
   | {
@@ -5269,6 +5233,14 @@ export type CloudDesktopParams =
       resource: CloudDesktopResource;
     }
   | {
+      action: "reconnectEcsRuntime";
+      capabilitySha256: string;
+      confirmation: string;
+      operationId: string;
+      resource: CloudDesktopResource;
+      workSaved: boolean;
+    }
+  | {
       action: "start";
       confirmation: string;
       operationId: string;
@@ -5282,9 +5254,27 @@ export type CloudDesktopParams =
       workSaved: boolean;
     }
   | {
+      action: "scheduleEcsRelease";
+      confirmation: string;
+      discardData: boolean;
+      imageOperationId: string;
+      operationId: string;
+      releaseAt: string;
+      resource: CloudDesktopResource;
+      workSaved: boolean;
+    }
+  | {
+      action: "cancelEcsRelease";
+      confirmation: string;
+      operationId: string;
+      releaseAt: string;
+      resource: CloudDesktopResource;
+    }
+  | {
       action: "release";
       confirmation: string;
       discardData: boolean;
+      imageOperationId?: null | string;
       operationId: string;
       resource: CloudDesktopResource;
       workSaved: boolean;
@@ -5302,6 +5292,18 @@ export type CloudDesktopParams =
       diskId: string;
       resource: CloudDesktopResource;
       snapshotId: string;
+    }
+  | {
+      action: "createEcsImage";
+      confirmation: string;
+      includeCredentials: boolean;
+      operationId: string;
+      snapshotOperationId: string;
+    }
+  | {
+      action: "listEcsImages";
+      profile: string;
+      regionId: string;
     }
   | {
       action: "restoreSnapshot";
@@ -5337,19 +5339,26 @@ export interface CloudDesktopResponse {
   data: unknown;
 }
 
-export type CloudDesktopTunnelChannel = "appServer" | "desktop";
+export type CloudDesktopTunnelChannel =
+  | "appServer"
+  | "desktop"
+  | "installation";
 
-export type CloudRequestMethod = "DELETE" | "GET" | "POST" | "PUT";
+export type CloudRequestMethod = "GET" | "POST";
 
 export interface CloudRequestParams {
   body?: unknown;
+  language: string;
   method: CloudRequestMethod;
+  operationKey?: null | string;
   path: string;
+  taskId?: null | string;
 }
 
 export interface CloudRequestResponse {
   account: Account;
   body: unknown;
+  operation?: CloudOperationReference | null;
   status: number;
 }
 
@@ -6283,6 +6292,7 @@ export interface FileChangePatchUpdatedNotification {
 }
 
 export interface FileChangeRequestApprovalParams {
+  destinations?: string[];
   grantRoot?: null | string;
   itemId: string;
   reason?: null | string;
@@ -6566,12 +6576,12 @@ export interface GatewayTunnelSyncWebhookUrlResponse {
 }
 
 export interface GetAccountParams {
-  refreshToken?: boolean;
+  authorizationId?: null | string;
 }
 
 export interface GetAccountResponse {
   account?: Account | null;
-  requiresOpenaiAuth: boolean;
+  authorizations: AccountAuthorization[];
 }
 
 export interface GitInfo {
@@ -7046,14 +7056,17 @@ export interface LogStorageDiagnosticsResponse {
 }
 
 export type LoginAccountParams = {
-  accessToken: string;
   baseUrl: string;
-  tenantId: string;
-  type: "cloudAuthTokens";
+  installation?: ConnectionInstallation | null;
+  language: string;
+  resource?: CloudResource;
+  type: "cloud";
 };
 
 export type LoginAccountResponse = {
-  type: "cloudAuthTokens";
+  authUrl: string;
+  authorization: AccountAuthorization;
+  type: "cloud";
 };
 
 export type LogoutAccountResponse = Record<string, unknown>;
@@ -7953,11 +7966,6 @@ export type Method =
   | "plugin/read"
   | "plugin/reconcile"
   | "plugin/search"
-  | "plugin/share/checkout"
-  | "plugin/share/delete"
-  | "plugin/share/list"
-  | "plugin/share/save"
-  | "plugin/share/updateTargets"
   | "plugin/skill/read"
   | "plugin/uninstall"
   | "primaryRuntime/cancelInstall"
@@ -8557,7 +8565,6 @@ export interface PluginDetail {
   mcpServers: string[];
   onboardingSkill?: SkillSummary | null;
   scheduledTasks?: ScheduledTaskSummary[] | null;
-  shareUrl?: null | string;
   skills: SkillSummary[];
   summary: PluginSummary;
 }
@@ -8626,12 +8633,7 @@ export interface PluginInterface {
   websiteUrl?: null | string;
 }
 
-export type PluginListMarketplaceKind =
-  | "created-by-me-remote"
-  | "local"
-  | "shared-with-me"
-  | "vertical"
-  | "workspace-directory";
+export type PluginListMarketplaceKind = "cloud" | "local";
 
 export interface PluginListParams {
   cwds?: string[] | null;
@@ -8701,98 +8703,6 @@ export interface PluginSearchResult {
 
 export type PluginSearchScope = "global" | "personal" | "workspace";
 
-export interface PluginShareCheckoutParams {
-  remotePluginId: string;
-}
-
-export interface PluginShareCheckoutResponse {
-  marketplaceName: string;
-  marketplacePath: AbsolutePathBuf;
-  pluginId: string;
-  pluginName: string;
-  pluginPath: AbsolutePathBuf;
-  remotePluginId: string;
-  remoteVersion?: null | string;
-}
-
-export interface PluginShareContext {
-  canPublishToWorkspace?: boolean | null;
-  creatorAccountUserId?: null | string;
-  creatorName?: null | string;
-  discoverability?: PluginShareDiscoverability | null;
-  remotePluginId: string;
-  remoteVersion?: null | string;
-  sharePrincipals?: PluginSharePrincipal[] | null;
-  shareUrl?: null | string;
-}
-
-export interface PluginShareDeleteParams {
-  remotePluginId: string;
-}
-
-export type PluginShareDeleteResponse = Record<string, unknown>;
-
-export type PluginShareDiscoverability = "LISTED" | "PRIVATE" | "UNLISTED";
-
-export interface PluginShareListItem {
-  localPluginPath?: AbsolutePathBuf | null;
-  plugin: PluginSummary;
-}
-
-export type PluginShareListParams = Record<string, unknown>;
-
-export interface PluginShareListResponse {
-  data: PluginShareListItem[];
-}
-
-export interface PluginSharePrincipal {
-  name: string;
-  principalId: string;
-  principalType: PluginSharePrincipalType;
-  role: PluginSharePrincipalRole;
-}
-
-export type PluginSharePrincipalRole = "editor" | "owner" | "reader";
-
-export type PluginSharePrincipalType = "group" | "user" | "workspace";
-
-export interface PluginShareSaveParams {
-  discoverability?: PluginShareDiscoverability | null;
-  pluginPath: AbsolutePathBuf;
-  remotePluginId?: null | string;
-  shareTargets?: PluginShareTarget[] | null;
-}
-
-export interface PluginShareSaveResponse {
-  canPublishToWorkspace?: boolean | null;
-  remotePluginId: string;
-  shareUrl: string;
-}
-
-export interface PluginShareTarget {
-  principalId: string;
-  principalType: PluginSharePrincipalType;
-  role: PluginShareTargetRole;
-}
-
-export type PluginShareTargetRole = "editor" | "reader";
-
-export type PluginShareUpdateDiscoverability =
-  | "LISTED"
-  | "PRIVATE"
-  | "UNLISTED";
-
-export interface PluginShareUpdateTargetsParams {
-  discoverability: PluginShareUpdateDiscoverability;
-  remotePluginId: string;
-  shareTargets: PluginShareTarget[];
-}
-
-export interface PluginShareUpdateTargetsResponse {
-  discoverability: PluginShareDiscoverability;
-  principals: PluginSharePrincipal[];
-}
-
 export interface PluginSkillReadParams {
   remoteMarketplaceName: string;
   remotePluginId: string;
@@ -8842,7 +8752,6 @@ export interface PluginSummary {
   mustShowInstallationInterstitial?: boolean | null;
   name: string;
   remotePluginId?: null | string;
-  shareContext?: PluginShareContext | null;
   source: PluginSource;
   version?: null | string;
 }
@@ -12066,6 +11975,23 @@ export interface jsonRpcResponse {
 
 export type requestId = number | string;
 
+export type CloudCredentialStatus =
+  | "connected"
+  | "expired"
+  | "outcome_unknown"
+  | "refreshing"
+  | "verification_required";
+
+export type CloudResource = "connections" | "default" | "market" | "web";
+
+export interface CloudResourceCredential {
+  audience: string;
+  expiresAt: string;
+  resource: CloudResource;
+  scope: string;
+  status: CloudCredentialStatus;
+}
+
 export type AgentSessionApprovalDecision =
   | "allow_for_session"
   | "allow_once"
@@ -12096,6 +12022,11 @@ export interface ByteRange {
   start: number;
 }
 
+export interface ConnectionInstallation {
+  installationId: string;
+  spaceId: string;
+}
+
 export type ImageDetail = "auto" | "high" | "low" | "original";
 
 export type MultiAgentMode =
@@ -12111,6 +12042,13 @@ export interface TextElement {
 }
 
 export type ThreadSource = string;
+
+export interface CloudOperationReference {
+  key: string;
+  recoveryPath: string;
+  status: string;
+  taskId: string;
+}
 
 export type DynamicToolCallPhase = "approvedExecute" | "preflight";
 
@@ -12128,6 +12066,23 @@ export interface DynamicToolCallApproval {
 }
 
 export type PathUri = string;
+
+export interface AccountAuthorization {
+  expiresAt: string;
+  id: string;
+  resource: CloudResource;
+  status: AccountAuthorizationStatus;
+}
+
+export type AccountAuthorizationStatus =
+  | "cancelled"
+  | "completed"
+  | "denied"
+  | "exchanging"
+  | "expired"
+  | "failed"
+  | "outcome_unknown"
+  | "pending";
 
 export type HookEventName =
   | "interrupt"

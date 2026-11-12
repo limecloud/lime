@@ -1,13 +1,19 @@
-import type { MouseEvent } from "react";
+import { useEffect, type MouseEvent } from "react";
 import styled from "styled-components";
 import {
+  Archive,
   CircleAlert,
   Clock3,
   LoaderCircle,
-  MoreHorizontal,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import type { AgentSessionInfo } from "@/lib/api/agentRuntime/sessionTypes";
 import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
+import {
+  isSessionUnread,
+  markSessionRead,
+} from "@/lib/sessionUnreadState";
 
 type ConversationRuntimeStatus = "running" | "queued" | "waitingAction";
 
@@ -19,8 +25,13 @@ interface AppSidebarConversationRowProps {
   runtimeStatus?: ConversationRuntimeStatus | null;
   runtimeStatusLabel?: string | null;
   actionDisabled: boolean;
-  moreActionsLabel: string;
-  openActionMenuLabel: string;
+  pinned?: boolean;
+  pinLabel: string;
+  unpinLabel: string;
+  archiveLabel: string;
+  unreadLabel?: string;
+  onTogglePinned?: () => void;
+  onArchive?: () => void;
   onNavigate: (session: AgentSessionInfo) => void;
   onOpenMenu: (
     event: MouseEvent<HTMLButtonElement>,
@@ -70,7 +81,7 @@ const ConversationItemButton = styled.button<{
 
   ${ConversationItemRow}:hover &,
   ${ConversationItemRow}:focus-within & {
-    padding-right: 30px;
+    padding-right: 58px;
   }
 `;
 
@@ -124,9 +135,27 @@ const ConversationItemLabel = styled.span`
   font-weight: 500;
 `;
 
-const ConversationItemActionButton = styled.button`
+const ConversationItemActions = styled.div`
   position: absolute;
   right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+
+  ${ConversationItemRow}:hover &,
+  ${ConversationItemRow}:focus-within & {
+    opacity: 1;
+    pointer-events: auto;
+  }
+`;
+
+const ConversationItemActionButton = styled.button`
   width: 26px;
   min-width: 26px;
   height: 26px;
@@ -138,10 +167,7 @@ const ConversationItemActionButton = styled.button`
   background: transparent;
   color: var(--sidebar-muted);
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
   transition:
-    opacity 0.18s ease,
     background-color 0.18s ease,
     color 0.18s ease;
 
@@ -153,12 +179,6 @@ const ConversationItemActionButton = styled.button`
   &:disabled {
     cursor: default;
     opacity: 0.6;
-  }
-
-  ${ConversationItemRow}:hover &,
-  ${ConversationItemRow}:focus-within & {
-    opacity: 1;
-    pointer-events: auto;
   }
 
   svg {
@@ -175,14 +195,32 @@ export function AppSidebarConversationRow({
   runtimeStatus,
   runtimeStatusLabel,
   actionDisabled,
-  moreActionsLabel,
-  openActionMenuLabel,
+  pinned = false,
+  pinLabel,
+  unpinLabel,
+  archiveLabel,
+  unreadLabel,
+  onTogglePinned,
+  onArchive,
   onNavigate,
   onOpenMenu,
 }: AppSidebarConversationRowProps) {
+  useEffect(() => {
+    if (active) {
+      markSessionRead(session.id);
+    }
+  }, [active, session.id]);
+  const unread = !active && isSessionUnread(session);
   return (
     <ConversationItemRow
       $active={active}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onOpenMenu(
+          event as unknown as MouseEvent<HTMLButtonElement>,
+          session,
+        );
+      }}
       data-active={active ? "true" : "false"}
     >
       <ConversationItemButton
@@ -197,6 +235,7 @@ export function AppSidebarConversationRow({
             source: "conversation_shelf",
             cwd: session.working_dir ?? null,
           });
+          markSessionRead(session.id);
           onNavigate(session);
         }}
         title={title}
@@ -220,16 +259,41 @@ export function AppSidebarConversationRow({
           </ConversationRuntimeStatusIcon>
         ) : null}
         <ConversationItemLabel>{title}</ConversationItemLabel>
+        {unread ? (
+          <span
+            className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500"
+            data-testid="app-sidebar-conversation-unread"
+            aria-label={unreadLabel}
+          />
+        ) : null}
       </ConversationItemButton>
-      <ConversationItemActionButton
-        type="button"
-        aria-label={openActionMenuLabel}
-        title={moreActionsLabel}
-        disabled={actionDisabled}
-        onClick={(event) => onOpenMenu(event, session)}
-      >
-        <MoreHorizontal />
-      </ConversationItemActionButton>
+      <ConversationItemActions>
+      {onTogglePinned ? (
+        <ConversationItemActionButton
+          type="button"
+          aria-label={pinned ? unpinLabel : pinLabel}
+          title={pinned ? unpinLabel : pinLabel}
+          disabled={actionDisabled}
+          data-testid="app-sidebar-conversation-pin"
+          data-pinned={pinned ? "true" : "false"}
+          onClick={onTogglePinned}
+        >
+          {pinned ? <PinOff /> : <Pin />}
+        </ConversationItemActionButton>
+      ) : null}
+      {onArchive ? (
+        <ConversationItemActionButton
+          type="button"
+          aria-label={archiveLabel}
+          title={archiveLabel}
+          disabled={actionDisabled}
+          data-testid="app-sidebar-conversation-archive"
+          onClick={onArchive}
+        >
+          <Archive />
+        </ConversationItemActionButton>
+      ) : null}
+      </ConversationItemActions>
     </ConversationItemRow>
   );
 }

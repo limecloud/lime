@@ -56,6 +56,25 @@ impl AppServerSession {
             .context("failed to start App Server thread")
     }
 
+    pub(crate) async fn fork_thread(
+        &mut self,
+        thread_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadForkResponse> {
+        let response: app_server_protocol::protocol::v2::ThreadForkResponse = self
+            .request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_FORK,
+                app_server_protocol::protocol::v2::ThreadForkParams {
+                    thread_id,
+                    ..Default::default()
+                },
+            )
+            .await
+            .context("failed to fork App Server thread")?;
+        self.thread_id = Some(response.thread.id.clone());
+        Ok(response)
+    }
+
     pub(crate) async fn resume_thread(
         &mut self,
         thread_id: String,

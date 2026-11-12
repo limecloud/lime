@@ -31,6 +31,7 @@ async fn verified_release_allows_a_fresh_purchase_but_never_reuses_its_quote() {
             confirmation: "release:cn-test:ecd-test:discard-data".into(),
             work_saved: true,
             discard_data: true,
+            image_operation_id: None,
         })
         .await
         .unwrap();

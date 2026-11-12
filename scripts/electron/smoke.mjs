@@ -45,6 +45,20 @@ const userDataDir =
   process.env.ELECTRON_E2E_USER_DATA_DIR?.trim() ||
   mkdtempSync(path.join(os.tmpdir(), "lime-electron-smoke-userdata-"));
 const shouldRemoveUserDataDir = !process.env.ELECTRON_E2E_USER_DATA_DIR?.trim();
+// First-run permission guide is a UI preference; pre-complete it so smoke can reach the shell.
+const permissionsSetupDir = path.join(userDataDir, "permissions");
+const permissionsSetupPath = path.join(permissionsSetupDir, "setup.json");
+if (!existsSync(permissionsSetupPath)) {
+  mkdirSync(permissionsSetupDir, { recursive: true });
+  writeFileSync(
+    permissionsSetupPath,
+    JSON.stringify({
+      version: 1,
+      complete: true,
+      selectedDirectory: null,
+    }),
+  );
+}
 const smokeVisible = process.env.LIME_ELECTRON_SMOKE_VISIBLE?.trim() === "1";
 let launcherFailureStage = null;
 let finished = false;

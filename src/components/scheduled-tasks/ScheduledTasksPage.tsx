@@ -233,11 +233,23 @@ export function ScheduledTasksPage({
       }
       next.projectId = currentProjectId;
       next.sourceThreadId = pageParams?.threadId ?? "";
+      if (pageParams?.threadId?.trim()) {
+        next.threadMode = "continue_thread";
+      }
       setForm(next);
       setEditorMode("create");
     },
     [currentProjectId, pageParams?.threadId, t],
   );
+
+  const autoOpenedThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const threadId = pageParams?.threadId?.trim();
+    if (!threadId) return;
+    if (autoOpenedThreadIdRef.current === threadId) return;
+    autoOpenedThreadIdRef.current = threadId;
+    startCreate();
+  }, [pageParams?.threadId, startCreate]);
 
   const startEdit = useCallback(() => {
     if (!selectedTask) return;
@@ -414,6 +426,7 @@ export function ScheduledTasksPage({
         setEditorMode(null);
         setSelectedId(id);
       }}
+      onOpenRun={openRun}
       onCreate={() => startCreate()}
       onCreateWithLime={createWithLime}
       inSidebar

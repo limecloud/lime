@@ -20,6 +20,9 @@ mod output_buffer;
 mod pty;
 #[cfg(target_os = "windows")]
 mod windows;
+// The ACL plan is pure path computation; only Windows applies it.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+mod windows_acl_plan;
 
 /// Runs the Windows sandbox-account command runner sidecar.
 ///

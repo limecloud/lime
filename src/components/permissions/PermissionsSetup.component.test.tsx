@@ -311,14 +311,15 @@ describe("Permission setup flow", () => {
       log.mockRestore();
     }
   });
-  it("shows an actionable Keychain recovery and retries the same storage verification", async () => {
+  it("retries local storage without asking for Keychain authorization", async () => {
     snapshot.permissions.find((entry) => entry.id === "secureStorage")!.state =
       "unavailable";
     await mount();
     await click("下一步");
     expect(
       document.querySelector('[data-permission="secureStorage"]')?.textContent,
-    ).toContain("钥匙串");
+    ).toContain("本机数据目录");
+    expect(container.textContent).not.toContain("在钥匙串提示中允许访问");
     const granted = structuredClone(snapshot);
     granted.permissions.find((entry) => entry.id === "secureStorage")!.state =
       "granted";

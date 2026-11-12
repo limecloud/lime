@@ -7297,6 +7297,8 @@ const checks = [
       "resolveDefaultAppServerRequestTimeoutMs(method)",
       '"plugin/install"',
       '"plugin/reconcile"',
+    ],
+    absentSnippets: [
       '"plugin/share/save"',
       '"plugin/share/list"',
       '"plugin/share/updateTargets"',

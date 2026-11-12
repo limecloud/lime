@@ -700,11 +700,6 @@ describe("http-client", () => {
       ).toBe(30000);
     }
     for (const method of [
-      "plugin/share/save",
-      "plugin/share/list",
-      "plugin/share/updateTargets",
-      "plugin/share/checkout",
-      "plugin/share/delete",
     ]) {
       expect(
         resolveBridgeRequestTimeoutMs("app_server_handle_json_lines", {

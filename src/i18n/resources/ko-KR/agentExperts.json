@@ -117,5 +117,9 @@
   "agentExperts.info.skills.timeline.invocationRunning": "실행 중",
   "agentExperts.info.skills.timeline.invocationCompleted": "완료",
   "agentExperts.info.skills.timeline.invocationFailed": "실패",
-  "agentExperts.info.skills.timeline.invocationUnknown": "확인 필요"
+  "agentExperts.info.skills.timeline.invocationUnknown": "확인 필요",
+  "agentExperts.loading": "전문가 로딩 중",
+  "agentExperts.loadFailed": "전문가 목록을 불러오지 못했습니다",
+  "agentExperts.retry": "다시 시도",
+  "agentExperts.launchFailed": "전문가를 시작하지 못했습니다. 다시 시도하세요."
 }

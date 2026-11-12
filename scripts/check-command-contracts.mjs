@@ -666,7 +666,6 @@ const retiredTauriGenerateHandlerCommands = new Set([
   "set_injection_enabled",
   "set_websocket_enabled",
   "start_telegram_remote",
-  "start_oem_cloud_oauth_callback_bridge",
   "stop_telegram_remote",
   "submit_a2ui_form",
   "sync_all_mcp_to_live",
@@ -761,7 +760,6 @@ const currentElectronHostRequiredCommands = new Set([
   "is_default_browser",
   "open_external_url",
   "open_system_settings_url",
-  "start_oem_cloud_oauth_callback_bridge",
   "workspace_ensure",
   "workspace_ensure_default_ready",
   "workspace_ensure_ready",
@@ -775,7 +773,6 @@ const currentElectronHostRequiredCommands = new Set([
 
 const currentDevBridgeTruthRequiredCommands = new Set([
   "open_external_url",
-  "start_oem_cloud_oauth_callback_bridge",
 ]);
 
 function normalizePath(filePath) {

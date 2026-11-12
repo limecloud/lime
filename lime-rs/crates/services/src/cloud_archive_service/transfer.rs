@@ -43,6 +43,43 @@ async fn transfer_with_download_limit(
     program: &Path,
     download_limit: u64,
 ) -> Result<Value, String> {
+    run_transfer(
+        local,
+        remote,
+        upload,
+        expected,
+        tokio::process::Command::new(program),
+        download_limit,
+    )
+    .await
+}
+
+pub(crate) async fn transfer_with_command(
+    local: &Path,
+    remote: &str,
+    upload: bool,
+    expected: &str,
+    command: tokio::process::Command,
+) -> Result<Value, String> {
+    run_transfer(
+        local,
+        remote,
+        upload,
+        expected,
+        command,
+        MAX_CIPHERTEXT_BYTES,
+    )
+    .await
+}
+
+async fn run_transfer(
+    local: &Path,
+    remote: &str,
+    upload: bool,
+    expected: &str,
+    mut command: tokio::process::Command,
+    download_limit: u64,
+) -> Result<Value, String> {
     let (profile, key) = remote
         .split_once(':')
         .ok_or("Expected a configured rclone remote:path")?;
@@ -79,7 +116,6 @@ async fn transfer_with_download_limit(
     } else {
         private_staging(parent)?
     };
-    let mut command = tokio::process::Command::new(program);
     if upload {
         command
             .arg("copyto")

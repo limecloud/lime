@@ -848,26 +848,6 @@
     },
     {
       "kind": "request",
-      "method": "plugin/share/checkout"
-    },
-    {
-      "kind": "request",
-      "method": "plugin/share/delete"
-    },
-    {
-      "kind": "request",
-      "method": "plugin/share/list"
-    },
-    {
-      "kind": "request",
-      "method": "plugin/share/save"
-    },
-    {
-      "kind": "request",
-      "method": "plugin/share/updateTargets"
-    },
-    {
-      "kind": "request",
       "method": "plugin/skill/read"
     },
     {
@@ -1684,26 +1664,6 @@
     {
       "method": "mcpServer/oauth/logout",
       "scope": "mcpOauth"
-    },
-    {
-      "method": "plugin/share/checkout",
-      "scope": "accountAuth"
-    },
-    {
-      "method": "plugin/share/delete",
-      "scope": "accountAuth"
-    },
-    {
-      "method": "plugin/share/list",
-      "scope": "accountAuth"
-    },
-    {
-      "method": "plugin/share/save",
-      "scope": "accountAuth"
-    },
-    {
-      "method": "plugin/share/updateTargets",
-      "scope": "accountAuth"
     },
     {
       "method": "plugin/skill/read",
@@ -2627,25 +2587,6 @@
       "PluginSearchResponse",
       "PluginSearchResult",
       "PluginSearchScope",
-      "PluginShareCheckoutParams",
-      "PluginShareCheckoutResponse",
-      "PluginShareContext",
-      "PluginShareDeleteParams",
-      "PluginShareDeleteResponse",
-      "PluginShareDiscoverability",
-      "PluginShareListItem",
-      "PluginShareListParams",
-      "PluginShareListResponse",
-      "PluginSharePrincipal",
-      "PluginSharePrincipalRole",
-      "PluginSharePrincipalType",
-      "PluginShareSaveParams",
-      "PluginShareSaveResponse",
-      "PluginShareTarget",
-      "PluginShareTargetRole",
-      "PluginShareUpdateDiscoverability",
-      "PluginShareUpdateTargetsParams",
-      "PluginShareUpdateTargetsResponse",
       "PluginSkillReadParams",
       "PluginSkillReadResponse",
       "PluginSource",

@@ -39,8 +39,11 @@ import {
   EntryBannerClose,
   MessageViewport,
 } from "./WorkspaceStyles";
+import { GitFork } from "lucide-react";
 import { ThreadWorkspaceHeader } from "./ThreadWorkspaceHeader";
+import { ConversationTabBar } from "./ConversationTabBar";
 import { ThreadSummaryPanel } from "./ThreadSummaryPanel";
+import { PanelRenderErrorBoundary } from "../components/PanelRenderErrorBoundary";
 import {
   ThreadSummaryLayout,
   ThreadSummaryToggle,
@@ -96,6 +99,7 @@ interface WorkspaceChatContentCopy {
   workspaceMissing: string;
   workspaceReselect: string;
   workspaceDismissAria: string;
+  forkedFrom: string;
 }
 
 function resolveContentSyncNoticeMeta(status: Exclude<SyncStatus, "idle">): {
@@ -155,9 +159,21 @@ function renderWorkspaceChatContent({
       pendingA2UISource.kind === "scene_gate" ||
       pendingA2UISource.kind === "service_skill" ||
       Boolean(a2uiSubmissionNotice));
+  const forkedFromBanner = messageListProps.threadRead?.forked_from_id ? (
+    <div
+      className="mx-auto flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--lime-surface-border)] px-2.5 py-1 text-[11px] text-[color:var(--lime-text-muted)]"
+      data-testid="forked-from-banner"
+    >
+      <GitFork className="h-3 w-3" aria-hidden="true" />
+      {copy.forkedFrom}
+    </div>
+  ) : null;
   const leadingMessageContent =
-    stepProgressProps || landingSurface.serviceSkillExecutionCard ? (
+    forkedFromBanner ||
+    stepProgressProps ||
+    landingSurface.serviceSkillExecutionCard ? (
       <>
+        {forkedFromBanner}
         {stepProgressProps ? <StepProgress {...stepProgressProps} /> : null}
         {landingSurface.serviceSkillExecutionCard}
       </>
@@ -451,6 +467,11 @@ export function WorkspaceConversationScene({
     showChatLayout ? currentThreadId : null,
   );
   const summaryPanel = (
+    <PanelRenderErrorBoundary
+      messageKey="agentChat.messageList.summaryRenderError"
+      defaultMessage="摘要面板渲染失败"
+      testId="summary-panel-render-error"
+    >
     <ThreadSummaryPanel
       threadId={currentThreadId}
       projectless={
@@ -469,6 +490,7 @@ export function WorkspaceConversationScene({
       onOpenArtifactFromTimeline={messageListProps.onOpenArtifactFromTimeline}
       persistenceError={summary.persistenceError}
     />
+    </PanelRenderErrorBoundary>
   );
   const chatContent = renderWorkspaceChatContent({
     landingSurface,
@@ -496,6 +518,7 @@ export function WorkspaceConversationScene({
       workspaceMissing: text("workspaceAlert.missing"),
       workspaceReselect: text("workspaceAlert.reselect"),
       workspaceDismissAria: text("workspaceAlert.dismissAria"),
+      forkedFrom: String(t("agentChat.forkedFromConversation")),
     },
   });
   const shouldUseTaskCenterUtilityToolbar =
@@ -515,6 +538,7 @@ export function WorkspaceConversationScene({
     shouldRenderThreadHeader && threadHeader ? (
       <ThreadWorkspaceHeader
         {...threadHeader}
+        scheduledTaskThreadId={currentThreadId}
         summaryToggle={
           <ThreadSummaryToggle state={summary} panel={summaryPanel} />
         }
@@ -527,6 +551,7 @@ export function WorkspaceConversationScene({
           />
         }
         actions={<>{rightSurfaceLauncher}</>}
+        trailingTabs={rightSurfaceTabStrip ?? undefined}
       />
     ) : null;
   const chatNavbarProps = buildWorkspaceNavbarProps({
@@ -606,7 +631,10 @@ export function WorkspaceConversationScene({
         mainToolbar={
           threadHeaderNode ?? (
             <HeaderToolbar className="flex-1">
-              {navbarNode}
+              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                {navbarNode}
+                <ConversationTabBar currentSessionId={null} homeActive />
+              </div>
               <HeaderToolbar.Actions>
                 {taskCenterUtilityToolbarNode}
               </HeaderToolbar.Actions>
@@ -614,7 +642,9 @@ export function WorkspaceConversationScene({
           )
         }
         mainTabLabel={threadHeader?.title}
-        sidePanelTabStrip={rightSurfaceTabStrip}
+        sidePanelTabStrip={undefined}
+        inlineMainToolbar
+        inlineSidePanelTabs={Boolean(rightSurfaceTabStrip)}
         contentSyncNoticeNode={contentSyncNoticeNode}
         shellBottomInset={shellBottomInset}
         layoutMode={layoutMode}

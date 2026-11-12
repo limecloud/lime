@@ -186,7 +186,8 @@ async fn restore_replay_and_unknown_response_never_resubmit_or_allow_new_destruc
                 operation_id: "delete-1".into(),
                 confirmation: "release:cn-test:i-test:discard-data".into(),
                 work_saved: true,
-                discard_data: true
+                discard_data: true,
+                image_operation_id: None
             })
             .await
             .is_err());

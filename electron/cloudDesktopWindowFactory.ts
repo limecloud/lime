@@ -9,7 +9,43 @@ import {
 import {
   CLOUD_DESKTOP_WINDOW_ARGUMENT,
   type CloudDesktopWindowContext,
+  validateCloudDesktopViewEndpoint,
 } from "../src/lib/desktop-host/cloudDesktopConnection";
+
+const viewerNavigation = new WeakMap<object, { origin?: string }>();
+
+/** Main registers only the validated desktop listener for this exact webContents. */
+export function allowCloudDesktopView(
+  contents: object,
+  endpoint: string,
+): void {
+  const state = viewerNavigation.get(contents);
+  if (state)
+    state.origin = new URL(validateCloudDesktopViewEndpoint(endpoint)).origin;
+}
+
+export function isCloudFrameNavigationAllowed(
+  target: string,
+  isMainFrame: boolean,
+  rendererUrl: string,
+  viewerOrigin?: string,
+): boolean {
+  try {
+    const next = new URL(target);
+    const renderer = new URL(rendererUrl);
+    if (isMainFrame)
+      return (
+        next.origin === renderer.origin && next.pathname === renderer.pathname
+      );
+    return (
+      next.protocol === "http:" &&
+      next.origin === viewerOrigin &&
+      next.origin !== renderer.origin
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function createCloudDesktopWindow(
   context: CloudDesktopWindowContext,
@@ -54,13 +90,38 @@ export function createCloudDesktopWindow(
   const rendererUrl =
     process.env.VITE_DEV_SERVER_URL?.trim() ||
     pathToFileURL(path.join(rendererRoot, "index.html")).toString();
-  const allowed = new URL(rendererUrl);
+  const navigation = { origin: undefined as string | undefined };
+  viewerNavigation.set(window.webContents, navigation);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, target) => {
-    const next = new URL(target);
-    if (next.origin !== allowed.origin || next.pathname !== allowed.pathname)
+    if (!isCloudFrameNavigationAllowed(target, true, rendererUrl))
       event.preventDefault();
   });
+  window.webContents.on("will-frame-navigate", (event) => {
+    if (
+      !isCloudFrameNavigationAllowed(
+        event.url,
+        event.isMainFrame,
+        rendererUrl,
+        navigation.origin,
+      )
+    )
+      event.preventDefault();
+  });
+  window.webContents.on(
+    "will-redirect",
+    (event, target, _inPlace, isMainFrame) => {
+      if (
+        !isCloudFrameNavigationAllowed(
+          target,
+          isMainFrame,
+          rendererUrl,
+          navigation.origin,
+        )
+      )
+        event.preventDefault();
+    },
+  );
   window.once("ready-to-show", () => window.show());
   // Registry installation is synchronous; no renderer can invoke IPC before it is registered.
   queueMicrotask(() => {

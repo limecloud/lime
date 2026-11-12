@@ -1,8 +1,5 @@
-import { requestControlPlane } from "@/lib/api/oemCloudControlPlaneRuntime";
-import {
-  hasOemCloudSession,
-  resolveOemCloudRuntimeContext,
-} from "./oemCloudRuntime";
+import { listProductContent, productContentText } from "./productCatalog";
+import { getCloudAccount } from "@/lib/cloudAccount";
 import { getRuntimeAppVersion } from "@/lib/appVersion";
 import { resolveBaseSetupCatalogPayload } from "@/lib/base-setup/bootstrap";
 import {
@@ -812,20 +809,20 @@ function isCatalogCompatibleWithActiveTenant(
     return true;
   }
 
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!runtime) {
+  const account = getCloudAccount()?.account;
+  if (!account) {
     return true;
   }
 
-  return catalog.tenantId === runtime.tenantId;
+  return catalog.tenantId === account.applicationId;
 }
 
 function shouldIgnoreServerSyncedCatalog(
   current: ServiceSkillCatalog | null,
   incoming: ServiceSkillCatalog,
 ): boolean {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (runtime && incoming.tenantId !== runtime.tenantId) {
+  const account = getCloudAccount()?.account;
+  if (account && incoming.tenantId !== account.applicationId) {
     return true;
   }
 
@@ -867,10 +864,10 @@ function normalizeServiceSkillCatalogInput(
     };
   }
 
-  const runtime = resolveOemCloudRuntimeContext();
+  const account = getCloudAccount()?.account;
   const compiledFromBaseSetup = resolveBaseSetupCatalogPayload(value, {
     appVersion: getRuntimeAppVersion(),
-    tenantId: runtime?.tenantId ?? "base-setup",
+    tenantId: account?.applicationId ?? "base-setup",
     seededFallbackAvailable: true,
   });
   if (compiledFromBaseSetup) {
@@ -957,26 +954,25 @@ export function applyServerSyncedServiceSkillCatalog(
   return normalizedInput.catalog;
 }
 
-async function requestRemoteServiceSkillCatalog(): Promise<NormalizedServiceSkillCatalogInput> {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!runtime) {
-    throw new Error("缺少品牌云端配置，请先注入 base_url 与 tenant_id。");
-  }
-  if (!hasOemCloudSession(runtime)) {
-    throw new Error("缺少品牌云端 Session Token，请先完成登录或注入会话。");
-  }
-
-  const data = await requestControlPlane<unknown>(
-    `/v1/public/tenants/${encodeURIComponent(runtime.tenantId)}/client/service-skills`,
-    { auth: true },
-  );
-
-  const normalizedInput = normalizeServiceSkillCatalogInput(data);
-  if (!normalizedInput) {
-    throw new Error("服务端返回的目录格式非法");
-  }
-
-  return normalizedInput;
+export async function requestRemoteServiceSkillCatalog(): Promise<NormalizedServiceSkillCatalogInput> {
+  const items = await listProductContent("skills");
+  const applicationId = getCloudAccount()?.account.applicationId;
+  if (!applicationId) throw new Error("account_login_required");
+  return {
+    baseSetupSnapshot: null,
+    catalog: {
+      version: items.map(item => item.id).sort().join(":") || "empty",
+      tenantId: applicationId,
+      syncedAt: new Date().toISOString(),
+      items: items.map(item => ({
+        id: item.key, skillKey: item.key, skillType: "service",
+        title: productContentText(item).title, summary: productContentText(item).summary,
+        category: item.document.category, outputHint: "", source: "cloud_catalog",
+        runnerType: "instant", defaultExecutorBinding: "native_skill", executionLocation: "client_default",
+        readinessRequirements: { requiresSkillKey: item.key }, slotSchema: [], version: String(item.revision),
+      })),
+    },
+  };
 }
 
 export function getSeededServiceSkillCatalog(): ServiceSkillCatalog {
@@ -1095,8 +1091,8 @@ export async function getServiceSkillCatalog(): Promise<ServiceSkillCatalog> {
 }
 
 export async function refreshServiceSkillCatalogFromRemote(): Promise<ServiceSkillCatalog | null> {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!runtime || !hasOemCloudSession(runtime)) {
+  const account = getCloudAccount()?.account;
+  if (!account) {
     return null;
   }
 

@@ -101,7 +101,7 @@ export interface ExpertsPageParams {
 }
 
 export interface ExpertAgentLaunchParams {
-  tenantId: string;
+  catalogId: string;
   projectId?: string;
   expertId: string;
   releaseId: string;

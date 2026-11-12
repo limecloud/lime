@@ -22,7 +22,7 @@ bootstrap = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bootstrap)
 
 
-def configuration(root, archive=None, lifetime=120):
+def configuration(root, archive=None, lifetime=120, reconnect=False):
     capability = "c" * 64  # Explicit synthetic capability; never a user credential.
     config = {
         "operationId": str(uuid.uuid4()),
@@ -30,14 +30,27 @@ def configuration(root, archive=None, lifetime=120):
         "archiveSha256": bootstrap.guest.digest(archive) if archive else "a" * 64,
         "manifestSha256": "b" * 64,
         "archiveBytes": archive.stat().st_size if archive else 1,
-        "bindAddress": "127.0.0.1", "publicAddress": "127.0.0.1",
         "expiresAt": int(time.time()) + lifetime,
     }
+    if reconnect:
+        for key in ("archiveSha256", "manifestSha256", "archiveBytes"):
+            del config[key]
+        config["reconnect"] = True
     bootstrap.guest.private_write(root / "config.json", json.dumps(config).encode())
     return config, capability
 
 
 class BootstrapConfigurationTests(unittest.TestCase):
+    def test_reconnect_configuration_never_accepts_an_artifact_or_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, _ = configuration(root, reconnect=True)
+            self.assertEqual(bootstrap.load_config(root / "config.json"), config)
+            for change in ({"archiveBytes": 1}, {"token": "secret"}, {"reconnect": False}):
+                (root / "config.json").write_text(json.dumps({**config, **change}))
+                with self.assertRaises(RuntimeError):
+                    bootstrap.load_config(root / "config.json")
+
     def test_config_has_fixed_identity_size_lifetime_and_literal_ip(self):
         invalid = {"archiveBytes": [True, 0, bootstrap.guest.MAX_ARCHIVE_BYTES + 1],
                    "expiresAt": [int(time.time()) - 1, int(time.time()) + 1802],
@@ -177,6 +190,19 @@ class BootstrapTLSTests(unittest.TestCase):
         self.assertEqual(self.request("PUT", "/runtime", body=b"x")[0], 400)
         self.assertEqual(self.operation.phase, "waiting")
 
+    def test_download_requires_authentication_json_and_one_valid_source_before_mutation(self):
+        body = json.dumps({"downloadUrl": "https://assets.example.com/runtime.tar.gz"})
+        headers = {"Authorization": "Bearer " + self.capability, "Content-Type": "application/json"}
+        self.assertEqual(self.request("POST", "/download", body=body, headers={})[0], 401)
+        self.assertEqual(self.request("POST", "/download", body=body,
+                                      headers={**headers, "Origin": "https://host.invalid"})[0], 403)
+        for invalid in ("invalid-json", "[]", '{"downloadUrl":"http://assets.example.com/a"}',
+                        '{"downloadUrl":"https://assets.example.com/a","command":"no"}'):
+            self.assertEqual(self.request("POST", "/download", body=invalid, headers=headers)[0], 400)
+        self.assertEqual(self.request("POST", "/download", body=body,
+                                      headers={**headers, "Content-Type": "text/plain"})[0], 400)
+        self.assertEqual(self.operation.phase, "waiting")
+
     def test_failed_upload_does_not_accept_a_second_mutation(self):
         wrong = b"x" * self.config["archiveBytes"]
         self.assertEqual(self.request("PUT", "/runtime", body=wrong)[0], 422)
@@ -244,6 +270,49 @@ class BootstrapTLSTests(unittest.TestCase):
         self.assertIsNone(self.operation.credentials())
         self.server.server_close()
         self.assertTrue(self.operation.stopped)
+
+    def test_real_tls_reconnect_is_single_submission_and_secrets_only_use_credentials(self):
+        self.close_server()
+        root = self.root / "reconnect"
+        root.mkdir(mode=0o700)
+        self.operation_root = root
+        self.config, self.capability = configuration(root, reconnect=True)
+        self.operation = bootstrap.Installation(root, self.config)
+        certificate = bootstrap.certificate(root, "127.0.0.1")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(root / "tls-cert.pem", root / "tls-key.pem")
+        self.client_context = ssl.create_default_context(cadata=certificate)
+        self.server = bootstrap.UploadServer(("127.0.0.1", 0), self.operation, context)
+        self.thread = threading.Thread(target=self.server.serve_until_expiry)
+        self.thread.start()
+        credentials_root = self.root / "new-credentials"
+        credentials_root.mkdir(mode=0o700)
+        fixture = self.root / "reconnect-fixture.py"
+        fixture.write_text(
+            "import pathlib,sys\nassert sys.argv[1:]==['reconnect']\n"
+            "root=pathlib.Path(" + repr(str(credentials_root)) + ")\n"
+            "(root/'token').write_text('new_'+40*'t');(root/'token').chmod(0o600)\n"
+            "(root/'viewer-password').write_text('newVnc88');(root/'viewer-password').chmod(0o600)\n"
+            "(root/'calls').write_text('1')\n")
+        with patch.object(bootstrap.guest, "__file__", str(fixture)), patch.object(bootstrap.guest, "config_root", return_value=credentials_root):
+            self.assertEqual(self.request("POST", "/reconnect", headers={})[0], 401)
+            self.assertEqual(self.request("POST", "/reconnect", headers={"Authorization": "Bearer " + self.capability, "Origin": "https://host.invalid"})[0], 403)
+            self.assertEqual(self.request("PUT", "/runtime", body=b"x")[0], 404)
+            self.assertEqual(self.request("POST", "/reconnect", body=b"x")[0], 400)
+            self.assertEqual(self.request("GET", "/credentials")[0], 409)
+            status, value, _ = self.request("POST", "/reconnect")
+            self.assertEqual((status, value["phase"]), (200, "installed"))
+            self.assertNotIn("token", value)
+            self.assertEqual(self.request("POST", "/reconnect")[0], 409)
+            status, value, cache = self.request("GET", "/credentials")
+            self.assertEqual((status, value["token"], value["viewerPassword"], cache), (200, "new_" + 40 * "t", "newVnc88", "no-store"))
+            self.assertEqual((credentials_root / "calls").read_text(), "1")
+            state = (root / "state.json").read_text()
+            for secret in (self.capability, value["token"], value["viewerPassword"]):
+                self.assertNotIn(secret, state)
+            self.assertEqual(self.request("POST", "/finish")[0], 200)
+            self.thread.join(timeout=5)
+            self.assertIsNone(self.operation.credentials())
 
 
 if __name__ == "__main__":

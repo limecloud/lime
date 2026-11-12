@@ -1,218 +1,124 @@
 import { loginAccount, logoutAccount, readAccount } from "./api/account";
 import { subscribeAppServerNotifications } from "./api/appServerEventBus";
-import type { AppServerAccount } from "./api/appServerTypes";
-import type { OemCloudCurrentSession } from "./api/oemCloudControlPlaneTypes";
-
-export const OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT =
-  "lime:oem-cloud-bootstrap-changed";
+import { openExternalUrlWithSystemBrowser } from "./api/externalUrl";
+import type {
+  AppServerAccount,
+  AppServerGetAccountResponse,
+  AppServerLoginAccountParams,
+} from "./api/appServerTypes";
 
 export interface CloudAccountView {
   account: Extract<AppServerAccount, { type: "cloud" }>;
-  session: Omit<OemCloudCurrentSession, "token">;
 }
+export type CloudResource = Extract<AppServerLoginAccountParams, { type: "cloud" }>["resource"];
 
 let current: CloudAccountView | null = null;
+let snapshot: AppServerGetAccountResponse = { account: null, authorizations: [] };
 let revision = 0;
 let identityVersion = 0;
-let bootstrap: unknown = null;
 let unwatch: (() => void) | null = null;
+let poll: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<(view: CloudAccountView | null) => void>();
 
-export function cloudAccountIdentity(
-  view: Pick<CloudAccountView, "account"> | null,
-) {
-  return view
-    ? JSON.stringify([
-        view.account.baseUrl,
-        view.account.tenantId,
-        view.account.userId,
-        view.account.sessionId,
-      ])
-    : null;
+export function cloudAccountIdentity(view: Pick<CloudAccountView, "account"> | null) {
+  const a = view?.account;
+  return a ? JSON.stringify([
+    a.baseUrl, a.issuer, a.applicationId, a.clientId, a.environment, a.userId, a.generation,
+  ]) : null;
 }
 
-/** Identity lifetime, including a switch away and back to the same account. */
-export function cloudAccountIdentityVersion(): number {
-  return identityVersion;
-}
+/** Identity lifetime includes a switch away and back to the same subject. */
+export function cloudAccountIdentityVersion(): number { return identityVersion; }
+export function getCloudAccount(): CloudAccountView | null { return current; }
+export function getCloudAccountState(): AppServerGetAccountResponse { return snapshot; }
 
-function publish(view: CloudAccountView | null) {
-  if (JSON.stringify(current) === JSON.stringify(view)) return;
-  const identityChanged =
-    cloudAccountIdentity(current) !== cloudAccountIdentity(view);
-  current = view;
-  if (identityChanged) {
-    identityVersion += 1;
-    clearOemCloudBootstrapSnapshot();
-  }
+function publish(next: AppServerGetAccountResponse) {
+  if (JSON.stringify(snapshot) === JSON.stringify(next)) return;
+  const view = next.account ? { account: next.account } : null;
+  if (cloudAccountIdentity(current) !== cloudAccountIdentity(view)) identityVersion += 1;
+  if (JSON.stringify(current) !== JSON.stringify(view)) current = view;
+  snapshot = next;
   for (const listener of listeners) listener(current);
 }
 
-function project(account: CloudAccountView["account"]): CloudAccountView {
-  const same =
-    cloudAccountIdentity(current) === cloudAccountIdentity({ account });
-  return {
-    account,
-    session:
-      same && current
-        ? current.session
-        : {
-            tenant: {
-              id: account.tenantId,
-              name: account.tenantId,
-              slug: account.tenantId,
-            },
-            user: {
-              id: account.userId,
-              email: account.email ?? "",
-              displayName: account.displayName ?? account.userId,
-              passwordConfigured: false,
-              roles: [],
-            },
-            session: {
-              id: account.sessionId,
-              tenantId: account.tenantId,
-              userId: account.userId,
-              provider: "",
-              roles: [],
-              issuedAt: "",
-              expiresAt: account.expiresAt ?? "",
-            },
-          },
-  };
+export function configuredCloudOrigin(): string | null {
+  const raw = import.meta.env.VITE_LIMECORE_ORIGIN?.trim();
+  if (!raw) return null;
+  const url = new URL(raw);
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if ((url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
+      url.username || url.password || url.pathname !== "/" || url.search || url.hash ||
+      url.origin !== raw.replace(/\/$/, "")) throw new Error("account_origin_invalid");
+  return url.origin;
 }
 
-/** A view of the shared App Server account; this module never stores credentials. */
-export function getCloudAccount(): CloudAccountView | null {
-  return current;
-}
-
-export async function readCloudAccount(): Promise<CloudAccountView | null> {
+export async function readCloudAccountState(authorizationId?: string): Promise<AppServerGetAccountResponse> {
   const ticket = ++revision;
-  const { account } = await readAccount();
-  if (ticket === revision)
-    publish(account?.type === "cloud" ? project(account) : null);
+  const result = await readAccount(authorizationId ? { authorizationId } : {});
+  if (ticket === revision) publish(result);
+  return snapshot;
+}
+export async function readCloudAccount(): Promise<CloudAccountView | null> {
+  await readCloudAccountState();
   return current;
 }
 
-export async function importCloudAccount(params: {
-  baseUrl: string;
-  tenantId: string;
-  accessToken: string;
+export async function startCloudAuthorization(params: {
+  language: string;
+  resource?: CloudResource;
+  installation?: Extract<AppServerLoginAccountParams, { type: "cloud" }>["installation"];
 }) {
+  const baseUrl = current?.account.baseUrl ?? configuredCloudOrigin();
+  if (!baseUrl) throw new Error("account_service_unconfigured");
   ++revision;
-  await loginAccount({ type: "cloudAuthTokens", ...params });
-  return await readCloudAccount();
+  const result = await loginAccount({ type: "cloud", baseUrl, ...params });
+  await readCloudAccountState();
+  await openExternalUrlWithSystemBrowser(result.authUrl);
+  schedulePoll();
+  return result.authorization;
 }
 
 export async function logoutCloudAccount(): Promise<void> {
   ++revision;
   await logoutAccount();
-  await readCloudAccount();
+  await readCloudAccountState();
 }
 
-/** Rich profile fields are a disposable projection of the same verified account identity. */
-export function updateCloudSessionView(session: OemCloudCurrentSession): void {
-  if (
-    !current ||
-    current.account.tenantId !== session.tenant.id ||
-    current.account.userId !== session.user.id ||
-    current.account.sessionId !== session.session.id
-  ) {
-    throw new Error(
-      "cloud session projection identity does not match the shared account",
-    );
-  }
-  const { token: _credential, ...metadata } = session;
-  void _credential;
-  publish({ account: current.account, session: metadata });
+function schedulePoll() {
+  clearTimeout(poll);
+  if (!listeners.size || !snapshot.authorizations.some(a =>
+    a.status === "pending" || a.status === "exchanging")) return;
+  poll = setTimeout(() => {
+    void readCloudAccountState().catch(() => undefined).finally(schedulePoll);
+  }, 1500);
 }
 
-export function subscribeCloudAccount(
-  listener: (view: CloudAccountView | null) => void,
-): () => void {
+/** Metadata only. Credential exchange and storage stay in the native account owner. */
+export function subscribeCloudAccount(listener: (view: CloudAccountView | null) => void): () => void {
   listeners.add(listener);
   listener(current);
   if (!unwatch) {
-    const refresh = () => {
-      void readCloudAccount().catch(() => undefined);
-    };
+    const refresh = () => { void readCloudAccountState().catch(() => undefined).finally(schedulePoll); };
     const dispose = subscribeAppServerNotifications({
-      onNotifications: (notifications) => {
-        if (
-          notifications.some(
-            (notification) => notification.method === "account/updated",
-          )
-        )
-          refresh();
+      onNotifications: notifications => {
+        if (notifications.some(n => n.method === "account/updated")) refresh();
       },
     });
-    if (typeof window !== "undefined")
-      window.addEventListener("focus", refresh);
+    if (typeof window !== "undefined") window.addEventListener("focus", refresh);
     unwatch = () => {
       dispose();
-      if (typeof window !== "undefined")
-        window.removeEventListener("focus", refresh);
+      clearTimeout(poll);
+      if (typeof window !== "undefined") window.removeEventListener("focus", refresh);
     };
     refresh();
   }
+  schedulePoll();
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) {
-      unwatch?.();
-      unwatch = null;
-    }
+    if (!listeners.size) { unwatch?.(); unwatch = null; }
   };
 }
 
-function emitBootstrapChanged(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent(OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT, {
-      detail: { hasBootstrap: bootstrap != null },
-    }),
-  );
-}
-
-export function setOemCloudBootstrapSnapshot(payload: unknown): void {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "session" in payload &&
-    payload.session &&
-    typeof payload.session === "object"
-  ) {
-    const value = payload as { session: OemCloudCurrentSession };
-    const { token: _credential, ...metadata } = value.session;
-    void _credential;
-    bootstrap = { ...value, session: metadata };
-  } else {
-    bootstrap = payload;
-  }
-  emitBootstrapChanged();
-}
-
-export function getOemCloudBootstrapSnapshot<T = unknown>(): T | null {
-  return bootstrap as T | null;
-}
-
-export function clearOemCloudBootstrapSnapshot(): void {
-  bootstrap = null;
-  emitBootstrapChanged();
-}
-
-export function subscribeOemCloudBootstrapChanged(
-  listener: (payload: unknown) => void,
-): () => void {
-  if (typeof window === "undefined") return () => undefined;
-  const handle = () => listener(bootstrap);
-  window.addEventListener(OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT, handle);
-  return () =>
-    window.removeEventListener(OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT, handle);
-}
-
 export class CloudAccountChangedError extends Error {
-  constructor() {
-    super("cloud account changed while a request was in flight");
-  }
+  constructor() { super("cloud account changed while a request was in flight"); }
 }

@@ -345,10 +345,21 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush overview search shortcut");
         wait_for_screen_marker(&output_rx, &mut output, "Search ›", Duration::from_secs(10));
         write_typed_text(&mut writer, b"Gate B background");
+        let resume_output_at = output.len();
         writer
             .write_all(b"\x1b[20~")
             .expect("configured F9 resumes searched background thread");
         writer.flush().expect("flush background thread resume");
+        // The loading title is emitted as an OSC payload, so it stays observable
+        // even though the loading frame itself is transient.
+        wait_for_raw_marker_after(
+            &output_rx,
+            &mut output,
+            resume_output_at,
+            "Loading task",
+            Duration::from_secs(10),
+        );
+        println!("TUI_AGENTS_LOADING_OK label=localized");
         wait_for_screen_marker(
             &output_rx,
             &mut output,
@@ -600,6 +611,834 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             &ledger_path,
             &prompt,
         );
+    } else if scenario == "review-branch" {
+        write_typed_text(&mut writer, b"/review branch main");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "/review branch main",
+            Duration::from_secs(10),
+        );
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("start the base-branch review");
+        writer.flush().expect("flush review command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            &completed_text,
+            Duration::from_secs(30),
+        );
+        println!("TUI_REVIEW_BRANCH_OK target=base-branch turn=started");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after review branch"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "review-commit" {
+        let sha = std::env::var("LIME_TEST_REVIEW_COMMIT")
+            .expect("review commit fixture requires LIME_TEST_REVIEW_COMMIT");
+        let command = format!("/review commit {sha}");
+        write_typed_text(&mut writer, command.as_bytes());
+        wait_for_compact_marker(&output_rx, &mut output, &command, Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("start the commit review");
+        writer.flush().expect("flush review command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            &completed_text,
+            Duration::from_secs(30),
+        );
+        println!("TUI_REVIEW_COMMIT_OK target=commit turn=started");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after review commit"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "hooks-command" {
+        write_typed_text(&mut writer, b"/hooks");
+        wait_for_compact_marker(&output_rx, &mut output, "/hooks", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer.write_all(b"\x05\r").expect("open the hooks panel");
+        writer.flush().expect("flush hooks command");
+        wait_for_compact_marker(&output_rx, &mut output, "Hooks", Duration::from_secs(30));
+        writer.write_all(b"\x1b").expect("close the hooks panel");
+        writer.flush().expect("flush panel close");
+        wait_for_screen_marker(
+            &output_rx,
+            &mut output,
+            "Ask Lime to do anything",
+            Duration::from_secs(30),
+        );
+        println!("TUI_HOOKS_COMMAND_OK panel=hooks");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after hooks"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "keymap-command" {
+        write_typed_text(&mut writer, b"/keymap");
+        wait_for_compact_marker(&output_rx, &mut output, "/keymap", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer.write_all(b"\x05\r").expect("open the keymap panel");
+        writer.flush().expect("flush keymap command");
+        wait_for_compact_marker(&output_rx, &mut output, "Keymap", Duration::from_secs(30));
+        writer.write_all(b"\x1b").expect("close the keymap panel");
+        writer.flush().expect("flush panel close");
+        wait_for_screen_marker(
+            &output_rx,
+            &mut output,
+            "Ask Lime to do anything",
+            Duration::from_secs(30),
+        );
+        println!("TUI_KEYMAP_COMMAND_OK panel=keymap");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after keymap"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "skills-command" {
+    } else if scenario == "skills-command" {
+        write_typed_text(&mut writer, b"/skills");
+        wait_for_compact_marker(&output_rx, &mut output, "/skills", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer.write_all(b"\x05\r").expect("open the skills panel");
+        writer.flush().expect("flush skills command");
+        wait_for_compact_marker(&output_rx, &mut output, "Skills", Duration::from_secs(30));
+        writer.write_all(b"\x1b").expect("close the skills panel");
+        writer.flush().expect("flush panel close");
+        wait_for_screen_marker(
+            &output_rx,
+            &mut output,
+            "Ask Lime to do anything",
+            Duration::from_secs(30),
+        );
+        println!("TUI_SKILLS_COMMAND_OK panel=skills");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after skills"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "permissions-picker" {
+        write_typed_text(&mut writer, b"/permissions");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "/permissions",
+            Duration::from_secs(10),
+        );
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("open the permissions picker");
+        writer.flush().expect("flush permissions command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Select permission profile",
+            Duration::from_secs(30),
+        );
+        writer
+            .write_all(b"\x1b[20~")
+            .expect("accept the current permission profile");
+        writer.flush().expect("flush permission selection");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "settings updated",
+            Duration::from_secs(30),
+        );
+        println!("TUI_PERMISSIONS_PICKER_OK profile=accepted");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after permissions"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "effort-picker" {
+        write_typed_text(&mut writer, b"/effort");
+        wait_for_compact_marker(&output_rx, &mut output, "/effort", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer.write_all(b"\x05\r").expect("open the effort picker");
+        writer.flush().expect("flush effort command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Select reasoning effort",
+            Duration::from_secs(30),
+        );
+        writer
+            .write_all(b"\x1b[20~")
+            .expect("accept the current effort");
+        writer.flush().expect("flush effort selection");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "settings updated",
+            Duration::from_secs(30),
+        );
+        println!("TUI_EFFORT_PICKER_OK option=accepted");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after effort"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "config-command" {
+        write_typed_text(&mut writer, b"/config");
+        wait_for_compact_marker(&output_rx, &mut output, "/config", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("open the configuration panel");
+        writer.flush().expect("flush config command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Configuration",
+            Duration::from_secs(30),
+        );
+        writer
+            .write_all(b"\x1b[20~")
+            .expect("open the first configuration editor");
+        writer.flush().expect("flush config menu selection");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Select Model and Effort",
+            Duration::from_secs(30),
+        );
+        writer
+            .write_all(b"\x18q")
+            .expect("close the configuration editor");
+        writer.flush().expect("flush editor close");
+        wait_for_screen_marker(
+            &output_rx,
+            &mut output,
+            "Ask Lime to do anything",
+            Duration::from_secs(30),
+        );
+        println!("TUI_CONFIG_COMMAND_OK menu=model");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after config"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "clear-command" {
+        write_typed_text(&mut writer, b"/clear");
+        wait_for_compact_marker(&output_rx, &mut output, "/clear", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("execute the clear command");
+        writer.flush().expect("flush clear command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "cleared the transcript and started a new chat",
+            Duration::from_secs(30),
+        );
+        write_typed_text(&mut writer, prompt.as_bytes());
+        writer
+            .write_all(b"\x05\r")
+            .expect("submit a prompt on the cleared thread");
+        writer.flush().expect("flush cleared prompt");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            &completed_text,
+            Duration::from_secs(30),
+        );
+        println!("TUI_CLEAR_COMMAND_OK status=cleared turn=new");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after clear"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "quit-command" {
+        write_typed_text(&mut writer, b"/quit");
+        wait_for_compact_marker(&output_rx, &mut output, "/quit", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("execute the quit command");
+        writer.flush().expect("flush quit command");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after quit"
+            );
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        println!("TUI_QUIT_COMMAND_OK exit=clean terminal=restored");
+        return;
+    } else if scenario == "experimental-command" {
+        write_typed_text(&mut writer, b"/experimental");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "/experimental",
+            Duration::from_secs(10),
+        );
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("flush the burst and open the experimental feature pager");
+        writer.flush().expect("flush experimental command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Experimental features",
+            Duration::from_secs(10),
+        );
+        writer.write_all(b"\x1b").expect("close the feature pager");
+        writer.flush().expect("flush pager close");
+        wait_for_screen_marker(
+            &output_rx,
+            &mut output,
+            "Ask Lime to do anything",
+            Duration::from_secs(10),
+        );
+        write_typed_text(&mut writer, b"/experimental workspace_dependencies off");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "/experimental workspace_dependencies off",
+            Duration::from_secs(10),
+        );
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("flush the burst and disable the feature");
+        writer.flush().expect("flush toggle command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "disabled: workspace_dependencies",
+            Duration::from_secs(30),
+        );
+        println!("TUI_EXPERIMENTAL_COMMAND_OK list=ok toggle=off");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after experimental"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "review-picker" {
+        write_typed_text(&mut writer, b"/review");
+        wait_for_compact_marker(&output_rx, &mut output, "/review", Duration::from_secs(10));
+        writer
+            .write_all(b"\x05\r")
+            .expect("flush the burst and open the review presets");
+        writer.flush().expect("flush review command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Select a review preset",
+            Duration::from_secs(10),
+        );
+        writer
+            .write_all(b"\x1b[20~")
+            .expect("accept the uncommitted review preset");
+        writer.flush().expect("flush review preset");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            &completed_text,
+            Duration::from_secs(30),
+        );
+        println!("TUI_REVIEW_PICKER_OK preset=uncommitted turn=started");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after review"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "fork-command" {
+        write_typed_text(&mut writer, b"/fork");
+        wait_for_compact_marker(&output_rx, &mut output, "/fork", Duration::from_secs(10));
+        writer
+            .write_all(b"\x05\r")
+            .expect("flush the burst and fork the thread");
+        writer.flush().expect("flush fork command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "forked the current conversation",
+            Duration::from_secs(30),
+        );
+        write_typed_text(&mut writer, prompt.as_bytes());
+        writer
+            .write_all(b"\x05\r")
+            .expect("submit a prompt on the forked thread");
+        writer.flush().expect("flush forked prompt");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            &completed_text,
+            Duration::from_secs(30),
+        );
+        println!("TUI_FORK_COMMAND_OK thread=forked turn=new");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after fork"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "delete-command" {
+        write_typed_text(&mut writer, b"/delete");
+        wait_for_compact_marker(&output_rx, &mut output, "/delete", Duration::from_secs(10));
+        writer
+            .write_all(b"\x05\r")
+            .expect("flush the burst and open the delete confirmation");
+        writer.flush().expect("flush delete command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Delete this session?",
+            Duration::from_secs(10),
+        );
+        writer
+            .write_all(b"\x1b[B")
+            .expect("select the delete confirm option");
+        writer
+            .write_all(b"\x1b[20~")
+            .expect("confirm delete with the configured list accept key");
+        writer.flush().expect("flush delete confirmation");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "deleted the current session",
+            Duration::from_secs(30),
+        );
+        write_typed_text(&mut writer, prompt.as_bytes());
+        writer
+            .write_all(b"\x05\r")
+            .expect("submit a prompt on the replacement thread");
+        writer.flush().expect("flush replacement prompt");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            &completed_text,
+            Duration::from_secs(30),
+        );
+        println!("TUI_DELETE_COMMAND_OK thread=deleted turn=new");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after delete"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "archive-command" {
+        write_typed_text(&mut writer, b"/archive");
+        wait_for_compact_marker(&output_rx, &mut output, "/archive", Duration::from_secs(10));
+        writer
+            .write_all(b"\x05\r")
+            .expect("flush the burst and open the archive confirmation");
+        writer.flush().expect("flush archive command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "Archive this session?",
+            Duration::from_secs(10),
+        );
+        writer
+            .write_all(b"\x1b[B")
+            .expect("select the confirm option");
+        writer
+            .write_all(b"\x1b[20~")
+            .expect("confirm archive with the configured list accept key");
+        writer.flush().expect("flush archive confirmation");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "archived the current session",
+            Duration::from_secs(30),
+        );
+        write_typed_text(&mut writer, prompt.as_bytes());
+        writer
+            .write_all(b"\x05\r")
+            .expect("submit a prompt on the replacement thread");
+        writer.flush().expect("flush replacement prompt");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            &completed_text,
+            Duration::from_secs(30),
+        );
+        println!("TUI_ARCHIVE_COMMAND_OK thread=archived turn=new");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after archive"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "compact-command" {
+        write_typed_text(&mut writer, b"/compact");
+        wait_for_compact_marker(&output_rx, &mut output, "/compact", Duration::from_secs(10));
+        writer
+            .write_all(b"\x05\r")
+            .expect("flush the burst and compact the thread");
+        writer.flush().expect("flush compact command");
+        let screen = wait_for_screen(
+            &output_rx,
+            &mut output,
+            "compact command reports its outcome",
+            |screen| screen.contains("compacting the conversation") || screen.contains("compact"),
+        );
+        println!("TUI_COMPACT_COMMAND_OK status={}", screen.lines().count());
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after compact"
+            );
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
+    } else if scenario == "rename-command" {
+        write_typed_text(&mut writer, b"/rename Gate Renamed");
+        writer.write_all(b"\r").expect("rename the thread");
+        writer.flush().expect("flush rename command");
+        wait_for_compact_marker(
+            &output_rx,
+            &mut output,
+            "renamed to Gate Renamed",
+            Duration::from_secs(30),
+        );
+        println!("TUI_RENAME_COMMAND_OK name=Gate Renamed");
+        // Ctrl-D only exits when the composer is empty and idle. Clear any draft
+        // first, then retry while the renamed frame is still settling.
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after rename"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
     } else {
         write_typed_text(&mut writer, prompt.as_bytes());
     }
@@ -626,6 +1465,8 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     if !matches!(scenario.as_str(), "agents-overview" | "agents-command") {
         let marker = match scenario.as_str() {
             "approval" => "Allow terminal command?",
+            "file-change-approval" => "Approve file changes?",
+            "permissions-approval" => "Grant additional permissions?",
             // Cursor-addressed renders may split the full question across writes; the
             // stable question title is sufficient to prove the prompt is visible.
             "user-input" => "Choose",
@@ -636,7 +1477,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         };
         wait_for_marker(&output_rx, &mut output, marker, Duration::from_secs(10));
         match scenario.as_str() {
-            "approval" | "user-input" => {
+            "approval" | "file-change-approval" | "permissions-approval" | "user-input" => {
                 terminal_title::wait_for_action_required(&output_rx, &mut output)
             }
             "interrupt" | "queue-edit" => terminal_title::wait_for_running(&output_rx, &mut output),
@@ -660,6 +1501,77 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 &completed_text,
                 Duration::from_secs(10),
             );
+        } else if scenario == "file-change-approval" {
+            for expected in [
+                "description: Apply proposed file edits",
+                "destination: ",
+                "gate/fixture-approved.rs",
+                "gate/moved.rs",
+            ] {
+                wait_for_compact_marker(&output_rx, &mut output, expected, Duration::from_secs(10));
+            }
+            writer
+                .write_all(b"\x1b[20~")
+                .expect("approve file changes with configured F9");
+            writer.flush().expect("flush file change approval");
+            println!(
+                "TUI_FILE_CHANGE_APPROVAL_OK title=localized description=ok destinations=add,move"
+            );
+            wait_for_marker(
+                &output_rx,
+                &mut output,
+                &completed_text,
+                Duration::from_secs(10),
+            );
+        } else if scenario == "new-command" {
+            write_typed_text(&mut writer, b"/new");
+            wait_for_compact_marker(&output_rx, &mut output, "/new", Duration::from_secs(10));
+            // Close the command popup so Enter executes the command instead of
+            // accepting a completion candidate.
+            writer.write_all(b"\x1b").expect("close the slash popup");
+            writer.flush().expect("flush popup close");
+            // ESC immediately followed by CR parses as Alt+Enter; keep them apart.
+            std::thread::sleep(Duration::from_millis(100));
+            writer.write_all(b"\r").expect("start a new thread");
+            writer.flush().expect("flush new thread command");
+            wait_for_screen_marker(
+                &output_rx,
+                &mut output,
+                "started a new thread",
+                Duration::from_secs(30),
+            );
+            let second_turn_at = output.len();
+            write_typed_text(&mut writer, prompt.as_bytes());
+            writer
+                .write_all(b"\x05\r")
+                .expect("submit prompt after /new");
+            writer.flush().expect("flush second prompt");
+            wait_for_marker_after(
+                &output_rx,
+                &mut output,
+                second_turn_at,
+                &completed_text,
+                Duration::from_secs(30),
+            );
+            println!("TUI_NEW_COMMAND_OK thread=changed");
+        } else if scenario == "permissions-approval" {
+            for expected in [
+                "reason: Grant write access to the gate directory",
+                "granted.txt",
+            ] {
+                wait_for_compact_marker(&output_rx, &mut output, expected, Duration::from_secs(10));
+            }
+            writer
+                .write_all(b"\x1b[20~")
+                .expect("grant permissions with configured F9");
+            writer.flush().expect("flush permissions approval");
+            wait_for_compact_marker(
+                &output_rx,
+                &mut output,
+                &completed_text,
+                Duration::from_secs(30),
+            );
+            println!("TUI_PERMISSIONS_APPROVAL_OK reason=localized scope=filesystem");
         } else if scenario == "user-input" {
             request_user_input::exercise_notes_and_selection(
                 &mut writer,
@@ -675,6 +1587,12 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 &completed_text,
                 Duration::from_secs(10),
             );
+        }
+        if scenario == "init-command" {
+            println!("TUI_INIT_COMMAND_OK prompt=contributor-guide");
+        }
+        if scenario == "review-command" {
+            println!("TUI_REVIEW_COMMAND_OK prompt=review turn=started");
         }
         if !matches!(scenario.as_str(), "interrupt" | "queue-edit") {
             terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
@@ -1457,6 +2375,34 @@ fn required_test_path(name: &str) -> PathBuf {
         .unwrap_or_else(|| panic!("missing {name}"))
 }
 
+fn wait_for_compact_marker(
+    output_rx: &mpsc::Receiver<Vec<u8>>,
+    output: &mut String,
+    marker: &str,
+    timeout: Duration,
+) {
+    let compact = |text: &str| {
+        text.chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>()
+    };
+    let expected = compact(marker);
+    let deadline = Instant::now() + timeout;
+    loop {
+        if compact(&visible_terminal_text(output)).contains(&expected) {
+            return;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            panic!("timed out waiting for compact {marker:?}; output: {output}");
+        }
+        let chunk = output_rx
+            .recv_timeout(remaining)
+            .unwrap_or_else(|_| panic!("PTY closed before compact {marker:?}; output: {output}"));
+        output.push_str(&String::from_utf8_lossy(&chunk));
+    }
+}
+
 fn wait_for_marker(
     output_rx: &mpsc::Receiver<Vec<u8>>,
     output: &mut String,
@@ -1504,6 +2450,30 @@ fn wait_for_any_marker(
         let chunk = output_rx
             .recv_timeout(remaining)
             .unwrap_or_else(|_| panic!("PTY closed before one of {markers:?}; output: {output}"));
+        output.push_str(&String::from_utf8_lossy(&chunk));
+    }
+}
+
+fn wait_for_raw_marker_after(
+    output_rx: &mpsc::Receiver<Vec<u8>>,
+    output: &mut String,
+    start: usize,
+    marker: &str,
+    timeout: Duration,
+) {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let recent = output.get(start..).unwrap_or_default();
+        if recent.contains(marker) {
+            return;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            panic!("timed out waiting for raw {marker:?}; output: {output}");
+        }
+        let chunk = output_rx
+            .recv_timeout(remaining)
+            .unwrap_or_else(|_| panic!("PTY closed before raw {marker:?}; output: {output}"));
         output.push_str(&String::from_utf8_lossy(&chunk));
     }
 }
@@ -1557,7 +2527,9 @@ fn wait_for_screen(
     scenario: &str,
     predicate: impl Fn(&str) -> bool,
 ) -> String {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    // A loaded host can take longer than 10s to redraw a long transcript before
+    // the next keystroke is visible; keep the bound generous but finite.
+    let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         let screen = terminal_screen_text(output);
         if predicate(&screen) {

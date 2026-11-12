@@ -16,14 +16,26 @@ impl RequestProcessor {
         connection_request_id: Option<ConnectionRequestId>,
     ) -> BoxFuture<'a, Result<RpcDispatch, JsonRpcError>> {
         match method {
-            v2::METHOD_COMPUTER_USE_STATUS => self.handle_computer_use_status(params, connection_request_id).boxed(),
-            v2::METHOD_COMPUTER_USE_SETUP => self.handle_computer_use_setup(params, connection_request_id).boxed(),
-            v2::METHOD_COMPUTER_USE_REVOKE => ready(self.handle_computer_use_revoke(params, connection_request_id)).boxed(),
-            v2::METHOD_COMPUTER_USE_LEASE_ACQUIRE => self.handle_computer_use_acquire(params, connection_request_id).boxed(),
-            v2::METHOD_COMPUTER_USE_LEASE_RELEASE => ready(self.handle_computer_use_release(params, connection_request_id)).boxed(),
+            v2::METHOD_COMPUTER_USE_STATUS => self
+                .handle_computer_use_status(params, connection_request_id)
+                .boxed(),
+            v2::METHOD_COMPUTER_USE_SETUP => self
+                .handle_computer_use_setup(params, connection_request_id)
+                .boxed(),
+            v2::METHOD_COMPUTER_USE_REVOKE => {
+                ready(self.handle_computer_use_revoke(params, connection_request_id)).boxed()
+            }
+            v2::METHOD_COMPUTER_USE_LEASE_ACQUIRE => self
+                .handle_computer_use_acquire(params, connection_request_id)
+                .boxed(),
+            v2::METHOD_COMPUTER_USE_LEASE_RELEASE => {
+                ready(self.handle_computer_use_release(params, connection_request_id)).boxed()
+            }
             v2::METHOD_ROLLOUT_COMPRESS => self.handle_rollout_compress().boxed(),
             v2::METHOD_ACCOUNT_LOGIN_START => self.handle_account_login_start(params).boxed(),
-            v2::METHOD_CLOUD_DESKTOP => self.handle_cloud_desktop(params, connection_request_id).boxed(),
+            v2::METHOD_CLOUD_DESKTOP => self
+                .handle_cloud_desktop(params, connection_request_id)
+                .boxed(),
             v2::METHOD_CLOUD_REQUEST => self.handle_cloud_request(params).boxed(),
             v2::METHOD_ACCOUNT_READ => self.handle_account_read(params).boxed(),
             v2::METHOD_ACCOUNT_LOGOUT => self.handle_account_logout(params).boxed(),
@@ -428,21 +440,6 @@ impl RequestProcessor {
             }
             app_server_protocol::protocol::v2::METHOD_PLUGIN_RECONCILE => {
                 self.handle_plugin_reconcile_v2_impl(params).boxed()
-            }
-            app_server_protocol::protocol::v2::METHOD_PLUGIN_SHARE_SAVE => {
-                self.handle_plugin_share_save_v2_impl(params).boxed()
-            }
-            app_server_protocol::protocol::v2::METHOD_PLUGIN_SHARE_LIST => {
-                self.handle_plugin_share_list_v2_impl(params).boxed()
-            }
-            app_server_protocol::protocol::v2::METHOD_PLUGIN_SHARE_UPDATE_TARGETS => {
-                self.handle_plugin_share_update_v2_impl(params).boxed()
-            }
-            app_server_protocol::protocol::v2::METHOD_PLUGIN_SHARE_CHECKOUT => {
-                self.handle_plugin_share_checkout_v2_impl(params).boxed()
-            }
-            app_server_protocol::protocol::v2::METHOD_PLUGIN_SHARE_DELETE => {
-                self.handle_plugin_share_delete_v2_impl(params).boxed()
             }
             METHOD_SCHEDULED_TASK_LIST => self.handle_scheduled_task_list_impl(params).boxed(),
             METHOD_SCHEDULED_TASK_READ => self.handle_scheduled_task_read_impl(params).boxed(),

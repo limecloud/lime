@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
+import { SettingsTabs } from "@/types/settings";
 import { useQuery } from "@tanstack/react-query";
 import { getDefaultProject } from "@/lib/api/project";
 import {
@@ -25,6 +27,7 @@ import {
 
 export function GeneralSettings() {
   const { t } = useTranslation("settings");
+  const navigate = useAppNavigationRequest();
   const preferences = useGeneralSettings();
   const platform = resolveHotkeyPlatform(navigator);
   const modifierSymbol = platform === "mac" ? "⌘" : "Ctrl";
@@ -122,6 +125,21 @@ export function GeneralSettings() {
           </SettingsAction>
         </div>
       ) : null}
+      <SettingsSection title={t("settings.permissions.title")}>
+        <SettingsRow
+          label={t("settings.permissions.executionPolicy")}
+          description={t("settings.permissions.executionPolicyDescription")}
+          targetId="general-execution-policy"
+        >
+          <SettingsAction
+            onClick={() =>
+              navigate?.("settings", { tab: SettingsTabs.ExecutionPolicy })
+            }
+          >
+            {t("settings.permissions.manage")}
+          </SettingsAction>
+        </SettingsRow>
+      </SettingsSection>
       <SettingsSection title={t("settings.desktop.general")}>
         <SettingsGroup>
           <SettingsRow

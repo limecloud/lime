@@ -59,6 +59,68 @@ impl App {
         Ok(())
     }
 
+    /// Create a new canonical thread and make it the interactive target.
+    pub(crate) async fn start_new_thread(
+        &mut self,
+        session: &mut AppServerSession,
+    ) -> anyhow::Result<()> {
+        let cwd = self.cwd.clone();
+        let model = self.chat_widget.model.clone();
+        let model_provider = self.chat_widget.model_provider.clone();
+        let response = session
+            .start_thread(Some(cwd), model, model_provider)
+            .await?;
+        let thread_id = response.thread.id.clone();
+        let snapshot = self.take_thread_event_snapshot(&thread_id, true);
+        self.capture_current_thread_input();
+        self.hydrate_thread(response.thread);
+        self.set_thread_id(thread_id.clone());
+        self.restore_thread_input(&thread_id);
+        self.replay_thread_snapshot(snapshot);
+        super::working_directory::sync_server_cwd(self, PathBuf::from(response.cwd));
+        self.chat_widget.set_settings(
+            Some(response.model),
+            Some(response.model_provider),
+            None,
+            None,
+        );
+        self.chat_widget.set_active_reasoning_effort_baseline();
+        self.refresh_queued_submissions(session).await;
+        self.projection
+            .set_status(self.chat_widget.locale.new_thread_started());
+        Ok(())
+    }
+
+    /// Fork the current thread and make the fork the interactive target.
+    pub(crate) async fn fork_current_thread(
+        &mut self,
+        session: &mut AppServerSession,
+    ) -> anyhow::Result<()> {
+        let Some(thread_id) = self.thread_id.clone() else {
+            anyhow::bail!("no active thread");
+        };
+        let response = session.fork_thread(thread_id).await?;
+        let forked_id = response.thread.id.clone();
+        let snapshot = self.take_thread_event_snapshot(&forked_id, true);
+        self.capture_current_thread_input();
+        self.hydrate_thread(response.thread);
+        self.set_thread_id(forked_id.clone());
+        self.restore_thread_input(&forked_id);
+        self.replay_thread_snapshot(snapshot);
+        super::working_directory::sync_server_cwd(self, PathBuf::from(response.cwd));
+        self.chat_widget.set_settings(
+            Some(response.model),
+            Some(response.model_provider),
+            None,
+            None,
+        );
+        self.chat_widget.set_active_reasoning_effort_baseline();
+        self.refresh_queued_submissions(session).await;
+        self.projection
+            .set_status(self.chat_widget.locale.forked_thread());
+        Ok(())
+    }
+
     pub(super) fn open_agent_picker(&mut self) {
         let picker = AgentPicker::from_navigation(
             &self.chat_widget.agent_navigation,

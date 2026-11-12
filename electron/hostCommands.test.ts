@@ -1246,48 +1246,8 @@ describe("ElectronHostCommands system utilities", () => {
     expect(showDesktopNotificationMock).toHaveBeenCalledWith(args);
   });
 
-  it("启动真实 OAuth 本机回调桥并把回调事件广播到 renderer", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const emitted: Array<{ event: string; payload?: unknown }> = [];
-    const host = createHost(userDataDir, (event, payload) => {
-      emitted.push({ event, payload });
-    });
-
-    const response = (await host.invoke(
-      "start_oem_cloud_oauth_callback_bridge",
-    )) as { callbackUrl: string };
-    expect(response.callbackUrl).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/oauth\/callback$/,
-    );
-
-    const callbackUrl = new URL(response.callbackUrl);
-    callbackUrl.searchParams.set("tenant_id", "tenant-1");
-    callbackUrl.searchParams.set("token", "token-1");
-    callbackUrl.searchParams.set("next", "/dashboard");
-    callbackUrl.searchParams.set("device_code", "device-1");
-    callbackUrl.searchParams.set("status", "ok");
-
-    const callbackResponse = await fetch(callbackUrl);
-    expect(callbackResponse.status).toBe(200);
-    await expect(callbackResponse.text()).resolves.toContain(
-      "Lime 登录结果已返回",
-    );
-
-    expect(emitted).toEqual([
-      {
-        event: "oem-cloud-oauth-callback",
-        payload: {
-          sourcePath: "/oauth/callback",
-          tenantId: "tenant-1",
-          token: "token-1",
-          next: "/dashboard",
-          error: null,
-          deviceCode: "device-1",
-          status: "ok",
-        },
-      },
-    ]);
-
-    await expect(fetch(callbackUrl)).rejects.toThrow();
+  it("拒绝已经退役的产品账号凭据回调桥", async () => {
+    const host = createHost(await createTempUserDataDir());
+    await expect(host.invoke("start_oem_cloud_oauth_callback_bridge")).rejects.toThrow();
   });
 });

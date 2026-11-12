@@ -1,0 +1,148 @@
+[
+  {
+    "id": "rel_skill",
+    "item_id": "item_skill",
+    "manifest": {
+      "schema_version": 1,
+      "kind": "skill",
+      "name": "fixture.skill",
+      "version": "1.0.0",
+      "title": {
+        "source": "Fixture",
+        "translations": {
+          "zh-CN": "验证资源"
+        }
+      },
+      "description": {
+        "source": "Contract fixture",
+        "translations": {
+          "zh-CN": "合同验证资源"
+        }
+      },
+      "license": "MIT",
+      "hosts": [
+        {
+          "id": "lime",
+          "min_version": "1.0.0",
+          "capabilities": [
+            "skill"
+          ]
+        }
+      ],
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        }
+      ],
+      "skill": {
+        "entry": "SKILL.md",
+        "actions": []
+      }
+    },
+    "manifest_sha256": "e908a78afe2e5787dde7b51cc433146c7aca431a7acc01bd8672b091916f6415",
+    "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "archive_size": 100,
+    "status": "approved",
+    "revision": 1,
+    "created_at": "2026-11-12T00:00:00Z"
+  },
+  {
+    "id": "rel_mcp",
+    "item_id": "item_mcp",
+    "manifest": {
+      "schema_version": 1,
+      "kind": "mcp",
+      "name": "fixture.mcp",
+      "version": "1.0.0",
+      "title": {
+        "source": "Fixture",
+        "translations": {
+          "zh-CN": "验证资源"
+        }
+      },
+      "description": {
+        "source": "Contract fixture",
+        "translations": {
+          "zh-CN": "合同验证资源"
+        }
+      },
+      "license": "MIT",
+      "hosts": [
+        {
+          "id": "lime",
+          "min_version": "1.0.0",
+          "capabilities": [
+            "mcp"
+          ]
+        }
+      ],
+      "files": [],
+      "mcp": {
+        "transport": "http",
+        "endpoint": "https://mcp.test.invalid/mcp",
+        "auth": {
+          "type": "none",
+          "scopes": []
+        },
+        "tools": []
+      }
+    },
+    "manifest_sha256": "8482ef461c23822ee47e16b5b7a71f1eee5275c1fabee38913c9c0739247ca92",
+    "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "archive_size": 100,
+    "status": "approved",
+    "revision": 1,
+    "created_at": "2026-11-12T00:00:00Z"
+  },
+  {
+    "id": "rel_plugin",
+    "item_id": "item_plugin",
+    "manifest": {
+      "schema_version": 1,
+      "kind": "plugin",
+      "name": "fixture.plugin",
+      "version": "1.0.0",
+      "title": {
+        "source": "Fixture",
+        "translations": {
+          "zh-CN": "验证资源"
+        }
+      },
+      "description": {
+        "source": "Contract fixture",
+        "translations": {
+          "zh-CN": "合同验证资源"
+        }
+      },
+      "license": "MIT",
+      "hosts": [
+        {
+          "id": "lime",
+          "min_version": "1.0.0",
+          "capabilities": [
+            "plugin"
+          ]
+        }
+      ],
+      "files": [
+        {
+          "path": "plugin.json",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        }
+      ],
+      "plugin": {
+        "entry": "plugin.json",
+        "dependencies": []
+      }
+    },
+    "manifest_sha256": "1244184178c434931f03384dcaa02925d3402d6442332d6ee39b15d31013d662",
+    "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "archive_size": 100,
+    "status": "approved",
+    "revision": 1,
+    "created_at": "2026-11-12T00:00:00Z"
+  }
+]

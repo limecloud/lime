@@ -167,5 +167,6 @@
   "scheduledTasks.group.enabled": "有効",
   "scheduledTasks.group.paused": "一時停止",
   "scheduledTasks.relative.today": "今日 {{time}}",
-  "scheduledTasks.relative.tomorrow": "明日 {{time}}"
+  "scheduledTasks.relative.tomorrow": "明日 {{time}}",
+  "scheduledTasks.action.details": "タスクの詳細"
 }

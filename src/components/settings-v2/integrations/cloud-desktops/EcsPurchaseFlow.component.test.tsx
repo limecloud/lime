@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CloudDesktopParams } from "@limecloud/app-server-client";
 import { changeLimeLocale } from "@/i18n/createI18n";
 
-const api = vi.hoisted(() => ({ request: vi.fn() }));
+const api = vi.hoisted(() => ({ request: vi.fn(), connection: vi.fn() }));
 vi.mock("@/lib/api/cloud", () => ({ requestCloudDesktop: api.request }));
+vi.mock("@/lib/api/cloudDesktopConnection", () => ({
+  configureCloudDesktopConnection: api.connection,
+}));
 import { PurchaseEcs } from "./PurchaseEcs";
 import { initialEcsSpec } from "./purchaseSpecs";
 import { useCloudPurchase } from "./useCloudPurchase";
@@ -86,6 +89,11 @@ beforeEach(async () => {
   vi.useFakeTimers();
   await changeLimeLocale("zh-CN");
   api.request.mockReset();
+  api.connection.mockReset().mockResolvedValue({
+    kind: "guestRelease",
+    available: true,
+    version: "test",
+  });
   api.request.mockImplementation(async (params: CloudDesktopParams) => {
     if (params.action === "readAlibabaConnection")
       return { data: { status: "connected", profile } };
@@ -115,6 +123,78 @@ afterEach(async () => {
 });
 
 describe("ECS 授权与模板购买", () => {
+  it("无模板账号仅授权网络和确认费用即可使用推荐方案购买", async () => {
+    const recommended = { ...resolved, keyPairName: "" };
+    let prepared = false;
+    api.request.mockImplementation(async (params: CloudDesktopParams) => {
+      if (params.action === "readAlibabaConnection")
+        return { data: { status: "connected", profile } };
+      if (params.action === "listEcsTemplates")
+        return { data: { templates: [] } };
+      if (params.action === "readEcsPurchasePreparation" && !prepared)
+        return { data: { outcome: "notPrepared" } };
+      if (params.action === "prepareEcsPurchase") {
+        prepared = true;
+        return {
+          data: {
+            operationId: params.operationId,
+            outcome: "networkReady",
+            spec: recommended,
+            request: {
+              action: params.action,
+              regionId: params.regionId,
+              profile: params.profile,
+            },
+          },
+        };
+      }
+      if (params.action === "quoteEcs")
+        return {
+          data: {
+            quoteId: "quote-test",
+            quote: {
+              spec: recommended,
+              price: { hourlyPrice: 0.4, currency: "CNY" },
+              expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            },
+          },
+        };
+      if (params.action === "purchaseEcs")
+        return {
+          data: { operationId: params.operationId, outcome: "accepted" },
+        };
+      throw new Error(`Unexpected action: ${params.action}`);
+    });
+    act(() => root.render(<Harness />));
+    await settle();
+    expect(requests("prepareEcsPurchase")).toHaveLength(0);
+    expect(button("自动准备推荐方案").disabled).toBe(true);
+    const networkConsent = [...container.querySelectorAll("label")]
+      .find((item) => item.textContent?.includes("同意在我的账号创建专用网络"))!
+      .querySelector("input")!;
+    act(() => networkConsent.click());
+    await settle();
+    await click("自动准备推荐方案");
+    expect(requests("quoteEcs")).toEqual([
+      { action: "quoteEcs", spec: recommended },
+    ]);
+    expect(button("确认购买").disabled).toBe(true);
+    const feeConsent = [...container.querySelectorAll("label")]
+      .find((item) => item.textContent?.includes("确认按此规格和报价购买"))!
+      .querySelector("input")!;
+    act(() => feeConsent.click());
+    await settle();
+    await click("确认购买");
+    expect(requests("purchaseEcs")).toHaveLength(1);
+    expect(requests("purchaseEcs")[0]).toMatchObject({
+      spec: recommended,
+      desktopName: expect.stringMatching(/^Lime-/),
+    });
+    expect(api.connection).toHaveBeenCalledWith({
+      action: "checkRuntimeRelease",
+    });
+    expect(container.querySelector("details[open]")).toBeNull();
+  });
   it("连接状态读取失败不会误报权限不足，重试只读取状态", async () => {
     api.request.mockRejectedValueOnce(
       new Error("Unknown action from an older App Server"),
@@ -153,6 +233,9 @@ describe("ECS 授权与模板购买", () => {
     act(() => consent.click());
     await settle();
     await click("确认购买");
+    expect(api.connection).toHaveBeenCalledExactlyOnceWith({
+      action: "checkRuntimeRelease",
+    });
     expect(requests("purchaseEcs")).toEqual([
       expect.objectContaining({
         spec: resolved,
@@ -196,6 +279,94 @@ describe("ECS 授权与模板购买", () => {
       expect.objectContaining({ launchTemplateId: "lt-second", version: 7 }),
     ]);
   });
+
+  it("无 SSH 密钥对的模板可在报价过期后重新核价，重新确认再购买", async () => {
+    const keyless = { ...resolved, keyPairName: "" };
+    api.request.mockImplementation(async (params: CloudDesktopParams) => {
+      if (params.action === "readAlibabaConnection")
+        return { data: { status: "connected", profile } };
+      if (params.action === "listEcsTemplates")
+        return {
+          data: {
+            templates: [{ id: "lt-keyless", name: "会话管理桌面", version: 1 }],
+          },
+        };
+      if (params.action === "quoteEcsTemplate")
+        return { data: { ...quote(params).data, spec: keyless } };
+      if (params.action === "quoteEcs")
+        return {
+          data: {
+            quoteId: "quote-renewed",
+            quote: {
+              expiresAt: new Date(Date.now() + 900000).toISOString(),
+              price: { hourlyPrice: 0.8, currency: "CNY" },
+            },
+          },
+        };
+      if (params.action === "purchaseEcs")
+        return {
+          data: { outcome: "provisioned", operationId: params.operationId },
+        };
+      throw new Error(`Unexpected action: ${params.action}`);
+    });
+    act(() => root.render(<Harness />));
+    await settle();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).toContain("SSH 密钥对可留空");
+    expect(button("确认购买").disabled).toBe(true);
+    await act(async () => vi.advanceTimersByTimeAsync(900001));
+    await settle();
+    expect(container.textContent).toContain("报价已失效");
+    expect(button("获取实时报价").disabled).toBe(false);
+    await click("获取实时报价");
+    expect(requests("quoteEcs")).toEqual([
+      { action: "quoteEcs", spec: keyless },
+    ]);
+    expect(button("确认购买").disabled).toBe(true);
+    expect(requests("purchaseEcs")).toEqual([]);
+    act(() =>
+      container
+        .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+        .click(),
+    );
+    await settle();
+    await click("确认购买");
+    expect(requests("purchaseEcs")).toEqual([
+      expect.objectContaining({ spec: keyless, quoteId: "quote-renewed" }),
+    ]);
+    expect(
+      [...container.querySelectorAll("details")].every((item) => !item.open),
+    ).toBe(true);
+  });
+
+  it.each(["vSwitchId", "securityGroupId", "imageId", "instanceType"])(
+    "无 SSH 模板仍不能省略必需字段 %s",
+    async (field) => {
+      api.request.mockImplementation(async (params: CloudDesktopParams) => {
+        if (params.action === "readAlibabaConnection")
+          return { data: { status: "connected", profile } };
+        if (params.action === "listEcsTemplates")
+          return {
+            data: {
+              templates: [{ id: "lt-test", name: "不完整桌面", version: 1 }],
+            },
+          };
+        return {
+          data: {
+            ...quote(params).data,
+            spec: { ...resolved, keyPairName: "", [field]: "" },
+          },
+        };
+      });
+      act(() => root.render(<Harness />));
+      await settle();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "Invalid cloud template specification",
+      );
+      expect(requests("purchaseEcs")).toHaveLength(0);
+      expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+    },
+  );
 
   it("恢复进行中的授权，不重复打开浏览器，并在完成后自动读取模板", async () => {
     let ready = false;
@@ -253,5 +424,118 @@ describe("ECS 授权与模板购买", () => {
       "https://help.aliyun.com/zh/cli/oauth-credentials",
     );
     expect(requests("purchaseEcs")).toHaveLength(0);
+  });
+});
+
+describe("购买前运行包检查", () => {
+  async function ready() {
+    act(() => root.render(<Harness />));
+    await settle();
+    act(() =>
+      container
+        .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+        .click(),
+    );
+    await settle();
+  }
+
+  it("缺包不会购买或创建操作；重试仍核验，只有明确选择自备环境后才可跳过", async () => {
+    api.connection.mockRejectedValue(new Error("signed-url-synthetic-secret"));
+    await ready();
+    await click("确认购买");
+    expect(requests("purchaseEcs")).toEqual([]);
+    expect(container.textContent).toContain("尚未购买电脑");
+    expect(container.textContent).not.toContain("synthetic-secret");
+    expect(
+      [...container.querySelectorAll("button")].some((item) =>
+        item.textContent?.includes("查询操作收据"),
+      ),
+    ).toBe(false);
+    await click("确认购买");
+    expect(api.connection).toHaveBeenCalledTimes(2);
+    expect(requests("purchaseEcs")).toEqual([]);
+    const bypass = [...container.querySelectorAll("label")]
+      .find((label) => label.textContent?.includes("购买后使用已有环境"))!
+      .querySelector<HTMLInputElement>("input")!;
+    act(() => bypass.click());
+    await settle();
+    await click("确认购买");
+    expect(api.connection).toHaveBeenCalledTimes(2);
+    expect(requests("purchaseEcs")).toHaveLength(1);
+  });
+
+  it("检查等待期间阻止重复购买；通过后沿原购买编号，未知结果只读原操作", async () => {
+    let resolve!: (value: unknown) => void;
+    api.connection.mockRejectedValueOnce(new Error("Unavailable runtime"));
+    await ready();
+    await click("确认购买");
+    expect(container.textContent).toContain("尚未购买电脑");
+    api.connection.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    act(() => {
+      button("确认购买").click();
+      button("确认购买").click();
+    });
+    await settle();
+    expect(button("确认购买").disabled).toBe(true);
+    expect(container.textContent).toContain("正在检查此版本");
+    expect(container.textContent).not.toContain("尚未购买电脑");
+    expect(api.connection).toHaveBeenCalledTimes(2);
+    expect(requests("purchaseEcs")).toEqual([]);
+    await act(async () =>
+      resolve({ kind: "guestRelease", available: true, version: "test" }),
+    );
+    await settle();
+    expect(requests("purchaseEcs")).toHaveLength(1);
+    expect(button("查询操作收据").disabled).toBe(false);
+    api.request.mockResolvedValueOnce({ data: { outcome: "unknown" } });
+    await click("查询操作收据");
+    const submitted = requests("purchaseEcs")[0];
+    if (submitted.action !== "purchaseEcs") throw new Error("Missing purchase");
+    expect(requests("readOperation")[0]).toMatchObject({
+      operationId: submitted.operationId,
+    });
+    expect(api.connection).toHaveBeenCalledTimes(2);
+    expect(requests("purchaseEcs")).toHaveLength(1);
+  });
+
+  it("报价在检查过程中到期时不提交采购", async () => {
+    let resolve!: (value: unknown) => void;
+    api.connection.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    await ready();
+    await click("确认购买");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(900001);
+    });
+    await act(async () =>
+      resolve({ kind: "guestRelease", available: true, version: "test" }),
+    );
+    await settle();
+    expect(requests("purchaseEcs")).toEqual([]);
+    expect(container.textContent).toContain("报价已失效");
+  });
+
+  it("组件卸载后的检查响应不能购买", async () => {
+    let resolve!: (value: unknown) => void;
+    api.connection.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    await ready();
+    await click("确认购买");
+    act(() => root.render(null));
+    await act(async () =>
+      resolve({ kind: "guestRelease", available: true, version: "test" }),
+    );
+    await settle();
+    expect(requests("purchaseEcs")).toEqual([]);
   });
 });

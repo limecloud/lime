@@ -76,7 +76,8 @@ pub const METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG: &str = "localEnvironments/saveC
 pub const METHOD_ENVIRONMENT_ADD: &str = "environment/add";
 pub const METHOD_ENVIRONMENT_INFO: &str = "environment/info";
 pub const METHOD_ENVIRONMENT_STATUS: &str = "environment/status";
-pub const METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES: &str = "primaryRuntime/diagnoseDependencies";
+pub const METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES: &str =
+    "primaryRuntime/diagnoseDependencies";
 pub const METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW: &str = "primaryRuntime/runUpdateNow";
 pub const METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES: &str = "primaryRuntime/resetDependencies";
 pub const METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL: &str = "primaryRuntime/cancelInstall";
@@ -111,11 +112,6 @@ pub const METHOD_PLUGIN_INSTALL: &str = "plugin/install";
 pub const METHOD_PLUGIN_UNINSTALL: &str = "plugin/uninstall";
 pub const METHOD_PLUGIN_INSTALLED: &str = "plugin/installed";
 pub const METHOD_PLUGIN_RECONCILE: &str = "plugin/reconcile";
-pub const METHOD_PLUGIN_SHARE_SAVE: &str = "plugin/share/save";
-pub const METHOD_PLUGIN_SHARE_LIST: &str = "plugin/share/list";
-pub const METHOD_PLUGIN_SHARE_UPDATE_TARGETS: &str = "plugin/share/updateTargets";
-pub const METHOD_PLUGIN_SHARE_CHECKOUT: &str = "plugin/share/checkout";
-pub const METHOD_PLUGIN_SHARE_DELETE: &str = "plugin/share/delete";
 pub const METHOD_MODEL_LIST_UPDATED: &str = "model/list/updated";
 pub const METHOD_APP_LIST_UPDATED: &str = "app/list/updated";
 pub const METHOD_SCHEDULED_TASK_CHANGED: &str = "scheduledTask/changed";
@@ -428,16 +424,6 @@ pub enum Method {
     PluginInstalled,
     #[serde(rename = "plugin/reconcile")]
     PluginReconcile,
-    #[serde(rename = "plugin/share/save")]
-    PluginShareSave,
-    #[serde(rename = "plugin/share/list")]
-    PluginShareList,
-    #[serde(rename = "plugin/share/updateTargets")]
-    PluginShareUpdateTargets,
-    #[serde(rename = "plugin/share/checkout")]
-    PluginShareCheckout,
-    #[serde(rename = "plugin/share/delete")]
-    PluginShareDelete,
     #[serde(rename = "turn/start")]
     TurnStart,
     #[serde(rename = "turn/steer")]
@@ -566,7 +552,9 @@ impl Method {
             Self::EnvironmentAdd => METHOD_ENVIRONMENT_ADD,
             Self::EnvironmentInfo => METHOD_ENVIRONMENT_INFO,
             Self::EnvironmentStatus => METHOD_ENVIRONMENT_STATUS,
-            Self::PrimaryRuntimeDiagnoseDependencies => METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES,
+            Self::PrimaryRuntimeDiagnoseDependencies => {
+                METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES
+            }
             Self::PrimaryRuntimeRunUpdateNow => METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW,
             Self::PrimaryRuntimeResetDependencies => METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES,
             Self::PrimaryRuntimeCancelInstall => METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL,
@@ -605,11 +593,6 @@ impl Method {
             Self::PluginUninstall => METHOD_PLUGIN_UNINSTALL,
             Self::PluginInstalled => METHOD_PLUGIN_INSTALLED,
             Self::PluginReconcile => METHOD_PLUGIN_RECONCILE,
-            Self::PluginShareSave => METHOD_PLUGIN_SHARE_SAVE,
-            Self::PluginShareList => METHOD_PLUGIN_SHARE_LIST,
-            Self::PluginShareUpdateTargets => METHOD_PLUGIN_SHARE_UPDATE_TARGETS,
-            Self::PluginShareCheckout => METHOD_PLUGIN_SHARE_CHECKOUT,
-            Self::PluginShareDelete => METHOD_PLUGIN_SHARE_DELETE,
             Self::TurnStart => METHOD_TURN_START,
             Self::TurnSteer => METHOD_TURN_STEER,
             Self::TurnInterrupt => METHOD_TURN_INTERRUPT,
@@ -713,9 +696,13 @@ impl Method {
             METHOD_ENVIRONMENT_ADD => Some(Self::EnvironmentAdd),
             METHOD_ENVIRONMENT_INFO => Some(Self::EnvironmentInfo),
             METHOD_ENVIRONMENT_STATUS => Some(Self::EnvironmentStatus),
-            METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES => Some(Self::PrimaryRuntimeDiagnoseDependencies),
+            METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES => {
+                Some(Self::PrimaryRuntimeDiagnoseDependencies)
+            }
             METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW => Some(Self::PrimaryRuntimeRunUpdateNow),
-            METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES => Some(Self::PrimaryRuntimeResetDependencies),
+            METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES => {
+                Some(Self::PrimaryRuntimeResetDependencies)
+            }
             METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL => Some(Self::PrimaryRuntimeCancelInstall),
             METHOD_CONFIG_READ => Some(Self::ConfigRead),
             METHOD_CONFIG_REQUIREMENTS_READ => Some(Self::ConfigRequirementsRead),
@@ -754,11 +741,6 @@ impl Method {
             METHOD_PLUGIN_UNINSTALL => Some(Self::PluginUninstall),
             METHOD_PLUGIN_INSTALLED => Some(Self::PluginInstalled),
             METHOD_PLUGIN_RECONCILE => Some(Self::PluginReconcile),
-            METHOD_PLUGIN_SHARE_SAVE => Some(Self::PluginShareSave),
-            METHOD_PLUGIN_SHARE_LIST => Some(Self::PluginShareList),
-            METHOD_PLUGIN_SHARE_UPDATE_TARGETS => Some(Self::PluginShareUpdateTargets),
-            METHOD_PLUGIN_SHARE_CHECKOUT => Some(Self::PluginShareCheckout),
-            METHOD_PLUGIN_SHARE_DELETE => Some(Self::PluginShareDelete),
             METHOD_TURN_START => Some(Self::TurnStart),
             METHOD_TURN_STEER => Some(Self::TurnSteer),
             METHOD_TURN_INTERRUPT => Some(Self::TurnInterrupt),
@@ -897,11 +879,6 @@ pub const METHODS: &[&str] = &[
     METHOD_PLUGIN_UNINSTALL,
     METHOD_PLUGIN_INSTALLED,
     METHOD_PLUGIN_RECONCILE,
-    METHOD_PLUGIN_SHARE_SAVE,
-    METHOD_PLUGIN_SHARE_LIST,
-    METHOD_PLUGIN_SHARE_UPDATE_TARGETS,
-    METHOD_PLUGIN_SHARE_CHECKOUT,
-    METHOD_PLUGIN_SHARE_DELETE,
     METHOD_TURN_START,
     METHOD_TURN_STEER,
     METHOD_TURN_INTERRUPT,

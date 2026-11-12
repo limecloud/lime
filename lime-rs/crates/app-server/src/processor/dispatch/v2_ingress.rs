@@ -198,23 +198,47 @@ pub(super) fn into_parts(
         ClientRequest::McpServerToolCall { id, params } => {
             parts(id, Method::McpServerToolCall, params)
         }
-        ClientRequest::LocalEnvironmentsList { id, params } => parts(id, Method::LocalEnvironmentsList, params),
-        ClientRequest::LocalEnvironmentsReadConfig { id, params } => parts(id, Method::LocalEnvironmentsReadConfig, params),
-        ClientRequest::LocalEnvironmentsSaveConfig { id, params } => parts(id, Method::LocalEnvironmentsSaveConfig, params),
+        ClientRequest::LocalEnvironmentsList { id, params } => {
+            parts(id, Method::LocalEnvironmentsList, params)
+        }
+        ClientRequest::LocalEnvironmentsReadConfig { id, params } => {
+            parts(id, Method::LocalEnvironmentsReadConfig, params)
+        }
+        ClientRequest::LocalEnvironmentsSaveConfig { id, params } => {
+            parts(id, Method::LocalEnvironmentsSaveConfig, params)
+        }
         ClientRequest::EnvironmentAdd { id, params } => parts(id, Method::EnvironmentAdd, params),
         ClientRequest::EnvironmentInfo { id, params } => parts(id, Method::EnvironmentInfo, params),
         ClientRequest::EnvironmentStatus { id, params } => {
             parts(id, Method::EnvironmentStatus, params)
         }
-        ClientRequest::PrimaryRuntimeDiagnoseDependencies { id, params } => parts(id, Method::PrimaryRuntimeDiagnoseDependencies, params),
-        ClientRequest::PrimaryRuntimeRunUpdateNow { id, params } => parts(id, Method::PrimaryRuntimeRunUpdateNow, params),
-        ClientRequest::PrimaryRuntimeResetDependencies { id, params } => parts(id, Method::PrimaryRuntimeResetDependencies, params),
-        ClientRequest::PrimaryRuntimeCancelInstall { id, params } => parts(id, Method::PrimaryRuntimeCancelInstall, params),
-        ClientRequest::ComputerUseStatus { id, params } => parts(id, Method::ComputerUseStatus, params),
-        ClientRequest::ComputerUseSetup { id, params } => parts(id, Method::ComputerUseSetup, params),
-        ClientRequest::ComputerUseRevoke { id, params } => parts(id, Method::ComputerUseRevoke, params),
-        ClientRequest::ComputerUseLeaseAcquire { id, params } => parts(id, Method::ComputerUseLeaseAcquire, params),
-        ClientRequest::ComputerUseLeaseRelease { id, params } => parts(id, Method::ComputerUseLeaseRelease, params),
+        ClientRequest::PrimaryRuntimeDiagnoseDependencies { id, params } => {
+            parts(id, Method::PrimaryRuntimeDiagnoseDependencies, params)
+        }
+        ClientRequest::PrimaryRuntimeRunUpdateNow { id, params } => {
+            parts(id, Method::PrimaryRuntimeRunUpdateNow, params)
+        }
+        ClientRequest::PrimaryRuntimeResetDependencies { id, params } => {
+            parts(id, Method::PrimaryRuntimeResetDependencies, params)
+        }
+        ClientRequest::PrimaryRuntimeCancelInstall { id, params } => {
+            parts(id, Method::PrimaryRuntimeCancelInstall, params)
+        }
+        ClientRequest::ComputerUseStatus { id, params } => {
+            parts(id, Method::ComputerUseStatus, params)
+        }
+        ClientRequest::ComputerUseSetup { id, params } => {
+            parts(id, Method::ComputerUseSetup, params)
+        }
+        ClientRequest::ComputerUseRevoke { id, params } => {
+            parts(id, Method::ComputerUseRevoke, params)
+        }
+        ClientRequest::ComputerUseLeaseAcquire { id, params } => {
+            parts(id, Method::ComputerUseLeaseAcquire, params)
+        }
+        ClientRequest::ComputerUseLeaseRelease { id, params } => {
+            parts(id, Method::ComputerUseLeaseRelease, params)
+        }
         ClientRequest::ConfigRead { id, params } => parts(id, Method::ConfigRead, params),
         ClientRequest::ConfigRequirementsRead { id, params } => {
             parts(id, Method::ConfigRequirementsRead, params)
@@ -275,17 +299,6 @@ pub(super) fn into_parts(
         ClientRequest::PluginUninstall { id, params } => parts(id, Method::PluginUninstall, params),
         ClientRequest::PluginInstalled { id, params } => parts(id, Method::PluginInstalled, params),
         ClientRequest::PluginReconcile { id, params } => parts(id, Method::PluginReconcile, params),
-        ClientRequest::PluginShareSave { id, params } => parts(id, Method::PluginShareSave, params),
-        ClientRequest::PluginShareList { id, params } => parts(id, Method::PluginShareList, params),
-        ClientRequest::PluginShareUpdateTargets { id, params } => {
-            parts(id, Method::PluginShareUpdateTargets, params)
-        }
-        ClientRequest::PluginShareCheckout { id, params } => {
-            parts(id, Method::PluginShareCheckout, params)
-        }
-        ClientRequest::PluginShareDelete { id, params } => {
-            parts(id, Method::PluginShareDelete, params)
-        }
         ClientRequest::ThreadSettingsUpdate { id, params } => {
             parts(id, Method::ThreadSettingsUpdate, params)
         }

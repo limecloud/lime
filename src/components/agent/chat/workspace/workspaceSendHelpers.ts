@@ -10,8 +10,6 @@ import type {
 import {
   buildHarnessRequestMetadata,
   extractExistingHarnessMetadata,
-  type HarnessOemRoutingRequestMetadata,
-  type HarnessTenantFeatureFlagsRequestMetadata,
 } from "../utils/harnessRequestMetadata";
 import type { WorkspaceSkillRuntimeEnableInput } from "../utils/workspaceSkillBindingsMetadata";
 import {
@@ -25,23 +23,6 @@ import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { BrowserTaskRequirement, Message, MessageImage } from "../types";
 import type { Character } from "@/lib/api/projectMemory";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
-import type {
-  OemCloudBootstrapResponse,
-  OemCloudFeatureFlags,
-} from "@/lib/api/oemCloudControlPlane";
-import { getOemCloudBootstrapSnapshot } from "@/lib/cloudAccount";
-
-const OEM_CLOUD_FEATURE_FLAG_KEYS = [
-  "oauthLoginEnabled",
-  "emailCodeLoginEnabled",
-  "passwordLoginEnabled",
-  "profileEditable",
-  "hubTokensEnabled",
-  "billingEnabled",
-  "gatewayEnabled",
-] as const satisfies readonly (keyof OemCloudFeatureFlags)[];
-
 export interface InitialDispatchPreviewSnapshot {
   key: string;
   prompt?: string;
@@ -213,184 +194,6 @@ function omitLegacyAccessModeFromHarnessMetadata(
   delete nextMetadata.access_mode;
   delete nextMetadata.accessMode;
   return nextMetadata;
-}
-
-function readExistingOemRouting(
-  metadata: Record<string, unknown> | undefined,
-): HarnessOemRoutingRequestMetadata | undefined {
-  const rawRouting =
-    asRecord(metadata?.oem_routing) ?? asRecord(metadata?.oemRouting);
-  const tenantId =
-    readMetadataText(rawRouting, "tenant_id") ||
-    readMetadataText(rawRouting, "tenantId");
-  if (!tenantId) {
-    return undefined;
-  }
-
-  const fallbackToLocalAllowed =
-    typeof rawRouting?.fallback_to_local_allowed === "boolean"
-      ? rawRouting.fallback_to_local_allowed
-      : typeof rawRouting?.fallbackToLocalAllowed === "boolean"
-        ? rawRouting.fallbackToLocalAllowed
-        : undefined;
-  const canInvoke =
-    typeof rawRouting?.can_invoke === "boolean"
-      ? rawRouting.can_invoke
-      : typeof rawRouting?.canInvoke === "boolean"
-        ? rawRouting.canInvoke
-        : undefined;
-
-  return {
-    tenant_id: tenantId,
-    provider_source:
-      readMetadataText(rawRouting, "provider_source") ||
-      readMetadataText(rawRouting, "providerSource"),
-    provider_key:
-      readMetadataText(rawRouting, "provider_key") ||
-      readMetadataText(rawRouting, "providerKey"),
-    default_model:
-      readMetadataText(rawRouting, "default_model") ||
-      readMetadataText(rawRouting, "defaultModel"),
-    config_mode:
-      readMetadataText(rawRouting, "config_mode") ||
-      readMetadataText(rawRouting, "configMode"),
-    offer_state:
-      readMetadataText(rawRouting, "offer_state") ||
-      readMetadataText(rawRouting, "offerState"),
-    quota_status:
-      readMetadataText(rawRouting, "quota_status") ||
-      readMetadataText(rawRouting, "quotaStatus"),
-    fallback_to_local_allowed: fallbackToLocalAllowed,
-    can_invoke: canInvoke,
-  };
-}
-
-function readBooleanFlagMap(value: unknown): Record<string, boolean> {
-  const source = asRecord(value);
-  if (!source) {
-    return {};
-  }
-
-  return Object.entries(source).reduce<Record<string, boolean>>(
-    (flags, [key, flagValue]) => {
-      if (typeof flagValue === "boolean") {
-        flags[key] = flagValue;
-      }
-      return flags;
-    },
-    {},
-  );
-}
-
-function readExistingTenantFeatureFlags(
-  metadata: Record<string, unknown> | undefined,
-): HarnessTenantFeatureFlagsRequestMetadata | undefined {
-  const rawFlags =
-    asRecord(metadata?.tenant_feature_flags) ??
-    asRecord(metadata?.tenantFeatureFlags);
-  const tenantId =
-    readMetadataText(rawFlags, "tenant_id") ||
-    readMetadataText(rawFlags, "tenantId");
-  if (!tenantId) {
-    return undefined;
-  }
-
-  const flags = readBooleanFlagMap(
-    rawFlags?.flags ?? rawFlags?.features ?? rawFlags?.featureFlags,
-  );
-  if (Object.keys(flags).length === 0) {
-    return undefined;
-  }
-
-  return {
-    tenant_id: tenantId,
-    source:
-      readMetadataText(rawFlags, "source") ||
-      readMetadataText(rawFlags, "value_source") ||
-      readMetadataText(rawFlags, "valueSource"),
-    flags,
-  };
-}
-
-function buildOemRoutingRequestMetadata():
-  | HarnessOemRoutingRequestMetadata
-  | undefined {
-  const runtime = resolveOemCloudRuntimeContext();
-  const snapshot = getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
-  const preference = snapshot?.providerPreference;
-  if (!runtime || !preference?.providerKey) {
-    return undefined;
-  }
-
-  const matchedOffer = snapshot?.providerOffersSummary?.find(
-    (offer) => offer.providerKey === preference.providerKey,
-  );
-  const providerSource = preference.providerSource || matchedOffer?.source;
-  if (providerSource !== "oem_cloud") {
-    return undefined;
-  }
-
-  return {
-    tenant_id: runtime.tenantId,
-    provider_source: providerSource,
-    provider_key: preference.providerKey,
-    default_model: preference.defaultModel || matchedOffer?.defaultModel,
-    config_mode: matchedOffer?.configMode,
-    offer_state: matchedOffer?.state,
-    quota_status: matchedOffer?.quotaStatus,
-    fallback_to_local_allowed: matchedOffer?.fallbackToLocalAllowed,
-    can_invoke: matchedOffer?.canInvoke,
-  };
-}
-
-function normalizeProviderSelection(value?: string | null): string {
-  return value?.trim().toLowerCase() || "";
-}
-
-function providerMatchesOemRouting(
-  providerType: string | null | undefined,
-  oemRouting: HarnessOemRoutingRequestMetadata | undefined,
-): boolean {
-  const normalizedProvider = normalizeProviderSelection(providerType);
-  const normalizedOemProvider = normalizeProviderSelection(
-    oemRouting?.provider_key,
-  );
-  if (!normalizedProvider || !normalizedOemProvider) {
-    return true;
-  }
-
-  return normalizedProvider === normalizedOemProvider;
-}
-
-function buildTenantFeatureFlagsRequestMetadata():
-  | HarnessTenantFeatureFlagsRequestMetadata
-  | undefined {
-  const runtime = resolveOemCloudRuntimeContext();
-  const snapshot = getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
-  const features = snapshot?.features;
-  if (!runtime || !features) {
-    return undefined;
-  }
-
-  const flags = OEM_CLOUD_FEATURE_FLAG_KEYS.reduce<Record<string, boolean>>(
-    (nextFlags, key) => {
-      const value = features[key];
-      if (typeof value === "boolean") {
-        nextFlags[key] = value;
-      }
-      return nextFlags;
-    },
-    {},
-  );
-  if (Object.keys(flags).length === 0) {
-    return undefined;
-  }
-
-  return {
-    tenant_id: runtime.tenantId,
-    source: "oem_cloud_bootstrap",
-    flags,
-  };
 }
 
 export function buildGeneralWorkbenchSendBoundaryState({
@@ -659,16 +462,6 @@ export function buildWorkspaceRequestMetadata(
   const resolvedBrowserLaunchUrl =
     browserRequirementMatch?.launchUrl ||
     readMetadataText(existingHarnessMetadata, "browser_launch_url");
-  const resolvedOemRouting =
-    buildOemRoutingRequestMetadata() ||
-    readExistingOemRouting(existingHarnessMetadata);
-  const resolvedTenantFeatureFlags =
-    buildTenantFeatureFlagsRequestMetadata() ||
-    readExistingTenantFeatureFlags(existingHarnessMetadata);
-  const oemRoutingMatchesCurrentProvider = providerMatchesOemRouting(
-    currentProviderType,
-    resolvedOemRouting,
-  );
   const harnessMetadata = buildHarnessRequestMetadata({
     base: existingHarnessMetadata,
     theme: mappedTheme,
@@ -687,15 +480,7 @@ export function buildWorkspaceRequestMetadata(
     workspaceSkillBindings,
     workspaceSkillRuntimeEnable,
     agentResponseLanguage,
-    oemRouting: oemRoutingMatchesCurrentProvider
-      ? resolvedOemRouting
-      : undefined,
-    tenantFeatureFlags: resolvedTenantFeatureFlags,
   });
-  if (!oemRoutingMatchesCurrentProvider) {
-    delete harnessMetadata.oem_routing;
-    delete harnessMetadata.oemRouting;
-  }
 
   const requestMetadata = mergeGenerationBriefIntoArtifactMetadata(
     mergeRequestMetadataWithArtifact(

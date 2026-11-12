@@ -73,6 +73,9 @@ pub struct FileChangeRequestApprovalParams {
     pub reason: Option<String>,
     #[serde(default)]
     pub grant_root: Option<String>,
+    /// Paths the patch writes to, sorted and deduplicated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub destinations: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

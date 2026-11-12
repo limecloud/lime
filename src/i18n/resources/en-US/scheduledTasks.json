@@ -167,5 +167,6 @@
   "scheduledTasks.group.enabled": "Active",
   "scheduledTasks.group.paused": "Paused",
   "scheduledTasks.relative.today": "Today {{time}}",
-  "scheduledTasks.relative.tomorrow": "Tomorrow {{time}}"
+  "scheduledTasks.relative.tomorrow": "Tomorrow {{time}}",
+  "scheduledTasks.action.details": "Task details"
 }

@@ -8,6 +8,7 @@ use crate::history_cell::HistoryRenderMode;
 use crate::pager_overlay::PagerOverlay;
 use crate::status::{StatusFacts, StatusSnapshot};
 use app_server_protocol::protocol::v2::{McpServerStatus, McpServerStatusDetail};
+use ratatui::text::Line;
 use std::time::Instant;
 
 impl ChatWidget {
@@ -85,6 +86,13 @@ impl ChatWidget {
         self.pager_overlay = Some(
             PagerOverlay::status(self.locale, snapshot)
                 .with_keymap(self.runtime_keymap.transcript().clone()),
+        );
+    }
+
+    pub(crate) fn open_text_pager(&mut self, title: String, lines: Vec<Line<'static>>) {
+        self.dismiss_pager_overlay();
+        self.pager_overlay = Some(
+            PagerOverlay::new(title, lines).with_keymap(self.runtime_keymap.transcript().clone()),
         );
     }
 

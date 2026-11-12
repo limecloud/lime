@@ -2,10 +2,8 @@
   "$defs": {
     "CloudRequestMethod": {
       "enum": [
-        "DELETE",
         "GET",
-        "POST",
-        "PUT"
+        "POST"
       ],
       "type": "string"
     }
@@ -15,14 +13,30 @@
   "description": "Authenticated client APIs at the current account's issuer. No caller credentials or URL.",
   "properties": {
     "body": true,
+    "language": {
+      "type": "string"
+    },
     "method": {
       "$ref": "#/$defs/CloudRequestMethod"
     },
+    "operationKey": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
     "path": {
       "type": "string"
+    },
+    "taskId": {
+      "type": [
+        "null",
+        "string"
+      ]
     }
   },
   "required": [
+    "language",
     "method",
     "path"
   ],

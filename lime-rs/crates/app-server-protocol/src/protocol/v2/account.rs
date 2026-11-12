@@ -1,58 +1,122 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
-/// External LimeCore sessions share the account boundary used by every surface.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum CloudResource {
+    #[default]
+    Default,
+    Market,
+    Web,
+    Connections,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConnectionInstallation {
+    pub installation_id: String,
+    pub space_id: String,
+}
+
+/// The native owner creates PKCE and receives the callback. No imported tokens.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum LoginAccountParams {
-    #[serde(rename = "cloudAuthTokens", rename_all = "camelCase")]
-    CloudAuthTokens {
+    #[serde(rename_all = "camelCase")]
+    Cloud {
         base_url: String,
-        tenant_id: String,
-        access_token: String,
+        #[serde(default)]
+        resource: CloudResource,
+        language: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        installation: Option<ConnectionInstallation>,
     },
 }
 
-impl fmt::Debug for LoginAccountParams {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("LoginAccountParams::CloudAuthTokens { [REDACTED] }")
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountAuthorizationStatus {
+    Pending,
+    Exchanging,
+    Completed,
+    Denied,
+    Expired,
+    Cancelled,
+    Failed,
+    OutcomeUnknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountAuthorization {
+    pub id: String,
+    pub resource: CloudResource,
+    pub status: AccountAuthorizationStatus,
+    pub expires_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum LoginAccountResponse {
-    CloudAuthTokens {},
+    #[serde(rename_all = "camelCase")]
+    Cloud {
+        authorization: AccountAuthorization,
+        auth_url: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudCredentialStatus {
+    Connected,
+    Expired,
+    Refreshing,
+    VerificationRequired,
+    OutcomeUnknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct CloudResourceCredential {
+    pub resource: CloudResource,
+    pub audience: String,
+    pub scope: String,
+    pub expires_at: String,
+    pub status: CloudCredentialStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Account {
     #[serde(rename_all = "camelCase")]
     Cloud {
         base_url: String,
-        tenant_id: String,
+        issuer: String,
+        application_id: String,
+        client_id: String,
+        environment: String,
         user_id: String,
-        session_id: String,
-        email: Option<String>,
-        display_name: Option<String>,
-        expires_at: Option<String>,
+        email: String,
+        display_name: String,
+        generation: String,
+        resources: Vec<CloudResourceCredential>,
     },
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GetAccountParams {
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub refresh_token: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorization_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountResponse {
     pub account: Option<Account>,
-    pub requires_openai_auth: bool,
+    pub authorizations: Vec<AccountAuthorization>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

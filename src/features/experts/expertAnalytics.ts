@@ -1,13 +1,7 @@
-import { requestControlPlane } from "@/lib/api/oemCloudControlPlaneRuntime";
-import {
-  hasOemCloudSession,
-  resolveOemCloudRuntimeContext,
-} from "@/lib/api/oemCloudRuntime";
 import type { ExpertCatalogEvent } from "./types";
 
 const EXPERT_ANALYTICS_QUEUE_STORAGE_KEY = "lime:expert-analytics-queue:v1";
 const MAX_EXPERT_ANALYTICS_QUEUE_SIZE = 100;
-const MAX_EXPERT_ANALYTICS_BATCH_SIZE = 50;
 
 const SENSITIVE_EVENT_KEYS = new Set([
   "prompt",
@@ -126,63 +120,8 @@ export function queueExpertCatalogEvent(event: ExpertCatalogEvent) {
   ]);
 }
 
-async function submitExpertCatalogEvents(events: ExpertCatalogEvent[]) {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!hasOemCloudSession(runtime)) {
-    throw new Error("缺少品牌云端 Session Token，专家运营事件已进入本地队列。");
-  }
-
-  const normalized = events
-    .map((item) => normalizeExpertCatalogEvent(item))
-    .filter((item): item is ExpertCatalogEvent => Boolean(item))
-    .slice(0, MAX_EXPERT_ANALYTICS_BATCH_SIZE);
-  if (normalized.length === 0) {
-    return;
-  }
-
-  await requestControlPlane(
-    `/v1/public/tenants/${encodeURIComponent(runtime.tenantId)}/client/experts/events`,
-    { method: "POST", auth: true, payload: { events: normalized } },
-  );
-}
-
-export async function flushExpertCatalogEvents() {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!runtime) {
-    return;
-  }
-  const queued = readQueuedExpertCatalogEvents();
-  if (queued.length === 0) {
-    return;
-  }
-  await submitExpertCatalogEvents(queued);
-  saveQueuedExpertCatalogEvents([]);
-}
-
 export async function recordExpertCatalogEvent(event: ExpertCatalogEvent) {
-  const normalized = normalizeExpertCatalogEvent(event);
-  if (!normalized) {
-    return;
-  }
-
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!runtime) {
-    return;
-  }
-  const queued = readQueuedExpertCatalogEvents();
-  if (!hasOemCloudSession(runtime)) {
-    saveQueuedExpertCatalogEvents([...queued, normalized]);
-    return;
-  }
-  const nextBatch = [...queued, normalized].slice(
-    -MAX_EXPERT_ANALYTICS_BATCH_SIZE,
-  );
-  try {
-    await submitExpertCatalogEvents(nextBatch);
-    saveQueuedExpertCatalogEvents([]);
-  } catch {
-    saveQueuedExpertCatalogEvents([...queued, normalized]);
-  }
+  queueExpertCatalogEvent(event);
 }
 
 export const expertAnalyticsStorageKeys = {

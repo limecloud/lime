@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { CanvasWorkbenchChangesContent } from "./CanvasWorkbenchChangesContent";
+import { CanvasWorkbenchViewedChangesProvider } from "./CanvasWorkbenchViewedChangesContext";
 import {
   CanvasWorkbenchChangesToolbar,
   type CanvasWorkbenchChangesToolbarProps,
@@ -24,6 +25,11 @@ export interface CanvasWorkbenchReviewSurfaceProps {
   translateWorkbench: CanvasWorkbenchTranslation;
   onFileFilterChange?: (value: string) => void;
   onSelectChangeItem?: (item: CanvasWorkbenchChangeItem) => void;
+  onOpenFile?: (path: string) => void | Promise<void>;
+  onDeleteFile?: (
+    item: CanvasWorkbenchChangeItem,
+  ) => void | Promise<void>;
+  onRevealFile?: (item: CanvasWorkbenchChangeItem) => void;
 }
 
 export function CanvasWorkbenchReviewSurface({
@@ -40,8 +46,12 @@ export function CanvasWorkbenchReviewSurface({
   translateWorkbench,
   onFileFilterChange,
   onSelectChangeItem,
+  onOpenFile,
+  onDeleteFile,
+  onRevealFile,
 }: CanvasWorkbenchReviewSurfaceProps) {
   return (
+    <CanvasWorkbenchViewedChangesProvider>
     <section
       data-testid="canvas-workbench-panel-changes"
       className={`grid h-full min-h-0 bg-[color:var(--lime-surface)] ${notice ? "grid-rows-[auto_auto_minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]"}`}
@@ -59,8 +69,12 @@ export function CanvasWorkbenchReviewSurface({
         translateWorkbench={translateWorkbench}
         onFileFilterChange={onFileFilterChange}
         onSelectChangeItem={onSelectChangeItem}
+        onOpenFile={onOpenFile}
+        onDeleteFile={onDeleteFile}
+        onRevealFile={onRevealFile}
         detail={detail}
       />
     </section>
+    </CanvasWorkbenchViewedChangesProvider>
   );
 }

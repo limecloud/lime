@@ -194,31 +194,6 @@ declare module "./appServerClient" {
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerMarketplaceUpgradeResponse>
     >;
-    savePluginShare(
-      params: appServer.AppServerPluginShareSaveParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerPluginShareSaveResponse>
-    >;
-    listPluginShares(
-      params?: appServer.AppServerPluginShareListParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerPluginShareListResponse>
-    >;
-    updatePluginShareTargets(
-      params: appServer.AppServerPluginShareUpdateTargetsParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerPluginShareUpdateTargetsResponse>
-    >;
-    checkoutPluginShare(
-      params: appServer.AppServerPluginShareCheckoutParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerPluginShareCheckoutResponse>
-    >;
-    deletePluginShare(
-      params: appServer.AppServerPluginShareDeleteParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerPluginShareDeleteResponse>
-    >;
     listPlugins(
       params?: appServer.AppServerPluginListParams,
     ): Promise<

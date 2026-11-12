@@ -45,7 +45,7 @@ export function useSkillsWorkspaceDetailContent({
     }
 
     setDetailContentState({ skillName, status: "loading" });
-    void getOfficialSkillMarketplaceBundle(skillName)
+    void getOfficialSkillMarketplaceBundle(skillName, detailStoreItem.skill.release)
       .then((bundle) => {
         if (cancelled) return;
         const content = extractSkillMarkdown(bundle);

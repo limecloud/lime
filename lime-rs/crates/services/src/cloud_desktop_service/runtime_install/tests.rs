@@ -12,8 +12,8 @@ args=sys.argv[1:];action=args[1]
 def value(flag):return args[args.index(flag)+1]
 with (root/'calls').open('a') as out:out.write(json.dumps(args)+'\n')
 if action=='DescribeInstances':
- address='127.0.0.1' if (root/'invalid-network').exists() else '47.1.2.3'
- print(json.dumps({'TotalCount':1,'Instances':{'Instance':[{'InstanceId':'i-test','Status':'Running','OperationLocks':{},'VpcAttributes':{'PrivateIpAddress':{'IpAddress':['172.16.1.2']}},'PublicIpAddress':{'IpAddress':[address]}}]}}))
+ identity='i-other' if (root/'invalid-network').exists() else 'i-test'
+ print(json.dumps({'TotalCount':1,'Instances':{'Instance':[{'InstanceId':identity,'Status':'Running','OperationLocks':{}}]}}))
 elif action=='DescribeCloudAssistantStatus':
  print(json.dumps({'InstanceCloudAssistantStatusSet':{'InstanceCloudAssistantStatus':[{'InstanceId':'i-test','OSType':'Linux','CloudAssistantStatus':'true'}]}}))
 elif action=='RunCommand':
@@ -74,7 +74,7 @@ fn result(root: &Path, value: Value) {
     .unwrap()
 }
 fn ready(receipt: &Value) -> Value {
-    json!({"InvocationStatus":"Success","Output":format!("{MARKER}{}\n",json!({"operationId":ID,"phase":"uploadReady","certificate":"-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n","publicAddress":receipt["publicAddress"],"expiresAt":receipt["expiresAt"]}))})
+    json!({"InvocationStatus":"Success","Output":format!("{MARKER}{}\n",json!({"operationId":ID,"phase":"uploadReady","certificate":"-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n","expiresAt":receipt["expiresAt"]}))})
 }
 
 #[tokio::test]
@@ -83,6 +83,8 @@ async fn fixed_bootstrap_submits_once_and_never_claims_runtime_or_desktop_ready(
     let first = service.request(request(&resource, ID)).await.unwrap().data;
     assert_eq!(first["outcome"], "accepted");
     assert_eq!(first["runtimeInstalled"], false);
+    assert!(config(&first).get("publicAddress").is_none());
+    assert!(config(&first).get("bindAddress").is_none());
     assert_eq!(
         service.request(request(&resource, ID)).await.unwrap().data,
         first
@@ -98,7 +100,12 @@ async fn fixed_bootstrap_submits_once_and_never_claims_runtime_or_desktop_ready(
     let script = args[args.iter().position(|v| v == "--CommandContent").unwrap() + 1]
         .as_str()
         .unwrap();
-    assert!(script.len() <= 24 * 1024);
+    assert!(
+        base64::engine::general_purpose::STANDARD
+            .encode(script)
+            .len()
+            <= 24 * 1024
+    );
     assert!(script.contains("/usr/bin/python3 -I"));
     assert_eq!(read(&service).await["outcome"], "runtimeStarting");
     assert!(service
@@ -113,6 +120,108 @@ async fn fixed_bootstrap_submits_once_and_never_claims_runtime_or_desktop_ready(
     assert_eq!(observed["requiresInspection"], false);
     assert!(!observed.to_string().contains("secret-must-not-leak"));
     assert_eq!(read(&service).await, observed);
+}
+
+#[test]
+fn fixed_python_compaction_preserves_the_program_ast() {
+    use std::process::{Command, Stdio};
+    let input = serde_json::to_vec(
+        &[LAUNCHER, INSTALLER, BOOTSTRAP].map(|source| json!([source, python_source(source)])),
+    )
+    .unwrap();
+    let mut child = Command::new("python3").args(["-I", "-c", "import ast,json,sys; sources=json.load(sys.stdin); assert all(ast.dump(ast.parse(before))==ast.dump(ast.parse(after)) for before,after in sources)"])
+        .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().unwrap();
+    child.stdin.take().unwrap().write_all(&input).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn fixed_command_bzip2_bundle_round_trips_through_the_guest_python_decoder() {
+    use std::process::{Command, Stdio};
+    let archive_sha256 = format!("{:x}", Sha256::digest(b"trusted archive bytes"));
+    let manifest_sha256 = format!("{:x}", Sha256::digest(b"trusted manifest bytes"));
+    let capability_sha256 = format!("{:x}", Sha256::digest(b"installation capability"));
+    let receipt = json!({"operationId":ID,"expiresAt":1794410000_i64,"request":{
+        "artifact":{"archiveSha256":archive_sha256,"manifestSha256":manifest_sha256,"archiveBytes":128709766},
+        "capabilitySha256":capability_sha256
+    }});
+    let script = command(&receipt).unwrap();
+    eprintln!(
+        "Fixed bootstrap command: {} Base64 bytes (limit {})",
+        base64::engine::general_purpose::STANDARD
+            .encode(&script)
+            .len(),
+        24 * 1024
+    );
+    let payload = script
+        .split("base64.b64decode('")
+        .nth(1)
+        .unwrap()
+        .split('\'')
+        .next()
+        .unwrap();
+    let mut child = Command::new("python3")
+        .args(["-I", "-c", "import base64,bz2,json,sys; data=json.load(sys.stdin); bundle=json.loads(bz2.decompress(base64.b64decode(data['payload'],validate=True))); assert bundle==data['expected']"])
+        .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().unwrap();
+    child.stdin.take().unwrap().write_all(&serde_json::to_vec(&json!({
+        "payload":payload,"expected":{"launcher":python_source(LAUNCHER),"installer":python_source(INSTALLER),
+        "bootstrap":python_source(BOOTSTRAP),"config":config(&receipt)}
+    })).unwrap()).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[tokio::test]
+async fn reconnection_uses_one_fixed_operation_without_artifact_or_credentials() {
+    let (directory, service, resource) = fixture();
+    let request = CloudDesktopParams::ReconnectEcsRuntime {
+        resource: resource.clone(),
+        operation_id: ID.into(),
+        capability_sha256: "c".repeat(64),
+        confirmation: format!(
+            "reconnectRuntime:{}:{}",
+            resource.region_id, resource.resource_id
+        ),
+        work_saved: true,
+    };
+    let mut denied = serde_json::to_value(&request).unwrap();
+    denied["workSaved"] = json!(false);
+    assert!(service
+        .request(serde_json::from_value(denied).unwrap())
+        .await
+        .is_err());
+    let first = service.request(request.clone()).await.unwrap().data;
+    assert_eq!(first["outcome"], "accepted");
+    assert!(first["request"]["artifact"].is_null());
+    assert_eq!(config(&first)["reconnect"], true);
+    assert!(config(&first).get("archiveBytes").is_none());
+    assert_eq!(service.request(request).await.unwrap().data, first);
+    result(directory.path(), ready(&first));
+    let ready = read(&service).await;
+    assert_eq!(ready["outcome"], "runtimeUploadReady");
+    assert!(!ready.to_string().contains("secret-must-not-leak"));
+    assert_eq!(
+        fs::read_to_string(directory.path().join("calls"))
+            .unwrap()
+            .lines()
+            .filter(|line| line.contains("\"RunCommand\""))
+            .count(),
+        1
+    );
+    let restarted = CloudDesktopService {
+        root: service.root.clone(),
+        cli: service.cli.clone(),
+    };
+    assert_eq!(read(&restarted).await, ready);
 }
 
 #[tokio::test]
@@ -144,7 +253,7 @@ async fn lost_response_recovers_original_command_and_static_failures_do_not_leak
 }
 
 #[tokio::test]
-async fn request_consent_uuid_hash_and_authoritative_network_are_validated_before_submission() {
+async fn request_consent_uuid_hash_and_exact_instance_are_validated_before_submission() {
     let (directory, service, resource) = fixture();
     let mut denied = request(&resource, ID);
     if let CloudDesktopParams::StartEcsRuntimeInstallation {

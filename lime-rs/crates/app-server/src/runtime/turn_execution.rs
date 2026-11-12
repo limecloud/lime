@@ -2888,6 +2888,20 @@ impl RuntimeCore {
         })
     }
 
+    /// Whether the active backend keeps a live session that reports terminal events.
+    pub fn backend_has_live_session_responses(&self) -> bool {
+        self.backend.has_live_session_responses()
+    }
+
+    /// Canonical turn snapshot for callers that must synthesize a terminal notification.
+    pub fn turn_snapshot_for_completion(
+        &self,
+        session_id: &str,
+        turn_id: &str,
+    ) -> Option<app_server_protocol::protocol::v0::AgentTurn> {
+        self.stored_turn(session_id, turn_id).ok().flatten()
+    }
+
     pub async fn respond_permission(
         &self,
         request: PermissionRespondRequest,

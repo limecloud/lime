@@ -1,6 +1,5 @@
 """Fixed ECS Cloud Assistant bootstrap. Never reads application credentials."""
 import fcntl
-import ipaddress
 import json
 import os
 from pathlib import Path
@@ -51,33 +50,27 @@ def root_directory(path):
 
 
 def validate_config(config):
-    fields = {"operationId", "capabilitySha256", "archiveSha256", "manifestSha256",
-              "archiveBytes", "bindAddress", "publicAddress", "expiresAt"}
+    reconnect = isinstance(config, dict) and config.get("reconnect") is True
+    fields = {"operationId", "capabilitySha256", "expiresAt"}
+    fields |= {"reconnect"} if reconnect else {"archiveSha256", "manifestSha256", "archiveBytes"}
     if not isinstance(config, dict) or set(config) != fields:
         raise RuntimeError("invalidConfiguration")
     if str(uuid.UUID(config["operationId"])) != config["operationId"]:
         raise RuntimeError("invalidConfiguration")
-    for key in ("capabilitySha256", "archiveSha256", "manifestSha256"):
+    for key in (("capabilitySha256",) if reconnect else ("capabilitySha256", "archiveSha256", "manifestSha256")):
         if not isinstance(config[key], str) or not re.fullmatch(r"[0-9a-f]{64}", config[key]):
             raise RuntimeError("invalidConfiguration")
-    for key in ("bindAddress", "publicAddress"):
-        address = ipaddress.IPv4Address(config[key])
-        if (str(address) != config[key] or address.is_unspecified or address.is_loopback
-                or address.is_multicast or address.is_link_local):
-            raise RuntimeError("invalidConfiguration")
-    if (not ipaddress.IPv4Address(config["bindAddress"]).is_private
-            or not ipaddress.IPv4Address(config["publicAddress"]).is_global
-            or type(config["archiveBytes"]) is not int or not 0 < config["archiveBytes"] <= 1024**3
+    if ((not reconnect and (type(config["archiveBytes"]) is not int or not 0 < config["archiveBytes"] <= 1024**3))
             or type(config["expiresAt"]) is not int or not 0 < config["expiresAt"] - time.time() <= 1800):
         raise RuntimeError("invalidConfiguration")
 
 
-def desktop_user():
+def desktop_user(create=True):
     marker = BASE / "desktop-user.json"
     try:
         user = pwd.getpwnam("lime")
     except KeyError:
-        if marker.exists():
+        if not create or marker.exists():
             raise RuntimeError("userConflict") from None
         run(["/usr/sbin/useradd", "--create-home", "--user-group", "--shell", "/bin/bash",
              "--comment", "Lime persistent desktop", "lime"])
@@ -119,7 +112,7 @@ def ready_output(path, owner, config):
             or not re.fullmatch(r"-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/=\n]+-----END CERTIFICATE-----\n", value["certificate"])):
         raise RuntimeError("bootstrapFailed")
     return {"operationId": config["operationId"], "phase": "uploadReady",
-            "certificate": value["certificate"], "publicAddress": config["publicAddress"],
+            "certificate": value["certificate"],
             "expiresAt": config["expiresAt"]}
 
 
@@ -143,7 +136,7 @@ def prepare(bundle):
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077 or info.st_nlink != 1):
             raise RuntimeError("privateStateInvalid")
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        user = desktop_user()
+        user = desktop_user(create=config.get("reconnect") is not True)
         stage = BASE / "bootstrap" / config["operationId"]
         stage.mkdir(mode=0o700, exist_ok=False)
         for name, content in (("install.py", bundle["installer"]), ("bootstrap.py", bundle["bootstrap"]),

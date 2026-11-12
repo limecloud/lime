@@ -6,15 +6,18 @@ import { SettingsAction } from "../../SettingsPrimitives";
 import { CloudSelect } from "./CloudDesktopPrimitives";
 import { object } from "./cloudDesktopData";
 import type { useCloudPurchase } from "./useCloudPurchase";
+import { EcsRecommendedPurchase } from "./EcsRecommendedPurchase";
 
 type Template = { id: string; name: string; version: number };
 
 export function EcsPurchaseTemplates({
   purchase,
   onBusyChange,
+  onPreparationBusyChange,
 }: {
   purchase: ReturnType<typeof useCloudPurchase<EcsDesktopSpec>>;
   onBusyChange: (busy: boolean) => void;
+  onPreparationBusyChange: (busy: boolean) => void;
 }) {
   const { t } = useTranslation("settings");
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -120,7 +123,7 @@ export function EcsPurchaseTemplates({
             </option>
             {templates.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.name} · v{item.version}
+                {item.name} v{item.version}
               </option>
             ))}
           </CloudSelect>
@@ -142,12 +145,18 @@ export function EcsPurchaseTemplates({
         </p>
       )}
       {(error || (loaded && !templates.length)) && (
-        <SettingsAction
-          disabled={locked}
-          onClick={() => setRefresh((value) => value + 1)}
-        >
-          {t("settings.cloudDesktop.loadTemplates")}
-        </SettingsAction>
+        <>
+          <EcsRecommendedPurchase
+            purchase={purchase}
+            onBusyChange={onPreparationBusyChange}
+          />
+          <SettingsAction
+            disabled={locked}
+            onClick={() => setRefresh((value) => value + 1)}
+          >
+            {t("settings.cloudDesktop.loadTemplates")}
+          </SettingsAction>
+        </>
       )}
     </div>
   );

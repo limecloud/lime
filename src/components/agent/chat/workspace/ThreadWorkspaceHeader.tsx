@@ -1,6 +1,22 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
-import { GitFork, MoreHorizontal, Pencil, Archive } from "lucide-react";
+import {
+  Archive,
+  CalendarClock,
+  Copy,
+  GitFork,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  Plus,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
@@ -14,9 +30,21 @@ import {
   HeaderToolbarActionMount,
 } from "@/components/app-shell/HeaderToolbar";
 import { useUnifiedToolbar } from "@/components/app-shell/unifiedTabStripContext";
+import {
+  closeConversationTab,
+  ensureConversationTab,
+  requestNewConversationTab,
+  useConversationTabs,
+} from "@/lib/conversationTabs";
+import { ConversationTabBar } from "./ConversationTabBar";
+import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
+import { requestSessionPinToggle } from "@/lib/sessionPinEvents";
+import { requestScheduledTaskForThread } from "@/lib/scheduledTaskEvents";
+import { requestCopyConversation } from "@/lib/conversationCopyEvents";
 
 interface ThreadWorkspaceHeaderProps {
   sessionId: string;
+  scheduledTaskThreadId?: string | null;
   title: string;
   onRename?: (title: string) => Promise<void>;
   onArchive?: () => Promise<void>;
@@ -24,6 +52,7 @@ interface ThreadWorkspaceHeaderProps {
   actions?: ReactNode;
   summaryToggle?: ReactNode;
   leading?: ReactNode;
+  trailingTabs?: ReactNode;
 }
 
 function useHeaderToolbarActionContainer(children: ReactNode) {
@@ -37,6 +66,7 @@ function useHeaderToolbarActionContainer(children: ReactNode) {
 
 export function ThreadWorkspaceHeader({
   sessionId,
+  scheduledTaskThreadId,
   title,
   onRename,
   onArchive,
@@ -44,6 +74,7 @@ export function ThreadWorkspaceHeader({
   actions,
   summaryToggle,
   leading,
+  trailingTabs,
 }: ThreadWorkspaceHeaderProps) {
   const { t: tNavigation } = useTranslation("navigation");
   const [editingTitle, setEditingTitle] = useState(false);
@@ -86,7 +117,7 @@ export function ThreadWorkspaceHeader({
     titleInputRef.current?.select();
   }, [editingTitle]);
 
-  const startRename = () => {
+  const startRename = useCallback(() => {
     if (!onRename || currentSessionId.current !== sessionId) {
       return;
     }
@@ -98,7 +129,54 @@ export function ThreadWorkspaceHeader({
     };
     setTitleDraft(title);
     setEditingTitle(true);
-  };
+  }, [onRename, sessionId, title]);
+
+  const shortcutPlatform = resolveHotkeyPlatform(navigator);
+  const isMacShortcut = shortcutPlatform === "mac";
+  const { tabs: conversationTabs } = useConversationTabs();
+  useEffect(() => {
+    if (sessionId) ensureConversationTab(sessionId, title);
+  }, [sessionId, title]);
+  const showConversationTabBar = Boolean(sessionId) && conversationTabs.length > 0;
+  const renameShortcut = isMacShortcut ? "⌥⌘R" : "Ctrl+Alt+R";
+  const pinShortcut = isMacShortcut ? "⌥⌘P" : "Ctrl+Alt+P";
+  const archiveShortcut = isMacShortcut ? "⇧⌘A" : "Ctrl+Shift+A";
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!event.metaKey && !event.ctrlKey) return;
+      if (event.altKey && !event.shiftKey && event.key.toLowerCase() === "r") {
+        if (!onRename) return;
+        event.preventDefault();
+        startRename();
+      }
+      if (event.altKey && !event.shiftKey && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        requestSessionPinToggle(sessionId);
+      }
+      if (
+        event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "a" &&
+        onArchive
+      ) {
+        event.preventDefault();
+        void onArchive();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onArchive, onRename, startRename, sessionId]);
 
   const commitRename = (edit: typeof activeTitleEdit) => {
     if (
@@ -198,25 +276,69 @@ export function ThreadWorkspaceHeader({
                 }
               }}
             />
+          ) : showConversationTabBar && sessionId ? (
+            <ConversationTabBar
+              currentSessionId={sessionId}
+              onRename={onRename ? startRename : undefined}
+            />
           ) : (
-            <h1
-              className="[[data-mode=full]_&]:hidden min-w-0 max-w-[320px] truncate text-[13px] font-medium leading-5 text-[color:var(--lime-text-strong)]"
-              data-testid="thread-workspace-header-title"
-              title={title}
-            >
-              {onRename ? (
+            <div className="flex min-w-0 items-center gap-1">
+              <h1
+                className="[[data-mode=full]_&]:hidden min-w-0 max-w-[320px] truncate text-[13px] font-medium leading-5 text-[color:var(--lime-text-strong)]"
+                data-testid="thread-workspace-header-title"
+                title={title}
+              >
+                {onRename ? (
+                  <button
+                    type="button"
+                    className="max-w-full truncate rounded-md px-1 text-left hover:bg-[color:var(--lime-chrome-tab-hover)]"
+                    onClick={startRename}
+                  >
+                    {title}
+                  </button>
+                ) : (
+                  title
+                )}
+              </h1>
+              {sessionId ? (
                 <button
                   type="button"
-                  className="max-w-full truncate rounded-md px-1 text-left hover:bg-[color:var(--lime-chrome-tab-hover)]"
-                  onClick={startRename}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-text-strong)]"
+                  aria-label={String(
+                    tNavigation(
+                      "navigation.sidebar.conversations.tabs.close",
+                      { defaultValue: "关闭标签页" },
+                    ),
+                  )}
+                  data-testid="conversation-tab-close-single"
+                  onClick={() => closeConversationTab(sessionId)}
                 >
-                  {title}
+                  <X className="h-4 w-4" />
                 </button>
-              ) : (
-                title
-              )}
-            </h1>
+              ) : null}
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-text-strong)]"
+                aria-label={String(
+                  tNavigation("navigation.sidebar.conversations.tabs.new", {
+                    defaultValue: "新聊天",
+                  }),
+                )}
+                data-testid="conversation-tab-new"
+                onClick={requestNewConversationTab}
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           )}
+          {trailingTabs ? (
+            <div
+              className="flex min-w-[140px] max-w-[45%] flex-1 items-center gap-1 overflow-x-auto"
+              data-inline-side-panel-tabs
+            >
+              {trailingTabs}
+            </div>
+          ) : null}
         </div>
         {actionDestination === "chat" ? (
           <HeaderToolbar.Actions className="min-w-0 max-w-full shrink">
@@ -242,6 +364,9 @@ export function ThreadWorkspaceHeader({
             data-testid="thread-workspace-header-actions"
             data-header-action-overflow="tools"
           >
+            {summaryDestination === "window" ? (
+              <HeaderToolbarActionMount container={summaryActions.container} />
+            ) : null}
             {onRename || onArchive || onFork ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -266,19 +391,38 @@ export function ThreadWorkspaceHeader({
                     <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-36 p-1">
+                <DropdownMenuContent align="end" className="w-48 p-1">
                   {onRename ? (
-                    <DropdownMenuItem onClick={startRename}>
+                    <DropdownMenuItem className="whitespace-nowrap" onClick={startRename}>
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                       {String(
                         tNavigation(
                           "navigation.sidebar.conversations.menu.rename",
                         ),
                       )}
+                      <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
+                        {renameShortcut}
+                      </span>
                     </DropdownMenuItem>
                   ) : null}
+                  <DropdownMenuItem
+                    className="whitespace-nowrap"
+                    data-testid="thread-workspace-header-pin"
+                    onClick={() => requestSessionPinToggle(sessionId)}
+                  >
+                    <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+                    {String(
+                      tNavigation(
+                        "navigation.sidebar.conversations.menu.pin",
+                      ),
+                    )}
+                    <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
+                      {pinShortcut}
+                    </span>
+                  </DropdownMenuItem>
                   {onFork ? (
                     <DropdownMenuItem
+                      className="whitespace-nowrap"
                       data-testid="thread-workspace-header-fork"
                       onClick={() => {
                         void onFork();
@@ -292,8 +436,42 @@ export function ThreadWorkspaceHeader({
                       )}
                     </DropdownMenuItem>
                   ) : null}
+                  {scheduledTaskThreadId ? (
+                    <DropdownMenuItem
+                      className="whitespace-nowrap"
+                      data-testid="thread-workspace-header-schedule-task"
+                      onClick={() =>
+                        requestScheduledTaskForThread(
+                          scheduledTaskThreadId,
+                        )
+                      }
+                    >
+                      <CalendarClock
+                        className="h-3.5 w-3.5"
+                        aria-hidden="true"
+                      />
+                      {String(
+                        tNavigation(
+                          "navigation.sidebar.conversations.menu.addScheduledTask",
+                        ),
+                      )}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    className="whitespace-nowrap"
+                    data-testid="thread-workspace-header-copy"
+                    onClick={requestCopyConversation}
+                  >
+                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                    {String(
+                      tNavigation(
+                        "navigation.sidebar.conversations.menu.copy",
+                      ),
+                    )}
+                  </DropdownMenuItem>
                   {onArchive ? (
                     <DropdownMenuItem
+                      className="whitespace-nowrap"
                       data-testid="thread-workspace-header-archive"
                       onClick={() => {
                         void onArchive();
@@ -305,13 +483,13 @@ export function ThreadWorkspaceHeader({
                           "navigation.sidebar.conversations.menu.archive",
                         ),
                       )}
+                      <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
+                        {archiveShortcut}
+                      </span>
                     </DropdownMenuItem>
                   ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : null}
-            {summaryDestination === "window" ? (
-              <HeaderToolbarActionMount container={summaryActions.container} />
             ) : null}
             {actionDestination === "window" ? (
               <HeaderToolbarActionMount container={threadActions.container} />

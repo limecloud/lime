@@ -1,49 +1,39 @@
-## Lime v1.174.0
+## Lime v1.175.0
 
-Simplified Chinese release notes are the primary version.
+> Simplified Chinese release notes are the primary version.
 
-### Features
+### New Features
 
-- Add BYOC desktop entry points for Alibaba Cloud ECS/Wuying lifecycle management, existing desktop connections, and isolated remote task windows.
-- Add Linux guest installation packages, authenticated WebSocket connections, and encrypted archive, restore, and object storage transfers.
+- Add Cloud desktop purchase recommendations, network preparation, system image selection, and installation progress, with separate provider authorization and cost confirmation.
+- Add desktop reconnection, archive transfers, recovery keys, and scheduled release controls, resuming installation and transfer state from the original operation.
+- Add conversation history navigation, tabs, archived conversation management, and branching from a selected turn.
+- Extend the TUI with configuration, Hooks, Skills, and keymap panels, plus reasoning effort and permission profile pickers.
 
 ### Fixes
 
-- Hide Lime Hub from conversation model selectors while signed out and restore available models after sign-in.
-- Fix overlapping permission labels while a reply disables the access mode control.
-- Default Provider credentials to files protected by access permissions, with explicit system keyring selection. Unreadable credentials prompt users to save their API key again.
-- Align model capability provenance, MCP form validation, OAuth persistence, model list expectations, and Windows update checks.
-- Select the Windows update baseline from published stable releases with a complete installer, avoiding draft releases without assets.
-- Fix frontend quality checks by separating the cloud desktop data helper from component exports.
-- Batch skill watcher path updates and stop the native watcher once at shutdown, preventing repeated macOS watcher rebuilds from blocking session startup or exit.
-- Fix unauthenticated MCP OAuth servers being shown as signed in and hiding the Authenticate button.
-- Restore the sidebar expert directory entry and preserve project scope across expert, Skills, and plugin pages.
-- Fix a race between cloud runtime installation completion and status reads that could stop UI polling early.
-- Explicitly release the Computer Use control lock so concurrently launched child processes cannot retain an ended control lease.
-- Preserve model catalog instructions and multi-agent message configuration instead of replacing them with bundled defaults.
-- Remove the Start menu shortcut created for Electron notifications during Windows uninstall, preventing a stale entry after the installation is removed.
-- Fix a race between background input and session cleanup so rejected input cannot prematurely close a shared session.
+- Improve Cloud Guest upload tunnels, startup readiness checks, window navigation, shutdown handling, reconnection, and failure recovery.
+- Fix conversation copying, retries, unread and pinned state synchronization, and change-file viewing and deletion interactions.
+- Isolate turn and side-panel rendering errors to keep local failures from disrupting conversation controls.
+- Improve terminal notifications after permission approval and Windows restricted-execution permission planning.
 
 ### Improvements and Refactoring
 
-- Align the home screen, contextual sidebar, scheduled tasks, Skills, and plugin catalog layouts, with copy updates in five languages.
-- Consolidate file search, permissions, and path handling. Remove obsolete session DAOs, duplicate repositories, and unused embedding code.
-- Update Rust HTTP/TLS, async runtime, archive, MCP, and terminal dependencies and include the required license materials.
-- Resolve SQLite, OpenSSL, and MCP SDK security advisories and adapt MCP types and SQLite backup calls.
+- Move accounts, expert content, skills, and remote plugins to the current Cloud contracts; remove the old plugin-sharing protocol and its consumers.
+- Improve local credential encryption and archive identity validation; synchronize App Server schemas, generated clients, and five-language resources.
+- Allow Bing and Google search endpoints to be configured through the environment.
 
-### Tests and Quality
+### Testing and Quality
 
-- Complete a live hello conversation through Electron, with a completed canonical Turn and persisted user and assistant Items.
-- Add Electron regression checks for disabled permission labels, native content and renderer viewport agreement, and main content filling the window.
-- Full Cloud product acceptance remains incomplete, including remote model tasks, third-party sign-in, and cross-environment recovery. Local checks do not establish Windows, Intel Mac, or packaged-app acceptance.
+- Add regression coverage for Cloud installation, transfers, recovery, remote plugins, and conversation interactions, plus TUI protocol and terminal scenarios.
+- Package Cloud Guest from the same Linux runtime release and publish the Release after desktop and CLI assets build successfully.
+- Full Cloud and cross-platform acceptance remains tracked in the relevant execution plans; partial tests do not establish complete acceptance.
 
 ### Documentation
 
-- Update credential storage guidance, the cloud desktop plan, architecture boundaries, protocol documentation, and source provenance records.
-- Add a Wuying Windows cloud testing skill for candidate synchronization, desktop evidence, and resource cleanup.
+- Update both READMEs, Lime brand visuals, Cloud instructions, and current architecture and command boundaries.
 
 ### Other
 
-- Align app, CLI, and Rust workspace versions to 1.174.0.
+- Align app, CLI, and Rust workspace versions to 1.175.0.
 
-**Full changes**: `v1.173.0` -> `v1.174.0`
+**Full changes**: `v1.174.0` -> `v1.175.0`

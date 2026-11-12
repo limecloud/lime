@@ -1,11 +1,13 @@
+use super::windows_acl_plan::build_acl_plan;
+#[cfg(test)]
+use super::windows_acl_plan::reject_reparse_components;
+use super::windows_acl_plan::AclPlan;
 use super::*;
 #[cfg(test)]
-use app_server_protocol::protocol::v2::{AdditionalFileSystemPermissions, FileSystemSandboxEntry};
 use app_server_protocol::protocol::v2::{
-    FileSystemAccessMode, FileSystemPath, FileSystemSpecialPath, GrantedPermissionProfile,
+    AdditionalFileSystemPermissions, FileSystemAccessMode, FileSystemPath, FileSystemSandboxEntry,
 };
 use std::collections::HashMap;
-use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
@@ -18,196 +20,10 @@ use windows_sys::Win32::Security::{
     GetFileSecurityW, GetSecurityDescriptorControl, SetFileSecurityW, DACL_SECURITY_INFORMATION,
     PROTECTED_DACL_SECURITY_INFORMATION, SE_DACL_PROTECTED, UNPROTECTED_DACL_SECURITY_INFORMATION,
 };
-use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
 use windows_sys::Win32::Storage::FileSystem::{
     DELETE, FILE_ALL_ACCESS, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ,
     FILE_GENERIC_WRITE,
 };
-
-const PROTECTED_METADATA_NAMES: [&str; 3] = [".git", ".lime", ".agents"];
-#[derive(Debug)]
-pub(super) struct AclPlan {
-    read_grants: Vec<PathBuf>,
-    write_grants: Vec<PathBuf>,
-    write_denies: Vec<PathBuf>,
-    access_denies: Vec<PathBuf>,
-}
-
-pub(super) fn build_acl_plan(
-    cwd: &Path,
-    policy: &SandboxPolicy,
-    permissions: Option<&GrantedPermissionProfile>,
-    environment: &HashMap<String, String>,
-) -> io::Result<AclPlan> {
-    let mut read_grants = vec![canonical_existing(cwd)?];
-    let mut write_grants = Vec::new();
-    let mut write_denies = Vec::new();
-    let mut access_denies = Vec::new();
-    if let SandboxPolicy::WorkspaceWrite {
-        exclude_tmpdir_env_var,
-        ..
-    } = policy
-    {
-        for root in crate::sandbox::policy::writable_roots(policy, cwd) {
-            write_grants.push(canonical_absolute(&root)?);
-            for name in PROTECTED_METADATA_NAMES {
-                let path = root.join(name);
-                if path.exists() {
-                    write_denies.push(canonical_existing(&path)?);
-                }
-            }
-        }
-        if !exclude_tmpdir_env_var {
-            write_grants.extend(windows_temp_write_roots(environment)?);
-        }
-    }
-
-    if let Some(file_system) = permissions.and_then(|profile| profile.file_system.as_ref()) {
-        for path in file_system.write.as_deref().unwrap_or_default() {
-            write_grants.push(canonical_absolute(Path::new(path))?);
-        }
-        for entry in file_system.entries.as_deref().unwrap_or_default() {
-            let path = resolve_permission_path(&entry.path, cwd)?;
-            let Some(path) = path else {
-                continue;
-            };
-            match entry.access {
-                FileSystemAccessMode::Read => {
-                    read_grants.push(path.clone());
-                    write_denies.push(path);
-                }
-                FileSystemAccessMode::Write => write_grants.push(path),
-                FileSystemAccessMode::Deny => access_denies.push(path),
-            }
-        }
-    }
-    read_grants.sort();
-    read_grants.dedup();
-    write_grants.sort();
-    write_grants.dedup();
-    access_denies.sort();
-    access_denies.dedup();
-    write_grants.retain(|path| access_denies.binary_search(path).is_err());
-    read_grants.retain(|path| write_grants.binary_search(path).is_err());
-    read_grants.retain(|path| access_denies.binary_search(path).is_err());
-    write_denies.sort();
-    write_denies.dedup();
-    write_denies.retain(|path| access_denies.binary_search(path).is_err());
-    Ok(AclPlan {
-        read_grants,
-        write_grants,
-        write_denies,
-        access_denies,
-    })
-}
-
-fn windows_temp_write_roots(environment: &HashMap<String, String>) -> io::Result<Vec<PathBuf>> {
-    ["TEMP", "TMP"]
-        .into_iter()
-        .filter_map(|key| {
-            environment
-                .iter()
-                .find(|(name, _)| name.eq_ignore_ascii_case(key))
-                .map(|(_, value)| PathBuf::from(value.as_str()))
-        })
-        .filter(|path| path.is_absolute())
-        .map(|path| canonical_existing(&path))
-        .collect()
-}
-
-fn resolve_permission_path(path: &FileSystemPath, cwd: &Path) -> io::Result<Option<PathBuf>> {
-    match path {
-        FileSystemPath::Path { path } => canonical_absolute(Path::new(path)).map(Some),
-        FileSystemPath::GlobPattern { .. } => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Windows restricted token sandbox does not support glob filesystem permissions",
-        )),
-        FileSystemPath::Special { value } => match value {
-            FileSystemSpecialPath::ProjectRoots { subpath } => {
-                let path = subpath
-                    .as_deref()
-                    .map(|subpath| cwd.join(subpath))
-                    .unwrap_or_else(|| cwd.to_path_buf());
-                canonical_existing(&path).map(Some)
-            }
-            FileSystemSpecialPath::Tmpdir => canonical_existing(&std::env::temp_dir()).map(Some),
-            FileSystemSpecialPath::Unknown { path, subpath } => {
-                let base = PathBuf::from(path);
-                if !base.is_absolute() {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Windows sandbox permission path must be absolute",
-                    ));
-                }
-                let path = subpath
-                    .as_deref()
-                    .map(|subpath| base.join(subpath))
-                    .unwrap_or(base);
-                canonical_existing(&path).map(Some)
-            }
-            FileSystemSpecialPath::Root | FileSystemSpecialPath::SlashTmp => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Unix filesystem special path is unsupported by the Windows sandbox",
-            )),
-            FileSystemSpecialPath::Minimal => Ok(None),
-        },
-    }
-}
-
-fn canonical_absolute(path: &Path) -> io::Result<PathBuf> {
-    if !path.is_absolute() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "Windows sandbox permission path must be absolute: {}",
-                path.display()
-            ),
-        ));
-    }
-    canonical_existing(path)
-}
-
-fn canonical_existing(path: &Path) -> io::Result<PathBuf> {
-    reject_reparse_components(path)?;
-    std::fs::canonicalize(path).map_err(|error| {
-        io::Error::new(
-            error.kind(),
-            format!(
-                "Windows sandbox path is invalid ({}): {error}",
-                path.display()
-            ),
-        )
-    })
-}
-
-fn reject_reparse_components(path: &Path) -> io::Result<()> {
-    for ancestor in path.ancestors() {
-        if ancestor.as_os_str().is_empty() {
-            continue;
-        }
-        let metadata = std::fs::symlink_metadata(ancestor).map_err(|error| {
-            io::Error::new(
-                error.kind(),
-                format!(
-                    "Windows sandbox cannot inspect path component {}: {error}",
-                    ancestor.display()
-                ),
-            )
-        })?;
-        if metadata.file_type().is_symlink()
-            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                format!(
-                    "Windows sandbox rejects reparse-point path component: {}",
-                    ancestor.display()
-                ),
-            ));
-        }
-    }
-    Ok(())
-}
 
 #[derive(Debug)]
 pub(super) struct AclLease {

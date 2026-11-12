@@ -16,6 +16,7 @@ export async function writeTerminalExternalBackend(
     commandStatus = "completed",
     completeAgentMessage = false,
     followupQuestion = false,
+    fileChangePatch = null,
   },
 ) {
   const terminalEvent =
@@ -37,6 +38,8 @@ const questionCallId = "terminal-question-" + turn.turnId;
 const questionRequestId = "terminal-user-input-" + turn.turnId;
 const assistantItemId = "terminal-assistant-" + turn.turnId;
 const commandCallId = "terminal-command-" + turn.turnId;
+const patchCallId = "terminal-patch-" + turn.turnId;
+const permissionsCallId = "terminal-permissions-" + turn.turnId;
 const summaryParts = ${JSON.stringify(reasoningParts)};
 const contentParts = ${JSON.stringify(reasoningContent)};
 const toolItem = (
@@ -215,6 +218,60 @@ if (input.kind === "turnStart") {
         },
       },
     ];
+  } else if (${JSON.stringify(scenario)} === "file-change-approval") {
+    const patch = ${JSON.stringify(fileChangePatch ?? "")};
+    const patchItemStarted = toolItem("inProgress", undefined, {
+      callId: patchCallId,
+      name: "apply_patch",
+    });
+    patchItemStarted.payload.arguments = [{ name: "patch", value: patch }];
+    events = [
+      { type: "item.started", payload: { item: patchItemStarted } },
+      {
+        type: "action.required",
+        payload: {
+          actionType: "tool_confirmation",
+          actionKind: "tool_execution_policy",
+          requestId: "terminal-file-approval",
+          actionId: "terminal-file-approval",
+          toolCallId: patchCallId,
+          toolName: "apply_patch",
+          toolFamily: "apply_patch",
+          prompt: "Apply proposed file edits",
+          arguments: { patch },
+          cwd: process.env.LIME_TEST_TERMINAL_CWD ?? process.cwd(),
+          availableDecisions: ["allow_once", "allow_for_session", "decline", "cancel"],
+        },
+      },
+    ];
+  } else if (${JSON.stringify(scenario)} === "permissions-approval") {
+    const permissionCwd = process.env.LIME_TEST_TERMINAL_CWD ?? process.cwd();
+    events = [
+      {
+        type: "item.started",
+        payload: {
+          item: toolItem("inProgress", undefined, {
+            callId: permissionsCallId,
+            name: "request_permissions",
+          }),
+        },
+      },
+      {
+        type: "action.required",
+        payload: {
+          actionType: "request_permissions",
+          requestId: "terminal-permissions",
+          actionId: "terminal-permissions",
+          toolCallId: permissionsCallId,
+          cwd: permissionCwd,
+          reason: "Grant write access to the gate directory",
+          permissions: {
+            file_system: { write: [permissionCwd + "/gate/granted.txt"] },
+          },
+          startedAtMs: Date.now(),
+        },
+      },
+    ];
   } else if (${JSON.stringify(scenario)} === "failure") {
     events = [
       { type: "runtime.error", payload: { message: "fixture backend failure", willRetry: false } },
@@ -285,9 +342,19 @@ if (input.kind === "turnStart") {
   const decision = input.request.decision ?? null;
   const canceled = decision === "cancel";
   const isAskUser = String(input.request.actionType ?? "").toLowerCase().includes("ask");
+  const isFileChange = String(input.request.requestId ?? "").startsWith(
+    "terminal-file-approval",
+  );
+  const isPermissions = String(input.request.requestId ?? "").startsWith(
+    "terminal-permissions",
+  );
   const toolCallId = isAskUser
     ? questionCallId
-    : commandCallId;
+    : isFileChange
+      ? patchCallId
+      : isPermissions
+        ? permissionsCallId
+        : commandCallId;
   events = [
     {
       type: canceled ? "action.canceled" : "action.resolved",
@@ -305,13 +372,25 @@ if (input.kind === "turnStart") {
     {
       type: "item.completed",
       payload: {
-        item: toolItem(
-          "completed",
-          { text: "terminal-gate-b" },
-          isAskUser
-            ? { callId: questionCallId, name: "request_user_input" }
-            : undefined,
-        ),
+        item: isPermissions
+          ? toolItem(
+              "completed",
+              { text: "granted" },
+              { callId: permissionsCallId, name: "request_permissions" },
+            )
+          : isFileChange
+            ? toolItem(
+                "completed",
+                { text: "applied" },
+                { callId: patchCallId, name: "apply_patch" },
+              )
+            : toolItem(
+              "completed",
+              { text: "terminal-gate-b" },
+              isAskUser
+                ? { callId: questionCallId, name: "request_user_input" }
+                : undefined,
+            ),
       },
     },
     { type: "turn.completed", payload: { status: "completed" } },

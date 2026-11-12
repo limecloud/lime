@@ -4,6 +4,8 @@ use serde_json::Map as JsonMap;
 use serde_json::Value as JsonValue;
 
 mod command;
+
+pub(crate) use command::domain_file_system_policy;
 mod enforcement;
 pub(crate) mod policy;
 #[cfg(target_os = "macos")]

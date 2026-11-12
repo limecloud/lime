@@ -34,6 +34,7 @@ import type { WorkspaceArticleWorkspaceActionIntent } from "./workspaceArticleWo
 import { useWorkspaceLinkOpening } from "./useWorkspaceLinkOpening";
 import type { OpenLink } from "../components/LinkOpeningContext";
 import { WorkspaceBrowserNavigationContext } from "./right-surface/browser/workspaceBrowserNavigationContext";
+import { subscribeOpenChangesSurface } from "./workspaceChangesSurfaceEvents";
 
 type RightSurfaceHostRuntimeProjection = Pick<
   WorkspaceRightSurfaceCoordinatorRuntime,
@@ -193,6 +194,15 @@ export function useWorkspaceRightSurfaceHostRuntime({
     rightSurfaceRuntime.rightSurfaceLaunchers
       .filter((action) => !action.disabled)
       .map((action) => action.kind),
+  );
+  const changesSurfaceAvailable = available.has("changes");
+  useEffect(
+    () =>
+      subscribeOpenChangesSurface(() => {
+        if (!changesSurfaceAvailable) return;
+        rightSurfaceRuntime.handleSelectRightSurfaceTab("changes");
+      }),
+    [changesSurfaceAvailable, rightSurfaceRuntime],
   );
   const sidePanelActions: ThreadSidePanelAction[] = [
     ...(root && available.has("files")

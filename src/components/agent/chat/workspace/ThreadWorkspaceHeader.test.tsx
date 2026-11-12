@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { ThreadWorkspaceHeader } from "./ThreadWorkspaceHeader";
+import { subscribeSessionPinToggle } from "@/lib/sessionPinEvents";
 import { LayoutTransition } from "@/components/workspace/layout/LayoutTransition";
 import { ThreadSidePanelLauncher } from "./right-surface/ThreadSidePanelLauncher";
 
@@ -364,12 +365,16 @@ describe("ThreadWorkspaceHeader", () => {
     act(() => root.unmount());
   });
 
-  it("应把 fork 和 archive 操作交给 workspace owner", async () => {
+  it("应把 pin、fork 和 archive 操作交给 workspace owner", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
     const onFork = vi.fn().mockResolvedValue(undefined);
     const onArchive = vi.fn().mockResolvedValue(undefined);
+    const pinnedSessionIds: string[] = [];
+    const unsubscribePin = subscribeSessionPinToggle((sessionId) => {
+      pinnedSessionIds.push(sessionId);
+    });
 
     act(() => {
       root.render(
@@ -394,10 +399,32 @@ describe("ThreadWorkspaceHeader", () => {
     });
     const menuRoot = document.body;
     const menuItems = menuRoot.querySelectorAll('[role="menuitem"]');
-    expect(menuItems).toHaveLength(2);
+    expect(menuItems).toHaveLength(4);
+    expect(
+      menuRoot.querySelector(
+        '[data-testid="thread-workspace-header-copy"]',
+      ),
+    ).not.toBeNull();
 
     await act(async () => {
-      (menuItems[0] as HTMLElement)?.click();
+      (
+        menuRoot.querySelector(
+          '[data-testid="thread-workspace-header-pin"]',
+        ) as HTMLElement
+      )?.click();
+    });
+    expect(pinnedSessionIds).toEqual(["thread-1"]);
+
+    act(() => {
+      (
+        container.querySelector(
+          '[data-testid="thread-workspace-header-action-menu"]',
+        ) as HTMLButtonElement
+      )?.click();
+    });
+    await act(async () => {
+      const forkItems = menuRoot.querySelectorAll('[role="menuitem"]');
+      (forkItems[1] as HTMLElement)?.click();
     });
     expect(onFork).toHaveBeenCalledTimes(1);
 
@@ -410,11 +437,54 @@ describe("ThreadWorkspaceHeader", () => {
     });
     await act(async () => {
       const archiveItems = menuRoot.querySelectorAll('[role="menuitem"]');
-      (archiveItems[1] as HTMLElement)?.click();
+      (archiveItems[3] as HTMLElement)?.click();
     });
     expect(onArchive).toHaveBeenCalledTimes(1);
 
+    unsubscribePin();
     act(() => root.unmount());
+  });
+
+  it("有线程 ID 时在归档前展示添加计划任务", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <AppShell>
+          <AppShellHeader />
+          <ThreadWorkspaceHeader
+            sessionId="thread-1"
+            scheduledTaskThreadId="thread-canonical-1"
+            title="当前 Thread"
+            onArchive={vi.fn().mockResolvedValue(undefined)}
+          />
+        </AppShell>,
+      );
+    });
+
+    act(() => {
+      (
+        container.querySelector(
+          '[data-testid="thread-workspace-header-action-menu"]',
+        ) as HTMLButtonElement
+      )?.click();
+    });
+    const labels = Array.from(
+      document.body.querySelectorAll('[role="menuitem"]'),
+    ).map((item) => item.textContent?.replace(/\s+/g, " ").trim() ?? "");
+    const scheduledIndex = labels.findIndex((label) =>
+      label.includes("添加计划任务"),
+    );
+    const archiveIndex = labels.findIndex((label) =>
+      label.includes("归档"),
+    );
+    expect(scheduledIndex).toBeGreaterThanOrEqual(0);
+    expect(archiveIndex).toBeGreaterThan(scheduledIndex);
+
+    act(() => root.unmount());
+    container.remove();
   });
 
   it("标题栏委托摘要动作，并保持展示与面板状态分离", () => {

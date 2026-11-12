@@ -261,6 +261,12 @@ export function readCanonicalThreadDetail(
       status: threadStatus,
       profile_status: profileStatus,
       active_turn_id: turns.find((turn) => turn.status === "running")?.id,
+      forked_from_id:
+        readOptionalStringField(
+          thread,
+          "forkedFromId",
+          "forked_from_id",
+        ) ?? null,
       turns: turns.map((turn) => ({
         turn_id: turn.id,
         status: canonicalProfileStatus(turn.status),

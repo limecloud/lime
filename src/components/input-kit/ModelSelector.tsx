@@ -27,8 +27,6 @@ import { getProviderModelCompatibilityIssue } from "@/components/agent/chat/util
 import { getProviderLabel } from "@/lib/constants/providerMappings";
 import { buildProviderModelsFromBackendModelIds } from "@/lib/model/providerModelsCatalog";
 import { ModelCapabilityBadges } from "@/components/model/ModelCapabilityBadges";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
-import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
 import type {
   EnhancedModelMetadata,
@@ -482,21 +480,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     setOpen(false);
   }, [disabled, open]);
 
-  const defaultHubProviderLabel = resolveOemLimeHubProviderName(
-    resolveOemCloudRuntimeContext(),
-  );
   const selectedProviderUnavailable = Boolean(
     providerType.trim() &&
     shouldLoadProviders &&
     !providersLoading &&
     !selectedProvider,
   );
-  const compactProviderType =
-    selectedProvider?.key || providerType || "lime-hub";
-  const fallbackProviderLabel =
-    compactProviderType.toLowerCase() === "lime-hub"
-      ? defaultHubProviderLabel
-      : getProviderLabel(compactProviderType);
+  const compactProviderType = selectedProvider?.key || providerType;
+  const fallbackProviderLabel = getProviderLabel(compactProviderType);
   const hasModelWithoutProvider = !providerType.trim() && Boolean(model.trim());
   const isAutoSelection = !providerType.trim() && !model.trim();
   const showPlaceholderSelection =

@@ -17,9 +17,11 @@ impl RuntimeCore {
     }
 
     pub fn with_account_store_root(mut self, app_data_root: impl AsRef<Path>) -> Self {
-        self.account_manager = Some(Arc::new(crate::account::AccountManager::new(
-            app_data_root.as_ref(),
-        )));
+        let manager = Arc::new(crate::account::AccountManager::new(app_data_root.as_ref()));
+        self.backend
+            .set_account_tools(manager.tool_registrations())
+            .expect("native account tool configuration");
+        self.account_manager = Some(manager);
         self
     }
 
@@ -39,12 +41,13 @@ impl RuntimeCore {
             .map_err(RuntimeCoreError::Backend)
     }
 
-    pub fn read_account(
+    pub async fn read_account(
         &self,
         params: GetAccountParams,
     ) -> Result<GetAccountResponse, RuntimeCoreError> {
         self.account_manager()?
-            .read(params)
+            .read_verified(params)
+            .await
             .map_err(RuntimeCoreError::Backend)
     }
 

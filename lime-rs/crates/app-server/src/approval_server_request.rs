@@ -432,9 +432,50 @@ fn file_change_approval_request(
                 .unwrap_or(timestamp_millis(&event.timestamp)?),
             reason: payload_string(&event.payload, &["prompt", "message"]),
             grant_root: payload_string(&event.payload, &["grantRoot", "grant_root"]),
+            destinations: patch_destinations(&event.payload),
         },
         identity,
     }))
+}
+
+fn patch_destinations(payload: &Value) -> Vec<String> {
+    let Some(patch) = payload
+        .get("arguments")
+        .and_then(|arguments| arguments.get("patch").or_else(|| arguments.get("input")))
+        .and_then(Value::as_str)
+    else {
+        return Vec::new();
+    };
+    let Ok(parsed) = patch_apply::parse_patch(patch) else {
+        return Vec::new();
+    };
+    let cwd = payload_string(payload, &["cwd"]).map(std::path::PathBuf::from);
+    let absolute = |path: &std::path::Path| {
+        if path.is_relative() {
+            cwd.as_ref()
+                .map(|cwd| cwd.join(path))
+                .unwrap_or_else(|| path.to_path_buf())
+        } else {
+            path.to_path_buf()
+        }
+    };
+    let mut destinations = Vec::new();
+    for hunk in &parsed.hunks {
+        if let patch_apply::Hunk::UpdateFile {
+            path, move_path, ..
+        } = hunk
+        {
+            destinations.push(absolute(path).display().to_string());
+            if let Some(move_path) = move_path {
+                destinations.push(absolute(move_path).display().to_string());
+            }
+        } else {
+            destinations.push(absolute(hunk.path()).display().to_string());
+        }
+    }
+    destinations.sort();
+    destinations.dedup();
+    destinations
 }
 
 fn user_input_request(event: &AgentEvent) -> Result<Option<UserInputRequest>, String> {

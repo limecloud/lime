@@ -187,6 +187,56 @@ def ensure_credentials(config):
         raise RuntimeError("Viewer credential integrity mismatch")
 
 
+def reconnect_credentials():
+    """Revoke existing task/viewer sessions before publishing fresh credentials."""
+    root = private_directory(state_root())
+    with private_lock(root / "installation.lock"):
+        releases = private_directory(root / "releases")
+        current = root / "current"
+        if not current.is_symlink():
+            raise RuntimeError("An installed managed guest is required")
+        target = current.resolve(strict=True)
+        if target.parent != releases or target.is_symlink():
+            raise RuntimeError("Invalid managed guest release")
+        private_directory(target)
+        manifest = target / "guest-manifest.json"
+        if manifest.is_symlink():
+            raise RuntimeError("Invalid managed guest manifest")
+        verify_payload(target, digest(manifest))
+        unit_root = Path.home() / ".config/systemd/user"
+        for name, expected in units_for(target).items():
+            unit = unit_root / (name + ".service")
+            if unit.is_symlink() or private_read(unit).decode() != expected:
+                raise RuntimeError("Refusing to reconnect unmanaged guest services")
+        config = private_directory(config_root())
+        # Validate existing credentials before stopping anything. Never regenerate
+        # missing or corrupt state implicitly while reconnecting.
+        token = private_read(config / "token").strip().decode("ascii")
+        viewer = private_read(config / "viewer-password").strip()
+        if not all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-" for c in token) or not 32 <= len(token) <= 256 or len(viewer) != 8:
+            raise RuntimeError("Invalid guest credentials")
+        encoded = subprocess.run(["tigervncpasswd", "-f"], input=viewer + b"\n", capture_output=True, check=True).stdout
+        if private_read(config / "vnc-password") != encoded:
+            raise RuntimeError("Viewer credential integrity mismatch")
+        new_viewer = secrets.token_urlsafe(12)[:8].encode()
+        values = {"token": (secrets.token_urlsafe(32) + "\n").encode(),
+                  "viewer-password": new_viewer + b"\n",
+                  "vnc-password": subprocess.run(["tigervncpasswd", "-f"], input=new_viewer + b"\n", capture_output=True, check=True).stdout}
+        systemctl("stop", "lime-cloud-human.service", *[n + ".service" for n in reversed(UNITS)])
+        for name, value in values.items():
+            temporary = config / (".reconnect-" + secrets.token_hex(8))
+            private_write(temporary, value)
+            temporary.replace(config / name)
+        descriptor = os.open(config, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        # Restart uses the exact installed release. Neither packages nor runtime
+        # files are replaced, and human-control authorization is never revived.
+        systemctl("start", *[n + ".service" for n in UNITS])
+
+
 def state_root():
     return Path.home() / ".local/share/lime/guest"
 
@@ -269,7 +319,7 @@ def units_for(release):
 
 
 def systemctl(*args):
-    subprocess.run(["systemctl", "--user", *args], check=True)
+    subprocess.run(["systemctl", "--user", *args], check=True, timeout=30)
 
 
 def install(source, expected_sha256, start):
@@ -404,6 +454,7 @@ def main():
     archive_parser.add_argument("--start", action="store_true")
     control_parser = commands.add_parser("control")
     control_parser.add_argument("mode", choices=("human", "ai"))
+    commands.add_parser("reconnect")
     for command in ("run-display", "run-session", "run-server", "run-viewer", "run-human"):
         commands.add_parser(command)
     args = parser.parse_args()
@@ -422,6 +473,8 @@ def main():
         install_archive(args.archive, args.archive_sha256, args.manifest_sha256, args.start)
     elif args.command == "control":
         control(args.mode)
+    elif args.command == "reconnect":
+        reconnect_credentials()
     else:
         run(args.command)
 

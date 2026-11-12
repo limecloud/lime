@@ -17,10 +17,7 @@ import { AppShell, AppShellHeader } from "./app-shell/AppShell";
 import { shouldReserveMacWindowControls } from "@/lib/windowControls";
 import { changeLimeLocale as changeLimeLocaleImpl } from "@/i18n/createI18n";
 import { LIME_THEME_STORAGE_KEY as LIME_THEME_STORAGE_KEY_VALUE } from "@/lib/appearance/themeMode";
-import {
-  getCloudAccount as getCloudAccountImpl,
-  setOemCloudBootstrapSnapshot as setOemCloudBootstrapSnapshotImpl,
-} from "@/lib/cloudAccount";
+import { getCloudAccount as getCloudAccountImpl } from "@/lib/cloudAccount";
 import type { AgentBackgroundSessionRuntimeSnapshot } from "@/components/agent/chat";
 
 export const act = reactAct;
@@ -32,7 +29,6 @@ export const changeLimeLocale = changeLimeLocaleImpl;
 export const SettingsTabs = LimeSettingsTabs;
 export const LIME_THEME_STORAGE_KEY = LIME_THEME_STORAGE_KEY_VALUE;
 export const getCloudAccount = getCloudAccountImpl;
-export const setOemCloudBootstrapSnapshot = setOemCloudBootstrapSnapshotImpl;
 
 const {
   mockListInstalledPluginCatalog,
@@ -58,11 +54,7 @@ const {
   mockDeleteAgentRuntimeSession,
   mockSetI18nLanguage,
   mockScheduleMinimumDelayIdleTask,
-  mockGetConfiguredOemCloudTarget,
-  mockBuildOemCloudUserCenterUrl,
-  mockCreateExternalBrowserOpenTarget,
   mockOpenExternalUrl,
-  mockStartOemCloudLogin,
   mockToastSuccess,
   mockToastError,
   mockToastInfo,
@@ -103,13 +95,7 @@ const {
     task();
     return () => undefined;
   }),
-  mockGetConfiguredOemCloudTarget: vi.fn(),
-  mockBuildOemCloudUserCenterUrl: vi.fn(
-    (baseUrl: string, path = "") => `${baseUrl}${path}`,
-  ),
-  mockCreateExternalBrowserOpenTarget: vi.fn(() => null),
   mockOpenExternalUrl: vi.fn(),
-  mockStartOemCloudLogin: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
   mockToastInfo: vi.fn(),
@@ -169,13 +155,10 @@ mockListRecentThreads.mockImplementation = ((implementation: unknown) =>
 
 export {
   mockListInstalledPluginCatalog,
-  mockBuildOemCloudUserCenterUrl,
   mockCheckForUpdates,
-  mockCreateExternalBrowserOpenTarget,
   mockDeleteAgentRuntimeSession,
   mockGetUpdateInstallSession,
   mockGetConfig,
-  mockGetConfiguredOemCloudTarget,
   mockListenUpdateInstallSession,
   mockListRecentThreads,
   mockGetProject,
@@ -193,7 +176,6 @@ export {
   mockSaveConfig,
   mockScheduleMinimumDelayIdleTask,
   mockSetI18nLanguage,
-  mockStartOemCloudLogin,
   mockStartUpdateInstallSession,
   mockSubscribeAppConfigChanged,
   mockToastError,
@@ -304,15 +286,8 @@ vi.mock("@/lib/api/appUpdate", () => ({
     ),
 }));
 
-vi.mock("@/lib/api/oemCloudControlPlane", () => ({
-  getConfiguredOemCloudTarget: mockGetConfiguredOemCloudTarget,
-}));
-
-vi.mock("@/lib/oemCloudLoginLauncher", () => ({
-  buildOemCloudUserCenterUrl: mockBuildOemCloudUserCenterUrl,
-  createExternalBrowserOpenTarget: mockCreateExternalBrowserOpenTarget,
-  openExternalUrl: mockOpenExternalUrl,
-  startOemCloudLogin: mockStartOemCloudLogin,
+vi.mock("@/lib/api/externalUrl", () => ({
+  openExternalUrlWithSystemBrowser: mockOpenExternalUrl,
 }));
 
 vi.mock("sonner", () => ({
@@ -469,11 +444,19 @@ export function setInputValue(input: HTMLInputElement, value: string) {
 
 export async function openConversationMenu(title: string) {
   await act(async () => {
-    document
-      .querySelector<HTMLButtonElement>(
-        `button[aria-label="打开 ${title} 操作菜单"]`,
-      )
-      ?.click();
+    const button = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        '[data-testid="app-sidebar-conversation-open"]',
+      ),
+    ).find((candidate) => candidate.textContent?.trim() === title);
+    button?.parentElement?.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 0,
+        clientY: 0,
+      }),
+    );
     await Promise.resolve();
   });
 
@@ -541,8 +524,6 @@ export async function resetAppSidebarTest() {
     mockAgentUiPerformanceMetricListeners.length,
   );
   localStorage.clear();
-
-  delete window.__LIME_OEM_CLOUD__;
 
   document.documentElement.classList.remove("dark");
   document.documentElement.removeAttribute("data-lime-theme");
@@ -648,18 +629,8 @@ export async function resetAppSidebarTest() {
     canCloseWindow: true,
     isActive: true,
   });
-  mockGetConfiguredOemCloudTarget.mockReturnValue({
-    baseUrl: "https://user.limeai.run",
-    tenantId: "tenant-0001",
-  });
-  mockBuildOemCloudUserCenterUrl.mockImplementation(
-    (baseUrl: string, path = "") => `${baseUrl}${path}`,
-  );
+  vi.stubEnv("VITE_LIMECORE_ORIGIN", "https://core.example.test");
   mockOpenExternalUrl.mockResolvedValue(undefined);
-  mockStartOemCloudLogin.mockResolvedValue({
-    mode: "login_url",
-    openedUrl: "https://user.limeai.run/login",
-  });
   mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
     task();
     return () => undefined;
@@ -698,8 +669,6 @@ export function cleanupAppSidebarTest() {
     mockAgentUiPerformanceMetricListeners.length,
   );
   vi.unstubAllGlobals();
-
-  delete window.__LIME_OEM_CLOUD__;
 
   document.documentElement.classList.remove("dark");
   document.documentElement.removeAttribute("data-lime-theme");

@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   getProject: vi.fn(),
   installPlugin: vi.fn(),
   listPlugins: vi.fn(),
-  listPluginShares: vi.fn(),
   reconcilePlugins: vi.fn(),
   readAppsReadiness: vi.fn(),
   readPlugin: vi.fn(),
@@ -34,9 +33,12 @@ vi.mock("@/lib/cloudAccount", async (importOriginal) => ({
       ? {
           account: {
             baseUrl: "https://fixture.test",
-            tenantId: "tenant",
+            issuer: "https://identity.test",
+            clientId: "native",
+            applicationId: "lime",
+            environment: "sandbox",
+            generation: `generation-${mocks.accountId}`,
             userId: mocks.accountId,
-            sessionId: `session-${mocks.accountId}`,
           },
         }
       : null,
@@ -48,10 +50,6 @@ vi.mock("@/lib/cloudAccount", async (importOriginal) => ({
 
 vi.mock("@/lib/api/project", () => ({
   getProject: (...args: unknown[]) => mocks.getProject(...args),
-}));
-
-vi.mock("@/lib/api/pluginShare", () => ({
-  listPluginShares: (...args: unknown[]) => mocks.listPluginShares(...args),
 }));
 
 vi.mock("@/lib/api/apps", () => ({
@@ -141,7 +139,6 @@ describe("PluginCatalogPage", () => {
     await changeLimeLocale("zh-CN");
     vi.clearAllMocks();
     mocks.accountId = null;
-    mocks.listPluginShares.mockResolvedValue({ data: [] });
     mocks.appsSubscription = null;
     mocks.listPlugins.mockResolvedValue({
       marketplaces: [
@@ -405,7 +402,7 @@ describe("PluginCatalogPage", () => {
     ],
     ["ko-KR", "플러그인 상태를 업데이트하지 못했습니다. 다시 시도해 주세요."],
   ])(
-    "%s 远端启停传 opaque ID，成功刷新，失败保留状态",
+    "%s 云端插件安装后的启停使用本地身份，失败保留状态",
     async (locale, message) => {
       await changeLimeLocale(locale);
       mocks.accountId = "one";
@@ -414,22 +411,18 @@ describe("PluginCatalogPage", () => {
         remotePluginId: "remote_writer~1",
         source: { type: "remote" },
       });
-      mocks.listPlugins.mockImplementation(async ({ marketplaceKinds }) =>
-        marketplaceKinds
-          ? {
-              marketplaces: [
-                { name: "workspace-directory", path: null, plugins: [plugin] },
-              ],
-            }
-          : { marketplaces: [] },
-      );
+      mocks.listPlugins.mockResolvedValue({
+        marketplaces: [
+          { name: "workspace-directory", path: null, plugins: [plugin] },
+        ],
+      });
       const container = await renderPage();
       for (const failed of [false, true]) {
         if (failed)
           mocks.setPluginEnabled.mockRejectedValueOnce(
             new Error("HTTP 503 private detail"),
           );
-        const reads = mocks.reconcilePlugins.mock.calls.length;
+        const reads = mocks.listPlugins.mock.calls.length;
         await click(
           container.querySelector(
             '[data-testid="plugin-catalog-actions-writer-plugin@workspace-directory"]',
@@ -441,10 +434,10 @@ describe("PluginCatalogPage", () => {
           ),
         );
         expect(mocks.setPluginEnabled).toHaveBeenLastCalledWith({
-          remotePluginId: "remote_writer~1",
+          pluginId: "writer-plugin@workspace-directory",
           enabled: false,
         });
-        expect(mocks.reconcilePlugins.mock.calls.length).toBe(
+        expect(mocks.listPlugins.mock.calls.length).toBe(
           reads + (failed ? 0 : 1),
         );
       }
@@ -471,9 +464,7 @@ describe("PluginCatalogPage", () => {
         },
       ],
     };
-    mocks.listPlugins.mockImplementation(async ({ marketplaceKinds }) =>
-      marketplaceKinds ? remoteCatalog : { marketplaces: [] },
-    );
+    mocks.listPlugins.mockResolvedValue(remoteCatalog);
     mocks.installPlugin.mockResolvedValue({
       authPolicy: "ON_USE",
       appsNeedingAuth: [],
@@ -483,12 +474,6 @@ describe("PluginCatalogPage", () => {
       remoteMarketplaceName: "workspace-directory",
       pluginName: "remote_writer~1",
     });
-    expect(mocks.reconcilePlugins).toHaveBeenCalledWith({
-      reason: "plugin-catalog-refresh",
-    });
-    expect(mocks.reconcilePlugins.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.listPlugins.mock.invocationCallOrder[0],
-    );
     await click(
       container.querySelector(
         '[data-testid="plugin-catalog-install-writer-plugin@workspace-directory"]',
@@ -504,20 +489,14 @@ describe("PluginCatalogPage", () => {
       pluginName: "remote_writer~1",
       installAttemptId: expect.any(String),
     });
-    expect(mocks.listPlugins).toHaveBeenCalledWith({
-      marketplaceKinds: [
-        "workspace-directory",
-        "created-by-me-remote",
-        "shared-with-me",
-      ],
-    });
+    expect(mocks.listPlugins).toHaveBeenCalledWith({});
   });
 
   it("换号丢弃迟到目录，注销清空远端视图", async () => {
     mocks.accountId = "old";
     let finishOld!: (value: unknown) => void;
-    mocks.listPlugins.mockImplementation(async ({ marketplaceKinds }) => {
-      if (!marketplaceKinds) return { marketplaces: [] };
+    mocks.listPlugins.mockImplementation(async () => {
+      if (!mocks.accountId) return { marketplaces: [] };
       if (mocks.accountId === "old")
         return new Promise((resolve) => {
           finishOld = resolve;
@@ -578,64 +557,31 @@ describe("PluginCatalogPage", () => {
     ).toBeNull();
   });
 
-  it("从分享列表补入我创建的私人远端插件并提供管理入口", async () => {
+  it("云端目录故障时保留真实本地目录并展示错误", async () => {
     mocks.accountId = "owner";
-    const plugin = summary({
-      id: "private@workspace-shared-with-me",
-      name: "private",
-      remotePluginId: "opaque~private",
-      source: { type: "remote" },
-      shareContext: {
-        remotePluginId: "opaque~private",
-        discoverability: "PRIVATE",
-        creatorAccountUserId: "owner",
-      },
+    mocks.listPlugins.mockResolvedValue({
+      marketplaces: [
+        {
+          name: "personal",
+          path: "/tmp/marketplace.json",
+          plugins: [summary()],
+        },
+      ],
+      marketplaceLoadErrors: [{ message: "market unavailable" }],
     });
-    mocks.listPluginShares.mockResolvedValue({
-      data: [{ plugin, localPluginPath: null }],
-    });
-    mocks.listPlugins.mockResolvedValue({ marketplaces: [] });
     const container = await renderPage();
     expect(
       container.querySelector(
-        '[data-testid="plugin-catalog-share-private@workspace-shared-with-me"]',
-      ),
-    ).not.toBeNull();
-    await click(
-      container.querySelector(
-        '[data-testid="plugin-catalog-select-private@workspace-shared-with-me"]',
-      ),
-    );
-    expect(mocks.readPlugin).toHaveBeenCalledWith({
-      pluginName: "opaque~private",
-      remoteMarketplaceName: "workspace-shared-with-me",
-    });
-  });
-
-  it("分享读取失败仍保留真实本地目录，并显示失败原因", async () => {
-    mocks.accountId = "owner";
-    mocks.listPlugins.mockImplementation(async ({ marketplaceKinds }) => ({
-      marketplaces: marketplaceKinds
-        ? []
-        : [
-            {
-              name: "personal",
-              path: "/tmp/marketplace.json",
-              plugins: [summary()],
-            },
-          ],
-    }));
-    mocks.listPluginShares.mockRejectedValue(new Error("sharing unavailable"));
-    const container = await renderPage();
-    expect(
-      container.querySelector(
-        '[data-testid="plugin-catalog-share-writer-plugin@personal"]',
+        '[data-testid="plugin-catalog-card-writer-plugin@personal"]',
       ),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="plugin-catalog-error"]')
         ?.textContent,
-    ).toContain("sharing unavailable");
+    ).toContain("market unavailable");
+    expect(
+      container.querySelector('[data-testid^="plugin-catalog-share-"]'),
+    ).toBeNull();
   });
 
   it.each([
@@ -834,12 +780,15 @@ describe("PluginCatalogPage", () => {
   it.each([
     ["zh-CN", "连接插件，让 Lime 在你的各类工具中协同工作。"],
     ["zh-TW", "連接外掛，讓 Lime 在你的各種工具中協同工作。"],
+    ["en-US", "Connect plugins so Lime can work with your tools."],
     [
-      "en-US",
-      "Connect plugins so Lime can work with your tools.",
+      "ja-JP",
+      "プラグインを接続して、Lime をさまざまなツールで活用しましょう。",
     ],
-    ["ja-JP", "プラグインを接続して、Lime をさまざまなツールで活用しましょう。"],
-    ["ko-KR", "플러그인을 연결해 Lime이 다양한 도구에서 함께 작동하도록 하세요."],
+    [
+      "ko-KR",
+      "플러그인을 연결해 Lime이 다양한 도구에서 함께 작동하도록 하세요.",
+    ],
   ] as const)("%s 展示市场安装文案", async (locale, description) => {
     await changeLimeLocale(locale);
     const container = await renderPage();
@@ -851,9 +800,7 @@ describe("PluginCatalogPage", () => {
   it("头部添加按钮提交市场来源并刷新目录", async () => {
     mocks.addMarketplace.mockResolvedValue({});
     const container = await renderPage();
-    await click(
-      container.querySelector('[data-testid="plugin-catalog-add"]'),
-    );
+    await click(container.querySelector('[data-testid="plugin-catalog-add"]'));
     const input = container.querySelector<HTMLInputElement>(
       '[data-testid="plugin-catalog-add-source"]',
     );
@@ -890,9 +837,7 @@ describe("PluginCatalogPage", () => {
       container.querySelector('[data-testid="plugin-catalog-settings"]'),
     );
     expect(
-      container.querySelector(
-        '[data-testid="plugin-catalog-settings-dialog"]',
-      ),
+      container.querySelector('[data-testid="plugin-catalog-settings-dialog"]'),
     ).not.toBeNull();
     const callsBefore = mocks.listPlugins.mock.calls.length;
     await click(
@@ -937,9 +882,7 @@ describe("PluginCatalogPage", () => {
       container.querySelector('[data-testid="plugin-catalog-settings-add"]'),
     );
     expect(
-      container.querySelector(
-        '[data-testid="plugin-catalog-add-marketplace"]',
-      ),
+      container.querySelector('[data-testid="plugin-catalog-add-marketplace"]'),
     ).not.toBeNull();
   });
   it("按插件 interface.category 分组展示", async () => {
@@ -1015,5 +958,82 @@ describe("PluginCatalogPage", () => {
     expect(detail?.textContent).toContain("信息");
     expect(detail?.textContent).toContain("版本");
     expect(detail?.textContent).toContain("1.2.3");
+  });
+  it("有默认提示词的已安装插件显示立即试用与提示横幅", async () => {
+    mocks.listPlugins.mockResolvedValue({
+      marketplaces: [
+        {
+          name: "personal",
+          path: "/tmp/marketplace.json",
+          plugins: [
+            summary({
+              interface: {
+                displayName: "Writer",
+                shortDescription: "Write",
+                defaultPrompt: ["写一篇文章"],
+              },
+            }),
+          ],
+        },
+      ],
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <PluginCatalogPage
+          pageParams={{ selectedPluginId: "writer-plugin@personal" }}
+        />,
+      );
+    });
+    await flush();
+    mounted.push({ container, root });
+    const detail = container.querySelector(
+      '[data-testid="plugin-catalog-detail"]',
+    );
+    expect(detail?.textContent).toContain("立即试用");
+    expect(detail?.textContent).toContain("写一篇文章");
+  });
+  it("插件详情信息表展示能力、开发者、类别与外链", async () => {
+    mocks.listPlugins.mockResolvedValue({
+      marketplaces: [
+        {
+          name: "personal",
+          path: "/tmp/marketplace.json",
+          plugins: [
+            summary({
+              interface: {
+                displayName: "Writer",
+                shortDescription: "Write",
+                capabilities: ["Read", "Write"],
+                developerName: "Lime",
+                category: "Productivity",
+                websiteUrl: "https://example.test",
+              },
+            }),
+          ],
+        },
+      ],
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <PluginCatalogPage
+          pageParams={{ selectedPluginId: "writer-plugin@personal" }}
+        />,
+      );
+    });
+    await flush();
+    mounted.push({ container, root });
+    const detail = container.querySelector(
+      '[data-testid="plugin-catalog-detail"]',
+    );
+    expect(detail?.textContent).toContain("Read, Write");
+    expect(detail?.textContent).toContain("Lime");
+    expect(detail?.textContent).toContain("Productivity");
+    expect(detail?.textContent).toContain("https://example.test");
   });
 });

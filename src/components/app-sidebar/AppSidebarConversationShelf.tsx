@@ -6,7 +6,23 @@ import {
   type MouseEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderPlus, MessageSquarePlus, Pencil, Trash2 } from "lucide-react";
+import {
+  Archive,
+  Check,
+  CheckCheck,
+  FolderPlus,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type {
   AgentSessionInfo,
   AgentSessionSection,
@@ -38,6 +54,10 @@ import {
 } from "@/components/app-sidebar/sidebarConversationGroups";
 import { resolveSidebarFloatingMenuPosition } from "@/components/app-sidebar/sidebarFloatingMenuPosition";
 import { PINNED_THREAD_SECTION } from "@/lib/api/threadSections";
+import { subscribeSessionPinToggle } from "@/lib/sessionPinEvents";
+import { markSessionRead } from "@/lib/sessionUnreadState";
+import { selectPrioritySessions } from "./sidebarPrioritySessions";
+import { ArchivedSessionsDialog } from "./ArchivedSessionsDialog";
 import { useAppSidebarThreadSections } from "@/components/app-sidebar/useAppSidebarThreadSections";
 import { AppSidebarSection } from "./AppSidebarSection";
 import { useSidebarSections } from "./useSidebarSections";
@@ -53,6 +73,7 @@ import {
 interface AppSidebarConversationShelfProps {
   openedProjects?: SidebarOpenedProjectSummary[];
   recentSessions: AgentSessionInfo[];
+  showPriorityThreads?: boolean;
   currentSessionId?: string | null;
   activeAgentStreaming?: boolean;
   backgroundAgentSessionRuntime?: AgentBackgroundSessionRuntimeSnapshot | null;
@@ -135,6 +156,7 @@ function resolveBackgroundSidebarRuntimeStatus(
 export function AppSidebarConversationShelf({
   openedProjects = [],
   recentSessions,
+  showPriorityThreads = false,
   currentSessionId,
   activeAgentStreaming = false,
   backgroundAgentSessionRuntime = null,
@@ -182,14 +204,34 @@ export function AppSidebarConversationShelf({
       }),
     [i18n.language],
   );
+  const [sessionSortMode, setSessionSortMode] = useState<
+    "updated" | "created" | "manual"
+  >(() => {
+    if (typeof window === "undefined") return "updated";
+    const stored = window.localStorage.getItem("lime.sidebar.sessionSort");
+    return stored === "created" || stored === "manual" ? stored : "updated";
+  });
+  useEffect(() => {
+    window.localStorage.setItem("lime.sidebar.sessionSort", sessionSortMode);
+  }, [sessionSortMode]);
+  const sortedRecentSessions = useMemo(() => {
+    if (sessionSortMode === "manual") return recentSessions;
+    const sorted = [...recentSessions];
+    sorted.sort((a, b) =>
+      sessionSortMode === "created"
+        ? b.created_at - a.created_at
+        : b.updated_at - a.updated_at,
+    );
+    return sorted;
+  }, [recentSessions, sessionSortMode]);
   const activeConversationGroups = useMemo(
     () =>
       buildSidebarConversationGroups({
-        sessions: recentSessions,
+        sessions: sortedRecentSessions,
         openedProjects,
         threadSections: threadSectionCatalog,
       }),
-    [openedProjects, recentSessions, threadSectionCatalog],
+    [openedProjects, sortedRecentSessions, threadSectionCatalog],
   );
   const displayedThreadSections =
     activeConversationGroups.threadSections.filter(
@@ -198,7 +240,15 @@ export function AppSidebarConversationShelf({
     );
   const sectionKeyFor = (section: AgentSessionSection) =>
     section.id === PINNED_THREAD_SECTION.id ? "pinned" : `custom:${section.id}`;
+  const [priorityVersion, setPriorityVersion] = useState(0);
+  const prioritySessions = useMemo(
+    () => selectPrioritySessions(sortedRecentSessions),
+    // priorityVersion / showPriorityThreads force recompute after read-state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sortedRecentSessions, priorityVersion, showPriorityThreads],
+  );
   const sections = useSidebarSections([
+    "priority",
     "threads",
     ...displayedThreadSections.map(({ section }) => sectionKeyFor(section)),
     "chats",
@@ -223,6 +273,7 @@ export function AppSidebarConversationShelf({
     setRecentVisibleCount((count) => count + SIDEBAR_RECENT_SESSION_PAGE_SIZE);
     onShowMoreRecent();
   }, [onShowMoreRecent]);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [menuState, setMenuState] = useState<ConversationMenuState>(null);
   const [projectMenuState, setProjectMenuState] =
     useState<ProjectMenuState>(null);
@@ -330,6 +381,10 @@ export function AppSidebarConversationShelf({
     "navigation.sidebar.search.section.recent",
     "最近",
   );
+  const priorityTitleLabel = t(
+    "navigation.sidebar.conversations.priorityTitle",
+    { defaultValue: "优先事项" },
+  );
   const pinnedTitleLabel = t(
     "navigation.sidebar.conversations.pinnedTitle",
     "置顶",
@@ -353,10 +408,6 @@ export function AppSidebarConversationShelf({
   const moreRecentLabel = t(
     "navigation.sidebar.conversations.moreRecent",
     "查看更多对话",
-  );
-  const moreActionsLabel = t(
-    "navigation.sidebar.conversations.moreActions",
-    "更多操作",
   );
   const renameActionLabel = t(
     "navigation.sidebar.conversations.menu.rename",
@@ -411,6 +462,10 @@ export function AppSidebarConversationShelf({
     "navigation.sidebar.conversations.projectMenu.rename",
     "重命名项目",
   );
+  const projectArchiveThreadsLabel = t(
+    "navigation.sidebar.conversations.projectMenu.archiveThreads",
+    "归档聊天",
+  );
   const projectRemoveActionLabel = t(
     "navigation.sidebar.conversations.projectMenu.remove",
     "移除",
@@ -427,6 +482,23 @@ export function AppSidebarConversationShelf({
       "等待确认",
     ),
   };
+
+  useEffect(
+    () =>
+      subscribeSessionPinToggle((sessionId) => {
+        const session = [
+          ...sortedRecentSessions,
+          ...activeConversationGroups.standaloneSessions,
+          ...activeConversationGroups.projectSections.flatMap(
+            (section) => section.sessions,
+          ),
+        ].find((candidate) => candidate.id === sessionId);
+        if (session) {
+          onTogglePinned(session);
+        }
+      }),
+    [activeConversationGroups, onTogglePinned, sortedRecentSessions],
+  );
 
   const renderConversationRow = (session: AgentSessionInfo) => {
     const active = currentSessionId === session.id;
@@ -457,14 +529,27 @@ export function AppSidebarConversationShelf({
           runtimeStatus ? runtimeStatusLabels[runtimeStatus] : null
         }
         actionDisabled={actionSessionId === session.id}
-        moreActionsLabel={moreActionsLabel}
-        openActionMenuLabel={t(
-          "navigation.sidebar.conversations.openActionMenu",
-          {
-            title,
-            defaultValue: "打开 {{title}} 操作菜单",
-          },
-        )}
+        pinned={session.section?.id === PINNED_THREAD_SECTION.id}
+        pinLabel={t("navigation.sidebar.conversations.menu.pinThread")}
+        unpinLabel={t("navigation.sidebar.conversations.menu.unpinThread")}
+        archiveLabel={t("navigation.sidebar.conversations.menu.archiveThread")}
+        unreadLabel={t("navigation.sidebar.conversations.unread")}
+        onTogglePinned={() => onTogglePinned(session)}
+        onArchive={() => {
+          if (
+            (runtimeStatus === "running" || runtimeStatus === "queued") &&
+            !window.confirm(
+              String(
+                t(
+                  "navigation.sidebar.conversations.archiveRunningConfirm",
+                ),
+              ),
+            )
+          ) {
+            return;
+          }
+          onToggleArchive(session, true);
+        }}
         onNavigate={onNavigateToConversation}
         onOpenMenu={openConversationMenu}
       />
@@ -582,22 +667,119 @@ export function AppSidebarConversationShelf({
     </AppSidebarSection>
   );
 
+  const prioritySection = showPriorityThreads ? (
+      <AppSidebarSection
+        {...sectionProps("priority")}
+        title={priorityTitleLabel}
+        actions={
+          prioritySessions.length > 0 ? (
+          <ConversationSectionActions>
+            <ConversationActionButton
+              type="button"
+              aria-label={t(
+                "navigation.sidebar.conversations.priority.markAllRead",
+              )}
+              title={t(
+                "navigation.sidebar.conversations.priority.markAllRead",
+              )}
+              data-testid="app-sidebar-priority-mark-all-read"
+              onClick={() => {
+                for (const session of prioritySessions) {
+                  markSessionRead(session.id);
+                }
+                setPriorityVersion((version) => version + 1);
+              }}
+            >
+              <CheckCheck />
+            </ConversationActionButton>
+          </ConversationSectionActions>
+          ) : null
+        }
+      >
+        <ConversationList>
+          {prioritySessions.length > 0 ? (
+            prioritySessions.map(renderConversationRow)
+          ) : (
+            <p
+              className="px-2 py-2 text-xs text-[color:var(--lime-text-muted)]"
+              data-testid="app-sidebar-priority-empty"
+            >
+              {String(
+                t("navigation.sidebar.conversations.priority.empty"),
+              )}
+            </p>
+          )}
+        </ConversationList>
+      </AppSidebarSection>
+    ) : null;
+
   const conversationsSection = (
     <AppSidebarSection
       {...sectionProps("chats")}
       title={standaloneTitleLabel}
       actions={
         <ConversationSectionActions>
-          <ConversationActionButton
-            type="button"
-            disabled={pendingSectionId !== null}
-            onClick={() => void createSection()}
-            aria-label={createSectionLabel}
-            title={createSectionLabel}
-            data-testid="app-sidebar-new-thread-section-button"
-          >
-            <FolderPlus />
-          </ConversationActionButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <ConversationActionButton
+                type="button"
+                aria-label={t(
+                  "navigation.sidebar.conversations.sidebarOptions",
+                )}
+                title={t("navigation.sidebar.conversations.sidebarOptions")}
+                data-testid="app-sidebar-section-options"
+              >
+                <MoreHorizontal />
+              </ConversationActionButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 p-1">
+              {(
+                [
+                  ["updated", "updated"],
+                  ["created", "created"],
+                  ["manual", "manual"],
+                ] as const
+              ).map(([value, key]) => (
+                <DropdownMenuItem
+                  key={value}
+                  className="whitespace-nowrap"
+                  onClick={() => setSessionSortMode(value)}
+                  data-testid={`app-sidebar-session-sort-${value}`}
+                >
+                  {String(
+                    t(`navigation.sidebar.conversations.sortMenu.${key}`),
+                  )}
+                  {sessionSortMode === value ? (
+                    <Check className="ml-auto h-3.5 w-3.5" />
+                  ) : null}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="whitespace-nowrap"
+                onClick={() => {
+                  if (pendingSectionId === null) {
+                    void createSection();
+                  }
+                }}
+                data-testid="app-sidebar-new-thread-section-button"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+                {createSectionLabel}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="whitespace-nowrap"
+                onClick={() => setArchivedOpen(true)}
+                data-testid="app-sidebar-open-archive"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                {String(
+                  t("navigation.sidebar.conversations.archive.openArchive"),
+                )}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ConversationActionButton
             type="button"
             onClick={() => onCreateConversation()}
@@ -642,14 +824,25 @@ export function AppSidebarConversationShelf({
     <ConversationShelf data-testid="app-sidebar-conversation-shelf">
       {sections.orderedKeys.map((key) => (
         <div className="contents" key={key}>
-          {key === "threads"
-            ? projectsSection
-            : key === "chats"
-              ? conversationsSection
-              : threadSections.find((section) => section.key === key)}
+          {key === "priority"
+            ? prioritySection
+            : key === "threads"
+              ? projectsSection
+              : key === "chats"
+                ? conversationsSection
+                : threadSections.find((section) => section.key === key)}
         </div>
       ))}
 
+      <ArchivedSessionsDialog
+        open={archivedOpen}
+        onOpenChange={setArchivedOpen}
+        onRestore={(session) => onToggleArchive(session, false)}
+        onOpenSession={(session) => {
+          setArchivedOpen(false);
+          onNavigateToConversation(session);
+        }}
+      />
       <AppSidebarConversationMenus
         conversationMenuState={menuState}
         projectMenuState={projectMenuState}
@@ -665,6 +858,31 @@ export function AppSidebarConversationShelf({
         onCreateProjectWorktree={onCreateProjectWorktree}
         onRenameProject={onRenameProject}
         onRemoveProject={onRemoveProject}
+        onArchiveProjectThreads={(project) => {
+          const section = activeConversationGroups.projectSections.find(
+            (candidate) => candidate.project.id === project.id,
+          );
+          const sessions = section?.sessions ?? [];
+          if (sessions.length === 0) return;
+          if (
+            !window.confirm(
+              String(
+                t(
+                  "navigation.sidebar.conversations.projectMenu.archiveThreadsConfirm",
+                  {
+                    name: project.name,
+                    count: sessions.length,
+                  },
+                ),
+              ),
+            )
+          ) {
+            return;
+          }
+          for (const session of sessions) {
+            onToggleArchive(session, true);
+          }
+        }}
         threadSections={activeConversationGroups.threadSections.map(
           ({ section }) => section,
         )}
@@ -695,6 +913,7 @@ export function AppSidebarConversationShelf({
           createWorktree: projectWorktreeActionLabel,
           rename: projectRenameActionLabel,
           remove: projectRemoveActionLabel,
+          archiveThreads: projectArchiveThreadsLabel,
         }}
       />
     </ConversationShelf>

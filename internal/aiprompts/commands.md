@@ -15,15 +15,16 @@ TUI/CLI: lime CLI / tui
   -> Rust app-server-client session
   -> local stdio or authenticated WebSocket transport
 
-Future Cloud: authenticated remote transport
-  -> Rust app-server-client session
+BYOC Cloud Desktop: isolated Electron Main Host
+  -> authenticated WebSocket transport
+  -> user-owned guest App Server
 
 All surfaces
   -> App Server JSON-RPC method
   -> runtime/domain owner
 ```
 
-业务能力只通过 App Server JSON-RPC 进入 Rust runtime。Electron IPC 只用于窗口、文件/目录选择、系统权限、外链、托盘、自动更新、sidecar 生命周期等宿主能力，或转发 `app_server_handle_json_lines`。CLI/TUI 只负责参数、TUI 生命周期、输入事件和 App Server transport。Renderer 与 TUI/CLI surface 都不直接调用 provider、tool runtime 或数据库。`app-server-client` 已提供 authenticated WebSocket transport foundation；握手在发送 `initialized` 前校验 `app-server` 服务端身份和 `appserver.v0` 协议版本，但生产 Cloud 仍未启动，后续必须补齐租户隔离、凭证、跨网络恢复、限流和审计，且不能改变业务 method 语义。
+业务能力只通过 App Server JSON-RPC 进入 Rust runtime。Electron IPC 只用于窗口、文件/目录选择、系统权限、外链、托盘、自动更新、sidecar 生命周期等宿主能力，或转发 `app_server_handle_json_lines`。CLI/TUI 只负责参数、TUI 生命周期、输入事件和 App Server transport。Renderer 与 TUI/CLI surface 都不直接调用 provider、tool runtime 或数据库。`app-server-client` 已提供 authenticated WebSocket transport foundation；握手在发送 `initialized` 前校验 `app-server` 服务端身份和 `appserver.v0` 协议版本，BYOC 通过现役 Main Host 直接连接用户云机，管理与任务凭据分离，当前实机范围见 Cloud 执行计划。受管 Cloud 的租户隔离、跨网络恢复、限流和审计另行验收，不能作为 BYOC 的前置依赖，且不能改变业务 method 语义。
 
 ## Owner 判定
 
@@ -37,29 +38,43 @@ All surfaces
 | UI request builder、response normalization、projection          | Renderer `src/lib/api/` 或 typed package               |
 | TUI composer、terminal lifecycle、terminal projection           | `tui`                                                  |
 | CLI 参数、非交互输出、进程退出码                                | `cli`                                                  |
-| 本地/未来远端 App Server 会话、请求并发和 reverse request       | `app-server-client`                                    |
+| 本地/受控远端 App Server 会话、请求并发和 reverse request       | `app-server-client`                                    |
 
 禁止为业务调用新增第二个 Electron/CLI 后端、renderer mock fallback、临时 DevBridge 命令或 legacy wrapper。生产失败必须显式失败；mock 仅在测试夹具中显式注入。
 
 Cloud session credential 的 IPC 只允许 `cloud_session_credential_set`、
 `cloud_session_credential_status` 和 `cloud_session_credential_delete`。写入由
-Electron `safeStorage` 加密后落在统一 `AppDataRoot/credentials`，状态接口只返回
+Electron 统一本机加密后端处理后落在 `AppDataRoot/credentials`，状态接口只返回
 `exists`、`tenantId`、endpoint 和更新时间，不提供 token 读取 IPC。token 不得进入 URL、
-query、Debug 或日志；safeStorage 不可用时必须 fail closed。该 owner 只是 Cloud
+query、Debug 或日志；加密不可用时必须 fail closed。macOS/Linux 使用私有文件密钥与
+AES-256-GCM，无系统钥匙串调用；Windows 使用 DPAPI。密钥目录与文件按当前用户权限保护，
+云归档始终排除 `credentials`。旧钥匙串记录不会自动读取，连接须重新保存。该 owner 只是 Cloud
 transport foundation，不会启用默认远端 App Server，也不替代 App Server JSON-RPC。
 
-产品云账号的共享 owner 为 App Server `account` 领域，入口为 `account/login/start`、
-`account/read`、无参 `account/logout`，同进程广播 `account/updated`。上述请求与 `cloud/request` 使用同一
-`accountAuth` 序列化队列。`cloudAuthTokens` 是明确的外部会话扩展：由 Rust 调用
-LimeCore `client/session` 验证租户/用户/会话，成功后原子替换组合根注入的
-`AppDataRoot/credentials/account.json`；读取与通知只返回 metadata。此私有文件 owner
-服务 Desktop/CLI/TUI，和上述未来 WebSocket transport 凭证用途不同，不提供 token 读取 RPC。
-GUI 公开登录的临时 token 只用于导入；localStorage credential owner 与 window token globals
-已删除，不迁移。`cloud/request` 由同一 AccountManager 发往当前 issuer/tenant 的 client API，
-params 只有 path/method/body，无 caller URL/headers/token。禁止 redirect/路径越界，15 秒/
-4MiB 上限，返回 status/body 和账号 metadata；Session/bootstrap 的账号 token 不回 renderer。
-消费者重读共享账号并比对响应身份，避免换号/注销后的旧响应覆盖新投影。登录 JSONL 的诊断
-不记录凭据。CLI 入口、OpenAI managed/device/API-key 与远端插件物化继续由执行计划跟踪。
+产品云账号由 App Server `account` 领域统一持有。入口为
+`account/login/start`、`account/read`、无参 `account/logout`，与 `cloud/request`
+共用 `accountAuth` 队列。原生层生成 state、nonce 和 PKCE，绑定服务端登记的精确数字回环
+回调；换码、签名及在线身份核验、分资源凭据保存均不经过 Renderer。
+默认产品、市场、网络、连接分别绑定 Audience，不相互覆盖。凭据保存于组合根注入的
+`AppDataRoot/credentials/account.json`，采用原子写入、当前用户文件权限和短文件锁；
+这是受权限保护的私密文件，不能描述为 Keychain 或加密存储。
+
+`account/read` 只返回身份、资源授权与授权事务元数据；显式传入 `authorizationId`
+仅校验已保存的换码结果，不重交 Code 或 Refresh Token。注销替换本地代际，拒绝迟到结果，
+不代表已撤销远端登录会话。Renderer 通过通知、窗口 focus 和未结束授权的有限轮询更新元数据，
+不保存凭据或平台用户 Session，也不导入临时 Token。
+
+`cloud/request` 只接受固定路由、GET/POST、JSON 正文、语言与任务/操作编号，
+由原生层选择对应资源。POST 在派发前持久保存原输入、原键和恢复路径；
+超时、重启、语言变化及重复点击都不能产生新派发。原结果通过固定 GET 查询，
+`/operations/{key}` 读取本机原任务记录。禁止调用方 URL、Header、Token、跳转或任意上游代理。
+HTTP 总期限为 35 秒，响应上限为 4 MiB。产品用户仍由 LimeCore 登记和最终核验。
+
+插件的本地安装、卸载、启用和会话加载归现役 PluginStore、Skills、MCP 与工具权限 owner。
+共享市场的获取与下载票据通过固定 Core 接口执行；凭据不随下载发送，包和全部文件验证后
+才提交本地安装。云端获取记录不能表示本机已安装或已启用。旧租户 Session、OEM 登录桥、
+远端安装状态及插件分享写接口已退役。完整宿主完成情况见
+[通用能力接入计划](../exec-plans/shared-cloud-capabilities.md)。
 
 ## Desktop persisted atom
 
@@ -1289,21 +1304,29 @@ Responses 的 typed tool output 使用原生 content 数组，纯文本结果继
 `src/lib/api/cloud.ts::requestCloudDesktop` 进入同一 typed client 和 JSONL bridge。
 
 - 资源：`listResources`、`bind`、`inspect`；Wuying 购买使用 `quoteWuying`、`purchaseWuying`，普通 Linux ECS 使用 `quoteEcs`、`purchaseEcs`。
-- 阿里云连接：`connectAlibaba` 启动官方浏览器 OAuth，立即返回 preparing；`readAlibabaConnection` 读取 preparing/authorizing/connected/failed。CLI 持有刷新令牌并自动续期，Renderer 不接触令牌或 callback URL。凭据使用独立私有配置，已有本机 profile 仍可在高级设置选择；首次官方 CLI 应用安装可能需要账号管理员完成。
+- 阿里云连接：`connectAlibaba` 立即返回 preparing，Lime 自动检查、下载并校验固定版本官方 CLI，安装在私有目录，不修改全局 PATH。随后官方浏览器 OAuth 进入 authorizing，完成后进入 verifying，以原私有配置调用只读 STS；身份有效才进入 connected。`readAlibabaConnection` 读取 preparing/authorizing/verifying/connected/failed，不启动授权或验证。验证失败或进程中断后，显式连接复用已完成的原授权验证，不再次打开浏览器；普通云操作只接受 connected。每次调用动态选择已安装工具，同一后台首次安装后即可使用。CLI 持有刷新令牌并自动续期，Renderer 不接触身份、令牌或 callback URL。凭据使用独立私有配置，已有本机 profile 仍可在高级设置选择；首次官方 CLI 应用安装可能需要账号管理员完成。
 - 区域：每次供应商调用同时设置 CLI 全局 `--region` 与 API `RegionId`，不依赖 OAuth profile 保存默认区域。
 - ECS 模板：`listEcsTemplates` 仅投影名称、ID、默认版本；`quoteEcsTemplate` 精确读取版本并按白名单填写现役 ECS 规格，核价后仍需明确确认费用。默认自动读取，单模板自动核价；不执行模板脚本，不新增模板隐含的资源。
-- ECS 购买要求已存在且归属匹配的交换机、安全组和 SSH keypair，固定单台按量、加密 ESSD、公网按流量、无自动续费。报价需明确确认，提交前再次核价；先落 unknown，再发送带 ClientToken 和操作标签的请求。锁内只读预检失败返回 `notSubmitted + submitted=false`，可重新核价并再次确认；请求发送后只沿 `readOperation` 恢复查询，精确核验实际加密和原规格后自动绑定，`provisioned` 不代表桌面已安装。管理凭据和 SSH 私钥不离开本机。
+- 无模板准备：`readEcsPurchasePreparation` 发现同地域/profile 的原持久准备，只读查询；`prepareEcsPurchase` 需要精确操作编号和 `prepareEcsPurchase:<region>:<profile>:<operationId>` 确认。读取 Ubuntu 24.04 系统镜像、2 核 4 GiB 推荐规格、x86/无 GPU/非积分型属性和 ESSD 实际库存，在最多八个供应商候选中比较有效价格，不承诺全地域最低价。固定 ROS 网络模板仅创建专用 VPC、交换机及无入站规则安全组，不购买实例、NAT 或 EIP；先写 unknown，再单次 CreateStack，启用本次新资源的失败回滚。超时、丢响应、重启和新编号只能查原资源栈，不能重发；仅确认 CREATE_ROLLBACK_COMPLETE 后可重新授权准备。`readOperation` 同样支持原准备编号。
+- 准备核验：精确匹配 StackId/name/region/操作标签与原模板，只接受 CREATE_COMPLETE，核验交换机可用区、VPC、安全组归属和无入站规则；输出白名单 spec，交回原 `quoteEcs`/`purchaseEcs`，报价与费用确认不共用网络授权。准备中每三秒只读观察，最多自动观察十分钟；面板重开从原记录继续。ROS 失败/回滚失败保留原操作，不输出供应商日志。网络栈留在用户账号，可复用；实例释放不删除该网络，也不静默清理其他栈资源。
+- ECS 购买要求已存在且归属匹配的交换机和安全组。`keyPairName` 可为空，使用现役会话管理器连接，供应商请求省略 SSH 密钥和密码参数；填写时必须核验该密钥对，购买恢复时不能出现额外或不同的密钥绑定。固定单台按量、加密 ESSD、公网按流量、无自动续费。报价需明确确认，提交前再次核价；先落 unknown，再发送带 ClientToken 和操作标签的请求。锁内只读预检失败返回 `notSubmitted + submitted=false`，可重新核价并再次确认；请求发送后只沿 `readOperation` 恢复查询，精确核验实际加密和原规格后自动绑定，`provisioned` 不代表桌面已安装。管理凭据和 SSH 私钥不离开本机。
+- 云端引导接续购买：`useCloudPurchase` 将当前操作编号、已确认规格和电脑名称与原采购或 `readOperation` 结果一起交给 `AddCloudDesktop`；`cloudPurchasedResource` 仅投影与上述上下文和 `observedAfter` 精确一致、无待核验项的 ECS `provisioned` 收据。引导临时选中该 profile/region/instance，复用 `inspect` 和 Main 连接元数据，即使清单刷新暂未包含新机也只读查询该精确目标。启动中每 5 秒观察，失败可明确刷新；首次安装、启动和已有环境重连仍使用现役确认，不根据镜像 ID、Running 或最近 50 条操作摘要推断应用已就绪。退出引导清除选中状态，持久采购与安装意图仍归原 owner。
 - 变更：`start`、`stop`、`snapshot`、`release` 必须携带操作编号和精确资源确认；除启动外还需 `workSaved`。
 - 释放：仅限已停止的按量 Wuying/ECS，需 `discardData=true` 和 `release:<region>:<resourceId>:discard-data` 确认；磁盘遵循供应商删除策略，不清理保留盘、快照或共享网络。
+- 保留镜像后释放：ECS 的同一 `release` 可提供 `imageOperationId`，确认改为 `release:<region>:<resourceId>:discard-data:image:<imageOperationId>`。仅接受该原机已完成的私有镜像操作；删除前重新查询当前唯一原加密系统盘、可用加密快照和未共享的可用私有镜像。额外数据盘、错配或查询失败均拒绝，不降级为普通释放。镜像预检明确失败返回 `notSubmitted + submitted=false`，不发送删除，清除确认后可重新明确确认；提交后的 unknown 只能查询原操作。证明和 unknown 意图在删除前一同落盘；镜像/快照不删除且仍可收费，日后恢复仍需应用验证。
 - 快照：`inspectSnapshot` 精确核对 profile、地域、电脑、原盘与快照；创建收据查询到快照可用后才记为 `snapshotReady`。ECS 要求源盘仍独占挂载、快照 accomplished 且 Available；无影要求 ACCOMPLISHED 且原盘 Available。
 - 原盘回滚：`restoreSnapshot` 必须已停机、`workSaved=true`、`discardChanges=true`，并确认 `restoreSnapshot:<region>:<resourceId>:<diskId>:<snapshotId>`。分别调用 ECS ResetDisk 或无影 ResetSnapshot，不隐式关机或重建镜像。先写 unknown 收据，仅发送一次；同资源未决恢复阻止再次快照、回滚或释放，允许启停以验证应用。
 - 恢复核验：`readOperation` 仅查询供应商状态，不根据 API 受理或电脑 Running 自动宣布恢复完成。用户进入桌面验证后，通过 `verifySnapshotRestore`、`applicationsValidated=true` 和 `verifyRestore:<region>:<resourceId>:<diskId>:<snapshotId>` 记录原操作的 `verified + userConfirmed`；服务仍核对精确电脑已 Running。该结果属于用户确认，不是自动应用检测。
 - 恢复：`readOperation` 读取原持久收据；待确认的 `release` 会查询同 profile/region/ID 的云端资源，只有成功返回空数组才落盘 `released` 并从活动绑定列表移出。同编号不重发变更请求；`accepted` 不代表完成，异常或失败查询不能核验释放。
+- 恢复密钥：`createArchiveIdentity` 仅允许本机 transport，将 age X25519 身份写入用户选择的新文件（Unix 0600 / Windows 当前用户 ACL），拒绝覆盖已有文件和符号链接；只返回公钥与路径，不返回私钥。备份页复用原生保存对话框并自动填写公钥，恢复私钥须另存离线副本。
 - 文件：`exportArchive`、`restoreArchive`、`transferArchive`；仅处理所在电脑的选定文件，
-  公钥导出不发送恢复私钥，恢复到新目录；S3/OSS 依赖本机已配置的 rclone。
+  公钥导出不发送恢复私钥，恢复到新目录；`transferArchive` 使用本机已配置的 rclone remote。
   传输要求可信导出 SHA-256 和合法 age 文件头，上传使用私有密文副本，下载校验后无覆盖发布；
   临时副本占用本机额外空间。文件头检查不替代恢复时的完整 age 认证。
   Unix 恢复仅保留所有者执行位（0700/0600），不恢复 setuid/setgid、其他用户权限或执行文件。
+- OSS 浏览器身份：`listOssBuckets` 接受本机已完成 OAuth 的 managed profile 与地域，响应只含桶名列表与地域；列表本身不提供各桶地域。`transferOssArchive` 另接受桶、相对 `.age` 对象名、本机绝对路径、上传方向与可信 SHA-256。两者仅本机 transport 可用，不能从云窗口消费本机云身份。
+  官方 CLI 刷新临时 STS，固定版本且逐次摘要核验的 Lime 私有 rclone 仅从子进程环境接收这些短期字段；OAuth refresh token 不转交，密钥不进入参数、Renderer、日志或收据。不会创建桶或改全局配置，存储与传输费用归用户账号。上传跳过已存在对象不等于原子条件写入，使用独立新对象名；结果未知先检查目标再手动重试。
+  共享 client 的归档请求预算同步投影到 Host 与 IPC/HTTP bridge：列桶覆盖 CLI 刷新、首次工具下载与枚举；传输覆盖工具准备和后端有界密文复制，避免 30 秒默认预算提前结束界面等待。预算结束仍需核对目标，不自动重发上传。
 - 云电脑下载：`prepareArchiveDownload` 在已启用认证的 WebSocket 上为当前连接暂存选定文件的 age 密文，源文件上限 4 GiB。`readArchiveDownload` 只按该连接的归档 ID 读取固定 256 KiB 分块；`closeArchiveDownload`、连接断开或到期清除暂存。同一 App Server 同时只处理一份下载；响应不包含云机暂存路径。
 - Desktop 的备份入口通过原有 `cloud_desktop_connection` 选择本机保存位置，Main 复用已保存的任务连接，检查分块、age 文件头及 SHA-256 后发布新文件。恢复私钥和 rclone 凭据留在本机。
 - 恢复到云电脑：`beginArchiveRestore` 为当前认证连接生成一次性 age 接收方；`rewrapArchiveForRestore` 只能在本机读取原归档与恢复身份，验证原密文摘要并写入给临时接收方的密文。Main 用 `writeArchiveRestore` 顺序上传不超过 256 KiB 的分块，`finishArchiveRestore` 校验并只向目标 Linux 用户 home 下的 `lime-restored-<名称>` 新目录发布。提交前取消、断开或到期清理；提交后连接中断先核对目标目录，不自动重发或覆盖。
@@ -1317,54 +1340,157 @@ App Server 的认证 WebSocket 参数为 `--ws-auth capability-token|signed-bear
 `--ws-issuer`、`--ws-audience`、`--ws-max-clock-skew-seconds`。token/secret 文件使用
 绝对路径，值不写入命令行、URL 或日志；非 loopback 必须认证，公网由受保护 WSS 入口承接。
 来源、真实云测试与未完成连接见 [BYOC 执行计划](../exec-plans/cloud-desktop-byoc-plan.md)。
-测试资源按本次用户偏好收尾：预计 30 分钟内复用则请求 StopCharging 并核对 Stopped，否则明确丢弃测试盘后释放。当前没有后台定时释放器；持久工作环境先验证可恢复备份再由用户确认释放。
+测试资源按本次用户偏好收尾：预计 30 分钟内复用则请求 StopCharging 并核对 Stopped，否则明确丢弃测试盘后释放。持久工作环境先验证可恢复备份，再由用户确认立即释放或设置下述供应商回收计划；尚无后台自动空闲判定。
 
 Desktop 连接配置由本机 `cloud_desktop_connection` Host 命令处理 `status/save/saveEcsTunnel/open/delete`，
-通过 `src/lib/api/cloudDesktopConnection.ts` 进入可信 Main owner；不把本机 safeStorage 凭据送给
+通过 `src/lib/api/cloudDesktopConnection.ts` 进入可信 Main owner；不把本机加密存储的凭据送给
 App Server 或放进任务协议。连接按资源分槽，保存/删除前需关闭对应云窗口，返回值仅含 metadata。
+本机 `cloud_desktop_connection` 的 `readReleaseBackup` 读取原机最新的备份摘要和异机恢复记录；`releaseWithBackup` 要求匹配的摘要、目标、原生应用读回确认和原释放确认。Main 重新校验本机密文并查询目标状态后，提交原 `cloud/desktop release`。预检失败返回未提交；发出请求后若结果未知，仍只按原 UUID 查询。
 `cloud_desktop_window_status/reconnect` 只对已登记云窗口可用；独立 Host 转发原有 JSON-RPC，
 默认拒绝其他本机能力，truth facade 中的 workspace/provider 查询委托云端同一 App Server。
-显式重连不重放在途请求，清除旧审批 token；云窗口关闭不调用云生命周期管理或停止远端进程。
+显式重连不重放在途请求，清除旧审批 token。Renderer 在重连期间隔离任务和审批视图，
+轮询先返回 connected 也不恢复旧缓存；仅重连响应明确 connected 后刷新页面，并保持隔离到导航。
+失败显示固定的可重试提示，不展示任意服务端错误；失败后的轮询不能绕过显式重试，
+组件卸载或上下文更换后的迟到响应不能刷新新页面。云窗口关闭不调用云生命周期管理或停止远端进程。
+
+`cloud_desktop_window_view` 仅对可信已登记云窗口开放。`connect` 的资源固定为该窗口的 ECS，
+由 Main 沿本机管理身份打开原 `desktop` 通道，返回经校验的回环 `/vnc.html`，不接受自选资源或 URL。
+`showPassword` 仅委托现役安装 owner 的原生密码显示，不把密码返回 Renderer。
+云会话默认不挂载查看器，也不建立桌面流；用户展开后才加载沙箱 noVNC，初始 `view_only=true`。
+收起卸载 iframe，断开此查看器的画面，保留共享隧道以免打断其他查看者；不停止云任务、不关机。
+查看不申请 human-control；云端现役输入锁、grant 与 fence 仍决定能否操作。iframe load 不代表桌面已认证或 RFB 已连接。
 
 `cloud/desktop` 的 `prepareEcsDesktop` 使用精确 ECS `resource`、`operationId`、
 `confirmation=prepareEcsDesktop:<regionId>:<resourceId>` 与 `installSystemPackages=true`，
 沿本机供应商 OAuth/profile 调用云助手安装固定 Ubuntu 24.04 x64 桌面依赖。
+新机尚未注册或尚未连接 Linux 云助手时，保存 `waitingForAgent/submitted=false` 的原准备收据。
+`readOperation` 只读查询精确实例就绪状态，返回 `agentReady`，不会发送依赖命令。
+Main 仅在原目标、原编号、明确未提交与就绪均核验通过后，以同一准备请求接续；服务再次核验，
+严格写入 durable unknown 后才调用云助手。unknown/accepted 不得重发，等待不占长 RPC 或延长超时。
+已知未提交的等待不阻止用户显式启停/释放；再次准备仍重新核对当前资源与其他未决操作。
+固定依赖包含 `fonts-noto-cjk`，用于原生应用的中文、日文与韩文字形。
+先查询固定包清单及运行依赖；已就绪的环境直接复用，不访问软件源或获取 apt 锁。
+缺包时只向 apt 传入缺失或未配置完成的包，完成后重新验证；不会升级整套已安装的桌面包。
 不接受任意脚本、SSH key、软件源或下载地址；本机凭据不会发送到 VM。
 `readOperation` 只查询原执行，`dependenciesReady` 不代表 Lime 运行包或任务连接可用。
 
-Linux 源码构建入口 `scripts/app-server/linux-guest-build.mjs --out <新的绝对目录>`
-额外交付相邻 `.tar.gz` 和 `.tar.gz.json` 摘要收据。目标普通用户已有桌面依赖和 systemd
+`createEcsImage` 仅接受本机已核实可用的停机 ECS 系统盘快照操作编号，要求
+`confirmation=createEcsImage:<snapshotOperationId>` 与 `includeCredentials=true`。
+服务重新查询精确加密系统快照，先落 unknown，再发送一次带 ClientToken/操作标签的
+固定 CreateImage。镜像包括整盘登录资料，不适用 age 文件备份的排除路径；不自动分享或导出。
+`readOperation` 仅按原镜像 ID/操作标签重新核实，原 VM/磁盘不存在不阻止查询。
+`imageReady` 仅证明用户私有镜像可用于新购，应用和登录恢复须另行验证。
+`listEcsImages` 通过本机 profile/region 查询本功能标记的自有镜像，批量核对来源为可用的
+加密系统快照；已分享、系统/第三方、额外数据盘和不完整响应均拒绝。
+购买页选择镜像只修改原 ECS spec、增大必要的系统盘并清除旧报价，仍走原核价/购买确认。
+这些动作不向远程 WebSocket 下放本机云凭据；创建/列表预算为 120 秒，原操作查询为
+180 秒，均覆盖后端有界供应商调用，不增加重试或重发。
+
+Linux 源码构建入口 `scripts/app-server/linux-guest-build.mjs --out <新的绝对目录> [--profile dev|release]`
+额外交付相邻 `.tar.gz` 和 `.tar.gz.json` 摘要收据。默认 dev，显式 `--profile release` 将同一模式传给 Cargo，分别从 `lime-rs/target/debug` 或 `lime-rs/target/release` 装配，并将实际选择写入 guest manifest；不把 dev 构建自动标成 release。不接受未知、重复或缺值参数，不自动上传或发布。可选
+`--download-url <明确已发布的公开 HTTPS 产物地址>` 将 URL 写入描述文件；该参数拒绝凭据、query、fragment、IP literal 和非 443 端口，不执行发布。
+正式发布使用 `scripts/app-server/linux-guest-release.mjs --runtime-dir <同次构建的 Linux release 目录> --out <新的绝对目录>/lime-guest-linux-x64-<版本> --version <版本>`，
+复用 CLI 的同源二进制、动态库和 native 资源。公共 staging 核对 loader、CLI 版本和现役 guest verifier，输出版本化压缩包与描述文件。
+发布工作流先向草稿上传 Linux guest，再发布应用版本；guest 资产不覆盖已存在文件。
+本机私有 Host 的 `installRuntime` 必须明确 `source=release|file`。默认 release 由 Main 使用
+`app.getVersion()` 与仓库 metadata 构造精确 GitHub 版本描述地址，只允许官方资产重定向，
+总预算 20 秒、描述不超过 8 KiB；校验 archive 名和精确下载地址后才进入原安装状态机。
+描述缺失/网络错误返回固定 `CLOUD_INSTALL_RELEASE_UNAVAILABLE`，且不准备依赖或下发云命令；
+非法描述继续拒绝。Renderer 不传入 URL，系统安装同意仍必需。
+购买页在原 `purchaseEcs` 之前调用同一 Host 的只读 `checkRuntimeRelease`，无须资源或 URL 参数。
+Main 使用已安装应用的精确版本，在同一 20 秒预算内读取官方描述并 HEAD 对应运行包，
+仅接受受限官方重定向、HTTP 200 和与描述一致的 Content-Length；不下载包、不读取凭据、
+不创建安装意图或采购收据，也不调用云 API。成功仅返回 `kind=guestRelease`、`available=true`
+与版本，失败使用固定错误码，签名 URL 不返回 Renderer。
+检查等待复用购买 busy 状态；重复点击、组件卸载、购买上下文变更和报价到期均阻止下单。
+失败后默认重试检查，只有用户明确勾选自备环境才可跳过；该选择不证明镜像已安装 Lime。
+已提交的 unknown 采购继续 `readOperation` 原编号，不重复预检或发起采购。
+报价过期后允许按原规格重新核价，ECS 的空 `keyPairName` 不阻止该操作；新报价清除旧费用确认，
+未重新确认不能购买，其他必需字段仍保持非空校验。
+HEAD 只证明检查时可访问且长度匹配，云机实际下载仍须校验字节、SHA-256、manifest 和安全解包。
+
+`cloud/desktop` 的 `scheduleEcsRelease` 限定已停机、未锁定、按量 ECS。参数为精确 `resource`、
+`operationId`、`imageOperationId`、整分钟 UTC `releaseAt`、`workSaved=true`、`discardData=true`，
+确认串为 `scheduleEcsRelease:<regionId>:<resourceId>:<releaseAt>:discard-data:image:<imageOperationId>`。
+锁内复核现役私有镜像证明与 30–35 分钟有效窗口，不覆盖已有期限；只读预检拒绝返回
+`notSubmitted/submitted=false`。先持久 unknown，再单次调用 `ModifyInstanceAutoReleaseTime`。
+供应商受理仍为 accepted，查询原 `readOperation` 与精确 `AutoReleaseTime` 一致才为 scheduled。
+`DescribeInstances` 的官方分钟格式 `YYYY-MM-DDTHH:mmZ` 与带秒格式统一成整分钟 UTC 后比较，
+畸形值不静默当作没有计划。
+时间消失不能把从未观察到生效的 unknown 计划直接判为撤销；供应商异常或时间改变继续待核查。
+`cancelEcsRelease` 绑定同一 `resource`、原观察到的 `releaseAt`、新的 `operationId` 与
+`confirmation=cancelEcsRelease:<regionId>:<resourceId>:<releaseAt>`；仅省略 AutoReleaseTime 参数撤销，
+不发送空时间或删除命令。原操作读回期限已清除后才为 releaseCancelled，并解除原计划收据的阻断。
+启动、依赖准备、运行包装配及新建会话隧道拒绝未撤销期限；未决收据也阻止更换编号绕过。
+这两个动作只允许本机管理 transport，云端 WebSocket 不获云管理权限。计划不依赖 Lime 定时器，
+但不是空闲检测，也不会在到期时二次检查备份；外部删除镜像、从控制台启动或修改计划由用户负责。
+官方 API 对秒向下取整且最短半小时，界面生成约 31–32 分钟后的 UTC 整分钟并显示确切时间。
+确认仅适用于弹窗显示的电脑、状态、期限和可用镜像；信息变化或父级暂不可操作后清除同意，
+状态恢复不复活旧同意。撤销使用打开时显示的确切期限，不取后台更新值替换；上下文改变后
+关闭并重新打开核对。已提交的未知操作保留原编号，只读查询不受新确认失效影响。
+
+`source=file` 仅由高级自定义入口触发原生 picker，并保留明确的文件来源信任确认。
+仅下载描述的安装意图不要求本机归档路径，摘要与下载源仍加密持久化，重启只继续原操作。
+目标普通用户已有桌面依赖和 systemd
 user manager 时，可运行可信构建目录的 `install.py install-archive --archive <绝对路径>`，
 同时传入 `--archive-sha256`、`--manifest-sha256` 与可选 `--start`。归档与普通目录安装
 共用现役安装器和排他锁，不执行归档元数据、恢复链接/设备或接受任意解包路径。
-构建中的 `bootstrap.py --config <私有绝对路径>` 是临时 TLS 制品上传入口，不提供任务执行、
+构建中的 `bootstrap.py --config <私有绝对路径>` 是临时 TLS 制品交付入口，不提供任务执行、
 任意脚本或命令；配置只包含固定操作/包摘要、capability 摘要和到期时间，原值仅经 TLS header
-认证。状态/上传/凭据/关闭均为固定路径。
+认证。状态/下载/小包上传/凭据/关闭均为固定路径。
+Main 原生 picker 可选择可信 `.tar.gz.json`，无需本机持有运行包；其中的 HTTPS URL 可含用户
+对象签名，只进入 Main 加密状态和钉住证书的 `POST /download` 请求体，不进入管理协议或 Renderer。
+私有 OSS 的签名 GET 可以作为该来源；调用方须保证有效期覆盖系统依赖准备与下载。
+安装器不持有签发权限、不自动续期或因过期重发下载。描述摘要仍来自用户信任的构建，
+不得用签名成功代替字节与清单校验；运行包不携带用户备份或供应商管理凭据。
+guest 下载禁用环境代理与认证头，每次重定向重新验证 DNS 和 TLS，只连接一次解析后核验的公网地址。
+精确大小、包 SHA-256、EOF、manifest 和安全解包全部通过才安装；失败/中断不重发下载。
+本地可信包上传限定 8 MiB，超限且缺 URL 时在云机依赖准备前返回 `CLOUD_INSTALL_DOWNLOAD_REQUIRED`。
 
 `startEcsRuntimeInstallation` 只接受精确 ECS 资源、UUID 操作、可信归档/清单摘要与字节数、
 capability 摘要及 `confirmation=installRuntime:<regionId>:<resourceId>`、
 `createDesktopUser=true`。内置启动器创建专属普通用户和短期安装服务，先保存 unknown 再提交；
 `readOperation` 共用精确云助手查询，只返回匹配操作的公证书与上传身份，不返回任务凭据。
-`cloud_desktop_connection` 的 `installationStatus/installRuntime/resumeInstallation/showDesktopPassword` 由 Main
-`CloudGuestInstallations` 负责。首次安装要求可信包与普通用户确认，再调用原生文件选择；Renderer
-不能传文件路径或 TLS endpoint。capability、路径、证书和恢复状态加密保存，界面仅消费进度。
+固定命令使用已有 BZip2 依赖与 guest 标准库 `bz2`，限制仍按 Base64 编码后的 24 KiB 计算，
+超限在提交前拒绝；缩减独立注释不改变固定 Python 程序的语法树，实际解码须完整还原三份源码及固定配置。
+`reconnectEcsRuntime` 复用固定启动器，仅接受精确 ECS、UUID、capability 摘要、
+`confirmation=reconnectRuntime:<regionId>:<resourceId>` 与 `workSaved=true`，不接受制品或旧凭据。
+既有受管 runtime 和普通用户通过验证后，短期 TLS 的单次 `POST /reconnect` 停止旧桌面/任务连接并轮换凭据，
+保留运行环境和文件，不恢复人工接管授权。仅本机管理 transport 可调用，收据不含任务或桌面凭据。
+`cloud_desktop_connection` 的 `installationStatus/installRuntime/reconnectRuntime/resumeInstallation/showDesktopPassword` 由 Main
+`CloudGuestInstallations` 负责。首次安装要求可信包、普通用户与 `installSystemPackages=true` 确认，
+默认解析同版本官方描述，高级自定义入口才调用原生文件选择；Renderer 不能传文件路径、下载 URL
+或 TLS endpoint。Main 在同一加密安装记录保存独立
+准备编号和两阶段提交意图，自动调用已有 `prepareEcsDesktop`；只有原准备收据的精确资源与
+`dependenciesReady/packagesPrepared=true` 均验证通过后才启动运行包。准备失败不启动，响应丢失只查询
+原编号，重启后显式继续；未记录启动意图时可衔接下一阶段，已记录后不重发。准备和上传分别有界，
+新机等待期间投影 `waitingForAgent` 与原创建时间，不使用假进度；退出停止本机只读轮询，
+重启后仍需显式继续原操作，单独的 installationStatus 不自动发起检查或安装。
+镜像重连不安装依赖。capability、路径、证书和恢复状态加密保存，界面仅消费进度。
 Main 验证 TLS 证书和目标 IP；凭据仅经认证 TLS 读回，交给现役连接 owner 保存后关闭临时服务。
-状态读取不触发启动或上传，恢复只查询原 UUID；上传意图未知时不再 PUT。安装未决时阻止手工覆盖
-任务连接。查看桌面密码只打开本机原生对话框，不向页面返回密码。关闭设置弹窗不取消后台安装，
-客户端退出中断本机传输，重启后显式继续原操作。
+ECS 任务连接使用 `reconnectRuntime` 与已保存工作确认，无需填写令牌；初次安装默认使用版本匹配的官方包。
+状态读取不触发启动、上传或轮换，恢复只查询原 UUID；变更意图未知时不再 PUT/POST。安装未决时阻止手工覆盖
+和删除任务连接，重建尚未保存新凭据时还阻止打开旧连接。查看桌面密码只打开本机原生对话框，不向页面返回密码。关闭设置弹窗不取消后台安装，
+客户端退出中断本机传输和准备、启动、查询及隧道 RPC 等待，先保存原操作身份；这不取消已提交的云端操作。
+迟到响应不推进上传或覆盖凭据，重启后显式查询并继续原操作。已确认完成的安装不因退出中断通道清理而退回未决状态。
 
-`saveEcsTunnel` 仅接受 ECS 资源和 guest Lime 的连接令牌，使用 safeStorage 保存
+`saveEcsTunnel` 仅接受 ECS 资源和 guest Lime 的连接令牌，使用统一本机加密后端保存
 `transport=ecsTunnel` 与固定 guest 目标。`open` 在 Main 经本机 `cloud/desktop`
 解析临时地址，不接受 Renderer 指定的端口或供应商 URL；窗口隔离使用稳定身份。
 显式重连关闭并重建同资源的 appServer 通道，不影响 desktop 通道；无自动任务重放。
 初次连接失败关闭该任务通道，重新打开属于用户明确的新连接操作。
 
 `openEcsTunnel/readEcsTunnel/closeEcsTunnel` 使用精确 ECS `resource` 与
-`channel=appServer|desktop`，分别限定实例回环端口 8787/6080；不接受任意目标地址、
+`channel=appServer|desktop|installation`，分别限定实例 127.0.0.1:8787、127.0.0.1:6080 和
+127.0.0.2:8787；不接受任意目标地址、
 端口或命令。仅本机 transport 可以调用。打开复用现役用户 profile 创建 Session Manager
 通道，响应仅含本机回环地址、监听/连接数量与固定失败状态，不返回供应商会话凭据。
 供应商仍要求安全组允许当前网络访问对应端口；Lime 不自动增加入站规则。
 `InvalidOperation.SecurityGroupRuleDenied` 明确显示安全组阻断，不误归类为 CLI OAuth 权限。
 通道不落盘；关闭终止所有流，退出进程或没有连接空闲 15 分钟后释放本机监听。
 调用方不得把临时端口持久化为跨重启的连接配置，监听状态也不是桌面就绪证明。
+运行包安装与连接重建经 Main 打开 installation 通道，仅接受临时回环 HTTPS 地址，并验证
+云助手交付的证书与固定 127.0.0.2 身份。安装配置不接受外部地址；没有云机公网 IP 仍可装配，
+但供应商仍要求原 8787 端口的安全组规则。上传、轮换、保存和关闭仍使用同一原操作，
+传输结束或失败后关闭通道，进程重启不持久化或复用本机临时端口。
 未知结果不自动重发，失败后先核对系统软件包状态；云助手原始输出不进入普通收据。

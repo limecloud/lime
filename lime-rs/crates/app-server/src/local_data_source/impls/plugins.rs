@@ -10,12 +10,6 @@ use app_server_protocol::protocol::v2::{
     MarketplaceAddParams, MarketplaceAddResponse, MarketplaceRemoveParams,
     MarketplaceRemoveResponse, MarketplaceUpgradeParams, MarketplaceUpgradeResponse,
 };
-use app_server_protocol::protocol::v2::{
-    PluginShareCheckoutParams, PluginShareCheckoutResponse, PluginShareDeleteParams,
-    PluginShareDeleteResponse, PluginShareListParams, PluginShareListResponse,
-    PluginShareSaveParams, PluginShareSaveResponse, PluginShareUpdateTargetsParams,
-    PluginShareUpdateTargetsResponse,
-};
 use async_trait::async_trait;
 
 impl LocalAppDataSource {
@@ -33,41 +27,6 @@ impl LocalAppDataSource {
 
 #[async_trait]
 impl PluginDataSource for LocalAppDataSource {
-    async fn checkout_plugin_share(
-        &self,
-        params: PluginShareCheckoutParams,
-    ) -> Result<PluginShareCheckoutResponse, RuntimeCoreError> {
-        crate::local_data_source::plugin_catalog::share::checkout(&self.plugin_store, params).await
-    }
-    async fn save_plugin_share(
-        &self,
-        params: PluginShareSaveParams,
-    ) -> Result<PluginShareSaveResponse, RuntimeCoreError> {
-        crate::local_data_source::plugin_catalog::share::save(&self.plugin_store, params).await
-    }
-
-    async fn list_plugin_shares(
-        &self,
-        params: PluginShareListParams,
-    ) -> Result<PluginShareListResponse, RuntimeCoreError> {
-        let _ = params;
-        crate::local_data_source::plugin_catalog::share::list(&self.plugin_store).await
-    }
-
-    async fn update_plugin_share_targets(
-        &self,
-        params: PluginShareUpdateTargetsParams,
-    ) -> Result<PluginShareUpdateTargetsResponse, RuntimeCoreError> {
-        crate::local_data_source::plugin_catalog::share::update(&self.plugin_store, params).await
-    }
-
-    async fn delete_plugin_share(
-        &self,
-        params: PluginShareDeleteParams,
-    ) -> Result<PluginShareDeleteResponse, RuntimeCoreError> {
-        crate::local_data_source::plugin_catalog::share::delete(&self.plugin_store, params).await
-    }
-
     async fn load_plugin_hooks(
         &self,
     ) -> Result<tool_runtime::hook_source::PluginHookLoadOutcome, RuntimeCoreError> {

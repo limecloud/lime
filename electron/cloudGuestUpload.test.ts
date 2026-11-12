@@ -37,7 +37,7 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
     "-subj",
     "/CN=Explicit local TLS fixture",
     "-addext",
-    "subjectAltName=IP:127.0.0.1",
+    "subjectAltName=IP:127.0.0.2",
     "-keyout",
     key,
     "-out",
@@ -67,11 +67,14 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
       );
     },
   );
-  server.listen(8787, "127.0.0.1");
+  server.listen(0, "127.0.0.1");
   await once(server, "listening");
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("missing fixture address");
   const target = {
     operationId: "fixture",
-    publicAddress: "127.0.0.1",
+    endpoint: `https://127.0.0.1:${address.port}/`,
     certificate,
     expiresAt: Math.floor(Date.now() / 1000) + 60,
   };
@@ -102,6 +105,18 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
   expect(received.map(({ route }) => route)).toEqual(["/status", "/runtime"]);
   expect(received[1].body).toEqual(bytes);
   expect(received[1].auth).toBe(`Bearer ${capability}`);
+  const downloadUrl =
+    "https://assets.example.com/runtime.tar.gz?signature=synthetic-private-query";
+  await requestCloudGuestUpload(
+    target,
+    capability,
+    "/download",
+    new AbortController().signal,
+    { downloadUrl },
+  );
+  expect(received[2].route).toBe("/download");
+  expect(JSON.parse(received[2].body.toString())).toEqual({ downloadUrl });
+  expect(received[2].auth).toBe(`Bearer ${capability}`);
   for (mode of ["redirect", "invalid"]) {
     await expect(
       requestCloudGuestUpload(
@@ -114,8 +129,10 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
   }
   const count = received.length;
   for (const change of [
-    { publicAddress: "localhost" },
-    { publicAddress: "127.0.0.2" },
+    { endpoint: "https://localhost:8788/" },
+    { endpoint: "https://8.8.8.8:8788/" },
+    { endpoint: "https://user:secret@127.0.0.1:8788/" },
+    { endpoint: "https://127.0.0.2:8787/" },
     { certificate: "invalid-secret-certificate" },
     { expiresAt: 1 },
   ]) {

@@ -10,7 +10,8 @@ impl RuntimeCore {
         turn: &AgentTurn,
         host: RuntimeHostContext,
     ) -> Result<Vec<AgentEvent>, RuntimeCoreError> {
-        self.computer_use.cancel_turn(&session.thread_id, &turn.turn_id);
+        self.computer_use
+            .cancel_turn(&session.thread_id, &turn.turn_id);
         let request = CancelExecutionRequest {
             host,
             session: session.clone(),

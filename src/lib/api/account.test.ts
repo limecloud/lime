@@ -3,31 +3,31 @@ import { AppServerClient } from "./appServer";
 import { loginAccount, logoutAccount, readAccount } from "./account";
 
 describe("shared account gateway", () => {
-  it("uses the typed App Server boundary and propagates rejected credentials", async () => {
+  it("uses native authorization without importing renderer credentials", async () => {
     const client = new AppServerClient();
     const exchange = vi.spyOn(client, "exchange");
     const params = {
-      type: "cloudAuthTokens" as const,
-      baseUrl: "https://cloud.example.test",
-      tenantId: "tenant-one",
-      accessToken: "fixture-private-token",
+      type: "cloud" as const,
+      baseUrl: "https://core.example.test",
+      language: "zh-CN",
+      resource: "market" as const,
     };
-    exchange.mockResolvedValueOnce([
-      { id: 1, result: { type: "cloudAuthTokens" } },
-    ]);
-    await expect(loginAccount(params, client)).resolves.toEqual({
-      type: "cloudAuthTokens",
-    });
+    const login = {
+      authUrl: "https://identity.example.test/authorize?state=public",
+      authorization: { id: "auth-one", resource: "market", status: "pending" },
+    };
+    exchange.mockResolvedValueOnce([{ id: 1, result: login }]);
+    await expect(loginAccount(params, client)).resolves.toEqual(login);
     expect(exchange).toHaveBeenLastCalledWith(
       [{ id: 1, method: "account/login/start", params }],
       {},
     );
     exchange.mockResolvedValueOnce([
-      { id: 2, result: { account: null, requiresOpenaiAuth: false } },
+      { id: 2, result: { account: null, authorizations: [] } },
     ]);
     await expect(readAccount({}, client)).resolves.toEqual({
       account: null,
-      requiresOpenaiAuth: false,
+      authorizations: [],
     });
     expect(exchange).toHaveBeenLastCalledWith(
       [{ id: 2, method: "account/read", params: {} }],

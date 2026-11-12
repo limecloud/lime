@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  syncExpertAgentInstanceToCloud,
   updateExpertAgentInstanceSkillRefs,
 } from "@/features/experts";
 import type { ExpertAgentLaunchParams } from "@/types/page";
@@ -41,15 +40,14 @@ export function useWorkspaceExpertAgentLaunchSyncRuntime({
       if (!expertAgentLaunch) {
         return;
       }
-      const record = updateExpertAgentInstanceSkillRefs({
-        tenantId: expertAgentLaunch.tenantId,
+      updateExpertAgentInstanceSkillRefs({
+        catalogId: expertAgentLaunch.catalogId,
         projectId: expertAgentLaunch.projectId,
         expertId: expertAgentLaunch.expertId,
         releaseId: expertAgentLaunch.releaseId,
         catalogVersion: expertAgentLaunch.catalogVersion,
         skillRefsOverride: skillRefs,
       });
-      void syncExpertAgentInstanceToCloud(record).catch(() => undefined);
     },
     [expertAgentLaunch, pruneWorkspaceSkillRuntimeEnableRefs],
   );

@@ -54,6 +54,7 @@ fn patch_approval(id: i64, item_id: &str, turn_id: &str) -> ServerRequest {
             started_at_ms: 0,
             reason: None,
             grant_root: None,
+            destinations: Vec::new(),
         },
     }
 }

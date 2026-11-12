@@ -9,7 +9,6 @@ import {
   LogOut,
   Megaphone,
   Settings,
-  UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
@@ -81,19 +80,12 @@ export function ProfileDropdownItems({
         <>
           <Menu.Label className="px-2 py-1.5">
             <div className="truncate text-sm font-medium">{displayName}</div>
-            {account.session.user.email ? (
+            {account.account.email ? (
               <div className="truncate text-xs text-muted-foreground">
-                {account.session.user.email}
+                {account.account.email}
               </div>
             ) : null}
           </Menu.Label>
-          <Menu.Item
-            className={itemClassName}
-            onSelect={() => onNavigate(SettingsTabs.Profile)}
-          >
-            <UserRound />
-            {t("navigation.sidebar.account.profile")}
-          </Menu.Item>
         </>
       ) : null}
       <Menu.Item

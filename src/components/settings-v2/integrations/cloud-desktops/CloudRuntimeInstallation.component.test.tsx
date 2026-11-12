@@ -51,7 +51,7 @@ afterEach(() => {
   delete window.electronAPI;
 });
 
-it("requires both consents, sends no path or token, and allows closing while a background installation runs", async () => {
+it("defaults to the matching release, requires installation consent, and allows closing while it runs", async () => {
   invoke.mockResolvedValue({
     kind: "installation",
     available: true,
@@ -67,39 +67,186 @@ it("requires both consents, sends no path or token, and allows closing while a b
   expect(invoke).toHaveBeenCalledExactlyOnceWith("cloud_desktop_connection", {
     request: { action: "installationStatus", resource },
   });
-  expect(button("选择运行包并安装").disabled).toBe(true);
+  expect(button("安装此版本 Lime").disabled).toBe(true);
   const checkboxes = document.querySelectorAll<HTMLInputElement>(
     'input[type="checkbox"]',
   );
-  act(() => checkboxes[0].click());
-  await settle();
-  expect(button("选择运行包并安装").disabled).toBe(true);
   act(() => checkboxes[1].click());
   await settle();
-  expect(button("选择运行包并安装").disabled).toBe(false);
+  expect(button("安装此版本 Lime").disabled).toBe(false);
   invoke.mockResolvedValue({
     kind: "installation",
     available: true,
     exists: true,
     busy: true,
-    phase: "launching",
+    phase: "preparing",
     operationId: "original",
   });
-  await click("选择运行包并安装");
+  await click("安装此版本 Lime");
   expect(invoke).toHaveBeenLastCalledWith("cloud_desktop_connection", {
     request: {
       action: "installRuntime",
+      source: "release",
       resource,
       trustArtifact: true,
       createDesktopUser: true,
+      installSystemPackages: true,
       confirmation: "installRuntime:cn-test:i-test",
     },
   });
+  expect(document.body.textContent).toContain("正在准备 Linux 桌面依赖");
   expect(document.querySelector('input[type="password"]')).toBeNull();
-  expect(button("继续原安装").disabled).toBe(true);
+  expect(button("继续原操作").disabled).toBe(true);
   expect(button("关闭").disabled).toBe(false);
   await click("关闭");
   expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("announces release lookup, prevents duplicate submission, and restores retry after failure", async () => {
+  invoke.mockResolvedValue({
+    kind: "installation",
+    available: true,
+    exists: false,
+    busy: false,
+  });
+  act(() =>
+    root.render(<CloudRuntimeInstallation resource={resource} running />),
+  );
+  await settle();
+  await click("安装运行环境");
+  act(() =>
+    [...document.querySelectorAll<HTMLInputElement>("label > input")]
+      .find((input) => !input.closest("details"))!
+      .click(),
+  );
+  await settle();
+  let reject!: (error: Error) => void;
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+  );
+  await click("安装此版本 Lime");
+  expect(document.querySelector('[role="status"]')?.textContent).toContain(
+    "正在获取此版本的云端运行包信息",
+  );
+  expect(button("安装此版本 Lime").disabled).toBe(true);
+  await click("安装此版本 Lime");
+  expect(invoke).toHaveBeenCalledTimes(2);
+  await act(async () => reject(new Error("CLOUD_INSTALL_RELEASE_UNAVAILABLE")));
+  await settle();
+  expect(document.querySelector('[role="status"]')).toBeNull();
+  expect(button("安装此版本 Lime").disabled).toBe(false);
+});
+
+it("explains how to recover a large local package without leaking the underlying error", async () => {
+  invoke.mockResolvedValue({
+    kind: "installation",
+    available: true,
+    exists: false,
+    busy: false,
+  });
+  act(() =>
+    root.render(<CloudRuntimeInstallation resource={resource} running />),
+  );
+  await settle();
+  await click("安装运行环境");
+  act(() => document.querySelector<HTMLInputElement>("details input")!.click());
+  await settle();
+  expect(button("选择安装文件").disabled).toBe(true);
+  act(() => {
+    for (const checkbox of document.querySelectorAll<HTMLInputElement>(
+      'label > input[type="checkbox"]',
+    ))
+      if (!checkbox.closest("details")) checkbox.click();
+  });
+  await settle();
+  invoke.mockRejectedValue(new Error("CLOUD_INSTALL_DOWNLOAD_REQUIRED"));
+  await click("选择安装文件");
+  const alert = document.querySelector('[role="alert"]')?.textContent;
+  expect(alert).toContain("HTTPS 下载地址和可信摘要");
+  expect(alert).toContain(".tar.gz.json");
+  expect(alert).not.toContain("CLOUD_INSTALL_DOWNLOAD_REQUIRED");
+  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(button("选择安装文件").disabled).toBe(false);
+  expect(invoke.mock.lastCall?.[1].request.source).toBe("file");
+});
+
+it("explains an unpublished release and keeps the explicit retry available", async () => {
+  invoke.mockResolvedValue({
+    kind: "installation",
+    available: true,
+    exists: false,
+    busy: false,
+  });
+  act(() =>
+    root.render(<CloudRuntimeInstallation resource={resource} running />),
+  );
+  await settle();
+  await click("安装运行环境");
+  act(() =>
+    document
+      .querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1]
+      .click(),
+  );
+  await settle();
+  invoke.mockRejectedValue(Error("CLOUD_INSTALL_RELEASE_UNAVAILABLE"));
+  await click("安装此版本 Lime");
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "此版本尚未提供可用的云端运行包",
+  );
+  expect(document.querySelector('[role="alert"]')?.textContent).not.toContain(
+    "CLOUD_INSTALL_RELEASE_UNAVAILABLE",
+  );
+  expect(button("安装此版本 Lime").disabled).toBe(false);
+  expect(invoke).toHaveBeenCalledTimes(2);
+});
+
+it("explains preparation failure without presenting it as a runtime installation", async () => {
+  invoke.mockResolvedValue({
+    kind: "installation",
+    available: true,
+    exists: true,
+    busy: false,
+    phase: "failed",
+    diagnostic: "CLOUD_INSTALL_PREPARATION_FAILED",
+    operationId: "original",
+    connectionSaved: false,
+  });
+  act(() =>
+    root.render(<CloudRuntimeInstallation resource={resource} running />),
+  );
+  await settle();
+  await click("安装运行环境");
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "桌面依赖准备未完成，运行包尚未启动",
+  );
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("cloud_desktop_connection", {
+    request: { action: "installationStatus", resource },
+  });
+});
+
+it("explains supplier security-group denial and keeps the original operation resumable", async () => {
+  invoke.mockResolvedValue({
+    kind: "installation",
+    available: true,
+    exists: true,
+    busy: false,
+    phase: "needsAttention",
+    operationId: "original",
+    diagnostic: "CLOUD_INSTALL_SECURITY_GROUP_DENIED",
+  });
+  act(() =>
+    root.render(<CloudRuntimeInstallation resource={resource} running />),
+  );
+  await settle();
+  await click("安装运行环境");
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "阿里云安全组阻止了会话转发",
+  );
+  expect(button("继续原操作").disabled).toBe(false);
+  expect(invoke).toHaveBeenCalledTimes(1);
 });
 
 it("resumes only the original operation and opens the saved connection without copying credentials", async () => {
@@ -126,7 +273,7 @@ it("resumes only the original operation and opens the saved connection without c
     connectionSaved: true,
     operationId: "original",
   });
-  await click("继续原安装");
+  await click("继续原操作");
   expect(invoke).toHaveBeenLastCalledWith("cloud_desktop_connection", {
     request: {
       action: "resumeInstallation",

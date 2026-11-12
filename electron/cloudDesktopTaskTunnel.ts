@@ -4,6 +4,7 @@ import type {
   CloudDesktopResponse,
 } from "@limecloud/app-server-client";
 import { AppServerConnectionConfigError } from "./appServerRemoteConnection";
+import { validateCloudDesktopViewEndpoint } from "../src/lib/desktop-host/cloudDesktopConnection";
 
 export type CloudDesktopRequest = (
   params: CloudDesktopParams,
@@ -11,6 +12,39 @@ export type CloudDesktopRequest = (
 
 // This is the fixed service inside the guest, never the transient local listener.
 export const ECS_APP_SERVER_TARGET = "ws://127.0.0.1:8787/";
+
+/** A desktop viewer never requests human input ownership or a new task session. */
+export async function resolveCloudDesktopViewTunnel(
+  request: CloudDesktopRequest,
+  resource: CloudDesktopResource,
+): Promise<string> {
+  try {
+    if (resource.provider !== "ecs") throw new Error("unsupported provider");
+    const response = await request({
+      action: "openEcsTunnel",
+      resource,
+      channel: "desktop",
+    });
+    const data = response.data as Record<string, unknown> | null;
+    if (
+      !data ||
+      data.state !== "listening" ||
+      data.channel !== "desktop" ||
+      data.persistent !== false ||
+      data.connectionFailed === true
+    )
+      throw new Error("invalid desktop tunnel response");
+    return validateCloudDesktopViewEndpoint(data.endpoint);
+  } catch (error) {
+    throw new Error(
+      String(error).includes(
+        "ErrorCode=InvalidOperation.SecurityGroupRuleDenied",
+      )
+        ? "ECS_SECURITY_GROUP_DENIED"
+        : "CLOUD_DESKTOP_VIEW_FAILED",
+    );
+  }
+}
 
 /** Resolve only on an explicit connection attempt; polling never creates a session. */
 export async function resolveCloudDesktopTaskTunnel(

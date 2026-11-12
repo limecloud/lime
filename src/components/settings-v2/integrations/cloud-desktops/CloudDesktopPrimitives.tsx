@@ -56,36 +56,62 @@ export function CloudReceipt({ data }: { data: unknown }) {
       {receipt.restoreVerified === false && (
         <p>{t("settings.cloudDesktop.archiveUnverified")}</p>
       )}
-      {receipt.requiresApplicationValidation === true && (
-        <p>{t("settings.cloudDesktop.applicationValidation")}</p>
-      )}
+      {receipt.requiresApplicationValidation === true &&
+        object(receipt.request).action !== "createEcsImage" && (
+          <p>{t("settings.cloudDesktop.applicationValidation")}</p>
+        )}
       {typeof receipt.outcome === "string" && (
         <p>
           {t(
-            `settings.cloudDesktop.outcome.${receipt.outcome === "notSubmitted" && object(receipt.request).action === "prepareEcsDesktop" ? "prepareNotSubmitted" : receipt.outcome}`,
+            receipt.outcome === "notSubmitted" &&
+              object(receipt.request).action === "release"
+              ? "settings.cloudDesktop.releaseSystemImageRejected"
+              : `settings.cloudDesktop.outcome.${receipt.outcome === "notSubmitted" && object(receipt.request).action === "prepareEcsDesktop" ? "prepareNotSubmitted" : receipt.outcome}`,
           )}
         </p>
       )}
       {typeof receipt.failureCode === "string" && (
         <p role="alert">
-          {t(`settings.cloudDesktop.prepareFailure.${receipt.failureCode}`, {
-            defaultValue: t(
-              "settings.cloudDesktop.prepareFailure.preparationFailed",
-            ),
-          })}
+          {t(
+            object(receipt.request).action === "release"
+              ? "settings.cloudDesktop.releaseSystemImageRejected"
+              : `settings.cloudDesktop.prepareFailure.${receipt.failureCode}`,
+            {
+              defaultValue: t(
+                "settings.cloudDesktop.prepareFailure.preparationFailed",
+              ),
+            },
+          )}
         </p>
+      )}
+      {typeof object(receipt.releaseImage).imageId === "string" && (
+        <div className="space-y-1">
+          <p>{t("settings.cloudDesktop.releaseSystemImageHelp")}</p>
+          <p className="select-text break-all">
+            {t("settings.cloudDesktop.imageId")}:{" "}
+            {String(object(receipt.releaseImage).imageId)}
+          </p>
+          <p className="select-text break-all">
+            {t("settings.cloudDesktop.snapshotId")}:{" "}
+            {String(object(receipt.releaseImage).snapshotId)}
+          </p>
+        </div>
       )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         {[
           "operationId",
           "requestId",
           "snapshotId",
+          "imageId",
           "instanceId",
           "sha256",
           "path",
           "destination",
           "localPath",
           "remote",
+          "bucket",
+          "objectKey",
+          "regionId",
         ].map(
           (key) =>
             typeof receipt[key] === "string" && (

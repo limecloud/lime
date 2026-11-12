@@ -147,7 +147,9 @@ pub async fn execute_runtime_gateway_dispatch_tool(
             return Some(Err(runtime_gateway_dispatch_error(message, false)));
         }
         RuntimeNativePermissionDecision::Ask(message) => {
-            return Some(Err(runtime_gateway_dispatch_error(message, false)));
+            if !crate::tool_executor::turn_context_has_tool_approval(request.turn_context) {
+                return Some(Err(runtime_gateway_dispatch_error(message, false)));
+            }
         }
     }
 

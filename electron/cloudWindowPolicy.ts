@@ -10,6 +10,7 @@ export function isCloudWindowHostCommand(command: string): boolean {
     "persisted_atom_update",
     "cloud_desktop_window_status",
     "cloud_desktop_window_reconnect",
+    "cloud_desktop_window_view",
     ...ELECTRON_APP_SERVER_TRUTH_BRIDGE_COMMANDS,
   ].includes(command);
 }

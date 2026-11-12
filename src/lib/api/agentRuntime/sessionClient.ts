@@ -389,9 +389,14 @@ export function createSessionClient(deps: AgentRuntimeSessionClientDeps = {}) {
     });
   }
 
-  async function forkAgentRuntimeSession(sessionId: string): Promise<string> {
-    const forked =
-      await appServerSessionClient.forkAgentRuntimeSession(sessionId);
+  async function forkAgentRuntimeSession(
+    sessionId: string,
+    options?: { beforeTurnId?: string; cwd?: string },
+  ): Promise<string> {
+    const forked = await appServerSessionClient.forkAgentRuntimeSession(
+      sessionId,
+      options,
+    );
     notifyAgentRuntimeSessionsChanged({
       reason: "created",
       sessionId: forked.sessionId,

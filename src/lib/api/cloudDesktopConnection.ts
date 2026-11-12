@@ -5,7 +5,11 @@ import type {
   CloudDesktopConnectionMetadata,
   CloudDesktopConnectionRequest,
   CloudDesktopWindowStatus,
+  CloudDesktopViewConnection,
   CloudGuestInstallationStatus,
+  CloudGuestReleaseStatus,
+  CloudReleaseBackupResult,
+  CloudReleaseWithBackupResult,
 } from "../desktop-host/cloudDesktopConnection";
 
 export async function configureCloudDesktopConnection(
@@ -13,8 +17,11 @@ export async function configureCloudDesktopConnection(
 ): Promise<
   | CloudDesktopConnectionMetadata
   | CloudGuestInstallationStatus
+  | CloudGuestReleaseStatus
   | CloudArchiveDownloadResult
   | CloudArchiveRestoreResult
+  | CloudReleaseBackupResult
+  | CloudReleaseWithBackupResult
   | { opened: true }
   | { deleted: boolean }
 > {
@@ -38,4 +45,22 @@ export async function reconnectCloudDesktopWindow(): Promise<CloudDesktopWindowS
   if (!bridge?.cloudDesktop)
     throw new Error("cloud desktop window is unavailable");
   return bridge.invoke("cloud_desktop_window_reconnect");
+}
+
+export async function connectCloudDesktopView(): Promise<CloudDesktopViewConnection> {
+  const bridge = getElectronHostBridge();
+  if (!bridge?.cloudDesktop)
+    throw new Error("cloud desktop window is unavailable");
+  return bridge.invoke("cloud_desktop_window_view", {
+    request: { action: "connect" },
+  });
+}
+
+export async function showCloudDesktopViewPassword(): Promise<void> {
+  const bridge = getElectronHostBridge();
+  if (!bridge?.cloudDesktop)
+    throw new Error("cloud desktop window is unavailable");
+  await bridge.invoke("cloud_desktop_window_view", {
+    request: { action: "showPassword" },
+  });
 }

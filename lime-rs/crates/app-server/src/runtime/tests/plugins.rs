@@ -201,8 +201,8 @@ async fn plugin_install_invalidates_concurrent_old_mcp_snapshot_only_after_succe
         assert_eq!(
             core.install_plugin(PluginInstallParams {
                 marketplace_path: None,
-                remote_marketplace_name: Some("workspace-directory".into()),
-                plugin_name: "opaque~install".into(),
+                remote_marketplace_name: Some("lime-cloud-publisher".into()),
+                plugin_name: "item_research".into(),
                 install_attempt_id: None,
             })
             .await

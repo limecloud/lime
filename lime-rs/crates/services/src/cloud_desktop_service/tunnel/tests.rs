@@ -259,8 +259,8 @@ with (root/'calls').open('a') as out: out.write(json.dumps(args)+'\n')
 if args[1]=='DescribeInstances':
  print(json.dumps({'Instances':{'Instance':[{'InstanceId':'i-test','Status':'Running','OperationLocks':{}}]}}))
 elif args[1]=='StartTerminalSession':
- assert args[args.index('--PortNumber')+1]=='6080'
- assert args[args.index('--TargetServer')+1]=='127.0.0.1'
+ assert args[args.index('--PortNumber')+1]==((root/'expected-port').read_text() if (root/'expected-port').exists() else '6080')
+ assert args[args.index('--TargetServer')+1]==((root/'expected-address').read_text() if (root/'expected-address').exists() else '127.0.0.1')
  assert '--CommandLine' not in args
  print(json.dumps({'SessionId':'s-test','WebSocketUrl':'wss://cn-test.axt.aliyun.com/ws?sessionid=s-test&token=must-not-leak'}))
 else: sys.exit(2)
@@ -315,6 +315,55 @@ else: sys.exit(2)
             .data["state"],
         "closed"
     );
+    for (channel, port, target, scheme) in [
+        (
+            CloudDesktopTunnelChannel::Installation,
+            "8787",
+            "127.0.0.2",
+            "https",
+        ),
+        (
+            CloudDesktopTunnelChannel::AppServer,
+            "8787",
+            "127.0.0.1",
+            "ws",
+        ),
+    ] {
+        fs::write(directory.path().join("expected-port"), port).unwrap();
+        fs::write(directory.path().join("expected-address"), target).unwrap();
+        let opened = service
+            .request(CloudDesktopParams::OpenEcsTunnel {
+                resource: resource.clone(),
+                channel,
+            })
+            .await
+            .unwrap()
+            .data;
+        let endpoint = url::Url::parse(opened["endpoint"].as_str().unwrap()).unwrap();
+        assert_eq!(endpoint.scheme(), scheme);
+        assert_eq!(endpoint.host_str(), Some("127.0.0.1"));
+        assert!(endpoint.port().is_some());
+        assert_eq!(opened["persistent"], false);
+        assert!(!opened.to_string().contains("must-not-leak"));
+        service
+            .request(CloudDesktopParams::CloseEcsTunnel {
+                resource: resource.clone(),
+                channel,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            service
+                .request(CloudDesktopParams::ReadEcsTunnel {
+                    resource: resource.clone(),
+                    channel
+                })
+                .await
+                .unwrap()
+                .data["state"],
+            "closed"
+        );
+    }
     let mut wrong = resource;
     wrong.provider = CloudDesktopProvider::Wuying;
     assert!(service
@@ -324,4 +373,201 @@ else: sys.exit(2)
         })
         .await
         .is_err());
+}
+
+#[cfg(unix)]
+fn slow_session_service() -> (tempfile::TempDir, CloudDesktopService, CloudDesktopResource) {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let cli = directory.path().join("aliyun");
+    fs::write(
+        &cli,
+        r#"#!/usr/bin/env python3
+import json,pathlib,sys,time
+root=pathlib.Path(__file__).parent
+args=sys.argv[1:]
+with (root/'calls').open('a') as out: out.write(json.dumps(args)+'\n')
+if args[1]=='DescribeInstances':
+ identity=json.loads(args[args.index('--InstanceIds')+1])[0]
+ print(json.dumps({'Instances':{'Instance':[{'InstanceId':identity,'Status':'Running','OperationLocks':{}}]}}))
+elif args[1]=='StartTerminalSession':
+ assert args[args.index('--PortNumber')+1]=='6080'
+ assert args[args.index('--TargetServer')+1]=='127.0.0.1'
+ if args[args.index('--InstanceId.1')+1]=='i-slow':
+  (root/'pending').touch()
+  deadline=time.monotonic()+10
+  while not (root/'allow').exists():
+   if time.monotonic()>deadline: sys.exit(3)
+   time.sleep(0.01)
+  (root/'completed').touch()
+ print(json.dumps({'SessionId':'s-test','WebSocketUrl':'wss://cn-test.axt.aliyun.com/ws?sessionid=s-test&token=must-not-leak'}))
+else: sys.exit(2)
+"#,
+    )
+    .unwrap();
+    fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+    let service = CloudDesktopService {
+        root: directory.path().join("state"),
+        cli,
+    };
+    let resource = CloudDesktopResource {
+        provider: CloudDesktopProvider::Ecs,
+        region_id: "cn-test".into(),
+        resource_id: "i-slow".into(),
+        profile: "test".into(),
+    };
+    (directory, service, resource)
+}
+
+#[cfg(unix)]
+async fn wait_for_session_request(directory: &Path) {
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while !directory.join("pending").exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the fixture must reach the pending supplier request");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn slow_open_does_not_block_another_resource_reads_or_close() {
+    let (directory, service, resource) = slow_session_service();
+    let pending = {
+        let service = service.clone();
+        let resource = resource.clone();
+        tokio::spawn(async move { service.open_ecs_tunnel(resource, channel()).await })
+    };
+    wait_for_session_request(directory.path()).await;
+    let mut other = resource.clone();
+    other.resource_id = "i-fast".into();
+    let opened = tokio::time::timeout(
+        Duration::from_secs(2),
+        service.open_ecs_tunnel(other.clone(), channel()),
+    )
+    .await
+    .expect("an unrelated cloud API must not wait for the slow resource")
+    .unwrap();
+    assert_eq!(opened["state"], "listening");
+    let observed = tokio::time::timeout(
+        Duration::from_secs(1),
+        service.read_ecs_tunnel(&resource, channel()),
+    )
+    .await
+    .expect("status reads must not wait for session creation")
+    .unwrap();
+    assert_eq!(observed["state"], "closed");
+    assert!(observed.get("endpoint").is_none());
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        service.close_ecs_tunnel(&resource, channel()),
+    )
+    .await
+    .expect("close must cancel a pending supplier call")
+    .unwrap();
+    assert!(pending.await.unwrap().is_err());
+    fs::write(directory.path().join("allow"), b"").unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(
+        !directory.path().join("completed").exists(),
+        "the cancelled supplier subprocess must not continue after close"
+    );
+    service.close_ecs_tunnel(&other, channel()).await.unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn abandoning_the_last_opener_cancels_creation_and_only_an_explicit_open_starts_again() {
+    let (directory, service, resource) = slow_session_service();
+    let pending = {
+        let service = service.clone();
+        let resource = resource.clone();
+        tokio::spawn(async move { service.open_ecs_tunnel(resource, channel()).await })
+    };
+    wait_for_session_request(directory.path()).await;
+    pending.abort();
+    assert!(pending.await.unwrap_err().is_cancelled());
+    let identity = key(&service.root, &resource, channel());
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            let finished = TUNNELS.lock().await[&identity].task.is_finished();
+            if finished {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("abandoning the request must stop creation without an explicit close");
+    fs::write(directory.path().join("allow"), b"").unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(!directory.path().join("completed").exists());
+    assert_eq!(
+        service.read_ecs_tunnel(&resource, channel()).await.unwrap()["state"],
+        "closed"
+    );
+    let opened = service
+        .open_ecs_tunnel(resource.clone(), channel())
+        .await
+        .unwrap();
+    assert_eq!(opened["state"], "listening");
+    let calls = fs::read_to_string(directory.path().join("calls")).unwrap();
+    assert_eq!(
+        calls
+            .lines()
+            .filter(|line| line.contains("StartTerminalSession"))
+            .count(),
+        2,
+        "one cancelled request and one explicit new open, with no automatic retry"
+    );
+    service
+        .close_ecs_tunnel(&resource, channel())
+        .await
+        .unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn cancelling_one_of_two_openers_keeps_the_shared_request_for_the_other() {
+    let (directory, service, resource) = slow_session_service();
+    let open = || {
+        let service = service.clone();
+        let resource = resource.clone();
+        tokio::spawn(async move { service.open_ecs_tunnel(resource, channel()).await })
+    };
+    let first = open();
+    wait_for_session_request(directory.path()).await;
+    let second = open();
+    let identity = key(&service.root, &resource, channel());
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            let waiters = TUNNELS.lock().await[&identity]
+                .state
+                .waiting
+                .load(Ordering::Relaxed);
+            if waiters == 2 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    first.abort();
+    assert!(first.await.unwrap_err().is_cancelled());
+    fs::write(directory.path().join("allow"), b"").unwrap();
+    assert_eq!(second.await.unwrap().unwrap()["state"], "listening");
+    let calls = fs::read_to_string(directory.path().join("calls")).unwrap();
+    assert_eq!(
+        calls
+            .lines()
+            .filter(|line| line.contains("StartTerminalSession"))
+            .count(),
+        1
+    );
+    service
+        .close_ecs_tunnel(&resource, channel())
+        .await
+        .unwrap();
 }

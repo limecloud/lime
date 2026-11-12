@@ -46,6 +46,44 @@ fn lowers_tool_confirmation_to_codex_command_approval_request() {
 }
 
 #[test]
+fn file_change_approval_request_carries_sorted_unique_patch_destinations() {
+    let request = file_change_approval_request(&event(json!({
+        "requestId": "approval-patch-1",
+        "actionType": "tool_confirmation",
+        "toolName": "apply_patch",
+        "toolCallId": "item-patch-1",
+        "prompt": "Apply proposed file edits",
+        "cwd": "/workspace/lime",
+        "arguments": {
+            "patch": "*** Begin Patch\n\
+             *** Update File: path/update.py\n\
+             *** Move to: path/moved.py\n\
+             @@ def f():\n\
+             -    pass\n\
+             +    return 123\n\
+             *** Add File: path/add.py\n\
+             +abc\n\
+             *** End Patch"
+        }
+    })))
+    .expect("valid approval")
+    .expect("file change approval");
+
+    assert_eq!(
+        request.params.destinations,
+        vec![
+            "/workspace/lime/path/add.py".to_string(),
+            "/workspace/lime/path/moved.py".to_string(),
+            "/workspace/lime/path/update.py".to_string()
+        ]
+    );
+    assert_eq!(
+        request.params.reason.as_deref(),
+        Some("Apply proposed file edits")
+    );
+}
+
+#[test]
 fn lowers_managed_network_retry_to_network_only_approval_request() {
     let request = command_approval_request(&event(json!({
         "requestId": "approval-network-1",
@@ -146,6 +184,49 @@ fn routes_apply_patch_to_codex_file_change_approval_request() {
     assert_eq!(request.params.item_id, "item-file-1");
     assert_eq!(request.params.reason.as_deref(), Some("允许修改文件？"));
     assert_eq!(request.params.started_at_ms, 1784560000000);
+}
+
+#[test]
+fn fixture_shaped_apply_patch_action_required_selects_file_change_approval() {
+    let request = action_server_request(&event(json!({
+        "actionType": "tool_confirmation",
+        "actionKind": "tool_execution_policy",
+        "requestId": "terminal-file-approval",
+        "actionId": "terminal-file-approval",
+        "toolCallId": "terminal-patch-1",
+        "toolName": "apply_patch",
+        "toolFamily": "apply_patch",
+        "prompt": "Apply proposed file edits",
+        "arguments": {
+            "patch": "*** Begin Patch\n\
+             *** Add File: gate/fixture-approved.rs\n\
+             +fn approved() {}\n\
+             *** End Patch"
+        },
+        "cwd": "/tmp/workspace",
+        "runtime_contract": {
+            "contract_key": "apply_patch",
+            "tool_family": "apply_patch",
+            "session_cache_supported": false
+        },
+        "approvalScope": {
+            "contractKey": "apply_patch",
+            "toolFamily": "apply_patch",
+            "riskClass": "file_write_requires_approval",
+            "workingDirHash": "sha256:test"
+        },
+        "availableDecisions": ["allow_once", "allow_for_session", "decline", "cancel"]
+    })))
+    .expect("valid file change approval")
+    .expect("file change approval request");
+
+    let ActionServerRequest::FileChange(request) = request else {
+        panic!("apply_patch must use file change approval");
+    };
+    assert_eq!(
+        request.params.destinations,
+        vec!["/tmp/workspace/gate/fixture-approved.rs".to_string()]
+    );
 }
 
 #[test]

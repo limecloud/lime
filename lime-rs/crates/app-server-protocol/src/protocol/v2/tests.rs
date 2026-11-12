@@ -3336,7 +3336,6 @@ fn plugin_search_matches_codex_request_and_response_wire() {
                 "version": "1.0.0",
                 "localVersion": null,
                 "name": "Browser",
-                "shareContext": null,
                 "source": {"type": "local", "path": "/plugins/browser"},
                 "installed": false,
                 "installedAt": null,

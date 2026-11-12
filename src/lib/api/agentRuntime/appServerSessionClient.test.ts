@@ -1389,6 +1389,38 @@ describe("appServerSessionClient", () => {
     });
   });
 
+  it("fork 传入 beforeTurnId 时应透传到 thread/fork", async () => {
+    const appServerClient = appServerClientMock();
+    vi.mocked(appServerClient.request).mockResolvedValueOnce(
+      rpcResult({ data: [canonicalThread()] }) as never,
+    );
+    const client = createAppServerSessionClient({ appServerClient });
+
+    await client.forkAgentRuntimeSession("session-1", {
+      beforeTurnId: " turn-9 ",
+    });
+    expect(appServerClient.forkThread).toHaveBeenCalledWith({
+      threadId: "thread-1",
+      beforeTurnId: "turn-9",
+    });
+  });
+
+  it("fork 传入 cwd 时应透传到 thread/fork", async () => {
+    const appServerClient = appServerClientMock();
+    vi.mocked(appServerClient.request).mockResolvedValueOnce(
+      rpcResult({ data: [canonicalThread()] }) as never,
+    );
+    const client = createAppServerSessionClient({ appServerClient });
+
+    await client.forkAgentRuntimeSession("session-1", {
+      cwd: " /tmp/worktree-1 ",
+    });
+    expect(appServerClient.forkThread).toHaveBeenCalledWith({
+      threadId: "thread-1",
+      cwd: "/tmp/worktree-1",
+    });
+  });
+
   it("fork 返回不完整 Thread 时应 fail closed", async () => {
     const appServerClient = appServerClientMock();
     vi.mocked(appServerClient.request).mockResolvedValueOnce(

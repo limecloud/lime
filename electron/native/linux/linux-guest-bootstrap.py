@@ -8,6 +8,7 @@ guest credentials are returned only over that authenticated TLS connection.
 import argparse
 import hashlib
 import hmac
+import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 import ipaddress
@@ -25,6 +26,91 @@ import sys
 import threading
 import time
 import uuid
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+def download_url(value):
+    if not isinstance(value, str) or len(value) > 4096 or re.search(r"[\s\x00-\x1f\x7f]", value):
+        raise ValueError("Invalid artifact URL")
+    parsed = urllib.parse.urlsplit(value)
+    if (parsed.scheme != "https" or parsed.username is not None or parsed.password is not None
+            or parsed.fragment or parsed.port not in (None, 443) or not parsed.hostname
+            or "." not in parsed.hostname or not re.fullmatch(r"[A-Za-z0-9.-]+", parsed.hostname)):
+        raise ValueError("Invalid artifact URL")
+    try:
+        ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        return value
+    raise ValueError("Artifact URLs require a public DNS name")
+
+
+def public_address(value):
+    address = ipaddress.ip_address(value)
+    return (address.is_global and not address.is_multicast
+            and (address.version == 4 or (address in ipaddress.ip_network("2000::/3")
+                 and address.sixtofour is None and address.teredo is None)))
+
+
+class ArtifactHTTPSConnection(http.client.HTTPSConnection):
+    """Resolve once, reject every private address, then connect to the validated address."""
+    def connect(self):
+        addresses = socket.getaddrinfo(self.host, self.port, type=socket.SOCK_STREAM)
+        if (not addresses or len(addresses) > 16
+                or any(not public_address(item[4][0]) for item in addresses)):
+            raise OSError("Artifact host is not public")
+        for family, kind, protocol, _name, address in addresses:
+            if self.cancelled():
+                raise OSError("Download cancelled")
+            raw = socket.socket(family, kind, protocol)
+            raw.settimeout(self.timeout)
+            try:
+                raw.connect(address)
+                if self.cancelled():
+                    raise OSError("Download cancelled")
+                self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+                return
+            except OSError:
+                raw.close()
+        raise OSError("Artifact connection failed")
+
+
+def open_artifact(url, cancelled):
+    download_url(url)
+    if cancelled():
+        raise OSError("Download cancelled")
+
+    class HTTPS(urllib.request.HTTPSHandler):
+        def https_open(self, request):
+            download_url(request.full_url)
+
+            def connection(*args, **kwargs):
+                value = ArtifactHTTPSConnection(*args, **kwargs)
+                value.cancelled = cancelled
+                return value
+            return self.do_open(connection, request, context=ssl.create_default_context())
+
+    class Redirect(urllib.request.HTTPRedirectHandler):
+        max_redirections = 5
+        max_repeats = 1
+
+        def redirect_request(self, request, fp, code, message, headers, target):
+            try:
+                download_url(target)
+            except ValueError:
+                fp.close()
+                raise
+            return super().redirect_request(request, fp, code, message, headers, target)
+
+    # No workstation/cloud proxy, authentication, cookies or capability headers.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), HTTPS(), Redirect())
+    request = urllib.request.Request(url, headers={"Accept-Encoding": "identity", "User-Agent": "LimeGuest"})
+    try:
+        return opener.open(request, timeout=5)
+    except urllib.error.HTTPError as error:
+        error.close()
+        raise OSError("Artifact request failed") from None
 
 
 def load_installer():
@@ -47,22 +133,19 @@ def load_config(path):
         raise RuntimeError("Bootstrap configuration must be absolute")
     guest.private_directory(path.parent)
     config = json.loads(guest.private_read(path))
-    fields = {"operationId", "capabilitySha256", "archiveSha256", "manifestSha256",
-              "archiveBytes", "bindAddress", "publicAddress", "expiresAt"}
+    reconnect = isinstance(config, dict) and config.get("reconnect") is True
+    fields = {"operationId", "capabilitySha256", "expiresAt"}
+    fields |= {"reconnect"} if reconnect else {"archiveSha256", "manifestSha256", "archiveBytes"}
     if not isinstance(config, dict) or set(config) != fields:
         raise RuntimeError("Invalid bootstrap configuration")
     try:
         if str(uuid.UUID(config["operationId"])) != config["operationId"]:
             raise ValueError()
-        for name in ("capabilitySha256", "archiveSha256", "manifestSha256"):
+        for name in (("capabilitySha256",) if reconnect else ("capabilitySha256", "archiveSha256", "manifestSha256")):
             if not guest.sha256_value(config[name]):
                 raise ValueError()
-        for name in ("bindAddress", "publicAddress"):
-            address = ipaddress.IPv4Address(config[name])
-            if address.is_unspecified or address.is_multicast or str(address) != config[name]:
-                raise ValueError()
-        if (type(config["archiveBytes"]) is not int
-                or not 0 < config["archiveBytes"] <= guest.MAX_ARCHIVE_BYTES
+        if ((not reconnect and (type(config["archiveBytes"]) is not int
+                or not 0 < config["archiveBytes"] <= guest.MAX_ARCHIVE_BYTES))
                 or type(config["expiresAt"]) is not int
                 or not 0 < config["expiresAt"] - time.time() <= MAX_LIFETIME):
             raise ValueError()
@@ -102,6 +185,7 @@ class Installation:
         self.lock = threading.Lock()
         self.stopped = False
         self.process = None
+        self.download_thread = None
         self.phase, self.diagnostic = "waiting", None
         self.state_path = root / "state.json"
         self.archive = root / "runtime.tar.gz"
@@ -150,39 +234,89 @@ class Installation:
             self.save()
             return True
 
-    def accept(self, stream):
+    def reconnect(self):
+        with self.lock:
+            if (self.config.get("reconnect") is not True or self.stopped
+                    or self.phase != "waiting" or self.remaining() <= 0):
+                return False
+            self.phase = "installing"
+            self.save()
+        self.run_installer(["reconnect"])
+        return True
+
+    def download(self, url):
+        download_url(url)
+        if self.config.get("reconnect") is True or not self.begin():
+            return False
+
+        def receive():
+            try:
+                with open_artifact(url, lambda: self.stopped or self.remaining() <= 0) as response:
+                    if (response.status != 200
+                            or response.headers.get("Content-Encoding", "identity") != "identity"
+                            or response.headers.get_all("Content-Length", []) not in
+                            ([], [str(self.config["archiveBytes"])])):
+                        raise RuntimeError("Invalid artifact response")
+                    self.accept(response, check_eof=True)
+            except (OSError, ValueError, RuntimeError, http.client.HTTPException, subprocess.SubprocessError):
+                if not self.stopped:
+                    self.fail()
+
+        with self.lock:
+            if self.stopped or self.remaining() <= 0:
+                return False
+            self.download_thread = threading.Thread(target=receive, daemon=True)
+            self.download_thread.start()
+        return True
+
+    def accept(self, stream, check_eof=False):
         remaining = self.config["archiveBytes"]
-        fd = os.open(self.archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with self.lock:
+            if self.stopped or self.remaining() <= 0:
+                raise RuntimeError("Bootstrap expired")
+            fd = os.open(self.archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         result = hashlib.sha256()
         with os.fdopen(fd, "wb") as output:
             while remaining:
-                if self.remaining() <= 0:
+                if self.stopped or self.remaining() <= 0:
                     raise RuntimeError("Bootstrap expired")
-                block = stream.read(min(1024 * 1024, remaining))
-                if not block:
+                # One network read lets cancellation/expiry run between chunks,
+                # including when a peer keeps a large response slowly trickling.
+                read = stream.read1 if check_eof else stream.read
+                block = read(min(1024 * 1024, remaining))
+                if not block or len(block) > remaining:
                     raise RuntimeError("Incomplete upload")
+                if self.stopped or self.remaining() <= 0:
+                    raise RuntimeError("Bootstrap expired")
                 result.update(block)
                 output.write(block)
                 remaining -= len(block)
             output.flush()
             os.fsync(output.fileno())
+        if check_eof and stream.read(1):
+            raise RuntimeError("Artifact exceeds trusted size")
         if result.hexdigest() != self.config["archiveSha256"]:
             raise RuntimeError("Archive integrity mismatch")
         with self.lock:
+            if self.stopped or self.remaining() <= 0:
+                raise RuntimeError("Bootstrap expired")
             self.phase = "installing"
             self.save()
         # This fixed management-supplied installer runs as the desktop user.
         # Uploaded install.py is copied only after the trusted manifest check;
         # it is never executed by a privileged network process.
+        self.run_installer([
+            "install-archive", "--archive", str(self.archive),
+            "--archive-sha256", self.config["archiveSha256"],
+            "--manifest-sha256", self.config["manifestSha256"], "--start"])
+
+    def run_installer(self, arguments):
         install_script = Path(guest.__file__).resolve()
         with self.lock:
             if self.stopped:
                 raise RuntimeError("Bootstrap expired")
             process = subprocess.Popen(
-                ["/usr/bin/python3", "-I", str(install_script), "install-archive",
-                 "--archive", str(self.archive),
-                 "--archive-sha256", self.config["archiveSha256"],
-                 "--manifest-sha256", self.config["manifestSha256"], "--start"],
+                ["/usr/bin/python3", "-I", str(install_script), *arguments],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, start_new_session=True)
             self.process = process
@@ -203,6 +337,8 @@ class Installation:
 
     def fail(self):
         with self.lock:
+            if self.stopped:
+                return
             self.phase, self.diagnostic = "failed", "INSTALLATION_FAILED"
             self.save()
 
@@ -223,6 +359,8 @@ class Installation:
             if self.phase in ("receiving", "installing"):
                 self.phase, self.diagnostic = "failed", "INSTALLATION_INTERRUPTED"
                 self.save()
+        if self.download_thread and self.download_thread is not threading.current_thread():
+            self.download_thread.join(timeout=11)
 
     def cleanup(self):
         # Fixed operation-owned names only; retain the non-secret receipt.
@@ -379,7 +517,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     def do_PUT(self):
         if not self.authorize():
             return
-        if self.path != "/runtime":
+        if self.path != "/runtime" or self.server.installation.config.get("reconnect") is True:
             self.reply(404, {"error": "NOT_FOUND"})
             return
         sizes = self.headers.get_all("Content-Length", [])
@@ -402,11 +540,35 @@ class UploadHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.authorize():
             return
-        if self.path != "/finish":
+        if self.path == "/download" and self.server.installation.config.get("reconnect") is not True:
+            sizes = self.headers.get_all("Content-Length", [])
+            if (len(sizes) != 1 or len(sizes[0]) > 4 or not sizes[0].isdigit() or not 1 <= int(sizes[0]) <= 8192
+                    or self.headers.get_all("Transfer-Encoding") or self.headers.get_all("Expect")
+                    or self.headers.get_all("Content-Type", []) != ["application/json"]):
+                self.reply(400, {"error": "INVALID_LENGTH"})
+                return
+            try:
+                value = json.loads(self.rfile.read(int(sizes[0])))
+                if not isinstance(value, dict) or set(value) != {"downloadUrl"}:
+                    raise ValueError("Invalid download")
+                changed = self.server.installation.download(value["downloadUrl"])
+                self.reply(200 if changed else 409, self.server.installation.status())
+            except (ValueError, TypeError):
+                self.reply(400, {"error": "INVALID_SOURCE"})
+            return
+        if self.path not in ("/finish", "/reconnect"):
             self.reply(404, {"error": "NOT_FOUND"})
             return
         if self.headers.get_all("Transfer-Encoding") or self.headers.get_all("Content-Length", []) not in ([], ["0"]):
             self.reply(400, {"error": "INVALID_LENGTH"})
+            return
+        if self.path == "/reconnect":
+            try:
+                changed = self.server.installation.reconnect()
+                self.reply(200 if changed else 409, self.server.installation.status())
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                self.server.installation.fail()
+                self.reply(422, {"error": "RECONNECTION_FAILED"})
             return
         if not self.server.installation.finish():
             self.reply(409, {"error": "NOT_INSTALLED"})
@@ -420,12 +582,12 @@ def serve(root, config):
     try:
         if installation.phase == "finished":
             raise RuntimeError("Bootstrap operation is already closed")
-        public_certificate = certificate(root, config["publicAddress"])
+        public_certificate = certificate(root, "127.0.0.2")
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(root / "tls-cert.pem", root / "tls-key.pem")
         (root / "listener.json").unlink(missing_ok=True)
-        with UploadServer((config["bindAddress"], 8787), installation, context) as server:
+        with UploadServer(("127.0.0.2", 8787), installation, context) as server:
             def stop(_number, _frame):
                 threading.Thread(target=server.shutdown, daemon=True).start()
             signal.signal(signal.SIGTERM, stop)

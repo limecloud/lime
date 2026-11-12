@@ -4,27 +4,13 @@
  * @module hooks/useConfiguredProviders
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { apiKeyProviderApi, providerModelIds } from "@/lib/api/apiKeyProvider";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
 import { useApiKeyProvider } from "./useApiKeyProvider";
 import { getRegistryIdFromType } from "@/lib/constants/providerMappings";
 import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCacheSupport";
-import { isManagedLimeHubTenantModelEndpoint } from "@/lib/model/providerModelFetchSupport";
 import type { ProviderDeclaredPromptCacheMode } from "@/lib/types/provider";
-import {
-  DEFAULT_OEM_LIME_HUB_CHAT_MODEL,
-  OEM_LIME_HUB_PROVIDER_ID,
-} from "@/lib/oemLimeHubProvider";
-import {
-  resolveOemCloudRuntimeContext,
-  type OemCloudRuntimeContext,
-} from "@/lib/api/oemCloudRuntime";
-import {
-  subscribeOemCloudBootstrapChanged,
-  subscribeCloudAccount,
-} from "@/lib/cloudAccount";
-
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -76,10 +62,6 @@ interface LoadConfiguredProvidersOptions {
   forceRefresh?: boolean;
 }
 
-interface BuildConfiguredProvidersOptions {
-  oemRuntime?: OemCloudRuntimeContext | null;
-}
-
 function normalizeProviderType(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
@@ -103,8 +85,7 @@ function hasConfiguredKeylessAccess(
   }
 
   return (
-    normalizeProviderType(provider.type) === "ollama" ||
-    isManagedLimeHubTenantModelEndpoint({ apiHost })
+    normalizeProviderType(provider.type) === "ollama"
   );
 }
 
@@ -121,23 +102,12 @@ function hasProviderModelApiAccess(provider: ProviderWithKeysDisplay): boolean {
   );
 }
 
-function isLimeHubProvider(provider: ProviderWithKeysDisplay): boolean {
-  return provider.id.trim().toLowerCase() === OEM_LIME_HUB_PROVIDER_ID;
-}
-
-function hasOemCloudLogin(runtime?: OemCloudRuntimeContext | null): boolean {
-  return Boolean(runtime?.accountSessionId?.trim());
-}
-
 function resolveConfiguredProviderCustomModels(
   provider: ProviderWithKeysDisplay,
 ): string[] {
   const models = providerModelIds(provider.models);
   if (models.length > 0) {
     return Array.from(new Set(models));
-  }
-  if (isLimeHubProvider(provider) && hasConfiguredKeylessAccess(provider)) {
-    return [DEFAULT_OEM_LIME_HUB_CHAT_MODEL];
   }
   return [];
 }
@@ -165,18 +135,13 @@ function buildConfiguredProviderFromApiKeyProvider(
 
 export function buildConfiguredProviders(
   apiKeyProviders: ProviderWithKeysDisplay[],
-  options: BuildConfiguredProvidersOptions = {},
 ): ConfiguredProvider[] {
   const safeApiKeyProviders = Array.isArray(apiKeyProviders)
     ? apiKeyProviders
     : [];
-  const oemRuntime = options.oemRuntime;
   const providerMap = new Map<string, ConfiguredProvider>();
 
   safeApiKeyProviders.forEach((provider) => {
-    if (isLimeHubProvider(provider) && !hasOemCloudLogin(oemRuntime)) {
-      return;
-    }
     if (!providerMap.has(provider.id) && isConfiguredApiKeyProvider(provider)) {
       providerMap.set(
         provider.id,
@@ -251,9 +216,7 @@ export async function loadConfiguredProviders(
     : undefined;
   const apiKeyProviders = await apiKeyProviderApi.getProviders(sourceOptions);
 
-  return buildConfiguredProviders(apiKeyProviders, {
-    oemRuntime: resolveOemCloudRuntimeContext(),
-  });
+  return buildConfiguredProviders(apiKeyProviders);
 }
 
 // ============================================================================
@@ -286,36 +249,10 @@ export function useConfiguredProviders(
   options: UseConfiguredProvidersOptions = {},
 ): UseConfiguredProvidersResult {
   const { autoLoad = true } = options;
-  const [oemCloudRevision, setOemCloudRevision] = useState(0);
   const { providers: apiKeyProviders, loading: apiKeyLoading } =
     useApiKeyProvider({ autoLoad, hydrateUiState: false });
 
-  useEffect(() => {
-    if (!autoLoad) {
-      return;
-    }
-
-    const bumpRevision = () => setOemCloudRevision((revision) => revision + 1);
-    const unsubscribeSession = subscribeCloudAccount(bumpRevision);
-    const unsubscribeBootstrap =
-      subscribeOemCloudBootstrapChanged(bumpRevision);
-
-    return () => {
-      unsubscribeSession();
-      unsubscribeBootstrap();
-    };
-  }, [autoLoad]);
-
-  // 计算已配置的 Provider 列表
-  const providers = useMemo(() => {
-    if (!autoLoad) {
-      return buildConfiguredProviders(apiKeyProviders);
-    }
-    void oemCloudRevision;
-    return buildConfiguredProviders(apiKeyProviders, {
-      oemRuntime: resolveOemCloudRuntimeContext(),
-    });
-  }, [apiKeyProviders, autoLoad, oemCloudRevision]);
+  const providers = useMemo(() => buildConfiguredProviders(apiKeyProviders), [apiKeyProviders]);
 
   return {
     providers,

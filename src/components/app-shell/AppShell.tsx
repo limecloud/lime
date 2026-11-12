@@ -117,6 +117,7 @@ export function UnifiedTabStrip({
   sidePanelTabStrip,
   sidePanelActive,
   mainPaneEnd,
+  inlineMainToolbar,
   onContentTabDoubleClick,
 }: Omit<UnifiedTabStripEntry, "node"> & { children?: ReactNode }) {
   const registry = useHeaderRegistry();
@@ -132,6 +133,7 @@ export function UnifiedTabStrip({
       sidePanelTabStrip,
       sidePanelActive,
       mainPaneEnd,
+      inlineMainToolbar,
       onContentTabDoubleClick,
       node: children,
     };
@@ -148,6 +150,7 @@ export function UnifiedTabStrip({
     sidePanelTabStrip,
     sidePanelActive,
     mainPaneEnd,
+    inlineMainToolbar,
     onContentTabDoubleClick,
   ]);
   useLayoutEffect(

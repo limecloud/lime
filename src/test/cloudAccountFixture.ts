@@ -1,20 +1,18 @@
 import { afterEach, beforeEach, vi } from "vitest";
-import type { OemCloudCurrentSession } from "@/lib/api/oemCloudControlPlaneTypes";
-import { readCloudAccount, updateCloudSessionView } from "@/lib/cloudAccount";
+import { readCloudAccount } from "@/lib/cloudAccount";
 import type {
   AppServerAccount,
-  AppServerCloudRequestParams,
+  AppServerGetAccountResponse,
 } from "@/lib/api/appServerTypes";
 
 const fixture = vi.hoisted(() => ({
   account: null as AppServerAccount | null,
-  sessions: new Map<string, OemCloudCurrentSession>(),
+  authorizations: [] as AppServerGetAccountResponse["authorizations"],
   login: vi.fn(),
   logout: vi.fn(),
   read: vi.fn(),
   request: vi.fn(),
 }));
-
 vi.mock("@/lib/api/account", () => ({
   loginAccount: fixture.login,
   logoutAccount: fixture.logout,
@@ -25,114 +23,61 @@ vi.mock("@/lib/api/cloud", () => ({ requestCloud: fixture.request }));
 export const accountFixture = fixture;
 export const cloudRequestMock = fixture.request;
 
-type SessionInput = {
-  token?: string;
-  tenant: Pick<OemCloudCurrentSession["tenant"], "id"> &
-    Partial<OemCloudCurrentSession["tenant"]>;
-  user: Pick<OemCloudCurrentSession["user"], "id"> &
-    Partial<OemCloudCurrentSession["user"]>;
-  session: Pick<OemCloudCurrentSession["session"], "id"> &
-    Partial<OemCloudCurrentSession["session"]>;
-};
-
-export async function seedCloudAccount(
-  input: SessionInput,
-  baseUrl = "https://user.limeai.run",
-) {
-  const session: OemCloudCurrentSession = {
-    ...input,
-    tenant: { name: input.tenant.id, slug: input.tenant.id, ...input.tenant },
-    user: {
-      email: "",
-      displayName: input.user.id,
-      roles: [],
-      passwordConfigured: false,
-      ...input.user,
-    },
-    session: {
-      tenantId: input.tenant.id,
-      userId: input.user.id,
-      provider: "password",
-      roles: [],
-      issuedAt: "",
-      expiresAt: "",
-      ...input.session,
-    },
-  };
-  if (input.token) fixture.sessions.set(input.token, session);
-  fixture.account = {
+export function cloudAccountMetadata(
+  input: Partial<Extract<AppServerAccount, { type: "cloud" }>> = {},
+): Extract<AppServerAccount, { type: "cloud" }> {
+  return {
     type: "cloud",
-    baseUrl,
-    tenantId: session.tenant.id,
-    userId: session.user.id,
-    sessionId: session.session.id,
-    email: session.user.email,
-    displayName: session.user.displayName,
-    expiresAt: null,
+    baseUrl: "https://core.example.test",
+    issuer: "https://identity.example.test",
+    applicationId: "lime",
+    clientId: "lime-native",
+    environment: "sandbox",
+    userId: "user-one",
+    email: "user@example.test",
+    displayName: "Test User",
+    generation: "generation-one",
+    resources: [],
+    ...input,
   };
-  await readCloudAccount();
-  updateCloudSessionView(session);
-  return session;
 }
-
-/** Supplies a response at the typed RPC gateway, without emulating a renderer HTTP request. */
-export function stubCloudRequest(response: (...args: never[]) => unknown) {
-  fixture.request.mockImplementation(
-    async (_params: AppServerCloudRequestParams) => {
-      const result = (await response()) as {
-        status?: number;
-        ok?: boolean;
-        json: () => Promise<unknown>;
-      };
-      return {
-        status: result.status ?? (result.ok === false ? 500 : 200),
-        body: await result.json(),
-        account: fixture.account,
-      };
-    },
-  );
+export async function seedCloudAccount(
+  input: Partial<Extract<AppServerAccount, { type: "cloud" }>> = {},
+) {
+  fixture.account = cloudAccountMetadata(input);
+  await readCloudAccount();
+  return fixture.account;
 }
 
 beforeEach(async () => {
   fixture.account = null;
-  fixture.sessions.clear();
-  fixture.read.mockImplementation(async () => ({
+  fixture.authorizations = [];
+  fixture.read.mockReset().mockImplementation(async () => ({
     account: fixture.account,
-    requiresOpenaiAuth: false,
+    authorizations: fixture.authorizations,
   }));
-  fixture.login.mockImplementation(
-    async (params: {
-      baseUrl: string;
-      tenantId: string;
-      accessToken: string;
-    }) => {
-      const session = fixture.sessions.get(params.accessToken);
-      fixture.account = {
-        type: "cloud",
-        baseUrl: params.baseUrl,
-        tenantId: params.tenantId,
-        userId: session?.user.id ?? "user-001",
-        sessionId: session?.session.id ?? "session-001",
-        email: session?.user.email ?? null,
-        displayName: session?.user.displayName ?? null,
-        expiresAt: null,
-      };
-      return { type: "cloudAuthTokens" };
+  fixture.login.mockReset().mockResolvedValue({
+    authUrl: "https://identity.example.test/authorize?state=public-state",
+    authorization: {
+      id: "authorization-one",
+      resource: "default",
+      status: "pending",
     },
-  );
-  fixture.logout.mockImplementation(async () => {
+  });
+  fixture.logout.mockReset().mockImplementation(async () => {
     fixture.account = null;
+    fixture.authorizations = [];
     return {};
   });
   fixture.request.mockReset();
   await readCloudAccount();
 });
-
 afterEach(async () => {
   fixture.account = null;
+  fixture.authorizations = [];
   fixture.read.mockImplementation(async () => ({
     account: null,
-    requiresOpenaiAuth: false,
+    authorizations: [],
   }));
   await readCloudAccount();
 });

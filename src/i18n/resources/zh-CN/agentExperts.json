@@ -117,5 +117,9 @@
   "agentExperts.info.skills.timeline.invocationRunning": "执行中",
   "agentExperts.info.skills.timeline.invocationCompleted": "执行完成",
   "agentExperts.info.skills.timeline.invocationFailed": "执行失败",
-  "agentExperts.info.skills.timeline.invocationUnknown": "执行待确认"
+  "agentExperts.info.skills.timeline.invocationUnknown": "执行待确认",
+  "agentExperts.loading": "正在加载专家",
+  "agentExperts.loadFailed": "专家目录加载失败",
+  "agentExperts.retry": "重试",
+  "agentExperts.launchFailed": "专家启动失败，请重试"
 }

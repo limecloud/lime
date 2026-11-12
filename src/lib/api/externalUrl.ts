@@ -2,38 +2,6 @@ import { safeInvoke } from "@/lib/dev-bridge";
 import { assertNotDiagnosticFacade } from "./diagnosticFacade";
 import { assertEmptyElectronHostResult } from "./electronHostResult";
 
-export const OEM_CLOUD_OAUTH_CALLBACK_BRIDGE_EVENT = "oem-cloud-oauth-callback";
-
-export interface OemCloudOAuthCallbackBridgeStartResponse {
-  callbackUrl: string;
-}
-
-export interface OemCloudOAuthCallbackBridgePayload {
-  sourcePath: string;
-  tenantId?: string | null;
-  token?: string | null;
-  next?: string | null;
-  error?: string | null;
-  deviceCode?: string | null;
-  status?: string | null;
-}
-
-function assertOemCloudOAuthCallbackBridgeResponse(
-  value: unknown,
-): asserts value is OemCloudOAuthCallbackBridgeStartResponse {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    typeof (value as { callbackUrl?: unknown }).callbackUrl !== "string" ||
-    (value as { callbackUrl: string }).callbackUrl.trim().length === 0
-  ) {
-    throw new Error(
-      "start_oem_cloud_oauth_callback_bridge 未返回有效 OAuth 本机回调桥地址",
-    );
-  }
-}
-
 export async function openExternalUrlWithSystemBrowser(
   url: string,
 ): Promise<void> {
@@ -53,18 +21,5 @@ export async function isDefaultBrowser(): Promise<boolean> {
       "is_default_browser did not return a boolean Electron host result",
     );
   }
-  return result;
-}
-
-export async function startOemCloudOAuthCallbackBridge(): Promise<OemCloudOAuthCallbackBridgeStartResponse> {
-  const result = await safeInvoke<unknown>(
-    "start_oem_cloud_oauth_callback_bridge",
-  );
-  assertNotDiagnosticFacade(
-    "start_oem_cloud_oauth_callback_bridge",
-    result,
-    "真实 OAuth 本机回调桥 current 通道",
-  );
-  assertOemCloudOAuthCallbackBridgeResponse(result);
   return result;
 }

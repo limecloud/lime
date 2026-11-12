@@ -16,11 +16,24 @@ spec.loader.exec_module(launcher)
 def configuration():
     return {"operationId": str(uuid.uuid4()), "capabilitySha256": "c" * 64,
             "archiveSha256": "a" * 64, "manifestSha256": "b" * 64,
-            "archiveBytes": 1024, "bindAddress": "172.16.1.2", "publicAddress": "47.1.2.3",
+            "archiveBytes": 1024,
             "expiresAt": int(time.time()) + 120}
 
 
 class FixedLauncherTests(unittest.TestCase):
+    def test_reconnect_requires_an_existing_user_and_has_no_artifact(self):
+        config = configuration()
+        for key in ("archiveSha256", "manifestSha256", "archiveBytes"):
+            del config[key]
+        config["reconnect"] = True
+        launcher.validate_config(config)
+        with self.assertRaises(RuntimeError):
+            launcher.validate_config({**config, "archiveBytes": 1})
+        with patch.object(launcher.pwd, "getpwnam", side_effect=KeyError()), patch.object(launcher, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "userConflict"):
+                launcher.desktop_user(create=False)
+            run.assert_not_called()
+
     def test_network_identity_consent_descriptor_and_deadline_are_fixed(self):
         original = configuration()
         launcher.validate_config(original)
@@ -52,7 +65,7 @@ class FixedLauncherTests(unittest.TestCase):
                      "certificate": "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"}
             launcher.create_file(file, json.dumps(value).encode(), os.getuid(), os.getgid())
             result = launcher.ready_output(file, os.getuid(), config)
-            self.assertEqual(set(result), {"operationId", "phase", "expiresAt", "certificate", "publicAddress"})
+            self.assertEqual(set(result), {"operationId", "phase", "expiresAt", "certificate"})
             self.assertEqual(result["phase"], "uploadReady")
             for change in ({"operationId": str(uuid.uuid4())}, {"token": "secret"}, {"certificate": "secret"}):
                 file.write_text(json.dumps({**value, **change}))

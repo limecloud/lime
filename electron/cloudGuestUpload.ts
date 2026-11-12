@@ -1,41 +1,71 @@
 import { X509Certificate } from "node:crypto";
 import { request } from "node:https";
-import { isIP } from "node:net";
 import { pipeline } from "node:stream/promises";
 import { checkServerIdentity } from "node:tls";
 import type { FileHandle } from "node:fs/promises";
 import { Buffer } from "node:buffer";
+import { validateDownloadUrl } from "./cloudGuestArtifact";
 
 export type CloudGuestUpload = {
   operationId: string;
-  publicAddress: string;
   certificate: string;
   expiresAt: number;
 };
 
 /** This is a temporary artifact transport, never an agent task or shell endpoint. */
 export async function requestCloudGuestUpload(
-  target: CloudGuestUpload,
+  target: CloudGuestUpload & { endpoint: string },
   capability: string,
-  route: "/status" | "/runtime" | "/credentials" | "/finish",
+  route:
+    | "/status"
+    | "/runtime"
+    | "/credentials"
+    | "/finish"
+    | "/reconnect"
+    | "/download",
   signal: AbortSignal,
-  upload?: { file: FileHandle; bytes: number },
+  upload?: { file: FileHandle; bytes: number } | { downloadUrl: string },
 ): Promise<Record<string, unknown>> {
   try {
+    const endpoint = new URL(target.endpoint);
     if (
-      isIP(target.publicAddress) !== 4 ||
+      endpoint.protocol !== "https:" ||
+      endpoint.hostname !== "127.0.0.1" ||
+      !endpoint.port ||
+      Number(endpoint.port) === 0 ||
+      endpoint.pathname !== "/" ||
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.search ||
+      endpoint.hash ||
       !/^[a-f0-9]{64}$/u.test(capability) ||
       !Number.isSafeInteger(target.expiresAt) ||
       target.expiresAt * 1000 <= Date.now()
     )
       throw new Error("invalid target");
     const certificate = new X509Certificate(target.certificate);
-    if (!certificate.checkIP(target.publicAddress))
+    if (!certificate.checkIP("127.0.0.2"))
       throw new Error("invalid certificate identity");
     const method =
-      route === "/runtime" ? "PUT" : route === "/finish" ? "POST" : "GET";
-    if ((route === "/runtime") !== Boolean(upload))
+      route === "/runtime"
+        ? "PUT"
+        : route === "/finish" || route === "/reconnect" || route === "/download"
+          ? "POST"
+          : "GET";
+    const fileUpload = upload && "file" in upload ? upload : undefined;
+    const download = upload && "downloadUrl" in upload ? upload : undefined;
+    if (
+      (route === "/runtime") !== Boolean(fileUpload) ||
+      (route === "/download") !== Boolean(download)
+    )
       throw new Error("invalid upload");
+    const body = download
+      ? Buffer.from(
+          JSON.stringify({
+            downloadUrl: validateDownloadUrl(download.downloadUrl),
+          }),
+        )
+      : undefined;
     let responseResult!: Promise<Record<string, unknown>>;
     let resolveResponse!: (value: Record<string, unknown>) => void;
     let rejectResponse!: (error: unknown) => void;
@@ -45,8 +75,8 @@ export async function requestCloudGuestUpload(
     });
     const operation = request(
       {
-        hostname: target.publicAddress,
-        port: 8787,
+        hostname: "127.0.0.1",
+        port: Number(endpoint.port),
         path: route,
         method,
         agent: false,
@@ -54,14 +84,14 @@ export async function requestCloudGuestUpload(
         rejectUnauthorized: true,
         minVersion: "TLSv1.2",
         checkServerIdentity: (_host, cert) =>
-          checkServerIdentity(target.publicAddress, cert),
+          checkServerIdentity("127.0.0.2", cert),
         signal,
         timeout: 30_000,
         maxHeaderSize: 8192,
         headers: {
           Authorization: `Bearer ${capability}`,
-          "Content-Length": upload?.bytes ?? 0,
-          "Content-Type": upload ? "application/gzip" : "application/json",
+          "Content-Length": fileUpload?.bytes ?? body?.length ?? 0,
+          "Content-Type": fileUpload ? "application/gzip" : "application/json",
         },
       },
       (response) => {
@@ -102,14 +132,14 @@ export async function requestCloudGuestUpload(
       Math.min(600_000, target.expiresAt * 1000 - Date.now()),
     );
     try {
-      if (upload) {
+      if (fileUpload) {
         const sending = pipeline(
-          upload.file.createReadStream({ start: 0, autoClose: false }),
+          fileUpload.file.createReadStream({ start: 0, autoClose: false }),
           operation,
         );
         return (await Promise.all([responseResult, sending]))[0];
       }
-      operation.end();
+      operation.end(body);
       return await responseResult;
     } finally {
       clearTimeout(timer);

@@ -16,6 +16,7 @@ import type { AgentStreamTextOverlaySnapshot } from "../hooks/agentStreamTextOve
 import type { Message } from "../types";
 import { MessageListItem } from "./MessageListItem";
 import { ConversationTurnTimeline } from "./ConversationTurnTimeline";
+import { TurnRenderErrorBoundary } from "./TurnRenderErrorBoundary";
 import type {
   MessageListProps,
   MessageListRenderGroup,
@@ -25,6 +26,9 @@ import {
   RestoringSessionEmptyState,
   TaskCenterEmptyState,
 } from "./MessageListHistoryChrome";
+import { MessageListDateDivider } from "./MessageListDateDivider";
+import { buildConversationTranscript } from "../utils/conversationTranscript";
+import { subscribeCopyConversation } from "@/lib/conversationCopyEvents";
 import { MessageListStreamingOverlayItem } from "./MessageListStreamingOverlayItem";
 import { useMessageListHistoricalHydration } from "./useMessageListHistoricalHydration";
 import { useMessageListPromptCacheNotice } from "./useMessageListPromptCacheNotice";
@@ -106,6 +110,32 @@ const MessageListInner: React.FC<MessageListProps> = ({
   providerType,
 }) => {
   const { t } = useTranslation("agent");
+  useEffect(
+    () =>
+      subscribeCopyConversation(() => {
+        const transcript = buildConversationTranscript(messages, {
+          user: String(t("agentChat.messageList.copyTranscript.user")),
+          assistant: String(
+            t("agentChat.messageList.copyTranscript.assistant"),
+          ),
+          separator: "\n\n---\n\n",
+        });
+        if (!transcript) return;
+        void navigator.clipboard
+          .writeText(transcript)
+          .then(() => {
+            toast.success(
+              String(t("agentChat.messageList.copyTranscript.success")),
+            );
+          })
+          .catch(() => {
+            toast.error(
+              String(t("agentChat.messageList.copyTranscript.error")),
+            );
+          });
+      }),
+    [messages, t],
+  );
   const isTaskCenterEmptyState = emptyStateVariant === "task-center";
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const copyGenerationRef = useRef(0);
@@ -394,6 +424,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
             : `agentChat.messageList.threadRevert.${threadRevertStatus}`,
         );
 
+  const latestTurnId = useMemo(
+    () => turns[turns.length - 1]?.id?.trim() || "",
+    [turns],
+  );
   const renderMessageItem = useCallback(
     (
       msg: Message,
@@ -424,6 +458,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
         isRestoredHistoryWindow={historyState.isRestoredHistoryWindow}
         isSending={isSending}
         lastAssistantMessageId={timelineState.lastAssistantMessageId}
+        latestTurnId={latestTurnId}
         promptCacheNotice={promptCacheNotice}
         providerType={providerType}
         renderA2UIInline={renderA2UIInline}
@@ -473,6 +508,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       expandedLongHistoricalMessageIds,
       focusedTimelineItemId,
       handleCopy,
+      latestTurnId,
       handleExpandHistoricalAssistantMessage,
       handleExpandLongHistoricalMessage,
       handleRequestThreadRevert,
@@ -570,6 +606,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   <TaskCenterEmptyState />
                 ) : null)}
 
+              <MessageListDateDivider
+                timestamp={messages[0]?.timestamp ?? null}
+              />
               <VirtualizedTurnList
                 key={sessionId || activeThreadId || "conversation"}
                 entries={timelineState.renderEntries}
@@ -620,6 +659,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
                         data-render-priority="viewport"
                         className="py-1"
                       >
+                        <TurnRenderErrorBoundary
+                          turnId={entry.turn.id}
+                        >
                         <ConversationTurnTimeline
                           entry={entry}
                           sessionId={sessionId}
@@ -661,6 +703,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
                           onRequestThreadRevert={handleRequestThreadRevert}
                           onCodeBlockClick={onCodeBlockClick}
                         />
+                        </TurnRenderErrorBoundary>
                       </MessageTurnGroup>
                     );
                   }

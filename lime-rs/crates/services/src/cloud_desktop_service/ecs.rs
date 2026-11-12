@@ -3,7 +3,9 @@
 use super::*;
 use app_server_protocol::protocol::v2::EcsDesktopSpec;
 
+mod network;
 mod purchase;
+mod recommendation;
 mod templates;
 
 fn validate_spec(spec: &EcsDesktopSpec) -> Result<(), String> {
@@ -12,9 +14,11 @@ fn validate_spec(spec: &EcsDesktopSpec) -> Result<(), String> {
         &spec.profile,
         &spec.v_switch_id,
         &spec.security_group_id,
-        &spec.key_pair_name,
     ] {
         validate_id(value)?;
+    }
+    if !spec.key_pair_name.is_empty() {
+        validate_id(&spec.key_pair_name)?;
     }
     for value in [&spec.instance_type, &spec.image_id] {
         if value.is_empty()
@@ -163,22 +167,24 @@ impl CloudDesktopService {
         {
             return Err("ECS desktop requires x86 without GPU and at least 2 cores/4 GiB".into());
         }
-        let keys = self
-            .ecs(
-                spec,
-                &[
-                    "DescribeKeyPairs".into(),
-                    "--KeyPairName".into(),
-                    spec.key_pair_name.clone(),
-                ],
-            )
-            .await?;
-        exact_item(
-            &keys,
-            "/KeyPairs/KeyPair",
-            "KeyPairName",
-            &spec.key_pair_name,
-        )?;
+        if !spec.key_pair_name.is_empty() {
+            let keys = self
+                .ecs(
+                    spec,
+                    &[
+                        "DescribeKeyPairs".into(),
+                        "--KeyPairName".into(),
+                        spec.key_pair_name.clone(),
+                    ],
+                )
+                .await?;
+            exact_item(
+                &keys,
+                "/KeyPairs/KeyPair",
+                "KeyPairName",
+                &spec.key_pair_name,
+            )?;
+        }
         // Do not project the keypair public key, network permissions or image metadata.
         Ok(json!({ "zoneId": zone, "vpcId": vpc }))
     }

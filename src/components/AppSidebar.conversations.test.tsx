@@ -679,7 +679,25 @@ describe("AppSidebar conversations", () => {
     expect(menu?.textContent).toContain("创建永久工作树");
     expect(menu?.textContent).toContain("重命名项目");
     expect(menu?.textContent).not.toContain("归档对话");
+    expect(menu?.textContent).toContain("归档聊天");
     expect(menu?.textContent).toContain("移除");
+  });
+
+  it("项目菜单应支持归档项目内全部聊天", async () => {
+    await mountProjectMenuScenario();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await openProjectMenu("示例项目");
+    await clickConversationMenuItem(
+      "app-sidebar-project-menu-archive-threads",
+    );
+    await flushEffects(1);
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(mockArchiveAgentRuntimeSession).toHaveBeenCalledWith(
+      "session-project",
+    );
+    confirm.mockRestore();
   });
 
   it("项目菜单应支持置顶项目", async () => {
@@ -2423,6 +2441,15 @@ describe("AppSidebar conversations", () => {
     ).toContain("进行中");
     await act(async () => {
       container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-section-options"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+    await act(async () => {
+      document.body
         .querySelector<HTMLButtonElement>(
           '[data-testid="app-sidebar-new-thread-section-button"]',
         )

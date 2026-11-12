@@ -54,6 +54,26 @@ fn title_writes_are_deduplicated_and_only_managed_titles_are_cleared() {
     );
 }
 
+#[test]
+fn localized_loading_title_survives_sanitizing_and_hands_off_to_the_next_title() {
+    let mut title = ManagedTerminalTitle::default();
+    let mut output = Vec::new();
+    title.refresh(&mut output, Some("正在加载任务…")).unwrap();
+    title.refresh(&mut output, Some("Loading task…")).unwrap();
+    assert_eq!(
+        output,
+        "\x1b]0;正在加载任务…\x07\x1b]0;Loading task…\x07".as_bytes()
+    );
+    assert!(title.is_managed());
+    // The next frame restores the thread title without clearing the channel.
+    title
+        .refresh(&mut output, Some("Gate B background"))
+        .unwrap();
+    assert!(String::from_utf8(output)
+        .unwrap()
+        .contains("Gate B background"));
+}
+
 struct FailedOutput;
 impl Write for FailedOutput {
     fn write(&mut self, _: &[u8]) -> io::Result<usize> {

@@ -178,17 +178,7 @@ pub(super) fn remove(
     } else {
         None
     };
-    let clear_config = || store.clear_config(id);
-    let result = (|| {
-        if remote::is_marketplace(&id.marketplace) {
-            match store.remote_identity()? {
-                Some(identity) => remote::state::edit(store, &identity, id, None, clear_config),
-                None => clear_config(),
-            }
-        } else {
-            clear_config()
-        }
-    })();
+    let result = store.clear_config(id);
     if let Err(error) = result {
         if let Some(staging) = staging {
             fs::rename(staging.path().join("backup"), &base).map_err(|rollback| {

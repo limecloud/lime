@@ -135,3 +135,17 @@ fn lime_editor_control_aliases_are_routed_to_textarea() {
         KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL,)
     ));
 }
+
+#[test]
+fn describe_exposes_effective_bindings_with_config_paths() {
+    let entries = RuntimeKeymap::default().describe();
+    assert!(entries
+        .iter()
+        .any(|entry| entry.path == "tui.keymap.global.open_transcript" && !entry.keys.is_empty()));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.path == "tui.keymap.list.accept" && !entry.keys.is_empty()));
+    assert!(entries
+        .iter()
+        .all(|entry| entry.path.starts_with("tui.keymap.")));
+}

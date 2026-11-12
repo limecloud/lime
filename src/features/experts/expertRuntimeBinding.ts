@@ -6,22 +6,18 @@ import type {
 
 export interface BuildExpertRuntimeMetadataOptions {
   catalogVersion?: string;
-  tenantId?: string;
+  catalogId?: string;
   overlay?: ExpertInstallOverlayRecord | null;
   skillRefsOverride?: string[] | null;
 }
 
 export interface ExpertPersonalityBoundary {
-
-
   expertPersonaScope: "current_expert_session";
 
   formalArtifactVoiceSource: "generation_brief_only";
 }
 
 export interface ExpertPersonalityBoundaryMetadata {
-
-
   expert_persona_scope: "current_expert_session";
 
   formal_artifact_voice_source: "generation_brief_only";
@@ -35,7 +31,7 @@ export interface ExpertRuntimeMetadata extends Record<string, unknown> {
     category: string;
     source: string;
     catalogVersion?: string;
-    tenantId?: string;
+    catalogId?: string;
     personaRef: string;
     personaHash?: string;
     memoryTemplateRef?: string;
@@ -53,7 +49,7 @@ export interface ExpertRuntimeMetadata extends Record<string, unknown> {
       category: string;
       source: string;
       catalog_version?: string;
-      tenant_id?: string;
+      catalog_id?: string;
       persona_ref: string;
       persona_hash?: string;
       memory_template_ref?: string;
@@ -89,8 +85,6 @@ export function buildExpertRuntimeMetadata(
       ? [...options.skillRefsOverride]
       : [...expert.release.skillRefs];
   const personalityBoundary: ExpertPersonalityBoundary = {
-
-
     expertPersonaScope: "current_expert_session",
 
     formalArtifactVoiceSource: "generation_brief_only",
@@ -102,7 +96,7 @@ export function buildExpertRuntimeMetadata(
     category: expert.category,
     source: expert.source,
     catalogVersion: optionalString(options.catalogVersion),
-    tenantId: optionalString(options.tenantId),
+    catalogId: optionalString(options.catalogId),
     personaRef: expert.release.personaRef,
     personaHash: optionalString(expert.release.personaHash),
     memoryTemplateRef: memoryEnabled
@@ -125,7 +119,7 @@ export function buildExpertRuntimeMetadata(
         category: common.category,
         source: common.source,
         catalog_version: common.catalogVersion,
-        tenant_id: common.tenantId,
+        catalog_id: common.catalogId,
         persona_ref: common.personaRef,
         persona_hash: common.personaHash,
         memory_template_ref: common.memoryTemplateRef,
@@ -134,8 +128,6 @@ export function buildExpertRuntimeMetadata(
         memory_enabled: common.memoryEnabled,
         workflow_enabled: common.workflowEnabled,
         personality_boundary: {
-
-
           expert_persona_scope: common.personalityBoundary.expertPersonaScope,
 
           formal_artifact_voice_source:

@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { requestCloudDesktop } from "@/lib/api/cloud";
 import { SettingsAction } from "../../SettingsPrimitives";
 import { object } from "./cloudDesktopData";
 
 type Connection = {
-  status: "disconnected" | "preparing" | "authorizing" | "connected" | "failed";
+  status:
+    | "disconnected"
+    | "preparing"
+    | "authorizing"
+    | "verifying"
+    | "connected"
+    | "failed";
   profile?: string;
   errorCode?: string;
 };
@@ -39,6 +46,7 @@ export function AlibabaConnection({
         "disconnected",
         "preparing",
         "authorizing",
+        "verifying",
         "connected",
         "failed",
       ].includes(String(data.status)) ||
@@ -84,7 +92,7 @@ export function AlibabaConnection({
   useEffect(() => {
     if (
       !connection ||
-      !["preparing", "authorizing"].includes(connection.status)
+      !["preparing", "authorizing", "verifying"].includes(connection.status)
     )
       return;
     let cancelled = false;
@@ -130,7 +138,8 @@ export function AlibabaConnection({
     }
   }
   const authorizing =
-    connection && ["preparing", "authorizing"].includes(connection.status);
+    connection &&
+    ["preparing", "authorizing", "verifying"].includes(connection.status);
   useEffect(() => {
     onAuthorizingChange(pending || !!authorizing);
     return () => onAuthorizingChange(false);
@@ -149,9 +158,11 @@ export function AlibabaConnection({
           {t(
             error === "read"
               ? "settings.cloudDesktop.refresh"
-              : connected
-                ? "settings.cloudDesktop.switchAlibaba"
-                : "settings.cloudDesktop.connectAlibaba",
+              : error || connection?.status === "failed"
+                ? "settings.cloudDesktop.retryAlibaba"
+                : connected
+                  ? "settings.cloudDesktop.switchAlibaba"
+                  : "settings.cloudDesktop.connectAlibaba",
           )}
         </SettingsAction>
         {connected && (
@@ -163,12 +174,20 @@ export function AlibabaConnection({
       <p className="text-muted-foreground">
         {t("settings.cloudDesktop.alibabaAuthorizationDescription")}
       </p>
-      {authorizing && (
-        <p role="status">
+      {(pending || authorizing) && (
+        <p
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="flex items-center gap-2"
+        >
+          <Loader2 aria-hidden className="size-3.5 animate-spin" />
           {t(
-            connection.status === "preparing"
-              ? "settings.cloudDesktop.preparingAlibaba"
-              : "settings.cloudDesktop.authorizingAlibaba",
+            connection?.status === "verifying"
+              ? "settings.cloudDesktop.verifyingAlibaba"
+              : connection?.status === "authorizing"
+                ? "settings.cloudDesktop.authorizingAlibaba"
+                : "settings.cloudDesktop.preparingAlibaba",
           )}
         </p>
       )}
@@ -179,7 +198,11 @@ export function AlibabaConnection({
               ? "settings.cloudDesktop.alibabaConnectionReadFailed"
               : connection?.errorCode === "cliUnavailable"
                 ? "settings.cloudDesktop.alibabaCliUnavailable"
-                : "settings.cloudDesktop.alibabaAuthorizationFailed",
+                : ["verificationFailed", "verificationInterrupted"].includes(
+                      connection?.errorCode ?? "",
+                    )
+                  ? "settings.cloudDesktop.alibabaVerificationFailed"
+                  : "settings.cloudDesktop.alibabaAuthorizationFailed",
           )}{" "}
           <a
             className="underline"

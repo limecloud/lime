@@ -13,50 +13,8 @@ use app_server_protocol::protocol::v2::{
     MarketplaceAddParams, MarketplaceAddResponse, MarketplaceRemoveParams,
     MarketplaceRemoveResponse, MarketplaceUpgradeParams, MarketplaceUpgradeResponse,
 };
-use app_server_protocol::protocol::v2::{
-    PluginShareCheckoutParams, PluginShareCheckoutResponse, PluginShareDeleteParams,
-    PluginShareDeleteResponse, PluginShareListParams, PluginShareListResponse,
-    PluginShareSaveParams, PluginShareSaveResponse, PluginShareUpdateTargetsParams,
-    PluginShareUpdateTargetsResponse,
-};
 
 impl RuntimeCore {
-    pub async fn checkout_plugin_share(
-        &self,
-        params: PluginShareCheckoutParams,
-    ) -> Result<PluginShareCheckoutResponse, RuntimeCoreError> {
-        self.app_data_source.checkout_plugin_share(params).await
-    }
-    pub async fn save_plugin_share(
-        &self,
-        params: PluginShareSaveParams,
-    ) -> Result<PluginShareSaveResponse, RuntimeCoreError> {
-        self.app_data_source.save_plugin_share(params).await
-    }
-
-    pub async fn list_plugin_shares(
-        &self,
-        params: PluginShareListParams,
-    ) -> Result<PluginShareListResponse, RuntimeCoreError> {
-        self.app_data_source.list_plugin_shares(params).await
-    }
-
-    pub async fn update_plugin_share_targets(
-        &self,
-        params: PluginShareUpdateTargetsParams,
-    ) -> Result<PluginShareUpdateTargetsResponse, RuntimeCoreError> {
-        self.app_data_source
-            .update_plugin_share_targets(params)
-            .await
-    }
-
-    pub async fn delete_plugin_share(
-        &self,
-        params: PluginShareDeleteParams,
-    ) -> Result<PluginShareDeleteResponse, RuntimeCoreError> {
-        self.app_data_source.delete_plugin_share(params).await
-    }
-
     pub async fn add_marketplace(
         &self,
         params: MarketplaceAddParams,
@@ -140,9 +98,18 @@ impl RuntimeCore {
         params: PluginListParams,
     ) -> Result<PluginListResponse, RuntimeCoreError> {
         let mut response = self.app_data_source.list_plugins(params.clone()).await?;
-        response
-            .marketplaces
-            .extend(remote::list(self, &params).await?);
+        match tokio::time::timeout(std::time::Duration::from_secs(30), remote::list(self, &params)).await {
+            Ok(Ok(marketplaces)) => response.marketplaces.extend(marketplaces),
+            result => response.marketplace_load_errors.push(
+                app_server_protocol::protocol::v2::MarketplaceLoadErrorInfo {
+                    marketplace_path: "lime-cloud".into(),
+                    message: match result {
+                        Ok(Err(error)) => error.to_string(),
+                        _ => "shared market request timed out".into(),
+                    },
+                },
+            ),
+        }
         Ok(response)
     }
 

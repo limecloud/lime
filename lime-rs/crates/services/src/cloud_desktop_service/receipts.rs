@@ -94,6 +94,17 @@ impl CloudDesktopService {
                         "Cloud desktop release is unresolved; inspect operation {id} before another change"
                     ));
                 }
+                if matches!(
+                    receipt["request"]["action"].as_str(),
+                    Some("scheduleEcsRelease" | "cancelEcsRelease")
+                ) && !matches!(
+                    receipt["outcome"].as_str(),
+                    Some("released" | "releaseCancelled" | "scheduleCancelled")
+                ) && (action != "cancelEcsRelease"
+                    || receipt["request"]["action"] == "cancelEcsRelease")
+                {
+                    return Err(format!("Cloud desktop release schedule is unresolved; inspect or cancel operation {id} before another change"));
+                }
                 if receipt["request"]["action"] == "restoreSnapshot"
                     && receipt["outcome"] != "verified"
                     && !matches!(action, "start" | "stop")
@@ -102,13 +113,26 @@ impl CloudDesktopService {
                         "Snapshot restore is unresolved; inspect and verify operation {id} before another destructive change"
                     ));
                 }
+                if receipt["request"]["action"] == "createEcsImage"
+                    && !matches!(
+                        receipt["outcome"].as_str(),
+                        Some("imageReady" | "imageFailed")
+                    )
+                {
+                    return Err(format!(
+                        "System image is unresolved; inspect operation {id} before another change"
+                    ));
+                }
                 if matches!(
                     receipt["request"]["action"].as_str(),
-                    Some("prepareEcsDesktop" | "startEcsRuntimeInstallation")
+                    Some(
+                        "prepareEcsDesktop" | "startEcsRuntimeInstallation" | "reconnectEcsRuntime"
+                    )
                 ) && !matches!(
                     receipt["outcome"].as_str(),
                     Some(
-                        "dependenciesReady"
+                        "waitingForAgent"
+                            | "dependenciesReady"
                             | "preparationFailed"
                             | "notSubmitted"
                             | "runtimeUploadReady"
@@ -125,19 +149,32 @@ impl CloudDesktopService {
     }
 
     pub(super) fn finalize_receipt(&self, operation_id: &str, receipt: &Value) {
+        let _ = self.replace_receipt(operation_id, receipt);
+    }
+
+    pub(super) fn replace_receipt(
+        &self,
+        operation_id: &str,
+        receipt: &Value,
+    ) -> Result<(), String> {
         // Never remove the original durable unknown receipt on a write failure.
         // A file left by an interrupted writer must not block later inspection.
         let pending = self
             .root
             .join(format!("{operation_id}-{}.pending", uuid::Uuid::new_v4()));
-        if let Ok(mut output) = private_open(&pending, true) {
-            if serde_json::to_writer(&mut output, receipt).is_ok() && output.sync_all().is_ok() {
-                if fs::rename(pending, self.root.join(format!("{operation_id}.json"))).is_ok() {
-                    #[cfg(unix)]
-                    let _ = File::open(&self.root).and_then(|directory| directory.sync_all());
-                }
-            }
-        }
+        let mut output = private_open(&pending, true)?;
+        serde_json::to_writer(&mut output, receipt)
+            .map_err(|_| "Cannot encode operation receipt")?;
+        output
+            .sync_all()
+            .map_err(|_| "Cannot persist operation receipt")?;
+        fs::rename(pending, self.root.join(format!("{operation_id}.json")))
+            .map_err(|_| "Cannot replace operation receipt")?;
+        #[cfg(unix)]
+        File::open(&self.root)
+            .and_then(|directory| directory.sync_all())
+            .map_err(|_| "Cannot sync operation directory")?;
+        Ok(())
     }
 
     pub(super) fn ensure_root(&self) -> Result<(), String> {
@@ -228,7 +265,8 @@ impl CloudDesktopService {
                     operations.push(
                         json!({ "operationId": id, "action": receipt["request"]["action"],
                         "outcome": receipt["outcome"], "createdAt": receipt["createdAt"],
-                        "resource": receipt["request"]["resource"] }),
+                        "resource": receipt["request"]["resource"],
+                        "releaseAt": receipt["request"]["releaseAt"] }),
                     );
                 }
                 continue;
@@ -261,8 +299,10 @@ impl CloudDesktopService {
         // resource after its exact release has been observed, before truncation.
         resources.retain(|resource| {
             !operations.iter().any(|operation| {
-                operation["action"] == "release"
-                    && operation["outcome"] == "released"
+                matches!(
+                    operation["action"].as_str(),
+                    Some("release" | "scheduleEcsRelease" | "cancelEcsRelease")
+                ) && operation["outcome"] == "released"
                     && operation["resource"] == serde_json::to_value(resource).unwrap()
             })
         });
@@ -295,6 +335,7 @@ impl CloudDesktopService {
             return Err("Cloud receipt identity mismatch".into());
         }
         if value["request"]["action"] == "release" {
+            self.validate_release_image_receipt(&value)?;
             let resource: CloudDesktopResource =
                 serde_json::from_value(value["request"]["resource"].clone())
                     .map_err(|_| "Invalid release receipt resource")?;
@@ -328,13 +369,28 @@ impl CloudDesktopService {
         if value["request"]["action"] == "restoreSnapshot" {
             self.validate_restore_receipt(&value)?;
         }
+        if matches!(
+            value["request"]["action"].as_str(),
+            Some("scheduleEcsRelease" | "cancelEcsRelease")
+        ) {
+            self.validate_release_schedule_receipt(&value)?;
+        }
+        if value["request"]["action"] == "createEcsImage" {
+            self.validate_ecs_image_receipt(&value)?;
+        }
         if value["request"]["action"] == "purchaseEcs" {
             self.validate_ecs_purchase_receipt(&value)?;
+        }
+        if value["request"]["action"] == "prepareEcsPurchase" {
+            self.validate_ecs_purchase_preparation(&value)?;
         }
         if value["request"]["action"] == "prepareEcsDesktop" {
             self.validate_preparation_receipt(&value)?;
         }
-        if value["request"]["action"] == "startEcsRuntimeInstallation" {
+        if matches!(
+            value["request"]["action"].as_str(),
+            Some("startEcsRuntimeInstallation" | "reconnectEcsRuntime")
+        ) {
             self.validate_runtime_installation_receipt(&value)?;
         }
         Ok(Some(value))

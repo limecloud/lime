@@ -6,7 +6,6 @@ import {
   changeLimeLocale,
   cleanupAppSidebarTest,
   flushEffects,
-  mockStartOemCloudLogin,
   mockToastError,
   mountSidebarContainer,
   resetAppSidebarTest,
@@ -46,13 +45,9 @@ describe("AppSidebar profile footer", () => {
 
   it("展开和折叠均在 rail 底部保留紧凑账号入口，菜单使用共享账号投影", async () => {
     await seedCloudAccount({
-      tenant: { id: "tenant-0001" },
-      user: {
-        id: "user-001",
-        displayName: "晚风",
-        email: "wanfeng@example.com",
-      },
-      session: { id: "session-001" },
+      userId: "user-001",
+      displayName: "晚风",
+      email: "wanfeng@example.com",
     });
     const onNavigate = vi.fn();
     const container = mountSidebarContainer({
@@ -88,17 +83,20 @@ describe("AppSidebar profile footer", () => {
     expect(footer.contains(accountButton)).toBe(true);
     const menu = await openProfileMenu(container);
     expect(menu.textContent).toContain("wanfeng@example.com");
-    await act(async () => menuItem(menu, "个人资料").click());
+    await act(async () => {
+      [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+        .find((item) => item.textContent?.startsWith("设置"))!
+        .click();
+    });
     expect(onNavigate).toHaveBeenCalledWith("settings", {
-      tab: SettingsTabs.Profile,
+      tab: SettingsTabs.General,
     });
   });
 
   it("退出登录调用 canonical 账号 owner，随后菜单切到登录动作", async () => {
     await seedCloudAccount({
-      tenant: { id: "tenant-0001" },
-      user: { id: "user-001", displayName: "晚风" },
-      session: { id: "session-001" },
+      userId: "user-001",
+      displayName: "晚风",
     });
     const container = mountSidebarContainer();
     await flushEffects(2);
@@ -111,9 +109,7 @@ describe("AppSidebar profile footer", () => {
   });
 
   it("未登录可打开登录，失败仍可重试", async () => {
-    mockStartOemCloudLogin.mockRejectedValueOnce(
-      new Error("login unavailable"),
-    );
+    accountFixture.login.mockRejectedValueOnce(new Error("login unavailable"));
     const container = mountSidebarContainer();
     await flushEffects(2);
     let menu = await openProfileMenu(container);
@@ -121,7 +117,7 @@ describe("AppSidebar profile footer", () => {
     expect(mockToastError).toHaveBeenCalledWith("login unavailable");
     menu = await openProfileMenu(container);
     await act(async () => menuItem(menu, "登录").click());
-    expect(mockStartOemCloudLogin).toHaveBeenCalledTimes(2);
+    expect(accountFixture.login).toHaveBeenCalledTimes(2);
   });
 
   it("五语言均提供账号菜单可访问名称", async () => {

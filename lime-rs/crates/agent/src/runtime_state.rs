@@ -276,6 +276,16 @@ impl AgentRuntimeState {
         Ok(())
     }
 
+    pub async fn register_gateway_tool(
+        &self,
+        registration: tool_runtime::gateway_dispatch_execution::RuntimeGatewayToolExecutionRegistration,
+    ) -> Result<(), String> {
+        self.register_native_tool(crate::native_tools::NativeRegistration::gateway(
+            registration,
+        ))
+        .await
+    }
+
     pub async fn register_memory_store_tools(
         &self,
         gateway: Arc<dyn tool_runtime::memory_store::MemoryStoreGateway>,

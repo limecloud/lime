@@ -492,6 +492,384 @@ fn mcp_slash_command_rejects_unknown_arguments_with_localized_usage() {
 }
 
 #[test]
+fn permissions_slash_command_opens_the_picker_and_keeps_inline_arguments() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .set_permission_profiles(["default".to_string(), "read-only".to_string()]);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/permissions".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.permissions_picker_open());
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(enter, AppAction::SelectPermissions("default".to_string()));
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/permissions default".to_string());
+    assert_eq!(app.run_local_command(), None);
+}
+
+#[test]
+fn effort_slash_command_opens_the_picker_and_keeps_inline_arguments() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/effort".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.effort_picker_open());
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(enter, AppAction::SelectEffort("medium".to_string()));
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/effort high".to_string());
+    assert_eq!(app.run_local_command(), None);
+}
+
+#[test]
+fn keymap_slash_command_lists_bindings() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/keymap".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ListKeymap));
+}
+
+#[test]
+fn skills_slash_command_lists_available_skills() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/skills".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ListSkills));
+}
+
+#[test]
+fn hooks_slash_command_lists_configured_hooks() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/hooks".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ListHooks));
+}
+
+#[test]
+fn config_slash_command_opens_the_configuration_menu() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/config".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.config_menu_open());
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(enter, AppAction::OpenModelPicker);
+
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.open_config_menu();
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    let effort = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(effort, AppAction::OpenEffortPicker);
+}
+
+#[test]
+fn clear_slash_command_starts_a_new_chat() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/clear".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ClearConversation));
+}
+
+#[test]
+fn quit_slash_command_exits_the_tui() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/quit".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::Quit));
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/exit".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::Quit));
+}
+
+#[test]
+fn experimental_slash_command_lists_and_toggles_features() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/experimental".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::ListExperimentalFeatures)
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/experimental workspace_dependencies off".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::SetExperimentalFeature {
+            name: "workspace_dependencies".to_string(),
+            enabled: false,
+        })
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/experimental workspace_dependencies".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert_eq!(
+        app.projection.status(),
+        "Usage: /experimental [<name> <on|off>]"
+    );
+}
+
+#[test]
+fn review_slash_command_opens_the_preset_picker() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/review".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.review_picker_open());
+}
+
+#[test]
+fn review_picker_maps_enter_and_custom_selection() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.open_review_picker();
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(enter, AppAction::ReviewUncommitted);
+    assert!(!app.chat_widget.review_picker_open());
+
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.open_review_picker();
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    let custom = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(custom, AppAction::None);
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "/review ");
+}
+
+#[test]
+fn review_slash_command_accepts_branch_and_commit_targets() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/review branch main".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::ReviewBaseBranch {
+            branch: "main".to_string()
+        })
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/review commit 1234abc".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::ReviewCommit {
+            sha: "1234abc".to_string()
+        })
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/review branch".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert_eq!(app.projection.status(), "Usage: /review branch <branch>");
+}
+
+#[test]
+fn review_slash_command_appends_custom_instructions() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/review focus on runtime errors".to_string());
+    let Some(AppAction::Submit { text, .. }) = app.run_local_command() else {
+        panic!("/review must submit a prompt");
+    };
+    assert!(text.contains("focus on runtime errors"));
+    assert!(text.starts_with("Review the current repository changes."));
+}
+
+#[test]
+fn fork_slash_command_forks_the_thread() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/fork".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ForkThread));
+}
+
+#[test]
+fn delete_slash_command_opens_the_confirmation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/delete".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.confirm_prompt_open());
+    assert_eq!(
+        app.chat_widget.confirm_kind(),
+        Some(crate::app::confirm_prompt::ConfirmKind::DeleteThread)
+    );
+}
+
+#[test]
+fn delete_confirmation_maps_enter_to_delete() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .open_confirm_prompt(crate::app::confirm_prompt::ConfirmPrompt::delete_thread());
+    let down = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(down, AppAction::None);
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(enter, AppAction::DeleteThread);
+}
+
+#[test]
+fn archive_confirmation_maps_enter_to_archive() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .open_confirm_prompt(crate::app::confirm_prompt::ConfirmPrompt::archive());
+    let down = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(down, AppAction::None);
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(enter, AppAction::ArchiveThread);
+    assert!(!app.chat_widget.confirm_prompt_open());
+}
+
+#[test]
+fn archive_slash_command_opens_the_confirmation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/archive".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.confirm_prompt_open());
+}
+
+#[test]
+fn compact_slash_command_compacts_the_thread() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/compact".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::CompactThread));
+}
+
+#[test]
+fn rename_slash_command_requires_a_name_and_builds_the_action() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/rename".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert_eq!(app.projection.status(), "Usage: /rename <name>");
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/rename Gate Renamed".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::RenameThread {
+            name: "Gate Renamed".to_string()
+        })
+    );
+}
+
+#[test]
+fn new_slash_command_starts_a_new_thread() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/new".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::StartNewThread));
+}
+
+#[test]
+fn init_slash_command_submits_the_contributor_guide_prompt() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/init".to_string());
+    let Some(AppAction::Submit {
+        text,
+        text_elements,
+    }) = app.run_local_command()
+    else {
+        panic!("/init must submit a prompt");
+    };
+    assert!(text.contains("Generate a file named AGENTS.md"));
+    assert!(text_elements.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
+}
+
+#[test]
 fn mcp_login_slash_command_requires_one_server_name_and_active_thread() {
     let mut app = App::default();
     app.set_locale(Locale::EnUs);

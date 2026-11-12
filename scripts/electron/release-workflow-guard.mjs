@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { validateReleaseCandidateWorkflow } from "./lib/release-workflow-candidate-guard.mjs";
 import { validateReleaseMatrix } from "./lib/release-workflow-matrix-guard.mjs";
+import { validateCloudGuestRelease } from "./lib/release-workflow-cloud-guest-guard.mjs";
 
 const DEFAULT_WORKFLOW_PATH = ".github/workflows/release.yml";
 const DEFAULT_FORGE_CONFIG_PATH = "forge.config.mjs";
@@ -975,6 +976,7 @@ function validateReleaseWorkflow({
   validateReleaseCandidateWorkflow(workflow);
   assertBuildSteps(buildJob);
   assertPublishSteps(workflow);
+  validateCloudGuestRelease(workflow);
   assertNoRetiredPackagingInputs(workflowText, "release workflow");
   assertNoRetiredPackagingFiles(repositoryRoot);
   assertForgeConfig(forgeConfigPath);

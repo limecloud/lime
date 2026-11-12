@@ -18,7 +18,6 @@ export function skillPreviewDetail(
       installPolicy: "AVAILABLE",
       authPolicy: "ON_USE",
     },
-    shareUrl: null,
     description: "Research plugin",
     onboardingSkill: null,
     skills: [

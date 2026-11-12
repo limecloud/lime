@@ -5,15 +5,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   getCloudAccount,
-  getOemCloudBootstrapSnapshot,
   logoutCloudAccount,
   subscribeCloudAccount,
+  startCloudAuthorization,
 } from "@/lib/cloudAccount";
-import type { OemCloudBootstrapResponse } from "@/lib/api/oemCloudControlPlane";
-import {
-  createExternalBrowserOpenTarget,
-  startOemCloudLogin,
-} from "@/lib/oemCloudLoginLauncher";
+
 import type { Page, PageParams } from "@/types/page";
 import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
 import { runCommand } from "@/lib/commands/registry";
@@ -23,7 +19,6 @@ import { ProfileDropdownItems } from "./ProfileDropdownItems";
 import {
   resolveAccountDisplayName,
   resolveAccountInitial,
-  resolveCloudBrandLabel,
 } from "./sidebarAccount";
 
 export function SidebarProfileFooter({
@@ -31,7 +26,7 @@ export function SidebarProfileFooter({
 }: {
   onNavigate: (page: Page, params?: PageParams) => void;
 }) {
-  const { t } = useTranslation("navigation");
+  const { t, i18n } = useTranslation("navigation");
   const account = useSyncExternalStore(
     subscribeCloudAccount,
     getCloudAccount,
@@ -53,19 +48,12 @@ export function SidebarProfileFooter({
     account,
     t("navigation.sidebar.items.settings"),
   );
-  const brand = resolveCloudBrandLabel(
-    getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>(),
-    t("navigation.sidebar.account.defaultCloudBrand"),
-    t("navigation.sidebar.account.cloudSuffix"),
-  );
+  const brand = "Lime Cloud";
   const login = async () => {
     if (pending) return;
     setPending(true);
     try {
-      await startOemCloudLogin(undefined, {
-        browserTarget: createExternalBrowserOpenTarget(),
-        waitForCompletion: false,
-      });
+      await startCloudAuthorization({ language: i18n.language });
       toast.success(t("navigation.sidebar.account.login.opened", { brand }));
     } catch (error) {
       toast.error(
@@ -136,7 +124,7 @@ export function SidebarProfileFooter({
             alignOffset={-4}
             aria-label={t("navigation.sidebar.account.openMenu")}
             data-testid="app-sidebar-account-menu"
-            className="z-50 w-64 rounded-xl border bg-popover p-1 text-popover-foreground shadow-md outline-none"
+            className="z-50 w-64 rounded-lg border-[0.5px] border-border bg-popover p-1 text-popover-foreground outline-none"
           >
             <ProfileDropdownItems
               account={account}

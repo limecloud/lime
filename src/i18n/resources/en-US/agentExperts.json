@@ -117,5 +117,9 @@
   "agentExperts.info.skills.timeline.invocationRunning": "Running",
   "agentExperts.info.skills.timeline.invocationCompleted": "Completed",
   "agentExperts.info.skills.timeline.invocationFailed": "Failed",
-  "agentExperts.info.skills.timeline.invocationUnknown": "Needs confirmation"
+  "agentExperts.info.skills.timeline.invocationUnknown": "Needs confirmation",
+  "agentExperts.loading": "Loading experts",
+  "agentExperts.loadFailed": "Could not load the expert catalog",
+  "agentExperts.retry": "Retry",
+  "agentExperts.launchFailed": "Could not start the expert. Try again."
 }

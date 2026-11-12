@@ -60,6 +60,7 @@ interface ProjectMenuLabels {
   createWorktree: string;
   rename: string;
   remove: string;
+  archiveThreads: string;
 }
 
 interface AppSidebarConversationMenusProps {
@@ -80,6 +81,7 @@ interface AppSidebarConversationMenusProps {
   onCreateProjectWorktree?: (project: SidebarOpenedProjectSummary) => void;
   onRenameProject?: (project: SidebarOpenedProjectSummary) => void;
   onRemoveProject?: (project: SidebarOpenedProjectSummary) => void;
+  onArchiveProjectThreads?: (project: SidebarOpenedProjectSummary) => void;
   threadSections: AgentSessionSection[];
   conversationLabels: ConversationMenuLabels;
   projectLabels: ProjectMenuLabels;
@@ -171,6 +173,7 @@ export function AppSidebarConversationMenus({
   onCreateProjectWorktree,
   onRenameProject,
   onRemoveProject,
+  onArchiveProjectThreads,
   threadSections,
   conversationLabels,
   projectLabels,
@@ -404,6 +407,20 @@ export function AppSidebarConversationMenus({
             >
               <Pencil />
               {projectLabels.rename}
+            </ConversationMenuItem>
+          ) : null}
+          {onArchiveProjectThreads ? (
+            <ConversationMenuItem
+              type="button"
+              role="menuitem"
+              data-testid="app-sidebar-project-menu-archive-threads"
+              onClick={() => {
+                onArchiveProjectThreads(projectMenuState.project);
+                onCloseMenus();
+              }}
+            >
+              <Archive />
+              {projectLabels.archiveThreads}
             </ConversationMenuItem>
           ) : null}
           {onRemoveProject ? (

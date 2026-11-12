@@ -15,22 +15,18 @@ import type { SettingsSearchResult } from "../settingsSearch";
 
 const {
   mockSettingsSidebar,
-  mockCloudProviderSettings,
+  mockProviderSettings,
   mockGeneralSettings,
   mockArchivedConversationsSettings,
   mockExecutionPolicySettings,
   mockUserCenterSessionSettings,
 } = vi.hoisted(() => ({
   mockSettingsSidebar: vi.fn(),
-  mockCloudProviderSettings: vi.fn(),
+  mockProviderSettings: vi.fn(),
   mockGeneralSettings: vi.fn(),
   mockArchivedConversationsSettings: vi.fn(),
   mockExecutionPolicySettings: vi.fn(),
   mockUserCenterSessionSettings: vi.fn(),
-}));
-
-const { mockResolveOemCloudRuntimeContext } = vi.hoisted(() => ({
-  mockResolveOemCloudRuntimeContext: vi.fn(),
 }));
 
 vi.mock("./SettingsSidebar", () => ({
@@ -75,8 +71,8 @@ vi.mock("../account/user-center-session", () => ({
   },
 }));
 vi.mock("../agent/providers", () => ({
-  CloudProviderSettings: (props: unknown) => {
-    mockCloudProviderSettings(props);
+  ProviderSettings: (props: unknown) => {
+    mockProviderSettings(props);
     return <div>providers</div>;
   },
 }));
@@ -94,9 +90,6 @@ vi.mock("../general/GeneralSettings", () => ({
     mockGeneralSettings(props);
     return <div>home</div>;
   },
-}));
-vi.mock("@/lib/api/oemCloudRuntime", () => ({
-  resolveOemCloudRuntimeContext: () => mockResolveOemCloudRuntimeContext(),
 }));
 import { SettingsPage } from "..";
 
@@ -175,16 +168,13 @@ beforeEach(async () => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
   await changeLimeLocale("en-US");
-  mockResolveOemCloudRuntimeContext.mockReturnValue({
-    baseUrl: "https://user.example.com",
-  });
 });
 
 afterEach(async () => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   mockSettingsSidebar.mockReset();
-  mockCloudProviderSettings.mockReset();
+  mockProviderSettings.mockReset();
   mockGeneralSettings.mockReset();
   mockArchivedConversationsSettings.mockReset();
   mockExecutionPolicySettings.mockReset();
@@ -205,7 +195,7 @@ afterEach(async () => {
 });
 
 describe("SettingsPage Profile Tab", () => {
-  it("OEM 运行时下只展示统一账户页，不再渲染本地资料编辑器，也不再注入壳层标题", async () => {
+  it("账号设置使用统一账号页", async () => {
     const container = renderComponent(SettingsTabs.Profile);
     await flushEffects();
     const text = container.textContent ?? "";
@@ -217,19 +207,18 @@ describe("SettingsPage Profile Tab", () => {
   });
 
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-    "%s 非 OEM 资料页回到常规页，不提供本地资料编辑器",
+    "%s 账号设置入口始终可用",
     async (locale) => {
       await changeLimeLocale(locale);
-      mockResolveOemCloudRuntimeContext.mockReturnValue(null);
 
       const container = renderComponent(SettingsTabs.Profile);
       await flushEffects();
       const text = container.textContent ?? "";
 
-      expect(text).not.toContain("USER_CENTER_SESSION");
+      expect(text).toContain("USER_CENTER_SESSION");
       expect(text).not.toContain("PROFILE_SETTINGS");
-      expect(mockGeneralSettings).toHaveBeenCalled();
-      expect(mockUserCenterSessionSettings).not.toHaveBeenCalled();
+      expect(mockGeneralSettings).not.toHaveBeenCalled();
+      expect(mockUserCenterSessionSettings).toHaveBeenCalled();
     },
   );
 });
@@ -419,8 +408,8 @@ describe("SettingsPage layout", () => {
     renderComponent(SettingsTabs.Providers, undefined, "settings");
     await flushEffects();
 
-    expect(mockCloudProviderSettings).toHaveBeenCalled();
-    expect(mockCloudProviderSettings.mock.calls.at(-1)?.[0]).toMatchObject({
+    expect(mockProviderSettings).toHaveBeenCalled();
+    expect(mockProviderSettings.mock.calls.at(-1)?.[0]).toMatchObject({
       initialView: "settings",
     });
   });
@@ -451,7 +440,7 @@ describe("SettingsPage Provider Focus", () => {
     );
     await flushEffects();
 
-    expect(mockCloudProviderSettings.mock.calls.at(-1)?.[0]).toMatchObject({
+    expect(mockProviderSettings.mock.calls.at(-1)?.[0]).toMatchObject({
       initialView: "settings",
       initialFocus: providerFocus,
     });
@@ -480,7 +469,7 @@ describe("SettingsPage current sections", () => {
     };
     await select(SettingsTabs.Providers);
     expect(onNavigate).not.toHaveBeenCalled();
-    expect(mockCloudProviderSettings.mock.calls.at(-1)![0]).toMatchObject({
+    expect(mockProviderSettings.mock.calls.at(-1)![0]).toMatchObject({
       initialView: "cloud",
       initialFocus: focus,
     });
@@ -493,7 +482,7 @@ describe("SettingsPage current sections", () => {
     expect(onNavigate).toHaveBeenLastCalledWith("settings", {
       tab: SettingsTabs.Providers,
     });
-    expect(mockCloudProviderSettings.mock.calls.at(-1)![0]).toMatchObject({
+    expect(mockProviderSettings.mock.calls.at(-1)![0]).toMatchObject({
       initialView: undefined,
       initialFocus: undefined,
     });

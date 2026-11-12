@@ -772,7 +772,7 @@ impl ConversationProjection {
         if let ThreadItem::AgentMessage { id, phase, .. } = item {
             match phase {
                 Some(phase) => {
-                    self.assistant_phases.insert(id.clone(), phase.clone());
+                    self.assistant_phases.insert(id.clone(), *phase);
                 }
                 None => {
                     self.assistant_phases.remove(id);

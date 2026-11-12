@@ -109,6 +109,9 @@ pub struct RuntimeBackend {
         Arc<RwLock<Option<Arc<dyn tool_runtime::current_time::CurrentTimeGateway>>>>,
     computer_use_gateway:
         Arc<RwLock<Option<Arc<dyn tool_runtime::computer_use::ComputerUseGateway>>>>,
+    account_tools: RwLock<
+        Vec<tool_runtime::gateway_dispatch_execution::RuntimeGatewayToolExecutionRegistration>,
+    >,
     live_execution_process: Option<ExecutionProcessServer>,
 }
 
@@ -152,6 +155,7 @@ impl RuntimeBackend {
             app_data_source: Arc::new(RwLock::new(None)),
             current_time_gateway: Arc::new(RwLock::new(None)),
             computer_use_gateway: Arc::new(RwLock::new(None)),
+            account_tools: RwLock::new(Vec::new()),
             live_execution_process,
         }
     }
@@ -174,6 +178,7 @@ impl RuntimeBackend {
             &self.app_data_source,
             &self.current_time_gateway,
             &self.computer_use_gateway,
+            &self.account_tools,
         )
         .await
     }

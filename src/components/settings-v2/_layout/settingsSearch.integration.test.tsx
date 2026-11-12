@@ -115,7 +115,6 @@ async function mount() {
 beforeEach(async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   window.sessionStorage.clear();
-  window.__LIME_OEM_CLOUD__ = { enabled: false };
   await changeLimeLocale("en-US");
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -125,7 +124,6 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   window.sessionStorage.clear();
-  delete window.__LIME_OEM_CLOUD__;
   vi.restoreAllMocks();
 });
 

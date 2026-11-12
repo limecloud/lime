@@ -11975,5 +11975,19 @@
       "packaged",
       "full GUI parity"
     ]
+  },
+  "conversation_page_261103": {
+    "checked_date": "2026-11-11",
+    "evidence_id": "ev_b2ddf241f443869488c19208df152961421f50f024a829ba6f80fd97960e810f",
+    "operation": "analyze_javascript_application",
+    "target": "/Applications/ChatGPT.app/Contents/Resources/app.asar",
+    "extracted_tree": "/tmp/codex-asar",
+    "tree_sha256": "241bb474648b83460c8de055a0c52ae847e01d5d794a2e19e729ed87a2dba4a1",
+    "source_paths": [
+      "webview/assets/async/1561.1b3fb9ee2c.js"
+    ],
+    "message_catalog": "conversation-messages-261103.json",
+    "message_keys": 3617,
+    "notes": "会话页侧栏/顶栏标签/会话内容/输入框对齐清单见 conversation-parity-261103.md"
   }
 }

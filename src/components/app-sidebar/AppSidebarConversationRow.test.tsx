@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSessionInfo } from "@/lib/api/agentRuntime/sessionTypes";
 import { AppSidebarConversationRow } from "./AppSidebarConversationRow";
+import { markSessionRead } from "@/lib/sessionUnreadState";
 
 function renderRow(
   props: Partial<React.ComponentProps<typeof AppSidebarConversationRow>> = {},
@@ -55,6 +56,35 @@ describe("AppSidebarConversationRow", () => {
     expect(status?.getAttribute("aria-label")).toBe("正在输出");
     expect(status?.getAttribute("data-status")).toBe("running");
 
+    act(() => root.unmount());
+  });
+
+  it("有未读更新时显示未读点并在点击后标记已读", () => {
+    markSessionRead("session-1");
+    const onNavigate = vi.fn();
+    const { container, root } = renderRow({
+      session: {
+        id: "session-1",
+        name: "更新会话",
+        created_at: 1780847000,
+        updated_at: Date.now() + 60_000,
+      },
+      onNavigate,
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="app-sidebar-conversation-unread"]',
+      ),
+    ).not.toBeNull();
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-conversation-open"]',
+        )
+        ?.click();
+    });
+    expect(onNavigate).toHaveBeenCalledTimes(1);
     act(() => root.unmount());
   });
 

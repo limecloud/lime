@@ -375,6 +375,11 @@ fn provider_diagnostics_never_include_messages_or_credential_material() {
     assert!(error.contains("ErrorCode=Denied"));
     assert!(!error.contains("secret"));
     assert!(!provider_diagnostic(b"RequestId: token=secret").contains("secret"));
+    let error = provider_diagnostic(br#"{"error_code":"InvalidParameter.CommandContent","request_id":"request-2","message":"token=private-value","recommendation":"https://signed.invalid/?secret=value"}"#);
+    assert!(error.contains("ErrorCode=InvalidParameter.CommandContent"));
+    assert!(error.contains("RequestId=request-2"));
+    assert!(!error.contains("private-value"));
+    assert!(!error.contains("signed.invalid"));
 }
 
 #[cfg(unix)]
@@ -489,6 +494,7 @@ fn release_request() -> CloudDesktopParams {
         confirmation: "release:cn-test:ecd-test:discard-data".into(),
         work_saved: true,
         discard_data: true,
+        image_operation_id: None,
     }
 }
 

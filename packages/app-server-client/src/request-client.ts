@@ -228,21 +228,6 @@ export interface AppServerClient {
     params: protocol.MarketplaceUpgradeParams,
   ): protocol.JsonRpcRequest;
   listPlugins(params?: protocol.PluginListParams): protocol.JsonRpcRequest;
-  savePluginShare(
-    params: protocol.PluginShareSaveParams,
-  ): protocol.JsonRpcRequest;
-  listPluginShares(
-    params?: protocol.PluginShareListParams,
-  ): protocol.JsonRpcRequest;
-  updatePluginShareTargets(
-    params: protocol.PluginShareUpdateTargetsParams,
-  ): protocol.JsonRpcRequest;
-  checkoutPluginShare(
-    params: protocol.PluginShareCheckoutParams,
-  ): protocol.JsonRpcRequest;
-  deletePluginShare(
-    params: protocol.PluginShareDeleteParams,
-  ): protocol.JsonRpcRequest;
   searchPlugins(params: protocol.PluginSearchParams): protocol.JsonRpcRequest;
   readPlugin(params: protocol.PluginReadParams): protocol.JsonRpcRequest;
   readPluginSkill(

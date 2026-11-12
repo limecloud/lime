@@ -14,7 +14,14 @@
         "longDescription": "This bundled skill describes how to use Lime's existing browser session and Right Surface. It does not grant network, file, or external-action permissions by itself.",
         "developerName": "Lime",
         "category": "Productivity",
-        "capabilities": ["Read", "Interactive"]
+        "capabilities": [
+          "Read",
+          "Interactive"
+        ],
+        "defaultPrompt": [
+          "Research a topic and summarize the key findings with sources."
+        ],
+        "websiteUrl": "https://github.com/limecloud/lime"
       }
     }
   }

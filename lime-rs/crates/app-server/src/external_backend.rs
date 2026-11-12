@@ -68,7 +68,7 @@ impl ExternalBackend {
         request: serde_json::Value,
         sink: &mut dyn RuntimeEventSink,
     ) -> Result<(), RuntimeCoreError> {
-        self.invoke_with_cancellation(kind, request, sink, None)
+        self.invoke_with_cancellation(kind, request, sink, None, None)
             .await
     }
 
@@ -78,8 +78,17 @@ impl ExternalBackend {
         request: serde_json::Value,
         sink: &mut dyn RuntimeEventSink,
         cancellation_token: Option<CancellationToken>,
+        pending_input: Option<&RuntimeSessionInputHandle>,
     ) -> Result<(), RuntimeCoreError> {
-        invoke_external_backend(&self.config, kind, request, sink, cancellation_token).await
+        invoke_external_backend(
+            &self.config,
+            kind,
+            request,
+            sink,
+            cancellation_token,
+            pending_input,
+        )
+        .await
     }
 }
 
@@ -98,7 +107,7 @@ impl ExecutionBackend for ExternalBackend {
         &self,
         request: ExecutionRequest,
         _provider_history: ProviderTurnHistory,
-        _pending_input: Option<RuntimeSessionInputHandle>,
+        pending_input: Option<RuntimeSessionInputHandle>,
         cancellation_token: Option<CancellationToken>,
         sink: &mut dyn RuntimeEventSink,
     ) -> Result<(), RuntimeCoreError> {
@@ -107,6 +116,7 @@ impl ExecutionBackend for ExternalBackend {
             start_turn_request_value(request),
             sink,
             cancellation_token,
+            pending_input.as_ref(),
         )
         .await
     }
@@ -127,6 +137,15 @@ impl ExecutionBackend for ExternalBackend {
     ) -> Result<(), RuntimeCoreError> {
         self.invoke("actionRespond", action_respond_request_value(request), sink)
             .await
+    }
+
+    /// Fixture turns wait for permission responses inside `start_turn`; the typed
+    /// response path only needs to be allowed through to the session waiter.
+    async fn resolve_permission_action(
+        &self,
+        _request: &crate::PermissionRespondRequest,
+    ) -> Result<(), RuntimeCoreError> {
+        Ok(())
     }
 }
 
@@ -152,6 +171,7 @@ async fn invoke_external_backend(
     request: serde_json::Value,
     sink: &mut dyn RuntimeEventSink,
     cancellation_token: Option<CancellationToken>,
+    pending_input: Option<&RuntimeSessionInputHandle>,
 ) -> Result<(), RuntimeCoreError> {
     if config.command.trim().is_empty() {
         return Err(RuntimeCoreError::Backend(
@@ -208,6 +228,7 @@ async fn invoke_external_backend(
     });
 
     let mut line_count = 0usize;
+    let mut permission_request: Option<String> = None;
     loop {
         let next_line = if let Some(cancellation_token) = cancellation_token.as_ref() {
             tokio::select! {
@@ -267,6 +288,9 @@ async fn invoke_external_backend(
             continue;
         }
         line_count += 1;
+        if let Some(request_id) = permission_request_id(&line) {
+            permission_request = Some(request_id);
+        }
         emit_external_backend_line(&line, sink)?;
     }
 
@@ -341,7 +365,82 @@ async fn invoke_external_backend(
         ));
     }
 
+    if let (Some(request_id), Some(pending_input)) = (permission_request, pending_input) {
+        // The fixture surfaces request_permissions as a protected action and exits after
+        // emitting it. Deliver the client's decision through the same typed session
+        // response path the core runtime uses, then let the fixture publish the
+        // resolved/completed events into this turn's sink.
+        let response = match timeout(
+            Duration::from_millis(config.timeout_ms),
+            pending_input.wait_for_response(
+                agent_runtime::session_loop::RuntimeSessionResponseKind::Permission,
+                request_id.clone(),
+            ),
+        )
+        .await
+        {
+            Ok(Ok(response)) => response,
+            Ok(Err(error)) => {
+                return Err(RuntimeCoreError::Backend(format!(
+                    "failed to receive permission response: {}",
+                    error.message
+                )))
+            }
+            Err(_) => {
+                return Err(RuntimeCoreError::Backend(
+                    "timed out waiting for the permission response".to_string(),
+                ))
+            }
+        };
+        let action_respond = json!({
+            "requestId": request_id,
+            "actionType": "request_permissions",
+            "confirmed": true,
+            "response": response,
+        });
+        Box::pin(invoke_external_backend(
+            config,
+            "actionRespond",
+            action_respond,
+            sink,
+            None,
+            None,
+        ))
+        .await?;
+    }
+
     Ok(())
+}
+
+fn permission_request_id(line: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    if let Some(events) = value.get("events").and_then(serde_json::Value::as_array) {
+        return events.iter().find_map(|event| {
+            permission_request_id_from_event(event.get("payload")?, event.get("type")?.as_str()?)
+        });
+    }
+    permission_request_id_from_event(value.get("payload")?, value.get("type")?.as_str()?)
+}
+
+fn permission_request_id_from_event(
+    payload: &serde_json::Value,
+    event_type: &str,
+) -> Option<String> {
+    if event_type != "action.required" {
+        return None;
+    }
+    let action_type = payload
+        .get("actionType")
+        .or_else(|| payload.get("action_type"))
+        .and_then(serde_json::Value::as_str)?;
+    if action_type != "request_permissions" {
+        return None;
+    }
+    payload
+        .get("requestId")
+        .or_else(|| payload.get("request_id"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
 }
 
 async fn cleanup_external_backend_after_timeout(
@@ -470,6 +569,59 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    #[test]
+    fn permission_request_ids_are_detected_in_both_wire_shapes() {
+        let envelope = json!({
+            "events": [
+                {"type": "item.started", "payload": {"item": {}}},
+                {
+                    "type": "action.required",
+                    "payload": {"actionType": "request_permissions", "requestId": "perm-1"}
+                }
+            ]
+        });
+        assert_eq!(
+            permission_request_id(&envelope.to_string()),
+            Some("perm-1".to_string())
+        );
+
+        let single = json!({
+            "type": "action.required",
+            "payload": {"action_type": "request_permissions", "request_id": "perm-2"}
+        });
+        assert_eq!(
+            permission_request_id(&single.to_string()),
+            Some("perm-2".to_string())
+        );
+
+        let unrelated = json!({
+            "type": "action.required",
+            "payload": {"actionType": "tool_confirmation", "requestId": "approval-1"}
+        });
+        assert_eq!(permission_request_id(&unrelated.to_string()), None);
+    }
+
+    #[tokio::test]
+    async fn external_backend_accepts_typed_permission_responses() {
+        let backend = ExternalBackend::new(ExternalBackendConfig::new("unused"));
+        assert!(!backend.has_live_session_responses());
+        let request = crate::PermissionRespondRequest {
+            session_id: "session-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            request_id: "perm-1".to_string(),
+            response: app_server_protocol::protocol::v2::PermissionsRequestApprovalResponse {
+                permissions: app_server_protocol::protocol::v2::GrantedPermissionProfile::default(),
+                scope: app_server_protocol::protocol::v2::PermissionGrantScope::Turn,
+                strict_auto_review: None,
+            },
+        };
+        backend
+            .resolve_permission_action(&request)
+            .await
+            .expect("the fixture backend resolves permissions through the session waiter");
+    }
 
     #[tokio::test]
     async fn external_backend_invokes_process_and_maps_runtime_events() {
@@ -714,6 +866,7 @@ mod tests {
             json!({"request": "cancel"}),
             &mut sink,
             Some(cancellation),
+            None,
         )
         .await;
 

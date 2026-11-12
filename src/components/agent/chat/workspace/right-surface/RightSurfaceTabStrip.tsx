@@ -4,7 +4,17 @@ import {
   isBrowserTabHostAvailable,
   listenBrowserTabCommand,
 } from "@/lib/api/browserTab";
-import { LoaderCircle, Plus, VolumeX, X } from "lucide-react";
+import {
+  FileText,
+  Folder,
+  GitCompare,
+  LayoutDashboard,
+  LoaderCircle,
+  Plus,
+  Terminal,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { BrowserTabIcon } from "./browser/BrowserTabIcon";
 import { cn } from "@/lib/utils";
 import {
@@ -125,6 +135,23 @@ export function RightSurfaceTabStrip({
     };
   }, [activeTabId, onCloseTab, onNewTab, panelActive, tabs]);
   const byKind = new Map(definitions.map((item) => [item.kind, item]));
+  const iconForKind = (kind: ThreadSidePanelTab["kind"]) => {
+    switch (kind) {
+      case "changes":
+        return GitCompare;
+      case "files":
+        return Folder;
+      case "workbench":
+        return LayoutDashboard;
+      case "articleWorkspace":
+        return FileText;
+      case "shell":
+      case "background-terminal":
+        return Terminal;
+      default:
+        return null;
+    }
+  };
   return (
     <div
       className="flex h-full min-w-0 items-center gap-1"
@@ -187,7 +214,17 @@ export function RightSurfaceTabStrip({
                   ) : (
                     <BrowserTabIcon url={tab.browser.faviconUrl} />
                   )
-                ) : null}
+                ) : (
+                  (() => {
+                    const Icon = iconForKind(kind);
+                    return Icon ? (
+                      <Icon
+                        className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]"
+                        aria-hidden="true"
+                      />
+                    ) : null;
+                  })()
+                )}
                 <span className="truncate">{label}</span>
                 {tab.browser?.audioMuted ? (
                   <VolumeX size={12} aria-hidden="true" className="shrink-0" />

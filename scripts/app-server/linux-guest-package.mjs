@@ -10,9 +10,37 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { isIP } from "node:net";
 
 /** Package the native build; no download service or alternate runtime is involved. */
-export async function packageLinuxGuest(payloadRoot) {
+export async function packageLinuxGuest(payloadRoot, { downloadUrl } = {}) {
+  if (downloadUrl !== undefined) {
+    if (
+      typeof downloadUrl !== "string" ||
+      downloadUrl.length > 4096 ||
+      /[\s\x7f]/u.test(downloadUrl) ||
+      [...downloadUrl].some((character) => character.charCodeAt(0) < 32)
+    )
+      throw new Error("A public HTTPS artifact URL is required");
+    const url = new URL(downloadUrl);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (url.port && url.port !== "443") ||
+      !url.hostname.includes(".") ||
+      !/^[a-z0-9.-]+$/iu.test(url.hostname) ||
+      isIP(url.hostname.replace(/^\[|\]$/gu, ""))
+    )
+      throw new Error(
+        "A public HTTPS artifact URL without credentials or query is required",
+      );
+    downloadUrl = url.toString();
+    if (downloadUrl.length > 4096)
+      throw new Error("A public HTTPS artifact URL is too long");
+  }
   if (!path.isAbsolute(payloadRoot) || !lstatSync(payloadRoot).isDirectory())
     throw new Error("An absolute guest payload directory is required");
   const manifest = readFileSync(path.join(payloadRoot, "guest-manifest.json"));
@@ -48,6 +76,7 @@ export async function packageLinuxGuest(payloadRoot) {
     archiveBytes: lstatSync(archive).size,
     archiveSha256: digest.digest("hex"),
     manifestSha256: createHash("sha256").update(manifest).digest("hex"),
+    ...(downloadUrl ? { downloadUrl } : {}),
   };
   writeFileSync(archive + ".json", JSON.stringify(receipt, null, 2) + "\n", {
     flag: "wx",

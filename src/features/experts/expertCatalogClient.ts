@@ -1,91 +1,64 @@
-import { requestControlPlane } from "@/lib/api/oemCloudControlPlaneRuntime";
 import {
-  hasOemCloudSession,
-  resolveOemCloudRuntimeContext,
-} from "@/lib/api/oemCloudRuntime";
-import { parseExpertCatalog } from "./parseExpertCatalog";
-import { getSeededExpertCatalog } from "./seededExpertCatalog";
-import type { ExpertCatalog } from "./types";
+  listProductContent,
+  productContentText,
+  readProductContent,
+} from "@/lib/api/productCatalog";
+import { getCloudAccount } from "@/lib/cloudAccount";
+import type { ExpertCatalog, ExpertProfile } from "./types";
 
-const EXPERT_CATALOG_CACHE_STORAGE_KEY = "lime:expert-catalog-cache:v1";
-
-export interface GetExpertCatalogOptions {
-  refreshRemote?: boolean;
+/** Product catalogs contain published content, never platform tenant or user state. */
+export async function getExpertCatalog(): Promise<ExpertCatalog> {
+  const account = getCloudAccount()?.account;
+  if (!account) throw new Error("account_login_required");
+  const contents = await listProductContent("experts");
+  return {
+    catalogId: JSON.stringify([
+      account.baseUrl,
+      account.applicationId,
+      account.environment,
+    ]),
+    version: JSON.stringify(contents.map((c) => c.id).sort()),
+    syncedAt: new Date().toISOString(),
+    items: contents.map((c) => {
+      const text = productContentText(c);
+      return {
+        id: c.key,
+        slug: c.key,
+        title: text.title,
+        summary: text.summary,
+        avatar: { kind: "emoji", value: "👤" },
+        category: c.document.category,
+        tags: c.document.tags,
+        source: "cloud_catalog",
+        stats: { usageCount: 0, likeCount: 0 },
+        release: {
+          releaseId: c.id,
+          version: String(c.revision),
+          personaRef: c.key,
+          personaHash: c.contentHash,
+          releasedAt: c.publishedAt,
+          skillRefs: c.document.skillRefs ?? [],
+          workflowRefs: [],
+        },
+        promptStarters: [],
+        showcase: [],
+      };
+    }),
+    categories: [...new Set(contents.map((c) => c.document.category))].map(
+      (key, sort) => ({ key, title: key, sort }),
+    ),
+    rankings: [],
+  };
 }
 
-function isDisplayableExpertCatalog(
-  catalog: ExpertCatalog | null,
-): catalog is ExpertCatalog {
-  return Boolean(catalog && catalog.items.length > 0);
-}
-
-export function readCachedExpertCatalog(): ExpertCatalog | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(EXPERT_CATALOG_CACHE_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-    const catalog = parseExpertCatalog(JSON.parse(raw) as unknown);
-    return isDisplayableExpertCatalog(catalog) ? catalog : null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveCachedExpertCatalog(catalog: ExpertCatalog): ExpertCatalog {
-  const parsed = parseExpertCatalog(catalog);
-  if (!isDisplayableExpertCatalog(parsed)) {
-    return getSeededExpertCatalog();
-  }
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(
-      EXPERT_CATALOG_CACHE_STORAGE_KEY,
-      JSON.stringify(parsed),
-    );
-  }
-  return parsed;
-}
-
-async function requestRemoteExpertCatalog(): Promise<ExpertCatalog> {
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!runtime) {
-    throw new Error("缺少品牌云端配置，请先注入 base_url 与 tenant_id。");
-  }
-  if (!hasOemCloudSession(runtime)) {
-    throw new Error("缺少品牌云端 Session Token，请先完成登录或注入会话。");
-  }
-
-  const data = await requestControlPlane<unknown>(
-    `/v1/public/tenants/${encodeURIComponent(runtime.tenantId)}/client/experts?includeRankings=true`,
-    { auth: true },
-  );
-
-  const catalog = parseExpertCatalog(data);
-  if (!catalog) {
-    throw new Error("服务端返回的专家目录格式非法");
-  }
-
-  return catalog;
-}
-
-export async function getExpertCatalog(
-  options: GetExpertCatalogOptions = {},
-): Promise<ExpertCatalog> {
-  if (!options.refreshRemote) {
-    return readCachedExpertCatalog() ?? getSeededExpertCatalog();
-  }
-
-  try {
-    const remoteCatalog = await requestRemoteExpertCatalog();
-    if (!isDisplayableExpertCatalog(remoteCatalog)) {
-      return readCachedExpertCatalog() ?? getSeededExpertCatalog();
-    }
-    return saveCachedExpertCatalog(remoteCatalog);
-  } catch {
-    return readCachedExpertCatalog() ?? getSeededExpertCatalog();
-  }
+export async function readExpertInstructions(
+  expert: ExpertProfile,
+): Promise<string | null> {
+  if (expert.source !== "cloud_catalog") return null;
+  const content = await readProductContent("experts", expert.slug, {
+    id: expert.release.releaseId,
+    revision: Number(expert.release.version),
+    contentHash: expert.release.personaHash ?? "",
+  });
+  return content.document.instructions!;
 }

@@ -18,6 +18,9 @@ pub const MAX_CLOUD_CIPHERTEXT_BYTES: u64 = MAX_DOWNLOAD_SOURCE_BYTES + 256 * 10
 
 mod transfer;
 pub use transfer::transfer;
+pub(crate) use transfer::transfer_with_command;
+mod identity;
+pub use identity::create_identity;
 mod rewrap;
 pub use rewrap::{rewrap_for_restore, CloudRestoreIdentity};
 
@@ -126,7 +129,7 @@ fn excluded(path: &Path, sensitive: bool) -> bool {
     if names.iter().any(|name| [".aliyun", ".aws", ".azure", ".age", ".lime", "computer-use", "cloud-desktops", "credentials", "node_modules", ".cache", "__pycache__"].contains(name)) { return true; }
     if names.windows(2).any(|pair| [[".config", "gcloud"], [".config", "rclone"], [".config", "lime"], ["share", "lime"]].contains(&[pair[0], pair[1]])) { return true; }
     let leaf = names.last().copied().unwrap_or("");
-    leaf == MANIFEST || (!sensitive && (names.iter().any(|name| [".ssh", ".gnupg", ".vnc", "tigervnc", "keyrings", "google-chrome", "chromium", "gh", "railway", "cloudflare", ".wrangler"].contains(name))
+    leaf == MANIFEST || leaf == "encryption-key.v1" || (!sensitive && (names.iter().any(|name| [".ssh", ".gnupg", ".vnc", "tigervnc", "keyrings", "google-chrome", "chromium", "gh", "railway", "cloudflare", ".wrangler"].contains(name))
         || leaf.starts_with(".env") || [".npmrc", ".netrc", ".pypirc", ".git-credentials", "Cookies", "Login Data"].contains(&leaf)
         || [".pem", ".key", ".p12", ".pfx"].iter().any(|suffix| leaf.ends_with(suffix))))
 }

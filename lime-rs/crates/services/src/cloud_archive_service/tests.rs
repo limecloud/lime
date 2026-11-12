@@ -63,8 +63,26 @@ fn portable_paths_and_control_exclusions_are_enforced_on_both_sides() {
     for path in ["../escape", "/absolute", "a/../escape", "C:drive", "a\\escape", ""] {
         assert!(safe_relative(Path::new(path)).is_err(), "{path}");
     }
-    for path in [".aliyun/config.json", ".local/share/lime/lime.db", ".config/rclone/rclone.conf", ".lime/config.toml", "project/computer-use/desktop.lock"] {
+    for path in [".aliyun/config.json", ".local/share/lime/lime.db", ".config/rclone/rclone.conf", ".lime/config.toml", "project/computer-use/desktop.lock", "encryption-key.v1"] {
         assert!(excluded(Path::new(path), true), "{path}");
+    }
+}
+
+#[test]
+fn local_encryption_key_is_excluded_even_when_its_directory_is_the_archive_root() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("credentials"); fs::create_dir(&root).unwrap();
+    fs::write(root.join("encryption-key.v1"), [42_u8; 32]).unwrap();
+    fs::write(root.join("document"), "user document").unwrap();
+    let (identity, key) = identity(directory.path());
+    for sensitive in [false, true] {
+        let output = directory.path().join(format!("backup-{sensitive}.age"));
+        let result = export(&root, &["encryption-key.v1".into(), "document".into()], &output, &identity.to_public().to_string(), sensitive, true).unwrap();
+        assert_eq!(result["files"], 1); assert_eq!(result["skippedEntries"], 1);
+        let restored = directory.path().join(format!("restored-{sensitive}"));
+        restore(&output, &key, &restored, result["sha256"].as_str().unwrap(), 10000).unwrap();
+        assert_eq!(fs::read_to_string(restored.join("document")).unwrap(), "user document");
+        assert!(!restored.join("encryption-key.v1").exists());
     }
 }
 

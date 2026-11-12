@@ -449,6 +449,12 @@ pub fn check_runtime_gateway_tool_permissions(
     turn_context: Option<&RuntimeToolTurnContext>,
 ) -> RuntimeNativePermissionDecision {
     match tool_name {
+        crate::web_search::WEB_SEARCH_TOOL_NAME => {
+            check_runtime_web_search_permissions(turn_context)
+        }
+        crate::web_fetch::WEB_FETCH_TOOL_NAME => {
+            check_runtime_web_fetch_permissions(params, turn_context)
+        }
         crate::computer_use::COMPUTER_USE_TOOL_NAME => {
             // Consent and canonical turn authority are checked by the shared gateway.
             match serde_json::from_value::<crate::computer_use::ComputerUseToolInput>(

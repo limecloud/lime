@@ -172,55 +172,57 @@ impl CloudDesktopService {
         self.create_receipt(&operation_id, &receipt)?;
         // Fixed API version: Encrypted is an official flat SystemDisk member that
         // older CLI metadata does not expand. --force bypasses only CLI metadata.
+        let mut args = vec![
+            "RunInstances".into(),
+            "--ClientToken".into(),
+            operation_id.clone(),
+            "--Amount".into(),
+            "1".into(),
+            "--MinAmount".into(),
+            "1".into(),
+            "--InstanceName".into(),
+            desktop_name,
+            "--InstanceChargeType".into(),
+            "PostPaid".into(),
+            "--AutoRenew".into(),
+            "false".into(),
+            "--InstanceType".into(),
+            spec.instance_type.clone(),
+            "--ImageId".into(),
+            spec.image_id.clone(),
+            "--VSwitchId".into(),
+            spec.v_switch_id.clone(),
+            "--SecurityGroupId".into(),
+            spec.security_group_id.clone(),
+            "--IoOptimized".into(),
+            "optimized".into(),
+            "--SystemDisk.Category".into(),
+            "cloud_essd".into(),
+            "--SystemDisk.PerformanceLevel".into(),
+            "PL1".into(),
+            "--SystemDisk.Size".into(),
+            spec.system_disk_gib.to_string(),
+            "--SystemDisk.Encrypted".into(),
+            "true".into(),
+            "--InternetChargeType".into(),
+            "PayByTraffic".into(),
+            "--InternetMaxBandwidthOut".into(),
+            spec.outbound_mbps.to_string(),
+            "--Tag.1.Key".into(),
+            OPERATION_TAG.into(),
+            "--Tag.1.Value".into(),
+            operation_id.clone(),
+        ];
+        if !spec.key_pair_name.is_empty() {
+            args.extend(["--KeyPairName".into(), spec.key_pair_name.clone()]);
+        }
         let result = self
             .call_cli(
                 "ecs",
                 Some("2014-05-26"),
                 &spec.region_id,
                 &spec.profile,
-                &[
-                    "RunInstances".into(),
-                    "--ClientToken".into(),
-                    operation_id.clone(),
-                    "--Amount".into(),
-                    "1".into(),
-                    "--MinAmount".into(),
-                    "1".into(),
-                    "--InstanceName".into(),
-                    desktop_name,
-                    "--InstanceChargeType".into(),
-                    "PostPaid".into(),
-                    "--AutoRenew".into(),
-                    "false".into(),
-                    "--InstanceType".into(),
-                    spec.instance_type.clone(),
-                    "--ImageId".into(),
-                    spec.image_id.clone(),
-                    "--VSwitchId".into(),
-                    spec.v_switch_id.clone(),
-                    "--SecurityGroupId".into(),
-                    spec.security_group_id.clone(),
-                    "--KeyPairName".into(),
-                    spec.key_pair_name.clone(),
-                    "--IoOptimized".into(),
-                    "optimized".into(),
-                    "--SystemDisk.Category".into(),
-                    "cloud_essd".into(),
-                    "--SystemDisk.PerformanceLevel".into(),
-                    "PL1".into(),
-                    "--SystemDisk.Size".into(),
-                    spec.system_disk_gib.to_string(),
-                    "--SystemDisk.Encrypted".into(),
-                    "true".into(),
-                    "--InternetChargeType".into(),
-                    "PayByTraffic".into(),
-                    "--InternetMaxBandwidthOut".into(),
-                    spec.outbound_mbps.to_string(),
-                    "--Tag.1.Key".into(),
-                    OPERATION_TAG.into(),
-                    "--Tag.1.Value".into(),
-                    operation_id.clone(),
-                ],
+                &args,
             )
             .await;
         match result {
@@ -311,6 +313,13 @@ impl CloudDesktopService {
             .iter()
             .filter(|tag| tag["TagKey"] == OPERATION_TAG)
             .collect();
+        // ECS can omit the optional field or return null when no key is bound.
+        // A value of another type must not become an implicit empty keypair.
+        let key_pair_name = match instance.get("KeyPairName") {
+            None | Some(Value::Null) => "",
+            Some(Value::String(name)) => name.as_str(),
+            _ => return Err("Invalid purchased instance SSH keypair".into()),
+        };
         if operation_tags.len() != 1
             || operation_tags[0]["TagValue"] != operation_id
             || receipt
@@ -320,7 +329,7 @@ impl CloudDesktopService {
             || instance["InstanceName"] != receipt["request"]["desktopName"]
             || instance["ImageId"] != spec.image_id
             || instance["InstanceType"] != spec.instance_type
-            || instance["KeyPairName"] != spec.key_pair_name
+            || key_pair_name != spec.key_pair_name
             || instance["InstanceChargeType"] != "PostPaid"
             || instance["InternetChargeType"] != "PayByTraffic"
             || instance["InternetMaxBandwidthOut"].as_u64() != Some(u64::from(spec.outbound_mbps))

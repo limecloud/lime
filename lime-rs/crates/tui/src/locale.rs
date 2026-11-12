@@ -28,6 +28,18 @@ pub(crate) enum Locale {
     KoKr,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ConfigLabel {
+    Model,
+    Provider,
+    Effort,
+    Permissions,
+    Approval,
+    Sandbox,
+    Features,
+    WorkingDirectory,
+}
+
 impl Locale {
     pub(crate) fn parse(value: &str) -> Option<Self> {
         let normalized = value.trim().replace('_', "-").to_ascii_lowercase();
@@ -365,6 +377,607 @@ impl Locale {
             (Self::EnUs, SlashCommand::Pwd) => "show the current working directory",
             (Self::JaJp, SlashCommand::Pwd) => "現在の作業ディレクトリを表示",
             (Self::KoKr, SlashCommand::Pwd) => "현재 작업 디렉터리 표시",
+            (Self::ZhCn, SlashCommand::Init) => "为仓库生成 AGENTS.md 指南",
+            (Self::ZhTw, SlashCommand::Init) => "為倉庫產生 AGENTS.md 指南",
+            (Self::EnUs, SlashCommand::Init) => "create an AGENTS.md contributor guide",
+            (Self::JaJp, SlashCommand::Init) => "リポジトリ用の AGENTS.md を作成",
+            (Self::KoKr, SlashCommand::Init) => "저장소용 AGENTS.md 생성",
+            (Self::ZhCn, SlashCommand::New) => "开始新会话",
+            (Self::ZhTw, SlashCommand::New) => "開始新工作階段",
+            (Self::EnUs, SlashCommand::New) => "start a new thread",
+            (Self::JaJp, SlashCommand::New) => "新しいスレッドを開始",
+            (Self::KoKr, SlashCommand::New) => "새 스레드 시작",
+            (Self::ZhCn, SlashCommand::Rename) => "重命名当前会话",
+            (Self::ZhTw, SlashCommand::Rename) => "重新命名目前工作階段",
+            (Self::EnUs, SlashCommand::Rename) => "rename the current thread",
+            (Self::JaJp, SlashCommand::Rename) => "現在のスレッドの名前を変更",
+            (Self::KoKr, SlashCommand::Rename) => "현재 스레드 이름 변경",
+            (Self::ZhCn, SlashCommand::Compact) => "压缩对话以释放上下文",
+            (Self::ZhTw, SlashCommand::Compact) => "壓縮對話以釋放上下文",
+            (Self::EnUs, SlashCommand::Compact) => "compact the conversation to free context",
+            (Self::JaJp, SlashCommand::Compact) => "会話を圧縮してコンテキストを解放",
+            (Self::KoKr, SlashCommand::Compact) => "대화를 압축하여 컨텍스트 확보",
+            (Self::ZhCn, SlashCommand::Archive) => "归档当前会话",
+            (Self::ZhTw, SlashCommand::Archive) => "歸檔目前工作階段",
+            (Self::EnUs, SlashCommand::Archive) => "archive the current session",
+            (Self::JaJp, SlashCommand::Archive) => "現在のセッションをアーカイブ",
+            (Self::KoKr, SlashCommand::Archive) => "현재 세션 보관",
+            (Self::ZhCn, SlashCommand::Delete) => "永久删除当前会话",
+            (Self::ZhTw, SlashCommand::Delete) => "永久刪除目前工作階段",
+            (Self::EnUs, SlashCommand::Delete) => "permanently delete the current session",
+            (Self::JaJp, SlashCommand::Delete) => "現在のセッションを完全に削除",
+            (Self::KoKr, SlashCommand::Delete) => "현재 세션 영구 삭제",
+            (Self::ZhCn, SlashCommand::Fork) => "从当前会话分叉",
+            (Self::ZhTw, SlashCommand::Fork) => "從目前工作階段分叉",
+            (Self::EnUs, SlashCommand::Fork) => "fork the current conversation",
+            (Self::JaJp, SlashCommand::Fork) => "現在の会話をフォーク",
+            (Self::KoKr, SlashCommand::Fork) => "현재 대화 포크",
+            (Self::ZhCn, SlashCommand::Review) => "审查当前改动并找出问题",
+            (Self::ZhTw, SlashCommand::Review) => "審查目前變更並找出問題",
+            (Self::EnUs, SlashCommand::Review) => "review the current changes and find issues",
+            (Self::JaJp, SlashCommand::Review) => "現在の変更をレビューして問題を探す",
+            (Self::KoKr, SlashCommand::Review) => "현재 변경 사항을 검토하고 문제 찾기",
+            (Self::ZhCn, SlashCommand::Experimental) => "查看或切换实验特性",
+            (Self::ZhTw, SlashCommand::Experimental) => "檢視或切換實驗特性",
+            (Self::EnUs, SlashCommand::Experimental) => "list or toggle experimental features",
+            (Self::JaJp, SlashCommand::Experimental) => "実験的機能の一覧・切り替え",
+            (Self::KoKr, SlashCommand::Experimental) => "실험 기능 조회 또는 전환",
+            (Self::ZhCn, SlashCommand::Quit) => "退出 TUI",
+            (Self::ZhTw, SlashCommand::Quit) => "結束 TUI",
+            (Self::EnUs, SlashCommand::Quit) => "exit the TUI",
+            (Self::JaJp, SlashCommand::Quit) => "TUI を終了",
+            (Self::KoKr, SlashCommand::Quit) => "TUI 종료",
+            (Self::ZhCn, SlashCommand::Clear) => "清空界面并开始新会话",
+            (Self::ZhTw, SlashCommand::Clear) => "清除介面並開始新工作階段",
+            (Self::EnUs, SlashCommand::Clear) => "clear the terminal and start a new chat",
+            (Self::JaJp, SlashCommand::Clear) => "画面を消去して新しい会話を開始",
+            (Self::KoKr, SlashCommand::Clear) => "화면을 지우고 새 대화 시작",
+            (Self::ZhCn, SlashCommand::Config) => "查看当前配置",
+            (Self::ZhTw, SlashCommand::Config) => "檢視目前設定",
+            (Self::EnUs, SlashCommand::Config) => "show the effective configuration",
+            (Self::JaJp, SlashCommand::Config) => "現在の設定を表示",
+            (Self::KoKr, SlashCommand::Config) => "현재 설정 보기",
+            (Self::ZhCn, SlashCommand::Hooks) => "查看已配置的 hooks",
+            (Self::ZhTw, SlashCommand::Hooks) => "檢視已設定的 hooks",
+            (Self::EnUs, SlashCommand::Hooks) => "list configured hooks",
+            (Self::JaJp, SlashCommand::Hooks) => "設定済み hooks を表示",
+            (Self::KoKr, SlashCommand::Hooks) => "설정된 hooks 보기",
+            (Self::ZhCn, SlashCommand::Skills) => "查看可用技能",
+            (Self::ZhTw, SlashCommand::Skills) => "檢視可用技能",
+            (Self::EnUs, SlashCommand::Skills) => "list available skills",
+            (Self::JaJp, SlashCommand::Skills) => "利用可能なスキルを表示",
+            (Self::KoKr, SlashCommand::Skills) => "사용 가능한 스킬 보기",
+            (Self::ZhCn, SlashCommand::Keymap) => "查看当前按键绑定",
+            (Self::ZhTw, SlashCommand::Keymap) => "檢視目前按鍵綁定",
+            (Self::EnUs, SlashCommand::Keymap) => "show the effective key bindings",
+            (Self::JaJp, SlashCommand::Keymap) => "現在のキーバインドを表示",
+            (Self::KoKr, SlashCommand::Keymap) => "현재 키 바인딩 보기",
+        }
+    }
+
+    pub(crate) fn confirm_archive_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "归档此会话？",
+            Self::ZhTw => "歸檔此工作階段？",
+            Self::EnUs => "Archive this session?",
+            Self::JaJp => "このセッションをアーカイブしますか？",
+            Self::KoKr => "이 세션을 보관할까요?",
+        }
+    }
+
+    pub(crate) fn confirm_archive_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "这会归档当前会话并开始一个新会话。",
+            Self::ZhTw => "這會歸檔目前工作階段並開始新的工作階段。",
+            Self::EnUs => "This will archive the current session and start a new one.",
+            Self::JaJp => "現在のセッションをアーカイブし、新しいセッションを開始します。",
+            Self::KoKr => "현재 세션을 보관하고 새 세션을 시작합니다.",
+        }
+    }
+
+    pub(crate) fn confirm_delete_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "删除此会话？",
+            Self::ZhTw => "刪除此工作階段？",
+            Self::EnUs => "Delete this session?",
+            Self::JaJp => "このセッションを削除しますか？",
+            Self::KoKr => "이 세션을 삭제할까요?",
+        }
+    }
+
+    pub(crate) fn confirm_delete_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "此操作会永久删除当前会话，无法撤销。",
+            Self::ZhTw => "此操作會永久刪除目前工作階段，無法復原。",
+            Self::EnUs => "This permanently deletes the current session. It cannot be undone.",
+            Self::JaJp => "現在のセッションを完全に削除します。元に戻せません。",
+            Self::KoKr => "현재 세션을 영구 삭제합니다. 되돌릴 수 없습니다.",
+        }
+    }
+
+    pub(crate) fn confirm_delete_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "是，删除",
+            Self::ZhTw => "是，刪除",
+            Self::EnUs => "Yes, delete",
+            Self::JaJp => "はい、削除",
+            Self::KoKr => "예, 삭제",
+        }
+    }
+
+    pub(crate) fn confirm_delete_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "永久删除当前会话并开始新会话",
+            Self::ZhTw => "永久刪除目前工作階段並開始新的工作階段",
+            Self::EnUs => "Permanently delete the current session and start a new one",
+            Self::JaJp => "現在のセッションを削除して新規開始",
+            Self::KoKr => "현재 세션을 영구 삭제하고 새로 시작",
+        }
+    }
+
+    pub(crate) fn experimental_empty_message(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有可用的实验特性",
+            Self::ZhTw => "沒有可用的實驗特性",
+            Self::EnUs => "No experimental features are available",
+            Self::JaJp => "利用可能な実験的機能はありません",
+            Self::KoKr => "사용 가능한 실험 기능이 없습니다",
+        }
+    }
+
+    pub(crate) fn experimental_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "实验特性",
+            Self::ZhTw => "實驗特性",
+            Self::EnUs => "Experimental features",
+            Self::JaJp => "実験的機能",
+            Self::KoKr => "실험 기능",
+        }
+    }
+
+    pub(crate) fn experimental_enabled_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已启用",
+            Self::ZhTw => "已啟用",
+            Self::EnUs => "enabled",
+            Self::JaJp => "有効",
+            Self::KoKr => "활성",
+        }
+    }
+
+    pub(crate) fn experimental_disabled_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已禁用",
+            Self::ZhTw => "已停用",
+            Self::EnUs => "disabled",
+            Self::JaJp => "無効",
+            Self::KoKr => "비활성",
+        }
+    }
+
+    pub(crate) fn experimental_updated(self, name: &str, enabled: bool) -> String {
+        match self {
+            Self::ZhCn => format!("{}：{}", if enabled { "已启用" } else { "已禁用" }, name),
+            Self::ZhTw => format!("{}：{}", if enabled { "已啟用" } else { "已停用" }, name),
+            Self::EnUs => format!("{}: {name}", if enabled { "enabled" } else { "disabled" }),
+            Self::JaJp => format!("{}: {name}", if enabled { "有効" } else { "無効" }),
+            Self::KoKr => format!("{}: {name}", if enabled { "활성" } else { "비활성" }),
+        }
+    }
+
+    pub(crate) fn experimental_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/experimental [<名称> <on|off>]",
+            Self::ZhTw => "用法：/experimental [<名稱> <on|off>]",
+            Self::EnUs => "Usage: /experimental [<name> <on|off>]",
+            Self::JaJp => "使い方：/experimental [<名前> <on|off>]",
+            Self::KoKr => "사용법: /experimental [<이름> <on|off>]",
+        }
+    }
+
+    pub(crate) fn review_preset_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择审查预设",
+            Self::ZhTw => "選擇審查預設",
+            Self::EnUs => "Select a review preset",
+            Self::JaJp => "レビュープリセットを選択",
+            Self::KoKr => "검토 프리셋 선택",
+        }
+    }
+
+    pub(crate) fn review_preset_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择要审查的内容范围",
+            Self::ZhTw => "選擇要審查的內容範圍",
+            Self::EnUs => "Choose what the review should cover",
+            Self::JaJp => "レビュー対象を選択",
+            Self::KoKr => "검토 범위 선택",
+        }
+    }
+
+    pub(crate) fn review_preset_uncommitted_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "审查未提交的改动",
+            Self::ZhTw => "審查未提交的變更",
+            Self::EnUs => "Review uncommitted changes",
+            Self::JaJp => "未コミットの変更をレビュー",
+            Self::KoKr => "커밋되지 않은 변경 검토",
+        }
+    }
+
+    pub(crate) fn review_preset_uncommitted_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "审查工作区中尚未提交的改动",
+            Self::ZhTw => "審查工作區中尚未提交的變更",
+            Self::EnUs => "Review the working tree before committing",
+            Self::JaJp => "コミット前の作業ツリーをレビュー",
+            Self::KoKr => "커밋 전 작업 트리 검토",
+        }
+    }
+
+    pub(crate) fn review_preset_custom_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "自定义审查指令",
+            Self::ZhTw => "自訂審查指令",
+            Self::EnUs => "Custom review instructions",
+            Self::JaJp => "カスタムレビュー指示",
+            Self::KoKr => "사용자 지정 검토 지시",
+        }
+    }
+
+    pub(crate) fn review_preset_custom_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "在输入框补充审查重点",
+            Self::ZhTw => "在輸入框補充審查重點",
+            Self::EnUs => "Type extra focus areas after /review",
+            Self::JaJp => "/review の後に重点を入力",
+            Self::KoKr => "/review 뒤에 중점 사항 입력",
+        }
+    }
+
+    pub(crate) fn review_branch_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/review branch <分支>",
+            Self::ZhTw => "用法：/review branch <分支>",
+            Self::EnUs => "Usage: /review branch <branch>",
+            Self::JaJp => "使い方：/review branch <ブランチ>",
+            Self::KoKr => "사용법: /review branch <브랜치>",
+        }
+    }
+
+    pub(crate) fn review_commit_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/review commit <sha>",
+            Self::ZhTw => "用法：/review commit <sha>",
+            Self::EnUs => "Usage: /review commit <sha>",
+            Self::JaJp => "使い方：/review commit <sha>",
+            Self::KoKr => "사용법: /review commit <sha>",
+        }
+    }
+
+    pub(crate) fn review_started(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已开始审查",
+            Self::ZhTw => "已開始審查",
+            Self::EnUs => "review started",
+            Self::JaJp => "レビューを開始しました",
+            Self::KoKr => "검토 시작됨",
+        }
+    }
+
+    pub(crate) fn permissions_picker_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择权限配置",
+            Self::ZhTw => "選擇權限設定檔",
+            Self::EnUs => "Select permission profile",
+            Self::JaJp => "権限プロファイルを選択",
+            Self::KoKr => "권한 프로필 선택",
+        }
+    }
+
+    pub(crate) fn permissions_picker_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "应用于当前会话",
+            Self::ZhTw => "套用於目前工作階段",
+            Self::EnUs => "Applies to the current thread",
+            Self::JaJp => "現在のスレッドに適用",
+            Self::KoKr => "현재 스레드에 적용",
+        }
+    }
+
+    pub(crate) fn permissions_picker_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有可用的权限配置",
+            Self::ZhTw => "沒有可用的權限設定檔",
+            Self::EnUs => "No permission profiles are available",
+            Self::JaJp => "利用可能な権限プロファイルがありません",
+            Self::KoKr => "사용 가능한 권한 프로필이 없습니다",
+        }
+    }
+
+    pub(crate) fn effort_picker_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择推理强度",
+            Self::ZhTw => "選擇推理強度",
+            Self::EnUs => "Select reasoning effort",
+            Self::JaJp => "推論強度を選択",
+            Self::KoKr => "추론 강도 선택",
+        }
+    }
+
+    pub(crate) fn effort_picker_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "应用于当前会话",
+            Self::ZhTw => "套用於目前工作階段",
+            Self::EnUs => "Applies to the current thread",
+            Self::JaJp => "現在のスレッドに適用",
+            Self::KoKr => "현재 스레드에 적용",
+        }
+    }
+
+    pub(crate) fn effort_picker_description(self, value: &str) -> &'static str {
+        match (self, value) {
+            (Self::ZhCn, "low") => "更快、更省",
+            (Self::ZhTw, "low") => "更快、更省",
+            (Self::EnUs, "low") => "Faster and cheaper",
+            (Self::JaJp, "low") => "高速で低コスト",
+            (Self::KoKr, "low") => "더 빠르고 저렴",
+            (Self::ZhCn, "medium") => "平衡速度与质量",
+            (Self::ZhTw, "medium") => "平衡速度與品質",
+            (Self::EnUs, "medium") => "Balanced speed and quality",
+            (Self::JaJp, "medium") => "速度と品質のバランス",
+            (Self::KoKr, "medium") => "속도와 품질의 균형",
+            (Self::ZhCn, "high") => "更深入的推理",
+            (Self::ZhTw, "high") => "更深入的推理",
+            (Self::EnUs, "high") => "Deeper reasoning",
+            (Self::JaJp, "high") => "より深い推論",
+            (Self::KoKr, "high") => "더 깊은 추론",
+            _ => "",
+        }
+    }
+
+    pub(crate) fn keymap_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "按键绑定",
+            Self::ZhTw => "按鍵綁定",
+            Self::EnUs => "Keymap",
+            Self::JaJp => "キーバインド",
+            Self::KoKr => "키 바인딩",
+        }
+    }
+
+    pub(crate) fn skills_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "技能",
+            Self::ZhTw => "技能",
+            Self::EnUs => "Skills",
+            Self::JaJp => "スキル",
+            Self::KoKr => "스킬",
+        }
+    }
+
+    pub(crate) fn skills_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有可用技能",
+            Self::ZhTw => "沒有可用技能",
+            Self::EnUs => "No skills are available",
+            Self::JaJp => "利用可能なスキルはありません",
+            Self::KoKr => "사용 가능한 스킬이 없습니다",
+        }
+    }
+
+    pub(crate) fn hooks_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "Hooks",
+            Self::ZhTw => "Hooks",
+            Self::EnUs => "Hooks",
+            Self::JaJp => "フック",
+            Self::KoKr => "훅",
+        }
+    }
+
+    pub(crate) fn hooks_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有配置 hooks",
+            Self::ZhTw => "沒有設定 hooks",
+            Self::EnUs => "No hooks are configured",
+            Self::JaJp => "フックは設定されていません",
+            Self::KoKr => "설정된 훅이 없습니다",
+        }
+    }
+
+    pub(crate) fn hooks_source_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "来源",
+            Self::ZhTw => "來源",
+            Self::EnUs => "source",
+            Self::JaJp => "ソース",
+            Self::KoKr => "출처",
+        }
+    }
+
+    pub(crate) fn config_panel_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "配置",
+            Self::ZhTw => "設定",
+            Self::EnUs => "Configuration",
+            Self::JaJp => "設定",
+            Self::KoKr => "설정",
+        }
+    }
+
+    pub(crate) fn config_panel_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "使用 /model、/effort、/permissions、/experimental 修改设置",
+            Self::ZhTw => "使用 /model、/effort、/permissions、/experimental 修改設定",
+            Self::EnUs => "Change settings with /model, /effort, /permissions, and /experimental",
+            Self::JaJp => "/model、/effort、/permissions、/experimental で設定を変更",
+            Self::KoKr => "/model, /effort, /permissions, /experimental 로 설정 변경",
+        }
+    }
+
+    pub(crate) fn config_label(self, key: ConfigLabel) -> &'static str {
+        match (self, key) {
+            (Self::ZhCn, ConfigLabel::Model) => "模型",
+            (Self::ZhTw, ConfigLabel::Model) => "模型",
+            (Self::EnUs, ConfigLabel::Model) => "model",
+            (Self::JaJp, ConfigLabel::Model) => "モデル",
+            (Self::KoKr, ConfigLabel::Model) => "모델",
+            (Self::ZhCn, ConfigLabel::Provider) => "Provider",
+            (Self::ZhTw, ConfigLabel::Provider) => "Provider",
+            (Self::EnUs, ConfigLabel::Provider) => "provider",
+            (Self::JaJp, ConfigLabel::Provider) => "プロバイダー",
+            (Self::KoKr, ConfigLabel::Provider) => "프로바이더",
+            (Self::ZhCn, ConfigLabel::Effort) => "推理强度",
+            (Self::ZhTw, ConfigLabel::Effort) => "推理強度",
+            (Self::EnUs, ConfigLabel::Effort) => "reasoning effort",
+            (Self::JaJp, ConfigLabel::Effort) => "推論強度",
+            (Self::KoKr, ConfigLabel::Effort) => "추론 강도",
+            (Self::ZhCn, ConfigLabel::Permissions) => "权限配置",
+            (Self::ZhTw, ConfigLabel::Permissions) => "權限設定檔",
+            (Self::EnUs, ConfigLabel::Permissions) => "permissions",
+            (Self::JaJp, ConfigLabel::Permissions) => "権限",
+            (Self::KoKr, ConfigLabel::Permissions) => "권한",
+            (Self::ZhCn, ConfigLabel::Approval) => "审批策略",
+            (Self::ZhTw, ConfigLabel::Approval) => "審批策略",
+            (Self::EnUs, ConfigLabel::Approval) => "approval policy",
+            (Self::JaJp, ConfigLabel::Approval) => "承認ポリシー",
+            (Self::KoKr, ConfigLabel::Approval) => "승인 정책",
+            (Self::ZhCn, ConfigLabel::Sandbox) => "沙箱",
+            (Self::ZhTw, ConfigLabel::Sandbox) => "沙箱",
+            (Self::EnUs, ConfigLabel::Sandbox) => "sandbox",
+            (Self::JaJp, ConfigLabel::Sandbox) => "サンドボックス",
+            (Self::KoKr, ConfigLabel::Sandbox) => "샌드박스",
+            (Self::ZhCn, ConfigLabel::Features) => "实验特性",
+            (Self::ZhTw, ConfigLabel::Features) => "實驗特性",
+            (Self::EnUs, ConfigLabel::Features) => "experimental features",
+            (Self::JaJp, ConfigLabel::Features) => "実験的機能",
+            (Self::KoKr, ConfigLabel::Features) => "실험 기능",
+            (Self::ZhCn, ConfigLabel::WorkingDirectory) => "工作目录",
+            (Self::ZhTw, ConfigLabel::WorkingDirectory) => "工作目錄",
+            (Self::EnUs, ConfigLabel::WorkingDirectory) => "working directory",
+            (Self::JaJp, ConfigLabel::WorkingDirectory) => "作業ディレクトリ",
+            (Self::KoKr, ConfigLabel::WorkingDirectory) => "작업 디렉터리",
+        }
+    }
+
+    pub(crate) fn cleared_conversation(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已清空并开始新会话",
+            Self::ZhTw => "已清除並開始新工作階段",
+            Self::EnUs => "cleared the transcript and started a new chat",
+            Self::JaJp => "画面を消去して新しい会話を開始しました",
+            Self::KoKr => "화면을 지우고 새 대화를 시작했습니다",
+        }
+    }
+
+    pub(crate) fn forked_thread(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已从当前会话分叉",
+            Self::ZhTw => "已從目前工作階段分叉",
+            Self::EnUs => "forked the current conversation",
+            Self::JaJp => "現在の会話をフォークしました",
+            Self::KoKr => "현재 대화를 포크했습니다",
+        }
+    }
+
+    pub(crate) fn deleted_thread(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已删除当前会话",
+            Self::ZhTw => "已刪除目前工作階段",
+            Self::EnUs => "deleted the current session",
+            Self::JaJp => "現在のセッションを削除しました",
+            Self::KoKr => "현재 세션을 삭제했습니다",
+        }
+    }
+
+    pub(crate) fn confirm_cancel_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "否，不归档",
+            Self::ZhTw => "否，不歸檔",
+            Self::EnUs => "No, don't archive",
+            Self::JaJp => "いいえ、アーカイブしない",
+            Self::KoKr => "아니요, 보관하지 않음",
+        }
+    }
+
+    pub(crate) fn confirm_cancel_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "返回当前会话",
+            Self::ZhTw => "返回目前工作階段",
+            Self::EnUs => "Return to the current session",
+            Self::JaJp => "現在のセッションに戻る",
+            Self::KoKr => "현재 세션으로 돌아가기",
+        }
+    }
+
+    pub(crate) fn confirm_archive_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "是，归档",
+            Self::ZhTw => "是，歸檔",
+            Self::EnUs => "Yes, archive",
+            Self::JaJp => "はい、アーカイブ",
+            Self::KoKr => "예, 보관",
+        }
+    }
+
+    pub(crate) fn confirm_archive_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "归档当前会话并开始新会话",
+            Self::ZhTw => "歸檔目前工作階段並開始新的工作階段",
+            Self::EnUs => "Archive the current session and start a new one",
+            Self::JaJp => "現在のセッションをアーカイブして新規開始",
+            Self::KoKr => "현재 세션을 보관하고 새로 시작",
+        }
+    }
+
+    pub(crate) fn archived_thread(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已归档当前会话",
+            Self::ZhTw => "已歸檔目前工作階段",
+            Self::EnUs => "archived the current session",
+            Self::JaJp => "現在のセッションをアーカイブしました",
+            Self::KoKr => "현재 세션을 보관했습니다",
+        }
+    }
+
+    pub(crate) fn compacting_thread(self) -> &'static str {
+        match self {
+            Self::ZhCn => "正在压缩对话…",
+            Self::ZhTw => "正在壓縮對話…",
+            Self::EnUs => "compacting the conversation…",
+            Self::JaJp => "会話を圧縮中…",
+            Self::KoKr => "대화 압축 중…",
+        }
+    }
+
+    pub(crate) fn rename_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/rename <名称>",
+            Self::ZhTw => "用法：/rename <名稱>",
+            Self::EnUs => "Usage: /rename <name>",
+            Self::JaJp => "使い方：/rename <名前>",
+            Self::KoKr => "사용법: /rename <이름>",
+        }
+    }
+
+    pub(crate) fn renamed_thread(self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已重命名为 {name}"),
+            Self::ZhTw => format!("已重新命名為 {name}"),
+            Self::EnUs => format!("renamed to {name}"),
+            Self::JaJp => format!("{name} に名前を変更しました"),
+            Self::KoKr => format!("{name}(으)로 이름 변경됨"),
+        }
+    }
+
+    pub(crate) fn new_thread_started(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已开始新会话",
+            Self::ZhTw => "已開始新工作階段",
+            Self::EnUs => "started a new thread",
+            Self::JaJp => "新しいスレッドを開始しました",
+            Self::KoKr => "새 스레드를 시작했습니다",
         }
     }
 
@@ -1988,6 +2601,16 @@ impl Locale {
                 "見つかりません: ",
                 "찾을 수 없음: ",
             ),
+            ("thread: ", "线程：", "執行緒：", "スレッド: ", "스레드: "),
+            ("reason: ", "原因：", "原因：", "理由: ", "이유: "),
+            ("description: ", "描述：", "描述：", "説明: ", "설명: "),
+            (
+                "destination: ",
+                "目标位置：",
+                "目標位置：",
+                "出力先: ",
+                "대상 경로: ",
+            ),
         ];
         PREFIXES
             .iter()
@@ -2656,6 +3279,54 @@ mod tests {
         assert_eq!(Locale::parse("ko-KR"), Some(Locale::KoKr));
         assert_eq!(Locale::parse("en-GB"), Some(Locale::EnUs));
         assert_eq!(Locale::parse("fr-FR"), None);
+    }
+
+    #[test]
+    fn translates_approval_reason_label() {
+        assert_eq!(
+            Locale::ZhCn.detail("reason: needs workspace access"),
+            "原因：needs workspace access"
+        );
+        assert_eq!(
+            Locale::JaJp.detail("reason: needs workspace access"),
+            "理由: needs workspace access"
+        );
+        assert_eq!(
+            Locale::KoKr.detail("reason: needs workspace access"),
+            "이유: needs workspace access"
+        );
+        assert_eq!(
+            Locale::EnUs.detail("reason: needs workspace access"),
+            "reason: needs workspace access"
+        );
+    }
+
+    #[test]
+    fn translates_file_change_approval_detail_labels() {
+        assert_eq!(
+            Locale::ZhCn.detail("description: Apply proposed file edits"),
+            "描述：Apply proposed file edits"
+        );
+        assert_eq!(
+            Locale::ZhTw.detail("destination: src/parser.rs"),
+            "目標位置：src/parser.rs"
+        );
+        assert_eq!(
+            Locale::JaJp.detail("thread: Gate B background"),
+            "スレッド: Gate B background"
+        );
+        assert_eq!(
+            Locale::KoKr.detail("description: Apply proposed file edits"),
+            "설명: Apply proposed file edits"
+        );
+        assert_eq!(
+            Locale::EnUs.detail("destination: src/parser.rs"),
+            "destination: src/parser.rs"
+        );
+        assert_eq!(
+            Locale::ZhCn.detail("unlabelled detail"),
+            "unlabelled detail"
+        );
     }
 
     #[test]

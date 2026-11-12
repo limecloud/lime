@@ -1,13 +1,10 @@
-import {
-  seedCloudAccount,
-  cloudRequestMock,
-  stubCloudRequest,
-} from "@/test/cloudAccountFixture";
+import { seedCloudAccount } from "@/test/cloudAccountFixture";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearSkillCatalogCache,
+  refreshSkillCatalogFromRemote,
   getSeededSkillCatalog,
   saveSkillCatalog,
   type SkillCatalog,
@@ -20,6 +17,11 @@ import { changeLimeLocale } from "@/i18n/createI18n";
 import { recordServiceSkillAutomationLink } from "./automationLinkStorage";
 import { recordServiceSkillUsage } from "./storage";
 import { useServiceSkills } from "./useServiceSkills";
+
+vi.mock("@/lib/api/skillCatalog", async (original) => ({
+  ...(await original<typeof import("@/lib/api/skillCatalog")>()),
+  refreshSkillCatalogFromRemote: vi.fn(),
+}));
 
 vi.mock("@/lib/api/scheduledTasks", () => ({
   scheduledTasksApi: {
@@ -266,12 +268,14 @@ describe("useServiceSkills", () => {
       }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     vi.mocked(scheduledTasksApi.listDetailed).mockResolvedValue([]);
+    vi.mocked(refreshSkillCatalogFromRemote)
+      .mockReset()
+      .mockResolvedValue(null);
     window.localStorage.clear();
   });
 
   afterEach(() => {
     window.localStorage.clear();
-    delete window.__LIME_OEM_CLOUD__;
 
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -279,20 +283,7 @@ describe("useServiceSkills", () => {
   });
 
   it("autoLoad 关闭时默认不读取服务技能目录", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://oem.example.com",
-    );
-    const fetchMock = vi.fn();
-    stubCloudRequest(fetchMock);
+    await seedCloudAccount();
 
     const harness = mountHook({ autoLoad: false });
 
@@ -303,7 +294,7 @@ describe("useServiceSkills", () => {
       expect(harness.getValue().skills).toEqual([]);
       expect(harness.getValue().groups).toEqual([]);
       expect(harness.getValue().catalogMeta).toBeNull();
-      expect(cloudRequestMock).not.toHaveBeenCalled();
+      expect(refreshSkillCatalogFromRemote).not.toHaveBeenCalled();
       expect(scheduledTasksApi.listDetailed).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
@@ -458,37 +449,19 @@ describe("useServiceSkills", () => {
     }
   });
 
-  it("有 OEM 会话时应先显示本地目录再后台刷新远端技能目录", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://oem.example.com",
+  it("先显示本地目录再应用已校验的产品目录", async () => {
+    await seedCloudAccount();
+    const responseDeferred = createDeferred<SkillCatalog>();
+    vi.mocked(refreshSkillCatalogFromRemote).mockReturnValue(
+      responseDeferred.promise,
     );
-
-    const responseDeferred = createDeferred<{
-      ok: boolean;
-      json: () => Promise<unknown>;
-    }>();
-    const fetchMock = vi.fn(() => responseDeferred.promise);
-    stubCloudRequest(fetchMock);
 
     const harness = mountHook();
 
     try {
       await flushEffects(4);
 
-      expect(cloudRequestMock).toHaveBeenCalledWith({
-        path: "/v1/public/tenants/tenant-demo/client/skills",
-        method: "GET",
-        body: undefined,
-      });
+      expect(refreshSkillCatalogFromRemote).toHaveBeenCalledOnce();
       expect(harness.getValue().catalogMeta).toEqual(
         expect.objectContaining({
           tenantId: "local-seeded",
@@ -497,14 +470,7 @@ describe("useServiceSkills", () => {
         }),
       );
 
-      responseDeferred.resolve({
-        ok: true,
-        json: async () => ({
-          code: 200,
-          message: "success",
-          data: buildRemoteCatalog(),
-        }),
-      });
+      responseDeferred.resolve(buildRemoteCatalog());
 
       await flushEffects(4);
 

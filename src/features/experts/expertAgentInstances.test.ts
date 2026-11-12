@@ -1,16 +1,9 @@
-import {
-  seedCloudAccount,
-  stubCloudRequest,
-  cloudRequestMock,
-} from "@/test/cloudAccountFixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildExpertAgentInstanceKey,
   expertAgentInstanceStorageKeys,
   findExpertAgentInstance,
-  refreshExpertAgentInstancesFromCloud,
   readExpertAgentInstances,
-  syncExpertAgentInstanceToCloud,
   updateExpertAgentInstanceSkillRefs,
   upsertExpertAgentInstance,
 } from "./expertAgentInstances";
@@ -18,14 +11,13 @@ import {
 describe("expertAgentInstances", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    delete window.__LIME_OEM_CLOUD__;
 
     vi.unstubAllGlobals();
   });
 
-  it("应以 tenant/project/expert/release 生成配置 key 并复用记录", () => {
+  it("应以 catalog/project/expert/release 生成配置 key 并复用记录", () => {
     const identity = {
-      tenantId: "tenant-0001",
+      catalogId: "tenant-0001",
       projectId: "project-a",
       expertId: "marketing-strategist",
       releaseId: "rel-1",
@@ -52,7 +44,7 @@ describe("expertAgentInstances", () => {
 
   it("不同项目下不应复用同一专家配置", () => {
     const baseIdentity = {
-      tenantId: "tenant-0001",
+      catalogId: "tenant-0001",
       expertId: "marketing-strategist",
       releaseId: "rel-1",
     };
@@ -83,7 +75,7 @@ describe("expertAgentInstances", () => {
 
   it("应持久化项目作用域下的技能覆盖", () => {
     const record = updateExpertAgentInstanceSkillRefs({
-      tenantId: "tenant-0001",
+      catalogId: "tenant-0001",
       projectId: "project-a",
       expertId: "data-analyst",
       releaseId: "rel-data",
@@ -93,7 +85,7 @@ describe("expertAgentInstances", () => {
     expect(record?.skillRefsOverride).toEqual(["skill:csv"]);
 
     updateExpertAgentInstanceSkillRefs({
-      tenantId: "tenant-0001",
+      catalogId: "tenant-0001",
       projectId: "project-a",
       expertId: "data-analyst",
       releaseId: "rel-data",
@@ -116,7 +108,7 @@ describe("expertAgentInstances", () => {
       expertAgentInstanceStorageKeys.instances,
       JSON.stringify([
         {
-          tenantId: "tenant-0001",
+          catalogId: "tenant-0001",
           projectId: "project-a",
           expertId: "data-analyst",
           releaseId: "rel-data",
@@ -130,131 +122,5 @@ describe("expertAgentInstances", () => {
     );
 
     expect(readExpertAgentInstances()[0]).not.toHaveProperty("latestSessionId");
-  });
-
-  it("有云端会话时应同步到 LimeCore 专家 Agent 实例接口", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      enabled: true,
-      baseUrl: "https://lime.example.com",
-      tenantId: "tenant-0001",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token",
-        tenant: { id: "tenant-0001" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://lime.example.com",
-    );
-    const fetchMock = vi.fn(
-      async (_input: unknown, _init?: { body?: unknown }) => ({
-        ok: true,
-        json: async () => ({ code: 200, data: {} }),
-      }),
-    );
-    stubCloudRequest(fetchMock);
-
-    await syncExpertAgentInstanceToCloud({
-      tenantId: "tenant-0001",
-      projectId: "project-a",
-      expertId: "marketing-strategist",
-      releaseId: "rel-1",
-      agentInstanceId:
-        "expert:tenant-0001:project-a:marketing-strategist:rel-1",
-      agentInstanceKey: "tenant-0001:project-a:marketing-strategist:rel-1",
-      catalogVersion: "tenant-0001:v1",
-      skillRefsOverride: ["skill:docx"],
-      status: "active",
-      createdAt: 1,
-      updatedAt: 2,
-      lastStartedAt: 2,
-    });
-
-    expect(cloudRequestMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "/v1/public/tenants/tenant-0001/client/expert-agent-instances",
-        method: "POST",
-      }),
-    );
-    expect(cloudRequestMock.mock.calls[0]?.[0]?.body).toEqual({
-      projectId: "project-a",
-      expertId: "marketing-strategist",
-      releaseId: "rel-1",
-      catalogVersion: "tenant-0001:v1",
-      skillRefsOverride: ["skill:docx"],
-    });
-  });
-
-  it("有云端会话时应从 LimeCore 拉取并合并专家 Agent 实例", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      enabled: true,
-      baseUrl: "https://lime.example.com",
-      tenantId: "tenant-0001",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token",
-        tenant: { id: "tenant-0001" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://lime.example.com",
-    );
-    upsertExpertAgentInstance({
-      tenantId: "tenant-0001",
-      projectId: "project-local",
-      expertId: "local-only",
-      releaseId: "rel-local",
-      skillRefsOverride: ["skill:local"],
-      now: 100,
-    });
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        code: 200,
-        data: {
-          items: [
-            {
-              id: "expert-agent-0001",
-              tenantId: "tenant-0001",
-              projectId: "project-cloud",
-              expertId: "marketing-strategist",
-              releaseId: "rel-1",
-              catalogVersion: "tenant-0001:v1",
-              latestSessionId: "session-cloud",
-              skillRefsOverride: ["skill:docx"],
-              status: "active",
-              createdAt: "2026-05-15T10:00:00.000Z",
-              updatedAt: "2026-05-15T10:01:00.000Z",
-              lastStartedAt: "2026-05-15T10:01:00.000Z",
-            },
-          ],
-        },
-      }),
-    }));
-    stubCloudRequest(fetchMock);
-
-    const records = await refreshExpertAgentInstancesFromCloud();
-
-    expect(cloudRequestMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "/v1/public/tenants/tenant-0001/client/expert-agent-instances?status=active",
-        method: "GET",
-      }),
-    );
-    expect(
-      records.find((item) => item.expertId === "marketing-strategist"),
-    ).toMatchObject({
-      agentInstanceId: "expert-agent-0001",
-      projectId: "project-cloud",
-      skillRefsOverride: ["skill:docx"],
-    });
-    expect(
-      records.find((item) => item.expertId === "local-only"),
-    ).toMatchObject({
-      projectId: "project-local",
-      skillRefsOverride: ["skill:local"],
-    });
   });
 });

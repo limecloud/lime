@@ -128,9 +128,8 @@ describe("AppSidebar Plugins", () => {
       ],
     });
     await seedCloudAccount({
-      tenant: { id: "tenant" },
-      user: { id: "first" },
-      session: { id: "first-session" },
+      userId: "first",
+      generation: "first-generation",
     });
     mockListInstalledPluginCatalog.mockResolvedValue(installed("first-plugin"));
     const container = mountSidebarContainer({ currentPage: "plugins" });
@@ -160,9 +159,8 @@ describe("AppSidebar Plugins", () => {
     );
     await act(async () => {
       await seedCloudAccount({
-        tenant: { id: "tenant" },
-        user: { id: "second" },
-        session: { id: "second-session" },
+        userId: "second",
+        generation: "second-generation",
       });
     });
     expect(names()).toEqual([]);

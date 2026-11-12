@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import type { AgentThreadItem } from "@/lib/api/agentProtocol";
 import { ThreadSummaryPanel } from "./ThreadSummaryPanel";
+import { subscribeOpenChangesSurface } from "./workspaceChangesSurfaceEvents";
 import { cleanBackgroundTerminals } from "@/lib/api/backgroundTerminals";
 import type { AgentThreadTurn } from "../types";
 
@@ -210,6 +211,36 @@ describe("Thread Summary canonical items and actions", () => {
     expect(container.querySelectorAll("[data-summary-section]")).toHaveLength(
       1,
     );
+  });
+
+  it("aggregates changed files into the Changes summary section", () => {
+    const patch: AgentThreadItem = {
+      ...base,
+      id: "patch-1",
+      type: "patch",
+      text: "Patch changed src/a.ts",
+      paths: ["src/a.ts"],
+    };
+    act(() =>
+      root.render(
+        <ThreadSummaryPanel threadId="thread-1" threadItems={[patch]} />,
+      ),
+    );
+    const stats = container.querySelector(
+      '[data-testid="thread-summary-change-stats"]',
+    );
+    expect(stats).not.toBeNull();
+    expect(stats?.getAttribute("data-file-count")).toBe("1");
+
+    let openRequests = 0;
+    const unsubscribe = subscribeOpenChangesSurface(() => {
+      openRequests += 1;
+    });
+    act(() => {
+      (stats as HTMLButtonElement).click();
+    });
+    expect(openRequests).toBe(1);
+    unsubscribe();
   });
 
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(

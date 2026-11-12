@@ -2,10 +2,9 @@
 use super::cloud_assistant::invocation_ids;
 use super::*;
 use base64::Engine;
-use flate2::{write::ZlibEncoder, Compression};
+use bzip2::{write::BzEncoder, Compression};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::net::Ipv4Addr;
 
 const LAUNCHER: &str = include_str!("runtime_install/launch.py");
 const INSTALLER: &str = include_str!(concat!(
@@ -47,21 +46,32 @@ fn validate_request(request: &Value) -> Result<CloudDesktopResource, String> {
     let resource: CloudDesktopResource = serde_json::from_value(request["resource"].clone())
         .map_err(|_| "Invalid runtime installation resource")?;
     validate_resource(&resource)?;
-    let artifact: Artifact = serde_json::from_value(request["artifact"].clone())
-        .map_err(|_| "Invalid runtime artifact")?;
+    let reconnect = request["action"] == "reconnectEcsRuntime";
+    if reconnect {
+        if request["workSaved"] != true || !request["artifact"].is_null() {
+            return Err("Runtime reconnection requires saved work and no artifact".into());
+        }
+    } else {
+        let artifact: Artifact = serde_json::from_value(request["artifact"].clone())
+            .map_err(|_| "Invalid runtime artifact")?;
+        if request["action"] != "startEcsRuntimeInstallation"
+            || request["createDesktopUser"] != true
+            || !hash(&artifact.archive_sha256)
+            || !hash(&artifact.manifest_sha256)
+            || !(1..=1024 * 1024 * 1024).contains(&artifact.archive_bytes)
+        {
+            return Err("Invalid runtime artifact or desktop user consent".into());
+        }
+    }
     let id = request["operationId"]
         .as_str()
         .ok_or("Missing runtime operation identity")?;
     if resource.provider != CloudDesktopProvider::Ecs
-        || request["createDesktopUser"] != true
         || uuid::Uuid::parse_str(id)
             .ok()
             .map(|v| v.to_string())
             .as_deref()
             != Some(id)
-        || !hash(&artifact.archive_sha256)
-        || !hash(&artifact.manifest_sha256)
-        || !(1..=1024 * 1024 * 1024).contains(&artifact.archive_bytes)
         || !hash(request["capabilitySha256"].as_str().unwrap_or(""))
     {
         return Err(
@@ -72,89 +82,31 @@ fn validate_request(request: &Value) -> Result<CloudDesktopResource, String> {
     Ok(resource)
 }
 
-fn valid_address(s: &str, private: bool) -> bool {
-    let Ok(ip) = s.parse::<Ipv4Addr>() else {
-        return false;
-    };
-    let [a, b, _, _] = ip.octets();
-    ip.to_string() == s
-        && !ip.is_loopback()
-        && !ip.is_link_local()
-        && !ip.is_multicast()
-        && !ip.is_unspecified()
-        && !ip.is_broadcast()
-        && !ip.is_documentation()
-        && if private {
-            ip.is_private()
-        } else {
-            !ip.is_private()
-                && a != 0
-                && a < 224
-                && !(a == 100 && (64..=127).contains(&b))
-                && !(a == 198 && (18..=19).contains(&b))
-                && !(a == 192 && b == 0)
-        }
-}
-
-fn addresses(
-    response: &Value,
-    resource: &CloudDesktopResource,
-) -> Result<(String, String), String> {
-    let instances = response
-        .pointer("/Instances/Instance")
-        .and_then(Value::as_array)
-        .ok_or("Missing ECS network identity")?;
-    if instances.len() != 1
-        || instances[0]["InstanceId"] != resource.resource_id
-        || response
-            .get("TotalCount")
-            .is_some_and(|v| v.as_u64() != Some(1))
-    {
-        return Err("ECS network identity does not match the exact instance".into());
-    }
-    let instance = &instances[0];
-    let private = instance
-        .pointer("/VpcAttributes/PrivateIpAddress/IpAddress")
-        .and_then(Value::as_array)
-        .filter(|v| v.len() == 1)
-        .and_then(|v| v[0].as_str())
-        .filter(|v| valid_address(v, true))
-        .ok_or("A single primary private ECS IPv4 address is required")?;
-    let mut public = Vec::new();
-    if let Some(values) = instance
-        .pointer("/PublicIpAddress/IpAddress")
-        .and_then(Value::as_array)
-    {
-        for value in values {
-            public.push(value.as_str().ok_or("Invalid public ECS address")?);
-        }
-    }
-    if let Some(value) = instance
-        .pointer("/EipAddress/IpAddress")
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-    {
-        public.push(value);
-    }
-    public.sort_unstable();
-    public.dedup();
-    if public.len() != 1 || !valid_address(public[0], false) {
-        return Err("A single public ECS IPv4 address is required for runtime upload".into());
-    }
-    Ok((private.into(), public[0].into()))
-}
-
 fn config(receipt: &Value) -> Value {
     let request = &receipt["request"];
+    if request["action"] == "reconnectEcsRuntime" {
+        return json!({"operationId":receipt["operationId"], "capabilitySha256":request["capabilitySha256"],
+            "reconnect":true, "expiresAt":receipt["expiresAt"]});
+    }
     json!({"operationId":receipt["operationId"], "capabilitySha256":request["capabilitySha256"],
         "archiveSha256":request["artifact"]["archiveSha256"], "manifestSha256":request["artifact"]["manifestSha256"],
-        "archiveBytes":request["artifact"]["archiveBytes"], "bindAddress":receipt["bindAddress"],
-        "publicAddress":receipt["publicAddress"], "expiresAt":receipt["expiresAt"]})
+        "archiveBytes":request["artifact"]["archiveBytes"], "expiresAt":receipt["expiresAt"]})
+}
+
+fn python_source(source: &str) -> String {
+    source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }
 
 fn command(receipt: &Value) -> Result<String, String> {
-    let bundle = json!({"launcher":LAUNCHER,"installer":INSTALLER,"bootstrap":BOOTSTRAP,"config":config(receipt)});
-    let mut encoded = ZlibEncoder::new(Vec::new(), Compression::best());
+    // RunCommand limits the Base64-encoded command to 24 KiB. Omit only
+    // standalone comments from these fixed, AST-equivalence-tested sources.
+    let bundle = json!({"launcher":python_source(LAUNCHER),"installer":python_source(INSTALLER),"bootstrap":python_source(BOOTSTRAP),"config":config(receipt)});
+    let mut encoded = BzEncoder::new(Vec::new(), Compression::best());
     encoded
         .write_all(
             &serde_json::to_vec(&bundle).map_err(|_| "Cannot encode fixed runtime bootstrap")?,
@@ -165,8 +117,8 @@ fn command(receipt: &Value) -> Result<String, String> {
             .finish()
             .map_err(|_| "Cannot finish runtime bootstrap")?,
     );
-    let script = format!("#!/bin/sh\nset -eu\nexec /usr/bin/python3 -I - <<'LIME_RUNTIME_INSTALL'\nimport base64,json,sys,zlib\nbundle=json.loads(zlib.decompress(base64.b64decode('{payload}',validate=True)))\nnamespace={{'__name__':'lime_managed_bootstrap'}}\nexec(compile(bundle['launcher'],'lime-managed-bootstrap','exec'),namespace)\nsys.exit(namespace['main'](bundle))\nLIME_RUNTIME_INSTALL\n");
-    if script.len() > 24 * 1024 {
+    let script = format!("#!/bin/sh\nset -eu\nexec /usr/bin/python3 -I - <<'LIME_RUNTIME_INSTALL'\nimport base64,bz2,json,sys\nbundle=json.loads(bz2.decompress(base64.b64decode('{payload}',validate=True)))\nnamespace={{'__name__':'lime_managed_bootstrap'}}\nexec(compile(bundle['launcher'],'lime-managed-bootstrap','exec'),namespace)\nsys.exit(namespace['main'](bundle))\nLIME_RUNTIME_INSTALL\n");
+    if base64::encoded_len(script.len(), true).is_none_or(|size| size > 24 * 1024) {
         return Err("Fixed runtime bootstrap exceeds the Cloud Assistant limit".into());
     }
     Ok(script)
@@ -181,10 +133,9 @@ fn upload(value: &Value, receipt: &Value) -> Result<Value, String> {
         r"\A-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/=\n]+-----END CERTIFICATE-----\n\z",
     )
     .unwrap();
-    if value.as_object().map(|o| o.len()) != Some(5)
+    if value.as_object().map(|o| o.len()) != Some(4)
         || value["operationId"] != receipt["operationId"]
         || value["expiresAt"] != receipt["expiresAt"]
-        || value["publicAddress"] != receipt["publicAddress"]
         || value["phase"] != "uploadReady"
         || !pem.is_match(certificate)
     {
@@ -205,13 +156,35 @@ impl CloudDesktopService {
     ) -> Result<Value, String> {
         let request = json!({"action":"startEcsRuntimeInstallation", "resource":resource,
             "operationId":operation_id,"artifact":artifact,"capabilitySha256":capability_sha256,"createDesktopUser":create_desktop_user});
-        validate_request(&request)?;
-        if confirmation
-            != format!(
-                "installRuntime:{}:{}",
-                resource.region_id, resource.resource_id
-            )
-        {
+        self.launch_ecs_runtime(request, confirmation).await
+    }
+
+    pub(super) async fn reconnect_ecs_runtime(
+        &self,
+        resource: CloudDesktopResource,
+        operation_id: String,
+        capability_sha256: String,
+        confirmation: String,
+        work_saved: bool,
+    ) -> Result<Value, String> {
+        let request = json!({"action":"reconnectEcsRuntime", "resource":resource,
+            "operationId":operation_id,"capabilitySha256":capability_sha256,"workSaved":work_saved});
+        self.launch_ecs_runtime(request, confirmation).await
+    }
+
+    async fn launch_ecs_runtime(
+        &self,
+        request: Value,
+        confirmation: String,
+    ) -> Result<Value, String> {
+        let resource = validate_request(&request)?;
+        let operation_id = request["operationId"].as_str().unwrap();
+        let action = if request["action"] == "reconnectEcsRuntime" {
+            "reconnectRuntime"
+        } else {
+            "installRuntime"
+        };
+        if confirmation != format!("{action}:{}:{}", resource.region_id, resource.resource_id) {
             return Err("Explicit runtime installation confirmation is required".into());
         }
         self.ensure_root()?;
@@ -222,7 +195,7 @@ impl CloudDesktopService {
             }
             return Ok(existing);
         }
-        self.check_change_available(&resource, "startEcsRuntimeInstallation")?;
+        self.check_change_available(&resource, request["action"].as_str().unwrap())?;
         let source = source_hash();
         let token = format!(
             "{:x}",
@@ -234,34 +207,14 @@ impl CloudDesktopService {
         let mut receipt = json!({"operationId":operation_id,"request":request,"createdAt":chrono::Utc::now().to_rfc3339(),
             "sourceSha256":source,"clientToken":token,"outcome":"unknown","requiresInspection":true,
             "runtimeInstalled":false,"desktopReady":false});
-        let preflight = async {
-            self.preflight_ecs_preparation(&resource).await?;
-            let network = self
-                .call(
-                    &resource,
-                    &[
-                        "DescribeInstances".into(),
-                        "--InstanceIds".into(),
-                        json!([resource.resource_id]).to_string(),
-                    ],
-                )
-                .await?;
-            addresses(&network, &resource)
+        if self.preflight_ecs_preparation(&resource).await.is_err() {
+            receipt["outcome"] = json!("notSubmitted");
+            receipt["submitted"] = json!(false);
+            receipt["requiresInspection"] = json!(false);
+            receipt["failureCode"] = json!("runtimePreflightFailed");
+            self.create_receipt(&operation_id, &receipt)?;
+            return Ok(receipt);
         }
-        .await;
-        let (private, public) = match preflight {
-            Ok(value) => value,
-            Err(_) => {
-                receipt["outcome"] = json!("notSubmitted");
-                receipt["submitted"] = json!(false);
-                receipt["requiresInspection"] = json!(false);
-                receipt["failureCode"] = json!("runtimePreflightFailed");
-                self.create_receipt(&operation_id, &receipt)?;
-                return Ok(receipt);
-            }
-        };
-        receipt["bindAddress"] = json!(private);
-        receipt["publicAddress"] = json!(public);
         receipt["expiresAt"] = json!(chrono::Utc::now().timestamp() + 1800);
         let script = command(&receipt)?;
         receipt["commandSha256"] = json!(format!("{:x}", Sha256::digest(script.as_bytes())));
@@ -332,8 +285,8 @@ impl CloudDesktopService {
             }
         } else {
             if !hash(receipt["commandSha256"].as_str().unwrap_or(""))
-                || !valid_address(receipt["bindAddress"].as_str().unwrap_or(""), true)
-                || !valid_address(receipt["publicAddress"].as_str().unwrap_or(""), false)
+                || receipt.get("bindAddress").is_some()
+                || receipt.get("publicAddress").is_some()
                 || receipt["expiresAt"].as_i64().is_none()
             {
                 return Err("Invalid runtime upload identity".into());

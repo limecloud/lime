@@ -3,7 +3,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  syncExpertAgentInstanceToCloud,
   updateExpertAgentInstanceSkillRefs,
 } from "@/features/experts";
 import type { ExpertAgentLaunchParams } from "@/types/page";
@@ -13,7 +12,6 @@ import {
 } from "./useWorkspaceExpertAgentLaunchSyncRuntime";
 
 vi.mock("@/features/experts", () => ({
-  syncExpertAgentInstanceToCloud: vi.fn().mockResolvedValue(undefined),
   updateExpertAgentInstanceSkillRefs: vi.fn(() => ({ id: "record-skills" })),
 }));
 
@@ -22,7 +20,7 @@ type HookProps = Parameters<typeof useWorkspaceExpertAgentLaunchSyncRuntime>[0];
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 const expertAgentLaunch: ExpertAgentLaunchParams = {
-  tenantId: "tenant-1",
+  catalogId: "tenant-1",
   projectId: "project-1",
   expertId: "expert-1",
   releaseId: "release-1",
@@ -105,7 +103,7 @@ describe("workspace expert agent launch sync runtime", () => {
     ).toEqual(["workspace_skill:daily_brief", "workspace_skill:writer"]);
   });
 
-  it("skill refs 变化时应更新本地 override、裁剪 runtime enable refs 并同步专家实例", async () => {
+  it("skill refs 变化时应更新本地 override、裁剪 runtime enable refs 并保存专家配置", async () => {
     const pruneWorkspaceSkillRuntimeEnableRefs = vi.fn();
     const { render, getValue } = renderHook({
       pruneWorkspaceSkillRuntimeEnableRefs,
@@ -124,15 +122,12 @@ describe("workspace expert agent launch sync runtime", () => {
       "workspace_skill:writer",
     ]);
     expect(updateExpertAgentInstanceSkillRefs).toHaveBeenCalledWith({
-      tenantId: "tenant-1",
+      catalogId: "tenant-1",
       projectId: "project-1",
       expertId: "expert-1",
       releaseId: "release-1",
       catalogVersion: "catalog-1",
       skillRefsOverride: ["workspace_skill:writer"],
-    });
-    expect(syncExpertAgentInstanceToCloud).toHaveBeenCalledWith({
-      id: "record-skills",
     });
   });
 

@@ -115,7 +115,7 @@ export function shouldAllowDetachedInitialAutoSend(
 export interface BuildThreadExpertProfileSwitchRequestMetadataParams {
   currentMetadata?: Record<string, unknown> | null;
   expert: ExpertProfile;
-  catalog: Pick<ExpertCatalog, "tenantId" | "version">;
+  catalog: Pick<ExpertCatalog, "catalogId" | "version">;
   switchedAt?: string;
 }
 
@@ -150,7 +150,7 @@ export function buildThreadExpertProfileSwitchRequestMetadata({
   const currentHarness = asRecord(root?.harness);
   const nextMetadata = buildExpertRuntimeMetadata(expert, {
     catalogVersion: catalog.version,
-    tenantId: catalog.tenantId,
+    catalogId: catalog.catalogId,
   });
   const previousExpertId = readExpertMetadataString(
     currentMetadata,

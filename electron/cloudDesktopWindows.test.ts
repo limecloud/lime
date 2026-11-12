@@ -2,12 +2,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { once } from "node:events";
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import process from "node:process";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import type {
+  CloudDesktopParams,
   JsonRpcMessage,
   JsonRpcRequest,
 } from "../packages/app-server-client/src/index";
@@ -27,6 +29,8 @@ vi.mock("./electronRuntime", () => ({
 const { dynamicConstructor } = vi.hoisted(() => ({
   dynamicConstructor: vi.fn(),
 }));
+const { guestUpload } = vi.hoisted(() => ({ guestUpload: vi.fn() }));
+vi.mock("./cloudGuestUpload", () => ({ requestCloudGuestUpload: guestUpload }));
 vi.mock("./appServerDynamicToolHost", () => ({
   AppServerDynamicToolHost: class {
     constructor() {
@@ -39,6 +43,8 @@ import { ElectronAppServerHost } from "./appServerHost";
 import { AppServerRemoteConnection } from "./appServerRemoteConnection";
 import { CloudDesktopWindows } from "./cloudDesktopWindows";
 import { ElectronSecureCredentialStore } from "./secureCredentialStore";
+import { LocalCredentialEncryption } from "./localCredentialEncryption";
+import type { CloudGuestUpload } from "./cloudGuestUpload";
 import { isCloudWindowHostCommand } from "./cloudWindowPolicy";
 import { isCloudRendererAsset } from "./cloudDesktopWindowFactory";
 
@@ -276,6 +282,200 @@ describe("BYOC window and credential isolation", () => {
     },
   });
 
+  it("replaces only the exact ECS credential after rotation, fences stale opens and recovers after restart", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "lime-ecs-rotation-"));
+    cleanup.push(() => rm(root, { recursive: true, force: true }));
+    const remote = await fixture();
+    const encryption = new LocalCredentialEncryption(root);
+    const expiresAt = Math.floor(Date.now() / 1000) + 120;
+    const newToken = "synthetic_rotated_".repeat(3);
+    let phase = "waiting";
+    let release: () => void = () => undefined;
+    const rotation = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    guestUpload.mockImplementation(
+      async (target: CloudGuestUpload, _capability: string, route: string) => {
+        if (route === "/reconnect") {
+          await rotation;
+          phase = "installed";
+        }
+        if (route === "/credentials")
+          return {
+            operationId: target.operationId,
+            token: newToken,
+            viewerPassword: "newVnc88",
+          };
+        if (route === "/finish") return { phase: "finished" };
+        return { operationId: target.operationId, phase, expiresAt };
+      },
+    );
+    const request = vi.fn(async (params: CloudDesktopParams) => {
+      if (
+        params.action === "openEcsTunnel" &&
+        params.channel === "installation"
+      )
+        return {
+          data: {
+            state: "listening",
+            channel: "installation",
+            persistent: false,
+            endpoint: "https://127.0.0.1:34567/",
+          },
+        };
+      if (
+        params.action === "closeEcsTunnel" &&
+        params.channel === "installation"
+      )
+        return {
+          data: { state: "closed", channel: "installation", persistent: false },
+        };
+      if (params.action === "openEcsTunnel")
+        return listening(remote.url.replace("/rpc", "/"));
+      if (params.action !== "reconnectEcsRuntime")
+        throw new Error("unexpected request");
+      return {
+        data: {
+          operationId: params.operationId,
+          request: params,
+          outcome: "runtimeUploadReady",
+          expiresAt,
+          upload: {
+            operationId: params.operationId,
+            certificate: "synthetic-public-certificate",
+            expiresAt,
+          },
+        },
+      };
+    });
+    const picker = vi.fn(async () => undefined);
+    const manager = new CloudDesktopWindows(
+      root,
+      encryption,
+      () => fakeWindow(1),
+      request,
+      picker,
+    );
+    cleanup.push(() => manager.stop());
+    await manager.invoke({
+      action: "saveEcsTunnel",
+      resource: ecsResource,
+      token: "synthetic_old_token",
+    });
+    expect(
+      await manager.invoke({
+        action: "installationStatus",
+        resource: ecsResource,
+      }),
+    ).toMatchObject({ exists: false, connectionSaved: true });
+    const reconnect = {
+      action: "reconnectRuntime" as const,
+      resource: ecsResource,
+      confirmation: `reconnectRuntime:${ecsResource.regionId}:${ecsResource.resourceId}`,
+      workSaved: true,
+    };
+    const directResource = { ...ecsResource, resourceId: "i-direct" };
+    await manager.invoke({
+      action: "save",
+      resource: directResource,
+      endpoint: "wss://synthetic.invalid/",
+      token: "synthetic_direct_token",
+    });
+    await expect(
+      manager.invoke({
+        ...reconnect,
+        resource: directResource,
+        confirmation: `reconnectRuntime:${directResource.regionId}:${directResource.resourceId}`,
+      }),
+    ).rejects.toThrow("CLOUD_INSTALL_CONNECTION_CHANGED");
+    expect(request).not.toHaveBeenCalled();
+    await manager.invoke(reconnect);
+    await vi.waitFor(() =>
+      expect(
+        guestUpload.mock.calls.some(([, , route]) => route === "/reconnect"),
+      ).toBe(true),
+    );
+    for (const action of ["open", "delete"] as const) {
+      await expect(
+        manager.invoke({ action, resource: ecsResource }),
+      ).rejects.toThrow("CLOUD_INSTALL_UNRESOLVED");
+    }
+    await expect(
+      manager.invoke({
+        action: "saveEcsTunnel",
+        resource: ecsResource,
+        token: "other",
+      }),
+    ).rejects.toThrow("CLOUD_INSTALL_UNRESOLVED");
+    release();
+    await vi.waitFor(
+      async () =>
+        expect(
+          await manager.invoke({
+            action: "installationStatus",
+            resource: ecsResource,
+          }),
+        ).toMatchObject({ phase: "complete", connectionSaved: true }),
+      { timeout: 10000 },
+    );
+    expect(picker).not.toHaveBeenCalled();
+    const key = createHash("sha256")
+      .update(
+        JSON.stringify([
+          ecsResource.provider,
+          ecsResource.profile,
+          ecsResource.regionId,
+          ecsResource.resourceId,
+        ]),
+      )
+      .digest("hex");
+    const storageRoot = path.join(root, "cloud-desktop-connections", key);
+    const credential = await new ElectronSecureCredentialStore(
+      storageRoot,
+      encryption,
+    ).readCloudSessionCredential();
+    expect(credential).toMatchObject({
+      token: newToken,
+      transport: "ecsTunnel",
+      endpoint: "ws://127.0.0.1:8787/",
+    });
+    expect(
+      (
+        await readFile(
+          path.join(storageRoot, "credentials/app-server-session.v1"),
+        )
+      ).includes(Buffer.from(newToken)),
+    ).toBe(false);
+    await manager.invoke({ action: "open", resource: ecsResource });
+    expect(remote.headers).toEqual(["Bearer " + newToken]);
+    await expect(manager.invoke(reconnect)).rejects.toThrow(
+      "CLOUD_INSTALL_CONNECTION_EXISTS",
+    );
+    await manager.stop();
+    const restarted = new CloudDesktopWindows(
+      root,
+      encryption,
+      () => fakeWindow(2),
+      request,
+      picker,
+    );
+    cleanup.push(() => restarted.stop());
+    const status = await restarted.invoke({
+      action: "installationStatus",
+      resource: ecsResource,
+    });
+    expect(status).toMatchObject({ phase: "complete", connectionSaved: true });
+    expect(JSON.stringify(status)).not.toContain(newToken);
+    expect(
+      request.mock.calls.filter(
+        ([params]) => params.action === "reconnectEcsRuntime",
+      ),
+    ).toHaveLength(1);
+    expect(
+      guestUpload.mock.calls.filter(([, , route]) => route === "/reconnect"),
+    ).toHaveLength(1);
+  });
+
   it("resolves the user's ECS on explicit open and preserves isolation across restarts and port changes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "lime-ecs-window-"));
     cleanup.push(() => rm(root, { recursive: true, force: true }));
@@ -403,6 +603,60 @@ describe("BYOC window and credential isolation", () => {
       connected: true,
       generation: 2,
     });
+    request.mockResolvedValue({
+      data: {
+        state: "listening",
+        channel: "desktop",
+        persistent: false,
+        endpoint: "http://127.0.0.1:12345/vnc.html",
+      },
+    });
+    expect(
+      await manager.invokeWindow(entry, "cloud_desktop_window_view", {
+        request: {
+          action: "connect",
+          resource: { ...ecsResource, resourceId: "i-other" },
+        },
+      }),
+    ).toEqual({ endpoint: "http://127.0.0.1:12345/vnc.html" });
+    expect(request).toHaveBeenLastCalledWith({
+      action: "openEcsTunnel",
+      resource: ecsResource,
+      channel: "desktop",
+    });
+    expect(manager.status(entry).generation).toBe(2);
+    await expect(
+      manager.invokeWindow(entry, "cloud_desktop_window_view", {
+        request: { action: "human" },
+      }),
+    ).rejects.toThrow(/^CLOUD_DESKTOP_VIEW_UNAVAILABLE$/);
+    await expect(
+      manager.invokeWindow(entry, "cloud_desktop_window_view", {
+        request: { action: "showPassword" },
+      }),
+    ).rejects.toThrow(/^CLOUD_DESKTOP_PASSWORD_UNAVAILABLE$/);
+    let resolve!: (value: unknown) => void;
+    request.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const late = manager.invokeWindow(entry, "cloud_desktop_window_view", {
+      request: { action: "connect" },
+    });
+    const rejected = expect(late).rejects.toThrow(
+      /^CLOUD_DESKTOP_VIEW_UNAVAILABLE$/,
+    );
+    entry.window.close();
+    resolve({
+      data: {
+        state: "listening",
+        channel: "desktop",
+        persistent: false,
+        endpoint: "http://127.0.0.1:12345/vnc.html",
+      },
+    });
+    await rejected;
   });
 
   it.each([

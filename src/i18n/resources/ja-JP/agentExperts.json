@@ -117,5 +117,9 @@
   "agentExperts.info.skills.timeline.invocationRunning": "実行中",
   "agentExperts.info.skills.timeline.invocationCompleted": "完了",
   "agentExperts.info.skills.timeline.invocationFailed": "失敗",
-  "agentExperts.info.skills.timeline.invocationUnknown": "確認待ち"
+  "agentExperts.info.skills.timeline.invocationUnknown": "確認待ち",
+  "agentExperts.loading": "エキスパートを読み込み中",
+  "agentExperts.loadFailed": "エキスパート一覧を読み込めませんでした",
+  "agentExperts.retry": "再試行",
+  "agentExperts.launchFailed": "エキスパートを開始できませんでした。再試行してください。"
 }

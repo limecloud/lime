@@ -70,15 +70,10 @@ impl PluginStore {
     }
 
     pub(super) fn installed(&self) -> Result<BTreeMap<String, Installation>, String> {
-        self.installations(true)
+        self.installations()
     }
 
-    /// Reconciliation also sees inactive cache entries so failed cleanup can be retried.
-    pub(super) fn cached(&self) -> Result<BTreeMap<String, Installation>, String> {
-        self.installations(false)
-    }
-
-    fn installations(&self, apply_state: bool) -> Result<BTreeMap<String, Installation>, String> {
+    fn installations(&self) -> Result<BTreeMap<String, Installation>, String> {
         // Unreadable credentials hide remote packages; local packages remain usable.
         let identity = self.remote_identity().unwrap_or_else(|error| {
             tracing::warn!(%error, "remote plugin identity unavailable");
@@ -87,15 +82,6 @@ impl PluginStore {
         let config = {
             let _guard = lime_core::config::config_file_lock();
             ConfigManager::load(&self.config_path).map_err(|error| error.to_string())?
-        };
-        let state = if apply_state {
-            identity
-                .as_deref()
-                .map(|identity| remote::state::read(self, identity))
-                .transpose()?
-                .flatten()
-        } else {
-            None
         };
         let mut installed = BTreeMap::new();
         let cache = self.root.join("cache");
@@ -138,18 +124,6 @@ impl PluginStore {
                 if remote.is_some() && !remote::is_marketplace(&id.marketplace) {
                     return Err("Remote Plugin provenance 不属于远端市场。".into());
                 }
-                let remote_state = state
-                    .as_ref()
-                    .and_then(|state| state.plugins.get(&id.key()))
-                    .filter(|summary| {
-                        summary.remote_plugin_id.as_deref()
-                            == remote
-                                .as_ref()
-                                .map(|metadata| metadata.remote_plugin_id.as_str())
-                    });
-                if remote.is_some() && state.is_some() && remote_state.is_none() {
-                    continue;
-                }
                 let mut versions = Vec::new();
                 for version in
                     fs::read_dir(plugin.path()).map_err(io_error("读取 Plugin versions 失败"))?
@@ -186,10 +160,7 @@ impl PluginStore {
                 if manifest_name(&manifest)? != id.name {
                     return Err(format!("Plugin cache identity 不一致: {}", id.key()));
                 }
-                let enabled = config.config().plugins.enabled(&id.key())
-                    && remote_state.is_none_or(|summary| {
-                        summary.enabled && summary.availability == PluginAvailability::Available
-                    });
+                let enabled = config.config().plugins.enabled(&id.key());
                 installed.insert(
                     id.key(),
                     Installation {

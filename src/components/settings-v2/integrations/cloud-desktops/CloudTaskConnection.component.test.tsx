@@ -223,74 +223,163 @@ describe("temporary ECS desktop tunnel", () => {
 describe("cloud task connection", () => {
   const ecs = { ...resource, provider: "ecs" as const, resourceId: "i-test" };
 
-  it("defaults ECS to session forwarding, saves no transient address and opens only after an explicit click", async () => {
-    invoke.mockResolvedValue({ exists: false, available: true });
+  it("rebuilds an ECS connection with explicit saved-work consent and no token or artifact input", async () => {
+    invoke.mockResolvedValue({
+      kind: "installation",
+      available: true,
+      exists: false,
+      busy: false,
+    });
     act(() => root.render(<CloudTaskConnection resource={ecs} running />));
     await settle();
     await click("任务连接");
-    expect(document.querySelector('input[type="url"]')).toBeNull();
-    expect((document.querySelector("select") as HTMLSelectElement).value).toBe(
-      "ecsTunnel",
-    );
-    expect(button("打开云窗口").disabled).toBe(true);
-    await fill("连接令牌", "guest-token");
-    invoke.mockResolvedValueOnce({
-      exists: true,
-      available: true,
-      transport: "ecsTunnel",
-      endpoint: "ws://127.0.0.1:8787/",
-    });
-    await click("保存连接");
     expect(invoke).toHaveBeenLastCalledWith("cloud_desktop_connection", {
-      request: { action: "saveEcsTunnel", resource: ecs, token: "guest-token" },
+      request: { action: "installationStatus", resource: ecs },
     });
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(document.querySelector('input[type="url"]')).toBeNull();
+    expect(button("重建连接").disabled).toBe(true);
+    const consent = document.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    )!;
+    act(() => consent.click());
+    await settle();
+    let resolve: (value: unknown) => void = () => undefined;
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    act(() => {
+      button("重建连接").click();
+      button("重建连接").click();
+    });
+    await settle();
     expect(
-      invoke.mock.calls.some(([, args]) => args?.request?.action === "open"),
-    ).toBe(false);
-    expect(
-      (document.querySelector('input[type="password"]') as HTMLInputElement)
-        .value,
-    ).toBe("");
+      invoke.mock.calls.filter(
+        ([, args]) => args.request.action === "reconnectRuntime",
+      ),
+    ).toHaveLength(1);
+    expect(invoke).toHaveBeenLastCalledWith("cloud_desktop_connection", {
+      request: {
+        action: "reconnectRuntime",
+        resource: ecs,
+        confirmation: "reconnectRuntime:cn-test:i-test",
+        workSaved: true,
+      },
+    });
+    act(() =>
+      resolve({
+        kind: "installation",
+        available: true,
+        exists: true,
+        busy: false,
+        mode: "reconnect",
+        phase: "complete",
+        connectionSaved: true,
+      }),
+    );
+    await settle();
     expect(button("打开云窗口").disabled).toBe(false);
+    expect(
+      invoke.mock.calls.some(([, args]) => args.request.action === "open"),
+    ).toBe(false);
     invoke.mockRejectedValueOnce(new Error("ECS_SECURITY_GROUP_DENIED"));
     await click("打开云窗口");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(
       "阿里云安全组阻止了会话转发",
     );
-    expect(document.body.textContent).not.toContain(
-      "ECS_SECURITY_GROUP_DENIED",
-    );
-    invoke.mockResolvedValueOnce({ opened: true });
-    await click("打开云窗口");
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("keeps a saved direct ECS connection and blocks unsaved transport changes", async () => {
+  it("resumes the existing ECS reconnect operation without requesting another rotation", async () => {
     invoke.mockResolvedValue({
-      exists: true,
+      kind: "installation",
       available: true,
-      endpoint: "wss://cloud.test/rpc",
+      exists: true,
+      busy: false,
+      mode: "reconnect",
+      phase: "needsAttention",
+      operationId: "original-reset",
+      connectionSaved: false,
     });
     act(() => root.render(<CloudTaskConnection resource={ecs} running />));
     await settle();
     await click("任务连接");
-    expect((document.querySelector("select") as HTMLSelectElement).value).toBe(
-      "direct",
-    );
-    expect(button("打开云窗口").disabled).toBe(false);
-    await fill("连接令牌", "discard-on-mode-change");
-    act(() => {
-      const select = document.querySelector("select") as HTMLSelectElement;
-      select.value = "ecsTunnel";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    await click("继续原操作");
+    expect(invoke).toHaveBeenLastCalledWith("cloud_desktop_connection", {
+      request: {
+        action: "resumeInstallation",
+        resource: ecs,
+        operationId: "original-reset",
+      },
     });
-    await settle();
     expect(
-      (document.querySelector('input[type="password"]') as HTMLInputElement)
-        .value,
-    ).toBe("");
-    expect(button("打开云窗口").disabled).toBe(true);
-    expect(document.querySelector('input[type="url"]')).toBeNull();
+      invoke.mock.calls.some(
+        ([, args]) => args.request.action === "reconnectRuntime",
+      ),
+    ).toBe(false);
+  });
+
+  it("clears connection state when the resource changes and ignores the old pending response", async () => {
+    let finishOld: (value: unknown) => void = () => undefined;
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+    );
+    act(() => root.render(<CloudTaskConnection resource={ecs} running />));
+    await settle();
+    await click("任务连接");
+    const next = { ...ecs, resourceId: "i-other" };
+    act(() => root.render(<CloudTaskConnection resource={next} running />));
+    await settle();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    invoke.mockResolvedValue({
+      kind: "installation",
+      available: true,
+      exists: false,
+      busy: false,
+    });
+    await click("任务连接");
+    expect(invoke).toHaveBeenLastCalledWith("cloud_desktop_connection", {
+      request: { action: "installationStatus", resource: next },
+    });
+    act(() =>
+      finishOld({
+        kind: "installation",
+        available: true,
+        exists: true,
+        busy: false,
+        phase: "complete",
+        connectionSaved: true,
+      }),
+    );
+    await settle();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "i-other",
+    );
+    expect(
+      document.querySelector('[role="dialog"]')?.textContent,
+    ).not.toContain("任务连接已保存");
+    expect(button("重建连接").disabled).toBe(true);
+    act(() =>
+      document
+        .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+        .click(),
+    );
+    await settle();
+    await click("重建连接");
+    expect(invoke).toHaveBeenLastCalledWith("cloud_desktop_connection", {
+      request: {
+        action: "reconnectRuntime",
+        resource: next,
+        confirmation: "reconnectRuntime:cn-test:i-other",
+        workSaved: true,
+      },
+    });
   });
 
   it("keeps the token blank, blocks unsaved address changes, saves once and clears secrets on close", async () => {
@@ -391,6 +480,9 @@ describe("cloud task connection", () => {
     invoke.mockRejectedValue(new Error("fixture authentication refused"));
     await click("重新连接");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      "未能重新连接云电脑",
+    );
+    expect(document.body.textContent).not.toContain(
       "fixture authentication refused",
     );
     expect(invoke).toHaveBeenCalledWith("cloud_desktop_window_reconnect");

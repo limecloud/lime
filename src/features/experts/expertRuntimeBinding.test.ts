@@ -40,7 +40,7 @@ describe("buildExpertRuntimeMetadata", () => {
     expect(expert).toBeDefined();
     const metadata = buildExpertRuntimeMetadata(expert!, {
       catalogVersion: catalog.version,
-      tenantId: catalog.tenantId,
+      catalogId: catalog.catalogId,
     });
 
     expect(metadata.expert).toMatchObject({
@@ -57,16 +57,12 @@ describe("buildExpertRuntimeMetadata", () => {
       memory_enabled: true,
       workflow_enabled: true,
       personality_boundary: {
-
-
         expert_persona_scope: "current_expert_session",
 
         formal_artifact_voice_source: "generation_brief_only",
       },
     });
     expect(metadata.expert.personalityBoundary).toEqual({
-
-
       expertPersonaScope: "current_expert_session",
 
       formalArtifactVoiceSource: "generation_brief_only",

@@ -1,209 +1,86 @@
-import {
-  seedCloudAccount,
-  stubCloudRequest,
-  cloudRequestMock,
-} from "@/test/cloudAccountFixture";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getExpertCatalog,
-  readCachedExpertCatalog,
-  saveCachedExpertCatalog,
+  readExpertInstructions,
 } from "./expertCatalogClient";
-import { getSeededExpertCatalog } from "./seededExpertCatalog";
-import type { ExpertCatalog } from "./types";
-
-const EXPERT_CATALOG_CACHE_STORAGE_KEY = "lime:expert-catalog-cache:v1";
-
-function buildRemoteCatalog(): ExpertCatalog {
-  const catalog = getSeededExpertCatalog();
-  return {
-    ...catalog,
-    version: "remote-experts-2026-05-15",
-    tenantId: "tenant-demo",
-    items: catalog.items.map((item) => ({
-      ...item,
-      source: "cloud_catalog",
-    })),
-  };
-}
-
-function buildEmptyRemoteCatalog(): ExpertCatalog {
-  return {
-    ...buildRemoteCatalog(),
-    version: "remote-experts-empty",
-    items: [],
-  };
-}
-
-describe("expertCatalogClient", () => {
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  read: vi.fn(),
+  account: {
+    account: {
+      baseUrl: "https://core.test",
+      applicationId: "lime",
+      environment: "sandbox",
+    },
+  } as unknown,
+}));
+vi.mock("@/lib/api/productCatalog", () => ({
+  listProductContent: mocks.list,
+  readProductContent: mocks.read,
+  productContentText: (c: {
+    document: { translations: Record<string, unknown> };
+  }) => c.document.translations["zh-CN"],
+}));
+vi.mock("@/lib/cloudAccount", () => ({ getCloudAccount: () => mocks.account }));
+const content = {
+  id: "a".repeat(64),
+  kind: "experts",
+  key: "research",
+  revision: 3,
+  contentHash: "b".repeat(64),
+  publishedAt: "2026-11-12T00:00:00Z",
+  document: {
+    translations: { "zh-CN": { title: "资料整理", summary: "核对来源" } },
+    category: "research",
+    tags: [],
+    skillRefs: ["citations"],
+  },
+};
+describe("expert product catalog", () => {
   beforeEach(() => {
-    window.localStorage.clear();
-
-    delete window.__LIME_OEM_CLOUD__;
+    mocks.list.mockReset();
+    mocks.read.mockReset();
+    mocks.account = {
+      account: {
+        baseUrl: "https://core.test",
+        applicationId: "lime",
+        environment: "sandbox",
+      },
+    };
   });
-
-  afterEach(() => {
-    window.localStorage.clear();
-
-    delete window.__LIME_OEM_CLOUD__;
-
-    vi.unstubAllGlobals();
-  });
-
-  it("无远端刷新请求时应优先读取本地缓存", async () => {
-    saveCachedExpertCatalog(buildRemoteCatalog());
-
+  it("maps real published content without fabricating tenant, ranking or usage data", async () => {
+    mocks.list.mockResolvedValue([content]);
     const catalog = await getExpertCatalog();
-
-    expect(catalog.tenantId).toBe("tenant-demo");
-    expect(catalog.version).toBe("remote-experts-2026-05-15");
-  });
-
-  it("本地缓存是空专家目录时应回退 seeded，避免专家广场空白", async () => {
-    window.localStorage.setItem(
-      EXPERT_CATALOG_CACHE_STORAGE_KEY,
-      JSON.stringify(buildEmptyRemoteCatalog()),
-    );
-
-    const catalog = await getExpertCatalog();
-
-    expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.items.length).toBeGreaterThan(0);
-    expect(readCachedExpertCatalog()).toBeNull();
-  });
-
-  it("存在 OEM 会话时应从 LimeCore 刷新并缓存专家目录", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token-demo",
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
+    expect(mocks.list).toHaveBeenCalledWith("experts");
+    expect(catalog).not.toHaveProperty("tenantId");
+    expect(catalog.rankings).toEqual([]);
+    expect(catalog.items[0]).toMatchObject({
+      title: "资料整理",
+      release: {
+        releaseId: content.id,
+        version: "3",
+        skillRefs: ["citations"],
       },
-      "https://oem.example.com",
+    });
+    mocks.read.mockResolvedValue({
+      ...content,
+      document: { ...content.document, instructions: "核实每条引用" },
+    });
+    await expect(readExpertInstructions(catalog.items[0]!)).resolves.toBe(
+      "核实每条引用",
     );
-
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        code: 200,
-        message: "success",
-        data: buildRemoteCatalog(),
-      }),
-    }));
-    stubCloudRequest(fetchMock);
-
-    const catalog = await getExpertCatalog({ refreshRemote: true });
-
-    expect(cloudRequestMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "/v1/public/tenants/tenant-demo/client/experts?includeRankings=true",
-        method: "GET",
-      }),
-    );
-    expect(catalog.tenantId).toBe("tenant-demo");
-    expect(readCachedExpertCatalog()?.version).toBe(
-      "remote-experts-2026-05-15",
-    );
+    expect(mocks.read).toHaveBeenCalledWith("experts", "research", {
+      id: content.id,
+      revision: 3,
+      contentHash: content.contentHash,
+    });
   });
-
-  it("远端返回空专家目录时应保留可用缓存", async () => {
-    saveCachedExpertCatalog(buildRemoteCatalog());
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token-demo",
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://oem.example.com",
-    );
-    stubCloudRequest(
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          code: 200,
-          message: "success",
-          data: buildEmptyRemoteCatalog(),
-        }),
-      })),
-    );
-
-    const catalog = await getExpertCatalog({ refreshRemote: true });
-
-    expect(catalog.tenantId).toBe("tenant-demo");
-    expect(catalog.version).toBe("remote-experts-2026-05-15");
-    expect(readCachedExpertCatalog()?.version).toBe(
-      "remote-experts-2026-05-15",
-    );
-  });
-
-  it("远端返回空专家目录且没有缓存时应回退 seeded", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token-demo",
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://oem.example.com",
-    );
-    stubCloudRequest(
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          code: 200,
-          message: "success",
-          data: buildEmptyRemoteCatalog(),
-        }),
-      })),
-    );
-
-    const catalog = await getExpertCatalog({ refreshRemote: true });
-
-    expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.items.length).toBeGreaterThan(0);
-    expect(readCachedExpertCatalog()).toBeNull();
-  });
-
-  it("远端刷新失败时应回退到上次缓存而不是直接丢回 seeded", async () => {
-    saveCachedExpertCatalog(buildRemoteCatalog());
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token-demo",
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://oem.example.com",
-    );
-    stubCloudRequest(
-      vi.fn(async () => ({
-        ok: false,
-        status: 503,
-        json: async () => ({ message: "unavailable" }),
-      })),
-    );
-
-    const catalog = await getExpertCatalog({ refreshRemote: true });
-
-    expect(catalog.tenantId).toBe("tenant-demo");
-    expect(catalog.version).toBe("remote-experts-2026-05-15");
+  it("preserves empty catalogs and propagates failures", async () => {
+    mocks.list.mockResolvedValueOnce([]);
+    expect((await getExpertCatalog()).items).toEqual([]);
+    mocks.list.mockRejectedValueOnce(new Error("service unavailable"));
+    await expect(getExpertCatalog()).rejects.toThrow("service unavailable");
+    mocks.account = null;
+    await expect(getExpertCatalog()).rejects.toThrow("account_login_required");
   });
 });

@@ -116,7 +116,7 @@ describe("FileChangesSummaryCard", () => {
     const { container } = renderCard({ aggregate: createLargeAggregate() });
 
     expect(container.textContent).toContain("已编辑 11 个文件");
-    expect(container.textContent).toContain("展开其余 8 个文件");
+    expect(container.textContent).toContain("再显示 8 个文件");
     expect(
       container.querySelectorAll(
         '[data-testid="file-changes-summary-file-row"]',
@@ -130,7 +130,7 @@ describe("FileChangesSummaryCard", () => {
       toggle?.click();
     });
 
-    expect(container.textContent).toContain("收起文件");
+    expect(container.textContent).toContain("收起");
     expect(
       container.querySelectorAll(
         '[data-testid="file-changes-summary-file-row"]',
@@ -153,7 +153,7 @@ describe("FileChangesSummaryCard", () => {
     expect(container.textContent).not.toContain("/workspace/projects/Demo");
 
     const reviewButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("审核"),
+      (button) => button.textContent?.includes("查看变更"),
     );
     act(() => {
       reviewButton?.click();
@@ -202,7 +202,7 @@ describe("FileChangesSummaryCard", () => {
     const { container } = renderCard({ onFileClick, onOpenFile });
 
     expect(container.textContent).toContain("打开文件");
-    expect(container.textContent).not.toContain("审核");
+    expect(container.textContent).not.toContain("查看变更");
 
     const openButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("打开文件"),

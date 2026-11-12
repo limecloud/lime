@@ -26,7 +26,6 @@ import {
   type WorkspaceReadResponse,
 } from "@limecloud/app-server-client";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createServer, type Server } from "node:http";
 import path from "node:path";
 import type { ElectronAppServerHost } from "./appServerHost";
 import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
@@ -43,43 +42,13 @@ import type {
 type HostArgs = Record<string, unknown> | null | undefined;
 type AppServerParams = Record<string, unknown>;
 type HostEventEmitter = (event: string, payload?: unknown) => void;
-const OEM_CLOUD_OAUTH_CALLBACK_BRIDGE_EVENT = "oem-cloud-oauth-callback";
-const OEM_CLOUD_OAUTH_CALLBACK_PATH = "/oauth/callback";
-const OEM_CLOUD_OAUTH_CALLBACK_BRIDGE_TTL_MS = 10 * 60 * 1000;
-const OEM_CLOUD_OAUTH_CALLBACK_HTML = `<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lime 登录回调</title>
-    <script>
-      (function () {
-        if (window.location.hash && window.location.hash.length > 1) {
-          var params = new URLSearchParams(window.location.hash.slice(1));
-          var search = new URLSearchParams(window.location.search);
-          params.forEach(function (value, key) {
-            if (!search.has(key)) search.set(key, value);
-          });
-          window.location.replace(window.location.pathname + "?" + search.toString());
-        }
-      })();
-    </script>
-  </head>
-  <body>
-    <p>Lime 登录结果已返回，可以关闭此页面。</p>
-  </body>
-</html>`;
-
 export class ElectronHostCommands {
   readonly #appServerHost: ElectronAppServerHost;
-  readonly #emit: HostEventEmitter;
   readonly #fileShellHost: FileShellHost;
   readonly #layeredDesignProjectHost = new LayeredDesignProjectHost();
   readonly #systemUtilityHost: SystemUtilityHost;
   readonly #voiceModelHost: VoiceModelHost;
   readonly #secureCredentialStore: SecureCredentialStore | null;
-  #oauthCallbackBridgeServer: Server | null = null;
-  #oauthCallbackBridgeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     appServerHost: ElectronAppServerHost,
@@ -89,7 +58,6 @@ export class ElectronHostCommands {
     secureCredentialStore: SecureCredentialStore | null = null,
   ) {
     this.#appServerHost = appServerHost;
-    this.#emit = emit;
     this.#secureCredentialStore = secureCredentialStore;
     this.#systemUtilityHost = new SystemUtilityHost({
       appDataRoot,
@@ -145,8 +113,6 @@ export class ElectronHostCommands {
         return this.#fileShellHost.getHomeDir();
       case "get_file_icon_data_url":
         return await this.#fileShellHost.getFileIconDataUrl(args);
-      case "start_oem_cloud_oauth_callback_bridge":
-        return await this.#startOemCloudOAuthCallbackBridge();
       case "get_runtime_provider_selection":
         return await this.#getRuntimeProviderSelection();
       case "get_default_provider":
@@ -216,84 +182,6 @@ export class ElectronHostCommands {
     await mkdir(path.dirname(targetPath), { recursive: true });
     await writeFile(targetPath, content, "utf8");
     return null;
-  }
-
-  async #startOemCloudOAuthCallbackBridge(): Promise<{
-    callbackUrl: string;
-  }> {
-    await this.#closeOemCloudOAuthCallbackBridge();
-
-    const server = createServer((request, response) => {
-      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
-      if (requestUrl.pathname !== OEM_CLOUD_OAUTH_CALLBACK_PATH) {
-        response.writeHead(404, {
-          "Content-Type": "text/plain; charset=utf-8",
-        });
-        response.end("Not found");
-        return;
-      }
-
-      const payload = buildOemCloudOAuthCallbackPayload(requestUrl);
-      if (shouldEmitOemCloudOAuthCallback(payload)) {
-        this.#emit(OEM_CLOUD_OAUTH_CALLBACK_BRIDGE_EVENT, payload);
-        void this.#closeOemCloudOAuthCallbackBridge();
-      }
-
-      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      response.end(OEM_CLOUD_OAUTH_CALLBACK_HTML);
-    });
-
-    server.on("error", (error) => {
-      console.warn(
-        `[OAuthCallbackBridge] OAuth 本地回调桥运行失败: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const onError = (error: Error) => {
-        server.off("listening", onListening);
-        reject(error);
-      };
-      const onListening = () => {
-        server.off("error", onError);
-        resolve();
-      };
-      server.once("error", onError);
-      server.once("listening", onListening);
-      server.listen(0, "127.0.0.1");
-    });
-
-    const address = server.address();
-    if (!address || typeof address === "string") {
-      server.close();
-      throw new Error("无法读取 OAuth 本地回调地址");
-    }
-
-    this.#oauthCallbackBridgeServer = server;
-    this.#oauthCallbackBridgeTimer = setTimeout(() => {
-      void this.#closeOemCloudOAuthCallbackBridge();
-    }, OEM_CLOUD_OAUTH_CALLBACK_BRIDGE_TTL_MS);
-
-    return {
-      callbackUrl: `http://127.0.0.1:${address.port}${OEM_CLOUD_OAUTH_CALLBACK_PATH}`,
-    };
-  }
-
-  async #closeOemCloudOAuthCallbackBridge(): Promise<void> {
-    if (this.#oauthCallbackBridgeTimer) {
-      clearTimeout(this.#oauthCallbackBridgeTimer);
-      this.#oauthCallbackBridgeTimer = null;
-    }
-    const server = this.#oauthCallbackBridgeServer;
-    this.#oauthCallbackBridgeServer = null;
-    if (!server || !server.listening) {
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   }
 
   async #getRuntimeProviderSelection(): Promise<{
@@ -675,42 +563,6 @@ function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
-}
-
-function normalizeCallbackBridgeValue(value: string | null): string | null {
-  const normalized = value?.trim() ?? "";
-  return normalized ? normalized : null;
-}
-
-function buildOemCloudOAuthCallbackPayload(
-  requestUrl: URL,
-): Record<string, string | null> {
-  const params = requestUrl.searchParams;
-  return {
-    sourcePath: requestUrl.pathname,
-    tenantId: normalizeCallbackBridgeValue(
-      params.get("tenantId") ?? params.get("tenant_id"),
-    ),
-    token: normalizeCallbackBridgeValue(params.get("token")),
-    next: normalizeCallbackBridgeValue(params.get("next")),
-    error: normalizeCallbackBridgeValue(params.get("error")),
-    deviceCode: normalizeCallbackBridgeValue(
-      params.get("deviceCode") ?? params.get("device_code"),
-    ),
-    status: normalizeCallbackBridgeValue(params.get("status")),
-  };
-}
-
-function shouldEmitOemCloudOAuthCallback(
-  payload: Record<string, string | null>,
-): boolean {
-  return Boolean(
-    payload.tenantId ||
-    payload.token ||
-    payload.error ||
-    payload.deviceCode ||
-    payload.status,
-  );
 }
 
 type ElectronHostLogMethod = "log" | "error";

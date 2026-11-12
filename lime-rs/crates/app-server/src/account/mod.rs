@@ -1,15 +1,23 @@
 mod cloud;
+mod credentials;
+mod oauth;
+mod operations;
+mod product;
 mod request;
 mod store;
+mod tools;
+
+#[cfg(test)]
+mod tests;
 
 use app_server_protocol::protocol::v2::{
-    GetAccountParams, GetAccountResponse, LoginAccountParams, LoginAccountResponse,
-    LogoutAccountResponse,
+    Account, AccountAuthorizationStatus, CloudCredentialStatus, CloudResourceCredential,
+    GetAccountParams, GetAccountResponse, LogoutAccountResponse,
 };
 use std::path::{Path, PathBuf};
 
-/// Shared external-account owner. Credentials never leave this domain in RPC results.
-#[derive(Debug)]
+/// One native account owner shared by Desktop, CLI and TUI. RPC only returns metadata.
+#[derive(Debug, Clone)]
 pub(crate) struct AccountManager {
     path: PathBuf,
     client: reqwest::Client,
@@ -25,84 +33,116 @@ impl AccountManager {
         }
     }
 
-    pub(crate) async fn login(
-        &self,
-        params: LoginAccountParams,
-    ) -> Result<LoginAccountResponse, String> {
-        match params {
-            LoginAccountParams::CloudAuthTokens {
-                base_url,
-                tenant_id,
-                access_token,
-            } => {
-                let credential = cloud::verify(
-                    &self.client,
-                    &self.loopback_client,
-                    base_url,
-                    tenant_id,
-                    access_token,
-                )
-                .await?;
-                store::save(&self.path, &credential)?;
-                Ok(LoginAccountResponse::CloudAuthTokens {})
-            }
-        }
-    }
-
     pub(crate) fn read(&self, _params: GetAccountParams) -> Result<GetAccountResponse, String> {
-        // External tokens are refreshed by their issuer and reimported by the client.
-        // Read from the shared file each time so other processes observe login/logout.
+        let state = store::load(&self.path)?;
+        let now = chrono::Utc::now().timestamp();
+        let account = state.account.map(|mut account| {
+            let Account::Cloud { resources, .. } = &mut account;
+            *resources = state
+                .credentials
+                .iter()
+                .map(|(resource, credential)| CloudResourceCredential {
+                    resource: *resource,
+                    audience: credential.audience.clone(),
+                    scope: credential.scope.clone(),
+                    expires_at: timestamp(credential.expires_at),
+                    status: if credential.status == CloudCredentialStatus::Connected
+                        && credential.expires_at <= now
+                    {
+                        CloudCredentialStatus::Expired
+                    } else {
+                        credential.status
+                    },
+                })
+                .collect();
+            account
+        });
+        let authorizations = state
+            .authorizations
+            .into_values()
+            .map(|a| {
+                let mut public = a.public;
+                if chrono::DateTime::parse_from_rfc3339(&public.expires_at)
+                    .is_ok_and(|at| at.timestamp() <= now)
+                {
+                    public.status = match public.status {
+                        AccountAuthorizationStatus::Pending => AccountAuthorizationStatus::Expired,
+                        AccountAuthorizationStatus::Exchanging => {
+                            AccountAuthorizationStatus::OutcomeUnknown
+                        }
+                        other => other,
+                    };
+                }
+                public
+            })
+            .collect();
         Ok(GetAccountResponse {
-            account: store::load(&self.path)?.map(|credential| credential.account),
-            requires_openai_auth: false,
+            account,
+            authorizations,
         })
     }
 
     pub(crate) fn logout(&self) -> Result<LogoutAccountResponse, String> {
-        store::delete(&self.path)?;
+        // Epoch replacement fences every in-flight callback and business result.
+        // Local logout does not claim that the issuer's sessions were terminated.
+        store::reset(&self.path)?;
         Ok(LogoutAccountResponse {})
     }
 
-    /// Stable package provenance excludes tokens, session rotation and profile fields.
     pub(crate) fn plugin_identity(&self) -> Result<Option<String>, String> {
-        let Some(account) = self.read(GetAccountParams::default())?.account else {
-            return Ok(None);
-        };
-        let app_server_protocol::protocol::v2::Account::Cloud { expires_at, .. } = &account;
-        if let Some(expires_at) = expires_at {
-            let expires = chrono::DateTime::parse_from_rfc3339(expires_at)
-                .map_err(|_| "cloud account expiresAt is invalid")?;
-            if expires <= chrono::Utc::now() {
-                return Ok(None);
-            }
-        }
-        Ok(Some(Self::plugin_identity_for(&account)))
+        Ok(self
+            .read(GetAccountParams::default())?
+            .account
+            .as_ref()
+            .map(Self::plugin_identity_for))
     }
 
-    pub(crate) fn plugin_identity_for(
-        account: &app_server_protocol::protocol::v2::Account,
-    ) -> String {
+    pub(crate) fn plugin_identity_for(account: &Account) -> String {
         use sha2::{Digest, Sha256};
-        let app_server_protocol::protocol::v2::Account::Cloud {
+        let Account::Cloud {
             base_url,
-            tenant_id,
+            issuer,
+            application_id,
+            client_id,
+            environment,
             user_id,
             ..
         } = account;
         let mut hash = Sha256::new();
-        for part in [base_url, tenant_id, user_id] {
+        for part in [
+            base_url,
+            issuer,
+            application_id,
+            client_id,
+            environment,
+            user_id,
+        ] {
             hash.update((part.len() as u64).to_be_bytes());
             hash.update(part.as_bytes());
         }
         hex::encode(hash.finalize())
     }
+
+    fn http(&self, base_url: &str) -> Result<&reqwest::Client, String> {
+        let (_, loopback) = cloud::validated_base_url(base_url)?;
+        Ok(if loopback {
+            &self.loopback_client
+        } else {
+            &self.client
+        })
+    }
+}
+
+fn timestamp(seconds: i64) -> String {
+    chrono::DateTime::from_timestamp(seconds, 0)
+        .unwrap_or_default()
+        .to_rfc3339()
 }
 
 fn session_client(loopback: bool) -> reqwest::Client {
     let builder = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(15));
-    // A local issuer must stay local even when the OS configures a system proxy.
+        .timeout(std::time::Duration::from_secs(35));
     let builder = if loopback {
         builder.no_proxy()
     } else {

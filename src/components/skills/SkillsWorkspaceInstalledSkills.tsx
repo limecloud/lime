@@ -267,6 +267,11 @@ export function LocalSkillRow({
               resolveInstalledSkillPromise(skill, installedSkillPresentationCopy)}
           </p>
         </div>
+        {onSelect ? (
+          <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            {actionMenu}
+          </span>
+        ) : null}
         <span
           className="flex shrink-0 items-center gap-1 pt-0.5"
           data-testid="skills-installed-check"
@@ -281,11 +286,6 @@ export function LocalSkillRow({
             aria-hidden="true"
           />
         </span>
-        {onSelect ? (
-          <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-            {actionMenu}
-          </span>
-        ) : null}
       </div>
     </div>
   );

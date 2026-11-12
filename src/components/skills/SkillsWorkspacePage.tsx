@@ -545,6 +545,7 @@ export function SkillsWorkspacePage({
         const result = await installOfficialMarketplaceSkill(
           item.skill.name,
           "lime",
+          item.skill.release,
         );
         setOptimisticallyHiddenSkillDirectories((previous) => {
           if (!previous.has(result.directory)) {

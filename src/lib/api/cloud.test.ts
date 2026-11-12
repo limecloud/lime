@@ -6,22 +6,27 @@ it("uses typed cloud RPC without renderer credentials or HTTP", async () => {
   const client = new AppServerClient();
   const exchange = vi.spyOn(client, "exchange");
   const params = {
-    path: "/v1/public/tenants/one/client/bootstrap",
+    path: "/catalog/skills",
     method: "GET" as const,
+    language: "zh-CN",
   };
   const result = {
     status: 200,
-    body: { code: 200, data: {} },
+    body: { items: [] },
     account: {
       type: "cloud",
       baseUrl: "https://cloud.test",
-      tenantId: "one",
+      issuer: "https://identity.test",
+      applicationId: "lime",
+      clientId: "native",
+      environment: "sandbox",
       userId: "user",
-      sessionId: "session",
+      generation: "generation-one",
+      resources: [],
       email: null,
       displayName: null,
-      expiresAt: null,
     },
+    operation: null,
   };
   exchange.mockResolvedValueOnce([{ id: 1, result }]);
   await expect(requestCloud(params, client)).resolves.toEqual(result);

@@ -3780,12 +3780,15 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   );
 
   const forkTopic = useCallback(
-    async (topicId: string): Promise<string | null> => {
+    async (
+      topicId: string,
+      options?: { beforeTurnId?: string; cwd?: string },
+    ): Promise<string | null> => {
       try {
         if (!runtime.forkSession) {
           throw new Error("fork session capability is unavailable");
         }
-        const forkedSessionId = await runtime.forkSession(topicId);
+        const forkedSessionId = await runtime.forkSession(topicId, options);
         await loadTopics();
         toast.success(
           tNavigation("navigation.sidebar.conversations.fork.success"),

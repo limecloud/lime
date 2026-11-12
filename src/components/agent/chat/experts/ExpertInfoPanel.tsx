@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import {
   getSeededExpertCatalog,
-  readCachedExpertCatalog,
   type ExpertAvatar,
   type ExpertCatalog,
   type ExpertProfile,
@@ -153,9 +152,7 @@ function extractExpertMetadata(metadata?: Record<string, unknown> | null) {
 }
 
 function getCatalogs(): ExpertCatalog[] {
-  const cached = readCachedExpertCatalog();
-  const seeded = getSeededExpertCatalog();
-  return cached ? [cached, seeded] : [seeded];
+  return [getSeededExpertCatalog()];
 }
 
 interface ExpertSwitchOption {

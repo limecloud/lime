@@ -20,6 +20,8 @@ elif action == 'DescribeLaunchTemplateVersions':
  data = {'VSwitchId':'vsw-test','SecurityGroupIds':{'SecurityGroupId':['sg-test']},'KeyPairName':'key-test','InstanceType':'ecs.test.large','ImageId':'ubuntu-test','SystemDisk.Size':80,'SystemDisk.Encrypted':'false','InternetMaxBandwidthOut':5,'DataDisks':{'DataDisk':[]},'NetworkInterfaces':{'NetworkInterface':[]}}
  if flag('template-userdata'): data['UserData']='must-not-project-secret'
  if flag('template-extra-disk'): data['DataDisks']['DataDisk']=[{'Size':100}]
+ if flag('template-no-key'): data.pop('KeyPairName')
+ if flag('template-keypair.json'): data['KeyPairName']=json.loads((root/'template-keypair.json').read_text())
  result = {'LaunchTemplateVersionSets':{'LaunchTemplateVersionSet':[{'LaunchTemplateId':'lt-test','LaunchTemplateName':'Linux desktop','VersionNumber':2 if flag('wrong-template-version') else 1,'LaunchTemplateData':data}]},'TotalCount':1}
 elif action == 'DescribeVSwitchAttributes':
  result = {'VSwitchId':'vsw-test','Status':'Available','AvailableIpAddressCount':2,'ZoneId':'cn-test-a','VpcId':'vpc-test'}
@@ -36,6 +38,7 @@ elif action == 'DescribePrice':
  result = {'PriceInfo':{'Price':{'TradePrice':0.9 if flag('price-changed') else 0.8,'Currency':'CNY'}}}
 elif action == 'RunInstances':
  (root/'created').write_text(arg('--ClientToken'))
+ (root/'requested-keypair.json').write_text(json.dumps(arg('--KeyPairName') if '--KeyPairName' in args else None))
  if flag('lost-response'): sys.exit(1)
  result = {'InstanceIdSets':{'InstanceIdSet':['i-test','i-extra'] if flag('multiple-created') else ['i-test']},'RequestId':'request-test'}
 elif action == 'DescribeInstances':
@@ -43,6 +46,9 @@ elif action == 'DescribeInstances':
  created = (root/'created').read_text() if flag('created') else 'operation-1'
  item = {'InstanceId':'i-test','RegionId':'cn-test','InstanceName':'Lime-test','Status':'Running','ImageId':'ubuntu-test','InstanceType':'ecs.test.large','KeyPairName':'key-test','InstanceChargeType':'PostPaid','InternetChargeType':'PayByTraffic','InternetMaxBandwidthOut':5,'VpcAttributes':{'VSwitchId':'vsw-test'},'SecurityGroupIds':{'SecurityGroupId':['sg-test']},'Tags':{'Tag':[{'TagKey':'lime-operation','TagValue':'other' if flag('wrong-tag') else created}]}}
  if flag('wrong-instance-spec'): item['ImageId']='other-image'
+ if flag('requested-keypair.json'): item['KeyPairName']=json.loads((root/'requested-keypair.json').read_text())
+ if flag('instance-no-key'): item.pop('KeyPairName')
+ if flag('instance-keypair.json'): item['KeyPairName']=json.loads((root/'instance-keypair.json').read_text())
  items = [item] if (flag('created') and not flag('invisible')) or flag('existing') else []
  if flag('duplicate-matches') and items: items.append(item.copy())
  result = {'Instances':{'Instance':items},'TotalCount':9 if flag('bad-count') else len(items)}
@@ -124,6 +130,7 @@ async fn encrypted_single_purchase_binds_only_verified_instance_and_never_resubm
         ("--InstanceChargeType", "PostPaid"),
         ("--InternetChargeType", "PayByTraffic"),
         ("--ClientToken", "operation-1"),
+        ("--KeyPairName", "key-test"),
         ("--version", "2014-05-26"),
     ] {
         assert!(args.windows(2).any(|pair| pair == [key, value]));
@@ -136,6 +143,117 @@ async fn encrypted_single_purchase_binds_only_verified_instance_and_never_resubm
             .as_array()
             .unwrap()
             .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn keyless_purchase_omits_ssh_and_recovers_the_exact_encrypted_instance() {
+    for field in ["missing", "null", "empty"] {
+        let (directory, service, mut spec) = fixture();
+        spec.key_pair_name.clear();
+        if field == "missing" {
+            fs::write(directory.path().join("instance-no-key"), "").unwrap();
+        } else if field == "empty" {
+            fs::write(directory.path().join("instance-keypair.json"), "\"\"").unwrap();
+        }
+        let request = purchase_request(&service, spec).await;
+        let receipt = service.request(request.clone()).await.unwrap().data;
+        assert_eq!(receipt["outcome"], "provisioned", "{field}");
+        assert_eq!(receipt["observedAfter"]["spec"]["keyPairName"], "");
+        assert_eq!(receipt["observedAfter"]["systemDiskEncrypted"], true);
+        let restarted = CloudDesktopService {
+            root: service.root.clone(),
+            cli: service.cli.clone(),
+        };
+        assert_eq!(
+            restarted
+                .request(CloudDesktopParams::ReadOperation {
+                    operation_id: "operation-1".into(),
+                })
+                .await
+                .unwrap()
+                .data["outcome"],
+            "provisioned"
+        );
+        restarted.request(request).await.unwrap();
+        let calls = calls(directory.path());
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|args| args[1] == "RunInstances")
+                .count(),
+            1
+        );
+        assert!(calls.iter().all(|args| args[1] != "DescribeKeyPairs"));
+        assert!(calls.iter().flatten().all(|arg| ![
+            "--KeyPairName",
+            "--Password",
+            "--PasswordInherit",
+            "--UserData",
+        ]
+        .contains(&arg.as_str())));
+    }
+}
+
+#[tokio::test]
+async fn unexpected_or_malformed_keypair_never_binds_a_keyless_purchase() {
+    for key in [json!("another-key"), json!(true), json!([]), json!({})] {
+        let (directory, service, mut spec) = fixture();
+        spec.key_pair_name.clear();
+        fs::write(
+            directory.path().join("instance-keypair.json"),
+            serde_json::to_vec(&key).unwrap(),
+        )
+        .unwrap();
+        let request = purchase_request(&service, spec).await;
+        let result = service.request(request.clone()).await.unwrap().data;
+        assert_ne!(result["outcome"], "provisioned", "{key}");
+        service.request(request).await.unwrap();
+        assert!(service.list_resources().unwrap()["resources"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            calls(directory.path())
+                .iter()
+                .filter(|args| args[1] == "RunInstances")
+                .count(),
+            1
+        );
+    }
+}
+
+#[tokio::test]
+async fn invalid_nonempty_keypair_is_rejected_before_provider_calls() {
+    for key in [" ", "--another-key", "key/other", "key\nother"] {
+        let (directory, service, mut spec) = fixture();
+        spec.key_pair_name = key.into();
+        assert!(service
+            .request(CloudDesktopParams::QuoteEcs { spec })
+            .await
+            .is_err());
+        assert!(!directory.path().join("calls").exists());
+    }
+}
+
+#[tokio::test]
+async fn an_approved_keypair_cannot_disappear_during_purchase_recovery() {
+    let (directory, service, spec) = fixture();
+    let request = purchase_request(&service, spec).await;
+    fs::write(directory.path().join("instance-no-key"), "").unwrap();
+    let receipt = service.request(request.clone()).await.unwrap().data;
+    assert_ne!(receipt["outcome"], "provisioned");
+    service.request(request).await.unwrap();
+    assert!(service.list_resources().unwrap()["resources"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        calls(directory.path())
+            .iter()
+            .filter(|args| args[1] == "RunInstances")
+            .count(),
         1
     );
 }

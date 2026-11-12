@@ -18,10 +18,25 @@ pub(crate) enum SlashCommand {
     Mcp,
     Raw,
     Vim,
+    Init,
+    New,
+    Rename,
+    Compact,
+    Archive,
+    Delete,
+    Fork,
+    Review,
+    Experimental,
+    Quit,
+    Clear,
+    Config,
+    Hooks,
+    Skills,
+    Keymap,
 }
 
 impl SlashCommand {
-    pub(crate) const ALL: [Self; 16] = [
+    pub(crate) const ALL: [Self; 31] = [
         Self::Model,
         Self::Plan,
         Self::Effort,
@@ -38,6 +53,21 @@ impl SlashCommand {
         Self::Mcp,
         Self::Raw,
         Self::Vim,
+        Self::Init,
+        Self::New,
+        Self::Rename,
+        Self::Compact,
+        Self::Archive,
+        Self::Delete,
+        Self::Fork,
+        Self::Review,
+        Self::Experimental,
+        Self::Quit,
+        Self::Clear,
+        Self::Config,
+        Self::Hooks,
+        Self::Skills,
+        Self::Keymap,
     ];
 
     pub(crate) const fn command(self) -> &'static str {
@@ -58,17 +88,38 @@ impl SlashCommand {
             Self::Mcp => "mcp",
             Self::Raw => "raw",
             Self::Vim => "vim",
+            Self::Init => "init",
+            Self::New => "new",
+            Self::Rename => "rename",
+            Self::Compact => "compact",
+            Self::Archive => "archive",
+            Self::Delete => "delete",
+            Self::Fork => "fork",
+            Self::Review => "review",
+            Self::Experimental => "experimental",
+            Self::Quit => "quit",
+            Self::Clear => "clear",
+            Self::Config => "config",
+            Self::Hooks => "hooks",
+            Self::Skills => "skills",
+            Self::Keymap => "keymap",
         }
     }
 
     pub(crate) const fn requires_argument(self) -> bool {
-        matches!(self, Self::Effort | Self::Permissions)
+        matches!(self, Self::Effort | Self::Permissions | Self::Rename)
     }
 
     pub(crate) const fn supports_inline_args(self) -> bool {
         matches!(
             self,
-            Self::Model | Self::Effort | Self::Permissions | Self::Mcp | Self::Export | Self::Pwd
+            Self::Model
+                | Self::Effort
+                | Self::Permissions
+                | Self::Mcp
+                | Self::Export
+                | Self::Pwd
+                | Self::Rename
         )
     }
 
@@ -79,6 +130,9 @@ impl SlashCommand {
     pub(crate) fn from_name(name: &str) -> Option<Self> {
         if name == "cwd" {
             return Some(Self::Pwd);
+        }
+        if name == "exit" {
+            return Some(Self::Quit);
         }
         Self::ALL
             .into_iter()
@@ -134,6 +188,21 @@ mod tests {
                 "mcp",
                 "raw",
                 "vim",
+                "init",
+                "new",
+                "rename",
+                "compact",
+                "archive",
+                "delete",
+                "fork",
+                "review",
+                "experimental",
+                "quit",
+                "clear",
+                "config",
+                "hooks",
+                "skills",
+                "keymap",
             ]
         );
         for command in SlashCommand::ALL {

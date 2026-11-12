@@ -52,6 +52,11 @@ impl RuntimeWebSearchExecutor {
                 request.tool_name
             )));
         }
+        if request.params.get("operation_key").is_some() {
+            return Err(runtime_web_search_error(
+                "web_operation_recovery_requires_account",
+            ));
+        }
         let mode = request
             .turn_context
             .and_then(|context| context.web_search_mode)
@@ -619,6 +624,11 @@ pub fn web_search_tool_definition() -> RuntimeToolDefinition {
                     "type": "array",
                     "items": { "type": "string" },
                     "description": "永远不包含来自这些域名的结果"
+                },
+                "operation_key": {
+                    "type": "string",
+                    "pattern": "^tool_[a-f0-9]{64}$",
+                    "description": "恢复原搜索时传入结果中的 operationKey，并保留原查询和过滤条件；仅查询原结果，不发起新搜索"
                 }
             },
             "required": ["query"]

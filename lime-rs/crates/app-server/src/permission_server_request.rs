@@ -5,7 +5,7 @@ use app_server_protocol::protocol::v2::{
     PermissionsRequestApprovalResponse, RequestPermissionProfile,
     METHOD_ITEM_PERMISSIONS_REQUEST_APPROVAL,
 };
-use app_server_protocol::AgentEvent;
+use app_server_protocol::{AgentEvent, JsonRpcNotification};
 use serde_json::Value;
 use std::path::Path;
 
@@ -41,15 +41,74 @@ impl AppServer {
         let runtime = self.processor.runtime();
         if let Err(error) = runtime
             .respond_permission(PermissionRespondRequest {
-                session_id: request.session_id,
-                thread_id: request.params.thread_id,
-                turn_id: request.params.turn_id,
-                request_id: request.request_id,
+                session_id: request.session_id.clone(),
+                thread_id: request.params.thread_id.clone(),
+                turn_id: request.params.turn_id.clone(),
+                request_id: request.request_id.clone(),
                 response,
             })
             .await
         {
             tracing::warn!(event_id = %event.event_id, %error, "typed permission response rejected by runtime");
+        } else if !runtime.backend_has_live_session_responses() {
+            // Raw backends have no live session to report a terminal event, so the
+            // app-server must publish the completion notification itself.
+            let completion = AgentEvent {
+                event_id: format!(
+                    "evt_permission_completed_{}_{}",
+                    request.request_id,
+                    chrono::Utc::now().timestamp_millis()
+                ),
+                session_id: request.session_id.clone(),
+                thread_id: Some(request.params.thread_id.clone()),
+                turn_id: Some(request.params.turn_id.clone()),
+                sequence: chrono::Utc::now().timestamp_millis().max(0) as u64,
+                event_type: "turn.completed".to_string(),
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                payload: serde_json::json!({
+                    "status": "completed",
+                    "source": "permission_response",
+                }),
+            };
+            let bridge = self.event_bridge();
+            let thread_id = agent_protocol::ThreadId::new(request.params.thread_id.clone());
+            if let Err(error) = bridge
+                .send_thread_command(
+                    thread_id.clone(),
+                    crate::thread_state::ThreadListenerCommand::PublishRuntimeEvent {
+                        event: completion,
+                        completion_tx: None,
+                    },
+                )
+                .await
+            {
+                tracing::warn!(%error, "failed to publish permission turn completion");
+            }
+            if let Some(turn) =
+                runtime.turn_snapshot_for_completion(&request.session_id, &request.params.turn_id)
+            {
+                let notification: JsonRpcNotification =
+                    app_server_protocol::protocol::v2::ServerNotification::TurnCompleted(
+                        app_server_protocol::protocol::v2::TurnCompletedNotification {
+                            thread_id: request.params.thread_id.clone(),
+                            turn: crate::processor::turn::v2_turn_from_agent_turn(turn),
+                        },
+                    )
+                    .into();
+                if let Err(error) = bridge
+                    .send_thread_command(
+                        thread_id,
+                        crate::thread_state::ThreadListenerCommand::PublishNotification {
+                            notification,
+                            origin_connection_id: None,
+                            completion_tx: None,
+                        },
+                    )
+                    .await
+                {
+                    tracing::warn!(%error, "failed to publish permission turn notification");
+                }
+            }
         }
         true
     }

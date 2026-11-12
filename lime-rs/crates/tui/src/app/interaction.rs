@@ -374,6 +374,94 @@ impl App {
             }
         }
 
+        if self.chat_widget.review_picker_open() {
+            if let Some(action) = self.chat_widget.handle_review_picker_event(&event) {
+                return match action {
+                    crate::app::review_picker::ReviewPickerAction::Uncommitted => {
+                        AppAction::ReviewUncommitted
+                    }
+                    crate::app::review_picker::ReviewPickerAction::Custom => {
+                        self.chat_widget
+                            .bottom_pane
+                            .set_composer_text("/review ".to_string());
+                        AppAction::None
+                    }
+                    crate::app::review_picker::ReviewPickerAction::Cancel
+                    | crate::app::review_picker::ReviewPickerAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.config_menu_open() {
+            if let Some(action) = self.chat_widget.handle_config_menu_event(&event) {
+                return match action {
+                    crate::app::config_menu::ConfigMenuAction::Select(item) => match item {
+                        crate::app::config_menu::ConfigItem::Model => AppAction::OpenModelPicker,
+                        crate::app::config_menu::ConfigItem::Effort => AppAction::OpenEffortPicker,
+                        crate::app::config_menu::ConfigItem::Permissions => {
+                            AppAction::OpenPermissionsPicker
+                        }
+                        crate::app::config_menu::ConfigItem::Experimental => {
+                            AppAction::ListExperimentalFeatures
+                        }
+                        crate::app::config_menu::ConfigItem::TerminalTitle => {
+                            AppAction::OpenTitleSetup
+                        }
+                        crate::app::config_menu::ConfigItem::StatusLine => {
+                            AppAction::OpenStatusLineSetup
+                        }
+                    },
+                    crate::app::config_menu::ConfigMenuAction::Cancel
+                    | crate::app::config_menu::ConfigMenuAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.permissions_picker_open() {
+            if let Some(action) = self.chat_widget.handle_permissions_picker_event(&event) {
+                return match action {
+                    crate::app::permissions_picker::PermissionsPickerAction::Select(profile) => {
+                        AppAction::SelectPermissions(profile)
+                    }
+                    crate::app::permissions_picker::PermissionsPickerAction::Cancel
+                    | crate::app::permissions_picker::PermissionsPickerAction::None => {
+                        AppAction::None
+                    }
+                };
+            }
+        }
+
+        if self.chat_widget.effort_picker_open() {
+            if let Some(action) = self.chat_widget.handle_effort_picker_event(&event) {
+                return match action {
+                    crate::app::effort_picker::EffortPickerAction::Select(value) => {
+                        AppAction::SelectEffort(value.to_string())
+                    }
+                    crate::app::effort_picker::EffortPickerAction::Cancel
+                    | crate::app::effort_picker::EffortPickerAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.confirm_prompt_open() {
+            let kind = self.chat_widget.confirm_kind();
+            if let Some(action) = self.chat_widget.handle_confirm_prompt_event(&event) {
+                return match action {
+                    crate::app::confirm_prompt::ConfirmPromptAction::Confirm => match kind {
+                        Some(crate::app::confirm_prompt::ConfirmKind::ArchiveThread) => {
+                            AppAction::ArchiveThread
+                        }
+                        Some(crate::app::confirm_prompt::ConfirmKind::DeleteThread) => {
+                            AppAction::DeleteThread
+                        }
+                        None => AppAction::None,
+                    },
+                    crate::app::confirm_prompt::ConfirmPromptAction::Cancel
+                    | crate::app::confirm_prompt::ConfirmPromptAction::None => AppAction::None,
+                };
+            }
+        }
+
         if let Some(action) = self.chat_widget.handle_model_picker_event(&event) {
             return match action {
                 crate::chatwidget::ModelPickerEvent::Select(selection) => selection

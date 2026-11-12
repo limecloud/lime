@@ -40,7 +40,7 @@ pub(super) fn validate_model_route(options: &TuiOptions) -> Result<()> {
 
 pub(crate) async fn connect_session(options: &TuiOptions) -> Result<AppServerSession> {
     validate_model_route(options)?;
-    let mut session = if let Some(remote) = options.remote.clone() {
+    let session = if let Some(remote) = options.remote.clone() {
         AppServerSession::connect_remote(remote).await
     } else {
         AppServerSession::connect(stdio_config(options)?).await

@@ -48,6 +48,13 @@ vi.mock("../../../hooks/agentProjectStorage", () => ({
 vi.mock("sonner", () => ({
   toast: { success: mocks.success, error: mocks.error },
 }));
+vi.mock("@/components/cloud/CloudDesktopSetupDialog", () => ({
+  default: ({ onClose }: { onClose: () => void }) => (
+    <button data-testid="cloud-setup" onClick={onClose}>
+      Return
+    </button>
+  ),
+}));
 vi.mock("../../WorktreeEnvironmentDropdown", () => ({
   WorktreeEnvironmentDropdown: ({
     workspaceRoot,
@@ -236,6 +243,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  delete window.electronAPI;
 });
 
 describe("ComposerUtilityBar", () => {
@@ -471,6 +479,60 @@ describe("ComposerUtilityBar", () => {
     expect(
       container.querySelector('[data-testid="composer-utility-mode-menu"]'),
     ).toBeNull();
+  });
+
+  it("没有 Git 或项目也能从执行位置进入云端引导，不改本机 mode 或项目", async () => {
+    const setComposerMode = vi.fn();
+    window.electronAPI = {
+      invoke: vi.fn(),
+      supportsCommand: () => true,
+      listen: () => () => undefined,
+      emit: async () => undefined,
+    };
+    await render({ projectId: null, openedProjects: [], setComposerMode });
+    await click("mode-picker");
+    expect(
+      container.querySelector('[data-utility-action="select-worktree"]'),
+    ).toBeNull();
+    await click("select-cloud");
+    const setup = container.querySelector<HTMLButtonElement>(
+      '[data-testid="cloud-setup"]',
+    );
+    expect(setup).toBeTruthy();
+    expect(setComposerMode).not.toHaveBeenCalled();
+    expect(onProjectChange).not.toHaveBeenCalled();
+    expect(mocks.ensureProject).not.toHaveBeenCalled();
+    expect(window.electronAPI.invoke).not.toHaveBeenCalled();
+    await act(async () => setup!.click());
+    expect(container.querySelector('[data-testid="cloud-setup"]')).toBeNull();
+  });
+
+  it("浏览器投影缺少本机宿主时禁用云电脑入口", async () => {
+    await render();
+    await click("mode-picker");
+    expect(action("select-cloud").disabled).toBe(true);
+    await click("select-cloud");
+    expect(container.querySelector('[data-testid="cloud-setup"]')).toBeNull();
+  });
+
+  it("云端窗口按真实位置显示，不提供假切换回本机或借用管理身份", async () => {
+    window.electronAPI = {
+      invoke: vi.fn(),
+      cloudDesktop: { name: "Cloud" } as never,
+      listen: () => () => undefined,
+      emit: async () => undefined,
+    };
+    await render();
+    expect(action("mode-picker").textContent).not.toContain(copy.localMode);
+    expect(action("mode-picker").title).toContain(
+      action("mode-picker").textContent!,
+    );
+    await click("mode-picker");
+    expect(action("select-cloud").disabled).toBe(true);
+    expect(
+      container.querySelector('[data-utility-action="select-local"]'),
+    ).toBeNull();
+    expect(window.electronAPI.invoke).not.toHaveBeenCalled();
   });
 
   it("受控 Worktree 显示选中态，切回 local 也只更新 mode", async () => {

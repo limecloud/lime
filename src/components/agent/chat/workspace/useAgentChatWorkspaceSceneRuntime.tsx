@@ -1,6 +1,6 @@
 /** Workspace scene/projection current owner。 */
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { ComposerModeContext } from "./ComposerModeContext";
 import { ArtifactCommentSubmissionContext } from "@/components/artifact/ArtifactCommentSubmissionContext";
 import { useWorkspaceArtifactCommentSubmission } from "./useWorkspaceArtifactCommentSubmission";
@@ -15,6 +15,10 @@ import {
   ignoreHiddenWorkspaceWorkflowStepClick,
 } from "./useWorkspaceHiddenWorkflowProgressRuntime";
 import { useAgentChatWorkspaceSceneComposition } from "./useAgentChatWorkspaceSceneComposition";
+import { ForkFromTurnDialog } from "./ForkFromTurnDialog";
+import { useWorkspaceForkFromTurnRuntime } from "./useWorkspaceForkFromTurnRuntime";
+import { subscribeRetryThreadAtTurn } from "@/lib/threadRetryEvents";
+import { revertThreadHistory } from "@/lib/api/threadRevert";
 import { buildThreadWorkspaceHeaderViewModel } from "./threadWorkspaceHeaderViewModel";
 import type { AgentChatWorkspaceProps } from "../agentChatWorkspaceContract";
 import type { useAgentChatWorkspaceEntryRuntime } from "./useAgentChatWorkspaceEntryRuntime";
@@ -297,6 +301,53 @@ export function useAgentChatWorkspaceSceneRuntime({
     }
     return threadId ? { runtimeSessionId, threadId } : null;
   }, [ensureSession, getThreadIdForSubmit, refreshSessionReadModel]);
+  const forkFromTurnRuntime = useWorkspaceForkFromTurnRuntime({
+    sceneSessionId,
+    getThreadIdForSubmit,
+    forkTopic,
+    project,
+    threadRead,
+    openForkedSession: async (sessionId) => {
+      await commandRuntime.handleOpenTaskTopic(sessionId);
+    },
+  });
+
+  useEffect(
+    () =>
+      subscribeRetryThreadAtTurn(async ({ threadId, turnId }) => {
+        if (!sceneSessionId) return;
+        const activeThreadId = getThreadIdForSubmit(sceneSessionId)?.trim();
+        if (activeThreadId && threadId && threadId !== activeThreadId) {
+          return;
+        }
+        const lastUserMessage = [...displayMessages]
+          .reverse()
+          .find(
+            (message) =>
+              message.role === "user" && message.content.trim().length > 0,
+          );
+        const userText = lastUserMessage?.content.trim();
+        if (!userText) return;
+        try {
+          await revertThreadHistory({
+            threadId: activeThreadId || threadId,
+            beforeTurnId: turnId,
+          });
+          await refreshSessionReadModel();
+          await handleSend([], undefined, undefined, userText, "react");
+        } catch (error) {
+          console.error("[AgentChat] 重试消息失败:", error);
+        }
+      }),
+    [
+      displayMessages,
+      getThreadIdForSubmit,
+      handleSend,
+      refreshSessionReadModel,
+      sceneSessionId,
+    ],
+  );
+
   const workspaceSceneNode = useAgentChatWorkspaceSceneComposition({
     expertPanel: {
       canOpenSkillsManage: Boolean(_onNavigate),
@@ -642,6 +693,20 @@ export function useAgentChatWorkspaceSceneRuntime({
         >
           {workspaceSceneNode}
         </BrowserAnnotationContext.Provider>
+        <ForkFromTurnDialog
+          open={forkFromTurnRuntime.pendingForkFromTurn !== null}
+          onOpenChange={(open) => {
+            if (!open) forkFromTurnRuntime.setPendingForkFromTurn(null);
+          }}
+          worktreeAvailable={Boolean(project?.rootPath?.trim())}
+          onConfirm={(mode) => {
+            const request = forkFromTurnRuntime.pendingForkFromTurn;
+            forkFromTurnRuntime.setPendingForkFromTurn(null);
+            if (request) {
+              void forkFromTurnRuntime.runForkFromTurn(request, mode);
+            }
+          }}
+        />
         <ScheduledTaskDialog
           open={workspaceServiceSkillEntryActions.automationDialogOpen}
           mode="create"

@@ -47,6 +47,7 @@ import { registerRendererEventHandler } from "./rendererEventPolicy";
 import { normalizeOpenDialogOptions } from "./dialogOptions";
 import { decodeLocalAssetFilePath } from "./localAsset";
 import { ElectronSecureCredentialStore } from "./secureCredentialStore";
+import { createCredentialEncryption } from "./localCredentialEncryption";
 import {
   buildMainWindowChromeOptions,
   buildMainWindowStartupHtml,
@@ -108,6 +109,11 @@ const desktopStorageRoots = resolveCurrentDesktopStorageRoots(
   app.getPath("userData"),
 );
 configureElectronSessionDataPath(desktopStorageRoots.hostSessionData);
+const credentialEncryption = createCredentialEncryption(
+  desktopStorageRoots.appDataRoot,
+  process.platform,
+  safeStorage,
+);
 const browserTabHostRef: { current: ElectronBrowserTabHost | null } = {
   current: null,
 };
@@ -139,13 +145,13 @@ const appServerHost: ElectronAppServerHost = new ElectronAppServerHost(
 );
 const cloudDesktopWindows = new CloudDesktopWindows(
   desktopStorageRoots.appDataRoot,
-  safeStorage,
+  credentialEncryption,
   createCloudDesktopWindow,
   (params) => appServerHost.request("cloud/desktop", params),
   async () => {
     const selection = await dialog.showOpenDialog({
       properties: ["openFile"],
-      filters: [{ name: "Lime Linux runtime", extensions: ["tar.gz"] }],
+      filters: [{ name: "Lime Linux runtime", extensions: ["tar.gz", "json"] }],
     });
     return selection.canceled ? undefined : selection.filePaths[0];
   },
@@ -230,7 +236,7 @@ const hostCommands = new ElectronHostCommands(
   desktopStorageRoots.appDataRoot,
   new ElectronSecureCredentialStore(
     desktopStorageRoots.appDataRoot,
-    safeStorage,
+    credentialEncryption,
   ),
 );
 const persistedAtomHost = new PersistedAtomHost(
@@ -245,7 +251,7 @@ const desktopPermissionsHost = new DesktopPermissionsHost({
   homeDirectory: app.getPath("home"),
   nativeInvoke: (method, params) =>
     hostCommands.invoke("macos_native_host_invoke", { method, params }),
-  safeStorage,
+  safeStorage: credentialEncryption,
   mediaStatus: (kind) => systemPreferences.getMediaAccessStatus(kind),
   requestMedia: (kind) => systemPreferences.askForMediaAccess(kind),
   diskAccess: readDesktopDiskAccess,
@@ -320,6 +326,18 @@ interface TrayModelShortcutsState {
   quickModelGroups: TrayQuickModelGroup[];
 }
 
+function buildRendererWebPreferences(): Electron.WebPreferences {
+  return {
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: false,
+    preload: path.resolve(__dirname, "../preload/preload.cjs"),
+    additionalArguments: [
+      buildAgentRootArgument(desktopStorageRoots.agentRoot),
+    ],
+  };
+}
+
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
@@ -330,15 +348,7 @@ function createMainWindow(): BrowserWindow {
     ...buildMainWindowStartupOptions(),
     ...buildMainWindowChromeOptions(),
     icon: resolveDesktopAsset(APP_ICON_SOURCE, APP_ICON_PACKAGED_NAME),
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-      preload: path.resolve(__dirname, "../preload/preload.cjs"),
-      additionalArguments: [
-        buildAgentRootArgument(desktopStorageRoots.agentRoot),
-      ],
-    },
+    webPreferences: buildRendererWebPreferences(),
   });
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL?.trim();

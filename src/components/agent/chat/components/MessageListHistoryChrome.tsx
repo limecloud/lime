@@ -1,12 +1,7 @@
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatNumber } from "@/i18n/format";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
-
-function formatContentLength(value: number): string {
-  return formatNumber(value);
-}
 
 interface PersistedHistoryWindowProps {
   loadedEntries: number;
@@ -28,18 +23,12 @@ export function PersistedHistoryWindow({
   return (
     <div
       data-testid="message-list-persisted-history-window"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-sm text-slate-600"
+      className="flex flex-wrap items-center gap-3 py-1 text-sm text-slate-500"
     >
-      <div className="min-w-0 flex-1">
-        {t("agentChat.messageList.history.persistedEntrySummary", {
-          loaded: formatContentLength(loadedEntries),
-        })}
-        {error ? <span className="ml-2 text-red-600">{error}</span> : null}
-      </div>
       <button
         type="button"
         data-testid="message-list-load-full-history"
-        className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={!hasMore || isLoadingFull || !onLoadFullHistory}
         onClick={() => {
           void onLoadFullHistory?.();
@@ -47,8 +36,12 @@ export function PersistedHistoryWindow({
       >
         {isLoadingFull
           ? t("agentChat.messageList.history.loadingMore")
-          : t("agentChat.messageList.history.loadMore")}
+          : t("agentChat.messageList.history.showEarlier", {
+              count: loadedEntries,
+            })}
+        <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
+      {error ? <span className="text-red-600">{error}</span> : null}
     </div>
   );
 }

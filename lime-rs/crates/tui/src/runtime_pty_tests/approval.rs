@@ -25,18 +25,26 @@ pub(super) fn exercise_read_only_details(
         "printf tui-gate-b",
         Duration::from_secs(10),
     );
+    wait_for_compact_marker(
+        output_rx,
+        output,
+        "reason: Allow terminal command?",
+        Duration::from_secs(10),
+    );
+    println!("TUI_EXEC_APPROVAL_REASON_OK label=localized");
+    let details_closed_at = output.len();
     writer
         .write_all(b"\x1b")
         .expect("close details without deciding approval");
     writer.flush().unwrap();
-    wait_for_screen(
+    // Only evidence emitted after ESC proves the details page actually closed; a stale
+    // screen from before the details opened would otherwise release Enter too early.
+    wait_for_marker_after(
         output_rx,
         output,
-        "approval choices restored after closing read-only details",
-        |screen| {
-            screen.contains("f9 confirm · ctrl+x q cancel")
-                && !screen.contains("/ Approve command?")
-        },
+        details_closed_at,
+        "f9 confirm · ctrl+x q cancel",
+        Duration::from_secs(30),
     );
     assert!(!terminal_screen_text(output).contains("/ Approve command?"));
     writer
@@ -52,14 +60,57 @@ pub(super) fn exercise_read_only_details(
             pixel_height: 0,
         })
         .expect("shrink approval viewport");
-    wait_for_screen(
-        output_rx,
-        output,
-        "narrow approval footer keeps the configured accept key and whole cancel chord",
-        |screen| {
-            screen.contains("f9 · ctrl+x q") && !screen.contains("Enter") && !screen.contains("Esc")
-        },
-    );
+    // A coalesced or lost SIGWINCH under load would otherwise park this check for the
+    // whole deadline; re-issue the resize while waiting instead of failing the gate.
+    // Only output emitted after the resize can prove the narrow layout.
+    const NARROW_FOOTER_CHECK: &str =
+        "narrow approval footer keeps the configured accept key and whole cancel chord";
+    let narrow_at = output.len();
+    let narrow_deadline = Instant::now() + Duration::from_secs(45);
+    let mut last_narrow_resize = Instant::now();
+    loop {
+        let recent = output.get(narrow_at..).unwrap_or_default();
+        let screen = terminal_screen_text(recent);
+        if screen.contains("f9 · ctrl+x q") && !screen.contains("Enter") && !screen.contains("Esc")
+        {
+            break;
+        }
+        let remaining = narrow_deadline.saturating_duration_since(Instant::now());
+        assert!(
+            !remaining.is_zero(),
+            "timed out: {NARROW_FOOTER_CHECK}; screen: {screen}"
+        );
+        if last_narrow_resize.elapsed() >= Duration::from_secs(3) {
+            // Re-issuing the same size produces no SIGWINCH; toggle the width so the
+            // retry is observable even when the first resize event was coalesced.
+            terminal_observer::resize(output, 24, 15);
+            master
+                .resize(PtySize {
+                    rows: 24,
+                    cols: 15,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .expect("widen the approval viewport for a resize retry");
+            terminal_observer::resize(output, 24, 14);
+            master
+                .resize(PtySize {
+                    rows: 24,
+                    cols: 14,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .expect("re-issue narrow approval viewport");
+            last_narrow_resize = Instant::now();
+        }
+        match output_rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(chunk) => output.push_str(&String::from_utf8_lossy(&chunk)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("PTY unavailable: {NARROW_FOOTER_CHECK}")
+            }
+        }
+    }
     terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {

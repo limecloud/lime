@@ -115,7 +115,7 @@ function isProfile(value: unknown): value is ExpertProfile {
     value.category.trim().length > 0 &&
     isStringArray(value.tags) &&
     (value.source === "cloud_catalog" ||
-      value.source === "seeded_fallback" ||
+      value.source === "builtin" ||
       value.source === "local_custom") &&
     isStats(value.stats) &&
     isRelease(value.release) &&
@@ -160,7 +160,7 @@ export function parseExpertCatalog(value: unknown): ExpertCatalog | null {
   }
   if (
     typeof value.version !== "string" ||
-    typeof value.tenantId !== "string" ||
+    typeof value.catalogId !== "string" ||
     typeof value.syncedAt !== "string" ||
     !Array.isArray(value.items) ||
     !Array.isArray(value.rankings) ||

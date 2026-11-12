@@ -1,6 +1,7 @@
 use super::*;
 use app_server_protocol::protocol::v2::{
-    CommandExecutionApprovalDecision, CommandExecutionRequestApprovalParams, ServerRequest,
+    CommandExecutionApprovalDecision, CommandExecutionRequestApprovalParams,
+    FileChangeRequestApprovalParams, ServerRequest,
 };
 use app_server_protocol::RequestId;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -25,6 +26,24 @@ fn pane() -> BottomPane {
             cwd: Some("/workspace".into()),
             reason: Some("長い理由 ".repeat(80)),
             available_decisions: None,
+        },
+    })
+    .unwrap();
+    pane
+}
+
+fn file_pane(destinations: Vec<String>, reason: Option<String>) -> BottomPane {
+    let mut pane = BottomPane::default();
+    pane.enqueue(ServerRequest::ItemFileChangeRequestApproval {
+        id: RequestId::Integer(100),
+        params: FileChangeRequestApprovalParams {
+            thread_id: "thread-approval".into(),
+            turn_id: "turn-approval".into(),
+            item_id: "item-file-1".into(),
+            started_at_ms: 1,
+            reason,
+            grant_root: Some("/workspace".into()),
+            destinations,
         },
     })
     .unwrap();
@@ -132,6 +151,46 @@ fn responsive_approval_footer_keeps_submit_and_cancel_keys_together() {
             } else if width >= 5 {
                 assert!(hint.contains("Esc"));
             }
+        }
+    }
+}
+
+#[test]
+fn file_change_approval_details_localize_description_and_destinations() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let pane = file_pane(
+            vec!["src/parser.rs".to_string(), "src/lexer.rs".to_string()],
+            Some("Rewrite parser".to_string()),
+        );
+        let mut terminal = Terminal::new(TestBackend::new(120, 18)).unwrap();
+        terminal
+            .draw(|frame| render(frame, frame.area(), &pane, locale))
+            .unwrap();
+        // Wide glyphs leave their continuation cell blank in the buffer.
+        let compact = |value: &str| {
+            value
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect::<String>()
+        };
+        let text = compact(&text(&terminal));
+        assert!(
+            text.contains(&compact(&locale.detail("description: Rewrite parser"))),
+            "{locale:?}: {text}"
+        );
+        for destination in ["src/parser.rs", "src/lexer.rs"] {
+            assert!(
+                text.contains(&compact(
+                    &locale.detail(&format!("destination: {destination}"))
+                )),
+                "{locale:?}: {text}"
+            );
         }
     }
 }

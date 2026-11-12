@@ -110,7 +110,10 @@ impl RequestProcessor {
         let plugins_changed = plugin_key_path(&params.key_path);
         let computer_use_changed = params.key_path == "computer_use"
             || params.key_path.starts_with("computer_use.")
-            || matches!(params.key_path.as_str(), "features" | "features.computer_use");
+            || matches!(
+                params.key_path.as_str(),
+                "features" | "features.computer_use"
+            );
         let worktrees_changed =
             params.key_path == "worktrees" || params.key_path.starts_with("worktrees.");
         let response = write_edits(
@@ -142,9 +145,11 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: ConfigBatchWriteParams = parse_params(params)?;
-        let computer_use_changed = params.edits.iter().any(|edit|
-            edit.key_path == "computer_use" || edit.key_path.starts_with("computer_use.")
-                || matches!(edit.key_path.as_str(), "features" | "features.computer_use"));
+        let computer_use_changed = params.edits.iter().any(|edit| {
+            edit.key_path == "computer_use"
+                || edit.key_path.starts_with("computer_use.")
+                || matches!(edit.key_path.as_str(), "features" | "features.computer_use")
+        });
         // Runtime consumers resolve config.yaml at each operation, so there is no
         // thread-local config cache to refresh when this flag is true.
         let plugins_changed = params

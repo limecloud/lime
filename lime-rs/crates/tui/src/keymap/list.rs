@@ -4,6 +4,21 @@ use super::*;
 use lime_core::config::TuiListKeymap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+fn list_action_name(action: ListAction) -> &'static str {
+    match action {
+        ListAction::MoveUp => "move_up",
+        ListAction::MoveDown => "move_down",
+        ListAction::MoveLeft => "move_left",
+        ListAction::MoveRight => "move_right",
+        ListAction::PageUp => "page_up",
+        ListAction::PageDown => "page_down",
+        ListAction::JumpTop => "jump_top",
+        ListAction::JumpBottom => "jump_bottom",
+        ListAction::Accept => "accept",
+        ListAction::Cancel => "cancel",
+    }
+}
+
 pub(crate) enum ListAction {
     MoveUp,
     MoveDown,
@@ -145,6 +160,13 @@ impl ListKeymap {
     ) -> KeymapMatch<ListAction> {
         let actions = self.binding_actions(key, searchable, matcher);
         matcher.advance(key, &actions)
+    }
+
+    pub(crate) fn describe(&self) -> Vec<(&'static str, Vec<String>)> {
+        self.actions
+            .iter()
+            .map(|(action, set)| (list_action_name(*action), set.labels().collect()))
+            .collect()
     }
 
     pub(super) fn binding_actions(

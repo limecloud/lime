@@ -27,7 +27,6 @@ export function PluginCatalogCard({
   onToggle,
   onUninstall,
   onInstall,
-  onShare,
 }: {
   entry: PluginCatalogEntry;
   isSelected: boolean;
@@ -38,7 +37,6 @@ export function PluginCatalogCard({
   onToggle: () => void;
   onUninstall: () => void;
   onInstall: () => void;
-  onShare?: () => void;
 }) {
   const { t } = useTranslation("agent");
   const { plugin, marketplace } = entry;
@@ -93,54 +91,12 @@ export function PluginCatalogCard({
               aria-hidden="true"
             />
           ) : null}
-          {plugin.installed ? (
-            <span
-              className={cn(
-                "shrink-0 text-[11px] font-medium",
-                plugin.enabled ? "text-emerald-700" : "text-amber-700",
-              )}
-            >
-              {plugin.enabled
-                ? t("plugin.catalog.v2.status.enabled")
-                : t("plugin.catalog.v2.status.disabled")}
-            </span>
-          ) : null}
         </div>
         <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-[color:var(--lime-text-muted)]">
           {pluginDescription(plugin) ||
             t("plugin.catalog.v2.descriptionFallback")}
         </p>
-        {onShare ? (
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--lime-text-muted)]">
-            <span className="truncate">{marketplaceLabel}</span>
-            <span aria-hidden="true">·</span>
-            <span className="shrink-0">
-              {t("plugin.catalog.v2.version", { version: plugin.version })}
-            </span>
-            <button
-              type="button"
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--lime-text-muted)] transition hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)]"
-              onClick={() => onSelect()}
-              aria-label={t("plugin.catalog.v2.details")}
-              title={t("plugin.catalog.v2.details")}
-              data-testid={`plugin-catalog-details-${plugin.id}`}
-            >
-              <ExternalLink size={13} />
-              <span className="sr-only">{t("plugin.catalog.v2.details")}</span>
-            </button>
-            {onShare ? (
-              <button
-                type="button"
-                className="shrink-0 font-medium text-[color:var(--lime-text-strong)] underline-offset-4 hover:underline"
-                onClick={onShare}
-                disabled={busy}
-                data-testid={`plugin-catalog-share-${plugin.id}`}
-              >
-                {t("plugin.share.manage")}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+
       </div>
       <div className="relative shrink-0">
         {plugin.installed ? (

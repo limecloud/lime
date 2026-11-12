@@ -21,14 +21,13 @@ use std::process::{Command, ExitCode};
 use anyhow::{bail, Context, Result};
 use app_server_client::{ClientSession, RemoteTransportConfig, StdioTransportConfig};
 use app_server_protocol::protocol::v2::{
-    ExperimentalFeature,
-    ExperimentalFeatureEnablementSetParams, ExperimentalFeatureEnablementSetResponse,
-    ExperimentalFeatureListParams, ExperimentalFeatureListResponse, ExperimentalFeatureStage,
-    MemoryResetResponse, Model, ModelListParams, ModelListResponse, SkillsListParams,
-    SkillsListResponse, ThreadArchiveParams, ThreadArchiveResponse, ThreadDeleteParams,
-    ThreadDeleteResponse, ThreadForkParams, ThreadForkResponse, ThreadListParams,
-    ThreadListResponse, ThreadReadParams, ThreadReadResponse, ThreadUnarchiveParams,
-    ThreadUnarchiveResponse, METHOD_EXPERIMENTAL_FEATURE_ENABLEMENT_SET,
+    ExperimentalFeature, ExperimentalFeatureEnablementSetParams,
+    ExperimentalFeatureEnablementSetResponse, ExperimentalFeatureListParams,
+    ExperimentalFeatureListResponse, ExperimentalFeatureStage, MemoryResetResponse, Model,
+    ModelListParams, ModelListResponse, SkillsListParams, SkillsListResponse, ThreadArchiveParams,
+    ThreadArchiveResponse, ThreadDeleteParams, ThreadDeleteResponse, ThreadForkParams,
+    ThreadForkResponse, ThreadListParams, ThreadListResponse, ThreadReadParams, ThreadReadResponse,
+    ThreadUnarchiveParams, ThreadUnarchiveResponse, METHOD_EXPERIMENTAL_FEATURE_ENABLEMENT_SET,
     METHOD_EXPERIMENTAL_FEATURE_LIST, METHOD_MEMORY_RESET, METHOD_MODEL_LIST, METHOD_SKILLS_LIST,
     METHOD_THREAD_ARCHIVE, METHOD_THREAD_DELETE, METHOD_THREAD_FORK, METHOD_THREAD_LIST,
     METHOD_THREAD_READ, METHOD_THREAD_UNARCHIVE,
@@ -43,7 +42,7 @@ use tui::TuiOptions;
 
 const APP_SERVER_BIN_ENV: &str = "LIME_APP_SERVER_BIN";
 
-#[derive(Debug, Args)]
+#[derive(Debug, Default, Args)]
 pub(crate) struct TuiCli {
     #[command(flatten)]
     connection: ConnectionArgs,
@@ -149,15 +148,6 @@ pub(crate) struct ForkCommand {
     exclude_turns: bool,
     #[command(flatten)]
     connection: ConnectionArgs,
-}
-
-impl Default for TuiCli {
-    fn default() -> Self {
-        Self {
-            connection: ConnectionArgs::default(),
-            locale: None,
-        }
-    }
 }
 
 pub(crate) async fn run_interactive_tui(args: TuiCli) -> ExitCode {

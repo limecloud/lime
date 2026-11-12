@@ -37,13 +37,10 @@ import {
   isUserProjectType,
 } from "./lib/api/project";
 import { useDeepLink } from "./hooks/useDeepLink";
-import { useSkillCatalogBootstrap } from "./hooks/useSkillCatalogBootstrap";
-import { useServiceSkillCatalogBootstrap } from "./hooks/useServiceSkillCatalogBootstrap";
 import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useAppShellLayout } from "./hooks/useAppShellLayout";
 import { useAppStartupEffects } from "./hooks/useAppStartupEffects";
 import { useGlobalTrayModelSync } from "./hooks/useGlobalTrayModelSync";
-import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { useSkillPackageOpenRequests } from "./hooks/useSkillPackageOpenRequests";
 import { AppNavigationContext } from "./contexts/AppNavigationContext";
 import { BrowserHistoryNavigationContext } from "./contexts/BrowserHistoryNavigationContext";
@@ -144,9 +141,6 @@ function LocalDesktopEffects({
   pageParams?: PageParams;
   onNavigate: (page: Page, params?: PageParams) => void;
 }) {
-  useSkillCatalogBootstrap();
-  useServiceSkillCatalogBootstrap();
-  useOemLimeHubProviderSync();
   useGlobalTrayModelSync({
     currentPage,
     pageParams,

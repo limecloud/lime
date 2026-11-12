@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { PanelRight } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ThreadSummaryPanelState } from "./useThreadSummaryPanel";
 
@@ -95,7 +95,7 @@ export function ThreadSummaryToggle({
           data-testid="thread-workspace-summary-toggle"
           data-summary-trigger-id={state.panelId}
         >
-          <PanelRight className="h-4 w-4" aria-hidden="true" />
+          <Sparkles className="h-4 w-4" aria-hidden="true" />
         </button>
       </Popover.Trigger>
       <Popover.Portal>

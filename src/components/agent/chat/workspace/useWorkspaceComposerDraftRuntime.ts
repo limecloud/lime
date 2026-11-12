@@ -225,15 +225,20 @@ export function useWorkspaceComposerDraftRuntime({
     [promoteComposerDraft],
   );
 
+  // Only an authoritative empty/unavailable store unlocks the composer.
+  // Mode mismatch, codec failure and transport errors must keep it non-editable.
+  const draftStorageUnavailable =
+    status?.mutation === "unavailable" && !status?.error;
   return {
     composerDraftCoordinator: coordinator ?? undefined,
     composerDraftStatus: status,
     composerDraftRestoring:
       restoring ||
-      !coordinator ||
-      !committedScope ||
-      !status?.ready ||
-      !sameScope(initialScope, status.scope),
+      (!draftStorageUnavailable &&
+        (!coordinator ||
+          !committedScope ||
+          !status?.ready ||
+          !sameScope(initialScope, status.scope))),
     prepareComposerDraftNavigation,
     commitComposerDraftScope,
     commitNewConversationRequest,

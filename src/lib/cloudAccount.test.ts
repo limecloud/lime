@@ -4,90 +4,51 @@ import {
   getCloudAccount,
   subscribeCloudAccount,
   readCloudAccount,
-  importCloudAccount,
   logoutCloudAccount,
-  setOemCloudBootstrapSnapshot,
-  getOemCloudBootstrapSnapshot,
   cloudAccountIdentityVersion,
+  startCloudAuthorization,
 } from "./cloudAccount";
+const open = vi.hoisted(() => vi.fn());
+vi.mock("./api/externalUrl", () => ({
+  openExternalUrlWithSystemBrowser: open,
+}));
+vi.mock("./api/appServerEventBus", () => ({
+  subscribeAppServerNotifications: () => () => {},
+}));
 
-const session = {
-  token: "fixture-secret",
-  tenant: { id: "tenant-one" },
-  user: { id: "user-one" },
-  session: { id: "session-one" },
-};
-
-describe("shared cloud account projection", () => {
-  it("keeps the identity lifetime across metadata refreshes and advances it on A→B→A", async () => {
-    await seedCloudAccount(session);
+describe("native cloud account projection", () => {
+  it("tracks identity lifetimes and ignores profile-only changes", async () => {
+    await seedCloudAccount();
     const initial = cloudAccountIdentityVersion();
-    await readCloudAccount();
-    await seedCloudAccount({
-      ...session,
-      user: { ...session.user, displayName: "Updated profile" },
-    });
+    await seedCloudAccount({ displayName: "Updated" });
     expect(cloudAccountIdentityVersion()).toBe(initial);
-    await seedCloudAccount({ ...session, user: { id: "other-user" } });
-    expect(cloudAccountIdentityVersion()).toBe(initial + 1);
-    await seedCloudAccount(session);
+    await seedCloudAccount({ userId: "other" });
+    await seedCloudAccount();
     expect(cloudAccountIdentityVersion()).toBe(initial + 2);
-    await seedCloudAccount({ ...session, session: { id: "new-session" } });
+    await seedCloudAccount({ generation: "new-login" });
     expect(cloudAccountIdentityVersion()).toBe(initial + 3);
-    await seedCloudAccount(session, "https://another-issuer.test");
-    expect(cloudAccountIdentityVersion()).toBe(initial + 4);
-    await logoutCloudAccount();
-    expect(cloudAccountIdentityVersion()).toBe(initial + 5);
   });
-
-  it("restores only RPC metadata and ignores retired local credentials", async () => {
-    localStorage.setItem("lime:oem-cloud-session:v1", JSON.stringify(session));
-    await readCloudAccount();
-    expect(getCloudAccount()).toBeNull();
-    const storage = vi.spyOn(Storage.prototype, "setItem");
-    await seedCloudAccount(session);
-    expect(getCloudAccount()?.session.user.id).toBe("user-one");
-    expect(JSON.stringify(getCloudAccount())).not.toContain(session.token);
-    expect(storage).not.toHaveBeenCalled();
-    expect(Reflect.get(window, "__LIME_SESSION_TOKEN__")).toBeUndefined();
-    storage.mockRestore();
-    localStorage.clear();
-  });
-
-  it("does not emit account changes for unchanged RPC metadata", async () => {
-    await seedCloudAccount(session);
-    const listener = vi.fn();
-    const dispose = subscribeCloudAccount(listener);
-    await readCloudAccount();
-    await readCloudAccount();
-    expect(listener).toHaveBeenCalledTimes(1);
-    dispose();
-  });
-
-  it("keeps the verified account when import or logout fails", async () => {
-    await seedCloudAccount(session);
-    accountFixture.login.mockRejectedValueOnce(
-      new Error("rejected credential"),
+  it("passes resource authorization to native RPC and opens only its public URL", async () => {
+    await seedCloudAccount();
+    await startCloudAuthorization({ language: "zh-CN", resource: "market" });
+    expect(accountFixture.login).toHaveBeenCalledWith({
+      type: "cloud",
+      baseUrl: "https://core.example.test",
+      resource: "market",
+      language: "zh-CN",
+    });
+    expect(open).toHaveBeenCalledWith(
+      "https://identity.example.test/authorize?state=public-state",
     );
-    await expect(
-      importCloudAccount({
-        baseUrl: "https://other.test",
-        tenantId: "other",
-        accessToken: "rejected",
-      }),
-    ).rejects.toThrow("rejected credential");
-    expect(getCloudAccount()?.account.userId).toBe("user-one");
-    accountFixture.logout.mockRejectedValueOnce(
-      new Error("transport unavailable"),
+    expect(accountFixture.login.mock.calls[0]?.[0]).not.toHaveProperty(
+      "accessToken",
     );
-    await expect(logoutCloudAccount()).rejects.toThrow("transport unavailable");
-    expect(getCloudAccount()?.account.userId).toBe("user-one");
-    await logoutCloudAccount();
-    expect(getCloudAccount()).toBeNull();
   });
-
-  it("does not let an old read restore a logged out account", async () => {
-    await seedCloudAccount(session);
+  it("does not restore an old read after logout or erase the account on a failed logout", async () => {
+    await seedCloudAccount();
+    accountFixture.logout.mockRejectedValueOnce(new Error("unavailable"));
+    await expect(logoutCloudAccount()).rejects.toThrow("unavailable");
+    expect(getCloudAccount()).not.toBeNull();
     const old = accountFixture.account;
     let finish!: (value: unknown) => void;
     accountFixture.read.mockImplementationOnce(
@@ -98,24 +59,20 @@ describe("shared cloud account projection", () => {
     );
     const pending = readCloudAccount();
     await logoutCloudAccount();
-    finish({ account: old, requiresOpenaiAuth: false });
+    finish({ account: old, authorizations: [] });
     await pending;
     expect(getCloudAccount()).toBeNull();
   });
-
-  it("drops the account token from bootstrap without removing developer access tokens", async () => {
-    const profile = await seedCloudAccount(session);
-    setOemCloudBootstrapSnapshot({
-      session: profile,
-      activeAccessToken: { token: "developer-token" },
-    });
-    const snapshot = getOemCloudBootstrapSnapshot<{
-      session: unknown;
-      activeAccessToken: { token: string };
-    }>()!;
-    expect(JSON.stringify(snapshot.session)).not.toContain(session.token);
-    expect(snapshot.activeAccessToken.token).toBe("developer-token");
-    await logoutCloudAccount();
-    expect(getOemCloudBootstrapSnapshot()).toBeNull();
+  it("publishes stable metadata without browser persistence", async () => {
+    const storage = vi.spyOn(Storage.prototype, "setItem");
+    await seedCloudAccount();
+    const listener = vi.fn();
+    const dispose = subscribeCloudAccount(listener);
+    await readCloudAccount();
+    await readCloudAccount();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(storage).not.toHaveBeenCalled();
+    dispose();
+    storage.mockRestore();
   });
 });

@@ -4,7 +4,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { Buffer } from "node:buffer";
 import os from "node:os";
+import process from "node:process";
 import { DesktopPermissionsHost } from "./desktopPermissionsHost";
+import { createCredentialEncryption } from "./localCredentialEncryption";
 import {
   parseDesktopPermissions,
   type DesktopPermissionState,
@@ -118,6 +120,34 @@ describe("Desktop OS permission setup", () => {
     expect(f.options.requestMedia).not.toHaveBeenCalled();
     expect(f.options.openExternal).not.toHaveBeenCalled();
   });
+  it.skipIf(process.platform === "win32")(
+    "verifies local encryption without invoking the system vault",
+    async () => {
+      const f = await fixture();
+      const host = new DesktopPermissionsHost({
+        ...f.options,
+        safeStorage: createCredentialEncryption(
+          f.root,
+          "darwin",
+          f.options.safeStorage,
+        ),
+      });
+      const snapshot = parseDesktopPermissions(
+        await host.invoke("desktop_permissions_request", {
+          id: "secureStorage",
+        }),
+      );
+      expect(
+        snapshot.permissions.find((entry) => entry.id === "secureStorage")
+          ?.state,
+      ).toBe("granted");
+      expect(
+        f.options.safeStorage.isEncryptionAvailable,
+      ).not.toHaveBeenCalled();
+      expect(f.options.safeStorage.encryptString).not.toHaveBeenCalled();
+      expect(f.options.safeStorage.decryptString).not.toHaveBeenCalled();
+    },
+  );
   it("verifies secure storage only after the explicit request, without persisting probe content", async () => {
     const f = await fixture();
     await f.host.invoke("desktop_permissions_request", { id: "secureStorage" });

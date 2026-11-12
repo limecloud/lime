@@ -13,7 +13,13 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { Home, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  Bell,
+  Home,
+  Search,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   AgentPageParams,
@@ -50,6 +56,19 @@ import { AppSidebarSearchDialog } from "@/components/app-sidebar/AppSidebarSearc
 import type { AgentBackgroundSessionRuntimeSnapshot } from "@/components/agent/chat";
 import { useOpenedProjectSummaries } from "@/components/agent/chat/hooks/useOpenedProjectSummaries";
 import { useAppSidebarConversationActions } from "@/components/app-sidebar/useAppSidebarConversationActions";
+import { subscribeScheduledTaskRequest } from "@/lib/scheduledTaskEvents";
+import { selectPrioritySessions } from "@/components/app-sidebar/sidebarPrioritySessions";
+import {
+  activateConversationTab,
+  closeConversationTab,
+  getConversationTabsSnapshot,
+  subscribeConversationTabRequests,
+} from "@/lib/conversationTabs";
+import { ConversationHistoryNav } from "@/components/agent/chat/workspace/ConversationHistoryNav";
+import {
+  recordConversationNavigation,
+  subscribeConversationHistoryRequests,
+} from "@/lib/conversationHistory";
 import { useAppSidebarProjectActions } from "@/components/app-sidebar/useAppSidebarProjectActions";
 import { useAppSidebarSessions } from "@/components/app-sidebar/useAppSidebarSessions";
 import { useSidebarThreadSearch } from "@/components/app-sidebar/useSidebarThreadSearch";
@@ -258,6 +277,7 @@ export function AppSidebar({
     activeAgentPageParams?.initialSessionId?.trim() || null;
   const currentSessionId =
     requestedAgentSessionId || liveAgentSessionId || routeAgentSessionId;
+  const [activityViewOpen, setActivityViewOpen] = useState(false);
   const [preferredCollapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return false;
@@ -493,6 +513,24 @@ export function AppSidebar({
     activeAgentStreaming,
     conversationUntitledLabel,
   });
+  useEffect(
+    () =>
+      subscribeScheduledTaskRequest((threadId) => {
+        onNavigate("scheduled-tasks", { threadId });
+      }),
+    [onNavigate],
+  );
+
+
+  const unreadSessionCount = selectPrioritySessions(
+    visibleRecentSidebarSessions,
+  ).length;
+  const activityViewLabel =
+    unreadSessionCount > 0
+      ? t("navigation.sidebar.activity.withUnread", {
+          count: unreadSessionCount,
+        })
+      : t("navigation.sidebar.activity.label");
   const threadSearch = useSidebarThreadSearch(
     sidebarSearchQuery,
     sidebarSearchOpen,
@@ -546,6 +584,82 @@ export function AppSidebar({
     deleteConversationSuccessLabel,
     deleteConversationErrorLabel,
   });
+
+  useEffect(() => {
+    if (currentSessionId) recordConversationNavigation(currentSessionId);
+  }, [currentSessionId]);
+
+  useEffect(
+    () =>
+      subscribeConversationHistoryRequests((request) => {
+        if (request.type === "home") {
+          conversationActions.navigateToHome();
+          return;
+        }
+        onNavigate("agent", {
+          agentEntry: "conversation",
+          initialSessionId: request.sessionId,
+        } as AgentPageParams);
+      }),
+    [conversationActions, onNavigate],
+  );
+
+  useEffect(
+    () =>
+      subscribeConversationTabRequests((request) => {
+        if (request.type === "create") {
+          onStartNewConversation?.({ projectId: null, freshDraft: false });
+          return;
+        }
+        if (!request.sessionId) {
+          conversationActions.navigateToHome();
+          return;
+        }
+        onNavigate("agent", {
+          agentEntry: "conversation",
+          initialSessionId: request.sessionId,
+        } as AgentPageParams);
+      }),
+    [
+      conversationActions,
+      onNavigate,
+      onStartNewConversation,
+    ],
+  );
+
+  useEffect(() => {
+    const handleTabShortcut = (event: KeyboardEvent) => {
+      const closeTabModifier =
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "w";
+      if (closeTabModifier) {
+        const { tabs, activeSessionId } = getConversationTabsSnapshot();
+        if (tabs.length > 0 && activeSessionId) {
+          event.preventDefault();
+          closeConversationTab(activeSessionId);
+        }
+        return;
+      }
+      if (event.key !== "Tab" || !event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+      const { tabs, activeSessionId } = getConversationTabsSnapshot();
+      if (tabs.length < 2) return;
+      const index = tabs.findIndex(
+        (tab) => tab.sessionId === activeSessionId,
+      );
+      const nextIndex =
+        (index + (event.shiftKey ? -1 : 1) + tabs.length) % tabs.length;
+      const next = tabs[nextIndex];
+      if (!next) return;
+      event.preventDefault();
+      activateConversationTab(next.sessionId);
+    };
+    window.addEventListener("keydown", handleTabShortcut);
+    return () => window.removeEventListener("keydown", handleTabShortcut);
+  }, []);
 
   const handleNavigate = (item: SidebarNavItem) => {
     if (item.id === "new-chat") {
@@ -673,6 +787,15 @@ export function AppSidebar({
 
   return (
     <TooltipProvider>
+      {isAgentWorkspace ? (
+        <HeaderAction
+          actionId="conversation-history"
+          slotPosition="left"
+          order={0}
+        >
+          <ConversationHistoryNav />
+        </HeaderAction>
+      ) : null}
       {activePage !== "settings" ? (
         <HeaderAction actionId="sidebar-trigger" slotPosition="left" order={1}>
           <IconActionButton
@@ -771,6 +894,26 @@ export function AppSidebar({
 
                   <SearchButton
                     $inline
+                    style={{ position: "relative" }}
+                    onClick={() => setActivityViewOpen((open) => !open)}
+                    title={activityViewLabel}
+                    aria-label={activityViewLabel}
+                    aria-pressed={activityViewOpen}
+                    data-testid="app-sidebar-activity-button"
+                  >
+                    <Bell size={14} />
+                    {unreadSessionCount > 0 ? (
+                      <span
+                        style={{ display: "inline-flex" }}
+                        className="absolute -right-0.5 -top-0.5 h-3.5 min-w-3.5 items-center justify-center rounded-full bg-sky-500 px-0.5 text-[9px] font-bold leading-none text-white"
+                        data-testid="app-sidebar-activity-badge"
+                      >
+                        {unreadSessionCount > 9 ? "9+" : unreadSessionCount}
+                      </span>
+                    ) : null}
+                  </SearchButton>
+                  <SearchButton
+                    $inline
                     onClick={openSidebarSearchDialog}
                     title={searchTaskLabel}
                     aria-label={searchTaskLabel}
@@ -794,6 +937,7 @@ export function AppSidebar({
 
                 {shouldShowConversationList ? (
                   <AppSidebarConversationShelf
+                    showPriorityThreads={activityViewOpen}
                     openedProjects={conversationDisplayProjects}
                     recentSessions={visibleRecentSidebarSessions}
                     currentSessionId={currentSessionId}

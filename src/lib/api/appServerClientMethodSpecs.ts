@@ -520,31 +520,6 @@ export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
     params: "optional-empty",
   },
   {
-    name: "savePluginShare",
-    method: constants.APP_SERVER_METHOD_PLUGIN_SHARE_SAVE,
-    params: "required",
-  },
-  {
-    name: "listPluginShares",
-    method: constants.APP_SERVER_METHOD_PLUGIN_SHARE_LIST,
-    params: "optional-empty",
-  },
-  {
-    name: "updatePluginShareTargets",
-    method: constants.APP_SERVER_METHOD_PLUGIN_SHARE_UPDATE_TARGETS,
-    params: "required",
-  },
-  {
-    name: "checkoutPluginShare",
-    method: constants.APP_SERVER_METHOD_PLUGIN_SHARE_CHECKOUT,
-    params: "required",
-  },
-  {
-    name: "deletePluginShare",
-    method: constants.APP_SERVER_METHOD_PLUGIN_SHARE_DELETE,
-    params: "required",
-  },
-  {
     name: "reconcilePlugins",
     method: constants.APP_SERVER_METHOD_PLUGIN_RECONCILE,
     params: "optional-empty",

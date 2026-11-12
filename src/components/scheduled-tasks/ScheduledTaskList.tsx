@@ -76,6 +76,7 @@ interface ScheduledTaskListProps {
   onQueryChange: (query: string) => void;
   onFilterChange: (filter: ScheduledTaskFilter) => void;
   onSelect: (id: string) => void;
+  onOpenRun?: (run: NonNullable<AutomationTaskSummary["lastRun"]>) => void;
   onCreate: () => void;
   onCreateWithLime: () => void;
   inSidebar?: boolean;
@@ -94,6 +95,7 @@ export function ScheduledTaskList({
   onQueryChange,
   onFilterChange,
   onSelect,
+  onOpenRun,
   onCreate,
   onCreateWithLime,
   inSidebar = false,
@@ -232,15 +234,21 @@ export function ScheduledTaskList({
                       ? formatNextRunHint(task.nextRunAt, locale, t)
                       : "";
                     return (
+                      <div key={task.id} className="group relative">
                       <button
-                        key={task.id}
                         type="button"
                         className={cn(
                           "w-full rounded-md px-3 py-3 text-left transition-colors hover:bg-slate-50",
                           selected && "bg-slate-100",
                         )}
                         aria-current={selected ? "true" : undefined}
-                        onClick={() => onSelect(task.id)}
+                        onClick={() => {
+                          if (task.lastRun?.sessionId && onOpenRun) {
+                            onOpenRun(task.lastRun);
+                            return;
+                          }
+                          onSelect(task.id);
+                        }}
                       >
                         <span className="block min-w-0">
                           <span className="flex min-w-0 items-center gap-2">
@@ -265,6 +273,22 @@ export function ScheduledTaskList({
                           </span>
                         </span>
                       </button>
+                      {task.lastRun?.sessionId ? (
+                        <button
+                          type="button"
+                          className="absolute right-2 top-2 hidden h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-slate-700 group-hover:flex"
+                          aria-label={t("scheduledTasks.action.details")}
+                          title={t("scheduledTasks.action.details")}
+                          data-testid={`scheduled-task-details-${task.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSelect(task.id);
+                          }}
+                        >
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                      </div>
                     );
                   })}
                 </div>

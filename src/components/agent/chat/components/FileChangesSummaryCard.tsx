@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -123,7 +123,23 @@ export function FileChangesSummaryCard({
   onUndo,
 }: FileChangesSummaryCardProps) {
   const { t } = useTranslation("agent");
-  const { files, totalAdded, totalRemoved, fileCount } = aggregate;
+  const { files: rawFiles } = aggregate;
+  const files = useMemo(() => {
+    const byPath = new Map<string, FileChangeSummary>();
+    for (const file of rawFiles) {
+      byPath.set(resolveDisplayPath(file.path), file);
+    }
+    return [...byPath.values()];
+  }, [rawFiles]);
+  const totalAdded = files.reduce(
+    (total, file) => total + file.linesAdded,
+    0,
+  );
+  const totalRemoved = files.reduce(
+    (total, file) => total + file.linesRemoved,
+    0,
+  );
+  const fileCount = files.length;
   const [isFileListExpanded, setIsFileListExpanded] = useState(
     variant === "timeline",
   );
@@ -204,12 +220,6 @@ export function FileChangesSummaryCard({
         {isFileListExpanded ? (
           <div className="space-y-0.5 pl-1">
             {visibleFiles.map((file) => {
-              const statusKey =
-                file.kind === "add"
-                  ? "agentChat.toolCall.actionOverride.create.completed"
-                  : file.kind === "delete"
-                    ? "agentChat.toolCall.actionOverride.delete.completed"
-                    : "agentChat.toolCall.action.edit.completed";
               const isSelected = file.path === selectedPath;
               return (
                 <button
@@ -229,12 +239,7 @@ export function FileChangesSummaryCard({
                       : file.path
                   }
                 >
-                  <Pencil
-                    className="h-3 w-3 shrink-0 text-slate-400"
-                    aria-hidden="true"
-                  />
                   <span className="min-w-0 flex-1 truncate text-slate-500">
-                    <span>{t(statusKey)}</span>{" "}
                     <span className="underline decoration-slate-300 underline-offset-2">
                       {resolveDisplayFilePath(file)}
                     </span>
@@ -242,10 +247,6 @@ export function FileChangesSummaryCard({
                   <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-slate-400">
                     <span className="text-emerald-600">+{file.linesAdded}</span>
                     <span className="text-red-500">-{file.linesRemoved}</span>
-                    <span
-                      className="h-1.5 w-1.5 rounded-full bg-sky-500"
-                      aria-hidden="true"
-                    />
                   </span>
                 </button>
               );

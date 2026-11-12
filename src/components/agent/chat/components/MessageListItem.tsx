@@ -31,6 +31,8 @@ import type { MessageListRenderGroup } from "./MessageList.types";
 import { resolveMessageListItemProjection } from "./messageListItemProjection";
 import type { SearchResultPreviewItem } from "../utils/searchResultPreview";
 import { resolveCanonicalMessageItemId } from "./messageItemIdentity";
+import { requestForkThreadAtTurn } from "@/lib/threadForkEvents";
+import { requestRetryThreadAtTurn } from "@/lib/threadRetryEvents";
 import {
   ThreadRevertTrigger,
   type ThreadRevertTarget,
@@ -86,6 +88,7 @@ export interface MessageListItemProps {
   isRestoredHistoryWindow: boolean;
   isSending: boolean;
   lastAssistantMessageId: string | null;
+  latestTurnId?: string;
   promptCacheNotice?: TokenUsagePromptCacheNotice | null;
   providerType?: string;
   renderA2UIInline: boolean;
@@ -145,6 +148,7 @@ export function MessageListItem({
   isRestoredHistoryWindow,
   isSending,
   lastAssistantMessageId,
+  latestTurnId,
   promptCacheNotice,
   providerType,
   renderA2UIInline,
@@ -250,6 +254,27 @@ export function MessageListItem({
 
   const canQuoteMessage = Boolean(onQuoteMessage && projection.canQuoteMessage);
   const revertTurnId = msg.runtimeTurnId?.trim() || "";
+  const lastThreadTurnId =
+    threadRead?.thread_turns?.length
+      ? threadRead.thread_turns[
+          threadRead.thread_turns.length - 1
+        ]?.id?.trim() || ""
+      : "";
+  const actionTurnId =
+    revertTurnId ||
+    (msg.id === lastAssistantMessageId
+      ? latestTurnId?.trim() ||
+        activeCurrentTurnId?.trim() ||
+        lastThreadTurnId
+      : "");
+  const actionTurnIdValid =
+    Boolean(actionTurnId) && !actionTurnId.startsWith("pending-turn:");
+  const isLatestTurnMessage = Boolean(
+    latestTurnId && actionTurnId === latestTurnId,
+  );
+  const canRetryAction =
+    actionTurnIdValid &&
+    (isLatestTurnMessage || msg.id === lastAssistantMessageId);
   const revertThreadId = threadRead?.thread_id?.trim() || "";
   const canRevertThread = Boolean(
     msg.role === "user" &&
@@ -569,6 +594,32 @@ export function MessageListItem({
                 messageId={msg.id}
                 onCopy={handleCopy}
                 onQuoteMessage={onQuoteMessage}
+                onRetry={
+                  canRetryAction &&
+                  (threadRead?.thread_id?.trim() || sessionId)
+                    ? () =>
+                        requestRetryThreadAtTurn({
+                          threadId:
+                            threadRead?.thread_id?.trim() ||
+                            sessionId ||
+                            "",
+                          turnId: actionTurnId,
+                        })
+                    : undefined
+                }
+                onFork={
+                  actionTurnIdValid &&
+                  (threadRead?.thread_id?.trim() || sessionId)
+                    ? () =>
+                        requestForkThreadAtTurn({
+                          threadId:
+                            threadRead?.thread_id?.trim() ||
+                            sessionId ||
+                            "",
+                          turnId: actionTurnId,
+                        })
+                    : undefined
+                }
               />
             ) : null}
           </MessageBubble>

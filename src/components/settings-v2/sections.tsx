@@ -30,7 +30,6 @@ import type {
   Page,
   PageParams,
 } from "@/types/page";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 
 export interface SettingsSectionContext {
   onNavigate?: (page: Page, params?: PageParams) => void;
@@ -146,8 +145,8 @@ const UserCenterSessionSettings = lazy(() =>
 );
 
 const loadProviders = () => import("./agent/providers");
-const CloudProviderSettings = lazy(() =>
-  loadProviders().then((module) => ({ default: module.CloudProviderSettings })),
+const ProviderSettings = lazy(() =>
+  loadProviders().then((module) => ({ default: module.ProviderSettings })),
 );
 
 const loadLocalEnvironments = () =>
@@ -251,7 +250,7 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.layout.loading.providers",
     preload: loadProviders,
     render: (context) => (
-      <CloudProviderSettings
+      <ProviderSettings
         initialView={context.providerView}
         initialFocus={context.providerFocus}
       />
@@ -386,10 +385,7 @@ const sectionsByKey = new Map<SettingsTabs, SettingsSection>(
 );
 
 export function isSettingsSection(tab: SettingsTabs): boolean {
-  return (
-    sectionsByKey.has(tab) &&
-    (tab !== SettingsTabs.Profile || Boolean(resolveOemCloudRuntimeContext()))
-  );
+  return sectionsByKey.has(tab);
 }
 
 export function resolveSettingsSection(tab?: SettingsTabs): SettingsSection {

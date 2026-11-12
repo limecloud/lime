@@ -323,7 +323,6 @@ export function EmptyStateComposerPanel({
         onProjectChange={onProjectContextChange}
         projectOpen={projectOpen}
         onProjectOpenChange={onProjectOpenChange}
-        showModeControls={Boolean(projectId)}
         modeLabel={projectContextModeLabel}
         branchLabel={projectContextBranchLabel}
         copy={inputbarCopy.projectContext}

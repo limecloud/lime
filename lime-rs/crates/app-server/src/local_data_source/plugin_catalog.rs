@@ -50,7 +50,6 @@ use store::{Installation, PluginId};
 mod manifest;
 pub(crate) mod remote;
 mod resources;
-pub(crate) mod share;
 
 use apps::app_capabilities;
 pub(crate) use apps::{installed_apps, list_apps, read_apps};

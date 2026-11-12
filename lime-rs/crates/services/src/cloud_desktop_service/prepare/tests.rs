@@ -201,7 +201,7 @@ async fn preparation_requires_consent_and_exact_online_agent_before_submission()
     wuying.provider = CloudDesktopProvider::Wuying;
     assert!(service.request(request(&wuying, "wuying")).await.is_err());
     assert!(calls(directory.path()).is_empty());
-    for marker in ["offline", "wrong-agent", "windows"] {
+    for marker in ["wrong-agent", "windows"] {
         fs::write(directory.path().join(marker), "").unwrap();
         let refused = service
             .request(request(&resource, marker))
@@ -213,6 +213,76 @@ async fn preparation_requires_consent_and_exact_online_agent_before_submission()
         assert_eq!(read(&service, marker).await.unwrap(), refused);
         fs::remove_file(directory.path().join(marker)).unwrap();
     }
+    assert!(calls(directory.path()).iter().all(|v| v[1] != "RunCommand"));
+}
+
+#[tokio::test]
+async fn offline_agent_waits_and_readiness_reads_never_submit_the_original_command() {
+    let (directory, service, resource) = fixture();
+    fs::write(directory.path().join("offline"), "").unwrap();
+    let waiting = service
+        .request(request(&resource, "cold-start"))
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(waiting["outcome"], "waitingForAgent");
+    assert_eq!(waiting["submitted"], false);
+    assert_eq!(waiting["requiresInspection"], false);
+    assert_eq!(waiting["agentReady"], false);
+    assert_eq!(read(&service, "cold-start").await.unwrap(), waiting);
+    assert!(service.lock_operations().is_ok());
+    fs::remove_file(directory.path().join("offline")).unwrap();
+    let ready = read(&service, "cold-start").await.unwrap();
+    assert_eq!(ready["outcome"], "waitingForAgent");
+    assert_eq!(ready["agentReady"], true);
+    assert!(calls(directory.path()).iter().all(|v| v[1] != "RunCommand"));
+    let accepted = service
+        .request(request(&resource, "cold-start"))
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(accepted["operationId"], waiting["operationId"]);
+    assert_eq!(accepted["createdAt"], waiting["createdAt"]);
+    assert_eq!(accepted["outcome"], "accepted");
+    assert!(accepted.get("agentReady").is_none());
+    assert_eq!(
+        service
+            .request(request(&resource, "cold-start"))
+            .await
+            .unwrap()
+            .data,
+        accepted
+    );
+    assert_eq!(
+        calls(directory.path())
+            .iter()
+            .filter(|v| v[1] == "RunCommand")
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn readiness_transition_requires_durable_unknown_before_any_submission() {
+    let (directory, service, resource) = fixture();
+    fs::write(directory.path().join("offline"), "").unwrap();
+    assert_eq!(
+        service
+            .request(request(&resource, "write-fails"))
+            .await
+            .unwrap()
+            .data["outcome"],
+        "waitingForAgent"
+    );
+    fs::remove_file(directory.path().join("offline")).unwrap();
+    fs::set_permissions(&service.root, fs::Permissions::from_mode(0o500)).unwrap();
+    let result = service.request(request(&resource, "write-fails")).await;
+    fs::set_permissions(&service.root, fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(result.is_err());
+    assert_eq!(
+        service.read_receipt("write-fails").unwrap().unwrap()["outcome"],
+        "waitingForAgent"
+    );
     assert!(calls(directory.path()).iter().all(|v| v[1] != "RunCommand"));
 }
 

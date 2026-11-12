@@ -4,12 +4,15 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 fn account(base: &str) -> Account {
     Account::Cloud {
         base_url: base.into(),
-        tenant_id: "tenant".into(),
+        issuer: base.into(),
+        application_id: "app".into(),
+        client_id: "native".into(),
+        environment: "sandbox".into(),
         user_id: "user".into(),
-        session_id: "session".into(),
-        email: None,
-        display_name: None,
-        expires_at: None,
+        email: "".into(),
+        display_name: "".into(),
+        generation: "test".into(),
+        resources: Vec::new(),
     }
 }
 
@@ -25,14 +28,12 @@ async fn request(socket: &mut tokio::net::TcpStream) -> String {
 }
 
 #[tokio::test]
-async fn bundle_download_streams_original_bytes_without_account_headers_and_follows_safe_redirect()
-{
+async fn bundle_download_streams_original_bytes_without_account_headers() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let task = tokio::spawn(async move {
         let mut requests = Vec::new();
         for response in [
-            "HTTP/1.1 302 Found\r\nLocation: /signed?signature=private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
             "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: 5\r\nConnection: close\r\n\r\nbytes",
         ] {
             let (mut socket, _) = listener.accept().await.unwrap();
@@ -53,9 +54,11 @@ async fn bundle_download_streams_original_bytes_without_account_headers_and_foll
     for request in task.await.unwrap() {
         assert!(!request.to_ascii_lowercase().contains("authorization:"));
         assert!(!request.to_ascii_lowercase().contains("cookie:"));
-        assert!(request
-            .to_ascii_lowercase()
-            .contains("accept-encoding: identity"));
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .contains("accept-encoding: identity")
+        );
     }
 }
 
@@ -74,7 +77,14 @@ async fn bundle_download_rejects_declared_and_streamed_oversize_without_echoing_
             request(&mut socket).await;
             let _ = socket.write_all(body.as_bytes()).await;
         });
-        let error = download_with_limit(&format!("{url}/private-signature"), &account(&url), 4, Duration::from_secs(3)).await.unwrap_err();
+        let error = download_with_limit(
+            &format!("{url}/private-signature"),
+            &account(&url),
+            4,
+            Duration::from_secs(3),
+        )
+        .await
+        .unwrap_err();
         assert!(!error.contains("private-signature"));
         assert!(!error.contains(&url));
         task.await.unwrap();

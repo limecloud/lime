@@ -207,7 +207,6 @@ beforeEach(async () => {
   vi.resetAllMocks();
   window.sessionStorage.clear();
   window.localStorage.clear();
-  window.__LIME_OEM_CLOUD__ = { enabled: false };
   await changeLimeLocale("en-US");
   invalidateAppConfigCache();
   writes = [];
@@ -286,7 +285,6 @@ afterEach(async () => {
     await updateConfig((config) => config);
   });
   container.remove();
-  delete window.__LIME_OEM_CLOUD__;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   await changeLimeLocale("zh-CN");

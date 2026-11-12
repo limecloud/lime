@@ -133,7 +133,11 @@ fn spec_from_template(data: &Value, region: &str, profile: &str) -> Result<EcsDe
         profile: profile.into(),
         v_switch_id: field(data, "VSwitchId")?,
         security_group_id,
-        key_pair_name: field(data, "KeyPairName")?,
+        key_pair_name: match data.get("KeyPairName") {
+            None | Some(Value::Null) => String::new(),
+            Some(Value::String(name)) => name.clone(),
+            _ => return Err("Invalid launch template field KeyPairName".into()),
+        },
         instance_type: field(data, "InstanceType")?,
         image_id: field(data, "ImageId")?,
         system_disk_gib: number(data, "SystemDisk.Size", 80)?,

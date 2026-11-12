@@ -19,6 +19,15 @@ pub(in crate::cloud_desktop_service) fn installed_path(root: &Path) -> PathBuf {
         })
 }
 
+pub(in crate::cloud_desktop_service) fn program(service: &CloudDesktopService) -> PathBuf {
+    let installed = installed_path(&service.root);
+    if installed.is_file() {
+        installed
+    } else {
+        service.cli.clone()
+    }
+}
+
 fn release() -> Result<(&'static str, &'static str), String> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => Ok((
@@ -50,7 +59,8 @@ pub(in crate::cloud_desktop_service) async fn ensure_available(
 ) -> Result<PathBuf, String> {
     // Existing user installations and explicit test fixtures remain usable. The
     // version probe cannot read credentials or print configuration.
-    let mut command = Command::new(&service.cli);
+    let binary = program(service);
+    let mut command = Command::new(&binary);
     command
         .arg("version")
         .stdin(Stdio::null())
@@ -63,7 +73,7 @@ pub(in crate::cloud_desktop_service) async fn ensure_available(
             if semver::Version::parse(version.trim().trim_start_matches('v'))
                 .is_ok_and(|version| version >= semver::Version::new(3, 5, 2))
             {
-                return Ok(service.cli.clone());
+                return Ok(binary);
             }
         }
     }
@@ -230,6 +240,80 @@ fn install_archive(archive: File, destination: &Path, zip: bool) -> Result<(), S
         .persist(destination)
         .map_err(|_| "Cannot publish Alibaba CLI executable")?;
     Ok(())
+}
+
+impl CloudDesktopService {
+    // Shared process boundary. Only the authorization owner may pass an OAuth-complete
+    // private profile before connectivity verification; ordinary callers require connected.
+    pub(in crate::cloud_desktop_service) async fn execute_cli(
+        &self,
+        product: &str,
+        version: Option<&str>,
+        region: &str,
+        profile: &str,
+        args: &[String],
+        config: Option<PathBuf>,
+    ) -> Result<Value, String> {
+        let mut command = Command::new(program(self));
+        command.arg(product).args(args);
+        if let Some(config) = config {
+            command.arg("--config-path").arg(config);
+            command
+                .env_remove("ALIBABA_CLOUD_IGNORE_PROFILE")
+                .env_remove("ALIBABACLOUD_IGNORE_PROFILE");
+        }
+        if let Some(version) = version {
+            command.args(["--version", version, "--force"]);
+        }
+        // STS GetCallerIdentity has no API RegionId parameter.
+        if product != "sts" {
+            command.args(["--RegionId", region]);
+        }
+        command
+            // OAuth profiles can omit their default region. The CLI validates
+            // its global region before forwarding the API's RegionId parameter.
+            .args(["--region", region, "--profile", profile])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        let mut child = command
+            .spawn()
+            .map_err(|_| "Alibaba CLI unavailable; reconnect in Lime to prepare authorization")?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or("Cannot read Alibaba CLI response")?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or("Cannot read Alibaba CLI status")?;
+        let result = tokio::time::timeout(Duration::from_secs(45), async {
+            let mut bytes = Vec::new();
+            let mut errors = Vec::new();
+            let mut stdout = stdout.take(MAX_PROVIDER_BYTES + 1);
+            let mut stderr = stderr.take(16385);
+            tokio::try_join!(
+                stdout.read_to_end(&mut bytes),
+                stderr.read_to_end(&mut errors),
+            )
+            .map_err(|_| "Cannot read cloud response".to_owned())?;
+            if bytes.len() as u64 > MAX_PROVIDER_BYTES || errors.len() > 16384 {
+                return Err("Cloud response exceeds size limit".to_owned());
+            }
+            let status = child
+                .wait()
+                .await
+                .map_err(|_| "Cannot wait for cloud response".to_owned())?;
+            if !status.success() {
+                return Err(provider_diagnostic(&errors));
+            }
+            serde_json::from_slice(&bytes).map_err(|_| "Invalid cloud response".to_owned())
+        })
+        .await
+        .map_err(|_| "Cloud request timed out; outcome may be unknown")?;
+        result
+    }
 }
 
 #[cfg(test)]

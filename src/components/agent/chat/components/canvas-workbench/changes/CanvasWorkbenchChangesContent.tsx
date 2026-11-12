@@ -19,6 +19,11 @@ interface CanvasWorkbenchChangesContentProps {
   translateWorkbench: CanvasWorkbenchTranslation;
   onFileFilterChange?: (value: string) => void;
   onSelectChangeItem?: (item: CanvasWorkbenchChangeItem) => void;
+  onOpenFile?: (path: string) => void | Promise<void>;
+  onDeleteFile?: (
+    item: CanvasWorkbenchChangeItem,
+  ) => void | Promise<void>;
+  onRevealFile?: (item: CanvasWorkbenchChangeItem) => void;
 }
 
 export function CanvasWorkbenchChangesContent({
@@ -33,6 +38,9 @@ export function CanvasWorkbenchChangesContent({
   translateWorkbench,
   onFileFilterChange,
   onSelectChangeItem,
+  onOpenFile,
+  onDeleteFile,
+  onRevealFile,
 }: CanvasWorkbenchChangesContentProps) {
   return (
     <div
@@ -60,6 +68,9 @@ export function CanvasWorkbenchChangesContent({
           translateWorkbench={translateWorkbench}
           onFileFilterChange={onFileFilterChange}
           onSelectChangeItem={onSelectChangeItem}
+          onOpenFile={onOpenFile}
+          onDeleteFile={onDeleteFile}
+          onRevealFile={onRevealFile}
         />
       ) : null}
     </div>

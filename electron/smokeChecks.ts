@@ -493,7 +493,14 @@ async function collectRendererSmokeEvidence(
         });
       };
       const traces = readJsonArray("lime_invoke_trace_buffer_v1").filter(current);
-      const invokeErrors = readJsonArray("lime_invoke_error_buffer_v1").filter(current);
+      // Optional reads and diagnostic log forwarding are not shell failures:
+      // atom reads fall back to an empty store, debug logs may be dropped by the host.
+      const isOptionalSmokeInvokeError = (entry) =>
+        entry?.command === "persisted_atom_read" ||
+        entry?.command === "report_frontend_debug_log";
+      const invokeErrors = readJsonArray("lime_invoke_error_buffer_v1")
+        .filter(current)
+        .filter((entry) => !isOptionalSmokeInvokeError(entry));
       const appServerIpc = traces.filter((entry) =>
         entry?.command === "app_server_handle_json_lines" &&
         entry?.transport === "electron-ipc" &&
@@ -520,7 +527,10 @@ async function collectRendererSmokeEvidence(
           appServerIpcHitCount: appServerIpc.length,
           appServerMethods: [...new Set(appServerIpc.flatMap(methodsFor))].sort(),
           invokeErrorCount: invokeErrors.length,
-          traceErrorCount: traces.filter((entry) => entry?.status === "error").length,
+          traceErrorCount: traces.filter(
+            (entry) =>
+              entry?.status === "error" && !isOptionalSmokeInvokeError(entry),
+          ).length,
           legacyCommandHitCount: legacyCommands.length,
           legacyCommands: [...new Set(legacyCommands)].sort(),
           mockFallbackHitCount: mockFallbackHits.length,

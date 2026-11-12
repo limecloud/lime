@@ -15,12 +15,17 @@ type PurchaseState = Pick<
   | "error"
   | "receipt"
   | "submitted"
-  | "run"
   | "canPurchase"
   | "expired"
->;
+> & { run: (action: "quote" | "purchase" | "read") => Promise<unknown> };
 
-export function PurchaseActions({ purchase }: { purchase: PurchaseState }) {
+export function PurchaseActions({
+  purchase,
+  pendingLabel,
+}: {
+  purchase: PurchaseState;
+  pendingLabel?: string;
+}) {
   const { t } = useTranslation("settings");
   const {
     spec,
@@ -82,7 +87,7 @@ export function PurchaseActions({ purchase }: { purchase: PurchaseState }) {
       )}
       {pending && (
         <p role="status" className="text-[13px] text-muted-foreground">
-          {t("settings.cloudDesktop.working")}
+          {pendingLabel ?? t("settings.cloudDesktop.working")}
         </p>
       )}
       {error && (
@@ -100,7 +105,10 @@ export function PurchaseActions({ purchase }: { purchase: PurchaseState }) {
           <>
             <SettingsAction
               disabled={
-                pending || Object.values(spec).some((value) => value === "")
+                pending ||
+                Object.entries(spec).some(
+                  ([key, value]) => key !== "keyPairName" && value === "",
+                )
               }
               onClick={() => void run("quote")}
             >

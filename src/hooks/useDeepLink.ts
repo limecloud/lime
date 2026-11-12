@@ -19,20 +19,9 @@ import {
 import { getCurrent, onOpenUrl } from "@/lib/desktop-host/deep-link";
 import { hasDesktopHostInvokeCapability } from "@/lib/desktop-runtime";
 import {
-  completeOemCloudDesktopOAuthLogin,
-  parseOemCloudDesktopOAuthCallbackUrl,
-} from "@/lib/oemCloudDesktopAuth";
-import {
-  dispatchOemCloudPaymentReturn,
-  parseOemCloudPaymentReturnUrl,
-} from "@/lib/oemCloudPaymentReturn";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
-import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
-import {
   showDeepLinkError,
   showApiKeySaveError,
 } from "@/lib/utils/connectError";
-import { toast } from "sonner";
 import { useConnectCallback } from "./useConnectCallback";
 
 export type {
@@ -153,7 +142,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
    * _Requirements: 5.1, 5.2, 5.3_
    */
   const handleDeepLinkEvent = useCallback((result: DeepLinkResult) => {
-    console.log("[useDeepLink] 收到 Connect Deep Link 解析结果:", result);
+    console.log("[useDeepLink] 收到 Connect Deep Link 解析结果");
 
     // 设置状态
     setConnectPayload(result.payload);
@@ -166,48 +155,9 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
     setIsDialogOpen(true);
   }, []);
 
-  const handleOauthCallbackUrl = useCallback(
-    async (url: string) => {
-      const payload = parseOemCloudDesktopOAuthCallbackUrl(url);
-      if (!payload) {
-        return false;
-      }
-
-      if (payload.error) {
-        toast.error(t("common.deepLink.oauth.incomplete.title"), {
-          description: payload.error,
-        });
-        return true;
-      }
-
-      try {
-        await completeOemCloudDesktopOAuthLogin(payload);
-        const providerName = resolveOemLimeHubProviderName(
-          resolveOemCloudRuntimeContext(),
-        );
-        toast.success(t("common.deepLink.oauth.success.title"), {
-          description: t("common.deepLink.oauth.success.description", {
-            providerName,
-          }),
-        });
-      } catch (error) {
-        const message =
-          error instanceof Error && error.message.trim()
-            ? error.message.trim()
-            : t("common.deepLink.oauth.syncFailed.fallback");
-        toast.error(t("common.deepLink.oauth.failed.title"), {
-          description: message,
-        });
-      }
-
-      return true;
-    },
-    [t],
-  );
-
   const handleOpenDeepLinkEvent = useCallback(
     (result: OpenDeepLinkResult) => {
-      console.log("[useDeepLink] 收到 lime://open Deep Link:", result);
+      console.log("[useDeepLink] 收到 lime://open Deep Link");
       onOpenWebsiteDeepLink?.(result.payload);
     },
     [onOpenWebsiteDeepLink],
@@ -231,37 +181,22 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
           handledUrlSetRef.current.delete(oldestHandledUrl);
         }
       }
-
-      if (await handleOauthCallbackUrl(normalizedUrl)) {
-        return;
-      }
-
-      const paymentReturn = parseOemCloudPaymentReturnUrl(normalizedUrl);
-      if (paymentReturn) {
-        dispatchOemCloudPaymentReturn(paymentReturn);
-        toast.success(t("common.deepLink.payment.returned.title"), {
-          description: t("common.deepLink.payment.returned.description"),
-        });
-        return;
-      }
-
-      if (normalizedUrl.startsWith("lime://open")) {
-        try {
-          const result = await resolveOpenDeepLink(normalizedUrl);
-          handleOpenDeepLinkEvent(result);
-        } catch (err) {
-          console.error("[useDeepLink] 处理官网 Deep Link 失败:", err);
-          const connectError = err as ConnectError;
-          showDeepLinkError(connectError.message, connectError.code);
-        }
-        return;
-      }
-
-      if (!normalizedUrl.startsWith("lime://connect")) {
-        return;
-      }
-
       try {
+        const target = new URL(normalizedUrl);
+        if (
+          target.protocol !== "lime:" ||
+          !["open", "connect"].includes(target.hostname)
+        ) {
+          showDeepLinkError(
+            t("common.deepLink.unsupported"),
+            "UNSUPPORTED_URL",
+          );
+          return;
+        }
+        if (target.hostname === "open") {
+          handleOpenDeepLinkEvent(await resolveOpenDeepLink(normalizedUrl));
+          return;
+        }
         const result = await resolveConnectDeepLink(normalizedUrl);
         handleDeepLinkEvent(result);
       } catch (err) {
@@ -270,12 +205,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
         showDeepLinkError(connectError.message, connectError.code);
       }
     },
-    [
-      handleDeepLinkEvent,
-      handleOpenDeepLinkEvent,
-      handleOauthCallbackUrl,
-      t,
-    ],
+    [handleDeepLinkEvent, handleOpenDeepLinkEvent, t],
   );
 
   /**
@@ -395,7 +325,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
         unlistenDeepLink = await onOpenUrl(async (urls) => {
           if (!mounted) return;
 
-          console.log("[useDeepLink] 收到 Deep Link URL:", urls);
+          console.log("[useDeepLink] 收到 Deep Link URL");
 
           for (const url of urls) {
             await processDeepLinkUrl(url);
@@ -407,7 +337,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
 
           const currentUrls = await getCurrent();
           if (mounted && Array.isArray(currentUrls) && currentUrls.length > 0) {
-            console.log("[useDeepLink] 读取启动时 Deep Link URL:", currentUrls);
+            console.log("[useDeepLink] 读取启动时 Deep Link URL");
             for (const url of currentUrls) {
               await processDeepLinkUrl(url);
             }
@@ -431,12 +361,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
       }
       console.log("[useDeepLink] 已取消 Deep Link 监听器");
     };
-  }, [
-    handleDeepLinkEvent,
-    handleOauthCallbackUrl,
-    processDeepLinkUrl,
-    onOpenWebsiteDeepLink,
-  ]);
+  }, [handleDeepLinkEvent, processDeepLinkUrl, onOpenWebsiteDeepLink]);
 
   return {
     connectPayload,

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { A2UIFormData } from "@/components/workspace/a2ui/types";
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime/sessionTypes";
 import { formatDate } from "@/i18n/format";
+import { formatTurnDuration } from "../utils/turnDurationFormat";
 import type {
   ContentPart,
   Message,
@@ -44,6 +45,8 @@ import { AgentThreadTimeline } from "./AgentThreadTimeline";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { CollapsibleUserMessageContent } from "./CollapsibleUserMessageContent";
 import { MessageActionButtons } from "./MessageActionButtons";
+import { requestForkThreadAtTurn } from "@/lib/threadForkEvents";
+import { requestRetryThreadAtTurn } from "@/lib/threadRetryEvents";
 import { MessageImageAttachments } from "./MessageImageAttachments";
 import { HistoricalAssistantMessagePreview } from "./MessageListHistoricalPreviews";
 import {
@@ -640,6 +643,36 @@ export function ConversationTurnTimeline({
                     messageId={segment.item.id}
                     onCopy={handleCopy}
                     onQuoteMessage={onQuoteMessage}
+                    onRetry={
+                      entry.turn.id?.trim() &&
+                      (threadRead?.thread_id?.trim() || sessionId) &&
+                      (!threadRead?.thread_turns?.length ||
+                        threadRead.thread_turns[
+                          threadRead.thread_turns.length - 1
+                        ]?.id?.trim() === entry.turn.id.trim())
+                        ? () =>
+                            requestRetryThreadAtTurn({
+                              threadId:
+                                threadRead?.thread_id?.trim() ||
+                                sessionId ||
+                                "",
+                              turnId: entry.turn.id.trim(),
+                            })
+                        : undefined
+                    }
+                    onFork={
+                      entry.turn.id?.trim() &&
+                      (threadRead?.thread_id?.trim() || sessionId)
+                        ? () =>
+                            requestForkThreadAtTurn({
+                              threadId:
+                                threadRead?.thread_id?.trim() ||
+                                sessionId ||
+                                "",
+                              turnId: entry.turn.id.trim(),
+                            })
+                        : undefined
+                    }
                   />
                 ) : null}
               </MessageBubble>
@@ -689,6 +722,29 @@ export function ConversationTurnTimeline({
           </MessageWrapper>
         );
       })}
+      {entry.turn.status === "completed" && entry.turn.completed_at ? (
+        (() => {
+          const startedAt = Date.parse(entry.turn.started_at);
+          const completedAt = Date.parse(entry.turn.completed_at);
+          if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt)) {
+            return null;
+          }
+          const durationMs = completedAt - startedAt;
+          if (durationMs < 1000) return null;
+          return (
+            <div
+              className="pl-4 text-[11px] text-[color:var(--lime-text-muted)]"
+              data-testid="conversation-turn-duration"
+            >
+              {String(
+                t("agentChat.messageList.turnDuration", {
+                  duration: formatTurnDuration(durationMs),
+                }),
+              )}
+            </div>
+          );
+        })()
+      ) : null}
     </div>
   );
 }

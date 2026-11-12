@@ -46,6 +46,7 @@ lime-services = { workspace = true, features = ["local-sensevoice"] }
 lime-scheduler.workspace = true
 hex.workspace = true
 jsonschema.workspace = true
+jsonwebtoken.workspace = true
 opentelemetry.workspace = true
 opentelemetry-otlp.workspace = true
 opentelemetry_sdk.workspace = true

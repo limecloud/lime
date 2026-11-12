@@ -6,14 +6,7 @@ import { useDeepLink } from "./useDeepLink";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { getCurrent, onOpenUrl } from "@/lib/desktop-host/deep-link";
 import { hasDesktopHostInvokeCapability } from "@/lib/desktop-runtime";
-import {
-  completeOemCloudDesktopOAuthLogin,
-  parseOemCloudDesktopOAuthCallbackUrl,
-} from "@/lib/oemCloudDesktopAuth";
-import {
-  OEM_CLOUD_PAYMENT_RETURN_EVENT,
-  readStoredOemCloudPaymentReturn,
-} from "@/lib/oemCloudPaymentReturn";
+import { showDeepLinkError } from "@/lib/utils/connectError";
 
 const {
   mockResolveConnectDeepLink,
@@ -57,19 +50,6 @@ vi.mock("./useConnectCallback", () => ({
 vi.mock("@/lib/utils/connectError", () => ({
   showDeepLinkError: vi.fn(),
   showApiKeySaveError: vi.fn(),
-}));
-
-vi.mock("@/lib/oemCloudDesktopAuth", () => ({
-  completeOemCloudDesktopOAuthLogin: vi.fn(),
-  parseOemCloudDesktopOAuthCallbackUrl: vi.fn(() => null),
-}));
-
-vi.mock("@/lib/api/oemCloudRuntime", () => ({
-  resolveOemCloudRuntimeContext: vi.fn(() => null),
-}));
-
-vi.mock("@/lib/oemLimeHubProvider", () => ({
-  resolveOemLimeHubProviderName: vi.fn(() => "Lime Hub"),
 }));
 
 vi.mock("sonner", () => ({
@@ -137,8 +117,6 @@ describe("useDeepLink", () => {
       is_new_provider: true,
     });
     window.localStorage.clear();
-
-    delete window.__LIME_OEM_CLOUD__;
   });
 
   afterEach(async () => {
@@ -152,8 +130,6 @@ describe("useDeepLink", () => {
       });
       mounted.container.remove();
     }
-
-    delete window.__LIME_OEM_CLOUD__;
 
     await changeLimeLocale("zh-CN");
   });
@@ -239,69 +215,18 @@ describe("useDeepLink", () => {
     });
   });
 
-  it("应解析支付回跳 deep link 并分发给云端购买状态刷新链路", async () => {
-    const received: unknown[] = [];
-    const listener = (event: Event) => {
-      received.push(event instanceof CustomEvent ? event.detail : null);
-    };
-    window.addEventListener(OEM_CLOUD_PAYMENT_RETURN_EVENT, listener);
-    vi.mocked(getCurrent).mockResolvedValue([
-      "lime://payment/return?tenantId=tenant-0001&orderId=order-001&kind=plan_order&status=success",
-    ]);
-
+  it.each([
+    "lime://oauth/callback?token=untrusted",
+    "lime://payment/return?orderId=untrusted",
+    "https://untrusted.example.test/connect",
+  ])("拒绝废弃或外部回调 %s", async (url) => {
+    vi.mocked(getCurrent).mockResolvedValue([url]);
     await renderHook();
-
-    window.removeEventListener(OEM_CLOUD_PAYMENT_RETURN_EVENT, listener);
+    expect(showDeepLinkError).toHaveBeenCalledWith(
+      "This link is not supported.",
+      "UNSUPPORTED_URL",
+    );
     expect(mockResolveConnectDeepLink).not.toHaveBeenCalled();
     expect(mockResolveOpenDeepLink).not.toHaveBeenCalled();
-    expect(received).toHaveLength(1);
-    expect(received[0]).toMatchObject({
-      tenantId: "tenant-0001",
-      orderId: "order-001",
-      kind: "plan_order",
-      status: "success",
-    });
-    expect(readStoredOemCloudPaymentReturn()).toMatchObject({
-      tenantId: "tenant-0001",
-      orderId: "order-001",
-      kind: "plan_order",
-    });
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Payment result returned",
-      expect.objectContaining({
-        description:
-          "Syncing cloud entitlements, credit balance, and ledger status.",
-      }),
-    );
-  });
-
-  it("应使用真实 common 资源展示 OAuth 成功 toast", async () => {
-    vi.mocked(parseOemCloudDesktopOAuthCallbackUrl).mockReturnValueOnce({
-      tenantId: "tenant-0001",
-      token: "session-token-001",
-      nextPath: "/welcome",
-      error: null,
-    });
-    vi.mocked(completeOemCloudDesktopOAuthLogin).mockResolvedValueOnce(
-      {} as Awaited<ReturnType<typeof completeOemCloudDesktopOAuthLogin>>,
-    );
-    vi.mocked(getCurrent).mockResolvedValue([
-      "lime://oauth/callback?tenantId=tenant-0001&token=session-token-001",
-    ]);
-
-    await renderHook();
-
-    expect(completeOemCloudDesktopOAuthLogin).toHaveBeenCalledWith({
-      tenantId: "tenant-0001",
-      token: "session-token-001",
-      nextPath: "/welcome",
-      error: null,
-    });
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Google sign-in complete",
-      expect.objectContaining({
-        description: expect.stringContaining("Lime Hub cloud catalog"),
-      }),
-    );
   });
 });

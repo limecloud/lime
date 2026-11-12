@@ -25,21 +25,37 @@ pub(super) fn details(pane: &BottomPane, locale: Locale) -> Option<(String, Vec<
             vec![
                 params.command.clone().unwrap_or_default(),
                 params.cwd.clone().unwrap_or_default(),
-                params.reason.clone().unwrap_or_default(),
+                params
+                    .reason
+                    .as_deref()
+                    .filter(|reason| !reason.is_empty())
+                    .map(|reason| locale.detail(&format!("reason: {reason}")))
+                    .unwrap_or_default(),
             ],
         ),
-        ApprovalRequest::ApplyPatch { params, .. } => (
-            "file",
-            vec![
-                params.grant_root.clone().unwrap_or_default(),
-                params.reason.clone().unwrap_or_default(),
-            ],
-        ),
+        ApprovalRequest::ApplyPatch { params, .. } => {
+            let mut details = Vec::new();
+            if let Some(root) = params.grant_root.as_deref().filter(|root| !root.is_empty()) {
+                details.push(root.to_string());
+            }
+            if let Some(reason) = params.reason.as_deref().filter(|reason| !reason.is_empty()) {
+                details.push(locale.detail(&format!("description: {reason}")));
+            }
+            for destination in &params.destinations {
+                details.push(locale.detail(&format!("destination: {destination}")));
+            }
+            ("file", details)
+        }
         ApprovalRequest::Permissions { params, .. } => (
             "permissions",
             vec![
                 params.cwd.clone(),
-                params.reason.clone().unwrap_or_default(),
+                params
+                    .reason
+                    .as_deref()
+                    .filter(|reason| !reason.is_empty())
+                    .map(|reason| locale.detail(&format!("reason: {reason}")))
+                    .unwrap_or_default(),
                 serde_json::to_string(&params.permissions).unwrap_or_default(),
             ],
         ),

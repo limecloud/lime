@@ -217,12 +217,17 @@ describe("MessageList message actions", () => {
       Array.from(actions!.querySelectorAll("button")).map((button) =>
         button.getAttribute("aria-label"),
       ),
-    ).toEqual(["Quote message", "Copy message"]);
+    ).toEqual(["More actions", "Copy message"]);
     act(() => {
       actions!
-        .querySelector<HTMLButtonElement>('button[aria-label="Quote message"]')!
+        .querySelector<HTMLButtonElement>('button[aria-label="More actions"]')!
         .click();
     });
+    const quoteItem = document.body.querySelector<HTMLElement>(
+      '[data-testid="message-action-quote"]',
+    );
+    expect(quoteItem).not.toBeNull();
+    act(() => quoteItem?.click());
     expect(onQuoteMessage).toHaveBeenCalledWith(content, "assistant-result");
     expect(
       container.querySelector('button[aria-label="Save as Skill"]'),

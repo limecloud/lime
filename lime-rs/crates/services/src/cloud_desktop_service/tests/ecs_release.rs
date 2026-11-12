@@ -10,6 +10,7 @@ fn request(resource: CloudDesktopResource, operation_id: &str) -> CloudDesktopPa
         operation_id: operation_id.into(),
         work_saved: true,
         discard_data: true,
+        image_operation_id: None,
     }
 }
 

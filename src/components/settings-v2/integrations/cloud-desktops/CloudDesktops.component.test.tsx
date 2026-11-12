@@ -127,7 +127,7 @@ async function purchaseForm(provider = "wuying") {
       : [
           ["交换机 ID", "vsw-test"],
           ["安全组 ID", "sg-test"],
-          ["SSH 密钥对名称", "key-test"],
+          ["SSH 密钥对名称（可选）", "key-test"],
           ["实例规格", "ecs.test.large"],
           ["Linux 镜像 ID", "ubuntu-test"],
         ];
@@ -142,6 +142,24 @@ async function purchaseForm(provider = "wuying") {
   await check("确认按此规格和报价购买一台电脑，由我的阿里云账户支付。");
 }
 beforeEach(async () => {
+  vi.stubGlobal("electronAPI", {
+    invoke: vi.fn(
+      async (command: string, args: { request: { action: string } }) => {
+        if (
+          command === "cloud_desktop_connection" &&
+          args.request.action === "checkRuntimeRelease"
+        )
+          return { kind: "guestRelease", available: true, version: "test" };
+        if (
+          command === "cloud_desktop_connection" &&
+          args.request.action === "readReleaseBackup"
+        )
+          return { kind: "releaseBackup" };
+        throw new Error("Unexpected host request");
+      },
+    ),
+    supportsCommand: () => true,
+  });
   vi.clearAllMocks();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   await changeLimeLocale("zh-CN");
@@ -461,6 +479,77 @@ describe("Cloud desktop operation recovery", () => {
       ).toHaveLength(1);
     },
   );
+
+  it("requires application readback for a verified backup and does not fall back on preflight failure", async () => {
+    const restoredTo = { ...resource, resourceId: "ecd-new" };
+    const sha256 = "c".repeat(64);
+    const invoke = vi.fn(
+      async (_command: string, args: { request: { action: string } }) =>
+        args.request.action === "readReleaseBackup"
+          ? {
+              kind: "releaseBackup",
+              backup: { sha256, savedAt: new Date().toISOString(), restoredTo },
+            }
+          : {
+              kind: "releaseWithBackup",
+              data: { outcome: "notSubmitted", submitted: false },
+            },
+    );
+    vi.stubGlobal("electronAPI", { invoke });
+    try {
+      act(() =>
+        root.render(
+          <CloudResourceActions
+            resource={resource}
+            status="Stopped"
+            canRelease
+            disabled={false}
+            request={api.request}
+            onChanged={vi.fn()}
+          />,
+        ),
+      );
+      await click("释放电脑");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+        "ecd-new",
+      );
+      await fill("输入电脑 ID 确认", resource.resourceId);
+      await check("我已保存工作，并停止正在写入文件的任务。");
+      await check("我确认永久删除此电脑上的全部磁盘数据。");
+      expect(button("验证备份并释放").disabled).toBe(true);
+      await check(
+        "我已在新电脑的应用里打开恢复的文件，并确认没有需要保留的后续改动。",
+      );
+      await click("验证备份并释放");
+      expect(
+        invoke.mock.calls.filter(
+          ([, args]) => args.request.action === "releaseWithBackup",
+        ),
+      ).toEqual([
+        [
+          "cloud_desktop_connection",
+          {
+            request: expect.objectContaining({
+              action: "releaseWithBackup",
+              resource,
+              restoredTo,
+              archiveSha256: sha256,
+              workSaved: true,
+              discardData: true,
+              applicationsValidated: true,
+            }),
+          },
+        ],
+      ]);
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+        "未提交释放",
+      );
+      expect(button("验证备份并释放").disabled).toBe(true);
+      expect(api.request).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it("retains a pending release through failed queries and removes it only after verified absence", async () => {
     vi.useFakeTimers();

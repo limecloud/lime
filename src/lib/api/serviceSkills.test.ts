@@ -1,7 +1,7 @@
 import {
   seedCloudAccount,
-  stubCloudRequest,
   cloudRequestMock,
+  accountFixture,
 } from "@/test/cloudAccountFixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -174,7 +174,6 @@ describe("serviceSkills API", () => {
 
   afterEach(() => {
     window.localStorage.clear();
-    delete window.__LIME_OEM_CLOUD__;
 
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -331,12 +330,9 @@ describe("serviceSkills API", () => {
     expect(catalog.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
   });
 
-  it("当前 OEM 租户不匹配时不应读取其他租户的缓存目录", async () => {
+  it("当前产品不匹配时不应读取其他产品的缓存目录", async () => {
     saveServiceSkillCatalog(buildRemoteCatalog(), "manual_override");
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-other",
-    };
+    await seedCloudAccount({ applicationId: "other-product" });
 
     const catalog = await getServiceSkillCatalog();
 
@@ -382,76 +378,55 @@ describe("serviceSkills API", () => {
     }
   });
 
-  it("存在 OEM 注入时应优先从远端刷新目录", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token-demo",
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
+  it("使用正式产品目录并按当前应用投影技能", async () => {
+    await seedCloudAccount();
+    cloudRequestMock.mockResolvedValue({
+      status: 200,
+      account: accountFixture.account,
+      body: {
+        items: [
+          {
+            id: "a".repeat(64),
+            kind: "skills",
+            key: "research",
+            revision: 2,
+            contentHash: "b".repeat(64),
+            publishedAt: "2026-11-12T00:00:00Z",
+            document: {
+              defaultLocale: "en",
+              translations: {
+                en: { title: "Research", summary: "Research topics" },
+              },
+              category: "research",
+              tags: [],
+            },
+          },
+        ],
       },
-      "https://oem.example.com",
-    );
-
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        code: 200,
-        message: "success",
-        data: buildRemoteCatalog(),
-      }),
-    }));
-    stubCloudRequest(fetchMock);
-
+    });
     const catalog = await refreshServiceSkillCatalogFromRemote();
-    const stored = await getServiceSkillCatalog();
-
     expect(cloudRequestMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "/v1/public/tenants/tenant-demo/client/service-skills",
-        method: "GET",
-      }),
+      expect.objectContaining({ path: "/catalog/skills", method: "GET" }),
+      expect.anything(),
     );
-    expect(catalog?.tenantId).toBe("tenant-demo");
-    expect(stored.tenantId).toBe("tenant-demo");
+    expect(catalog?.tenantId).toBe("lime");
+    expect(catalog?.items[0]).toMatchObject({
+      id: "research",
+      title: "Research",
+      defaultExecutorBinding: "native_skill",
+      executionLocation: "client_default",
+    });
+    expect((await getServiceSkillCatalog()).items[0]?.id).toBe("research");
   });
 
-  it("远端刷新返回更旧目录时不应回退当前缓存版本", async () => {
-    saveServiceSkillCatalog(buildRemoteCatalog(), "manual_override");
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token-demo",
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://oem.example.com",
-    );
-
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        code: 200,
-        message: "success",
-        data: buildStaleRemoteCatalog(),
-      }),
-    }));
-    stubCloudRequest(fetchMock);
-
-    const catalog = await refreshServiceSkillCatalogFromRemote();
-    const stored = await getServiceSkillCatalog();
-
-    expect(catalog?.version).toBe("tenant-2026-03-24");
-    expect(stored.version).toBe("tenant-2026-03-24");
-    expect(stored.items[0]?.id).toBe("tenant-remote-skill");
+  it("空产品目录合法且不会恢复静态远端内容", async () => {
+    await seedCloudAccount();
+    cloudRequestMock.mockResolvedValue({
+      status: 200,
+      account: accountFixture.account,
+      body: { items: [] },
+    });
+    expect((await refreshServiceSkillCatalogFromRemote())?.items).toEqual([]);
   });
 
   it("应支持把 Base Setup Package 编译成 compat catalog", async () => {
@@ -499,42 +474,8 @@ describe("serviceSkills API", () => {
     expect(readStoredBaseSetupPackageSnapshot()).toBeNull();
   });
 
-  it("远端刷新应支持服务端直接返回 Base Setup Package", async () => {
-    window.__LIME_OEM_CLOUD__ = {
-      baseUrl: "https://oem.example.com",
-      tenantId: "tenant-demo",
-    };
-    await seedCloudAccount(
-      {
-        token: "session-token-demo",
-        tenant: { id: "tenant-demo" },
-        user: { id: "user-001" },
-        session: { id: "session-001" },
-      },
-      "https://oem.example.com",
-    );
-
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        code: 200,
-        message: "success",
-        data: buildRemoteBaseSetupPackage(),
-      }),
-    }));
-    stubCloudRequest(fetchMock);
-
-    const catalog = await refreshServiceSkillCatalogFromRemote();
-    const stored = await getServiceSkillCatalog();
-    const storedSnapshot = readStoredBaseSetupPackageSnapshot();
-
-    expect(catalog?.tenantId).toBe("tenant-demo");
-    expect(stored.items[0]?.id).toBe("tenant-base-setup-skill");
-    expect(storedSnapshot).toEqual(
-      expect.objectContaining({
-        packageId: "tenant-scene-pack",
-        tenantId: "tenant-demo",
-      }),
-    );
+  it("未登录不发起远端目录请求", async () => {
+    expect(await refreshServiceSkillCatalogFromRemote()).toBeNull();
+    expect(cloudRequestMock).not.toHaveBeenCalled();
   });
 });

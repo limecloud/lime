@@ -13,21 +13,28 @@ import {
 import {
   openCloudGuestArtifact,
   validateArtifact,
+  selectCloudGuestSource,
+  validateDownloadUrl,
   type CloudGuestArtifact,
+  type CloudGuestSource,
 } from "./cloudGuestArtifact";
 import {
   requestCloudGuestUpload,
   type CloudGuestUpload,
 } from "./cloudGuestUpload";
 import type { CloudDesktopRequest } from "./cloudDesktopTaskTunnel";
+import { openCloudGuestUploadTunnel } from "./cloudGuestUploadTunnel";
+import { waitForCloudGuestRequest } from "./cloudGuestRequest";
 
 type Phase = NonNullable<CloudGuestInstallationStatus["phase"]>;
 type RecordState = {
   version: 1;
   resource: CloudDesktopResource;
   operationId: string;
-  artifactPath: string;
-  artifact: CloudGuestArtifact;
+  artifactPath?: string;
+  artifact?: CloudGuestArtifact;
+  downloadUrl?: string;
+  reconnect?: true;
   capability: string;
   createdAt: number;
   phase: Phase;
@@ -36,8 +43,16 @@ type RecordState = {
   upload?: CloudGuestUpload;
   viewerPassword?: string;
   diagnostic?: string;
+  preparation?: {
+    operationId: string;
+    submitted: boolean;
+    ready: boolean;
+    launchStartedAt?: number;
+  };
 };
 const phases: Phase[] = [
+  "waitingForAgent",
+  "preparing",
   "launching",
   "uploading",
   "saving",
@@ -78,10 +93,12 @@ export class CloudGuestInstallations {
     readonly saveCredential: (
       resource: CloudDesktopResource,
       token: string,
+      replace?: boolean,
     ) => Promise<void>,
     readonly transport = requestCloudGuestUpload,
     readonly pollMs = 2000,
     readonly showDesktopPassword?: (password: string) => Promise<void>,
+    readonly selectRelease?: () => Promise<CloudGuestSource>,
   ) {}
 
   #file(key: string) {
@@ -103,20 +120,43 @@ export class CloudGuestInstallations {
       !sameResource(value.resource, resource) ||
       !uuid(value.operationId) ||
       !phases.includes(value.phase) ||
-      typeof value.artifactPath !== "string" ||
-      !path.isAbsolute(value.artifactPath) ||
+      (value.reconnect === true
+        ? value.artifactPath !== undefined ||
+          value.artifact !== undefined ||
+          value.downloadUrl !== undefined
+        : value.reconnect !== undefined ||
+          (value.artifactPath === undefined
+            ? value.downloadUrl === undefined
+            : typeof value.artifactPath !== "string" ||
+              !path.isAbsolute(value.artifactPath))) ||
       !/^[a-f0-9]{64}$/u.test(value.capability) ||
       !Number.isSafeInteger(value.createdAt) ||
       typeof value.uploadAttempted !== "boolean" ||
       typeof value.credentialsSaved !== "boolean"
     )
       throw new Error("CLOUD_INSTALL_STATE_INVALID");
-    validateArtifact(value.artifact);
+    if (!value.reconnect) validateArtifact(value.artifact);
+    if (value.downloadUrl !== undefined) validateDownloadUrl(value.downloadUrl);
+    if (
+      value.preparation !== undefined &&
+      (!value.preparation ||
+        typeof value.preparation !== "object" ||
+        value.reconnect ||
+        !uuid(value.preparation.operationId) ||
+        value.preparation.operationId === value.operationId ||
+        typeof value.preparation.submitted !== "boolean" ||
+        typeof value.preparation.ready !== "boolean" ||
+        (value.preparation.ready && !value.preparation.submitted) ||
+        (value.preparation.launchStartedAt !== undefined &&
+          (!value.preparation.ready ||
+            !Number.isSafeInteger(value.preparation.launchStartedAt) ||
+            value.preparation.launchStartedAt < value.createdAt)))
+    )
+      throw new Error("CLOUD_INSTALL_STATE_INVALID");
     if (
       value.upload &&
       (value.upload.operationId !== value.operationId ||
         typeof value.upload.certificate !== "string" ||
-        typeof value.upload.publicAddress !== "string" ||
         !Number.isSafeInteger(value.upload.expiresAt))
     )
       throw new Error("CLOUD_INSTALL_STATE_INVALID");
@@ -129,6 +169,16 @@ export class CloudGuestInstallations {
   ): Promise<boolean> {
     const state = await this.#read(key, resource);
     return this.#jobs.has(key) || Boolean(state && !terminal(state.phase));
+  }
+
+  async blocksConnectionOpen(
+    key: string,
+    resource: CloudDesktopResource,
+  ): Promise<boolean> {
+    const state = await this.#read(key, resource);
+    return Boolean(
+      state?.reconnect && !state.credentialsSaved && !terminal(state.phase),
+    );
   }
 
   async status(
@@ -149,7 +199,9 @@ export class CloudGuestInstallations {
       ...(state
         ? {
             operationId: state.operationId,
+            mode: state.reconnect ? "reconnect" : "install",
             phase: state.phase,
+            createdAt: state.createdAt,
             connectionSaved: state.credentialsSaved,
             expiresAt: state.upload?.expiresAt,
             ...(state.diagnostic ? { diagnostic: state.diagnostic } : {}),
@@ -179,30 +231,57 @@ export class CloudGuestInstallations {
       await this.showDesktopPassword(state.viewerPassword!);
       return this.status(key, resource);
     }
-    if (request.action === "installRuntime") {
+    if (
+      request.action === "installRuntime" ||
+      request.action === "reconnectRuntime"
+    ) {
+      const reconnect = request.action === "reconnectRuntime";
       if (
         request.confirmation !==
-          `installRuntime:${resource.regionId}:${resource.resourceId}` ||
-        request.trustArtifact !== true ||
-        request.createDesktopUser !== true
+          `${request.action}:${resource.regionId}:${resource.resourceId}` ||
+        (reconnect
+          ? request.workSaved !== true
+          : !["release", "file"].includes(request.source) ||
+            request.trustArtifact !== true ||
+            request.createDesktopUser !== true ||
+            request.installSystemPackages !== true)
       )
         throw new Error("CLOUD_INSTALL_CONSENT_REQUIRED");
       if (this.#jobs.has(key)) return this.status(key, resource);
       if (state && !terminal(state.phase))
         throw new Error("CLOUD_INSTALL_UNRESOLVED");
-      const selected = await this.selectArtifact();
-      if (!selected) return this.status(key, resource);
-      const opened = await openCloudGuestArtifact(selected);
-      await opened.file.close();
+      let artifact: CloudGuestSource | undefined;
+      if (!reconnect) {
+        if (request.source === "release") {
+          if (!this.selectRelease)
+            throw new Error("CLOUD_INSTALL_RELEASE_UNAVAILABLE");
+          artifact = await this.selectRelease();
+          validateArtifact(artifact.artifact);
+          validateDownloadUrl(artifact.downloadUrl);
+        } else {
+          const selected = await this.selectArtifact();
+          if (!selected) return this.status(key, resource);
+          artifact = await selectCloudGuestSource(selected);
+        }
+      }
       state = {
         version: 1,
         resource,
         operationId: randomUUID(),
-        artifactPath: selected,
-        artifact: opened.artifact,
+        ...artifact,
+        ...(reconnect ? { reconnect: true as const } : {}),
+        ...(!reconnect
+          ? {
+              preparation: {
+                operationId: randomUUID(),
+                submitted: false,
+                ready: false,
+              },
+            }
+          : {}),
         capability: randomBytes(32).toString("hex"),
         createdAt: Date.now(),
-        phase: "launching",
+        phase: reconnect ? "launching" : "preparing",
         uploadAttempted: false,
         credentialsSaved: false,
       };
@@ -245,6 +324,11 @@ export class CloudGuestInstallations {
     await this.#file(key).write(state);
   }
 
+  #request(params: Parameters<CloudDesktopRequest>[0], signal: AbortSignal) {
+    signal.throwIfAborted();
+    return waitForCloudGuestRequest(this.request(params), signal);
+  }
+
   async #run(
     key: string,
     state: RecordState,
@@ -252,31 +336,54 @@ export class CloudGuestInstallations {
     signal: AbortSignal,
   ): Promise<void> {
     try {
-      const request = {
-        action: "startEcsRuntimeInstallation" as const,
+      let submitRuntime = submit;
+      if (state.preparation) {
+        if (!(await this.#prepareDesktop(key, state, signal))) return;
+        submitRuntime = state.preparation.launchStartedAt === undefined;
+        if (submitRuntime) {
+          // Persist launch intent before sending. Recovery only queries this ID.
+          state.preparation.launchStartedAt = Date.now();
+          await this.#persist(key, state, "launching");
+          signal.throwIfAborted();
+        }
+      }
+      const launchStartedAt =
+        state.preparation?.launchStartedAt ?? state.createdAt;
+      const common = {
         resource: state.resource,
         operationId: state.operationId,
-        ...state.artifact,
         capabilitySha256: createHash("sha256")
           .update(state.capability)
           .digest("hex"),
-        confirmation: `installRuntime:${state.resource.regionId}:${state.resource.resourceId}`,
-        createDesktopUser: true,
       };
+      const request = state.reconnect
+        ? {
+            ...common,
+            action: "reconnectEcsRuntime" as const,
+            confirmation: `reconnectRuntime:${state.resource.regionId}:${state.resource.resourceId}`,
+            workSaved: true,
+          }
+        : {
+            ...common,
+            action: "startEcsRuntimeInstallation" as const,
+            ...state.artifact!,
+            confirmation: `installRuntime:${state.resource.regionId}:${state.resource.resourceId}`,
+            createDesktopUser: true,
+          };
       let receipt = (
-        submit ? (await this.request(request)).data : undefined
+        submitRuntime ? (await this.#request(request, signal)).data : undefined
       ) as Record<string, unknown> | undefined;
       while (!state.upload) {
         signal.throwIfAborted();
-        if (Date.now() - state.createdAt > 30 * 60_000) {
+        if (Date.now() - launchStartedAt > 30 * 60_000) {
           await this.#persist(key, state, "expired", "CLOUD_INSTALL_EXPIRED");
           return;
         }
         receipt ??= (
-          await this.request({
-            action: "readOperation",
-            operationId: state.operationId,
-          })
+          await this.#request(
+            { action: "readOperation", operationId: state.operationId },
+            signal,
+          )
         ).data as Record<string, unknown>;
         this.#validateReceipt(state, receipt);
         if (
@@ -300,15 +407,13 @@ export class CloudGuestInstallations {
             !upload ||
             upload.operationId !== state.operationId ||
             typeof upload.certificate !== "string" ||
-            upload.publicAddress !== receipt.publicAddress ||
             upload.expiresAt !== receipt.expiresAt ||
             !Number.isSafeInteger(upload.expiresAt) ||
-            upload.expiresAt * 1000 > state.createdAt + 31 * 60_000
+            upload.expiresAt * 1000 > launchStartedAt + 31 * 60_000
           )
             throw new Error("CLOUD_INSTALL_STATE_INVALID");
           state.upload = {
             operationId: upload.operationId,
-            publicAddress: upload.publicAddress,
             certificate: upload.certificate,
             expiresAt: upload.expiresAt,
           };
@@ -318,105 +423,247 @@ export class CloudGuestInstallations {
         await delay(this.pollMs, undefined, { signal });
         receipt = undefined;
       }
-      const target = state.upload!;
-      while (true) {
-        signal.throwIfAborted();
-        if (target.expiresAt * 1000 <= Date.now()) {
-          await this.#persist(key, state, "expired", "CLOUD_INSTALL_EXPIRED");
-          return;
-        }
-        // A lost finish response is harmless after credentials are durable. Never
-        // retrieve or overwrite credentials again during finish-only recovery.
-        if (state.credentialsSaved) {
-          await this.#persist(key, state, "finishPending");
-          const result = await this.transport(
-            target,
-            state.capability,
-            "/finish",
-            signal,
-          );
-          if (result.phase !== "finished")
-            throw new Error("CLOUD_INSTALL_STATE_INVALID");
-          await this.#persist(key, state, "complete");
-          return;
-        }
-        const status = await this.transport(
-          target,
-          state.capability,
-          "/status",
+      const tunnel = await openCloudGuestUploadTunnel(
+        this.request,
+        state.resource,
+        signal,
+      );
+      try {
+        await this.#uploadRuntime(
+          key,
+          state,
+          { ...state.upload!, endpoint: tunnel.endpoint },
           signal,
         );
-        if (
-          status.operationId !== state.operationId ||
-          status.expiresAt !== target.expiresAt
-        )
-          throw new Error("CLOUD_INSTALL_STATE_INVALID");
-        if (status.phase === "waiting") {
-          if (state.uploadAttempted) {
-            await this.#persist(
-              key,
-              state,
-              "needsAttention",
-              "CLOUD_INSTALL_UPLOAD_UNKNOWN",
-            );
-            return;
-          }
-          const artifact = await openCloudGuestArtifact(
-            state.artifactPath,
-            state.artifact,
-          );
-          try {
-            state.uploadAttempted = true;
-            await this.#persist(key, state, "uploading");
-            await this.transport(target, state.capability, "/runtime", signal, {
-              file: artifact.file,
-              bytes: artifact.artifact.archiveBytes,
-            });
-          } finally {
-            await artifact.file.close();
-          }
-          continue;
-        }
-        if (["receiving", "installing"].includes(String(status.phase))) {
-          await delay(this.pollMs, undefined, { signal });
-          continue;
-        }
-        if (status.phase === "failed") {
-          await this.#persist(key, state, "failed", "CLOUD_INSTALL_FAILED");
-          return;
-        }
-        if (status.phase !== "installed")
-          throw new Error("CLOUD_INSTALL_STATE_INVALID");
-        await this.#persist(key, state, "saving");
-        const credential = await this.transport(
-          target,
-          state.capability,
-          "/credentials",
-          signal,
-        );
-        if (
-          credential.operationId !== state.operationId ||
-          typeof credential.token !== "string" ||
-          !/^[A-Za-z0-9_-]{32,256}$/u.test(credential.token) ||
-          typeof credential.viewerPassword !== "string" ||
-          !/^[A-Za-z0-9_-]{8}$/u.test(credential.viewerPassword)
-        )
-          throw new Error("CLOUD_INSTALL_STATE_INVALID");
-        // Viewer secret remains in this encrypted private record, never metadata.
-        state.viewerPassword = credential.viewerPassword;
-        await this.saveCredential(state.resource, credential.token);
-        state.credentialsSaved = true;
-        await this.#persist(key, state, "finishPending");
+      } finally {
+        await tunnel.close();
       }
-    } catch {
+    } catch (error) {
+      if (signal.aborted && terminal(state.phase)) return;
       await this.#persist(
         key,
         state,
         state.upload && state.upload.expiresAt * 1000 <= Date.now()
           ? "expired"
           : "needsAttention",
-        "CLOUD_INSTALL_RECOVERY_REQUIRED",
+        error instanceof Error &&
+          error.message === "CLOUD_INSTALL_SECURITY_GROUP_DENIED"
+          ? "CLOUD_INSTALL_SECURITY_GROUP_DENIED"
+          : "CLOUD_INSTALL_RECOVERY_REQUIRED",
       );
+    }
+  }
+
+  async #uploadRuntime(
+    key: string,
+    state: RecordState,
+    target: CloudGuestUpload & { endpoint: string },
+    signal: AbortSignal,
+  ): Promise<void> {
+    while (true) {
+      signal.throwIfAborted();
+      if (target.expiresAt * 1000 <= Date.now()) {
+        await this.#persist(key, state, "expired", "CLOUD_INSTALL_EXPIRED");
+        return;
+      }
+      // A lost finish response is harmless after credentials are durable. Never
+      // retrieve or overwrite credentials again during finish-only recovery.
+      if (state.credentialsSaved) {
+        await this.#persist(key, state, "finishPending");
+        const result = await this.transport(
+          target,
+          state.capability,
+          "/finish",
+          signal,
+        );
+        if (result.phase !== "finished")
+          throw new Error("CLOUD_INSTALL_STATE_INVALID");
+        await this.#persist(key, state, "complete");
+        return;
+      }
+      const status = await this.transport(
+        target,
+        state.capability,
+        "/status",
+        signal,
+      );
+      if (
+        status.operationId !== state.operationId ||
+        status.expiresAt !== target.expiresAt
+      )
+        throw new Error("CLOUD_INSTALL_STATE_INVALID");
+      if (status.phase === "waiting") {
+        if (state.uploadAttempted) {
+          await this.#persist(
+            key,
+            state,
+            "needsAttention",
+            "CLOUD_INSTALL_UPLOAD_UNKNOWN",
+          );
+          return;
+        }
+        if (state.reconnect) {
+          state.uploadAttempted = true;
+          await this.#persist(key, state, "uploading");
+          await this.transport(target, state.capability, "/reconnect", signal);
+          continue;
+        }
+        if (state.downloadUrl) {
+          state.uploadAttempted = true;
+          await this.#persist(key, state, "uploading");
+          await this.transport(target, state.capability, "/download", signal, {
+            downloadUrl: state.downloadUrl,
+          });
+          continue;
+        }
+        const artifact = await openCloudGuestArtifact(
+          state.artifactPath!,
+          state.artifact,
+        );
+        try {
+          state.uploadAttempted = true;
+          await this.#persist(key, state, "uploading");
+          await this.transport(target, state.capability, "/runtime", signal, {
+            file: artifact.file,
+            bytes: artifact.artifact.archiveBytes,
+          });
+        } finally {
+          await artifact.file.close();
+        }
+        continue;
+      }
+      if (["receiving", "installing"].includes(String(status.phase))) {
+        await delay(this.pollMs, undefined, { signal });
+        continue;
+      }
+      if (status.phase === "failed") {
+        await this.#persist(key, state, "failed", "CLOUD_INSTALL_FAILED");
+        return;
+      }
+      if (status.phase !== "installed")
+        throw new Error("CLOUD_INSTALL_STATE_INVALID");
+      await this.#persist(key, state, "saving");
+      const credential = await this.transport(
+        target,
+        state.capability,
+        "/credentials",
+        signal,
+      );
+      if (
+        credential.operationId !== state.operationId ||
+        typeof credential.token !== "string" ||
+        !/^[A-Za-z0-9_-]{32,256}$/u.test(credential.token) ||
+        typeof credential.viewerPassword !== "string" ||
+        !/^[A-Za-z0-9_-]{8}$/u.test(credential.viewerPassword)
+      )
+        throw new Error("CLOUD_INSTALL_STATE_INVALID");
+      // Viewer secret remains in this encrypted private record, never metadata.
+      state.viewerPassword = credential.viewerPassword;
+      if (state.reconnect)
+        await this.saveCredential(state.resource, credential.token, true);
+      else await this.saveCredential(state.resource, credential.token);
+      state.credentialsSaved = true;
+      await this.#persist(key, state, "finishPending");
+    }
+  }
+
+  async #prepareDesktop(
+    key: string,
+    state: RecordState,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    const preparation = state.preparation!;
+    if (preparation.ready) return true;
+    await this.#persist(key, state, "preparing");
+    let receipt: Record<string, unknown> | undefined;
+    const prepare = async () =>
+      (
+        await this.#request(
+          {
+            action: "prepareEcsDesktop",
+            resource: state.resource,
+            operationId: preparation.operationId,
+            confirmation: `prepareEcsDesktop:${state.resource.regionId}:${state.resource.resourceId}`,
+            installSystemPackages: true,
+          },
+          signal,
+        )
+      ).data as Record<string, unknown>;
+    if (!preparation.submitted) {
+      preparation.submitted = true;
+      await this.#persist(key, state, "preparing");
+      signal.throwIfAborted();
+      receipt = await prepare();
+    }
+    while (true) {
+      signal.throwIfAborted();
+      if (Date.now() - state.createdAt > 31 * 60_000) {
+        await this.#persist(key, state, "expired", "CLOUD_INSTALL_EXPIRED");
+        return false;
+      }
+      receipt ??= (
+        await this.#request(
+          { action: "readOperation", operationId: preparation.operationId },
+          signal,
+        )
+      ).data as Record<string, unknown>;
+      const request = receipt?.request as Record<string, unknown> | undefined;
+      if (
+        receipt?.operationId !== preparation.operationId ||
+        request?.action !== "prepareEcsDesktop" ||
+        request.installSystemPackages !== true ||
+        !sameResource(
+          request.resource as CloudDesktopResource,
+          state.resource,
+        ) ||
+        ![
+          "unknown",
+          "accepted",
+          "preparing",
+          "waitingForAgent",
+          "dependenciesReady",
+          "notSubmitted",
+          "preparationFailed",
+        ].includes(String(receipt.outcome)) ||
+        receipt.packagesPrepared !== (receipt.outcome === "dependenciesReady")
+      )
+        throw new Error("CLOUD_INSTALL_STATE_INVALID");
+      if (receipt.outcome === "waitingForAgent") {
+        if (
+          receipt.submitted !== false ||
+          receipt.requiresInspection !== false ||
+          typeof receipt.agentReady !== "boolean" ||
+          receipt.invokeId != null ||
+          receipt.commandId != null
+        )
+          throw new Error("CLOUD_INSTALL_STATE_INVALID");
+        await this.#persist(key, state, "waitingForAgent");
+        if (receipt.agentReady) {
+          // Only a known unsubmitted intent can continue. Unknown submissions stay read-only.
+          receipt = await prepare();
+          continue;
+        }
+      } else if (state.phase === "waitingForAgent") {
+        await this.#persist(key, state, "preparing");
+      }
+      if (
+        ["notSubmitted", "preparationFailed"].includes(String(receipt.outcome))
+      ) {
+        await this.#persist(
+          key,
+          state,
+          "failed",
+          "CLOUD_INSTALL_PREPARATION_FAILED",
+        );
+        return false;
+      }
+      if (receipt.outcome === "dependenciesReady") {
+        preparation.ready = true;
+        await this.#persist(key, state, "launching");
+        return true;
+      }
+      await delay(this.pollMs, undefined, { signal });
+      receipt = undefined;
     }
   }
 
@@ -425,12 +672,17 @@ export class CloudGuestInstallations {
     if (
       receipt?.operationId !== state.operationId ||
       request?.operationId !== state.operationId ||
-      request.action !== "startEcsRuntimeInstallation" ||
+      request.action !==
+        (state.reconnect
+          ? "reconnectEcsRuntime"
+          : "startEcsRuntimeInstallation") ||
       !sameResource(request.resource as CloudDesktopResource, state.resource) ||
       request.capabilitySha256 !==
         createHash("sha256").update(state.capability).digest("hex") ||
-      JSON.stringify(validateArtifact(request.artifact)) !==
-        JSON.stringify(state.artifact) ||
+      (state.reconnect
+        ? request.workSaved !== true || request.artifact !== undefined
+        : JSON.stringify(validateArtifact(request.artifact)) !==
+          JSON.stringify(state.artifact)) ||
       ![
         "unknown",
         "accepted",

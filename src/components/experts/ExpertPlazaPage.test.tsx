@@ -3,408 +3,206 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExpertPlazaPage } from "./ExpertPlazaPage";
 import { changeLimeLocale } from "@/i18n/createI18n";
-import {
-  expertAnalyticsStorageKeys,
-  getSeededExpertCatalog,
-  saveCachedExpertCatalog,
-  upsertExpertAgentInstance,
-} from "@/features/experts";
 
-interface MountedContent {
-  container: HTMLDivElement;
-  root: Root;
+const mocks = vi.hoisted(() => ({
+  account: null as {
+    account: {
+      generation: string;
+      baseUrl: string;
+      applicationId: string;
+      environment: string;
+    };
+  } | null,
+  listeners: new Set<() => void>(),
+  version: 0,
+  list: vi.fn(),
+  read: vi.fn(),
+}));
+vi.mock("@/lib/cloudAccount", () => ({
+  getCloudAccount: () => mocks.account,
+  subscribeCloudAccount: (fn: () => void) => {
+    mocks.listeners.add(fn);
+    return () => mocks.listeners.delete(fn);
+  },
+  cloudAccountIdentity: (a: unknown) => (a ? JSON.stringify(a) : null),
+  cloudAccountIdentityVersion: () => mocks.version,
+}));
+vi.mock("@/lib/api/productCatalog", () => ({
+  listProductContent: mocks.list,
+  readProductContent: mocks.read,
+  productContentText: (c: {
+    document: { translations: Record<string, unknown> };
+  }) => c.document.translations["zh-CN"],
+}));
+const release = {
+  id: "a".repeat(64),
+  kind: "experts",
+  key: "research",
+  revision: 3,
+  contentHash: "b".repeat(64),
+  publishedAt: "2026-11-12T00:00:00Z",
+  document: {
+    translations: { "zh-CN": { title: "资料整理", summary: "核对来源" } },
+    category: "research",
+    tags: [],
+  },
+};
+let container: HTMLDivElement, root: Root;
+const navigate = vi.fn();
+function setAccount(generation: string | null) {
+  mocks.account = generation
+    ? {
+        account: {
+          generation,
+          baseUrl: "https://core.test",
+          applicationId: "lime",
+          environment: "sandbox",
+        },
+      }
+    : null;
+  mocks.version++;
+  for (const listener of mocks.listeners) listener();
 }
-
-const mountedContents: MountedContent[] = [];
-const EXPERT_CATALOG_CACHE_STORAGE_KEY = "lime:expert-catalog-cache:v1";
-
-function renderPage(onNavigate = vi.fn(), currentProjectId?: string | null) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  act(() => {
-    root.render(
-      <ExpertPlazaPage
-        onNavigate={onNavigate}
-        currentProjectId={currentProjectId}
-      />,
-    );
-  });
-
-  mountedContents.push({ container, root });
-  return { container, onNavigate };
-}
-
-async function flushEffects(times = 4) {
+async function settle() {
   await act(async () => {
-    for (let index = 0; index < times; index += 1) {
-      await Promise.resolve();
-    }
+    for (let i = 0; i < 5; i++) await Promise.resolve();
   });
 }
-
-function readQueuedExpertEvents() {
-  return JSON.parse(
-    window.localStorage.getItem(expertAnalyticsStorageKeys.queue) || "[]",
-  ) as Array<{ expertId: string; eventName: string; metadata?: unknown }>;
-}
-
-function cacheCloudExpertCatalog() {
-  const catalog = getSeededExpertCatalog();
-  saveCachedExpertCatalog({
-    ...catalog,
-    tenantId: "tenant-0001",
-    version: "tenant-0001:test",
-    items: catalog.items.map((item, index) => ({
-      ...item,
-      source: "cloud_catalog" as const,
-      release: {
-        ...item.release,
-        releaseId: `expert-release-${String(index + 1).padStart(4, "0")}`,
-      },
-    })),
-  });
-  window.__LIME_OEM_CLOUD__ = {
-    enabled: true,
-    baseUrl: "https://lime.example.com",
-    tenantId: "tenant-0001",
-  };
-}
-
-function cacheEmptyExpertCatalog() {
-  const catalog = getSeededExpertCatalog();
-  window.localStorage.setItem(
-    EXPERT_CATALOG_CACHE_STORAGE_KEY,
-    JSON.stringify({
-      ...catalog,
-      tenantId: "tenant-empty",
-      version: "tenant-empty:test",
-      items: [],
-    }),
+async function render() {
+  act(() =>
+    root.render(
+      <ExpertPlazaPage onNavigate={navigate} currentProjectId="project-one" />,
+    ),
   );
+  await settle();
 }
-
-describe("ExpertPlazaPage", () => {
+async function click(selector: string) {
+  const button = container.querySelector<HTMLButtonElement>(selector);
+  expect(button).not.toBeNull();
+  await act(async () => {
+    button!.click();
+  });
+  await settle();
+}
+describe("expert published content UI", () => {
   beforeEach(async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     await changeLimeLocale("zh-CN");
-    window.localStorage.clear();
-  });
-
-  afterEach(() => {
-    while (mountedContents.length > 0) {
-      const mounted = mountedContents.pop();
-      if (!mounted) {
-        continue;
-      }
-      act(() => {
-        mounted.root.unmount();
+    localStorage.clear();
+    mocks.account = null;
+    mocks.listeners.clear();
+    mocks.list.mockReset().mockResolvedValue([release]);
+    mocks.read
+      .mockReset()
+      .mockResolvedValue({
+        ...release,
+        document: {
+          ...release.document,
+          instructions: "先核实原始来源，再列出证据。",
+        },
       });
-      mounted.container.remove();
-    }
-    vi.clearAllMocks();
+    navigate.mockReset();
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
     vi.unstubAllGlobals();
-    delete window.__LIME_OEM_CLOUD__;
   });
-
-  it("应渲染 seeded 专家广场卡片与榜单", async () => {
-    const { container } = renderPage();
-    await flushEffects();
-
-    expect(
-      container.querySelector('[data-testid="expert-plaza-page"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="expert-card-marketing-strategist"]',
-      ),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("营销策略专家");
-    expect(container.textContent).toContain("热门精选");
-  });
-
-  it("空缓存目录不应覆盖 seeded 专家广场", async () => {
-    cacheEmptyExpertCatalog();
-
-    const { container } = renderPage();
-    await flushEffects();
-
-    expect(
-      container.querySelector(
-        '[data-testid="expert-card-marketing-strategist"]',
-      ),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("营销策略专家");
-    expect(container.textContent).not.toContain("没有找到匹配的专家");
-  });
-
-  it("点击开始对话应进入 Agent 并携带专家 request metadata", async () => {
-    const onNavigate = vi.fn();
-    const { container } = renderPage(onNavigate, "project-current");
-    await flushEffects();
-
-    const startButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-start-marketing-strategist"]',
-    );
-    expect(startButton).not.toBeNull();
-
-    act(() => {
-      startButton?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith(
+  it("uses built-in experts while signed out and creates a new project thread", async () => {
+    await render();
+    await click('[data-testid="expert-start-marketing-strategist"]');
+    expect(mocks.list).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        agentEntry: "conversation",
-        projectId: "project-current",
-        initialSessionName: "营销策略专家",
+        projectId: "project-one",
+        autoRunInitialPromptOnMount: true,
+        expertAgentLaunch: expect.objectContaining({
+          catalogId: "local-seeded",
+          launchMode: "new_thread",
+        }),
+      }),
+    );
+  });
+  it("loads the selected published instructions into the existing conversation entry", async () => {
+    setAccount("first");
+    await render();
+    await click('[data-testid="expert-start-research"]');
+    expect(mocks.read).toHaveBeenCalledWith("experts", "research", {
+      id: release.id,
+      revision: 3,
+      contentHash: release.contentHash,
+    });
+    expect(navigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
         initialUserPrompt:
-          expect.stringContaining("请以「营销策略专家」专家身份工作"),
-        autoRunInitialPromptOnMount: true,
-        newChatAt: expect.any(Number),
-        expertAgentLaunch: expect.objectContaining({
-          tenantId: "local-seeded",
-          projectId: "project-current",
-          expertId: "marketing-strategist",
-          releaseId: "rel-marketing-strategist-20260515",
-          launchMode: "new_thread",
-          agentInstanceKey:
-            "local-seeded:project-current:marketing-strategist:rel-marketing-strategist-20260515",
-        }),
-        initialRequestMetadata: {
-          expert: expect.objectContaining({
-            expertId: "marketing-strategist",
-            personaRef: "expert-persona:marketing-strategist@1.0.0",
-          }),
-          harness: {
-            expert: expect.objectContaining({
-              expert_id: "marketing-strategist",
-              persona_ref: "expert-persona:marketing-strategist@1.0.0",
-            }),
-          },
-        },
-        initialAutoSendRequestMetadata: {
-          expert: expect.objectContaining({
-            expertId: "marketing-strategist",
-          }),
-          harness: {
-            expert: expect.objectContaining({
-              expert_id: "marketing-strategist",
-            }),
-          },
-        },
+          expect.stringContaining("先核实原始来源，再列出证据。"),
+        projectId: "project-one",
+        initialSessionName: "资料整理",
       }),
     );
-    const [, params] = onNavigate.mock.calls[0] || [];
-    expect(params).not.toHaveProperty("entryBannerMessage");
+    expect(localStorage.getItem("lime:expert-catalog-cache:v1")).toBeNull();
   });
-
-  it("真实资料整理专家卡片应使用普通 Skill 启动当前项目新对话", async () => {
-    const { container, onNavigate } = renderPage(vi.fn(), "project-current");
-    await flushEffects();
-    const button = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-start-knowledge-organizer"]',
+  it("shows directory failures and retries through the real catalog owner", async () => {
+    setAccount("first");
+    mocks.list.mockRejectedValueOnce(new Error("unavailable"));
+    await render();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "专家目录加载失败",
     );
-    expect(button).not.toBeNull();
-    act(() => button!.click());
-
-    expect(onNavigate).toHaveBeenCalledTimes(1);
-    const [page, params] = onNavigate.mock.calls[0];
-    expect(page).toBe("agent");
-    expect(params).toMatchObject({
-      agentEntry: "conversation",
-      projectId: "project-current",
-      autoRunInitialPromptOnMount: true,
-      expertAgentLaunch: {
-        expertId: "knowledge-organizer",
-        launchMode: "new_thread",
-      },
-      initialRequestMetadata: {
-        expert: { skillRefs: ["service-skill:personal-ip-knowledge-builder"] },
-        harness: {
-          expert: {
-            skill_refs: ["service-skill:personal-ip-knowledge-builder"],
-          },
-        },
-      },
-    });
-    expect(params.initialAutoSendRequestMetadata).toEqual(
-      params.initialRequestMetadata,
-    );
-    expect(params.initialUserPrompt).toContain(
-      "service-skill:personal-ip-knowledge-builder",
-    );
-    expect(params).not.toHaveProperty("initialKnowledgePackSelection");
-    expect(JSON.stringify(params)).not.toMatch(
-      /knowledgePack\/|knowledgeContext\/|knowledgeContextRun\//,
-    );
-  });
-
-  it("再次点击已有专家配置时也应新建当前项目 Thread", async () => {
-    upsertExpertAgentInstance({
-      tenantId: "local-seeded",
-      projectId: "project-current",
-      expertId: "marketing-strategist",
-      releaseId: "rel-marketing-strategist-20260515",
-      skillRefsOverride: ["service-skill:daily-trend-briefing", "skill:docx"],
-      now: 1,
-    });
-    const onNavigate = vi.fn();
-    const { container } = renderPage(onNavigate, "project-current");
-    await flushEffects();
-
-    const startButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-start-marketing-strategist"]',
-    );
-    expect(startButton?.textContent).toContain("开始对话");
-
-    act(() => {
-      startButton?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith(
-      "agent",
-      expect.objectContaining({
-        projectId: "project-current",
-        initialUserPrompt:
-          expect.stringContaining("请以「营销策略专家」专家身份工作"),
-        autoRunInitialPromptOnMount: true,
-        newChatAt: expect.any(Number),
-        expertAgentLaunch: expect.objectContaining({
-          projectId: "project-current",
-          launchMode: "new_thread",
-          skillRefsOverride: [
-            "service-skill:daily-trend-briefing",
-            "skill:docx",
-          ],
-        }),
-        initialRequestMetadata: expect.objectContaining({
-          expert: expect.objectContaining({
-            skillRefs: ["service-skill:daily-trend-briefing", "skill:docx"],
-          }),
-        }),
-      }),
-    );
-    const [, params] = onNavigate.mock.calls[0] || [];
-    expect(params).not.toHaveProperty("initialSessionId");
+    const retry = [...container.querySelectorAll("button")].find(
+      (b) => b.textContent === "重试",
+    )!;
+    await act(async () => retry.click());
+    await settle();
     expect(
-      (params as { expertAgentLaunch?: unknown }).expertAgentLaunch,
-    ).not.toHaveProperty("latestSessionId");
-    expect(params).not.toHaveProperty("entryBannerMessage");
+      container.querySelector('[data-testid="expert-start-research"]'),
+    ).not.toBeNull();
+    expect(mocks.list).toHaveBeenCalledTimes(2);
   });
-
-  it("没有项目作用域时启动专家不应写入 default 项目", async () => {
-    const onNavigate = vi.fn();
-    const { container } = renderPage(onNavigate);
-    await flushEffects();
-
-    const startButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-start-marketing-strategist"]',
+  it("does not start a changed or invalid release", async () => {
+    setAccount("first");
+    mocks.read.mockRejectedValueOnce(
+      new Error("product_catalog_release_changed"),
     );
-
-    act(() => {
-      startButton?.click();
-    });
-
-    const [, params] = onNavigate.mock.calls[0] || [];
-    expect(params).not.toHaveProperty("projectId");
-    expect(
-      (params as { expertAgentLaunch?: unknown }).expertAgentLaunch,
-    ).not.toHaveProperty("projectId");
+    await render();
+    await click('[data-testid="expert-start-research"]');
+    expect(navigate).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "专家启动失败",
+    );
   });
-
-  it("点击添加应把专家写入本地 overlay", async () => {
-    cacheCloudExpertCatalog();
-    const { container } = renderPage();
-    await flushEffects();
-
-    const addButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-add-data-analyst"]',
-    );
-    expect(addButton).not.toBeNull();
-
-    act(() => {
-      addButton?.click();
-    });
-
-    const raw = window.localStorage.getItem("lime:expert-install-overlay:v1");
-    expect(raw).toContain("data-analyst");
-    expect(readQueuedExpertEvents()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          expertId: "data-analyst",
-          eventName: "expert_installed",
+  it("discards a pending instruction read after logout", async () => {
+    setAccount("first");
+    let finish!: (v: unknown) => void;
+    mocks.read.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
         }),
-      ]),
     );
-  });
-
-  it("打开详情应记录非内容型运营事件", async () => {
-    cacheCloudExpertCatalog();
-    const { container } = renderPage();
-    await flushEffects();
-
-    const expertCardHead = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-card-marketing-strategist"] button',
+    await render();
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="expert-start-research"]',
+        )!
+        .click(),
     );
-    expect(expertCardHead).not.toBeNull();
-
-    act(() => {
-      expertCardHead?.click();
+    await act(async () => {
+      setAccount(null);
     });
-
-    expect(readQueuedExpertEvents()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          expertId: "marketing-strategist",
-          eventName: "expert_detail_opened",
-        }),
-      ]),
-    );
-  });
-
-  it("详情操作区应只保留当前项目新 Thread 入口", async () => {
-    const onNavigate = vi.fn();
-    const { container } = renderPage(onNavigate);
-    await flushEffects();
-
-    const expertCardHead = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-card-code-literature"] button',
-    );
-    expect(expertCardHead).not.toBeNull();
-
-    act(() => {
-      expertCardHead?.click();
+    await settle();
+    finish({
+      ...release,
+      document: { ...release.document, instructions: "private old content" },
     });
-
-    const detailActions = container.querySelector(
-      '[data-testid="expert-detail-actions-code-literature"]',
-    );
-    expect(detailActions?.textContent).toContain("开始对话");
-    expect(detailActions?.textContent).not.toContain("新对话");
-
-    const startButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="expert-detail-start-code-literature"]',
-    );
-    expect(startButton).not.toBeNull();
-
-    act(() => {
-      startButton?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith(
-      "agent",
-      expect.objectContaining({
-        initialSessionName: "代码文学家",
-        autoRunInitialPromptOnMount: true,
-        newChatAt: expect.any(Number),
-        expertAgentLaunch: expect.objectContaining({
-          expertId: "code-literature",
-          releaseId: "rel-code-literature-20260515",
-          launchMode: "new_thread",
-        }),
-      }),
-    );
+    await settle();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("private old content");
   });
 });

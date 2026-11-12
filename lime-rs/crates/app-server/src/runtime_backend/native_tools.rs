@@ -13,9 +13,22 @@ pub(crate) async fn register_current_native_tools_if_available(
     app_data_source: &RwLock<Option<Arc<dyn AppDataSource>>>,
     current_time_gateway: &RwLock<Option<Arc<dyn tool_runtime::current_time::CurrentTimeGateway>>>,
     computer_use_gateway: &RwLock<Option<Arc<dyn tool_runtime::computer_use::ComputerUseGateway>>>,
+    account_tools: &RwLock<
+        Vec<tool_runtime::gateway_dispatch_execution::RuntimeGatewayToolExecutionRegistration>,
+    >,
 ) -> Result<(), RuntimeCoreError> {
     if !agent_state.is_initialized().await {
         return Ok(());
+    }
+    let account_tools = account_tools
+        .read()
+        .map_err(|_| RuntimeCoreError::Backend("account tool registry unavailable".into()))?
+        .clone();
+    for registration in account_tools {
+        agent_state
+            .register_gateway_tool(registration)
+            .await
+            .map_err(RuntimeCoreError::Backend)?;
     }
     let computer_use_gateway = computer_use_gateway
         .read()

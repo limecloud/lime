@@ -12,12 +12,10 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  window.__LIME_OEM_CLOUD__ = { enabled: false };
 });
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
-  delete window.__LIME_OEM_CLOUD__;
   await changeLimeLocale("zh-CN");
   vi.unstubAllGlobals();
 });

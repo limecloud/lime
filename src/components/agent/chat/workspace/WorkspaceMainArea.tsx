@@ -12,6 +12,8 @@ interface WorkspaceMainAreaProps {
   mainToolbar?: ReactNode;
   mainTabLabel?: string;
   sidePanelTabStrip?: ReactNode;
+  inlineMainToolbar?: boolean;
+  inlineSidePanelTabs?: boolean;
   taskCenterShellPanelNode?: ReactNode;
   contentSyncNoticeNode: ReactNode;
   shellBottomInset: string;
@@ -34,6 +36,8 @@ export function WorkspaceMainArea({
   mainToolbar,
   mainTabLabel,
   sidePanelTabStrip,
+  inlineMainToolbar = false,
+  inlineSidePanelTabs = false,
   taskCenterShellPanelNode,
   contentSyncNoticeNode,
   shellBottomInset,
@@ -90,6 +94,8 @@ export function WorkspaceMainArea({
           mainToolbar={mainToolbar}
           mainTabLabel={mainTabLabel}
           sidePanelTabStrip={showRightSurface ? sidePanelTabStrip : undefined}
+          inlineMainToolbar={inlineMainToolbar}
+          inlineSidePanelTabs={inlineSidePanelTabs}
           chatContent={chatContent}
           canvasContent={effectiveCanvasContent}
           chatPanelWidth={chatPanelWidth}

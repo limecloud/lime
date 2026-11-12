@@ -111,7 +111,7 @@ export function buildExpertCatalogProjection(
 
   return {
     version: catalog.version,
-    tenantId: catalog.tenantId,
+    catalogId: catalog.catalogId,
     syncedAt: catalog.syncedAt,
     categories: [...catalog.categories].sort(
       (left, right) => left.sort - right.sort,

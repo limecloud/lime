@@ -24,7 +24,6 @@ import {
   subscribeProviderDataChanged,
 } from "@/lib/providerDataEvents";
 import { isDebugFlagEnabled } from "@/lib/perfDebug";
-import { isOemManagedHubProvider } from "@/lib/oemLimeHubProvider";
 
 // ============================================================================
 // Hook 返回类型
@@ -115,7 +114,6 @@ interface UseApiKeyProviderReturn {
 interface UseApiKeyProviderOptions {
   autoLoad?: boolean;
   hydrateUiState?: boolean;
-  allowOemManagedSelection?: boolean;
 }
 
 // ============================================================================
@@ -177,7 +175,6 @@ export function useApiKeyProvider(
   const {
     autoLoad = true,
     hydrateUiState = true,
-    allowOemManagedSelection = false,
   } = options;
   // ===== 状态 =====
   const [providers, setProviders] = useState<ProviderWithKeysDisplay[]>([]);
@@ -540,9 +537,7 @@ export function useApiKeyProvider(
       return null;
     }
     const found = providers.find(
-      (p) =>
-        p.id === selectedProviderId &&
-        (allowOemManagedSelection || !isOemManagedHubProvider(p)),
+      (p) => p.id === selectedProviderId,
     );
     if (found) {
       providerDebugLog(
@@ -554,39 +549,11 @@ export function useApiKeyProvider(
       );
     }
     return found ?? null;
-  }, [allowOemManagedSelection, providers, selectedProviderId]);
-
-  useEffect(() => {
-    if (allowOemManagedSelection) {
-      return;
-    }
-
-    if (!selectedProviderId) {
-      return;
-    }
-
-    const selectedProvider = providers.find((p) => p.id === selectedProviderId);
-    if (!selectedProvider || !isOemManagedHubProvider(selectedProvider)) {
-      return;
-    }
-
-    const nextVisibleProvider =
-      providers.find((provider) => !isOemManagedHubProvider(provider)) ?? null;
-    const nextProviderId = nextVisibleProvider?.id ?? null;
-    setSelectedProviderId(nextProviderId);
-    void saveSelectedProvider(nextProviderId);
-  }, [
-    allowOemManagedSelection,
-    providers,
-    saveSelectedProvider,
-    selectedProviderId,
-  ]);
+  }, [providers, selectedProviderId]);
 
   /** 按搜索过滤后的 Provider 列表 */
   const filteredProviders = useMemo(() => {
-    const visibleProviders = providers.filter(
-      (provider) => !isOemManagedHubProvider(provider),
-    );
+    const visibleProviders = providers;
     if (!searchQuery.trim()) return visibleProviders;
     const query = searchQuery.toLowerCase();
     return visibleProviders.filter(

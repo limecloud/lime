@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { app } from "electron";
 import type {
   CloudDesktopResource,
   CloudDesktopResponse,
@@ -12,12 +13,16 @@ import type {
   CloudDesktopWindowContext,
   CloudDesktopWindowStatus,
   CloudGuestInstallationStatus,
+  CloudGuestReleaseStatus,
+  CloudReleaseBackupResult,
+  CloudReleaseWithBackupResult,
 } from "../src/lib/desktop-host/cloudDesktopConnection";
 import { ElectronAppServerHost } from "./appServerHost";
 import { AppServerRemoteConnection } from "./appServerRemoteConnection";
 import {
   ECS_APP_SERVER_TARGET,
   resolveCloudDesktopTaskTunnel,
+  resolveCloudDesktopViewTunnel,
   type CloudDesktopRequest,
 } from "./cloudDesktopTaskTunnel";
 import { ElectronHostCommands } from "./hostCommands";
@@ -29,6 +34,10 @@ import {
 import { isCloudWindowHostCommand } from "./cloudWindowPolicy";
 import { CloudGuestInstallations } from "./cloudGuestInstallations";
 import {
+  probeCloudGuestRelease,
+  selectCloudGuestRelease,
+} from "./cloudGuestRelease";
+import {
   saveCloudArchive,
   validateArchiveSelection,
 } from "./cloudArchiveDownload";
@@ -36,6 +45,8 @@ import {
   restoreCloudArchive,
   validateRestoreSelection,
 } from "./cloudArchiveRestore";
+import { CloudArchiveBackups } from "./cloudArchiveBackups";
+import { allowCloudDesktopView } from "./cloudDesktopWindowFactory";
 
 type CloudWindow = {
   webContents: { id: number; send(channel: string, payload: unknown): void };
@@ -61,6 +72,7 @@ export class CloudDesktopWindows {
   #stopping = false;
   readonly #archiveAbort = new AbortController();
   readonly #installations?: CloudGuestInstallations;
+  readonly #archiveBackups: CloudArchiveBackups;
 
   constructor(
     readonly root: string,
@@ -74,13 +86,14 @@ export class CloudDesktopWindows {
     showDesktopPassword?: (password: string) => Promise<void>,
     readonly selectArchiveDestination?: () => Promise<string | undefined>,
   ) {
+    this.#archiveBackups = new CloudArchiveBackups(safeStorage);
     if (requestCloudDesktop && selectArtifact) {
       this.#installations = new CloudGuestInstallations(
         root,
         safeStorage,
         requestCloudDesktop,
         selectArtifact,
-        async (resource, token) => {
+        async (resource, token, replace) => {
           const key = resourceKey(resource);
           const store = new ElectronSecureCredentialStore(
             path.join(root, "cloud-desktop-connections", key),
@@ -89,7 +102,7 @@ export class CloudDesktopWindows {
           const existing = await store.readCloudSessionCredential();
           if (
             existing &&
-            (existing.token !== token ||
+            ((!replace && existing.token !== token) ||
               existing.transport !== "ecsTunnel" ||
               existing.tenantId !== key ||
               existing.endpoint !== ECS_APP_SERVER_TARGET)
@@ -105,8 +118,13 @@ export class CloudDesktopWindows {
         undefined,
         undefined,
         showDesktopPassword,
+        () => selectCloudGuestRelease(app.getVersion()),
       );
     }
+  }
+
+  #storageRoot(key: string): string {
+    return path.join(this.root, "cloud-desktop-connections", key);
   }
 
   get(webContentsId: number): CloudWindowEntry | undefined {
@@ -122,11 +140,20 @@ export class CloudDesktopWindows {
   ): Promise<
     | CloudDesktopConnectionMetadata
     | CloudGuestInstallationStatus
+    | CloudGuestReleaseStatus
     | CloudArchiveDownloadResult
     | CloudArchiveRestoreResult
+    | CloudReleaseBackupResult
+    | CloudReleaseWithBackupResult
     | { opened: true }
     | { deleted: boolean }
   > {
+    if (request?.action === "checkRuntimeRelease") {
+      if (this.#stopping) throw new Error("cloud desktop windows are stopping");
+      const version = app.getVersion();
+      await probeCloudGuestRelease(version);
+      return { kind: "guestRelease", available: true, version };
+    }
     const resource = validateResource(request?.resource);
     const key = resourceKey(resource);
     const previous = this.#queues.get(key) ?? Promise.resolve();
@@ -144,10 +171,13 @@ export class CloudDesktopWindows {
   async #invoke(
     key: string,
     resource: CloudDesktopResource,
-    request: CloudDesktopConnectionRequest,
+    request: Exclude<
+      CloudDesktopConnectionRequest,
+      { action: "checkRuntimeRelease" }
+    >,
   ) {
     if (this.#stopping) throw new Error("cloud desktop windows are stopping");
-    const storageRoot = path.join(this.root, "cloud-desktop-connections", key);
+    const storageRoot = this.#storageRoot(key);
     const store = new ElectronSecureCredentialStore(
       storageRoot,
       this.safeStorage,
@@ -156,11 +186,29 @@ export class CloudDesktopWindows {
       (entry) => resourceKey(entry.context.resource) === key,
     );
     switch (request.action) {
+      case "readReleaseBackup":
+        return {
+          kind: "releaseBackup" as const,
+          backup: await this.#archiveBackups.read(storageRoot),
+        };
+      case "releaseWithBackup":
+        if (!this.requestCloudDesktop)
+          throw new Error("CLOUD_RELEASE_UNAVAILABLE");
+        return this.#archiveBackups.release(
+          storageRoot,
+          { ...request, resource },
+          this.requestCloudDesktop,
+          this.#archiveAbort.signal,
+        );
       case "downloadArchive":
       case "restoreArchiveToCloud": {
         const restore =
           request.action === "restoreArchiveToCloud"
             ? validateRestoreSelection(request)
+            : undefined;
+        const source =
+          request.action === "restoreArchiveToCloud" && request.backupSource
+            ? validateResource(request.backupSource)
             : undefined;
         const download =
           request.action === "downloadArchive"
@@ -217,20 +265,53 @@ export class CloudDesktopWindows {
               );
             return response.result;
           };
-          if (restore && this.requestCloudDesktop)
-            return await restoreCloudArchive(
+          if (restore && this.requestCloudDesktop) {
+            const result = await restoreCloudArchive(
               restore,
               this.requestCloudDesktop,
               callRemote,
               signal,
             );
-          if (download && destination)
-            return await saveCloudArchive(
+            if (!source) return result;
+            const sourceRoot = this.#storageRoot(resourceKey(source));
+            const original = await new ElectronSecureCredentialStore(
+              sourceRoot,
+              this.safeStorage,
+            )
+              .readCloudSessionCredential()
+              .catch(() => null);
+            if (
+              original?.transport !== "ecsTunnel" &&
+              credential.transport !== "ecsTunnel" &&
+              original?.endpoint === credential.endpoint
+            )
+              return { ...result, releaseBackupRecorded: false };
+            const releaseBackupRecorded = await this.#archiveBackups
+              .markRestored(
+                sourceRoot,
+                source,
+                resource,
+                restore.expectedSha256,
+              )
+              .catch(() => false);
+            return { ...result, releaseBackupRecorded };
+          }
+          if (download && destination) {
+            const result = await saveCloudArchive(
               destination,
               download,
               callRemote,
               signal,
             );
+            if (result.canceled) return result;
+            const backupRecorded = await this.#archiveBackups
+              .remember(storageRoot, result)
+              .then(
+                () => true,
+                () => false,
+              );
+            return { ...result, backupRecorded };
+          }
           throw new Error("CLOUD_ARCHIVE_CONNECTION_REQUIRED");
         } catch (error) {
           // Remote error text and connection details must not reach the UI.
@@ -248,15 +329,32 @@ export class CloudDesktopWindows {
       }
       case "installationStatus":
       case "installRuntime":
+      case "reconnectRuntime":
       case "resumeInstallation":
       case "showDesktopPassword": {
         if (!this.#installations) throw new Error("CLOUD_INSTALL_UNAVAILABLE");
+        if (request.action === "reconnectRuntime" && existing)
+          throw new Error("CLOUD_INSTALL_CONNECTION_EXISTS");
+        if (request.action === "reconnectRuntime") {
+          const saved = await store.readCloudSessionCredential();
+          if (
+            saved &&
+            (saved.transport !== "ecsTunnel" ||
+              saved.tenantId !== key ||
+              saved.endpoint !== ECS_APP_SERVER_TARGET)
+          )
+            throw new Error("CLOUD_INSTALL_CONNECTION_CHANGED");
+        }
         if (
           request.action === "installRuntime" &&
           (existing || (await store.getCloudSessionCredentialMetadata()).exists)
         )
           throw new Error("CLOUD_INSTALL_CONNECTION_EXISTS");
         const status = await this.#installations.invoke(key, resource, request);
+        if (request.action === "installationStatus" && !status.exists) {
+          const metadata = await store.getCloudSessionCredentialMetadata();
+          return { ...status, connectionSaved: metadata.exists };
+        }
         return status.connectionSaved &&
           !(await store.getCloudSessionCredentialMetadata()).exists
           ? { ...status, connectionSaved: false }
@@ -295,6 +393,8 @@ export class CloudDesktopWindows {
           );
         return store.deleteCloudSessionCredential();
       case "open": {
+        if (await this.#installations?.blocksConnectionOpen(key, resource))
+          throw new Error("CLOUD_INSTALL_UNRESOLVED");
         if (existing && !existing.window.isDestroyed()) {
           existing.window.show();
           existing.window.focus();
@@ -419,6 +519,38 @@ export class CloudDesktopWindows {
       case "cloud_desktop_window_reconnect":
         await entry.host.recoverAfterSystemResume();
         return this.status(entry);
+      case "cloud_desktop_window_view": {
+        const resource = entry.context.resource;
+        const active = () =>
+          !this.#stopping &&
+          this.#entries.get(entry.window.webContents.id) === entry &&
+          !entry.window.isDestroyed();
+        if (!active() || resource.provider !== "ecs")
+          throw new Error("CLOUD_DESKTOP_VIEW_UNAVAILABLE");
+        const action = (request as { action?: unknown } | undefined)?.action;
+        if (action === "showPassword") {
+          if (!this.#installations)
+            throw new Error("CLOUD_DESKTOP_PASSWORD_UNAVAILABLE");
+          try {
+            await this.#installations.invoke(resourceKey(resource), resource, {
+              action: "showDesktopPassword",
+              resource,
+            });
+          } catch {
+            throw new Error("CLOUD_DESKTOP_PASSWORD_UNAVAILABLE");
+          }
+          return { shown: true };
+        }
+        if (action !== "connect" || !this.requestCloudDesktop)
+          throw new Error("CLOUD_DESKTOP_VIEW_UNAVAILABLE");
+        const endpoint = await resolveCloudDesktopViewTunnel(
+          this.requestCloudDesktop,
+          resource,
+        );
+        if (!active()) throw new Error("CLOUD_DESKTOP_VIEW_UNAVAILABLE");
+        allowCloudDesktopView(entry.window.webContents, endpoint);
+        return { endpoint };
+      }
       case "app_server_handle_json_lines":
         return entry.host.handleJsonLines(
           (request ?? { lines: [] }) as { lines: string[] },

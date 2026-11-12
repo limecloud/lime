@@ -61,6 +61,12 @@
   --lime-danger: #ce2c31;
   --lime-danger-soft: #feebec;
   --lime-danger-border: #f4a9aa;
+  --lime-diff-add-bg: #e6ffec;
+  --lime-diff-add-number-bg: #ccffd8;
+  --lime-diff-add-border: #2da44e;
+  --lime-diff-remove-bg: #ffebe9;
+  --lime-diff-remove-number-bg: #ffd7d5;
+  --lime-diff-remove-border: #cf222e;
   --lime-chrome-rail: #f0f0f0;
   --lime-chrome-rail-surface: #f0f0f0;
   --lime-chrome-surface: #f9f9f9;
@@ -178,6 +184,12 @@
   --lime-danger: #ff9592;
   --lime-danger-soft: #3b1219;
   --lime-danger-border: #8c333a;
+  --lime-diff-add-bg: #12261e;
+  --lime-diff-add-number-bg: #1b4721;
+  --lime-diff-add-border: #2ea043;
+  --lime-diff-remove-bg: #25171c;
+  --lime-diff-remove-number-bg: #4c1d1f;
+  --lime-diff-remove-border: #f85149;
   --lime-chrome-rail: #222222;
   --lime-chrome-rail-surface: #222222;
   --lime-chrome-surface: #191919;

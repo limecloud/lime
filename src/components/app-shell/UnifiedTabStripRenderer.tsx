@@ -17,6 +17,7 @@ export interface UnifiedTabStripEntry {
   onContentTabDoubleClick?: (tabId: string) => void;
   // 既有布局 owner 测得的分界坐标，只用于共享标题栏对齐。
   mainPaneEnd?: number;
+  inlineMainToolbar?: boolean;
 }
 
 export function UnifiedTabStripRenderer({
@@ -79,24 +80,31 @@ export function UnifiedTabStripRenderer({
           }
         }}
       >
-        <div
-          className="h-full min-w-0"
-          style={{
-            width:
-              entry.isVisible && entry.mode === "split"
-                ? `max(0px, calc(${entry.mainPaneEnd ?? 0}px - var(--app-shell-main-titlebar-left, 0px)))`
-                : undefined,
-            flex: entry.isVisible ? "0 0 auto" : "1 1 auto",
-            order: entry.mode === "full" ? 1 : 0,
-          }}
-        >
-          {entry.mainToolbar}
-        </div>
+        {entry.inlineMainToolbar ? null : (
+          <div
+            className="h-full min-w-0"
+            style={{
+              width:
+                entry.isVisible && entry.mode === "split"
+                  ? `max(0px, calc(${entry.mainPaneEnd ?? 0}px - var(--app-shell-main-titlebar-left, 0px)))`
+                  : undefined,
+              flex: entry.isVisible ? "0 0 auto" : "1 1 auto",
+              order: entry.mode === "full" ? 1 : 0,
+            }}
+          >
+            {entry.mainToolbar}
+          </div>
+        )}
         <div
           className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto"
           role="tablist"
           style={{ display: entry.isVisible ? undefined : "none" }}
         >
+          {entry.inlineMainToolbar ? (
+            <div className="flex h-full min-w-0 flex-1 items-center">
+              {entry.mainToolbar}
+            </div>
+          ) : null}
           {entry.node}
           <div
             ref={setTabStripActions}

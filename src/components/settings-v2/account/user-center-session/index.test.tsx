@@ -2,356 +2,176 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
-
-const { mockUseOemCloudAccess } = vi.hoisted(() => {
-  return {
-    mockUseOemCloudAccess: vi.fn(),
-  };
-});
-
-vi.mock("@/hooks/useOemCloudAccess", () => ({
-  useOemCloudAccess: () => mockUseOemCloudAccess(),
-}));
-
+import { accountFixture, seedCloudAccount } from "@/test/cloudAccountFixture";
+import { readCloudAccount } from "@/lib/cloudAccount";
 import { UserCenterSessionSettings } from ".";
 
-interface MountedPage {
-  container: HTMLDivElement;
-  root: Root;
-}
+vi.mock("@/lib/api/externalUrl", () => ({
+  openExternalUrlWithSystemBrowser: vi.fn().mockResolvedValue(undefined),
+}));
 
-const mounted: MountedPage[] = [];
-
-function createAccessState(overrides: Record<string, unknown> = {}) {
-  return {
-    runtime: {
-      baseUrl: "https://user.limeai.run",
-      controlPlaneBaseUrl: "https://user.limeai.run/api",
-      sceneBaseUrl: "https://user.limeai.run/scene-api",
-      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
-      tenantId: "tenant-0001",
-      sessionToken: null,
-      hubProviderName: "Lime Hub",
-      loginPath: "/login",
-      desktopClientId: "desktop-client",
-      desktopOauthRedirectUrl: "lime://oauth/callback",
-      desktopOauthNextPath: "/welcome",
-    },
-    configuredTarget: {
-      baseUrl: "https://user.limeai.run",
-      tenantId: "tenant-0001",
-    },
-    hubProviderName: "Lime Hub",
-    loginMode: "password",
-    setLoginMode: vi.fn(),
-    passwordForm: {
-      identifier: "",
-      password: "",
-    },
-    setPasswordForm: vi.fn(),
-    emailCodeForm: {
-      identifier: "",
-      code: "",
-      displayName: "",
-      username: "",
-    },
-    setEmailCodeForm: vi.fn(),
-    codeDelivery: null,
-    session: null,
-    bootstrap: null,
-    initializing: false,
-    refreshing: false,
-    sendingCode: false,
-    loggingIn: false,
-    loggingOut: false,
-    openingGoogleLogin: false,
-    errorMessage: null,
-    infoMessage: null,
-    defaultProviderSummary: null,
-    handleRefresh: vi.fn(),
-    handleSendEmailCode: vi.fn(),
-    handleEmailCodeLogin: vi.fn(),
-    handlePasswordLogin: vi.fn(),
-    handleGoogleLogin: vi.fn(),
-    handleLogout: vi.fn(),
-    openUserCenter: vi.fn(),
-    ...overrides,
-  };
-}
-
-function renderPage() {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  act(() => {
-    root.render(<UserCenterSessionSettings />);
-  });
-
-  const page = { container, root };
-  mounted.push(page);
-  return page;
-}
-
-function getBodyText() {
-  return document.body.textContent ?? "";
-}
-
-async function hoverTip(ariaLabel: string) {
-  const trigger = document.body.querySelector(
-    `button[aria-label='${ariaLabel}']`,
-  );
-  expect(trigger).toBeInstanceOf(HTMLButtonElement);
-
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await Promise.resolve();
-  });
-
-  return trigger as HTMLButtonElement;
-}
-
-async function leaveTip(trigger: HTMLButtonElement | null) {
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-    await Promise.resolve();
-  });
-}
-
-function findButton(container: HTMLElement, text: string) {
-  const button = Array.from(container.querySelectorAll("button")).find((item) =>
-    item.textContent?.includes(text),
-  );
-
-  if (!button) {
-    throw new Error(`未找到按钮: ${text}`);
-  }
-  return button as HTMLButtonElement;
-}
+let container: HTMLDivElement;
+let root: Root;
 
 beforeEach(async () => {
   (
-    globalThis as typeof globalThis & {
-      IS_REACT_ACT_ENVIRONMENT?: boolean;
-    }
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
-
+  vi.stubEnv("VITE_LIMECORE_ORIGIN", "https://core.example.test");
   await changeLimeLocale("en-US");
-  mockUseOemCloudAccess.mockReturnValue(createAccessState());
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
 });
 
 afterEach(async () => {
-  vi.clearAllMocks();
-
-  while (mounted.length > 0) {
-    const current = mounted.pop();
-    if (!current) {
-      break;
-    }
-
-    act(() => {
-      current.root.unmount();
-    });
-    current.container.remove();
-  }
-
+  act(() => root.unmount());
+  container.remove();
+  vi.unstubAllEnvs();
   await changeLimeLocale("zh-CN");
 });
 
+async function renderPage() {
+  await act(async () => root.render(<UserCenterSessionSettings />));
+}
+
+function button(text: string) {
+  const found = [...container.querySelectorAll("button")].find(
+    (b) => b.textContent === text,
+  );
+  expect(found, text).toBeInstanceOf(HTMLButtonElement);
+  return found!;
+}
+
 describe("UserCenterSessionSettings", () => {
-  it("未登录时应展示个人中心登录面板", () => {
-    const { container } = renderPage();
-    const text = container.textContent ?? "";
-
-    expect(text).toContain("Account Profile");
-    expect(text).toContain(
-      "Review sign-in status, default service, and account sync results.",
+  it("未配置时禁用登录并显示服务状态", async () => {
+    vi.stubEnv("VITE_LIMECORE_ORIGIN", "");
+    await renderPage();
+    expect(button("Sign in").disabled).toBe(true);
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      "Account service is not configured",
     );
-    expect(text).toContain("Status: Signed out");
-    expect(text).toContain("Default service: Syncs after sign-in");
-    expect(text).toContain("Sign in with Google");
-    expect(text).toContain("Auto-sync after browser sign-in");
-    expect(text).not.toContain("账户资料");
-    expect(text).not.toContain("settings.userCenterSession");
   });
 
-  it("点击 Google 一键登录时应调用 hook 的 handleGoogleLogin", async () => {
-    const handleGoogleLogin = vi.fn();
-    mockUseOemCloudAccess.mockReturnValue(
-      createAccessState({
-        handleGoogleLogin,
-      }),
-    );
-
-    const { container } = renderPage();
-
-    await act(async () => {
-      findButton(container, "Sign in with Google").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+  it("通过原生 public Client 登录并传递当前语言", async () => {
+    await renderPage();
+    await act(async () => button("Sign in").click());
+    expect(accountFixture.login).toHaveBeenCalledExactlyOnceWith({
+      type: "cloud",
+      baseUrl: "https://core.example.test",
+      resource: "default",
+      language: "en-US",
     });
-
-    expect(handleGoogleLogin).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('input[type="password"]')).toBeNull();
   });
 
-  it("展开备用登录方式后点击验证码模式切换时应调用 hook 的 setLoginMode", async () => {
-    const setLoginMode = vi.fn();
-    mockUseOemCloudAccess.mockReturnValue(
-      createAccessState({
-        setLoginMode,
-      }),
-    );
-
-    const { container } = renderPage();
-
-    await act(async () => {
-      findButton(container, "Use email code / account password").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    await act(async () => {
-      findButton(container, "Email code").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    expect(setLoginMode).toHaveBeenCalledWith("email_code");
-  });
-
-  it("已登录时应展示会话摘要并允许退出", async () => {
-    const handleLogout = vi.fn();
-    const openUserCenter = vi.fn();
-    mockUseOemCloudAccess.mockReturnValue(
-      createAccessState({
-        session: {
-          tenant: { id: "tenant-0001" },
-          user: {
-            id: "user-001",
-            email: "operator@example.com",
-            displayName: "Demo Operator",
-          },
-          session: {
-            id: "session-001",
-            expiresAt: "2026-03-25T08:00:00.000Z",
-          },
+  it("展示各资源授权状态，注销后清除账号投影", async () => {
+    await seedCloudAccount({
+      resources: [
+        {
+          resource: "market",
+          status: "connected",
+          expiresAt: "2026-11-13T00:00:00Z",
+          audience: "urn:lime:api:lime:sandbox:market",
+          scope: "openid ecosystem.catalog.read ecosystem.acquire",
         },
-        bootstrap: {
-          serviceSkillCatalog: {
-            items: [{ id: "skill-001" }, { id: "skill-002" }],
-          },
-          sceneCatalog: [{ id: "scene-001" }],
-          features: {
-            profileEditable: true,
-          },
-          gateway: {
-            basePath: "/gateway-api",
-          },
-        },
-        defaultProviderSummary: "Lime Hub primary service · gpt-5.2-pro",
-        handleLogout,
-        openUserCenter,
-      }),
-    );
-
-    const { container } = renderPage();
-    const text = container.textContent ?? "";
-    const expectedExpiry = new Intl.DateTimeFormat("en-US", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(Date.parse("2026-03-25T08:00:00.000Z"));
-
-    expect(text).toContain("Demo Operator");
-    expect(text).toContain(expectedExpiry);
-    expect(text).toContain("2 skills / 1 entries");
-    expect(text).toContain("Status: Signed in");
-    expect(text).toContain(
-      "Default service: Lime Hub primary service · gpt-5.2-pro",
-    );
-    expect(text).toContain("Lime Hub primary service · gpt-5.2-pro");
-    expect(text).toContain("Profile editing is unified in Account Center");
-    expect(text).toContain("Edit profile in Account Center");
-    expect(text).not.toContain("会话说明");
-    expect(text).not.toContain("settings.userCenterSession");
-
-    await act(async () => {
-      findButton(container, "Edit profile in Account Center").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      ],
     });
-
-    expect(openUserCenter).toHaveBeenCalledWith("");
-
-    await act(async () => {
-      findButton(container, "Sign out of this account").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    expect(handleLogout).toHaveBeenCalledTimes(1);
+    await renderPage();
+    expect(container.textContent).toContain("Test User");
+    expect(container.textContent).toContain("Shared marketplaceAuthorized");
+    expect(container.textContent).toContain("Web servicesNot authorized");
+    const web = [...container.querySelectorAll("button")].filter(
+      (b) => b.textContent === "Authorize",
+    )[0];
+    await act(async () => web.click());
+    expect(accountFixture.login).toHaveBeenCalledWith(
+      expect.objectContaining({ resource: "web" }),
+    );
+    await act(async () => button("Sign out").click());
+    expect(accountFixture.logout).toHaveBeenCalledOnce();
+    expect(container.textContent).not.toContain("Test User");
+    expect(button("Sign in")).toBeDefined();
   });
 
-  it("应按当前 locale 格式化会话时间与能力数量", () => {
-    mockUseOemCloudAccess.mockReturnValue(
-      createAccessState({
-        session: {
-          tenant: { id: "tenant-0001" },
-          user: {
-            id: "user-001",
-            email: "operator@example.com",
-            displayName: "Demo Operator",
-          },
-          session: {
-            id: "session-001",
-            expiresAt: "2026-03-25T08:00:00.000Z",
-          },
+  it.each(["pending", "exchanging", "outcome_unknown"] as const)(
+    "%s 时只查询原授权，不重复发起登录",
+    async (status) => {
+      accountFixture.authorizations = [
+        {
+          id: "original-authorization",
+          resource: "default",
+          status,
+          expiresAt: "2026-11-13T00:00:00Z",
         },
-        bootstrap: {
-          serviceSkillCatalog: {
-            items: Array.from({ length: 1000 }, (_, index) => ({
-              id: `skill-${index}`,
-            })),
-          },
-          sceneCatalog: Array.from({ length: 1234 }, (_, index) => ({
-            id: `scene-${index}`,
-          })),
-          features: {
-            profileEditable: true,
-          },
-        },
-      }),
+      ];
+      await readCloudAccount();
+      await renderPage();
+      expect(button("Sign in").disabled).toBe(true);
+      await act(async () => button("Check status").click());
+      expect(accountFixture.read).toHaveBeenLastCalledWith({
+        authorizationId: "original-authorization",
+      });
+      expect(accountFixture.login).not.toHaveBeenCalled();
+      await act(async () => button("Cancel sign-in").click());
+      expect(accountFixture.logout).toHaveBeenCalledOnce();
+      expect(button("Sign in").disabled).toBe(false);
+    },
+  );
+
+  it("未知资源授权不重新申请，其他资源可以独立授权", async () => {
+    accountFixture.authorizations = [
+      {
+        id: "market-original",
+        resource: "market",
+        status: "outcome_unknown",
+        expiresAt: "2026-11-13T00:00:00Z",
+      },
+    ];
+    await seedCloudAccount();
+    await renderPage();
+    const actions = [...container.querySelectorAll("button")].filter(
+      (b) => b.textContent === "Authorize",
     );
-
-    const { container } = renderPage();
-    const expectedExpiry = new Intl.DateTimeFormat("en-US", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(Date.parse("2026-03-25T08:00:00.000Z"));
-    const text = container.textContent ?? "";
-
-    expect(text).toContain(expectedExpiry);
-    expect(text).toContain("1,000 skills / 1,234 entries");
-    expect(text).not.toContain("1000 skills / 1234 entries");
-    expect(text).not.toContain("1,000 项技能 / 1,234 个入口");
+    expect(actions.map((b) => b.disabled)).toEqual([true, false, false]);
+    await act(async () => button("Check status").click());
+    expect(accountFixture.read).toHaveBeenLastCalledWith({
+      authorizationId: "market-original",
+    });
+    expect(accountFixture.login).not.toHaveBeenCalled();
   });
 
-  it("应把账户总览和登录结果说明收进 tips", async () => {
-    renderPage();
+  it("Production 连接通过具体安装授权，不显示泛授权按钮", async () => {
+    await seedCloudAccount({ environment: "production" });
+    await renderPage();
+    expect(container.textContent).toContain("Connections");
+    expect(
+      [...container.querySelectorAll("button")].filter(
+        (b) => b.textContent === "Authorize",
+      ),
+    ).toHaveLength(2);
+  });
 
-    expect(getBodyText()).not.toContain(
-      "Nickname, avatar, email, and default service are maintained in Account Center",
+  it("原生请求失败后给出可恢复反馈", async () => {
+    accountFixture.login.mockRejectedValueOnce(new Error("native unavailable"));
+    await renderPage();
+    await act(async () => button("Sign in").click());
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Request failed. Try again later.",
     );
+    expect(button("Sign in").disabled).toBe(false);
+  });
 
-    const accountTip = await hoverTip("Account profile help");
-    expect(getBodyText()).toContain(
-      "Nickname, avatar, email, and default service are maintained in Account Center",
-    );
-    await leaveTip(accountTip);
-
-    const loginTip = await hoverTip("Post sign-in auto-sync help");
-    expect(getBodyText()).toContain(
-      "Sync the default AI service, model catalog, and enabled capabilities.",
-    );
-    await leaveTip(loginTip);
+  it.each([
+    ["zh-CN", "登录"],
+    ["zh-TW", "登入"],
+    ["en-US", "Sign in"],
+    ["ja-JP", "ログイン"],
+    ["ko-KR", "로그인"],
+  ])("%s 使用当前语言文案", async (locale, label) => {
+    await changeLimeLocale(locale);
+    await renderPage();
+    expect(button(label)).toBeDefined();
+    expect(container.textContent).not.toMatch(/settings\.cloudAccount|·/);
   });
 });

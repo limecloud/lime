@@ -430,6 +430,22 @@ describe("ScheduledTasksPage", () => {
     expect(mockListRuns).toHaveBeenCalledOnce();
   });
 
+  it("从线程入口进入时自动打开创建弹窗并预填继续对话", async () => {
+    renderPage({ pageParams: { threadId: "thread-source-1" } });
+    await flushEffects();
+
+    const dialog = document.body.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    const modeSelect = Array.from(
+      dialog?.querySelectorAll<HTMLSelectElement>("select") ?? [],
+    ).find((select) =>
+      Array.from(select.options).some(
+        (option) => option.value === "continue_thread",
+      ),
+    );
+    expect(modeSelect?.value).toBe("continue_thread");
+  });
+
   it("删除运行中任务前明确说明不会取消本次运行", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     mockListRuns.mockResolvedValue([sampleRun({ status: "running" })]);

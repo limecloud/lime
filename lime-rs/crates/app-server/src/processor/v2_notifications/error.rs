@@ -1,5 +1,5 @@
 use app_server_protocol::protocol::v2::{
-    LimeErrorInfo, ErrorNotification, ServerNotification, TurnError,
+    ErrorNotification, LimeErrorInfo, ServerNotification, TurnError,
 };
 use app_server_protocol::AgentEvent;
 use serde_json::Value;

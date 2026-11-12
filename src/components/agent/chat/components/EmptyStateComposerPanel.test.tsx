@@ -14,6 +14,21 @@ import {
 } from "./EmptyStateComposerPanel.testFixtures";
 
 describe("EmptyStateComposerPanel", () => {
+  it("未选择本机项目时仍可打开执行位置菜单并找到云端入口", async () => {
+    const container = renderPanel({ projectId: null, openedProjects: [] });
+    const mode = container.querySelector<HTMLButtonElement>(
+      '[data-utility-action="mode-picker"]',
+    );
+    expect(mode).toBeTruthy();
+    await act(async () => mode!.click());
+    expect(
+      document.querySelector('[data-utility-action="select-cloud"]'),
+    ).toBeTruthy();
+    expect(
+      document.querySelector('[data-utility-action="select-worktree"]'),
+    ).toBeNull();
+  });
+
   it("已开启的偏好若缺少 runtime current tools，也不应再显示页级告警", () => {
     const container = renderPanel({
       subagentEnabled: true,

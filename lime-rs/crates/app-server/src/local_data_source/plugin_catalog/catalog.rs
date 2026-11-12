@@ -73,37 +73,11 @@ pub(crate) fn installed(
     let mut remote_markets = std::collections::BTreeMap::<String, Vec<PluginSummary>>::new();
     let records = store.installed()?;
     let identity = store.remote_identity().unwrap_or(None);
-    let state = identity
-        .as_deref()
-        .map(|identity| remote::state::read(store, identity))
-        .transpose()?
-        .flatten();
     for record in records.values().filter(|record| record.remote.is_some()) {
-        if state.is_some() {
-            continue;
-        }
         remote_markets
             .entry(record.id.marketplace.clone())
             .or_default()
             .push(remote::installed_summary(record)?);
-    }
-    if let Some(state) = state {
-        let config = {
-            let _guard = lime_core::config::config_file_lock();
-            lime_core::config::ConfigManager::load(&store.config_path)
-                .map_err(|error| error.to_string())?
-        };
-        for mut summary in state.plugins.into_values() {
-            let id = PluginId::parse(&summary.id)?;
-            summary.local_version = records
-                .get(&summary.id)
-                .map(|record| record.version.clone());
-            summary.enabled &= config.config().plugins.enabled(&summary.id);
-            remote_markets
-                .entry(id.marketplace)
-                .or_default()
-                .push(summary);
-        }
     }
     if store.remote_identity().unwrap_or(None) != identity {
         return Err("account changed while reading installed plugins".into());
@@ -240,7 +214,6 @@ pub(crate) fn read(
             marketplace_name: marketplace.name,
             marketplace_path: Some(marketplace.path),
             summary,
-            share_url: None,
             description: interface_string(&manifest, "longDescription")
                 .or_else(|| manifest_string(&manifest, "description")),
             skills: detail
@@ -292,7 +265,6 @@ pub(super) fn build_summary(
         version: Some(manifest_version(&manifest)?),
         local_version: record.map(|record| record.version.clone()),
         name: id.name.clone(),
-        share_context: None,
         source: PluginSource::Local {
             path: package_root.to_string_lossy().into_owned(),
         },

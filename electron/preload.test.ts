@@ -142,6 +142,7 @@ describe("electron/preload", () => {
     const api = await loadPreloadApi();
     expect(api.agentRoot).toBeUndefined();
     expect(api.supportsCommand("app_server_handle_json_lines")).toBe(true);
+    expect(api.supportsCommand("cloud_desktop_window_view")).toBe(true);
     for (const command of [
       "cloud_session_credential_status",
       "macos_native_host_invoke",

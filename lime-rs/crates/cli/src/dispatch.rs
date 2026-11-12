@@ -2,10 +2,10 @@
 
 use super::{
     exec, queue_cmd, review_cmd, run, run_agents, run_archive, run_debug_command, run_delete,
-    run_execpolicycheck, run_features_command, run_fork, run_interactive_tui,
-    run_resume, run_skills, run_thread, run_unarchive, sandbox_setup, DebugSubcommand,
-    ExecpolicyCommand, ExecpolicySubcommand, FeaturesSubcommand, MultitoolCli, SkillsSubcommand,
-    Subcommand, ThreadSubcommand,
+    run_execpolicycheck, run_features_command, run_fork, run_interactive_tui, run_resume,
+    run_skills, run_thread, run_unarchive, sandbox_setup, DebugSubcommand, ExecpolicyCommand,
+    ExecpolicySubcommand, FeaturesSubcommand, MultitoolCli, SkillsSubcommand, Subcommand,
+    ThreadSubcommand,
 };
 use crate::connection::ConnectionArgs;
 use clap::CommandFactory;

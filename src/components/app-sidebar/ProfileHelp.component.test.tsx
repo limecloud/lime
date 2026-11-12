@@ -18,12 +18,8 @@ vi.mock("@/lib/api/externalUrl", () => ({
 vi.mock("@/lib/cloudAccount", () => ({
   getCloudAccount: () => null,
   subscribeCloudAccount: () => () => {},
-  getOemCloudBootstrapSnapshot: () => null,
   logoutCloudAccount: vi.fn(),
-}));
-vi.mock("@/lib/oemCloudLoginLauncher", () => ({
-  createExternalBrowserOpenTarget: vi.fn(),
-  startOemCloudLogin: vi.fn(),
+  startCloudAuthorization: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { error: mocks.error, success: vi.fn() } }));
 

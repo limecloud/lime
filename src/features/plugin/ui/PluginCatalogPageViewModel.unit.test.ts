@@ -95,7 +95,6 @@ describe("PluginCatalogPageViewModel", () => {
         marketplaceName: "personal",
         marketplacePath: "/tmp/personal.json",
         summary: summary("writer"),
-        shareUrl: null,
         description: null,
         skills: [{ name: "skill", description: "", enabled: true }],
         mcpServers: ["server"],

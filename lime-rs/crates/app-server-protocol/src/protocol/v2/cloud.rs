@@ -11,6 +11,11 @@ pub struct CloudRequestParams {
     pub method: CloudRequestMethod,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<Value>,
+    pub language: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -18,8 +23,6 @@ pub struct CloudRequestParams {
 pub enum CloudRequestMethod {
     Get,
     Post,
-    Put,
-    Delete,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -28,4 +31,15 @@ pub struct CloudRequestResponse {
     pub account: Account,
     pub status: u16,
     pub body: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<CloudOperationReference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudOperationReference {
+    pub key: String,
+    pub task_id: String,
+    pub recovery_path: String,
+    pub status: String,
 }

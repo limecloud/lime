@@ -189,6 +189,152 @@ impl ChatWidget {
         Some(outcome)
     }
 
+    pub(crate) fn open_confirm_prompt(
+        &mut self,
+        prompt: crate::app::confirm_prompt::ConfirmPrompt,
+    ) {
+        self.confirm_prompt = Some(prompt.with_keymap(self.runtime_keymap.list().clone()));
+    }
+
+    pub(crate) fn close_confirm_prompt(&mut self) {
+        self.confirm_prompt = None;
+    }
+
+    pub(crate) fn open_config_menu(&mut self) {
+        self.config_menu = Some(
+            crate::app::config_menu::ConfigMenu::new()
+                .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn config_menu_open(&self) -> bool {
+        self.config_menu.is_some()
+    }
+
+    pub(crate) fn close_config_menu(&mut self) {
+        self.config_menu = None;
+    }
+
+    pub(crate) fn handle_config_menu_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::config_menu::ConfigMenuAction> {
+        let action = {
+            let menu = self.config_menu.as_mut()?;
+            menu.handle_event(event.clone())
+        };
+        if !matches!(action, crate::app::config_menu::ConfigMenuAction::None) {
+            self.config_menu = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn open_permissions_picker(&mut self) {
+        self.permissions_picker = Some(
+            crate::app::permissions_picker::PermissionsPicker::new(
+                self.permission_profiles.clone(),
+                self.permissions.as_deref(),
+            )
+            .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn permissions_picker_open(&self) -> bool {
+        self.permissions_picker.is_some()
+    }
+
+    pub(crate) fn handle_permissions_picker_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::permissions_picker::PermissionsPickerAction> {
+        let action = {
+            let picker = self.permissions_picker.as_mut()?;
+            picker.handle_event(event.clone())
+        };
+        if !matches!(
+            action,
+            crate::app::permissions_picker::PermissionsPickerAction::None
+        ) {
+            self.permissions_picker = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn open_effort_picker(&mut self) {
+        self.effort_picker = Some(
+            crate::app::effort_picker::EffortPicker::new(self.reasoning_effort.as_deref())
+                .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn effort_picker_open(&self) -> bool {
+        self.effort_picker.is_some()
+    }
+
+    pub(crate) fn handle_effort_picker_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::effort_picker::EffortPickerAction> {
+        let action = {
+            let picker = self.effort_picker.as_mut()?;
+            picker.handle_event(event.clone())
+        };
+        if !matches!(action, crate::app::effort_picker::EffortPickerAction::None) {
+            self.effort_picker = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn open_review_picker(&mut self) {
+        self.review_picker = Some(
+            crate::app::review_picker::ReviewPicker::new()
+                .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn review_picker_open(&self) -> bool {
+        self.review_picker.is_some()
+    }
+
+    pub(crate) fn handle_review_picker_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::review_picker::ReviewPickerAction> {
+        let action = {
+            let picker = self.review_picker.as_mut()?;
+            picker.handle_event(event.clone())
+        };
+        if !matches!(action, crate::app::review_picker::ReviewPickerAction::None) {
+            self.review_picker = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn confirm_prompt_open(&self) -> bool {
+        self.confirm_prompt.is_some()
+    }
+
+    pub(crate) fn confirm_kind(&self) -> Option<crate::app::confirm_prompt::ConfirmKind> {
+        self.confirm_prompt.as_ref().map(|prompt| prompt.kind())
+    }
+
+    pub(crate) fn handle_confirm_prompt_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::confirm_prompt::ConfirmPromptAction> {
+        let action = {
+            let prompt = self.confirm_prompt.as_mut()?;
+            prompt.handle_event(event.clone())
+        };
+        if !matches!(
+            action,
+            crate::app::confirm_prompt::ConfirmPromptAction::None
+        ) {
+            self.confirm_prompt = None;
+        }
+        Some(action)
+    }
+
     pub(crate) fn handle_agent_picker_event(&mut self, event: &Event) -> Option<AgentPickerAction> {
         let action = {
             let picker = self.agent_picker.as_mut()?;

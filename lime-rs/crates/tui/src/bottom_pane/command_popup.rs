@@ -211,6 +211,12 @@ mod tests {
             effort.handle_event(&event),
             CommandPopupAction::Complete(SlashCommand::Effort)
         );
+        let mut experimental =
+            CommandPopup::for_composer("/experimental").expect("experimental popup");
+        assert_eq!(
+            experimental.handle_event(&event),
+            CommandPopupAction::Execute(SlashCommand::Experimental)
+        );
     }
 
     #[test]

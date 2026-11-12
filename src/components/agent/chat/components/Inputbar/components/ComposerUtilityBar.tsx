@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Check,
+  Cloud,
   ChevronDown,
   ChevronRight,
   FolderOpen,
@@ -18,6 +19,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
+import {
+  getElectronHostBridge,
+  isElectronHostCommandAvailable,
+} from "@/lib/electron-host";
 import { getProject } from "@/lib/api/project";
 import {
   useComposerMode,
@@ -29,6 +35,10 @@ import type {
   ComposerProject,
   ComposerUtilityBarCopy,
 } from "./composerUtilityBarTypes";
+
+const CloudDesktopSetupDialog = React.lazy(
+  () => import("@/components/cloud/CloudDesktopSetupDialog"),
+);
 
 interface ComposerUtilityBarProps extends Partial<ComposerModeState> {
   projectId?: string | null;
@@ -207,6 +217,12 @@ function ComposerUtilityBarWorkspace({
   projectMenuSideOffset = 8,
   copy,
 }: ComposerUtilityBarWorkspaceProps) {
+  const { t } = useTranslation("settings");
+  const remote = getElectronHostBridge()?.cloudDesktop;
+  const cloudAvailable =
+    !remote && isElectronHostCommandAvailable("cloud_desktop_connection");
+  const [cloudSetupOpen, setCloudSetupOpen] = useState(false);
+  const modeTrigger = React.useRef<HTMLButtonElement>(null);
   const modeState = useComposerMode();
   const composerMode = controlledMode ?? modeState?.composerMode ?? "local";
   const setComposerMode = setControlledMode ?? modeState?.setComposerMode;
@@ -488,18 +504,27 @@ function ComposerUtilityBarWorkspace({
             className="h-4 w-px bg-[color:var(--lime-surface-border)]"
             aria-hidden
           />
-          {hasGitRepository ? (
+          <>
             <Popover open={modePopoverOpen} onOpenChange={setModePopoverOpen}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
                   className="inline-flex h-7 min-w-0 max-w-[180px] items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-[color:var(--lime-text)] transition hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)]"
-                  title={`${copy.modeLabel}: ${resolvedModeLabel}`}
+                  title={`${copy.modeLabel}: ${remote ? t("settings.cloudDesktop.cloudMode") : resolvedModeLabel}`}
                   data-testid="composer-utility-mode"
                   data-utility-action="mode-picker"
+                  ref={modeTrigger}
                 >
-                  <Monitor className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-info)]" />
-                  <span className="truncate">{resolvedModeLabel}</span>
+                  {remote ? (
+                    <Cloud className="h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <Monitor className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-info)]" />
+                  )}
+                  <span className="truncate">
+                    {remote
+                      ? t("settings.cloudDesktop.cloudMode")
+                      : resolvedModeLabel}
+                  </span>
                   <ChevronDown className="h-3 w-3 shrink-0 text-[color:var(--lime-text-muted)]" />
                 </button>
               </PopoverTrigger>
@@ -514,55 +539,91 @@ function ComposerUtilityBarWorkspace({
                 <div className="px-2 pb-1 pt-1 text-[11px] font-semibold text-[color:var(--lime-text-muted)]">
                   {copy.modeMenuTitle}
                 </div>
+                {!remote && (
+                  <button
+                    type="button"
+                    className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] font-medium text-[color:var(--lime-text-strong)] transition hover:bg-[color:var(--lime-surface-subtle)]"
+                    data-utility-action="select-local"
+                    aria-pressed={composerMode === "local"}
+                    onClick={() => {
+                      setComposerMode?.("local");
+                      setModePopoverOpen(false);
+                    }}
+                  >
+                    <Monitor className="h-3.5 w-3.5 text-[color:var(--lime-text-muted)]" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {copy.localProcessing}
+                    </span>
+                    {composerMode === "local" ? (
+                      <Check className="h-3.5 w-3.5 text-[color:var(--lime-text)]" />
+                    ) : null}
+                  </button>
+                )}
+                {hasGitRepository && (
+                  <button
+                    type="button"
+                    className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] font-medium text-[color:var(--lime-text)] transition hover:bg-[color:var(--lime-surface-subtle)] hover:text-[color:var(--lime-text-strong)]"
+                    disabled={Boolean(mutation) || !setComposerMode}
+                    data-utility-action="select-worktree"
+                    aria-pressed={composerMode === "worktree"}
+                    onClick={() => {
+                      setComposerMode?.("worktree");
+                      setModePopoverOpen(false);
+                    }}
+                  >
+                    <FolderPlus className="h-3.5 w-3.5 text-[color:var(--lime-text-muted)]" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {copy.newWorktree}
+                    </span>
+                    {composerMode === "worktree" ? (
+                      <Check className="h-3.5 w-3.5 text-[color:var(--lime-text)]" />
+                    ) : null}
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] font-medium text-[color:var(--lime-text-strong)] transition hover:bg-[color:var(--lime-surface-subtle)]"
-                  data-utility-action="select-local"
-                  aria-pressed={composerMode === "local"}
+                  className="flex min-h-8 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] font-medium text-[color:var(--lime-text)] transition hover:bg-[color:var(--lime-surface-subtle)] disabled:opacity-50"
+                  data-utility-action="select-cloud"
+                  aria-pressed={Boolean(remote)}
+                  disabled={!cloudAvailable}
+                  title={
+                    !cloudAvailable
+                      ? t(
+                          `settings.cloudDesktop.${remote ? "cloudModeCurrent" : "cloudModeUnavailable"}`,
+                        )
+                      : undefined
+                  }
                   onClick={() => {
-                    setComposerMode?.("local");
                     setModePopoverOpen(false);
+                    setCloudSetupOpen(true);
                   }}
                 >
-                  <Monitor className="h-3.5 w-3.5 text-[color:var(--lime-text-muted)]" />
-                  <span className="min-w-0 flex-1 truncate">
-                    {copy.localProcessing}
+                  <Cloud
+                    aria-hidden
+                    className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]"
+                  />
+                  <span className="min-w-0 flex-1">
+                    {t("settings.cloudDesktop.cloudMode")}
                   </span>
-                  {composerMode === "local" ? (
-                    <Check className="h-3.5 w-3.5 text-[color:var(--lime-text)]" />
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] font-medium text-[color:var(--lime-text)] transition hover:bg-[color:var(--lime-surface-subtle)] hover:text-[color:var(--lime-text-strong)]"
-                  disabled={Boolean(mutation) || !setComposerMode}
-                  data-utility-action="select-worktree"
-                  aria-pressed={composerMode === "worktree"}
-                  onClick={() => {
-                    setComposerMode?.("worktree");
-                    setModePopoverOpen(false);
-                  }}
-                >
-                  <FolderPlus className="h-3.5 w-3.5 text-[color:var(--lime-text-muted)]" />
-                  <span className="min-w-0 flex-1 truncate">
-                    {copy.newWorktree}
-                  </span>
-                  {composerMode === "worktree" ? (
-                    <Check className="h-3.5 w-3.5 text-[color:var(--lime-text)]" />
-                  ) : null}
+                  {remote && <Check aria-hidden className="h-3.5 w-3.5" />}
                 </button>
               </PopoverContent>
             </Popover>
-          ) : (
-            <span
-              className="inline-flex h-7 min-w-0 max-w-[180px] items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-[color:var(--lime-text)]"
-              title={`${copy.modeLabel}: ${resolvedModeLabel}`}
-              data-testid="composer-utility-mode"
-            >
-              <Monitor className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-info)]" />
-              <span className="truncate">{resolvedModeLabel}</span>
-            </span>
-          )}
+            {cloudSetupOpen && cloudAvailable && (
+              <React.Suspense
+                fallback={
+                  <span role="status">
+                    {t("settings.cloudDesktop.loading")}
+                  </span>
+                }
+              >
+                <CloudDesktopSetupDialog
+                  onClose={() => setCloudSetupOpen(false)}
+                  onReturnFocus={() => modeTrigger.current?.focus()}
+                />
+              </React.Suspense>
+            )}
+          </>
           {hasGitRepository ? (
             <Popover
               open={branchPopoverOpen}

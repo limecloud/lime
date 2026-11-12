@@ -28,6 +28,9 @@ import { CanvasWorkbenchEmptyDiffPanel } from "./CanvasWorkbenchEmptyDiffPanel";
 import { CanvasWorkbenchReviewSurface } from "./CanvasWorkbenchReviewSurface";
 import { useFileTreeResize } from "../../../workspace/right-surface/useFileTreeResize";
 import { useCanvasWorkbenchReviewState } from "./useCanvasWorkbenchReviewState";
+import { deletePath } from "@/lib/api/fileBrowser";
+import { revealPathInFinder } from "@/lib/api/fileSystem";
+import { toast } from "sonner";
 import type {
   CanvasWorkbenchReviewBase,
   CanvasWorkbenchTranslation,
@@ -372,12 +375,54 @@ export function CanvasWorkbenchChangesPanel({
       flattenCanvasWorkbenchChangeFileTree(filteredFileTree);
     const changeSummary = summarizeCanvasWorkbenchChanges(filteredChangeItems);
     const diffStats = countCanvasWorkbenchChangeItemsStats(filteredChangeItems);
+    const handleRevealChangeFile = (item: CanvasWorkbenchChangeItem) => {
+      const absolutePath = item.absolutePath?.trim();
+      if (absolutePath) {
+        void revealPathInFinder(absolutePath);
+      }
+    };
+    const handleDeleteChangeFile = async (
+      item: CanvasWorkbenchChangeItem,
+    ) => {
+      const absolutePath = item.absolutePath?.trim();
+      if (!absolutePath) return;
+      if (
+        !window.confirm(
+          translateWorkbench(
+            "agentChat.canvasWorkbench.coding.changes.deleteFileConfirm",
+            { path: item.path },
+          ),
+        )
+      ) {
+        return;
+      }
+      try {
+        await deletePath(absolutePath, false);
+        toast.success(
+          translateWorkbench(
+            "agentChat.canvasWorkbench.coding.changes.deleteFileSuccess",
+            { path: item.path },
+          ),
+        );
+        await refreshChanges();
+      } catch {
+        toast.error(
+          translateWorkbench(
+            "agentChat.canvasWorkbench.coding.changes.deleteFileError",
+            { path: item.path },
+          ),
+        );
+      }
+    };
     const handleSelectChangeItem = (item: CanvasWorkbenchChangeItem) => {
       setSelectedChangeId(item.id);
       setSelectionRequestKey((key) => key + 1);
     };
     return (
-      <CanvasWorkbenchReviewSurface
+        <CanvasWorkbenchReviewSurface
+        onOpenFile={changeView?.onOpenFile}
+        onRevealFile={handleRevealChangeFile}
+        onDeleteFile={handleDeleteChangeFile}
         notice={requestNotice}
         toolbar={buildToolbarProps({
           diffStats,
@@ -422,6 +467,9 @@ export function CanvasWorkbenchChangesPanel({
             wordWrapEnabled={wordWrapEnabled}
             translateWorkbench={translateWorkbench}
             onSelectChangeItem={handleSelectChangeItem}
+            onOpenFile={changeView?.onOpenFile}
+            onRevealFile={handleRevealChangeFile}
+            onDeleteFile={handleDeleteChangeFile}
           />
         }
       />
@@ -430,7 +478,45 @@ export function CanvasWorkbenchChangesPanel({
 
   if ((changeView || selectedBaseUsesGit) && changeItemCount === 0) {
     return (
-      <CanvasWorkbenchReviewSurface
+        <CanvasWorkbenchReviewSurface
+        onOpenFile={changeView?.onOpenFile}
+        onRevealFile={(item) => {
+          const absolutePath = item.absolutePath?.trim();
+          if (absolutePath) {
+            void revealPathInFinder(absolutePath);
+          }
+        }}
+        onDeleteFile={async (item) => {
+          const absolutePath = item.absolutePath?.trim();
+          if (!absolutePath) return;
+          if (
+            !window.confirm(
+              translateWorkbench(
+                "agentChat.canvasWorkbench.coding.changes.deleteFileConfirm",
+                { path: item.path },
+              ),
+            )
+          ) {
+            return;
+          }
+          try {
+            await deletePath(absolutePath, false);
+            toast.success(
+              translateWorkbench(
+                "agentChat.canvasWorkbench.coding.changes.deleteFileSuccess",
+                { path: item.path },
+              ),
+            );
+            await refreshChanges();
+          } catch {
+            toast.error(
+              translateWorkbench(
+                "agentChat.canvasWorkbench.coding.changes.deleteFileError",
+                { path: item.path },
+              ),
+            );
+          }
+        }}
         notice={requestNotice}
         toolbar={buildToolbarProps({
           diffStats: { additions: 0, removals: 0 },

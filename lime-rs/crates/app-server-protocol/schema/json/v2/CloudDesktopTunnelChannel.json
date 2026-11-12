@@ -3,7 +3,8 @@
   "description": "Fixed loopback services in the user's persistent Linux desktop.",
   "enum": [
     "appServer",
-    "desktop"
+    "desktop",
+    "installation"
   ],
   "title": "CloudDesktopTunnelChannel",
   "type": "string"

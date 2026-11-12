@@ -276,6 +276,20 @@ impl ExecutionBackend for RuntimeBackend {
         Ok(())
     }
 
+    fn set_account_tools(
+        &self,
+        tools: Vec<
+            tool_runtime::gateway_dispatch_execution::RuntimeGatewayToolExecutionRegistration,
+        >,
+    ) -> Result<(), RuntimeCoreError> {
+        *self
+            .account_tools
+            .write()
+            .map_err(|_| RuntimeCoreError::Backend("account tool registry unavailable".into()))? =
+            tools;
+        Ok(())
+    }
+
     fn set_computer_use_gateway(
         &self,
         gateway: Arc<dyn tool_runtime::computer_use::ComputerUseGateway>,

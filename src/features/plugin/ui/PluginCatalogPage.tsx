@@ -7,6 +7,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
+import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import {
   CircleAlert,
   LoaderCircle,
@@ -27,7 +29,6 @@ import {
   addMarketplace,
   installPlugin,
   listPlugins,
-  reconcilePlugins,
   removeMarketplace,
   readPlugin,
   setPluginEnabled,
@@ -43,9 +44,6 @@ import {
 } from "@/lib/cloudAccount";
 import { PluginCatalogCard } from "./PluginCatalogCard";
 import { PluginCatalogDialogs } from "./PluginCatalogDialogs";
-import { PluginShareDialog } from "./PluginShareDialog";
-import { mergePluginShareCatalog } from "./PluginShareViewModel";
-import { listPluginShares } from "@/lib/api/pluginShare";
 import { PluginDetailPanel } from "./PluginDetailPanel";
 import {
   filterPluginCatalog,
@@ -79,6 +77,7 @@ export function PluginCatalogPage({
   pageParams?: PluginsPageParams;
 }) {
   const { t } = useTranslation("agent");
+  const navigate = useAppNavigationRequest();
   const accountIdentity = useSyncExternalStore(
     subscribeCloudAccount,
     () => cloudAccountIdentity(getCloudAccount()),
@@ -125,10 +124,6 @@ export function PluginCatalogPage({
   );
   const [uninstallTarget, setUninstallTarget] =
     useState<AppServerPluginSummary | null>(null);
-  const [shareTarget, setShareTarget] = useState<{
-    entry: PluginCatalogEntry;
-    accountIdentity: string;
-  } | null>(null);
   const projectId = pageParams?.currentProjectId;
   const refreshRequest = useRef<symbol | null>(null);
   const catalogAccount = useRef<string | null>();
@@ -149,61 +144,12 @@ export function PluginCatalogPage({
       const project = projectId ? await getProject(projectId) : null;
       if (request !== refreshRequest.current) return;
       const params = project?.rootPath ? { cwds: [project.rootPath] } : {};
-      if (accountIdentity) {
-        await reconcilePlugins({ reason: "plugin-catalog-refresh" });
-        if (
-          request !== refreshRequest.current ||
-          accountIdentity !== cloudAccountIdentity(getCloudAccount())
-        )
-          return;
-      }
       const response = { ...(await listPlugins(params)) };
       if (
         request !== refreshRequest.current ||
         accountIdentity !== cloudAccountIdentity(getCloudAccount())
       )
         return;
-      const remoteErrors: string[] = [];
-      if (accountIdentity) {
-        const [remote, shares] = await Promise.allSettled([
-          listPlugins({
-            ...params,
-            marketplaceKinds: [
-              "workspace-directory",
-              "created-by-me-remote",
-              "shared-with-me",
-            ],
-          }),
-          listPluginShares(),
-        ]);
-        if (remote.status === "fulfilled") {
-          response.marketplaces = [
-            ...response.marketplaces,
-            ...remote.value.marketplaces,
-          ];
-          response.marketplaceLoadErrors = [
-            ...(response.marketplaceLoadErrors ?? []),
-            ...(remote.value.marketplaceLoadErrors ?? []),
-          ];
-        } else
-          remoteErrors.push(
-            remote.reason instanceof Error
-              ? remote.reason.message
-              : String(remote.reason),
-          );
-        if (shares.status === "fulfilled") {
-          response.marketplaces = mergePluginShareCatalog(
-            response.marketplaces,
-            shares.value,
-            t("plugin.share.createdByMe"),
-          );
-        } else
-          remoteErrors.push(
-            shares.reason instanceof Error
-              ? shares.reason.message
-              : String(shares.reason),
-          );
-      }
       if (request !== refreshRequest.current) return;
       if (accountIdentity !== cloudAccountIdentity(getCloudAccount())) return;
       catalogAccount.current = accountIdentity;
@@ -213,7 +159,6 @@ export function PluginCatalogPage({
       );
       const loadErrors = [
         ...(response.marketplaceLoadErrors ?? []).map((error) => error.message),
-        ...remoteErrors,
       ];
       if (loadErrors.length) setError(loadErrors.join("\n"));
       setSelectedId((current) => {
@@ -239,7 +184,6 @@ export function PluginCatalogPage({
     catalogAccount.current = undefined;
     setMarketplaces([]);
     setInstallTarget(null);
-    setShareTarget(null);
     setUninstallTarget(null);
     setActionMenuId(null);
     void refresh();
@@ -335,17 +279,7 @@ export function PluginCatalogPage({
       setActionMenuId(null);
       try {
         if (accountIdentity !== cloudAccountIdentity(getCloudAccount())) return;
-        if (plugin.source.type === "remote" && !plugin.remotePluginId) {
-          throw new Error("remote plugin preference requires a plugin ID");
-        }
-        await setPluginEnabled(
-          plugin.source.type === "remote"
-            ? {
-                remotePluginId: plugin.remotePluginId!,
-                enabled: !plugin.enabled,
-              }
-            : { pluginId: plugin.id, enabled: !plugin.enabled },
-        );
+        await setPluginEnabled({ pluginId: plugin.id, enabled: !plugin.enabled });
         await refresh();
       } catch {
         if (accountIdentity === cloudAccountIdentity(getCloudAccount())) {
@@ -535,6 +469,24 @@ export function PluginCatalogPage({
               void handleToggle(selectedSummary);
             }}
             onUninstall={() => setUninstallTarget(selectedSummary)}
+            onTryPrompt={(prompt) => {
+              const requestId = Date.now();
+              navigate?.(
+                "agent",
+                buildHomeAgentParams({
+                  initialUserPrompt: prompt,
+                  initialSessionName: selectedSummary.interface?.displayName
+                    ? `${selectedSummary.interface.displayName}`
+                    : selectedSummary.name,
+                  newChatAt: requestId,
+                  newConversationRequest: {
+                    id: requestId,
+                    workspaceId: null,
+                    freshDraft: false,
+                  },
+                }),
+              );
+            }}
             busy={busyId === selectedSummary.id}
           />
         ) : (
@@ -574,13 +526,7 @@ export function PluginCatalogPage({
                     setUninstallTarget(entry.plugin);
                   }}
                   onInstall={() => setInstallTarget(entry)}
-                  onShare={
-                    accountIdentity &&
-                    (entry.plugin.source.type === "local" ||
-                      entry.plugin.shareContext)
-                      ? () => setShareTarget({ entry, accountIdentity })
-                      : undefined
-                  }
+
                       />
                     ))}
                   </div>
@@ -828,17 +774,7 @@ export function PluginCatalogPage({
         onCancelInstall={() => setInstallTarget(null)}
         onCancelUninstall={() => setUninstallTarget(null)}
       />
-      {shareTarget && shareTarget.accountIdentity === accountIdentity ? (
-        <PluginShareDialog
-          key={`${shareTarget.accountIdentity}:${shareTarget.entry.plugin.id}`}
-          entry={shareTarget.entry}
-          accountIdentity={shareTarget.accountIdentity}
-          onClose={() => {
-            setShareTarget(null);
-            void refresh();
-          }}
-        />
-      ) : null}
+
     </div>
   );
 }

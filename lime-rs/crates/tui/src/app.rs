@@ -1,12 +1,16 @@
 pub(crate) mod agent_navigation;
 pub(crate) mod agent_picker;
 pub(crate) mod agents_overview;
+pub(crate) mod agents_overview_loading;
 pub(crate) mod agents_overview_threads;
 pub(crate) mod agents_overview_view;
 pub(crate) mod app_server_event_targets;
 mod app_server_events;
 pub(crate) mod app_server_requests;
 mod clipboard;
+pub(crate) mod config_menu;
+pub(crate) mod confirm_prompt;
+pub(crate) mod effort_picker;
 pub(crate) mod event_dispatch;
 pub(crate) mod history_pagination;
 pub(crate) mod history_replacement;
@@ -15,6 +19,8 @@ mod input;
 mod input_flow;
 pub(crate) mod input_submission;
 mod interaction;
+pub(crate) mod permissions_picker;
+pub(crate) mod review_picker;
 pub(crate) use interaction::FullscreenSurface;
 mod interrupts;
 pub(crate) mod mcp_login;
@@ -61,6 +67,9 @@ use crate::resume_picker::PickerAction;
 use crate::slash_command::SlashCommand;
 use crate::status::StatusFacts;
 
+/// Model-facing review instruction; the command itself stays a single user message.
+const REVIEW_PROMPT: &str = "Review the current repository changes and report concrete issues with file and line references. Do not modify files.";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TranscriptSelectionTarget {
     MainTranscript,
@@ -74,6 +83,38 @@ pub(crate) enum AppAction {
     Submit {
         text: String,
         text_elements: Vec<agent_protocol::TextElement>,
+    },
+    StartNewThread,
+    RenameThread {
+        name: String,
+    },
+    CompactThread,
+    ArchiveThread,
+    DeleteThread,
+    ForkThread,
+    ReviewUncommitted,
+    ReviewBaseBranch {
+        branch: String,
+    },
+    ReviewCommit {
+        sha: String,
+    },
+    ClearConversation,
+    OpenConfigPanel,
+    OpenModelPicker,
+    OpenEffortPicker,
+    OpenPermissionsPicker,
+    OpenTitleSetup,
+    OpenStatusLineSetup,
+    ListHooks,
+    ListSkills,
+    ListKeymap,
+    SelectEffort(String),
+    SelectPermissions(String),
+    ListExperimentalFeatures,
+    SetExperimentalFeature {
+        name: String,
+        enabled: bool,
     },
     Queue {
         text: String,
@@ -262,6 +303,7 @@ impl App {
 
     pub(crate) fn set_thread_id(&mut self, thread_id: String) {
         if self.thread_id.as_deref() != Some(thread_id.as_str()) {
+            self.chat_widget.close_confirm_prompt();
             self.reset_backtrack_state();
             self.history_replacement.reset();
             self.chat_widget
@@ -428,8 +470,15 @@ impl App {
     }
 
     fn run_local_command(&mut self) -> Option<AppAction> {
-        let text = self.chat_widget.bottom_pane.composer_text().trim();
-        let command = self.chat_widget.bottom_pane.command_from_prompt(text)?;
+        let text = self
+            .chat_widget
+            .bottom_pane
+            .composer_text()
+            .trim()
+            .to_string();
+        let command = self.chat_widget.bottom_pane.command_from_prompt(&text)?;
+        // Enter executed the command; the popup must not keep whatever follows.
+        self.chat_widget.bottom_pane.clear_completion_popup();
         if command != SlashCommand::Copy {
             self.chat_widget.last_status_copy_targets = None;
         }
@@ -480,6 +529,179 @@ impl App {
                 AppAction::None
             }
             SlashCommand::Resume => AppAction::OpenResumePicker,
+            SlashCommand::New => AppAction::StartNewThread,
+            SlashCommand::Compact => AppAction::CompactThread,
+            SlashCommand::Archive => {
+                self.chat_widget
+                    .open_confirm_prompt(crate::app::confirm_prompt::ConfirmPrompt::archive());
+                AppAction::None
+            }
+            SlashCommand::Fork => AppAction::ForkThread,
+            SlashCommand::Quit => AppAction::Quit,
+            SlashCommand::Clear => AppAction::ClearConversation,
+            SlashCommand::Config => {
+                self.chat_widget.open_config_menu();
+                AppAction::None
+            }
+            SlashCommand::Permissions => {
+                let argument = text
+                    .strip_prefix("/permissions")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                if !argument.is_empty() {
+                    return None;
+                }
+                let profiles = self.chat_widget.permission_profiles.clone();
+                if profiles.is_empty() {
+                    self.projection
+                        .set_status(self.chat_widget.locale.permissions_picker_empty());
+                    AppAction::None
+                } else {
+                    self.chat_widget.open_permissions_picker();
+                    AppAction::None
+                }
+            }
+            SlashCommand::Effort => {
+                let argument = text
+                    .strip_prefix("/effort")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                if !argument.is_empty() {
+                    return None;
+                }
+                self.chat_widget.open_effort_picker();
+                AppAction::None
+            }
+            SlashCommand::Hooks => AppAction::ListHooks,
+            SlashCommand::Skills => AppAction::ListSkills,
+            SlashCommand::Keymap => AppAction::ListKeymap,
+            SlashCommand::Experimental => {
+                let argument = text
+                    .strip_prefix("/experimental")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                if argument.is_empty() {
+                    AppAction::ListExperimentalFeatures
+                } else {
+                    let mut parts = argument.split_whitespace();
+                    let name = parts.next().unwrap_or_default();
+                    let state = parts.next();
+                    match (name, state) {
+                        ("", _) | (_, None) => {
+                            self.projection
+                                .set_status(self.chat_widget.locale.experimental_usage());
+                            AppAction::None
+                        }
+                        (name, Some("on")) => AppAction::SetExperimentalFeature {
+                            name: name.to_string(),
+                            enabled: true,
+                        },
+                        (name, Some("off")) => AppAction::SetExperimentalFeature {
+                            name: name.to_string(),
+                            enabled: false,
+                        },
+                        _ => {
+                            self.projection
+                                .set_status(self.chat_widget.locale.experimental_usage());
+                            AppAction::None
+                        }
+                    }
+                }
+            }
+            SlashCommand::Review => {
+                let instructions = text
+                    .strip_prefix("/review")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                if instructions.is_empty() && self.chat_widget.review_picker.is_none() {
+                    self.chat_widget.open_review_picker();
+                    return Some(AppAction::None);
+                }
+                if instructions == "branch" {
+                    self.projection
+                        .set_status(self.chat_widget.locale.review_branch_usage());
+                    return Some(AppAction::None);
+                }
+                if instructions == "commit" {
+                    self.projection
+                        .set_status(self.chat_widget.locale.review_commit_usage());
+                    return Some(AppAction::None);
+                }
+                if let Some(branch) = instructions.strip_prefix("branch ") {
+                    let branch = branch.trim();
+                    if branch.is_empty() {
+                        self.projection
+                            .set_status(self.chat_widget.locale.review_branch_usage());
+                        return Some(AppAction::None);
+                    }
+                    self.chat_widget
+                        .bottom_pane
+                        .set_composer_text(String::new());
+                    return Some(AppAction::ReviewBaseBranch {
+                        branch: branch.to_string(),
+                    });
+                }
+                if let Some(sha) = instructions.strip_prefix("commit ") {
+                    let sha = sha.trim();
+                    if sha.is_empty() {
+                        self.projection
+                            .set_status(self.chat_widget.locale.review_commit_usage());
+                        return Some(AppAction::None);
+                    }
+                    self.chat_widget
+                        .bottom_pane
+                        .set_composer_text(String::new());
+                    return Some(AppAction::ReviewCommit {
+                        sha: sha.to_string(),
+                    });
+                }
+                let prompt = if instructions.is_empty() {
+                    REVIEW_PROMPT.to_string()
+                } else {
+                    format!(
+                        "Review the current repository changes. Focus on the following instructions: {instructions}"
+                    )
+                };
+                self.chat_widget
+                    .bottom_pane
+                    .set_composer_text(String::new());
+                AppAction::Submit {
+                    text: prompt,
+                    text_elements: Vec::new(),
+                }
+            }
+            SlashCommand::Delete => {
+                self.chat_widget
+                    .open_confirm_prompt(crate::app::confirm_prompt::ConfirmPrompt::delete_thread());
+                AppAction::None
+            }
+            SlashCommand::Rename => {
+                let name = text
+                    .strip_prefix("/rename")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                if name.is_empty() {
+                    self.projection
+                        .set_status(self.chat_widget.locale.rename_usage());
+                    AppAction::None
+                } else {
+                    self.chat_widget
+                        .bottom_pane
+                        .set_composer_text(String::new());
+                    AppAction::RenameThread {
+                        name: name.to_string(),
+                    }
+                }
+            }
+            SlashCommand::Init => {
+                self.chat_widget
+                    .bottom_pane
+                    .set_composer_text(String::new());
+                AppAction::Submit {
+                    text: include_str!("../assets/prompt_for_init_command.md").to_string(),
+                    text_elements: Vec::new(),
+                }
+            }
             SlashCommand::Mcp => {
                 let argument = text
                     .strip_prefix("/mcp")

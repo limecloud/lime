@@ -147,7 +147,7 @@ pub(crate) async fn initialize_session(
             )
             .with_policy(
                 options.approval_policy.clone(),
-                options.approvals_reviewer.clone(),
+                options.approvals_reviewer,
                 options.sandbox_policy.clone(),
             ),
         )
@@ -169,7 +169,7 @@ pub(crate) async fn initialize_session(
 
     Ok(StartupSessionState {
         approval_policy: options.approval_policy.clone(),
-        approvals_reviewer: options.approvals_reviewer.clone(),
+        approvals_reviewer: options.approvals_reviewer,
         sandbox_policy: options.sandbox_policy.clone(),
     })
 }

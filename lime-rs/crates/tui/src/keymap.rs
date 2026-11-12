@@ -542,6 +542,85 @@ impl RuntimeKeymap {
     }
 }
 
+pub(crate) struct KeymapEntry {
+    pub path: &'static str,
+    pub keys: Vec<String>,
+}
+
+impl RuntimeKeymap {
+    /// Flat, display-only view of the effective bindings with their config paths.
+    pub(crate) fn describe(&self) -> Vec<KeymapEntry> {
+        let mut entries = Vec::new();
+        for (path, set) in [
+            (
+                "tui.keymap.global.open_agents",
+                &self.transcript.open_agents,
+            ),
+            (
+                "tui.keymap.global.open_transcript",
+                &self.transcript.open_transcript,
+            ),
+            (
+                "tui.keymap.global.find_transcript",
+                &self.transcript.find_transcript,
+            ),
+            ("tui.keymap.pager.scroll_up", &self.transcript.scroll_up),
+            ("tui.keymap.pager.scroll_down", &self.transcript.scroll_down),
+            ("tui.keymap.pager.page_up", &self.transcript.page_up),
+            ("tui.keymap.pager.page_down", &self.transcript.page_down),
+            (
+                "tui.keymap.pager.half_page_up",
+                &self.transcript.half_page_up,
+            ),
+            (
+                "tui.keymap.pager.half_page_down",
+                &self.transcript.half_page_down,
+            ),
+            ("tui.keymap.pager.jump_top", &self.transcript.jump_top),
+            ("tui.keymap.pager.jump_bottom", &self.transcript.jump_bottom),
+            ("tui.keymap.pager.close", &self.transcript.close),
+            (
+                "tui.keymap.pager.close_transcript",
+                &self.transcript.close_transcript,
+            ),
+            ("tui.keymap.pager.find", &self.transcript.find),
+            ("tui.keymap.agents.resume", &self.agents.resume),
+            ("tui.keymap.agents.search", &self.agents.search),
+            ("tui.keymap.agents.new_task", &self.agents.new_task),
+            ("tui.keymap.agents.rename", &self.agents.rename),
+            ("tui.keymap.agents.stop", &self.agents.stop),
+            (
+                "tui.keymap.agents.toggle_grouping",
+                &self.agents.toggle_grouping,
+            ),
+        ] {
+            entries.push(KeymapEntry {
+                path,
+                keys: set.labels().collect(),
+            });
+        }
+        for (name, keys) in self.list.describe() {
+            entries.push(KeymapEntry {
+                path: match name {
+                    "move_up" => "tui.keymap.list.move_up",
+                    "move_down" => "tui.keymap.list.move_down",
+                    "move_left" => "tui.keymap.list.move_left",
+                    "move_right" => "tui.keymap.list.move_right",
+                    "page_up" => "tui.keymap.list.page_up",
+                    "page_down" => "tui.keymap.list.page_down",
+                    "jump_top" => "tui.keymap.list.jump_top",
+                    "jump_bottom" => "tui.keymap.list.jump_bottom",
+                    "accept" => "tui.keymap.list.accept",
+                    "cancel" => "tui.keymap.list.cancel",
+                    _ => "tui.keymap.list.unknown",
+                },
+                keys,
+            });
+        }
+        entries
+    }
+}
+
 impl Default for RuntimeKeymap {
     fn default() -> Self {
         Self::from_config(&TuiKeymap::default())

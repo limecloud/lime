@@ -288,6 +288,90 @@ impl AppServerSession {
             .context("failed to archive App Server thread")
     }
 
+    pub(crate) async fn hooks_list(
+        &self,
+        cwd: String,
+    ) -> Result<app_server_protocol::protocol::v2::HooksListResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_HOOKS_LIST,
+                app_server_protocol::protocol::v2::HooksListParams {
+                    cwds: vec![cwd.into()],
+                },
+            )
+            .await
+            .context("failed to list hooks")
+    }
+
+    pub(crate) async fn experimental_feature_list(
+        &self,
+    ) -> Result<app_server_protocol::protocol::v2::ExperimentalFeatureListResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_EXPERIMENTAL_FEATURE_LIST,
+                app_server_protocol::protocol::v2::ExperimentalFeatureListParams::default(),
+            )
+            .await
+            .context("failed to list experimental features")
+    }
+
+    pub(crate) async fn experimental_feature_set(&self, name: String, enabled: bool) -> Result<()> {
+        let mut enablement = std::collections::BTreeMap::new();
+        enablement.insert(name, enabled);
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_EXPERIMENTAL_FEATURE_ENABLEMENT_SET,
+                app_server_protocol::protocol::v2::ExperimentalFeatureEnablementSetParams {
+                    enablement,
+                },
+            )
+            .await
+            .map(
+                |_: app_server_protocol::protocol::v2::ExperimentalFeatureEnablementSetResponse| (),
+            )
+            .context("failed to set experimental feature enablement")
+    }
+
+    pub(crate) async fn review_start(
+        &self,
+        thread_id: String,
+        target: app_server_protocol::protocol::v2::ReviewTarget,
+    ) -> Result<app_server_protocol::protocol::v2::ReviewStartResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_REVIEW_START,
+                app_server_protocol::protocol::v2::ReviewStartParams {
+                    thread_id,
+                    target,
+                    delivery: None,
+                },
+            )
+            .await
+            .context("failed to start App Server review")
+    }
+
+    pub(crate) async fn thread_delete(&self, thread_id: String) -> Result<()> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_DELETE,
+                app_server_protocol::protocol::v2::ThreadDeleteParams { thread_id },
+            )
+            .await
+            .map(|_: app_server_protocol::protocol::v2::ThreadDeleteResponse| ())
+            .context("failed to delete App Server thread")
+    }
+
+    pub(crate) async fn thread_compact_start(&self, thread_id: String) -> Result<()> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_COMPACT_START,
+                app_server_protocol::protocol::v2::ThreadCompactStartParams { thread_id },
+            )
+            .await
+            .map(|_: app_server_protocol::protocol::v2::ThreadCompactStartResponse| ())
+            .context("failed to compact App Server thread")
+    }
+
     pub(crate) async fn thread_set_name(
         &self,
         thread_id: impl Into<String>,

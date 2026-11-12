@@ -18,7 +18,10 @@ struct Connection {
 }
 
 impl CloudDesktopService {
-    fn auth_directory(&self, path: &str) -> Result<PathBuf, String> {
+    pub(in crate::cloud_desktop_service) fn auth_directory(
+        &self,
+        path: &str,
+    ) -> Result<PathBuf, String> {
         self.ensure_root()?;
         let root = self.root.join("auth");
         CloudDesktopService {
@@ -58,7 +61,15 @@ impl CloudDesktopService {
             serde_json::from_slice(&bytes).map_err(|_| "Invalid Alibaba connection metadata")?;
         validate_profile(&state.profile)?;
         validate_id(&state.region_id)?;
-        if !["preparing", "authorizing", "connected", "failed"].contains(&state.status.as_str()) {
+        if ![
+            "preparing",
+            "authorizing",
+            "verifying",
+            "connected",
+            "failed",
+        ]
+        .contains(&state.status.as_str())
+        {
             return Err("Invalid Alibaba connection status".into());
         }
         Ok(Some(state))
@@ -85,14 +96,21 @@ impl CloudDesktopService {
         else {
             return Ok(json!({"status":"disconnected"}));
         };
-        if ["preparing", "authorizing"].contains(&state.status.as_str())
+        if ["preparing", "authorizing", "verifying"].contains(&state.status.as_str())
             && lock.try_lock_exclusive().is_ok()
         {
             // The process holding the lease exited. Never revive a browser login
             // automatically after restart or confuse it with a purchase receipt.
             FileExt::unlock(&lock).map_err(|_| "Cannot unlock Alibaba connection")?;
+            state.error_code = Some(
+                if state.status == "verifying" {
+                    "verificationInterrupted"
+                } else {
+                    "interrupted"
+                }
+                .into(),
+            );
             state.status = "failed".into();
-            state.error_code = Some("interrupted".into());
         }
         if state.status == "connected" {
             self.alibaba_config(&state.profile)?;
@@ -106,11 +124,34 @@ impl CloudDesktopService {
         if lock.try_lock_exclusive().is_err() {
             return self.read_alibaba_connection();
         }
-        let state = Connection {
-            profile: format!("{PROFILE_PREFIX}{}", uuid::Uuid::new_v4().simple()),
-            region_id: region.into(),
-            status: "preparing".into(),
-            error_code: None,
+        let previous = self.read_connection_file(&self.auth_directory("")?.join("active.json"))?;
+        let resumed = previous.filter(|state| {
+            let config = self
+                .root
+                .join("auth")
+                .join(&state.profile)
+                .join("aliyun.json");
+            (state.status == "verifying"
+                || (state.status == "failed"
+                    && matches!(
+                        state.error_code.as_deref(),
+                        Some("verificationFailed" | "verificationInterrupted" | "cliUnavailable")
+                    )))
+                && config.try_exists().unwrap_or(false)
+                && private_open(&config, false).is_ok()
+        });
+        let state = if let Some(mut state) = resumed {
+            state.status = "verifying".into();
+            state.region_id = region.into();
+            state.error_code = None;
+            state
+        } else {
+            Connection {
+                profile: format!("{PROFILE_PREFIX}{}", uuid::Uuid::new_v4().simple()),
+                region_id: region.into(),
+                status: "preparing".into(),
+                error_code: None,
+            }
         };
         self.auth_directory(&state.profile)?;
         self.write_connection_file(&self.auth_directory("")?.join("active.json"), &state)?;
@@ -125,7 +166,11 @@ impl CloudDesktopService {
     }
 
     async fn authorize_alibaba(&self, mut state: Connection) {
-        let result = self.run_alibaba_authorization(&mut state).await;
+        let result = if state.status == "verifying" {
+            self.verify_alibaba(&mut state).await
+        } else {
+            self.run_alibaba_authorization(&mut state).await
+        };
         state.status = if result.is_ok() {
             "connected"
         } else {
@@ -181,6 +226,38 @@ impl CloudDesktopService {
             return Err("authorizationFailed".into());
         }
         private_open(&config, false)?;
+        self.verify_alibaba(state).await
+    }
+
+    async fn verify_alibaba(&self, state: &mut Connection) -> Result<(), String> {
+        cli::ensure_available(self)
+            .await
+            .map_err(|_| "cliUnavailable".to_owned())?;
+        state.status = "verifying".into();
+        self.write_connection_file(
+            &self.auth_directory(&state.profile)?.join("connection.json"),
+            state,
+        )?;
+        self.write_connection_file(&self.auth_directory("")?.join("active.json"), state)?;
+        // OAuth has completed. Verify its private profile without projecting identity or credentials.
+        let config = self.auth_directory(&state.profile)?.join("aliyun.json");
+        private_open(&config, false)?;
+        let identity = self
+            .execute_cli(
+                "sts",
+                None,
+                &state.region_id,
+                &state.profile,
+                &["GetCallerIdentity".into()],
+                Some(config),
+            )
+            .await
+            .map_err(|_| "verificationFailed".to_owned())?;
+        if !identity["AccountId"].as_str().is_some_and(|id| {
+            !id.is_empty() && id.len() <= 32 && id.bytes().all(|byte| byte.is_ascii_digit())
+        }) {
+            return Err("verificationFailed".into());
+        }
         Ok(())
     }
 

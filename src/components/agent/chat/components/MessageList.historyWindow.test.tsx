@@ -32,7 +32,7 @@ describe("MessageList history window", () => {
       ),
     ).not.toBeNull();
     expect(container.textContent).toContain(
-      "latest 1 conversation entries are shown first",
+      "Show 1 earlier messages",
     );
     expect(container.textContent).not.toContain("/ 320");
 
@@ -40,7 +40,7 @@ describe("MessageList history window", () => {
       '[data-testid="message-list-load-full-history"]',
     ) as HTMLButtonElement | null;
     expect(button).not.toBeNull();
-    expect(button?.textContent).toContain("Load more history");
+    expect(button?.textContent).toContain("Show 1 earlier messages");
 
     act(() => {
       button?.click();
@@ -62,7 +62,7 @@ describe("MessageList history window", () => {
     });
 
     expect(container.textContent).toContain(
-      "latest 1 conversation entries are shown first; earlier history is still available",
+      "Show 1 earlier messages",
     );
     expect(container.textContent).not.toContain("latest 1 /");
     expect(
@@ -169,7 +169,7 @@ describe("MessageList history window", () => {
     );
 
     expect(container.textContent).toContain(
-      "latest 3 conversation entries are shown first",
+      "Show 3 earlier messages",
     );
     expect(
       container.querySelectorAll('[data-render-entry-kind="canonical_turn"]'),
@@ -615,7 +615,7 @@ describe("MessageList history window", () => {
     });
 
     expect(container.textContent).toContain(
-      "latest 20 conversation entries are shown first",
+      "Show 20 earlier messages",
     );
     expect(container.textContent).toContain("消息 40");
     expect(container.textContent).not.toContain("消息 20Saturday");

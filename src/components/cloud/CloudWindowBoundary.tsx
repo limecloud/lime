@@ -6,6 +6,8 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { Monitor } from "lucide-react";
+import { CloudDesktopViewer } from "./CloudDesktopViewer";
 import { getElectronHostBridge } from "@/lib/electron-host";
 import {
   readCloudDesktopWindowStatus,
@@ -18,81 +20,113 @@ export function CloudWindowBoundary({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [desktopVisible, setDesktopVisible] = useState(false);
+  const desktopTrigger = useRef<HTMLButtonElement>(null);
   const busy = useRef(false);
+  const connection = useRef<{ active: boolean } | null>(null);
   useEffect(() => {
-    if (!context) return;
-    let active = true;
-    let timer: ReturnType<typeof setTimeout>;
+    const current = { active: true };
+    connection.current = current;
+    busy.current = false;
+    setConnected(null);
+    setPending(false);
+    setError("");
+    setDesktopVisible(false);
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const refresh = async () => {
       try {
         const status = await readCloudDesktopWindowStatus();
-        if (active) setConnected(status.connected);
+        if (current.active) setConnected(status.connected);
       } catch {
-        if (active) setConnected(false);
+        if (current.active) setConnected(false);
       }
-      if (active) timer = setTimeout(() => void refresh(), 1000);
+      if (current.active) timer = setTimeout(() => void refresh(), 1000);
     };
-    void refresh();
+    if (context) void refresh();
     return () => {
-      active = false;
+      current.active = false;
       clearTimeout(timer);
     };
   }, [context]);
   if (!context) return children;
 
   async function reconnect() {
-    if (busy.current) return;
+    const current = connection.current;
+    if (busy.current || !current?.active) return;
     busy.current = true;
     setPending(true);
     setError("");
     try {
-      await reconnectCloudDesktopWindow();
+      const status = await reconnectCloudDesktopWindow();
+      if (!current.active) return;
+      if (!status.connected) throw new Error("REMOTE_DISCONNECTED");
       // Drop all client query caches and pending approvals before reading the new session.
+      // Keep tasks isolated until navigation replaces this renderer.
       window.location.reload();
     } catch (cause) {
-      setError(String(cause));
-    } finally {
+      if (!current.active) return;
+      const message = String(cause);
+      setError(
+        message.includes("ECS_SECURITY_GROUP_DENIED")
+          ? "tunnelSecurityGroupDenied"
+          : message.includes("ECS_TUNNEL_FAILED")
+            ? "taskTunnelFailed"
+            : "remoteReconnectFailed",
+      );
       busy.current = false;
       setPending(false);
     }
   }
+  const showTasks = connected && !pending && !error;
+  const statusKey =
+    pending || connected === null
+      ? "connectingRemote"
+      : showTasks
+        ? "remoteConnected"
+        : "remoteDisconnected";
   return (
     <div
       className="flex h-screen flex-col bg-background text-foreground"
       style={{ "--lime-window-content-height": "100%" } as CSSProperties}
     >
-      <div className="min-h-0 flex-1">
-        {connected ? (
-          children
-        ) : (
-          <div className="flex h-full items-center justify-center p-8">
-            <div className="max-w-md space-y-3 text-[13px]">
-              <p role="status">
-                {t(
-                  `settings.cloudDesktop.${connected === null ? "connectingRemote" : "remoteDisconnected"}`,
-                )}
-              </p>
-              <p className="text-muted-foreground">
-                {t("settings.cloudDesktop.remoteDisconnectHelp")}
-              </p>
-              {error && (
-                <p role="alert" className="text-destructive">
-                  {error}
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto lg:flex-row lg:overflow-hidden">
+        <div className="min-h-0 min-w-0 flex-1">
+          {showTasks ? (
+            children
+          ) : (
+            <div className="flex h-full items-center justify-center p-8">
+              <div className="max-w-md space-y-3 text-[13px]">
+                <p role="status">{t(`settings.cloudDesktop.${statusKey}`)}</p>
+                <p className="text-muted-foreground">
+                  {t("settings.cloudDesktop.remoteDisconnectHelp")}
                 </p>
-              )}
-              {connected === false && (
-                <button
-                  className="rounded-lg border border-border px-3 py-2 disabled:opacity-50"
-                  disabled={pending}
-                  onClick={() => void reconnect()}
-                >
-                  {t(
-                    `settings.cloudDesktop.${pending ? "working" : "reconnectRemote"}`,
-                  )}
-                </button>
-              )}
+                {error && (
+                  <p role="alert" className="text-destructive">
+                    {t(`settings.cloudDesktop.${error}`)}
+                  </p>
+                )}
+                {(connected === false || pending || error) && (
+                  <button
+                    className="rounded-lg border border-border px-3 py-2 disabled:opacity-50"
+                    disabled={pending}
+                    onClick={() => void reconnect()}
+                  >
+                    {t(
+                      `settings.cloudDesktop.${pending ? "working" : "reconnectRemote"}`,
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+        </div>
+        {desktopVisible && (
+          <CloudDesktopViewer
+            onClose={() => {
+              setDesktopVisible(false);
+              desktopTrigger.current?.focus();
+            }}
+          />
         )}
       </div>
       <div
@@ -103,11 +137,28 @@ export function CloudWindowBoundary({ children }: { children: ReactNode }) {
           {t("settings.cloudDesktop.cloudWindow")} ·{" "}
           {context.resource.resourceId} · {context.resource.regionId}
         </span>
-        <span role="status">
-          {t(
-            `settings.cloudDesktop.${connected ? "remoteConnected" : "remoteDisconnected"}`,
-          )}
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            ref={desktopTrigger}
+            type="button"
+            className="flex items-center gap-1 rounded px-2 py-1 hover:bg-accent disabled:opacity-50"
+            aria-expanded={desktopVisible}
+            aria-controls="cloud-desktop-viewer"
+            disabled={context.resource.provider !== "ecs"}
+            title={
+              context.resource.provider === "ecs"
+                ? undefined
+                : t("settings.cloudDesktop.desktopViewUnavailable")
+            }
+            onClick={() => setDesktopVisible((visible) => !visible)}
+          >
+            <Monitor size={14} aria-hidden />
+            {t(
+              `settings.cloudDesktop.${desktopVisible ? "hideDesktop" : "viewDesktop"}`,
+            )}
+          </button>
+          <span role="status">{t(`settings.cloudDesktop.${statusKey}`)}</span>
+        </div>
       </div>
     </div>
   );

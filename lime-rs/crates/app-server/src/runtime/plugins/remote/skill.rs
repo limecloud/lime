@@ -1,41 +1,45 @@
-use super::{wire, Context, RuntimeCore, RuntimeCoreError};
+use super::*;
 use app_server_protocol::protocol::v2::{PluginSkillReadParams, PluginSkillReadResponse};
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-struct SkillDetail {
-    plugin_id: String,
-    name: String,
-    skill_md_contents: Option<String>,
-}
+use tokio::io::AsyncReadExt;
 
 pub(crate) async fn read(
     runtime: &RuntimeCore,
     params: PluginSkillReadParams,
 ) -> Result<PluginSkillReadResponse, RuntimeCoreError> {
-    wire::Scope::from_marketplace(&params.remote_marketplace_name)?;
-    wire::validate_remote_id(&params.remote_plugin_id)?;
-    if params.skill_name.is_empty() {
-        return Err(RuntimeCoreError::InvalidRequest(
-            "skill name must not be empty".into(),
-        ));
+    if !wire::is_marketplace(&params.remote_marketplace_name) {
+        return Err(invalid());
     }
-    let context = Context::current(runtime.account_manager.as_deref())?.ok_or_else(|| {
-        RuntimeCoreError::InvalidRequest("authentication required for remote plugin skills".into())
-    })?;
-    let response: SkillDetail = context
-        .get(&format!(
-            "{}/skills/{}?includeDownloadUrls=false",
-            urlencoding::encode(&params.remote_plugin_id),
-            urlencoding::encode(&params.skill_name),
-        ))
+    let context =
+        Context::current(runtime.account_manager.as_deref(), &runtime.app_config_path)?
+            .ok_or_else(|| RuntimeCoreError::InvalidRequest("account_login_required".into()))?;
+    let detail = runtime
+        .app_data_source
+        .read_plugin(PluginReadParams {
+            marketplace_path: None,
+            remote_marketplace_name: Some(params.remote_marketplace_name),
+            plugin_name: params.remote_plugin_id,
+        })
         .await?;
-    if response.plugin_id != params.remote_plugin_id || response.name != params.skill_name {
-        return Err(RuntimeCoreError::Backend(
-            "remote plugin skill identity does not match request".into(),
-        ));
+    let path = detail
+        .plugin
+        .skills
+        .iter()
+        .find(|s| s.name == params.skill_name)
+        .and_then(|s| s.path.as_ref())
+        .ok_or_else(|| RuntimeCoreError::InvalidRequest("installed skill not found".into()))?;
+    let mut bytes = Vec::new();
+    tokio::fs::File::open(path)
+        .await
+        .map_err(|_| invalid())?
+        .take(2 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .await
+        .map_err(|_| invalid())?;
+    if bytes.len() > 2 * 1024 * 1024 {
+        return Err(invalid());
     }
+    context.ensure_current()?;
     Ok(PluginSkillReadResponse {
-        contents: response.skill_md_contents,
+        contents: Some(String::from_utf8(bytes).map_err(|_| invalid())?),
     })
 }

@@ -221,13 +221,13 @@ impl EventProcessor {
                     if completed || !text.is_empty() {
                         message.text = text.clone();
                     }
-                    message.phase = phase.clone();
+                    message.phase = *phase;
                     message.completed = completed;
                 } else {
                     self.messages.push(AgentText {
                         id: id.clone(),
                         text: text.clone(),
-                        phase: phase.clone(),
+                        phase: *phase,
                         completed,
                     });
                 }

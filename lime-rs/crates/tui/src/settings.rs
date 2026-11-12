@@ -53,7 +53,22 @@ pub(crate) fn parse_settings_command(prompt: &str) -> Option<Result<SettingsComm
         | SlashCommand::Vim
         | SlashCommand::Pwd
         | SlashCommand::Statusline
-        | SlashCommand::Title => None,
+        | SlashCommand::Title
+        | SlashCommand::Init
+        | SlashCommand::New
+        | SlashCommand::Rename
+        | SlashCommand::Compact
+        | SlashCommand::Archive
+        | SlashCommand::Delete
+        | SlashCommand::Fork
+        | SlashCommand::Review
+        | SlashCommand::Experimental
+        | SlashCommand::Quit
+        | SlashCommand::Clear
+        | SlashCommand::Config
+        | SlashCommand::Hooks
+        | SlashCommand::Skills
+        | SlashCommand::Keymap => None,
     }
 }
 

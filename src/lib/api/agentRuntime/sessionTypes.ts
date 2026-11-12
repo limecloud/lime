@@ -325,6 +325,7 @@ export interface AgentRuntimeThreadReadModel {
   status?: string;
   profile_status?: AgentRuntimeProfileStatus;
   active_turn_id?: string;
+  forked_from_id?: string | null;
   turns?: AgentRuntimeThreadTurnProfileView[];
   /** Typed turns from the same canonical read, in server order. */
   thread_turns?: AgentThreadTurn[];

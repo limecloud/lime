@@ -254,13 +254,20 @@ export function createAppServerSessionClient({
 
   async function forkAgentRuntimeSession(
     sessionId: string,
+    options: { beforeTurnId?: string; cwd?: string } = {},
   ): Promise<AppServerForkedSession> {
     const threadId = await resolveCanonicalThreadId(
       appServerClient,
       sessionId,
       "thread/fork",
     );
-    const response = await appServerClient.forkThread({ threadId });
+    const response = await appServerClient.forkThread({
+      threadId,
+      ...(options.beforeTurnId?.trim()
+        ? { beforeTurnId: options.beforeTurnId.trim() }
+        : {}),
+      ...(options.cwd?.trim() ? { cwd: options.cwd.trim() } : {}),
+    });
     const thread = readCanonicalThreadFromResult(response.result);
     if (!thread) {
       throw new Error("thread/fork did not return canonical Thread");

@@ -2,12 +2,10 @@ export { parseExpertCatalog } from "./parseExpertCatalog";
 export { buildExpertCatalogProjection } from "./projectExpertCatalog";
 export {
   getExpertCatalog,
-  readCachedExpertCatalog,
-  saveCachedExpertCatalog,
+  readExpertInstructions,
 } from "./expertCatalogClient";
 export {
   expertAnalyticsStorageKeys,
-  flushExpertCatalogEvents,
   queueExpertCatalogEvent,
   recordExpertCatalogEvent,
 } from "./expertAnalytics";
@@ -21,10 +19,8 @@ export {
   buildExpertAgentInstanceKey,
   expertAgentInstanceStorageKeys,
   findExpertAgentInstance,
-  refreshExpertAgentInstancesFromCloud,
   readExpertAgentInstances,
   saveExpertAgentInstances,
-  syncExpertAgentInstanceToCloud,
   updateExpertAgentInstanceSkillRefs,
   upsertExpertAgentInstance,
 } from "./expertAgentInstances";
@@ -37,7 +33,7 @@ export {
 export {
   SEEDED_EXPERT_CATALOG,
   SEEDED_EXPERT_CATALOG_SYNCED_AT,
-  SEEDED_EXPERT_CATALOG_TENANT_ID,
+  SEEDED_EXPERT_CATALOG_ID,
   SEEDED_EXPERT_CATALOG_VERSION,
   getSeededExpertCatalog,
 } from "./seededExpertCatalog";

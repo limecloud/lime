@@ -9,12 +9,26 @@ import { CloudSelect, Field, inputClass } from "./CloudDesktopPrimitives";
 import { PurchaseWuying } from "./PurchaseWuying";
 import { PurchaseEcs } from "./PurchaseEcs";
 import { initialEcsSpec, initialWuyingSpec } from "./purchaseSpecs";
-import { useCloudPurchase } from "./useCloudPurchase";
+import {
+  useCloudPurchase,
+  type CloudPurchaseContext,
+} from "./useCloudPurchase";
+import { cloudPurchasedResource } from "./cloudPurchasedResource";
 
 export const cloudTabClass =
   "rounded-lg px-3 py-2 text-[13px] text-muted-foreground outline-none hover:text-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
 
-export function AddCloudDesktop({ onChanged }: { onChanged: () => void }) {
+export function AddCloudDesktop({
+  onChanged,
+  defaultTab = "existing",
+  disabled = false,
+  onProvisioned,
+}: {
+  onChanged: () => void;
+  defaultTab?: "existing" | "purchase";
+  disabled?: boolean;
+  onProvisioned?: (resource: CloudDesktopResource) => void;
+}) {
   const { t } = useTranslation("settings");
   const [open, setOpen] = useState(false);
   const [resource, setResource] = useState<CloudDesktopResource>({
@@ -24,17 +38,32 @@ export function AddCloudDesktop({ onChanged }: { onChanged: () => void }) {
     profile: "",
   });
   const [binding, setBinding] = useState(false);
-  const [tab, setTab] = useState("existing");
+  const [tab, setTab] = useState<string>(defaultTab);
   const [purchaseProvider, setPurchaseProvider] = useState("ecs");
+  const handingOff = useRef(false);
+  function purchased(
+    result: unknown,
+    context: CloudPurchaseContext<
+      typeof initialEcsSpec | typeof initialWuyingSpec
+    >,
+  ) {
+    const provisioned = cloudPurchasedResource(result, context);
+    if (defaultTab === "purchase" && provisioned) {
+      handingOff.current = !!onProvisioned;
+      setOpen(false);
+      onProvisioned?.(provisioned);
+    }
+    onChanged();
+  }
   const wuyingPurchase = useCloudPurchase({
     initialSpec: initialWuyingSpec,
     request: requestCloudDesktop,
-    onPurchased: onChanged,
+    onPurchased: purchased,
   });
   const ecsPurchase = useCloudPurchase({
     initialSpec: initialEcsSpec,
     request: requestCloudDesktop,
-    onPurchased: onChanged,
+    onPurchased: purchased,
   });
   const [templatePending, setTemplatePending] = useState(false);
   const pending =
@@ -66,12 +95,17 @@ export function AddCloudDesktop({ onChanged }: { onChanged: () => void }) {
       }}
     >
       <Dialog.Trigger asChild>
-        <SettingsAction>{t("settings.cloudDesktop.add")}</SettingsAction>
+        <SettingsAction disabled={disabled}>
+          {t("settings.cloudDesktop.add")}
+        </SettingsAction>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[70] bg-black/30" />
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-[70] max-h-[85vh] w-[min(620px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 space-y-4 overflow-y-auto rounded-xl border-[0.5px] border-border bg-popover p-6 text-popover-foreground outline-none"
+          onCloseAutoFocus={(event) => {
+            if (handingOff.current) event.preventDefault();
+          }}
           onEscapeKeyDown={(e) => {
             if (pending) e.preventDefault();
           }}

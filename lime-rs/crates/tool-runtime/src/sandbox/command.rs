@@ -120,7 +120,7 @@ fn prepare_seatbelt_command(
     Ok(wrapped)
 }
 
-fn domain_file_system_policy(
+pub(crate) fn domain_file_system_policy(
     policy: &SandboxPolicy,
     granted_permissions: Option<&GrantedPermissionProfile>,
     working_directory: &Path,

@@ -24,7 +24,6 @@ export type DevBridgeCommandTimeoutProfile =
 const bridgeTruthCommands = new Set<string>([
   "open_external_url",
   "open_update_window",
-  "start_oem_cloud_oauth_callback_bridge",
   "get_or_create_default_project",
   "workspace_list",
   "workspace_get_default",
@@ -91,11 +90,6 @@ const APP_SERVER_LONG_RUNNING_METHODS = new Set([
   "scheduledTask/run/start",
   "plugin/install",
   "plugin/reconcile",
-  "plugin/share/save",
-  "plugin/share/list",
-  "plugin/share/updateTargets",
-  "plugin/share/checkout",
-  "plugin/share/delete",
 ]);
 const APP_SERVER_PROVIDER_NETWORK_METHODS = new Set([
   "modelProvider/testConnection",

@@ -1,9 +1,4 @@
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
-import { isOemManagedHubProvider } from "@/lib/oemLimeHubProvider";
-
-export interface EnabledModelListOptions {
-  exposeOemLoginPrompt?: boolean;
-}
 
 export interface EnabledModelItem {
   id: string;
@@ -12,7 +7,7 @@ export interface EnabledModelItem {
   modelId: string | null;
   isDefault: boolean;
   enabledApiKeyCount: number;
-  status: "ready" | "login_required";
+  status: "ready";
 }
 
 function getEnabledApiKeyCount(provider: ProviderWithKeysDisplay): number {
@@ -38,18 +33,9 @@ function isKeylessLocalProvider(provider: ProviderWithKeysDisplay): boolean {
 
 export function isProviderVisibleInEnabledModelList(
   provider: ProviderWithKeysDisplay,
-  options: EnabledModelListOptions = {},
 ): boolean {
   if (!provider.enabled) {
     return false;
-  }
-
-  if (isOemManagedHubProvider(provider)) {
-    return Boolean(
-      options.exposeOemLoginPrompt &&
-      getEnabledApiKeyCount(provider) === 0 &&
-      !getProviderDefaultModel(provider),
-    );
   }
 
   return (
@@ -61,20 +47,15 @@ export function isProviderVisibleInEnabledModelList(
 
 export function buildEnabledModelItems(
   providers: ProviderWithKeysDisplay[],
-  options: EnabledModelListOptions = {},
 ): EnabledModelItem[] {
   const items = providers
     .filter((provider) =>
-      isProviderVisibleInEnabledModelList(provider, options),
+      isProviderVisibleInEnabledModelList(provider),
     )
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((provider): EnabledModelItem => {
       const modelId = getProviderDefaultModel(provider);
       const enabledApiKeyCount = getEnabledApiKeyCount(provider);
-      const loginRequired =
-        isOemManagedHubProvider(provider) &&
-        enabledApiKeyCount === 0 &&
-        !modelId;
 
       return {
         id: provider.id,
@@ -83,7 +64,7 @@ export function buildEnabledModelItems(
         modelId,
         isDefault: false,
         enabledApiKeyCount,
-        status: loginRequired ? "login_required" : "ready",
+        status: "ready",
       };
     });
 

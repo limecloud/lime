@@ -7,7 +7,7 @@ import path from "node:path";
 import { isIP } from "node:net";
 import type { CloudDesktopConnectionTransport } from "../src/lib/desktop-host/cloudDesktopConnection";
 
-const CREDENTIALS_DIRECTORY = "credentials";
+export const CREDENTIALS_DIRECTORY = "credentials";
 const CREDENTIAL_FILE_NAME = "app-server-session.v1";
 const CREDENTIAL_VERSION = 1;
 const MAX_TENANT_ID_LENGTH = 256;
@@ -52,7 +52,7 @@ type CredentialEnvelope = {
   updatedAt: string;
 };
 
-/** Shared safeStorage persistence for session credentials and private installation recovery. */
+/** Shared encrypted persistence for session credentials and private installation recovery. */
 export class ElectronEncryptedStateFile {
   readonly filePath: string;
   constructor(
@@ -69,9 +69,13 @@ export class ElectronEncryptedStateFile {
     try {
       if (!this.safeStorage.isEncryptionAvailable()) return false;
       if (this.platform !== "linux") return true;
-      return ["gnome_libsecret", "kwallet", "kwallet5", "kwallet6"].includes(
-        this.safeStorage.getSelectedStorageBackend?.() ?? "",
-      );
+      return [
+        "local_key",
+        "gnome_libsecret",
+        "kwallet",
+        "kwallet5",
+        "kwallet6",
+      ].includes(this.safeStorage.getSelectedStorageBackend?.() ?? "");
     } catch {
       return false;
     }

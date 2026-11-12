@@ -1,7 +1,6 @@
 use super::*;
 
 mod computer_use;
-use computer_use::computer_requirements;
 use app_server_protocol::protocol::v2::{
     AllowDenyRequirement, ApplicationNetworkRequirements, ApplicationRequirements,
     ApplicationStorageRequirements, BrowserUseAccessApprovalLifetime,
@@ -9,6 +8,7 @@ use app_server_protocol::protocol::v2::{
     ConfigRequirements, ConfigRequirementsReadParams, ConfigRequirementsReadResponse,
     InAppBrowserRequirements, NetworkDomainPermission, RequestHeader,
 };
+use computer_use::computer_requirements;
 
 impl RequestProcessor {
     pub(in crate::processor) async fn handle_config_requirements_read_impl(

@@ -1,5 +1,3 @@
-use super::{CancelInstallParams, CancelInstallResponse, DiagnoseDependenciesParams, DiagnoseDependenciesResponse, InstallDependenciesResponse, RunUpdateNowParams};
-use super::{LocalEnvironmentsListParams, LocalEnvironmentsListResponse, LocalEnvironmentsReadConfigParams, LocalEnvironmentsReadConfigResponse, LocalEnvironmentsSaveConfigParams, LocalEnvironmentsSaveConfigResponse};
 use super::{
     AccountUpdatedNotification, CloudRequestParams, GetAccountParams, LoginAccountParams,
     METHOD_ACCOUNT_UPDATED,
@@ -41,33 +39,31 @@ use super::{
     ModelSafetyBufferingUpdatedNotification, ModelVerificationNotification,
     PermissionProfileListParams, PermissionsRequestApprovalParams, PlanDeltaNotification,
     PluginInstallParams, PluginInstalledParams, PluginListParams, PluginReadParams,
-    PluginReconcileParams, PluginSearchParams, PluginSearchResponse, PluginShareDeleteParams,
-    PluginShareListParams, PluginShareSaveParams, PluginShareUpdateTargetsParams,
-    PluginSkillReadParams, PluginUninstallParams, ProcessExitedNotification, ProcessKillParams,
-    ProcessKillResponse, ProcessOutputDeltaNotification, ProcessResizePtyParams,
-    ProcessResizePtyResponse, ProcessSpawnParams, ProcessSpawnResponse, ProcessWriteStdinParams,
-    ProcessWriteStdinResponse, ProjectChangedNotification, ProjectCreateParams,
-    ProjectCreateResponse, ProjectDeleteParams, ProjectDeleteResponse, ProjectImportParams,
-    ProjectImportResponse, ProjectListParams, ProjectListResponse, ProjectMoveParams,
-    ProjectMoveResponse, ProjectReadParams, ProjectReadResponse, ProjectUpdateParams,
-    ProjectUpdateResponse, PromptHistoryAppendParams, PromptHistoryAppendResponse,
-    PromptHistoryReadParams, PromptHistoryReadResponse, ReasoningSummaryPartAddedNotification,
-    ReasoningSummaryTextDeltaNotification, ReasoningTextDeltaNotification, ReviewStartParams,
-    ReviewStartResponse, RolloutCompressResponse, ScheduledTaskChangedNotification,
-    ScheduledTaskRunUpdatedNotification, ServerRequestResolvedNotification,
-    SkillsChangedNotification, SkillsConfigWriteParams, SkillsConfigWriteResponse,
-    SkillsExtraRootsSetParams, SkillsExtraRootsSetResponse, SkillsListParams, SkillsListResponse,
-    StrictReviewRequiredNotification, ThreadApproveGuardianDeniedActionParams,
-    ThreadApproveGuardianDeniedActionResponse, ThreadArchiveParams, ThreadArchiveResponse,
-    ThreadArchivedNotification, ThreadBackgroundTerminalsCleanParams,
-    ThreadBackgroundTerminalsCleanResponse, ThreadBackgroundTerminalsListParams,
-    ThreadBackgroundTerminalsListResponse, ThreadBackgroundTerminalsTerminateParams,
-    ThreadBackgroundTerminalsTerminateResponse, ThreadClosedNotification, ThreadCompactStartParams,
-    ThreadCompactStartResponse, ThreadDecrementElicitationParams,
-    ThreadDecrementElicitationResponse, ThreadDeleteParams, ThreadDeleteResponse,
-    ThreadDeletedNotification, ThreadForkParams, ThreadForkResponse, ThreadGoalClearParams,
-    ThreadGoalClearResponse, ThreadGoalClearedNotification, ThreadGoalGetParams,
-    ThreadGoalGetResponse, ThreadGoalSetParams, ThreadGoalSetResponse,
+    PluginReconcileParams, PluginSearchParams, PluginSearchResponse, PluginSkillReadParams,
+    PluginUninstallParams, ProcessExitedNotification, ProcessKillParams, ProcessKillResponse,
+    ProcessOutputDeltaNotification, ProcessResizePtyParams, ProcessResizePtyResponse,
+    ProcessSpawnParams, ProcessSpawnResponse, ProcessWriteStdinParams, ProcessWriteStdinResponse,
+    ProjectChangedNotification, ProjectCreateParams, ProjectCreateResponse, ProjectDeleteParams,
+    ProjectDeleteResponse, ProjectImportParams, ProjectImportResponse, ProjectListParams,
+    ProjectListResponse, ProjectMoveParams, ProjectMoveResponse, ProjectReadParams,
+    ProjectReadResponse, ProjectUpdateParams, ProjectUpdateResponse, PromptHistoryAppendParams,
+    PromptHistoryAppendResponse, PromptHistoryReadParams, PromptHistoryReadResponse,
+    ReasoningSummaryPartAddedNotification, ReasoningSummaryTextDeltaNotification,
+    ReasoningTextDeltaNotification, ReviewStartParams, ReviewStartResponse,
+    RolloutCompressResponse, ScheduledTaskChangedNotification, ScheduledTaskRunUpdatedNotification,
+    ServerRequestResolvedNotification, SkillsChangedNotification, SkillsConfigWriteParams,
+    SkillsConfigWriteResponse, SkillsExtraRootsSetParams, SkillsExtraRootsSetResponse,
+    SkillsListParams, SkillsListResponse, StrictReviewRequiredNotification,
+    ThreadApproveGuardianDeniedActionParams, ThreadApproveGuardianDeniedActionResponse,
+    ThreadArchiveParams, ThreadArchiveResponse, ThreadArchivedNotification,
+    ThreadBackgroundTerminalsCleanParams, ThreadBackgroundTerminalsCleanResponse,
+    ThreadBackgroundTerminalsListParams, ThreadBackgroundTerminalsListResponse,
+    ThreadBackgroundTerminalsTerminateParams, ThreadBackgroundTerminalsTerminateResponse,
+    ThreadClosedNotification, ThreadCompactStartParams, ThreadCompactStartResponse,
+    ThreadDecrementElicitationParams, ThreadDecrementElicitationResponse, ThreadDeleteParams,
+    ThreadDeleteResponse, ThreadDeletedNotification, ThreadForkParams, ThreadForkResponse,
+    ThreadGoalClearParams, ThreadGoalClearResponse, ThreadGoalClearedNotification,
+    ThreadGoalGetParams, ThreadGoalGetResponse, ThreadGoalSetParams, ThreadGoalSetResponse,
     ThreadGoalUpdatedNotification, ThreadIncrementElicitationParams,
     ThreadIncrementElicitationResponse, ThreadInjectItemsParams, ThreadInjectItemsResponse,
     ThreadItemsListParams, ThreadItemsListResponse, ThreadListParams, ThreadListResponse,
@@ -119,6 +115,15 @@ use super::{
     METHOD_THREAD_REVERTED, METHOD_THREAD_STATUS_CHANGED, METHOD_THREAD_TOKEN_USAGE_UPDATED,
     METHOD_TURN_DIFF_UPDATED, METHOD_TURN_MODERATION_METADATA, METHOD_TURN_PLAN_UPDATED,
     METHOD_WARNING, METHOD_WINDOWS_SANDBOX_SETUP_COMPLETED, METHOD_WINDOWS_WORLD_WRITABLE_WARNING,
+};
+use super::{
+    CancelInstallParams, CancelInstallResponse, DiagnoseDependenciesParams,
+    DiagnoseDependenciesResponse, InstallDependenciesResponse, RunUpdateNowParams,
+};
+use super::{
+    LocalEnvironmentsListParams, LocalEnvironmentsListResponse, LocalEnvironmentsReadConfigParams,
+    LocalEnvironmentsReadConfigResponse, LocalEnvironmentsSaveConfigParams,
+    LocalEnvironmentsSaveConfigResponse,
 };
 use crate::{JsonRpcNotification, JsonRpcRequest, RequestId};
 use schemars::JsonSchema;
@@ -465,11 +470,20 @@ pub enum ClientRequest {
         params: McpServerToolCallParams,
     },
     #[serde(rename = "localEnvironments/list")]
-    LocalEnvironmentsList { id: RequestId, params: LocalEnvironmentsListParams },
+    LocalEnvironmentsList {
+        id: RequestId,
+        params: LocalEnvironmentsListParams,
+    },
     #[serde(rename = "localEnvironments/readConfig")]
-    LocalEnvironmentsReadConfig { id: RequestId, params: LocalEnvironmentsReadConfigParams },
+    LocalEnvironmentsReadConfig {
+        id: RequestId,
+        params: LocalEnvironmentsReadConfigParams,
+    },
     #[serde(rename = "localEnvironments/saveConfig")]
-    LocalEnvironmentsSaveConfig { id: RequestId, params: LocalEnvironmentsSaveConfigParams },
+    LocalEnvironmentsSaveConfig {
+        id: RequestId,
+        params: LocalEnvironmentsSaveConfigParams,
+    },
     #[serde(rename = "environment/add")]
     EnvironmentAdd {
         id: RequestId,
@@ -486,26 +500,50 @@ pub enum ClientRequest {
         params: EnvironmentStatusParams,
     },
     #[serde(rename = "primaryRuntime/diagnoseDependencies")]
-    PrimaryRuntimeDiagnoseDependencies { id: RequestId, params: DiagnoseDependenciesParams },
+    PrimaryRuntimeDiagnoseDependencies {
+        id: RequestId,
+        params: DiagnoseDependenciesParams,
+    },
     #[serde(rename = "primaryRuntime/runUpdateNow")]
-    PrimaryRuntimeRunUpdateNow { id: RequestId, params: RunUpdateNowParams },
+    PrimaryRuntimeRunUpdateNow {
+        id: RequestId,
+        params: RunUpdateNowParams,
+    },
     #[serde(rename = "primaryRuntime/resetDependencies")]
-    PrimaryRuntimeResetDependencies { id: RequestId, params: RunUpdateNowParams },
+    PrimaryRuntimeResetDependencies {
+        id: RequestId,
+        params: RunUpdateNowParams,
+    },
     #[serde(rename = "primaryRuntime/cancelInstall")]
-    PrimaryRuntimeCancelInstall { id: RequestId, params: CancelInstallParams },
+    PrimaryRuntimeCancelInstall {
+        id: RequestId,
+        params: CancelInstallParams,
+    },
     #[serde(rename = "computerUse/status")]
     ComputerUseStatus {
         id: RequestId,
         params: super::ComputerUseStatusParams,
     },
     #[serde(rename = "computerUse/setup")]
-    ComputerUseSetup { id: RequestId, params: super::ComputerUseSetupParams },
+    ComputerUseSetup {
+        id: RequestId,
+        params: super::ComputerUseSetupParams,
+    },
     #[serde(rename = "computerUse/revoke")]
-    ComputerUseRevoke { id: RequestId, params: super::ComputerUseRevokeParams },
+    ComputerUseRevoke {
+        id: RequestId,
+        params: super::ComputerUseRevokeParams,
+    },
     #[serde(rename = "computerUse/lease/acquire")]
-    ComputerUseLeaseAcquire { id: RequestId, params: super::ComputerUseLeaseAcquireParams },
+    ComputerUseLeaseAcquire {
+        id: RequestId,
+        params: super::ComputerUseLeaseAcquireParams,
+    },
     #[serde(rename = "computerUse/lease/release")]
-    ComputerUseLeaseRelease { id: RequestId, params: super::ComputerUseLeaseReleaseParams },
+    ComputerUseLeaseRelease {
+        id: RequestId,
+        params: super::ComputerUseLeaseReleaseParams,
+    },
     #[serde(rename = "config/read")]
     ConfigRead {
         id: RequestId,
@@ -657,31 +695,6 @@ pub enum ClientRequest {
     PluginReconcile {
         id: RequestId,
         params: PluginReconcileParams,
-    },
-    #[serde(rename = "plugin/share/save")]
-    PluginShareSave {
-        id: RequestId,
-        params: PluginShareSaveParams,
-    },
-    #[serde(rename = "plugin/share/list")]
-    PluginShareList {
-        id: RequestId,
-        params: PluginShareListParams,
-    },
-    #[serde(rename = "plugin/share/updateTargets")]
-    PluginShareUpdateTargets {
-        id: RequestId,
-        params: PluginShareUpdateTargetsParams,
-    },
-    #[serde(rename = "plugin/share/checkout")]
-    PluginShareCheckout {
-        id: RequestId,
-        params: super::PluginShareCheckoutParams,
-    },
-    #[serde(rename = "plugin/share/delete")]
-    PluginShareDelete {
-        id: RequestId,
-        params: PluginShareDeleteParams,
     },
     #[serde(rename = "turn/start")]
     TurnStart {
@@ -906,11 +919,6 @@ impl ClientRequest {
             | Self::PluginUninstall { id, .. }
             | Self::PluginInstalled { id, .. }
             | Self::PluginReconcile { id, .. }
-            | Self::PluginShareSave { id, .. }
-            | Self::PluginShareList { id, .. }
-            | Self::PluginShareUpdateTargets { id, .. }
-            | Self::PluginShareCheckout { id, .. }
-            | Self::PluginShareDelete { id, .. }
             | Self::TurnStart { id, .. }
             | Self::TurnSteer { id, .. }
             | Self::TurnInterrupt { id, .. }
@@ -1009,7 +1017,9 @@ impl ClientRequest {
             Self::EnvironmentAdd { .. } => Method::EnvironmentAdd,
             Self::EnvironmentInfo { .. } => Method::EnvironmentInfo,
             Self::EnvironmentStatus { .. } => Method::EnvironmentStatus,
-            Self::PrimaryRuntimeDiagnoseDependencies { .. } => Method::PrimaryRuntimeDiagnoseDependencies,
+            Self::PrimaryRuntimeDiagnoseDependencies { .. } => {
+                Method::PrimaryRuntimeDiagnoseDependencies
+            }
             Self::PrimaryRuntimeRunUpdateNow { .. } => Method::PrimaryRuntimeRunUpdateNow,
             Self::PrimaryRuntimeResetDependencies { .. } => Method::PrimaryRuntimeResetDependencies,
             Self::PrimaryRuntimeCancelInstall { .. } => Method::PrimaryRuntimeCancelInstall,
@@ -1055,11 +1065,6 @@ impl ClientRequest {
             Self::PluginUninstall { .. } => Method::PluginUninstall,
             Self::PluginInstalled { .. } => Method::PluginInstalled,
             Self::PluginReconcile { .. } => Method::PluginReconcile,
-            Self::PluginShareSave { .. } => Method::PluginShareSave,
-            Self::PluginShareList { .. } => Method::PluginShareList,
-            Self::PluginShareUpdateTargets { .. } => Method::PluginShareUpdateTargets,
-            Self::PluginShareCheckout { .. } => Method::PluginShareCheckout,
-            Self::PluginShareDelete { .. } => Method::PluginShareDelete,
             Self::TurnStart { .. } => Method::TurnStart,
             Self::TurnSteer { .. } => Method::TurnSteer,
             Self::TurnInterrupt { .. } => Method::TurnInterrupt,
@@ -1280,7 +1285,9 @@ impl ClientResponsePayload {
             Self::EnvironmentStatus(_) => Method::EnvironmentStatus,
             Self::WindowsSandboxReadiness(_) => Method::WindowsSandboxReadiness,
             Self::WindowsSandboxSetupStart(_) => Method::WindowsSandboxSetupStart,
-            Self::PrimaryRuntimeDiagnoseDependencies(_) => Method::PrimaryRuntimeDiagnoseDependencies,
+            Self::PrimaryRuntimeDiagnoseDependencies(_) => {
+                Method::PrimaryRuntimeDiagnoseDependencies
+            }
             Self::PrimaryRuntimeRunUpdateNow(_) => Method::PrimaryRuntimeRunUpdateNow,
             Self::PrimaryRuntimeResetDependencies(_) => Method::PrimaryRuntimeResetDependencies,
             Self::PrimaryRuntimeCancelInstall(_) => Method::PrimaryRuntimeCancelInstall,

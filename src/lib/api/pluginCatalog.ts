@@ -5,10 +5,6 @@ import {
 } from "@limecloud/app-server-client";
 import { invalidateAppConfigCache } from "./appConfig";
 import { AppServerClient } from "@/lib/api/appServer";
-import {
-  writeRemotePluginPreference,
-  type RemotePluginPreferenceClient,
-} from "./remotePluginPreferences";
 import type {
   AppServerMarketplaceAddParams,
   AppServerMarketplaceAddResponse,
@@ -81,38 +77,22 @@ export async function searchPluginCatalog(
 }
 
 export async function setPluginEnabled(
-  params: { enabled: boolean } & (
-    | { pluginId: string; remotePluginId?: never }
-    | { remotePluginId: string; pluginId?: never }
-  ),
-  client: Pick<
-    PluginCatalogClient,
-    "request" | "requestCloud" | "readAccount"
-  > = new AppServerClient(),
+  params: { pluginId: string; enabled: boolean },
+  client: Pick<AppServerClient, "request"> = new AppServerClient(),
 ): Promise<void> {
-  if (params.remotePluginId !== undefined) {
-    await writeRemotePluginPreference(params, client);
-  } else {
-    await client.request<ConfigWriteResponse>(METHOD_CONFIG_BATCH_WRITE, {
-      edits: [
-        {
-          keyPath: `plugins.${JSON.stringify(params.pluginId)}.enabled`,
-          value: params.enabled,
-          mergeStrategy: "replace",
-        },
-      ],
-      reloadUserConfig: true,
-    } satisfies ConfigBatchWriteParams);
-  }
+  await client.request<ConfigWriteResponse>(METHOD_CONFIG_BATCH_WRITE, {
+    edits: [{ keyPath: `plugins.${JSON.stringify(params.pluginId)}.enabled`, value: params.enabled, mergeStrategy: "replace" }],
+    reloadUserConfig: true,
+  } satisfies ConfigBatchWriteParams);
   invalidateAppConfigCache();
   emitPluginCatalogChanged();
 }
 
 export async function setPluginSkillEnabled(
-  params: { remotePluginId: string; skillName: string; enabled: boolean },
-  client: RemotePluginPreferenceClient = new AppServerClient(),
+  params: { path: string; enabled: boolean },
+  client: Pick<AppServerClient, "writeSkillsConfig"> = new AppServerClient(),
 ): Promise<void> {
-  await writeRemotePluginPreference(params, client);
+  await client.writeSkillsConfig(params);
   emitPluginCatalogChanged();
 }
 

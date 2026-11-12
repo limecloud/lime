@@ -31,14 +31,8 @@ pub struct PluginInstalledParams {
 pub enum PluginListMarketplaceKind {
     #[serde(rename = "local")]
     Local,
-    #[serde(rename = "vertical")]
-    Vertical,
-    #[serde(rename = "workspace-directory")]
-    WorkspaceDirectory,
-    #[serde(rename = "shared-with-me")]
-    SharedWithMe,
-    #[serde(rename = "created-by-me-remote")]
-    CreatedByMeRemote,
+    #[serde(rename = "cloud")]
+    Cloud,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, JsonSchema)]
@@ -160,7 +154,6 @@ pub struct PluginDetail {
     pub marketplace_name: String,
     pub marketplace_path: Option<PathBuf>,
     pub summary: PluginSummary,
-    pub share_url: Option<String>,
     pub description: Option<String>,
     pub skills: Vec<SkillSummary>,
     /// The declared onboarding skill, when the plugin and visible skill are enabled.
@@ -357,8 +350,6 @@ pub struct PluginSummary {
     #[serde(default)]
     pub local_version: Option<String>,
     pub name: String,
-    #[serde(default)]
-    pub share_context: Option<PluginShareContext>,
     pub source: PluginSource,
     pub installed: bool,
     #[serde(default)]
@@ -380,63 +371,6 @@ pub struct PluginSummary {
     pub interface: Option<PluginInterface>,
     #[serde(default)]
     pub keywords: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginShareContext {
-    pub remote_plugin_id: String,
-    #[serde(default)]
-    pub remote_version: Option<String>,
-    #[serde(default)]
-    pub discoverability: Option<PluginShareDiscoverability>,
-    #[serde(default)]
-    pub share_url: Option<String>,
-    #[serde(default)]
-    pub creator_account_user_id: Option<String>,
-    #[serde(default)]
-    pub creator_name: Option<String>,
-    #[serde(default)]
-    pub share_principals: Option<Vec<PluginSharePrincipal>>,
-    #[serde(default)]
-    pub can_publish_to_workspace: Option<bool>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub enum PluginShareDiscoverability {
-    #[serde(rename = "LISTED")]
-    Listed,
-    #[serde(rename = "UNLISTED")]
-    Unlisted,
-    #[serde(rename = "PRIVATE")]
-    Private,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub enum PluginSharePrincipalType {
-    #[serde(rename = "user")]
-    User,
-    #[serde(rename = "group")]
-    Group,
-    #[serde(rename = "workspace")]
-    Workspace,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum PluginSharePrincipalRole {
-    Reader,
-    Editor,
-    Owner,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginSharePrincipal {
-    pub principal_type: PluginSharePrincipalType,
-    pub principal_id: String,
-    pub role: PluginSharePrincipalRole,
-    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

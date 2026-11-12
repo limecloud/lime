@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "One user-paid Linux VM. Network and SSH keypair must already exist.\nPurchase always requests an encrypted ESSD system disk; no private key is sent.",
+  "description": "One user-paid Linux VM. Network may be prepared by Lime; SSH keypair is optional.\nPurchase always requests an encrypted ESSD system disk; no private key is sent.",
   "properties": {
     "imageId": {
       "type": "string"

@@ -167,5 +167,6 @@
   "scheduledTasks.group.enabled": "활성",
   "scheduledTasks.group.paused": "일시중지",
   "scheduledTasks.relative.today": "오늘 {{time}}",
-  "scheduledTasks.relative.tomorrow": "내일 {{time}}"
+  "scheduledTasks.relative.tomorrow": "내일 {{time}}",
+  "scheduledTasks.action.details": "작업 세부정보"
 }
