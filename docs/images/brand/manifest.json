@@ -1,0 +1,79 @@
+{
+  "generatedAt": "2026-11-12",
+  "mode": "bundled imagegen CLI edit",
+  "endpoint": "https://img.aishenji.top",
+  "reference": "User-provided lime mascot image; used only as a visual reference.",
+  "selectedCharacter": "mascot-a",
+  "characterPrompts": [
+    {
+      "name": "mascot-a",
+      "model": "gpt-image-2.5-flare",
+      "prompt": "Use case: stylized-concept.\nAsset type: original Lime brand companion character, premium 3D mascot product render.\nInput image 1 is a visual reference for the lime identity and friendly personality, not a layout to reproduce.\nPrimary request: redesign this cheerful lime pet to look more volumetric, more adorable, and professionally art-directed, retaining a recognizable lime-fruit identity. Original character; do not copy any existing company mascot.\nSubject: a small plump lime sprite, a truly round spherical three-dimensional body rather than a flat coin, thick softly rounded lime-rind rim, a subtle segmented lime-flesh inset on the curved front, tiny pill-shaped arms, short chubby rounded feet with grounded weight, two sculptural plump fresh leaf sprouts. A large charming face, very glossy deep-green oval eyes with deliberate white catchlights, tiny soft smile, understated cream cheek highlights. Friendly, curious, reliable companion.\nMaterials: tactile translucent lime-green resin/jelly, clear depth through the body, gentle subsurface scattering, realistic refraction and internal pulp detail, finely dimpled peel, soft waxy leaves, smooth molded toy anatomy. Elegant highlights that describe the round silhouette. Not wet food, not photoreal citrus, not thin glass, not gummy slime.\nLighting: premium studio product photography, broad soft key light, subtle rim light, gentle ambient occlusion and a convincing soft contact shadow. Restrained warm white and pale sage backdrop, joyful calm mood. Very high-quality physically based 3D rendering, soft polished collectible toy.\nComposition: one full-body mascot in a three-quarter view, ample clean breathing room on all sides, no cropping. The eyes must follow the body curvature. Strong recognizable silhouette at thumbnail size.\nConstraints: no text, no lettering, no logos, no watermark, no UI panels, no other characters, no dog or cat features, no sharp teeth, no scary expression, no checkerboard background. Keep the leaf crown and citrus identity.\nDesign direction: compact extra-plump body, little feet slightly apart, one tiny arm waving, a gentle head tilt. More physical thickness and soft rounded forms."
+    },
+    {
+      "name": "mascot-b",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Use case: stylized-concept.\nAsset type: original Lime brand companion character, premium 3D mascot product render.\nInput image 1 is a visual reference for the lime identity and friendly personality, not a layout to reproduce.\nPrimary request: redesign this cheerful lime pet to look more volumetric, more adorable, and professionally art-directed, retaining a recognizable lime-fruit identity. Original character; do not copy any existing company mascot.\nSubject: a small plump lime sprite, a truly round spherical three-dimensional body rather than a flat coin, thick softly rounded lime-rind rim, a subtle segmented lime-flesh inset on the curved front, tiny pill-shaped arms, short chubby rounded feet with grounded weight, two sculptural plump fresh leaf sprouts. A large charming face, very glossy deep-green oval eyes with deliberate white catchlights, tiny soft smile, understated cream cheek highlights. Friendly, curious, reliable companion.\nMaterials: tactile translucent lime-green resin/jelly, clear depth through the body, gentle subsurface scattering, realistic refraction and internal pulp detail, finely dimpled peel, soft waxy leaves, smooth molded toy anatomy. Elegant highlights that describe the round silhouette. Not wet food, not photoreal citrus, not thin glass, not gummy slime.\nLighting: premium studio product photography, broad soft key light, subtle rim light, gentle ambient occlusion and a convincing soft contact shadow. Restrained warm white and pale sage backdrop, joyful calm mood. Very high-quality physically based 3D rendering, soft polished collectible toy.\nComposition: one full-body mascot in a three-quarter view, ample clean breathing room on all sides, no cropping. The eyes must follow the body curvature. Strong recognizable silhouette at thumbnail size.\nConstraints: no text, no lettering, no logos, no watermark, no UI panels, no other characters, no dog or cat features, no sharp teeth, no scary expression, no checkerboard background. Keep the leaf crown and citrus identity.\nDesign direction: elegant round toy with a subtle pear-shaped silhouette, front lime inset integrated into a pale green rind, very large expressive eyes, two thick soft leaf sprouts, both hands held in a welcoming pose."
+    }
+  ],
+  "scenePrompts": [
+    {
+      "name": "lime-agent-hero",
+      "model": "gpt-image-2.5-flare",
+      "prompt": "Use case: stylized-concept.\nAsset type: illustration for the Lime open-source repository README, language-neutral brand scene.\nInput image 1: exact character identity and material reference. Preserve this original lime pet's round thick three-dimensional body, lime-segment face inset, dark-green glossy oval eyes, tiny smile, cream cheeks, two thick leaf sprouts, tiny pill arms and short feet. Keep the same face and anatomy, the same high-quality translucent lime resin, subtle peel texture, refraction, soft studio key and rim lighting, grounded contact shadows. Do not redesign or add another mascot. Warm off-white background, restrained pale sage and lime palette, premium collectible toy product render. Strong volumetric shading, tactile polished material, friendly capable personality. Not a flat illustration, not food photography, not UI screenshot.\nConstraints: no text, letters, numbers, logos, brands, watermarks, checkerboards, real software UI, decorative neon, extra limbs, duplicated character or detached body parts. Use only simple language-neutral three-dimensional props and generous negative space. Full-body character entirely visible including leaf tips and feet.\nComposition: very wide calm landscape, hero banner. The mascot stands just right of center on a low warm-white studio surface, smiling toward the viewer with a small wave. On the left a tidy small stack of physical paper files with abstract icons and a little cream laptop shape, on the right a finished mint folder and one subtle green checkmark token. Objects are supporting props, the mascot is the focus. All character and props contained in the central 65 percent of the image height, with ample blank background above and below, safe for a wide 2:1 crop. A clean unified studio backdrop with a soft pale mint wash; no fake dashboard panels."
+    },
+    {
+      "name": "lime-agent-context",
+      "model": "gpt-image-2.5-flare",
+      "prompt": "Use case: stylized-concept.\nAsset type: illustration for the Lime open-source repository README, language-neutral brand scene.\nInput image 1: exact character identity and material reference. Preserve this original lime pet's round thick three-dimensional body, lime-segment face inset, dark-green glossy oval eyes, tiny smile, cream cheeks, two thick leaf sprouts, tiny pill arms and short feet. Keep the same face and anatomy, the same high-quality translucent lime resin, subtle peel texture, refraction, soft studio key and rim lighting, grounded contact shadows. Do not redesign or add another mascot. Warm off-white background, restrained pale sage and lime palette, premium collectible toy product render. Strong volumetric shading, tactile polished material, friendly capable personality. Not a flat illustration, not food photography, not UI screenshot.\nConstraints: no text, letters, numbers, logos, brands, watermarks, checkerboards, real software UI, decorative neon, extra limbs, duplicated character or detached body parts. Use only simple language-neutral three-dimensional props and generous negative space. Full-body character entirely visible including leaf tips and feet.\nComposition: one mascot beside a neat set of cream project folders and two reference books, gently arranging one blank source card with a little magnifying glass nearby. Theme: understand the project context before acting. Simple three-dimensional still life, generous outer margins, character and props grounded on one studio surface. Full-body mascot in the center, objects below shoulder height."
+    },
+    {
+      "name": "lime-agent-work",
+      "model": "gpt-image-2.5-flare",
+      "prompt": "Use case: stylized-concept.\nAsset type: illustration for the Lime open-source repository README, language-neutral brand scene.\nInput image 1: exact character identity and material reference. Preserve this original lime pet's round thick three-dimensional body, lime-segment face inset, dark-green glossy oval eyes, tiny smile, cream cheeks, two thick leaf sprouts, tiny pill arms and short feet. Keep the same face and anatomy, the same high-quality translucent lime resin, subtle peel texture, refraction, soft studio key and rim lighting, grounded contact shadows. Do not redesign or add another mascot. Warm off-white background, restrained pale sage and lime palette, premium collectible toy product render. Strong volumetric shading, tactile polished material, friendly capable personality. Not a flat illustration, not food photography, not UI screenshot.\nConstraints: no text, letters, numbers, logos, brands, watermarks, checkerboards, real software UI, decorative neon, extra limbs, duplicated character or detached body parts. Use only simple language-neutral three-dimensional props and generous negative space. Full-body character entirely visible including leaf tips and feet.\nComposition: one mascot using a small cream rounded wrench to fit two chunky mint and lime puzzle-shaped tool parts together on a low cream workbench. A tiny laptop-shaped prop with a blank dark-green screen sits beside it. Theme: use tools to move a task forward. Single clear action, simple three-dimensional still life, generous outer margins, all grounded on one studio surface. Full-body mascot, objects below shoulder height."
+    },
+    {
+      "name": "lime-agent-review",
+      "model": "gpt-image-2.5-flare",
+      "prompt": "Use case: stylized-concept.\nAsset type: illustration for the Lime open-source repository README, language-neutral brand scene.\nInput image 1: exact character identity and material reference. Preserve this original lime pet's round thick three-dimensional body, lime-segment face inset, dark-green glossy oval eyes, tiny smile, cream cheeks, two thick leaf sprouts, tiny pill arms and short feet. Keep the same face and anatomy, the same high-quality translucent lime resin, subtle peel texture, refraction, soft studio key and rim lighting, grounded contact shadows. Do not redesign or add another mascot. Warm off-white background, restrained pale sage and lime palette, premium collectible toy product render. Strong volumetric shading, tactile polished material, friendly capable personality. Not a flat illustration, not food photography, not UI screenshot.\nConstraints: no text, letters, numbers, logos, brands, watermarks, checkerboards, real software UI, decorative neon, extra limbs, duplicated character or detached body parts. Use only simple language-neutral three-dimensional props and generous negative space. Full-body character entirely visible including leaf tips and feet.\nComposition: one happy mascot reviewing a finished mint folder with a single dark-green checkmark embossed on its cover, one cream output document and a neat small checklist prop with three simple circular checks, without letters or numbers. Theme: inspect the result and keep going. The mascot points at the finished folder, cheerful quiet confidence. Simple three-dimensional still life, generous outer margins, all grounded on one studio surface. Full-body mascot, props below shoulder height."
+    }
+  ],
+  "correctionPrompt": "Use case: precise-object-edit.\nInput image 1 is the edit target: the Lime pet using a wrench at a small workbench.\nChange only the mascot's arm on the left side of the image. Remove the extra raised oval/waving limb behind the hand that holds the wrench. Replace that raised oval with the continuous round green body surface. Keep one short arm ending in a single small rounded hand gripping the cream wrench handle. The mascot must have exactly two arms total: one holding the wrench at image left, one resting on the puzzle at image right.\nPreserve the exact character face, eyes, smile, cheeks, lime segments, leaves, feet, body material, bench, puzzle pieces, laptop, background, composition, lighting, colors and overall scene. Do not add or remove any other object. Keep the existing premium translucent 3D resin finish. No text, logo, watermark or extra limbs.\n",
+  "assets": [
+    {
+      "file": "lime-companion.webp",
+      "width": 1200,
+      "height": 884,
+      "sourceSha256": "3548529366a531b8cb9f74e3b7f51e1e2c17b7f33a1e5c763eb93a4495d76228",
+      "sha256": "d07e2843b08e026d0eeb83cf64538c2faf1bc757db2c0883c1c6f928db1c083f"
+    },
+    {
+      "file": "lime-agent-hero.webp",
+      "width": 1600,
+      "height": 800,
+      "sourceSha256": "4548ccdda7f0fed98a3e9db61e531fa491c3d0e30686f278af937b770b62350d",
+      "sha256": "a5e828136c8f895c4f25c8414b6a1b9a3c00b782664cc7bf3443ad9d0836cc50"
+    },
+    {
+      "file": "lime-agent-context.webp",
+      "width": 1200,
+      "height": 884,
+      "sourceSha256": "096d90ed527ba2bdfa972ddfb1dd5b60423a0d20bdb7aa423b03afcf1c8616c9",
+      "sha256": "b719cd1dc594c335a4a93687a1ef560bd2acd75bdf1e894f15a9636ef80f2787"
+    },
+    {
+      "file": "lime-agent-work.webp",
+      "width": 1200,
+      "height": 884,
+      "sourceSha256": "4340823057537eddb39e0b72565bd86995ba87f589cc374282cd84afcdaf61c6",
+      "sha256": "cfa16c115603191d8dae8315d167fbf1f54912f61cb2a9864d8f9158239eb391"
+    },
+    {
+      "file": "lime-agent-review.webp",
+      "width": 1200,
+      "height": 884,
+      "sourceSha256": "d1e710bf830ce000e376f571f50cf5fbedd9edb4e3032441f28b2997920dc634",
+      "sha256": "742e53ac6a4d8286ea8f5c94e73e9c2021151a2d7c12815ecdbc2d9ad148dde0"
+    }
+  ]
+}
