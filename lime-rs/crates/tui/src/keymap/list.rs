@@ -3,7 +3,6 @@
 use super::*;
 use lime_core::config::TuiListKeymap;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 fn list_action_name(action: ListAction) -> &'static str {
     match action {
         ListAction::MoveUp => "move_up",
@@ -19,6 +18,7 @@ fn list_action_name(action: ListAction) -> &'static str {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ListAction {
     MoveUp,
     MoveDown,
