@@ -1,4 +1,4 @@
-//! Stateful Codex JSONL presentation; runtime authority remains in App Server.
+//! Stateful 上游 JSONL presentation; runtime authority remains in App Server.
 
 mod items;
 

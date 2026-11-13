@@ -1,6 +1,8 @@
+mod account_cmd;
 mod connection;
 mod dispatch;
 mod exec;
+mod market_cmd;
 mod marketplace_cmd;
 mod mcp_cmd;
 mod plugin_cmd;
@@ -867,6 +869,12 @@ enum ExecpolicySubcommand {
 
 #[derive(Debug, ClapSubcommand)]
 enum Subcommand {
+    /// Sign in to Lime through the shared native account owner.
+    Login(account_cmd::LoginCommand),
+
+    /// Sign out of the local Lime account.
+    Logout(account_cmd::LogoutCommand),
+
     /// Start the interactive TUI.
     Tui(TuiCli),
 
@@ -909,6 +917,8 @@ enum Subcommand {
 
     /// Manage plugins through App Server.
     Plugin(plugin_cmd::PluginCli),
+    /// Discover and manage shared skills and MCP servers. Outputs JSON.
+    Market(market_cmd::MarketCli),
 
     /// Start the sibling App Server with forwarded arguments.
     #[command(name = "app-server")]

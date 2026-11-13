@@ -37,16 +37,17 @@ fn export_bounded(root: &Path, paths: &[String], output: &Path, recipient: &str,
         return Err("Select files, save/quiesce applications and provide absolute paths before export".into());
     }
     let recipient = age::x25519::Recipient::from_str(recipient).map_err(|_| "Expected age X25519 public recipient; private keys are never accepted for export")?;
-    let root = root.canonicalize().map_err(|_| "Archive source root is unavailable")?;
+    let source_root = root.canonicalize().map_err(|_| "Archive source root is unavailable")?;
     let parent = output.parent().ok_or("Archive output requires a parent directory")?.canonicalize().map_err(|_| "Archive output directory is unavailable")?;
-    if output.exists() || parent.starts_with(&root) || output.extension().is_none_or(|extension| extension != "age") {
+    if output.exists() || parent.starts_with(&source_root) || output.extension().is_none_or(|extension| extension != "age") {
         return Err("Archive output must be a new .age file outside the source root".into());
     }
     let mut entries = BTreeSet::new();
     let mut skipped = 0_u64;
     for value in paths {
         let relative = safe_relative(Path::new(value))?;
-        collect(&root, &relative, sensitive, &mut entries, &mut skipped)?;
+        if excluded(&root.join(&relative), sensitive) { skipped += 1; continue; }
+        collect(&source_root, &relative, sensitive, &mut entries, &mut skipped)?;
     }
     if entries.is_empty() { return Err("No eligible regular files selected".into()); }
     let mut pending = tempfile::NamedTempFile::new_in(&parent).map_err(|_| "Cannot create encrypted archive")?;
@@ -64,7 +65,7 @@ fn export_bounded(root: &Path, paths: &[String], output: &Path, recipient: &str,
         archive.append_data(&mut header, MANIFEST, manifest.as_slice()).map_err(|_| "Cannot write encrypted archive manifest")?;
         let mut total = 0_u64;
         for relative in &entries {
-            let source = root.join(relative);
+            let source = source_root.join(relative);
             let before = fs::symlink_metadata(&source).map_err(|_| "Archive source changed")?;
             if !before.is_file() || before.file_type().is_symlink() { return Err("Archive source changed; retry after quiescing applications".into()); }
             let mut file = File::open(&source).map_err(|_| "Cannot read archive source")?;
@@ -101,8 +102,8 @@ fn export_bounded(root: &Path, paths: &[String], output: &Path, recipient: &str,
 }
 
 fn collect(root: &Path, relative: &Path, sensitive: bool, entries: &mut BTreeSet<PathBuf>, skipped: &mut u64) -> Result<(), String> {
-    if excluded(relative, sensitive) { *skipped += 1; return Ok(()); }
     let source = root.join(relative);
+    if excluded(&source, sensitive) { *skipped += 1; return Ok(()); }
     let mut current = root.to_owned();
     for component in relative.components() {
         current.push(component);
@@ -129,7 +130,7 @@ fn excluded(path: &Path, sensitive: bool) -> bool {
     if names.iter().any(|name| [".aliyun", ".aws", ".azure", ".age", ".lime", "computer-use", "cloud-desktops", "credentials", "node_modules", ".cache", "__pycache__"].contains(name)) { return true; }
     if names.windows(2).any(|pair| [[".config", "gcloud"], [".config", "rclone"], [".config", "lime"], ["share", "lime"]].contains(&[pair[0], pair[1]])) { return true; }
     let leaf = names.last().copied().unwrap_or("");
-    leaf == MANIFEST || leaf == "encryption-key.v1" || (!sensitive && (names.iter().any(|name| [".ssh", ".gnupg", ".vnc", "tigervnc", "keyrings", "google-chrome", "chromium", "gh", "railway", "cloudflare", ".wrangler"].contains(name))
+    leaf == MANIFEST || leaf == "encryption-key.v1" || (!sensitive && (names.iter().any(|name| [".ssh", ".gnupg", ".vnc", "tigervnc", "keyrings", "google-chrome", "chromium", "gh", "railway", ".railway", "cloudflare", ".wrangler"].contains(name))
         || leaf.starts_with(".env") || [".npmrc", ".netrc", ".pypirc", ".git-credentials", "Cookies", "Login Data"].contains(&leaf)
         || [".pem", ".key", ".p12", ".pfx"].iter().any(|suffix| leaf.ends_with(suffix))))
 }

@@ -1,4 +1,4 @@
-//! Codex editor actions resolved once; dispatch never reinterprets the persisted config.
+//! 上游 editor actions resolved once; dispatch never reinterprets the persisted config.
 
 use super::*;
 use lime_core::config::TuiEditorKeymap;
@@ -30,6 +30,13 @@ pub(crate) struct EditorKeymap {
 }
 
 impl EditorKeymap {
+    pub(crate) fn describe(&self) -> Vec<(&'static str, Vec<String>)> {
+        self.actions
+            .iter()
+            .map(|(_, name, set)| (*name, set.specs()))
+            .collect()
+    }
+
     pub(super) fn from_config(config: &TuiEditorKeymap) -> Result<Self, String> {
         let alt = |code| KeyBinding {
             code,

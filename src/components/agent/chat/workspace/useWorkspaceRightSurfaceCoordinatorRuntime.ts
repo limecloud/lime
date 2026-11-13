@@ -6,6 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
+import { getTerminalPanelPreferences } from "@/lib/terminalPanelPreferences";
 import type { AgentThreadItem, AgentThreadTurn } from "@/lib/api/agentProtocol";
 import { useThreadOutputs } from "./right-surface/useThreadOutputs";
 import type { TerminalAction } from "./localConversationActionHelpers";
@@ -363,6 +364,14 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
           item.thread_id === target.thread_id,
       );
       if (item?.type !== "command_execution") return;
+      if (getTerminalPanelPreferences().location === "bottom") {
+        window.dispatchEvent(
+          new CustomEvent("lime:open-bottom-terminal", {
+            detail: { threadId: item.thread_id, itemId: item.id },
+          }),
+        );
+        return;
+      }
       setHarnessPanelVisible(false);
       setExpertInfoPanelCollapsed(true);
       localState.openBackgroundTerminal(item);

@@ -2,10 +2,6 @@
 /// <reference types="vite/client" />
 /// <reference types="vite-plugin-svgr/client" />
 
-interface ImportMetaEnv {
-  readonly VITE_LIMECORE_ORIGIN?: string;
-}
-
 // SVG 模块声明 - 支持 ?react 后缀导入为 React 组件
 declare module "*.svg?react" {
   import * as React from "react";

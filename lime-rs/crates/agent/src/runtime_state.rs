@@ -2,8 +2,8 @@ use crate::credential_bridge::{
     create_configured_reply_provider, ConfiguredReplyProvider, CredentialBridge,
 };
 use crate::protocol::AgentActionRequiredScope;
-mod execution;
 mod computer_use;
+mod execution;
 mod mcp_runtime;
 #[cfg(test)]
 mod mcp_runtime_tests;
@@ -548,18 +548,26 @@ impl AgentRuntimeState {
 
     pub async fn ensure_mcp_runtime(
         &self,
+        oauth_store_root: Option<std::path::PathBuf>,
         session_id: String,
         thread_id: String,
         elicitation_router: ElicitationRequestRouter,
         server_specs: Vec<McpRuntimeServerSpec>,
     ) -> Result<(), String> {
-        self.ensure_mcp_runtime_generation(session_id, thread_id, elicitation_router, server_specs)
-            .await
-            .map(|_| ())
+        self.ensure_mcp_runtime_generation(
+            oauth_store_root,
+            session_id,
+            thread_id,
+            elicitation_router,
+            server_specs,
+        )
+        .await
+        .map(|_| ())
     }
 
     async fn ensure_mcp_runtime_generation(
         &self,
+        oauth_store_root: Option<std::path::PathBuf>,
         session_id: String,
         thread_id: String,
         elicitation_router: ElicitationRequestRouter,
@@ -575,12 +583,15 @@ impl AgentRuntimeState {
                     "MCP runtime thread mismatch for session '{session_id}'"
                 ));
             }
-            if runtime.server_specs() == server_specs {
+            if runtime.server_specs() == server_specs
+                && runtime.oauth_store_root() == oauth_store_root.as_deref()
+            {
                 return Ok(runtime);
             }
         }
 
         let runtime = Arc::new(McpThreadRuntime::new(
+            oauth_store_root,
             session_id.clone(),
             thread_id.clone(),
             elicitation_router,

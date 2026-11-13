@@ -10,7 +10,7 @@ use tool_runtime::tool_executor::RuntimeToolExecutionRequest;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct ToolIntent {
+pub(in crate::account) struct ToolIntent {
     pub key: String,
     pub task_id: String,
     pub session_id: String,
@@ -70,33 +70,15 @@ impl AccountManager {
         resource: CloudResource,
         path: &str,
         input: Value,
+        expected_epoch: &str,
     ) -> Result<ToolIntent, String> {
-        let call = request
-            .context
-            .tool_identity()
-            .ok_or("cloud_tool_identity_required")?;
-        let mut hash = Sha256::new();
-        for part in [
-            "cloud-tool.v1",
-            request.context.session_id(),
-            call.turn_id(),
-            call.call_id(),
-        ] {
-            if part.is_empty() || part.len() > 256 {
-                return Err("cloud_tool_identity_invalid".into());
-            }
-            hash.update((part.len() as u64).to_be_bytes());
-            hash.update(part.as_bytes());
-        }
-        let call_key = format!("tool_{}", hex::encode(hash.finalize()));
+        let (call_key, arguments) = tool_call(request)?;
         let explicit = request.params["operation_key"].as_str();
-        let mut arguments = request.params.clone();
-        arguments
-            .as_object_mut()
-            .ok_or("cloud_tool_input_invalid")?
-            .remove("operation_key");
         store::with_lock(&self.path, || {
             let state = store::load(&self.path)?;
+            if state.epoch != expected_epoch {
+                return Err("account_changed".into());
+            }
             let account = state.account.as_ref().ok_or("account_login_required")?;
             let language = state
                 .authorizations
@@ -162,7 +144,7 @@ impl AccountManager {
         })
     }
 
-    pub(super) fn check_tool_epoch(&self, intent: &ToolIntent) -> Result<(), String> {
+    pub(in crate::account) fn check_tool_epoch(&self, intent: &ToolIntent) -> Result<(), String> {
         let state = store::load(&self.path)?;
         if state.epoch != intent.epoch
             || state
@@ -176,4 +158,33 @@ impl AccountManager {
         }
         Ok(())
     }
+}
+
+pub(super) fn tool_call(
+    request: &RuntimeToolExecutionRequest<'_>,
+) -> Result<(String, Value), String> {
+    let call = request
+        .context
+        .tool_identity()
+        .ok_or("cloud_tool_identity_required")?;
+    let mut hash = Sha256::new();
+    for part in [
+        "cloud-tool.v1",
+        request.context.session_id(),
+        call.turn_id(),
+        call.call_id(),
+    ] {
+        if part.is_empty() || part.len() > 256 {
+            return Err("cloud_tool_identity_invalid".into());
+        }
+        hash.update((part.len() as u64).to_be_bytes());
+        hash.update(part.as_bytes());
+    }
+    let call_key = format!("tool_{}", hex::encode(hash.finalize()));
+    let mut arguments = request.params.clone();
+    arguments
+        .as_object_mut()
+        .ok_or("cloud_tool_input_invalid")?
+        .remove("operation_key");
+    Ok((call_key, arguments))
 }

@@ -14,6 +14,8 @@ use crate::terminal_hyperlinks::HyperlinkLine;
 /// clipboard. Code, HTML, links, images, escaped directives and malformed directives remain
 /// byte-for-byte unchanged so source Markdown keeps its literal meaning.
 pub(crate) fn followup_labels(input: &str) -> Cow<'_, str> {
+    // Wire token produced by the upstream model protocol; renaming it would break follow-up
+    // parsing for server-generated Markdown, so the literal stays as the external contract.
     const PREFIX: &str = ":codex-followup[";
     if !input.contains(PREFIX) {
         return Cow::Borrowed(input);
@@ -316,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn followup_labels_match_codex_malformed_and_nested_boundaries() {
+    fn followup_labels_match_upstream_malformed_and_nested_boundaries() {
         let source = concat!(
             "Next: :codex-followup[Add **revenue charts**]{prompt=\"Add a \\\"Q3\\\" chart with } labels\"} ",
             ":codex-followup[Format `Sheet1`]{prompt=\"Format the spreadsheet\"}."

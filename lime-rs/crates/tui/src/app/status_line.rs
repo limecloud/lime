@@ -12,6 +12,25 @@ use serde_json::json;
 #[path = "status_line_tests.rs"]
 mod tests;
 
+fn hostname() -> Option<String> {
+    static HOSTNAME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    HOSTNAME
+        .get_or_init(|| {
+            std::process::Command::new("hostname")
+                .output()
+                .ok()
+                .and_then(|output| {
+                    output
+                        .status
+                        .success()
+                        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+                })
+                .filter(|hostname| !hostname.is_empty())
+                .or_else(|| std::env::var("HOSTNAME").ok())
+        })
+        .clone()
+}
+
 impl App {
     pub(crate) fn status_surface_data(&self) -> StatusSurfacePreviewData {
         let widget = &self.chat_widget;
@@ -20,14 +39,14 @@ impl App {
             reasoning: widget.reasoning_effort.clone(),
             current_dir: (!self.cwd.as_os_str().is_empty())
                 .then(|| self.cwd.to_string_lossy().into_owned()),
-            status: self.thread_id.as_ref().map(|_| {
-                if self.projection.active_turn_id().is_some() {
-                    "running"
-                } else {
-                    "ready"
-                }
-                .to_string()
-            }),
+            git_branch: self.thread_git_branch.clone(),
+            provider: widget.model_provider.clone(),
+            version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            hostname: crate::app::status_line::hostname(),
+            status: self
+                .thread_id
+                .as_ref()
+                .map(|_| self.live_thread_status().unwrap_or("ready").to_string()),
             permissions: widget.permissions.clone(),
             session_id: self.thread_id.clone(),
             thread_name: self

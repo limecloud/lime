@@ -62,7 +62,7 @@ fn render(text: &str, width: u16, height: u16) -> (TextArea, TextAreaState, Buff
 
 #[test]
 fn wrapped_url_fragments_keep_the_complete_destination() {
-    let url = "https://github.com/openai/codex/pull/20252";
+    let url = "https://github.com/example/project/pull/20252";
     let (_, _, buf) = render(&format!("Fix CI on {url}"), 26, 5);
     let linked = assert_destination(&buf, url);
     assert_eq!(linked_text(&linked), url);
@@ -71,7 +71,7 @@ fn wrapped_url_fragments_keep_the_complete_destination() {
 
 #[test]
 fn composer_wrapped_url_fragments_keep_the_complete_destination() {
-    let url = "https://github.com/openai/codex/pull/20252";
+    let url = "https://github.com/example/project/pull/20252";
     let mut app = crate::app::App::default();
     app.chat_widget
         .bottom_pane

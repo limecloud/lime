@@ -16,9 +16,8 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), file: vi.fn() }));
 vi.mock("@/lib/api/pluginCatalog", () => ({ readPluginSkill: mocks.read }));
 vi.mock("@/lib/api/fileBrowser", () => ({ readFileBytes: mocks.file }));
 const account = {
-  tenant: { id: "tenant" },
-  user: { id: "one" },
-  session: { id: "session-one" },
+  userId: "one",
+  generation: "generation-one",
 };
 function options(detail = skillPreviewDetail()) {
   return skillPreviewQueryOptions({
@@ -151,7 +150,11 @@ describe("plugin skill preview query lifecycle", () => {
     const query = options();
     const pending = client.fetchQuery(query).catch((error: unknown) => error);
     const signal = mocks.read.mock.calls[0][1].signal as AbortSignal;
-    await seedCloudAccount({ ...account, user: { id: "two" } });
+    await seedCloudAccount({
+      ...account,
+      userId: "two",
+      generation: "generation-two",
+    });
     await seedCloudAccount(account);
     expect(signal.aborted).toBe(true);
     resolve({ contents: "Private old contents" });
@@ -167,7 +170,7 @@ describe("plugin skill preview query lifecycle", () => {
   it("does not revive a cached response after an unobserved account switch away and back", async () => {
     mocks.read.mockResolvedValueOnce({ contents: "Old lifetime" });
     await client.fetchQuery(options());
-    await seedCloudAccount({ ...account, session: { id: "other-session" } });
+    await seedCloudAccount({ ...account, generation: "generation-other" });
     await seedCloudAccount(account);
     mocks.read.mockResolvedValueOnce({ contents: "Fresh lifetime" });
     expect(await client.fetchQuery(options())).toEqual({
@@ -187,7 +190,11 @@ describe("plugin skill preview query lifecycle", () => {
     const query = options();
     const pending = client.fetchQuery(query);
     const rejected = expect(pending).rejects.toThrow("cloud account changed");
-    await seedCloudAccount({ ...account, user: { id: "two" } });
+    await seedCloudAccount({
+      ...account,
+      userId: "two",
+      generation: "generation-two",
+    });
     await seedCloudAccount(account);
     resolve({ contents: "Rejected old lifetime" });
     await rejected;

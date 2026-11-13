@@ -280,13 +280,13 @@ export async function waitForPageCondition(
 export async function openMcpConfigSettings(page, options) {
   await openSettings(page, options);
   await page
-    .locator('[data-testid="settings-sidebar-tab-plugins-settings"]')
+    .locator('[data-testid="settings-sidebar-tab-mcp-servers"]')
     .click();
-  await page.locator('[data-testid="plugins-settings-tab-mcps"]').waitFor({
+  await page.locator('[data-testid="mcp-config-page"]').waitFor({
     state: "visible",
     timeout: Math.min(45_000, options.timeoutMs),
   });
-  await page.locator('[data-testid="plugins-settings-tab-mcps"]').click();
+  await page.locator('[data-testid="mcp-config-page"]').click();
   await page.locator('[data-testid="mcp-config-page"]').waitFor({
     state: "visible",
     timeout: Math.min(45_000, options.timeoutMs),

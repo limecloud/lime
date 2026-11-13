@@ -86,8 +86,27 @@ export function pluginLocation(
     pluginName: marketplace.path ? plugin.name : plugin.remotePluginId!,
     ...(marketplace.path
       ? { marketplacePath: marketplace.path }
-      : { remoteMarketplaceName: marketplace.name }),
+      : {
+          remoteMarketplaceName: marketplace.name,
+          ...(plugin.remoteRelease
+            ? { remoteRelease: plugin.remoteRelease }
+            : {}),
+        }),
   };
+}
+
+export function isSelectedReleaseInstalled(
+  plugin: AppServerPluginSummary,
+): boolean {
+  if (!plugin.installed) return false;
+  if (!plugin.remoteRelease) return true;
+  const local = plugin.localRelease;
+  return Boolean(
+    local &&
+    local.id === plugin.remoteRelease.id &&
+    local.manifestSha256 === plugin.remoteRelease.manifestSha256 &&
+    local.archiveSha256 === plugin.remoteRelease.archiveSha256,
+  );
 }
 
 export function detailCapabilityCount(detail: AppServerPluginDetail): number {

@@ -1,18 +1,13 @@
-use agent_protocol::ThreadId;
 use app_server_protocol::protocol::v2::{
     CurrentTimeReadParams, CurrentTimeReadResponse, METHOD_CURRENT_TIME_READ,
 };
 use chrono::{DateTime, Utc};
 use std::time::Duration;
 use thiserror::Error;
-use tokio::sync::mpsc;
 use tokio::time::{timeout_at, Instant};
 
-use crate::server_request::{ServerRequestOwner, ServerRequestRouter};
-use crate::{
-    AppServer, AppServerError, JsonRpcMessage, OutgoingMessage, QueuedOutgoingMessage,
-    TransportDisconnects, TransportWriters,
-};
+use crate::host_request::HostRequestRouter;
+use crate::{AppServer, AppServerError};
 
 pub(crate) const CURRENT_TIME_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -33,25 +28,12 @@ pub enum CurrentTimeReadError {
 
 #[derive(Clone)]
 pub(crate) struct CurrentTimeRequestRouter {
-    thread_states: crate::thread_state::ThreadStateManager,
-    transport_writers: TransportWriters,
-    transport_disconnects: TransportDisconnects,
-    server_requests: ServerRequestRouter,
+    host: HostRequestRouter,
 }
 
 impl CurrentTimeRequestRouter {
-    pub(crate) fn new(
-        thread_states: crate::thread_state::ThreadStateManager,
-        transport_writers: TransportWriters,
-        transport_disconnects: TransportDisconnects,
-        server_requests: ServerRequestRouter,
-    ) -> Self {
-        Self {
-            thread_states,
-            transport_writers,
-            transport_disconnects,
-            server_requests,
-        }
+    pub(crate) fn new(host: HostRequestRouter) -> Self {
+        Self { host }
     }
 
     async fn read_current_time(
@@ -60,70 +42,17 @@ impl CurrentTimeRequestRouter {
         timeout: Duration,
     ) -> Result<DateTime<Utc>, CurrentTimeReadError> {
         let deadline = Instant::now() + timeout;
-        let response = timeout_at(deadline, async {
-            let thread_id = ThreadId::new(thread_id);
-            self.thread_states
-                .wait_for_thread_subscriber(&thread_id)
-                .await;
-            let connection_ids = self
-                .thread_states
-                .subscribed_connection_ids(&thread_id)
-                .await;
-            let connection_id = match connection_ids.as_slice() {
-                [connection_id] => *connection_id,
-                [] => {
-                    return Err(AppServerError::from(
-                        crate::ServerRequestError::ClientUnavailable,
-                    ))
-                }
-                _ => {
-                    return Err(AppServerError::from(
-                        crate::ServerRequestError::ClientAmbiguous {
-                            client_count: connection_ids.len(),
-                        },
-                    ));
-                }
-            };
-            let writer = self
-                .transport_writers
-                .lock()
-                .expect("app-server transport writer mutex poisoned")
-                .get(&connection_id)
-                .cloned()
-                .ok_or(AppServerError::ConnectionUnavailable { connection_id })?;
-            let pending = self.server_requests.register_for_owner(
-                ServerRequestOwner::Transport(connection_id),
+        let response = timeout_at(
+            deadline,
+            self.host.request(
+                &thread_id,
                 METHOD_CURRENT_TIME_READ,
-                Some(serde_json::to_value(CurrentTimeReadParams {
-                    thread_id: thread_id.to_string(),
-                })?),
-            );
-            let queued = QueuedOutgoingMessage::new(OutgoingMessage::from(
-                JsonRpcMessage::Request(pending.request().clone()),
-            ));
-            let disconnect = self
-                .transport_disconnects
-                .lock()
-                .expect("app-server transport disconnect mutex poisoned")
-                .get(&connection_id)
-                .cloned();
-            if let Some(disconnect) = disconnect {
-                match writer.try_send(queued) {
-                    Ok(()) => {}
-                    Err(mpsc::error::TrySendError::Full(_)) => disconnect.cancel(),
-                    Err(mpsc::error::TrySendError::Closed(_)) => {
-                        disconnect.cancel();
-                        return Err(AppServerError::ConnectionWriterClosed { connection_id });
-                    }
-                }
-            } else {
-                writer
-                    .send(queued)
-                    .await
-                    .map_err(|_| AppServerError::ConnectionWriterClosed { connection_id })?;
-            }
-            pending.wait().await.map_err(AppServerError::from)
-        })
+                serde_json::to_value(CurrentTimeReadParams {
+                    thread_id: thread_id.clone(),
+                })
+                .map_err(AppServerError::from)?,
+            ),
+        )
         .await
         .map_err(|_| CurrentTimeReadError::TimedOut {
             seconds: timeout.as_secs(),

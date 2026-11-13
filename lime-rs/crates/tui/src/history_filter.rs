@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use app_server_protocol::protocol::v2::{ThreadItem, Turn, TurnStatus};
 
-/// Return canonical ids of user messages that Codex does not show in history.
+/// Return canonical ids of user messages that 上游 does not show in history.
 ///
 /// Review prompts are agent-only inputs persisted in the canonical thread. The
 /// nested interrupted turn rule is intentionally based on turn/item identity,

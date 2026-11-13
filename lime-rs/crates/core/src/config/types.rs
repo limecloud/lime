@@ -497,6 +497,9 @@ pub struct Config {
     /// 历史配置中的 "zh" / "en" 仅作为前端读取兼容值保留。
     #[serde(default = "default_language")]
     pub language: String,
+    /// 云服务地址只由用户配置拥有，项目与模型输入不能覆盖。
+    #[serde(default, skip_serializing_if = "super::CloudConfig::is_default")]
+    pub cloud: super::CloudConfig,
     /// 模型配置（动态加载 Provider 和模型列表）
     #[serde(default)]
     pub models: ModelsConfig,
@@ -2194,6 +2197,7 @@ impl Default for Config {
             endpoint_providers: EndpointProvidersConfig::default(),
             minimize_to_tray: default_minimize_to_tray(),
             language: default_language(),
+            cloud: super::CloudConfig::default(),
             models: ModelsConfig::default(),
             agent: NativeAgentConfig::default(),
             skills: SkillsConfig::default(),

@@ -196,6 +196,98 @@
       "oneOf": [
         {
           "additionalProperties": false,
+          "description": "Short-lived public recipient on the destination; no private key is returned.",
+          "properties": {
+            "action": {
+              "const": "prepareModelConnection",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Main-only local action; the selected key is returned only as age ciphertext.",
+          "properties": {
+            "action": {
+              "const": "sealModelConnection",
+              "type": "string"
+            },
+            "expiresAt": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "keyId": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "providerId": {
+              "type": "string"
+            },
+            "recipient": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "expiresAt",
+            "keyId",
+            "operationId",
+            "providerId",
+            "recipient"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Authenticated destination import; receipt and Provider commit atomically.",
+          "properties": {
+            "action": {
+              "const": "applyModelConnection",
+              "type": "string"
+            },
+            "ciphertext": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ciphertext",
+            "operationId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "readModelConnection",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "action": {
               "const": "connectAlibaba",
@@ -323,6 +415,28 @@
         },
         {
           "additionalProperties": false,
+          "description": "Check local connectivity for this exact valid quote before paid purchase.\nNo cloud resources are changed and no public address is returned.",
+          "properties": {
+            "action": {
+              "const": "preflightEcsPurchase",
+              "type": "string"
+            },
+            "quoteId": {
+              "type": "string"
+            },
+            "spec": {
+              "$ref": "#/$defs/EcsDesktopSpec"
+            }
+          },
+          "required": [
+            "action",
+            "quoteId",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Read the original preparation, or explicitly authorize a network-only ROS stack.\nNo compute purchase occurs here. Unknown submissions are only inspected.",
           "properties": {
             "action": {
@@ -370,6 +484,32 @@
             "action",
             "profile",
             "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Authorize two fixed connection ports from the current public IPv4 only.\nOnly a verified Lime-created dedicated network can be changed.",
+          "properties": {
+            "action": {
+              "const": "prepareEcsConnection",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudDesktopResource"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "operationId",
+            "resource"
           ],
           "type": "object"
         },
@@ -805,6 +945,122 @@
         },
         {
           "additionalProperties": false,
+          "description": "Main-only public software distribution. Never available through Renderer JSONL.",
+          "properties": {
+            "action": {
+              "const": "prepareRuntimeDistribution",
+              "type": "string"
+            },
+            "archiveBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "archiveSha256": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "archiveBytes",
+            "archiveSha256",
+            "operationId",
+            "profile",
+            "regionId",
+            "version"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "readRuntimeDistribution",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Returns a short-lived GET capability to the local native host only.",
+          "properties": {
+            "action": {
+              "const": "signRuntimeDistribution",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "cleanupRuntimeDistribution",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "action": {
               "const": "transferOssArchive",
@@ -1089,6 +1345,66 @@
             "operationId",
             "resource",
             "workSaved"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Stop, preserve one encrypted system disk as a verified private image, then release.\nReusing the operation ID resumes only its existing durable child operations.",
+          "properties": {
+            "action": {
+              "const": "hibernateEcs",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "discardData": {
+              "type": "boolean"
+            },
+            "includeCredentials": {
+              "type": "boolean"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudDesktopResource"
+            },
+            "workSaved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "discardData",
+            "includeCredentials",
+            "operationId",
+            "resource",
+            "workSaved"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Stop future hibernation steps; cannot undo or cancel an initiated release.",
+          "properties": {
+            "action": {
+              "const": "cancelEcsHibernation",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "operationId"
           ],
           "type": "object"
         },
@@ -2592,9 +2908,6 @@
         {
           "additionalProperties": false,
           "properties": {
-            "baseUrl": {
-              "type": "string"
-            },
             "installation": {
               "anyOf": [
                 {
@@ -2618,13 +2931,226 @@
             }
           },
           "required": [
-            "baseUrl",
             "language",
             "type"
           ],
           "type": "object"
         }
       ]
+    },
+    "MarketEnabledSetParams": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "enabled",
+        "itemId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "MarketInstallCancelParams": {
+      "additionalProperties": false,
+      "properties": {
+        "installAttemptId": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "installAttemptId",
+        "itemId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "MarketInstallParams": {
+      "additionalProperties": false,
+      "properties": {
+        "installAttemptId": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        }
+      },
+      "required": [
+        "installAttemptId",
+        "itemId",
+        "kind",
+        "release"
+      ],
+      "type": "object"
+    },
+    "MarketInstalledParams": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MarketListParams": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "limit": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "query": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "MarketPendingParams": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MarketReadParams": {
+      "additionalProperties": false,
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "release": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "itemId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "MarketReconcileParams": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MarketReleaseReference": {
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "type": "object"
+    },
+    "MarketResourceKind": {
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "type": "string"
+    },
+    "MarketUninstallParams": {
+      "additionalProperties": false,
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "itemId",
+        "kind"
+      ],
+      "type": "object"
     },
     "MarketplaceAddParams": {
       "properties": {
@@ -2958,6 +3484,17 @@
             "null",
             "string"
           ]
+        },
+        "remoteRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Required for a new shared-market installation."
         }
       },
       "required": [
@@ -3042,6 +3579,17 @@
             "null",
             "string"
           ]
+        },
+        "remoteRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact catalog release. Omit to read an installed plugin."
         }
       },
       "required": [
@@ -7664,6 +8212,186 @@
         },
         "params": {
           "$ref": "#/$defs/MarketplaceUpgradeParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/install/pending",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketPendingParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/install/cancel",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketInstallCancelParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/reconcile",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketReconcileParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/list",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketListParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/read",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketReadParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/install",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketInstallParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/installed",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketInstalledParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/enabled/set",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketEnabledSetParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "market/uninstall",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/MarketUninstallParams"
         }
       },
       "required": [

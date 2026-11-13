@@ -78,14 +78,29 @@ impl RuntimeCore {
             })
             .await?;
         }
-        self.app_data_source.login_mcp_server_oauth(params).await
+        let handle = self.app_data_source.login_mcp_server_oauth(params).await?;
+        let backend = self.backend.clone();
+        Ok(lime_mcp::McpOAuthLoginHandle::new(
+            handle.authorization_url.clone(),
+            handle.state.clone(),
+            async move {
+                let result = handle.wait().await;
+                if result.is_ok() {
+                    backend.invalidate_mcp_runtimes().await;
+                }
+                result
+            },
+        ))
     }
 
     pub async fn logout_mcp_server_oauth(
         &self,
         params: McpServerOauthLogoutParams,
     ) -> Result<McpServerOauthLogoutResponse, RuntimeCoreError> {
-        self.app_data_source.logout_mcp_server_oauth(params).await
+        self.backend.invalidate_mcp_runtimes().await;
+        let result = self.app_data_source.logout_mcp_server_oauth(params).await;
+        self.backend.invalidate_mcp_runtimes().await;
+        result
     }
 
     pub async fn list_mcp_tools(&self) -> Result<McpToolListResponse, RuntimeCoreError> {

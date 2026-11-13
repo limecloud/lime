@@ -48,20 +48,48 @@ pub(crate) fn list_mcp_servers(
 
 pub(crate) async fn list_mcp_servers_with_status_v2(
     db: &DbConnection,
+    plugin_store: &super::plugin_catalog::PluginStore,
+    market_store: &super::market::MarketStore,
     manager: &McpManagerState,
     params: ListMcpServerStatusParams,
 ) -> Result<ListMcpServerStatusResponse, RuntimeCoreError> {
-    let servers = McpService::get_all(db).map_err(data_error)?;
+    let mut servers = McpService::get_all(db)
+        .map_err(data_error)?
+        .into_iter()
+        .map(|server| {
+            (
+                server.name,
+                None,
+                parse_mcp_server_config(&server.server_config),
+            )
+        })
+        .collect::<Vec<_>>();
+    let existing = servers
+        .iter()
+        .map(|(name, _, _)| name.clone())
+        .collect::<HashSet<_>>();
+    for spec in super::plugin_catalog::list_plugin_mcp_runtime_server_specs(plugin_store)
+        .map_err(data_error)?
+    {
+        if !existing.contains(&spec.name) {
+            servers.push((spec.name, spec.plugin_id, spec.config));
+        }
+    }
+    for spec in market_store.mcp_specs().map_err(data_error)? {
+        if !servers.iter().any(|(name, _, _)| *name == spec.name) {
+            servers.push((spec.name, None, spec.config));
+        }
+    }
+    servers.sort_by(|left, right| left.0.cmp(&right.0));
     let manager = manager.lock().await;
     let tools = manager.list_tools().await.map_err(mcp_error)?;
     let resources = manager.list_resources().await.map_err(mcp_error)?;
     let resource_templates = manager.list_resource_templates().await.map_err(mcp_error)?;
 
     let mut data = Vec::with_capacity(servers.len());
-    for server in servers {
-        let parsed_config = parse_mcp_server_config(&server.server_config);
+    for (name, plugin_id, parsed_config) in servers {
         let runtime_status = manager
-            .get_server_runtime_status(&server.name, Some(&parsed_config))
+            .get_server_runtime_status(&name, Some(&parsed_config))
             .await;
         let runtime_status_kind = if !runtime_status.enabled {
             Some(McpServerConnectionStatus::Disabled)
@@ -84,7 +112,7 @@ pub(crate) async fn list_mcp_servers_with_status_v2(
         let auth_status = lower_mcp_auth_status(&runtime_status.auth_status);
         let server_tools = tools
             .iter()
-            .filter(|tool| tool.server_name == server.name)
+            .filter(|tool| tool.server_name == name)
             .map(|tool| {
                 let name = lime_mcp::naming::extract_runtime_inner_tool_name(
                     &tool.server_name,
@@ -109,7 +137,7 @@ pub(crate) async fn list_mcp_servers_with_status_v2(
             .collect();
         let server_resources = resources
             .iter()
-            .filter(|resource| resource.server_name == server.name)
+            .filter(|resource| resource.server_name == name)
             .map(|resource| McpResource {
                 annotations: None,
                 description: resource.description.clone(),
@@ -124,7 +152,7 @@ pub(crate) async fn list_mcp_servers_with_status_v2(
             .collect();
         let server_resource_templates = resource_templates
             .iter()
-            .filter(|template| template.server_name == server.name)
+            .filter(|template| template.server_name == name)
             .map(|template| McpResourceTemplate {
                 annotations: None,
                 uri_template: template.uri_template.clone(),
@@ -139,9 +167,9 @@ pub(crate) async fn list_mcp_servers_with_status_v2(
             Some(app_server_protocol::protocol::v2::McpServerStatusDetail::ToolsAndAuthOnly)
         );
         data.push(McpServerStatus {
-            name: server.name,
+            name,
             runtime_status: runtime_status_kind,
-            plugin_id: None,
+            plugin_id,
             server_info,
             tools: if include_inventory {
                 server_tools
@@ -213,17 +241,12 @@ pub(crate) fn set_mcp_server_enabled(
 
 pub(crate) async fn start_mcp_server(
     db: &DbConnection,
+    plugin_store: &super::plugin_catalog::PluginStore,
+    market_store: &super::market::MarketStore,
     manager: &McpManagerState,
     params: McpServerStartParams,
 ) -> Result<McpServerLifecycleResponse, RuntimeCoreError> {
-    let server = McpService::get_all(db)
-        .map_err(data_error)?
-        .into_iter()
-        .find(|server| server.name == params.name)
-        .ok_or_else(|| {
-            RuntimeCoreError::Backend(format!("MCP server not found: {}", params.name))
-        })?;
-    let config = parse_mcp_server_config(&server.server_config);
+    let config = resolve_server_config(db, plugin_store, market_store, &params.name)?;
     let manager = manager.lock().await;
     manager
         .start_server(&params.name, &config)
@@ -243,17 +266,12 @@ pub(crate) async fn stop_mcp_server(
 
 pub(crate) async fn login_mcp_server_oauth(
     db: &DbConnection,
+    plugin_store: &super::plugin_catalog::PluginStore,
+    market_store: &super::market::MarketStore,
     manager: &McpManagerState,
     params: McpServerOauthLoginParams,
 ) -> Result<lime_mcp::McpOAuthLoginHandle, RuntimeCoreError> {
-    let server = McpService::get_all(db)
-        .map_err(data_error)?
-        .into_iter()
-        .find(|server| server.name == params.name)
-        .ok_or_else(|| {
-            RuntimeCoreError::Backend(format!("MCP server not found: {}", params.name))
-        })?;
-    let config = parse_mcp_server_config(&server.server_config);
+    let config = resolve_server_config(db, plugin_store, market_store, &params.name)?;
     let manager = manager.lock().await;
     manager
         .start_oauth_login(
@@ -268,17 +286,12 @@ pub(crate) async fn login_mcp_server_oauth(
 
 pub(crate) async fn logout_mcp_server_oauth(
     db: &DbConnection,
+    plugin_store: &super::plugin_catalog::PluginStore,
+    market_store: &super::market::MarketStore,
     manager: &McpManagerState,
     params: McpServerOauthLogoutParams,
 ) -> Result<McpServerOauthLogoutResponse, RuntimeCoreError> {
-    let server = McpService::get_all(db)
-        .map_err(data_error)?
-        .into_iter()
-        .find(|server| server.name == params.name)
-        .ok_or_else(|| {
-            RuntimeCoreError::Backend(format!("MCP server not found: {}", params.name))
-        })?;
-    let config = parse_mcp_server_config(&server.server_config);
+    let config = resolve_server_config(db, plugin_store, market_store, &params.name)?;
     let manager = manager.lock().await;
     let removed = manager
         .logout_oauth(&params.name, &config)
@@ -299,6 +312,7 @@ pub(crate) async fn list_mcp_tools(
 pub(crate) fn list_mcp_runtime_server_specs(
     db: &DbConnection,
     plugin_store: &super::plugin_catalog::PluginStore,
+    market_store: &super::market::MarketStore,
 ) -> Result<Vec<lime_mcp::McpRuntimeServerSpec>, RuntimeCoreError> {
     let mut specs = McpService::get_all(db)
         .map_err(data_error)?
@@ -332,6 +346,11 @@ pub(crate) fn list_mcp_runtime_server_specs(
         }
         Err(error) => {
             tracing::warn!(%error, "Plugin MCP runtime 配置读取失败，跳过 Plugin MCP servers")
+        }
+    }
+    for spec in market_store.mcp_specs().map_err(data_error)? {
+        if names.insert(spec.name.clone()) {
+            specs.push(spec);
         }
     }
     specs.sort_by(|left, right| left.name.cmp(&right.name));
@@ -465,6 +484,26 @@ pub(crate) async fn unsubscribe_mcp_resource(
 
 fn parse_mcp_server_config(config_value: &Value) -> McpServerConfig {
     McpServerConfig::from_value(config_value.clone()).unwrap_or_default()
+}
+
+fn resolve_server_config(
+    db: &DbConnection,
+    plugin_store: &super::plugin_catalog::PluginStore,
+    market_store: &super::market::MarketStore,
+    name: &str,
+) -> Result<McpServerConfig, RuntimeCoreError> {
+    if let Some(server) = McpService::get_all(db)
+        .map_err(data_error)?
+        .into_iter()
+        .find(|server| server.name == name)
+    {
+        return Ok(parse_mcp_server_config(&server.server_config));
+    }
+    list_mcp_runtime_server_specs(db, plugin_store, market_store)?
+        .into_iter()
+        .find(|server| server.name == name)
+        .map(|server| server.config)
+        .ok_or_else(|| RuntimeCoreError::Backend(format!("MCP server not found: {name}")))
 }
 
 fn lower_mcp_auth_status(status: &lime_mcp::McpServerAuthStatus) -> McpAuthStatus {

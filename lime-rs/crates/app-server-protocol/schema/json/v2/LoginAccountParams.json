@@ -32,9 +32,6 @@
     {
       "additionalProperties": false,
       "properties": {
-        "baseUrl": {
-          "type": "string"
-        },
         "installation": {
           "anyOf": [
             {
@@ -58,7 +55,6 @@
         }
       },
       "required": [
-        "baseUrl",
         "language",
         "type"
       ],

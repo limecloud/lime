@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
+import { getProjectlessWorkspaceRoot } from "@/lib/projectlessWorkspacePreference";
 import type {
   AgentExecutionStrategy,
   AgentSessionExecutionRuntime,
@@ -1432,7 +1433,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     ): Promise<string | null> => {
       const creationKey = JSON.stringify([
         workspaceId,
-        normalizedWorkingDir,
+        normalizedWorkingDir ?? getProjectlessWorkspaceRoot(),
         createOptions?.requestId ?? "local",
       ]);
       const pendingCreation =
@@ -1448,8 +1449,13 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       };
 
       const resolvedWorkspaceId = workspaceId?.trim() || "";
+      const effectiveWorkingDir =
+        normalizedWorkingDir ??
+        (!resolvedWorkspaceId
+          ? getProjectlessWorkspaceRoot() ?? undefined
+          : undefined);
       const sessionScopeId =
-        normalizedWorkingDir ?? (resolvedWorkspaceId || "detached");
+        effectiveWorkingDir ?? (resolvedWorkspaceId || "detached");
       const activateSession = createOptions?.activateSession !== false;
 
       const creationPromise = (async () => {
@@ -1466,7 +1472,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             sessionName: sessionName?.trim() || null,
             sessionScopeId,
             workspaceId: resolvedWorkspaceId || null,
-            workingDir: normalizedWorkingDir,
+            workingDir: effectiveWorkingDir,
           });
           const workspaceModelPreference =
             createOptions?.modelPreference ??
@@ -1482,7 +1488,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             creationExecutionStrategy,
             {
               runStartHooks: createOptions?.skipSessionStartHooks !== true,
-              workingDir: normalizedWorkingDir,
+              workingDir: effectiveWorkingDir,
               metadata: buildFreshSessionProviderModelMetadata(
                 nextProviderType,
                 nextModel,
@@ -1508,7 +1514,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             sessionStateWorkspaceRef.current = resolvedWorkspaceId;
             applySessionSnapshot({
               ...createEmptyAgentSessionSnapshot({
-                workingDir: normalizedWorkingDir,
+                workingDir: effectiveWorkingDir,
               }),
               sessionId: newSessionId,
               messages:
@@ -1537,7 +1543,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
               sessionId: newSessionId,
               sessionName,
               workspaceId: resolvedWorkspaceId || null,
-              workingDir: normalizedWorkingDir,
+              workingDir: effectiveWorkingDir,
             }),
           );
           if (activateSession) {
@@ -1596,7 +1602,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             sessionName: sessionName?.trim() || null,
             sessionScopeId,
             workspaceId: resolvedWorkspaceId || null,
-            workingDir: normalizedWorkingDir,
+            workingDir: effectiveWorkingDir,
           });
           return newSessionId;
         } catch (error) {
@@ -1612,7 +1618,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
               sessionName: sessionName?.trim() || null,
               sessionScopeId,
               workspaceId: resolvedWorkspaceId || null,
-              workingDir: normalizedWorkingDir,
+              workingDir: effectiveWorkingDir,
             },
             { level: "error" },
           );

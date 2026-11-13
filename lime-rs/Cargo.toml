@@ -6,7 +6,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.175.0"
+version = "1.176.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/limecloud/lime"
@@ -119,6 +119,8 @@ dirs = "5"
 regex = "1"
 pulldown-cmark = { version = "0.10", default-features = false }
 semver = "1"
+caseless = "0.2.2"
+unicode-normalization = "0.1.25"
 md5 = "0.7"
 jsonwebtoken = "9.3.1"
 hmac = "0.12"

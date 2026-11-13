@@ -1,4 +1,4 @@
-//! Local file-link parsing and display adapted from Codex TUI.
+//! Local file-link parsing and display adapted from 上游 TUI.
 
 use std::path::Path;
 

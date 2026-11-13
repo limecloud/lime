@@ -152,6 +152,8 @@ def consent_control(canceled):
                 if time.monotonic() > deadline:
                     raise Denied("AI input has not stopped; viewer input remains disabled")
                 time.sleep(0.05)
+        if canceled() or (root / "human-control").exists():
+            raise Denied("Approval canceled or human control requested", "canceled")
         raw = os.pread(fd, 8, 0)
         previous = int.from_bytes(raw, "big") if len(raw) == 8 else 0
         if len(raw) not in (0, 8) or previous == 2**64 - 1:
@@ -437,7 +439,7 @@ class Driver:
                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 try:
                     while prompt.poll() is None:
-                        if canceled():
+                        if canceled() or (managed and (lock_root() / "human-control").exists()):
                             raise Denied("Approval canceled", "canceled")
                         time.sleep(0.05)
                     accepted = prompt.returncode == 0 and not canceled()

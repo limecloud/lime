@@ -58,7 +58,6 @@ impl BottomPane {
         self.composer.current_text_with_pending()
     }
 
-    #[cfg(test)]
     pub(crate) fn insert_str(&mut self, value: &str) {
         self.composer.insert(value)
     }

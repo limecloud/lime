@@ -1,6 +1,6 @@
 //! Terminal color capability and palette helpers.
 //!
-//! The public names mirror Codex TUI. Startup foreground/background probes are
+//! The public names mirror 上游 TUI. Startup foreground/background probes are
 //! cached by the terminal lifecycle owner, while unsupported terminals fail
 //! closed to conservative defaults. Color quantization remains deterministic
 //! and safe for snapshot tests.

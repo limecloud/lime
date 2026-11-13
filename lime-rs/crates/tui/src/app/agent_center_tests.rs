@@ -143,7 +143,7 @@ fn overview_escape_is_an_explicit_action() {
 }
 
 #[test]
-fn overview_codex_shortcuts_dispatch_rename_stop_and_resume() {
+fn overview_upstream_shortcuts_dispatch_rename_stop_and_resume() {
     let mut view = AgentsOverviewView::new(
         vec![row("ready", AgentsOverviewGroup::Ready, false), {
             let mut active = row("active", AgentsOverviewGroup::Working, true);

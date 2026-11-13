@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "source": {
     "codexRoot": "/Users/coso/Documents/dev/rust/codex",
-    "codexRsCliCommit": "970111f6cb62cc02fe36a82ea7d71b37a2889c97"
+    "codexRsCliCommit": "1885417cd45a8da5bfdeb7864a5380a7481d48f2"
   },
   "trees": {
     "codex-rs/cli": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/cli",
-      "fileCount": 142,
+      "fileCount": 137,
       "files": [
         "BUILD.bazel",
         "Cargo.toml",
@@ -69,13 +69,6 @@
         "src/doctor/windows_dev_drive_tests.rs",
         "src/exec_args_tests.rs",
         "src/exec_server_args_tests.rs",
-        "src/exec_server_auth.rs",
-        "src/exec_server_auth_tests.rs",
-        "src/exec_server_command.rs",
-        "src/exec_server_credential.rs",
-        "src/exec_server_credential_tests.rs",
-        "src/exec_server_telemetry.rs",
-        "src/exec_server_telemetry_tests.rs",
         "src/exit_status.rs",
         "src/lib.rs",
         "src/login.rs",
@@ -87,8 +80,6 @@
         "src/mcp_login.rs",
         "src/mcp_login_tests.rs",
         "src/migrate_nfs_db.rs",
-        "src/migrate_nfs_db/access.rs",
-        "src/migrate_nfs_db/replacement.rs",
         "src/migrate_rollouts.rs",
         "src/plugin_cmd.rs",
         "src/plugin_cmd_tests.rs",
@@ -98,6 +89,7 @@
         "src/sandbox_uninstall.rs",
         "src/snapshots/codex__doctor__tests__doctor_dumb_non_interactive_human.snap",
         "src/snapshots/codex__doctor__tests__terminal_check_prioritizes_unreadable_terminfo_over_warnings.snap",
+        "src/snapshots/codex__doctor__tests__websocket_probe_human_output.snap",
         "src/snapshots/codex__exec_server_args_tests__exec_server_help_documents_remote_options.snap",
         "src/snapshots/codex__tests__unsupported_worktree_commands.snap",
         "src/snapshots/codex_cli__login__storage_tests__login_default_filter_records_sanitized_storage_fallback.snap",
@@ -131,6 +123,7 @@
         "tests/mcp_add_remove.rs",
         "tests/mcp_list.rs",
         "tests/mcp_login.rs",
+        "tests/migrate_nfs_db.rs",
         "tests/plugin_cli.rs",
         "tests/queue.rs",
         "tests/rollout_trace.rs",
@@ -140,6 +133,8 @@
         "tests/sandbox_uninstall.rs",
         "tests/snapshots/daemon_startup__agents_overview_before_folder_consent.snap",
         "tests/snapshots/daemon_startup__restrictive_launcher_warning.snap",
+        "tests/snapshots/doctor_enterprise_network__network_only_config_failure_human_output.snap",
+        "tests/snapshots/doctor_enterprise_network__network_only_human_output.snap",
         "tests/snapshots/doctor_path_safety__doctor_config_error_location.snap",
         "tests/snapshots/doctor_path_safety__doctor_config_invalid_data.snap",
         "tests/snapshots/doctor_path_safety__doctor_config_not_found.snap",
@@ -152,7 +147,7 @@
         "tests/update.rs",
         "tests/worktree.rs"
       ],
-      "symbolCount": 1110,
+      "symbolCount": 1087,
       "symbols": [
         {
           "path": "build.rs",
@@ -261,11 +256,6 @@
         },
         {
           "path": "src/config_override_args.rs",
-          "name": "localize_config_arg",
-          "kind": "function"
-        },
-        {
-          "path": "src/config_override_args.rs",
           "name": "try_parse_from",
           "kind": "function"
         },
@@ -297,6 +287,11 @@
         {
           "path": "src/daemon_update_tests.rs",
           "name": "daemon_handoff_uses_selected_executable_and_propagates_failure",
+          "kind": "function"
+        },
+        {
+          "path": "src/daemon_update_tests.rs",
+          "name": "package_update_runs_outside_the_project",
           "kind": "function"
         },
         {
@@ -381,7 +376,12 @@
         },
         {
           "path": "src/debug_sandbox/cloud_config_tests.rs",
-          "name": "debug_sandbox_bootstraps_cloud_managed_permission_profile_from_backend",
+          "name": "sandbox_fetches_managed_profile_only_when_local_policy_allows_backend",
+          "kind": "function"
+        },
+        {
+          "path": "src/debug_sandbox/cloud_config_tests.rs",
+          "name": "sandbox_state_skips_cloud_bootstrap",
           "kind": "function"
         },
         {
@@ -601,6 +601,11 @@
         },
         {
           "path": "src/doctor.rs",
+          "name": "close_reason_detail",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor.rs",
           "name": "codex_path_entries",
           "kind": "function"
         },
@@ -627,6 +632,11 @@
         {
           "path": "src/doctor.rs",
           "name": "config_check",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor.rs",
+          "name": "config_load_failure",
           "kind": "function"
         },
         {
@@ -957,6 +967,11 @@
         {
           "path": "src/doctor.rs",
           "name": "redacted_json_report",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor.rs",
+          "name": "report_from_checks",
           "kind": "function"
         },
         {
@@ -1587,6 +1602,11 @@
         {
           "path": "src/doctor/network.rs",
           "name": "check",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/network.rs",
+          "name": "checks",
           "kind": "function"
         },
         {
@@ -2586,262 +2606,7 @@
         },
         {
           "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_defaults_preserve_local_and_noise_modes",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_direct_forwarding_remains_rejected",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_from_args",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
           "name": "exec_server_help_documents_remote_options",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_parses_direct_aws_options",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_parses_executor_credential_options",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_rejects_missing_or_conflicting_remote_options",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_sigv4_does_not_enable_aws_auth_for_noise",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_args_tests.rs",
-          "name": "exec_server_transport_and_aws_options_require_registration_arguments",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_auth.rs",
-          "name": "aws_sigv4_auth_provider",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_auth.rs",
-          "name": "AwsSigV4AuthProvider",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_auth_tests.rs",
-          "name": "invalid_signing_configuration_is_rejected",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_auth_tests.rs",
-          "name": "invalid_signing_request_is_a_permanent_auth_error",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_auth_tests.rs",
-          "name": "signs_requests_without_changing_payload_or_metadata",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_auth_tests.rs",
-          "name": "test_provider",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "ExecServerCommand",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "ExecServerRemoteTransport",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "ExecServerSubcommand",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "is_supported_exec_server_remote_auth",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "load_exec_server_config",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "load_exec_server_remote_auth",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "load_exec_server_remote_auth_provider",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_command.rs",
-          "name": "validate_api_key_remote_host",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "CredentialError",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "CredentialFrame",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "CredentialState",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "ExecutorCredentialPipe",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "ExecutorCredentialProvider",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "parse_frame",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "read_frames",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential.rs",
-          "name": "unix_timestamp",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "eof_before_a_complete_frame_never_authenticates",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "expiry_is_checked_again_on_every_request",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "frame",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "malformed_rotations_latch_failure_and_clear_existing_credential",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "next_update",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "parser_rejects_unsupported_schema_without_exposing_input",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "pipe",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_credential_tests.rs",
-          "name": "waits_for_initial_rotation_replaces_token_and_eof_clears_auth",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "init",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "ParentLifetime",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "run_until_shutdown",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "run_until_shutdown_with_signals",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "shutdown_signal",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "shutdown_signal",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "ShutdownBehavior",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "ShutdownSignal",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "ShutdownSignal",
-          "kind": "type"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "stderr_env_filter",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "wait_for_shutdown_signal",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry.rs",
-          "name": "wait_for_shutdown_signal",
-          "kind": "function"
-        },
-        {
-          "path": "src/exec_server_telemetry_tests.rs",
-          "name": "parent_disconnect_still_stops_executor_after_signal_listener_error",
           "kind": "function"
         },
         {
@@ -2886,6 +2651,11 @@
         },
         {
           "path": "src/login.rs",
+          "name": "finish_login",
+          "kind": "function"
+        },
+        {
+          "path": "src/login.rs",
           "name": "init_login_file_logging",
           "kind": "function"
         },
@@ -2896,7 +2666,17 @@
         },
         {
           "path": "src/login.rs",
+          "name": "load_managed_login_config_or_exit",
+          "kind": "function"
+        },
+        {
+          "path": "src/login.rs",
           "name": "login_with_chatgpt",
+          "kind": "function"
+        },
+        {
+          "path": "src/login.rs",
+          "name": "logout_config_server",
           "kind": "function"
         },
         {
@@ -2921,6 +2701,11 @@
         },
         {
           "path": "src/login.rs",
+          "name": "run_interactive_login",
+          "kind": "function"
+        },
+        {
+          "path": "src/login.rs",
           "name": "run_login_status",
           "kind": "function"
         },
@@ -2936,7 +2721,7 @@
         },
         {
           "path": "src/login.rs",
-          "name": "run_login_with_chatgpt",
+          "name": "run_login_with_browser",
           "kind": "function"
         },
         {
@@ -2957,6 +2742,11 @@
         {
           "path": "src/login.rs",
           "name": "safe_format_key",
+          "kind": "function"
+        },
+        {
+          "path": "src/login.rs",
+          "name": "sign_in_to_config_server_and_reload_config",
           "kind": "function"
         },
         {
@@ -3008,11 +2798,6 @@
           "path": "src/main.rs",
           "name": "AppServerSubcommand",
           "kind": "type"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "cli_main",
-          "kind": "function"
         },
         {
           "path": "src/main.rs",
@@ -3077,6 +2862,11 @@
         {
           "path": "src/main.rs",
           "name": "disable_feature_in_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "dispatch_cli",
           "kind": "function"
         },
         {
@@ -3741,67 +3531,12 @@
         },
         {
           "path": "src/migrate_nfs_db.rs",
-          "name": "copy_buffered",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db.rs",
-          "name": "migrate",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db.rs",
           "name": "MigrateNfsDbCommand",
           "kind": "type"
         },
         {
           "path": "src/migrate_nfs_db.rs",
           "name": "run",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db.rs",
-          "name": "validate_delete_database",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db/access.rs",
-          "name": "check_acl",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db/access.rs",
-          "name": "check_acl",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db/access.rs",
-          "name": "check_acl",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db/access.rs",
-          "name": "require_private_database",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db/replacement.rs",
-          "name": "Recovery",
-          "kind": "type"
-        },
-        {
-          "path": "src/migrate_nfs_db/replacement.rs",
-          "name": "regular_file_exists",
-          "kind": "function"
-        },
-        {
-          "path": "src/migrate_nfs_db/replacement.rs",
-          "name": "Replacement",
-          "kind": "type"
-        },
-        {
-          "path": "src/migrate_nfs_db/replacement.rs",
-          "name": "with_suffix",
           "kind": "function"
         },
         {
@@ -4046,12 +3781,27 @@
         },
         {
           "path": "src/queue_cmd.rs",
+          "name": "configure_help",
+          "kind": "function"
+        },
+        {
+          "path": "src/queue_cmd.rs",
           "name": "QueueCommand",
           "kind": "type"
         },
         {
           "path": "src/queue_cmd.rs",
+          "name": "restricted_options",
+          "kind": "function"
+        },
+        {
+          "path": "src/queue_cmd.rs",
           "name": "run_queue_command",
+          "kind": "function"
+        },
+        {
+          "path": "src/queue_cmd.rs",
+          "name": "validate_options",
           "kind": "function"
         },
         {
@@ -4476,12 +4226,17 @@
         },
         {
           "path": "tests/cloud_auth.rs",
-          "name": "cloud_list_only_allows_trusted_credential_destinations",
+          "name": "cloud_list_respects_the_credential_store_and_trusted_destinations",
           "kind": "function"
         },
         {
           "path": "tests/cloud_config.rs",
           "name": "add_and_remove_preserve_cloud_managed_resources",
+          "kind": "function"
+        },
+        {
+          "path": "tests/cloud_config.rs",
+          "name": "check_registration",
           "kind": "function"
         },
         {
@@ -4506,6 +4261,21 @@
         },
         {
           "path": "tests/cloud_config.rs",
+          "name": "remote_exec_server_api_key_skips_chatgpt_cloud_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/cloud_config.rs",
+          "name": "remote_exec_server_cloud_policy_denies_registration",
+          "kind": "function"
+        },
+        {
+          "path": "tests/cloud_config.rs",
+          "name": "remote_exec_server_loads_cloud_provider_with_chatgpt_auth",
+          "kind": "function"
+        },
+        {
+          "path": "tests/cloud_config.rs",
           "name": "startup_config_loads_managed_policy_or_reports_cloud_failure",
           "kind": "function"
         },
@@ -4526,12 +4296,12 @@
         },
         {
           "path": "tests/daemon_startup.rs",
-          "name": "agents_checks_trust_when_starting_after_dismissing_overview",
+          "name": "agents_defers_launch_directory_trust_until_starting_a_task",
           "kind": "function"
         },
         {
           "path": "tests/daemon_startup.rs",
-          "name": "agents_defers_launch_directory_trust_until_starting_a_task",
+          "name": "agents_no_daemon_uses_embedded_even_with_a_running_daemon",
           "kind": "function"
         },
         {
@@ -4541,7 +4311,7 @@
         },
         {
           "path": "tests/daemon_startup.rs",
-          "name": "bedrock_onboarding_leaves_a_running_daemon_untouched",
+          "name": "bedrock_onboarding_discovers_credentials_on_the_running_daemon",
           "kind": "function"
         },
         {
@@ -4665,6 +4435,41 @@
           "kind": "function"
         },
         {
+          "path": "tests/doctor_enterprise_network.rs",
+          "name": "local_command",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_enterprise_network.rs",
+          "name": "local_provider",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_enterprise_network.rs",
+          "name": "network_only_config_failure_does_not_guess_probe_targets",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_enterprise_network.rs",
+          "name": "network_only_config_failure_human_output",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_enterprise_network.rs",
+          "name": "network_only_human_output",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_enterprise_network.rs",
+          "name": "network_only_reports_recoverable_config_warnings_and_effective_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_enterprise_network.rs",
+          "name": "network_only_selects_checks_without_database_or_mcp_scans",
+          "kind": "function"
+        },
+        {
           "path": "tests/doctor_path_safety.rs",
           "name": "doctor_redacts_failed_database_paths_in_json",
           "kind": "function"
@@ -4731,7 +4536,17 @@
         },
         {
           "path": "tests/exec_server.rs",
+          "name": "assert_pat_registry_reload",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
           "name": "codex_command",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
+          "name": "forward_rejects_stdin_credentials_on_opposite_sides_of_subcommand",
           "kind": "function"
         },
         {
@@ -4766,6 +4581,11 @@
         },
         {
           "path": "tests/exec_server.rs",
+          "name": "PatCredentialChange",
+          "kind": "type"
+        },
+        {
+          "path": "tests/exec_server.rs",
           "name": "proxy_parent_lifetime_relay",
           "kind": "function"
         },
@@ -4777,6 +4597,36 @@
         {
           "path": "tests/exec_server.rs",
           "name": "remote_exec_server_gracefully_stops_when_parent_stdin_closes",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
+          "name": "remote_exec_server_pat_follows_stored_rotation",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
+          "name": "remote_exec_server_pat_recovers_after_replacement_metadata_outage",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
+          "name": "remote_exec_server_pat_recovers_after_replacement_metadata_timeout",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
+          "name": "remote_exec_server_pat_rejects_account_switch",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
+          "name": "remote_exec_server_pat_reuses_metadata_during_authapi_outage",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
+          "name": "remote_exec_server_pat_stops_using_removed_credentials",
           "kind": "function"
         },
         {
@@ -4802,6 +4652,11 @@
         {
           "path": "tests/exec_server.rs",
           "name": "wait_for_response",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server/auth_refresh_tests.rs",
+          "name": "executor_startup_rejects_agent_identity_before_cloud_config",
           "kind": "function"
         },
         {
@@ -4896,7 +4751,7 @@
         },
         {
           "path": "tests/features.rs",
-          "name": "no_daemon_rejects_agents_and_explicit_remote_targets",
+          "name": "no_daemon_rejects_queue_and_explicit_remote_targets",
           "kind": "function"
         },
         {
@@ -5250,6 +5105,11 @@
           "kind": "function"
         },
         {
+          "path": "tests/migrate_nfs_db.rs",
+          "name": "migration_requires_consent_and_preserves_shared_database_mode",
+          "kind": "function"
+        },
+        {
           "path": "tests/plugin_cli.rs",
           "name": "assert_configured_marketplace_snapshot_failure",
           "kind": "function"
@@ -5571,11 +5431,6 @@
         },
         {
           "path": "tests/queue.rs",
-          "name": "queue_rejects_image_attachments",
-          "kind": "function"
-        },
-        {
-          "path": "tests/queue.rs",
           "name": "queue_rejects_local_daemon_that_does_not_support_queueing",
           "kind": "function"
         },
@@ -5586,7 +5441,17 @@
         },
         {
           "path": "tests/queue.rs",
+          "name": "queue_rejects_unsupported_options",
+          "kind": "function"
+        },
+        {
+          "path": "tests/queue.rs",
           "name": "queue_submits_message_to_remote_app_server",
+          "kind": "function"
+        },
+        {
+          "path": "tests/queue.rs",
+          "name": "queue_succeeds_when_another_server_owns_the_thread",
           "kind": "function"
         },
         {
@@ -5630,8 +5495,23 @@
           "kind": "function"
         },
         {
+          "path": "tests/rollout_trace.rs",
+          "name": "enabled_recording_cannot_silently_fail_to_start",
+          "kind": "function"
+        },
+        {
+          "path": "tests/sandbox_cloud_config.rs",
+          "name": "run_cloud_sandbox",
+          "kind": "function"
+        },
+        {
           "path": "tests/sandbox_cloud_config.rs",
           "name": "sandbox_fetches_and_enforces_cloud_managed_permission_profile",
+          "kind": "function"
+        },
+        {
+          "path": "tests/sandbox_cloud_config.rs",
+          "name": "sandbox_loads_cloud_provider_for_cua_style_invocation",
           "kind": "function"
         },
         {
@@ -5705,11 +5585,11 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "48ee5d0c178c597aed7d583ba12d1dd65767afc0fbf52ba5622d6a7494b40563"
+      "treeSha256": "fc09d41a8a1cfb2ad4173054d72e24be45cbecafc3779878d6250d264fe303f4"
     },
     "codex-rs/exec": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/exec",
-      "fileCount": 39,
+      "fileCount": 40,
       "files": [
         "BUILD.bazel",
         "Cargo.toml",
@@ -5743,6 +5623,7 @@
         "tests/suite/mcp_required_exit.rs",
         "tests/suite/mod.rs",
         "tests/suite/originator.rs",
+        "tests/suite/output_last_message.rs",
         "tests/suite/output_schema.rs",
         "tests/suite/prompt_stdin.rs",
         "tests/suite/resume.rs",
@@ -5751,7 +5632,7 @@
         "tests/suite/server_error_exit.rs",
         "tests/suite/worktree.rs"
       ],
-      "symbolCount": 315,
+      "symbolCount": 318,
       "symbols": [
         {
           "path": "src/cli.rs",
@@ -5866,11 +5747,6 @@
         {
           "path": "src/event_processor.rs",
           "name": "handle_last_message",
-          "kind": "function"
-        },
-        {
-          "path": "src/event_processor.rs",
-          "name": "write_last_message_file",
           "kind": "function"
         },
         {
@@ -6910,6 +6786,11 @@
         },
         {
           "path": "tests/suite/completion_backfill_tests.rs",
+          "name": "failed_fork_recovers_only_its_own_turn",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/completion_backfill_tests.rs",
           "name": "ignores_unrelated_turn_completion_before_backfilling_primary_turn",
           "kind": "function"
         },
@@ -6926,6 +6807,11 @@
         {
           "path": "tests/suite/daybreak.rs",
           "name": "configured_daybreak_exec",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "exec_custom_provider_daybreak_uses_capability",
           "kind": "function"
         },
         {
@@ -6996,6 +6882,16 @@
         {
           "path": "tests/suite/originator.rs",
           "name": "supports_originator_override",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/output_last_message.rs",
+          "name": "human_output_to_redirected_stdout_prints_one_answer",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/output_last_message.rs",
+          "name": "sandbox_link_cannot_redirect_this_or_the_next_invocation",
           "kind": "function"
         },
         {
@@ -7329,7 +7225,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "4243f68187c3dbc12b3bca073bfced4557294f008282a92be8060138d3282a91"
+      "treeSha256": "bc6cd3387c8ca0624e245c5a714ff7a48aead21bca66b317d70538f8c34c4543"
     },
     "codex-rs/execpolicy": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/execpolicy",
@@ -7353,7 +7249,7 @@
         "src/sandbox_migration_tests.rs",
         "tests/basic.rs"
       ],
-      "symbolCount": 95,
+      "symbolCount": 101,
       "symbols": [
         {
           "path": "src/amend.rs",
@@ -7532,6 +7428,11 @@
         },
         {
           "path": "src/policy.rs",
+          "name": "can_weaken_fallback",
+          "kind": "function"
+        },
+        {
+          "path": "src/policy.rs",
           "name": "Evaluation",
           "kind": "type"
         },
@@ -7563,6 +7464,11 @@
         {
           "path": "src/policy.rs",
           "name": "upsert_domain",
+          "kind": "function"
+        },
+        {
+          "path": "src/rule.rs",
+          "name": "canonical_key",
           "kind": "function"
         },
         {
@@ -7682,6 +7588,16 @@
         },
         {
           "path": "tests/basic.rs",
+          "name": "canonical_host_executable_resolution_uses_only_relevant_declarations",
+          "kind": "function"
+        },
+        {
+          "path": "tests/basic.rs",
+          "name": "canonical_matching_prefix_matches_each_token",
+          "kind": "function"
+        },
+        {
+          "path": "tests/basic.rs",
           "name": "heuristics_match_is_returned_when_no_policy_matches",
           "kind": "function"
         },
@@ -7738,6 +7654,16 @@
         {
           "path": "tests/basic.rs",
           "name": "host_executable_resolution_uses_basename_rule_when_allowed",
+          "kind": "function"
+        },
+        {
+          "path": "tests/basic.rs",
+          "name": "inherited_absolute_amendment_respects_existing_exact_denials",
+          "kind": "function"
+        },
+        {
+          "path": "tests/basic.rs",
+          "name": "inherited_absolute_amendments_preserve_managed_basename_restrictions",
           "kind": "function"
         },
         {
@@ -7831,11 +7757,11 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "57586c54aa2602fd99d6ed47dacad78692ebd5027fd35fd493acd6aac0a4a3de"
+      "treeSha256": "6fa58eac4e2d598b97b7ea4844d0f49ee5f3c0c0713e46d2f2c22a739bb7bea5"
     },
     "codex-cli": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-cli",
-      "fileCount": 7,
+      "fileCount": 9,
       "files": [
         ".gitignore",
         "bin/codex.js",
@@ -7843,9 +7769,11 @@
         "scripts/README.md",
         "scripts/build_npm_package.py",
         "scripts/init_firewall.sh",
-        "scripts/run_in_container.sh"
+        "scripts/run_in_container.sh",
+        "tests/exit-status.test.mjs",
+        "tests/test_build_npm_package.py"
       ],
-      "symbolCount": 24,
+      "symbolCount": 25,
       "symbols": [
         {
           "path": "bin/codex.js",
@@ -7966,15 +7894,22 @@
           "path": "scripts/build_npm_package.py",
           "name": "stage_sources",
           "kind": "symbol"
+        },
+        {
+          "path": "tests/test_build_npm_package.py",
+          "name": "NpmPackageTest",
+          "kind": "symbol"
         }
       ],
-      "treeSha256": "5638fdbc6b0a2e9714a7367f5592720f9f04e8170b5eaf61e23c1ae229a95738"
+      "treeSha256": "2627f96792523bd1322b856cb784fb28b334a08cc1a6598181971a93ae2817cf"
     },
     "lime-rs/crates/cli": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/cli",
-      "fileCount": 37,
+      "fileCount": 39,
       "files": [
         "Cargo.toml",
+        "src/account_cmd.rs",
+        "src/account_cmd/tests.rs",
         "src/command_tests.rs",
         "src/connection.rs",
         "src/debug_sandbox.rs",
@@ -8012,8 +7947,73 @@
         "tests/execpolicy.rs",
         "tests/sandbox_setup.rs"
       ],
-      "symbolCount": 372,
+      "symbolCount": 391,
       "symbols": [
+        {
+          "path": "src/account_cmd.rs",
+          "name": "default_authorization",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "ensure_local",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "LoginAction",
+          "kind": "type"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "LoginCommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "LogoutCommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "print_account",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "read",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "report",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "run_login",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd.rs",
+          "name": "wait",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd/tests.rs",
+          "name": "account_commands_preserve_explicit_host_and_locale_and_reject_token_imports",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd/tests.rs",
+          "name": "original_login_feedback_covers_every_product_locale",
+          "kind": "function"
+        },
+        {
+          "path": "src/account_cmd/tests.rs",
+          "name": "remote_account_commands_fail_before_starting_a_local_fallback",
+          "kind": "function"
+        },
         {
           "path": "src/command_tests.rs",
           "name": "approve_for_me_and_hidden_alias_lower_to_canonical_policy",
@@ -8032,6 +8032,11 @@
         {
           "path": "src/command_tests.rs",
           "name": "child_sandbox_keeps_independent_root_approval_policy",
+          "kind": "function"
+        },
+        {
+          "path": "src/command_tests.rs",
+          "name": "computer_use_target_is_explicit_typed_input_for_exec_and_tui",
           "kind": "function"
         },
         {
@@ -8173,6 +8178,11 @@
           "path": "src/connection.rs",
           "name": "InteractiveRemoteOptions",
           "kind": "type"
+        },
+        {
+          "path": "src/connection.rs",
+          "name": "parse_computer_use_target",
+          "kind": "function"
         },
         {
           "path": "src/connection.rs",
@@ -9056,6 +9066,11 @@
         },
         {
           "path": "src/exec/server_requests_tests.rs",
+          "name": "non_interactive_exec_does_not_open_a_browser_or_claim_authorization",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/server_requests_tests.rs",
           "name": "typed_interactions_never_grant_consent_or_invent_user_answers",
           "kind": "function"
         },
@@ -9127,6 +9142,16 @@
         {
           "path": "src/lib.rs",
           "name": "WindowsCommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "agents_tui_options",
+          "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "AgentsCli",
           "kind": "type"
         },
         {
@@ -9292,6 +9317,11 @@
         {
           "path": "src/main.rs",
           "name": "run",
+          "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "run_agents",
           "kind": "function"
         },
         {
@@ -9875,7 +9905,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "d5f9dfeed79e3ca8bf8d053d00ba1c1bc01dafb04c4ef9a6910568174f5324b8"
+      "treeSha256": "b78fae1fbac1142f2e11f40e4a0fafe8d6fb080c93cc309ae9bf1ee07923d01e"
     },
     "lime-rs/crates/cli/src/exec": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/cli/src/exec",
@@ -9900,7 +9930,7 @@
         "thread.rs",
         "thread_tests.rs"
       ],
-      "symbolCount": 154,
+      "symbolCount": 155,
       "symbols": [
         {
           "path": "cli.rs",
@@ -10629,6 +10659,11 @@
         },
         {
           "path": "server_requests_tests.rs",
+          "name": "non_interactive_exec_does_not_open_a_browser_or_claim_authorization",
+          "kind": "function"
+        },
+        {
+          "path": "server_requests_tests.rs",
           "name": "typed_interactions_never_grant_consent_or_invent_user_answers",
           "kind": "function"
         },
@@ -10673,7 +10708,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "b2893689fce0427d4ec0d4183d007db18f7261d93475655816a45975ee59da18"
+      "treeSha256": "1b02b4ad49f65598578a4f3a32de4f5e372340cf4a02d6690405376c38903f62"
     },
     "lime-rs/crates/execpolicy": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/execpolicy",
@@ -11179,9 +11214,11 @@
     },
     "packages/cli": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/packages/cli",
-      "fileCount": 8,
+      "fileCount": 10,
       "files": [
         ".gitignore",
+        "LICENSE",
+        "NOTICE",
         "README.md",
         "bin/lime.js",
         "exec-events.schema.json",
@@ -11190,7 +11227,7 @@
         "scripts/build_npm_package.py",
         "tests/npm-package.test.mjs"
       ],
-      "symbolCount": 33,
+      "symbolCount": 34,
       "symbols": [
         {
           "path": "bin/lime.js",
@@ -11314,6 +11351,11 @@
         },
         {
           "path": "scripts/build_npm_package.py",
+          "name": "validate_computer_use_resources",
+          "kind": "symbol"
+        },
+        {
+          "path": "scripts/build_npm_package.py",
           "name": "validate_native_payload",
           "kind": "symbol"
         },
@@ -11358,7 +11400,7 @@
           "kind": "symbol"
         }
       ],
-      "treeSha256": "f859e44c11d64eaa05ae91d0c0900c53d9296f1579846fd7bfb977b615e6d3d5"
+      "treeSha256": "88391218afc26911f5743e97b0a9a576915d69c05117627a239b07162dc76243"
     }
   },
   "comparisons": {
@@ -11421,27 +11463,19 @@
       "src/doctor/windows_dev_drive_tests.rs",
       "src/exec_args_tests.rs",
       "src/exec_server_args_tests.rs",
-      "src/exec_server_auth.rs",
-      "src/exec_server_auth_tests.rs",
-      "src/exec_server_command.rs",
-      "src/exec_server_credential.rs",
-      "src/exec_server_credential_tests.rs",
-      "src/exec_server_telemetry.rs",
-      "src/exec_server_telemetry_tests.rs",
       "src/login.rs",
       "src/login_storage_tests.rs",
       "src/mcp_cmd_tests.rs",
       "src/mcp_login.rs",
       "src/mcp_login_tests.rs",
       "src/migrate_nfs_db.rs",
-      "src/migrate_nfs_db/access.rs",
-      "src/migrate_nfs_db/replacement.rs",
       "src/migrate_rollouts.rs",
       "src/plugin_cmd_tests.rs",
       "src/remote_control_cmd.rs",
       "src/sandbox_uninstall.rs",
       "src/snapshots/codex__doctor__tests__doctor_dumb_non_interactive_human.snap",
       "src/snapshots/codex__doctor__tests__terminal_check_prioritizes_unreadable_terminfo_over_warnings.snap",
+      "src/snapshots/codex__doctor__tests__websocket_probe_human_output.snap",
       "src/snapshots/codex__exec_server_args_tests__exec_server_help_documents_remote_options.snap",
       "src/snapshots/codex__tests__unsupported_worktree_commands.snap",
       "src/snapshots/codex_cli__login__storage_tests__login_default_filter_records_sanitized_storage_fallback.snap",
@@ -11473,6 +11507,7 @@
       "tests/mcp_add_remove.rs",
       "tests/mcp_list.rs",
       "tests/mcp_login.rs",
+      "tests/migrate_nfs_db.rs",
       "tests/plugin_cli.rs",
       "tests/queue.rs",
       "tests/rollout_trace.rs",
@@ -11482,6 +11517,8 @@
       "tests/sandbox_uninstall.rs",
       "tests/snapshots/daemon_startup__agents_overview_before_folder_consent.snap",
       "tests/snapshots/daemon_startup__restrictive_launcher_warning.snap",
+      "tests/snapshots/doctor_enterprise_network__network_only_config_failure_human_output.snap",
+      "tests/snapshots/doctor_enterprise_network__network_only_human_output.snap",
       "tests/snapshots/doctor_path_safety__doctor_config_error_location.snap",
       "tests/snapshots/doctor_path_safety__doctor_config_invalid_data.snap",
       "tests/snapshots/doctor_path_safety__doctor_config_not_found.snap",
@@ -11495,6 +11532,8 @@
       "tests/worktree.rs"
     ],
     "rustFilesOnlyInLime": [
+      "src/account_cmd.rs",
+      "src/account_cmd/tests.rs",
       "src/command_tests.rs",
       "src/connection.rs",
       "src/dispatch.rs",
@@ -11600,6 +11639,7 @@
       "exec_approve_for_me_flag_sets_approval_mode_and_sandbox",
       "exec_bootstrap_rejects_redirected_oauth_and_cloud_policy",
       "exec_bypass_preserves_never_for_auto_review_config",
+      "exec_custom_provider_daybreak_uses_capability",
       "exec_dash_prompt_reads_stdin_as_the_prompt",
       "exec_dash_prompt_rejects_empty_piped_stdin",
       "exec_default_stderr_filter_suppresses_otel_self_diagnostics",
@@ -11638,6 +11678,7 @@
       "exits_non_zero_when_required_mcp_server_fails_to_initialize",
       "exits_non_zero_when_server_reports_error",
       "extract_conversation_id",
+      "failed_fork_recovers_only_its_own_turn",
       "failed_turn_clears_stale_final_message",
       "failed_turn_does_not_overwrite_output_last_message_file",
       "file_change_completion_maps_change_kinds",
@@ -11651,6 +11692,7 @@
       "git",
       "handle_server_request",
       "human_output_prints_unchanged_turn_diff_once",
+      "human_output_to_redirected_stdout_prints_one_answer",
       "ignores_unrelated_turn_completion_before_backfilling_primary_turn",
       "lagged_event_warning_message",
       "lagged_event_warning_message_is_explicit",
@@ -11712,6 +11754,7 @@
       "sample_thread_start_response",
       "sandbox_blocks_first_time_dot_codex_creation",
       "sandbox_distinguishes_command_and_policy_cwds",
+      "sandbox_link_cannot_redirect_this_or_the_next_invocation",
       "sandbox_mode_from_permission_profile",
       "seatbelt_ancestor_protection_does_not_block_unlinking_regular_files",
       "seatbelt_blocks_atomic_rename_exchange_and_destination_replacement",
@@ -11795,8 +11838,7 @@
       "worktree_flag_is_accepted_before_fork_subcommand",
       "worktree_rejects_ignored_config_before_allocation",
       "worktree_rejects_remote_defaults_before_allocation",
-      "worktree_start_and_fork_use_host_pool_and_preserve_legacy_resume",
-      "write_last_message_file"
+      "worktree_start_and_fork_use_host_pool_and_preserve_legacy_resume"
     ],
     "execSymbolNamesOnlyInLime": [
       "AgentText",
@@ -11852,6 +11894,7 @@
       "mcp_elicitation_is_canceled_for_parent_and_attached_child_threads",
       "message",
       "missing_or_dash_reads_stdin_and_empty_or_invalid_input_fails_closed",
+      "non_interactive_exec_does_not_open_a_browser_or_claim_authorization",
       "notification",
       "optional_mcp_meta_and_search_results_do_not_create_duplicate_item_ids",
       "other_thread_or_turn_cannot_emit_reasoning_or_finish_current_turn",
@@ -11899,9 +11942,13 @@
     "npmFilesMissingInLime": [
       "bin/codex.js",
       "scripts/init_firewall.sh",
-      "scripts/run_in_container.sh"
+      "scripts/run_in_container.sh",
+      "tests/exit-status.test.mjs",
+      "tests/test_build_npm_package.py"
     ],
     "npmFilesOnlyInLime": [
+      "LICENSE",
+      "NOTICE",
       "README.md",
       "bin/lime.js",
       "exec-events.schema.json",
@@ -11918,16 +11965,12 @@
       "AppServerSubcommand",
       "Args",
       "AuthMode",
-      "AwsSigV4AuthProvider",
       "Channel",
       "CheckStatus",
       "CloudManagedConfigFixture",
       "ConfiguredMarketplaceSnapshotIssue",
       "ConfiguredSettings",
       "ConfiguredUpdater",
-      "CredentialError",
-      "CredentialFrame",
-      "CredentialState",
       "DebugAppServerCommand",
       "DebugAppServerSendMessageV2Command",
       "DebugAppServerSubcommand",
@@ -11947,11 +11990,6 @@
       "DoctorReport",
       "EndpointInspection",
       "Evidence",
-      "ExecServerCommand",
-      "ExecServerRemoteTransport",
-      "ExecServerSubcommand",
-      "ExecutorCredentialPipe",
-      "ExecutorCredentialProvider",
       "FailingWriter",
       "Failure",
       "FeatureToggles",
@@ -11986,9 +12024,7 @@
       "LogFilter",
       "LogLevelThreshold",
       "Login",
-      "LoginCommand",
       "LoginSubcommand",
-      "LogoutCommand",
       "McpLoginMode",
       "McpOAuthClientRegistrationArg",
       "MigrateNfsDbCommand",
@@ -11996,8 +12032,8 @@
       "MigrationCounts",
       "MigrationProgress",
       "OutputGroup",
-      "ParentLifetime",
       "ParsedDetail",
+      "PatCredentialChange",
       "PersistentVolumeState",
       "PidTracker",
       "PluginCommandContext",
@@ -12012,7 +12048,6 @@
       "QuietProgress",
       "ReachabilityEndpoint",
       "ReachabilityPlan",
-      "Recovery",
       "RemoteControlCommand",
       "RemoteControlHumanOutputMode",
       "RemoteControlModeJson",
@@ -12021,7 +12056,6 @@
       "RemoteMarketplaceFixture",
       "RemoteMarketplaceListing",
       "RemoveMarketplaceArgs",
-      "Replacement",
       "RolloutAuditFile",
       "RolloutLineType",
       "RolloutScan",
@@ -12034,8 +12068,6 @@
       "SandboxUninstallCommand",
       "SessionArchiveConfigOverrides",
       "SessionTuiCli",
-      "ShutdownBehavior",
-      "ShutdownSignal",
       "SocketStatus",
       "StatusCounts",
       "StderrProgress",
@@ -12072,8 +12104,8 @@
       "add_with_env_preserves_key_order_and_values",
       "agents_accept_interactive_configuration_overrides",
       "agents_can_offer_restart_for_managed_daemon",
-      "agents_checks_trust_when_starting_after_dismissing_overview",
       "agents_defers_launch_directory_trust_until_starting_a_task",
+      "agents_no_daemon_uses_embedded_even_with_a_running_daemon",
       "agents_reject_inputs_that_cannot_be_applied",
       "amber",
       "an_unavailable_reader_is_not_reported_as_clean",
@@ -12099,6 +12131,7 @@
       "assert_marketplace_failure",
       "assert_metric_point",
       "assert_no_browser_exchanges_pasted_callback_and_saves_credentials",
+      "assert_pat_registry_reload",
       "assert_plugin_list_succeeds_when_stdout_closes_early",
       "attach_issue_metadata",
       "attributes_home_relative_subtree_paths_to_their_config_layer",
@@ -12109,11 +12142,10 @@
       "auth_reachability_note",
       "auto_daemon_start_attaches_to_shared_server",
       "available_space",
-      "aws_sigv4_auth_provider",
       "background_server_check",
       "backup_files_for_fresh_start",
       "backup_folder",
-      "bedrock_onboarding_leaves_a_running_daemon_untouched",
+      "bedrock_onboarding_discovers_credentials_on_the_running_daemon",
       "blocked_probe_fixture",
       "bold",
       "bootstrap_cloud_config_bundle",
@@ -12127,16 +12159,17 @@
       "callback_line_is_bounded_and_does_not_expose_input_in_errors",
       "candidate_applications_dirs",
       "check",
-      "check_acl",
+      "check_registration",
       "check_with_paths",
+      "checks",
       "checks_for_group",
       "classify",
       "classify_gatekeeper",
       "classify_security_events",
       "clear_existing_auth_before_login",
-      "cli_main",
       "cli_overrides_use_legacy_sandbox_mode",
-      "cloud_list_only_allows_trusted_credential_destinations",
+      "close_reason_detail",
+      "cloud_list_respects_the_credential_store_and_trusted_destinations",
       "codex_app_is_installed",
       "codex_app_search_dirs",
       "codex_command",
@@ -12154,10 +12187,12 @@
       "config_builder",
       "config_check",
       "config_details",
+      "config_load_failure",
       "config_overrides_from_interactive",
       "config_toml_details",
       "config_uses_permission_profiles",
       "config_with_application_network",
+      "configure_help",
       "configure_http_oauth_server",
       "configured_local_marketplace",
       "configured_marketplace_snapshot_issues",
@@ -12168,7 +12203,6 @@
       "confirm_fresh_start_rebuild",
       "confirm_install",
       "copy_app_bundle",
-      "copy_buffered",
       "count_label",
       "count_or_skipped",
       "count_summary",
@@ -12189,7 +12223,6 @@
       "debug_models_bundled_prints_json",
       "debug_models_default_prints_json_without_auth",
       "debug_prompt_input_follows_authenticated_attribution_setting",
-      "debug_sandbox_bootstraps_cloud_managed_permission_profile_from_backend",
       "deduplicates_literal_paths_without_expanding_globs_or_special_paths",
       "default_reachability_plan",
       "defender_action",
@@ -12215,6 +12248,7 @@
       "disk_capacity_is_reported_without_loaded_configuration",
       "disk_capacity_thresholds_produce_complete_diagnostics",
       "disk_measurement_errors_produce_complete_warning_diagnostics",
+      "dispatch_cli",
       "display_label",
       "display_list",
       "display_optional_path",
@@ -12242,6 +12276,7 @@
       "element",
       "elevated_local_tui_uses_embedded_without_starting_daemon",
       "enable_feature_in_config",
+      "enabled_recording_cannot_silently_fail_to_start",
       "endpoint_check",
       "endpoint_product_guidance_preserves_structured_json_contract",
       "endpoint_products",
@@ -12249,28 +12284,19 @@
       "ensure_configured_marketplace_snapshots_loaded",
       "ensure_remote_control_startable",
       "env_var_present",
-      "eof_before_a_complete_frame_never_authenticates",
       "event_target",
       "every_source_distinguishes_audits_from_blocks",
       "evidence_is_bounded_redacted_and_correctly_classified",
       "excludes_scoped_origins_replaced_by_a_scalar_grant",
       "exec_help_documents_cyber_access_program",
-      "exec_server_defaults_preserve_local_and_noise_modes",
-      "exec_server_direct_forwarding_remains_rejected",
-      "exec_server_from_args",
       "exec_server_help_documents_remote_options",
-      "exec_server_parses_direct_aws_options",
-      "exec_server_parses_executor_credential_options",
-      "exec_server_rejects_missing_or_conflicting_remote_options",
-      "exec_server_sigv4_does_not_enable_aws_auth_for_noise",
-      "exec_server_transport_and_aws_options_require_registration_arguments",
       "exec_server_websocket_auth_gates_rpc_connections",
       "exec_server_websocket_auth_rejects_inapplicable_transports",
       "exec_server_websocket_auth_rejects_invalid_configuration",
       "executable_file_permission",
       "executable_path_exists",
+      "executor_startup_rejects_agent_identity_before_cloud_config",
       "exhaustion_and_unavailable_history_have_actionable_warnings",
-      "expiry_is_checked_again_on_every_request",
       "explicit_restart_applies_feature_overrides_and_preserves_saved_settings",
       "failed_handshake_does_not_expose_sensitive_log_fields",
       "fallback_state_check",
@@ -12296,6 +12322,7 @@
       "find_codex_app_in_mount",
       "find_existing_codex_app_path",
       "find_marketplace_for_plugin",
+      "finish_login",
       "fixture",
       "foreground_app_server_exited_before_ready",
       "foreground_stop_signal",
@@ -12307,7 +12334,7 @@
       "format_mcp_status",
       "format_remote_control_pairing_output",
       "format_row",
-      "frame",
+      "forward_rejects_stdin_credentials_on_opposite_sides_of_subcommand",
       "fresh_daemon_requires_confirmation_to_disable_shared_features",
       "gatekeeper_failures_require_actionable_security_evidence",
       "generated_at",
@@ -12341,7 +12368,6 @@
       "incompatible_daemon_can_restart_with_confirmed_settings",
       "incompatible_daemon_can_run_embedded",
       "inherited_managed_env_for_cargo_binary",
-      "init",
       "init_login_file_logging",
       "inspect_desktop_session",
       "inspect_gatekeeper",
@@ -12360,8 +12386,6 @@
       "interactive_validates_config_before_requiring_terminal",
       "interactive_worktree_start_and_fork_bind_owner_before_turn",
       "invalid_custom_ca_falls_back_to_system_roots",
-      "invalid_signing_configuration_is_rejected",
-      "invalid_signing_request_is_a_permanent_auth_error",
       "is_apple_silicon_mac",
       "is_auto_backup_recoverable",
       "is_codex_app_bundle",
@@ -12373,7 +12397,6 @@
       "is_remote_auth_usage_error",
       "is_rollout_file",
       "is_safe_presence_value",
-      "is_supported_exec_server_remote_auth",
       "is_truncated",
       "isolated_test_home",
       "issue_expected_for_label",
@@ -12397,20 +12420,19 @@
       "load_config_or_exit",
       "load_debug_sandbox_config",
       "load_debug_sandbox_config_with_codex_home",
-      "load_exec_server_config",
-      "load_exec_server_remote_auth",
-      "load_exec_server_remote_auth_provider",
+      "load_managed_login_config_or_exit",
       "load_mcp_manager",
       "load_plugin_command_context",
       "loader_overrides_for_profile",
       "loader_overrides_for_profile_at_codex_home",
+      "local_command",
       "local_exec_server_accepts_concurrent_requests_flag",
       "local_exec_server_allows_disabled_parent_lifetime_environment_variable",
       "local_exec_server_exits_successfully_on_sigterm",
       "local_exec_server_flushes_telemetry_on_stdio_disconnect",
       "local_exec_server_ignores_invalid_config_without_strict_config",
       "local_exec_server_projects_global_mxc_preference",
-      "localize_config_arg",
+      "local_provider",
       "log_field",
       "login_and_logout_persist_only_cloud_managed_mcp_oauth_credentials",
       "login_default_filter_records_sanitized_storage_fallback",
@@ -12421,11 +12443,11 @@
       "login_with_api_key_reads_stdin_and_writes_auth_json",
       "login_with_chatgpt",
       "logout_clears_only_the_selected_bedrock_provider",
+      "logout_config_server",
       "logout_survives_enterprise_cleanup_failure_with_xaa_disabled",
       "looks_copyable",
       "looks_like_path",
       "macos_desktop_update_url",
-      "malformed_rotations_latch_failure_and_clear_existing_credential",
       "managed_daemon_restarts_from_deleted_working_directory",
       "managed_identity_survives_locale_and_timezone_changes",
       "managed_start_keeps_updater_on_marker_mismatch_but_stops_it_for_pin",
@@ -12465,7 +12487,7 @@
       "mcp_summary",
       "merge_interactive_cli_flags",
       "middle_truncate",
-      "migrate",
+      "migration_requires_consent_and_preserves_shared_database_mode",
       "missing_rollout_paths",
       "missing_session_fails_before_delete_confirmation",
       "missing_state_db_check",
@@ -12473,8 +12495,12 @@
       "mount_dmg",
       "multiple_endpoint_products_each_get_distinct_guidance",
       "multiplexer_name",
+      "network_only_config_failure_does_not_guess_probe_targets",
+      "network_only_config_failure_human_output",
+      "network_only_human_output",
+      "network_only_reports_recoverable_config_warnings_and_effective_config",
+      "network_only_selects_checks_without_database_or_mcp_scans",
       "network_summary",
-      "next_update",
       "no_browser_accepts_http_callback_while_terminal_input_remains_open",
       "no_browser_exchanges_pasted_callback_and_saves_credentials",
       "no_browser_exchanges_pasted_callback_with_client_secret",
@@ -12482,7 +12508,7 @@
       "no_browser_rejects_invalid_callbacks_without_exchanging_tokens",
       "no_browser_retries_rejected_discovered_scopes_with_pasteback",
       "no_browser_sigint_cancels_token_exchange_after_pasted_or_http_callback",
-      "no_daemon_rejects_agents_and_explicit_remote_targets",
+      "no_daemon_rejects_queue_and_explicit_remote_targets",
       "no_endpoint_products_require_no_remediation",
       "noise_executor_refreshes_on_401_and_reloads_rotated_credentials",
       "non_interactive_dumb_terminal_preserves_other_doctor_failures",
@@ -12502,15 +12528,14 @@
       "overall_status_label",
       "override_names",
       "package_ownership_check_does_not_start_an_updater",
+      "package_update_runs_outside_the_project",
       "packaged_daemon_bootstrap_seeds_local_package",
       "packaged_daemon_explicit_replacement_migrates_running_legacy",
       "packaged_daemon_launch",
       "packaged_daemon_restart_seeds_local_package",
       "packaged_daemon_start_and_explicit_replacement",
-      "parent_disconnect_still_stops_executor_after_signal_listener_error",
       "parity_check_from_scan_and_rows",
       "parse_events",
-      "parse_frame",
       "parse_hdiutil_attach_mount_point",
       "parse_message",
       "parse_plugin_selection",
@@ -12519,7 +12544,6 @@
       "parse_timestamp",
       "parse_version",
       "parsed_details",
-      "parser_rejects_unsupported_schema_without_exposing_input",
       "path_display_name",
       "path_ends_with",
       "path_key",
@@ -12527,7 +12551,6 @@
       "perform_oauth_login_retry_without_scopes",
       "pid_inheritance_is_startup_only_for_process_and_filesystem_helpers",
       "pid_is_alive",
-      "pipe",
       "plugin_add_and_remove_updates_installed_plugin_config",
       "plugin_add_fails_when_configured_marketplace_snapshot_is_malformed",
       "plugin_add_json_prints_install_outcome",
@@ -12617,10 +12640,11 @@
       "query_channel",
       "queue_does_not_fallback_from_unsupported_explicit_remote",
       "queue_rejects_empty_message",
-      "queue_rejects_image_attachments",
       "queue_rejects_local_daemon_that_does_not_support_queueing",
       "queue_rejects_overrides_that_bypass_local_daemon",
+      "queue_rejects_unsupported_options",
       "queue_submits_message_to_remote_app_server",
+      "queue_succeeds_when_another_server_owns_the_thread",
       "read_access_token_from_stdin",
       "read_api_key_from_stdin",
       "read_auth_json",
@@ -12628,7 +12652,6 @@
       "read_bounded",
       "read_callback",
       "read_callback_line",
-      "read_frames",
       "read_log_segment",
       "read_probe_file",
       "read_stdin_secret",
@@ -12646,7 +12669,6 @@
       "redacted_path",
       "register_stop_event",
       "registered_parent_lifetime_executor_public_key",
-      "regular_file_exists",
       "reject_remote_mode_for_app_server_subcommand",
       "reject_remote_mode_for_subcommand",
       "reject_root_strict_config_for_subcommand",
@@ -12658,7 +12680,16 @@
       "remote_control_start_human_lines",
       "remote_control_start_human_message",
       "remote_control_stop_human_message",
+      "remote_exec_server_api_key_skips_chatgpt_cloud_config",
+      "remote_exec_server_cloud_policy_denies_registration",
       "remote_exec_server_gracefully_stops_when_parent_stdin_closes",
+      "remote_exec_server_loads_cloud_provider_with_chatgpt_auth",
+      "remote_exec_server_pat_follows_stored_rotation",
+      "remote_exec_server_pat_recovers_after_replacement_metadata_outage",
+      "remote_exec_server_pat_recovers_after_replacement_metadata_timeout",
+      "remote_exec_server_pat_rejects_account_switch",
+      "remote_exec_server_pat_reuses_metadata_during_authapi_outage",
+      "remote_exec_server_pat_stops_using_removed_credentials",
       "remote_exec_server_scoped_credentials_authenticate_only_register_and_validate",
       "remote_exec_server_scoped_credentials_never_fall_back_for_another_environment",
       "remote_plugin_add_limits_catalog_refresh_without_mutation",
@@ -12676,16 +12707,17 @@
       "remove_installed_plugin_config",
       "render_human_report",
       "render_plugin_list",
+      "report_from_checks",
       "reports_malformed_setup_failure_reports",
       "reports_missing_linux_sandbox_helper",
       "reports_refresh_failure_after_setup_completed",
       "request_error",
-      "require_private_database",
       "resolve_remote_plugin",
       "resolve_sqlite_config",
       "resolve_windows_update_command_from_path",
       "respond_to_queue_request",
       "restart_applies_saved_updater_preference",
+      "restricted_options",
       "restrictive_launcher_uses_embedded_if_daemon_cannot_start",
       "returns_when_a_probe_process_does_not_exit",
       "rollout_files_and_bytes",
@@ -12697,6 +12729,7 @@
       "run_app",
       "run_app_open_or_install",
       "run_async_check",
+      "run_cloud_sandbox",
       "run_command",
       "run_command_under_windows_session",
       "run_debug_app_server_command",
@@ -12704,10 +12737,11 @@
       "run_debug_trace_reduce_command",
       "run_doctor",
       "run_foreground_remote_control",
+      "run_interactive_login",
       "run_login_status",
       "run_login_with_access_token",
       "run_login_with_api_key",
-      "run_login_with_chatgpt",
+      "run_login_with_browser",
       "run_login_with_device_code",
       "run_login_with_device_code_fallback_to_browser",
       "run_mac_app_open_or_install",
@@ -12716,8 +12750,6 @@
       "run_session_archive_cli_command",
       "run_sync_check",
       "run_tui_with_recovery",
-      "run_until_shutdown",
-      "run_until_shutdown_with_signals",
       "run_update_action",
       "run_update_command",
       "run_upgrade",
@@ -12731,7 +12763,10 @@
       "sandbox_blocks_terminal_input_injection",
       "sandbox_check",
       "sandbox_fetches_and_enforces_cloud_managed_permission_profile",
+      "sandbox_fetches_managed_profile_only_when_local_policy_allows_backend",
+      "sandbox_loads_cloud_provider_for_cua_style_invocation",
       "sandbox_note",
+      "sandbox_state_skips_cloud_bootstrap",
       "sandbox_summary",
       "sandbox_with_network_proxy_allows_explicit_loopback_access",
       "sandbox_with_network_proxy_blocks_direct_loopback_access",
@@ -12756,9 +12791,8 @@
       "should_enable_color",
       "should_probe_models_route",
       "should_show_progress",
-      "shutdown_signal",
+      "sign_in_to_config_server_and_reload_config",
       "signal",
-      "signs_requests_without_changing_payload_or_metadata",
       "socket_status",
       "socket_test_home",
       "source",
@@ -12777,7 +12811,6 @@
       "state_summary",
       "status_marker",
       "status_marker_slot",
-      "stderr_env_filter",
       "stdio_command_resolves",
       "stopped_daemon_requires_confirmation_to_disable_persisted_features",
       "stopped_desktop_check",
@@ -12816,7 +12849,6 @@
       "terminal_title_check_from_inputs",
       "terminal_title_item_id",
       "terminal_title_project_root",
-      "test_provider",
       "the_windows_system_volume_is_not_a_dev_drive",
       "thread_id_from_rollout",
       "thread_inventory_check",
@@ -12832,7 +12864,6 @@
       "unavailable",
       "unavailable_endpoint_inspection_does_not_require_remediation",
       "uninstall_help_and_invalid_arguments_preserve_user_data",
-      "unix_timestamp",
       "unmanaged_app_server_does_not_launch_updater",
       "unsupported_subcommand_name_for_strict_config",
       "update_action_label",
@@ -12841,8 +12872,7 @@
       "updater_http_client_factory",
       "updates_check",
       "user_applications_dir",
-      "validate_api_key_remote_host",
-      "validate_delete_database",
+      "validate_options",
       "validate_profile_v2_migration",
       "value",
       "verify_codex_app_bundle",
@@ -12853,9 +12883,7 @@
       "wait_for_foreground_remote_control_ready",
       "wait_for_foreground_remote_control_start",
       "wait_for_response",
-      "wait_for_shutdown_signal",
       "wait_for_stop_signal",
-      "waits_for_initial_rotation_replaces_token_and_eof_clears_auth",
       "wall_clock_shift_keeps_server_and_updater_managed",
       "watch_children",
       "watch_pid",
@@ -12866,7 +12894,6 @@
       "windows_console_details",
       "windows_store_update",
       "winget_package_starts_and_reselects_daemon",
-      "with_suffix",
       "with_system_proxy_remediation",
       "worktree_start_and_fork",
       "write_check_row",
@@ -12886,6 +12913,7 @@
     "rustSymbolNamesOnlyInLime": [
       "AgentMessageItem",
       "AgentText",
+      "AgentsCli",
       "ApprovalPolicyCliArg",
       "CollabAgentState",
       "CollabAgentStatus",
@@ -12915,6 +12943,7 @@
       "ItemUpdatedEvent",
       "Label",
       "Locale",
+      "LoginAction",
       "McpToolCallItem",
       "McpToolCallItemError",
       "McpToolCallItemResult",
@@ -12960,6 +12989,8 @@
       "Usage",
       "WebSearchAction",
       "WebSearchItem",
+      "account_commands_preserve_explicit_host_and_locale_and_reject_token_imports",
+      "agents_tui_options",
       "all_removes_cwd_and_title_lookup_is_not_limited_by_the_active_provider",
       "all_server_commands_inherit_root_connection_and_run_options",
       "approve_for_me_and_hidden_alias_lower_to_canonical_policy",
@@ -12982,13 +13013,16 @@
       "command_start_result_and_output_are_visible_once_across_notifications_and_snapshot",
       "commentary_is_not_a_final_answer_and_plan_is_a_terminal_fallback",
       "completed_reasoning_matrix_keeps_human_output_out_of_final_answer",
+      "computer_use_target_is_explicit_typed_input_for_exec_and_tui",
       "dangerous_bypass_lowers_to_never_and_full_access",
       "decode_output_delta",
       "decode_prompt_bytes",
       "decode_utf16",
+      "default_authorization",
       "emit",
       "enable_inherited_stdio",
       "ensure_host_sandbox",
+      "ensure_local",
       "event_examples_round_trip_and_validate_against_the_schema",
       "events",
       "every_event_flushes_and_write_failures_propagate",
@@ -13040,31 +13074,37 @@
       "mcp_list_parser_matches_codex_command_shape",
       "message",
       "missing_or_dash_reads_stdin_and_empty_or_invalid_input_fails_closed",
+      "non_interactive_exec_does_not_open_a_browser_or_claim_authorization",
       "not_so_yolo_alias_is_hidden_from_help",
       "notification",
       "optional_mcp_meta_and_search_results_do_not_create_duplicate_item_ids",
+      "original_login_feedback_covers_every_product_locale",
       "other_thread_or_turn_cannot_emit_reasoning_or_finish_current_turn",
       "output_schema_is_global_across_root_resume_and_fork",
       "output_schema_reads_json_and_fails_closed_before_fork_only_connects",
       "parse",
+      "parse_computer_use_target",
       "parse_selection",
       "patch_mcp_search_compaction_and_collab_use_typed_current_items",
       "permission_flags_are_mutually_exclusive_and_fail_closed",
       "permission_settings",
       "plan_diff_warning_errors_and_latest_usage_do_not_become_final_stdout",
       "plugin_cwd",
+      "print_account",
       "processor",
       "prompt_with_stdin_context",
       "published_schema_matches_the_rust_event_contract",
       "queue_list_inherits_intermediate_options_before_root_options",
       "raw_enabled_with_no_content_falls_back_to_summary",
       "raw_only_reasoning_never_becomes_machine_output_and_plan_text_is_preserved",
+      "read",
       "read_prompt_from_stdin",
       "read_remote_auth_token_from_env_var_rejects_empty_values",
       "read_remote_auth_token_from_env_var_reports_missing_values",
       "read_remote_auth_token_from_env_var_trims_values",
       "reasoning",
       "reject_unexpected_server_request",
+      "remote_account_commands_fail_before_starting_a_local_fallback",
       "remote_auth_token_env_missing_fails_before_connecting",
       "remote_auth_token_env_requires_remote_endpoint",
       "remote_connection_flags_match_codex_shape",
@@ -13074,6 +13114,7 @@
       "render_plugin_table",
       "render_server",
       "reply",
+      "report",
       "report_json_result",
       "request",
       "request_shutdown",
@@ -13102,6 +13143,7 @@
       "root_appends_piped_context_while_resume_explicit_prompt_keeps_its_input",
       "root_permission_flags_apply_to_exec_when_subcommand_is_unspecified",
       "root_permission_flags_inherit_and_later_exec_flags_override",
+      "run_agents",
       "run_archive",
       "run_async",
       "run_cli",
@@ -13147,12 +13189,21 @@
       "unspecified_remote_workspace_does_not_filter_resume_or_override_fork",
       "usage",
       "validate_model_route",
+      "wait",
       "with_details",
       "working_directory_flag_matches_codex_cd_shape"
     ],
-    "execpolicySymbolNamesMissingInLime": [],
+    "execpolicySymbolNamesMissingInLime": [
+      "can_weaken_fallback",
+      "canonical_host_executable_resolution_uses_only_relevant_declarations",
+      "canonical_key",
+      "canonical_matching_prefix_matches_each_token",
+      "inherited_absolute_amendment_respects_existing_exact_denials",
+      "inherited_absolute_amendments_preserve_managed_basename_restrictions"
+    ],
     "execpolicySymbolNamesOnlyInLime": [],
     "npmSymbolNamesMissingInLime": [
+      "NpmPackageTest",
       "codexPackageRoot",
       "findCodexExecutable",
       "isPnpmOwnedCodexInstall",
@@ -13174,6 +13225,7 @@
       "nativeRuntimeDir",
       "runLauncher",
       "signalHandlers",
+      "validate_computer_use_resources",
       "validate_native_payload",
       "waitFor"
     ]

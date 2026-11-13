@@ -1,6 +1,6 @@
 //! Bounded display facts for CUA-backed MCP calls.
 //!
-//! Codex groups adjacent computer calls into a dedicated history cell. Lime's canonical
+//! 上游 groups adjacent computer calls into a dedicated history cell. Lime's canonical
 //! projection preserves one `ThreadItem` per MCP call, so this owner first derives only facts that
 //! are provable from each item, then composes adjacent facts for terminal presentation. It never
 //! decodes media or creates a second persisted activity model.

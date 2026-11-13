@@ -256,6 +256,38 @@ fn status_line_preview_omits_unavailable_facts_and_keeps_configured_order() {
 }
 
 #[test]
+fn status_line_preview_renders_environment_facts_in_configured_order() {
+    let facts = StatusSurfacePreviewData {
+        provider: Some("fixture-provider".into()),
+        version: Some("1.175.0".into()),
+        hostname: Some("build-host".into()),
+        git_branch: Some("main".into()),
+        ..Default::default()
+    };
+    let ids = ["git-branch", "provider", "version", "hostname"].map(str::to_string);
+    assert_eq!(
+        facts.line(&ids, false, Locale::EnUs).unwrap().to_string(),
+        "main · fixture-provider · 1.175.0 · build-host"
+    );
+    assert_eq!(
+        StatusLineItem::from_id("git-branch"),
+        Some(StatusLineItem::GitBranch)
+    );
+    assert_eq!(
+        StatusLineItem::from_id("provider"),
+        Some(StatusLineItem::Provider)
+    );
+    assert_eq!(
+        StatusLineItem::from_id("version"),
+        Some(StatusLineItem::Version)
+    );
+    assert_eq!(
+        StatusLineItem::from_id("hostname"),
+        Some(StatusLineItem::Hostname)
+    );
+}
+
+#[test]
 fn status_line_layout_wraps_and_reflows_in_all_locales() {
     let facts = StatusSurfacePreviewData {
         model: Some("fixture-model".into()),

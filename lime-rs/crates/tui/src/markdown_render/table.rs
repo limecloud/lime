@@ -1,4 +1,4 @@
-//! Width-aware Markdown table rendering adapted from Codex TUI.
+//! Width-aware Markdown table rendering adapted from 上游 TUI.
 
 use pulldown_cmark::Alignment;
 use ratatui::style::{Modifier, Style};

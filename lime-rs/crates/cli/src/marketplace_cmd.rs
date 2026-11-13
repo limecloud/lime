@@ -294,7 +294,7 @@ mod tests {
     use clap::Parser;
 
     #[test]
-    fn marketplace_commands_share_connection_and_codex_source_flags() {
+    fn marketplace_commands_share_connection_and_upstream_source_flags() {
         for args in [
             vec![
                 "lime",

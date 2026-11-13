@@ -196,7 +196,7 @@ mod tests {
             provider: Some("fixture-provider".to_string()),
             effort: Some("high".to_string()),
             permissions: Some(":workspace with network access".to_string()),
-            cwd: "/workspace/projects/界界/ｶﾞﾞ/a-very-long-directory-name/codex".to_string(),
+            cwd: "/workspace/projects/界界/ｶﾞﾞ/a-very-long-directory-name/lime".to_string(),
             status: "running".to_string(),
             token_usage: None,
         }
@@ -223,7 +223,7 @@ mod tests {
                 .filter(|character| !character.is_whitespace())
                 .collect::<String>();
             assert!(compact.contains("00000000-0000-0000-0000-000000000123"));
-            assert!(compact.contains("/workspace/projects/界界/ｶﾞﾞ/a-very-long-directory-name/codex"));
+            assert!(compact.contains("/workspace/projects/界界/ｶﾞﾞ/a-very-long-directory-name/lime"));
         }
     }
 

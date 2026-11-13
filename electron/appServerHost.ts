@@ -39,13 +39,16 @@ import {
   AppServerRemoteConnection,
   type AppServerHostConnection,
 } from "./appServerRemoteConnection";
-import { app, session } from "./electronRuntime";
+import { app, session, shell } from "./electronRuntime";
 import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { appendFileSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import process from "node:process";
 import { tryHandleCurrentTimeRead } from "./appServerCurrentTimeHost";
+import { tryHandleAccountAuthorize } from "./appServerAccountHost";
+import { tryHandleConnectionAuthorize } from "./appServerConnectionHost";
+import { assertRendererCloudDesktopAccess } from "./cloudDesktopPrivateActions";
 import {
   parsePositiveInteger,
   resolveAppServerRequestTimeoutMs,
@@ -343,6 +346,7 @@ export class ElectronAppServerHost {
     request: HandleJsonLinesRequest,
     owner: DynamicToolOwnerContext | null = null,
   ): Promise<{ lines: string[] }> {
+    assertRendererCloudDesktopAccess(request.lines);
     const connected = await this.#connect();
     const messages = request.lines.map(decodeMessage);
     const responses: JsonRpcMessage[] = [];
@@ -478,6 +482,22 @@ export class ElectronAppServerHost {
       ) {
         continue;
       }
+      if (
+        (await tryHandleConnectionAuthorize(
+          connected.connection,
+          message,
+          (url) => shell.openExternal(url),
+          !this.remote,
+        )) ||
+        (await tryHandleAccountAuthorize(
+          connected.connection,
+          message,
+          (url) => shell.openExternal(url),
+          !this.remote,
+        ))
+      ) {
+        continue;
+      }
       this.#dynamicToolHost?.observeServerMessage(message);
       if (
         await this.#dynamicToolHost?.tryHandle(connected.connection, message)
@@ -530,6 +550,13 @@ export class ElectronAppServerHost {
     this.#serverRequestTokensByRawId.clear();
     this.#dynamicToolHost?.reset();
     this.#stage = "stopped";
+  }
+
+  async restartForMaintenance(): Promise<void> {
+    this.#stopping = false;
+    this.#stage = "idle";
+    this.#lastFailure = null;
+    await this.warmup();
   }
 
   terminateSidecarForE2e(): AppServerSidecarTermination {
@@ -921,6 +948,22 @@ export class ElectronAppServerHost {
       if (
         !this.remote &&
         tryHandleCurrentTimeRead(connected.connection, message)
+      ) {
+        return true;
+      }
+      if (
+        (await tryHandleConnectionAuthorize(
+          connected.connection,
+          message,
+          (url) => shell.openExternal(url),
+          !this.remote,
+        )) ||
+        (await tryHandleAccountAuthorize(
+          connected.connection,
+          message,
+          (url) => shell.openExternal(url),
+          !this.remote,
+        ))
       ) {
         return true;
       }

@@ -41,6 +41,7 @@ async fn web_tool_turn(unknown: bool, missing_original: bool, recover_without_ke
     let cloud = Fixture::start().await;
     let search_result = json!({
         "id":"web_search_runtime","kind":"search","status":"completed",
+        "usage":{"requests":1,"responseBytes":32,"billingStatus":"unpriced"},
         "search":{"items":[{"title":"Rust release","url":"https://blog.rust-lang.org/","summary":"runtime-search-evidence","retrievedAt":"2026-11-12T00:00:00Z"}],"truncated":false}
     });
     cloud.respond(
@@ -55,6 +56,7 @@ async fn web_tool_turn(unknown: bool, missing_original: bool, recover_without_ke
     cloud.state.lock().unwrap().web_operation_missing = missing_original;
     cloud.respond("/api/v1/client/web/pages", 200, json!({
         "id":"web_page_runtime","kind":"page","status":"completed",
+        "usage":{"requests":1,"responseBytes":32,"billingStatus":"unpriced"},
         "page":{"url":"https://blog.rust-lang.org/","finalUrl":"https://blog.rust-lang.org/","title":"Rust release","text":"runtime-page-evidence","retrievedAt":"2026-11-12T00:00:00Z","truncated":false}
     }));
     let mut step = 0;

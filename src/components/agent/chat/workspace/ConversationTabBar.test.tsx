@@ -6,6 +6,7 @@ import {
   ensureConversationTab,
   getConversationTabsSnapshot,
   resetConversationTabsForTest,
+  setConversationTabPinned,
 } from "@/lib/conversationTabs";
 import { ConversationTabBar } from "./ConversationTabBar";
 
@@ -47,32 +48,48 @@ describe("ConversationTabBar", () => {
     expect(getConversationTabsSnapshot().activeSessionId).toBe("session-a");
   });
 
-  it("shows a synthetic active New chat tab on home", () => {
+  it("asks before closing a pinned tab", async () => {
     ensureConversationTab("session-a", "Alpha");
+    setConversationTabPinned("session-a", true);
     act(() =>
-      root.render(
-        <ConversationTabBar currentSessionId={null} homeActive />,
-      ),
+      root.render(<ConversationTabBar currentSessionId="session-a" />),
     );
-    const tabs = [...container.querySelectorAll('[role="tab"]')];
-    expect(tabs[0]?.textContent).toContain("New chat");
-    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
-    expect(tabs[1]?.getAttribute("aria-selected")).toBe("false");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="conversation-tab-close-session-a"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+
+    await act(async () => {
+      document.body
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="conversation-tab-close-pinned-confirm"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(getConversationTabsSnapshot().tabs).toHaveLength(0);
   });
 
-  it("closes a tab from its close button", () => {
+  it("closes a tab from its close button", async () => {
     ensureConversationTab("session-a", "Alpha");
     ensureConversationTab("session-b", "Beta");
     act(() =>
       root.render(<ConversationTabBar currentSessionId="session-b" />),
     );
 
-    act(() => {
+    await act(async () => {
       container
         .querySelector<HTMLButtonElement>(
           '[data-testid="conversation-tab-close-session-a"]',
         )
         ?.click();
+      await Promise.resolve();
     });
     expect(getConversationTabsSnapshot().tabs.map((tab) => tab.sessionId)).toEqual(
       ["session-b"],

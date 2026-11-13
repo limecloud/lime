@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Immutable artifact identity, independent of the item's current publication.",
+  "properties": {
+    "archiveSha256": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "manifestSha256": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "archiveSha256",
+    "id",
+    "manifestSha256"
+  ],
+  "title": "MarketReleaseReference",
+  "type": "object"
+}

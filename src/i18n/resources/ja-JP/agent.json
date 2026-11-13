@@ -1650,5 +1650,11 @@
   "agentChat.forkFromOlderTurn.worktree": "新しいワークツリーを作成",
   "agentChat.forkFromOlderTurn.worktreeDescription": "新しいチャットは独立した作業ディレクトリを持ちます",
   "agentChat.forkFromOlderTurn.worktreeFailed": "ワークツリーの作成に失敗しました：{{error}}",
-  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "チャットは作成されましたが、設定を完了できませんでした：{{error}}"
+  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "チャットは作成されましたが、設定を完了できませんでした：{{error}}",
+  "plugin.catalog.v2.installedVersion": "インストール済み {{version}}",
+  "plugin.catalog.v2.installVersion": "バージョン {{version}} をインストール",
+  "plugin.catalog.v2.localVersion": "インストール済みバージョン",
+  "plugin.catalog.v2.subtitle": "プラグインを接続して、Lime をさまざまなツールで連携させます。",
+  "agentChat.inputbar.contextUsage.label": "コンテキスト {{percent}}%",
+  "agentChat.inputbar.contextUsage.title": "コンテキストウィンドウ {{used}} / {{total}} tokens"
 }

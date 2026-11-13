@@ -1,7 +1,7 @@
 //! Web-search detail shaping for canonical transcript entries.
 //
 // The App Server v2 item keeps the action as an opaque JSON value. This owner
-// performs the narrow typed lowering that Codex exposes at the history-cell
+// performs the narrow typed lowering that 上游 exposes at the history-cell
 // boundary and fails closed to the canonical query for unknown wire shapes.
 
 use agent_protocol::response_item::WebSearchAction;

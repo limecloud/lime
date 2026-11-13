@@ -24,6 +24,10 @@ pub(crate) enum StatusLineItem {
     ModelWithReasoning,
     Reasoning,
     CurrentDir,
+    GitBranch,
+    Provider,
+    Version,
+    Hostname,
     Status,
     Permissions,
     SessionId,
@@ -39,11 +43,15 @@ pub(crate) enum StatusLineItem {
 }
 
 impl StatusLineItem {
-    pub(crate) const ALL: [Self; 16] = [
+    pub(crate) const ALL: [Self; 20] = [
         Self::ModelName,
         Self::ModelWithReasoning,
         Self::Reasoning,
         Self::CurrentDir,
+        Self::GitBranch,
+        Self::Provider,
+        Self::Version,
+        Self::Hostname,
         Self::Status,
         Self::Permissions,
         Self::SessionId,
@@ -63,6 +71,10 @@ impl StatusLineItem {
             Self::ModelWithReasoning => "model-with-reasoning",
             Self::Reasoning => "reasoning",
             Self::CurrentDir => "current-dir",
+            Self::GitBranch => "git-branch",
+            Self::Provider => "provider",
+            Self::Version => "version",
+            Self::Hostname => "hostname",
             Self::Status => "run-state",
             Self::Permissions => "permissions",
             Self::SessionId => "thread-id",

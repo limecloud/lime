@@ -1650,5 +1650,11 @@
   "agentChat.forkFromOlderTurn.worktree": "새 작업 트리 만들기",
   "agentChat.forkFromOlderTurn.worktreeDescription": "새 채팅은 별도의 작업 디렉터리를 사용합니다",
   "agentChat.forkFromOlderTurn.worktreeFailed": "작업 트리 생성 실패: {{error}}",
-  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "채팅은 만들어졌지만 설정을 완료하지 못했습니다: {{error}}"
+  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "채팅은 만들어졌지만 설정을 완료하지 못했습니다: {{error}}",
+  "plugin.catalog.v2.installedVersion": "설치된 버전 {{version}}",
+  "plugin.catalog.v2.installVersion": "{{version}} 버전 설치",
+  "plugin.catalog.v2.localVersion": "설치된 버전",
+  "plugin.catalog.v2.subtitle": "플러그인을 연결하여 Lime이 다양한 도구에서 함께 작동하도록 합니다.",
+  "agentChat.inputbar.contextUsage.label": "컨텍스트 {{percent}}%",
+  "agentChat.inputbar.contextUsage.title": "컨텍스트 창 {{used}} / {{total}} tokens"
 }

@@ -478,7 +478,7 @@ impl RequestProcessor {
         dispatch_result(response)
     }
 
-    async fn refresh_model_catalog_after_credential_change(&self, provider_id: &str) {
+    pub(super) async fn refresh_model_catalog_after_credential_change(&self, provider_id: &str) {
         let result = self
             .runtime
             .refresh_model_provider_catalog(provider_id)
@@ -610,7 +610,7 @@ impl RequestProcessor {
         });
     }
 
-    async fn publish_model_list_updated(&self, provider_id: Option<String>) {
+    pub(super) async fn publish_model_list_updated(&self, provider_id: Option<String>) {
         let generation = match self.runtime.model_catalog_generation().await {
             Ok(generation) => generation,
             Err(error) => {

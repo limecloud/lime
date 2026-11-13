@@ -1,4 +1,4 @@
-//! Codex memory stage-1 的严格结构化输出契约。
+//! 上游 memory stage-1 的严格结构化输出契约。
 //!
 //! 该模块只负责解析和清理 provider 返回值，不负责调用模型。调用方必须先以
 //! 当前 provider 的能力构造严格 JSON schema，再把解析成功的快照交给状态 owner。

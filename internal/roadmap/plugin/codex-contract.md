@@ -83,7 +83,7 @@ issuer/tenant/user 的 fingerprint，不记录 token、URL 或个人展示字段
 
 ## 公开协议与消费者
 
-- `plugin/list`：`cwds`、`marketplaceKinds`、`forceRefetch`；返回 `marketplaces`、`marketplaceLoadErrors`、`featuredPluginIds`。
+- `plugin/list`：`cwds`、`marketplaceKinds`、`forceRefetch`；返回 `marketplaces`、`marketplaceLoadErrors`、`featuredPlugins`（带市场位置和精确发布引用）。
 - `plugin/installed`：`cwds`、`installSuggestionPluginNames`；返回 `marketplaces`、`marketplaceLoadErrors`。
 - `plugin/reconcile`：可选 `reason`；返回 `changedPlugins`（旧/新声明分类并集）、`failedRemotePluginIds`、`failedMaterializationRemotePluginIds`。它不承诺 runtime readiness。
 - `plugin/read`：`marketplacePath` 或 `remoteMarketplaceName` 与 `pluginName`；返回 `plugin` 详情。

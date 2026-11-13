@@ -13,14 +13,17 @@ const args = (action: string, extra: unknown[] = []) => ({
 describe("Cloud archive request budgets", () => {
   it("keeps IPC and Host alive for first-use tool preparation and bounded transfers", () => {
     for (const [action, serverBudget] of [
+      ["preflightEcsPurchase", 3 * 12_000],
       ["prepareEcsPurchase", 240_000 + 45_000],
       ["readEcsPurchasePreparation", 7 * 45_000],
+      ["prepareEcsConnection", 300_000],
       ["listOssBuckets", 45_000 + 180_000 + 90_000],
       ["transferOssArchive", 45_000 + 180_000 + 3_600_000],
       ["transferArchive", 3_600_000],
       ["createEcsImage", 2 * 45_000],
       ["listEcsImages", 2 * 45_000],
-      ["readOperation", 3 * 45_000],
+      ["hibernateEcs", 2 * 45_000],
+      ["readOperation", 5 * 45_000],
     ] as const) {
       const host = resolveAppServerRequestTimeoutMs(
         "cloud/desktop",

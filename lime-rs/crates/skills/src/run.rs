@@ -339,7 +339,7 @@ mod tests {
         let provider = RecordingProvider::new();
         let runner = SkillRunner::new(&provider);
         let result = runner
-            .run(&skill(), "find codex", None)
+            .run(&skill(), "find lime", None)
             .await
             .expect("prompt skill should execute");
 
@@ -349,7 +349,7 @@ mod tests {
             provider.calls(),
             vec![(
                 "Use careful research.".to_string(),
-                "find codex".to_string(),
+                "find lime".to_string(),
                 Some("model-a".to_string())
             )]
         );
@@ -381,7 +381,7 @@ mod tests {
         let runner = SkillRunner::new(&provider);
 
         let result = runner
-            .run(&skill, "codex skills", None)
+            .run(&skill, "lime skills", None)
             .await
             .expect("workflow skill should execute");
 
@@ -392,12 +392,12 @@ mod tests {
             vec![
                 (
                     String::new(),
-                    "Find codex skills".to_string(),
+                    "Find lime skills".to_string(),
                     Some("model-a".to_string())
                 ),
                 (
                     String::new(),
-                    "Summarize reply: Find codex skills".to_string(),
+                    "Summarize reply: Find lime skills".to_string(),
                     Some("model-b".to_string())
                 )
             ]

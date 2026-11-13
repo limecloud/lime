@@ -28,7 +28,18 @@ class ReconnectTests(unittest.TestCase):
 
     def run_reconnect(self, f, **options):
         home, root, _, _, config = f
+        reset_error = options.pop("reset_error", None)
         def encode(args, **kwargs):
+            if args == ["xdpyinfo"]:
+                self.assertEqual(kwargs["env"]["DISPLAY"], ":1")
+                return SimpleNamespace(returncode=0)
+            if args[0] == "/usr/bin/python3":
+                self.assertEqual(args[-1], str(f[2] / "bin/native/linux/linux-native-host"))
+                self.assertEqual(kwargs["env"]["DISPLAY"], ":1")
+                self.assertEqual(kwargs["env"]["XAUTHORITY"], str(config / "Xauthority"))
+                if reset_error:
+                    raise reset_error
+                return SimpleNamespace(stdout=b"")
             self.assertEqual(args, ["tigervncpasswd", "-f"])
             return SimpleNamespace(stdout=b"encoded:" + kwargs["input"].strip())
         with patch.object(guest.Path, "home", return_value=home), patch.object(guest, "state_root", return_value=root), patch.object(guest, "config_root", return_value=config), patch.object(guest.subprocess, "run", side_effect=encode), patch.object(guest, "systemctl", **options) as control:
@@ -42,8 +53,15 @@ class ReconnectTests(unittest.TestCase):
             control = self.run_reconnect(f)
             self.assertEqual(control.call_args_list[0].args[0], "stop")
             self.assertIn("lime-cloud-human.service", control.call_args_list[0].args)
+            self.assertIn("lime-cloud.service", control.call_args_list[0].args)
+            self.assertIn("lime-cloud-viewer.service", control.call_args_list[0].args)
             self.assertEqual(control.call_args_list[1].args[0], "start")
-            self.assertNotIn("lime-cloud-human.service", control.call_args_list[1].args)
+            for call in control.call_args_list:
+                self.assertNotIn("lime-cloud-display.service", call.args)
+                self.assertNotIn("lime-cloud-session.service", call.args)
+                if call.args[0] == "start":
+                    self.assertNotIn("lime-cloud-human.service", call.args)
+            self.assertEqual(control.call_args_list[-1].args, ("start", "lime-cloud-viewer.service"))
             self.assertNotEqual(guest.private_read(f[4] / "token"), b"old_" + b"t" * 40)
             viewer = guest.private_read(f[4] / "viewer-password").strip()
             self.assertNotEqual(viewer, b"oldVnc88")
@@ -74,6 +92,16 @@ class ReconnectTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.run_reconnect(f, side_effect=RuntimeError("stop refused"))
             self.assertEqual(before, {p.name:p.read_bytes() for p in f[4].iterdir()})
+
+    def test_unverified_viewer_input_keeps_viewer_stopped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(directory)
+            calls = []
+            with self.assertRaisesRegex(RuntimeError, "input state unknown"):
+                self.run_reconnect(f, reset_error=RuntimeError("input state unknown"),
+                                   side_effect=lambda *args: calls.append(args))
+            self.assertEqual(calls[0][0], "stop")
+            self.assertEqual(calls[1:], [("start", "lime-cloud.service")])
 
 
 if __name__ == "__main__":

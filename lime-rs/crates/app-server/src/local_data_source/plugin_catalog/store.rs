@@ -135,7 +135,7 @@ impl PluginStore {
                         .is_dir()
                     {
                         let name = version.file_name().to_string_lossy().into_owned();
-                        if valid_version(&name) {
+                        if !name.starts_with('.') && valid_version(&name) {
                             versions.push(name);
                         }
                     }

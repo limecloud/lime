@@ -1,12 +1,15 @@
 use super::{RuntimeCore, RuntimeCoreError};
-use crate::plugin_remote::{wire, Context};
+use crate::market::selection::Selection;
+use crate::market::{wire, Context};
 use app_server_protocol::protocol::v2::{
     MarketplaceInterface, PluginListMarketplaceKind, PluginListParams, PluginMarketplaceEntry,
     PluginReadParams, PluginReadResponse,
 };
 use std::collections::{BTreeMap, BTreeSet};
+mod featured;
 mod projection;
 mod skill;
+pub(super) use featured::list as featured;
 pub(super) use skill::read as read_skill;
 
 pub(super) async fn list(
@@ -46,19 +49,19 @@ pub(super) async fn list(
     let mut ids = BTreeSet::new();
     for _ in 0..100 {
         let path = {
-        let mut query = url::form_urlencoded::Serializer::new(String::new());
-        query
-            .append_pair("kind", "plugin")
-            .append_pair("limit", "50")
-            .append_pair("hostId", "lime")
-            .append_pair("hostVersion", env!("CARGO_PKG_VERSION"));
-        for capability in wire::CAPABILITIES {
-            query.append_pair("capability", capability);
-        }
-        if !cursor.is_empty() {
-            query.append_pair("cursor", &cursor);
-        }
-        format!("/market/items?{}", query.finish())
+            let mut query = url::form_urlencoded::Serializer::new(String::new());
+            query
+                .append_pair("kind", "plugin")
+                .append_pair("limit", "50")
+                .append_pair("hostId", "lime")
+                .append_pair("hostVersion", env!("CARGO_PKG_VERSION"));
+            for capability in wire::CAPABILITIES {
+                query.append_pair("capability", capability);
+            }
+            if !cursor.is_empty() {
+                query.append_pair("cursor", &cursor);
+            }
+            format!("/market/items?{}", query.finish())
         };
         let page: wire::Directory = context.get(&path).await?;
         if page.items.len() > 50 {
@@ -66,10 +69,15 @@ pub(super) async fn list(
         }
         for item in page.items {
             item.validate()?;
-            if !ids.insert(item.id.clone()) || ids.len() > 5000 {
+            if item.kind != "plugin" || !ids.insert(item.id.clone()) || ids.len() > 5000 {
                 return Err(invalid());
             }
-            let mut summary = item.summary(&context.language);
+            let selection = Selection {
+                release: item.release.clone(),
+                item,
+            };
+            let item = &selection.item;
+            let mut summary = selection.summary(&context.language);
             if let Some(local) = installed
                 .get(&summary.id)
                 .filter(|local| local.remote_plugin_id.as_deref() == Some(&item.id))
@@ -77,6 +85,7 @@ pub(super) async fn list(
                 summary.installed = true;
                 summary.enabled = local.enabled;
                 summary.local_version = local.local_version.clone();
+                summary.local_release = local.local_release.clone();
                 summary.installed_at = local.installed_at;
             }
             groups.entry(item.marketplace()).or_default().push(summary);
@@ -111,28 +120,55 @@ pub(super) async fn read(
     let context =
         Context::current(runtime.account_manager.as_deref(), &runtime.app_config_path)?
             .ok_or_else(|| RuntimeCoreError::InvalidRequest("account_login_required".into()))?;
-    let item: wire::Item = context
-        .get(&format!("/market/items/{}", params.plugin_name))
-        .await?;
-    item.validate()?;
-    if item.id != params.plugin_name
-        || params.remote_marketplace_name.as_deref() != Some(&item.marketplace())
-    {
-        return Err(invalid());
-    }
-    let mut detail = item.detail(&context.language);
     let installed = runtime
         .app_data_source
         .list_installed_plugins(Default::default())
         .await?;
-    if installed
+    let local = installed
         .marketplaces
         .iter()
         .flat_map(|m| &m.plugins)
-        .any(|p| p.id == detail.summary.id && p.remote_plugin_id.as_deref() == Some(&item.id))
-    {
-        let local = runtime.app_data_source.read_plugin(params).await?;
-        detail = local.plugin;
+        .find(|p| {
+            p.remote_plugin_id.as_deref() == Some(&params.plugin_name)
+                && p.id.ends_with(&format!(
+                    "@{}",
+                    params
+                        .remote_marketplace_name
+                        .as_deref()
+                        .unwrap_or_default()
+                ))
+        });
+    if params.remote_release.is_none() && local.is_some() {
+        let result = runtime.app_data_source.read_plugin(params).await?;
+        context.ensure_current()?;
+        return Ok(result);
+    }
+    let selection = context
+        .select(
+            &params.plugin_name,
+            params.remote_marketplace_name.as_deref(),
+            params.remote_release.as_ref(),
+        )
+        .await?;
+    selection.validate_plugin()?;
+    let mut detail = selection.detail(&context.language);
+    if let Some(local) = local {
+        detail.summary.installed = true;
+        detail.summary.enabled = local.enabled;
+        detail.summary.local_version = local.local_version.clone();
+        detail.summary.local_release = local.local_release.clone();
+        detail.summary.installed_at = local.installed_at;
+        // Local capabilities describe this selection only when artifact identities match.
+        if detail.summary.remote_release == local.local_release {
+            let local = runtime.app_data_source.read_plugin(params).await?;
+            detail.skills = local.plugin.skills;
+            detail.onboarding_skill = local.plugin.onboarding_skill;
+            detail.hooks = local.plugin.hooks;
+            detail.apps = local.plugin.apps;
+            detail.app_templates = local.plugin.app_templates;
+            detail.mcp_servers = local.plugin.mcp_servers;
+            detail.scheduled_tasks = local.plugin.scheduled_tasks;
+        }
     }
     context.ensure_current()?;
     Ok(PluginReadResponse { plugin: detail })

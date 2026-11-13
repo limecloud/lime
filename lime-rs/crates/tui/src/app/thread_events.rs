@@ -305,18 +305,27 @@ impl App {
                     .agent_navigation
                     .mark_closed(&params.thread_id);
             }
-            ServerNotification::ThreadStatusChanged(params) => match &params.status {
-                app_server_protocol::protocol::v2::ThreadStatus::Active { .. } => self
-                    .chat_widget
-                    .agent_navigation
-                    .mark_running(&params.thread_id),
-                app_server_protocol::protocol::v2::ThreadStatus::Idle
-                | app_server_protocol::protocol::v2::ThreadStatus::SystemError => self
-                    .chat_widget
-                    .agent_navigation
-                    .mark_stopped(&params.thread_id),
-                app_server_protocol::protocol::v2::ThreadStatus::NotLoaded => {}
-            },
+            ServerNotification::ThreadStatusChanged(params) => {
+                match &params.status {
+                    app_server_protocol::protocol::v2::ThreadStatus::Active { .. } => self
+                        .chat_widget
+                        .agent_navigation
+                        .mark_running(&params.thread_id),
+                    app_server_protocol::protocol::v2::ThreadStatus::Idle
+                    | app_server_protocol::protocol::v2::ThreadStatus::SystemError => self
+                        .chat_widget
+                        .agent_navigation
+                        .mark_stopped(&params.thread_id),
+                    app_server_protocol::protocol::v2::ThreadStatus::NotLoaded => {}
+                }
+                self.note_thread_status(&params.thread_id, &params.status);
+            }
+            ServerNotification::TurnCompleted(params) => {
+                if self.thread_id.as_deref() == Some(params.thread_id.as_str()) {
+                    self.thread_running = false;
+                    self.thread_active_flags.clear();
+                }
+            }
             ServerNotification::ItemStarted(params) => {
                 super::tool_lifecycle::observe_item(self, &params.item);
             }

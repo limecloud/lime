@@ -262,6 +262,8 @@ pub(super) fn build_summary(
     Ok(PluginSummary {
         id: id.key(),
         remote_plugin_id: None,
+        remote_release: None,
+        local_release: None,
         version: Some(manifest_version(&manifest)?),
         local_version: record.map(|record| record.version.clone()),
         name: id.name.clone(),

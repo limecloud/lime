@@ -431,135 +431,7 @@ describe("ArchivedConversationsSettings", () => {
     ).toHaveLength(105);
   });
 
-  it("删除全部确认覆盖完整归档而非搜索结果，部分失败仅重试失败身份", async () => {
-    mockListAgentRuntimeSessions.mockResolvedValue([
-      archived("Alpha"),
-      archived("Beta"),
-    ]);
-    mockDeleteAgentRuntimeSession.mockImplementation(async (id) => {
-      if (id === "Beta") throw new Error("denied");
-    });
-    const container = renderPage();
-    await flushEffects();
-    await search(container, "Alpha");
-    await act(async () =>
-      container
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="settings-archived-delete-all"]',
-        )!
-        .click(),
-    );
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-      "2",
-    );
-    expect(mockDeleteAgentRuntimeSession).not.toHaveBeenCalled();
-    await act(async () =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="settings-archived-confirm-delete"]',
-        )!
-        .click(),
-    );
-    await flushEffects();
-    expect(mockDeleteAgentRuntimeSession.mock.calls.map(([id]) => id)).toEqual([
-      "Alpha",
-      "Beta",
-    ]);
-    expect(
-      document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
-    ).toContain("1");
-    mockDeleteAgentRuntimeSession.mockResolvedValue(undefined);
-    await act(async () =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="settings-archived-confirm-delete"]',
-        )!
-        .click(),
-    );
-    await flushEffects();
-    expect(mockDeleteAgentRuntimeSession.mock.calls.map(([id]) => id)).toEqual([
-      "Alpha",
-      "Beta",
-      "Beta",
-    ]);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="settings-archived-conversations-empty"]',
-      ),
-    ).not.toBeNull();
-  });
-
-  it("项目菜单只删除该组中的聊天，取消保持零写入", async () => {
-    mockListAgentRuntimeSessions.mockResolvedValue([
-      archived("Project chat", "project-1"),
-      archived("Standalone"),
-    ]);
-    const container = renderPage();
-    await flushEffects();
-    const trigger = container.querySelector<HTMLButtonElement>(
-      '[aria-haspopup="menu"][aria-label="项目操作"]',
-    )!;
-    await act(async () =>
-      trigger.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, button: 0 }),
-      ),
-    );
-    await flushEffects();
-    await act(async () =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="settings-archived-delete-project"]',
-        )!
-        .click(),
-    );
-    await flushEffects();
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-      "project-1",
-    );
-    expect(mockDeleteAgentRuntimeSession).not.toHaveBeenCalled();
-    const projectDialog =
-      document.querySelector<HTMLElement>('[role="dialog"]')!;
-    await vi.waitFor(() =>
-      expect(projectDialog.contains(document.activeElement)).toBe(true),
-    );
-    await act(async () =>
-      Array.from(projectDialog.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent === "取消")!
-        .click(),
-    );
-    await flushEffects();
-    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
-    expect(mockDeleteAgentRuntimeSession).not.toHaveBeenCalled();
-    await act(async () =>
-      trigger.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, button: 0 }),
-      ),
-    );
-    await flushEffects();
-    await act(async () =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="settings-archived-delete-project"]',
-        )!
-        .click(),
-    );
-    await flushEffects();
-    await act(async () =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="settings-archived-confirm-delete"]',
-        )!
-        .click(),
-    );
-    await flushEffects();
-    expect(mockDeleteAgentRuntimeSession.mock.calls.map(([id]) => id)).toEqual([
-      "Project chat",
-    ]);
-    expect(container.textContent).toContain("Standalone");
-  });
-
-  it("排序和项目菜单改变真实行投影，Escape清空搜索并保留输入焦点", async () => {
+  it("筛选菜单同时提供排序和项目投影，Escape清空搜索并保留输入焦点", async () => {
     mockListAgentRuntimeSessions.mockResolvedValue([
       {
         ...archived("Old project", "project-1"),
@@ -608,7 +480,7 @@ describe("ArchivedConversationsSettings", () => {
       );
     expect(descriptions().join(" ")).not.toContain("project-1");
     expect(descriptions().join(" ")).not.toContain("standalone-repository");
-    await choose("archived-sort", "创建时间");
+    await choose("archived-filter", "创建时间");
     expect(rows()).toEqual(["New chat", "Old project"]);
     await choose("archived-project", "project-1");
     expect(rows()).toEqual(["Old project"]);
@@ -638,34 +510,6 @@ describe("ArchivedConversationsSettings", () => {
   });
 
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-    "%s 批量确认、数量和搜索控件文案完整",
-    async (locale) => {
-      await changeLimeLocale(locale);
-      const container = renderPage();
-      await flushEffects();
-      await act(async () =>
-        container
-          .querySelector<HTMLButtonElement>(
-            '[data-testid="settings-archived-delete-all"]',
-          )!
-          .click(),
-      );
-      await flushEffects();
-      const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
-      expect(dialog.textContent).not.toContain(
-        "settings.archivedConversations.",
-      );
-      expect(dialog.querySelector("p")?.textContent).toContain("1");
-      expect(
-        container
-          .querySelector('input[type="search"]')
-          ?.getAttribute("placeholder"),
-      ).not.toContain("settings.");
-      expect(mockDeleteAgentRuntimeSession).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s 删除确认和操作文案完整",
     async (locale) => {
       await changeLimeLocale(locale);
@@ -688,6 +532,11 @@ describe("ArchivedConversationsSettings", () => {
           )
           ?.getAttribute("aria-label"),
       ).toContain("归档会话");
+      expect(
+        container
+          .querySelector('input[type="search"]')
+          ?.getAttribute("placeholder"),
+      ).not.toContain("settings.");
     },
   );
 });

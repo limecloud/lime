@@ -172,6 +172,19 @@ export function KeyboardShortcutsSettings() {
         platform={platform}
         bindings={commands.flatMap((command) => command.bindings)}
       />
+      <SettingsGroup>
+        <SettingsRow
+          targetId="keyboard-digit-tabs"
+          label={t("settings.keyboardShortcuts.digitTabsTitle")}
+          description={t("settings.keyboardShortcuts.digitTabsDescription", {
+            modifier: primary,
+          })}
+        >
+          <span className="rounded-md border border-border px-2 py-1 text-[12px] text-muted-foreground">
+            {primary} 1-9
+          </span>
+        </SettingsRow>
+      </SettingsGroup>
       {error ? (
         <div role="alert" className="text-sm text-destructive">
           {t(

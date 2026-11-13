@@ -1,8 +1,10 @@
-mod intent;
+mod connections;
+pub(super) mod intent;
 mod journal;
+mod login;
 mod web;
 
-use super::AccountManager;
+use super::{billing, AccountManager};
 use app_server_protocol::protocol::v2::{
     CloudRequestMethod, CloudRequestParams, CloudRequestResponse, CloudResource,
 };
@@ -24,14 +26,21 @@ impl AccountManager {
         let executor = RuntimeToolExecutorHandle::new(self.clone());
         vec![
             RuntimeGatewayToolExecutionRegistration::new(
-                tool_runtime::web_search::web_search_tool_definition(),
+                billing::tool_definition(tool_runtime::web_search::web_search_tool_definition()),
                 executor.clone(),
                 &["WebSearchTool", "mcp__system__web_search"],
             ),
             RuntimeGatewayToolExecutionRegistration::new(
-                tool_runtime::web_fetch::web_fetch_tool_definition(),
-                executor,
+                billing::tool_definition(tool_runtime::web_fetch::web_fetch_tool_definition()),
+                executor.clone(),
                 &["WebFetchTool", "mcp__system__web_fetch"],
+            ),
+            RuntimeGatewayToolExecutionRegistration::new(
+                billing::tool_definition(
+                    tool_runtime::connection_file::connected_file_tool_definition(),
+                ),
+                executor,
+                &[],
             ),
         ]
     }
@@ -41,6 +50,9 @@ impl AccountManager {
         request: RuntimeToolExecutionRequest<'_>,
     ) -> Result<RuntimeToolExecutionResult, String> {
         check_cancelled(&request)?;
+        if request.tool_name == tool_runtime::connection_file::READ_CONNECTED_FILE_TOOL_NAME {
+            return self.execute_connection_tool(request).await;
+        }
         // Cached/indexed access never silently becomes a live, possibly billable request.
         if request
             .turn_context
@@ -51,13 +63,25 @@ impl AccountManager {
             return Err("web_live_access_required".into());
         }
         let prepared = web::prepare(&request)?;
-        let intent =
-            self.bind_tool_call(&request, CloudResource::Web, prepared.path, prepared.input)?;
-        let result = self.web_tool_result(&intent, &request).await;
+        let (epoch, login_host) = self
+            .login_for_tool(&request, prepared.path, &prepared.input)
+            .await?;
+        let intent = self.bind_tool_call(
+            &request,
+            CloudResource::Web,
+            prepared.path,
+            prepared.input,
+            &epoch,
+        )?;
+        let result = self
+            .web_tool_result(&intent, &request, login_host.as_ref())
+            .await;
         check_cancelled(&request)?;
         self.check_tool_epoch(&intent)?;
         let result = result.and_then(|body| {
-            if matches!(body["status"].as_str(), Some("completed" | "failed")) {
+            if matches!(body["status"].as_str(), Some("completed" | "failed"))
+                || body["executionStarted"] == false
+            {
                 self.finish_tool_call(&intent)?;
             }
             Ok(body)
@@ -79,8 +103,10 @@ impl AccountManager {
                 json!({"status":"outcome_unknown","errorCode":recovery_error(&error)})
             }
         };
-        body["operationKey"] = json!(intent.key);
-        body["recoveryPath"] = json!(format!("/web/operations/{}", intent.key));
+        if body["executionStarted"] != false {
+            body["operationKey"] = json!(intent.key);
+            body["recoveryPath"] = json!(format!("/web/operations/{}", intent.key));
+        }
         let success = body["status"] == "completed";
         let output = serde_json::to_string(&body).map_err(|_| "cloud_response_invalid")?;
         Ok(RuntimeToolExecutionResult::new(
@@ -99,18 +125,27 @@ impl AccountManager {
         &self,
         intent: &intent::ToolIntent,
         request: &RuntimeToolExecutionRequest<'_>,
+        login_host: Option<&crate::host_request::HostConnection>,
     ) -> Result<Value, String> {
         let account = self
             .read(Default::default())?
             .account
             .ok_or("account_login_required")?;
         let previous = self.operation(&account, &intent.key)?;
-        let mut response = if let Some(original) = previous {
+        let (mut response, mut recovery_only) = if let Some(original) = previous {
             if original.task_id != intent.task_id
                 || original.path != intent.path
                 || original.input != intent.input
             {
                 return Err("operation_key_conflict".into());
+            }
+            if original.status == "rejected" {
+                let code = original
+                    .rejection_code
+                    .as_deref()
+                    .filter(|code| billing::budget_error(code))
+                    .ok_or("operation_store_invalid")?;
+                return Ok(json!({"status":"failed","errorCode":code,"executionStarted":false}));
             }
             self.tool_request(
                 intent,
@@ -118,11 +153,32 @@ impl AccountManager {
                 &original.recovery_path,
                 None,
                 request,
+                login_host,
             )
             .await?
         } else {
             if request.params.get("operation_key").is_some() {
                 return Err("outcome_unknown".into());
+            }
+            let (prices, recovery_only) = self
+                .tool_request(
+                    intent,
+                    CloudRequestMethod::Get,
+                    "/web/prices",
+                    None,
+                    request,
+                    login_host,
+                )
+                .await?;
+            if recovery_only {
+                return Ok(restricted_result(prices));
+            }
+            if prices.status != 200 {
+                return Err(http_error(&prices).into());
+            }
+            if let Some(acceptance) = billing::acceptance(&intent.path, &intent.input, prices.body)?
+            {
+                return Ok(acceptance);
             }
             self.tool_request(
                 intent,
@@ -130,12 +186,19 @@ impl AccountManager {
                 &intent.path,
                 Some(intent.input.clone()),
                 request,
+                login_host,
             )
             .await?
         };
+        if let Some(code) = billing::rejection(&intent.path, response.status, &response.body) {
+            return Ok(json!({"status":"failed","errorCode":code,"executionStarted":false}));
+        }
         // Only read the original operation. Missing/unknown reads never authorize another POST.
         for _ in 0..4 {
             check_cancelled(request)?;
+            if recovery_only {
+                break;
+            }
             if response.status == 200
                 && !matches!(
                     response.body["status"].as_str(),
@@ -148,17 +211,20 @@ impl AccountManager {
                 break;
             }
             wait_for_poll(request).await?;
-            response = self
+            (response, recovery_only) = self
                 .tool_request(
                     intent,
                     CloudRequestMethod::Get,
                     &format!("/web/operations/{}", intent.key),
                     None,
                     request,
+                    login_host,
                 )
                 .await?;
         }
-        if response.status == 200 {
+        if recovery_only {
+            Ok(restricted_result(response))
+        } else if response.status == 200 {
             web::project(request, response.body)
         } else {
             // HTTP status and stable codes are sufficient for recovery. Do not surface arbitrary error bodies.
@@ -175,24 +241,116 @@ impl AccountManager {
         path: &str,
         body: Option<Value>,
         request: &RuntimeToolExecutionRequest<'_>,
-    ) -> Result<CloudRequestResponse, String> {
+        login_host: Option<&crate::host_request::HostConnection>,
+    ) -> Result<(CloudRequestResponse, bool), String> {
         self.check_tool_epoch(intent)?;
-        self.ensure_product_user(&intent.language, &intent.epoch)
+        if login_host.is_some_and(|host| !host.is_available()) {
+            return Err("account_host_unavailable".into());
+        }
+        let authorization_host = self
+            .authorize_tool_resource(intent, CloudResource::Web, request, login_host)
             .await?;
         check_cancelled(request)?;
+        match self
+            .ensure_product_user(&intent.language, &intent.epoch)
+            .await
+        {
+            Ok(()) => {}
+            Err(error) if error == "product_user_disabled" => {
+                return self
+                    .recover_tool_request(intent, &intent.key, request)
+                    .await
+                    .map(|response| (response, true));
+            }
+            Err(error) => return Err(error),
+        }
+        check_cancelled(request)?;
+        if login_host.is_some_and(|host| !host.is_available())
+            || authorization_host
+                .as_ref()
+                .is_some_and(|host| !host.is_available())
+        {
+            return Err("account_host_unavailable".into());
+        }
+        let response = self
+            .dispatch_with_cancel(
+                CloudRequestParams {
+                    path: path.into(),
+                    method,
+                    body,
+                    language: intent.language.clone(),
+                    operation_key: (method == CloudRequestMethod::Post).then(|| intent.key.clone()),
+                    task_id: (method == CloudRequestMethod::Post).then(|| intent.task_id.clone()),
+                },
+                &intent.epoch,
+                request.context.cancel_token(),
+            )
+            .await?;
+        if product_disabled(&response) {
+            return self
+                .recover_tool_request(intent, &intent.key, request)
+                .await
+                .map(|response| (response, true));
+        }
+        Ok((response, false))
+    }
+
+    async fn recover_tool_request(
+        &self,
+        intent: &intent::ToolIntent,
+        key: &str,
+        request: &RuntimeToolExecutionRequest<'_>,
+    ) -> Result<CloudRequestResponse, String> {
+        check_cancelled(request)?;
+        self.check_tool_epoch(intent)?;
+        let account = self
+            .read(Default::default())?
+            .account
+            .ok_or("account_login_required")?;
+        let original = self
+            .operation(&account, key)?
+            .ok_or("product_user_disabled")?;
+        if original.task_id != intent.task_id {
+            return Err("operation_key_conflict".into());
+        }
+        if key == intent.key {
+            let expected = if intent.path == "/connection-requests" {
+                journal::CallJournal::new(&self.path)?
+                    .connection(key)?
+                    .ok_or("operation_store_invalid")?
+                    .request
+            } else {
+                intent.input.clone()
+            };
+            if original.path != intent.path || original.input != expected {
+                return Err("operation_key_conflict".into());
+            }
+        }
         self.dispatch_with_cancel(
             CloudRequestParams {
-                path: path.into(),
-                method,
-                body,
+                path: super::recovery::summary_path(&original)?,
+                method: CloudRequestMethod::Get,
+                body: None,
                 language: intent.language.clone(),
-                operation_key: (method == CloudRequestMethod::Post).then(|| intent.key.clone()),
-                task_id: (method == CloudRequestMethod::Post).then(|| intent.task_id.clone()),
+                operation_key: None,
+                task_id: None,
             },
             &intent.epoch,
             request.context.cancel_token(),
         )
         .await
+    }
+}
+
+fn product_disabled(response: &CloudRequestResponse) -> bool {
+    response.status == 403 && response.body["error"] == "product_user_disabled"
+}
+
+fn restricted_result(response: CloudRequestResponse) -> Value {
+    if response.status == 200 {
+        json!({"status":"outcome_unknown","recoveryOnly":true,"summary":response.body})
+    } else {
+        json!({"status":"outcome_unknown","recoveryOnly":true,"errorCode":http_error(&response),"httpStatus":response.status})
     }
 }
 

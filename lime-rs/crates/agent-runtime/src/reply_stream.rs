@@ -956,7 +956,7 @@ mod tests {
         let events = materializer.project_event(RuntimeReplyResponseEvent::ToolCallInputDelta {
             call_id: "call-1".to_string(),
             tool_name: None,
-            delta: "{\"query\":\"codex\"}".to_string(),
+            delta: "{\"query\":\"lime\"}".to_string(),
             accumulated_arguments: None,
             provider: Some("openai".to_string()),
         });
@@ -975,7 +975,7 @@ mod tests {
                 assert_eq!(tool_name, "web_search");
                 assert_eq!(
                     arguments.as_ref().and_then(|value| value.get("query")),
-                    Some(&serde_json::json!("codex"))
+                    Some(&serde_json::json!("lime"))
                 );
             }
             other => panic!("expected tool call payload, got {other:?}"),

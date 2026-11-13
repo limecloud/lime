@@ -4,7 +4,7 @@ use super::*;
 use sha2::{Digest, Sha256};
 
 #[path = "network_template.rs"]
-mod network_template;
+pub(super) mod network_template;
 use network_template::{stack_name, template};
 
 fn digest(request: &Value) -> Result<String, String> {
@@ -62,6 +62,7 @@ impl CloudDesktopService {
                         | "networkReady"
                         | "networkFailed"
                         | "networkRolledBack"
+                        | "networkDeleted"
                 )
             )
         {
@@ -139,12 +140,18 @@ impl CloudDesktopService {
     ) -> Result<Value, String> {
         match self.find_ecs_purchase_preparation(region, profile)? {
             Some(receipt) => {
-                self.inspect_ecs_purchase_preparation(
-                    receipt["operationId"]
-                        .as_str()
-                        .ok_or("Missing preparation ID")?,
-                )
-                .await
+                let observed = self
+                    .inspect_ecs_purchase_preparation(
+                        receipt["operationId"]
+                            .as_str()
+                            .ok_or("Missing preparation ID")?,
+                    )
+                    .await?;
+                if observed["outcome"] == "networkDeleted" {
+                    Ok(json!({ "outcome": "notPrepared" }))
+                } else {
+                    Ok(observed)
+                }
             }
             None => Ok(json!({ "outcome": "notPrepared" })),
         }
@@ -177,8 +184,11 @@ impl CloudDesktopService {
                 return self.inspect_ecs_purchase_preparation(operation).await;
             }
             if let Some(existing) = self.find_ecs_purchase_preparation(region, profile)? {
-                // A new intent is allowed only after ROS confirmed rollback of its own new resources.
-                if existing["outcome"] != "networkRolledBack" {
+                // Unknown or retained resources cannot authorize a new network.
+                if !matches!(
+                    existing["outcome"].as_str(),
+                    Some("networkRolledBack" | "networkDeleted")
+                ) {
                     let id = existing["operationId"]
                         .as_str()
                         .ok_or("Missing preparation ID")?
@@ -197,7 +207,10 @@ impl CloudDesktopService {
         let _lock = self.lock_operations()?;
         // Recheck after read-only discovery; another process may already have submitted.
         if let Some(existing) = self.find_ecs_purchase_preparation(region, profile)? {
-            if existing["outcome"] != "networkRolledBack" {
+            if !matches!(
+                existing["outcome"].as_str(),
+                Some("networkRolledBack" | "networkDeleted")
+            ) {
                 return Ok(existing);
             }
         }
@@ -317,23 +330,100 @@ impl CloudDesktopService {
                 ],
             )
             .await?;
-        if result["StackId"] != receipt["stackId"]
-            || result["StackName"] != receipt["stackName"]
-            || result["RegionId"] != region
-            || !result["Tags"].as_array().is_some_and(|tags| {
-                tags.iter()
-                    .any(|tag| tag["Key"] == "lime-operation" && tag["Value"] == operation)
-            })
-        {
-            return Err("Network stack ownership does not match the original intent".into());
-        }
         let status = result["Status"]
             .as_str()
             .ok_or("Missing network stack status")?;
+        let tags = result["Tags"].as_array();
+        let tagged = tags.is_some_and(|tags| {
+            tags.iter()
+                .any(|tag| tag["Key"] == "lime-operation" && tag["Value"] == operation)
+        });
+        // ROS removes stack tags after deletion; only a previously verified stack may use
+        // its immutable identity and the exact deleted resource inventory below instead.
+        let deleted_verified_stack = status == "DELETE_COMPLETE"
+            && tags.is_some_and(Vec::is_empty)
+            && matches!(
+                receipt["outcome"].as_str(),
+                Some("networkReady" | "networkDeleted")
+            )
+            && matches!(
+                receipt["stackStatus"].as_str(),
+                Some("CREATE_COMPLETE" | "DELETE_COMPLETE")
+            )
+            && receipt["verifiedAt"]
+                .as_str()
+                .and_then(|time| chrono::DateTime::parse_from_rfc3339(time).ok())
+                .is_some();
+        if result["StackId"] != receipt["stackId"]
+            || result["StackName"] != receipt["stackName"]
+            || result["RegionId"] != region
+            || !(tagged || deleted_verified_stack)
+        {
+            return Err("Network stack ownership does not match the original intent".into());
+        }
         let outcome = match status {
             "CREATE_IN_PROGRESS" | "CREATE_ROLLBACK_IN_PROGRESS" => "networkPreparing",
             "CREATE_FAILED" | "CREATE_ROLLBACK_FAILED" => "networkFailed",
             "CREATE_ROLLBACK_COMPLETE" => "networkRolledBack",
+            "DELETE_COMPLETE" => {
+                let inventory = self
+                    .call_cli(
+                        "ros",
+                        Some("2019-09-10"),
+                        &region,
+                        &profile,
+                        &[
+                            "ListStackResources".into(),
+                            "--StackId".into(),
+                            receipt["stackId"].as_str().unwrap().into(),
+                        ],
+                    )
+                    .await?;
+                let resources = inventory["Resources"]
+                    .as_array()
+                    .ok_or("Missing deleted network resources")?;
+                if resources.len() != 3
+                    || inventory
+                        .get("NextToken")
+                        .is_some_and(|token| !token.is_null() && token != "")
+                {
+                    return Err("Deleted network inventory is incomplete or changed".into());
+                }
+                for (logical, kind) in [
+                    ("Vpc", "ALIYUN::ECS::VPC"),
+                    ("Switch", "ALIYUN::ECS::VSwitch"),
+                    ("Group", "ALIYUN::ECS::SecurityGroup"),
+                ] {
+                    let matches: Vec<_> = resources
+                        .iter()
+                        .filter(|resource| resource["LogicalResourceId"] == logical)
+                        .collect();
+                    if matches.len() != 1
+                        || matches[0]["ResourceType"] != kind
+                        || matches[0]["StackId"] != receipt["stackId"]
+                        || matches[0]["Status"] != "DELETE_COMPLETE"
+                    {
+                        return Err("Original network resources are not all deleted".into());
+                    }
+                    let physical = matches[0]["PhysicalResourceId"]
+                        .as_str()
+                        .ok_or("Missing deleted network identity")?;
+                    validate_id(physical)?;
+                    if let Some(previous) = receipt["spec"]
+                        .get(match logical {
+                            "Switch" => "vSwitchId",
+                            "Group" => "securityGroupId",
+                            _ => "vpcId",
+                        })
+                        .and_then(Value::as_str)
+                    {
+                        if previous != physical {
+                            return Err("Deleted network resource identity changed".into());
+                        }
+                    }
+                }
+                "networkDeleted"
+            }
             "CREATE_COMPLETE" => {
                 let body = self
                     .call_cli(
@@ -393,15 +483,7 @@ impl CloudDesktopService {
                         ],
                     )
                     .await?;
-                let rules = group
-                    .pointer("/Permissions/Permission")
-                    .and_then(Value::as_array)
-                    .ok_or("Missing prepared security group permissions")?;
-                if rules.iter().any(|rule| rule["Direction"] != "egress") {
-                    return Err(
-                        "Prepared security group has inbound rules; purchase is blocked".into(),
-                    );
-                }
+                self.validate_managed_connection_rules(operation, &group)?;
                 receipt["spec"] =
                     serde_json::to_value(&spec).map_err(|_| "Invalid prepared spec")?;
                 receipt["verifiedAt"] = json!(chrono::Utc::now().to_rfc3339());
@@ -411,12 +493,14 @@ impl CloudDesktopService {
         };
         receipt["outcome"] = json!(outcome);
         receipt["stackStatus"] = json!(status);
-        receipt["requiresInspection"] =
-            json!(!matches!(outcome, "networkReady" | "networkRolledBack"));
+        receipt["requiresInspection"] = json!(!matches!(
+            outcome,
+            "networkReady" | "networkRolledBack" | "networkDeleted"
+        ));
         self.replace_receipt(operation, &receipt)?;
         Ok(receipt)
     }
 }
 
 #[cfg(all(test, unix))]
-mod tests;
+pub(super) mod tests;

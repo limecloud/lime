@@ -11,6 +11,7 @@ type PurchaseState = Pick<
   | "approved"
   | "setApproved"
   | "pending"
+  | "checkingNetwork"
   | "operationId"
   | "error"
   | "receipt"
@@ -33,6 +34,7 @@ export function PurchaseActions({
     approved,
     setApproved,
     pending,
+    checkingNetwork,
     operationId,
     error,
     receipt,
@@ -87,12 +89,16 @@ export function PurchaseActions({
       )}
       {pending && (
         <p role="status" className="text-[13px] text-muted-foreground">
-          {pendingLabel ?? t("settings.cloudDesktop.working")}
+          {checkingNetwork
+            ? t("settings.cloudDesktop.checkingPurchaseNetwork")
+            : (pendingLabel ?? t("settings.cloudDesktop.working"))}
         </p>
       )}
       {error && (
         <p role="alert" className="text-[13px] text-destructive">
-          {error}
+          {error.includes("CLOUD_PURCHASE_PREFLIGHT_FAILED")
+            ? t("settings.cloudDesktop.purchaseNetworkFailed")
+            : error}
         </p>
       )}
       {receipt !== undefined && <CloudReceipt data={receipt} />}

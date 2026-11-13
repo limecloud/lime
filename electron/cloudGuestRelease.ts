@@ -14,6 +14,7 @@ async function officialResponse(
   method: "GET" | "HEAD",
   signal: AbortSignal,
   fetchDocument: typeof fetch,
+  document = method === "GET",
 ): Promise<Response> {
   let url = new URL(canonical);
   for (let redirects = 0; redirects <= 3; redirects++) {
@@ -36,8 +37,7 @@ async function officialResponse(
       cache: "no-store",
       signal,
       headers: {
-        Accept:
-          method === "GET" ? "application/json" : "application/octet-stream",
+        Accept: document ? "application/json" : "application/octet-stream",
       },
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
@@ -54,6 +54,26 @@ async function officialResponse(
     return response;
   }
   throw invalid();
+}
+
+/** Archive transfers share the descriptor's exact origin and redirect policy. */
+export async function openCloudGuestReleaseArchive(
+  source: CloudGuestSource,
+  signal: AbortSignal,
+  fetchDocument: typeof fetch = fetch,
+): Promise<Response> {
+  if (!source.downloadUrl) throw invalid();
+  try {
+    return await officialResponse(
+      source.downloadUrl,
+      "GET",
+      signal,
+      fetchDocument,
+      false,
+    );
+  } catch (error) {
+    throw fixedError(error);
+  }
 }
 
 function fixedError(error: unknown): Error {

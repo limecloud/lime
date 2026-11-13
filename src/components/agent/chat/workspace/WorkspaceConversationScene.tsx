@@ -41,7 +41,6 @@ import {
 } from "./WorkspaceStyles";
 import { GitFork } from "lucide-react";
 import { ThreadWorkspaceHeader } from "./ThreadWorkspaceHeader";
-import { ConversationTabBar } from "./ConversationTabBar";
 import { ThreadSummaryPanel } from "./ThreadSummaryPanel";
 import { PanelRenderErrorBoundary } from "../components/PanelRenderErrorBoundary";
 import {
@@ -52,6 +51,7 @@ import { useThreadSummaryPanel } from "./useThreadSummaryPanel";
 
 import type { ThreadWorkspaceHeaderViewModel } from "./threadWorkspaceHeaderViewModel";
 import { QueuedMessageList } from "../components/QueuedMessageList";
+import { BottomTerminalPanel } from "./BottomTerminalPanel";
 import { ThreadProjectSelector } from "../components/ThreadProjectSelector";
 import { ReviewThreadSidePanelProjectionContext } from "./ReviewThreadSidePanelProjection";
 
@@ -282,6 +282,11 @@ function renderWorkspaceChatContent({
                   {inputbarNode}
                 </ChatInputSlot>
               ) : null}
+              <BottomTerminalPanel
+                threadId={messageListProps.threadRead?.thread_id}
+                turns={messageListProps.turns}
+                items={messageListProps.threadItems}
+              />
             </>
           </ChatContent>
         ) : (
@@ -633,7 +638,6 @@ export function WorkspaceConversationScene({
             <HeaderToolbar className="flex-1">
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                 {navbarNode}
-                <ConversationTabBar currentSessionId={null} homeActive />
               </div>
               <HeaderToolbar.Actions>
                 {taskCenterUtilityToolbarNode}

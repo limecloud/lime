@@ -20,12 +20,14 @@ impl AppServer {
         let transport_experimental_api = Arc::new(Mutex::new(HashSet::new()));
         let transport_notification_opt_out = Arc::new(Mutex::new(HashMap::new()));
         let server_requests = server_request::ServerRequestRouter::default();
-        let current_time_requests = current_time::CurrentTimeRequestRouter::new(
+        let host_requests = host_request::HostRequestRouter::new(
             thread_states.clone(),
             transport_writers.clone(),
             transport_disconnects.clone(),
             server_requests.clone(),
         );
+        runtime.set_account_host(host_requests.clone());
+        let current_time_requests = current_time::CurrentTimeRequestRouter::new(host_requests);
         if let Err(error) =
             runtime.set_current_time_gateway(Arc::new(current_time_requests.clone()))
         {

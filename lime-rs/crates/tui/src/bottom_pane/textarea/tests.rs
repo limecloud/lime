@@ -4,7 +4,7 @@ use ratatui::layout::Rect;
 use ratatui::widgets::StatefulWidgetRef;
 
 #[test]
-fn unicode_cursor_and_grapheme_deletion_match_codex_textarea_semantics() {
+fn unicode_cursor_and_grapheme_deletion_match_upstream_textarea_semantics() {
     let mut textarea = TextArea::default();
     textarea.insert("a👩🏽‍💻界");
     textarea.move_left();
@@ -107,7 +107,7 @@ fn lime_control_h_deletes_and_control_m_inserts_newline() {
 }
 
 #[test]
-fn c0_line_feed_and_emacs_vertical_motion_match_codex_textarea_semantics() {
+fn c0_line_feed_and_emacs_vertical_motion_match_upstream_textarea_semantics() {
     let mut textarea = TextArea::new();
     textarea.insert_str("ab\ncdef");
     textarea.set_cursor(2);

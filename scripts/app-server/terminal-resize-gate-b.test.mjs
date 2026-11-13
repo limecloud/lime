@@ -23,6 +23,8 @@ describe("terminal resize Gate B evidence boundary", () => {
     expect(gate).toContain('error.code !== "ENOENT"');
     expect(gate).toContain('"suite::tmux_resize::"');
     expect(gate).toContain('"--test-threads=1"');
+    expect(gate).toContain("tmux resize gate flaked; retrying once");
+    expect(gate).toContain("Blocking waiting for file lock");
     expect(source("scripts/app-server/tui-gate-b.mjs")).toContain(
       "tmuxResizeEvidence,",
     );

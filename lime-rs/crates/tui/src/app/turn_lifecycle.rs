@@ -1,6 +1,6 @@
 //! Agent turn lifecycle state for the TUI application.
 //!
-//! This owner mirrors Codex's turn lifecycle bookkeeping while keeping transport and canonical
+//! This owner mirrors 上游 turn lifecycle bookkeeping while keeping transport and canonical
 //! Thread/Turn/Item projection ownership in the existing App Server path.
 
 use std::time::{Duration, Instant};

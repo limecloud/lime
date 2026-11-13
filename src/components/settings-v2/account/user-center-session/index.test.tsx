@@ -17,7 +17,6 @@ beforeEach(async () => {
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
-  vi.stubEnv("VITE_LIMECORE_ORIGIN", "https://core.example.test");
   await changeLimeLocale("en-US");
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -45,7 +44,8 @@ function button(text: string) {
 
 describe("UserCenterSessionSettings", () => {
   it("未配置时禁用登录并显示服务状态", async () => {
-    vi.stubEnv("VITE_LIMECORE_ORIGIN", "");
+    accountFixture.serviceUrl = null;
+    await readCloudAccount();
     await renderPage();
     expect(button("Sign in").disabled).toBe(true);
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
@@ -58,11 +58,28 @@ describe("UserCenterSessionSettings", () => {
     await act(async () => button("Sign in").click());
     expect(accountFixture.login).toHaveBeenCalledExactlyOnceWith({
       type: "cloud",
-      baseUrl: "https://core.example.test",
       resource: "default",
       language: "en-US",
     });
     expect(container.querySelector('input[type="password"]')).toBeNull();
+  });
+
+  it.each([
+    ["zh-CN", "账号服务配置无效"],
+    ["zh-TW", "帳號服務設定無效"],
+    ["en-US", "Account service configuration is invalid"],
+    ["ja-JP", "アカウントサービスの設定が無効です"],
+    ["ko-KR", "계정 서비스 설정이 잘못되었습니다"],
+  ])("%s 无效服务配置在注销后保留正确的未登录状态", async (locale, message) => {
+    await seedCloudAccount();
+    await renderPage();
+    accountFixture.serviceUrl = null;
+    accountFixture.serviceError = "account_config_invalid";
+    await act(async () => button("Sign out").click());
+    expect(button("Sign in").disabled).toBe(true);
+    await act(async () => changeLimeLocale(locale));
+    expect(container.textContent).not.toContain("Test User");
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(message);
   });
 
   it("展示各资源授权状态，注销后清除账号投影", async () => {

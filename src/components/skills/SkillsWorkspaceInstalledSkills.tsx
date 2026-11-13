@@ -262,7 +262,7 @@ export function LocalSkillRow({
           >
             {skill.name}
           </button>
-          <p className="line-clamp-2 text-xs leading-5 text-slate-500">
+          <p className="line-clamp-1 text-xs leading-5 text-slate-500">
             {skill.description ||
               resolveInstalledSkillPromise(skill, installedSkillPresentationCopy)}
           </p>

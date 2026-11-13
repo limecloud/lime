@@ -40,10 +40,20 @@ fn completed_operation_unlocks_while_a_duplicate_descriptor_is_alive() {
 
 impl CloudDesktopService {
     pub(super) fn lock_operations(&self) -> Result<OperationLock, String> {
+        self.try_lock_operations()?.ok_or_else(|| {
+            "Another cloud desktop change is in progress; inspect before retrying".into()
+        })
+    }
+
+    pub(super) fn try_lock_operations(&self) -> Result<Option<OperationLock>, String> {
         let file = private_open(&self.root.join("operations.lock"), false)?;
-        file.try_lock_exclusive()
-            .map_err(|_| "Another cloud desktop change is in progress; inspect before retrying")?;
-        Ok(OperationLock(file))
+        match file.try_lock_exclusive() {
+            Ok(()) => Ok(Some(OperationLock(file))),
+            Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => {
+                Ok(None)
+            }
+            Err(_) => Err("Cannot lock cloud desktop operations".into()),
+        }
     }
 
     pub(super) fn create_receipt(&self, operation_id: &str, receipt: &Value) -> Result<(), String> {
@@ -66,6 +76,19 @@ impl CloudDesktopService {
         resource: &CloudDesktopResource,
         action: &str,
     ) -> Result<(), String> {
+        self.check_change_available_for_hibernation(resource, action, "", None)
+    }
+
+    pub(super) fn check_change_available_for_hibernation(
+        &self,
+        resource: &CloudDesktopResource,
+        action: &str,
+        operation_id: &str,
+        parent: Option<&str>,
+    ) -> Result<(), String> {
+        if let Some(parent) = parent {
+            self.require_hibernation_step(parent, resource, action, operation_id)?;
+        }
         // Scan durable history rather than the truncated recent-operations view.
         for entry in fs::read_dir(&self.root).map_err(|_| "Cannot list cloud operations")? {
             let entry = entry.map_err(|_| "Cannot read cloud operation")?;
@@ -88,6 +111,21 @@ impl CloudDesktopService {
                     || target["resourceId"] != resource.resource_id
                 {
                     continue;
+                }
+                if matches!(
+                    receipt["request"]["action"].as_str(),
+                    Some("start" | "stop")
+                ) && receipt["outcome"] != "lifecycleVerified"
+                {
+                    return Err(format!(
+                        "Cloud desktop lifecycle is unresolved; inspect operation {id} before another change"
+                    ));
+                }
+                if receipt["request"]["action"] == "hibernateEcs"
+                    && !hibernation::terminal(&receipt)
+                    && parent != Some(id)
+                {
+                    return Err(format!("Environment preservation is unresolved; inspect or cancel operation {id} before another change"));
                 }
                 if receipt["request"]["action"] == "release" && receipt["outcome"] != "released" {
                     return Err(format!(
@@ -307,7 +345,29 @@ impl CloudDesktopService {
             })
         });
         operations.sort_by(|a, b| b["createdAt"].as_str().cmp(&a["createdAt"].as_str()));
+        let pending_operations: Vec<_> = operations
+            .iter()
+            .filter(|operation| {
+                (operation["action"] == "hibernateEcs"
+                    && !matches!(
+                        operation["outcome"].as_str(),
+                        Some("hibernated" | "cancelled")
+                    ))
+                    || (matches!(operation["action"].as_str(), Some("start" | "stop"))
+                        && operation["outcome"] != "lifecycleVerified")
+            })
+            .cloned()
+            .collect();
         operations.truncate(50);
+        // Interrupted work must remain discoverable without typing its ID.
+        for pending in pending_operations {
+            if !operations
+                .iter()
+                .any(|operation| operation["operationId"] == pending["operationId"])
+            {
+                operations.push(pending);
+            }
+        }
         Ok(json!({ "resources": resources, "operations": operations }))
     }
 
@@ -333,6 +393,9 @@ impl CloudDesktopService {
         })?;
         if value["operationId"] != id {
             return Err("Cloud receipt identity mismatch".into());
+        }
+        if matches!(value["request"]["action"].as_str(), Some("start" | "stop")) {
+            self.validate_lifecycle_receipt(&value)?;
         }
         if value["request"]["action"] == "release" {
             self.validate_release_image_receipt(&value)?;
@@ -378,11 +441,17 @@ impl CloudDesktopService {
         if value["request"]["action"] == "createEcsImage" {
             self.validate_ecs_image_receipt(&value)?;
         }
+        if value["request"]["action"] == "hibernateEcs" {
+            self.validate_hibernation_receipt(&value)?;
+        }
         if value["request"]["action"] == "purchaseEcs" {
             self.validate_ecs_purchase_receipt(&value)?;
         }
         if value["request"]["action"] == "prepareEcsPurchase" {
             self.validate_ecs_purchase_preparation(&value)?;
+        }
+        if value["request"]["action"] == "prepareEcsConnection" {
+            self.validate_ecs_connection_receipt(&value)?;
         }
         if value["request"]["action"] == "prepareEcsDesktop" {
             self.validate_preparation_receipt(&value)?;

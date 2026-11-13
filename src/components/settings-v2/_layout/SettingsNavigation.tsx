@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type { SettingsTabs } from "@/types/settings";
+import { hasDesktopHostRuntimeMarkers } from "@/lib/desktop-runtime";
 import { SettingsSidebar } from "./SettingsSidebar";
 import type { SettingsSearchResult } from "../settingsSearch";
 
@@ -86,6 +87,9 @@ export function SettingsNavigation({
 }: SettingsNavigationProps) {
   const { t } = useTranslation("settings");
   const { width, setWidth } = useSidebarWidth(356, 356);
+  // Codex desktop uses the window chrome back button; only browser/contextual
+  // settings keep the in-sidebar back affordance.
+  const showBackButton = !hasDesktopHostRuntimeMarkers();
 
   return (
     <Navigation
@@ -99,14 +103,16 @@ export function SettingsNavigation({
         <h1 className="text-[18px] leading-6 font-semibold">
           {t("settings.desktop.title")}
         </h1>
-        <BackButton
-          type="button"
-          onClick={onBack}
-          aria-label={t("settings.layout.action.back")}
-          data-testid="settings-back-button"
-        >
-          <ArrowLeft />
-        </BackButton>
+        {showBackButton ? (
+          <BackButton
+            type="button"
+            onClick={onBack}
+            aria-label={t("settings.layout.action.back")}
+            data-testid="settings-back-button"
+          >
+            <ArrowLeft />
+          </BackButton>
+        ) : null}
       </div>
       <SettingsSidebar
         activeTab={activeTab}

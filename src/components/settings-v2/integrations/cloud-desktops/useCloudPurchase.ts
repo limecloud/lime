@@ -16,21 +16,38 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
   initialSpec,
   request,
   onPurchased,
+  resolveSpec,
 }: {
   initialSpec: S;
   request: CloudRequest;
   onPurchased: (receipt: unknown, context: CloudPurchaseContext<S>) => void;
+  resolveSpec?: (spec: S) => S;
 }) {
   const [spec, setSpec] = useState(initialSpec);
   const [name, setName] = useState("");
   const [quote, setQuote] = useState<Record<string, unknown>>();
   const [approved, setApproved] = useState(false);
   const [pending, setPending] = useState(false);
+  const [checkingNetwork, setCheckingNetwork] = useState(false);
   const [operationId, setOperationId] = useState("");
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<unknown>();
   const busy = useRef(false);
   const active = useRef(true);
+  const latest = useRef({
+    spec,
+    name,
+    resolveSpec,
+    quoteId: quote?.quoteId,
+    approved,
+  });
+  latest.current = {
+    spec,
+    name,
+    resolveSpec,
+    quoteId: quote?.quoteId,
+    approved,
+  };
   useEffect(() => {
     active.current = true;
     return () => {
@@ -63,6 +80,7 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
   ) {
     if (
       busy.current ||
+      (action === "quote" && submitted) ||
       (action === "purchase" &&
         (submitted || !canPurchase || expiresAt <= Date.now()))
     )
@@ -70,10 +88,18 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
     busy.current = true;
     setPending(true);
     setError("");
+    const expected = JSON.stringify([spec, name]);
+    const current = () =>
+      active.current &&
+      expected === JSON.stringify([latest.current.spec, latest.current.name]) &&
+      resolveSpec === latest.current.resolveSpec &&
+      (action !== "purchase" ||
+        (quote?.quoteId === latest.current.quoteId && latest.current.approved));
     try {
       if (action === "quote") {
         const template = source && "id" in source ? source : undefined;
-        const selectedSpec = source && "spec" in source ? source.spec : spec;
+        const baseSpec = source && "spec" in source ? source.spec : spec;
+        const selectedSpec = resolveSpec ? resolveSpec(baseSpec) : baseSpec;
         if (
           selectedSpec.profile !== spec.profile ||
           selectedSpec.regionId !== spec.regionId
@@ -82,7 +108,7 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
         setQuote(undefined);
         setApproved(false);
         setReceipt(undefined);
-        const result = object(
+        let result = object(
           (
             await request(
               template && "vSwitchId" in spec
@@ -102,8 +128,8 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
             )
           ).data,
         );
-        if (!active.current) return;
-        if (source) {
+        if (!current()) return false;
+        if (source || resolveSpec) {
           const resolved = object(template ? result.spec : selectedSpec);
           if (
             resolved.profile !== spec.profile ||
@@ -115,23 +141,46 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
             )
           )
             throw new Error("Invalid cloud template specification");
+          const resolvedSpec = Object.assign(
+            { ...initialSpec },
+            Object.fromEntries(
+              Object.keys(initialSpec).map((key) => [key, resolved[key]]),
+            ),
+          );
+          const finalSpec =
+            template && resolveSpec ? resolveSpec(resolvedSpec) : resolvedSpec;
           if (
-            !template &&
+            template &&
             Object.keys(initialSpec).some(
-              (key) => object(object(result.quote).spec)[key] !== resolved[key],
+              (key) => object(finalSpec)[key] !== resolved[key],
+            )
+          ) {
+            result = object(
+              (
+                await request(
+                  "vSwitchId" in finalSpec
+                    ? { action: "quoteEcs", spec: finalSpec as EcsDesktopSpec }
+                    : {
+                        action: "quoteWuying",
+                        spec: finalSpec as WuyingDesktopSpec,
+                      },
+                )
+              ).data,
+            );
+            if (!current()) return false;
+          }
+          if (
+            (!template || resolveSpec) &&
+            Object.keys(initialSpec).some(
+              (key) =>
+                object(object(result.quote).spec)[key] !==
+                object(finalSpec)[key],
             )
           )
             throw new Error(
               "Cloud quote does not match the recommended specification",
             );
-          setSpec(
-            Object.assign(
-              { ...initialSpec },
-              Object.fromEntries(
-                Object.keys(initialSpec).map((key) => [key, resolved[key]]),
-              ),
-            ),
-          );
+          setSpec(finalSpec);
           if (!name) setName(`Lime-${crypto.randomUUID().slice(0, 8)}`);
         }
         setQuote(result);
@@ -142,9 +191,35 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
         setReceipt(result);
         onPurchased(result, { operationId, spec, desktopName: name });
       } else {
+        const quoteId = String(quote?.quoteId ?? "");
+        if ("vSwitchId" in spec) {
+          setCheckingNetwork(true);
+          try {
+            const proof = object(
+              (await request({ action: "preflightEcsPurchase", spec, quoteId }))
+                .data,
+            );
+            const checked = Date.parse(String(proof.checkedAt));
+            const expiry = Date.parse(String(proof.expiresAt));
+            if (
+              proof.quoteId !== quoteId ||
+              proof.networkReady !== true ||
+              !Number.isFinite(checked) ||
+              checked > Date.now() ||
+              !Number.isFinite(expiry) ||
+              expiry <= Date.now() ||
+              expiry > Math.min(expiresAt, checked + 60_000)
+            )
+              throw new Error("Invalid network observation");
+          } catch {
+            throw new Error("CLOUD_PURCHASE_PREFLIGHT_FAILED");
+          } finally {
+            if (active.current) setCheckingNetwork(false);
+          }
+        }
+        if (!current() || expiresAt <= Date.now()) return false;
         const id = crypto.randomUUID();
         setOperationId(id);
-        const quoteId = String(quote?.quoteId ?? "");
         const provider = "vSwitchId" in spec ? "ecs" : "wuying";
         const body = {
           desktopName: name,
@@ -169,14 +244,17 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
           state.requiresInspection === false
         ) {
           setOperationId("");
-          setQuote(undefined);
-          setApproved(false);
+          if (state.diagnostic !== "CLOUD_PURCHASE_PREFLIGHT_REQUIRED") {
+            setQuote(undefined);
+            setApproved(false);
+          }
         }
         onPurchased(result, { operationId: id, spec, desktopName: name });
       }
       return true;
     } catch (cause) {
-      if (active.current) setError(String(cause));
+      if (active.current && (action === "read" || current()))
+        setError(String(cause));
       return false;
     } finally {
       busy.current = false;
@@ -193,6 +271,7 @@ export function useCloudPurchase<S extends EcsDesktopSpec | WuyingDesktopSpec>({
     approved,
     setApproved,
     pending,
+    checkingNetwork,
     operationId,
     error,
     receipt,

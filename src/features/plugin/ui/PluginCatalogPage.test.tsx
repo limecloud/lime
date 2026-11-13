@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getProject: vi.fn(),
   installPlugin: vi.fn(),
   listPlugins: vi.fn(),
+  listInstalledPlugins: vi.fn(),
   reconcilePlugins: vi.fn(),
   readAppsReadiness: vi.fn(),
   readPlugin: vi.fn(),
@@ -69,6 +70,7 @@ vi.mock("@/lib/api/pluginCatalog", () => ({
   addMarketplace: (...args: unknown[]) => mocks.addMarketplace(...args),
   installPlugin: (...args: unknown[]) => mocks.installPlugin(...args),
   listPlugins: (...args: unknown[]) => mocks.listPlugins(...args),
+  listInstalledPlugins: (...args: unknown[]) => mocks.listInstalledPlugins(...args),
   reconcilePlugins: (...args: unknown[]) => mocks.reconcilePlugins(...args),
   readPlugin: (...args: unknown[]) => mocks.readPlugin(...args),
   removeMarketplace: (...args: unknown[]) => mocks.removeMarketplace(...args),
@@ -138,6 +140,7 @@ describe("PluginCatalogPage", () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
     await changeLimeLocale("zh-CN");
     vi.clearAllMocks();
+    mocks.listInstalledPlugins.mockResolvedValue({marketplaces:[{name:"personal",path:"/tmp/marketplace.json",plugins:[summary()]}]});
     mocks.accountId = null;
     mocks.appsSubscription = null;
     mocks.listPlugins.mockResolvedValue({
@@ -778,18 +781,18 @@ describe("PluginCatalogPage", () => {
   });
 
   it.each([
-    ["zh-CN", "连接插件，让 Lime 在你的各类工具中协同工作。"],
-    ["zh-TW", "連接外掛，讓 Lime 在你的各種工具中協同工作。"],
-    ["en-US", "Connect plugins so Lime can work with your tools."],
+    ["zh-CN", "个人"],
+    ["zh-TW", "個人"],
+    ["en-US", "Personal"],
     [
       "ja-JP",
-      "プラグインを接続して、Lime をさまざまなツールで活用しましょう。",
+      "個人",
     ],
     [
       "ko-KR",
-      "플러그인을 연결해 Lime이 다양한 도구에서 함께 작동하도록 하세요.",
+      "개인",
     ],
-  ] as const)("%s 展示市场安装文案", async (locale, description) => {
+  ] as const)("%s 展示市场入口文案", async (locale, description) => {
     await changeLimeLocale(locale);
     const container = await renderPage();
     expect(container.textContent).toContain(description);

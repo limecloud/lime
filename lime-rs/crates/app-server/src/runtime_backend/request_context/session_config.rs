@@ -46,7 +46,7 @@ pub(in crate::runtime_backend) fn session_config_from_request_with_plugins_and_o
     request_tool_policy: &RequestToolPolicy,
     config_metadata: Option<Value>,
     plugin_snapshots: &[PluginTurnSnapshot],
-    orchestrator_skills: &[lime_skills::AgentSkillMetadata],
+    additional_skills: &[lime_skills::AgentSkillMetadata],
 ) -> AgentSessionConfig {
     let experimental_request_user_input_enabled = config_metadata
         .as_ref()
@@ -84,7 +84,7 @@ pub(in crate::runtime_backend) fn session_config_from_request_with_plugins_and_o
                     workspace_scope.working_dir.as_deref(),
                     workspace_scope.project_root.as_deref(),
                     plugin_snapshots,
-                    orchestrator_skills,
+                    additional_skills,
                 );
         let system_prompt = if request.internal_agent_policy.is_some() {
             skills_context.system_prompt

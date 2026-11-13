@@ -1,0 +1,10 @@
+{
+  "archive": {
+    "sha256": "94727ccd0504f46ab961efc5a9e64ca1fb28465384534ea95cab8371f34efc4e",
+    "size": 426,
+    "expanded_size": 133,
+    "files": 2
+  },
+  "manifestSha256": "d00eb1a58fe0b8c2fb61ec71017e044414b7a419f2c2d18b7287c1a0ab45085f",
+  "producer": "Cloud domains/ecosystem CanonicalManifest and VerifyArchive"
+}

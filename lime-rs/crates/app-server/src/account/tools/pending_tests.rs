@@ -34,7 +34,7 @@ fn output(result: RuntimeToolExecutionResult) -> Value {
 async fn pending_web_query_survives_new_call_ids_restart_and_late_old_results() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     {
@@ -49,7 +49,7 @@ async fn pending_web_query_survives_new_call_ids_restart_and_late_old_results() 
         serde_json::from_str(r#"{"allowed_domains":["rust-lang.org"],"query":"Rust release"}"#)
             .unwrap();
     let first = output(search_tool(&manager, &params, &context()).await.unwrap());
-    let cold = AccountManager::new(root.path());
+    let cold = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     let later = named_context("session-web", "new-call", "new-turn");
     let resumed = output(search_tool(&cold, &reordered, &later).await.unwrap());
     assert_eq!(resumed["operationKey"], first["operationKey"]);
@@ -57,16 +57,31 @@ async fn pending_web_query_survives_new_call_ids_restart_and_late_old_results() 
     assert_eq!(f.count("/web/searches"), 1);
     let changed = json!({"query":"Different query"});
     assert_eq!(
-        search_tool(&cold, &changed, &later).await.unwrap_err().message(),
+        search_tool(&cold, &changed, &later)
+            .await
+            .unwrap_err()
+            .message(),
         "operation_key_conflict"
     );
     let token = tokio_util::sync::CancellationToken::new();
     token.cancel();
     let cancelled = RuntimeToolExecutionContext::new(RuntimeToolExecutionContextInput {
-        working_directory: root.path().into(), session_id:"session-web".into(),
-        cancel_token:Some(token), workspace_sandbox:None,
-    }).with_tool_identity(RuntimeToolExecutionIdentity::new("cancelled-call", "cancelled-turn"));
-    assert_eq!(search_tool(&cold, &params, &cancelled).await.unwrap_err().message(), "cloud_tool_cancelled");
+        working_directory: root.path().into(),
+        session_id: "session-web".into(),
+        cancel_token: Some(token),
+        workspace_sandbox: None,
+    })
+    .with_tool_identity(RuntimeToolExecutionIdentity::new(
+        "cancelled-call",
+        "cancelled-turn",
+    ));
+    assert_eq!(
+        search_tool(&cold, &params, &cancelled)
+            .await
+            .unwrap_err()
+            .message(),
+        "cloud_tool_cancelled"
+    );
     {
         let mut state = f.state.lock().unwrap();
         state.invalid_post = false;
@@ -85,7 +100,13 @@ async fn pending_web_query_survives_new_call_ids_restart_and_late_old_results() 
     assert_eq!(f.count("/web/searches"), 2);
     let mut wrong_key = params.clone();
     wrong_key["operation_key"] = second["operationKey"].clone();
-    assert_eq!(search_tool(&cold, &wrong_key, &later).await.unwrap_err().message(), "operation_key_conflict");
+    assert_eq!(
+        search_tool(&cold, &wrong_key, &later)
+            .await
+            .unwrap_err()
+            .message(),
+        "operation_key_conflict"
+    );
     // A previously aliased call keeps its original operation after completion.
     {
         let mut state = f.state.lock().unwrap();
@@ -105,7 +126,7 @@ async fn invalid_web_results_never_release_the_pending_query() {
     for invalid_json in [false, true] {
         let f = Fixture::start().await;
         let root = tempfile::tempdir().unwrap();
-        let manager = AccountManager::new(root.path());
+        let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
         f.login(&manager, CloudResource::Default).await;
         f.login(&manager, CloudResource::Web).await;
         {
@@ -116,7 +137,7 @@ async fn invalid_web_results_never_release_the_pending_query() {
         }
         let params = json!({"query":"Rust release"});
         let first = output(search_tool(&manager, &params, &context()).await.unwrap());
-        let cold = AccountManager::new(root.path());
+        let cold = AccountManager::new(root.path(), &root.path().join("config.yaml"));
         let later = named_context("session-web", "new-call", "new-turn");
         let resumed = output(search_tool(&cold, &params, &later).await.unwrap());
         assert_eq!(resumed["status"], "outcome_unknown");
@@ -129,11 +150,12 @@ async fn invalid_web_results_never_release_the_pending_query() {
 async fn validated_failed_web_result_allows_a_new_query() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     f.state.lock().unwrap().web_response = Some(json!({
-        "id":"failed_search", "kind":"search", "status":"failed", "errorCode":"INTEGRATION_SEARCH_UNAVAILABLE"
+        "id":"failed_search", "kind":"search", "status":"failed", "errorCode":"INTEGRATION_SEARCH_UNAVAILABLE",
+        "usage":{"requests":0,"responseBytes":0,"billingStatus":"unpriced"}
     }));
     let params = json!({"query":"Rust release"});
     let first = output(search_tool(&manager, &params, &context()).await.unwrap());
@@ -150,7 +172,7 @@ async fn validated_failed_web_result_allows_a_new_query() {
 async fn pending_web_query_is_scoped_to_original_parameters_session_and_epoch() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     {
@@ -187,7 +209,7 @@ async fn pending_web_query_is_scoped_to_original_parameters_session_and_epoch() 
 async fn concurrent_new_call_ids_share_one_pending_dispatch() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     {
@@ -204,14 +226,18 @@ async fn concurrent_new_call_ids_share_one_pending_dispatch() {
     );
     for result in [a, b] {
         if let Err(error) = result {
-            // The existing cross-process lock exposes contention. Retrying the
-            // original call must recover its binding rather than make a new one.
-            assert_eq!(error.message(), "account_store_busy");
+            // Contention can precede the web dispatch, including an in-flight
+            // product registration. Recover the original binding in either case.
+            assert!(matches!(
+                error.message(),
+                "account_store_busy" | "outcome_unknown"
+            ));
         }
     }
     let a = output(search_tool(&manager, &params, &first).await.unwrap());
     let b = output(search_tool(&manager, &params, &second).await.unwrap());
     assert_eq!(a["operationKey"], b["operationKey"]);
+    assert_eq!(f.count("/product-users"), 1);
     assert_eq!(f.count("/web/searches"), 1);
 }
 
@@ -219,7 +245,7 @@ async fn concurrent_new_call_ids_share_one_pending_dispatch() {
 async fn missing_pending_intent_never_authorizes_a_second_dispatch() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     {
@@ -251,7 +277,7 @@ async fn missing_pending_intent_never_authorizes_a_second_dispatch() {
 async fn pending_page_read_reuses_original_operation_with_a_new_call_id() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     f.state.lock().unwrap().web_response = Some(json!({"status":"completed"}));
@@ -267,13 +293,13 @@ async fn pending_page_read_reuses_original_operation_with_a_new_call_id() {
     let first = output(manager.execute(request).await.unwrap());
     assert_eq!(first["status"], "outcome_unknown");
     f.state.lock().unwrap().web_response = Some(json!({
-        "id":"page_1", "kind":"page", "status":"completed", "page":{
+        "id":"page_1", "kind":"page", "status":"completed", "usage":{"requests":1,"responseBytes":32,"billingStatus":"unpriced"}, "page":{
             "url":params["url"], "finalUrl":params["url"], "text":"Ownership rules.",
             "title":"Rust", "retrievedAt":"2026-11-12T00:00:00Z", "truncated":false
         }
     }));
     let later = named_context("session-web", "new-call", "new-turn");
-    let cold = AccountManager::new(root.path());
+    let cold = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     let resumed = output(
         cold.execute(RuntimeToolExecutionRequest {
             context: &later,

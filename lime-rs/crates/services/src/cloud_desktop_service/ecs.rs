@@ -3,7 +3,9 @@
 use super::*;
 use app_server_protocol::protocol::v2::EcsDesktopSpec;
 
+mod access;
 mod network;
+mod preflight;
 mod purchase;
 mod recommendation;
 mod templates;

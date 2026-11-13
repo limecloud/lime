@@ -1,5 +1,26 @@
 {
   "$defs": {
+    "MarketReleaseReference": {
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "type": "object"
+    },
     "MarketplaceInterface": {
       "properties": {
         "displayName": {
@@ -240,6 +261,28 @@
       ],
       "type": "object"
     },
+    "PluginSearchResult": {
+      "properties": {
+        "marketplaceName": {
+          "type": "string"
+        },
+        "marketplacePath": {
+          "default": null,
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "plugin": {
+          "$ref": "#/$defs/PluginSummary"
+        }
+      },
+      "required": [
+        "marketplaceName",
+        "plugin"
+      ],
+      "type": "object"
+    },
     "PluginSource": {
       "oneOf": [
         {
@@ -418,6 +461,17 @@
           },
           "type": "array"
         },
+        "localRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "localVersion": {
           "default": null,
           "type": [
@@ -441,6 +495,17 @@
             "null",
             "string"
           ]
+        },
+        "remoteRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "source": {
           "$ref": "#/$defs/PluginSource"
@@ -467,10 +532,10 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "featuredPluginIds": {
+    "featuredPlugins": {
       "default": [],
       "items": {
-        "type": "string"
+        "$ref": "#/$defs/PluginSearchResult"
       },
       "type": "array"
     },

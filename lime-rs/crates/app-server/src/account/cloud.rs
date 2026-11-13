@@ -150,7 +150,7 @@ impl Tokens {
     pub fn credential(self, resource: &ResourceConfig) -> Result<Credential, String> {
         let valid_token =
             |v: &str| !v.is_empty() && v.len() <= 65536 && !v.chars().any(char::is_control);
-        if self.token_type != "Bearer"
+        if !self.token_type.eq_ignore_ascii_case("Bearer")
             || !valid_token(&self.access_token)
             || self.expires_in <= 0
             || self.expires_in > 31_536_000
@@ -165,6 +165,7 @@ impl Tokens {
         }
         Ok(Credential {
             expires_at: chrono::Utc::now().timestamp() + self.expires_in,
+            authorization_expires_at: None,
             tokens: self,
             audience: resource.audience.clone(),
             scope: resource.scope.clone(),
@@ -284,11 +285,12 @@ impl AccountManager {
         &self,
         base: &str,
         cfg: &AuthConfig,
+        resource: CloudResource,
         tokens: &Tokens,
         nonce: &str,
         account: &Account,
         language: &str,
-    ) -> Result<(), String> {
+    ) -> Result<Option<i64>, String> {
         use jsonwebtoken::{
             decode, decode_header, jwk::JwkSet, Algorithm, DecodingKey, Validation,
         };
@@ -297,7 +299,12 @@ impl AccountManager {
             sub: String,
             nonce: String,
             iat: i64,
-            aud: String,
+            aud: serde_json::Value,
+            azp: Option<String>,
+            lime_authorization_source: Option<String>,
+            lime_application_id: Option<String>,
+            lime_environment: Option<String>,
+            lime_test_approval_expires_at: Option<Box<serde_json::value::RawValue>>,
         }
         let token = tokens.id_token.as_deref().ok_or("id_token_invalid")?;
         let header = decode_header(token).map_err(|_| "id_token_invalid")?;
@@ -324,14 +331,103 @@ impl AccountManager {
             .map_err(|_| "id_token_invalid")?
             .claims;
         let Account::Cloud { user_id, .. } = account;
+        let client_audience = match &claims.aud {
+            serde_json::Value::String(aud) => aud == &cfg.client_id,
+            serde_json::Value::Array(aud) => {
+                aud.len() == 1 && aud[0].as_str() == Some(cfg.client_id.as_str())
+            }
+            _ => false,
+        };
         if claims.sub != *user_id
             || claims.nonce != nonce
-            || claims.aud != cfg.client_id
+            || !client_audience
+            || claims.azp.as_ref().is_some_and(|azp| azp != &cfg.client_id)
             || claims.iat > chrono::Utc::now().timestamp() + 30
         {
             return Err("id_token_invalid".into());
         }
-        Ok(())
+        if resource == CloudResource::Connections && cfg.environment == "sandbox" {
+            let expires = claims
+                .lime_test_approval_expires_at
+                .as_deref()
+                .and_then(authorization_deadline)
+                .filter(|expires| {
+                    *expires > chrono::Utc::now().timestamp()
+                        && chrono::DateTime::from_timestamp(*expires, 0).is_some()
+                })
+                .ok_or("id_token_invalid")?;
+            if claims.lime_authorization_source.as_deref() != Some("sandbox_test_approval")
+                || claims.lime_application_id.as_deref() != Some(cfg.application_id.as_str())
+                || claims.lime_environment.as_deref() != Some("sandbox")
+            {
+                return Err("id_token_invalid".into());
+            }
+            return Ok(Some(expires));
+        }
+        Ok(None)
+    }
+}
+
+// Signed JSON numbers can express integral seconds with a decimal point or
+// exponent. Normalize in base ten so fractions and overflow never round up.
+fn authorization_deadline(raw: &serde_json::value::RawValue) -> Option<i64> {
+    let value = raw.get();
+    let (mantissa, exponent) = match value.split_once(['e', 'E']) {
+        Some((mantissa, exponent)) => (mantissa, exponent.parse::<i32>().ok()?),
+        None => (value, 0),
+    };
+    let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    if whole.starts_with('-')
+        || !whole
+            .bytes()
+            .chain(fraction.bytes())
+            .all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    let scale = exponent.checked_sub(i32::try_from(fraction.len()).ok()?)?;
+    let digits = format!("{whole}{fraction}");
+    let mut digits = digits.trim_start_matches('0').to_owned();
+    if digits.is_empty() {
+        return Some(0);
+    }
+    if scale < 0 {
+        let remove = usize::try_from(scale.checked_neg()?).ok()?;
+        let keep = digits.len().checked_sub(remove)?;
+        if !digits.as_bytes()[keep..].iter().all(|byte| *byte == b'0') {
+            return None;
+        }
+        digits.truncate(keep);
+    } else {
+        let zeros = usize::try_from(scale).ok()?;
+        if digits.len().checked_add(zeros)? > 19 {
+            return None;
+        }
+        digits.extend(std::iter::repeat_n('0', zeros));
+    }
+    digits.parse().ok()
+}
+
+#[cfg(test)]
+#[test]
+fn signed_authorization_deadline_accepts_exact_integral_json_numbers_only() {
+    for (input, expected) in [
+        ("1794540001", Some(1794540001)),
+        ("1794540001.0", Some(1794540001)),
+        ("1.794540001e9", Some(1794540001)),
+        ("1794540001000e-3", Some(1794540001)),
+        ("1794540001.000000001", None),
+        ("1794540001.5", None),
+        ("1e1000000000", None),
+        ("1e-2147483648", None),
+        ("9223372036854775808", None),
+        ("\"1794540001\"", None),
+        ("null", None),
+        ("true", None),
+        ("-1794540001", None),
+    ] {
+        let raw = serde_json::value::RawValue::from_string(input.into()).unwrap();
+        assert_eq!(authorization_deadline(&raw), expected, "{input}");
     }
 }
 
@@ -348,26 +444,4 @@ pub(super) async fn response_bytes(response: reqwest::Response) -> Result<Vec<u8
     Ok(bytes)
 }
 
-pub(super) fn validated_base_url(value: &str) -> Result<(reqwest::Url, bool), String> {
-    let base = reqwest::Url::parse(value).map_err(|_| "account_origin_invalid")?;
-    let loopback = base.host_str().is_some_and(|host| {
-        host.eq_ignore_ascii_case("localhost")
-            || host
-                .trim_matches(['[', ']'])
-                .parse::<std::net::IpAddr>()
-                .is_ok_and(|ip| ip.is_loopback())
-    });
-    if !(base.scheme() == "https" || base.scheme() == "http" && loopback)
-        || base.host_str().is_none()
-        || !base.username().is_empty()
-        || base.password().is_some()
-        || base.query().is_some()
-        || base.fragment().is_some()
-        || base.path() != "/"
-        || base.cannot_be_a_base()
-        || base.origin().ascii_serialization() != value.trim_end_matches('/')
-    {
-        return Err("account_origin_invalid".into());
-    }
-    Ok((base, loopback))
-}
+pub(super) use lime_core::config::validated_cloud_origin as validated_base_url;

@@ -54,6 +54,8 @@ impl WorkspaceSkillBindingAppDataSource for CommittedRouteSignal {}
 impl GatewayAppDataSource for CommittedRouteSignal {}
 impl MediaAppDataSource for CommittedRouteSignal {}
 impl VoiceAppDataSource for CommittedRouteSignal {}
+impl crate::MarketDataSource for CommittedRouteSignal {}
+
 impl PluginDataSource for CommittedRouteSignal {}
 impl AutomationOverviewAppDataSource for CommittedRouteSignal {}
 impl McpAppDataSource for CommittedRouteSignal {}

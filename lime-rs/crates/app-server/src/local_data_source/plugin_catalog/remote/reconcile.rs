@@ -15,15 +15,26 @@ pub(crate) async fn reconcile(store: &PluginStore) -> Result<PluginReconcileResp
         let Some(metadata) = &record.remote else {
             continue;
         };
-        let acquisition = context
-            .get::<wire::Acquisition>(&format!("/market/acquisitions/{}", metadata.acquisition_id))
-            .await;
-        if !acquisition.is_ok_and(|a| {
-            a.id == metadata.acquisition_id
-                && a.release_id == metadata.release_id
-                && a.status == "active"
-                && a.revision > 0
-        }) {
+        let mut failed = false;
+        for (id, release) in std::iter::once((&metadata.acquisition_id, &metadata.release_id))
+            .chain(
+                metadata
+                    .dependencies
+                    .iter()
+                    .map(|dependency| (&dependency.acquisition_id, &dependency.release.id)),
+            )
+        {
+            let acquisition = context
+                .get::<wire::Acquisition>(&format!("/market/acquisitions/{id}"))
+                .await;
+            if !acquisition.is_ok_and(|a| {
+                a.id == *id && a.release_id == *release && a.status == "active" && a.revision > 0
+            }) {
+                failed = true;
+                break;
+            }
+        }
+        if failed {
             response
                 .failed_remote_plugin_ids
                 .push(metadata.remote_plugin_id.clone());

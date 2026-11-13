@@ -1,12 +1,16 @@
 use super::*;
 
 #[cfg(unix)]
+#[path = "tests/lifecycle.rs"]
+mod lifecycle;
+
+#[cfg(unix)]
 #[path = "tests/ecs_release.rs"]
 mod ecs_release;
 
 #[cfg(unix)]
 #[path = "tests/ecs_purchase.rs"]
-mod ecs_purchase;
+pub(super) mod ecs_purchase;
 
 #[cfg(unix)]
 #[path = "tests/ecs_templates.rs"]
@@ -364,18 +368,19 @@ async fn resource_bindings_survive_service_restart_without_storing_credentials()
 
 #[test]
 fn provider_diagnostics_never_include_messages_or_credential_material() {
-    let error = provider_diagnostic(b"ERROR: SDK.ServerError\nErrorCode: InvalidParam\nRequestId: request-123\nMessage: token=private-value\nRecommend: https://signed.invalid/?secret=value");
+    let diagnostic = |stderr: &[u8]| auth::cli::CliError::provider(stderr).to_string();
+    let error = diagnostic(b"ERROR: SDK.ServerError\nErrorCode: InvalidParam\nRequestId: request-123\nMessage: token=private-value\nRecommend: https://signed.invalid/?secret=value");
     assert!(error.contains("ErrorCode=InvalidParam"));
     assert!(error.contains("RequestId=request-123"));
     for forbidden in ["private-value", "signed.invalid", "secret=value"] {
         assert!(!error.contains(forbidden));
     }
     let error =
-        provider_diagnostic(br#"{"Code":"Denied","RequestId":"request-1","Message":"secret"}"#);
+        diagnostic(br#"{"Code":"Denied","RequestId":"request-1","Message":"secret"}"#);
     assert!(error.contains("ErrorCode=Denied"));
     assert!(!error.contains("secret"));
-    assert!(!provider_diagnostic(b"RequestId: token=secret").contains("secret"));
-    let error = provider_diagnostic(br#"{"error_code":"InvalidParameter.CommandContent","request_id":"request-2","message":"token=private-value","recommendation":"https://signed.invalid/?secret=value"}"#);
+    assert!(!diagnostic(b"RequestId: token=secret").contains("secret"));
+    let error = diagnostic(br#"{"error_code":"InvalidParameter.CommandContent","request_id":"request-2","message":"token=private-value","recommendation":"https://signed.invalid/?secret=value"}"#);
     assert!(error.contains("ErrorCode=InvalidParameter.CommandContent"));
     assert!(error.contains("RequestId=request-2"));
     assert!(!error.contains("private-value"));

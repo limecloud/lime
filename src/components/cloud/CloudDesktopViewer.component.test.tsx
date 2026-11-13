@@ -43,14 +43,14 @@ afterEach(() => {
   container.remove();
 });
 
-it("展开后只连接桌面查看通道，使用隔离和查看模式，不自动读取密码", async () => {
+it("展开后只连接隔离桌面通道，允许云端授权窗口接收点击，不自动读取密码", async () => {
   await render();
   expect(api.connect).toHaveBeenCalledTimes(1);
   const frame = container.querySelector("iframe")!;
   expect(frame).not.toBeNull();
   const url = new URL(frame.src);
   expect(url.origin).toBe("http://127.0.0.1:12345");
-  expect(url.searchParams.get("view_only")).toBe("true");
+  expect(url.searchParams.get("view_only")).toBe("false");
   expect(url.searchParams.get("resize")).toBe("scale");
   expect(frame.getAttribute("sandbox")).toBe("allow-scripts allow-same-origin");
   expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");

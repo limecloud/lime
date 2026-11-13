@@ -48,10 +48,11 @@ pub use agent_selection::{
 pub use agent_snapshot::{
     agent_skill_roots_for_workspace, apply_agent_skill_config, build_agent_skill_snapshot,
     build_agent_skill_snapshot_from_roots, build_agent_skill_snapshot_from_workspace,
-    default_agent_skill_roots, invalidate_agent_skill_snapshot_cache, runtime_extra_skill_roots,
-    set_runtime_extra_skill_roots, AgentSkillAuthority, AgentSkillDependencies,
-    AgentSkillInterface, AgentSkillMetadata, AgentSkillPolicy, AgentSkillRoot, AgentSkillScope,
-    AgentSkillSnapshot, AgentSkillSnapshotOptions, AgentSkillSource, AgentSkillToolDependency,
+    default_agent_skill_roots, invalidate_agent_skill_snapshot_cache, load_agent_skill_from_file,
+    runtime_extra_skill_roots, set_runtime_extra_skill_roots, AgentSkillAuthority,
+    AgentSkillDependencies, AgentSkillInterface, AgentSkillMetadata, AgentSkillPolicy,
+    AgentSkillRoot, AgentSkillScope, AgentSkillSnapshot, AgentSkillSnapshotOptions,
+    AgentSkillSource, AgentSkillToolDependency,
 };
 pub use execution_callback::{
     events, ExecutionCallback, ExecutionCompletePayload, StepCompletePayload, StepErrorPayload,

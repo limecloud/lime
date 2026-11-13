@@ -5,6 +5,97 @@ import { checkServerIdentity } from "node:tls";
 import type { FileHandle } from "node:fs/promises";
 import { Buffer } from "node:buffer";
 import { validateDownloadUrl } from "./cloudGuestArtifact";
+import type { CloudGuestUploadFailure } from "../src/lib/desktop-host/cloudDesktopConnection";
+
+const routes: CloudGuestUploadFailure["route"][] = [
+  "/status",
+  "/runtime",
+  "/credentials",
+  "/finish",
+  "/reconnect",
+  "/download",
+];
+const reasons: CloudGuestUploadFailure["reason"][] = [
+  "invalidTarget",
+  "cancelled",
+  "expired",
+  "timeout",
+  "tls",
+  "connection",
+  "httpStatus",
+  "responseType",
+  "responseSize",
+  "responseJson",
+  "responseShape",
+  "unexpected",
+];
+
+/** Reconstruct only allowlisted values, including when reading private state. */
+export function readCloudGuestUploadFailure(
+  value: unknown,
+): CloudGuestUploadFailure {
+  const failure = value as CloudGuestUploadFailure | null;
+  if (
+    !failure ||
+    !routes.includes(failure.route) ||
+    !reasons.includes(failure.reason) ||
+    (failure.reason === "httpStatus"
+      ? !Number.isInteger(failure.httpStatus) ||
+        failure.httpStatus! < 100 ||
+        failure.httpStatus! > 599
+      : failure.httpStatus !== undefined)
+  )
+    throw new Error("CLOUD_INSTALL_STATE_INVALID");
+  return {
+    route: failure.route,
+    reason: failure.reason,
+    ...(failure.reason === "httpStatus"
+      ? { httpStatus: failure.httpStatus }
+      : {}),
+  };
+}
+
+export class CloudGuestUploadError extends Error {
+  readonly failure: CloudGuestUploadFailure;
+  constructor(failure: CloudGuestUploadFailure) {
+    super("CLOUD_INSTALL_CONNECTION_FAILED");
+    this.failure = readCloudGuestUploadFailure(failure);
+  }
+}
+
+function failureReason(error: unknown): CloudGuestUploadFailure["reason"] {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === "ABORT_ERR") return "cancelled";
+  if (code === "ETIMEDOUT") return "timeout";
+  if (typeof code !== "string") return "unexpected";
+  if (
+    code.startsWith("ERR_TLS_") ||
+    code.startsWith("ERR_SSL_") ||
+    [
+      "DEPTH_ZERO_SELF_SIGNED_CERT",
+      "SELF_SIGNED_CERT_IN_CHAIN",
+      "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+      "UNABLE_TO_GET_ISSUER_CERT",
+      "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+      "CERT_HAS_EXPIRED",
+      "CERT_NOT_YET_VALID",
+      "CERT_REVOKED",
+      "CERT_UNTRUSTED",
+      "INVALID_CA",
+    ].includes(code)
+  )
+    return "tls";
+  return [
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "EPIPE",
+    "ENETUNREACH",
+    "EHOSTUNREACH",
+    "ECONNABORTED",
+  ].includes(code)
+    ? "connection"
+    : "unexpected";
+}
 
 export type CloudGuestUpload = {
   operationId: string;
@@ -16,18 +107,31 @@ export type CloudGuestUpload = {
 export async function requestCloudGuestUpload(
   target: CloudGuestUpload & { endpoint: string },
   capability: string,
-  route:
-    | "/status"
-    | "/runtime"
-    | "/credentials"
-    | "/finish"
-    | "/reconnect"
-    | "/download",
+  route: CloudGuestUploadFailure["route"],
   signal: AbortSignal,
   upload?: { file: FileHandle; bytes: number } | { downloadUrl: string },
 ): Promise<Record<string, unknown>> {
+  if (!routes.includes(route))
+    throw new Error("CLOUD_INSTALL_CONNECTION_FAILED");
+  const failure = (
+    reason: CloudGuestUploadFailure["reason"],
+    httpStatus?: number,
+  ) =>
+    new CloudGuestUploadError({
+      route,
+      reason,
+      ...(httpStatus === undefined ? {} : { httpStatus }),
+    });
   try {
-    const endpoint = new URL(target.endpoint);
+    // Validation failures are local and must not be classified as network errors.
+    let endpoint: URL;
+    let certificate: X509Certificate;
+    try {
+      endpoint = new URL(target.endpoint);
+      certificate = new X509Certificate(target.certificate);
+    } catch {
+      throw failure("invalidTarget");
+    }
     if (
       endpoint.protocol !== "https:" ||
       endpoint.hostname !== "127.0.0.1" ||
@@ -39,13 +143,12 @@ export async function requestCloudGuestUpload(
       endpoint.search ||
       endpoint.hash ||
       !/^[a-f0-9]{64}$/u.test(capability) ||
-      !Number.isSafeInteger(target.expiresAt) ||
-      target.expiresAt * 1000 <= Date.now()
+      !Number.isSafeInteger(target.expiresAt)
     )
-      throw new Error("invalid target");
-    const certificate = new X509Certificate(target.certificate);
-    if (!certificate.checkIP("127.0.0.2"))
-      throw new Error("invalid certificate identity");
+      throw failure("invalidTarget");
+    if (!certificate.checkIP("127.0.0.2")) throw failure("invalidTarget");
+    if (target.expiresAt * 1000 <= Date.now()) throw failure("expired");
+    if (signal.aborted) throw failure("cancelled");
     const method =
       route === "/runtime"
         ? "PUT"
@@ -58,14 +161,19 @@ export async function requestCloudGuestUpload(
       (route === "/runtime") !== Boolean(fileUpload) ||
       (route === "/download") !== Boolean(download)
     )
-      throw new Error("invalid upload");
-    const body = download
-      ? Buffer.from(
+      throw failure("invalidTarget");
+    let body: Buffer | undefined;
+    if (download) {
+      try {
+        body = Buffer.from(
           JSON.stringify({
             downloadUrl: validateDownloadUrl(download.downloadUrl),
           }),
-        )
-      : undefined;
+        );
+      } catch {
+        throw failure("invalidTarget");
+      }
+    }
     let responseResult!: Promise<Record<string, unknown>>;
     let resolveResponse!: (value: Record<string, unknown>) => void;
     let rejectResponse!: (error: unknown) => void;
@@ -97,24 +205,28 @@ export async function requestCloudGuestUpload(
       (response) => {
         void (async () => {
           try {
+            if (response.statusCode !== 200)
+              throw failure("httpStatus", response.statusCode);
             if (
-              response.statusCode !== 200 ||
               !response.headers["content-type"]?.startsWith("application/json")
             )
-              throw new Error("invalid response");
+              throw failure("responseType");
             const blocks: Buffer[] = [];
             let size = 0;
             for await (const block of response) {
               const bytes = Buffer.isBuffer(block) ? block : Buffer.from(block);
               size += bytes.length;
-              if (size > 16384) throw new Error("response too large");
+              if (size > 16384) throw failure("responseSize");
               blocks.push(bytes);
             }
-            const value = JSON.parse(
-              Buffer.concat(blocks).toString("utf8"),
-            ) as unknown;
+            let value: unknown;
+            try {
+              value = JSON.parse(Buffer.concat(blocks).toString("utf8"));
+            } catch {
+              throw failure("responseJson");
+            }
             if (!value || typeof value !== "object" || Array.isArray(value))
-              throw new Error("invalid response");
+              throw failure("responseShape");
             resolveResponse(value as Record<string, unknown>);
           } catch (error) {
             response.destroy();
@@ -124,11 +236,14 @@ export async function requestCloudGuestUpload(
       },
     );
     operation.on("error", rejectResponse);
-    operation.on("timeout", () =>
-      operation.destroy(new Error("installation timed out")),
-    );
+    operation.on("timeout", () => operation.destroy(failure("timeout")));
     const timer = setTimeout(
-      () => operation.destroy(new Error("installation expired")),
+      () =>
+        operation.destroy(
+          failure(
+            target.expiresAt * 1000 <= Date.now() ? "expired" : "timeout",
+          ),
+        ),
       Math.min(600_000, target.expiresAt * 1000 - Date.now()),
     );
     try {
@@ -145,8 +260,9 @@ export async function requestCloudGuestUpload(
       clearTimeout(timer);
       operation.destroy();
     }
-  } catch {
+  } catch (error) {
     // Never forward a network error, endpoint, certificate, header or response body.
-    throw new Error("CLOUD_INSTALL_CONNECTION_FAILED");
+    if (error instanceof CloudGuestUploadError) throw error;
+    throw failure(failureReason(error));
   }
 }

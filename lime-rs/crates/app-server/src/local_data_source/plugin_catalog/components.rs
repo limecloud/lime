@@ -8,14 +8,21 @@ pub(crate) fn enabled_plugin_turn_snapshots(
         if !record.enabled {
             continue;
         }
+        let dependencies = match remote::dependencies::load(record) {
+            Ok(dependencies) => dependencies,
+            Err(error) => {
+                tracing::warn!(plugin_id = %record.id.key(), %error, "Plugin dependencies unavailable");
+                continue;
+            }
+        };
         let package_root = record.root.clone();
         let manifest = manifest::read_manifest_with_name(&package_root, Some(&record.id.name))?;
         let id = record.id.name.clone();
         let config_name = record.id.key();
         let display_name = interface_string(&manifest, "displayName").unwrap_or_else(|| id.clone());
-        let skills = plugin_skills(&package_root, &manifest, &config_name)?;
-        let skill_roots = manifest::skill_paths(&package_root, &manifest)?;
-        let mcp_server_names =
+        let mut skills = plugin_skills(&package_root, &manifest, &config_name)?;
+        let mut skill_roots = manifest::skill_paths(&package_root, &manifest)?;
+        let mut mcp_server_names =
             plugin_mcp_server_descriptors(store, &package_root, &record.id, true)
                 .unwrap_or_else(|error| {
                     tracing::warn!(
@@ -28,6 +35,15 @@ pub(crate) fn enabled_plugin_turn_snapshots(
                 .into_iter()
                 .map(|server| server.runtime_name)
                 .collect::<Vec<_>>();
+        for (root, release) in &dependencies {
+            if release.manifest.kind == "skill" {
+                let skill = remote::dependencies::skill(record, root, release)?;
+                skill_roots.push(skill.directory.clone());
+                skills.push(skill);
+            } else {
+                mcp_server_names.push(remote::dependencies::mcp(record, root, release)?.name);
+            }
+        }
         snapshots.push(crate::runtime::PluginTurnSnapshot {
             id,
             config_name,
@@ -50,6 +66,13 @@ pub(crate) fn list_plugin_mcp_runtime_server_specs(
         if !record.enabled {
             continue;
         }
+        let dependencies = match remote::dependencies::load(record) {
+            Ok(dependencies) => dependencies,
+            Err(error) => {
+                tracing::warn!(plugin_id = %record.id.key(), %error, "Plugin dependencies unavailable");
+                continue;
+            }
+        };
         let package_root = record.root.clone();
         let plugin_id = record.id.key();
         let servers = match plugin_mcp_server_descriptors(store, &package_root, &record.id, true) {
@@ -69,6 +92,11 @@ pub(crate) fn list_plugin_mcp_runtime_server_specs(
                 plugin_id: Some(plugin_id.clone()),
                 config: server.config,
             });
+        }
+        for (root, release) in &dependencies {
+            if release.manifest.kind == "mcp" {
+                specs.push(remote::dependencies::mcp(record, root, release)?);
+            }
         }
     }
     specs.sort_by(|left, right| left.name.cmp(&right.name));

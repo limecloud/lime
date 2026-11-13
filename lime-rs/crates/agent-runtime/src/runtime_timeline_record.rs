@@ -230,10 +230,10 @@ mod tests {
     fn item_record_projector_extracts_tool_output_text() {
         let item = runtime_item(RuntimeItemPayloadRecord::ToolCall {
             tool_name: "web_search".to_string(),
-            arguments: Some(serde_json::json!({ "q": "codex" })),
+            arguments: Some(serde_json::json!({ "q": "lime" })),
             output: Some(serde_json::json!({
                 "content": [
-                    { "type": "text", "text": "Codex 是一个智能体编码系统" }
+                    { "type": "text", "text": "Lime 是一个智能体编码系统" }
                 ]
             })),
             success: Some(true),
@@ -258,9 +258,9 @@ mod tests {
                 assert_eq!(tool_name, "web_search");
                 assert_eq!(
                     arguments.as_ref(),
-                    Some(&serde_json::json!({ "q": "codex" }))
+                    Some(&serde_json::json!({ "q": "lime" }))
                 );
-                assert_eq!(output.as_deref(), Some("Codex 是一个智能体编码系统"));
+                assert_eq!(output.as_deref(), Some("Lime 是一个智能体编码系统"));
                 assert_eq!(success, Some(true));
                 assert_eq!(error, None);
                 assert_eq!(

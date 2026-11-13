@@ -263,7 +263,7 @@ pub(super) fn project_item_with_scope(
             None,
             Vec::new(),
         ),
-        // Sleep is an internal runtime control item in Codex and is not part of the
+        // Sleep is an internal runtime control item in 上游 and is not part of the
         // user-visible transcript or agent status feed.
         ThreadItem::Sleep(_) => return None,
         ThreadItem::ImageGeneration(item) => {

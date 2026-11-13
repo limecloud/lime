@@ -25,7 +25,7 @@ pub(super) fn agent_skills_context_for_turn_with_plugins_and_orchestrator(
     working_dir: Option<&Path>,
     project_root: Option<&Path>,
     plugin_snapshots: &[PluginTurnSnapshot],
-    orchestrator_skills: &[AgentSkillMetadata],
+    additional_skills: &[AgentSkillMetadata],
 ) -> AgentSkillsTurnContext {
     agent_skills_context_from_roots(
         system_prompt,
@@ -33,7 +33,7 @@ pub(super) fn agent_skills_context_for_turn_with_plugins_and_orchestrator(
         metadata_values,
         agent_skill_roots_for_workspace(working_dir, project_root),
         plugin_snapshots,
-        orchestrator_skills,
+        additional_skills,
     )
 }
 
@@ -43,7 +43,7 @@ fn agent_skills_context_from_roots(
     metadata_values: &[&Value],
     roots: Vec<AgentSkillRoot>,
     plugin_snapshots: &[PluginTurnSnapshot],
-    orchestrator_skills: &[AgentSkillMetadata],
+    additional_skills: &[AgentSkillMetadata],
 ) -> AgentSkillsTurnContext {
     if should_suppress_agent_skills_for_metadata(metadata_values) {
         return AgentSkillsTurnContext {
@@ -56,7 +56,7 @@ fn agent_skills_context_from_roots(
         roots,
         metadata_values,
         plugin_snapshots,
-        orchestrator_skills,
+        additional_skills,
     );
     let system_prompt = append_expert_skill_hints(system_prompt, metadata_values, &snapshot);
 
@@ -150,13 +150,13 @@ pub(super) fn build_agent_skill_snapshot_for_turn_with_plugins_and_orchestrator(
     project_root: Option<&Path>,
     metadata_values: &[&Value],
     plugin_snapshots: &[PluginTurnSnapshot],
-    orchestrator_skills: &[AgentSkillMetadata],
+    additional_skills: &[AgentSkillMetadata],
 ) -> AgentSkillSnapshot {
     build_agent_skill_snapshot_from_turn_roots(
         agent_skill_roots_for_workspace(working_dir, project_root),
         metadata_values,
         plugin_snapshots,
-        orchestrator_skills,
+        additional_skills,
     )
 }
 
@@ -164,13 +164,13 @@ fn build_agent_skill_snapshot_from_turn_roots(
     roots: Vec<AgentSkillRoot>,
     metadata_values: &[&Value],
     plugin_snapshots: &[PluginTurnSnapshot],
-    orchestrator_skills: &[AgentSkillMetadata],
+    additional_skills: &[AgentSkillMetadata],
 ) -> AgentSkillSnapshot {
     let mut snapshot = build_agent_skill_snapshot_from_roots(roots);
     for plugin in plugin_snapshots {
         plugin.append_skills(&mut snapshot);
     }
-    for skill in orchestrator_skills {
+    for skill in additional_skills {
         if snapshot.skills.iter().any(|existing| {
             existing.authority == skill.authority
                 && existing.skill_file_path == skill.skill_file_path

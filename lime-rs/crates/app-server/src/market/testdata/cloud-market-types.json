@@ -1,0 +1,314 @@
+[
+  {
+    "archiveHex": "504b03041400080008000000000000000000000000000000000018000000736b696c6c732f72657365617263682f534b494c4c2e6d64d2d5d5e5ca4bcc4db552284a2d4e4d2c4acee04a492d4e2eca2c28c9cccfb35208828a2a94e4176426177381d4c3c532f38a4b8a4a93412a8bb900010000ffff504b0708cf62bb4a400000004a000000504b0102140314000800080000000000cf62bb4a400000004a000000180000000000000000000000ed8100000000736b696c6c732f72657365617263682f534b494c4c2e6d64504b0506000000000100010046000000860000000000",
+    "item": {
+      "compatibility": {
+        "reasons": [],
+        "status": "supported"
+      },
+      "environment": "sandbox",
+      "id": "item_research_skill",
+      "kind": "skill",
+      "name": "research_skill",
+      "publishedReleaseId": "rel_research_skill",
+      "publisherApplicationId": "publisher",
+      "release": {
+        "archiveSha256": "4e3dd3a807c403b94195f02f9dbb6ae4845b96ce70301a4170f62c286b9990eb",
+        "archiveSize": 226,
+        "id": "rel_research_skill",
+        "itemId": "item_research_skill",
+        "manifest": {
+          "schema_version": 1,
+          "kind": "skill",
+          "name": "research",
+          "version": "1.0.0",
+          "title": {
+            "source": "Research",
+            "translations": {
+              "zh-CN": "资料研究"
+            }
+          },
+          "description": {
+            "source": "Research topics",
+            "translations": {
+              "zh-CN": "研究选定资料"
+            }
+          },
+          "license": "MIT",
+          "hosts": [
+            {
+              "id": "lime",
+              "min_version": "1.0.0",
+              "capabilities": [
+                "plugins",
+                "skills",
+                "mcp"
+              ]
+            }
+          ],
+          "files": [
+            {
+              "path": "skills/research/SKILL.md",
+              "sha256": "9adcdd70c4bfb6698f9fded9ac2f544501c70aa713418941980b01313f6af47e",
+              "size": 74
+            }
+          ],
+          "skill": {
+            "entry": "skills/research/SKILL.md",
+            "actions": [
+              "web.search"
+            ]
+          }
+        },
+        "manifestSha256": "0c9df88f2dbee2baf2bb99eba27d063d13c0feec3792ce4725f9e85e7479e3b4",
+        "revision": 1,
+        "status": "approved"
+      },
+      "revision": 1
+    },
+    "receipt": {
+      "sha256": "4e3dd3a807c403b94195f02f9dbb6ae4845b96ce70301a4170f62c286b9990eb",
+      "size": 226,
+      "expanded_size": 74,
+      "files": 1
+    }
+  },
+  {
+    "archiveHex": "504b0506000000000000000000000000000000000000",
+    "item": {
+      "compatibility": {
+        "reasons": [],
+        "status": "supported"
+      },
+      "environment": "sandbox",
+      "id": "item_research_http",
+      "kind": "mcp",
+      "name": "research_http",
+      "publishedReleaseId": "rel_research_http",
+      "publisherApplicationId": "publisher",
+      "release": {
+        "archiveSha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85",
+        "archiveSize": 22,
+        "id": "rel_research_http",
+        "itemId": "item_research_http",
+        "manifest": {
+          "schema_version": 1,
+          "kind": "mcp",
+          "name": "research",
+          "version": "1.0.0",
+          "title": {
+            "source": "Research",
+            "translations": {
+              "zh-CN": "资料研究"
+            }
+          },
+          "description": {
+            "source": "Research topics",
+            "translations": {
+              "zh-CN": "研究选定资料"
+            }
+          },
+          "license": "MIT",
+          "hosts": [
+            {
+              "id": "lime",
+              "min_version": "1.0.0",
+              "capabilities": [
+                "plugins",
+                "skills",
+                "mcp"
+              ]
+            }
+          ],
+          "files": [],
+          "mcp": {
+            "transport": "http",
+            "endpoint": "https://mcp.test.invalid/mcp",
+            "auth": {
+              "type": "oauth2",
+              "scopes": [
+                "research:read"
+              ]
+            },
+            "tools": [
+              "search"
+            ]
+          }
+        },
+        "manifestSha256": "01c1115f3bab4f63f9f3768790a1b115dd32725fb38f3c153ddf4db56d39d52e",
+        "revision": 1,
+        "status": "approved"
+      },
+      "revision": 1
+    },
+    "receipt": {
+      "sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85",
+      "size": 22,
+      "expanded_size": 0,
+      "files": 0
+    }
+  },
+  {
+    "archiveHex": "504b0304140008000800000000000000000000000000000000000a00000062696e2f7365727665725256d44fcaccd32fcee04aadc82c5130e002040000ffff504b0708e28645c31700000011000000504b0102140314000800080000000000e28645c317000000110000000a0000000000000000000000ed810000000062696e2f736572766572504b05060000000001000100380000004f0000000000",
+    "item": {
+      "compatibility": {
+        "reasons": [],
+        "status": "supported"
+      },
+      "environment": "sandbox",
+      "id": "item_research_stdio",
+      "kind": "mcp",
+      "name": "research_stdio",
+      "publishedReleaseId": "rel_research_stdio",
+      "publisherApplicationId": "publisher",
+      "release": {
+        "archiveSha256": "49699fa7040a35bc2944db8101ddfc8ade1c23d2b8d83555095e6b66fe278d73",
+        "archiveSize": 157,
+        "id": "rel_research_stdio",
+        "itemId": "item_research_stdio",
+        "manifest": {
+          "schema_version": 1,
+          "kind": "mcp",
+          "name": "research",
+          "version": "1.0.0",
+          "title": {
+            "source": "Research",
+            "translations": {
+              "zh-CN": "资料研究"
+            }
+          },
+          "description": {
+            "source": "Research topics",
+            "translations": {
+              "zh-CN": "研究选定资料"
+            }
+          },
+          "license": "MIT",
+          "hosts": [
+            {
+              "id": "lime",
+              "min_version": "1.0.0",
+              "capabilities": [
+                "plugins",
+                "skills",
+                "mcp"
+              ]
+            }
+          ],
+          "files": [
+            {
+              "path": "bin/server",
+              "sha256": "306c6ca7407560340797866e077e053627ad409277d1b9da58106fce4cf717cb",
+              "size": 17
+            }
+          ],
+          "mcp": {
+            "transport": "stdio",
+            "executable": "bin/server",
+            "arguments": [
+              "--stdio"
+            ],
+            "auth": {
+              "type": "none",
+              "scopes": []
+            },
+            "tools": []
+          }
+        },
+        "manifestSha256": "aa6a0d5c509d33a3f5f628f0ae5d8ee4998dd9d49c06987fb408edf1108316b1",
+        "revision": 1,
+        "status": "approved"
+      },
+      "revision": 1
+    },
+    "receipt": {
+      "sha256": "49699fa7040a35bc2944db8101ddfc8ade1c23d2b8d83555095e6b66fe278d73",
+      "size": 157,
+      "expanded_size": 17,
+      "files": 1
+    }
+  },
+  {
+    "archiveHex": "504b030414000800080000000000000000000000000000000000180000002e6c696d652d706c7567696e2f706c7567696e2e6a736f6eaa56ca4bcc4d55b2522a4a2d4e4d2c4ace50d2512a4b2d2acecccf53b25232d433d03350aa05040000ffff504b0708a1d7ab9f2b00000025000000504b0102140314000800080000000000a1d7ab9f2b00000025000000180000000000000000000000ed81000000002e6c696d652d706c7567696e2f706c7567696e2e6a736f6e504b0506000000000100010046000000710000000000",
+    "item": {
+      "compatibility": {
+        "reasons": [],
+        "status": "supported"
+      },
+      "environment": "sandbox",
+      "id": "item_research_plugin",
+      "kind": "plugin",
+      "name": "research_plugin",
+      "publishedReleaseId": "rel_research_plugin",
+      "publisherApplicationId": "publisher",
+      "release": {
+        "archiveSha256": "8abeb4ae03b4d2f27fa9882a5d88431904019c8e7f8af770ccdd460fac3c4095",
+        "archiveSize": 205,
+        "id": "rel_research_plugin",
+        "itemId": "item_research_plugin",
+        "manifest": {
+          "schema_version": 1,
+          "kind": "plugin",
+          "name": "research",
+          "version": "1.0.0",
+          "title": {
+            "source": "Research",
+            "translations": {
+              "zh-CN": "资料研究"
+            }
+          },
+          "description": {
+            "source": "Research topics",
+            "translations": {
+              "zh-CN": "研究选定资料"
+            }
+          },
+          "license": "MIT",
+          "hosts": [
+            {
+              "id": "lime",
+              "min_version": "1.0.0",
+              "capabilities": [
+                "plugins",
+                "skills",
+                "mcp"
+              ]
+            }
+          ],
+          "files": [
+            {
+              "path": ".lime-plugin/plugin.json",
+              "sha256": "ee15a885bec8f20cb3dd4bf474313ce1ce2c459bfaa840bdaa45f5e1f51ffbd2",
+              "size": 37
+            }
+          ],
+          "plugin": {
+            "entry": ".lime-plugin/plugin.json",
+            "dependencies": [
+              {
+                "release_id": "rel_research_skill",
+                "sha256": "4e3dd3a807c403b94195f02f9dbb6ae4845b96ce70301a4170f62c286b9990eb",
+                "kind": "skill"
+              },
+              {
+                "release_id": "rel_research_http",
+                "sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85",
+                "kind": "mcp"
+              }
+            ]
+          }
+        },
+        "manifestSha256": "8b04d0ef47f817c37570c7979f524805e8f70aadee283c6e13912e24856e261f",
+        "revision": 1,
+        "status": "approved"
+      },
+      "revision": 1
+    },
+    "receipt": {
+      "sha256": "8abeb4ae03b4d2f27fa9882a5d88431904019c8e7f8af770ccdd460fac3c4095",
+      "size": 205,
+      "expanded_size": 37,
+      "files": 1
+    }
+  }
+]

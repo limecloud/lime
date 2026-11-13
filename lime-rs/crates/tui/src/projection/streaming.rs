@@ -19,7 +19,7 @@ impl ConversationProjection {
         }
         if let Some(entry) = self.entries.iter_mut().find(|entry| entry.id == id) {
             // Once an item has been replaced by its canonical completion (or a terminal turn
-            // settled the provisional stream), late transport deltas must not reopen it. Codex
+            // settled the provisional stream), late transport deltas must not reopen it. 上游
             // flushes the active stream before accepting terminal history for the same reason.
             if !entry.streaming || entry.kind != kind {
                 return;

@@ -29,6 +29,7 @@ mod connect;
 mod diagnostics;
 mod dictation_history;
 mod impls;
+mod market;
 mod mcp;
 mod media_tasks;
 mod model_projection;
@@ -269,6 +270,7 @@ pub struct LocalAppDataSource {
     /// 实际打开的 Product DB 路径。诊断只报告它，不重新解析。
     product_db_path: std::path::PathBuf,
     plugin_store: plugin_catalog::PluginStore,
+    market_store: market::MarketStore,
     session_files_root: std::path::PathBuf,
     dictation_history: Arc<dictation_history::DictationHistoryStore>,
     connect_registry_cache_path: std::path::PathBuf,
@@ -304,7 +306,13 @@ impl LocalAppDataSource {
         );
         plugin_store.account = Some(Arc::new(crate::account::AccountManager::new(
             &app_data_root,
+            &plugin_store.config_path,
         )));
+        let market_store = market::MarketStore::new(
+            data_root.join("market"),
+            plugin_store.config_path.clone(),
+            plugin_store.account.clone(),
+        );
         let session_files_root = SessionFileStorage::base_dir_for_agent_root(&data_root);
         let connect_registry_cache_path =
             connect::connect_registry_cache_path_for_agent_root(&data_root);
@@ -328,6 +336,7 @@ impl LocalAppDataSource {
             app_data_root,
             product_db_path,
             plugin_store,
+            market_store,
             session_files_root,
             connect_registry_cache_path,
             logs,
@@ -349,7 +358,14 @@ impl LocalAppDataSource {
     }
 
     pub fn with_app_config_path(mut self, path: std::path::PathBuf) -> Self {
-        self.plugin_store.config_path = path;
+        if let Some(account) = &mut self.plugin_store.account {
+            Arc::make_mut(account).set_config_path(path.clone());
+        }
+        self.plugin_store.config_path = path.clone();
+        if let Some(account) = &mut self.market_store.account {
+            Arc::make_mut(account).set_config_path(path.clone());
+        }
+        self.market_store.config_path = path;
         self
     }
 

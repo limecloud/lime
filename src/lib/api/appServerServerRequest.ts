@@ -197,6 +197,13 @@ export class AppServerServerRequestDispatcher {
       },
       onServerRequests: (requests) => {
         for (const request of requests) {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("lime:server-request", {
+                detail: { method: request.method },
+              }),
+            );
+          }
           void this.dispatch(request);
         }
       },

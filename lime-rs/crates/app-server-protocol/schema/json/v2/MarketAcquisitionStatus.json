@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Only the acquisition is checked; publication and runtime approval are separate.",
+  "enum": [
+    "active",
+    "revoked",
+    "unavailable"
+  ],
+  "title": "MarketAcquisitionStatus",
+  "type": "string"
+}

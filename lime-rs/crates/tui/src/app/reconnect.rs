@@ -1,6 +1,6 @@
 //! App Server reconnection lifecycle for the TUI app.
 //!
-//! The reconnect owner lives under `app/` to match Codex. Transport creation remains delegated
+//! The reconnect owner lives under `app/` to match 上游. Transport creation remains delegated
 //! to the shared runtime boundary; this module only restores the canonical thread session and
 //! its server-backed settings.
 

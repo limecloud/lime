@@ -160,6 +160,20 @@
         "$ref": "#/$defs/AccountAuthorization"
       },
       "type": "array"
+    },
+    "serviceError": {
+      "description": "Configuration failure code; account and logout remain available.",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "serviceUrl": {
+      "description": "Effective Core origin from native user configuration or the bound account.",
+      "type": [
+        "null",
+        "string"
+      ]
     }
   },
   "required": [

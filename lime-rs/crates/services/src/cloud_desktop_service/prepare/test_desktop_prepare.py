@@ -1,7 +1,12 @@
 """Exercise the shipped bootstrap without modifying the host package manager."""
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
+import errno
 import io
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
 import types
 import unittest
 from unittest.mock import patch
@@ -10,6 +15,25 @@ script = Path(__file__).with_name("desktop.sh").read_text()
 source = script.split("<<'LIME_DESKTOP_PREPARE'\n", 1)[1].rsplit("\nLIME_DESKTOP_PREPARE", 1)[0]
 guest = types.ModuleType("desktop_prepare")
 exec(compile(source, "desktop.sh", "exec"), guest.__dict__)
+
+
+@contextmanager
+def held_index_lock():
+    with tempfile.TemporaryDirectory() as directory:
+        lock = Path(directory) / "lock"
+        lock.write_text("unchanged")
+        holder = subprocess.Popen(
+            [sys.executable, "-I", "-c",
+             "import fcntl,sys; f=open(sys.argv[1],'r+'); "
+             "fcntl.lockf(f,fcntl.LOCK_EX); print('locked',flush=True); sys.stdin.readline()",
+             str(lock)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True)
+        try:
+            if holder.stdout.readline().strip() != "locked":
+                raise RuntimeError("Lock holder failed to start")
+            yield lock, holder
+        finally:
+            holder.communicate("\n", timeout=5)
 
 
 class DesktopPreparationTests(unittest.TestCase):
@@ -56,12 +80,14 @@ class DesktopPreparationTests(unittest.TestCase):
              patch.object(guest.Path, "read_text", return_value="ID=ubuntu\nVERSION_ID=24.04"), \
              patch.object(guest.platform, "machine", return_value="x86_64"), \
              patch.object(guest, "missing_packages", return_value=[]), \
+             patch.object(guest, "wait_for_package_index_lock") as wait, \
              patch.object(guest.shutil, "disk_usage") as disk, \
              patch.object(guest.shutil, "which", return_value="/usr/bin/tool"), \
              patch.object(guest.Path, "is_file", return_value=True), \
              patch.object(guest, "run", return_value=True) as run:
             self.assertEqual(guest.prepare(), "ready")
             disk.assert_not_called()
+            wait.assert_not_called()
             run.assert_called_once_with(
                 ["/usr/bin/python3", "-I", "-c", "import Xlib, PIL"], 30)
 
@@ -168,6 +194,90 @@ class DesktopPreparationTests(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs["env"]["NEEDRESTART_MODE"], "l")
             self.assertEqual(run.call_args.kwargs["stdout"], guest.subprocess.DEVNULL)
             self.assertEqual(run.call_args.kwargs["stderr"], guest.subprocess.DEVNULL)
+
+    def test_existing_index_lock_is_waited_for_without_changing_its_file(self):
+        with held_index_lock() as (lock, holder), \
+             patch.object(guest, "APT_LISTS_LOCK", lock):
+            sleep = time.sleep
+            released = False
+
+            def release_on_wait(interval):
+                nonlocal released
+                if not released:
+                    holder.stdin.write("\n")
+                    holder.stdin.flush()
+                    released = True
+                sleep(min(interval, 0.01))
+
+            with patch.object(guest.time, "sleep", side_effect=release_on_wait):
+                self.assertTrue(guest.wait_for_package_index_lock(2))
+            self.assertTrue(released, "Preparation did not observe the held POSIX lock")
+            self.assertEqual(holder.wait(timeout=2), 0)
+            self.assertEqual(lock.read_text(), "unchanged")
+
+    def test_index_lock_timeout_is_bounded_and_does_not_start_apt(self):
+        with held_index_lock() as (lock, holder), \
+             patch.object(guest, "APT_LISTS_LOCK", lock), \
+             patch.object(guest.os, "geteuid", return_value=0), \
+             patch.object(guest.Path, "read_text", return_value="ID=ubuntu\nVERSION_ID=24.04"), \
+             patch.object(guest.platform, "machine", return_value="x86_64"), \
+             patch.object(guest, "missing_packages", return_value=["xfce4-session"]), \
+             patch.object(guest.shutil, "disk_usage", return_value=types.SimpleNamespace(free=8*1024**3)), \
+             patch.object(guest, "run") as run:
+            wait = guest.wait_for_package_index_lock
+            started = time.monotonic()
+            with patch.object(guest, "wait_for_package_index_lock", side_effect=lambda _: wait(0.05)):
+                self.assertEqual(guest.prepare(), "packageInstallFailed")
+            self.assertLess(time.monotonic() - started, 1)
+            self.assertIsNone(holder.poll())
+            run.assert_not_called()
+
+    def test_missing_index_lock_is_not_created_and_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / "lock"
+            with patch.object(guest, "APT_LISTS_LOCK", lock):
+                self.assertTrue(guest.wait_for_package_index_lock(1))
+            self.assertFalse(lock.exists())
+            target = Path(directory) / "target"
+            target.write_text("unchanged")
+            lock.symlink_to(target)
+            with patch.object(guest, "APT_LISTS_LOCK", lock), self.assertRaises(OSError):
+                guest.wait_for_package_index_lock(1)
+            self.assertEqual(target.read_text(), "unchanged")
+
+    def test_non_contention_lock_error_is_not_retried_or_emitted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / "lock"
+            lock.touch()
+            with patch.object(guest, "APT_LISTS_LOCK", lock), \
+                 patch.object(guest.os, "geteuid", return_value=0), \
+                 patch.object(guest.Path, "read_text", return_value="ID=ubuntu\nVERSION_ID=24.04"), \
+                 patch.object(guest.platform, "machine", return_value="x86_64"), \
+                 patch.object(guest, "missing_packages", return_value=["xfce4-session"]), \
+                 patch.object(guest.shutil, "disk_usage", return_value=types.SimpleNamespace(free=8*1024**3)), \
+                 patch.object(guest.fcntl, "lockf", side_effect=OSError(errno.EIO, "secret=must-not-leak")) as acquire, \
+                 patch.object(guest.time, "sleep") as sleep, \
+                 patch.object(guest, "run") as run:
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(guest.main(), 1)
+                self.assertEqual(output.getvalue(), "LIME_DESKTOP_PREPARE_V1:preparationFailed\n")
+                acquire.assert_called_once()
+                sleep.assert_not_called()
+                run.assert_not_called()
+
+    def test_waiting_for_the_lock_does_not_retry_failed_package_commands(self):
+        for results in ([False], [True, False]):
+            with self.subTest(results=results), \
+                 patch.object(guest.os, "geteuid", return_value=0), \
+                 patch.object(guest.Path, "read_text", return_value="ID=ubuntu\nVERSION_ID=24.04"), \
+                 patch.object(guest.platform, "machine", return_value="x86_64"), \
+                 patch.object(guest, "missing_packages", return_value=["xfce4-session"]), \
+                 patch.object(guest.shutil, "disk_usage", return_value=types.SimpleNamespace(free=8*1024**3)), \
+                 patch.object(guest, "wait_for_package_index_lock", return_value=True), \
+                 patch.object(guest, "run", side_effect=results) as run:
+                self.assertEqual(guest.prepare(), "packageInstallFailed")
+                self.assertEqual(run.call_count, len(results))
 
 
 if __name__ == "__main__":

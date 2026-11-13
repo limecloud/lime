@@ -345,7 +345,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_skill_uses_codex_marker_without_narrow_overflow() {
+    fn selected_skill_uses_upstream_marker_without_narrow_overflow() {
         let popup = SkillPopup::new(vec![skill("deploy", "release")], "");
         for width in [40, 80, 120] {
             let mut terminal = Terminal::new(TestBackend::new(width, 8)).expect("terminal");

@@ -406,9 +406,15 @@ impl RuntimeBackend {
         } else {
             self.current_plugin_turn_snapshots().await?
         };
+        let market_skills = if request.internal_agent_policy.is_some() {
+            Vec::new()
+        } else {
+            self.current_market_skills().await?
+        };
         let agent_skill_events = agent_skills_telemetry::runtime_status_events_for_agent_skills(
             &request,
             &plugin_snapshots,
+            &market_skills,
         );
         for event in agent_skill_events {
             sink.emit(event)?;
@@ -526,6 +532,10 @@ impl RuntimeBackend {
                 config_metadata.clone(),
                 route_resolution.decision_payload.get("modelRegistry"),
             );
+            let mut additional_skills = market_skills.clone();
+            if let Some(discovery) = &orchestrator_skill_discovery {
+                additional_skills.extend_from_slice(&discovery.skills);
+            }
             let mut session_config = session_config_from_request_with_plugins_and_orchestrator(
                 &request,
                 host_request.as_ref(),
@@ -534,10 +544,7 @@ impl RuntimeBackend {
                 &request_tool_policy,
                 turn_config_metadata,
                 &turn_plugin_snapshots,
-                orchestrator_skill_discovery
-                    .as_ref()
-                    .map(|discovery| discovery.skills.as_slice())
-                    .unwrap_or_default(),
+                &additional_skills,
             );
             session_config.tool_mode = route_resolution.tool_mode;
             session_config.internal_agent_policy = request.internal_agent_policy.clone();
@@ -766,6 +773,15 @@ impl RuntimeBackend {
                 )
             })
             .map(|guard| guard.clone())
+    }
+
+    async fn current_market_skills(
+        &self,
+    ) -> Result<Vec<lime_skills::AgentSkillMetadata>, RuntimeCoreError> {
+        let Some(source) = self.current_app_data_source()? else {
+            return Ok(Vec::new());
+        };
+        source.list_market_skills().await
     }
 
     async fn current_plugin_turn_snapshots(

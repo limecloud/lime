@@ -1,4 +1,4 @@
-//! Codex selection fills retain readable contrast and conservative ANSI fallbacks.
+//! 上游 selection fills retain readable contrast and conservative ANSI fallbacks.
 
 use super::{blend, contrast::foreground, contrast::ratio, is_light};
 use crate::terminal_palette::{
@@ -97,7 +97,7 @@ mod tests {
     use ratatui::style::Modifier;
 
     #[test]
-    fn selection_fill_matches_codex_and_escapes_a_similar_canvas() {
+    fn selection_fill_matches_upstream_and_escapes_a_similar_canvas() {
         for (background, expected) in [
             ((255, 255, 255), (164, 205, 251)),
             ((0, 0, 0), (99, 168, 248)),

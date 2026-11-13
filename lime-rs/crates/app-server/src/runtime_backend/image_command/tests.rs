@@ -79,6 +79,8 @@ impl SkillAppDataSource for ImageCommandTestDataSource {}
 impl WorkspaceSkillBindingAppDataSource for ImageCommandTestDataSource {}
 impl GatewayAppDataSource for ImageCommandTestDataSource {}
 impl VoiceAppDataSource for ImageCommandTestDataSource {}
+impl crate::MarketDataSource for ImageCommandTestDataSource {}
+
 impl PluginDataSource for ImageCommandTestDataSource {}
 impl AutomationOverviewAppDataSource for ImageCommandTestDataSource {}
 impl McpAppDataSource for ImageCommandTestDataSource {}

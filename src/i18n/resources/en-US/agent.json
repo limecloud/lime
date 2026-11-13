@@ -1650,5 +1650,11 @@
   "agentChat.forkFromOlderTurn.worktree": "Create a new worktree",
   "agentChat.forkFromOlderTurn.worktreeDescription": "The new chat gets its own working directory",
   "agentChat.forkFromOlderTurn.worktreeFailed": "Failed to create the worktree: {{error}}",
-  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "Chat created, but setup could not be completed: {{error}}"
+  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "Chat created, but setup could not be completed: {{error}}",
+  "plugin.catalog.v2.installedVersion": "Installed {{version}}",
+  "plugin.catalog.v2.installVersion": "Install version {{version}}",
+  "plugin.catalog.v2.localVersion": "Installed version",
+  "plugin.catalog.v2.subtitle": "Connect plugins so Lime can work across your tools.",
+  "agentChat.inputbar.contextUsage.label": "Context {{percent}}%",
+  "agentChat.inputbar.contextUsage.title": "Context window {{used}} / {{total}} tokens"
 }

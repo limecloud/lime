@@ -64,6 +64,13 @@ impl PendingInteractiveReplayState {
     }
 
     pub(super) fn should_replay_snapshot_request(&self, request: &ServerRequest) -> bool {
+        // Opening an authorization browser is a live host action, never history replay.
+        if matches!(
+            request,
+            ServerRequest::AccountAuthorize { .. } | ServerRequest::ConnectionAuthorize { .. }
+        ) {
+            return false;
+        }
         match PendingInteractiveRequest::from_server_request(request) {
             Some(pending) => {
                 self.pending_requests_by_request_id.get(request.id()) == Some(&pending)
@@ -108,7 +115,10 @@ impl PendingInteractiveRequest {
                     item_id: params.item_id.clone(),
                 })
             }
-            ServerRequest::CurrentTimeRead { .. } | ServerRequest::DynamicToolCall { .. } => None,
+            ServerRequest::AccountAuthorize { .. }
+            | ServerRequest::ConnectionAuthorize { .. }
+            | ServerRequest::CurrentTimeRead { .. }
+            | ServerRequest::DynamicToolCall { .. } => None,
         }
     }
 

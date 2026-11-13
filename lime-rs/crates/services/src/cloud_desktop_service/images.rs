@@ -305,6 +305,24 @@ impl CloudDesktopService {
         confirmation: &str,
         include_credentials: bool,
     ) -> Result<Value, String> {
+        self.create_ecs_image_for_hibernation(
+            snapshot_operation,
+            id,
+            confirmation,
+            include_credentials,
+            None,
+        )
+        .await
+    }
+
+    pub(super) async fn create_ecs_image_for_hibernation(
+        &self,
+        snapshot_operation: &str,
+        id: &str,
+        confirmation: &str,
+        include_credentials: bool,
+        parent: Option<&str>,
+    ) -> Result<Value, String> {
         validate_id(snapshot_operation)?;
         validate_id(id)?;
         if !include_credentials || confirmation != format!("createEcsImage:{snapshot_operation}") {
@@ -352,7 +370,7 @@ impl CloudDesktopService {
         {
             return Err("Select a verified encrypted cold ECS snapshot operation".into());
         }
-        self.check_change_available(&resource, "createEcsImage")?;
+        self.check_change_available_for_hibernation(&resource, "createEcsImage", id, parent)?;
         // Do not inspect the old VM or disk: both may already have been released.
         let source = self
             .image_snapshot_source(&resource, snapshot, Some(disk))

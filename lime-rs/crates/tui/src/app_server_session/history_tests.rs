@@ -27,7 +27,7 @@ fn page(ids: &[&str], next_cursor: Option<&str>) -> ThreadItemsListResponse {
 }
 
 #[test]
-fn thread_items_page_params_use_codex_descending_shape() {
+fn thread_items_page_params_use_upstream_descending_shape() {
     let params = thread_items_page_params(
         "thread-1",
         None,

@@ -145,6 +145,23 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
                 app.chat_widget.locale,
                 &app.status_surface_data(),
             );
+        } else if let Some(list) = app.chat_widget.process_list.as_ref() {
+            crate::app::process_list::render(frame, chunks.input, list, app.chat_widget.locale);
+        } else if let Some(browser) = app.chat_widget.hooks_browser.as_ref() {
+            crate::app::hooks_browser::render(frame, chunks.input, browser, app.chat_widget.locale);
+        } else if let Some(settings) = app.chat_widget.memories_settings.as_ref() {
+            crate::app::memories_settings::render(
+                frame,
+                chunks.input,
+                settings,
+                app.chat_widget.locale,
+            );
+        } else if let Some(toggle) = app.chat_widget.skills_toggle.as_ref() {
+            crate::app::skills_toggle::render(frame, chunks.input, toggle, app.chat_widget.locale);
+        } else if let Some(picker) = app.chat_widget.plugin_picker.as_ref() {
+            crate::app::plugin_picker::render(frame, chunks.input, picker, app.chat_widget.locale);
+        } else if let Some(editor) = app.chat_widget.keymap_editor.as_ref() {
+            crate::app::keymap_editor::render(frame, chunks.input, editor, app.chat_widget.locale);
         } else if let Some(menu) = app.chat_widget.config_menu.as_ref() {
             crate::app::config_menu::render(frame, chunks.input, menu, app.chat_widget.locale);
         } else if let Some(picker) = app.chat_widget.permissions_picker.as_ref() {
@@ -324,6 +341,24 @@ fn screen_chunks(
     } else if let Some(picker) = app.chat_widget.status_line_setup.as_ref() {
         picker
             .desired_height(app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(list) = app.chat_widget.process_list.as_ref() {
+        crate::app::process_list::desired_height(list, app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(browser) = app.chat_widget.hooks_browser.as_ref() {
+        crate::app::hooks_browser::desired_height(browser, app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(settings) = app.chat_widget.memories_settings.as_ref() {
+        crate::app::memories_settings::desired_height(settings, app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(toggle) = app.chat_widget.skills_toggle.as_ref() {
+        crate::app::skills_toggle::desired_height(toggle, app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(picker) = app.chat_widget.plugin_picker.as_ref() {
+        crate::app::plugin_picker::desired_height(picker, app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(editor) = app.chat_widget.keymap_editor.as_ref() {
+        crate::app::keymap_editor::desired_height(editor, app.chat_widget.locale, area.width)
             .min(area.height.saturating_sub(1))
     } else if let Some(menu) = app.chat_widget.config_menu.as_ref() {
         crate::app::config_menu::desired_height(menu, app.chat_widget.locale, area.width)

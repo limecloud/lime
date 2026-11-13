@@ -291,6 +291,19 @@ pub(super) fn into_parts(
         ClientRequest::MarketplaceUpgrade { id, params } => {
             parts(id, Method::MarketplaceUpgrade, params)
         }
+        ClientRequest::MarketPending { id, params } => parts(id, Method::MarketPending, params),
+        ClientRequest::MarketInstallCancel { id, params } => {
+            parts(id, Method::MarketInstallCancel, params)
+        }
+        ClientRequest::MarketReconcile { id, params } => parts(id, Method::MarketReconcile, params),
+        ClientRequest::MarketList { id, params } => parts(id, Method::MarketList, params),
+        ClientRequest::MarketRead { id, params } => parts(id, Method::MarketRead, params),
+        ClientRequest::MarketInstall { id, params } => parts(id, Method::MarketInstall, params),
+        ClientRequest::MarketInstalled { id, params } => parts(id, Method::MarketInstalled, params),
+        ClientRequest::MarketEnabledSet { id, params } => {
+            parts(id, Method::MarketEnabledSet, params)
+        }
+        ClientRequest::MarketUninstall { id, params } => parts(id, Method::MarketUninstall, params),
         ClientRequest::PluginList { id, params } => parts(id, Method::PluginList, params),
         ClientRequest::PluginSearch { id, params } => parts(id, Method::PluginSearch, params),
         ClientRequest::PluginRead { id, params } => parts(id, Method::PluginRead, params),

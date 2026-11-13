@@ -1,0 +1,27 @@
+{
+  "$defs": {
+    "MarketResourceKind": {
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "MarketReconcileParams",
+  "type": "object"
+}

@@ -1,4 +1,4 @@
-//! Metadata editing yields to text input; task shortcuts and paging share Codex priority.
+//! Metadata editing yields to text input; task shortcuts and paging share 上游 priority.
 
 use super::super::{AgentsOverviewAction, AgentsOverviewInputMode};
 use super::*;

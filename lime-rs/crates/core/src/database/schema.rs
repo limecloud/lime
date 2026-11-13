@@ -45,6 +45,7 @@ fn drop_retired_agent_runtime_tables(conn: &Connection) -> Result<(), rusqlite::
 
 pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     drop_retired_agent_runtime_tables(conn)?;
+    super::provider_connection_schema::create_table(conn)?;
 
     // API Key Provider 配置表
     // _Requirements: 9.1_

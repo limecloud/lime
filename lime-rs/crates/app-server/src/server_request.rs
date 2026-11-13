@@ -55,6 +55,8 @@ impl PendingRoute {
                 self.request.method.as_str(),
                 app_server_protocol::protocol::v2::METHOD_ITEM_TOOL_CALL
                     | app_server_protocol::protocol::v2::METHOD_CURRENT_TIME_READ
+                    | app_server_protocol::protocol::v2::METHOD_ACCOUNT_AUTHORIZE
+                    | app_server_protocol::protocol::v2::METHOD_CONNECTION_AUTHORIZE
             )
     }
 

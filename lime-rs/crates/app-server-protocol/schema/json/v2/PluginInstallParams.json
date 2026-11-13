@@ -1,4 +1,27 @@
 {
+  "$defs": {
+    "MarketReleaseReference": {
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "type": "object"
+    }
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "installAttemptId": {
@@ -22,6 +45,17 @@
         "null",
         "string"
       ]
+    },
+    "remoteRelease": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MarketReleaseReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Required for a new shared-market installation."
     }
   },
   "required": [

@@ -281,7 +281,7 @@ fn images_use_single_argument_comma_lists_and_accumulate_across_exec_levels() {
 }
 
 #[test]
-fn review_args_match_codex_targets_and_global_output_options() {
+fn review_args_match_upstream_targets_and_global_output_options() {
     for argv in [
         vec![
             "lime",

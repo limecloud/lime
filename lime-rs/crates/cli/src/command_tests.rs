@@ -304,7 +304,7 @@ fn child_sandbox_keeps_independent_root_approval_policy() {
 }
 
 #[test]
-fn working_directory_flag_matches_codex_cd_shape() {
+fn working_directory_flag_matches_upstream_cd_shape() {
     let long_form =
         crate::MultitoolCli::try_parse_from(["lime", "exec", "check", "--cd", "/tmp/long-form"])
             .expect("parse --cd");
@@ -337,7 +337,7 @@ fn legacy_cwd_flag_is_rejected() {
 }
 
 #[test]
-fn remote_connection_flags_match_codex_shape() {
+fn remote_connection_flags_match_upstream_shape() {
     let cli = crate::MultitoolCli::try_parse_from([
         "lime",
         "exec",
@@ -522,7 +522,7 @@ fn read_remote_auth_token_from_env_var_rejects_empty_values() {
 }
 
 #[test]
-fn exec_parser_uses_codex_json_events_flag_and_rejects_retired_jsonl() {
+fn exec_parser_uses_upstream_json_events_flag_and_rejects_retired_jsonl() {
     let cli = crate::MultitoolCli::try_parse_from(["lime", "exec", "check", "--json"])
         .expect("parse exec");
     let Some(crate::Subcommand::Exec(args)) = cli.subcommand else {
@@ -592,7 +592,7 @@ fn top_level_fork_keeps_v2_identity_and_history_flags() {
 }
 
 #[test]
-fn mcp_list_parser_matches_codex_command_shape() {
+fn mcp_list_parser_matches_upstream_command_shape() {
     let cli = crate::MultitoolCli::try_parse_from([
         "lime",
         "mcp",
@@ -639,7 +639,7 @@ fn skills_list_parser_accepts_multiple_cwds_and_force_reload() {
 }
 
 #[test]
-fn execpolicy_check_parser_matches_codex_command_shape() {
+fn execpolicy_check_parser_matches_upstream_command_shape() {
     let cli = crate::MultitoolCli::try_parse_from([
         "lime",
         "execpolicy",

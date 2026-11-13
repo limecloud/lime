@@ -3,6 +3,7 @@ mod automation_overview;
 mod connect;
 mod diagnostics;
 mod gateway;
+mod market;
 mod mcp;
 mod media;
 mod memory;

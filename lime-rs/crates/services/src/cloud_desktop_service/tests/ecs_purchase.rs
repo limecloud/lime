@@ -2,7 +2,8 @@ use super::*;
 use app_server_protocol::protocol::v2::EcsDesktopSpec;
 use std::os::unix::fs::PermissionsExt;
 
-pub(super) fn fixture() -> (tempfile::TempDir, CloudDesktopService, EcsDesktopSpec) {
+pub(in crate::cloud_desktop_service) fn fixture(
+) -> (tempfile::TempDir, CloudDesktopService, EcsDesktopSpec) {
     let directory = tempfile::tempdir().unwrap();
     let cli = directory.path().join("aliyun");
     fs::write(&cli, r#"#!/usr/bin/env python3
@@ -36,7 +37,25 @@ elif action == 'DescribeKeyPairs':
  result = {'KeyPairs':{'KeyPair':[{'KeyPairName':'key-test','PublicKey':'must-not-project'}]},'TotalCount':1}
 elif action == 'DescribePrice':
  result = {'PriceInfo':{'Price':{'TradePrice':0.9 if flag('price-changed') else 0.8,'Currency':'CNY'}}}
+elif action == 'RunInstances' and '--DryRun' in args:
+ assert arg('--DryRun') == 'true'
+ assert '--ClientToken' not in args
+ assert not (root/'receipts'/(arg('--Tag.1.Value')+'.json')).exists()
+ if flag('expire-network-during-dry-run'):
+  for file in (root/'receipts').glob('quote-network-*.json'):
+   proof = json.loads(file.read_text()); proof['expiresAt']='2000-01-01T00:00:00Z'; file.write_text(json.dumps(proof))
+ if flag('expire-quote-during-dry-run'):
+  for file in (root/'receipts').glob('quote-*.json'):
+   if file.name.startswith('quote-network-'): continue
+   quote = json.loads(file.read_text()); quote['expiresAt']='2000-01-01T00:00:00Z'; file.write_text(json.dumps(quote))
+ if flag('dry-run-zero-exit'):
+  print(json.dumps({'Code':'DryRunOperation','InstanceIdSets':{'InstanceIdSet':['i-test']}})); sys.exit(0)
+ sys.stderr.write((root/'dry-run-error.txt').read_text() if flag('dry-run-error.txt') else 'ERROR: SDK.ServerError\nErrorCode: DryRunOperation\nRequestId: dry-run-test\nMessage: must-not-project-secret')
+ sys.exit(1)
 elif action == 'RunInstances':
+ assert (root/'receipts'/(arg('--ClientToken')+'.json')).exists()
+ if flag('paid-error'):
+  sys.stderr.write('ErrorCode: InvalidAccountStatus.NotEnoughBalance\nRequestId: paid-test\nMessage: must-not-project-secret'); sys.exit(1)
  (root/'created').write_text(arg('--ClientToken'))
  (root/'requested-keypair.json').write_text(json.dumps(arg('--KeyPairName') if '--KeyPairName' in args else None))
  if flag('lost-response'): sys.exit(1)
@@ -89,6 +108,12 @@ async fn purchase_request(
     let id = quote["quoteId"].as_str().unwrap();
     assert_eq!(quote["quote"]["price"]["systemDiskEncrypted"], true);
     assert!(!quote.to_string().contains("must-not-project"));
+    // The provider fixture supplies a successful local connectivity observation;
+    // the production preflight still persists and validates the exact quote.
+    service
+        .preflight_ecs_purchase_with_network(&spec, id, std::future::ready(Ok(())))
+        .await
+        .unwrap();
     CloudDesktopParams::PurchaseEcs {
         spec,
         desktop_name: "Lime-test".into(),
@@ -98,13 +123,20 @@ async fn purchase_request(
     }
 }
 
-fn calls(directory: &Path) -> Vec<Vec<String>> {
+pub(in crate::cloud_desktop_service) fn calls(directory: &Path) -> Vec<Vec<String>> {
     fs::read_to_string(directory.join("calls"))
         .unwrap()
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect()
 }
+
+pub(in crate::cloud_desktop_service) fn is_paid_purchase(args: &[String]) -> bool {
+    args[1] == "RunInstances" && !args.windows(2).any(|pair| pair == ["--DryRun", "true"])
+}
+
+#[path = "ecs_purchase/dry_run.rs"]
+mod dry_run;
 
 #[tokio::test]
 async fn encrypted_single_purchase_binds_only_verified_instance_and_never_resubmits() {
@@ -116,10 +148,7 @@ async fn encrypted_single_purchase_binds_only_verified_instance_and_never_resubm
     assert_eq!(receipt["observedAfter"]["systemDiskEncrypted"], true);
     service.request(request).await.unwrap();
     let calls = calls(directory.path());
-    let purchases: Vec<_> = calls
-        .iter()
-        .filter(|args| args[1] == "RunInstances")
-        .collect();
+    let purchases: Vec<_> = calls.iter().filter(|args| is_paid_purchase(args)).collect();
     assert_eq!(purchases.len(), 1);
     let args = purchases[0];
     for (key, value) in [
@@ -179,10 +208,7 @@ async fn keyless_purchase_omits_ssh_and_recovers_the_exact_encrypted_instance() 
         restarted.request(request).await.unwrap();
         let calls = calls(directory.path());
         assert_eq!(
-            calls
-                .iter()
-                .filter(|args| args[1] == "RunInstances")
-                .count(),
+            calls.iter().filter(|args| is_paid_purchase(args)).count(),
             1
         );
         assert!(calls.iter().all(|args| args[1] != "DescribeKeyPairs"));
@@ -217,7 +243,7 @@ async fn unexpected_or_malformed_keypair_never_binds_a_keyless_purchase() {
         assert_eq!(
             calls(directory.path())
                 .iter()
-                .filter(|args| args[1] == "RunInstances")
+                .filter(|args| is_paid_purchase(args))
                 .count(),
             1
         );
@@ -252,7 +278,7 @@ async fn an_approved_keypair_cannot_disappear_during_purchase_recovery() {
     assert_eq!(
         calls(directory.path())
             .iter()
-            .filter(|args| args[1] == "RunInstances")
+            .filter(|args| is_paid_purchase(args))
             .count(),
         1
     );
@@ -300,7 +326,7 @@ async fn lost_response_survives_restart_and_profile_alias_cannot_bypass_unknown(
     assert_eq!(
         calls(directory.path())
             .iter()
-            .filter(|args| args[1] == "RunInstances")
+            .filter(|args| is_paid_purchase(args))
             .count(),
         1
     );
@@ -330,7 +356,7 @@ async fn inventory_and_price_failures_never_submit() {
         assert_eq!(
             calls(directory.path())
                 .iter()
-                .filter(|args| args[1] == "RunInstances")
+                .filter(|args| is_paid_purchase(args))
                 .count(),
             0,
             "{flag}"
@@ -363,7 +389,7 @@ async fn malformed_or_mismatched_results_are_not_bound_or_repurchased() {
         assert_eq!(
             calls(directory.path())
                 .iter()
-                .filter(|args| args[1] == "RunInstances")
+                .filter(|args| is_paid_purchase(args))
                 .count(),
             1,
             "{flag}"
@@ -385,7 +411,7 @@ async fn malformed_purchase_response_can_only_recover_by_exact_tag() {
     assert_eq!(
         calls(directory.path())
             .iter()
-            .filter(|args| args[1] == "RunInstances")
+            .filter(|args| is_paid_purchase(args))
             .count(),
         1
     );

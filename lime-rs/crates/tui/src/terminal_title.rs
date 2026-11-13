@@ -66,7 +66,7 @@ struct SetWindowTitle<'a>(&'a str);
 
 impl Command for SetWindowTitle<'_> {
     fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
-        // Use Codex's OSC 0 + BEL framing, including on Windows terminals.
+        // Use 上游 OSC 0 + BEL framing, including on Windows terminals.
         write!(output, "\x1b]0;{}\x07", self.0)
     }
 

@@ -955,110 +955,1129 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 Err(error) => app.projection.set_status(error.to_string()),
                             }
                         }
-                        AppAction::ListKeymap => {
-                            let locale = app.chat_widget.locale;
-                            let lines = app
-                                .chat_widget
-                                .runtime_keymap
-                                .describe()
-                                .into_iter()
-                                .map(|entry| {
-                                    let keys = if entry.keys.is_empty() {
-                                        "—".to_string()
-                                    } else {
-                                        entry.keys.join(", ")
-                                    };
-                                    ratatui::text::Line::from(format!("{}: {keys}", entry.path))
-                                })
-                                .collect();
-                            app.chat_widget
-                                .open_text_pager(locale.keymap_title().to_string(), lines);
-                        }
-                        AppAction::ListSkills => {
-                            let locale = app.chat_widget.locale;
-                            let mut lines: Vec<ratatui::text::Line<'static>> = Vec::new();
-                            for skill in app.chat_widget.bottom_pane.skills() {
-                                let state = if skill.enabled {
-                                    locale.experimental_enabled_label()
-                                } else {
-                                    locale.experimental_disabled_label()
-                                };
-                                lines.push(ratatui::text::Line::from(format!(
-                                    "• {} — {state}",
-                                    skill.name
-                                )));
-                                if !skill.description.is_empty() {
-                                    lines.push(ratatui::text::Line::from(format!(
-                                        "  {}",
-                                        skill.description
-                                    )));
-                                }
-                                lines.push(ratatui::text::Line::from(format!(
-                                    "  {}: {}",
-                                    locale.hooks_source_label(),
-                                    skill.path.to_string_lossy()
-                                )));
-                            }
-                            if lines.is_empty() {
-                                lines.push(ratatui::text::Line::from(locale.skills_empty()));
-                            }
-                            app.chat_widget
-                                .open_text_pager(locale.skills_title().to_string(), lines);
-                        }
-                        AppAction::ListHooks => {
+                        AppAction::ResetMemory => {
                             match session
                                 .as_ref()
                                 .expect("session available during TUI")
-                                .hooks_list(app.cwd.to_string_lossy().to_string())
+                                .memory_reset()
                                 .await
                             {
+                                Ok(()) => app
+                                    .projection
+                                    .set_status(app.chat_widget.locale.memory_reset_done()),
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::ChangeWorkingDirectory(path) => {
+                            let locale = app.chat_widget.locale;
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status(locale.cd_requires_session());
+                                continue;
+                            };
+                            if app.projection.active_turn_id().is_some()
+                                || !app.chat_widget.queued_submissions.is_empty()
+                            {
+                                app.projection.set_status(locale.cd_requires_idle());
+                                continue;
+                            }
+                            if !path.is_dir() {
+                                let display = path.display().to_string();
+                                app.projection
+                                    .set_status(locale.cd_not_a_directory(&display));
+                                continue;
+                            }
+                            let requested = path.display().to_string();
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .update_thread_cwd(thread_id, requested.clone())
+                                .await
+                            {
+                                Ok(_) => {
+                                    let changed = crate::app::working_directory::sync_server_cwd(
+                                        &mut app,
+                                        &requested,
+                                    );
+                                    app.projection.set_status(if changed {
+                                        locale.cd_changed(&requested)
+                                    } else {
+                                        locale.cd_unchanged().to_string()
+                                    });
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::SetMemoryMode(enabled) => {
+                            let locale = app.chat_widget.locale;
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection
+                                    .set_status(locale.memory_requires_session());
+                                continue;
+                            };
+                            let mode = if enabled {
+                                app_server_protocol::protocol::v2::ThreadMemoryMode::Enabled
+                            } else {
+                                app_server_protocol::protocol::v2::ThreadMemoryMode::Disabled
+                            };
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .thread_memory_mode_set(thread_id, mode)
+                                .await
+                            {
+                                Ok(_) => {
+                                    app.chat_widget.memory_mode = Some(enabled);
+                                    app.projection.set_status(if enabled {
+                                        locale.memory_mode_enabled()
+                                    } else {
+                                        locale.memory_mode_disabled()
+                                    });
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::GoalCommand(command) => {
+                            let locale = app.chat_widget.locale;
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status(locale.goal_requires_session());
+                                continue;
+                            };
+                            let session_ref = session
+                                .as_ref()
+                                .expect("session available during TUI");
+                            match command.as_str() {
+                                "show" => {
+                                    match session_ref.thread_goal_get(thread_id).await {
+                                        Ok(response) => {
+                                            let lines: Vec<ratatui::text::Line<'static>> =
+                                                match response.goal {
+                                                    Some(goal) => {
+                                                        let status = match goal.status {
+                                                            app_server_protocol::protocol::v2::ThreadGoalStatus::Active => {
+                                                                locale.goal_status_active()
+                                                            }
+                                                            app_server_protocol::protocol::v2::ThreadGoalStatus::Paused => {
+                                                                locale.goal_status_paused()
+                                                            }
+                                                            app_server_protocol::protocol::v2::ThreadGoalStatus::Blocked => {
+                                                                locale.goal_status_blocked()
+                                                            }
+                                                            app_server_protocol::protocol::v2::ThreadGoalStatus::UsageLimited => {
+                                                                locale.goal_status_usage_limited()
+                                                            }
+                                                            app_server_protocol::protocol::v2::ThreadGoalStatus::BudgetLimited => {
+                                                                locale.goal_status_budget_limited()
+                                                            }
+                                                            app_server_protocol::protocol::v2::ThreadGoalStatus::Complete => {
+                                                                locale.goal_status_complete()
+                                                            }
+                                                        };
+                                                        let mut lines = vec![
+                                                            ratatui::text::Line::from(format!(
+                                                                "{}: {}",
+                                                                locale.goal_objective_label(),
+                                                                goal.objective
+                                                            )),
+                                                            ratatui::text::Line::from(format!(
+                                                                "{}: {status}",
+                                                                locale.goal_status_label()
+                                                            )),
+                                                            ratatui::text::Line::from(format!(
+                                                                "{}: {}",
+                                                                locale.goal_tokens_label(),
+                                                                goal.tokens_used
+                                                            )),
+                                                            ratatui::text::Line::from(format!(
+                                                                "{}: {}s",
+                                                                locale.goal_time_label(),
+                                                                goal.time_used_seconds
+                                                            )),
+                                                        ];
+                                                        if let Some(budget) = goal.token_budget {
+                                                            lines.push(ratatui::text::Line::from(
+                                                                format!(
+                                                                    "budget: {budget}"
+                                                                ),
+                                                            ));
+                                                        }
+                                                        lines
+                                                    }
+                                                    None => vec![ratatui::text::Line::from(
+                                                        locale.goal_none(),
+                                                    )],
+                                                };
+                                            app.chat_widget.open_text_pager(
+                                                locale.goal_title().to_string(),
+                                                lines,
+                                            );
+                                        }
+                                        Err(error) => {
+                                            app.projection.set_status(error.to_string())
+                                        }
+                                    }
+                                }
+                                "clear" => {
+                                    match session_ref.thread_goal_clear(thread_id).await {
+                                        Ok(_) => {
+                                            app.projection.set_status(locale.goal_cleared())
+                                        }
+                                        Err(error) => {
+                                            app.projection.set_status(error.to_string())
+                                        }
+                                    }
+                                }
+                                "pause" => {
+                                    match session_ref
+                                        .thread_goal_set(
+                                            thread_id,
+                                            None,
+                                            Some(app_server_protocol::protocol::v2::ThreadGoalStatus::Paused),
+                                        )
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            app.projection.set_status(locale.goal_paused())
+                                        }
+                                        Err(error) => {
+                                            app.projection.set_status(error.to_string())
+                                        }
+                                    }
+                                }
+                                "resume" => {
+                                    match session_ref
+                                        .thread_goal_set(
+                                            thread_id,
+                                            None,
+                                            Some(app_server_protocol::protocol::v2::ThreadGoalStatus::Active),
+                                        )
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            app.projection.set_status(locale.goal_resumed())
+                                        }
+                                        Err(error) => {
+                                            app.projection.set_status(error.to_string())
+                                        }
+                                    }
+                                }
+                                other if other.starts_with("set:") => {
+                                    let objective =
+                                        other.trim_start_matches("set:").to_string();
+                                    match session_ref
+                                        .thread_goal_set(thread_id, Some(objective), None)
+                                        .await
+                                    {
+                                        Ok(_) => app.projection.set_status(locale.goal_set()),
+                                        Err(error) => {
+                                            app.projection.set_status(error.to_string())
+                                        }
+                                    }
+                                }
+                                _ => app.projection.set_status(locale.goal_usage()),
+                            }
+                        }
+                        AppAction::InsertComposerText(text) => {
+                            app.chat_widget.bottom_pane.insert_str(&text);
+                        }
+                        AppAction::ListPlugins => {
+                            let locale = app.chat_widget.locale;
+                            let cwd = app.cwd.clone();
+                            let installed = match session.as_ref() {
+                                Some(session) => {
+                                    match tokio::time::timeout(
+                                        std::time::Duration::from_secs(5),
+                                        session.plugin_installed(cwd),
+                                    )
+                                    .await
+                                    {
+                                        Ok(result) => result.map_err(|error| error.to_string()),
+                                        Err(_) => Err("plugin list timed out".to_string()),
+                                    }
+                                }
+                                None => Err("session unavailable".to_string()),
+                            };
+                            let (entries, message) = match installed {
                                 Ok(response) => {
-                                    let locale = app.chat_widget.locale;
-                                    let mut lines: Vec<ratatui::text::Line<'static>> = Vec::new();
-                                    for entry in &response.data {
-                                        if entry.hooks.is_empty()
-                                            && entry.warnings.is_empty()
-                                            && entry.errors.is_empty()
-                                        {
-                                            continue;
+                                    let mut entries = Vec::new();
+                                    for marketplace in response.marketplaces {
+                                        for plugin in marketplace.plugins {
+                                            if !plugin.installed {
+                                                continue;
+                                            }
+                                            let name = plugin
+                                                .interface
+                                                .as_ref()
+                                                .and_then(|interface| {
+                                                    interface.display_name.clone()
+                                                })
+                                                .unwrap_or(plugin.name.clone());
+                                            let version = plugin
+                                                .version
+                                                .or(plugin.local_version)
+                                                .unwrap_or_else(|| "?".to_string());
+                                            entries.push(crate::app::plugin_picker::PluginEntry {
+                                                id: plugin.id,
+                                                name,
+                                                version,
+                                                enabled: plugin.enabled,
+                                            });
                                         }
+                                    }
+                                    (entries, None)
+                                }
+                                Err(error) => (
+                                    Vec::new(),
+                                    Some(locale.plugins_unavailable(&error)),
+                                ),
+                            };
+                            app.chat_widget.open_plugin_picker(
+                                crate::app::plugin_picker::PluginPicker::new(entries, message),
+                            );
+                        }
+                        AppAction::SearchPlugins(term) => {
+                            let locale = app.chat_widget.locale;
+                            let cwd = app.cwd.clone();
+                            let results = match session.as_ref() {
+                                Some(session) => {
+                                    match tokio::time::timeout(
+                                        std::time::Duration::from_secs(5),
+                                        session.plugin_search(term.clone(), cwd),
+                                    )
+                                    .await
+                                    {
+                                        Ok(result) => result.map_err(|error| error.to_string()),
+                                        Err(_) => Err("plugin search timed out".to_string()),
+                                    }
+                                }
+                                None => Err("session unavailable".to_string()),
+                            };
+                            let lines: Vec<ratatui::text::Line<'static>> = match results {
+                                Ok(response) => {
+                                    let mut lines = Vec::new();
+                                    for result in response.data {
+                                        let name = result
+                                            .plugin
+                                            .interface
+                                            .as_ref()
+                                            .and_then(|interface| interface.display_name.clone())
+                                            .unwrap_or(result.plugin.name.clone());
+                                        let state = if result.plugin.installed {
+                                            format!(" · {}", locale.plugin_installed_label())
+                                        } else {
+                                            String::new()
+                                        };
                                         lines.push(ratatui::text::Line::from(format!(
-                                            "{}",
-                                            entry.cwd.to_string_lossy()
+                                            "• {name} — {}{state}",
+                                            result.marketplace_name
                                         )));
-                                        for hook in &entry.hooks {
-                                            let state = if hook.enabled {
-                                                locale.experimental_enabled_label()
-                                            } else {
-                                                locale.experimental_disabled_label()
-                                            };
+                                        if let Some(description) = result
+                                            .plugin
+                                            .interface
+                                            .as_ref()
+                                            .and_then(|interface| {
+                                                interface.short_description.clone()
+                                            })
+                                        {
                                             lines.push(ratatui::text::Line::from(format!(
-                                                "• {} — {:?} — {state}",
-                                                hook.key, hook.event_name
-                                            )));
-                                            lines.push(ratatui::text::Line::from(format!(
-                                                "  {}: {}",
-                                                locale.hooks_source_label(),
-                                                hook.source_path.to_string_lossy()
-                                            )));
-                                        }
-                                        for warning in &entry.warnings {
-                                            lines.push(ratatui::text::Line::from(format!(
-                                                "! {warning}"
-                                            )));
-                                        }
-                                        for error in &entry.errors {
-                                            lines.push(ratatui::text::Line::from(format!(
-                                                "! {}",
-                                                error.message
+                                                "  {description}"
                                             )));
                                         }
                                     }
                                     if lines.is_empty() {
-                                        lines.push(ratatui::text::Line::from(locale.hooks_empty()));
+                                        lines.push(ratatui::text::Line::from(
+                                            locale.plugins_search_empty(&term),
+                                        ));
                                     }
+                                    lines
+                                }
+                                Err(error) => vec![ratatui::text::Line::from(
+                                    locale.plugins_unavailable(&error),
+                                )],
+                            };
+                            app.chat_widget
+                                .open_text_pager(locale.plugins_title().to_string(), lines);
+                        }
+                        AppAction::InstallPluginRequest(name) => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.plugin_install_failed("session unavailable"));
+                                continue;
+                            };
+                            let cwd = app.cwd.clone();
+                            let listed = match tokio::time::timeout(
+                                std::time::Duration::from_secs(5),
+                                session_ref.plugin_list(cwd),
+                            )
+                            .await
+                            {
+                                Ok(result) => result.map_err(|error| error.to_string()),
+                                Err(_) => Err("plugin list timed out".to_string()),
+                            };
+                            match listed {
+                                Ok(response) => {
+                                    let mut selected = None;
+                                    let mut already_installed = false;
+                                    'outer: for marketplace in response.marketplaces {
+                                        for plugin in marketplace.plugins {
+                                            let matches = plugin.name.eq_ignore_ascii_case(&name)
+                                                || plugin.id.eq_ignore_ascii_case(&name);
+                                            if !matches {
+                                                continue;
+                                            }
+                                            if plugin.installed {
+                                                already_installed = true;
+                                                break 'outer;
+                                            }
+                                            selected = Some((
+                                                marketplace.name.clone(),
+                                                marketplace.path.clone(),
+                                                plugin.remote_release.clone(),
+                                            ));
+                                            break 'outer;
+                                        }
+                                    }
+                                    if already_installed {
+                                        app.projection
+                                            .set_status(locale.plugin_already_installed(&name));
+                                    } else if let Some((
+                                        marketplace_name,
+                                        marketplace_path,
+                                        remote_release,
+                                    )) = selected
+                                    {
+                                        let remote_marketplace_name = marketplace_path
+                                            .is_none()
+                                            .then_some(marketplace_name);
+                                        app.chat_widget.open_confirm_prompt(
+                                            crate::app::confirm_prompt::ConfirmPrompt::install_plugin(
+                                                name.clone(),
+                                                marketplace_path
+                                                    .map(|path| path.to_string_lossy().into_owned()),
+                                                remote_marketplace_name,
+                                                remote_release,
+                                            ),
+                                        );
+                                    } else {
+                                        app.projection
+                                            .set_status(locale.plugin_not_found(&name));
+                                    }
+                                }
+                                Err(error) => app
+                                    .projection
+                                    .set_status(locale.plugin_install_failed(&error)),
+                            }
+                        }
+                        AppAction::InstallPlugin {
+                            plugin_name,
+                            marketplace_path,
+                            remote_marketplace_name,
+                            remote_release,
+                        } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.plugin_install_failed("session unavailable"));
+                                continue;
+                            };
+                            match session_ref
+                                .plugin_install(
+                                    marketplace_path.map(std::path::PathBuf::from),
+                                    remote_marketplace_name,
+                                    plugin_name.clone(),
+                                    remote_release,
+                                )
+                                .await
+                            {
+                                Ok(_) => app
+                                    .projection
+                                    .set_status(locale.plugin_installed(&plugin_name)),
+                                Err(error) => app.projection.set_status(
+                                    locale.plugin_install_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::UninstallPlugin { plugin_id, name } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.plugin_uninstall_failed("session unavailable"));
+                                continue;
+                            };
+                            match session_ref.plugin_uninstall(plugin_id).await {
+                                Ok(_) => app.projection.set_status(locale.plugin_uninstalled(&name)),
+                                Err(error) => app
+                                    .projection
+                                    .set_status(locale.plugin_uninstall_failed(&format!("{error:#}"))),
+                            }
+                        }
+                        AppAction::ShowDiff => {
+                            let locale = app.chat_widget.locale;
+                            let cwd = app.cwd.clone();
+                            match crate::app::git_diff::collect_git_diff(&cwd).await {
+                                Ok(crate::app::git_diff::DiffCollection::NotARepository) => {
+                                    app.chat_widget.open_text_pager(
+                                        locale.diff_title().to_string(),
+                                        vec![ratatui::text::Line::from(
+                                            locale.diff_not_a_repository(),
+                                        )],
+                                    );
+                                }
+                                Ok(crate::app::git_diff::DiffCollection::Clean) => {
+                                    app.chat_widget.open_text_pager(
+                                        locale.diff_title().to_string(),
+                                        vec![ratatui::text::Line::from(locale.diff_clean())],
+                                    );
+                                }
+                                Ok(crate::app::git_diff::DiffCollection::Diff(diff)) => {
+                                    let lines: Vec<ratatui::text::Line<'static>> = diff
+                                        .lines()
+                                        .take(2000)
+                                        .map(|line| ratatui::text::Line::from(line.to_string()))
+                                        .collect();
+                                    app.chat_widget.open_text_pager(
+                                        locale.diff_title().to_string(),
+                                        lines,
+                                    );
+                                }
+                                Err(error) => app.projection.set_status(error),
+                            }
+                        }
+                        AppAction::ListWarnings => {
+                            let locale = app.chat_widget.locale;
+                            let mut lines: Vec<ratatui::text::Line<'static>> = Vec::new();
+                            for (name, error) in app.chat_widget.mcp_startup_warnings.entries() {
+                                let text = match error {
+                                    Some(error) => format!(
+                                        "{} {name}: {error}",
+                                        locale.warnings_mcp_label()
+                                    ),
+                                    None => format!("{} {name}", locale.warnings_mcp_label()),
+                                };
+                                lines.push(ratatui::text::Line::from(text));
+                            }
+                            for (path, message) in
+                                app.chat_widget.skill_load_warnings.active_entries()
+                            {
+                                lines.push(ratatui::text::Line::from(format!(
+                                    "{} {}: {message}",
+                                    locale.warnings_skills_label(),
+                                    path.display()
+                                )));
+                            }
+                            if lines.is_empty() {
+                                lines.push(ratatui::text::Line::from(locale.warnings_empty()));
+                            }
+                            app.chat_widget
+                                .open_text_pager(locale.warnings_title().to_string(), lines);
+                        }
+                        AppAction::ShowUsage => {
+                            let locale = app.chat_widget.locale;
+                            let usage = app.status_surface_data().token_usage;
+                            let lines: Vec<ratatui::text::Line<'static>> = match usage {
+                                Some(usage) => {
+                                    let mut lines = vec![
+                                        ratatui::text::Line::from(format!(
+                                            "{}: {}",
+                                            locale.usage_total_label(),
+                                            usage.total.total_tokens
+                                        )),
+                                        ratatui::text::Line::from(format!(
+                                            "{}: {}",
+                                            locale.usage_input_label(),
+                                            usage.total.input_tokens
+                                        )),
+                                        ratatui::text::Line::from(format!(
+                                            "{}: {}",
+                                            locale.usage_output_label(),
+                                            usage.total.output_tokens
+                                        )),
+                                        ratatui::text::Line::from(format!(
+                                            "{}: {}",
+                                            locale.usage_last_turn_label(),
+                                            usage.last.total_tokens
+                                        )),
+                                    ];
+                                    if let Some(window) = usage.model_context_window {
+                                        lines.push(ratatui::text::Line::from(format!(
+                                            "{}: {window}",
+                                            locale.usage_context_window_label()
+                                        )));
+                                    }
+                                    lines
+                                }
+                                None => vec![ratatui::text::Line::from(locale.usage_empty())],
+                            };
+                            app.chat_widget
+                                .open_text_pager(locale.usage_title().to_string(), lines);
+                        }
+                        AppAction::ShowMemoryStatus => {
+                            match session
+                                .as_ref()
+                                .expect("session available during TUI")
+                                .memory_status()
+                                .await
+                            {
+                                Ok(status) => {
+                                    let locale = app.chat_widget.locale;
+                                    let ready = if status.v2_ready {
+                                        locale.memory_ready_label()
+                                    } else {
+                                        locale.memory_not_ready_label()
+                                    };
+                                    let lines = vec![
+                                        ratatui::text::Line::from(format!(
+                                            "{}: {}",
+                                            locale.memory_consolidated_label(),
+                                            status.v2_consolidated_threads
+                                        )),
+                                        ratatui::text::Line::from(format!(
+                                            "{}: {ready}",
+                                            locale.memory_ready_label()
+                                        )),
+                                    ];
                                     app.chat_widget
-                                        .open_text_pager(locale.hooks_title().to_string(), lines);
+                                        .open_text_pager(locale.memory_title().to_string(), lines);
+                                }
+                                Err(error) => app.projection.set_status(error.to_string()),
+                            }
+                        }
+                        AppAction::ToggleStatusLineColors => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.config_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let enabled = !app.chat_widget.tui_config.status_line_use_colors;
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: "tui.status_line_use_colors".to_string(),
+                                value: serde_json::json!(enabled),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(if enabled {
+                                    locale.status_line_colors_enabled()
+                                } else {
+                                    locale.status_line_colors_disabled()
+                                }),
+                                Err(error) => app.projection.set_status(
+                                    locale.config_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::CycleRightClickPaste => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.config_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let next = match app.chat_widget.tui_config.right_click_paste {
+                                lime_core::config::RightClickPaste::Auto => {
+                                    lime_core::config::RightClickPaste::On
+                                }
+                                lime_core::config::RightClickPaste::On => {
+                                    lime_core::config::RightClickPaste::Off
+                                }
+                                lime_core::config::RightClickPaste::Off => {
+                                    lime_core::config::RightClickPaste::Auto
+                                }
+                            };
+                            let value = match next {
+                                lime_core::config::RightClickPaste::Auto => "auto",
+                                lime_core::config::RightClickPaste::On => "on",
+                                lime_core::config::RightClickPaste::Off => "off",
+                            };
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: "tui.right_click_paste".to_string(),
+                                value: serde_json::json!(value),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => {
+                                    let status = match next {
+                                        lime_core::config::RightClickPaste::Auto => {
+                                            locale.right_click_paste_auto()
+                                        }
+                                        lime_core::config::RightClickPaste::On => {
+                                            locale.right_click_paste_on()
+                                        }
+                                        lime_core::config::RightClickPaste::Off => {
+                                            locale.right_click_paste_off()
+                                        }
+                                    };
+                                    app.projection.set_status(status);
+                                }
+                                Err(error) => app.projection.set_status(
+                                    locale.config_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::ToggleAutoRecap => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.config_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let enabled = !app.chat_widget.tui_config.auto_recap;
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: "tui.auto_recap".to_string(),
+                                value: serde_json::json!(enabled),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(if enabled {
+                                    locale.auto_recap_enabled()
+                                } else {
+                                    locale.auto_recap_disabled()
+                                }),
+                                Err(error) => app
+                                    .projection
+                                    .set_status(locale.config_save_failed(&error.to_string())),
+                            }
+                        }
+                        AppAction::ToggleAnimations => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.config_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let enabled = !app.chat_widget.tui_config.animations;
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: "tui.animations".to_string(),
+                                value: serde_json::json!(enabled),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(if enabled {
+                                    locale.animations_enabled()
+                                } else {
+                                    locale.animations_disabled()
+                                }),
+                                Err(error) => app.projection.set_status(
+                                    locale.config_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::ResetKeybinding { path } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.keymap_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let defaults = crate::keymap::RuntimeKeymap::default().describe();
+                            let specs = defaults
+                                .into_iter()
+                                .find(|entry| entry.path == path)
+                                .map(|entry| entry.specs)
+                                .unwrap_or_default();
+                            let value = if specs.len() == 1 {
+                                serde_json::json!(specs[0])
+                            } else {
+                                serde_json::json!(specs)
+                            };
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: path.clone(),
+                                value,
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(locale.keymap_reset()),
+                                Err(error) => app.projection.set_status(
+                                    locale.keymap_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::UnbindKeybinding { path } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.keymap_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: path.clone(),
+                                value: serde_json::json!([]),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(locale.keymap_unbound()),
+                                Err(error) => app.projection.set_status(
+                                    locale.keymap_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::WriteKeybinding { path, spec } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.keymap_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: path.clone(),
+                                value: serde_json::json!(spec),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(locale.keymap_saved()),
+                                Err(error) => app.projection.set_status(
+                                    locale.keymap_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::SetSkillEnabled {
+                            path,
+                            name,
+                            enabled,
+                        } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.skill_toggle_failed("session unavailable"));
+                                continue;
+                            };
+                            match session_ref
+                                .skills_config_write(path.clone(), name.clone(), enabled)
+                                .await
+                            {
+                                Ok(response) => {
+                                    let mut skills =
+                                        app.chat_widget.bottom_pane.skills().to_vec();
+                                    for skill in &mut skills {
+                                        if skill.path == path {
+                                            skill.enabled = response.effective_enabled;
+                                        }
+                                    }
+                                    app.chat_widget.bottom_pane.set_skills(skills);
+                                    app.projection.set_status(if response.effective_enabled {
+                                        locale.skill_enabled(&name)
+                                    } else {
+                                        locale.skill_disabled(&name)
+                                    });
+                                }
+                                Err(error) => app.projection.set_status(
+                                    locale.skill_toggle_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::GenerateRecap(trigger) => {
+                            let locale = app.chat_widget.locale;
+                            let automatic = trigger == crate::app::recap::RecapTrigger::Automatic;
+                            if app.projection.active_turn_id().is_some() {
+                                if !automatic {
+                                    app.projection.set_status(locale.recap_wait_for_turn());
+                                }
+                                continue;
+                            }
+                            if app.recap.is_pending() {
+                                if !automatic {
+                                    app.projection.set_status(locale.recap_in_progress());
+                                }
+                                continue;
+                            }
+                            let history =
+                                crate::app::recap::recap_history(app.projection.entries());
+                            if history.is_empty() {
+                                if !automatic {
+                                    app.projection.set_status(locale.recap_empty());
+                                }
+                                continue;
+                            }
+                            let Some(session_ref) = session.as_ref() else {
+                                if !automatic {
+                                    app.projection.set_status(locale.recap_failed());
+                                }
+                                continue;
+                            };
+                            let model = app.chat_widget.model.clone();
+                            let provider = app.chat_widget.model_provider.clone();
+                            let cwd = app.cwd.display().to_string();
+                            match session_ref
+                                .start_recap_request(model, provider, cwd, history)
+                                .await
+                            {
+                                Ok(thread_id) => {
+                                    app.recap.begin(thread_id, trigger);
+                                    if !automatic {
+                                        app.projection.set_status(locale.recap_generating());
+                                    }
+                                }
+                                Err(error) => {
+                                    if automatic {
+                                        app.recap.schedule_retry(std::time::Instant::now());
+                                    } else {
+                                        app.projection.set_status(
+                                            locale.recap_failed_with(&format!("{error:#}")),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        AppAction::RunShellCommand(command) => {
+                            let locale = app.chat_widget.locale;
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status(
+                                    locale.shell_command_failed("session not started"),
+                                );
+                                continue;
+                            };
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.shell_command_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            match session_ref
+                                .thread_shell_command(thread_id, command.clone())
+                                .await
+                            {
+                                Ok(_) => app
+                                    .projection
+                                    .set_status(locale.shell_command_started(&command)),
+                                Err(error) => app.projection.set_status(
+                                    locale.shell_command_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::SetHookEnabled { key, enabled } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.hook_update_failed("session unavailable"));
+                                continue;
+                            };
+                            let value = serde_json::json!({ key: { "enabled": enabled } });
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: "hooks.state".to_string(),
+                                value,
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Upsert,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => {
+                                    app.projection
+                                        .set_status(locale.hook_enabled_updated(enabled))
+                                }
+                                Err(error) => app.projection.set_status(
+                                    locale.hook_update_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::TrustHooks { hooks } => {
+                            let locale = app.chat_widget.locale;
+                            if hooks.is_empty() {
+                                continue;
+                            }
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.hook_update_failed("session unavailable"));
+                                continue;
+                            };
+                            let mut state = serde_json::Map::new();
+                            for (key, hash) in &hooks {
+                                state.insert(
+                                    key.clone(),
+                                    serde_json::json!({ "trusted_hash": hash }),
+                                );
+                            }
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: "hooks.state".to_string(),
+                                value: serde_json::Value::Object(state),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Upsert,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => {
+                                    app.projection.set_status(locale.hooks_trusted(hooks.len()))
+                                }
+                                Err(error) => app.projection.set_status(
+                                    locale.hook_update_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::ListProcesses => {
+                            let locale = app.chat_widget.locale;
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status(
+                                    locale.ps_terminate_failed("session not started"),
+                                );
+                                continue;
+                            };
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.ps_terminate_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            match session_ref.background_terminals_list(thread_id).await {
+                                Ok(response) => {
+                                    let entries = response
+                                        .data
+                                        .into_iter()
+                                        .map(|terminal| {
+                                            crate::app::process_list::ProcessEntry {
+                                                process_id: terminal.process_id,
+                                                command: terminal.command,
+                                                cwd: terminal.cwd,
+                                                os_pid: terminal.os_pid,
+                                                cpu_percent: terminal.cpu_percent,
+                                                rss_kb: terminal.rss_kb,
+                                            }
+                                        })
+                                        .collect();
+                                    app.chat_widget.open_process_list(
+                                        crate::app::process_list::ProcessList::new(entries, None),
+                                    );
+                                }
+                                Err(error) => {
+                                    let message =
+                                        locale.ps_terminate_failed(&format!("{error:#}"));
+                                    app.chat_widget.open_process_list(
+                                        crate::app::process_list::ProcessList::new(
+                                            Vec::new(),
+                                            Some(message),
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                        AppAction::TerminateProcess {
+                            thread_id,
+                            process_id,
+                            command,
+                        } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.ps_terminate_failed("session unavailable"));
+                                continue;
+                            };
+                            match session_ref
+                                .background_terminals_terminate(thread_id, process_id)
+                                .await
+                            {
+                                Ok(_) => app
+                                    .projection
+                                    .set_status(locale.ps_terminated(&command)),
+                                Err(error) => app.projection.set_status(
+                                    locale.ps_terminate_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::ListHooks => {
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(app.chat_widget.locale.hooks_empty());
+                                continue;
+                            };
+                            let cwd = app.cwd.clone();
+                            match session_ref
+                                .hooks_list(cwd.display().to_string())
+                                .await {
+                                Ok(response) => {
+                                    let mut events: Vec<
+                                        crate::app::hooks_browser::HookEventView,
+                                    > = Vec::new();
+                                    for entry in response.data {
+                                        let mut first_handler = true;
+                                        for hook in entry.hooks {
+                                            let event = serde_json::to_value(&hook.event_name)
+                                                .ok()
+                                                .and_then(|value| {
+                                                    value.as_str().map(str::to_string)
+                                                })
+                                                .unwrap_or_else(|| {
+                                                    format!("{:?}", hook.event_name)
+                                                });
+                                            let summary = match &hook.handler {
+                                                app_server_protocol::protocol::v2::HookHandlerMetadata::Command {
+                                                    command,
+                                                    r#async,
+                                                } => {
+                                                    if *r#async {
+                                                        format!("cmd: {command} (async)")
+                                                    } else {
+                                                        format!("cmd: {command}")
+                                                    }
+                                                }
+                                                app_server_protocol::protocol::v2::HookHandlerMetadata::McpTool {
+                                                    server,
+                                                    tool,
+                                                } => format!("mcp: {server}/{tool}"),
+                                                app_server_protocol::protocol::v2::HookHandlerMetadata::Prompt {} => {
+                                                    "prompt".to_string()
+                                                }
+                                                app_server_protocol::protocol::v2::HookHandlerMetadata::Agent {} => {
+                                                    "agent".to_string()
+                                                }
+                                            };
+                                            let handler =
+                                                crate::app::hooks_browser::HookHandlerView {
+                                                    key: hook.key.clone(),
+                                                    summary,
+                                                    source: format!("{:?}", hook.source)
+                                                        .to_lowercase(),
+                                                    timeout_sec: hook.timeout_sec,
+                                                    enabled: hook.enabled,
+                                                    needs_review: matches!(
+                                                        hook.trust_status,
+                                                        app_server_protocol::protocol::v2::HookTrustStatus::Untrusted
+                                                            | app_server_protocol::protocol::v2::HookTrustStatus::Modified
+                                                    ),
+                                                    is_managed: hook.is_managed,
+                                                    current_hash: hook.current_hash.clone(),
+                                                    warnings: if first_handler {
+                                                        entry.warnings.clone()
+                                                    } else {
+                                                        Vec::new()
+                                                    },
+                                                    errors: if first_handler {
+                                                        entry
+                                                            .errors
+                                                            .iter()
+                                                            .map(|error| error.message.clone())
+                                                            .collect()
+                                                    } else {
+                                                        Vec::new()
+                                                    },
+                                                };
+                                            first_handler = false;
+                                            match events
+                                                .iter_mut()
+                                                .find(|candidate| candidate.event == event)
+                                            {
+                                                Some(existing) => {
+                                                    existing.handlers.push(handler)
+                                                }
+                                                None => events.push(
+                                                    crate::app::hooks_browser::HookEventView {
+                                                        event,
+                                                        handlers: vec![handler],
+                                                    },
+                                                ),
+                                            }
+                                        }
+                                    }
+                                    app.chat_widget.open_hooks_browser(events);
                                 }
                                 Err(error) => app.projection.set_status(error.to_string()),
                             }

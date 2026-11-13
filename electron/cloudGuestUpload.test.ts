@@ -21,7 +21,7 @@ afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-it("uses verified TLS, a fixed address and routes; uploads actual bytes and refuses redirects, wrong certificates and expiry", async () => {
+async function fixture() {
   root = await mkdtemp(path.join(os.tmpdir(), "lime-upload-tls-"));
   const key = path.join(root, "key.pem");
   const cert = path.join(root, "cert.pem");
@@ -56,14 +56,24 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
         auth: request.headers.authorization!,
         body: Buffer.concat(blocks),
       });
-      response.writeHead(mode === "redirect" ? 302 : 200, {
-        "Content-Type": "application/json",
-        Location: "https://never-follow.invalid/secret",
-      });
+      if (mode === "reset") return request.socket.destroy();
+      if (mode === "hang") return;
+      response.writeHead(
+        mode === "redirect" ? 302 : mode === "forbidden" ? 403 : 200,
+        {
+          "Content-Type":
+            mode === "content" ? "text/plain" : "application/json",
+          Location: "https://never-follow.invalid/secret",
+        },
+      );
       response.end(
         mode === "invalid"
           ? "secret-invalid-response"
-          : JSON.stringify({ phase: "waiting" }),
+          : mode === "size"
+            ? "private-large-response".repeat(2000)
+            : mode === "array"
+              ? "[]"
+              : JSON.stringify({ phase: "waiting" }),
       );
     },
   );
@@ -79,6 +89,18 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
     expiresAt: Math.floor(Date.now() / 1000) + 60,
   };
   const capability = "c".repeat(64);
+  return {
+    target,
+    capability,
+    received,
+    setMode: (value: string) => {
+      mode = value;
+    },
+  };
+}
+
+it("uses verified TLS, a fixed address and routes; uploads actual bytes and refuses redirects, wrong certificates and expiry", async () => {
+  const { target, capability, received, setMode } = await fixture();
   await expect(
     requestCloudGuestUpload(
       target,
@@ -117,7 +139,8 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
   expect(received[2].route).toBe("/download");
   expect(JSON.parse(received[2].body.toString())).toEqual({ downloadUrl });
   expect(received[2].auth).toBe(`Bearer ${capability}`);
-  for (mode of ["redirect", "invalid"]) {
+  for (const mode of ["redirect", "invalid"]) {
+    setMode(mode);
     await expect(
       requestCloudGuestUpload(
         target,
@@ -153,3 +176,143 @@ it("uses verified TLS, a fixed address and routes; uploads actual bytes and refu
   ).rejects.toThrow(/^CLOUD_INSTALL_CONNECTION_FAILED$/u);
   expect(received).toHaveLength(count);
 }, 20_000);
+
+it("classifies real TLS/HTTP/connection failures without exposing private response or target data", async () => {
+  const { target, capability, setMode } = await fixture();
+  for (const [mode, reason, httpStatus] of [
+    ["redirect", "httpStatus", 302],
+    ["forbidden", "httpStatus", 403],
+    ["content", "responseType"],
+    ["invalid", "responseJson"],
+    ["size", "responseSize"],
+    ["array", "responseShape"],
+    ["reset", "connection"],
+  ] as const) {
+    setMode(mode);
+    const error = await requestCloudGuestUpload(
+      target,
+      capability,
+      "/status",
+      new AbortController().signal,
+    ).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      message: "CLOUD_INSTALL_CONNECTION_FAILED",
+      failure: {
+        route: "/status",
+        reason,
+        ...(httpStatus === undefined ? {} : { httpStatus }),
+      },
+    });
+    expect(JSON.stringify(error)).not.toMatch(
+      /secret|private|127\.0\.0|Bearer|BEGIN CERTIFICATE/u,
+    );
+    expect(error).not.toHaveProperty("cause");
+  }
+  const cert = path.join(root, "untrusted-cert.pem");
+  await promisify(execFile)("openssl", [
+    "req",
+    "-x509",
+    "-newkey",
+    "rsa:2048",
+    "-sha256",
+    "-nodes",
+    "-days",
+    "1",
+    "-subj",
+    "/CN=Explicit untrusted TLS fixture",
+    "-addext",
+    "subjectAltName=IP:127.0.0.2",
+    "-keyout",
+    path.join(root, "untrusted-key.pem"),
+    "-out",
+    cert,
+  ]);
+  setMode("normal");
+  await expect(
+    requestCloudGuestUpload(
+      { ...target, certificate: await readFile(cert, "utf8") },
+      capability,
+      "/status",
+      new AbortController().signal,
+    ),
+  ).rejects.toMatchObject({
+    message: "CLOUD_INSTALL_CONNECTION_FAILED",
+    failure: { route: "/status", reason: "tls" },
+  });
+});
+
+it("distinguishes local validation, cancellation and expiry, including expiry during an in-flight TLS request", async () => {
+  const { target, capability, received, setMode } = await fixture();
+  for (const [change, reason] of [
+    [
+      { endpoint: "https://user:private-password@127.0.0.1:8788/" },
+      "invalidTarget",
+    ],
+    [{ certificate: "private-invalid-certificate" }, "invalidTarget"],
+    [{ expiresAt: 1 }, "expired"],
+  ] as const) {
+    await expect(
+      requestCloudGuestUpload(
+        { ...target, ...change },
+        capability,
+        "/status",
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({ failure: { route: "/status", reason } });
+  }
+  await expect(
+    requestCloudGuestUpload(
+      target,
+      capability,
+      "/download",
+      new AbortController().signal,
+      { downloadUrl: "http://private.invalid/?private-token" },
+    ),
+  ).rejects.toMatchObject({
+    failure: { route: "/download", reason: "invalidTarget" },
+  });
+  const cancelled = new AbortController();
+  cancelled.abort("private-cancellation-reason");
+  await expect(
+    requestCloudGuestUpload(target, capability, "/status", cancelled.signal),
+  ).rejects.toMatchObject({
+    failure: { route: "/status", reason: "cancelled" },
+  });
+  expect(received).toHaveLength(0);
+  setMode("hang");
+  await expect(
+    requestCloudGuestUpload(
+      { ...target, expiresAt: Math.ceil(Date.now() / 1000) + 1 },
+      capability,
+      "/status",
+      new AbortController().signal,
+    ),
+  ).rejects.toMatchObject({ failure: { route: "/status", reason: "expired" } });
+  expect(received).toHaveLength(1);
+  const inFlight = new AbortController();
+  const pending = expect(
+    requestCloudGuestUpload(target, capability, "/status", inFlight.signal),
+  ).rejects.toMatchObject({
+    failure: { route: "/status", reason: "cancelled" },
+  });
+  await expect.poll(() => received.length).toBe(2);
+  inFlight.abort("private-in-flight-cancellation-reason");
+  await pending;
+});
+
+it("classifies real request inactivity as timeout while the installation lease remains valid", async () => {
+  const { target, capability, setMode } = await fixture();
+  setMode("hang");
+  await expect(
+    requestCloudGuestUpload(
+      target,
+      capability,
+      "/status",
+      new AbortController().signal,
+    ),
+  ).rejects.toMatchObject({
+    message: "CLOUD_INSTALL_CONNECTION_FAILED",
+    failure: { route: "/status", reason: "timeout" },
+  });
+  expect(target.expiresAt * 1000).toBeGreaterThan(Date.now());
+}, 35_000);

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Read;
 
 pub(super) mod cli;
+mod credential_window;
 const PROFILE_PREFIX: &str = "lime-oauth-";
 const OAUTH_TIMEOUT: Duration = Duration::from_secs(600);
 
@@ -15,6 +16,8 @@ struct Connection {
     region_id: String,
     status: String,
     error_code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    account_id_suffix: Option<String>,
 }
 
 impl CloudDesktopService {
@@ -71,6 +74,11 @@ impl CloudDesktopService {
         .contains(&state.status.as_str())
         {
             return Err("Invalid Alibaba connection status".into());
+        }
+        if state.account_id_suffix.as_ref().is_some_and(|suffix| {
+            suffix.len() != 4 || !suffix.bytes().all(|byte| byte.is_ascii_digit())
+        }) {
+            return Err("Invalid Alibaba account suffix".into());
         }
         Ok(Some(state))
     }
@@ -151,6 +159,7 @@ impl CloudDesktopService {
                 region_id: region.into(),
                 status: "preparing".into(),
                 error_code: None,
+                account_id_suffix: None,
             }
         };
         self.auth_directory(&state.profile)?;
@@ -230,6 +239,7 @@ impl CloudDesktopService {
     }
 
     async fn verify_alibaba(&self, state: &mut Connection) -> Result<(), String> {
+        state.account_id_suffix = None;
         cli::ensure_available(self)
             .await
             .map_err(|_| "cliUnavailable".to_owned())?;
@@ -239,7 +249,7 @@ impl CloudDesktopService {
             state,
         )?;
         self.write_connection_file(&self.auth_directory("")?.join("active.json"), state)?;
-        // OAuth has completed. Verify its private profile without projecting identity or credentials.
+        // Keep only a masked account suffix; never persist or project the full STS identity.
         let config = self.auth_directory(&state.profile)?.join("aliyun.json");
         private_open(&config, false)?;
         let identity = self
@@ -253,10 +263,15 @@ impl CloudDesktopService {
             )
             .await
             .map_err(|_| "verificationFailed".to_owned())?;
-        if !identity["AccountId"].as_str().is_some_and(|id| {
-            !id.is_empty() && id.len() <= 32 && id.bytes().all(|byte| byte.is_ascii_digit())
-        }) {
-            return Err("verificationFailed".into());
+        let account = identity["AccountId"]
+            .as_str()
+            .filter(|id| {
+                !id.is_empty() && id.len() <= 32 && id.bytes().all(|byte| byte.is_ascii_digit())
+            })
+            .ok_or_else(|| "verificationFailed".to_owned())?;
+        // Very short identifiers must not accidentally be exposed in full.
+        if account.len() > 4 {
+            state.account_id_suffix = Some(account[account.len() - 4..].into());
         }
         Ok(())
     }

@@ -21,17 +21,51 @@ pub(crate) enum ConfigItem {
     Experimental,
     TerminalTitle,
     StatusLine,
+    Hooks,
+    Skills,
+    Keymap,
+    Animations,
+    RightClickPaste,
+    StatusLineColors,
+    AutoRecap,
 }
 
 impl ConfigItem {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 13] = [
         Self::Model,
         Self::Effort,
         Self::Permissions,
         Self::Experimental,
         Self::TerminalTitle,
         Self::StatusLine,
+        Self::Hooks,
+        Self::Skills,
+        Self::Keymap,
+        Self::Animations,
+        Self::RightClickPaste,
+        Self::StatusLineColors,
+        Self::AutoRecap,
     ];
+
+    fn label(self, locale: Locale) -> String {
+        match self {
+            Self::Animations => locale.config_animations_label().to_string(),
+            Self::RightClickPaste => locale.config_right_click_label().to_string(),
+            Self::StatusLineColors => locale.config_status_colors_label().to_string(),
+            Self::AutoRecap => locale.config_auto_recap_label().to_string(),
+            _ => self.command().command().to_string(),
+        }
+    }
+
+    fn description(self, locale: Locale) -> String {
+        match self {
+            Self::Animations => locale.config_animations_description().to_string(),
+            Self::RightClickPaste => locale.config_right_click_description().to_string(),
+            Self::StatusLineColors => locale.config_status_colors_description().to_string(),
+            Self::AutoRecap => locale.config_auto_recap_description().to_string(),
+            _ => self.command().description(locale).to_string(),
+        }
+    }
 
     fn command(self) -> SlashCommand {
         match self {
@@ -41,6 +75,12 @@ impl ConfigItem {
             Self::Experimental => SlashCommand::Experimental,
             Self::TerminalTitle => SlashCommand::Title,
             Self::StatusLine => SlashCommand::Statusline,
+            Self::Hooks => SlashCommand::Hooks,
+            Self::Skills => SlashCommand::Skills,
+            Self::Keymap => SlashCommand::Keymap,
+            Self::Animations | Self::RightClickPaste | Self::StatusLineColors | Self::AutoRecap => {
+                SlashCommand::Config
+            }
         }
     }
 }
@@ -143,8 +183,8 @@ impl ConfigMenu {
             .iter()
             .map(|item| {
                 SelectionRow::new(
-                    item.command().command().to_string(),
-                    Some(item.command().description(locale).to_string()),
+                    item.label(locale),
+                    Some(item.description(locale)),
                     Vec::new(),
                 )
             })
@@ -197,11 +237,66 @@ mod tests {
     }
 
     #[test]
+    fn navigation_reaches_the_status_line_colors_toggle() {
+        let mut menu = ConfigMenu::new();
+        for _ in 0..11 {
+            assert_eq!(
+                menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Down))),
+                ConfigMenuAction::None
+            );
+        }
+        assert_eq!(
+            menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Enter))),
+            ConfigMenuAction::Select(ConfigItem::StatusLineColors)
+        );
+    }
+
+    #[test]
+    fn navigation_reaches_the_right_click_paste_toggle() {
+        let mut menu = ConfigMenu::new();
+        for _ in 0..10 {
+            assert_eq!(
+                menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Down))),
+                ConfigMenuAction::None
+            );
+        }
+        assert_eq!(
+            menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Enter))),
+            ConfigMenuAction::Select(ConfigItem::RightClickPaste)
+        );
+    }
+
+    #[test]
+    fn navigation_reaches_the_animations_toggle() {
+        let mut menu = ConfigMenu::new();
+        for _ in 0..9 {
+            assert_eq!(
+                menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Down))),
+                ConfigMenuAction::None
+            );
+        }
+        assert_eq!(
+            menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Enter))),
+            ConfigMenuAction::Select(ConfigItem::Animations)
+        );
+    }
+
+    #[test]
     fn numbered_shortcuts_select_entries() {
         let mut menu = ConfigMenu::new();
         assert_eq!(
             menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Char('4')))),
             ConfigMenuAction::Select(ConfigItem::Experimental)
+        );
+        let mut menu = ConfigMenu::new();
+        assert_eq!(
+            menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Char('7')))),
+            ConfigMenuAction::Select(ConfigItem::Hooks)
+        );
+        let mut menu = ConfigMenu::new();
+        assert_eq!(
+            menu.handle_event(Event::Key(KeyEvent::from(KeyCode::Char('9')))),
+            ConfigMenuAction::Select(ConfigItem::Keymap)
         );
     }
 }

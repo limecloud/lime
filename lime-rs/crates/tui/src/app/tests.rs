@@ -536,13 +536,79 @@ fn effort_slash_command_opens_the_picker_and_keeps_inline_arguments() {
 }
 
 #[test]
+fn memory_slash_command_shows_memory_status() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/memory".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ShowMemoryStatus));
+}
+
+#[test]
+fn usage_slash_command_shows_token_usage() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/usage".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ShowUsage));
+}
+
+#[test]
+fn stop_slash_command_reports_no_active_turn() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/stop".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert_eq!(app.projection.status(), "no active turn to stop");
+}
+
+#[test]
+fn memory_reset_requires_confirmation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/memory reset".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.confirm_prompt_open());
+    assert_eq!(
+        app.chat_widget.confirm_kind(),
+        Some(crate::app::confirm_prompt::ConfirmKind::ResetMemory)
+    );
+    let cancel = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(cancel, AppAction::None);
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/memory reset".to_string());
+    app.run_local_command();
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    let confirm = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(confirm, AppAction::ResetMemory);
+}
+
+#[test]
 fn keymap_slash_command_lists_bindings() {
     let mut app = App::default();
     app.set_locale(Locale::EnUs);
     app.chat_widget
         .bottom_pane
         .set_composer_text("/keymap".to_string());
-    assert_eq!(app.run_local_command(), Some(AppAction::ListKeymap));
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.keymap_editor_open());
 }
 
 #[test]
@@ -552,7 +618,8 @@ fn skills_slash_command_lists_available_skills() {
     app.chat_widget
         .bottom_pane
         .set_composer_text("/skills".to_string());
-    assert_eq!(app.run_local_command(), Some(AppAction::ListSkills));
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.skills_toggle_open());
 }
 
 #[test]
@@ -1694,13 +1761,15 @@ fn slash_popup_completes_argument_commands_and_reopens_after_cancelled_input_cha
     );
     assert!(!app.chat_widget.bottom_pane.command_popup_active());
 
-    dispatch_connected_input(
-        &mut app,
-        Event::Key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE)),
-    );
+    for ch in "rename".chars() {
+        dispatch_connected_input(
+            &mut app,
+            Event::Key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE)),
+        );
+    }
     assert_eq!(
         app.chat_widget.bottom_pane.selected_command(),
-        Some(SlashCommand::Effort)
+        Some(SlashCommand::Rename)
     );
     assert_eq!(
         dispatch_connected_input(
@@ -1709,7 +1778,7 @@ fn slash_popup_completes_argument_commands_and_reopens_after_cancelled_input_cha
         ),
         AppAction::None
     );
-    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "/effort ");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "/rename ");
     assert!(!app.chat_widget.bottom_pane.command_popup_active());
 }
 
@@ -2550,7 +2619,7 @@ fn alt_right_switches_to_the_next_agent_in_spawn_order() {
 }
 
 #[test]
-fn subagents_slash_command_opens_the_codex_named_picker() {
+fn subagents_slash_command_opens_the_upstream_named_picker() {
     let mut app = App::default();
     app.set_thread_id("main".to_string());
     app.chat_widget.agent_navigation.upsert(
@@ -2693,5 +2762,400 @@ fn sub_agent_activity_updates_navigation_liveness_and_label() {
             .agent_navigation
             .active_agent_label(Some("agent-1"), Some("main")),
         Some("`/root/worker`".to_string())
+    );
+}
+
+#[test]
+fn warnings_slash_command_lists_startup_warnings() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/warnings".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ListWarnings));
+}
+
+#[test]
+fn diff_slash_command_shows_the_working_tree_diff() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/diff".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ShowDiff));
+}
+
+#[test]
+fn cd_slash_command_resolves_absolute_relative_and_home_paths() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.set_cwd(std::path::PathBuf::from("/workspace/project"));
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/cd /tmp".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::ChangeWorkingDirectory(std::path::PathBuf::from(
+            "/tmp"
+        )))
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/cd sub".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::ChangeWorkingDirectory(std::path::PathBuf::from(
+            "/workspace/project/sub"
+        )))
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/cd".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        dirs::home_dir().map(AppAction::ChangeWorkingDirectory)
+    );
+}
+
+#[test]
+fn plugins_slash_command_lists_installed_plugins() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/plugins".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ListPlugins));
+}
+
+#[test]
+fn mention_slash_command_inserts_the_mention_token() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/mention".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::InsertComposerText("@".to_string()))
+    );
+}
+
+#[test]
+fn goal_slash_command_parses_view_set_and_control_forms() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    for (text, expected) in [
+        ("/goal", "show"),
+        ("/goal clear", "clear"),
+        ("/goal pause", "pause"),
+        ("/goal resume", "resume"),
+        ("/goal ship the release", "set:ship the release"),
+    ] {
+        app.chat_widget
+            .bottom_pane
+            .set_composer_text(text.to_string());
+        assert_eq!(
+            app.run_local_command(),
+            Some(AppAction::GoalCommand(expected.to_string())),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn memories_slash_command_toggles_the_thread_memory_mode() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/memories on".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::SetMemoryMode(true))
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/memories off".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::SetMemoryMode(false))
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/memories maybe".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert_eq!(app.projection.status(), "Usage: /memories [on|off]");
+}
+
+#[test]
+fn plugin_uninstall_requires_confirmation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.open_confirm_prompt(
+        crate::app::confirm_prompt::ConfirmPrompt::uninstall_plugin(
+            "plugin-1".to_string(),
+            "gate-plugin".to_string(),
+        ),
+    );
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true,
+        ),
+        AppAction::None
+    );
+    app.chat_widget.open_confirm_prompt(
+        crate::app::confirm_prompt::ConfirmPrompt::uninstall_plugin(
+            "plugin-1".to_string(),
+            "gate-plugin".to_string(),
+        ),
+    );
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true,
+        ),
+        AppAction::UninstallPlugin {
+            plugin_id: "plugin-1".to_string(),
+            name: "gate-plugin".to_string(),
+        }
+    );
+}
+
+#[test]
+fn plugins_install_form_requests_resolution_and_rejects_unknown_forms() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/plugins install gate-plugin".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::InstallPluginRequest("gate-plugin".to_string()))
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/plugins bogus".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert_eq!(
+        app.projection.status(),
+        "Usage: /plugins [install <name>|search <term>]"
+    );
+}
+
+#[test]
+fn plugin_install_requires_confirmation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    let prompt = crate::app::confirm_prompt::ConfirmPrompt::install_plugin(
+        "gate-plugin".to_string(),
+        None,
+        Some("gate-market".to_string()),
+        None,
+    );
+    app.chat_widget.open_confirm_prompt(prompt);
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true,
+        ),
+        AppAction::None
+    );
+    app.chat_widget
+        .open_confirm_prompt(crate::app::confirm_prompt::ConfirmPrompt::install_plugin(
+            "gate-plugin".to_string(),
+            None,
+            Some("gate-market".to_string()),
+            None,
+        ));
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true,
+        ),
+        AppAction::InstallPlugin {
+            plugin_name: "gate-plugin".to_string(),
+            marketplace_path: None,
+            remote_marketplace_name: Some("gate-market".to_string()),
+            remote_release: None,
+        }
+    );
+}
+
+#[test]
+fn plugins_search_form_requests_marketplace_search() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/plugins search gate".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::SearchPlugins("gate".to_string()))
+    );
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/plugins search".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert_eq!(
+        app.projection.status(),
+        "Usage: /plugins [install <name>|search <term>]"
+    );
+}
+
+#[test]
+fn ps_slash_command_lists_background_terminals() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/ps".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ListProcesses));
+}
+
+#[test]
+fn background_process_termination_requires_confirmation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.open_confirm_prompt(
+        crate::app::confirm_prompt::ConfirmPrompt::terminate_process(
+            "thread-1".to_string(),
+            "proc-1".to_string(),
+            "sleep 100".to_string(),
+        ),
+    );
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true,
+        ),
+        AppAction::None
+    );
+    app.chat_widget.open_confirm_prompt(
+        crate::app::confirm_prompt::ConfirmPrompt::terminate_process(
+            "thread-1".to_string(),
+            "proc-1".to_string(),
+            "sleep 100".to_string(),
+        ),
+    );
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true,
+        ),
+        AppAction::TerminateProcess {
+            thread_id: "thread-1".to_string(),
+            process_id: "proc-1".to_string(),
+            command: "sleep 100".to_string(),
+        }
+    );
+}
+
+#[test]
+fn bang_enters_shell_mode_and_esc_exits_it() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    let action = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Char('!'), KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(action, AppAction::None);
+    assert!(app.chat_widget.shell_mode);
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "");
+    let exit = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(exit, AppAction::None);
+    assert!(!app.chat_widget.shell_mode);
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "");
+}
+
+#[test]
+fn shell_mode_submission_runs_the_command_instead_of_a_turn() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.shell_mode = true;
+    let action = app.map_input_result(crate::bottom_pane::InputResult::Submitted {
+        text: "echo hi".to_string(),
+        text_elements: Vec::new(),
+    });
+    assert_eq!(action, AppAction::RunShellCommand("echo hi".to_string()));
+    assert!(!app.chat_widget.shell_mode);
+
+    let action = app.map_input_result(crate::bottom_pane::InputResult::Submitted {
+        text: "plain message".to_string(),
+        text_elements: Vec::new(),
+    });
+    assert!(matches!(action, AppAction::Submit { .. }));
+}
+
+#[test]
+fn recap_slash_command_requests_a_generation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/recap".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::GenerateRecap(
+            crate::app::recap::RecapTrigger::Manual
+        ))
+    );
+}
+
+#[test]
+fn recap_state_allows_only_one_pending_request() {
+    let mut recap = crate::app::recap::RecapState::default();
+    assert!(recap.pending_thread_id().is_none());
+    assert!(recap.begin(
+        "ephemeral-thread".to_string(),
+        crate::app::recap::RecapTrigger::Manual
+    ));
+    assert_eq!(recap.pending_thread_id(), Some("ephemeral-thread"));
+    assert!(!recap.begin(
+        "second-thread".to_string(),
+        crate::app::recap::RecapTrigger::Automatic
+    ));
+    assert_eq!(recap.pending_thread_id(), Some("ephemeral-thread"));
+    recap.push_agent_delta(r#"{"summary":"#);
+    recap.push_agent_delta(r#""ok"}"#);
+    let cleared = recap.clear().expect("pending recap");
+    assert_eq!(cleared.thread_id, "ephemeral-thread");
+    assert_eq!(cleared.assistant_text, r#"{"summary":"ok"}"#);
+    assert!(recap.pending_thread_id().is_none());
+    recap.push_agent_delta("ignored");
+    assert!(recap.clear().is_none());
+}
+
+#[test]
+fn recap_messages_render_as_recap_entries() {
+    let mut app = App::default();
+    app.projection
+        .add_recap_message("Conversation recap\n\n  ↳ Recap: shipped");
+    let entries = app.projection.entries();
+    assert_eq!(
+        entries.last().expect("recap entry").kind,
+        crate::projection::EntryKind::Recap
     );
 }

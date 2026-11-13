@@ -1,4 +1,4 @@
-//! Pagination completion boundaries preserve Codex item grouping semantics.
+//! Pagination completion boundaries preserve 上游 item grouping semantics.
 
 use super::*;
 use app_server_protocol::protocol::v2::{ThreadItem, TurnItemsView, TurnStatus};

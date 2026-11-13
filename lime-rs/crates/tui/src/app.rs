@@ -12,15 +12,24 @@ pub(crate) mod config_menu;
 pub(crate) mod confirm_prompt;
 pub(crate) mod effort_picker;
 pub(crate) mod event_dispatch;
+pub(crate) mod git_diff;
 pub(crate) mod history_pagination;
 pub(crate) mod history_replacement;
 pub(crate) mod history_ui;
+pub(crate) mod hooks_browser;
 mod input;
 mod input_flow;
 pub(crate) mod input_submission;
 mod interaction;
+pub(crate) mod keymap_editor;
+pub(crate) mod memories_settings;
 pub(crate) mod permissions_picker;
+pub(crate) mod plugin_picker;
+pub(crate) mod process_list;
+pub(crate) mod recap;
 pub(crate) mod review_picker;
+pub(crate) mod skills_toggle;
+pub(crate) mod subagent_backfill;
 pub(crate) use interaction::FullscreenSurface;
 mod interrupts;
 pub(crate) mod mcp_login;
@@ -107,8 +116,62 @@ pub(crate) enum AppAction {
     OpenTitleSetup,
     OpenStatusLineSetup,
     ListHooks,
-    ListSkills,
-    ListKeymap,
+    ShowMemoryStatus,
+    ResetMemory,
+    ShowUsage,
+    ListWarnings,
+    ShowDiff,
+    ChangeWorkingDirectory(std::path::PathBuf),
+    ListPlugins,
+    InsertComposerText(String),
+    GoalCommand(String),
+    SetMemoryMode(bool),
+    WriteKeybinding {
+        path: String,
+        spec: String,
+    },
+    UnbindKeybinding {
+        path: String,
+    },
+    ResetKeybinding {
+        path: String,
+    },
+    UninstallPlugin {
+        plugin_id: String,
+        name: String,
+    },
+    InstallPlugin {
+        plugin_name: String,
+        marketplace_path: Option<String>,
+        remote_marketplace_name: Option<String>,
+        remote_release: Option<app_server_protocol::protocol::v2::MarketReleaseReference>,
+    },
+    InstallPluginRequest(String),
+    ListProcesses,
+    RunShellCommand(String),
+    GenerateRecap(recap::RecapTrigger),
+    ToggleAutoRecap,
+    SetHookEnabled {
+        key: String,
+        enabled: bool,
+    },
+    TrustHooks {
+        hooks: Vec<(String, String)>,
+    },
+    TerminateProcess {
+        thread_id: String,
+        process_id: String,
+        command: String,
+    },
+    SearchPlugins(String),
+    SetSkillEnabled {
+        path: std::path::PathBuf,
+        name: String,
+        enabled: bool,
+    },
+    ToggleAnimations,
+    CycleRightClickPaste,
+    ToggleStatusLineColors,
     SelectEffort(String),
     SelectPermissions(String),
     ListExperimentalFeatures,
@@ -213,12 +276,36 @@ pub(crate) struct App {
     /// Keeps terminal input behind a startup request that may open a protected interaction.
     ///
     /// The App Server stream can deliver an approval or user-input request immediately after the
-    /// initial thread handshake. Codex quarantines terminal input until that request is visible;
+    /// initial thread handshake. 上游 quarantines terminal input until that request is visible;
     /// Lime keeps the same boundary while leaving request ownership in `BottomPane`.
     pub(crate) startup_protected_input_boundary: bool,
+    pub(crate) recap: recap::RecapState,
+    pub(crate) thread_git_branch: Option<String>,
+    pub(crate) thread_running: bool,
+    pub(crate) thread_active_flags: Vec<app_server_protocol::protocol::v2::ThreadActiveFlag>,
 }
 
 impl App {
+    pub(crate) fn open_skills_toggle_from_catalog(&mut self) {
+        let entries = self
+            .chat_widget
+            .bottom_pane
+            .skills()
+            .iter()
+            .map(|skill| crate::app::skills_toggle::SkillToggleEntry {
+                name: skill.name.clone(),
+                description: if skill.description.is_empty() {
+                    skill.short_description.clone().unwrap_or_default()
+                } else {
+                    skill.description.clone()
+                },
+                path: skill.path.clone(),
+                enabled: skill.enabled,
+            })
+            .collect();
+        self.chat_widget.open_skills_toggle(entries);
+    }
+
     pub(crate) fn set_runtime_keymap(&mut self, keymap: crate::keymap::RuntimeKeymap) {
         self.chat_widget.set_runtime_keymap(keymap);
     }
@@ -286,7 +373,7 @@ impl App {
 
     /// Release the startup input boundary once the first ordinary input is safe to process.
     ///
-    /// Codex keeps startup protection until queued app events and interactive requests have been
+    /// 上游 keeps startup protection until queued app events and interactive requests have been
     /// drained. The first key or paste event after that point ends the startup-only phase; later
     /// requests are handled by the normal BottomPane lifecycle.
     pub(crate) fn release_startup_input_boundary_if_ready(&mut self, user_input: bool) -> bool {
@@ -332,7 +419,60 @@ impl App {
 
     /// Return the user-visible status while keeping active-turn and explicit command status ahead
     /// of app-scoped MCP startup diagnostics.
+    /// Canonical live state for surfaces that cannot infer it from local turn projections.
+    pub(crate) fn live_thread_status(&self) -> Option<&'static str> {
+        use app_server_protocol::protocol::v2::ThreadActiveFlag;
+        if self
+            .thread_active_flags
+            .contains(&ThreadActiveFlag::WaitingOnApproval)
+        {
+            return Some("waiting approval");
+        }
+        if self
+            .thread_active_flags
+            .contains(&ThreadActiveFlag::WaitingOnUserInput)
+        {
+            return Some("waiting input");
+        }
+        (self.thread_running || self.projection.active_turn_id().is_some()).then_some("running")
+    }
+
+    pub(crate) fn note_thread_status(
+        &mut self,
+        thread_id: &str,
+        status: &app_server_protocol::protocol::v2::ThreadStatus,
+    ) {
+        if self.thread_id.as_deref() != Some(thread_id) {
+            return;
+        }
+        use app_server_protocol::protocol::v2::ThreadStatus;
+        match status {
+            ThreadStatus::Active { active_flags } => {
+                self.thread_running = true;
+                self.thread_active_flags = active_flags.clone();
+            }
+            ThreadStatus::Idle => {
+                self.thread_running = false;
+                self.thread_active_flags.clear();
+            }
+            ThreadStatus::SystemError => {
+                self.thread_running = false;
+                self.thread_active_flags.clear();
+            }
+            ThreadStatus::NotLoaded => {
+                self.thread_running = false;
+                self.thread_active_flags.clear();
+            }
+        }
+    }
+
     pub(crate) fn status_value(&self) -> String {
+        if let Some(live) = self.live_thread_status() {
+            let status = self.projection.status();
+            if matches!(status, "" | "ready" | "running") {
+                return live.to_string();
+            }
+        }
         let status = self.projection.status();
         if matches!(status, "" | "ready") {
             return self
@@ -345,6 +485,11 @@ impl App {
     }
 
     pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
+        self.note_thread_status(&thread.id, &thread.status);
+        self.thread_git_branch = thread
+            .git_info
+            .as_ref()
+            .and_then(|git_info| git_info.branch.clone());
         self.thread_history_mode = thread.history_mode.clone();
         self.reset_backtrack_state();
         self.history_replacement.reset();
@@ -573,8 +718,139 @@ impl App {
                 AppAction::None
             }
             SlashCommand::Hooks => AppAction::ListHooks,
-            SlashCommand::Skills => AppAction::ListSkills,
-            SlashCommand::Keymap => AppAction::ListKeymap,
+            SlashCommand::Skills => {
+                self.open_skills_toggle_from_catalog();
+                AppAction::None
+            }
+            SlashCommand::Keymap => {
+                let entries = self.chat_widget.runtime_keymap.describe();
+                self.chat_widget.open_keymap_editor(entries);
+                AppAction::None
+            }
+            SlashCommand::Usage => AppAction::ShowUsage,
+            SlashCommand::Warnings => AppAction::ListWarnings,
+            SlashCommand::Diff => AppAction::ShowDiff,
+            SlashCommand::Plugins => {
+                let argument = text
+                    .strip_prefix("/plugins")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                if let Some(term) = argument.strip_prefix("search ") {
+                    let term = term.trim();
+                    if term.is_empty() {
+                        self.projection
+                            .set_status(self.chat_widget.locale.plugins_usage());
+                        AppAction::None
+                    } else {
+                        AppAction::SearchPlugins(term.to_string())
+                    }
+                } else if let Some(name) = argument.strip_prefix("install ") {
+                    let name = name.trim();
+                    if name.is_empty() {
+                        self.projection
+                            .set_status(self.chat_widget.locale.plugins_usage());
+                        AppAction::None
+                    } else {
+                        AppAction::InstallPluginRequest(name.to_string())
+                    }
+                } else if argument.is_empty() {
+                    AppAction::ListPlugins
+                } else {
+                    self.projection
+                        .set_status(self.chat_widget.locale.plugins_usage());
+                    AppAction::None
+                }
+            }
+            SlashCommand::Mention => AppAction::InsertComposerText("@".to_string()),
+            SlashCommand::Recap => AppAction::GenerateRecap(recap::RecapTrigger::Manual),
+            SlashCommand::Ps => AppAction::ListProcesses,
+            SlashCommand::Memories => {
+                let argument = text
+                    .strip_prefix("/memories")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                match argument {
+                    "on" => AppAction::SetMemoryMode(true),
+                    "off" => AppAction::SetMemoryMode(false),
+                    "" => {
+                        let mode = self.chat_widget.memory_mode;
+                        self.chat_widget.open_memories_settings(mode);
+                        AppAction::None
+                    }
+                    _ => {
+                        self.projection
+                            .set_status(self.chat_widget.locale.memories_usage());
+                        AppAction::None
+                    }
+                }
+            }
+            SlashCommand::Goal => {
+                let argument = text
+                    .strip_prefix("/goal")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                match argument {
+                    "" => AppAction::GoalCommand("show".to_string()),
+                    "clear" => AppAction::GoalCommand("clear".to_string()),
+                    "pause" => AppAction::GoalCommand("pause".to_string()),
+                    "resume" => AppAction::GoalCommand("resume".to_string()),
+                    objective => AppAction::GoalCommand(format!("set:{objective}")),
+                }
+            }
+            SlashCommand::Cd => {
+                let argument = text.strip_prefix("/cd").map(str::trim).unwrap_or_default();
+                let requested = if argument.is_empty() || argument == "~" {
+                    dirs::home_dir()
+                } else if let Some(relative) = argument.strip_prefix("~/") {
+                    dirs::home_dir().map(|home| home.join(relative))
+                } else {
+                    Some(std::path::PathBuf::from(argument))
+                };
+                match requested {
+                    Some(path) => {
+                        let resolved = if path.is_absolute() {
+                            path
+                        } else {
+                            self.cwd.join(path)
+                        };
+                        AppAction::ChangeWorkingDirectory(resolved)
+                    }
+                    None => {
+                        self.projection
+                            .set_status(self.chat_widget.locale.cd_usage());
+                        AppAction::None
+                    }
+                }
+            }
+            SlashCommand::Stop => {
+                if self.projection.active_turn_id().is_some() {
+                    AppAction::Interrupt
+                } else {
+                    self.projection
+                        .set_status(self.chat_widget.locale.stop_no_active_turn());
+                    AppAction::None
+                }
+            }
+            SlashCommand::Memory => {
+                let argument = text
+                    .strip_prefix("/memory")
+                    .map(str::trim)
+                    .unwrap_or_default();
+                match argument {
+                    "" => AppAction::ShowMemoryStatus,
+                    "reset" => {
+                        self.chat_widget.open_confirm_prompt(
+                            crate::app::confirm_prompt::ConfirmPrompt::reset_memory(),
+                        );
+                        AppAction::None
+                    }
+                    _ => {
+                        self.projection
+                            .set_status(self.chat_widget.locale.memory_usage());
+                        AppAction::None
+                    }
+                }
+            }
             SlashCommand::Experimental => {
                 let argument = text
                     .strip_prefix("/experimental")

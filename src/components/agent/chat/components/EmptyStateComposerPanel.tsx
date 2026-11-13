@@ -28,11 +28,14 @@ import type { ModelReasoningEffortLevel } from "@/lib/types/modelRegistry";
 import type { BaseComposerSendMetadata } from "@/components/input-kit";
 const ConnectedComposerShell = styled.div`
   width: 100%;
+  border: 0.5px solid var(--lime-composer-border);
+  border-radius: 22px;
+  background: var(--lime-composer-surface);
 
   [data-testid="inputbar-core-container"] {
-    border: 0.5px solid var(--lime-composer-border);
-    border-radius: 22px;
-    background: var(--lime-composer-surface);
+    border: 0;
+    border-radius: 0 0 22px 22px;
+    background: transparent;
     box-shadow: none;
   }
 
@@ -44,16 +47,16 @@ const ConnectedComposerShell = styled.div`
   }
 
   [data-testid="inputbar-context-bar-slot"] {
-    width: calc(100% - 24px);
-    margin: 0 12px;
+    width: 100%;
+    margin: 0;
+    padding: 4px 14px 0;
     border: 0;
-    border-radius: 14px 14px 0 0;
-    background: var(--lime-composer-context-surface);
+    border-radius: 22px 22px 0 0;
+    background: transparent;
   }
 
-  &:focus-within [data-testid="inputbar-core-container"] {
+  &:focus-within {
     border-color: var(--lime-composer-border-focus);
-    box-shadow: none;
   }
 `;
 

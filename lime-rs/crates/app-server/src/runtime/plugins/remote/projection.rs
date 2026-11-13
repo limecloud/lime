@@ -1,15 +1,17 @@
-use crate::plugin_remote::wire::Item;
+use crate::market::selection::Selection;
 use app_server_protocol::protocol::v2::{
     PluginAuthPolicy, PluginAvailability, PluginDetail, PluginInstallPolicy, PluginInterface,
     PluginSource, PluginSummary,
 };
 
-impl Item {
+impl Selection {
     pub(crate) fn summary(&self, language: &str) -> PluginSummary {
         let manifest = &self.release.manifest;
         PluginSummary {
-            id: format!("{}@{}", manifest.name, self.marketplace()),
-            remote_plugin_id: Some(self.id.clone()),
+            id: format!("{}@{}", manifest.name, self.item.marketplace()),
+            remote_plugin_id: Some(self.item.id.clone()),
+            remote_release: Some(self.release.reference()),
+            local_release: None,
             version: Some(manifest.version.clone()),
             local_version: None,
             name: manifest.name.clone(),
@@ -17,8 +19,7 @@ impl Item {
             installed: false,
             installed_at: None,
             enabled: false,
-            install_policy: if self.compatibility.status == "supported" && self.release.compatible()
-            {
+            install_policy: if self.compatible() {
                 PluginInstallPolicy::Available
             } else {
                 PluginInstallPolicy::NotAvailable
@@ -55,7 +56,7 @@ impl Item {
     }
     pub(crate) fn detail(&self, language: &str) -> PluginDetail {
         PluginDetail {
-            marketplace_name: self.marketplace(),
+            marketplace_name: self.item.marketplace(),
             marketplace_path: None,
             summary: self.summary(language),
             description: Some(self.release.manifest.description.value(language)),

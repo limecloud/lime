@@ -57,7 +57,7 @@ afterEach(async () => {
 });
 
 describe("useSettingsCategory", () => {
-  it("集成导航应包含插件设置", () => {
+  it("集成导航应包含 MCP 设置", () => {
     let groups: CategoryGroup[] = [];
 
     renderHookProbe((nextGroups) => {
@@ -67,12 +67,16 @@ describe("useSettingsCategory", () => {
     const agentGroup = groups.find(
       (group) => group.key === SettingsGroupKey.Integrations,
     );
-    const skillsItem = agentGroup?.items.find(
+    const pluginsItem = agentGroup?.items.find(
       (item) => item.key === SettingsTabs.Plugins,
     );
+    expect(pluginsItem?.label).toBe("Plugins");
+    const skillsItem = agentGroup?.items.find(
+      (item) => item.key === SettingsTabs.McpServers,
+    );
 
-    expect(skillsItem?.label).toBe("Plugins");
-    expect(skillsItem?.label).not.toContain("settings.desktop.plugins");
+    expect(skillsItem?.label).toBe("MCP");
+    expect(skillsItem?.label).not.toContain("settings.mcp.title");
   });
 
   it("通用导航应包含已归档对话入口", () => {

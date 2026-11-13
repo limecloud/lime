@@ -19,7 +19,7 @@ describe("SkillsWorkspacePage", () => {
   useSkillsWorkspacePageTestLifecycle();
 
   it("已安装区常驻顶部，技能广场/内置按标签切换", () => {
-    const { container } = renderPage();
+    const { container } = renderPage({ initialView: "store" });
 
     expect(
       container.querySelector('[data-testid="skills-store-view"]'),
@@ -74,8 +74,18 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).not.toContain("ASP.NET Core");
   });
 
-  it("页面壳、卡片和详情弹窗应接入 Lime 主题变量", async () => {
+  it("默认打开个人已安装技能", () => {
     const { container } = renderPage();
+    expect(
+      container.querySelector('[data-testid="skills-installed-view"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="skills-store-view"]'),
+    ).toBeNull();
+  });
+
+  it("页面壳、卡片和详情弹窗应接入 Lime 主题变量", async () => {
+    const { container } = renderPage({ initialView: "store" });
     const shell = container.querySelector(".lime-workbench-theme-scope");
     const card = findMarketplaceCard(container, "数据分析");
 

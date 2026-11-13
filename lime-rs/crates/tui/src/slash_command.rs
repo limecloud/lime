@@ -33,10 +33,22 @@ pub(crate) enum SlashCommand {
     Hooks,
     Skills,
     Keymap,
+    Memory,
+    Usage,
+    Stop,
+    Warnings,
+    Diff,
+    Cd,
+    Plugins,
+    Mention,
+    Goal,
+    Memories,
+    Recap,
+    Ps,
 }
 
 impl SlashCommand {
-    pub(crate) const ALL: [Self; 31] = [
+    pub(crate) const ALL: [Self; 43] = [
         Self::Model,
         Self::Plan,
         Self::Effort,
@@ -68,6 +80,18 @@ impl SlashCommand {
         Self::Hooks,
         Self::Skills,
         Self::Keymap,
+        Self::Memory,
+        Self::Usage,
+        Self::Stop,
+        Self::Warnings,
+        Self::Diff,
+        Self::Cd,
+        Self::Plugins,
+        Self::Mention,
+        Self::Goal,
+        Self::Memories,
+        Self::Recap,
+        Self::Ps,
     ];
 
     pub(crate) const fn command(self) -> &'static str {
@@ -103,11 +127,23 @@ impl SlashCommand {
             Self::Hooks => "hooks",
             Self::Skills => "skills",
             Self::Keymap => "keymap",
+            Self::Memory => "memory",
+            Self::Usage => "usage",
+            Self::Stop => "stop",
+            Self::Warnings => "warnings",
+            Self::Diff => "diff",
+            Self::Cd => "cd",
+            Self::Plugins => "plugins",
+            Self::Mention => "mention",
+            Self::Goal => "goal",
+            Self::Memories => "memories",
+            Self::Recap => "recap",
+            Self::Ps => "ps",
         }
     }
 
     pub(crate) const fn requires_argument(self) -> bool {
-        matches!(self, Self::Effort | Self::Permissions | Self::Rename)
+        matches!(self, Self::Rename)
     }
 
     pub(crate) const fn supports_inline_args(self) -> bool {
@@ -203,6 +239,18 @@ mod tests {
                 "hooks",
                 "skills",
                 "keymap",
+                "memory",
+                "usage",
+                "stop",
+                "warnings",
+                "diff",
+                "cd",
+                "plugins",
+                "mention",
+                "goal",
+                "memories",
+                "recap",
+                "ps",
             ]
         );
         for command in SlashCommand::ALL {

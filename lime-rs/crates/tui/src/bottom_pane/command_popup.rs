@@ -23,7 +23,7 @@ pub(crate) enum CommandPopupAction {
 ///
 /// The command catalog remains in `slash_command`; this type owns only the popup
 /// lifecycle, selection, and terminal rendering. Keeping those responsibilities
-/// together matches the Codex bottom-pane owner without introducing a second
+/// together matches the 上游 bottom-pane owner without introducing a second
 /// command parser.
 #[derive(Debug, Clone)]
 pub(crate) struct CommandPopup {
@@ -209,7 +209,12 @@ mod tests {
         let mut effort = CommandPopup::for_composer("/e").expect("effort popup");
         assert_eq!(
             effort.handle_event(&event),
-            CommandPopupAction::Complete(SlashCommand::Effort)
+            CommandPopupAction::Execute(SlashCommand::Effort)
+        );
+        let mut permissions = CommandPopup::for_composer("/perm").expect("permissions popup");
+        assert_eq!(
+            permissions.handle_event(&event),
+            CommandPopupAction::Execute(SlashCommand::Permissions)
         );
         let mut experimental =
             CommandPopup::for_composer("/experimental").expect("experimental popup");
@@ -220,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn control_navigation_matches_codex_list_bindings() {
+    fn control_navigation_matches_upstream_list_bindings() {
         let mut popup = CommandPopup::for_composer("/").expect("popup");
         let first = popup.selected().expect("first command");
 

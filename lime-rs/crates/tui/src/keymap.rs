@@ -119,7 +119,57 @@ enum Shortcut {
     },
 }
 
+impl KeyBinding {
+    /// Canonical config spec accepted by `normalize_keybinding_spec`.
+    fn spec(&self) -> String {
+        let mut parts = Vec::new();
+        for (modifier, name) in [
+            (KeyModifiers::CONTROL, "ctrl"),
+            (KeyModifiers::ALT, "alt"),
+            (KeyModifiers::SHIFT, "shift"),
+        ] {
+            if self.modifiers.contains(modifier) {
+                parts.push(name.to_string());
+            }
+        }
+        let key = match self.code {
+            KeyCode::Enter => "enter".to_string(),
+            KeyCode::Tab => "tab".to_string(),
+            KeyCode::Backspace => "backspace".to_string(),
+            KeyCode::Esc => "esc".to_string(),
+            KeyCode::Delete => "delete".to_string(),
+            KeyCode::Insert => "insert".to_string(),
+            KeyCode::Up => "up".to_string(),
+            KeyCode::Down => "down".to_string(),
+            KeyCode::Left => "left".to_string(),
+            KeyCode::Right => "right".to_string(),
+            KeyCode::Home => "home".to_string(),
+            KeyCode::End => "end".to_string(),
+            KeyCode::PageUp => "page-up".to_string(),
+            KeyCode::PageDown => "page-down".to_string(),
+            KeyCode::Char(' ') => "space".to_string(),
+            KeyCode::Char('-') => "minus".to_string(),
+            KeyCode::Char(character) if character.is_ascii() => {
+                character.to_ascii_lowercase().to_string()
+            }
+            KeyCode::F(number) => format!("f{number}"),
+            other => other.to_string().to_ascii_lowercase(),
+        };
+        parts.push(key);
+        parts.join("-")
+    }
+}
+
 impl Shortcut {
+    fn spec(&self) -> String {
+        match self {
+            Self::Single(binding) => binding.spec(),
+            Self::Chord { prefix, completion } => {
+                format!("{} {}", prefix.spec(), completion.spec())
+            }
+        }
+    }
+
     fn display_label(&self) -> String {
         match self {
             Self::Single(binding) => binding.display_label(),
@@ -136,6 +186,10 @@ struct BindingSet {
 }
 
 impl BindingSet {
+    fn specs(&self) -> Vec<String> {
+        self.shortcuts.iter().map(Shortcut::spec).collect()
+    }
+
     fn resolve(
         configured: Option<&KeybindingsSpec>,
         defaults: Vec<Shortcut>,
@@ -542,9 +596,19 @@ impl RuntimeKeymap {
     }
 }
 
+pub(crate) fn key_event_spec(key: KeyEvent) -> String {
+    KeyBinding {
+        code: key.code,
+        modifiers: key.modifiers,
+    }
+    .spec()
+}
+
+#[derive(Debug, Clone)]
 pub(crate) struct KeymapEntry {
-    pub path: &'static str,
+    pub path: String,
     pub keys: Vec<String>,
+    pub specs: Vec<String>,
 }
 
 impl RuntimeKeymap {
@@ -595,27 +659,71 @@ impl RuntimeKeymap {
             ),
         ] {
             entries.push(KeymapEntry {
-                path,
+                path: path.to_string(),
                 keys: set.labels().collect(),
+                specs: set.specs(),
             });
         }
-        for (name, keys) in self.list.describe() {
+        for (name, specs) in self.list.describe() {
+            let path = match name {
+                "move_up" => "tui.keymap.list.move_up",
+                "move_down" => "tui.keymap.list.move_down",
+                "move_left" => "tui.keymap.list.move_left",
+                "move_right" => "tui.keymap.list.move_right",
+                "page_up" => "tui.keymap.list.page_up",
+                "page_down" => "tui.keymap.list.page_down",
+                "jump_top" => "tui.keymap.list.jump_top",
+                "jump_bottom" => "tui.keymap.list.jump_bottom",
+                "accept" => "tui.keymap.list.accept",
+                "cancel" => "tui.keymap.list.cancel",
+                _ => continue,
+            };
             entries.push(KeymapEntry {
-                path: match name {
-                    "move_up" => "tui.keymap.list.move_up",
-                    "move_down" => "tui.keymap.list.move_down",
-                    "move_left" => "tui.keymap.list.move_left",
-                    "move_right" => "tui.keymap.list.move_right",
-                    "page_up" => "tui.keymap.list.page_up",
-                    "page_down" => "tui.keymap.list.page_down",
-                    "jump_top" => "tui.keymap.list.jump_top",
-                    "jump_bottom" => "tui.keymap.list.jump_bottom",
-                    "accept" => "tui.keymap.list.accept",
-                    "cancel" => "tui.keymap.list.cancel",
-                    _ => "tui.keymap.list.unknown",
-                },
-                keys,
+                path: path.to_string(),
+                keys: specs.clone(),
+                specs,
             });
+        }
+        for (name, specs) in self.editor.describe() {
+            let path = match name {
+                "insert_newline" => "tui.keymap.editor.insert_newline",
+                "move_left" => "tui.keymap.editor.move_left",
+                "move_right" => "tui.keymap.editor.move_right",
+                "move_up" => "tui.keymap.editor.move_up",
+                "move_down" => "tui.keymap.editor.move_down",
+                "move_word_left" => "tui.keymap.editor.move_word_left",
+                "move_word_right" => "tui.keymap.editor.move_word_right",
+                "move_line_start" => "tui.keymap.editor.move_line_start",
+                "move_line_end" => "tui.keymap.editor.move_line_end",
+                "delete_backward" => "tui.keymap.editor.delete_backward",
+                "delete_forward" => "tui.keymap.editor.delete_forward",
+                "delete_backward_word" => "tui.keymap.editor.delete_backward_word",
+                "delete_forward_word" => "tui.keymap.editor.delete_forward_word",
+                "kill_line_start" => "tui.keymap.editor.kill_line_start",
+                "kill_whole_line" => "tui.keymap.editor.kill_whole_line",
+                "kill_line_end" => "tui.keymap.editor.kill_line_end",
+                "yank" => "tui.keymap.editor.yank",
+                _ => continue,
+            };
+            entries.push(KeymapEntry {
+                path: path.to_string(),
+                keys: specs.clone(),
+                specs,
+            });
+        }
+        for (context, items) in [
+            ("vim_normal", self.vim_normal.describe()),
+            ("vim_operator", self.vim_operator.describe()),
+            ("vim_text_object", self.vim_text_object.describe()),
+            ("vim_search", self.vim_search.describe()),
+        ] {
+            for (name, specs) in items {
+                entries.push(KeymapEntry {
+                    path: format!("tui.keymap.{context}.{name}"),
+                    keys: specs.clone(),
+                    specs,
+                });
+            }
         }
         entries
     }

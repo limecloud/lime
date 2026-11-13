@@ -94,7 +94,7 @@ pub(super) fn command_popup(text: &str) -> super::ActivePopup {
 
 /// Return the command fragment under the cursor for popup filtering.
 ///
-/// Codex keeps the slash popup available while the cursor is inside the command name, even when
+/// 上游 keeps the slash popup available while the cursor is inside the command name, even when
 /// the first line already has inline arguments. Once the cursor moves into the argument suffix,
 /// the popup is dismissed so it cannot steal normal text editing keys.
 pub(super) fn command_popup_filter_text(first_line: &str, cursor: usize) -> Option<String> {

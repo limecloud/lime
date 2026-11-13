@@ -157,7 +157,7 @@ impl ConversationProjection {
             {
                 if let ThreadItem::Reasoning { id, .. } = &started.item {
                     if resumed.item_id.as_ref() == Some(id) {
-                        // Codex preserves the recovered buffer on a repeated start for this id.
+                        // 上游 preserves the recovered buffer on a repeated start for this id.
                         self.resumed_reasoning = None;
                         return false;
                     }

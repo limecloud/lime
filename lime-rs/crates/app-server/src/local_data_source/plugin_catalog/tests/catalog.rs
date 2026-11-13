@@ -45,6 +45,7 @@ fn marketplaces_keep_errors_and_independent_identities() {
     let detail = read(
         &store,
         PluginReadParams {
+            remote_release: None,
             marketplace_path: Some(market.clone()),
             remote_marketplace_name: None,
             plugin_name: "example-plugin".to_string(),
@@ -141,6 +142,7 @@ fn read_and_install_require_exactly_one_marketplace_locator() {
         assert!(install(
             &store,
             PluginInstallParams {
+                remote_release: None,
                 marketplace_path: marketplace_path.clone(),
                 remote_marketplace_name: remote_marketplace_name.clone(),
                 plugin_name: "example-plugin".to_string(),
@@ -151,6 +153,7 @@ fn read_and_install_require_exactly_one_marketplace_locator() {
         assert!(read(
             &store,
             PluginReadParams {
+                remote_release: None,
                 marketplace_path,
                 remote_marketplace_name,
                 plugin_name: "example-plugin".to_string(),

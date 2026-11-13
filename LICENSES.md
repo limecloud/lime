@@ -9,6 +9,7 @@ Lime 主应用及未另行声明的源码按 [GPL-3.0-only](LICENSE) 分发。�
 - 从 Codex 复制的代码保留 Apache-2.0 授权、原始署名和 [OpenAI NOTICE](licenses/OpenAI-NOTICE.txt)。复制模块内的 LICENSE/NOTICE 继续保留；Apache-2.0 文本在 [licenses](licenses/Apache-2.0.txt)。
 - `lime-rs/crates/app-server-transport/src/websocket_auth/` 复制自 Codex `websocket-auth/src`，保留 Apache-2.0；来源 revision、逐文件哈希与必要适配见 [Cloud 复制账本](internal/refactor/cloud-desktop-copy-ledger.json)。
 - `lime-rs/crates/infra/src/secure_file.rs` 来自 Grok-build，保留 [SpaceXAI Apache-2.0 声明](licenses/SpaceXAI-LICENSE.txt)。
+- OSS 运行包分发的 V4 签名合同及互操作测试向量参考 Alibaba `alibabacloud-oss-go-sdk-v2` 的 `oss/signer/v4.go` 与 `signer_test.go`（revision `d3474aa038242301669f48b1f08d1b15cdf7c324`，Apache-2.0）。Rust 适配位于 `lime-rs/crates/services/src/cloud_desktop_service/oss/runtime_client.rs`，许可证正文见 [Apache-2.0](licenses/Apache-2.0.txt)。
 - Cargo 包有显式 `license` 声明时按该声明识别组件；`license.workspace = true` 表示该组合包的默认 GPL-3.0-only，不撤销其中上游文件的 Apache/MIT 授权。
 - 第三方依赖、Electron、浏览器与原生运行时继续按其自身许可证分发，现有 LICENSE/NOTICE 不得被打包裁剪。依赖许可扫描不能替代完整的分发材料清单。
 - ZIP 的 bzip2 后端 `libbz2-rs-sys` 使用 `bzip2-1.0.6` 许可证；原文及原始作者、Rust 移植作者署名保存在 [licenses/bzip2-LICENSE.txt](licenses/bzip2-LICENSE.txt)，随 Desktop 与 CLI 产物一起分发。

@@ -1,4 +1,4 @@
-//! Text formatting helpers copied from the Codex TUI owner.
+//! Text formatting helpers copied from the 上游 TUI owner.
 //!
 //! These helpers are presentation-only. They operate on terminal text and paths;
 //! they do not alter canonical App Server messages or persisted thread state.
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn test_center_truncate_doesnt_truncate_short_path() {
         let sep = std::path::MAIN_SEPARATOR;
-        let path = format!("{sep}Users{sep}codex{sep}Public");
+        let path = format!("{sep}Users{sep}lime{sep}Public");
         assert_eq!(center_truncate_path(&path, 40), path);
     }
 

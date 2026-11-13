@@ -30,7 +30,10 @@ const { dynamicConstructor } = vi.hoisted(() => ({
   dynamicConstructor: vi.fn(),
 }));
 const { guestUpload } = vi.hoisted(() => ({ guestUpload: vi.fn() }));
-vi.mock("./cloudGuestUpload", () => ({ requestCloudGuestUpload: guestUpload }));
+vi.mock("./cloudGuestUpload", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./cloudGuestUpload")>()),
+  requestCloudGuestUpload: guestUpload,
+}));
 vi.mock("./appServerDynamicToolHost", () => ({
   AppServerDynamicToolHost: class {
     constructor() {
@@ -42,6 +45,7 @@ vi.mock("./appServerDynamicToolHost", () => ({
 import { ElectronAppServerHost } from "./appServerHost";
 import { AppServerRemoteConnection } from "./appServerRemoteConnection";
 import { CloudDesktopWindows } from "./cloudDesktopWindows";
+import { CloudModelConnections } from "./cloudModelConnections";
 import { ElectronSecureCredentialStore } from "./secureCredentialStore";
 import { LocalCredentialEncryption } from "./localCredentialEncryption";
 import type { CloudGuestUpload } from "./cloudGuestUpload";
@@ -282,6 +286,114 @@ describe("BYOC window and credential isolation", () => {
     },
   });
 
+  it("preserves the exact task connection until a pending model delivery is reconciled", async () => {
+    const root = await mkdtemp(
+      path.join(os.tmpdir(), "lime-cloud-model-pending-"),
+    );
+    cleanup.push(() => rm(root, { recursive: true, force: true }));
+    const request = vi.fn();
+    const manager = new CloudDesktopWindows(
+      root,
+      safeStorage,
+      () => fakeWindow(1),
+      request,
+      async () => undefined,
+    );
+    cleanup.push(() => manager.stop());
+    await manager.invoke({
+      action: "saveEcsTunnel",
+      resource: ecsResource,
+      token: "original-token",
+    });
+    const key = createHash("sha256")
+      .update(
+        JSON.stringify([
+          ecsResource.provider,
+          ecsResource.profile,
+          ecsResource.regionId,
+          ecsResource.resourceId,
+        ]),
+      )
+      .digest("hex");
+    const storageRoot = path.join(root, "cloud-desktop-connections", key);
+    const store = new ElectronSecureCredentialStore(storageRoot, safeStorage);
+    const original = (await store.readCloudSessionCredential())!;
+    const owner = new CloudModelConnections(safeStorage, request);
+    await expect(
+      owner.invoke(
+        storageRoot,
+        ecsResource,
+        original,
+        {
+          action: "shareModelConnection",
+          resource: ecsResource,
+          providerId: "selected",
+          keyId: "selected-key",
+          confirmation: `share-model:${ecsResource.regionId}:${ecsResource.resourceId}:selected:selected-key`,
+        },
+        async () => {
+          throw new Error("response lost");
+        },
+      ),
+    ).rejects.toThrow("CLOUD_MODEL_CONNECTION_FAILED");
+    for (const change of [
+      { action: "delete" as const, resource: ecsResource },
+      {
+        action: "saveEcsTunnel" as const,
+        resource: ecsResource,
+        token: "replacement",
+      },
+      {
+        action: "save" as const,
+        resource: ecsResource,
+        endpoint: "wss://changed.invalid",
+        token: "replacement",
+      },
+      {
+        action: "reconnectRuntime" as const,
+        resource: ecsResource,
+        confirmation: `reconnectRuntime:${ecsResource.regionId}:${ecsResource.resourceId}`,
+        workSaved: true,
+      },
+    ])
+      await expect(manager.invoke(change)).rejects.toThrow(
+        "CLOUD_MODEL_CONNECTION_UNRESOLVED",
+      );
+    expect(await store.readCloudSessionCredential()).toEqual(original);
+    expect(request).not.toHaveBeenCalled();
+    const status = await manager.invoke({
+      action: "modelConnectionStatus",
+      resource: ecsResource,
+    });
+    expect(status).toMatchObject({ phase: "preparing" });
+    if (!("kind" in status) || status.kind !== "modelConnection")
+      throw new Error("missing model intent");
+    await owner.invoke(
+      storageRoot,
+      ecsResource,
+      original,
+      {
+        action: "resumeModelConnection",
+        resource: ecsResource,
+        operationId: status.operationId!,
+      },
+      async () => ({
+        data: { operationId: status.operationId, phase: "expired" },
+      }),
+    );
+    await manager.invoke({
+      action: "saveEcsTunnel",
+      resource: ecsResource,
+      token: "replacement",
+    });
+    expect((await store.readCloudSessionCredential())?.token).toBe(
+      "replacement",
+    );
+    await manager.invoke({ action: "delete", resource: ecsResource });
+    expect(await store.readCloudSessionCredential()).toBeNull();
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("replaces only the exact ECS credential after rotation, fences stale opens and recovers after restart", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "lime-ecs-rotation-"));
     cleanup.push(() => rm(root, { recursive: true, force: true }));
@@ -407,6 +519,23 @@ describe("BYOC window and credential isolation", () => {
         token: "other",
       }),
     ).rejects.toThrow("CLOUD_INSTALL_UNRESOLVED");
+    const requestsBeforeSharing = request.mock.calls.length;
+    await expect(
+      manager.invoke({
+        action: "shareModelConnection",
+        resource: ecsResource,
+        providerId: "selected",
+        keyId: "selected-key",
+        confirmation: `share-model:${ecsResource.regionId}:${ecsResource.resourceId}:selected:selected-key`,
+      }),
+    ).rejects.toThrow("CLOUD_MODEL_CONNECTION_FAILED");
+    expect(request).toHaveBeenCalledTimes(requestsBeforeSharing);
+    expect(
+      await manager.invoke({
+        action: "modelConnectionStatus",
+        resource: ecsResource,
+      }),
+    ).toMatchObject({ phase: "idle" });
     release();
     await vi.waitFor(
       async () =>

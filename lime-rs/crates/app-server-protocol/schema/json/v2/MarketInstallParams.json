@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "MarketReleaseReference": {
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "type": "object"
+    },
+    "MarketResourceKind": {
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "installAttemptId": {
+      "type": "string"
+    },
+    "itemId": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/MarketResourceKind"
+    },
+    "release": {
+      "$ref": "#/$defs/MarketReleaseReference"
+    }
+  },
+  "required": [
+    "installAttemptId",
+    "itemId",
+    "kind",
+    "release"
+  ],
+  "title": "MarketInstallParams",
+  "type": "object"
+}

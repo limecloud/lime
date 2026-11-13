@@ -8,8 +8,9 @@ import type { useCloudPurchase } from "./useCloudPurchase";
 import { EcsPurchaseTemplates } from "./EcsPurchaseTemplates";
 import { AlibabaConnection } from "./AlibabaConnection";
 import { initialEcsSpec } from "./purchaseSpecs";
-import { EcsSystemImages } from "./EcsSystemImages";
-import { configureCloudDesktopConnection } from "@/lib/api/cloudDesktopConnection";
+import { EcsSystemImages, type EcsSystemImage } from "./EcsSystemImages";
+import type { CloudGuestPreparationStatus } from "@/lib/desktop-host/cloudDesktopConnection";
+import { prepareCloudRuntimeRelease } from "./prepareCloudRuntimeRelease";
 
 const regions = [
   "cn-hangzhou",
@@ -24,10 +25,16 @@ export function PurchaseEcs({
   purchase,
   onBusyChange,
   preparing,
+  restoring = false,
+  systemImage,
+  onSystemImage,
 }: {
   purchase: ReturnType<typeof useCloudPurchase<EcsDesktopSpec>>;
   onBusyChange: (busy: boolean) => void;
   preparing: boolean;
+  restoring?: boolean;
+  systemImage?: EcsSystemImage;
+  onSystemImage?: (image: EcsSystemImage | undefined) => void;
 }) {
   const { t } = useTranslation("settings");
   const [authorizing, setAuthorizing] = useState(false);
@@ -40,6 +47,8 @@ export function PurchaseEcs({
     [onBusyChange],
   );
   const [checkingRuntime, setCheckingRuntime] = useState(false);
+  const [runtimeProgress, setRuntimeProgress] =
+    useState<CloudGuestPreparationStatus>();
   const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
   const [withoutRuntime, setWithoutRuntime] = useState(false);
   const checking = useRef(false);
@@ -62,36 +71,57 @@ export function PurchaseEcs({
     setQuote,
     setApproved,
   } = purchase;
+  const selectSystemImage = useCallback(
+    (image: EcsSystemImage | undefined) => {
+      setQuote(undefined);
+      setApproved(false);
+      onSystemImage?.(image);
+    },
+    [setQuote, setApproved, onSystemImage],
+  );
   useEffect(() => {
     setRuntimeUnavailable(false);
     setWithoutRuntime(false);
   }, [spec.profile, spec.regionId, spec.imageId]);
   const locked =
     pending || checkingRuntime || preparing || authorizing || planning;
+  useEffect(() => {
+    const value = currentPurchase.current;
+    if (
+      restoring &&
+      systemImage &&
+      !value.submitted &&
+      value.spec.instanceType &&
+      value.spec.vSwitchId &&
+      value.spec.securityGroupId
+    )
+      void value.run("quote");
+  }, [restoring, systemImage]);
   const context = () => {
     const value = currentPurchase.current;
     return JSON.stringify([value.spec, value.name, value.quote?.quoteId]);
   };
   const run: typeof purchase.run = async (action, template) => {
     if (action !== "purchase") return purchase.run(action, template);
+    if (restoring && !systemImage) return;
     if (checking.current || locked || submitted || !purchase.canPurchase)
       return;
     checking.current = true;
     const original = context();
     onBusyChange(true);
     try {
-      if (!withoutRuntime) {
+      if (!withoutRuntime && !restoring) {
         setRuntimeUnavailable(false);
         setCheckingRuntime(true);
-        const result = await configureCloudDesktopConnection({
-          action: "checkRuntimeRelease",
-        });
+        setRuntimeProgress(undefined);
         if (
-          !("kind" in result) ||
-          result.kind !== "guestRelease" ||
-          !result.available
+          !(await prepareCloudRuntimeRelease(
+            () => active.current && original === context(),
+            setRuntimeProgress,
+            { profile: spec.profile, regionId: spec.regionId },
+          ))
         )
-          throw new Error("Unavailable runtime");
+          return;
       }
       if (!active.current || original !== context()) return;
       setRuntimeUnavailable(false);
@@ -110,9 +140,11 @@ export function PurchaseEcs({
   };
   return (
     <SettingsSection>
-      <p className="mb-4 text-[13px] text-muted-foreground">
-        {t("settings.cloudDesktop.ecsPurchaseDescription")}
-      </p>
+      {!restoring && (
+        <p className="mb-4 text-[13px] text-muted-foreground">
+          {t("settings.cloudDesktop.ecsPurchaseDescription")}
+        </p>
+      )}
       <fieldset
         disabled={locked || submitted}
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
@@ -122,6 +154,7 @@ export function PurchaseEcs({
             <CloudSelect
               value={spec[key]}
               onChange={(e) => {
+                onSystemImage?.(undefined);
                 setSpec({
                   ...initialEcsSpec,
                   profile: spec.profile,
@@ -152,25 +185,35 @@ export function PurchaseEcs({
           }
           onAuthorizingChange={setAuthorizing}
           onConnected={(profile) => {
+            onSystemImage?.(undefined);
             setSpec({ ...initialEcsSpec, profile, regionId: spec.regionId });
             setQuote(undefined);
             setApproved(false);
           }}
         />
       </div>
-      <div className="my-4">
-        <EcsPurchaseTemplates
-          purchase={{
-            ...purchase,
-            pending: pending || checkingRuntime || planning,
-          }}
-          onBusyChange={onBusyChange}
-          onPreparationBusyChange={onPreparationBusyChange}
-        />
-      </div>
-      <div className="my-4">
-        <EcsSystemImages purchase={purchase} disabled={locked} />
-      </div>
+      {restoring && !submitted && (
+        <div className="my-4">
+          <EcsSystemImages
+            profile={spec.profile}
+            regionId={spec.regionId}
+            disabled={locked}
+            onSelected={selectSystemImage}
+          />
+        </div>
+      )}
+      {(!restoring || systemImage) && (
+        <div className="my-4">
+          <EcsPurchaseTemplates
+            purchase={{
+              ...purchase,
+              pending: pending || checkingRuntime || planning,
+            }}
+            onBusyChange={onBusyChange}
+            onPreparationBusyChange={onPreparationBusyChange}
+          />
+        </div>
+      )}
       <details>
         <summary className="w-fit cursor-pointer py-2 text-[13px]">
           {t("settings.cloudDesktop.advancedPurchase")}
@@ -184,6 +227,7 @@ export function PurchaseEcs({
               className={inputClass}
               value={spec.profile}
               onChange={(e) => {
+                onSystemImage?.(undefined);
                 setSpec({
                   ...initialEcsSpec,
                   profile: e.target.value,
@@ -199,6 +243,7 @@ export function PurchaseEcs({
               className={inputClass}
               value={spec.regionId}
               onChange={(e) => {
+                onSystemImage?.(undefined);
                 setSpec({
                   ...initialEcsSpec,
                   profile: spec.profile,
@@ -232,6 +277,7 @@ export function PurchaseEcs({
               <input
                 className={inputClass}
                 value={spec[key]}
+                readOnly={restoring && key === "imageId"}
                 onChange={(e) => {
                   setSpec({ ...spec, [key]: e.target.value });
                   setQuote(undefined);
@@ -293,8 +339,43 @@ export function PurchaseEcs({
           </label>
         </div>
       )}
+      {checkingRuntime && (
+        <div
+          role="status"
+          className="mt-3 space-y-1 text-[13px] text-muted-foreground"
+        >
+          <p>
+            {t(
+              runtimeProgress?.phase === "distributing"
+                ? "settings.cloudDesktop.purchaseRuntimeDistributing"
+                : "settings.cloudDesktop.purchaseRuntimePreparing",
+            )}
+          </p>
+          {runtimeProgress?.receivedBytes !== undefined &&
+            runtimeProgress.totalBytes !== undefined && (
+              <p>
+                {t("settings.cloudDesktop.installTransferBytes", {
+                  received: (runtimeProgress.receivedBytes / 1024 ** 2).toFixed(
+                    1,
+                  ),
+                  total: (runtimeProgress.totalBytes / 1024 ** 2).toFixed(1),
+                })}
+              </p>
+            )}
+        </div>
+      )}
+      {purchase.quote && !restoring && !withoutRuntime && (
+        <p className="mt-3 text-[13px] text-muted-foreground">
+          {t("settings.cloudDesktop.runtimeDistributionCost")}
+        </p>
+      )}
       <PurchaseActions
-        purchase={{ ...purchase, pending: locked, run }}
+        purchase={{
+          ...purchase,
+          pending: locked || (restoring && !systemImage && !submitted),
+          canPurchase: purchase.canPurchase && (!restoring || !!systemImage),
+          run,
+        }}
         pendingLabel={
           checkingRuntime
             ? t("settings.cloudDesktop.purchaseRuntimeChecking")

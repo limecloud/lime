@@ -22,6 +22,15 @@ type ConnectionMethodSpec = Pick<
 
 declare module "./connection.js" {
   interface AppServerConnection {
+    listPendingMarketInstalls(params: protocol.MarketPendingParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketPendingResponse>>;
+    cancelMarketInstall(params: protocol.MarketInstallCancelParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketInstallCancelResponse>>;
+    reconcileMarketResources(params: protocol.MarketReconcileParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketReconcileResponse>>;
+    listMarketResources(params: protocol.MarketListParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketListResponse>>;
+    readMarketResource(params: protocol.MarketReadParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketReadResponse>>;
+    installMarketResource(params: protocol.MarketInstallParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketInstallResponse>>;
+    listInstalledMarketResources(params: protocol.MarketInstalledParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketInstalledResponse>>;
+    setMarketResourceEnabled(params: protocol.MarketEnabledSetParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketEnabledSetResponse>>;
+    uninstallMarketResource(params: protocol.MarketUninstallParams, options?: AppServerRequestOptions): Promise<AppServerRequestResult<protocol.MarketUninstallResponse>>;
     listLocalEnvironments(
       params: protocol.LocalEnvironmentsListParams,
       options?: AppServerRequestOptions,

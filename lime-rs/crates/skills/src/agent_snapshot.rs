@@ -171,6 +171,19 @@ pub fn build_agent_skill_snapshot_from_roots(
     snapshot
 }
 
+/// Load one manifest-declared entry without discovering adjacent packages.
+pub fn load_agent_skill_from_file(
+    name: &str,
+    path: &Path,
+    scope: AgentSkillScope,
+) -> Result<AgentSkillMetadata, String> {
+    let summary = crate::skill_summary::load_skill_summary_from_file(name, path)?;
+    if !summary.standard_compliance.validation_errors.is_empty() {
+        return Err("invalid market skill entry".into());
+    }
+    Ok(metadata_from_skill_summary(summary, scope))
+}
+
 fn build_agent_skill_snapshot_uncached(
     roots: impl IntoIterator<Item = AgentSkillRoot>,
 ) -> AgentSkillSnapshot {

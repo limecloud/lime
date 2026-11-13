@@ -62,9 +62,8 @@ beforeEach(async () => {
   mocks.file.mockReset();
   await changeLimeLocale("zh-CN");
   await seedCloudAccount({
-    tenant: { id: "tenant" },
-    user: { id: "one" },
-    session: { id: "session-one" },
+    userId: "one",
+    generation: "generation-one",
   });
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -132,14 +131,12 @@ describe("plugin skill preview", () => {
     expect(contents()?.textContent).toContain("Private cached body");
     await act(async () => {
       await seedCloudAccount({
-        tenant: { id: "tenant" },
-        user: { id: "two" },
-        session: { id: "session-two" },
+        userId: "two",
+        generation: "generation-two",
       });
       await seedCloudAccount({
-        tenant: { id: "tenant" },
-        user: { id: "one" },
-        session: { id: "session-one" },
+        userId: "one",
+        generation: "generation-one",
       });
     });
     expect(
@@ -255,9 +252,8 @@ describe("plugin skill preview", () => {
     });
     await act(async () => {
       await seedCloudAccount({
-        tenant: { id: "tenant" },
-        user: { id: "two" },
-        session: { id: "session-two" },
+        userId: "two",
+        generation: "generation-two",
       });
     });
     expect(

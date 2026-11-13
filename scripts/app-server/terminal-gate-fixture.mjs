@@ -40,6 +40,17 @@ const assistantItemId = "terminal-assistant-" + turn.turnId;
 const commandCallId = "terminal-command-" + turn.turnId;
 const patchCallId = "terminal-patch-" + turn.turnId;
 const permissionsCallId = "terminal-permissions-" + turn.turnId;
+const recapRequest =
+  Boolean(input.request.runtimeOptions?.outputSchema) ||
+  (input.request.input?.parts ?? []).some(
+    (part) => (part?.Text?.text ?? "").startsWith("Write a brief catch-up"),
+  );
+const assistantText = recapRequest
+  ? JSON.stringify({
+      summary: "TUI_GATE_B_RECAP_SUMMARY",
+      next_action: "TUI_GATE_B_RECAP_NEXT",
+    })
+  : ${JSON.stringify(completedText)};
 const summaryParts = ${JSON.stringify(reasoningParts)};
 const contentParts = ${JSON.stringify(reasoningContent)};
 const toolItem = (
@@ -284,7 +295,7 @@ if (input.kind === "turnStart") {
         payload: {
           itemId: assistantItemId,
           role: "assistant",
-          text: ${JSON.stringify(completedText)},
+          text: assistantText,
         },
       },
       {
@@ -368,7 +379,7 @@ if (input.kind === "turnStart") {
         scope: input.request.actionScope ?? null,
       },
     },
-    { type: "message.delta", payload: { itemId: assistantItemId, text: ${JSON.stringify(completedText)} } },
+    { type: "message.delta", payload: { itemId: assistantItemId, text: assistantText } },
     {
       type: "item.completed",
       payload: {
@@ -440,7 +451,7 @@ if (input.kind === "turnStart" && ["reasoning-resume", "reasoning-raw", "exec-js
   if (${JSON.stringify(scenario)} === "exec-json-stream") {
     console.log(JSON.stringify({ events: [
       { type: "item.completed", payload: { item: commandItem("completed", { text: "terminal-gate-b" }) } },
-      { type: "message.delta", payload: { itemId: assistantItemId, text: ${JSON.stringify(completedText)} } },
+      { type: "message.delta", payload: { itemId: assistantItemId, text: assistantText } },
       { type: "turn.completed", payload: { status: "completed" } },
     ] }));
   } else if (${JSON.stringify(scenario)} === "reasoning-raw") {
@@ -448,7 +459,7 @@ if (input.kind === "turnStart" && ["reasoning-resume", "reasoning-raw", "exec-js
     console.log(JSON.stringify({ events: [
       { type: "reasoning.delta", payload: { itemId: "item_terminal-reasoning-" + turn.turnId, contentIndex: 0, delta: " RAW_CONTINUED" } },
       { type: "item.completed", payload: { item: reasoningItem("completed") } },
-      { type: "message.delta", payload: { itemId: assistantItemId, text: ${JSON.stringify(completedText)} } },
+      { type: "message.delta", payload: { itemId: assistantItemId, text: assistantText } },
       { type: "turn.completed", payload: { status: "completed" } },
     ] }));
   } else {

@@ -16,6 +16,17 @@ import type { ToolDisplayConfig } from "../toolDisplayTypes";
 
 export const CORE_EXACT_TOOL_CONFIGS = [
   [
+    "readconnectedfile",
+    {
+      family: "read",
+      label: "文档读取",
+      verb: "读取",
+      icon: FileText,
+      groupTitle: "获取",
+      actionKey: "read",
+    },
+  ],
+  [
     "memorylist",
     {
       family: "list",

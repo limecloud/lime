@@ -26,7 +26,6 @@ pub struct ConnectionInstallation {
 pub enum LoginAccountParams {
     #[serde(rename_all = "camelCase")]
     Cloud {
-        base_url: String,
         #[serde(default)]
         resource: CloudResource,
         language: String,
@@ -55,6 +54,46 @@ pub struct AccountAuthorization {
     pub resource: CloudResource,
     pub status: AccountAuthorizationStatus,
     pub expires_at: String,
+}
+
+/// The host opens the native owner's URL. Only the native callback proves authorization.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AccountAuthorizeParams {
+    pub thread_id: String,
+    pub authorization: AccountAuthorization,
+    pub auth_url: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthorizationAction {
+    Opened,
+    Cancelled,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountAuthorizeResponse {
+    pub action: AuthorizationAction,
+}
+
+/// The host opens the original file approval; the Cloud decision is read separately.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConnectionAuthorizeParams {
+    pub thread_id: String,
+    pub request_id: String,
+    pub approval_url: String,
+    pub expires_at: String,
+    pub environment: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectionAuthorizeResponse {
+    pub action: AuthorizationAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -115,6 +154,10 @@ pub struct GetAccountParams {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountResponse {
+    /// Effective Core origin from native user configuration or the bound account.
+    pub service_url: Option<String>,
+    /// Configuration failure code; account and logout remain available.
+    pub service_error: Option<String>,
     pub account: Option<Account>,
     pub authorizations: Vec<AccountAuthorization>,
 }

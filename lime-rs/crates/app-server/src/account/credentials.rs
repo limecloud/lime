@@ -70,7 +70,7 @@ impl AccountManager {
                 )
                 .await
                 .and_then(|tokens| tokens.credential(&cfg.resource(resource)?));
-            let new = match exchanged {
+            let mut new = match exchanged {
                 Ok(new) => new,
                 Err(error) => {
                     let _ = store::update(&self.path, |s| {
@@ -89,6 +89,9 @@ impl AccountManager {
                     return Err(error);
                 }
             };
+            // Refresh keeps the original independently approved deadline. It does
+            // not grant a longer file authorization or reinterpret unsigned data.
+            new.authorization_expires_at = credential.authorization_expires_at;
             store::update(&self.path, |s| {
                 ensure_credential(
                     s,

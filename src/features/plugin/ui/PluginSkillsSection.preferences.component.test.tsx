@@ -21,6 +21,12 @@ vi.mock("@/lib/api/pluginCatalog", () => ({
   setPluginSkillEnabled: mocks.write,
 }));
 
+vi.mock("@/lib/api/fileBrowser", () => ({
+  readFileBytes: async () =>
+    new TextEncoder().encode((await mocks.contents()).contents),
+}));
+const installedSkillPath = "/plugins/research/skills/research/SKILL.md";
+
 function Harness({ detail }: { detail: AppServerPluginDetail }) {
   const { t } = useTranslation("agent");
   return <PluginSkillsSection detail={detail} t={t} />;
@@ -30,6 +36,7 @@ function installed(enabled = false) {
   detail.summary.installed = true;
   detail.summary.enabled = false;
   detail.skills[0].enabled = enabled;
+  detail.skills[0].path = installedSkillPath;
   return detail;
 }
 function deferred<T>() {
@@ -50,9 +57,8 @@ const render = async (detail = installed()) => {
 };
 const seed = (user = "one") =>
   seedCloudAccount({
-    tenant: { id: "tenant" },
-    user: { id: user },
-    session: { id: `session-${user}` },
+    userId: user,
+    generation: `generation-${user}`,
   });
 
 beforeEach(async () => {
@@ -79,7 +85,7 @@ afterEach(async () => {
   notifyManager.setScheduler((callback) => setTimeout(callback, 0));
 });
 
-describe("remote plugin skill preferences", () => {
+describe("installed shared plugin skill preferences", () => {
   it("卡片和预览共享pending及fresh detail，插件整体停用不覆盖技能偏好", async () => {
     const write = deferred<void>();
     const read = deferred<{ plugin: AppServerPluginDetail }>();
@@ -104,8 +110,7 @@ describe("remote plugin skill preferences", () => {
     await click(switches()[0]);
     expect(mocks.write).toHaveBeenCalledTimes(1);
     expect(mocks.write).toHaveBeenCalledWith({
-      remotePluginId: "opaque~1",
-      skillName: "research",
+      path: installedSkillPath,
       enabled: true,
     });
     expect(mocks.read).not.toHaveBeenCalled();
@@ -209,8 +214,7 @@ describe("remote plugin skill preferences", () => {
       expect(switches()[0].disabled).toBe(false);
       await click(switches()[0]);
       expect(mocks.write).toHaveBeenCalledWith({
-        remotePluginId: "opaque~1",
-        skillName: "research",
+        path: installedSkillPath,
         enabled: false,
       });
       expect(switches()[0].disabled).toBe(true);

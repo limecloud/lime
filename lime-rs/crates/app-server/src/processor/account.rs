@@ -111,7 +111,14 @@ impl RequestProcessor {
         // Cloud account profiles, recovery identities and object-store credentials
         // remain on the local control machine. The remote archive transfer
         // actions above only accept public recipients and encrypted chunks.
+        let model_transfer =
+            self.cloud_archive_transfer_enabled
+                && matches!(params,
+            app_server_protocol::protocol::v2::CloudDesktopParams::PrepareModelConnection { .. }
+            | app_server_protocol::protocol::v2::CloudDesktopParams::ReadModelConnection { .. }
+            | app_server_protocol::protocol::v2::CloudDesktopParams::ApplyModelConnection { .. });
         if !self.cloud_desktop_local_control
+            && !model_transfer
             && !matches!(
                 params,
                 app_server_protocol::protocol::v2::CloudDesktopParams::ExportArchive { .. }
@@ -122,12 +129,35 @@ impl RequestProcessor {
                 "Cloud management and archive recovery require a local App Server transport",
             ));
         }
-        dispatch_result(
+        let applying = matches!(
+            params,
+            app_server_protocol::protocol::v2::CloudDesktopParams::ApplyModelConnection { .. }
+                | app_server_protocol::protocol::v2::CloudDesktopParams::ReadModelConnection { .. }
+        );
+        let response = self
+            .runtime
+            .request_cloud_desktop(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        if applying && response.data["phase"] == "complete" {
+            if let Some(provider_id) = response.data["providerId"].as_str() {
+                if !self
+                    .runtime
+                    .has_model_provider_last_success(provider_id)
+                    .await
+                    .unwrap_or(false)
+                {
+                    self.refresh_model_catalog_after_credential_change(provider_id)
+                        .await;
+                } else {
+                    self.publish_model_list_updated(Some(provider_id.to_owned()))
+                        .await;
+                }
+            }
             self.runtime
-                .request_cloud_desktop(params)
-                .await
-                .map_err(to_jsonrpc_error)?,
-        )
+                .schedule_pending_route_recovery(self.runtime_host_context());
+        }
+        dispatch_result(response)
     }
 
     pub(super) async fn handle_cloud_request(
@@ -272,6 +302,10 @@ mod cloud_desktop_tests {
             json!({"action":"restoreArchive","archivePath":"/archive","identityFile":"/offline-key","destination":"/new","expectedSha256":"0".repeat(64),"maxBytes":1024}),
             json!({"action":"transferArchive","localPath":"/archive","remote":"private:bucket/key","upload":true,"expectedSha256":"0".repeat(64)}),
             json!({"action":"listOssBuckets","profile":"private","regionId":"cn-test"}),
+            json!({"action":"prepareRuntimeDistribution","profile":"private","regionId":"cn-test","operationId":"runtime-private","version":"1.175.0","archiveBytes":1,"archiveSha256":"0".repeat(64)}),
+            json!({"action":"readRuntimeDistribution","profile":"private","regionId":"cn-test","operationId":"runtime-private"}),
+            json!({"action":"signRuntimeDistribution","profile":"private","regionId":"cn-test","operationId":"runtime-private"}),
+            json!({"action":"cleanupRuntimeDistribution","profile":"private","regionId":"cn-test","operationId":"runtime-private"}),
             json!({"action":"listEcsImages","profile":"private","regionId":"cn-test"}),
             json!({"action":"createEcsImage","snapshotOperationId":"cold-snapshot","operationId":"image-remote","confirmation":"createEcsImage:cold-snapshot","includeCredentials":true}),
             json!({"action":"transferOssArchive","profile":"private","regionId":"cn-test","bucket":"bucket-test","objectKey":"archive.age","localPath":"/archive.age","upload":true,"expectedSha256":"0".repeat(64)}),

@@ -20,6 +20,39 @@ pub struct ProviderModelCatalog {
 
 #[async_trait]
 pub trait ModelProviderAppDataSource: Send + Sync {
+    async fn prepare_model_connection(
+        &self,
+        _id: &str,
+    ) -> Result<serde_json::Value, RuntimeCoreError> {
+        Err(unavailable("cloud/desktop prepareModelConnection"))
+    }
+
+    async fn read_model_connection(
+        &self,
+        _id: &str,
+    ) -> Result<serde_json::Value, RuntimeCoreError> {
+        Err(unavailable("cloud/desktop readModelConnection"))
+    }
+
+    async fn seal_model_connection(
+        &self,
+        _id: &str,
+        _recipient: &str,
+        _expires_at: i64,
+        _provider_id: &str,
+        _key_id: &str,
+    ) -> Result<serde_json::Value, RuntimeCoreError> {
+        Err(unavailable("cloud/desktop sealModelConnection"))
+    }
+
+    async fn apply_model_connection(
+        &self,
+        _id: &str,
+        _ciphertext: &str,
+    ) -> Result<serde_json::Value, RuntimeCoreError> {
+        Err(unavailable("cloud/desktop applyModelConnection"))
+    }
+
     fn model_catalog_reconciliation_enabled(&self) -> bool {
         false
     }

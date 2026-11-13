@@ -139,7 +139,7 @@ fn vim_query_editor_inherits_the_current_snapshot_and_rebinding_preserves_query(
 }
 
 #[test]
-fn altgr_text_and_codex_word_delete_alias_have_deterministic_precedence() {
+fn altgr_text_and_upstream_word_delete_alias_have_deterministic_precedence() {
     let mut textarea = TextArea::new();
     textarea.replace("abc def".into());
     textarea.input(KeyEvent::new(

@@ -804,3 +804,13 @@ html[data-lime-window="update-notification"] body {
 html[data-lime-window="update-notification"] .index-startup-shell {
   display: none !important;
 }
+
+
+html[data-lime-full-view="true"] [data-testid="app-sidebar-rail"],
+html[data-lime-full-view="true"] [data-testid="app-sidebar"] {
+  display: none !important;
+}
+
+html[data-lime-full-view="true"] [data-testid="workspace-main-area"] {
+  padding-left: 200px;
+}

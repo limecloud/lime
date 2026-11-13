@@ -27,7 +27,7 @@ pub(super) fn exercise_suggestion_menus(
         .write_all(b"\x1b[1;1:2A")
         .expect("repeat wraps slash selection to last command");
     writer.flush().unwrap();
-    wait_for_screen_marker(output_rx, output, "› /keymap", Duration::from_secs(10));
+    wait_for_screen_marker(output_rx, output, "› /ps", Duration::from_secs(10));
     writer
         .write_all(b"\x1b")
         .expect("cancel slash suggestions without submitting draft");
@@ -247,14 +247,14 @@ fn exercise_slash_completion(
 ) {
     for completion_key in [b"\t".as_slice(), b"/", b"\r"] {
         writer
-            .write_all(b"\x1b[200~/effo high\x1b[201~\x01\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C")
+            .write_all(b"\x1b[200~/rena name\x1b[201~\x01\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C")
             .expect("edit the command prefix while retaining its argument");
         writer.flush().unwrap();
         wait_for_screen(
             output_rx,
             output,
             "slash popup with existing inline argument",
-            |screen| screen.contains("› /effo high") && screen.contains("› /effort"),
+            |screen| screen.contains("› /rena name") && screen.contains("› /rename"),
         );
         writer
             .write_all(completion_key)
@@ -265,10 +265,10 @@ fn exercise_slash_completion(
             output,
             "completed command retained its argument without dispatch",
             |screen| {
-                screen.lines().any(|line| line.trim() == "› /effort high")
+                screen.lines().any(|line| line.trim() == "› /rename name")
                     && !screen.lines().any(|line| {
-                        line.trim_start().starts_with("› /effort")
-                            && line.trim() != "› /effort high"
+                        line.trim_start().starts_with("› /rename")
+                            && line.trim() != "› /rename name"
                     })
             },
         );

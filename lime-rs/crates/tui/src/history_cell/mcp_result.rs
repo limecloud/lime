@@ -1,6 +1,6 @@
 //! Bounded MCP result summaries for the canonical transcript projection.
 //
-// Codex keeps MCP result shaping in a dedicated history-cell owner. Lime receives
+// 上游 keeps MCP result shaping in a dedicated history-cell owner. Lime receives
 // already bounded v2 content from App Server and retains only deterministic
 // display facts; media bodies and unknown wire payloads are never decoded here.
 

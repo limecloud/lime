@@ -26,6 +26,7 @@ schemars = { version = "1.2.1", features = ["derive"] }
 tui.workspace = true
 tokio.workspace = true
 uuid.workspace = true
+webbrowser.workspace = true
 
 [dev-dependencies]
 jsonschema.workspace = true

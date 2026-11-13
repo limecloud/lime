@@ -7,6 +7,7 @@ import {
   logoutCloudAccount,
   cloudAccountIdentityVersion,
   startCloudAuthorization,
+  getCloudAccountState,
 } from "./cloudAccount";
 const open = vi.hoisted(() => vi.fn());
 vi.mock("./api/externalUrl", () => ({
@@ -17,6 +18,14 @@ vi.mock("./api/appServerEventBus", () => ({
 }));
 
 describe("native cloud account projection", () => {
+  it("uses native service metadata for signed-out Desktop and terminal accounts", async () => {
+    accountFixture.serviceUrl = "https://native-core.example.test";
+    await readCloudAccount();
+    expect(getCloudAccountState().serviceUrl).toBe("https://native-core.example.test");
+    await startCloudAuthorization({ language: "en-US" });
+    expect(accountFixture.login).toHaveBeenLastCalledWith({ type: "cloud", language: "en-US" });
+    expect(accountFixture.login.mock.calls[0]?.[0]).not.toHaveProperty("baseUrl");
+  });
   it("tracks identity lifetimes and ignores profile-only changes", async () => {
     await seedCloudAccount();
     const initial = cloudAccountIdentityVersion();
@@ -33,7 +42,6 @@ describe("native cloud account projection", () => {
     await startCloudAuthorization({ language: "zh-CN", resource: "market" });
     expect(accountFixture.login).toHaveBeenCalledWith({
       type: "cloud",
-      baseUrl: "https://core.example.test",
       resource: "market",
       language: "zh-CN",
     });

@@ -168,6 +168,7 @@ async fn run_plugin_add(args: AddPluginArgs) -> Result<String> {
         &args.connection,
         METHOD_PLUGIN_INSTALL,
         PluginInstallParams {
+            remote_release: None,
             marketplace_path: marketplace.path,
             remote_marketplace_name: None,
             install_attempt_id: None,
@@ -263,6 +264,7 @@ async fn run_plugin_read(args: PluginIdArgs) -> Result<String> {
         &args.connection,
         METHOD_PLUGIN_READ,
         PluginReadParams {
+            remote_release: None,
             marketplace_path: marketplace.path,
             remote_marketplace_name: None,
             plugin_name,

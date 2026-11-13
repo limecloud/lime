@@ -2,12 +2,15 @@
 set -eu
 exec /usr/bin/python3 -I - <<'LIME_DESKTOP_PREPARE'
 """Prepare distribution packages only; never read or emit user credentials."""
+import errno
+import fcntl
 import os
 from pathlib import Path
 import platform
 import shutil
 import subprocess
 import sys
+import time
 
 PACKAGES = (
     "xfce4-session", "xfwm4", "xfce4-panel", "xfdesktop4", "thunar",
@@ -23,6 +26,7 @@ REQUIRED = (
 )
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8",
        "DEBIAN_FRONTEND": "noninteractive", "NEEDRESTART_MODE": "l"}
+APT_LISTS_LOCK = Path("/var/lib/apt/lists/lock")
 
 
 def supported_system(release, machine):
@@ -37,6 +41,29 @@ def run(arguments, timeout):
     return subprocess.run(arguments, env=ENV, stdin=subprocess.DEVNULL,
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                           timeout=timeout, check=False).returncode == 0
+
+
+def wait_for_package_index_lock(timeout):
+    deadline = time.monotonic() + timeout
+    try:
+        descriptor = os.open(APT_LISTS_LOCK, os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return True
+    try:
+        while True:
+            try:
+                # APT uses POSIX record locks; flock does not observe these locks.
+                fcntl.lockf(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return True
+            except OSError as error:
+                if error.errno not in (errno.EACCES, errno.EAGAIN):
+                    raise
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(0.25, remaining))
+    finally:
+        os.close(descriptor)
 
 
 def missing_packages():
@@ -82,6 +109,10 @@ def prepare():
         return "insufficientDisk"
     # Keep the machine's signed package sources and existing configuration.
     # No full upgrade, arbitrary script, reboot, firewall or screen-lock changes.
+    # DPkg::Lock::Timeout does not wait for the update command's lists lock.
+    # Close our probe before APT starts; APT must still obtain its own lock.
+    if not wait_for_package_index_lock(60):
+        return "packageInstallFailed"
     if not run(["/usr/bin/apt-get", "-o", "DPkg::Lock::Timeout=60", "update"], 240):
         return "packageInstallFailed"
     if not run(["/usr/bin/apt-get", "-o", "DPkg::Lock::Timeout=60",

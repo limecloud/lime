@@ -3,6 +3,10 @@
 use super::*;
 use sha2::{Digest, Sha256};
 
+pub(super) fn valid_quote_id(id: &str) -> bool {
+    id.len() == 64 && id.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 pub(super) fn validate_confirmation(
     provider: &str,
     region: &str,
@@ -10,8 +14,7 @@ pub(super) fn validate_confirmation(
     quote_id: &str,
     confirmation: &str,
 ) -> Result<(), String> {
-    if quote_id.len() != 64
-        || !quote_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+    if !valid_quote_id(quote_id)
         || name.is_empty()
         || name.len() > 64
         || !name.as_bytes()[0].is_ascii_alphabetic()
@@ -46,6 +49,9 @@ impl CloudDesktopService {
     }
 
     pub(super) fn approved_quote(&self, spec: &Value, id: &str) -> Result<Value, String> {
+        if !valid_quote_id(id) {
+            return Err("Invalid quote identifier".into());
+        }
         let path = self.root.join(format!("quote-{id}.json"));
         if !path.try_exists().map_err(|_| "Cannot inspect quote")? {
             return Err("Quote is unavailable".into());

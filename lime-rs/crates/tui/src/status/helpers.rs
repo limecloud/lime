@@ -1,4 +1,4 @@
-//! Codex token display semantics shared by the footer, title, setup preview and `/status`.
+//! 上游 token display semantics shared by the footer, title, setup preview and `/status`.
 
 use app_server_protocol::protocol::v2::{ThreadTokenUsage, TokenUsageBreakdown};
 

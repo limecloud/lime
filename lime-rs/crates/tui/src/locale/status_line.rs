@@ -87,6 +87,30 @@ impl Locale {
             ]),
             StatusLineItem::Reasoning => self.effort_label(),
             StatusLineItem::CurrentDir => self.cwd_label(),
+            StatusLineItem::GitBranch => self.status_line_copy([
+                "Git 分支",
+                "Git 分支",
+                "Git branch",
+                "Git ブランチ",
+                "Git 브랜치",
+            ]),
+            StatusLineItem::Provider => self.status_line_copy([
+                "模型提供方",
+                "模型提供方",
+                "Provider",
+                "プロバイダー",
+                "프로바이더",
+            ]),
+            StatusLineItem::Version => self.status_line_copy([
+                "Lime 版本",
+                "Lime 版本",
+                "Lime version",
+                "Lime バージョン",
+                "Lime 버전",
+            ]),
+            StatusLineItem::Hostname => {
+                self.status_line_copy(["主机名", "主機名稱", "Hostname", "ホスト名", "호스트 이름"])
+            }
             StatusLineItem::Status => self.status_line_copy([
                 "运行状态",
                 "執行狀態",
@@ -149,6 +173,34 @@ impl Locale {
                 "Current working directory",
                 "現在の作業ディレクトリ",
                 "현재 작업 디렉터리",
+            ]),
+            StatusLineItem::GitBranch => self.status_line_copy([
+                "线程关联的 Git 分支",
+                "執行緒關聯的 Git 分支",
+                "Git branch recorded for the thread",
+                "スレッドに関連付けられた Git ブランチ",
+                "스레드에 기록된 Git 브랜치",
+            ]),
+            StatusLineItem::Provider => self.status_line_copy([
+                "当前模型提供方",
+                "目前模型提供方",
+                "Current model provider",
+                "現在のモデルプロバイダー",
+                "현재 모델 프로바이더",
+            ]),
+            StatusLineItem::Version => self.status_line_copy([
+                "当前 Lime 版本",
+                "目前 Lime 版本",
+                "Current Lime version",
+                "現在の Lime バージョン",
+                "현재 Lime 버전",
+            ]),
+            StatusLineItem::Hostname => self.status_line_copy([
+                "当前主机名",
+                "目前主機名稱",
+                "Current hostname",
+                "現在のホスト名",
+                "현재 호스트 이름",
             ]),
             StatusLineItem::Status => self.status_line_copy([
                 "当前线程的运行状态",

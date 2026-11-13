@@ -39,7 +39,8 @@ pub(crate) fn render_markdown_transcript(entries: &[TranscriptEntry]) -> Result<
             | EntryKind::Tool
             | EntryKind::Warning
             | EntryKind::Error
-            | EntryKind::System => "Activity",
+            | EntryKind::System
+            | EntryKind::Recap => "Activity",
         };
         markdown.push_str(&format!("\n## {heading}\n\n"));
         let text = sanitize_user_text(entry.text.as_str().into());

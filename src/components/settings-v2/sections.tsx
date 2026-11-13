@@ -10,6 +10,7 @@ import {
   Brain,
   Mic,
   Image,
+  Server,
   Puzzle,
   MousePointer2,
   Cloud,
@@ -120,9 +121,19 @@ const MediaServicesSettings = lazy(() =>
   })),
 );
 
-const loadPlugins = () => import("./integrations/plugins");
-const PluginsSettings = lazy(() =>
-  loadPlugins().then((module) => ({ default: module.PluginsSettings })),
+const loadPluginsCatalog = () =>
+  import("@/features/plugin/ui/PluginCatalogPage");
+const PluginsCatalogSettings = lazy(() =>
+  loadPluginsCatalog().then((module) => ({
+    default: module.PluginCatalogPage,
+  })),
+);
+
+const loadMcpServers = () => import("./integrations/mcp");
+const McpServersSettings = lazy(() =>
+  loadMcpServers().then((module) => ({
+    default: module.McpServersSettings,
+  })),
 );
 
 const loadComputerUse = () => import("./integrations/computer-use");
@@ -209,7 +220,7 @@ export const settingsSections: readonly SettingsSection[] = [
   {
     key: SettingsTabs.Storage,
     group: SettingsGroupKey.Personal,
-    labelKey: "settings.storage.title",
+    labelKey: "settings.storage.navTitle",
     icon: HardDrive,
     preload: loadStorage,
     render: (context) => (
@@ -280,20 +291,18 @@ export const settingsSections: readonly SettingsSection[] = [
     labelKey: "settings.desktop.plugins",
     icon: Puzzle,
     loadingKey: "settings.plugins.loading",
-    preload: loadPlugins,
+    preload: loadPluginsCatalog,
+    render: () => <PluginsCatalogSettings embedded />,
+  },
+  {
+    key: SettingsTabs.McpServers,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.mcp.navTitle",
+    icon: Server,
+    loadingKey: "settings.mcp.loading",
+    preload: loadMcpServers,
     render: (context) => (
-      <PluginsSettings
-        onNavigate={context.onNavigate}
-        initialManageTab={
-          context.searchTarget === "plugins-mcps"
-            ? "mcps"
-            : context.searchTarget === "plugins-skills"
-              ? "skills"
-              : context.searchTarget === "plugins-marketplace"
-                ? "marketplace"
-                : "plugins"
-        }
-      />
+      <McpServersSettings onNavigate={context.onNavigate} />
     ),
   },
   {

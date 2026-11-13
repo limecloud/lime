@@ -1,6 +1,6 @@
 //! Multi-agent picker navigation and labeling state for the TUI app.
 //!
-//! This module mirrors Codex's `app/agent_navigation.rs` boundary. It owns only stable ordering,
+//! This module mirrors 上游 `app/agent_navigation.rs` boundary. It owns only stable ordering,
 //! labels, and liveness facts derived from App Server `Thread`/`SubAgentActivity` data. Thread
 //! lifecycle and switching remain in `App` and `AppServerSession`.
 
@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn picker_subtitle_mentions_codex_shortcuts() {
+    fn picker_subtitle_mentions_upstream_shortcuts() {
         let subtitle = AgentNavigationState::picker_subtitle(crate::locale::Locale::EnUs);
         assert!(subtitle.contains("⌥← previous"));
         assert!(subtitle.contains("⌥→ next"));

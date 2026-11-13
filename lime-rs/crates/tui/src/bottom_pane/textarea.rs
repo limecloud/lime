@@ -110,7 +110,7 @@ struct WrapCache {
     hyperlinks: OnceCell<hyperlinks::HyperlinkCache>,
 }
 
-/// Viewport state kept outside the editable buffer, matching Codex's stateful textarea widget.
+/// Viewport state kept outside the editable buffer, matching 上游 stateful textarea widget.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct TextAreaState {
     /// Index into wrapped lines of the first visible line.

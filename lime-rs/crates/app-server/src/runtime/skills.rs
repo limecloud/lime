@@ -36,10 +36,11 @@ impl RuntimeCore {
             .list_enabled_plugin_turn_snapshots()
             .await?;
 
+        let market_skills = self.app_data_source.list_market_skills().await?;
         Ok(SkillsListResponse {
             data: cwds
                 .into_iter()
-                .map(|cwd| list_skills_for_cwd(cwd, &config, &plugins))
+                .map(|cwd| list_skills_for_cwd(cwd, &config, &plugins, &market_skills))
                 .collect(),
         })
     }
@@ -255,6 +256,7 @@ fn list_skills_for_cwd(
     cwd: PathBuf,
     config: &[SkillConfig],
     plugins: &[super::PluginTurnSnapshot],
+    market_skills: &[AgentSkillMetadata],
 ) -> SkillsListEntry {
     let roots = agent_skill_roots_for_workspace(Some(&cwd), Some(&cwd));
     let errors = roots
@@ -269,6 +271,7 @@ fn list_skills_for_cwd(
     for plugin in plugins {
         plugin.append_skills(&mut snapshot);
     }
+    snapshot.skills.extend_from_slice(market_skills);
     apply_agent_skill_config(&mut snapshot, config);
     let mut seen = HashSet::new();
     let skills = snapshot

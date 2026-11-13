@@ -37,6 +37,15 @@ fn compact(text: &str) -> String {
 }
 
 #[test]
+fn shell_mode_marks_the_footer_while_the_flag_is_set() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    assert!(!rendered_text(&app).contains("Shell mode"));
+    app.chat_widget.shell_mode = true;
+    assert!(rendered_text(&app).contains("Shell mode"));
+}
+
+#[test]
 fn painted_footer_keeps_the_complete_hint_at_its_exact_content_width() {
     for locale in [
         Locale::ZhCn,

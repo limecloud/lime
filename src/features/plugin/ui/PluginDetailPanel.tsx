@@ -1,6 +1,15 @@
 import { Fragment, useState } from "react";
 import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
-import { Check, Folder, LoaderCircle, MoreHorizontal, Plus, ShieldCheck, Unplug, X } from "lucide-react";
+import {
+  Check,
+  Folder,
+  LoaderCircle,
+  MoreHorizontal,
+  Plus,
+  ShieldCheck,
+  Unplug,
+  X,
+} from "lucide-react";
 import type {
   AppServerPluginDetail,
   AppServerPluginSummary,
@@ -11,6 +20,7 @@ import {
   detailCapabilityCount,
   pluginDisplayName,
   pluginDescription,
+  isSelectedReleaseInstalled,
 } from "./PluginCatalogPageViewModel";
 
 export function PluginDetailPanel({
@@ -36,9 +46,12 @@ export function PluginDetailPanel({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const primaryPrompt = summary?.interface?.defaultPrompt?.[0] ?? null;
+  const selectedInstalled = summary
+    ? isSelectedReleaseInstalled(summary)
+    : false;
   if (!summary) {
     return (
-      <aside className="hidden min-h-[300px] rounded-lg border border-dashed border-[color:var(--lime-surface-border)] px-5 py-6 text-sm text-[color:var(--lime-text-muted)] xl:block">
+      <aside className="hidden min-h-[300px] rounded-lg border-[0.5px] border-dashed border-[color:var(--lime-surface-border)] px-5 py-6 text-sm text-[color:var(--lime-text-muted)] xl:block">
         {t("plugin.catalog.v2.detail.empty")}
       </aside>
     );
@@ -61,7 +74,7 @@ export function PluginDetailPanel({
             <span aria-hidden="true"> › </span>
             {pluginDisplayName(summary)}
           </p>
-          <h2 className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-lg font-semibold text-[color:var(--lime-text-strong)]">
+          <h2 className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-base font-semibold text-[color:var(--lime-text-strong)]">
             <span className="truncate">{pluginDisplayName(summary)}</span>
             <Folder
               className="h-4 w-4 shrink-0 text-[color:var(--lime-text-muted)]"
@@ -77,7 +90,7 @@ export function PluginDetailPanel({
                   : t("plugin.catalog.v2.detail.unknownDeveloper")),
             })}
             {pluginDescription(summary)
-              ? ` • ${pluginDescription(summary)}`
+              ? `，${pluginDescription(summary)}`
               : ""}
           </p>
         </div>
@@ -85,7 +98,7 @@ export function PluginDetailPanel({
           <div className="relative ml-auto shrink-0">
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[color:var(--lime-surface-border)] px-3 text-xs font-semibold text-[color:var(--lime-text)] hover:bg-[color:var(--lime-surface-hover)]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] px-3 text-xs font-semibold text-[color:var(--lime-text)] hover:bg-[color:var(--lime-surface-hover)]"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               aria-label={t("plugin.catalog.v2.moreActions")}
@@ -97,7 +110,7 @@ export function PluginDetailPanel({
             </button>
             {menuOpen ? (
               <div
-                className="absolute right-0 top-9 z-10 min-w-[150px] overflow-hidden rounded-lg border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] py-1 shadow-lg shadow-slate-950/10"
+                className="absolute right-0 top-9 z-10 min-w-[150px] overflow-hidden rounded-lg border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] py-1 "
                 role="menu"
               >
                 <button
@@ -118,7 +131,7 @@ export function PluginDetailPanel({
                 </button>
                 <button
                   type="button"
-                  className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm font-medium text-rose-700 hover:bg-rose-50"
+                  className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm font-medium text-[color:var(--lime-danger)] hover:bg-[color:var(--lime-danger-soft)]"
                   role="menuitem"
                   disabled={busy}
                   data-testid={`plugin-catalog-uninstall-${summary.id}`}
@@ -134,7 +147,7 @@ export function PluginDetailPanel({
             ) : null}
           </div>
         ) : null}
-        {summary.installed && primaryPrompt && onTryPrompt ? (
+        {selectedInstalled && primaryPrompt && onTryPrompt ? (
           <button
             type="button"
             className="ml-auto inline-flex h-8 shrink-0 items-center rounded-full bg-[color:var(--lime-text-strong)] px-3 text-xs font-semibold text-[color:var(--lime-surface)] hover:opacity-90"
@@ -143,14 +156,25 @@ export function PluginDetailPanel({
             {t("plugin.catalog.v2.detail.tryNow")}
           </button>
         ) : null}
-        {!summary.installed && onInstall ? (
+        {!selectedInstalled && onInstall ? (
           <button
             type="button"
             className="ml-auto inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-[color:var(--lime-text-strong)] px-3 text-xs font-semibold text-[color:var(--lime-surface)] hover:opacity-90"
             onClick={onInstall}
+            disabled={
+              busy ||
+              !detail ||
+              summary.installPolicy === "NOT_AVAILABLE" ||
+              summary.availability === "DISABLED_BY_ADMIN"
+            }
+            data-testid="plugin-catalog-detail-install"
           >
             <Plus size={14} />
-            {t("plugin.catalog.v2.detail.install")}
+            {summary.installed
+              ? t("plugin.catalog.v2.installVersion", {
+                  version: summary.version,
+                })
+              : t("plugin.catalog.v2.detail.install")}
           </button>
         ) : null}
       </div>
@@ -159,16 +183,14 @@ export function PluginDetailPanel({
           pluginDescription(summary) ||
           t("plugin.catalog.v2.descriptionFallback")}
       </p>
-      {summary.installed && primaryPrompt && onTryPrompt ? (
-        <div className="mt-5 rounded-xl bg-[linear-gradient(100deg,#e4e7ff_0%,#efe4ff_55%,#ffe6dc_100%)] px-6 py-7">
+      {selectedInstalled && primaryPrompt && onTryPrompt ? (
+        <div className="mt-5 rounded-xl bg-[color:var(--lime-surface-muted)] px-6 py-7">
           <button
             type="button"
-            className="flex w-full max-w-[560px] items-center gap-3 rounded-lg bg-white/85 px-4 py-3 text-left text-sm text-[color:var(--lime-text-strong)] shadow-sm transition hover:bg-white"
+            className="flex w-full max-w-[560px] items-center gap-3 rounded-lg bg-[color:var(--lime-surface)] px-4 py-3 text-left text-sm text-[color:var(--lime-text-strong)]  hover:bg-[color:var(--lime-surface-hover)]"
             onClick={() => onTryPrompt(primaryPrompt)}
           >
-            <span className="min-w-0 flex-1 truncate">
-              {pluginDisplayName(summary)} · {primaryPrompt}
-            </span>
+            <span className="min-w-0 flex-1 truncate">{primaryPrompt}</span>
             <span
               aria-hidden="true"
               className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--lime-surface-soft)] text-[color:var(--lime-text-muted)]"
@@ -179,7 +201,7 @@ export function PluginDetailPanel({
         </div>
       ) : null}
       {detail ? (
-        <div className="mt-5 space-y-4 border-t border-[color:var(--lime-surface-border)] pt-4">
+        <div className="mt-5 space-y-4 border-t-[0.5px] border-[color:var(--lime-surface-border)] pt-4">
           <PluginSkillsSection detail={detail} t={t} />
           <CapabilityGroup
             title={t("plugin.catalog.v2.detail.mcp")}
@@ -192,7 +214,10 @@ export function PluginDetailPanel({
           />
           <PluginInfoSection summary={summary} t={t} />
           <p className="flex items-center gap-2 text-xs text-[color:var(--lime-text-muted)]">
-            <ShieldCheck size={14} className="text-emerald-700" />
+            <ShieldCheck
+              size={14}
+              className="text-[color:var(--lime-success)]"
+            />
             {t("plugin.catalog.v2.capabilityCount", {
               count: detailCapabilityCount(detail),
             })}
@@ -224,7 +249,7 @@ function CapabilityGroup({ title, items }: { title: string; items: string[] }) {
         {items.map((item) => (
           <span
             key={item}
-            className="max-w-full truncate rounded-full border border-[color:var(--lime-surface-border)] px-2 py-1 text-xs text-[color:var(--lime-text-muted)]"
+            className="max-w-full truncate rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] px-2 py-1 text-xs text-[color:var(--lime-text-muted)]"
           >
             {item}
           </span>
@@ -307,9 +332,23 @@ function PluginInfoSection({
         <dd className="text-[color:var(--lime-text-strong)]">
           {summary.version}
         </dd>
+        {summary.installed &&
+        summary.remoteRelease &&
+        !isSelectedReleaseInstalled(summary) ? (
+          <>
+            <dt className="text-[color:var(--lime-text-muted)]">
+              {t("plugin.catalog.v2.localVersion")}
+            </dt>
+            <dd className="text-[color:var(--lime-text-strong)]">
+              {summary.localVersion}
+            </dd>
+          </>
+        ) : null}
         {links.map((link) => (
           <Fragment key={link.key}>
-            <dt className="text-[color:var(--lime-text-muted)]">{link.label}</dt>
+            <dt className="text-[color:var(--lime-text-muted)]">
+              {link.label}
+            </dt>
             <dd>
               <button
                 type="button"

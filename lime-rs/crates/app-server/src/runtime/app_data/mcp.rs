@@ -10,6 +10,10 @@ use lime_mcp::{McpOAuthLoginHandle, McpRuntimeServerSpec};
 
 #[async_trait]
 pub trait McpAppDataSource: Send + Sync {
+    fn mcp_oauth_store_root(&self) -> Option<std::path::PathBuf> {
+        None
+    }
+
     fn mcp_elicitation_router(&self) -> lime_mcp::ElicitationRequestRouter {
         lime_mcp::ElicitationRequestRouter::default()
     }

@@ -17,6 +17,7 @@ import type { AgentBackgroundSessionRuntimeSnapshot } from "./components/agent/c
 import { AppServerConfigWarningToastBridge } from "./components/AppServerConfigWarningToastBridge";
 import { ScheduledTaskNotificationBridge } from "./components/ScheduledTaskNotificationBridge";
 import { CloudWindowBoundary } from "./components/cloud/CloudWindowBoundary";
+import { CloudModelSetupNotice } from "./components/cloud/CloudModelSetupNotice";
 import { getElectronHostBridge } from "./lib/electron-host";
 import type { Page, PageParams } from "./types/page";
 import { PermissionsSetup } from "./components/permissions/PermissionsSetup";
@@ -517,6 +518,10 @@ function AppContent() {
               });
             }}
           >
+            <CloudModelSetupNotice
+              currentPage={currentPage}
+              onNavigate={handleNavigate}
+            />
             <Suspense fallback={pageLoadingFallback}>
               <AppNavigationContext.Provider value={navigateFromBrowser}>
                 <BrowserHistoryNavigationContext.Provider

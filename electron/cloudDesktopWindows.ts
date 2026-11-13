@@ -14,8 +14,10 @@ import type {
   CloudDesktopWindowStatus,
   CloudGuestInstallationStatus,
   CloudGuestReleaseStatus,
+  CloudGuestPreparationStatus,
   CloudReleaseBackupResult,
   CloudReleaseWithBackupResult,
+  CloudModelConnectionStatus,
 } from "../src/lib/desktop-host/cloudDesktopConnection";
 import { ElectronAppServerHost } from "./appServerHost";
 import { AppServerRemoteConnection } from "./appServerRemoteConnection";
@@ -33,10 +35,9 @@ import {
 } from "./secureCredentialStore";
 import { isCloudWindowHostCommand } from "./cloudWindowPolicy";
 import { CloudGuestInstallations } from "./cloudGuestInstallations";
-import {
-  probeCloudGuestRelease,
-  selectCloudGuestRelease,
-} from "./cloudGuestRelease";
+import { probeCloudGuestRelease } from "./cloudGuestRelease";
+import { CloudGuestReleaseCache } from "./cloudGuestReleaseCache";
+import { CloudGuestDistributions } from "./cloudGuestDistributions";
 import {
   saveCloudArchive,
   validateArchiveSelection,
@@ -47,6 +48,7 @@ import {
 } from "./cloudArchiveRestore";
 import { CloudArchiveBackups } from "./cloudArchiveBackups";
 import { allowCloudDesktopView } from "./cloudDesktopWindowFactory";
+import { CloudModelConnections } from "./cloudModelConnections";
 
 type CloudWindow = {
   webContents: { id: number; send(channel: string, payload: unknown): void };
@@ -73,6 +75,26 @@ export class CloudDesktopWindows {
   readonly #archiveAbort = new AbortController();
   readonly #installations?: CloudGuestInstallations;
   readonly #archiveBackups: CloudArchiveBackups;
+  #release?: CloudGuestReleaseCache;
+  #distribution?: CloudGuestDistributions;
+
+  #distributions(): CloudGuestDistributions {
+    if (!this.requestCloudDesktop)
+      throw new Error("CLOUD_INSTALL_RELEASE_UNAVAILABLE");
+    return (this.#distribution ??= new CloudGuestDistributions(
+      this.root,
+      this.safeStorage,
+      this.requestCloudDesktop,
+      this.#releaseCache(),
+    ));
+  }
+
+  #releaseCache(): CloudGuestReleaseCache {
+    return (this.#release ??= new CloudGuestReleaseCache(
+      this.root,
+      app.getVersion(),
+    ));
+  }
 
   constructor(
     readonly root: string,
@@ -118,13 +140,25 @@ export class CloudDesktopWindows {
         undefined,
         undefined,
         showDesktopPassword,
-        () => selectCloudGuestRelease(app.getVersion()),
+        (resource) => this.#distributions().source(resource),
+        (resource, operationId) =>
+          this.#distributions().release(resource, operationId),
       );
     }
   }
 
   #storageRoot(key: string): string {
     return path.join(this.root, "cloud-desktop-connections", key);
+  }
+
+  async #assertModelConnectionResolved(storageRoot: string): Promise<void> {
+    if (
+      await CloudModelConnections.blocksConnectionChange(
+        storageRoot,
+        this.safeStorage,
+      )
+    )
+      throw new Error("CLOUD_MODEL_CONNECTION_UNRESOLVED");
   }
 
   get(webContentsId: number): CloudWindowEntry | undefined {
@@ -141,13 +175,24 @@ export class CloudDesktopWindows {
     | CloudDesktopConnectionMetadata
     | CloudGuestInstallationStatus
     | CloudGuestReleaseStatus
+    | CloudGuestPreparationStatus
     | CloudArchiveDownloadResult
     | CloudArchiveRestoreResult
     | CloudReleaseBackupResult
     | CloudReleaseWithBackupResult
+    | CloudModelConnectionStatus
     | { opened: true }
     | { deleted: boolean }
   > {
+    if (
+      request?.action === "prepareRuntimeRelease" ||
+      request?.action === "runtimeReleaseStatus"
+    ) {
+      if (this.#stopping) throw new Error("cloud desktop windows are stopping");
+      return request.action === "prepareRuntimeRelease"
+        ? this.#distributions().prepare(request)
+        : this.#distributions().status(request);
+    }
     if (request?.action === "checkRuntimeRelease") {
       if (this.#stopping) throw new Error("cloud desktop windows are stopping");
       const version = app.getVersion();
@@ -173,7 +218,8 @@ export class CloudDesktopWindows {
     resource: CloudDesktopResource,
     request: Exclude<
       CloudDesktopConnectionRequest,
-      { action: "checkRuntimeRelease" }
+      | { action: "checkRuntimeRelease" }
+      | { action: "prepareRuntimeRelease" | "runtimeReleaseStatus" }
     >,
   ) {
     if (this.#stopping) throw new Error("cloud desktop windows are stopping");
@@ -186,6 +232,74 @@ export class CloudDesktopWindows {
       (entry) => resourceKey(entry.context.resource) === key,
     );
     switch (request.action) {
+      case "modelConnectionStatus":
+      case "shareModelConnection":
+      case "resumeModelConnection": {
+        if (!this.requestCloudDesktop)
+          throw new Error("CLOUD_MODEL_CONNECTION_FAILED");
+        const owner = new CloudModelConnections(
+          this.safeStorage,
+          this.requestCloudDesktop,
+        );
+        if (request.action === "modelConnectionStatus")
+          return owner.invoke(storageRoot, resource, null, request);
+        if (await this.#installations?.blocksConnectionChange(key, resource))
+          throw new Error("CLOUD_MODEL_CONNECTION_FAILED");
+        const credential = await store.readCloudSessionCredential();
+        if (!credential || credential.tenantId !== key)
+          throw new Error("CLOUD_MODEL_CONNECTION_FAILED");
+        const signal = this.#archiveAbort.signal;
+        const remote = new AppServerRemoteConnection(async () => {
+          signal.throwIfAborted();
+          const current = await store.readCloudSessionCredential();
+          if (
+            !current ||
+            current.token !== credential.token ||
+            current.endpoint !== credential.endpoint ||
+            current.tenantId !== key ||
+            current.transport !== credential.transport
+          )
+            throw new Error("CLOUD_MODEL_CONNECTION_FAILED");
+          const websocketUrl =
+            credential.transport === "ecsTunnel"
+              ? await resolveCloudDesktopTaskTunnel(
+                  this.requestCloudDesktop!,
+                  resource,
+                  false,
+                )
+              : credential.endpoint;
+          return {
+            websocketUrl,
+            authToken: credential.token,
+            maxMessageBytes: 1024 * 1024,
+          };
+        });
+        try {
+          const session = await remote.connect({
+            clientInfo: { name: "lime-model-connection", version: "1" },
+          });
+          return await owner.invoke(
+            storageRoot,
+            resource,
+            credential,
+            request,
+            async (params) => {
+              signal.throwIfAborted();
+              const response =
+                await session.connection.request<CloudDesktopResponse>(
+                  session.client.request("cloud/desktop", params),
+                  "cloud/desktop",
+                  { timeoutMs: 60_000, signal },
+                );
+              return response.result;
+            },
+          );
+        } catch {
+          throw new Error("CLOUD_MODEL_CONNECTION_FAILED");
+        } finally {
+          await remote.stop();
+        }
+      }
       case "readReleaseBackup":
         return {
           kind: "releaseBackup" as const,
@@ -336,6 +450,7 @@ export class CloudDesktopWindows {
         if (request.action === "reconnectRuntime" && existing)
           throw new Error("CLOUD_INSTALL_CONNECTION_EXISTS");
         if (request.action === "reconnectRuntime") {
+          await this.#assertModelConnectionResolved(storageRoot);
           const saved = await store.readCloudSessionCredential();
           if (
             saved &&
@@ -364,6 +479,7 @@ export class CloudDesktopWindows {
         return store.getCloudSessionCredentialMetadata();
       case "save":
       case "saveEcsTunnel":
+        await this.#assertModelConnectionResolved(storageRoot);
         if (await this.#installations?.blocksConnectionChange(key, resource))
           throw new Error("CLOUD_INSTALL_UNRESOLVED");
         if (existing)
@@ -385,6 +501,7 @@ export class CloudDesktopWindows {
             request.action === "saveEcsTunnel" ? "ecsTunnel" : "direct",
         });
       case "delete":
+        await this.#assertModelConnectionResolved(storageRoot);
         if (await this.#installations?.blocksConnectionChange(key, resource))
           throw new Error("CLOUD_INSTALL_UNRESOLVED");
         if (existing)
@@ -572,8 +689,10 @@ export class CloudDesktopWindows {
   async stop(): Promise<void> {
     this.#stopping = true;
     this.#archiveAbort.abort();
+    await this.#release?.stop();
     await Promise.allSettled([...this.#queues.values()]);
     await this.#installations?.stop();
+    await this.#distribution?.stop();
     await Promise.allSettled(
       [...this.#entries.values()].map(async (entry) => {
         entry.atoms.dispose();

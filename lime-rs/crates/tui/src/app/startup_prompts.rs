@@ -1,6 +1,6 @@
-//! Startup warning and model-catalog helpers shaped after Codex's TUI owner.
+//! Startup warning and model-catalog helpers shaped after 上游 TUI owner.
 //!
-//! These helpers deliberately stay pure. Lime does not yet have Codex's local config database,
+//! These helpers deliberately stay pure. Lime does not yet have 上游 local config database,
 //! trust prompts, or startup event bus, so persistence and interactive prompt rendering remain
 //! deferred until the corresponding App Server contract exists.
 
@@ -26,6 +26,16 @@ pub(crate) struct SkillLoadWarningState {
 impl SkillLoadWarningState {
     pub(crate) fn clear(&mut self) {
         self.active.clear();
+    }
+
+    pub(crate) fn active_entries(&self) -> Vec<(PathBuf, String)> {
+        let mut entries: Vec<(PathBuf, String)> = self
+            .active
+            .iter()
+            .map(|key| (key.path.clone(), key.message.clone()))
+            .collect();
+        entries.sort();
+        entries
     }
 
     pub(crate) fn newly_active_errors(&mut self, errors: &[SkillErrorInfo]) -> Vec<SkillErrorInfo> {
@@ -74,6 +84,13 @@ impl McpStartupWarningState {
             }
             McpServerStartupState::Starting => {}
         }
+    }
+
+    pub(crate) fn entries(&self) -> Vec<(String, Option<String>)> {
+        self.active
+            .iter()
+            .map(|(name, error)| (name.clone(), error.clone()))
+            .collect()
     }
 
     pub(crate) fn status(&self) -> Option<String> {
@@ -421,5 +438,44 @@ mod tests {
         apply_accepted_model_migration(&mut model, &mut effort, "new", "high");
         assert_eq!(model.as_deref(), Some("new"));
         assert_eq!(effort.as_deref(), Some("high"));
+    }
+    #[test]
+    fn warning_states_expose_sorted_entries() {
+        let mut mcp = McpStartupWarningState::default();
+        assert!(mcp.entries().is_empty());
+        for (name, error, status) in [
+            (
+                "zeta",
+                Some("boom".to_string()),
+                McpServerStartupState::Failed,
+            ),
+            ("alpha", None, McpServerStartupState::Cancelled),
+        ] {
+            mcp.observe(&McpServerStatusUpdatedNotification {
+                thread_id: None,
+                name: name.to_string(),
+                status,
+                error,
+                failure_reason: None,
+            });
+        }
+        let entries = mcp.entries();
+        assert_eq!(entries[0], ("alpha".to_string(), None));
+        assert_eq!(entries[1], ("zeta".to_string(), Some("boom".to_string())));
+
+        let mut skills = SkillLoadWarningState::default();
+        skills.newly_active_errors(&[
+            SkillErrorInfo {
+                path: PathBuf::from("/skills/zeta/SKILL.md"),
+                message: "z".to_string(),
+            },
+            SkillErrorInfo {
+                path: PathBuf::from("/skills/alpha/SKILL.md"),
+                message: "a".to_string(),
+            },
+        ]);
+        let active = skills.active_entries();
+        assert_eq!(active[0].0, PathBuf::from("/skills/alpha/SKILL.md"));
+        assert_eq!(active[1].0, PathBuf::from("/skills/zeta/SKILL.md"));
     }
 }

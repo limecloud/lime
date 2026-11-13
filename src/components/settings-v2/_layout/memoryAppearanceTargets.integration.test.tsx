@@ -13,6 +13,9 @@ import { resolveSettingsSection } from "../sections";
 const api = vi.hoisted(() => ({ getConfig: vi.fn(), saveConfig: vi.fn() }));
 vi.mock("@/lib/api/appConfig", () => ({
   ...api,
+  getConfigSnapshot: async () => ({
+    layer: { name: { type: "user", file: "/tmp/lime/app-server/config.toml" } },
+  }),
   subscribeAppConfigChanged: () => () => undefined,
   updateConfig: async (update: (config: object) => object) => {
     const config = update(await api.getConfig());

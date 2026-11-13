@@ -487,6 +487,9 @@ impl McpClientManager {
         name: &str,
         config: &McpServerConfig,
     ) -> Result<bool, McpError> {
+        if config.has_oauth_settings() && !config.has_unsupported_oauth_runtime_settings() {
+            self.stop_server(name).await?;
+        }
         self.oauth_registry.logout(name, config).await
     }
 

@@ -51,15 +51,20 @@ export function CloudSelect({
 export function CloudReceipt({ data }: { data: unknown }) {
   const { t } = useTranslation("settings");
   const receipt = object(data);
+  const insufficientBalance =
+    receipt.outcome === "notSubmitted" &&
+    receipt.submitted === false &&
+    receipt.requiresInspection === false &&
+    receipt.providerCode === "InvalidAccountStatus.NotEnoughBalance";
   return (
     <div role="status" className="space-y-2 break-all text-[13px]">
       {receipt.restoreVerified === false && (
         <p>{t("settings.cloudDesktop.archiveUnverified")}</p>
       )}
       {receipt.requiresApplicationValidation === true &&
-        object(receipt.request).action !== "createEcsImage" && (
-          <p>{t("settings.cloudDesktop.applicationValidation")}</p>
-        )}
+        !["createEcsImage", "hibernateEcs"].includes(
+          String(object(receipt.request).action),
+        ) && <p>{t("settings.cloudDesktop.applicationValidation")}</p>}
       {typeof receipt.outcome === "string" && (
         <p>
           {t(
@@ -73,9 +78,11 @@ export function CloudReceipt({ data }: { data: unknown }) {
       {typeof receipt.failureCode === "string" && (
         <p role="alert">
           {t(
-            object(receipt.request).action === "release"
-              ? "settings.cloudDesktop.releaseSystemImageRejected"
-              : `settings.cloudDesktop.prepareFailure.${receipt.failureCode}`,
+            object(receipt.request).action === "hibernateEcs"
+              ? "settings.cloudDesktop.preservationPaused"
+              : object(receipt.request).action === "release"
+                ? "settings.cloudDesktop.releaseSystemImageRejected"
+                : `settings.cloudDesktop.prepareFailure.${receipt.failureCode}`,
             {
               defaultValue: t(
                 "settings.cloudDesktop.prepareFailure.preparationFailed",
@@ -141,7 +148,17 @@ export function CloudReceipt({ data }: { data: unknown }) {
           {receipt.desktopIds.filter((id) => typeof id === "string").join(", ")}
         </p>
       )}
-      {typeof receipt.diagnostic === "string" && <p>{receipt.diagnostic}</p>}
+      {insufficientBalance ? (
+        <p role="alert">{t("settings.cloudDesktop.purchaseBalanceRequired")}</p>
+      ) : (
+        typeof receipt.diagnostic === "string" && (
+          <p>
+            {receipt.diagnostic === "CLOUD_PURCHASE_PREFLIGHT_REQUIRED"
+              ? t("settings.cloudDesktop.purchaseNetworkRequired")
+              : receipt.diagnostic}
+          </p>
+        )
+      )}
     </div>
   );
 }

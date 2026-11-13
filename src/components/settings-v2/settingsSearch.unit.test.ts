@@ -238,20 +238,6 @@ describe("current settings search projection", () => {
     },
   );
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-    "%s routes installed skill searches to the Skills management group",
-    (locale) => {
-      const { t, groups } = localize(locale);
-      expect(
-        searchSettings(t("settings.plugins.skills.title"), groups, t),
-      ).toContainEqual(
-        expect.objectContaining({
-          section: SettingsTabs.Plugins,
-          targetId: "plugins-skills",
-        }),
-      );
-    },
-  );
-  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s finds Configuration defaults and routes conditional network search to its sandbox parent",
     (locale) => {
       const { t, groups } = localize(locale);
@@ -453,25 +439,7 @@ describe("current settings search projection", () => {
 });
 
 it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-  "%s resolves marketplace controls to the PluginsSettings Marketplace tab",
-  (locale) => {
-    const { t, groups } = localize(locale);
-    expect(
-      searchSettings(t("settings.plugins.marketplace.title"), groups, t),
-    ).toContainEqual(
-      expect.objectContaining({
-        section: SettingsTabs.Plugins,
-        targetId: "plugins-marketplace",
-      }),
-    );
-    expect(
-      isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-marketplace"),
-    ).toBe(true);
-  },
-);
-
-it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-  "%s resolves MCP fields to the sole PluginsSettings MCP tab",
+  "%s resolves MCP fields to the MCP settings page",
   (locale) => {
     const { t, groups } = localize(locale);
     for (const key of ["addServer", "authenticate", "envVars"]) {
@@ -479,12 +447,12 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
         searchSettings(t("settings.plugins.mcp." + key), groups, t),
       ).toContainEqual(
         expect.objectContaining({
-          section: SettingsTabs.Plugins,
-          targetId: "plugins-mcps",
+          section: SettingsTabs.McpServers,
+          targetId: "mcp-servers",
         }),
       );
     }
-    expect(isSettingsSearchTarget(SettingsTabs.Plugins, "plugins-mcps")).toBe(
+    expect(isSettingsSearchTarget(SettingsTabs.McpServers, "mcp-servers")).toBe(
       true,
     );
     expect(searchSettings("fixture-secret-mcp-token", groups, t)).toEqual([]);

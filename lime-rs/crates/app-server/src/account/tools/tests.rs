@@ -1,6 +1,16 @@
 use super::*;
+#[path = "authorization_tests.rs"]
+mod authorization;
+#[path = "billing_tests.rs"]
+mod billing;
+#[path = "connections/tests.rs"]
+mod connection_tests;
 #[path = "pending_tests.rs"]
 mod pending;
+#[path = "product_tests.rs"]
+mod product;
+#[path = "recovery_tests.rs"]
+mod recovery;
 use agent_protocol::{turn_context::TurnContextOverride, WebSearchMode};
 use tool_runtime::tool_executor::{
     RuntimeToolExecutionContext, RuntimeToolExecutionContextInput, RuntimeToolExecutionIdentity,
@@ -28,14 +38,14 @@ fn result() -> Value {
     json!({"id":"web_search_1","kind":"search","status":"completed","search":{"items":[
         {"title":"Rust release","url":"https://blog.rust-lang.org/releases/#stable","summary":"Published release","retrievedAt":"2026-11-12T00:00:00Z"},
         {"title":"Wrong suffix","url":"https://rust-lang.org.attacker.test/","summary":"Unrelated","retrievedAt":"2026-11-12T00:00:00Z"}
-    ],"truncated":false}})
+    ],"truncated":false},"usage":{"requests":1,"responseBytes":32,"billingStatus":"unpriced"}})
 }
 
 #[tokio::test]
 async fn web_tool_uses_resource_token_filters_sources_and_recovers_after_restart() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     f.state.lock().unwrap().web_response = Some(result());
@@ -57,7 +67,7 @@ async fn web_tool_uses_resource_token_filters_sources_and_recovers_after_restart
         "https://blog.rust-lang.org/releases/#stable"
     );
     assert!(!first.output.contains("access-web"));
-    let restarted = AccountManager::new(root.path());
+    let restarted = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     assert!(restarted.execute(request).await.unwrap().success);
     assert_eq!(f.count("/web/searches"), 1);
     let mut recovery = params.clone();
@@ -133,7 +143,7 @@ async fn web_tool_uses_resource_token_filters_sources_and_recovers_after_restart
 async fn unknown_web_tool_response_reads_original_without_a_second_dispatch() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     {
@@ -169,7 +179,7 @@ async fn unknown_web_tool_response_reads_original_without_a_second_dispatch() {
 async fn web_tool_rejects_cached_access_cancelled_calls_and_new_account_replay() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     f.state.lock().unwrap().web_response = Some(result());
@@ -210,11 +220,11 @@ async fn web_tool_rejects_cached_access_cancelled_calls_and_new_account_replay()
 async fn web_page_prompt_stays_local_and_result_keeps_original_source() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     f.state.lock().unwrap().web_response = Some(
-        json!({"id":"page_1","kind":"page","status":"completed","page":{
+        json!({"id":"page_1","kind":"page","status":"completed","usage":{"requests":1,"responseBytes":32,"billingStatus":"unpriced"},"page":{
             "url":"https://www.rust-lang.org/","finalUrl":"https://www.rust-lang.org/#ownership","title":"Rust","text":"Rust ownership rules.\n\nFootball match report.",
             "retrievedAt":"2026-11-12T00:00:00Z","truncated":false
         }}),
@@ -259,7 +269,10 @@ async fn web_gateway_requires_local_approval_before_dispatch() {
     };
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = Arc::new(AccountManager::new(root.path()));
+    let manager = Arc::new(AccountManager::new(
+        root.path(),
+        &root.path().join("config.yaml"),
+    ));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     f.state.lock().unwrap().web_response = Some(result());
@@ -298,7 +311,7 @@ async fn web_gateway_requires_local_approval_before_dispatch() {
 async fn missing_original_operation_never_creates_a_new_search() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     {
@@ -318,7 +331,7 @@ async fn missing_original_operation_never_creates_a_new_search() {
     let first = manager.execute(request).await.unwrap();
     assert!(!first.success);
     assert!(first.output.contains("operation_not_found"));
-    let cold = AccountManager::new(root.path());
+    let cold = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     assert!(!cold.execute(request).await.unwrap().success);
     assert_eq!(f.count("/web/searches"), 1);
 }
@@ -328,7 +341,7 @@ async fn invalid_recovery_response_keeps_the_dispatched_key_for_later_reads() {
     for invalid_json in [false, true] {
         let f = Fixture::start().await;
         let root = tempfile::tempdir().unwrap();
-        let manager = AccountManager::new(root.path());
+        let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
         f.login(&manager, CloudResource::Default).await;
         f.login(&manager, CloudResource::Web).await;
         {
@@ -355,7 +368,7 @@ async fn invalid_recovery_response_keeps_the_dispatched_key_for_later_reads() {
             .as_str()
             .unwrap()
             .starts_with("tool_"));
-        let cold = AccountManager::new(root.path());
+        let cold = AccountManager::new(root.path(), &root.path().join("config.yaml"));
         assert!(!cold.execute(request).await.unwrap().success);
         {
             let mut state = f.state.lock().unwrap();
@@ -381,7 +394,7 @@ async fn invalid_recovery_response_keeps_the_dispatched_key_for_later_reads() {
 async fn cancelled_web_call_and_disabled_product_do_not_dispatch() {
     let f = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     f.login(&manager, CloudResource::Default).await;
     f.login(&manager, CloudResource::Web).await;
     let token = tokio_util::sync::CancellationToken::new();

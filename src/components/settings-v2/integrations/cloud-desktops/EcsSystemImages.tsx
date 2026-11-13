@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { EcsDesktopSpec } from "@limecloud/app-server-client";
 import { requestCloudDesktop } from "@/lib/api/cloud";
 import { SettingsAction } from "../../SettingsPrimitives";
 import { CloudSelect, Field } from "./CloudDesktopPrimitives";
 import { object } from "./cloudDesktopData";
-import type { useCloudPurchase } from "./useCloudPurchase";
 
-type Image = {
+export type EcsSystemImage = {
   imageId: string;
   name: string;
   systemDiskGiB: number;
@@ -15,22 +13,24 @@ type Image = {
 };
 
 export function EcsSystemImages({
-  purchase,
+  profile,
+  regionId,
   disabled,
+  onSelected,
 }: {
-  purchase: ReturnType<typeof useCloudPurchase<EcsDesktopSpec>>;
+  profile: string;
+  regionId: string;
   disabled: boolean;
+  onSelected: (image: EcsSystemImage | undefined) => void;
 }) {
   const { t } = useTranslation("settings");
-  const { profile, regionId } = purchase.spec;
-  const [images, setImages] = useState<Image[]>([]);
+  const [images, setImages] = useState<EcsSystemImage[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [selection, setSelection] = useState("");
   const generation = useRef(0);
   const busy = useRef(false);
-  const current = useRef(purchase);
-  current.current = purchase;
   useEffect(() => {
     generation.current += 1;
     busy.current = false;
@@ -38,26 +38,22 @@ export function EcsSystemImages({
     setLoaded(false);
     setPending(false);
     setError("");
+    setSelection("");
+    onSelected(undefined);
     return () => {
       generation.current += 1;
     };
-  }, [profile, regionId]);
+  }, [profile, regionId, onSelected]);
   async function load() {
-    if (
-      busy.current ||
-      disabled ||
-      purchase.pending ||
-      purchase.submitted ||
-      !profile ||
-      !regionId
-    )
-      return;
+    if (busy.current || disabled || !profile || !regionId) return;
     busy.current = true;
     const expected = generation.current;
     setImages([]);
     setLoaded(false);
     setPending(true);
     setError("");
+    setSelection("");
+    onSelected(undefined);
     try {
       const data = object(
         (
@@ -112,15 +108,18 @@ export function EcsSystemImages({
       }
     }
   }
-  const locked = disabled || pending || purchase.pending || purchase.submitted;
-  const selected = images.find(
-    (image) => image.imageId === purchase.spec.imageId,
-  );
+  const loader = useRef(load);
+  loader.current = load;
+  useEffect(() => {
+    void loader.current();
+  }, [profile, regionId]);
+  const locked = disabled || pending;
+  const selected = images.find((image) => image.imageId === selection);
   return (
-    <details className="space-y-3 text-[13px]">
-      <summary className="w-fit cursor-pointer py-2">
+    <div className="space-y-3 text-[13px]">
+      <h3 className="font-medium">
         {t("settings.cloudDesktop.restoreSystemImage")}
-      </summary>
+      </h3>
       <p className="text-muted-foreground">
         {t("settings.cloudDesktop.restoreSystemImageHelp")}
       </p>
@@ -130,6 +129,7 @@ export function EcsSystemImages({
       >
         {t("settings.cloudDesktop.loadSystemImages")}
       </SettingsAction>
+      {pending && <p role="status">{t("settings.cloudDesktop.loading")}</p>}
       {images.length > 0 && (
         <Field name="systemImageSelection">
           <CloudSelect
@@ -140,19 +140,8 @@ export function EcsSystemImages({
                 (item) => item.imageId === event.target.value,
               );
               if (!image?.ready || locked) return;
-              const latest = current.current;
-              latest.setSpec({
-                ...latest.spec,
-                imageId: image.imageId,
-                systemDiskGib: Math.max(
-                  latest.spec.systemDiskGib,
-                  image.systemDiskGiB,
-                ),
-              });
-              latest.setQuote(undefined);
-              latest.setApproved(false);
-              if (!latest.name)
-                latest.setName(`Lime-${crypto.randomUUID().slice(0, 8)}`);
+              setSelection(image.imageId);
+              onSelected(image);
             }}
           >
             <option value="" disabled>
@@ -185,6 +174,6 @@ export function EcsSystemImages({
           {error}
         </p>
       )}
-    </details>
+    </div>
   );
 }

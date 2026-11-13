@@ -54,7 +54,7 @@ fn test_backend_renders_pending_images_above_composer_text() {
 }
 
 #[test]
-fn idle_composer_uses_codex_prompt_and_localized_placeholder() {
+fn idle_composer_uses_upstream_prompt_and_localized_placeholder() {
     let mut app = App::default();
     app.set_locale(Locale::EnUs);
     let mut terminal = Terminal::new(TestBackend::new(80, 10)).expect("terminal");

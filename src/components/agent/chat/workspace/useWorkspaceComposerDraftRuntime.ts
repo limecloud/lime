@@ -49,6 +49,7 @@ export function useWorkspaceComposerDraftRuntime({
   const handledFreshRequest = useRef<number | null>(null);
   const intendedScope = useRef(initialScope);
   const [restoring, setRestoring] = useState(true);
+  const mountScope = useRef(initialScope);
   const explicitScope = useRef(false);
   const mounted = useRef(false);
   const activeOwner = useRef<ComposerDraftCoordinator | null>(null);
@@ -225,10 +226,11 @@ export function useWorkspaceComposerDraftRuntime({
     [promoteComposerDraft],
   );
 
-  // Only an authoritative empty/unavailable store unlocks the composer.
-  // Mode mismatch, codec failure and transport errors must keep it non-editable.
+  // Only an unavailable store for the initially committed scope unlocks the composer.
+  // Later bind/transport failures on a different scope stay locked.
   const draftStorageUnavailable =
-    status?.mutation === "unavailable" && !status?.error;
+    status?.mutation === "unavailable" &&
+    (status.scope == null || sameScope(status.scope, mountScope.current));
   return {
     composerDraftCoordinator: coordinator ?? undefined,
     composerDraftStatus: status,

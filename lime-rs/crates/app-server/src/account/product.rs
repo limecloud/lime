@@ -1,4 +1,4 @@
-use super::AccountManager;
+use super::{store, AccountManager};
 use app_server_protocol::protocol::v2::{CloudRequestMethod, CloudRequestParams};
 use serde::Deserialize;
 
@@ -40,22 +40,53 @@ impl AccountManager {
             )
             .await?;
         if response.status == 404 && response.body["error"] == "product_user_not_found" {
-            let key = format!(
-                "product-user-{}",
-                Self::plugin_identity_for(&response.account)
-            );
+            // Only the first registration needs serialization. Another process
+            // may finish the same original command while this caller waits.
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+            let _lease = loop {
+                if store::load(&self.path)?.epoch != epoch {
+                    return Err("account_changed".into());
+                }
+                if let Some(lease) =
+                    store::try_lock(&self.path.with_file_name("product-user.lock"))?
+                {
+                    break lease;
+                }
+                if tokio::time::Instant::now() >= deadline {
+                    return Err("product_user_unavailable".into());
+                }
+                super::continuation::wait(None, None).await?;
+            };
             response = self
                 .dispatch(
                     params(
-                        "/product-users".into(),
-                        CloudRequestMethod::Post,
-                        Some(serde_json::json!({})),
-                        Some(key),
-                        Some("product-registration".into()),
+                        "/product-users/self".into(),
+                        CloudRequestMethod::Get,
+                        None,
+                        None,
+                        None,
                     ),
                     epoch,
                 )
                 .await?;
+            if response.status == 404 && response.body["error"] == "product_user_not_found" {
+                let key = format!(
+                    "product-user-{}",
+                    Self::plugin_identity_for(&response.account)
+                );
+                response = self
+                    .dispatch(
+                        params(
+                            "/product-users".into(),
+                            CloudRequestMethod::Post,
+                            Some(serde_json::json!({})),
+                            Some(key),
+                            Some("product-registration".into()),
+                        ),
+                        epoch,
+                    )
+                    .await?;
+            }
         }
         if response.status != 200 {
             return Err(match response.body["error"].as_str() {

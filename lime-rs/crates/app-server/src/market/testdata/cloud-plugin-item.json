@@ -1,0 +1,68 @@
+{
+  "compatibility": {
+    "reasons": [],
+    "status": "supported"
+  },
+  "environment": "sandbox",
+  "id": "item_research",
+  "kind": "plugin",
+  "name": "Research",
+  "publishedReleaseId": "rel_research",
+  "publisherApplicationId": "publisher",
+  "release": {
+    "archiveSha256": "94727ccd0504f46ab961efc5a9e64ca1fb28465384534ea95cab8371f34efc4e",
+    "archiveSize": 426,
+    "id": "rel_research",
+    "itemId": "item_research",
+    "manifest": {
+      "schema_version": 1,
+      "kind": "plugin",
+      "name": "research",
+      "version": "1.0.0",
+      "title": {
+        "source": "Research",
+        "translations": {
+          "zh-CN": "资料研究"
+        }
+      },
+      "description": {
+        "source": "Research topics",
+        "translations": {
+          "zh-CN": "研究选定资料"
+        }
+      },
+      "license": "MIT",
+      "hosts": [
+        {
+          "id": "lime",
+          "min_version": "1.0.0",
+          "capabilities": [
+            "plugins",
+            "skills",
+            "mcp"
+          ]
+        }
+      ],
+      "files": [
+        {
+          "path": ".lime-plugin/plugin.json",
+          "sha256": "3145d50b81e7435653412f437cff49f57590e737cbf20e35789fdaeb4e86f0ae",
+          "size": 59
+        },
+        {
+          "path": "skills/research/SKILL.md",
+          "sha256": "9adcdd70c4bfb6698f9fded9ac2f544501c70aa713418941980b01313f6af47e",
+          "size": 74
+        }
+      ],
+      "plugin": {
+        "entry": ".lime-plugin/plugin.json",
+        "dependencies": []
+      }
+    },
+    "manifestSha256": "d00eb1a58fe0b8c2fb61ec71017e044414b7a419f2c2d18b7287c1a0ab45085f",
+    "revision": 1,
+    "status": "approved"
+  },
+  "revision": 1
+}

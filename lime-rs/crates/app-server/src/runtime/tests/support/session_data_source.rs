@@ -192,6 +192,8 @@ impl MediaAppDataSource for TestSessionDataSource {
     }
 }
 impl VoiceAppDataSource for TestSessionDataSource {}
+impl crate::MarketDataSource for TestSessionDataSource {}
+
 impl PluginDataSource for TestSessionDataSource {}
 impl AutomationOverviewAppDataSource for TestSessionDataSource {}
 impl McpAppDataSource for TestSessionDataSource {}

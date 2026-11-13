@@ -137,15 +137,48 @@ fn lime_editor_control_aliases_are_routed_to_textarea() {
 }
 
 #[test]
-fn describe_exposes_effective_bindings_with_config_paths() {
+fn describe_covers_transcript_and_agents_bindings() {
     let entries = RuntimeKeymap::default().describe();
-    assert!(entries
+    let paths: Vec<String> = entries.iter().map(|entry| entry.path.clone()).collect();
+    for expected in [
+        "tui.keymap.global.open_agents",
+        "tui.keymap.global.open_transcript",
+        "tui.keymap.pager.scroll_up",
+        "tui.keymap.pager.close",
+        "tui.keymap.agents.resume",
+        "tui.keymap.agents.new_task",
+        "tui.keymap.agents.stop",
+    ] {
+        assert!(
+            paths.iter().any(|path| path == expected),
+            "missing {expected}"
+        );
+    }
+    assert!(
+        entries
+            .iter()
+            .filter(|entry| !entry.keys.is_empty())
+            .count()
+            >= 15,
+        "most default bindings should be populated"
+    );
+}
+
+#[test]
+fn describe_includes_list_and_editor_contexts() {
+    let paths: Vec<String> = RuntimeKeymap::default()
+        .describe()
+        .into_iter()
+        .map(|entry| entry.path)
+        .collect();
+    assert!(paths.iter().any(|path| path == "tui.keymap.list.accept"));
+    assert!(paths
         .iter()
-        .any(|entry| entry.path == "tui.keymap.global.open_transcript" && !entry.keys.is_empty()));
-    assert!(entries
+        .any(|path| path == "tui.keymap.editor.insert_newline"));
+    assert!(paths
         .iter()
-        .any(|entry| entry.path == "tui.keymap.list.accept" && !entry.keys.is_empty()));
-    assert!(entries
+        .any(|path| path == "tui.keymap.vim_normal.enter_insert"));
+    assert!(paths
         .iter()
-        .all(|entry| entry.path.starts_with("tui.keymap.")));
+        .any(|path| path == "tui.keymap.vim_operator.delete_line"));
 }

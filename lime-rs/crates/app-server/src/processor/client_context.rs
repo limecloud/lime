@@ -270,7 +270,7 @@ fn reject_unsupported_initialize_capabilities(
     if request_attestation {
         return Err(JsonRpcError::new(
             error_codes::INVALID_PARAMS,
-            "capabilities.requestAttestation is unsupported: Lime has no Codex Desktop Host attestation producer",
+            "capabilities.requestAttestation is unsupported: Lime has no Desktop Host attestation producer",
         ));
     }
     Ok(())

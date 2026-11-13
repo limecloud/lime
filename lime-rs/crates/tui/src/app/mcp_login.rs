@@ -1,4 +1,4 @@
-//! MCP sign-in interaction aligned with Codex 4773a132c3.
+//! MCP sign-in interaction aligned with 上游 4773a132c3.
 //!
 //! OAuth and credentials remain App Server-owned. This owner only tracks UI request ordering,
 //! rejects stale completions, and routes results back to their originating thread.

@@ -319,7 +319,7 @@ fn export_narrow_footer_keeps_a_whole_cancel_chord_and_blank_filename_hides_save
 #[test]
 fn export_picker_uses_thread_id_filename_and_supports_both_destinations() {
     let mut picker = ExportPicker::new(Some("thread-123"), &RuntimeKeymap::default());
-    assert_eq!(picker.filename().text(), "codex-session-thread-123.md");
+    assert_eq!(picker.filename().text(), "lime-session-thread-123.md");
     assert_eq!(
         picker.handle_event(&Event::Key(KeyEvent::new(
             KeyCode::Enter,
@@ -353,7 +353,7 @@ fn export_picker_uses_thread_id_filename_and_supports_both_destinations() {
     );
     assert_eq!(
         picker.selected_path(),
-        Some(PathBuf::from("codex-session-thread-123.md"))
+        Some(PathBuf::from("lime-session-thread-123.md"))
     );
 }
 

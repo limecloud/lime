@@ -60,6 +60,11 @@ fn setup_data_source() -> LocalAppDataSource {
             agent_root.join("plugins"),
             agent_root.join("config.yaml"),
         ),
+        market_store: market::MarketStore::new(
+            agent_root.join("market"),
+            agent_root.join("config.yaml"),
+            None,
+        ),
         session_files_root: agent_root.join("artifacts").join("sessions"),
         connect_registry_cache_path: agent_root
             .join("cache")

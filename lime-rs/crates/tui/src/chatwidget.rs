@@ -1,6 +1,6 @@
 //! Chat surface owner shared by the terminal host and the canonical transcript.
 //!
-//! Codex keeps the chat surface separate from the process-level `App`: the widget owns the
+//! 上游 keeps the chat surface separate from the process-level `App`: the widget owns the
 //! bottom-pane input and dialog presentation, while `App` owns transport, thread routing and
 //! the main `TranscriptView`. Main reading, search and selection must not return to this widget.
 
@@ -122,6 +122,14 @@ pub(crate) struct ChatWidget {
     pub(crate) effort_picker: Option<crate::app::effort_picker::EffortPicker>,
     pub(crate) permissions_picker: Option<crate::app::permissions_picker::PermissionsPicker>,
     pub(crate) config_menu: Option<crate::app::config_menu::ConfigMenu>,
+    pub(crate) keymap_editor: Option<crate::app::keymap_editor::KeymapEditor>,
+    pub(crate) plugin_picker: Option<crate::app::plugin_picker::PluginPicker>,
+    pub(crate) skills_toggle: Option<crate::app::skills_toggle::SkillsToggle>,
+    pub(crate) memories_settings: Option<crate::app::memories_settings::MemoriesSettings>,
+    pub(crate) hooks_browser: Option<crate::app::hooks_browser::HooksBrowser>,
+    pub(crate) process_list: Option<crate::app::process_list::ProcessList>,
+    pub(crate) shell_mode: bool,
+    pub(crate) memory_mode: Option<bool>,
     pub(crate) agent_picker: Option<AgentPicker>,
     pub(crate) resume_picker: Option<PickerState>,
     pub(crate) export_picker: Option<ExportPicker>,

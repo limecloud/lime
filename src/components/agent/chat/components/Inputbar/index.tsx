@@ -14,6 +14,7 @@ import type { MessagePathReference } from "../../types";
 
 import type { AgentSessionExecutionRuntime } from "@/lib/api/agentExecutionRuntime";
 import { InputbarComposerSection } from "./components/InputbarComposerSection";
+import { ContextUsageBadge } from "./components/ContextUsageBadge";
 import { HintRoutePopup } from "./components/HintRoutePopup";
 import { InputbarSurface } from "./components/InputbarSurface";
 import type { SkillSelectionSourceProps } from "../../skill-selection/skillSelectionBindings";
@@ -357,6 +358,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         setAccessMode={setAccessMode}
         showModelControls={showModelControls}
         contextVariant={contextVariant}
+        contextUsage={<ContextUsageBadge threadId={threadId ?? sessionId} />}
         copy={inputbarComposerCopy}
         inputbarCopy={inputbarCopy}
         workflowPanelCopy={workflowPanelCopy}

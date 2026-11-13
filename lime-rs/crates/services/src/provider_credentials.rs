@@ -98,19 +98,34 @@ impl ProviderCredentialStore {
     }
 
     pub(crate) fn save(&self, plaintext: &str) -> Result<String, String> {
+        self.save_named(uuid::Uuid::new_v4(), plaintext, false)
+    }
+
+    // 保留身份先于数据库提交；中断后只能复用同值，不能覆盖其他凭据。
+    pub(crate) fn save_reserved(&self, id: uuid::Uuid, plaintext: &str) -> Result<String, String> {
+        self.save_named(id, plaintext, true)
+    }
+
+    fn save_named(&self, id: uuid::Uuid, plaintext: &str, resume: bool) -> Result<String, String> {
         if plaintext.trim().is_empty() {
             return Err("credential_value_empty".to_string());
         }
         let name = SecretName::new(&format!(
             "API_KEY_{}",
-            uuid::Uuid::new_v4()
-                .simple()
-                .to_string()
-                .to_ascii_uppercase()
+            id.simple().to_string().to_ascii_uppercase()
         ))
         .map_err(|_| "credential_reference_invalid".to_string())?;
         let config = self.configuration()?;
         let _lock = config.lock()?;
+        let reference = format!("{REFERENCE_PREFIX}{}", name.as_str());
+        if resume {
+            match self.load_locked(config, &name) {
+                Ok(existing) if existing == plaintext => return Ok(reference),
+                Ok(_) => return Err("credential_reserved_identity_conflict".into()),
+                Err(error) if error == "credential_not_found" => {}
+                Err(error) => return Err(error),
+            }
+        }
         match config.mode {
             StoreMode::Keyring => {
                 SecretsManager::new(config.root.clone(), SecretsBackendKind::Local)
@@ -151,17 +166,21 @@ impl ProviderCredentialStore {
                 }
             }
         }
-        Ok(format!("{REFERENCE_PREFIX}{}", name.as_str()))
+        Ok(reference)
     }
 
     pub(crate) fn load(&self, reference: &str) -> Result<String, String> {
         let name = reference_name(reference)?;
         let config = self.configuration()?;
         let _lock = config.lock()?;
+        self.load_locked(config, &name)
+    }
+
+    fn load_locked(&self, config: &Configuration, name: &SecretName) -> Result<String, String> {
         match config.mode {
             StoreMode::Keyring => {
                 SecretsManager::new(config.root.clone(), SecretsBackendKind::Local)
-                    .get(&SecretScope::Global, &name)
+                    .get(&SecretScope::Global, name)
                     .map_err(|_| "credential_store_read_failed".to_string())?
                     .ok_or_else(|| "credential_not_found".to_string())
             }
@@ -170,6 +189,12 @@ impl ProviderCredentialStore {
                     .root
                     .join("credentials")
                     .join(format!("{}.json", name.as_str()));
+                if !path
+                    .try_exists()
+                    .map_err(|_| "credential_store_read_failed")?
+                {
+                    return Err("credential_not_found".into());
+                }
                 lime_infra::secure_file::ensure_owner_only_permissions(&path)
                     .map_err(|_| "credential_store_permissions_failed")?;
                 let file = std::fs::File::open(path).map_err(|_| "credential_store_read_failed")?;

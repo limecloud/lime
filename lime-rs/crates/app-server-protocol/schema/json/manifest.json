@@ -11,6 +11,10 @@
   },
   "methods": [
     {
+      "kind": "serverRequest",
+      "method": "account/authorize"
+    },
+    {
       "kind": "request",
       "method": "account/login/start"
     },
@@ -193,6 +197,10 @@
     {
       "kind": "request",
       "method": "connectRelayApiKey/save"
+    },
+    {
+      "kind": "serverRequest",
+      "method": "connection/authorize"
     },
     {
       "kind": "serverRequest",
@@ -509,6 +517,42 @@
     {
       "kind": "request",
       "method": "log/persistedTail"
+    },
+    {
+      "kind": "request",
+      "method": "market/enabled/set"
+    },
+    {
+      "kind": "request",
+      "method": "market/install"
+    },
+    {
+      "kind": "request",
+      "method": "market/install/cancel"
+    },
+    {
+      "kind": "request",
+      "method": "market/install/pending"
+    },
+    {
+      "kind": "request",
+      "method": "market/installed"
+    },
+    {
+      "kind": "request",
+      "method": "market/list"
+    },
+    {
+      "kind": "request",
+      "method": "market/read"
+    },
+    {
+      "kind": "request",
+      "method": "market/reconcile"
+    },
+    {
+      "kind": "request",
+      "method": "market/uninstall"
     },
     {
       "kind": "request",
@@ -2252,6 +2296,8 @@
     "v2": [
       "AbsolutePathBuf",
       "Account",
+      "AccountAuthorizeParams",
+      "AccountAuthorizeResponse",
       "AccountUpdatedNotification",
       "ActivePermissionProfile",
       "AdditionalContextEntry",
@@ -2284,6 +2330,7 @@
       "ArtifactWriteResponse",
       "ArtifactWriteSidecar",
       "AsyncUserInputQuestion",
+      "AuthorizationAction",
       "AutoReviewDecisionSource",
       "BrowserUseAccessApprovalLifetime",
       "BrowserUseConfig",
@@ -2369,6 +2416,8 @@
       "ConfigWarningNotification",
       "ConfigWriteErrorCode",
       "ConfigWriteResponse",
+      "ConnectionAuthorizeParams",
+      "ConnectionAuthorizeResponse",
       "ConnectorMetadata",
       "CurrentTimeReadParams",
       "CurrentTimeReadResponse",
@@ -2483,6 +2532,33 @@
       "LoginAccountParams",
       "LoginAccountResponse",
       "LogoutAccountResponse",
+      "MarketAcquisitionCheck",
+      "MarketAcquisitionStatus",
+      "MarketEnabledSetParams",
+      "MarketEnabledSetResponse",
+      "MarketInstallCancelParams",
+      "MarketInstallCancelResponse",
+      "MarketInstallParams",
+      "MarketInstallResponse",
+      "MarketInstallation",
+      "MarketInstalledParams",
+      "MarketInstalledResponse",
+      "MarketListParams",
+      "MarketListResponse",
+      "MarketMcp",
+      "MarketPendingInstall",
+      "MarketPendingParams",
+      "MarketPendingResponse",
+      "MarketReadParams",
+      "MarketReadResponse",
+      "MarketReconcileParams",
+      "MarketReconcileResponse",
+      "MarketReleaseReference",
+      "MarketResource",
+      "MarketResourceError",
+      "MarketResourceKind",
+      "MarketUninstallParams",
+      "MarketUninstallResponse",
       "MarketplaceAddParams",
       "MarketplaceAddResponse",
       "MarketplaceInterface",

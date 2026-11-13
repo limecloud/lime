@@ -13,7 +13,7 @@ import {
   inputClass,
   type CloudRequest,
 } from "./CloudDesktopPrimitives";
-import { object } from "./cloudDesktopData";
+import { object, pendingCloudLifecycleOperation } from "./cloudDesktopData";
 
 export function CloudResourceActions({
   resource,
@@ -57,8 +57,23 @@ export function CloudResourceActions({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<unknown>();
+  const [openedFor, setOpenedFor] = useState("");
   const busy = useRef(false);
+  const refreshOperation = useRef<() => Promise<void>>(async () => {});
   const trigger = useRef<HTMLButtonElement | null>(null);
+  const resourceKey = JSON.stringify([
+    resource.provider,
+    resource.profile,
+    resource.regionId,
+    resource.resourceId,
+  ]);
+  const lifecycleAction = action === "start" || action === "stop";
+  const lifecycleReady =
+    !disabled &&
+    openedFor === resourceKey &&
+    ((action === "start" && status === "Stopped") ||
+      (action === "stop" && status === "Running"));
+  const requiresResourceId = action === "snapshot" || action === "release";
   const backupAvailable = isElectronHostCommandAvailable(
     "cloud_desktop_connection",
   );
@@ -80,21 +95,44 @@ export function CloudResourceActions({
         (key) => object(entry.resource)[key] === resource[key],
       ),
   );
-  const accepted = object(receipt).outcome === "accepted";
-  const unresolved =
+  const original = pendingCloudLifecycleOperation(operations, resource);
+  const recovery =
+    original?.operationId === object(receipt).operationId &&
+    object(receipt).outcome === "lifecycleVerified"
+      ? undefined
+      : original;
+  const locallyUnresolved =
     submitted &&
+    openedFor === resourceKey &&
     object(receipt).outcome !== "released" &&
-    !(
-      accepted &&
-      ((action === "stop" && status === "Stopped") ||
-        (action === "start" && status === "Running"))
-    ) &&
     ![
+      "lifecycleVerified",
       "snapshotReady",
       "dependenciesReady",
       "preparationFailed",
       "notSubmitted",
     ].includes(String(object(receipt).outcome));
+  const unresolved = locallyUnresolved || !!recovery;
+
+  useEffect(() => {
+    if (isOpen && lifecycleAction && !submitted && !lifecycleReady) {
+      setIsOpen(false);
+      setSaved(false);
+    }
+  }, [isOpen, lifecycleAction, submitted, lifecycleReady]);
+
+  const canExecute =
+    !!action &&
+    !pending &&
+    (!lifecycleAction || lifecycleReady) &&
+    (!requiresResourceId || confirmed === resource.resourceId) &&
+    (action === "start" || saved) &&
+    (action !== "release" ||
+      (discardData &&
+        !backupLoading &&
+        (!imageOperationId || imageApproved) &&
+        (!verifiedBackup || applicationsValidated))) &&
+    (action !== "snapshot" || !!diskId);
 
   useEffect(() => {
     if (
@@ -129,8 +167,18 @@ export function CloudResourceActions({
   function open(value: typeof action, button: HTMLButtonElement) {
     trigger.current = button;
     setIsOpen(true);
-    if (unresolved) return;
+    if (locallyUnresolved) return;
+    if (recovery) {
+      setAction(recovery.action);
+      setOpenedFor(resourceKey);
+      setSubmitted(true);
+      setReceipt(recovery);
+      setOperationId(recovery.operationId);
+      setError("");
+      return;
+    }
     setAction(value);
+    setOpenedFor(resourceKey);
     setConfirmed("");
     setSaved(false);
     setDiscardData(false);
@@ -150,7 +198,8 @@ export function CloudResourceActions({
     setDiskId(resource.provider === "wuying" ? "system" : "");
   }
   async function execute(read = false) {
-    if (!action || busy.current || (!read && submitted)) return;
+    if (!action || busy.current || (!read && (submitted || !canExecute)))
+      return;
     busy.current = true;
     setPending(true);
     setError("");
@@ -257,6 +306,13 @@ export function CloudResourceActions({
       setPending(false);
     }
   }
+  refreshOperation.current = () => execute(true);
+  const polling = isOpen && lifecycleAction && unresolved && !pending && !error;
+  useEffect(() => {
+    if (!polling) return;
+    const timer = setTimeout(() => void refreshOperation.current(), 1500);
+    return () => clearTimeout(timer);
+  }, [polling, receipt]);
   return (
     <>
       {unresolved ? (
@@ -265,10 +321,9 @@ export function CloudResourceActions({
             if (node) trigger.current = node;
           }}
           disabled={disabled}
-          onClick={(event) => {
-            trigger.current = event.currentTarget;
-            setIsOpen(true);
-          }}
+          onClick={(event) =>
+            open(recovery?.action ?? action, event.currentTarget)
+          }
         >
           {t("settings.cloudDesktop.readOperation")}
         </SettingsAction>
@@ -472,7 +527,7 @@ export function CloudResourceActions({
                 </Field>
               </>
             )}
-            {action !== "prepareEcsDesktop" && (
+            {requiresResourceId && (
               <Field name="confirmResource">
                 <input
                   className={inputClass}
@@ -552,18 +607,7 @@ export function CloudResourceActions({
               ) : (
                 <SettingsAction
                   $tone={action === "release" ? "danger" : undefined}
-                  disabled={
-                    pending ||
-                    (action !== "prepareEcsDesktop" &&
-                      confirmed !== resource.resourceId) ||
-                    (action !== "start" && !saved) ||
-                    (action === "release" &&
-                      (!discardData ||
-                        backupLoading ||
-                        (!!imageOperationId && !imageApproved) ||
-                        (!!verifiedBackup && !applicationsValidated))) ||
-                    (action === "snapshot" && !diskId)
-                  }
+                  disabled={!canExecute}
                   onClick={() => void execute()}
                 >
                   {t(

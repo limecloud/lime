@@ -5,7 +5,7 @@ mod event_processor;
 mod event_processor_with_human_output;
 mod event_processor_with_jsonl_output;
 mod exec_events;
-mod locale;
+pub(crate) mod locale;
 mod prompt;
 mod server_requests;
 mod thread;

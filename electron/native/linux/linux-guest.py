@@ -222,7 +222,7 @@ def reconnect_credentials():
         values = {"token": (secrets.token_urlsafe(32) + "\n").encode(),
                   "viewer-password": new_viewer + b"\n",
                   "vnc-password": subprocess.run(["tigervncpasswd", "-f"], input=new_viewer + b"\n", capture_output=True, check=True).stdout}
-        systemctl("stop", "lime-cloud-human.service", *[n + ".service" for n in reversed(UNITS)])
+        systemctl("stop", "lime-cloud-human.service", "lime-cloud-viewer.service", "lime-cloud.service")
         for name, value in values.items():
             temporary = config / (".reconnect-" + secrets.token_hex(8))
             private_write(temporary, value)
@@ -232,9 +232,19 @@ def reconnect_credentials():
             os.fsync(descriptor)
         finally:
             os.close(descriptor)
-        # Restart uses the exact installed release. Neither packages nor runtime
-        # files are replaced, and human-control authorization is never revived.
-        systemctl("start", *[n + ".service" for n in UNITS])
+        # Preserve the desktop and its apps. TigerVNC reads PasswordFile for each
+        # authentication; unit dependencies start a missing display/session.
+        # Human-control authorization is never revived.
+        systemctl("start", "lime-cloud.service")
+        # A forcibly stopped human/consent helper may not have reset VNC input.
+        # Reuse its verified input guard without clearing its authorization latch.
+        env = dict(os.environ, DISPLAY=":1", XAUTHORITY=str(config / "Xauthority"))
+        wait_display(env)
+        subprocess.run(["/usr/bin/python3", "-I", "-c",
+                        "import runpy,sys;runpy.run_path(sys.argv[1])['vnc_input'](False)",
+                        str(target / "bin/native/linux/linux-native-host")],
+                       env=env, check=True, capture_output=True, timeout=25)
+        systemctl("start", "lime-cloud-viewer.service")
 
 
 def state_root():
@@ -382,9 +392,9 @@ def install_payload(source, expected_sha256, start):
                       "credentialsDirectory": str(config), "access": "Authenticated tunnel required"}))
 
 
-def wait_display():
+def wait_display(env=None):
     for _ in range(100):
-        if subprocess.run(["xdpyinfo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+        if subprocess.run(["xdpyinfo"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             return
         time.sleep(0.1)
     raise RuntimeError("The managed X11 desktop is unavailable")

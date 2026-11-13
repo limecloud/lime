@@ -446,7 +446,7 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
       ],
     ],
     [
-      "src/components/settings-v2/integrations/plugins/useMcpSettings.ts",
+      "src/components/settings-v2/integrations/mcp/useMcpSettings.ts",
       [
         'import { subscribeAppServerNotifications } from "@/lib/api/appServerEventBus"',
         "mcpServerOauthLoginCompletedServerNotification",
@@ -678,7 +678,7 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
   const eventBridgeContent = fs.readFileSync(
     path.join(
       repoRoot,
-      "src/components/settings-v2/integrations/plugins/useMcpSettings.ts",
+      "src/components/settings-v2/integrations/mcp/useMcpSettings.ts",
     ),
     "utf8",
   );

@@ -83,12 +83,17 @@ export function SkillsWorkspacePage({
   } = useSkills("lime", { includeRepos: false });
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeView, setActiveView] = useState<SkillsWorkspaceView>(
-    pageParams?.initialView === "manage" ||
-      pageParams?.initialView === "installed"
-      ? "installed"
-      : "store",
-  );
+  const [activeView, setActiveView] = useState<SkillsWorkspaceView>(() => {
+    switch (pageParams?.initialView) {
+      case "store":
+      case "discover":
+        return "store";
+      case "builtin":
+        return "builtin";
+      default:
+        return "installed";
+    }
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [installingMarketplaceSkillName, setInstallingMarketplaceSkillName] =
     useState<string | null>(null);
@@ -395,9 +400,9 @@ export function SkillsWorkspacePage({
   const skillStoreCount = skillStoreItems.length;
   const viewTabs: SkillsWorkspaceViewTab[] = [
     {
-      key: "store",
-      label: t("skills.workspace.view.store"),
-      count: skillStoreCount,
+      key: "installed",
+      label: t("skills.workspace.view.installed"),
+      count: visibleUserInstalledSkills.length,
     },
     {
       key: "builtin",
@@ -405,9 +410,9 @@ export function SkillsWorkspacePage({
       count: visibleBuiltinLocalSkills.length,
     },
     {
-      key: "installed",
-      label: t("skills.workspace.view.installed"),
-      count: visibleUserInstalledSkills.length,
+      key: "store",
+      label: t("skills.workspace.view.store"),
+      count: skillStoreCount,
     },
   ];
   const handleRefreshAll = useCallback(async () => {

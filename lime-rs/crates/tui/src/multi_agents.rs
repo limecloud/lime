@@ -269,7 +269,7 @@ pub(crate) fn collab_summary(
 /// Status/model facts are useful for every collaboration call, while the history cell owns
 /// lifecycle-specific details such as per-agent wait results and resume errors. Keeping this
 /// composition here means `ConversationProjection` only maps canonical items and does not need to
-/// duplicate Codex's tool lifecycle branching.
+/// duplicate 上游 tool lifecycle branching.
 pub(crate) fn collab_summary_for_item(item: &ThreadItem) -> Vec<String> {
     let ThreadItem::CollabAgentToolCall {
         agents_states,

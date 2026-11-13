@@ -1,0 +1,190 @@
+{
+  "$defs": {
+    "MarketInstallation": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mcpServerName": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "release",
+        "version"
+      ],
+      "type": "object"
+    },
+    "MarketMcp": {
+      "properties": {
+        "arguments": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "authentication": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "executable": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transport": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "arguments",
+        "authentication",
+        "scopes",
+        "tools",
+        "transport"
+      ],
+      "type": "object"
+    },
+    "MarketReleaseReference": {
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "type": "object"
+    },
+    "MarketResource": {
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "compatible": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "installation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketInstallation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "license": {
+          "type": "string"
+        },
+        "mcp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketMcp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "publisherApplicationId": {
+          "type": "string"
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actions",
+        "compatible",
+        "description",
+        "itemId",
+        "kind",
+        "license",
+        "name",
+        "publisherApplicationId",
+        "release",
+        "title",
+        "version"
+      ],
+      "type": "object"
+    },
+    "MarketResourceKind": {
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "resource": {
+      "$ref": "#/$defs/MarketResource"
+    }
+  },
+  "required": [
+    "resource"
+  ],
+  "title": "MarketInstallResponse",
+  "type": "object"
+}

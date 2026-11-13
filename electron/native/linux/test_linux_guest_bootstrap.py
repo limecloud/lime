@@ -41,6 +41,60 @@ def configuration(root, archive=None, lifetime=120, reconnect=False):
 
 
 class BootstrapConfigurationTests(unittest.TestCase):
+    def test_transfer_counts_actual_chunks_and_does_not_report_installation_completion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, _ = configuration(root)
+            config.update(archiveBytes=6, archiveSha256=hashlib.sha256(b"abcdef").hexdigest())
+            operation = bootstrap.Installation(root, config)
+            self.assertNotIn("transfer", operation.status())
+            self.assertTrue(operation.begin())
+            snapshots = []
+
+            class Chunks:
+                def __init__(self):
+                    self.chunks = iter([b"ab", b"cd", b"ef", b""])
+
+                def read1(self, size):
+                    snapshots.append(operation.status().get("transfer"))
+                    return next(self.chunks)
+
+                def read(self, size):
+                    return next(self.chunks)
+
+            with patch.object(operation, "run_installer") as installer:
+                operation.accept(Chunks(), check_eof=True)
+            self.assertEqual(snapshots, [None, {"receivedBytes": 2, "totalBytes": 6},
+                                        {"receivedBytes": 4, "totalBytes": 6}])
+            self.assertEqual(operation.status()["transfer"], {"receivedBytes": 6, "totalBytes": 6})
+            self.assertEqual(operation.status()["phase"], "installing")
+            installer.assert_called_once()
+
+    def test_truncated_transfer_preserves_received_bytes_without_installing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, _ = configuration(root)
+            config["archiveBytes"] = 6
+            operation = bootstrap.Installation(root, config)
+            self.assertTrue(operation.begin())
+
+            class Truncated:
+                chunks = iter([b"ab", b""])
+
+                def read1(self, size):
+                    return next(self.chunks)
+
+            with patch.object(operation, "run_installer") as installer:
+                with self.assertRaisesRegex(RuntimeError, "Incomplete upload"):
+                    operation.accept(Truncated(), check_eof=True)
+            self.assertEqual(operation.status()["transfer"], {"receivedBytes": 2, "totalBytes": 6})
+            self.assertEqual(operation.status()["phase"], "receiving")
+            installer.assert_not_called()
+            operation.fail()
+            self.assertEqual(operation.status()["phase"], "failed")
+            self.assertEqual(operation.status()["transfer"]["receivedBytes"], 2)
+            self.assertNotIn("transfer", bootstrap.Installation(root, config).status())
+
     def test_reconnect_configuration_never_accepts_an_artifact_or_credentials(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn ctrl_p_and_ctrl_n_cycle_selection_like_codex() {
+    fn ctrl_p_and_ctrl_n_cycle_selection_like_upstream() {
         let mut popup = FileSearchPopup::new("src");
         popup.set_matches("src", vec![result("src/lib.rs"), result("src/main.rs")]);
 
@@ -290,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_file_uses_codex_marker_without_narrow_overflow() {
+    fn selected_file_uses_upstream_marker_without_narrow_overflow() {
         let mut popup = FileSearchPopup::new("src");
         popup.set_matches("src", vec![result("src/main.rs")]);
         for width in [40, 80, 120] {

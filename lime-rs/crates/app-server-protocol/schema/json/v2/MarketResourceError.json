@@ -1,0 +1,30 @@
+{
+  "$defs": {
+    "MarketResourceKind": {
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "error": {
+      "type": "string"
+    },
+    "itemId": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/MarketResourceKind"
+    }
+  },
+  "required": [
+    "error",
+    "itemId",
+    "kind"
+  ],
+  "title": "MarketResourceError",
+  "type": "object"
+}

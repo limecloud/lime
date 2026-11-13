@@ -1,4 +1,4 @@
-import { MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -26,6 +26,7 @@ export function ArchivedChatsControls({
 }) {
   const { t } = useTranslation("settings");
   const search = useRef<HTMLInputElement>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
   return (
     <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center">
       <div className="relative min-w-0 flex-1">
@@ -67,30 +68,80 @@ export function ArchivedChatsControls({
         ) : null}
       </div>
       <div className="flex min-w-0 shrink-0 flex-wrap gap-2">
-        <span id="archived-sort-label" className="sr-only">
-          {t("settings.archivedConversations.sortBy")}
-        </span>
-        <SettingsValueMenu
-          targetId="archived-sort"
-          value={sort}
-          disabled={disabled}
-          onChange={onSort}
-          options={[
-            {
-              value: "updated",
-              label: t("settings.archivedConversations.sort.updated"),
-              groupLabel: t("settings.archivedConversations.sortBy"),
-            },
-            {
-              value: "created",
-              label: t("settings.archivedConversations.sort.created"),
-            },
-            {
-              value: "alphabetical",
-              label: t("settings.archivedConversations.sort.alphabetical"),
-            },
-          ]}
-        />
+        <Menu.Root open={filterOpen} onOpenChange={setFilterOpen}>
+          <Menu.Trigger asChild>
+            <SettingsAction
+              type="button"
+              disabled={disabled}
+              aria-label={t("settings.archivedConversations.filter.ariaLabel")}
+              aria-labelledby="archived-filter-label archived-filter-value"
+              data-testid="settings-archived-filter"
+            >
+              <span id="archived-filter-value" className="min-w-0 truncate">
+                {t("settings.archivedConversations.filter.all")}
+              </span>
+              <ChevronDown aria-hidden="true" className="shrink-0" />
+            </SettingsAction>
+          </Menu.Trigger>
+          <Menu.Portal>
+            <Menu.Content
+              align="end"
+              sideOffset={4}
+              className="z-[70] min-w-52 rounded-xl border border-border bg-popover p-1 text-[13px] text-popover-foreground shadow-lg"
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && !event.defaultPrevented) {
+                  event.preventDefault();
+                  setFilterOpen(false);
+                }
+              }}
+            >
+              <Menu.Label className="px-2 py-1 text-[12px] text-muted-foreground">
+                {t("settings.archivedConversations.filter.type")}
+              </Menu.Label>
+              <Menu.RadioGroup value="all" onValueChange={() => undefined}>
+                <Menu.RadioItem
+                  value="all"
+                  className="flex cursor-default items-center justify-between gap-3 rounded-lg px-2 py-1.5 outline-none data-[highlighted]:bg-accent"
+                >
+                  {t("settings.archivedConversations.filter.all")}
+                  <Menu.ItemIndicator>
+                    <Check aria-hidden="true" className="size-4" />
+                  </Menu.ItemIndicator>
+                </Menu.RadioItem>
+              </Menu.RadioGroup>
+              <Menu.Separator className="my-1 h-px bg-border" />
+              <Menu.Label className="px-2 py-1 text-[12px] text-muted-foreground">
+                {t("settings.archivedConversations.filter.sortBy")}
+              </Menu.Label>
+              <Menu.RadioGroup
+                value={sort}
+                onValueChange={(value) => {
+                  onSort(value as ArchivedChatSort);
+                  setFilterOpen(false);
+                }}
+              >
+                {(
+                  [
+                    ["updated", "sort.updated"],
+                    ["created", "sort.created"],
+                    ["alphabetical", "sort.alphabetical"],
+                  ] as const
+                ).map(([value, key]) => (
+                  <Menu.RadioItem
+                    key={value}
+                    value={value}
+                    className="flex cursor-default items-center justify-between gap-3 rounded-lg px-2 py-1.5 outline-none data-[highlighted]:bg-accent"
+                  >
+                    {t(`settings.archivedConversations.${key}`)}
+                    <Menu.ItemIndicator>
+                      <Check aria-hidden="true" className="size-4" />
+                    </Menu.ItemIndicator>
+                  </Menu.RadioItem>
+                ))}
+              </Menu.RadioGroup>
+            </Menu.Content>
+          </Menu.Portal>
+        </Menu.Root>
         <span id="archived-project-label" className="sr-only">
           {t("settings.archivedConversations.projectFilter")}
         </span>
@@ -113,59 +164,5 @@ export function ArchivedChatsControls({
         />
       </div>
     </div>
-  );
-}
-
-export function ArchivedProjectActions({
-  disabled,
-  onDelete,
-}: {
-  disabled: boolean;
-  onDelete: (trigger: HTMLButtonElement) => void;
-}) {
-  const { t } = useTranslation("settings");
-  const [open, setOpen] = useState(false);
-  const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
-  return (
-    <Menu.Root open={open} onOpenChange={setOpen}>
-      <Menu.Trigger asChild>
-        <SettingsAction
-          ref={setTrigger}
-          type="button"
-          disabled={disabled}
-          aria-label={t("settings.archivedConversations.projectActions")}
-        >
-          <MoreHorizontal aria-hidden="true" />
-        </SettingsAction>
-      </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Content
-          align="end"
-          sideOffset={4}
-          className="z-[70] rounded-xl border border-border bg-popover p-1 text-[13px] text-popover-foreground shadow-lg"
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && !event.defaultPrevented) {
-              event.preventDefault();
-              setOpen(false);
-            }
-          }}
-        >
-          <Menu.Item
-            asChild
-            disabled={disabled}
-            onSelect={() => trigger && onDelete(trigger)}
-          >
-            <SettingsAction
-              type="button"
-              $tone="danger"
-              data-testid="settings-archived-delete-project"
-            >
-              <Trash2 aria-hidden="true" />
-              {t("settings.archivedConversations.action.deleteProject")}
-            </SettingsAction>
-          </Menu.Item>
-        </Menu.Content>
-      </Menu.Portal>
-    </Menu.Root>
   );
 }

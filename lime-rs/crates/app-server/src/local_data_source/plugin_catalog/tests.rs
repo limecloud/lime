@@ -53,6 +53,7 @@ fn install_params_for_market(source: &Path, market: &str) -> PluginInstallParams
     }));
     fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
     PluginInstallParams {
+        remote_release: None,
         marketplace_path: Some(path),
         remote_marketplace_name: None,
         plugin_name,
@@ -63,6 +64,7 @@ fn install_params_for_market(source: &Path, market: &str) -> PluginInstallParams
 fn read_params(source: &Path) -> PluginReadParams {
     let params = install_params(source);
     PluginReadParams {
+        remote_release: None,
         marketplace_path: params.marketplace_path,
         remote_marketplace_name: None,
         plugin_name: params.plugin_name,

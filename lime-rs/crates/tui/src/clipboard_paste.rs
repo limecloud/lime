@@ -16,7 +16,7 @@ pub(crate) fn mouse_paste_source_allowed(source: PasteSource) -> bool {
     }
 }
 
-/// Apply Codex's right-click paste policy and terminal safety guards.
+/// Apply 上游 right-click paste policy and terminal safety guards.
 pub(crate) fn right_click_paste_allowed(mode: RightClickPaste, source: PasteSource) -> bool {
     if crate::clipboard_copy::is_ssh_session()
         || detect_vscode_terminal() == VscodeDetection::VsCode

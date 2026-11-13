@@ -6,7 +6,7 @@ pub(super) fn stack_name(operation: &str) -> String {
     format!("Lime-network-{operation}")
 }
 
-pub(super) fn template(zone: &str, operation: &str) -> Value {
+pub(in crate::cloud_desktop_service::ecs) fn template(zone: &str, operation: &str) -> Value {
     let name = stack_name(operation);
     let tags = json!([{ "Key": "lime-operation", "Value": operation }]);
     json!({

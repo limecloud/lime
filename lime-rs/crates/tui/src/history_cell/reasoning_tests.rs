@@ -5,7 +5,7 @@ use crate::projection::{EntryKind, TranscriptEntry};
 use ratatui::style::Modifier;
 
 #[test]
-fn structured_parts_match_codex_header_and_placeholder_rules() {
+fn structured_parts_match_upstream_header_and_placeholder_rules() {
     for (parts, header, content) in [
         (vec!["  ", "<!-- -->"], "", ""),
         (

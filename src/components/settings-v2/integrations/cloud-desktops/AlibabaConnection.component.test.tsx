@@ -12,8 +12,8 @@ const authorizing = vi.fn();
 let state: Record<string, unknown>;
 let root: Root;
 let container: HTMLDivElement;
-function Harness() {
-  const [selected, setSelected] = useState("");
+function Harness({ initialProfile = "" }: { initialProfile?: string }) {
+  const [selected, setSelected] = useState(initialProfile);
   return (
     <AlibabaConnection
       regionId="cn-hangzhou"
@@ -60,6 +60,138 @@ afterEach(async () => {
 });
 
 describe("Lime 自动准备与验证阿里云连接", () => {
+  it.each([
+    ["zh-CN", "阿里云国内站（CN）", "账号尾号 8819"],
+    ["zh-TW", "阿里雲中國站（CN）", "帳號末四碼 8819"],
+    ["en-US", "Alibaba Cloud China site (CN)", "Account ending in 8819"],
+    ["ja-JP", "Alibaba Cloud 中国サイト（CN）", "アカウント末尾 8819"],
+    ["ko-KR", "Alibaba Cloud 중국 사이트(CN)", "계정 끝 4자리 8819"],
+  ])(
+    "%s 显示明确站点和经验证的账号尾号，读取不重新授权",
+    async (locale, site, account) => {
+      await changeLimeLocale(locale);
+      state = { status: "connected", profile, accountIdSuffix: "8819" };
+      act(() => root.render(<Harness />));
+      await settle();
+      expect(container.textContent).toContain(site);
+      expect(container.querySelector('[role="status"]')?.textContent).toContain(
+        account,
+      );
+      expect(container.textContent).not.toContain("settings.cloudDesktop.");
+      expect(connected).toHaveBeenCalledExactlyOnceWith(profile);
+      expect(api.request.mock.calls.map(([request]) => request.action)).toEqual(
+        ["readAlibabaConnection"],
+      );
+    },
+  );
+
+  it("旧连接明确显示账号信息缺失，不猜尾号且不自动启动授权", async () => {
+    state = { status: "connected", profile };
+    act(() => root.render(<Harness />));
+    await settle();
+    expect(container.textContent).toContain("此连接未记录账号尾号");
+    expect(container.textContent).not.toContain("8819");
+    expect(container.querySelector("button")?.textContent).toBe(
+      "切换阿里云账号",
+    );
+    expect(api.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("切换清空原选择，验证完成前不展示旧身份，完成后只选择新账号", async () => {
+    state = { status: "connected", profile, accountIdSuffix: "8819" };
+    act(() => root.render(<Harness />));
+    await settle();
+    const next = `lime-oauth-${"b".repeat(32)}`;
+    state = { status: "authorizing", profile: next };
+    act(() => {
+      container.querySelector("button")!.click();
+      container.querySelector("button")!.click();
+    });
+    await settle();
+    expect(connected).toHaveBeenLastCalledWith("");
+    expect(container.textContent).not.toContain("8819");
+    expect(
+      api.request.mock.calls.filter(
+        ([request]) => request.action === "connectAlibaba",
+      ),
+    ).toHaveLength(1);
+    state = { status: "verifying", profile: next };
+    await tick();
+    expect(connected).toHaveBeenLastCalledWith("");
+    state = { status: "connected", profile: next, accountIdSuffix: "7728" };
+    await tick();
+    expect(connected).toHaveBeenLastCalledWith(next);
+    expect(container.textContent).toContain("账号尾号 7728");
+    expect(container.textContent).not.toContain("8819");
+  });
+
+  it("当前所选 profile 与授权不同，不将另一账号显示为已选账号", async () => {
+    state = { status: "connected", profile, accountIdSuffix: "8819" };
+    const previous = `lime-oauth-${"c".repeat(32)}`;
+    act(() => root.render(<Harness initialProfile={previous} />));
+    await settle();
+    expect(connected).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("8819");
+    expect(container.textContent).not.toContain("阿里云已连接");
+  });
+
+  it.each(["success", "failure"])(
+    "切换期间迟到的原读取 %s 不覆盖新授权或重新选中旧账号",
+    async (outcome) => {
+      let complete!: (value: unknown) => void;
+      let fail!: (reason: Error) => void;
+      api.request.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            complete = resolve;
+            fail = reject;
+          }),
+      );
+      act(() => root.render(<Harness />));
+      await settle();
+      const next = `lime-oauth-${"b".repeat(32)}`;
+      state = { status: "authorizing", profile: next };
+      act(() => container.querySelector("button")!.click());
+      await settle();
+      await act(async () => {
+        if (outcome === "failure") fail(new Error("late read failed"));
+        else
+          complete({
+            data: { status: "connected", profile, accountIdSuffix: "8819" },
+          });
+      });
+      await settle();
+      expect(connected).toHaveBeenLastCalledWith("");
+      expect(container.textContent).not.toContain("8819");
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+      expect(container.querySelector("button")?.disabled).toBe(true);
+      state = { status: "connected", profile: next, accountIdSuffix: "7728" };
+      await tick();
+      expect(connected).toHaveBeenLastCalledWith(next);
+    },
+  );
+
+  it.each(["1000000000008819", "8819\n", "secret", "１２３４"])(
+    "非法尾号 %j 不进入账号显示或选择，失败只允许重新读取",
+    async (suffix) => {
+      state = { status: "connected", profile, accountIdSuffix: suffix };
+      act(() => root.render(<Harness />));
+      await settle();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "无法读取阿里云连接状态",
+      );
+      expect(connected).not.toHaveBeenCalled();
+      expect(container.textContent).not.toContain(suffix);
+      act(() => container.querySelector("button")!.click());
+      await settle();
+      expect(
+        api.request.mock.calls.every(
+          ([request]) => request.action === "readAlibabaConnection",
+        ),
+      ).toBe(true);
+    },
+  );
+
   it("重开后继续准备、授权与验证，实际可用前保持锁定且不重开授权", async () => {
     act(() => root.render(<Harness />));
     await settle();

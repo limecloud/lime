@@ -13,7 +13,7 @@ export interface CloudAccountView {
 export type CloudResource = Extract<AppServerLoginAccountParams, { type: "cloud" }>["resource"];
 
 let current: CloudAccountView | null = null;
-let snapshot: AppServerGetAccountResponse = { account: null, authorizations: [] };
+let snapshot: AppServerGetAccountResponse = { serviceUrl: null, account: null, authorizations: [] };
 let revision = 0;
 let identityVersion = 0;
 let unwatch: (() => void) | null = null;
@@ -41,17 +41,6 @@ function publish(next: AppServerGetAccountResponse) {
   for (const listener of listeners) listener(current);
 }
 
-export function configuredCloudOrigin(): string | null {
-  const raw = import.meta.env.VITE_LIMECORE_ORIGIN?.trim();
-  if (!raw) return null;
-  const url = new URL(raw);
-  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  if ((url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
-      url.username || url.password || url.pathname !== "/" || url.search || url.hash ||
-      url.origin !== raw.replace(/\/$/, "")) throw new Error("account_origin_invalid");
-  return url.origin;
-}
-
 export async function readCloudAccountState(authorizationId?: string): Promise<AppServerGetAccountResponse> {
   const ticket = ++revision;
   const result = await readAccount(authorizationId ? { authorizationId } : {});
@@ -68,10 +57,8 @@ export async function startCloudAuthorization(params: {
   resource?: CloudResource;
   installation?: Extract<AppServerLoginAccountParams, { type: "cloud" }>["installation"];
 }) {
-  const baseUrl = current?.account.baseUrl ?? configuredCloudOrigin();
-  if (!baseUrl) throw new Error("account_service_unconfigured");
   ++revision;
-  const result = await loginAccount({ type: "cloud", baseUrl, ...params });
+  const result = await loginAccount({ type: "cloud", ...params });
   await readCloudAccountState();
   await openExternalUrlWithSystemBrowser(result.authUrl);
   schedulePoll();

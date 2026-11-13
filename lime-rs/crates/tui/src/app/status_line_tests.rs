@@ -306,6 +306,59 @@ fn token_usage_handoff_hydrates_then_replays_only_the_target_threads_buffer() {
 }
 
 #[test]
+fn resumed_waiting_thread_seeds_live_status_before_notification_replay() {
+    let mut app = app();
+    app.hydrate_thread(serde_json::from_value(json!({
+        "id": "background", "sessionId": "session-background", "preview": "", "ephemeral": false,
+        "modelProvider": "fixture", "createdAt": 1, "updatedAt": 1,
+        "status": {"type": "active", "activeFlags": ["waitingOnApproval"]},
+        "cwd": "/workspace", "cliVersion": "test", "source": "cli", "turns": []
+    })).unwrap());
+    app.set_thread_id("background".into());
+    assert_eq!(app.live_thread_status(), Some("waiting approval"));
+    assert_eq!(
+        app.status_surface_data().status.as_deref(),
+        Some("waiting approval")
+    );
+    assert_eq!(
+        Locale::EnUs.status("waiting approval"),
+        "waiting for approval"
+    );
+    app.note_thread_status(
+        "background",
+        &app_server_protocol::protocol::v2::ThreadStatus::Active {
+            active_flags: vec![
+                app_server_protocol::protocol::v2::ThreadActiveFlag::WaitingOnUserInput,
+            ],
+        },
+    );
+    assert_eq!(app.live_thread_status(), Some("waiting input"));
+    app.note_thread_status(
+        "background",
+        &app_server_protocol::protocol::v2::ThreadStatus::Idle,
+    );
+    assert_eq!(app.live_thread_status(), None);
+    assert_eq!(app.status_surface_data().status.as_deref(), Some("ready"));
+}
+
+#[test]
+fn status_surface_reports_thread_git_branch_provider_version_and_hostname() {
+    let mut app = app();
+    app.chat_widget.model_provider = Some("fixture-provider".into());
+    app.hydrate_thread(serde_json::from_value(json!({
+        "id": "background", "sessionId": "session-background", "preview": "", "ephemeral": false,
+        "modelProvider": "fixture", "createdAt": 1, "updatedAt": 1, "status": {"type": "idle"},
+        "cwd": "/workspace", "cliVersion": "test", "source": "cli", "turns": [],
+        "gitInfo": {"sha": "abc123", "branch": "feature/status-line"}
+    })).unwrap());
+    app.set_thread_id("background".into());
+    let data = app.status_surface_data();
+    assert_eq!(data.git_branch.as_deref(), Some("feature/status-line"));
+    assert_eq!(data.provider.as_deref(), Some("fixture-provider"));
+    assert_eq!(data.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
 fn ordinary_composer_footer_consumes_current_typed_usage_and_server_total_fallback() {
     let mut app = app();
     app.chat_widget.tui_config.status_line = Some(vec![]);

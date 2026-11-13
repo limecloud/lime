@@ -9,5 +9,5 @@
   "agentChat.home.composer.placeholder": "무엇이든 입력하세요",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "이 파일이나 폴더를 확인해 주세요.",
   "agentChat.home.title": "무엇을 만들어 볼까요?",
-  "agentChat.home.titleInProject": "<projectSelect>{{projectName}}</projectSelect>에서 무엇을 만들어 볼까요?"
+  "agentChat.home.titleInProject": "<projectSelect>{{projectName}}</projectSelect>에서 무엇을 만들고 싶으신가요?"
 }

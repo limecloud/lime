@@ -143,6 +143,98 @@
   "oneOf": [
     {
       "additionalProperties": false,
+      "description": "Short-lived public recipient on the destination; no private key is returned.",
+      "properties": {
+        "action": {
+          "const": "prepareModelConnection",
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "operationId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Main-only local action; the selected key is returned only as age ciphertext.",
+      "properties": {
+        "action": {
+          "const": "sealModelConnection",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "keyId": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "recipient": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "expiresAt",
+        "keyId",
+        "operationId",
+        "providerId",
+        "recipient"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Authenticated destination import; receipt and Provider commit atomically.",
+      "properties": {
+        "action": {
+          "const": "applyModelConnection",
+          "type": "string"
+        },
+        "ciphertext": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "ciphertext",
+        "operationId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "readModelConnection",
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "operationId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
       "properties": {
         "action": {
           "const": "connectAlibaba",
@@ -270,6 +362,28 @@
     },
     {
       "additionalProperties": false,
+      "description": "Check local connectivity for this exact valid quote before paid purchase.\nNo cloud resources are changed and no public address is returned.",
+      "properties": {
+        "action": {
+          "const": "preflightEcsPurchase",
+          "type": "string"
+        },
+        "quoteId": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/EcsDesktopSpec"
+        }
+      },
+      "required": [
+        "action",
+        "quoteId",
+        "spec"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
       "description": "Read the original preparation, or explicitly authorize a network-only ROS stack.\nNo compute purchase occurs here. Unknown submissions are only inspected.",
       "properties": {
         "action": {
@@ -317,6 +431,32 @@
         "action",
         "profile",
         "regionId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Authorize two fixed connection ports from the current public IPv4 only.\nOnly a verified Lime-created dedicated network can be changed.",
+      "properties": {
+        "action": {
+          "const": "prepareEcsConnection",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "operationId",
+        "resource"
       ],
       "type": "object"
     },
@@ -752,6 +892,122 @@
     },
     {
       "additionalProperties": false,
+      "description": "Main-only public software distribution. Never available through Renderer JSONL.",
+      "properties": {
+        "action": {
+          "const": "prepareRuntimeDistribution",
+          "type": "string"
+        },
+        "archiveBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "archiveSha256": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "archiveBytes",
+        "archiveSha256",
+        "operationId",
+        "profile",
+        "regionId",
+        "version"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "readRuntimeDistribution",
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "operationId",
+        "profile",
+        "regionId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Returns a short-lived GET capability to the local native host only.",
+      "properties": {
+        "action": {
+          "const": "signRuntimeDistribution",
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "operationId",
+        "profile",
+        "regionId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "cleanupRuntimeDistribution",
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "regionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "operationId",
+        "profile",
+        "regionId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
       "properties": {
         "action": {
           "const": "transferOssArchive",
@@ -1036,6 +1292,66 @@
         "operationId",
         "resource",
         "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Stop, preserve one encrypted system disk as a verified private image, then release.\nReusing the operation ID resumes only its existing durable child operations.",
+      "properties": {
+        "action": {
+          "const": "hibernateEcs",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "discardData": {
+          "type": "boolean"
+        },
+        "includeCredentials": {
+          "type": "boolean"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudDesktopResource"
+        },
+        "workSaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "discardData",
+        "includeCredentials",
+        "operationId",
+        "resource",
+        "workSaved"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "Stop future hibernation steps; cannot undo or cancel an initiated release.",
+      "properties": {
+        "action": {
+          "const": "cancelEcsHibernation",
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "confirmation",
+        "operationId"
       ],
       "type": "object"
     },

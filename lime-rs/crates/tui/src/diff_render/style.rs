@@ -1,4 +1,4 @@
-//! Codex diff surfaces: full row fill, independent gutter/sign, readable syntax text.
+//! 上游 diff surfaces: full row fill, independent gutter/sign, readable syntax text.
 
 use super::DiffLineKind;
 use crate::style::{is_light, readable_color_on};

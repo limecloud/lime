@@ -22,7 +22,7 @@ pub(super) fn prepare(request: &RuntimeToolExecutionRequest<'_>) -> Result<Prepa
             return Err("cloud_tool_input_invalid".into());
         }
     }
-    match request.tool_name {
+    let mut prepared = match request.tool_name {
         "WebSearch" => {
             fields(
                 request.params,
@@ -31,6 +31,8 @@ pub(super) fn prepare(request: &RuntimeToolExecutionRequest<'_>) -> Result<Prepa
                     "allowed_domains",
                     "blocked_domains",
                     "operation_key",
+                    "price_version",
+                    "max_credits",
                 ],
             )?;
             let input: WebSearchInput = serde_json::from_value(request.params.clone())
@@ -57,6 +59,8 @@ pub(super) fn prepare(request: &RuntimeToolExecutionRequest<'_>) -> Result<Prepa
                     "max_chars",
                     "max_chunks",
                     "operation_key",
+                    "price_version",
+                    "max_credits",
                 ],
             )?;
             let input: WebFetchInput = serde_json::from_value(request.params.clone())
@@ -79,8 +83,15 @@ pub(super) fn prepare(request: &RuntimeToolExecutionRequest<'_>) -> Result<Prepa
                 input: json!({"url":input.url,"maxCharacters":input.max_chars.unwrap_or(20000)}),
             })
         }
-        _ => Err("cloud_tool_unavailable".into()),
+        _ => Err("cloud_tool_unavailable".to_owned()),
+    }?;
+    if let Some(budget) =
+        super::super::billing::Budget::parse(request.params, "price_version", "max_credits")?
+    {
+        prepared.input["priceVersion"] = json!(budget.version);
+        prepared.input["maxCredits"] = json!(budget.maximum.to_string());
     }
+    Ok(prepared)
 }
 
 pub(super) fn project(
@@ -99,6 +110,12 @@ pub(super) fn project(
     {
         return Err("cloud_response_invalid".into());
     }
+    let prepared = prepare(request)?;
+    super::super::billing::validate_usage(
+        &body["usage"],
+        body["status"].as_str().unwrap_or_default(),
+        &prepared.input,
+    )?;
     match body["status"].as_str() {
         Some("running" | "failed" | "outcome_unknown") => return Ok(body),
         Some("completed") => {}

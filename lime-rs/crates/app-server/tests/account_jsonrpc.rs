@@ -8,6 +8,45 @@ mod stdio;
 use issuer::*;
 
 #[tokio::test]
+async fn public_native_service_configuration_rejects_caller_origins_and_is_shared_after_restart() {
+    let temp = TempDir::new().unwrap();
+    let fixture = Fixture::start().await;
+    let first = server(temp.path()).await;
+    assert!(rpc(&first, "account/read", json!({})).await["serviceUrl"].is_null());
+    assert!(raw(
+        &first,
+        "account/login/start",
+        json!({
+            "type":"cloud", "baseUrl":fixture.base, "language":"zh-CN"
+        })
+    )
+    .await
+    .get("error")
+    .is_some());
+    assert_eq!(fixture.count("/auth/config"), 0);
+    rpc(&first, "config/value/write", json!({
+        "keyPath":"cloud.base_url", "value":format!("{}/",fixture.base), "mergeStrategy":"replace"
+    })).await;
+    assert_eq!(
+        rpc(&first, "account/read", json!({})).await["serviceUrl"],
+        fixture.base
+    );
+    let cold = server(temp.path()).await;
+    assert_eq!(
+        rpc(&cold, "account/read", json!({})).await["serviceUrl"],
+        fixture.base
+    );
+    assert!(raw(&cold, "config/value/write", json!({
+        "keyPath":"cloud.base_url", "value":"http://untrusted.example.test", "mergeStrategy":"replace"
+    })).await.get("error").is_some());
+    assert_eq!(
+        rpc(&cold, "account/read", json!({})).await["serviceUrl"],
+        fixture.base
+    );
+    assert_eq!(fixture.count("/auth/config"), 0);
+}
+
+#[tokio::test]
 async fn public_pkce_cold_read_resource_isolation_and_logout() {
     let temp = TempDir::new().unwrap();
     let fixture = Fixture::start().await;

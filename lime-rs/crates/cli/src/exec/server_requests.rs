@@ -38,6 +38,18 @@ fn reply(id: RequestId, result: impl Serialize) -> Result<ServerResponse> {
 
 fn response_for(request: ServerRequest) -> Result<ServerResponse> {
     match request {
+        ServerRequest::ConnectionAuthorize { id, .. } => reply(
+            id,
+            app_server_protocol::protocol::v2::ConnectionAuthorizeResponse {
+                action: app_server_protocol::protocol::v2::AuthorizationAction::Unavailable,
+            },
+        ),
+        ServerRequest::AccountAuthorize { id, .. } => reply(
+            id,
+            app_server_protocol::protocol::v2::AccountAuthorizeResponse {
+                action: app_server_protocol::protocol::v2::AuthorizationAction::Unavailable,
+            },
+        ),
         ServerRequest::CurrentTimeRead { id, .. } => {
             let seconds = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
             reply(

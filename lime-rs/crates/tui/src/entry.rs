@@ -239,6 +239,11 @@ fn styles(kind: EntryKind) -> (&'static str, Style, Style) {
         EntryKind::Warning => ("⚠ ", attention_style(), attention_style()),
         EntryKind::Error => ("■ ", failure_style(), failure_style()),
         EntryKind::System => ("! ", failure_style(), failure_style()),
+        EntryKind::Recap => (
+            "  ",
+            Style::default(),
+            Style::default().add_modifier(Modifier::ITALIC),
+        ),
     }
 }
 
@@ -329,6 +334,23 @@ mod tests {
             .style
             .add_modifier
             .contains(Modifier::DIM));
+    }
+
+    #[test]
+    fn recap_entries_render_as_italic_notices_without_a_failure_marker() {
+        let recap = lines(&entry(
+            EntryKind::Recap,
+            "Conversation recap\n\n  ↳ Recap: shipped the parser",
+        ));
+        assert_eq!(recap[0].spans[0].content.as_ref(), "  ");
+        assert!(recap[0]
+            .spans
+            .iter()
+            .any(|span| span.style.add_modifier.contains(Modifier::ITALIC)));
+        assert!(recap.iter().any(|line| line
+            .spans
+            .iter()
+            .any(|span| span.content.contains("↳ Recap:"))));
     }
 
     #[test]
@@ -431,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn warning_and_error_notices_use_codex_markers_and_bounded_wrapping() {
+    fn warning_and_error_notices_use_upstream_markers_and_bounded_wrapping() {
         crate::terminal_palette::with_test_default_colors(
             crate::terminal_probe::DefaultColors {
                 fg: (255, 255, 255),

@@ -3,8 +3,9 @@
 use super::{permission_profile_id, AppServerSession};
 use anyhow::{Context, Result};
 use app_server_protocol::protocol::v2::{
-    ThreadResumeParams, ThreadResumeResponse, ThreadStartParams, ThreadStartResponse,
-    ThreadStartSource, METHOD_THREAD_RESUME, METHOD_THREAD_START,
+    ThreadResumeParams, ThreadResumeResponse, ThreadSettingsUpdateParams,
+    ThreadSettingsUpdateResponse, ThreadStartParams, ThreadStartResponse, ThreadStartSource,
+    METHOD_THREAD_RESUME, METHOD_THREAD_SETTINGS_UPDATE, METHOD_THREAD_START,
 };
 use std::path::PathBuf;
 
@@ -73,6 +74,116 @@ impl AppServerSession {
             .context("failed to fork App Server thread")?;
         self.thread_id = Some(response.thread.id.clone());
         Ok(response)
+    }
+
+    pub(crate) async fn thread_loaded_list(&self) -> Result<Vec<String>> {
+        let response: app_server_protocol::protocol::v2::ThreadLoadedListResponse = self
+            .request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_LOADED_LIST,
+                app_server_protocol::protocol::v2::ThreadLoadedListParams {
+                    cursor: None,
+                    limit: None,
+                },
+            )
+            .await
+            .context("failed to list loaded App Server threads")?;
+        Ok(response.data)
+    }
+
+    pub(crate) async fn thread_read_metadata(
+        &self,
+        thread_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::Thread> {
+        let response: app_server_protocol::protocol::v2::ThreadReadResponse = self
+            .request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_READ,
+                app_server_protocol::protocol::v2::ThreadReadParams {
+                    thread_id,
+                    include_turns: false,
+                },
+            )
+            .await
+            .context("failed to read App Server thread metadata")?;
+        Ok(response.thread)
+    }
+
+    pub(crate) async fn thread_unsubscribe(&self, thread_id: String) -> Result<()> {
+        let _: app_server_protocol::protocol::v2::ThreadUnsubscribeResponse = self
+            .request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_UNSUBSCRIBE,
+                app_server_protocol::protocol::v2::ThreadUnsubscribeParams { thread_id },
+            )
+            .await
+            .context("failed to unsubscribe App Server thread")?;
+        Ok(())
+    }
+
+    pub(crate) async fn start_recap_request(
+        &self,
+        model: Option<String>,
+        model_provider: Option<String>,
+        cwd: String,
+        history: String,
+    ) -> Result<String> {
+        use app_server_protocol::protocol::v2::{
+            ThreadSource, ThreadStartParams, ThreadStartResponse, TurnStartParams,
+            TurnStartResponse, METHOD_THREAD_START, METHOD_TURN_START,
+        };
+        let started: ThreadStartResponse = self
+            .request_handle
+            .request(
+                METHOD_THREAD_START,
+                ThreadStartParams {
+                    model,
+                    model_provider,
+                    cwd: Some(cwd),
+                    ephemeral: Some(true),
+                    thread_source: Some(ThreadSource::Feature("system".to_string())),
+                    ..ThreadStartParams::default()
+                },
+            )
+            .await
+            .context("failed to start the recap thread")?;
+        let thread_id = started.thread.id.clone();
+        let input = vec![app_server_protocol::protocol::v2::UserInput::Text {
+            text: crate::app::recap::recap_prompt(&history),
+            text_elements: Vec::new(),
+        }];
+        let _: TurnStartResponse = self
+            .request_handle
+            .request(
+                METHOD_TURN_START,
+                TurnStartParams {
+                    thread_id: thread_id.clone(),
+                    input,
+                    output_schema: Some(crate::app::recap::recap_output_schema()),
+                    ..TurnStartParams::default()
+                },
+            )
+            .await
+            .context("failed to start the recap turn")?;
+        Ok(thread_id)
+    }
+
+    pub(crate) async fn update_thread_cwd(
+        &self,
+        thread_id: String,
+        cwd: String,
+    ) -> Result<ThreadSettingsUpdateResponse> {
+        self.request_handle
+            .request(
+                METHOD_THREAD_SETTINGS_UPDATE,
+                ThreadSettingsUpdateParams {
+                    thread_id,
+                    cwd: Some(cwd),
+                    ..ThreadSettingsUpdateParams::default()
+                },
+            )
+            .await
+            .context("failed to change the App Server working directory")
     }
 
     pub(crate) async fn resume_thread(

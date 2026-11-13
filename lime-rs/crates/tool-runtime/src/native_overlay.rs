@@ -449,6 +449,12 @@ pub fn check_runtime_gateway_tool_permissions(
     turn_context: Option<&RuntimeToolTurnContext>,
 ) -> RuntimeNativePermissionDecision {
     match tool_name {
+        crate::connection_file::READ_CONNECTED_FILE_TOOL_NAME => {
+            match crate::connection_file::ReadConnectedFileInput::parse(params) {
+                Ok(_) => RuntimeNativePermissionDecision::allow(),
+                Err(_) => RuntimeNativePermissionDecision::deny("Invalid connected file arguments"),
+            }
+        }
         crate::web_search::WEB_SEARCH_TOOL_NAME => {
             check_runtime_web_search_permissions(turn_context)
         }

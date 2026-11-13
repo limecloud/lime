@@ -35,6 +35,7 @@ export enum SettingsTabs {
   // 智能体
   Providers = "providers",
   Plugins = "plugins-settings",
+  McpServers = "mcp-servers",
   ComputerUse = "computer-use",
   CloudDesktops = "cloud-desktops",
   MediaServices = "media-services",

@@ -62,6 +62,8 @@ impl GatewayAppDataSource for PluginLifecycleDataSource {}
 impl MediaAppDataSource for PluginLifecycleDataSource {}
 impl VoiceAppDataSource for PluginLifecycleDataSource {}
 
+impl crate::MarketDataSource for PluginLifecycleDataSource {}
+
 #[async_trait]
 impl PluginDataSource for PluginLifecycleDataSource {
     async fn install_plugin(
@@ -200,6 +202,7 @@ async fn plugin_install_invalidates_concurrent_old_mcp_snapshot_only_after_succe
         }));
         assert_eq!(
             core.install_plugin(PluginInstallParams {
+                remote_release: None,
                 marketplace_path: None,
                 remote_marketplace_name: Some("lime-cloud-publisher".into()),
                 plugin_name: "item_research".into(),

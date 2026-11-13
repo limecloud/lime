@@ -1,7 +1,7 @@
 //! Localized labels for the non-interactive presentation surface.
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) enum Locale {
+pub(crate) enum Locale {
     ZhCn,
     ZhTw,
     #[default]
@@ -11,7 +11,7 @@ pub(super) enum Locale {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum Label {
+pub(crate) enum Label {
     Exec,
     ApplyPatch,
     Patch,
@@ -32,6 +32,15 @@ pub(super) enum Label {
     TokensUsed,
     ModelRerouted,
     SessionId,
+    LoginOpen,
+    LoginPending,
+    LoginInterrupted,
+    LoginUnknown,
+    MarketLoginInterrupted,
+    MarketLoginUnknown,
+    McpLoginInterrupted,
+    LoggedIn,
+    LoggedOut,
 }
 
 impl Locale {
@@ -62,7 +71,7 @@ impl Locale {
         }
     }
 
-    pub(super) fn resolve(explicit: Option<&str>) -> Self {
+    pub(crate) fn resolve(explicit: Option<&str>) -> Self {
         Self::resolve_values(
             explicit.into_iter().map(str::to_owned).chain(
                 ["LIME_LOCALE", "LC_ALL", "LANG"]
@@ -79,8 +88,69 @@ impl Locale {
             .unwrap_or_default()
     }
 
-    pub(super) fn label(self, label: Label) -> &'static str {
+    pub(crate) fn tag(self) -> &'static str {
+        match self {
+            Self::ZhCn => "zh-CN",
+            Self::ZhTw => "zh-TW",
+            Self::EnUs => "en-US",
+            Self::JaJp => "ja-JP",
+            Self::KoKr => "ko-KR",
+        }
+    }
+
+    pub(crate) fn label(self, label: Label) -> &'static str {
         let values = match label {
+            Label::LoginOpen => [
+                "在浏览器中完成登录：",
+                "在瀏覽器中完成登入：",
+                "Complete sign-in in your browser:",
+                "ブラウザーでログインしてください：",
+                "브라우저에서 로그인을 완료하세요:",
+            ],
+            Label::LoginPending => [
+                "继续等待原登录，请在已打开的浏览器中完成。",
+                "繼續等待原登入，請在已開啟的瀏覽器中完成。",
+                "Waiting for the original sign-in. Complete it in the browser already opened.",
+                "元のログインを待機中です。開いているブラウザーで完了してください。",
+                "기존 로그인을 기다리는 중입니다. 이미 열린 브라우저에서 완료하세요.",
+            ],
+            Label::LoginInterrupted => [
+                "已停止等待。运行 lime login 可继续原登录，lime logout 可清除本机登录。",
+                "已停止等待。執行 lime login 可繼續原登入，lime logout 可清除本機登入。",
+                "Stopped waiting. Run lime login to resume or lime logout to clear local sign-in.",
+                "待機を停止しました。lime login で再開、lime logout でローカルログインを削除できます。",
+                "대기를 중지했습니다. lime login으로 재개하거나 lime logout으로 로컬 로그인을 지울 수 있습니다.",
+            ],
+            Label::LoginUnknown => [
+                "登录结果尚未确认。运行 lime login status 查看原结果。",
+                "登入結果尚未確認。執行 lime login status 查看原結果。",
+                "Sign-in outcome is unknown. Run lime login status to check the original result.",
+                "ログイン結果を確認できません。lime login status で元の結果を確認してください。",
+                "로그인 결과를 확인할 수 없습니다. lime login status로 기존 결과를 확인하세요.",
+            ],
+            Label::MarketLoginInterrupted => [
+                "已停止等待。运行 lime login --resource market 可继续原市场授权，lime logout 可清除本机登录。",
+                "已停止等待。執行 lime login --resource market 可繼續原市場授權，lime logout 可清除本機登入。",
+                "Stopped waiting. Run lime login --resource market to resume market authorization or lime logout to clear local sign-in.",
+                "待機を停止しました。lime login --resource market でマーケット認証を再開、lime logout でローカルログインを削除できます。",
+                "대기를 중지했습니다. lime login --resource market으로 마켓 인증을 재개하거나 lime logout으로 로컬 로그인을 지울 수 있습니다.",
+            ],
+            Label::MarketLoginUnknown => [
+                "市场授权结果尚未确认。运行 lime login status --resource market 查看原结果。",
+                "市場授權結果尚未確認。執行 lime login status --resource market 查看原結果。",
+                "Market authorization outcome is unknown. Run lime login status --resource market to check the original result.",
+                "マーケット認証の結果を確認できません。lime login status --resource market で元の結果を確認してください。",
+                "마켓 인증 결과를 확인할 수 없습니다. lime login status --resource market으로 기존 결과를 확인하세요.",
+            ],
+            Label::LoggedIn => ["已登录", "已登入", "Signed in", "ログイン済み", "로그인됨"],
+            Label::McpLoginInterrupted => [
+                "已停止等待授权",
+                "已停止等待授權",
+                "Stopped waiting for authorization",
+                "認証の待機を停止しました",
+                "인증 대기를 중지했습니다",
+            ],
+            Label::LoggedOut => ["未登录", "未登入", "Signed out", "未ログイン", "로그아웃됨"],
             Label::SessionId => [
                 "会话 ID",
                 "對話 ID",

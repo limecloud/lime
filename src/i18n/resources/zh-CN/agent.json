@@ -1650,5 +1650,11 @@
   "agentChat.forkFromOlderTurn.worktree": "创建新工作树",
   "agentChat.forkFromOlderTurn.worktreeDescription": "新聊天将拥有独立的工作目录",
   "agentChat.forkFromOlderTurn.worktreeFailed": "创建工作树失败：{{error}}",
-  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "聊天已创建，但设置未能完成：{{error}}"
+  "agentChat.forkFromOlderTurn.forkSynchronizationFailed": "聊天已创建，但设置未能完成：{{error}}",
+  "plugin.catalog.v2.installedVersion": "已安装 {{version}}",
+  "plugin.catalog.v2.installVersion": "安装 {{version}} 版",
+  "plugin.catalog.v2.localVersion": "已安装版本",
+  "plugin.catalog.v2.subtitle": "连接插件，让 Lime 在你的各类工具中协同工作。",
+  "agentChat.inputbar.contextUsage.label": "上下文 {{percent}}%",
+  "agentChat.inputbar.contextUsage.title": "上下文窗口已用 {{used}} / {{total}} tokens"
 }

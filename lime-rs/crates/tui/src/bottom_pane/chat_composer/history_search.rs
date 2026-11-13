@@ -176,7 +176,7 @@ impl ChatComposer {
                     .as_ref()
                     .is_some_and(|search| search.status == HistorySearchStatus::Match)
                 {
-                    // Codex accepts the preview as an editable draft. Submission remains
+                    // 上游 accepts the preview as an editable draft. Submission remains
                     // an explicit follow-up Enter, so reverse search never starts a turn.
                     self.reset_history_navigation();
                     self.vim_history = VimHistory::default();

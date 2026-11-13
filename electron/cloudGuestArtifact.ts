@@ -13,6 +13,8 @@ export type CloudGuestSource = {
   artifactPath?: string;
   artifact: CloudGuestArtifact;
   downloadUrl?: string;
+  /** Main-only temporary distribution identity, never part of a public receipt. */
+  distributionId?: string;
 };
 export const isSha256 = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);

@@ -231,12 +231,12 @@ fn command_popup_completion_is_owned_by_the_pane_but_execution_is_a_host_action(
     );
     assert_eq!(pane.composer_text(), "/status");
     assert!(!pane.popup_active());
-    pane.set_composer_text("/effort".into());
+    pane.set_composer_text("/rename".into());
     assert_eq!(
         pane.handle_event(Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE))),
         Some(ChatWidgetAction::Input(InputResult::None)),
     );
-    assert_eq!(pane.composer_text(), "/effort ");
+    assert_eq!(pane.composer_text(), "/rename ");
 }
 
 fn pane_with_completion(kind: &str) -> (BottomPane, &'static str) {
@@ -447,7 +447,7 @@ fn completion_does_not_steal_altgr_text_or_editor_control_j_and_k() {
 fn slash_completion_keys_preserve_arguments_before_host_dispatch() {
     for code in [KeyCode::Tab, KeyCode::Char('/'), KeyCode::Enter] {
         for (draft, cursor, expected, executes) in [
-            ("/effo high", 5, "/effort high", false),
+            ("/rena name", 5, "/rename name", false),
             ("/exp result.md", 4, "/export result.md", true),
         ] {
             let mut pane = BottomPane::default();

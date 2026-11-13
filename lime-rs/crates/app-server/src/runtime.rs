@@ -54,6 +54,7 @@ mod instructions;
 mod inter_agent_input;
 mod load_context;
 pub(crate) mod local_environments;
+mod market;
 mod mcp;
 mod media_task_read_model;
 mod media_tasks;
@@ -88,8 +89,8 @@ pub use execution_backend::ExecutionBackend;
 pub(crate) use prompt_history::PromptHistoryStore;
 #[doc(hidden)]
 pub use provider_history::ProviderTurnHistory;
-mod config_requirements;
 mod computer_use;
+mod config_requirements;
 mod queued_turn_intent;
 mod read_model;
 mod read_model_turn_usage;
@@ -156,6 +157,7 @@ pub use app_data::AutomationOverviewAppDataSource;
 pub use app_data::ConnectAppDataSource;
 pub use app_data::DiagnosticsAppDataSource;
 pub use app_data::GatewayAppDataSource;
+pub use app_data::MarketDataSource;
 pub use app_data::McpAppDataSource;
 pub use app_data::MediaAppDataSource;
 pub use app_data::MemoryAppDataSource;
@@ -493,6 +495,7 @@ impl RuntimeCore {
 
     pub fn with_app_config_path(mut self, path: PathBuf) -> Self {
         self.app_config_path = path;
+        self.set_account_config_path();
         self
     }
 

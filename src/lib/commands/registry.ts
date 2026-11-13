@@ -82,7 +82,7 @@ export function setCommandBindingOverrides(
 function publish() {
   const active = new Map<string, RegisteredCommand>();
   for (const entry of entries) {
-    if (entry.enabled !== false && entry.bindings.length > 0) {
+    if (entry.enabled !== false) {
       active.set(entry.id, {
         id: entry.id,
         titleKey: entry.titleKey,

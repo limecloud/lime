@@ -1,7 +1,7 @@
 use super::*;
 use std::os::unix::fs::PermissionsExt;
 
-fn fixture() -> (tempfile::TempDir, CloudDesktopService) {
+pub(in crate::cloud_desktop_service::ecs) fn fixture() -> (tempfile::TempDir, CloudDesktopService) {
     let directory = tempfile::tempdir().unwrap();
     let cli = directory.path().join("aliyun");
     fs::write(&cli, r#"#!/usr/bin/env python3
@@ -24,7 +24,7 @@ elif action=='DescribeAvailableResource':
 elif action=='DescribePrice':
  out={'PriceInfo':{'Price':{'TradePrice':0.4 if arg('--InstanceType')=='ecs.cheaper.large' else 0.8,'Currency':'CNY'}}}
 elif action=='CreateStack':
- receipt=next(json.loads(p.read_text()) for p in (root/'receipts').glob('*.json') if not p.name.startswith(('quote-','resource-')))
+ receipt=json.loads((root/'receipts'/(arg('--ClientToken')+'.json')).read_text())
  assert receipt['outcome']=='unknown'
  assert arg('--DisableRollback')=='false'
  assert arg('--ClientToken')==receipt['operationId']
@@ -39,8 +39,14 @@ elif action=='ListStacks':
  out={'Stacks':items,'TotalCount':len(items)}
 elif action=='GetStack':
  s=json.loads((root/'stack').read_text())
- status='CREATE_ROLLBACK_COMPLETE' if flag('rollback') else 'CREATE_ROLLBACK_FAILED' if flag('rollback-failed') else 'CREATE_IN_PROGRESS' if flag('pending') else 'CREATE_COMPLETE'
+ status='DELETE_COMPLETE' if flag('deleted') else 'CREATE_ROLLBACK_COMPLETE' if flag('rollback') else 'CREATE_ROLLBACK_FAILED' if flag('rollback-failed') else 'CREATE_IN_PROGRESS' if flag('pending') else 'CREATE_COMPLETE'
  out={'StackId':'stack-test','StackName':s['name'],'RegionId':'cn-test','Status':status,'Tags':[{'Key':'lime-operation','Value':'wrong' if flag('wrong-tag') else s['operation']}],'Outputs':[{'OutputKey':key,'OutputValue':value} for key,value in [('VpcId','vpc-test'),('VSwitchId','vsw-test'),('SecurityGroupId','sg-test')]],'StatusReason':'must-not-project-secret'}
+ if flag('deleted') and not flag('wrong-tag'): out['Tags']=[]
+elif action=='ListStackResources':
+ resources=[{'LogicalResourceId':logical,'PhysicalResourceId':physical,'ResourceType':kind,'StackId':'stack-test','Status':'DELETE_COMPLETE'} for logical,physical,kind in [('Vpc','vpc-test','ALIYUN::ECS::VPC'),('Switch','vsw-test','ALIYUN::ECS::VSwitch'),('Group','sg-test','ALIYUN::ECS::SecurityGroup')]]
+ if flag('retained'): resources[0]['Status']='DELETE_SKIPPED'
+ if flag('changed-deleted'): resources[1]['PhysicalResourceId']='vsw-other'
+ out={'Resources':resources}
 elif action=='GetTemplate':
  s=json.loads((root/'stack').read_text());body=json.loads(s['template'])
  if flag('changed-template'): body['Resources']['Unexpected']={'Type':'ALIYUN::ECS::Instance'}
@@ -228,6 +234,77 @@ async fn rollback_is_observed_and_only_confirmed_completed_rollback_allows_a_new
             .count(),
         2
     );
+}
+
+#[tokio::test]
+async fn deleted_network_requires_all_original_resources_removed_before_new_preparation() {
+    let (directory, service) = fixture();
+    service.request(prepare("network-1")).await.unwrap();
+    service
+        .read_ecs_purchase_preparation("cn-test", "test")
+        .await
+        .unwrap();
+    fs::write(directory.path().join("deleted"), "").unwrap();
+    for flag in ["retained", "changed-deleted", "wrong-tag"] {
+        fs::write(directory.path().join(flag), "").unwrap();
+        assert!(
+            service
+                .read_ecs_purchase_preparation("cn-test", "test")
+                .await
+                .is_err(),
+            "{flag}"
+        );
+        assert!(
+            service.request(prepare("network-2")).await.is_err(),
+            "{flag}"
+        );
+        assert_eq!(
+            calls(directory.path())
+                .iter()
+                .filter(|call| call[1] == "CreateStack")
+                .count(),
+            1
+        );
+        fs::remove_file(directory.path().join(flag)).unwrap();
+    }
+    assert_eq!(
+        service
+            .read_ecs_purchase_preparation("cn-test", "test")
+            .await
+            .unwrap()["outcome"],
+        "notPrepared"
+    );
+    let old = service.request(prepare("network-1")).await.unwrap().data;
+    assert_eq!(old["outcome"], "networkDeleted");
+    assert_eq!(old["requiresInspection"], false);
+    let next = service.request(prepare("network-2")).await.unwrap().data;
+    assert_eq!(next["outcome"], "networkPreparing");
+    let log = calls(directory.path());
+    assert_eq!(
+        log.iter().filter(|call| call[1] == "CreateStack").count(),
+        2
+    );
+    assert!(!log
+        .iter()
+        .any(|call| call[1] == "RunInstances" || call[1] == "DeleteStack"));
+}
+
+#[tokio::test]
+async fn deleted_untagged_stack_without_prior_resource_verification_blocks_new_preparation() {
+    let (directory, service) = fixture();
+    service.request(prepare("network-1")).await.unwrap();
+    fs::write(directory.path().join("deleted"), "").unwrap();
+    assert!(service
+        .read_ecs_purchase_preparation("cn-test", "test")
+        .await
+        .is_err());
+    assert!(service.request(prepare("network-2")).await.is_err());
+    let log = calls(directory.path());
+    assert_eq!(
+        log.iter().filter(|call| call[1] == "CreateStack").count(),
+        1
+    );
+    assert!(!log.iter().any(|call| call[1] == "RunInstances"));
 }
 
 #[tokio::test]

@@ -8,18 +8,12 @@ export function DeleteArchivedChatsDialog({
   onConfirm,
   onClose,
   onRestoreFocus,
-  scope = "single",
-  count = 1,
-  projectLabel,
 }: {
   pending: boolean;
   failed: boolean;
   onConfirm: () => void;
   onClose: () => void;
   onRestoreFocus: () => void;
-  scope?: "single" | "project" | "all";
-  count?: number;
-  projectLabel?: string;
 }) {
   const { t } = useTranslation("settings");
   return (
@@ -43,34 +37,14 @@ export function DeleteArchivedChatsDialog({
             }}
           >
             <Dialog.Title className="text-base font-medium">
-              {scope === "all"
-                ? t("settings.archivedConversations.deleteConfirm.allTitle")
-                : scope === "project"
-                  ? t(
-                      "settings.archivedConversations.deleteConfirm.projectTitle",
-                    )
-                  : t("settings.archivedConversations.deleteConfirm.title")}
+              {t("settings.archivedConversations.deleteConfirm.title")}
             </Dialog.Title>
             <Dialog.Description className="mt-2 text-[13px] text-muted-foreground">
-              {scope === "all"
-                ? t("settings.archivedConversations.deleteConfirm.allBody", {
-                    count,
-                  })
-                : scope === "project"
-                  ? t(
-                      "settings.archivedConversations.deleteConfirm.projectBody",
-                      { count, project: projectLabel },
-                    )
-                  : t("settings.archivedConversations.deleteConfirm.body")}
+              {t("settings.archivedConversations.deleteConfirm.body")}
             </Dialog.Description>
             {failed ? (
               <p role="alert" className="mt-3 text-destructive">
-                {scope === "single"
-                  ? t("settings.archivedConversations.toast.deleteFailed")
-                  : t(
-                      "settings.archivedConversations.toast.batchDeleteFailed",
-                      { count },
-                    )}
+                {t("settings.archivedConversations.toast.deleteFailed")}
               </p>
             ) : null}
             <div className="mt-5 flex justify-end gap-2">

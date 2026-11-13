@@ -23,6 +23,7 @@ impl Peer {
             .arg(root.join("app"))
             .arg("--data-dir")
             .arg(root.join("agent"))
+            .env("LIME_CONFIG_PATH", root.join("config.yaml"))
             .env("HTTP_PROXY", "http://127.0.0.1:1")
             .env("HTTPS_PROXY", "http://127.0.0.1:1")
             .env("ALL_PROXY", "http://127.0.0.1:1")
@@ -116,12 +117,17 @@ impl Peer {
 async fn account_real_stdio_processes_share_pkce_credentials_and_logout() {
     let temp = TempDir::new().unwrap();
     let fixture = Fixture::start().await;
+    std::fs::write(
+        temp.path().join("config.yaml"),
+        json!({"cloud":{"base_url":fixture.base}}).to_string(),
+    )
+    .unwrap();
     let mut first = Peer::start(temp.path(), "first").await;
     let login = first
         .rpc(
             "account/login/start",
             Some(json!({
-                "type":"cloud","baseUrl":fixture.base,"resource":"default","language":"zh-CN"
+                "type":"cloud","resource":"default","language":"zh-CN"
             })),
         )
         .await;
@@ -149,12 +155,17 @@ async fn account_real_stdio_processes_share_pkce_credentials_and_logout() {
 async fn account_real_stdio_restart_resumes_the_original_pending_callback() {
     let temp = TempDir::new().unwrap();
     let fixture = Fixture::start().await;
+    std::fs::write(
+        temp.path().join("config.yaml"),
+        json!({"cloud":{"base_url":fixture.base}}).to_string(),
+    )
+    .unwrap();
     let mut first = Peer::start(temp.path(), "pending-owner").await;
     let login = first
         .rpc(
             "account/login/start",
             Some(json!({
-                "type":"cloud", "baseUrl":fixture.base, "resource":"default", "language":"zh-CN"
+                "type":"cloud",  "resource":"default", "language":"zh-CN"
             })),
         )
         .await;
@@ -187,6 +198,11 @@ async fn account_real_stdio_restart_resumes_the_original_pending_callback() {
 async fn account_real_stdio_unknown_exchange_restart_never_reopens_or_resubmits_code() {
     let temp = TempDir::new().unwrap();
     let fixture = Fixture::start().await;
+    std::fs::write(
+        temp.path().join("config.yaml"),
+        json!({"cloud":{"base_url":fixture.base}}).to_string(),
+    )
+    .unwrap();
     fixture.state.lock().unwrap().responses.insert(
         "/api/v1/client/auth/token".into(),
         (502, b"unavailable".to_vec()),
@@ -196,7 +212,7 @@ async fn account_real_stdio_unknown_exchange_restart_never_reopens_or_resubmits_
         .rpc(
             "account/login/start",
             Some(json!({
-                "type":"cloud", "baseUrl":fixture.base, "resource":"default", "language":"zh-CN"
+                "type":"cloud",  "resource":"default", "language":"zh-CN"
             })),
         )
         .await;

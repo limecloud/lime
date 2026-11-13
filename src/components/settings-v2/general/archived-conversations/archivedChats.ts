@@ -61,12 +61,12 @@ export function groupArchivedChats({
   entries,
   projectFilter,
   query,
-  sort,
+  sort = "updated",
 }: {
   entries: ArchivedChat[];
   projectFilter: string;
   query: string;
-  sort: ArchivedChatSort;
+  sort?: ArchivedChatSort;
 }): ArchivedChatGroup[] {
   let visible = entries.filter(
     (entry) =>

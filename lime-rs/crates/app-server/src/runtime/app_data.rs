@@ -2,6 +2,7 @@ mod automation;
 mod connect;
 mod diagnostics;
 mod gateway;
+mod market;
 mod mcp;
 mod media;
 mod memory;
@@ -18,6 +19,7 @@ pub use automation::AutomationOverviewAppDataSource;
 pub use connect::ConnectAppDataSource;
 pub use diagnostics::DiagnosticsAppDataSource;
 pub use gateway::GatewayAppDataSource;
+pub use market::MarketDataSource;
 pub use mcp::McpAppDataSource;
 pub use media::MediaAppDataSource;
 pub use memory::MemoryAppDataSource;
@@ -41,6 +43,7 @@ pub trait AppDataSource:
     + MediaAppDataSource
     + VoiceAppDataSource
     + PluginDataSource
+    + MarketDataSource
     + AutomationOverviewAppDataSource
     + McpAppDataSource
     + AutomationManagementAppDataSource
@@ -63,6 +66,7 @@ impl<T> AppDataSource for T where
         + MediaAppDataSource
         + VoiceAppDataSource
         + PluginDataSource
+        + MarketDataSource
         + AutomationOverviewAppDataSource
         + McpAppDataSource
         + AutomationManagementAppDataSource

@@ -1,6 +1,6 @@
 //! Syntax highlighting for terminal code blocks and diffs.
 //!
-//! This is the terminal-only subset of Codex's highlighter. It deliberately
+//! This is the terminal-only subset of 上游 highlighter. It deliberately
 //! uses the ANSI theme so colors follow the user's terminal palette. Inputs
 //! outside the bounded limits fall back to plain text.
 
@@ -102,7 +102,7 @@ pub(crate) fn exceeds_highlight_limits(total_bytes: usize, total_lines: usize) -
 }
 
 /// Lime currently uses one terminal ANSI theme, so the revision is stable.
-/// Keeping this boundary matches Codex's streaming highlighter contract and
+/// Keeping this boundary matches 上游 streaming highlighter contract and
 /// leaves room for a future theme owner without changing its callers.
 pub(crate) fn syntax_theme_revision() -> u64 {
     0

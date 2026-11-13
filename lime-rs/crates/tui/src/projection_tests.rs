@@ -917,7 +917,7 @@ fn patch_format_preserves_rename_destination() {
 }
 
 #[test]
-fn web_search_action_details_follow_codex_display_contract() {
+fn web_search_action_details_follow_upstream_display_contract() {
     let cases = [
         (
             Some(json!({"type": "search", "query": "Rust release"})),
@@ -965,7 +965,7 @@ fn web_search_action_details_follow_codex_display_contract() {
 }
 
 #[test]
-fn web_search_realtime_lifecycle_uses_codex_started_and_completed_labels() {
+fn web_search_realtime_lifecycle_uses_upstream_started_and_completed_labels() {
     let item = ThreadItem::WebSearch(WebSearchItem {
         id: "web-search-lifecycle".to_string(),
         query: Some("Rust release".to_string()),

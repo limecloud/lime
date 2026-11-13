@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "arguments": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "authentication": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "executable": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "scopes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "tools": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "transport": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "arguments",
+    "authentication",
+    "scopes",
+    "tools",
+    "transport"
+  ],
+  "title": "MarketMcp",
+  "type": "object"
+}

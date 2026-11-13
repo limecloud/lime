@@ -1,4 +1,4 @@
-use super::{super::store, intent::ToolIntent};
+use super::{super::store, connections::ConnectionTask, intent::ToolIntent, login::LoginTask};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     fs,
@@ -25,10 +25,54 @@ impl CallJournal {
         let parent = account_path.parent().ok_or("account_store_unavailable")?;
         store::check_directory(parent)?;
         let root = parent.join("tool-calls");
-        for directory in [&root, &root.join("bindings"), &root.join("pending")] {
+        for directory in [
+            &root,
+            &root.join("bindings"),
+            &root.join("pending"),
+            &root.join("logins"),
+            &root.join("connections"),
+        ] {
             store::check_directory(directory)?;
         }
         Ok(Self { root })
+    }
+
+    pub(super) fn connection(&self, key: &str) -> Result<Option<ConnectionTask>, String> {
+        valid_key(key)?;
+        let task: Option<ConnectionTask> =
+            read(&self.root.join("connections").join(format!("{key}.json")))?;
+        if task.as_ref().is_some_and(|task| task.key != key) {
+            return Err("operation_store_invalid".into());
+        }
+        Ok(task)
+    }
+
+    pub(super) fn save_connection(&self, task: &ConnectionTask) -> Result<(), String> {
+        valid_key(&task.key)?;
+        self.write(
+            &self
+                .root
+                .join("connections")
+                .join(format!("{}.json", task.key)),
+            task,
+        )
+    }
+
+    pub(super) fn login(&self, key: &str) -> Result<Option<LoginTask>, String> {
+        valid_key(key)?;
+        let task: Option<LoginTask> = read(&self.root.join("logins").join(format!("{key}.json")))?;
+        if task.as_ref().is_some_and(|task| task.key != key) {
+            return Err("operation_store_invalid".into());
+        }
+        Ok(task)
+    }
+
+    pub(super) fn save_login(&self, task: &LoginTask) -> Result<(), String> {
+        valid_key(&task.key)?;
+        self.write(
+            &self.root.join("logins").join(format!("{}.json", task.key)),
+            task,
+        )
     }
 
     pub(super) fn intent(&self, key: &str) -> Result<Option<ToolIntent>, String> {

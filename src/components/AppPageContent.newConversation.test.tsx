@@ -13,9 +13,6 @@ vi.mock("./scheduled-tasks/ScheduledTasksPage", () => ({
 }));
 vi.mock("./channels/ImConfigPage", () => ({ ImConfigPage: () => null }));
 vi.mock("./settings-v2", () => ({ SettingsPage: () => null }));
-vi.mock("@/features/plugin/ui/PluginWorkspaceTabs", () => ({
-  PluginWorkspaceTabs: () => null,
-}));
 vi.mock("./agent/chat", () => ({
   LocalConversationPage: (props: Record<string, unknown>) => {
     page.props = props;

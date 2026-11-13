@@ -771,14 +771,11 @@ fn canonical_tool_item(event: &AgentEvent) -> Option<CanonicalToolItem> {
                 .payload
                 .get("toolCallId")
                 .or_else(|| event.payload.get("commandId"))
+                .or_else(|| item.metadata.get("exec_command_call_id"))
                 .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
                 .map(ToOwned::to_owned)
-                .or_else(|| {
-                    item.item_id
-                        .as_str()
-                        .strip_prefix("item_")
-                        .map(ToOwned::to_owned)
-                })?;
+                .unwrap_or_else(|| item.item_id.as_str().to_string());
             let mut arguments = Map::new();
             arguments.insert("cmd".to_string(), Value::String(command));
             if let Some(cwd) = cwd {

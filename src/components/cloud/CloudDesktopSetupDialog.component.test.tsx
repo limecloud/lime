@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import CloudDesktopSetupDialog from "./CloudDesktopSetupDialog";
 import { initialEcsSpec } from "@/components/settings-v2/integrations/cloud-desktops/purchaseSpecs";
+import { purchaseNetworkProof } from "@/components/settings-v2/integrations/cloud-desktops/cloudPurchase.testFixtures";
 
 const api = vi.hoisted(() => ({ cloud: vi.fn(), connection: vi.fn() }));
 vi.mock("@/lib/api/cloud", () => ({ requestCloudDesktop: api.cloud }));
@@ -18,7 +19,7 @@ const resource = {
 };
 let root: Root;
 let container: HTMLDivElement;
-let close: ReturnType<typeof vi.fn>;
+let close: ReturnType<typeof vi.fn<() => void>>;
 async function settle() {
   await act(async () => {
     for (let i = 0; i < 20; i++) await Promise.resolve();
@@ -47,7 +48,7 @@ beforeEach(async () => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  close = vi.fn();
+  close = vi.fn<() => void>();
   api.cloud.mockReset();
   api.connection.mockReset();
   api.cloud.mockImplementation(async (request) => ({
@@ -57,8 +58,13 @@ beforeEach(async () => {
         : { name: "开发电脑", status: "Running" },
   }));
   api.connection.mockImplementation(async (request) =>
-    request.action === "checkRuntimeRelease"
-      ? { kind: "guestRelease", available: true, version: "test" }
+    request.action === "prepareRuntimeRelease"
+      ? {
+          kind: "guestPreparation",
+          phase: "ready",
+          busy: false,
+          version: "test",
+        }
       : {
           kind: "installation",
           available: true,
@@ -293,8 +299,9 @@ it("启动已受理但实例仍为 Stopped 时继续只读观察，不重复启�
             resources: [resource],
             operations: [
               {
+                operationId: "original-start-operation",
                 action: "start",
-                outcome: "accepted",
+                outcome: running ? "lifecycleVerified" : "accepted",
                 resource,
                 createdAt: new Date().toISOString(),
               },
@@ -346,6 +353,8 @@ it.each(["unknown", "provisioned", "unmounted"])(
       }
       if (request.action === "readAlibabaConnection")
         return { data: { status: "connected", profile } };
+      if (request.action === "preflightEcsPurchase")
+        return purchaseNetworkProof(request);
       if (request.action === "inspect") {
         if (inspectionFailed) throw new Error("transient inspection failure");
         return {
@@ -421,7 +430,13 @@ it.each(["unknown", "provisioned", "unmounted"])(
       await settle();
       expect(api.cloud.mock.calls).toHaveLength(callsBeforeClose);
       expect(api.connection.mock.calls).toEqual([
-        [{ action: "checkRuntimeRelease" }],
+        [
+          {
+            action: "prepareRuntimeRelease",
+            profile,
+            regionId: initialEcsSpec.regionId,
+          },
+        ],
       ]);
       return;
     }
@@ -485,7 +500,7 @@ it.each(["unknown", "provisioned", "unmounted"])(
       expect(button("任务连接").disabled).toBe(false);
       expect(
         api.connection.mock.calls.every(([request]) =>
-          ["checkRuntimeRelease", "installationStatus"].includes(
+          ["prepareRuntimeRelease", "installationStatus"].includes(
             request.action,
           ),
         ),
@@ -498,7 +513,7 @@ it.each(["unknown", "provisioned", "unmounted"])(
       expect(button("安装此版本 Lime").disabled).toBe(true);
       expect(
         api.connection.mock.calls.every(([request]) =>
-          ["checkRuntimeRelease", "installationStatus"].includes(
+          ["prepareRuntimeRelease", "installationStatus"].includes(
             request.action,
           ),
         ),

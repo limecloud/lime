@@ -2,7 +2,7 @@
 //!
 //! The terminal host still owns transport and turn lifecycle, but footer layout only consumes a
 //! resolved snapshot. This keeps `bottom_pane::footer` pure with respect to business state and
-//! mirrors Codex's `FooterProps` boundary without introducing another composer owner.
+//! mirrors 上游 `FooterProps` boundary without introducing another composer owner.
 
 use super::ChatWidget;
 use crate::bottom_pane::shortcut_overlay;
@@ -58,6 +58,7 @@ impl ChatWidget {
             vim_mode_indicator: self.bottom_pane.vim_mode_indicator_span(),
             is_task_running,
             plan_mode: self.should_show_plan_mode_hint(),
+            shell_mode: self.shell_mode,
             active_agent_label: self
                 .agent_navigation
                 .active_agent_label(thread_id, primary_thread_id),

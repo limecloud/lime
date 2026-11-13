@@ -29,6 +29,9 @@ fn parse(command: &[&str]) -> MultitoolCli {
 #[test]
 fn all_server_commands_inherit_root_connection_and_run_options() {
     let commands: &[&[&str]] = &[
+        &["login"],
+        &["login", "status"],
+        &["logout"],
         &["tui"],
         &["exec", "check"],
         &["resume", "thread-1"],

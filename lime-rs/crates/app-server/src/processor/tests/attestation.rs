@@ -31,7 +31,7 @@ async fn initialize_rejects_unimplemented_codex_attestation_capability() {
     assert_eq!(error.error.code, error_codes::INVALID_PARAMS);
     assert_eq!(
         error.error.message,
-        "capabilities.requestAttestation is unsupported: Lime has no Codex Desktop Host attestation producer"
+        "capabilities.requestAttestation is unsupported: Lime has no Desktop Host attestation producer"
     );
 }
 

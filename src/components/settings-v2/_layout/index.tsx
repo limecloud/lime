@@ -55,7 +55,7 @@ const Toolbar = styled.div`
 `;
 
 const ContentContainer = styled.main`
-  --settings-content-padding-top: 80px;
+  --settings-content-padding-top: 36px;
   flex: 1;
   min-width: 0;
   min-height: 0;

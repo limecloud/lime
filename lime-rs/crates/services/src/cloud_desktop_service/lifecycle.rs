@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod inspection;
+
 pub(super) enum LifecycleChange {
     Start,
     Stop,
@@ -17,6 +19,26 @@ impl CloudDesktopService {
         confirmation: String,
         change: LifecycleChange,
         work_saved: bool,
+    ) -> Result<Value, String> {
+        self.mutate_for_hibernation(
+            resource,
+            operation_id,
+            confirmation,
+            change,
+            work_saved,
+            None,
+        )
+        .await
+    }
+
+    pub(super) async fn mutate_for_hibernation(
+        &self,
+        resource: CloudDesktopResource,
+        operation_id: String,
+        confirmation: String,
+        change: LifecycleChange,
+        work_saved: bool,
+        parent: Option<&str>,
     ) -> Result<Value, String> {
         let (action, disk_id, image_operation_id) = match change {
             LifecycleChange::Start => ("start", None, None),
@@ -75,7 +97,7 @@ impl CloudDesktopService {
             }
             return Ok(existing);
         }
-        self.check_change_available(&resource, action)?;
+        self.check_change_available_for_hibernation(&resource, action, &operation_id, parent)?;
         let observed = self.inspect(&resource).await?;
         let state = observed["status"].as_str().unwrap_or("");
         if action == "start" && resource.provider == CloudDesktopProvider::Ecs {

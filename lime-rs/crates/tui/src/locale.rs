@@ -209,7 +209,7 @@ impl Locale {
 
     /// 空闲 composer 的快捷键入口提示。
     ///
-    /// Codex 在没有草稿或活动回合时仍保留一条可操作的 footer，避免底部区域看起来像
+    /// 上游 在没有草稿或活动回合时仍保留一条可操作的 footer，避免底部区域看起来像
     /// 未渲染。文案由 locale owner 提供，footer 只负责几何布局与截断。
     pub(crate) fn shortcuts_hint(self) -> &'static str {
         match self {
@@ -452,6 +452,66 @@ impl Locale {
             (Self::EnUs, SlashCommand::Keymap) => "show the effective key bindings",
             (Self::JaJp, SlashCommand::Keymap) => "現在のキーバインドを表示",
             (Self::KoKr, SlashCommand::Keymap) => "현재 키 바인딩 보기",
+            (Self::ZhCn, SlashCommand::Memory) => "查看记忆状态",
+            (Self::ZhTw, SlashCommand::Memory) => "檢視記憶狀態",
+            (Self::EnUs, SlashCommand::Memory) => "show memory status",
+            (Self::JaJp, SlashCommand::Memory) => "メモリ状態を表示",
+            (Self::KoKr, SlashCommand::Memory) => "메모리 상태 보기",
+            (Self::ZhCn, SlashCommand::Usage) => "查看 token 用量",
+            (Self::ZhTw, SlashCommand::Usage) => "檢視 token 用量",
+            (Self::EnUs, SlashCommand::Usage) => "show token usage",
+            (Self::JaJp, SlashCommand::Usage) => "トークン使用量を表示",
+            (Self::KoKr, SlashCommand::Usage) => "토큰 사용량 보기",
+            (Self::ZhCn, SlashCommand::Stop) => "停止当前回合",
+            (Self::ZhTw, SlashCommand::Stop) => "停止目前回合",
+            (Self::EnUs, SlashCommand::Stop) => "stop the current turn",
+            (Self::JaJp, SlashCommand::Stop) => "現在のターンを停止",
+            (Self::KoKr, SlashCommand::Stop) => "현재 턴 중지",
+            (Self::ZhCn, SlashCommand::Warnings) => "查看启动警告",
+            (Self::ZhTw, SlashCommand::Warnings) => "檢視啟動警告",
+            (Self::EnUs, SlashCommand::Warnings) => "show startup warnings",
+            (Self::JaJp, SlashCommand::Warnings) => "起動時の警告を表示",
+            (Self::KoKr, SlashCommand::Warnings) => "시작 경고 보기",
+            (Self::ZhCn, SlashCommand::Diff) => "查看工作区 git diff",
+            (Self::ZhTw, SlashCommand::Diff) => "檢視工作區 git diff",
+            (Self::EnUs, SlashCommand::Diff) => "show the working tree diff",
+            (Self::JaJp, SlashCommand::Diff) => "作業ツリーの diff を表示",
+            (Self::KoKr, SlashCommand::Diff) => "작업 트리 diff 보기",
+            (Self::ZhCn, SlashCommand::Cd) => "切换当前工作目录",
+            (Self::ZhTw, SlashCommand::Cd) => "切換目前工作目錄",
+            (Self::EnUs, SlashCommand::Cd) => "change the current working directory",
+            (Self::JaJp, SlashCommand::Cd) => "現在の作業ディレクトリを変更",
+            (Self::KoKr, SlashCommand::Cd) => "현재 작업 디렉터리 변경",
+            (Self::ZhCn, SlashCommand::Plugins) => "查看已安装插件",
+            (Self::ZhTw, SlashCommand::Plugins) => "檢視已安裝外掛",
+            (Self::EnUs, SlashCommand::Plugins) => "show installed plugins",
+            (Self::JaJp, SlashCommand::Plugins) => "インストール済みプラグインを表示",
+            (Self::KoKr, SlashCommand::Plugins) => "설치된 플러그인 보기",
+            (Self::ZhCn, SlashCommand::Mention) => "提及文件",
+            (Self::ZhTw, SlashCommand::Mention) => "提及檔案",
+            (Self::EnUs, SlashCommand::Mention) => "mention a file",
+            (Self::JaJp, SlashCommand::Mention) => "ファイルをメンション",
+            (Self::KoKr, SlashCommand::Mention) => "파일 멘션",
+            (Self::ZhCn, SlashCommand::Goal) => "设置或查看长任务目标",
+            (Self::ZhTw, SlashCommand::Goal) => "設定或檢視長任務目標",
+            (Self::EnUs, SlashCommand::Goal) => "set or view the goal for a long-running task",
+            (Self::JaJp, SlashCommand::Goal) => "長時間タスクの目標を設定・表示",
+            (Self::KoKr, SlashCommand::Goal) => "장기 작업 목표 설정 또는 보기",
+            (Self::ZhCn, SlashCommand::Memories) => "配置记忆使用与生成",
+            (Self::ZhTw, SlashCommand::Memories) => "設定記憶使用與生成",
+            (Self::EnUs, SlashCommand::Memories) => "configure memory use and generation",
+            (Self::JaJp, SlashCommand::Memories) => "メモリの使用と生成を設定",
+            (Self::KoKr, SlashCommand::Memories) => "메모리 사용 및 생성 설정",
+            (Self::ZhCn, SlashCommand::Recap) => "立即总结当前对话",
+            (Self::ZhTw, SlashCommand::Recap) => "立即總結目前對話",
+            (Self::EnUs, SlashCommand::Recap) => "summarize the current conversation now",
+            (Self::JaJp, SlashCommand::Recap) => "現在の会話を今すぐ要約",
+            (Self::KoKr, SlashCommand::Recap) => "현재 대화를 지금 요약",
+            (Self::ZhCn, SlashCommand::Ps) => "查看后台终端",
+            (Self::ZhTw, SlashCommand::Ps) => "檢視背景終端",
+            (Self::EnUs, SlashCommand::Ps) => "list background terminals",
+            (Self::JaJp, SlashCommand::Ps) => "バックグラウンド端末を表示",
+            (Self::KoKr, SlashCommand::Ps) => "백그라운드 터미널 보기",
         }
     }
 
@@ -472,6 +532,226 @@ impl Locale {
             Self::EnUs => "This will archive the current session and start a new one.",
             Self::JaJp => "現在のセッションをアーカイブし、新しいセッションを開始します。",
             Self::KoKr => "현재 세션을 보관하고 새 세션을 시작합니다.",
+        }
+    }
+
+    pub(crate) fn plugins_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/plugins [install <名称>]",
+            Self::ZhTw => "用法：/plugins [install <名稱>]",
+            Self::EnUs => "Usage: /plugins [install <name>|search <term>]",
+            Self::JaJp => "使い方：/plugins [install <名前>]",
+            Self::KoKr => "사용법: /plugins [install <이름>]",
+        }
+    }
+
+    pub(crate) fn plugins_search_empty(&self, term: &str) -> String {
+        match self {
+            Self::ZhCn => format!("没有匹配“{term}”的插件"),
+            Self::ZhTw => format!("沒有符合「{term}」的外掛"),
+            Self::EnUs => format!("No plugins match \"{term}\""),
+            Self::JaJp => format!("「{term}」に一致するプラグインはありません"),
+            Self::KoKr => format!("\"{term}\"와 일치하는 플러그인이 없습니다"),
+        }
+    }
+
+    pub(crate) fn confirm_install_plugin_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "安装插件？",
+            Self::ZhTw => "安裝外掛？",
+            Self::EnUs => "Install plugin?",
+            Self::JaJp => "プラグインをインストールしますか？",
+            Self::KoKr => "플러그인을 설치할까요?",
+        }
+    }
+
+    pub(crate) fn confirm_install_plugin_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "这会从插件市场安装该插件。",
+            Self::ZhTw => "這會從外掛市集安裝該外掛。",
+            Self::EnUs => "This installs the plugin from its marketplace.",
+            Self::JaJp => "マーケットプレイスからプラグインをインストールします。",
+            Self::KoKr => "마켓플레이스에서 플러그인을 설치합니다.",
+        }
+    }
+
+    pub(crate) fn confirm_install_plugin_label(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("是，安装 {name}"),
+            Self::ZhTw => format!("是，安裝 {name}"),
+            Self::EnUs => format!("Yes, install {name}"),
+            Self::JaJp => format!("はい、{name} をインストール"),
+            Self::KoKr => format!("예, {name} 설치"),
+        }
+    }
+
+    pub(crate) fn confirm_install_plugin_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "从市场安装该插件",
+            Self::ZhTw => "從市集安裝該外掛",
+            Self::EnUs => "Install the plugin from its marketplace",
+            Self::JaJp => "マーケットプレイスからインストール",
+            Self::KoKr => "마켓플레이스에서 설치",
+        }
+    }
+
+    pub(crate) fn plugin_installed_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已安装",
+            Self::ZhTw => "已安裝",
+            Self::EnUs => "installed",
+            Self::JaJp => "インストール済み",
+            Self::KoKr => "설치됨",
+        }
+    }
+
+    pub(crate) fn plugin_installed(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已安装插件：{name}"),
+            Self::ZhTw => format!("已安裝外掛：{name}"),
+            Self::EnUs => format!("installed plugin {name}"),
+            Self::JaJp => format!("プラグイン {name} をインストールしました"),
+            Self::KoKr => format!("플러그인 {name} 설치됨"),
+        }
+    }
+
+    pub(crate) fn plugin_not_found(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("未找到插件：{name}"),
+            Self::ZhTw => format!("找不到外掛：{name}"),
+            Self::EnUs => format!("plugin not found: {name}"),
+            Self::JaJp => format!("プラグインが見つかりません：{name}"),
+            Self::KoKr => format!("플러그인을 찾을 수 없습니다: {name}"),
+        }
+    }
+
+    pub(crate) fn plugin_already_installed(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("插件已安装：{name}"),
+            Self::ZhTw => format!("外掛已安裝：{name}"),
+            Self::EnUs => format!("plugin is already installed: {name}"),
+            Self::JaJp => format!("プラグインは既にインストール済みです：{name}"),
+            Self::KoKr => format!("플러그인이 이미 설치되어 있습니다: {name}"),
+        }
+    }
+
+    pub(crate) fn plugin_install_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("插件安装失败：{error}"),
+            Self::ZhTw => format!("外掛安裝失敗：{error}"),
+            Self::EnUs => format!("Failed to install the plugin: {error}"),
+            Self::JaJp => format!("プラグインのインストールに失敗しました：{error}"),
+            Self::KoKr => format!("플러그인 설치 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn confirm_uninstall_plugin_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "卸载插件？",
+            Self::ZhTw => "解除安裝外掛？",
+            Self::EnUs => "Uninstall plugin?",
+            Self::JaJp => "プラグインを削除しますか？",
+            Self::KoKr => "플러그인을 제거할까요?",
+        }
+    }
+
+    pub(crate) fn confirm_uninstall_plugin_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "这会移除插件及其本地资源，无法撤销。",
+            Self::ZhTw => "這會移除外掛及其本機資源，無法復原。",
+            Self::EnUs => "This removes the plugin and its local resources. It cannot be undone.",
+            Self::JaJp => "プラグインとローカル資源を削除します。元に戻せません。",
+            Self::KoKr => "플러그인과 로컬 리소스를 제거합니다. 되돌릴 수 없습니다.",
+        }
+    }
+
+    pub(crate) fn confirm_uninstall_plugin_label(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("是，卸载 {name}"),
+            Self::ZhTw => format!("是，解除安裝 {name}"),
+            Self::EnUs => format!("Yes, uninstall {name}"),
+            Self::JaJp => format!("はい、{name} を削除"),
+            Self::KoKr => format!("예, {name} 제거"),
+        }
+    }
+
+    pub(crate) fn confirm_uninstall_plugin_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "移除该插件及其资源",
+            Self::ZhTw => "移除該外掛及其資源",
+            Self::EnUs => "Remove the plugin and its resources",
+            Self::JaJp => "プラグインとその資源を削除",
+            Self::KoKr => "플러그인과 리소스 제거",
+        }
+    }
+
+    pub(crate) fn plugin_picker_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择插件后按回车卸载",
+            Self::ZhTw => "選擇外掛後按 Enter 解除安裝",
+            Self::EnUs => "Select a plugin and press Enter to uninstall",
+            Self::JaJp => "プラグインを選んで Enter で削除",
+            Self::KoKr => "플러그인을 선택하고 Enter 로 제거",
+        }
+    }
+
+    pub(crate) fn plugin_uninstalled(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已卸载插件：{name}"),
+            Self::ZhTw => format!("已解除安裝外掛：{name}"),
+            Self::EnUs => format!("uninstalled plugin {name}"),
+            Self::JaJp => format!("プラグイン {name} を削除しました"),
+            Self::KoKr => format!("플러그인 {name} 제거됨"),
+        }
+    }
+
+    pub(crate) fn plugin_uninstall_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("插件卸载失败：{error}"),
+            Self::ZhTw => format!("外掛解除安裝失敗：{error}"),
+            Self::EnUs => format!("Failed to uninstall the plugin: {error}"),
+            Self::JaJp => format!("プラグインの削除に失敗しました：{error}"),
+            Self::KoKr => format!("플러그인 제거 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn confirm_reset_memory_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "重置记忆？",
+            Self::ZhTw => "重設記憶？",
+            Self::EnUs => "Reset memory?",
+            Self::JaJp => "メモリをリセットしますか？",
+            Self::KoKr => "메모리를 재설정할까요?",
+        }
+    }
+
+    pub(crate) fn confirm_reset_memory_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "这会清除当前工作区的记忆，无法撤销。",
+            Self::ZhTw => "這會清除目前工作區的記憶，無法復原。",
+            Self::EnUs => "This clears memory for the current workspace. It cannot be undone.",
+            Self::JaJp => "現在のワークスペースのメモリを消去します。元に戻せません。",
+            Self::KoKr => "현재 작업 공간의 메모리를 지웁니다. 되돌릴 수 없습니다.",
+        }
+    }
+
+    pub(crate) fn confirm_reset_memory_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "是，重置记忆",
+            Self::ZhTw => "是，重設記憶",
+            Self::EnUs => "Yes, reset memory",
+            Self::JaJp => "はい、リセット",
+            Self::KoKr => "예, 재설정",
+        }
+    }
+
+    pub(crate) fn confirm_reset_memory_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "清除当前工作区已存储的记忆",
+            Self::ZhTw => "清除目前工作區已儲存的記憶",
+            Self::EnUs => "Clear stored memory for this workspace",
+            Self::JaJp => "現在のワークスペースのメモリを削除",
+            Self::KoKr => "현재 작업 공간에 저장된 메모리 삭제",
         }
     }
 
@@ -736,6 +1016,846 @@ impl Locale {
         }
     }
 
+    pub(crate) fn memory_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/memory [reset]",
+            Self::ZhTw => "用法：/memory [reset]",
+            Self::EnUs => "Usage: /memory [reset]",
+            Self::JaJp => "使い方：/memory [reset]",
+            Self::KoKr => "사용법: /memory [reset]",
+        }
+    }
+
+    pub(crate) fn memory_reset_done(self) -> &'static str {
+        match self {
+            Self::ZhCn => "记忆已重置",
+            Self::ZhTw => "記憶已重設",
+            Self::EnUs => "memory reset",
+            Self::JaJp => "メモリをリセットしました",
+            Self::KoKr => "메모리가 재설정되었습니다",
+        }
+    }
+
+    pub(crate) fn recap_generating(self) -> &'static str {
+        match self {
+            Self::ZhCn => "正在生成对话回顾…",
+            Self::ZhTw => "正在產生對話回顧…",
+            Self::EnUs => "Generating conversation recap…",
+            Self::JaJp => "会話の要約を生成しています…",
+            Self::KoKr => "대화 요약을 생성하는 중…",
+        }
+    }
+
+    pub(crate) fn recap_wait_for_turn(self) -> &'static str {
+        match self {
+            Self::ZhCn => "请等待当前任务结束后再运行 /recap",
+            Self::ZhTw => "請等待目前任務結束後再執行 /recap",
+            Self::EnUs => "Wait for the current task to finish before running /recap.",
+            Self::JaJp => "現在のタスクが終わってから /recap を実行してください",
+            Self::KoKr => "현재 작업이 끝난 후 /recap을 실행하세요",
+        }
+    }
+
+    pub(crate) fn recap_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有可回顾的对话历史",
+            Self::ZhTw => "沒有可回顧的對話歷史",
+            Self::EnUs => "There is no conversation history to recap.",
+            Self::JaJp => "要約できる会話履歴がありません",
+            Self::KoKr => "요약할 대화 기록이 없습니다",
+        }
+    }
+
+    pub(crate) fn recap_in_progress(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已在生成回顾，请稍候",
+            Self::ZhTw => "已在產生回顧，請稍候",
+            Self::EnUs => "A recap is already being generated.",
+            Self::JaJp => "すでに要約を生成しています",
+            Self::KoKr => "이미 요약을 생성 중입니다",
+        }
+    }
+
+    pub(crate) fn recap_failed(self) -> &'static str {
+        match self {
+            Self::ZhCn => "无法生成回顾，请重试",
+            Self::ZhTw => "無法產生回顧，請重試",
+            Self::EnUs => "Could not generate a recap. Please try again.",
+            Self::JaJp => "要約を生成できませんでした。もう一度お試しください",
+            Self::KoKr => "요약을 생성할 수 없습니다. 다시 시도하세요",
+        }
+    }
+
+    pub(crate) fn recap_failed_with(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("无法生成回顾：{error}"),
+            Self::ZhTw => format!("無法產生回顧：{error}"),
+            Self::EnUs => format!("Could not generate a recap: {error}"),
+            Self::JaJp => format!("要約を生成できませんでした：{error}"),
+            Self::KoKr => format!("요약을 생성할 수 없습니다: {error}"),
+        }
+    }
+
+    pub(crate) fn recap_heading(self) -> &'static str {
+        match self {
+            Self::ZhCn => "对话回顾",
+            Self::ZhTw => "對話回顧",
+            Self::EnUs => "Conversation recap",
+            Self::JaJp => "会話の要約",
+            Self::KoKr => "대화 요약",
+        }
+    }
+
+    pub(crate) fn recap_next_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "下一步",
+            Self::ZhTw => "下一步",
+            Self::EnUs => "Next",
+            Self::JaJp => "次へ",
+            Self::KoKr => "다음",
+        }
+    }
+
+    pub(crate) fn shell_mode_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "Shell 模式",
+            Self::ZhTw => "Shell 模式",
+            Self::EnUs => "Shell mode",
+            Self::JaJp => "シェルモード",
+            Self::KoKr => "셸 모드",
+        }
+    }
+
+    pub(crate) fn shell_command_started(&self, command: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已发送 shell 命令：{command}"),
+            Self::ZhTw => format!("已送出 shell 指令：{command}"),
+            Self::EnUs => format!("shell command sent: {command}"),
+            Self::JaJp => format!("シェルコマンドを送信しました：{command}"),
+            Self::KoKr => format!("셸 명령 전송됨: {command}"),
+        }
+    }
+
+    pub(crate) fn shell_command_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("shell 命令执行失败：{error}"),
+            Self::ZhTw => format!("shell 指令執行失敗：{error}"),
+            Self::EnUs => format!("Failed to run the shell command: {error}"),
+            Self::JaJp => format!("シェルコマンドの実行に失敗しました：{error}"),
+            Self::KoKr => format!("셸 명령 실행 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn ps_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "后台终端",
+            Self::ZhTw => "背景終端",
+            Self::EnUs => "Background terminals",
+            Self::JaJp => "バックグラウンド端末",
+            Self::KoKr => "백그라운드 터미널",
+        }
+    }
+
+    pub(crate) fn ps_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择进程后按回车终止",
+            Self::ZhTw => "選擇程序後按 Enter 終止",
+            Self::EnUs => "Select a process and press Enter to terminate it",
+            Self::JaJp => "プロセスを選んで Enter で終了",
+            Self::KoKr => "프로세스를 선택하고 Enter 로 종료",
+        }
+    }
+
+    pub(crate) fn ps_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有后台终端",
+            Self::ZhTw => "沒有背景終端",
+            Self::EnUs => "No background terminals",
+            Self::JaJp => "バックグラウンド端末はありません",
+            Self::KoKr => "백그라운드 터미널이 없습니다",
+        }
+    }
+
+    pub(crate) fn ps_terminated(&self, command: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已终止：{command}"),
+            Self::ZhTw => format!("已終止：{command}"),
+            Self::EnUs => format!("terminated: {command}"),
+            Self::JaJp => format!("終了しました：{command}"),
+            Self::KoKr => format!("종료됨: {command}"),
+        }
+    }
+
+    pub(crate) fn ps_terminate_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("终止后台终端失败：{error}"),
+            Self::ZhTw => format!("終止背景終端失敗：{error}"),
+            Self::EnUs => format!("Failed to terminate the background terminal: {error}"),
+            Self::JaJp => format!("バックグラウンド端末の終了に失敗しました：{error}"),
+            Self::KoKr => format!("백그라운드 터미널 종료 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn confirm_terminate_process_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "终止进程？",
+            Self::ZhTw => "終止程序？",
+            Self::EnUs => "Terminate process?",
+            Self::JaJp => "プロセスを終了しますか？",
+            Self::KoKr => "프로세스를 종료할까요?",
+        }
+    }
+
+    pub(crate) fn confirm_terminate_process_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "这会停止对应的后台终端。",
+            Self::ZhTw => "這會停止對應的背景終端。",
+            Self::EnUs => "This stops the matching background terminal.",
+            Self::JaJp => "対応するバックグラウンド端末を停止します。",
+            Self::KoKr => "해당 백그라운드 터미널을 중지합니다.",
+        }
+    }
+
+    pub(crate) fn confirm_terminate_process_label(&self, command: &str) -> String {
+        match self {
+            Self::ZhCn => format!("是，终止 {command}"),
+            Self::ZhTw => format!("是，終止 {command}"),
+            Self::EnUs => format!("Yes, terminate {command}"),
+            Self::JaJp => format!("はい、{command} を終了"),
+            Self::KoKr => format!("예, {command} 종료"),
+        }
+    }
+
+    pub(crate) fn confirm_terminate_process_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "停止该后台终端",
+            Self::ZhTw => "停止該背景終端",
+            Self::EnUs => "Stop the background terminal",
+            Self::JaJp => "バックグラウンド端末を停止",
+            Self::KoKr => "백그라운드 터미널 중지",
+        }
+    }
+
+    pub(crate) fn memories_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "记忆设置",
+            Self::ZhTw => "記憶設定",
+            Self::EnUs => "Memory settings",
+            Self::JaJp => "メモリ設定",
+            Self::KoKr => "메모리 설정",
+        }
+    }
+
+    pub(crate) fn memories_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择后按回车切换记忆模式",
+            Self::ZhTw => "選擇後按 Enter 切換記憶模式",
+            Self::EnUs => "Select a setting and press Enter to toggle it",
+            Self::JaJp => "項目を選んで Enter で切り替え",
+            Self::KoKr => "항목을 선택하고 Enter 로 전환",
+        }
+    }
+
+    pub(crate) fn memories_use_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "使用记忆",
+            Self::ZhTw => "使用記憶",
+            Self::EnUs => "Use memories",
+            Self::JaJp => "メモリを使用",
+            Self::KoKr => "메모리 사용",
+        }
+    }
+
+    pub(crate) fn memories_use_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "从下一个线程开始使用记忆",
+            Self::ZhTw => "從下一個工作階段開始使用記憶",
+            Self::EnUs => "Use memories starting with the next thread",
+            Self::JaJp => "次のスレッドからメモリを使用",
+            Self::KoKr => "다음 스레드부터 메모리 사용",
+        }
+    }
+
+    pub(crate) fn memories_unknown_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "未知",
+            Self::ZhTw => "未知",
+            Self::EnUs => "unknown",
+            Self::JaJp => "不明",
+            Self::KoKr => "알 수 없음",
+        }
+    }
+
+    pub(crate) fn memories_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/memories [on|off]",
+            Self::ZhTw => "用法：/memories [on|off]",
+            Self::EnUs => "Usage: /memories [on|off]",
+            Self::JaJp => "使い方：/memories [on|off]",
+            Self::KoKr => "사용법: /memories [on|off]",
+        }
+    }
+
+    pub(crate) fn memory_requires_session(self) -> &'static str {
+        match self {
+            Self::ZhCn => "会话开始后才能修改记忆模式",
+            Self::ZhTw => "工作階段開始後才能修改記憶模式",
+            Self::EnUs => "The session must start before you can change the memory mode",
+            Self::JaJp => "セッション開始後にメモリモードを変更できます",
+            Self::KoKr => "세션이 시작된 후 메모리 모드를 변경할 수 있습니다",
+        }
+    }
+
+    pub(crate) fn memory_mode_enabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "记忆已开启",
+            Self::ZhTw => "記憶已開啟",
+            Self::EnUs => "memory enabled",
+            Self::JaJp => "メモリを有効にしました",
+            Self::KoKr => "메모리가 활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn memory_mode_disabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "记忆已关闭",
+            Self::ZhTw => "記憶已關閉",
+            Self::EnUs => "memory disabled",
+            Self::JaJp => "メモリを無効にしました",
+            Self::KoKr => "메모리가 비활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn goal_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "目标",
+            Self::ZhTw => "目標",
+            Self::EnUs => "Goal",
+            Self::JaJp => "目標",
+            Self::KoKr => "목표",
+        }
+    }
+
+    pub(crate) fn goal_none(self) -> &'static str {
+        match self {
+            Self::ZhCn => "尚未设置目标",
+            Self::ZhTw => "尚未設定目標",
+            Self::EnUs => "No goal set",
+            Self::JaJp => "目標は設定されていません",
+            Self::KoKr => "설정된 목표가 없습니다",
+        }
+    }
+
+    pub(crate) fn goal_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/goal [<目标>|clear|pause|resume]",
+            Self::ZhTw => "用法：/goal [<目標>|clear|pause|resume]",
+            Self::EnUs => "Usage: /goal [<objective>|clear|pause|resume]",
+            Self::JaJp => "使い方：/goal [<目標>|clear|pause|resume]",
+            Self::KoKr => "사용법: /goal [<목표>|clear|pause|resume]",
+        }
+    }
+
+    pub(crate) fn goal_requires_session(self) -> &'static str {
+        match self {
+            Self::ZhCn => "会话开始后才能设置目标",
+            Self::ZhTw => "工作階段開始後才能設定目標",
+            Self::EnUs => "The session must start before you can change a goal",
+            Self::JaJp => "セッション開始後に目標を変更できます",
+            Self::KoKr => "세션이 시작된 후 목표를 변경할 수 있습니다",
+        }
+    }
+
+    pub(crate) fn goal_set(self) -> &'static str {
+        match self {
+            Self::ZhCn => "目标已设置",
+            Self::ZhTw => "目標已設定",
+            Self::EnUs => "goal set",
+            Self::JaJp => "目標を設定しました",
+            Self::KoKr => "목표가 설정되었습니다",
+        }
+    }
+
+    pub(crate) fn goal_cleared(self) -> &'static str {
+        match self {
+            Self::ZhCn => "目标已清除",
+            Self::ZhTw => "目標已清除",
+            Self::EnUs => "goal cleared",
+            Self::JaJp => "目標を削除しました",
+            Self::KoKr => "목표가 삭제되었습니다",
+        }
+    }
+
+    pub(crate) fn goal_paused(self) -> &'static str {
+        match self {
+            Self::ZhCn => "目标已暂停",
+            Self::ZhTw => "目標已暫停",
+            Self::EnUs => "goal paused",
+            Self::JaJp => "目標を一時停止しました",
+            Self::KoKr => "목표가 일시중지되었습니다",
+        }
+    }
+
+    pub(crate) fn goal_resumed(self) -> &'static str {
+        match self {
+            Self::ZhCn => "目标已恢复",
+            Self::ZhTw => "目標已恢復",
+            Self::EnUs => "goal resumed",
+            Self::JaJp => "目標を再開しました",
+            Self::KoKr => "목표가 재개되었습니다",
+        }
+    }
+
+    pub(crate) fn goal_objective_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "目标",
+            Self::ZhTw => "目標",
+            Self::EnUs => "objective",
+            Self::JaJp => "目標",
+            Self::KoKr => "목표",
+        }
+    }
+
+    pub(crate) fn goal_status_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "状态",
+            Self::ZhTw => "狀態",
+            Self::EnUs => "status",
+            Self::JaJp => "状態",
+            Self::KoKr => "상태",
+        }
+    }
+
+    pub(crate) fn goal_tokens_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "token",
+            Self::ZhTw => "token",
+            Self::EnUs => "tokens",
+            Self::JaJp => "トークン",
+            Self::KoKr => "토큰",
+        }
+    }
+
+    pub(crate) fn goal_time_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "耗时",
+            Self::ZhTw => "耗時",
+            Self::EnUs => "time",
+            Self::JaJp => "経過時間",
+            Self::KoKr => "소요 시간",
+        }
+    }
+
+    pub(crate) fn goal_status_active(self) -> &'static str {
+        match self {
+            Self::ZhCn => "进行中",
+            Self::ZhTw => "進行中",
+            Self::EnUs => "active",
+            Self::JaJp => "アクティブ",
+            Self::KoKr => "진행 중",
+        }
+    }
+
+    pub(crate) fn goal_status_paused(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已暂停",
+            Self::ZhTw => "已暫停",
+            Self::EnUs => "paused",
+            Self::JaJp => "一時停止",
+            Self::KoKr => "일시중지",
+        }
+    }
+
+    pub(crate) fn goal_status_usage_limited(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用量受限",
+            Self::ZhTw => "用量受限",
+            Self::EnUs => "usage limited",
+            Self::JaJp => "利用制限",
+            Self::KoKr => "사용량 제한",
+        }
+    }
+
+    pub(crate) fn goal_status_budget_limited(self) -> &'static str {
+        match self {
+            Self::ZhCn => "预算受限",
+            Self::ZhTw => "預算受限",
+            Self::EnUs => "budget limited",
+            Self::JaJp => "予算制限",
+            Self::KoKr => "예산 제한",
+        }
+    }
+
+    pub(crate) fn goal_status_complete(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已完成",
+            Self::ZhTw => "已完成",
+            Self::EnUs => "complete",
+            Self::JaJp => "完了",
+            Self::KoKr => "완료",
+        }
+    }
+
+    pub(crate) fn goal_status_blocked(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已阻塞",
+            Self::ZhTw => "已阻塞",
+            Self::EnUs => "blocked",
+            Self::JaJp => "ブロック",
+            Self::KoKr => "차단됨",
+        }
+    }
+
+    pub(crate) fn plugins_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "插件",
+            Self::ZhTw => "外掛",
+            Self::EnUs => "Plugins",
+            Self::JaJp => "プラグイン",
+            Self::KoKr => "플러그인",
+        }
+    }
+
+    pub(crate) fn plugins_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有已安装插件",
+            Self::ZhTw => "沒有已安裝外掛",
+            Self::EnUs => "No installed plugins",
+            Self::JaJp => "インストール済みプラグインはありません",
+            Self::KoKr => "설치된 플러그인이 없습니다",
+        }
+    }
+
+    pub(crate) fn plugins_unavailable(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("插件列表不可用：{error}"),
+            Self::ZhTw => format!("外掛清單不可用：{error}"),
+            Self::EnUs => format!("Plugins are unavailable: {error}"),
+            Self::JaJp => format!("プラグインを取得できません：{error}"),
+            Self::KoKr => format!("플러그인을 사용할 수 없습니다: {error}"),
+        }
+    }
+
+    pub(crate) fn plugins_version_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "版本",
+            Self::ZhTw => "版本",
+            Self::EnUs => "version",
+            Self::JaJp => "バージョン",
+            Self::KoKr => "버전",
+        }
+    }
+
+    pub(crate) fn cd_usage(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用法：/cd [目录]",
+            Self::ZhTw => "用法：/cd [目錄]",
+            Self::EnUs => "Usage: /cd [path]",
+            Self::JaJp => "使い方：/cd [ディレクトリ]",
+            Self::KoKr => "사용법: /cd [경로]",
+        }
+    }
+
+    pub(crate) fn cd_requires_session(self) -> &'static str {
+        match self {
+            Self::ZhCn => "会话尚未就绪，无法切换目录",
+            Self::ZhTw => "工作階段尚未就緒，無法切換目錄",
+            Self::EnUs => "The session must start before you can change its working directory",
+            Self::JaJp => "セッション開始後にディレクトリを変更できます",
+            Self::KoKr => "세션이 시작된 후 디렉터리를 변경할 수 있습니다",
+        }
+    }
+
+    pub(crate) fn cd_requires_idle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "请等待回合结束且队列清空后再切换目录",
+            Self::ZhTw => "請等待回合結束且佇列清空後再切換目錄",
+            Self::EnUs => "Changing directories requires an idle session without queued input",
+            Self::JaJp => "ターン終了と入力キューの消化後に変更できます",
+            Self::KoKr => "턴이 끝나고 대기 입력이 없을 때 변경할 수 있습니다",
+        }
+    }
+
+    pub(crate) fn cd_not_a_directory(&self, path: &str) -> String {
+        match self {
+            Self::ZhCn => format!("不是目录：{path}"),
+            Self::ZhTw => format!("不是目錄：{path}"),
+            Self::EnUs => format!("Not a directory: {path}"),
+            Self::JaJp => format!("ディレクトリではありません：{path}"),
+            Self::KoKr => format!("디렉터리가 아닙니다: {path}"),
+        }
+    }
+
+    pub(crate) fn cd_changed(&self, path: &str) -> String {
+        match self {
+            Self::ZhCn => format!("工作目录已切换到 {path}"),
+            Self::ZhTw => format!("工作目錄已切換到 {path}"),
+            Self::EnUs => format!("working directory changed to {path}"),
+            Self::JaJp => format!("作業ディレクトリを {path} に変更しました"),
+            Self::KoKr => format!("작업 디렉터리를 {path} 로 변경했습니다"),
+        }
+    }
+
+    pub(crate) fn cd_unchanged(self) -> &'static str {
+        match self {
+            Self::ZhCn => "工作目录未变化",
+            Self::ZhTw => "工作目錄未變更",
+            Self::EnUs => "working directory unchanged",
+            Self::JaJp => "作業ディレクトリは変更されていません",
+            Self::KoKr => "작업 디렉터리가 변경되지 않았습니다",
+        }
+    }
+
+    pub(crate) fn diff_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "差异",
+            Self::ZhTw => "差異",
+            Self::EnUs => "Diff",
+            Self::JaJp => "差分",
+            Self::KoKr => "차이",
+        }
+    }
+
+    pub(crate) fn diff_clean(self) -> &'static str {
+        match self {
+            Self::ZhCn => "工作区没有改动",
+            Self::ZhTw => "工作區沒有變更",
+            Self::EnUs => "No working tree changes",
+            Self::JaJp => "作業ツリーに変更はありません",
+            Self::KoKr => "작업 트리에 변경 사항이 없습니다",
+        }
+    }
+
+    pub(crate) fn diff_not_a_repository(self) -> &'static str {
+        match self {
+            Self::ZhCn => "当前目录不是 Git 仓库",
+            Self::ZhTw => "目前目錄不是 Git 倉庫",
+            Self::EnUs => "Not a Git repository",
+            Self::JaJp => "Git リポジトリではありません",
+            Self::KoKr => "Git 저장소가 아닙니다",
+        }
+    }
+
+    pub(crate) fn warnings_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "警告",
+            Self::ZhTw => "警告",
+            Self::EnUs => "Warnings",
+            Self::JaJp => "警告",
+            Self::KoKr => "경고",
+        }
+    }
+
+    pub(crate) fn warnings_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有启动警告",
+            Self::ZhTw => "沒有啟動警告",
+            Self::EnUs => "No startup warnings",
+            Self::JaJp => "起動時の警告はありません",
+            Self::KoKr => "시작 경고가 없습니다",
+        }
+    }
+
+    pub(crate) fn warnings_skills_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "技能",
+            Self::ZhTw => "技能",
+            Self::EnUs => "skills",
+            Self::JaJp => "スキル",
+            Self::KoKr => "스킬",
+        }
+    }
+
+    pub(crate) fn warnings_mcp_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "MCP",
+            Self::ZhTw => "MCP",
+            Self::EnUs => "MCP",
+            Self::JaJp => "MCP",
+            Self::KoKr => "MCP",
+        }
+    }
+
+    pub(crate) fn usage_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "用量",
+            Self::ZhTw => "用量",
+            Self::EnUs => "Usage",
+            Self::JaJp => "使用量",
+            Self::KoKr => "사용량",
+        }
+    }
+
+    pub(crate) fn usage_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "尚无用量数据",
+            Self::ZhTw => "尚無用量資料",
+            Self::EnUs => "No usage data yet",
+            Self::JaJp => "使用量データはまだありません",
+            Self::KoKr => "아직 사용량 데이터가 없습니다",
+        }
+    }
+
+    pub(crate) fn usage_total_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "总计",
+            Self::ZhTw => "總計",
+            Self::EnUs => "total",
+            Self::JaJp => "合計",
+            Self::KoKr => "합계",
+        }
+    }
+
+    pub(crate) fn usage_input_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "输入",
+            Self::ZhTw => "輸入",
+            Self::EnUs => "input",
+            Self::JaJp => "入力",
+            Self::KoKr => "입력",
+        }
+    }
+
+    pub(crate) fn usage_output_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "输出",
+            Self::ZhTw => "輸出",
+            Self::EnUs => "output",
+            Self::JaJp => "出力",
+            Self::KoKr => "출력",
+        }
+    }
+
+    pub(crate) fn usage_last_turn_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "最近回合",
+            Self::ZhTw => "最近回合",
+            Self::EnUs => "last turn",
+            Self::JaJp => "直近ターン",
+            Self::KoKr => "최근 턴",
+        }
+    }
+
+    pub(crate) fn usage_context_window_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "上下文窗口",
+            Self::ZhTw => "上下文視窗",
+            Self::EnUs => "context window",
+            Self::JaJp => "コンテキストウィンドウ",
+            Self::KoKr => "컨텍스트 윈도",
+        }
+    }
+
+    pub(crate) fn stop_no_active_turn(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有正在运行的回合",
+            Self::ZhTw => "沒有正在執行的回合",
+            Self::EnUs => "no active turn to stop",
+            Self::JaJp => "停止するターンがありません",
+            Self::KoKr => "중지할 턴이 없습니다",
+        }
+    }
+
+    pub(crate) fn memory_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "记忆",
+            Self::ZhTw => "記憶",
+            Self::EnUs => "Memory",
+            Self::JaJp => "メモリ",
+            Self::KoKr => "메모리",
+        }
+    }
+
+    pub(crate) fn memory_consolidated_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已整合会话数",
+            Self::ZhTw => "已整合工作階段數",
+            Self::EnUs => "consolidated threads",
+            Self::JaJp => "統合済みスレッド数",
+            Self::KoKr => "통합된 스레드 수",
+        }
+    }
+
+    pub(crate) fn memory_ready_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "可用",
+            Self::ZhTw => "可用",
+            Self::EnUs => "ready",
+            Self::JaJp => "準備完了",
+            Self::KoKr => "준비됨",
+        }
+    }
+
+    pub(crate) fn memory_not_ready_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "尚未就绪",
+            Self::ZhTw => "尚未就緒",
+            Self::EnUs => "not ready yet",
+            Self::JaJp => "未準備",
+            Self::KoKr => "아직 준비되지 않음",
+        }
+    }
+
+    pub(crate) fn keymap_editor_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择一项后按回车，再按下新的按键",
+            Self::ZhTw => "選擇一項後按 Enter，再按下新的按鍵",
+            Self::EnUs => "Select a binding, press Enter to rebind it, or Delete to unbind",
+            Self::JaJp => "項目を選んで Enter、次に新しいキーを押す",
+            Self::KoKr => "항목을 선택하고 Enter 후 새 키를 누르세요",
+        }
+    }
+
+    pub(crate) fn keymap_capturing_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "按下新的按键（Esc 取消）",
+            Self::ZhTw => "按下新的按鍵（Esc 取消）",
+            Self::EnUs => "Press the new key (Esc cancels)",
+            Self::JaJp => "新しいキーを押してください（Esc でキャンセル）",
+            Self::KoKr => "새 키를 누르세요 (Esc 취소)",
+        }
+    }
+
+    pub(crate) fn keymap_reset(self) -> &'static str {
+        match self {
+            Self::ZhCn => "按键绑定已恢复默认",
+            Self::ZhTw => "按鍵綁定已恢復預設",
+            Self::EnUs => "keybinding reset to its default",
+            Self::JaJp => "キーバインドを既定に戻しました",
+            Self::KoKr => "키 바인딩을 기본값으로 재설정했습니다",
+        }
+    }
+
+    pub(crate) fn keymap_saved(self) -> &'static str {
+        match self {
+            Self::ZhCn => "按键绑定已保存",
+            Self::ZhTw => "按鍵綁定已儲存",
+            Self::EnUs => "keybinding saved",
+            Self::JaJp => "キーバインドを保存しました",
+            Self::KoKr => "키 바인딩이 저장되었습니다",
+        }
+    }
+
+    pub(crate) fn keymap_unbound(self) -> &'static str {
+        match self {
+            Self::ZhCn => "按键绑定已解绑",
+            Self::ZhTw => "按鍵綁定已解除",
+            Self::EnUs => "keybinding unbound",
+            Self::JaJp => "キーバインドを解除しました",
+            Self::KoKr => "키 바인딩이 해제되었습니다",
+        }
+    }
+
+    pub(crate) fn keymap_save_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("按键绑定保存失败：{error}"),
+            Self::ZhTw => format!("按鍵綁定儲存失敗：{error}"),
+            Self::EnUs => format!("Failed to save the keybinding: {error}"),
+            Self::JaJp => format!("キーバインドの保存に失敗しました：{error}"),
+            Self::KoKr => format!("키 바인딩 저장 실패: {error}"),
+        }
+    }
+
     pub(crate) fn keymap_title(self) -> &'static str {
         match self {
             Self::ZhCn => "按键绑定",
@@ -743,6 +1863,46 @@ impl Locale {
             Self::EnUs => "Keymap",
             Self::JaJp => "キーバインド",
             Self::KoKr => "키 바인딩",
+        }
+    }
+
+    pub(crate) fn skills_toggle_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择技能后按回车启用或停用",
+            Self::ZhTw => "選擇技能後按 Enter 啟用或停用",
+            Self::EnUs => "Select a skill and press Enter to enable or disable it",
+            Self::JaJp => "スキルを選んで Enter で有効/無効を切り替え",
+            Self::KoKr => "스킬을 선택하고 Enter 로 활성화/비활성화",
+        }
+    }
+
+    pub(crate) fn skill_enabled(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已启用技能：{name}"),
+            Self::ZhTw => format!("已啟用技能：{name}"),
+            Self::EnUs => format!("enabled skill {name}"),
+            Self::JaJp => format!("スキル {name} を有効にしました"),
+            Self::KoKr => format!("스킬 {name} 활성화됨"),
+        }
+    }
+
+    pub(crate) fn skill_disabled(&self, name: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已停用技能：{name}"),
+            Self::ZhTw => format!("已停用技能：{name}"),
+            Self::EnUs => format!("disabled skill {name}"),
+            Self::JaJp => format!("スキル {name} を無効にしました"),
+            Self::KoKr => format!("스킬 {name} 비활성화됨"),
+        }
+    }
+
+    pub(crate) fn skill_toggle_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("技能状态更新失败：{error}"),
+            Self::ZhTw => format!("技能狀態更新失敗：{error}"),
+            Self::EnUs => format!("Failed to update the skill: {error}"),
+            Self::JaJp => format!("スキルの更新に失敗しました：{error}"),
+            Self::KoKr => format!("스킬 업데이트 실패: {error}"),
         }
     }
 
@@ -763,6 +1923,111 @@ impl Locale {
             Self::EnUs => "No skills are available",
             Self::JaJp => "利用可能なスキルはありません",
             Self::KoKr => "사용 가능한 스킬이 없습니다",
+        }
+    }
+
+    pub(crate) fn hook_trust_review_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "待确认",
+            Self::ZhTw => "待確認",
+            Self::EnUs => "review required",
+            Self::JaJp => "確認が必要",
+            Self::KoKr => "검토 필요",
+        }
+    }
+
+    pub(crate) fn hook_trust_trusted_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已信任",
+            Self::ZhTw => "已信任",
+            Self::EnUs => "trusted",
+            Self::JaJp => "信頼済み",
+            Self::KoKr => "신뢰됨",
+        }
+    }
+
+    pub(crate) fn hook_enabled_updated(self, enabled: bool) -> &'static str {
+        match (self, enabled) {
+            (Self::ZhCn, true) => "已启用该 hook",
+            (Self::ZhCn, false) => "已停用该 hook",
+            (Self::ZhTw, true) => "已啟用該 hook",
+            (Self::ZhTw, false) => "已停用該 hook",
+            (Self::EnUs, true) => "hook enabled",
+            (Self::EnUs, false) => "hook disabled",
+            (Self::JaJp, true) => "フックを有効にしました",
+            (Self::JaJp, false) => "フックを無効にしました",
+            (Self::KoKr, true) => "훅이 활성화되었습니다",
+            (Self::KoKr, false) => "훅이 비활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn hooks_trusted(self, count: usize) -> String {
+        match self {
+            Self::ZhCn => format!("已信任 {count} 个 hook"),
+            Self::ZhTw => format!("已信任 {count} 個 hook"),
+            Self::EnUs => format!("trusted {count} hook(s)"),
+            Self::JaJp => format!("{count} 個のフックを信頼しました"),
+            Self::KoKr => format!("훅 {count}개를 신뢰함"),
+        }
+    }
+
+    pub(crate) fn hook_update_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("hook 配置更新失败：{error}"),
+            Self::ZhTw => format!("hook 設定更新失敗：{error}"),
+            Self::EnUs => format!("Failed to update hook config: {error}"),
+            Self::JaJp => format!("フック設定の更新に失敗しました：{error}"),
+            Self::KoKr => format!("훅 설정 업데이트 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn hooks_browser_handlers_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "个处理器",
+            Self::ZhTw => "個處理器",
+            Self::EnUs => "handlers",
+            Self::JaJp => "ハンドラ",
+            Self::KoKr => "핸들러",
+        }
+    }
+
+    pub(crate) fn hooks_browser_events_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择事件后按回车查看处理器",
+            Self::ZhTw => "選擇事件後按 Enter 檢視處理器",
+            Self::EnUs => "Select an event and press Enter to inspect its handlers",
+            Self::JaJp => "イベントを選んで Enter でハンドラを表示",
+            Self::KoKr => "이벤트를 선택하고 Enter 로 핸들러 보기",
+        }
+    }
+
+    pub(crate) fn hooks_browser_handlers_hint(self) -> &'static str {
+        match self {
+            Self::ZhCn => "按 Esc 返回事件列表",
+            Self::ZhTw => "按 Esc 返回事件清單",
+            Self::EnUs => "Press Esc to return to the events list",
+            Self::JaJp => "Esc でイベント一覧に戻る",
+            Self::KoKr => "Esc 로 이벤트 목록으로 돌아가기",
+        }
+    }
+
+    pub(crate) fn hooks_browser_warnings_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "警告",
+            Self::ZhTw => "警告",
+            Self::EnUs => "warnings",
+            Self::JaJp => "警告",
+            Self::KoKr => "경고",
+        }
+    }
+
+    pub(crate) fn hooks_browser_errors_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "错误",
+            Self::ZhTw => "錯誤",
+            Self::EnUs => "errors",
+            Self::JaJp => "エラー",
+            Self::KoKr => "오류",
         }
     }
 
@@ -796,6 +2061,186 @@ impl Locale {
         }
     }
 
+    pub(crate) fn config_auto_recap_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "自动对话回顾",
+            Self::ZhTw => "自動對話回顧",
+            Self::EnUs => "auto recap",
+            Self::JaJp => "自動要約",
+            Self::KoKr => "자동 요약",
+        }
+    }
+
+    pub(crate) fn config_auto_recap_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "空闲后自动生成对话回顾",
+            Self::ZhTw => "閒置後自動產生對話回顧",
+            Self::EnUs => "generate conversation recaps after idle time",
+            Self::JaJp => "アイドル後に会話の要約を自動生成",
+            Self::KoKr => "유휴 후 대화 요약을 자동 생성",
+        }
+    }
+
+    pub(crate) fn auto_recap_enabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已开启自动对话回顾",
+            Self::ZhTw => "已開啟自動對話回顧",
+            Self::EnUs => "auto recap enabled",
+            Self::JaJp => "自動要約を有効にしました",
+            Self::KoKr => "자동 요약이 활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn auto_recap_disabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已关闭自动对话回顾",
+            Self::ZhTw => "已關閉自動對話回顧",
+            Self::EnUs => "auto recap disabled",
+            Self::JaJp => "自動要約を無効にしました",
+            Self::KoKr => "자동 요약이 비활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn config_animations_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "动画效果",
+            Self::ZhTw => "動畫效果",
+            Self::EnUs => "animations",
+            Self::JaJp => "アニメーション",
+            Self::KoKr => "애니메이션",
+        }
+    }
+
+    pub(crate) fn config_animations_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "切换终端显示动画",
+            Self::ZhTw => "切換終端顯示動畫",
+            Self::EnUs => "toggle terminal animations",
+            Self::JaJp => "ターミナルのアニメーションを切り替え",
+            Self::KoKr => "터미널 애니메이션 전환",
+        }
+    }
+
+    pub(crate) fn config_status_colors_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "状态栏彩色",
+            Self::ZhTw => "狀態列彩色",
+            Self::EnUs => "status line colors",
+            Self::JaJp => "ステータスライン色",
+            Self::KoKr => "상태 표시줄 색상",
+        }
+    }
+
+    pub(crate) fn config_status_colors_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "切换状态栏颜色",
+            Self::ZhTw => "切換狀態列顏色",
+            Self::EnUs => "toggle status line colors",
+            Self::JaJp => "ステータスラインの色を切り替え",
+            Self::KoKr => "상태 표시줄 색상 전환",
+        }
+    }
+
+    pub(crate) fn status_line_colors_enabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "状态栏彩色已开启",
+            Self::ZhTw => "狀態列彩色已開啟",
+            Self::EnUs => "status line colors enabled",
+            Self::JaJp => "ステータスラインの色を有効にしました",
+            Self::KoKr => "상태 표시줄 색상이 활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn status_line_colors_disabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "状态栏彩色已关闭",
+            Self::ZhTw => "狀態列彩色已關閉",
+            Self::EnUs => "status line colors disabled",
+            Self::JaJp => "ステータスラインの色を無効にしました",
+            Self::KoKr => "상태 표시줄 색상이 비활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn config_right_click_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "右键粘贴",
+            Self::ZhTw => "右鍵貼上",
+            Self::EnUs => "right-click paste",
+            Self::JaJp => "右クリック貼り付け",
+            Self::KoKr => "오른쪽 클릭 붙여넣기",
+        }
+    }
+
+    pub(crate) fn config_right_click_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "循环切换 auto / on / off",
+            Self::ZhTw => "循環切換 auto / on / off",
+            Self::EnUs => "cycle auto / on / off",
+            Self::JaJp => "auto / on / off を順に切り替え",
+            Self::KoKr => "auto / on / off 순환 전환",
+        }
+    }
+
+    pub(crate) fn right_click_paste_auto(self) -> &'static str {
+        match self {
+            Self::ZhCn => "右键粘贴：auto",
+            Self::ZhTw => "右鍵貼上：auto",
+            Self::EnUs => "right-click paste: auto",
+            Self::JaJp => "右クリック貼り付け：auto",
+            Self::KoKr => "오른쪽 클릭 붙여넣기: auto",
+        }
+    }
+
+    pub(crate) fn right_click_paste_on(self) -> &'static str {
+        match self {
+            Self::ZhCn => "右键粘贴：on",
+            Self::ZhTw => "右鍵貼上：on",
+            Self::EnUs => "right-click paste: on",
+            Self::JaJp => "右クリック貼り付け：on",
+            Self::KoKr => "오른쪽 클릭 붙여넣기: on",
+        }
+    }
+
+    pub(crate) fn right_click_paste_off(self) -> &'static str {
+        match self {
+            Self::ZhCn => "右键粘贴：off",
+            Self::ZhTw => "右鍵貼上：off",
+            Self::EnUs => "right-click paste: off",
+            Self::JaJp => "右クリック貼り付け：off",
+            Self::KoKr => "오른쪽 클릭 붙여넣기: off",
+        }
+    }
+
+    pub(crate) fn animations_enabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已开启动画",
+            Self::ZhTw => "已開啟動畫",
+            Self::EnUs => "animations enabled",
+            Self::JaJp => "アニメーションを有効にしました",
+            Self::KoKr => "애니메이션이 활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn animations_disabled(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已关闭动画",
+            Self::ZhTw => "已關閉動畫",
+            Self::EnUs => "animations disabled",
+            Self::JaJp => "アニメーションを無効にしました",
+            Self::KoKr => "애니메이션이 비활성화되었습니다",
+        }
+    }
+
+    pub(crate) fn config_save_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("配置保存失败：{error}"),
+            Self::ZhTw => format!("設定儲存失敗：{error}"),
+            Self::EnUs => format!("Failed to save the setting: {error}"),
+            Self::JaJp => format!("設定の保存に失敗しました：{error}"),
+            Self::KoKr => format!("설정 저장 실패: {error}"),
+        }
+    }
+
     pub(crate) fn config_panel_title(self) -> &'static str {
         match self {
             Self::ZhCn => "配置",
@@ -808,11 +2253,11 @@ impl Locale {
 
     pub(crate) fn config_panel_hint(self) -> &'static str {
         match self {
-            Self::ZhCn => "使用 /model、/effort、/permissions、/experimental 修改设置",
-            Self::ZhTw => "使用 /model、/effort、/permissions、/experimental 修改設定",
-            Self::EnUs => "Change settings with /model, /effort, /permissions, and /experimental",
-            Self::JaJp => "/model、/effort、/permissions、/experimental で設定を変更",
-            Self::KoKr => "/model, /effort, /permissions, /experimental 로 설정 변경",
+            Self::ZhCn => "选择一项打开对应设置",
+            Self::ZhTw => "選擇一項開啟對應設定",
+            Self::EnUs => "Select an entry to open its editor",
+            Self::JaJp => "項目を選んで設定を開く",
+            Self::KoKr => "항목을 선택해 설정 열기",
         }
     }
 
@@ -1975,6 +3420,20 @@ impl Locale {
         let label = match prefix {
             "" => return String::new(),
             "ready" => self.ready_label(),
+            "waiting approval" => match self {
+                Self::ZhCn => "等待审批",
+                Self::ZhTw => "等待核准",
+                Self::EnUs => "waiting for approval",
+                Self::JaJp => "承認待ち",
+                Self::KoKr => "승인 대기 중",
+            },
+            "waiting input" => match self {
+                Self::ZhCn => "等待输入",
+                Self::ZhTw => "等待輸入",
+                Self::EnUs => "waiting for input",
+                Self::JaJp => "入力待ち",
+                Self::KoKr => "입력 대기 중",
+            },
             "running" => match self {
                 Self::ZhCn => "运行中",
                 Self::ZhTw => "執行中",

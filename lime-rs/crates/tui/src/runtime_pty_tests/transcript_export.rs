@@ -71,7 +71,7 @@ pub(super) fn exercise_destination_filename_and_cancel(
         "configured F9 opens the filename prompt on the same canonical transcript",
         |screen| {
             screen.contains("Save conversation")
-                && screen.contains("codex-session-")
+                && screen.contains("lime-session-")
                 && screen.contains(completed_text)
         },
     );
@@ -86,7 +86,7 @@ pub(super) fn exercise_destination_filename_and_cancel(
         |screen| {
             screen.contains("Save conversation")
                 && screen.contains("Choose a Markdown filename")
-                && !screen.contains("codex-session-")
+                && !screen.contains("lime-session-")
                 && screen.contains(completed_text)
         },
     );

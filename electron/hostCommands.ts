@@ -29,6 +29,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronAppServerHost } from "./appServerHost";
 import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
+import { compactChatHistory } from "./chatHistoryCompaction";
 import { showDesktopNotification } from "./desktopNotificationHost";
 import { FileShellHost } from "./fileShellHost";
 import { LayeredDesignProjectHost } from "./layeredDesignProjectHost";
@@ -44,6 +45,7 @@ type AppServerParams = Record<string, unknown>;
 type HostEventEmitter = (event: string, payload?: unknown) => void;
 export class ElectronHostCommands {
   readonly #appServerHost: ElectronAppServerHost;
+  readonly #appDataRoot: string;
   readonly #fileShellHost: FileShellHost;
   readonly #layeredDesignProjectHost = new LayeredDesignProjectHost();
   readonly #systemUtilityHost: SystemUtilityHost;
@@ -58,6 +60,7 @@ export class ElectronHostCommands {
     secureCredentialStore: SecureCredentialStore | null = null,
   ) {
     this.#appServerHost = appServerHost;
+    this.#appDataRoot = appDataRoot;
     this.#secureCredentialStore = secureCredentialStore;
     this.#systemUtilityHost = new SystemUtilityHost({
       appDataRoot,
@@ -87,6 +90,11 @@ export class ElectronHostCommands {
         return await this.#systemUtilityHost.invokeWindowsNativeHost(args);
       case "show_desktop_notification":
         return showDesktopNotification(args);
+      case "compact_chat_history":
+        return compactChatHistory({
+          appDataRoot: this.#appDataRoot,
+          appServerHost: this.#appServerHost,
+        });
       case "reveal_in_finder":
         return this.#fileShellHost.revealInFinder(args);
       case "open_in_get_targets":

@@ -1,6 +1,6 @@
 //! Lime-native viewport state for the inline TUI surface.
 //!
-//! The full Codex terminal owns scrollback and buffer diffing in
+//! The full 上游 terminal owns scrollback and buffer diffing in
 //! `custom_terminal::Terminal`. Lime currently keeps ratatui's terminal as its renderer, so this
 //! module owns the same viewport geometry and cursor anchoring contract without introducing a
 //! second renderer. The runtime can use it to keep the composer area stable as the terminal is

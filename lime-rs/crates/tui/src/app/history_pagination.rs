@@ -224,7 +224,7 @@ impl App {
 ///
 /// The inline transcript can accept a response while its cached availability flag is being
 /// refreshed. The explicit transcript overlay must reject a completion after its older-page
-/// intent has been exhausted, matching Codex's owned-transcript fail-closed boundary.
+/// intent has been exhausted, matching 上游 owned-transcript fail-closed boundary.
 fn transcript_history_surface_is_current(
     transcript_overlay: bool,
     older_history_available: bool,

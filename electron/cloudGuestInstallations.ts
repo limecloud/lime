@@ -20,11 +20,14 @@ import {
 } from "./cloudGuestArtifact";
 import {
   requestCloudGuestUpload,
+  CloudGuestUploadError,
+  readCloudGuestUploadFailure,
   type CloudGuestUpload,
 } from "./cloudGuestUpload";
 import type { CloudDesktopRequest } from "./cloudDesktopTaskTunnel";
 import { openCloudGuestUploadTunnel } from "./cloudGuestUploadTunnel";
 import { waitForCloudGuestRequest } from "./cloudGuestRequest";
+import { readCloudGuestProgress } from "./cloudGuestProgress";
 
 type Phase = NonNullable<CloudGuestInstallationStatus["phase"]>;
 type RecordState = {
@@ -34,6 +37,7 @@ type RecordState = {
   artifactPath?: string;
   artifact?: CloudGuestArtifact;
   downloadUrl?: string;
+  distributionId?: string;
   reconnect?: true;
   capability: string;
   createdAt: number;
@@ -43,6 +47,8 @@ type RecordState = {
   upload?: CloudGuestUpload;
   viewerPassword?: string;
   diagnostic?: string;
+  transportFailure?: CloudGuestInstallationStatus["transportFailure"];
+  transfer?: CloudGuestInstallationStatus["transfer"];
   preparation?: {
     operationId: string;
     submitted: boolean;
@@ -55,6 +61,8 @@ const phases: Phase[] = [
   "preparing",
   "launching",
   "uploading",
+  "downloading",
+  "installing",
   "saving",
   "finishPending",
   "complete",
@@ -98,7 +106,13 @@ export class CloudGuestInstallations {
     readonly transport = requestCloudGuestUpload,
     readonly pollMs = 2000,
     readonly showDesktopPassword?: (password: string) => Promise<void>,
-    readonly selectRelease?: () => Promise<CloudGuestSource>,
+    readonly selectRelease?: (
+      resource: CloudDesktopResource,
+    ) => Promise<CloudGuestSource>,
+    readonly releaseDistribution?: (
+      resource: CloudDesktopResource,
+      operationId: string,
+    ) => Promise<void>,
   ) {}
 
   #file(key: string) {
@@ -138,6 +152,11 @@ export class CloudGuestInstallations {
     if (!value.reconnect) validateArtifact(value.artifact);
     if (value.downloadUrl !== undefined) validateDownloadUrl(value.downloadUrl);
     if (
+      value.distributionId !== undefined &&
+      (!uuid(value.distributionId) || value.reconnect || !value.downloadUrl)
+    )
+      throw new Error("CLOUD_INSTALL_STATE_INVALID");
+    if (
       value.preparation !== undefined &&
       (!value.preparation ||
         typeof value.preparation !== "object" ||
@@ -160,6 +179,15 @@ export class CloudGuestInstallations {
         !Number.isSafeInteger(value.upload.expiresAt))
     )
       throw new Error("CLOUD_INSTALL_STATE_INVALID");
+    if (value.transportFailure !== undefined)
+      value.transportFailure = readCloudGuestUploadFailure(
+        value.transportFailure,
+      );
+    if (value.transfer !== undefined)
+      value.transfer = readCloudGuestProgress(
+        value.transfer,
+        value.reconnect ? undefined : value.artifact?.archiveBytes,
+      );
     return value;
   }
 
@@ -205,6 +233,10 @@ export class CloudGuestInstallations {
             connectionSaved: state.credentialsSaved,
             expiresAt: state.upload?.expiresAt,
             ...(state.diagnostic ? { diagnostic: state.diagnostic } : {}),
+            ...(state.transportFailure
+              ? { transportFailure: state.transportFailure }
+              : {}),
+            ...(state.transfer ? { transfer: state.transfer } : {}),
           }
         : {}),
     };
@@ -255,7 +287,7 @@ export class CloudGuestInstallations {
         if (request.source === "release") {
           if (!this.selectRelease)
             throw new Error("CLOUD_INSTALL_RELEASE_UNAVAILABLE");
-          artifact = await this.selectRelease();
+          artifact = await this.selectRelease(resource);
           validateArtifact(artifact.artifact);
           validateDownloadUrl(artifact.downloadUrl);
         } else {
@@ -307,7 +339,12 @@ export class CloudGuestInstallations {
           .write(state)
           .catch(() => undefined);
       })
-      .finally(() => {
+      .finally(async () => {
+        if (state.distributionId && terminal(state.phase))
+          await this.releaseDistribution?.(
+            state.resource,
+            state.distributionId,
+          ).catch(() => undefined);
         this.#jobs.delete(key);
       });
     this.#jobs.set(key, { controller, done });
@@ -318,9 +355,11 @@ export class CloudGuestInstallations {
     state: RecordState,
     phase: Phase,
     diagnostic?: string,
+    transportFailure?: CloudGuestInstallationStatus["transportFailure"],
   ) {
     state.phase = phase;
     state.diagnostic = diagnostic;
+    state.transportFailure = transportFailure;
     await this.#file(key).write(state);
   }
 
@@ -435,9 +474,12 @@ export class CloudGuestInstallations {
           { ...state.upload!, endpoint: tunnel.endpoint },
           signal,
         );
-      } finally {
-        await tunnel.close();
+      } catch (error) {
+        // Cleanup must not replace the original, safely classified transfer failure.
+        await tunnel.close().catch(() => undefined);
+        throw error;
       }
+      await tunnel.close();
     } catch (error) {
       if (signal.aborted && terminal(state.phase)) return;
       await this.#persist(
@@ -450,6 +492,7 @@ export class CloudGuestInstallations {
           error.message === "CLOUD_INSTALL_SECURITY_GROUP_DENIED"
           ? "CLOUD_INSTALL_SECURITY_GROUP_DENIED"
           : "CLOUD_INSTALL_RECOVERY_REQUIRED",
+        error instanceof CloudGuestUploadError ? error.failure : undefined,
       );
     }
   }
@@ -492,6 +535,19 @@ export class CloudGuestInstallations {
         status.expiresAt !== target.expiresAt
       )
         throw new Error("CLOUD_INSTALL_STATE_INVALID");
+      const transfer = readCloudGuestProgress(
+        status.transfer,
+        state.reconnect ? undefined : state.artifact?.archiveBytes,
+        state.transfer,
+      );
+      if (
+        transfer &&
+        (transfer.receivedBytes !== state.transfer?.receivedBytes ||
+          transfer.totalBytes !== state.transfer?.totalBytes)
+      ) {
+        state.transfer = transfer;
+        await this.#persist(key, state, state.phase);
+      }
       if (status.phase === "waiting") {
         if (state.uploadAttempted) {
           await this.#persist(
@@ -533,6 +589,14 @@ export class CloudGuestInstallations {
         continue;
       }
       if (["receiving", "installing"].includes(String(status.phase))) {
+        const phase = state.reconnect
+          ? "uploading"
+          : status.phase === "installing"
+            ? "installing"
+            : state.downloadUrl
+              ? "downloading"
+              : "uploading";
+        if (state.phase !== phase) await this.#persist(key, state, phase);
         await delay(this.pollMs, undefined, { signal });
         continue;
       }

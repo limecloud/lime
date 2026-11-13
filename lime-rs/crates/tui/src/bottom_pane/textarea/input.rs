@@ -64,7 +64,7 @@ impl TextArea {
         if !matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
             return;
         }
-        // AltGr is text input unless one of Codex's explicit newline/word-delete aliases
+        // AltGr is text input unless one of 上游 explicit newline/word-delete aliases
         // matched. A pending chord still owns its completion, including cancellation.
         if !self.editor_key_chord_matcher.is_pending()
             && crate::key_hint::is_altgr(event.modifiers)

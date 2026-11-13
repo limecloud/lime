@@ -129,6 +129,7 @@ interface InputbarCoreProps {
   trailingMeta?: React.ReactNode;
   /** 输入框内部顶部扩展区域（编辑器上方） */
   topExtra?: React.ReactNode;
+  contextUsage?: React.ReactNode;
   /** 输入框提示文案 */
   placeholder?: string;
   /** 是否显示顶部拖拽条 */
@@ -173,6 +174,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   leftExtra,
   trailingMeta,
   topExtra,
+  contextUsage,
   placeholder,
   showDragHandle = true,
   visualVariant = "default",
@@ -643,7 +645,14 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                     </MetaSlot>
                   ) : null
                 }
-                trailingControls={isDictationBusy ? null : primaryActions}
+                trailingControls={
+                  isDictationBusy ? null : (
+                    <>
+                      {contextUsage}
+                      {primaryActions}
+                    </>
+                  )
+                }
                 inputRef={composerLayout.inputRef}
                 layout={composerLayout.layout}
                 isComposing={composerLayout.isComposing}

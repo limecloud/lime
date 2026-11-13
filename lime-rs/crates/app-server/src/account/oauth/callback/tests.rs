@@ -3,7 +3,7 @@ use app_server_protocol::protocol::v2::GetAccountParams;
 
 async fn pending() -> (tempfile::TempDir, AccountManager, store::Authorization) {
     let root = tempfile::tempdir().unwrap();
-    let manager = AccountManager::new(root.path());
+    let manager = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let mut authorization = super::super::tests::authorization();
     authorization.public.id = uuid::Uuid::new_v4().to_string();
@@ -98,7 +98,7 @@ async fn interrupted_listener_releases_lease_and_another_manager_resumes_it() {
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
 
-    let restarted = AccountManager::new(root.path());
+    let restarted = AccountManager::new(root.path(), &root.path().join("config.yaml"));
     restarted.read_verified(Default::default()).await.unwrap();
     assert!(claim(&restarted.path, &original.public.id)
         .unwrap()
@@ -288,6 +288,7 @@ async fn live_verification_lease_prevents_a_second_reader_using_staged_tokens() 
             .unwrap();
         authorization.public.status = Status::Exchanging;
         authorization.staged = Some(store::Credential {
+            authorization_expires_at: None,
             tokens: cloud::Tokens {
                 access_token: "test-staged-token".into(),
                 token_type: "Bearer".into(),

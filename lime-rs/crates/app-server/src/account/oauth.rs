@@ -35,19 +35,38 @@ impl AccountManager {
         &self,
         params: LoginAccountParams,
     ) -> Result<LoginAccountResponse, String> {
+        self.login_bound(params, None).await
+    }
+
+    pub(super) async fn login_bound(
+        &self,
+        params: LoginAccountParams,
+        binding: Option<(&str, &str, &str)>,
+    ) -> Result<LoginAccountResponse, String> {
         let LoginAccountParams::Cloud {
-            base_url,
             resource,
             language,
             installation,
         } = params;
-        cloud::validated_base_url(&base_url)?;
-        let base_url = base_url.trim_end_matches('/').to_string();
         validate_language(&language)?;
         let snapshot = store::update(&self.path, |state| {
             ensure_authorization_idle(state, resource)?;
-            Ok((state.epoch.clone(), state.account.clone()))
+            let service_url = self
+                .service_url(state)?
+                .ok_or("account_service_unconfigured")?;
+            if binding.is_some_and(|(epoch, origin, id)| {
+                state.epoch != epoch
+                    || service_url != origin
+                    || state
+                        .tool_login
+                        .as_ref()
+                        .is_none_or(|claim| claim.id != id || claim.base_url != origin)
+            }) {
+                return Err("account_changed".into());
+            }
+            Ok((state.epoch.clone(), state.account.clone(), service_url))
         })?;
+        let base_url = snapshot.2;
         let config = self.get_config(&base_url, &language).await?;
         config.resource(resource)?;
         if resource == CloudResource::Connections && config.environment == "production" {
@@ -78,50 +97,32 @@ impl AccountManager {
                 return Err("account_identity_mismatch".into());
             }
         }
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = binding
+            .map(|(_, _, id)| id.to_string())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         let lease = callback::claim(&self.path, &id)?.ok_or("account_store_busy")?;
         let (listener, redirect_uri) = callback_listener(&config.redirect_uris).await?;
         let state = random();
         let nonce = random();
         let verifier = random();
-        let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
         let public = AccountAuthorization {
             id: id.clone(),
             resource,
             status: Status::Pending,
             expires_at: timestamp(chrono::Utc::now().timestamp() + AUTHORIZATION_SECONDS),
         };
-        let mut authorization_url =
-            reqwest::Url::parse(&format!("{base_url}{}/auth/authorize", cloud::PREFIX))
-                .map_err(|_| "account_origin_invalid")?;
-        let mut query = authorization_url.query_pairs_mut();
-        query
-            .append_pair("redirect_uri", &redirect_uri)
-            .append_pair("code_challenge", &challenge)
-            .append_pair("state", &state)
-            .append_pair("nonce", &nonce);
-        match resource {
-            CloudResource::Default => {}
-            CloudResource::Market => {
-                query.append_pair("resource", "market");
-            }
-            CloudResource::Web => {
-                query.append_pair("resource", "web");
-            }
-            CloudResource::Connections => {
-                query.append_pair("resource", "connections");
-            }
-        }
-        if let Some(installation) = installation {
-            query
-                .append_pair("installation_id", &installation.installation_id)
-                .append_pair("space_id", &installation.space_id);
-        }
-        drop(query);
         let authorization = store::update(&self.path, |current| {
             // Reload under the file lock: a different process may have logged out
             // while configuration or the registered listener was being prepared.
             if current.epoch != snapshot.0 {
+                return Err("account_changed".into());
+            }
+            if binding.is_some_and(|(_, origin, id)| {
+                current
+                    .tool_login
+                    .as_ref()
+                    .is_none_or(|claim| claim.id != id || claim.base_url != origin)
+            }) {
                 return Err("account_changed".into());
             }
             ensure_authorization_idle(current, resource)?;
@@ -144,10 +145,11 @@ impl AccountManager {
             current.authorizations.insert(resource, value.clone());
             Ok(value)
         })?;
+        let auth_url = authorization_url(&authorization, installation.as_ref())?;
         self.start_callback(listener, authorization, lease);
         Ok(LoginAccountResponse::Cloud {
             authorization: public,
-            auth_url: authorization_url.to_string(),
+            auth_url,
         })
     }
 
@@ -237,15 +239,17 @@ impl AccountManager {
                 &authorization.language,
             )
             .await?;
-        self.verify_id_token(
-            &authorization.base_url,
-            &authorization.config,
-            &credential.tokens,
-            &authorization.nonce,
-            &account,
-            &authorization.language,
-        )
-        .await?;
+        credential.authorization_expires_at = self
+            .verify_id_token(
+                &authorization.base_url,
+                &authorization.config,
+                resource,
+                &credential.tokens,
+                &authorization.nonce,
+                &account,
+                &authorization.language,
+            )
+            .await?;
         let identity = Self::plugin_identity_for(&account);
         if resource != CloudResource::Default
             && authorization.expected_identity.as_deref() != Some(&identity)
@@ -302,6 +306,42 @@ impl AccountManager {
             Ok(())
         });
     }
+}
+
+pub(super) fn authorization_url(
+    authorization: &store::Authorization,
+    installation: Option<&app_server_protocol::protocol::v2::ConnectionInstallation>,
+) -> Result<String, String> {
+    let base_url = &authorization.base_url;
+    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(authorization.verifier.as_bytes()));
+    let mut authorization_url =
+        reqwest::Url::parse(&format!("{base_url}{}/auth/authorize", cloud::PREFIX))
+            .map_err(|_| "account_origin_invalid")?;
+    let mut query = authorization_url.query_pairs_mut();
+    query
+        .append_pair("redirect_uri", &authorization.redirect_uri)
+        .append_pair("code_challenge", &challenge)
+        .append_pair("state", &authorization.state)
+        .append_pair("nonce", &authorization.nonce);
+    match authorization.public.resource {
+        CloudResource::Default => {}
+        CloudResource::Market => {
+            query.append_pair("resource", "market");
+        }
+        CloudResource::Web => {
+            query.append_pair("resource", "web");
+        }
+        CloudResource::Connections => {
+            query.append_pair("resource", "connections");
+        }
+    }
+    if let Some(installation) = installation {
+        query
+            .append_pair("installation_id", &installation.installation_id)
+            .append_pair("space_id", &installation.space_id);
+    }
+    drop(query);
+    Ok(authorization_url.to_string())
 }
 
 fn ensure_current(

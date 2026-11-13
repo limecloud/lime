@@ -32,6 +32,7 @@ mod memory_store;
 mod model;
 mod notifications;
 mod permission_profile;
+mod market;
 mod plugin;
 mod primary_runtime;
 mod process;

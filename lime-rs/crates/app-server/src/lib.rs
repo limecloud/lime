@@ -22,8 +22,10 @@ mod file_checkpoint_snapshot;
 mod fs;
 mod fuzzy_file_search;
 mod gateway_tunnel;
+mod host_request;
 mod initialization;
 mod local_data_source;
+mod market;
 mod mcp_elicitation;
 mod media_runtime_contract;
 mod media_task;
@@ -37,7 +39,6 @@ mod model_task_contract;
 mod otel_trace;
 mod permission_profile;
 mod permission_server_request;
-mod plugin_remote;
 mod process;
 mod processor;
 mod runtime;
@@ -180,6 +181,7 @@ pub use runtime::FilesystemFileCheckpointSnapshotStore;
 pub use runtime::FilesystemOutputSnapshotStore;
 pub use runtime::GatewayAppDataSource;
 pub use runtime::InlineArtifactContentProvider;
+pub use runtime::MarketDataSource;
 pub use runtime::McpAppDataSource;
 pub use runtime::MediaAppDataSource;
 pub use runtime::MemoryAppDataSource;
@@ -963,7 +965,9 @@ pub async fn run_transport(
     let mut accept_handles = Vec::<JoinHandle<()>>::new();
     let single_client_mode = matches!(transport, AppServerTransport::Stdio);
     if matches!(transport, AppServerTransport::WebSocket { .. }) {
-        server.processor.disable_cloud_desktop_local_control(websocket_auth.requires_credentials());
+        server
+            .processor
+            .disable_cloud_desktop_local_control(websocket_auth.requires_credentials());
     }
     let _unix_socket_startup_lock = match &transport {
         AppServerTransport::UnixSocket { socket_path } => {

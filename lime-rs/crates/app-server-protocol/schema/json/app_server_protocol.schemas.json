@@ -116,6 +116,100 @@
       ],
       "title": "Account"
     },
+    "AccountAuthorizeParams": {
+      "$defs": {
+        "AccountAuthorization": {
+          "properties": {
+            "expiresAt": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudResource"
+            },
+            "status": {
+              "$ref": "#/$defs/AccountAuthorizationStatus"
+            }
+          },
+          "required": [
+            "expiresAt",
+            "id",
+            "resource",
+            "status"
+          ],
+          "type": "object"
+        },
+        "AccountAuthorizationStatus": {
+          "enum": [
+            "cancelled",
+            "completed",
+            "denied",
+            "exchanging",
+            "expired",
+            "failed",
+            "outcome_unknown",
+            "pending"
+          ],
+          "type": "string"
+        },
+        "CloudResource": {
+          "enum": [
+            "connections",
+            "default",
+            "market",
+            "web"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "The host opens the native owner's URL. Only the native callback proves authorization.",
+      "properties": {
+        "authUrl": {
+          "type": "string"
+        },
+        "authorization": {
+          "$ref": "#/$defs/AccountAuthorization"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authUrl",
+        "authorization",
+        "threadId"
+      ],
+      "title": "AccountAuthorizeParams",
+      "type": "object"
+    },
+    "AccountAuthorizeResponse": {
+      "$defs": {
+        "AuthorizationAction": {
+          "enum": [
+            "cancelled",
+            "opened",
+            "unavailable"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/AuthorizationAction"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "AccountAuthorizeResponse",
+      "type": "object"
+    },
     "AccountUpdatedNotification": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -10097,6 +10191,16 @@
       "title": "AuthMaterialRef",
       "type": "object"
     },
+    "AuthorizationAction": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "cancelled",
+        "opened",
+        "unavailable"
+      ],
+      "title": "AuthorizationAction",
+      "type": "string"
+    },
     "AutoReviewDecisionSource": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "enum": [
@@ -11714,6 +11818,98 @@
           "oneOf": [
             {
               "additionalProperties": false,
+              "description": "Short-lived public recipient on the destination; no private key is returned.",
+              "properties": {
+                "action": {
+                  "const": "prepareModelConnection",
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "operationId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Main-only local action; the selected key is returned only as age ciphertext.",
+              "properties": {
+                "action": {
+                  "const": "sealModelConnection",
+                  "type": "string"
+                },
+                "expiresAt": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "keyId": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "providerId": {
+                  "type": "string"
+                },
+                "recipient": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "expiresAt",
+                "keyId",
+                "operationId",
+                "providerId",
+                "recipient"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Authenticated destination import; receipt and Provider commit atomically.",
+              "properties": {
+                "action": {
+                  "const": "applyModelConnection",
+                  "type": "string"
+                },
+                "ciphertext": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "ciphertext",
+                "operationId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "const": "readModelConnection",
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "operationId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
               "properties": {
                 "action": {
                   "const": "connectAlibaba",
@@ -11841,6 +12037,28 @@
             },
             {
               "additionalProperties": false,
+              "description": "Check local connectivity for this exact valid quote before paid purchase.\nNo cloud resources are changed and no public address is returned.",
+              "properties": {
+                "action": {
+                  "const": "preflightEcsPurchase",
+                  "type": "string"
+                },
+                "quoteId": {
+                  "type": "string"
+                },
+                "spec": {
+                  "$ref": "#/$defs/EcsDesktopSpec"
+                }
+              },
+              "required": [
+                "action",
+                "quoteId",
+                "spec"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
               "description": "Read the original preparation, or explicitly authorize a network-only ROS stack.\nNo compute purchase occurs here. Unknown submissions are only inspected.",
               "properties": {
                 "action": {
@@ -11888,6 +12106,32 @@
                 "action",
                 "profile",
                 "regionId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Authorize two fixed connection ports from the current public IPv4 only.\nOnly a verified Lime-created dedicated network can be changed.",
+              "properties": {
+                "action": {
+                  "const": "prepareEcsConnection",
+                  "type": "string"
+                },
+                "confirmation": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "resource": {
+                  "$ref": "#/$defs/CloudDesktopResource"
+                }
+              },
+              "required": [
+                "action",
+                "confirmation",
+                "operationId",
+                "resource"
               ],
               "type": "object"
             },
@@ -12323,6 +12567,122 @@
             },
             {
               "additionalProperties": false,
+              "description": "Main-only public software distribution. Never available through Renderer JSONL.",
+              "properties": {
+                "action": {
+                  "const": "prepareRuntimeDistribution",
+                  "type": "string"
+                },
+                "archiveBytes": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "archiveSha256": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "profile": {
+                  "type": "string"
+                },
+                "regionId": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "archiveBytes",
+                "archiveSha256",
+                "operationId",
+                "profile",
+                "regionId",
+                "version"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "const": "readRuntimeDistribution",
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "profile": {
+                  "type": "string"
+                },
+                "regionId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "operationId",
+                "profile",
+                "regionId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Returns a short-lived GET capability to the local native host only.",
+              "properties": {
+                "action": {
+                  "const": "signRuntimeDistribution",
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "profile": {
+                  "type": "string"
+                },
+                "regionId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "operationId",
+                "profile",
+                "regionId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "const": "cleanupRuntimeDistribution",
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "profile": {
+                  "type": "string"
+                },
+                "regionId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "operationId",
+                "profile",
+                "regionId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
               "properties": {
                 "action": {
                   "const": "transferOssArchive",
@@ -12607,6 +12967,66 @@
                 "operationId",
                 "resource",
                 "workSaved"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Stop, preserve one encrypted system disk as a verified private image, then release.\nReusing the operation ID resumes only its existing durable child operations.",
+              "properties": {
+                "action": {
+                  "const": "hibernateEcs",
+                  "type": "string"
+                },
+                "confirmation": {
+                  "type": "string"
+                },
+                "discardData": {
+                  "type": "boolean"
+                },
+                "includeCredentials": {
+                  "type": "boolean"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "resource": {
+                  "$ref": "#/$defs/CloudDesktopResource"
+                },
+                "workSaved": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "action",
+                "confirmation",
+                "discardData",
+                "includeCredentials",
+                "operationId",
+                "resource",
+                "workSaved"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Stop future hibernation steps; cannot undo or cancel an initiated release.",
+              "properties": {
+                "action": {
+                  "const": "cancelEcsHibernation",
+                  "type": "string"
+                },
+                "confirmation": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "confirmation",
+                "operationId"
               ],
               "type": "object"
             },
@@ -14110,9 +14530,6 @@
             {
               "additionalProperties": false,
               "properties": {
-                "baseUrl": {
-                  "type": "string"
-                },
                 "installation": {
                   "anyOf": [
                     {
@@ -14136,13 +14553,226 @@
                 }
               },
               "required": [
-                "baseUrl",
                 "language",
                 "type"
               ],
               "type": "object"
             }
           ]
+        },
+        "MarketEnabledSetParams": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            }
+          },
+          "required": [
+            "enabled",
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "MarketInstallCancelParams": {
+          "additionalProperties": false,
+          "properties": {
+            "installAttemptId": {
+              "type": "string"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            }
+          },
+          "required": [
+            "installAttemptId",
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "MarketInstallParams": {
+          "additionalProperties": false,
+          "properties": {
+            "installAttemptId": {
+              "type": "string"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            }
+          },
+          "required": [
+            "installAttemptId",
+            "itemId",
+            "kind",
+            "release"
+          ],
+          "type": "object"
+        },
+        "MarketInstalledParams": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketResourceKind"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "MarketListParams": {
+          "additionalProperties": false,
+          "properties": {
+            "cursor": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "limit": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "query": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        "MarketPendingParams": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketResourceKind"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "MarketReadParams": {
+          "additionalProperties": false,
+          "properties": {
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "release": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "MarketReconcileParams": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketResourceKind"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        },
+        "MarketUninstallParams": {
+          "additionalProperties": false,
+          "properties": {
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            }
+          },
+          "required": [
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
         },
         "MarketplaceAddParams": {
           "properties": {
@@ -14476,6 +15106,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for a new shared-market installation."
             }
           },
           "required": [
@@ -14560,6 +15201,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact catalog release. Omit to read an installed plugin."
             }
           },
           "required": [
@@ -19197,6 +19849,186 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
+              "const": "market/install/pending",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketPendingParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/install/cancel",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketInstallCancelParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/reconcile",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketReconcileParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/list",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketListParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/read",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketReadParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/install",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketInstallParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/installed",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketInstalledParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/enabled/set",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketEnabledSetParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "market/uninstall",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/MarketUninstallParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
               "const": "plugin/list",
               "type": "string"
             },
@@ -19968,6 +20800,98 @@
       "oneOf": [
         {
           "additionalProperties": false,
+          "description": "Short-lived public recipient on the destination; no private key is returned.",
+          "properties": {
+            "action": {
+              "const": "prepareModelConnection",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Main-only local action; the selected key is returned only as age ciphertext.",
+          "properties": {
+            "action": {
+              "const": "sealModelConnection",
+              "type": "string"
+            },
+            "expiresAt": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "keyId": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "providerId": {
+              "type": "string"
+            },
+            "recipient": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "expiresAt",
+            "keyId",
+            "operationId",
+            "providerId",
+            "recipient"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Authenticated destination import; receipt and Provider commit atomically.",
+          "properties": {
+            "action": {
+              "const": "applyModelConnection",
+              "type": "string"
+            },
+            "ciphertext": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ciphertext",
+            "operationId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "readModelConnection",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "action": {
               "const": "connectAlibaba",
@@ -20095,6 +21019,28 @@
         },
         {
           "additionalProperties": false,
+          "description": "Check local connectivity for this exact valid quote before paid purchase.\nNo cloud resources are changed and no public address is returned.",
+          "properties": {
+            "action": {
+              "const": "preflightEcsPurchase",
+              "type": "string"
+            },
+            "quoteId": {
+              "type": "string"
+            },
+            "spec": {
+              "$ref": "#/$defs/EcsDesktopSpec"
+            }
+          },
+          "required": [
+            "action",
+            "quoteId",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Read the original preparation, or explicitly authorize a network-only ROS stack.\nNo compute purchase occurs here. Unknown submissions are only inspected.",
           "properties": {
             "action": {
@@ -20142,6 +21088,32 @@
             "action",
             "profile",
             "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Authorize two fixed connection ports from the current public IPv4 only.\nOnly a verified Lime-created dedicated network can be changed.",
+          "properties": {
+            "action": {
+              "const": "prepareEcsConnection",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudDesktopResource"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "operationId",
+            "resource"
           ],
           "type": "object"
         },
@@ -20577,6 +21549,122 @@
         },
         {
           "additionalProperties": false,
+          "description": "Main-only public software distribution. Never available through Renderer JSONL.",
+          "properties": {
+            "action": {
+              "const": "prepareRuntimeDistribution",
+              "type": "string"
+            },
+            "archiveBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "archiveSha256": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "archiveBytes",
+            "archiveSha256",
+            "operationId",
+            "profile",
+            "regionId",
+            "version"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "readRuntimeDistribution",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Returns a short-lived GET capability to the local native host only.",
+          "properties": {
+            "action": {
+              "const": "signRuntimeDistribution",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "cleanupRuntimeDistribution",
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "regionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "operationId",
+            "profile",
+            "regionId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "action": {
               "const": "transferOssArchive",
@@ -20861,6 +21949,66 @@
             "operationId",
             "resource",
             "workSaved"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Stop, preserve one encrypted system disk as a verified private image, then release.\nReusing the operation ID resumes only its existing durable child operations.",
+          "properties": {
+            "action": {
+              "const": "hibernateEcs",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "discardData": {
+              "type": "boolean"
+            },
+            "includeCredentials": {
+              "type": "boolean"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudDesktopResource"
+            },
+            "workSaved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "discardData",
+            "includeCredentials",
+            "operationId",
+            "resource",
+            "workSaved"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Stop future hibernation steps; cannot undo or cancel an initiated release.",
+          "properties": {
+            "action": {
+              "const": "cancelEcsHibernation",
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "confirmation",
+            "operationId"
           ],
           "type": "object"
         },
@@ -26935,6 +28083,61 @@
       "title": "ConnectRelayApiKeySaveResponse",
       "type": "object"
     },
+    "ConnectionAuthorizeParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "The host opens the original file approval; the Cloud decision is read separately.",
+      "properties": {
+        "approvalUrl": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "approvalUrl",
+        "environment",
+        "expiresAt",
+        "requestId",
+        "threadId"
+      ],
+      "title": "ConnectionAuthorizeParams",
+      "type": "object"
+    },
+    "ConnectionAuthorizeResponse": {
+      "$defs": {
+        "AuthorizationAction": {
+          "enum": [
+            "cancelled",
+            "opened",
+            "unavailable"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/AuthorizationAction"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "ConnectionAuthorizeResponse",
+      "type": "object"
+    },
     "ConnectorMetadata": {
       "$defs": {
         "AppToolSummary": {
@@ -31662,6 +32865,20 @@
             "$ref": "#/$defs/AccountAuthorization"
           },
           "type": "array"
+        },
+        "serviceError": {
+          "description": "Configuration failure code; account and logout remain available.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "serviceUrl": {
+          "description": "Effective Core origin from native user configuration or the bound account.",
+          "type": [
+            "null",
+            "string"
+          ]
         }
       },
       "required": [
@@ -39361,9 +40578,6 @@
         {
           "additionalProperties": false,
           "properties": {
-            "baseUrl": {
-              "type": "string"
-            },
             "installation": {
               "anyOf": [
                 {
@@ -39387,7 +40601,6 @@
             }
           },
           "required": [
-            "baseUrl",
             "language",
             "type"
           ],
@@ -39472,6 +40685,2279 @@
     "LogoutAccountResponse": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "title": "LogoutAccountResponse",
+      "type": "object"
+    },
+    "MarketAcquisitionCheck": {
+      "$defs": {
+        "MarketAcquisitionStatus": {
+          "description": "Only the acquisition is checked; publication and runtime approval are separate.",
+          "enum": [
+            "active",
+            "revoked",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "acquisitionStatus": {
+          "$ref": "#/$defs/MarketAcquisitionStatus"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        }
+      },
+      "required": [
+        "acquisitionStatus",
+        "itemId",
+        "kind",
+        "release"
+      ],
+      "title": "MarketAcquisitionCheck",
+      "type": "object"
+    },
+    "MarketAcquisitionStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "Only the acquisition is checked; publication and runtime approval are separate.",
+      "enum": [
+        "active",
+        "revoked",
+        "unavailable"
+      ],
+      "title": "MarketAcquisitionStatus",
+      "type": "string"
+    },
+    "MarketEnabledSetParams": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "enabled",
+        "itemId",
+        "kind"
+      ],
+      "title": "MarketEnabledSetParams",
+      "type": "object"
+    },
+    "MarketEnabledSetResponse": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResource": {
+          "properties": {
+            "actions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "compatible": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "license": {
+              "type": "string"
+            },
+            "mcp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketMcp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "publisherApplicationId": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "title": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actions",
+            "compatible",
+            "description",
+            "itemId",
+            "kind",
+            "license",
+            "name",
+            "publisherApplicationId",
+            "release",
+            "title",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/MarketResource"
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "title": "MarketEnabledSetResponse",
+      "type": "object"
+    },
+    "MarketInstallCancelParams": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "installAttemptId": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "installAttemptId",
+        "itemId",
+        "kind"
+      ],
+      "title": "MarketInstallCancelParams",
+      "type": "object"
+    },
+    "MarketInstallCancelResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "MarketInstallCancelResponse",
+      "type": "object"
+    },
+    "MarketInstallParams": {
+      "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "installAttemptId": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        }
+      },
+      "required": [
+        "installAttemptId",
+        "itemId",
+        "kind",
+        "release"
+      ],
+      "title": "MarketInstallParams",
+      "type": "object"
+    },
+    "MarketInstallResponse": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResource": {
+          "properties": {
+            "actions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "compatible": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "license": {
+              "type": "string"
+            },
+            "mcp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketMcp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "publisherApplicationId": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "title": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actions",
+            "compatible",
+            "description",
+            "itemId",
+            "kind",
+            "license",
+            "name",
+            "publisherApplicationId",
+            "release",
+            "title",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/MarketResource"
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "title": "MarketInstallResponse",
+      "type": "object"
+    },
+    "MarketInstallation": {
+      "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mcpServerName": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "release",
+        "version"
+      ],
+      "title": "MarketInstallation",
+      "type": "object"
+    },
+    "MarketInstalledParams": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "MarketInstalledParams",
+      "type": "object"
+    },
+    "MarketInstalledResponse": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResource": {
+          "properties": {
+            "actions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "compatible": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "license": {
+              "type": "string"
+            },
+            "mcp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketMcp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "publisherApplicationId": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "title": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actions",
+            "compatible",
+            "description",
+            "itemId",
+            "kind",
+            "license",
+            "name",
+            "publisherApplicationId",
+            "release",
+            "title",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketResourceError": {
+          "properties": {
+            "error": {
+              "type": "string"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            }
+          },
+          "required": [
+            "error",
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/MarketResourceError"
+          },
+          "type": "array"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/MarketResource"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "errors",
+        "resources"
+      ],
+      "title": "MarketInstalledResponse",
+      "type": "object"
+    },
+    "MarketListParams": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "limit": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "query": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "MarketListParams",
+      "type": "object"
+    },
+    "MarketListResponse": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResource": {
+          "properties": {
+            "actions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "compatible": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "license": {
+              "type": "string"
+            },
+            "mcp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketMcp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "publisherApplicationId": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "title": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actions",
+            "compatible",
+            "description",
+            "itemId",
+            "kind",
+            "license",
+            "name",
+            "publisherApplicationId",
+            "release",
+            "title",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "nextCursor": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/MarketResource"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "resources"
+      ],
+      "title": "MarketListResponse",
+      "type": "object"
+    },
+    "MarketMcp": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "arguments": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "authentication": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "executable": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transport": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "arguments",
+        "authentication",
+        "scopes",
+        "tools",
+        "transport"
+      ],
+      "title": "MarketMcp",
+      "type": "object"
+    },
+    "MarketPendingInstall": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResource": {
+          "properties": {
+            "actions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "compatible": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "license": {
+              "type": "string"
+            },
+            "mcp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketMcp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "publisherApplicationId": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "title": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actions",
+            "compatible",
+            "description",
+            "itemId",
+            "kind",
+            "license",
+            "name",
+            "publisherApplicationId",
+            "release",
+            "title",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "installAttemptId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/MarketResource"
+        }
+      },
+      "required": [
+        "installAttemptId",
+        "resource"
+      ],
+      "title": "MarketPendingInstall",
+      "type": "object"
+    },
+    "MarketPendingParams": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "MarketPendingParams",
+      "type": "object"
+    },
+    "MarketPendingResponse": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketPendingInstall": {
+          "properties": {
+            "installAttemptId": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/MarketResource"
+            }
+          },
+          "required": [
+            "installAttemptId",
+            "resource"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResource": {
+          "properties": {
+            "actions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "compatible": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "license": {
+              "type": "string"
+            },
+            "mcp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketMcp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "publisherApplicationId": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "title": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actions",
+            "compatible",
+            "description",
+            "itemId",
+            "kind",
+            "license",
+            "name",
+            "publisherApplicationId",
+            "release",
+            "title",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketResourceError": {
+          "properties": {
+            "error": {
+              "type": "string"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            }
+          },
+          "required": [
+            "error",
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "attempts": {
+          "items": {
+            "$ref": "#/$defs/MarketPendingInstall"
+          },
+          "type": "array"
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/MarketResourceError"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "attempts",
+        "errors"
+      ],
+      "title": "MarketPendingResponse",
+      "type": "object"
+    },
+    "MarketReadParams": {
+      "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "release": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "itemId",
+        "kind"
+      ],
+      "title": "MarketReadParams",
+      "type": "object"
+    },
+    "MarketReadResponse": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResource": {
+          "properties": {
+            "actions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "compatible": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "installation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketInstallation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "license": {
+              "type": "string"
+            },
+            "mcp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketMcp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "publisherApplicationId": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "title": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "actions",
+            "compatible",
+            "description",
+            "itemId",
+            "kind",
+            "license",
+            "name",
+            "publisherApplicationId",
+            "release",
+            "title",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/MarketResource"
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "title": "MarketReadResponse",
+      "type": "object"
+    },
+    "MarketReconcileParams": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "MarketReconcileParams",
+      "type": "object"
+    },
+    "MarketReconcileResponse": {
+      "$defs": {
+        "MarketAcquisitionCheck": {
+          "properties": {
+            "acquisitionStatus": {
+              "$ref": "#/$defs/MarketAcquisitionStatus"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            }
+          },
+          "required": [
+            "acquisitionStatus",
+            "itemId",
+            "kind",
+            "release"
+          ],
+          "type": "object"
+        },
+        "MarketAcquisitionStatus": {
+          "description": "Only the acquisition is checked; publication and runtime approval are separate.",
+          "enum": [
+            "active",
+            "revoked",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResourceError": {
+          "properties": {
+            "error": {
+              "type": "string"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/MarketResourceKind"
+            }
+          },
+          "required": [
+            "error",
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/MarketResourceError"
+          },
+          "type": "array"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/MarketAcquisitionCheck"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "errors",
+        "resources"
+      ],
+      "title": "MarketReconcileResponse",
+      "type": "object"
+    },
+    "MarketReleaseReference": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "title": "MarketReleaseReference",
+      "type": "object"
+    },
+    "MarketResource": {
+      "$defs": {
+        "MarketInstallation": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "mcpServerName": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "release": {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "release",
+            "version"
+          ],
+          "type": "object"
+        },
+        "MarketMcp": {
+          "properties": {
+            "arguments": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "authentication": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "executable": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "transport": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "authentication",
+            "scopes",
+            "tools",
+            "transport"
+          ],
+          "type": "object"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "compatible": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "installation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketInstallation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "license": {
+          "type": "string"
+        },
+        "mcp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketMcp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "publisherApplicationId": {
+          "type": "string"
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actions",
+        "compatible",
+        "description",
+        "itemId",
+        "kind",
+        "license",
+        "name",
+        "publisherApplicationId",
+        "release",
+        "title",
+        "version"
+      ],
+      "title": "MarketResource",
+      "type": "object"
+    },
+    "MarketResourceError": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "error",
+        "itemId",
+        "kind"
+      ],
+      "title": "MarketResourceError",
+      "type": "object"
+    },
+    "MarketResourceKind": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "title": "MarketResourceKind",
+      "type": "string"
+    },
+    "MarketUninstallParams": {
+      "$defs": {
+        "MarketResourceKind": {
+          "enum": [
+            "mcp",
+            "skill"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "itemId",
+        "kind"
+      ],
+      "title": "MarketUninstallParams",
+      "type": "object"
+    },
+    "MarketUninstallResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "MarketUninstallResponse",
       "type": "object"
     },
     "MarketplaceAddParams": {
@@ -44108,6 +47594,15 @@
         "localEnvironments/list",
         "localEnvironments/readConfig",
         "localEnvironments/saveConfig",
+        "market/enabled/set",
+        "market/install",
+        "market/install/cancel",
+        "market/install/pending",
+        "market/installed",
+        "market/list",
+        "market/read",
+        "market/reconcile",
+        "market/uninstall",
         "marketplace/add",
         "marketplace/remove",
         "marketplace/upgrade",
@@ -50187,6 +53682,27 @@
           ],
           "type": "string"
         },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
         "PluginAuthPolicy": {
           "enum": [
             "ON_INSTALL",
@@ -50559,6 +54075,17 @@
               },
               "type": "array"
             },
+            "localRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "localVersion": {
               "default": null,
               "type": [
@@ -50582,6 +54109,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source": {
               "$ref": "#/$defs/PluginSource"
@@ -50953,6 +54491,29 @@
       "type": "object"
     },
     "PluginInstallParams": {
+      "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        }
+      },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "installAttemptId": {
@@ -50976,6 +54537,17 @@
             "null",
             "string"
           ]
+        },
+        "remoteRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Required for a new shared-market installation."
         }
       },
       "required": [
@@ -51094,6 +54666,27 @@
     },
     "PluginInstalledResponse": {
       "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
         "MarketplaceInterface": {
           "properties": {
             "displayName": {
@@ -51512,6 +55105,17 @@
               },
               "type": "array"
             },
+            "localRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "localVersion": {
               "default": null,
               "type": [
@@ -51535,6 +55139,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source": {
               "$ref": "#/$defs/PluginSource"
@@ -51775,6 +55390,27 @@
     },
     "PluginListResponse": {
       "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
         "MarketplaceInterface": {
           "properties": {
             "displayName": {
@@ -52015,6 +55651,28 @@
           ],
           "type": "object"
         },
+        "PluginSearchResult": {
+          "properties": {
+            "marketplaceName": {
+              "type": "string"
+            },
+            "marketplacePath": {
+              "default": null,
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "plugin": {
+              "$ref": "#/$defs/PluginSummary"
+            }
+          },
+          "required": [
+            "marketplaceName",
+            "plugin"
+          ],
+          "type": "object"
+        },
         "PluginSource": {
           "oneOf": [
             {
@@ -52193,6 +55851,17 @@
               },
               "type": "array"
             },
+            "localRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "localVersion": {
               "default": null,
               "type": [
@@ -52216,6 +55885,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source": {
               "$ref": "#/$defs/PluginSource"
@@ -52242,10 +55922,10 @@
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
-        "featuredPluginIds": {
+        "featuredPlugins": {
           "default": [],
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/PluginSearchResult"
           },
           "type": "array"
         },
@@ -52271,6 +55951,27 @@
     },
     "PluginMarketplaceEntry": {
       "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
         "MarketplaceInterface": {
           "properties": {
             "displayName": {
@@ -52639,6 +56340,17 @@
               },
               "type": "array"
             },
+            "localRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "localVersion": {
               "default": null,
               "type": [
@@ -52662,6 +56374,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source": {
               "$ref": "#/$defs/PluginSource"
@@ -52723,6 +56446,29 @@
       "type": "object"
     },
     "PluginReadParams": {
+      "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        }
+      },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "marketplacePath": {
@@ -52739,6 +56485,17 @@
             "null",
             "string"
           ]
+        },
+        "remoteRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact catalog release. Omit to read an installed plugin."
         }
       },
       "required": [
@@ -52867,6 +56624,27 @@
             "userPromptSubmit"
           ],
           "type": "string"
+        },
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
         },
         "PluginAuthPolicy": {
           "enum": [
@@ -53323,6 +57101,17 @@
               },
               "type": "array"
             },
+            "localRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "localVersion": {
               "default": null,
               "type": [
@@ -53346,6 +57135,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source": {
               "$ref": "#/$defs/PluginSource"
@@ -53763,6 +57563,27 @@
     },
     "PluginSearchResponse": {
       "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
         "PluginAuthPolicy": {
           "enum": [
             "ON_INSTALL",
@@ -54142,6 +57963,17 @@
               },
               "type": "array"
             },
+            "localRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "localVersion": {
               "default": null,
               "type": [
@@ -54165,6 +57997,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source": {
               "$ref": "#/$defs/PluginSource"
@@ -54213,6 +58056,27 @@
     },
     "PluginSearchResult": {
       "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
         "PluginAuthPolicy": {
           "enum": [
             "ON_INSTALL",
@@ -54570,6 +58434,17 @@
               },
               "type": "array"
             },
+            "localRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "localVersion": {
               "default": null,
               "type": [
@@ -54593,6 +58468,17 @@
                 "null",
                 "string"
               ]
+            },
+            "remoteRelease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MarketReleaseReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source": {
               "$ref": "#/$defs/PluginSource"
@@ -54787,6 +58673,27 @@
     },
     "PluginSummary": {
       "$defs": {
+        "MarketReleaseReference": {
+          "additionalProperties": false,
+          "description": "Immutable artifact identity, independent of the item's current publication.",
+          "properties": {
+            "archiveSha256": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "manifestSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "archiveSha256",
+            "id",
+            "manifestSha256"
+          ],
+          "type": "object"
+        },
         "PluginAuthPolicy": {
           "enum": [
             "ON_INSTALL",
@@ -55145,6 +59052,17 @@
           },
           "type": "array"
         },
+        "localRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "localVersion": {
           "default": null,
           "type": [
@@ -55168,6 +59086,17 @@
             "null",
             "string"
           ]
+        },
+        "remoteRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketReleaseReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "source": {
           "$ref": "#/$defs/PluginSource"
@@ -70688,6 +74617,63 @@
     },
     "ServerRequest": {
       "$defs": {
+        "AccountAuthorization": {
+          "properties": {
+            "expiresAt": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "resource": {
+              "$ref": "#/$defs/CloudResource"
+            },
+            "status": {
+              "$ref": "#/$defs/AccountAuthorizationStatus"
+            }
+          },
+          "required": [
+            "expiresAt",
+            "id",
+            "resource",
+            "status"
+          ],
+          "type": "object"
+        },
+        "AccountAuthorizationStatus": {
+          "enum": [
+            "cancelled",
+            "completed",
+            "denied",
+            "exchanging",
+            "expired",
+            "failed",
+            "outcome_unknown",
+            "pending"
+          ],
+          "type": "string"
+        },
+        "AccountAuthorizeParams": {
+          "additionalProperties": false,
+          "description": "The host opens the native owner's URL. Only the native callback proves authorization.",
+          "properties": {
+            "authUrl": {
+              "type": "string"
+            },
+            "authorization": {
+              "$ref": "#/$defs/AccountAuthorization"
+            },
+            "threadId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "authUrl",
+            "authorization",
+            "threadId"
+          ],
+          "type": "object"
+        },
         "AdditionalFileSystemPermissions": {
           "properties": {
             "entries": {
@@ -70738,6 +74724,15 @@
             }
           },
           "type": "object"
+        },
+        "CloudResource": {
+          "enum": [
+            "connections",
+            "default",
+            "market",
+            "web"
+          ],
+          "type": "string"
         },
         "CommandExecutionApprovalDecision": {
           "enum": [
@@ -70812,6 +74807,35 @@
             "startedAtMs",
             "threadId",
             "turnId"
+          ],
+          "type": "object"
+        },
+        "ConnectionAuthorizeParams": {
+          "additionalProperties": false,
+          "description": "The host opens the original file approval; the Cloud decision is read separately.",
+          "properties": {
+            "approvalUrl": {
+              "type": "string"
+            },
+            "environment": {
+              "type": "string"
+            },
+            "expiresAt": {
+              "type": "string"
+            },
+            "requestId": {
+              "type": "string"
+            },
+            "threadId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "approvalUrl",
+            "environment",
+            "expiresAt",
+            "requestId",
+            "threadId"
           ],
           "type": "object"
         },
@@ -71338,6 +75362,46 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Requests initiated by the server and sent to a v2 client. Unknown methods\nfail closed until their typed params and response contracts are added.",
       "oneOf": [
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "connection/authorize",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ConnectionAuthorizeParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "account/authorize",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/AccountAuthorizeParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
         {
           "properties": {
             "id": {
@@ -126375,6 +130439,15 @@
               "log/diagnosticHistory/clear",
               "log/list",
               "log/persistedTail",
+              "market/enabled/set",
+              "market/install",
+              "market/install/cancel",
+              "market/install/pending",
+              "market/installed",
+              "market/list",
+              "market/read",
+              "market/reconcile",
+              "market/uninstall",
               "marketplace/add",
               "marketplace/remove",
               "marketplace/upgrade",
@@ -126621,6 +130694,8 @@
         "serverRequests": {
           "items": {
             "enum": [
+              "account/authorize",
+              "connection/authorize",
               "currentTime/read",
               "item/commandExecution/requestApproval",
               "item/fileChange/requestApproval",

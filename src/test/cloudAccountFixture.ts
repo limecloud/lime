@@ -6,6 +6,8 @@ import type {
 } from "@/lib/api/appServerTypes";
 
 const fixture = vi.hoisted(() => ({
+  serviceUrl: "https://core.example.test" as string | null,
+  serviceError: null as string | null,
   account: null as AppServerAccount | null,
   authorizations: [] as AppServerGetAccountResponse["authorizations"],
   login: vi.fn(),
@@ -45,14 +47,19 @@ export async function seedCloudAccount(
   input: Partial<Extract<AppServerAccount, { type: "cloud" }>> = {},
 ) {
   fixture.account = cloudAccountMetadata(input);
-  await readCloudAccount();
+  const result = await readCloudAccount();
+  console.log("SEED", input.user?.id, "->", result?.account?.userId);
   return fixture.account;
 }
 
 beforeEach(async () => {
+  fixture.serviceUrl = "https://core.example.test";
+  fixture.serviceError = null;
   fixture.account = null;
   fixture.authorizations = [];
   fixture.read.mockReset().mockImplementation(async () => ({
+    serviceUrl: fixture.account?.baseUrl ?? fixture.serviceUrl,
+    serviceError: fixture.serviceError,
     account: fixture.account,
     authorizations: fixture.authorizations,
   }));
@@ -76,6 +83,7 @@ afterEach(async () => {
   fixture.account = null;
   fixture.authorizations = [];
   fixture.read.mockImplementation(async () => ({
+    serviceUrl: null,
     account: null,
     authorizations: [],
   }));

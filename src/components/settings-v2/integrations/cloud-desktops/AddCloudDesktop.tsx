@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type Ref } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import { useTranslation } from "react-i18next";
@@ -23,11 +23,13 @@ export function AddCloudDesktop({
   defaultTab = "existing",
   disabled = false,
   onProvisioned,
+  triggerRef,
 }: {
   onChanged: () => void;
   defaultTab?: "existing" | "purchase";
   disabled?: boolean;
   onProvisioned?: (resource: CloudDesktopResource) => void;
+  triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const { t } = useTranslation("settings");
   const [open, setOpen] = useState(false);
@@ -95,7 +97,7 @@ export function AddCloudDesktop({
       }}
     >
       <Dialog.Trigger asChild>
-        <SettingsAction disabled={disabled}>
+        <SettingsAction ref={triggerRef} disabled={disabled}>
           {t("settings.cloudDesktop.add")}
         </SettingsAction>
       </Dialog.Trigger>

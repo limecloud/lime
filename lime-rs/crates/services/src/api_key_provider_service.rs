@@ -1386,6 +1386,8 @@ pub struct ApiKeyProviderService {
     credential_cooldowns: RwLock<HashMap<String, Instant>>,
 }
 
+pub mod connection;
+
 impl Default for ApiKeyProviderService {
     fn default() -> Self {
         Self::new()

@@ -6,17 +6,19 @@ use serde_json::{json, Value};
 pub(super) fn runtime_status_events_for_agent_skills(
     request: &ExecutionRequest,
     plugin_snapshots: &[PluginTurnSnapshot],
+    additional_skills: &[lime_skills::AgentSkillMetadata],
 ) -> Vec<RuntimeEvent> {
     let host_request = super::request_context::runtime_request_from_request(request);
     let workspace_scope =
         super::request_context::request_workspace_scope(request, host_request.as_ref());
     let metadata_values = super::skill_runtime_enable::request_metadata_values(request);
     let input_text = request.input.concat_text();
-    let snapshot = super::agent_skills_context::build_agent_skill_snapshot_for_turn_with_plugins(
+    let snapshot = super::agent_skills_context::build_agent_skill_snapshot_for_turn_with_plugins_and_orchestrator(
         workspace_scope.working_dir.as_deref(),
         workspace_scope.project_root.as_deref(),
         &metadata_values,
         plugin_snapshots,
+        additional_skills,
     );
     let selections = super::agent_skills_context::selected_agent_skill_selections_with_plugins(
         &input_text,
@@ -205,7 +207,7 @@ mod tests {
             })),
         );
 
-        let events = runtime_status_events_for_agent_skills(&request, &[]);
+        let events = runtime_status_events_for_agent_skills(&request, &[], &[]);
 
         assert_eq!(events.len(), 2);
         assert!(events
@@ -264,7 +266,7 @@ mod tests {
             })),
         );
 
-        let events = runtime_status_events_for_agent_skills(&request, &[]);
+        let events = runtime_status_events_for_agent_skills(&request, &[], &[]);
 
         assert_eq!(events.len(), 2);
         assert_eq!(
@@ -302,7 +304,7 @@ mod tests {
             })),
         );
 
-        let events = runtime_status_events_for_agent_skills(&request, &[]);
+        let events = runtime_status_events_for_agent_skills(&request, &[], &[]);
 
         assert!(events.is_empty());
     }
@@ -329,7 +331,7 @@ mod tests {
             })),
         );
 
-        let events = runtime_status_events_for_agent_skills(&request, &[]);
+        let events = runtime_status_events_for_agent_skills(&request, &[], &[]);
 
         assert!(events.is_empty());
     }
@@ -351,7 +353,7 @@ mod tests {
             })),
         );
 
-        let events = runtime_status_events_for_agent_skills(&request, &[]);
+        let events = runtime_status_events_for_agent_skills(&request, &[], &[]);
 
         assert_eq!(events.len(), 1);
         assert_eq!(
@@ -383,7 +385,7 @@ mod tests {
             })),
         );
 
-        let events = runtime_status_events_for_agent_skills(&request, &[]);
+        let events = runtime_status_events_for_agent_skills(&request, &[], &[]);
 
         assert!(events.is_empty());
     }

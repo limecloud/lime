@@ -2927,9 +2927,11 @@ Lime 经 LimeCore 消费 Cloud 的通用能力。Lime 拥有完整工作区、�
 市场发布及获取事实。各自使用正式接口协作，不复制平台用户、Grant、连接或提供方凭据。
 
 ```mermaid
-flowchart LR
-  Surface[桌面或 CLI] --> RPC[App Server JSON-RPC]
+flowchart TB
+  Surface[桌面、CLI 或 TUI] --> RPC[App Server JSON-RPC]
+  RPC --> Runtime[现役 Runtime 和工具权限]
   RPC --> Account[原生账号与分资源授权]
+  UserConfig[原生用户配置] --> Account
   Account --> Private[私密凭据和原操作记录]
   Account --> Core[LimeCore 固定接口]
   Core --> Users[产品用户与规则]
@@ -2937,9 +2939,11 @@ flowchart LR
   Core --> Market[Cloud 技能和 MCP 及插件市场]
   RPC --> Plugins[本地 PluginStore 和共享配置]
   Plugins --> Components[Skills 和 MCP 及 Hooks]
-  Components --> Runtime[现役 Runtime 和工具权限]
+  Components --> Runtime
   Runtime --> WebTools[WebSearch 和 WebFetch]
   WebTools --> Account
+  Runtime --> Files[ReadConnectedFile]
+  Files --> Account
   Runtime --> Thread[Thread Turn Item]
 ```
 
@@ -2951,10 +2955,50 @@ flowchart LR
 原生Owner拒绝覆盖进行中或结果未知的同资源授权；未登录用户可显式取消登录并清除本机
 事务，普通状态读取、刷新及语言变化不触发取消或重新授权。
 
+Core origin 由统一用户 YAML 的 `cloud.base_url` 拥有，Desktop、CLI/TUI 的账号、市场及
+联网工具读取同一个注入路径。通用配置写入与账号 HTTP 复用 `core/config/cloud.rs` 的精确
+origin 校验；仅 HTTPS 或回环 HTTP。项目层、模型输入、Renderer 构建环境和登录 RPC 不提供
+服务地址覆盖入口。`account/read.serviceUrl` 只投影有效 origin；已有账号和待完成授权使用
+私密状态中的原绑定，显式注销后才读取修改后的服务配置。构造器改变用户配置路径时同步
+更新账号、工具与本地市场 owner，不能让工具保留旧配置路径。
+
+本机 `lime login`、`lime login status` 与 `lime logout` 经 `cli/src/account_cmd.rs`
+调用同一 stdio App Server 的 `account/login/start`、`account/read` 和 `account/logout`。
+CLI 只负责浏览器交接、元数据展示及退出码，不换码、不导入 Token，也不提供 Core 地址参数。
+待完成和结果未知的登录先按原编号回读，不能重新创建；Ctrl+C 只停止当前等待，后续命令继续
+原回调监听和期限。显式注销清除本机状态；远程宿主明确拒绝，不回退本机。命令自身不创建
+会话、不调用模型、不登记产品用户，也不授予市场、联网或外部文件权限。
+
 等待本人回调的原事务由跨进程文件锁标记监听所有权。账号状态读取发现原进程已退出时，
 只恢复原登记地址的监听，继续使用原 state、nonce、PKCE 和到期时间；端口被占用时明确失败，
 不换端口或新建事务。换码已经派发的事务不恢复监听、不再次提交 Code。注销或账号代际
 变化使旧监听退出，宿主打开浏览器的回执不能作为授权完成事实。
+
+未登录首次联网任务由 `account/tools/login.rs` 保存匿名原输入并预留唯一默认登录编号。
+并发任务在登录I/O前绑定该编号；原生只接纳匹配该编号、原服务和父代际的回调产生的新账号
+代际，另行登录不能接管原匿名任务。原工具完成默认登录后，网络资源仍独立授权。
+原登录及网络授权始终使用同一宿主；注销、换号、断连、异文及unknown均不能形成新派发权。
+账号与市场语言读取共用原生用户配置，不从模型参数读取身份端点或授权语言。
+
+首次网络资源授权由 `account/continuation.rs` 接续当前默认账号的原工具调用。
+先保存原工具输入与操作键，再通过 `HostRequestRouter` 向当前会话唯一宿主发送
+`account/authorize`。此路由与时间读取共用传输选择、待响应和断连处理，且不持有
+RuntimeCore，避免形成引用环。请求不跟随订阅重放，切换或重连不会重复打开浏览器。
+桌面和本机 TUI 只打开原生生成的授权 URL，远程宿主及非交互式 exec 返回不可用。
+`opened` 仅表示浏览器已打开，原生核验原授权编号、账号代际、回调与令牌后，
+继续同一工具和原键。取消、拒绝、过期、宿主断开或换号均阻止新业务派发。
+并发工具通过独立文件锁复用原事务，恢复不改变原 state、nonce、PKCE 或期限。
+默认账号尚未登录时由原工具接续默认登录，不从工具参数或模型输出取得 Core 地址。
+协议和宿主运行验证状态见执行计划，不能从代码接线推导真实三仓任务已经通过。
+
+外部文档通过 `ReadConnectedFile` 进入同一工具网关，独立于Web的Live模式；只解析用户提供的
+Google文档链接，不请求任意URL。`account/tools/connections.rs`共用默认及Connections资源授权，
+将不可变申请输入私密保存到 `credentials/tool-calls/connections/`，复用原操作Owner和OS文件锁。
+待确认时向原会话宿主发送 `connection/authorize`；Desktop和本机TUI仅打开原申请URL，
+exec和远程宿主返回不可用。原生GET实际申请，只有批准后才以独立原键读取文件；浏览器打开
+不构成批准。重启或新调用编号仍沿原申请及原读取恢复，404、非法结果和unknown不授新派发权。
+响应核验原文件、连接、Grant、合同及来源时间，只输出正式字段；Cloud继续核验当前逐文件许可。
+Core不增加HTTP字段或任务副本，Lime不保存连接、Grant或提供方凭据的权威状态。
 
 `AppDataRoot/credentials/account.json` 为当前用户私密文件，采用原子写、0600/0700
 或 Windows 当前用户权限，拒绝符号链接；目前没有加密存储。注销清本机凭据并替换代际，
@@ -2989,15 +3033,67 @@ Disabled 均不触发实时请求。搜索查询和网页 URL 进入 Core，摘�
 仅明确未登记时，以跨重启固定的原键执行独立登记，再继续原请求；登录回调和 Core 的
 读取接口不创建关系。停用、未知、身份变化均不重新登记或放行后续请求。
 
-`plugin_remote::Context/wire` 只消费 Core `/market` 合同。目录有界分页和账号检查，
+`market::Context/wire` 只消费 Core `/market` 合同。目录有界分页和账号检查，
 远端失败保留真实本地目录并报告错误。发布方应用决定 `lime-cloud-{applicationId}`
 市场命名空间，清单 name 保持原值。Core 发布内容目录 `/catalog/skills|experts`
 与 Cloud 共享市场各自有发布事实，不能混为同一内容源。
 
+共享市场的 `wire` 按正式清单分别校验 Skill、MCP 和 Plugin，校验文件集合、可移植路径、
+入口、宿主、认证需求及精确依赖。HTTP MCP 可以使用零文件 ZIP，stdio MCP 的程序必须
+是包内文件；校验和解包均不执行它。`Selection` 保证当前条目和所选发布的资源类型一致，
+插件列表、详情、精选及安装另行限定 Plugin，独立资源不能进入插件投影或缓存。
+Cloud 维护语言登记，Lime 保留翻译映射和规范编码的省略规则，不复制平台语言清单。
+
+插件精确依赖由 `market/selection/dependencies` 解析为当前可见条目和所选发布，
+按类型、归档摘要、环境和宿主要求核验。`remote/attempt` 在首次获取前保存主包及全部
+依赖的选择和条目修订；`market/package` 统一获取、原操作查询、下载与 ZIP 校验。
+请求绑定最初账号代际，由 AccountManager 在凭据解析及派发前继续执行代际检查，
+不能在读写间换号后将旧任务派发到新账号。
+
+`PluginStore::PreparedPackage` 将依赖暂存在缓存基目录的 `.dependencies/{releaseId}`，
+与主包和来源记录一次提交或回滚，不把依赖投影为独立插件。该目录不参与版本枚举。
+`remote/dependencies` 在运行读取前复核声明文件和摘要，损坏时隔离所属插件。Skill 的
+精确入口使用 `lime-skills::load_agent_skill_from_file`，沿原元数据和正文加载器进入
+PluginTurnSnapshot；MCP 使用 `market/resource` 转换为现役 McpServerConfig，
+保留工具允许列表、HTTP 认证及包内 stdio。状态、登录与注销解析同一组现役 MCP 配置。
+禁用后新回合不再加载这些组件；卸载清理同一缓存基目录，不撤销 Cloud 获取或外部授权。
+该链路消费共享 Skill/MCP 发布，不替代独立资源选装入口；验证范围见当前执行计划。
+
+独立共享 Skill/MCP 的安装由 `local_data_source/market::MarketStore` 持有，路径按可信账号、环境、类型和条目隔离；元数据放在包外，保存精确发布、获取引用及启用状态。`MarketDataSource` 只提供本地生命周期和额外技能，不扩展 PluginDataSource。`market/*` JSON-RPC 的目录和精确读取由 RuntimeCore 消费原 Core 市场合同，安装继续共用 `market/package`；没有新增云端HTTP或任意代理。共用引用为 `MarketReleaseReference`，旧插件专用名称直接迁出，没有兼容别名。
+
+`MarketStore` 保存首次选择和修订后才执行云端写入，未知结果按原键查询，换点击编号不替换原尝试。资源先暂存、完整校验，再替换同一条目的安装；失败保留旧版本。启停与卸载更新技能目录并在变更前后使现役MCP运行缓存失效，账号切换后仅加载当前账号目录。来源或文件损坏按项报告，损坏资源不进入运行。
+
+`market/install/pending` 只投影当前账号的原尝试与精确资源；`market/install/cancel` 在同一安装锁下逐项核验已派发的原操作，仅对合法已知回执释放本地尝试。404、拒绝、非法或不可用回执保留原记录；取消不撤销远端获取，也不卸载旧包。`market/reconcile` 逐项投影获取有效、已撤销或不可用，不改变本地启停。桌面页面结构和交互沿现役 Codex 复刻入口接入，不新增独立市场分类导航；页面只消费正式协议，不在 renderer 保存第二套安装事实。桌面接入状态见执行计划，CLI 与共享客户端继续直接消费这组接口。
+
+Skill 进入现役 `skills/list` 及回合技能快照，保留 Application authority、真实路径与稳定来源ID；同名内置技能继续存在，选择通过路径区分。回合正文、技能读取事件及压缩上下文使用同一组额外技能。独立MCP转换为现役配置并与手工及插件MCP一起参与状态、认证和线程运行，`plugin_id=None`，不生成伪插件。用户安装不代替提供方认证或工具执行批准。CLI的 `lime market` 消费这些正式接口，结构化返回与共享客户端同源，完整GUI的交付状态另见执行计划。
+
+MCP OAuth 凭据根由 `LocalAppDataSource` 从当前产品数据目录提供，经 `McpAppDataSource` 和现役 MCP bridge 注入每个 `McpThreadRuntime`；管理连接和会话连接使用同一凭据来源，仍各自持有运行连接。凭据根参与会话配置比较，未注入时保持失败关闭，不读取平台默认目录。OAuth 登录完成后清理旧会话连接；退出授权先清理会话连接，再由原凭据 Owner 停止管理连接并清除凭据，完成后再次清理竞争期间建立的会话连接。本机授权不变成 Cloud 连接或 Core 产品用户事实。
+
+```mermaid
+flowchart LR
+    S[Desktop 与 CLI] --> A[App Server market 接口]
+    A --> C[LimeCore 市场适配]
+    C --> P[Cloud 共享市场]
+    A --> D[独立资源安装]
+    D --> K[现役 Skills 目录与正文加载]
+    D --> M[现役 MCP 配置与认证]
+    K --> R[同一 Thread 和 Turn]
+    M --> R
+```
+
+Core 精选使用精确发布引用。`plugin/list.featuredPlugins` 返回有序条目和市场位置，
+不以无版本的条目编号重排完整目录。`MarketReleaseReference` 包含发布编号、清单摘要和
+归档摘要，从目录、详情传到安装；`Selection` 将当前可见条目与所选发布分开，保留当前
+发布指针。较早发布按自己的宿主要求校验，不借用当前发布的兼容结论。所选版本使用
+`remoteRelease/version`，实际安装使用 `localRelease/localVersion`；只有精确引用一致时，
+详情才附加本地能力。推荐不授予市场权限，版本号相同不能替代工件一致。
+
 共享插件安装先冻结原发布与 installAttemptId，再申请获取记录和下载票据。未完成安装
 保存在 PluginStore 的 `install-attempts/<账号摘要>/<资源编号>.json`；重启或再次点击仍读取
 原发布、原修订和派生操作键，并复核精确发布。下载为独立、无账号 Cookie/Header 的固定 GET，
-禁止跳转。归档与完整文件集合通过大小、SHA-256、路径和 manifest 校验后，才进入现役
+禁止跳转。Cloud归档使用ZIP，由 `market/archive` 在8 MiB压缩、24 MiB展开、
+256个文件的限制内核验原始路径、完整文件集合、归档及逐文件SHA-256和ZIP CRC；
+拒绝链接、目录条目、加密、额外文件或其他格式，不剥离顶层目录。全部校验通过后才进入现役
 PreparedPackage 和 cache/config 提交。跨进程 remote gate 协调完整安装，本地 store/config
 锁负责提交。插件依赖安装及独立技能、MCP 安装仍按执行计划验收。
 
@@ -4478,6 +4574,9 @@ event sequence verifier以canonical Command开闭同一command scope，仍拒绝
 无开始/完成后输出和未关闭Turn；未流式尾部输出必须在canonical完成前发布，静默完成
 不生成假output。校验器与current_provider_turn的tests已拆到各自领域目录，旧镜像并非
 canonical开始条件，不通过放宽sequence/tool lifecycle gate掩盖接线缺口。
+Command 的工具调用身份消费显式 `toolCallId`／`commandId` 或同一 canonical Item 的
+`exec_command_call_id` metadata；缺省使用原始 Item ID，不以 `item_` 前缀推断调用身份。
+同一调用的流式输出与终态仍必须经过原审批、归属和开闭校验。
 unified_exec按definitions/shell/session/collect/output/invocation拆分；Agent protocol按
 DTO/tool_lifecycle/tests拆分；coding_events按canonical/metadata/policy/tests拆分，相关
 主文件均不越800行。不新增method/schema/wire shape、第二后端、GUI/TUI parser或compat。
@@ -6745,11 +6844,75 @@ Architecture impact: major。责任开发者 root 于 2026-10-30 确认该图的
 
 ## BYOC 持久云桌面（2026-11-10）
 
+本机模型连接通过独立的显式授权交付给一台云电脑：现役 Main
+`cloudModelConnections` 绑定完整资源与任务连接身份，保存加密的原操作及密文；
+Renderer 仅选择已启用的 Provider／Key 并投影固定状态。目标生成十分钟 age X25519
+接收方，本机 Provider owner 精确读取所选 Key，只输出给该接收方的密文。
+`sealModelConnection` 只允许本机可信 transport，Main 在整个 Renderer JSONL batch
+转发前拒绝该 action；认证 WebSocket 仅开放准备、导入、原回执查询。
+
+```mermaid
+flowchart LR
+  UI[本机连接选择与授权] --> Main[现役 Electron Main]
+  Main --> Local[本机 App Server 与 Provider owner]
+  Local --> Source[原凭据存储]
+  Local --> Cipher[指定接收方的 age 密文]
+  Main --> Auth[原认证任务 transport]
+  Cipher --> Auth
+  Auth --> Guest[云端同源 App Server]
+  Guest --> Provider[原 Provider owner]
+  Provider --> DB[Provider Key generation 与交付回执]
+  Provider --> Secrets[原凭据存储]
+  Guest --> Clients[云窗口与独立 CLI]
+```
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant M as Main
+  participant L as 本机 Provider
+  participant R as 云端 App Server
+  U->>M: 选择一个连接并确认密钥交付
+  M->>M: 加密保存原操作和目标身份
+  M->>R: 读取原回执并准备一次性接收方
+  R-->>M: 公钥和原有效期
+  M->>L: 精确 Provider Key 与目标公钥
+  L-->>M: age 密文
+  M->>M: 保存原密文及 unknown
+  M->>R: 原操作导入原密文
+  R->>R: 原凭据 owner 保存保留身份
+  R->>R: 同事务提交 Provider Key generation 与 complete
+  R-->>M: 非敏感回执与模型目录更新
+  alt 响应丢失
+    U->>M: 继续原操作
+    M->>R: 只读查询原编号
+    R-->>M: complete 或原未完成状态
+    M->>R: 仅未完成时提交同一原密文
+  end
+```
+
+`provider_connection_transfers` 独立于 Renderer 可写的 UI 状态。准备回执先于临时
+私钥保存，保留的秘密身份支持跨存储中断恢复；导入只 INSERT 新 Provider，
+不覆盖目标配置。密文摘要固化后不能换包，Provider／Key／route generation／complete
+同事务提交。完成时清理临时私钥，过期拒绝导入并在观察时清理临时身份与未提交 Key。
+目标凭据沿既有平台存储合同持久保存，不宣称默认 file store 具有 age 静态加密。
+普通配置导出仍不含真实密钥；云账号、浏览器登录态和其他凭据不进入此交付。
+交付未确认时保留原任务连接，拒绝更换、移除或轮换其身份；先沿原操作读取并恢复，
+确认完成或过期后解除保护。任务连接安装或轮换尚未结束时也不开始模型交付。
+模型目录刷新沿原 owner 执行，不发推理请求；真实模型任务与同源 Linux 发布另行验收。
+Architecture impact: major；责任 root，2026-11-13，已核对唯一 Provider owner、
+认证边界、数据流及独立 CLI 生命周期，验证结果与产品边界见 BYOC 执行计划。
+
 无购买模板的账号沿同一 Cloud service/receipt owner 自动准备：只读发现 Ubuntu 24.04
 系统镜像和非抢占式 2 核 4 GiB 候选，核验 x86、无 GPU、非积分型和实际 ESSD 库存，
 比较最多八个可用候选的报价。用户明确授权后，固定 ROS 模板仅创建专用 VPC、交换机及
 无入站规则的安全组。准备不购买计算实例，不包含 NAT、EIP、脚本、密钥或第三方服务。
 网络栈与后续实例均归用户自己的云账号；不新增中心服务或第二套 runtime。
+外部清理原网络后，只有原栈身份及三项固定资源的删除终态全部核实，原网络收据才记为
+`networkDeleted`，购买引导读取为 `notPrepared`；新显式准备操作创建新网络。保留资源、
+删除处理中、身份变化或查询失败均阻断重建；旧操作编号继续只读恢复，不重放。
+整盘保存父收据的摘要使用递归排序后的 JSON；不随构建的 `serde_json/preserve_order`
+特性变化，不通过改写原收据或接受多个摘要格式恢复操作。
 
 ```mermaid
 flowchart TD
@@ -6764,6 +6927,9 @@ flowchart TD
   Status -->|创建中或未知| Observe
   Status -->|回滚失败| Inspect[保留原操作并提示检查]
   Status -->|回滚完成| Consent
+  Status -->|删除完成| Deleted[核验原栈身份及三项原资源均已删除]
+  Deleted -->|全部匹配| Consent
+  Deleted -->|保留 未知或身份变化| Inspect
   Status -->|创建完成| Verify[核验原模板 归属 可用区和无入站规则]
   Verify --> Quote[原 quoteEcs 获取有效报价]
   Template --> Quote
@@ -6782,6 +6948,12 @@ sequenceDiagram
   participant ECS as 用户账号 ECS
   UI->>Service: readEcsPurchasePreparation
   Service->>Receipt: 发现同地域和 profile 的原操作
+  opt 原栈已删除
+    Service->>ROS: GetStack 与 ListStackResources
+    ROS-->>Service: 原栈及三项原资源 DELETE_COMPLETE
+    Service->>Receipt: networkDeleted
+    Service-->>UI: notPrepared
+  end
   User->>UI: 同意准备专用网络
   UI->>Service: prepareEcsPurchase 原确认与操作编号
   Service->>ECS: 只读查询推荐 库存 镜像与价格
@@ -6820,7 +6992,9 @@ sequenceDiagram
 无需重新在清单中寻找电脑。接续使用当前采购上下文与完整收据中的账号、地域、实例、
 规格、名称、操作编号和加密系统盘证明；unknown 或证明错配保持原购买界面。
 选中状态只属于本次引导，不复制供应商或 Rust 的持久事实。ECS 支持用户选择首次安装，或通过现役重连组件接入已安装 Lime 的电脑；
-镜像恢复不要求重新选择运行包，已有环境和文件保留。设置页继续负责完整资源管理。`ComposerMode` 仍只表达 local/worktree，
+镜像恢复不要求重新选择运行包，已有环境和文件保留。设置页继续负责完整资源管理；其添加入口默认购买，
+核验成功同样移交此引导的精确新机上下文，关闭后清除临时选择并将焦点返回添加入口。
+unknown 保留原购买会话与收据查询，不通过重开生成第二次采购。`ComposerMode` 仍只表达 local/worktree，
 打开引导不提交任务、不改变本机执行位置、不迁移本机草稿或自动上传文件。
 已有连接打开隔离的 Cloud 窗口；远端窗口显示云端位置，并禁止借本机身份进行云资源管理。
 
@@ -6830,15 +7004,38 @@ sequenceDiagram
 调用 apt 或全量升级。字体装配与应用文字显示分别验证，文件摘要一致不能代替渲染检查。
 
 默认首次安装使用与当前应用版本匹配的官方 guest：Main 读取精确版本的 GitHub 描述，
-限制响应大小、官方重定向与总时限，并核验包名及下载地址，再保存原安装意图。
+限制响应大小、官方重定向与总时限，并核验包名及下载地址；原 `CloudGuestReleaseCache`
+在本机完整下载并验证字节与 SHA-256，再将可信来源交给原安装 owner 保存安装意图。
 用户无需寻找本机运行包；自定义可信包保留在高级入口。描述缺失或错误时不执行云端变更。
-ECS 购买前复用同一来源解析器：Main 在共享 20 秒预算内获取精确版本描述并 HEAD 运行包，
-检查官方重定向、可访问性和长度，不下载包、不访问云账号或加密存储、不创建采购和安装意图。
-Renderer 只消费可用性与版本。失败先阻止下单，用户可重试，或明确选择自备已有环境及可信包。
+ECS 新机购买前复用同一缓存 owner：`prepareRuntimeRelease` 绑定当前 profile 与 region，
+先单次启动最长十五分钟的本机准备，再由现役 OSS owner 自动分发到用户账号。
+`runtimeReleaseStatus` 只读阶段与实际写入字节，不调用云 API 或创建采购和安装意图。
+缓存位于应用数据目录的 `cloud-runtime-releases/<version>/`，仅保存公开软件包和官方描述；
+每次使用重新读取官方描述并按其可信摘要复核缓存，损坏缓存自动重新下载，临时文件失败时清理。
+Renderer 不接收文件路径或下载地址。准备失败先阻止下单，用户可重试，或明确选择自备环境及可信包。
+从已验证私有系统镜像恢复时复用已有环境，购买不要求下载新版本运行包。
 等待期间锁定购买表单，提交前重新核对当前上下文和报价有效期；关闭后迟到响应不能购买。
 报价过期后仍可按原规格重新核价；使用 Session Manager 时 SSH 密钥对为空不阻止核价，
 新报价清除原费用确认，必须再次确认后才进入预检与购买。
-预检不是运行包完整性证明，云机下载仍执行全部字节与摘要核验。
+长准备完成后才执行原六十秒网络预检；本机校验不替代云机实际下载的字节、清单和安全解包校验。
+本机缓存与安装仍由原 Main owner 负责。`CloudGuestDistributions` 只编排公开软件包，
+在 Main 加密记录中先保存原操作，再由 services 的 OSS 子模块直接调用固定地域的 HTTPS API；
+无需额外分发工具、用户填写存储参数或提供 AccessKey。临时存储与流量计入用户云账号，购买前说明。
+专用私有桶与单一对象采用 SSE AES256，上传前本机 SHA256 校验、上传时 Content-MD5 校验，
+上传后下载复核完整摘要。再次使用只核验原对象元数据，guest 仍完整校验；不重复上传已准备的包。
+OSS V4 互操作合同固定参考 Alibaba SDK revision `d3474aa038242301669f48b1f08d1b15cdf7c324`。
+签名前要求原 OAuth 会话提供至少三十一分钟的 STS 窗口；不足时只使原配置中的缓存有效期失效，
+由同一官方 CLI 刷新并原子保存令牌，不另开浏览器或自行实现 OAuth。所有受管 CLI 调用共用该配置的
+凭据锁，避免并发刷新覆盖；真实锁竞争在启动 CLI 前异步等待最多六十秒，不阻塞 runtime 线程，
+不重新提交云请求。等待可取消，非竞争 IO 错误立即失败；刷新失效仍按原授权路径恢复，
+不在短期签名中承诺超出 STS 的期限。
+仅 Main 直接请求可取得最长两小时、且早于 STS 到期的只读签名；原始 Renderer JSONL 在整批转发前
+拒绝四个私有分发动作，远端继续由 local-control 守卫拒绝。签名不进入普通收据或状态。
+同一分发可供多个安装使用，Main 加密持久化各精确资源的下载有效期；最后一个安装终止后精确清理。
+退出保留仍有效的安装引用，未引用对象尝试有界清理；失败和重启先处理原编号，unknown 不另建桶。
+上传前配置并读回 `runtime/` 的一天对象及未完成分块过期规则；这是供应商异步过期兜底，
+不保证精确二十四小时删除，也不代替正常清理。清理只删除原对象和空桶，未知内容阻止删桶。
+只读 `checkRuntimeRelease` 保留为二十秒的描述与 HEAD 可用性检查，不代表本机缓存已准备。
 正式发布复用 Linux CLI 的 release 构建，经过 loader、二进制版本和 guest manifest 校验后
 先上传 guest 与描述，再发布应用版本；不覆盖既有版本资产。工作流接线不表示产物已经发布。
 用户自行构建通过同一 `linux-guest-build.mjs --profile release` 选择正式模式；省略时使用 dev。
@@ -6847,16 +7044,19 @@ Cargo 模式、读取的 target 目录与 guest manifest 一致，构建与 stag
 ```mermaid
 flowchart TB
   subgraph Local[用户本机]
-    UI[Composer 与 Cloud 引导] --> Main[Electron Main 连接与安装 owner]
+    UI[Composer 与设置页共用 Cloud 引导] --> Main[Electron Main 连接与安装 owner]
     Main --> LocalServer
     Vault[本机私有加密状态] --- Main
     Profile[用户阿里云浏览器授权] --> LocalServer[本机 App Server 云管理与操作收据]
     Window[独立 Cloud 窗口] --> Main
+    Main -->|购买前完整下载并校验| Cache[本机公开运行包缓存]
   end
   LocalServer -->|用户自己的云账号| Supplier[云 API 云助手与原生释放计划]
-  Main -->|描述与包 HEAD 预检| Artifact[同版本官方包或自定义可信 HTTPS 包源]
+  Artifact[同版本官方包或自定义可信 HTTPS 包源] --> Cache
   Release[同源 Linux release 构建与 guest 校验] --> Artifact
-  Private[用户自有私有对象存储与限时下载签名] --> Artifact
+  Cache -->|完整校验的公开包| LocalServer
+  LocalServer -->|原操作 单次上传 私有与一天过期| Private[用户账号内临时 OSS 公开软件包分发]
+  Private -->|Main 专用限时 GET 能力| Main
   Main --> Tunnel[供应商认证通道与临时 TLS]
   subgraph Computer[用户持久 Linux 云电脑]
     Guest[普通用户与固定 Linux 装配] --> Remote[云端 Rust App Server]
@@ -6869,7 +7069,8 @@ flowchart TB
   end
   Supplier --> Guest
   Tunnel --> Guest
-  Artifact -->|云机 HTTPS 下载并完整校验| Guest
+  Private -->|默认云机 HTTPS 下载并完整校验| Guest
+  Artifact -->|高级自定义来源| Guest
   Main -->|任务连接的认证 WebSocket| Remote
 ```
 
@@ -6878,9 +7079,14 @@ flowchart TB
 浏览器与 CLI 登录资料；整盘镜像包含这些数据，必须按敏感备份处理，不能视为零风险。
 高级自定义来源可以使用用户私有 OSS 的限时签名 GET，不要求公开桶，也不向云机交付
 对象存储管理身份。描述中的长度与两个摘要必须来自可信构建，签名只授权取包，不能替代
-完整性校验。签名有效期须覆盖依赖准备和实际下载；当前安装器不签发或自动续期 URL，
+完整性校验。签名有效期须覆盖依赖准备和实际下载；默认分发 owner 在开始安装时签发 URL，安装器不自动续期，
 过期时保留原操作供检查，不以换地址自动重发下载。私有运行包分发与用户敏感备份是不同
 数据边界：包不包含用户资料；备份仍由 age 加密归档或加密私有镜像的现役 owner 负责。
+
+临时安装服务按实际写入包的字节报告 `transfer.receivedBytes/totalBytes`。Main 先验证原操作和
+租约，再将总量绑定可信 artifact；负数、非整数、越界及倒退都进入原操作的恢复状态。
+最后有效进度随原加密安装记录保存，重启读取或 guest 未报告计数时不清零、不重发下载。
+传输条只表示运行包字节接收，接收满额仍须摘要、清单校验和安装；凭据重建没有包传输条。
 
 首次使用流程复用现役确认和持久操作收据。启动、购买响应未知时只查询原 operationId，
 不以刷新或重开弹窗重发变更。无影的现有任务连接使用手动配置，不能标成已支持自动装配。
@@ -6891,20 +7097,27 @@ flowchart TB
 ```mermaid
 flowchart TD
   Entry[输入框选择云端] --> Read[读取绑定电脑与连接状态]
+  Settings[设置页添加电脑 默认购买] --> Add
   Read --> ReadOK{读取成功}
   ReadOK -->|否| Retry[显示错误并允许只读刷新]
   Retry --> Read
   ReadOK -->|是| Has{有电脑}
   Has -->|否| Add[购买或绑定现有电脑]
   Add --> Consent[用户授权并确认报价与费用]
-  Consent --> Check[Main 读取精确版本描述并 HEAD 运行包]
-  Check --> Available{包可访问且长度匹配}
+  Consent --> Restored{从已验证系统镜像恢复}
+  Restored -->|是| Current
+  Restored -->|否| Check[Main 下载或复核本机同版本运行包]
+  Check --> Available{完整字节与官方摘要匹配}
   Available -->|否| Block[未下单 显示阻断原因]
   Block -->|重试| Check
   Block -->|用户明确选择自备环境| Current
-  Available -->|是| Current{当前上下文与有效报价仍一致}
+  Available -->|是| Distribute[原账号地域的临时私有 OSS 分发并验证]
+  Distribute --> DistributionOK{原对象就绪}
+  DistributionOK -->|否| Block
+  DistributionOK -->|是| Current{当前上下文与有效报价仍一致}
   Current -->|否或页面已关闭| NoPurchase[不提交采购 重新核价或重新确认]
-  Current -->|是| Purchase[原编号单次采购]
+  Current -->|是| Network[原报价的六十秒网络预检]
+  Network --> Purchase[原编号单次采购]
   Purchase --> Result{原采购结果}
   Result -->|未知| Original[只检查原操作]
   Original --> Result
@@ -6957,8 +7170,10 @@ sequenceDiagram
   participant Ali as 阿里云 API 与云助手
   participant Guest as 云机固定安装服务
   participant Source as 可信运行包源
+  participant Cache as 本机运行包缓存
+  participant OSS as 用户临时私有 OSS
   participant Remote as 云端 App Server
-  User->>UI: 选择云端
+  User->>UI: 选择云端或在设置页添加电脑
   opt 需要新购电脑
     User->>UI: 连接阿里云
     UI->>Local: connectAlibaba
@@ -6968,15 +7183,37 @@ sequenceDiagram
     Local-->>UI: verifying
     Local->>Ali: 原私有配置 STS GetCallerIdentity
     Ali-->>Local: 当前账号身份
-    Local-->>UI: connected 或固定验证失败
+    Local-->>UI: connected 与脱敏账号尾号 或固定验证失败
+    Note over UI,Local: 当前授权固定 CN 明确显示国内站 不按计算地域推断站点
     Note over UI,Local: 验证失败可显式复用原授权重试 读取状态不重开浏览器
     User->>UI: 确认报价与费用
-    UI->>Main: checkRuntimeRelease 无资源或 URL
-    Main->>Source: GET 精确版本描述 随后 HEAD 对应包
-    Source-->>Main: 受限官方响应与长度
-    Main-->>UI: 仅可用性与版本 或固定错误
-    Note over UI,Main: 不创建采购或安装意图 失败先阻止下单 明确自备环境才可跳过
+    alt 从已验证系统镜像恢复
+      Note over UI,Main: 复用镜像中的环境 不要求新版本运行包
+    else 默认首次安装
+      UI->>Main: prepareRuntimeRelease 当前账号地域 无资源或路径
+      Main-->>UI: 本机准备已启动
+      Main->>Source: GET 精确版本描述
+      Main->>Cache: 按官方摘要复核已有缓存
+      opt 缓存缺失或损坏
+        Main->>Source: GET 官方运行包 受限重定向
+        Source-->>Main: 实际传输字节
+        Main->>Cache: 完整字节与 SHA256 校验后发布
+      end
+      Main->>Main: 加密持久化原分发编号
+      Main->>Local: prepareRuntimeDistribution 私有动作
+      Local->>OSS: 原桶 私有 SSE 与一天过期规则
+      Local->>OSS: 单次上传公开软件包并下载校验摘要
+      OSS-->>Local: 原对象已验证
+      Local-->>Main: 安全阶段与对象摘要 无签名
+      loop 准备中只读观察
+        UI->>Main: runtimeReleaseStatus
+        Main-->>UI: 阶段与实际字节 无路径或 URL
+      end
+      Note over UI,Main: 仅 ready 且任务已结束后继续 失败不下单
+    end
     UI->>UI: 核对仍在当前页面 上下文一致且报价未过期
+    UI->>Local: preflightEcsPurchase 原报价
+    Local-->>UI: 六十秒内有效的本机网络证明
     UI->>Local: purchaseEcs 原操作编号与已确认规格
     Local->>Ali: 用户账号单次采购并核验精确实例与加密盘
     Ali-->>Local: 供应商状态
@@ -6998,6 +7235,9 @@ sequenceDiagram
   alt 默认同版本安装
     Main->>Source: 读取精确版本描述 限制大小和官方重定向
     Source-->>Main: 包名 长度与可信摘要
+    Main->>Local: 复用原分发并申请短期只读 GET
+    Local-->>Main: 绑定精确对象且不晚于 STS 到期的签名
+    Main->>Main: 加密保存精确安装引用与签名
   else 高级自定义安装
     Main->>Main: 原生选择可信文件或限时签名下载描述
   end
@@ -7028,6 +7268,13 @@ sequenceDiagram
   Note over Main,Source: 私有源只交付限时 GET 不交付云管理身份 签名不自动续期
   Guest->>Source: HTTPS 拉取运行包
   Source-->>Guest: 包字节
+  loop 接收期间按实际字节观察
+    Main->>Guest: 原操作 status
+    Guest-->>Main: receivedBytes 与 totalBytes
+    Main->>Main: 核验总量和单调性 保存加密进度
+    UI->>Main: installationStatus
+    Main-->>UI: 原操作的实际传输进度
+  end
   Guest->>Guest: 核验长度 摘要 清单并安全解包
   Guest->>Remote: 以普通用户安装并启动 systemd 服务
   loop 面板打开时只读观察
@@ -7038,6 +7285,12 @@ sequenceDiagram
   Guest-->>Main: 认证 TLS 交付
   Main->>Main: 加密保存任务连接
   Main->>Guest: 关闭临时安装服务
+  Main->>Main: 释放本资源的分发引用
+  opt 已无其他有效安装引用
+    Main->>Local: cleanupRuntimeDistribution 原编号
+    Local->>OSS: 删除原对象与空桶并核对不存在
+    Local-->>Main: cleaned 或保留原清理意图
+  end
   Main->>Local: 关闭 installation 通道
   Main-->>UI: complete 与 connectionSaved
   User->>UI: 打开云端窗口
@@ -7099,7 +7352,9 @@ Main 的 `CloudGuestInstallations` 默认解析精确应用版本的官方描述
 经现役 Session Manager 的 installation 通道取得临时本机 HTTPS 地址，验证公证书与固定
 127.0.0.2 身份，拒绝重定向和非回环 endpoint；Renderer 仅经原有 `cloud_desktop_connection` 消费进度。
 每次明确安装/继续建立短期通道，传输结束、失败与取消均关闭；动态地址不进入安装持久记录。
-阿里云仍检查 8787 安全组规则，阻断时只显示固定诊断，不自动修改规则或重放安装。
+阿里云仍检查 8787 安全组规则。安装或重连授权后，前端先通过同一 Cloud service 的
+`prepareEcsConnection` 核验专用网络并配置当前地址；自定义网络由用户管理。
+打开隧道时不隐式修改规则，阻断只显示固定诊断，不重放安装。
 下载描述文件中的 URL 可带对象签名，只保存于 Main 加密安装记录并经钉住证书 TLS 的 `POST /download`
 交给 guest，不进入 Renderer、云助手命令、管理收据或日志。guest 仅接受 HTTPS DNS 名，禁用继承代理与认证头，
 每次连接/重定向均拒绝私网、元数据和组播地址，一次解析后直接连接已核验地址并按原主机验证 TLS。
@@ -7122,10 +7377,54 @@ Main 的 `CloudGuestInstallations` 默认解析精确应用版本的官方描述
 全局通道表只登记资源，不在持锁时等待云 API；同一通道共享一次创建，最后一个等待者放弃时取消
 尚未完成的创建，关闭和重开按通道代际校验，旧创建结果不能返回新通道。
 帧解析接受官方当前使用的 1.00 状态帧与 1.01 数据帧，输入按官方客户端发送 1.01。
-阿里云仍检查实例入站安全组规则；用户须允许当前网络访问对应端口，Lime 不自动改规则。
+阿里云仍检查实例入站安全组规则。Lime 创建的网络在安装/重连明确授权后自动配置；
+自定义安全组不接管。`ecs/access` 分别拥有单次变更、归属读回和规则/公网地址校验。
+固定三个 HTTPS 地址源不接收云凭据；单源不可用时继续下一源，取得两个完整且一致的公网 IPv4 `/32`
+才可继续。每源最多等待 12 秒、不跟随重定向、最多读取 64 字节；地址冲突或非法内容立即拒绝。
+原 ROS 栈、模板、输出、
+目标实例及安全组独占性均核对后，只放行 TCP 8787/6080。旧地址规则按登记 ID 精确清理，
+不扩大源地址、不放行 SSH、不累计第三个地址。两个变更阶段独立先持久化 unknown；
+响应丢失或重启不重发，`readOperation` 只观察，原授权动作可接续已验证后的未提交清理。
+准备购买时同样只接受空入站或已登记的受管规则，防止首次装配后重开破坏归属校验。
+原实例释放后，同网络重建的实例须重新核对独占归属；公网地址相同时复用原规则，不新增或撤销。
+历史 `request.resource` 保持不变，`observedResource` 仅记录本次实际核验的目标；
+前端依据后者决定能否继续安装，不能把旧实例的成功记录当作新实例已就绪。
 云端桌面服务继续绑定回环地址，安全组放行与公网监听分别核对，不能宣称空规则即可连接。
 临时端口不持久化，也不自动重连或重放数据。Cloud 设置的桌面入口只投影通道状态，
 通过现役系统浏览器入口打开 noVNC；本机监听成功不等于桌面或 Computer Use 就绪。
+
+```mermaid
+sequenceDiagram
+  actor User as 用户
+  participant UI as 安装或重连入口
+  participant Cloud as 现役 Cloud service
+  participant IP as 固定 HTTPS 地址源
+  participant Ali as 用户阿里云账号
+  participant Store as 本机私有收据
+  participant Main as 现役安装 owner
+  User->>UI: 同意安装和专用网络连接配置
+  UI->>Cloud: prepareEcsConnection 原授权意图
+  Cloud->>Ali: 核对原栈 模板 实例和独占安全组
+  Cloud->>IP: 无凭据查询固定 HTTPS 地址源
+  IP-->>Cloud: 三源中取得两个完整且一致的公网 IPv4
+  alt 原地址规则已登记
+    Cloud->>Ali: 核对当前实例与原规则 包括同网络重建
+    Cloud->>Store: 保留原请求 记录 observedResource
+  else 首次连接或网络地址已变化
+    Cloud->>Store: authorizing durable unknown
+    Cloud->>Ali: 单次增加两个固定 TCP 端口规则
+    Cloud->>Ali: 独立读回描述 地址 端口和规则 ID
+    opt 存在已登记的旧地址规则
+      Cloud->>Store: revoking durable unknown
+      Cloud->>Ali: 单次按原规则 ID 精确清理
+      Cloud->>Ali: 确认旧规则消失
+    end
+  end
+  Note over Cloud,Store: 响应丢失或重启只观察原提交 不重发
+  Cloud-->>UI: connectionReady 或原未决操作
+  UI->>Main: 仅就绪后进入原安装或重连流程
+```
+
 `cloud_archive_service` 拥有 age 文件归档、本机恢复和加密文件 rclone 传输。Renderer 只拥有表单、
 显示和原收据恢复；云凭据由本机已登录 CLI profile 提供，密钥不经过 Renderer。
 OSS 的 `listOssBuckets/transferOssArchive` 复用用户自己的 managed 浏览器 OAuth profile。
@@ -7152,7 +7451,11 @@ Renderer 只接收保存结果。断开和超时回收云端暂存，不新增�
 `auth/cli` 按需下载并校验官方固定版本工具至私有目录，每次调用动态选择已安装路径，
 不修改全局 PATH，同一后台首次安装后即可继续。浏览器完成后进入 verifying，以原私有配置
 执行只读 STS；账号身份有效才进入 connected，普通云操作继续要求 connected。
-只向 Renderer 投影连接状态、固定错误码和 profile，不投影身份或凭据。专用 OAuth 配置、
+当前 OAuth 显式使用国内站 CN，界面在连接前后均显示国内站，计算地域和账务端点不能推断站点。
+只向 Renderer 投影连接状态、固定错误码、profile 和 STS 验证生成的四位账号尾号；
+连接元数据不保存完整账号 ID、ARN 或用户身份，Renderer 不接收完整身份或凭据。
+旧连接未记录尾号时明确显示未知并引导重新授权，
+不猜测身份，也不影响原 profile 的资源管理与 unknown 收据恢复。专用 OAuth 配置、
 连接元数据与固定版本工具放在 `cloud-desktops/auth/`，独立于用户默认 CLI 配置和购买
 unknown 收据。进程重启后未持租约的 pending 显示已中断；读取不启动操作，验证失败或中断
 后的显式连接复用原私有授权继续验证，不自行再次打开浏览器。首次官方应用安装遵循阿里云管理员授权。
@@ -7226,6 +7529,10 @@ flowchart LR
   Remote --> Native[现役 native adapter 与 Linux helper]
 ```
 
+安装传输故障由现役 Main 安装 owner 分类并写入同一加密记录，状态只投影固定 route／reason
+和可选 HTTP 状态码。原始异常、cause、地址、证书、头及响应正文不进入投影。通道清理保留原故障，
+显式恢复仍沿原操作身份；有效进度清除旧诊断，不增加授权步骤、独立恢复服务或自动提交重试。
+
 认证 transport 直接接入从 Codex 复制的 `websocket_auth`；非 loopback 无认证与带 Origin 的
 升级请求失败关闭。WebSocket processor 禁止本机云管理、rclone 和恢复私钥操作；文件备份允许使用
 调用方公钥导出远端文件，开启认证后也可在原连接下载密文。云端任务仍由同一
@@ -7288,7 +7595,9 @@ Main 同时为精确 webContents 登记查看 Origin，子页面导航和重定�
 原生显示，不进入 iframe 地址、Renderer、日志或任务协议。页面加载不等于 RFB 已认证成功。
 侧栏收起或卸载销毁查看器及其画面连接；共享 desktop 隧道仍由原供应商 owner 持有，以免
 打断其他查看者。App Server 通道和 canonical 任务不随查看器建立或销毁。查看不启动 human-control，
-noVNC 初始 view_only 也不能替代云端输入锁、grant、fence 和人工接管授权。
+noVNC 客户端允许发送输入，以便用户点击 Linux 原生授权窗口；是否接受输入仍由云端控制，
+默认关闭，仅在原生 consent 或有效人工接管租约内开放，退出后读回禁用状态。
+客户端 view_only 不能替代云端输入锁、grant、fence 和人工接管授权。
 
 ```mermaid
 sequenceDiagram
@@ -7303,7 +7612,13 @@ sequenceDiagram
   Main->>Local: 同一窗口资源的 openEcsTunnel desktop
   Local-->>Main: 固定回环桌面端点
   Main-->>UI: 经校验端点 不含密码
-  UI->>Guest: 沙箱 noVNC 初始查看模式
+  UI->>Guest: 沙箱 noVNC 客户端允许发送输入
+  Note over UI,Guest: 云端默认禁用键鼠 查看不授予接管权限
+  opt 原生授权或有效人工接管租约
+    Guest->>Guest: 持有输入锁并临时开放键鼠
+    User->>Guest: 经查看器操作授权窗口或接管桌面
+    Guest->>Guest: 结束后读回键鼠禁用状态 再释放锁
+  end
   opt 用户单独查看桌面密码
     User->>Main: showPassword
     Main-->>User: 原生窗口显示 不返回 Renderer
@@ -7324,8 +7639,16 @@ Linux helper 支持 X11 截图/窗口/XTest，并保留既有 grant、lease、fe
 按不可变 release 部署，同一用户的 token、桌面文件与应用资料不随升级重建。
 用户 systemd 管理 Xvnc、Xfce、同源 App Server 与 noVNC；监听全部限定 loopback，远程接入
 委托本机管理的认证隧道，不在 guest 保存供应商 profile 或恢复私钥。默认凭据 owner 不降级为明文。
+显式凭据重连仍要求保存工作，先停止任务、查看和人工接管服务，再轮换并 fsync 原私有凭据；
+保留已运行的 Xvnc／Xfce 和桌面会话启动的应用，任务服务进程组中的子进程仍可能结束。
+任务服务的 systemd 依赖补齐缺失桌面后，复用已验证 native helper 的 `vnc_input(False)`
+读回禁用键鼠，成功后才开放查看服务；失败保持查看关闭，不清除人工接管 latch 或恢复授权。
+TigerVNC 每次认证重读原 PasswordFile，查看服务的整个进程组停止会撤销旧受管连接；
+安装／升级仍保留原全量停止流程，不将凭据重连误作包升级或普通窗口通道重连。
 人工接管与 managed VNC 的系统授权弹窗共用跨进程输入锁；弹窗期间的独立 consent latch
-取消既有 AI 输入，结束后先禁用 VNC 输入再释放锁。禁用失败时保持 blocked；回到 AI
+取消既有 AI 输入，取得锁后再次检查取消与人工接管；弹窗打开期间也持续检查人工 latch，
+接管请求使授权取消，先终止并 wait 实际弹窗，再读回禁用 VNC 输入并释放锁，不发布应用授权。
+人工接管随后取得原锁并开启输入；停止接管后禁用输入并保留人工 latch。禁用失败时保持 blocked；回到 AI
 需显式恢复，不能把查看端关闭解释成同意自动继续。TigerVNC 仅允许受管键鼠参数动态
 切换，每次写入后读回实际值；退出码不能代替状态确认。剪贴板同步与远程改分辨率默认
 关闭。Linux target revision 使用共享协议的非零 u64 序列，窗口消失或锁屏后不复用旧值；
@@ -7343,6 +7666,47 @@ Linux helper 支持 X11 截图/窗口/XTest，并保留既有 grant、lease、fe
 无需额外中心服务、OOS 执行角色或 guest 云凭据。后台自动判断空闲仍未实现。
 停机仍可能产生磁盘等费用，释放也不删除镜像、快照或对象存储。
 文件归档只保留选定文件；保留全局工具、系统依赖与整盘登录资料应使用私有系统镜像。
+
+启动与停机在原 unknown 收据落盘后单次提交；未决收据在完整持久历史中阻止同资源的新变更，
+其他 profile 别名不能绕过。确认面板自动只读查询原操作，关闭面板停止查询，读取失败保留原编号
+供恢复。`CloudDesktopService/lifecycle/inspection` 只使用原 profile／region／resource 查询，
+精确资源到达目标状态后，在原操作锁内记录 observedAfter／verifiedAt 并持久化 lifecycleVerified；
+读取失败、目标缺失或尚未到达目标均不解除未决状态。完成收据为历史证据，重读或重放不再次提交，
+当前状态由独立 inspect 提供。普通资源查询也可复用同一次供应商读回，在原操作锁内核验
+同一 profile／region／resource 的未决启停；其他 profile 的状态不能替代原账号证据。
+只读查询遇到操作锁竞争时，readOperation 返回校验后的持久收据，inspect 仅读取供应商状态；
+收据核验与写入仍由持锁请求负责。锁竞争不报变更冲突，锁文件或权限错误继续失败关闭。
+未决启停与环境保存入口均不受最近 50 条历史截断影响，重开云端模式无需查找原编号。
+Stopped 仅证明停机，费用状态沿供应商独立读回：ECS 的
+computeReleased 可以为 false，无影不暴露该状态时保持 null，不将停机或核验成功称为零费用。
+
+```mermaid
+sequenceDiagram
+  actor User as 用户
+  participant UI as Cloud 确认面板
+  participant Cloud as 现役 Cloud service
+  participant Store as 私有操作收据
+  participant Ali as 用户阿里云账号
+  User->>UI: 确认启动或停机
+  UI->>Cloud: 原操作编号与明确授权
+  Cloud->>Store: 持久化 unknown
+  Cloud->>Ali: 单次非强制启停
+  Ali-->>Cloud: 接受或响应未知
+  Cloud-->>UI: 保留原操作编号
+  loop 面板打开且原操作待核验
+    UI->>Cloud: 只读查询原操作
+    Cloud->>Ali: 原账号与精确实例状态
+    Ali-->>Cloud: 当前状态及独立计费模式
+    alt 精确资源已到目标状态
+      Cloud->>Store: 持久化 observedAfter 与 verifiedAt
+      Cloud-->>UI: lifecycleVerified 保留真实费用状态
+    else 未到目标或无法确认
+      Cloud-->>UI: 保留未决收据 或报告读取失败
+    end
+  end
+  Note over Cloud,Store: 未决时新编号与 profile 别名均不能再次变更
+  Note over Cloud,Ali: 资源刷新复用一次精确读回 仅核验原 profile 的未决操作
+```
 
 ```mermaid
 flowchart TD
@@ -7377,6 +7741,162 @@ flowchart TD
 文件备份路径的异机读回确认与镜像路径的供应商可用证明是两种不同的释放条件；
 `imageReady` 不能充当真实应用或登录恢复验收。结果未知时始终查询原操作，不重复释放或购买。
 
+主动“保存环境并释放”由同一 `CloudDesktopService/hibernation` 组合现役生命周期与镜像操作。
+用户一次确认工作已保存、整盘敏感资料备份和原机删除；Renderer 不要求手填磁盘、快照或镜像 ID。
+父收据先固定请求、原系统盘与各子操作编号，当前阶段只允许精确子操作穿过 reservation；
+其他 profile 别名不能绕过。worker 使用跨进程文件租约，在本机 App Server 内最多运行 30 分钟。
+推进结果区分完成、已核验并切换阶段、供应商仍在处理。已切换的阶段立即继续；只有供应商
+仍在处理时等待 3 秒再查询，不在已就绪的停机、快照或镜像之间增加固定等待。
+关闭面板继续执行，进程退出后保留入口供显式接续；只读查询不启动 worker 或补发云请求。
+未结束的保存入口不受最近 50 条历史截断影响。每个子操作仍先持久 unknown，原响应丢失只沿
+原收据核对；快照 ID 缺失、源盘改变、额外数据盘、镜像失败或共享均暂停，不转为无备份删除。
+父收据摘要在序列化前递归排序 JSON 对象，避免 Cargo feature 合并启用
+`serde_json/preserve_order` 后改变同一请求的摘要；读取仍只接受唯一摘要，不改写旧收据。
+重新准备网络前，原网络栈必须读回三项原物理资源均已删除。ROS 在
+`DELETE_COMPLETE` 后清空标签时，仅此前已验证的原栈可结合不变的栈身份和完整删除清单
+确认结束；未验证的原栈、错误标签、保留资源或变化的物理身份继续阻断重建。
+释放前重用原镜像保护核验，完成再比对原释放收据及精确实例不存在；保留资源费用和应用验证独立。
+取消在同一操作锁内判定，仅停止后续步骤，已创建备份保留；删除意图持久化后不能取消。
+外部控制台仍可修改资源，用户须保持源机停止且不在控制台操作；当前实例查询无法证明外部
+启动后又停机期间没有写入。此能力不是自动空闲检测，也不承担 Lime 退出后的独立调度。
+Architecture impact: minor；责任 root，2026-11-12 确认继续复用现役 Cloud owner，无第二 runtime。
+
+备份页的“从已保存环境恢复”复用 `PurchaseEcs`、浏览器授权与原购买 owner。
+`EcsSystemImages` 只负责按当前账号／地域读取并选择经服务验证的私有加密镜像；
+`RestoreCloudDesktop` 持有本次恢复选择，`useCloudPurchase` 在解析模板或推荐 spec 后应用
+精确镜像及所需系统盘大小。模板的基础报价不能用于恢复确认；spec 变化后重新调用原
+`quoteEcs` 并核对返回 spec，才允许重新确认费用。账号、地域、镜像或卸载使迟到报价失效。
+未知购买仍沿原编号读取；已提交后不重新加载镜像选择或清除购买身份。新机经过原完整购买
+证明且设置页实际观察到 Running，才显示原任务连接入口；连接时继续要求授权和轮换凭据。
+恢复入口不自动解锁应用、迁移审批或证明第三方登录有效；已验证系统镜像复用已有环境，
+不要求重新下载新版本运行包，仍须费用授权、网络检查与原凭据重建。
+
+```mermaid
+sequenceDiagram
+  actor User as 用户
+  participant Restore as 备份恢复入口
+  participant Purchase as 原购买 owner
+  participant Cloud as 本机 Cloud service
+  participant Ali as 用户阿里云账号
+  User->>Restore: 选择经核验的私有系统镜像
+  Restore->>Purchase: 原模板或推荐网络方案
+  Purchase->>Cloud: 只读解析基础配置和原报价
+  Cloud->>Ali: 核验当前网络 规格与镜像
+  Cloud-->>Purchase: 基础 spec
+  Purchase->>Purchase: 应用所选镜像并满足系统盘大小
+  Purchase->>Cloud: quoteEcs 精确恢复 spec
+  Cloud-->>Purchase: 原报价 身份与有效期
+  Purchase-->>User: 等待重新确认费用
+  User->>Purchase: 确认购买
+  Purchase->>Cloud: 原 purchaseEcs 单次操作
+  Cloud->>Ali: 创建并核实精确实例和加密盘
+  Cloud-->>Restore: 原 provisioned 收据
+  Note over Restore,Cloud: 实际观察 Running 后开放原任务连接
+  User->>Restore: 授权重新连接和凭据轮换
+```
+
+Architecture impact: minor；责任 root，2026-11-12 确认恢复和普通购买共享同一 authority。
+
+ECS 购买前的本机网络检查由原 `CloudDesktopService/ecs/preflight` 负责，
+复用 `ecs/access` 的地址发现。Renderer 在费用同意后自动调用只读 `preflightEcsPurchase`；
+原报价在网络检查前后都须有效且完整。检查记录单独私有原子落盘，最多一分钟有效，
+不改变报价摘要、不保存地址、不进入操作历史。`purchaseEcs` 在只读核价和供应商预检前后均验证记录，
+通过后才持久化 unknown 并单次提交真实采购；已有原收据的读取和重放不依赖新检查。
+网络失败保留有效报价和费用同意，界面明确尚未购买；上下文变化或卸载拒绝迟到结果。
+该观察证明当前本机能发现一致公网地址，不能保证后续网络不变或 guest 安装必然成功。
+
+供应商预检复用同一购买 owner：单次构造资源规格、加密、计费和操作标签，
+先调用官方 `RunInstances DryRun=true`，不携带真实购买的 ClientToken。
+共享 CLI 进程边界只从非零退出的白名单元数据提取类型化错误码；
+仅精确、无重复或冲突的 `DryRunOperation` 表示检查通过，不匹配展示文本或 Message。
+检查拒绝、超时、零退出或含混响应均在真实提交前返回 notSubmitted，不创建 unknown 收据。
+明确未提交的结果保留 CLI 白名单类型化 `providerCode`；界面只有未下单且无需核查的余额拒绝
+才提示核对资金条件、补足资金或切换账号并重新核价。未知采购仍沿原收据恢复，不从诊断文本推断可重购。
+检查通过仍须再验报价和网络证明，随后才持久化 unknown 并使用原 ClientToken 真实提交；
+真实提交错误仍保留 unknown，不因错误码看似明确而允许重购。
+DryRun 不创建实例，只反映供应商当次参数、权限、业务限制和库存检查，不能保证后续采购成功。
+
+```mermaid
+sequenceDiagram
+  actor User as 用户
+  participant UI as 原购买界面
+  participant Cloud as 本机 Cloud service
+  participant Address as 固定 HTTPS 地址源
+  participant Store as 本机私有记录
+  participant Ali as 用户阿里云账号
+  User->>UI: 同意当前费用并点击购买
+  UI->>Cloud: preflightEcsPurchase 精确 spec 和 quoteId
+  Cloud->>Store: 核对原报价完整性与有效期
+  Cloud->>Address: 无云凭据的有界只读检查
+  Address-->>Cloud: 两个一致的合法公网 IPv4
+  Cloud->>Store: 再验报价 保存最多一分钟检查记录
+  Cloud-->>UI: 返回报价绑定和有效期 不含地址
+  UI->>UI: 核对上下文仍相同
+  UI->>Cloud: purchaseEcs 原费用确认
+  Cloud->>Store: 检查记录有效
+  Cloud->>Ali: 只读核价和资源核对
+  Cloud->>Ali: RunInstances DryRun=true 不带 ClientToken
+  Ali-->>Cloud: 类型化供应商错误码
+  alt 精确 DryRunOperation
+    Cloud->>Store: 再验报价和记录 持久 unknown
+    Cloud->>Ali: 单次真实 RunInstances 原 ClientToken
+  else 拒绝或响应无法验证
+    Cloud-->>UI: notSubmitted 不写采购收据
+  end
+  Note over UI,Ali: 失败在付费提交前明确返回未下单 已提交未知只查原编号
+```
+
+Architecture impact: minor；责任 root，2026-11-13 确认供应商预检仍由同一 CLI／购买 owner 承接，无中心服务或第二 runtime。
+
+```mermaid
+flowchart TD
+  Consent[用户一次授权保存敏感整盘和删除原机] --> Preflight[核对按量实例与唯一加密系统盘]
+  Preflight --> Intent[持久父收据 固定子操作和资源 reservation]
+  Intent --> Lease[本机 worker 排他租约]
+  Lease --> Stop[原停机操作 并核实 Stopped]
+  Stop --> Snapshot[原加密冷快照操作]
+  Snapshot --> Image[原私有镜像操作及来源核验]
+  Image --> Release[原保护释放 再核对盘 快照和镜像]
+  Release --> Verify[原释放收据确认精确实例不存在]
+  Verify --> Saved[环境已保存并释放 存储费用仍需核对]
+  Snapshot -->|未知或失败| Paused[保留原阶段及子操作供核对]
+  Image -->|未知或失败| Paused
+  Release -->|未知或失败| Paused
+  Paused -->|显式接续原请求| Lease
+  Read[查询原父收据] --> Status[只投影进度和租约 不启动变更]
+```
+
+```mermaid
+sequenceDiagram
+  actor User as 用户
+  participant UI as Cloud 保存入口
+  participant Service as 本机 Cloud service
+  participant Store as 私有收据和租约
+  participant Owners as 原生命周期与镜像 owner
+  participant Ali as 用户阿里云账号
+  User->>UI: 确认保存工作 整盘敏感数据和删除原机
+  UI->>Service: hibernateEcs 原操作编号
+  Service->>Ali: 只读预检并自动发现原系统盘
+  Service->>Store: 持久父意图 固定子编号和摘要
+  Service-->>UI: 返回原操作及可查询进度
+  Service->>Store: 持有本机 worker 租约
+  loop 停机 冷快照 私有镜像 保护释放
+    Service->>Owners: 当前阶段精确子操作
+    Owners->>Store: 先持久子操作 unknown
+    Owners->>Ali: 单次变更 并沿原操作核对
+    Owners-->>Service: 原收据与精确结果
+    alt 供应商仍在处理
+      Service->>Service: 等待 3 秒后查询原操作
+    else 已核验并切换阶段
+      Service->>Store: 持久阶段推进 立即继续
+    end
+  end
+  Note over Service,Store: 面板可关闭 进程退出保留原操作 读取不自动接续
+  Service->>Store: 原备份证明和原释放收据核对后保存 hibernated
+  User->>UI: 下次选择保留的私有镜像
+  UI->>Owners: 原核价 费用确认及购买流程
+```
+
 | 状态                             | 当前 owner 与位置                   | 备份与恢复边界                                                           |
 | -------------------------------- | ----------------------------------- | ------------------------------------------------------------------------ |
 | Lime 云资源管理 OAuth 与临时 STS | 本机 Cloud auth owner               | 不下发 guest，不混入桌面备份                                             |
@@ -7384,6 +7904,11 @@ flowchart TD
 | Thread、工作文件与用户安装环境   | 云端 App Server、用户 home 与持久盘 | 文件归档按选择导出；整盘镜像保留系统依赖与全局工具                       |
 | 浏览器及第三方 CLI 登录          | 云机的应用私有目录                  | 可能包含敏感信息；整盘镜像一并保存，文件归档不能保证识别任意文件内的秘密 |
 | 归档恢复私钥                     | 本机用户选择的私有文件              | 不上传原私钥；异机恢复使用连接限定的一次性接收方                         |
+
+文件归档同时使用用户选定的源根目录和 canonical 实际源路径判断排除规则，不能通过直接选择
+敏感目录或其符号链接为根绕过过滤。Railway 的 `.railway/config*.json` 与其他已知应用登录
+资料默认排除，只有显式选择包含敏感资料时才可进入 age 密文；云管理凭据、Lime 控制状态和
+恢复私钥仍禁止导出。此路径策略不能识别任意改名文件内的秘密，也不证明恢复后的登录有效。
 
 磁盘、镜像或归档加密保护静态存储；正在运行的桌面仍需读取文件和登录状态。
 恢复成功必须验证目标原生应用、登录和工具链，不能仅凭 API 受理、快照可用或文件存在判定。
@@ -7544,7 +8069,9 @@ sequenceDiagram
     Main->>Local: 只查询原收据并继续原重连通道
   end
   Main->>Target: 钉住证书的认证 TLS 执行原重连
-  Target->>Target: 复用原运行包 轮换任务和桌面凭据
+  Target->>Target: 停止任务与查看和接管 保留已运行桌面
+  Target->>Target: 轮换并持久化凭据 启动任务服务
+  Target->>Target: 读回禁用 VNC 键鼠后启动查看服务
   Target-->>Main: 新连接身份
   Main->>Main: 加密保存后确认收尾
   Main->>Target: 新身份经认证隧道连接

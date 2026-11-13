@@ -6,6 +6,12 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl McpAppDataSource for LocalAppDataSource {
+    fn mcp_oauth_store_root(&self) -> Option<std::path::PathBuf> {
+        Some(lime_mcp::oauth_store::oauth_store_root_for_app_data_root(
+            self.app_data_root(),
+        ))
+    }
+
     fn mcp_elicitation_router(&self) -> lime_mcp::ElicitationRequestRouter {
         self.mcp_elicitation_router.clone()
     }
@@ -19,7 +25,14 @@ impl McpAppDataSource for LocalAppDataSource {
         params: app_server_protocol::protocol::v2::ListMcpServerStatusParams,
     ) -> Result<app_server_protocol::protocol::v2::ListMcpServerStatusResponse, RuntimeCoreError>
     {
-        mcp::list_mcp_servers_with_status_v2(&self.db, &self.mcp_manager, params).await
+        mcp::list_mcp_servers_with_status_v2(
+            &self.db,
+            &self.plugin_store,
+            &self.market_store,
+            &self.mcp_manager,
+            params,
+        )
+        .await
     }
 
     async fn create_mcp_server(
@@ -54,7 +67,14 @@ impl McpAppDataSource for LocalAppDataSource {
         &self,
         params: McpServerStartParams,
     ) -> Result<McpServerLifecycleResponse, RuntimeCoreError> {
-        mcp::start_mcp_server(&self.db, &self.mcp_manager, params).await
+        mcp::start_mcp_server(
+            &self.db,
+            &self.plugin_store,
+            &self.market_store,
+            &self.mcp_manager,
+            params,
+        )
+        .await
     }
 
     async fn stop_mcp_server(
@@ -68,14 +88,28 @@ impl McpAppDataSource for LocalAppDataSource {
         &self,
         params: McpServerOauthLoginParams,
     ) -> Result<lime_mcp::McpOAuthLoginHandle, RuntimeCoreError> {
-        mcp::login_mcp_server_oauth(&self.db, &self.mcp_manager, params).await
+        mcp::login_mcp_server_oauth(
+            &self.db,
+            &self.plugin_store,
+            &self.market_store,
+            &self.mcp_manager,
+            params,
+        )
+        .await
     }
 
     async fn logout_mcp_server_oauth(
         &self,
         params: McpServerOauthLogoutParams,
     ) -> Result<McpServerOauthLogoutResponse, RuntimeCoreError> {
-        mcp::logout_mcp_server_oauth(&self.db, &self.mcp_manager, params).await
+        mcp::logout_mcp_server_oauth(
+            &self.db,
+            &self.plugin_store,
+            &self.market_store,
+            &self.mcp_manager,
+            params,
+        )
+        .await
     }
 
     async fn list_mcp_tools(&self) -> Result<McpToolListResponse, RuntimeCoreError> {
@@ -85,7 +119,7 @@ impl McpAppDataSource for LocalAppDataSource {
     async fn list_mcp_runtime_server_specs(
         &self,
     ) -> Result<Vec<lime_mcp::McpRuntimeServerSpec>, RuntimeCoreError> {
-        mcp::list_mcp_runtime_server_specs(&self.db, &self.plugin_store)
+        mcp::list_mcp_runtime_server_specs(&self.db, &self.plugin_store, &self.market_store)
     }
 
     async fn list_mcp_tools_for_context(

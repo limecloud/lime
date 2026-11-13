@@ -97,8 +97,31 @@ impl RuntimeCore {
         &self,
         params: PluginListParams,
     ) -> Result<PluginListResponse, RuntimeCoreError> {
+        let account_generation = || {
+            self.account_manager
+                .as_ref()
+                .map(|manager| {
+                    manager.read(Default::default()).map(|response| {
+                        response.account.map(|account| {
+                            let app_server_protocol::protocol::v2::Account::Cloud {
+                                generation,
+                                ..
+                            } = account;
+                            generation
+                        })
+                    })
+                })
+                .transpose()
+                .map_err(RuntimeCoreError::Backend)
+        };
+        let generation = account_generation()?;
         let mut response = self.app_data_source.list_plugins(params.clone()).await?;
-        match tokio::time::timeout(std::time::Duration::from_secs(30), remote::list(self, &params)).await {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            remote::list(self, &params),
+        )
+        .await
+        {
             Ok(Ok(marketplaces)) => response.marketplaces.extend(marketplaces),
             result => response.marketplace_load_errors.push(
                 app_server_protocol::protocol::v2::MarketplaceLoadErrorInfo {
@@ -109,6 +132,26 @@ impl RuntimeCore {
                     },
                 },
             ),
+        }
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            remote::featured(self, &params),
+        )
+        .await
+        {
+            Ok(Ok(plugins)) => response.featured_plugins = plugins,
+            result => response.marketplace_load_errors.push(
+                app_server_protocol::protocol::v2::MarketplaceLoadErrorInfo {
+                    marketplace_path: "lime-cloud-featured".into(),
+                    message: match result {
+                        Ok(Err(error)) => error.to_string(),
+                        _ => "shared market request timed out".into(),
+                    },
+                },
+            ),
+        }
+        if account_generation()? != generation {
+            return Err(RuntimeCoreError::InvalidRequest("account_changed".into()));
         }
         Ok(response)
     }

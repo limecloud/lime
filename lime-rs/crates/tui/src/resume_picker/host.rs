@@ -17,7 +17,7 @@ async fn load_thread_page_with_handle(
     cursor: Option<String>,
 ) -> Result<ThreadPage> {
     // Lime's current App Server owns the canonical index; do not switch to
-    // Codex's private local state DB mode for later pages.
+    // 上游 private local state DB mode for later pages.
     let page: ThreadListResponse = request_handle
         .request(
             app_server_protocol::protocol::v2::METHOD_THREAD_LIST,

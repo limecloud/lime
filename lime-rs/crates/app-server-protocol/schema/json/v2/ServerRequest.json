@@ -1,5 +1,62 @@
 {
   "$defs": {
+    "AccountAuthorization": {
+      "properties": {
+        "expiresAt": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/CloudResource"
+        },
+        "status": {
+          "$ref": "#/$defs/AccountAuthorizationStatus"
+        }
+      },
+      "required": [
+        "expiresAt",
+        "id",
+        "resource",
+        "status"
+      ],
+      "type": "object"
+    },
+    "AccountAuthorizationStatus": {
+      "enum": [
+        "cancelled",
+        "completed",
+        "denied",
+        "exchanging",
+        "expired",
+        "failed",
+        "outcome_unknown",
+        "pending"
+      ],
+      "type": "string"
+    },
+    "AccountAuthorizeParams": {
+      "additionalProperties": false,
+      "description": "The host opens the native owner's URL. Only the native callback proves authorization.",
+      "properties": {
+        "authUrl": {
+          "type": "string"
+        },
+        "authorization": {
+          "$ref": "#/$defs/AccountAuthorization"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authUrl",
+        "authorization",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "AdditionalFileSystemPermissions": {
       "properties": {
         "entries": {
@@ -50,6 +107,15 @@
         }
       },
       "type": "object"
+    },
+    "CloudResource": {
+      "enum": [
+        "connections",
+        "default",
+        "market",
+        "web"
+      ],
+      "type": "string"
     },
     "CommandExecutionApprovalDecision": {
       "enum": [
@@ -124,6 +190,35 @@
         "startedAtMs",
         "threadId",
         "turnId"
+      ],
+      "type": "object"
+    },
+    "ConnectionAuthorizeParams": {
+      "additionalProperties": false,
+      "description": "The host opens the original file approval; the Cloud decision is read separately.",
+      "properties": {
+        "approvalUrl": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "approvalUrl",
+        "environment",
+        "expiresAt",
+        "requestId",
+        "threadId"
       ],
       "type": "object"
     },
@@ -650,6 +745,46 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Requests initiated by the server and sent to a v2 client. Unknown methods\nfail closed until their typed params and response contracts are added.",
   "oneOf": [
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "connection/authorize",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/ConnectionAuthorizeParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "account/authorize",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/AccountAuthorizeParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
     {
       "properties": {
         "id": {

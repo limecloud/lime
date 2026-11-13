@@ -1,4 +1,4 @@
-//! Codex command-center geometry: header/tabs/rule, task rows, details and compact footer.
+//! 上游 command-center geometry: header/tabs/rule, task rows, details and compact footer.
 
 use super::hints::hint_line;
 use super::*;

@@ -1,4 +1,4 @@
-//! Human-readable Codex output over canonical App Server notifications.
+//! Human-readable 上游 output over canonical App Server notifications.
 
 use std::collections::HashSet;
 use std::io::{self, Write};

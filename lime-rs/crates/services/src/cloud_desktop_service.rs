@@ -52,6 +52,12 @@ impl CloudDesktopService {
         params: CloudDesktopParams,
     ) -> Result<CloudDesktopResponse, String> {
         let data = match params {
+            CloudDesktopParams::PrepareModelConnection { .. }
+            | CloudDesktopParams::SealModelConnection { .. }
+            | CloudDesktopParams::ApplyModelConnection { .. }
+            | CloudDesktopParams::ReadModelConnection { .. } => {
+                return Err("Model connections require the Provider data source".into());
+            }
             CloudDesktopParams::ConnectAlibaba { region_id } => self.connect_alibaba(&region_id)?,
             CloudDesktopParams::ReadAlibabaConnection {} => self.read_alibaba_connection()?,
             CloudDesktopParams::ListResources {} => self.list_resources()?,
@@ -68,6 +74,21 @@ impl CloudDesktopService {
             }
             CloudDesktopParams::QuoteWuying { spec } => self.quote_wuying(spec).await?,
             CloudDesktopParams::QuoteEcs { spec } => self.quote_ecs(spec).await?,
+            CloudDesktopParams::PreflightEcsPurchase { spec, quote_id } => {
+                self.preflight_ecs_purchase(&spec, &quote_id).await?
+            }
+            CloudDesktopParams::PrepareEcsConnection {
+                resource,
+                operation_id,
+                confirmation,
+            } => tokio::time::timeout(
+                Duration::from_secs(300),
+                self.prepare_ecs_connection(resource, operation_id, confirmation),
+            )
+            .await
+            .map_err(|_| {
+                "Connection preparation timed out; inspect the original operation before retrying"
+            })??,
             CloudDesktopParams::PrepareEcsPurchase {
                 region_id,
                 profile,
@@ -201,6 +222,48 @@ impl CloudDesktopService {
             CloudDesktopParams::ListOssBuckets { profile, region_id } => {
                 self.list_oss_buckets(&profile, &region_id).await?
             }
+            CloudDesktopParams::PrepareRuntimeDistribution {
+                profile,
+                region_id,
+                operation_id,
+                version,
+                archive_bytes,
+                archive_sha256,
+            } => {
+                self.prepare_runtime_distribution(
+                    &profile,
+                    &region_id,
+                    &operation_id,
+                    &version,
+                    archive_bytes,
+                    &archive_sha256,
+                )
+                .await?
+            }
+            CloudDesktopParams::ReadRuntimeDistribution {
+                profile,
+                region_id,
+                operation_id,
+            } => {
+                self.read_runtime_distribution(&profile, &region_id, &operation_id)
+                    .await?
+            }
+            CloudDesktopParams::SignRuntimeDistribution {
+                profile,
+                region_id,
+                operation_id,
+            } => {
+                self.sign_runtime_distribution(&profile, &region_id, &operation_id)
+                    .await?
+            }
+            CloudDesktopParams::CleanupRuntimeDistribution {
+                profile,
+                region_id,
+                operation_id,
+            } => {
+                self.cleanup_runtime_distribution(&profile, &region_id, &operation_id)
+                    .await?
+            }
             CloudDesktopParams::TransferOssArchive {
                 profile,
                 region_id,
@@ -223,7 +286,7 @@ impl CloudDesktopService {
             }
             CloudDesktopParams::Inspect { resource } => {
                 validate_resource(&resource)?;
-                self.inspect(&resource).await?
+                self.inspect_resource_with_lifecycle(&resource).await?
             }
             CloudDesktopParams::OpenEcsTunnel { resource, channel } => {
                 self.open_ecs_tunnel(resource, channel).await?
@@ -374,6 +437,28 @@ impl CloudDesktopService {
                 )
                 .await?
             }
+            CloudDesktopParams::HibernateEcs {
+                resource,
+                operation_id,
+                confirmation,
+                work_saved,
+                include_credentials,
+                discard_data,
+            } => {
+                self.hibernate_ecs(
+                    resource,
+                    operation_id,
+                    confirmation,
+                    work_saved,
+                    include_credentials,
+                    discard_data,
+                )
+                .await?
+            }
+            CloudDesktopParams::CancelEcsHibernation {
+                operation_id,
+                confirmation,
+            } => self.cancel_ecs_hibernation(&operation_id, &confirmation)?,
             CloudDesktopParams::Release {
                 resource,
                 operation_id,
@@ -496,6 +581,12 @@ impl CloudDesktopService {
         let receipt = self
             .read_receipt(operation_id)?
             .ok_or("Cloud desktop operation does not exist")?;
+        if matches!(receipt["request"]["action"].as_str(), Some("start" | "stop")) {
+            return self.inspect_lifecycle_operation(operation_id).await;
+        }
+        if receipt["request"]["action"] == "hibernateEcs" {
+            return self.hibernation_status(receipt);
+        }
         if matches!(
             receipt["request"]["action"].as_str(),
             Some("scheduleEcsRelease" | "cancelEcsRelease")
@@ -510,6 +601,9 @@ impl CloudDesktopService {
         }
         if receipt["request"]["action"] == "prepareEcsPurchase" {
             return self.inspect_ecs_purchase_preparation(operation_id).await;
+        }
+        if receipt["request"]["action"] == "prepareEcsConnection" {
+            return self.inspect_ecs_connection(operation_id).await;
         }
         if receipt["request"]["action"] == "prepareEcsDesktop" {
             return self.inspect_ecs_preparation(operation_id).await;
@@ -631,50 +725,6 @@ fn has_operation_locks(value: &Value, field: &str) -> Result<bool, String> {
     }
 }
 
-fn provider_diagnostic(stderr: &[u8]) -> String {
-    // CLI messages may contain signed URLs or credentials. Only fixed metadata
-    // fields with a restricted alphabet may cross the control-plane boundary.
-    let text = String::from_utf8_lossy(stderr);
-    let json = serde_json::from_slice::<Value>(stderr).ok();
-    let mut fields = Vec::new();
-    for (name, keys) in [
-        ("ErrorCode", &["ErrorCode", "Code", "error_code"][..]),
-        ("RequestId", &["RequestId", "request_id"][..]),
-    ] {
-        let value = keys
-            .iter()
-            .find_map(|key| {
-                json.as_ref()
-                    .and_then(|v| v.get(*key))
-                    .and_then(Value::as_str)
-            })
-            .or_else(|| {
-                text.lines().find_map(|line| {
-                    keys.iter()
-                        .find_map(|key| line.trim().strip_prefix(&format!("{key}:")))
-                        .map(str::trim)
-                })
-            });
-        if let Some(value) = value.filter(|value| {
-            !value.is_empty()
-                && value.len() <= 96
-                && value
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte))
-        }) {
-            fields.push(format!("{name}={value}"));
-        }
-    }
-    format!(
-        "Cloud request failed{}; inspect resource and operation receipt before retrying",
-        if fields.is_empty() {
-            String::new()
-        } else {
-            format!(" ({})", fields.join(", "))
-        }
-    )
-}
-
 fn validate_id(value: &str) -> Result<(), String> {
     if value.is_empty()
         || value.len() > 64
@@ -758,6 +808,7 @@ fn private_open(path: &Path, create_new: bool) -> Result<File, String> {
 mod auth;
 mod cloud_assistant;
 mod ecs;
+mod hibernation;
 mod images;
 mod lifecycle;
 mod oss;

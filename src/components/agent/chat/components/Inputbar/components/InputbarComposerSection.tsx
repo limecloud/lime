@@ -87,6 +87,7 @@ interface InputbarComposerSectionProps {
   threadGoal?: ThreadGoal | null;
   threadGoalError?: unknown;
   threadGoalLoading?: boolean;
+  contextUsage?: React.ReactNode;
   onOpenGoalEditor?: () => void;
   isGoalMode?: boolean;
   goalPlaceholder?: string;
@@ -148,6 +149,7 @@ export const InputbarComposerSection: React.FC<
   threadGoal = null,
   threadGoalError = null,
   threadGoalLoading = false,
+  contextUsage,
   onOpenGoalEditor,
   isGoalMode = false,
   goalPlaceholder,
@@ -380,6 +382,7 @@ export const InputbarComposerSection: React.FC<
         visualVariant={isWorkspaceVariant ? "floating" : "default"}
         connectedContextBar={false}
         topExtra={resolvedTopExtra}
+        contextUsage={contextUsage}
         leftExtra={leftExtra}
         trailingMeta={trailingMeta}
         contextualSuggestions={contextualSuggestions}

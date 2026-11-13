@@ -853,7 +853,7 @@ describe("TUI Gate B", () => {
     expect(editor.indexOf("TUI_EDITOR_KEEP_SCREEN_OK")).toBeGreaterThan(
       editor.indexOf("TUI must re-enter the alternate screen"),
     );
-    expect(gateSource).toContain('scenario === "complete" ? 180_000 : 60_000');
+    expect(gateSource).toContain('scenario === "complete"');
   });
   it("requires cross-directory resume, editor buffer and cold canonical evidence", () => {
     const editor = readFileSync(
@@ -1238,7 +1238,33 @@ describe("TUI Gate B", () => {
       expect(suggestionTestSource).toContain(sequence);
     }
   });
-  it("drives the real TUI through a portable PTY and current App Server", () => {
+
+
+it("retries scenario runs when the cargo artifact lock is busy", () => {
+  expect(gateSource).toContain("Blocking waiting for file lock");
+  expect(gateSource).toContain("artifact lock busy; retrying");
+  expect(gateSource).toContain(".retry${attempt}");
+  expect(gateSource).toContain("LIME_TEST_TERMINAL_LEDGER: retryLedgerPath");
+  expect(gateSource).toContain("appendFileSync(ledgerPath, readFileSync(retryLedgerPath))");
+  expect(gateSource).toContain("TUI_GATE_COMMAND_TIMEOUT");
+  expect(gateSource).toContain("missing expectedSequences entry for");
+  expect(gateSource).toContain("TUI_MEMORY_COMMAND_OK panel=memory");
+  expect(gateSource).toContain("TUI_MEMORY_RESET_OK reset=confirmed");
+  expect(gateSource).toContain("TUI_USAGE_COMMAND_OK panel=usage");
+  expect(gateSource).toContain("TUI_STOP_COMMAND_OK idle=reported");
+  expect(gateSource).toContain("TUI_WARNINGS_COMMAND_OK panel=warnings");
+  expect(gateSource).toContain("TUI_DIFF_COMMAND_OK panel=diff repo=none");
+  expect(gateSource).toContain("TUI_CD_COMMAND_OK status=reported");
+  expect(gateSource).toContain("TUI_PLUGINS_COMMAND_OK panel=plugins");
+  expect(gateSource).toContain("TUI_PLUGINS_SEARCH_OK panel=search");
+  expect(gateSource).toContain("TUI_PS_COMMAND_OK panel=ps");
+  expect(gateSource).toContain("TUI_RECAP_COMMAND_OK panel=recap");
+  expect(gateSource).toContain("TUI_MENTION_COMMAND_OK composer=at");
+  expect(gateSource).toContain("TUI_GOAL_COMMAND_OK goal=none");
+  expect(gateSource).toContain("TUI_MEMORIES_COMMAND_OK mode=off");
+});
+
+it("drives the real TUI through a portable PTY and current App Server", () => {
     expect(gateSource).toContain('LIME_TEST_TUI_GATE_B: "1"');
     expect(gateSource).toContain("buildTerminalGateBinaries");
     expect(gateSource).toContain("snapshotTerminalGateBinaries");
@@ -1467,7 +1493,7 @@ describe("TUI Gate B", () => {
       'event.payload?.source === "thread/queue/delete"',
     );
     expect(gateSource).toContain(
-      '"complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"',
+      '"complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,keymap-command,memory-command,memory-reset-command,usage-command,stop-command,warnings-command,diff-command,cd-command,plugins-command,plugins-search-command,ps-command,recap-command,mention-command,goal-command,memories-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"',
     );
   });
 

@@ -110,7 +110,7 @@ fn ctrl_c_clears_notes_before_cancelling_request() {
 }
 
 #[test]
-fn option_notes_follow_codex_answer_shape() {
+fn option_notes_follow_upstream_answer_shape() {
     let mut request = RequestUserInputOverlay::new(
         RequestId::Integer(11),
         ToolRequestUserInputParams {

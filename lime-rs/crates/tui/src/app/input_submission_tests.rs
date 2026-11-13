@@ -189,7 +189,7 @@ fn selected_paths_precede_typed_names_and_never_fall_back_after_catalog_refresh(
 }
 
 #[test]
-fn typed_punctuation_linked_paths_and_environment_variables_follow_codex_scanning() {
+fn typed_punctuation_linked_paths_and_environment_variables_follow_upstream_scanning() {
     use super::input_submission::submission_input;
     let skills = vec![
         skill("review", "/one/SKILL.md"),

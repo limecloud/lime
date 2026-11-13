@@ -300,7 +300,7 @@ impl PickerState {
     /// Restrict history only for an explicit CLI/provider choice.
     ///
     /// When this is `None`, the App Server remains the provider-default owner and the picker
-    /// intentionally sends no provider filter, matching Codex's server-default behavior.
+    /// intentionally sends no provider filter, matching 上游 server-default behavior.
     pub(crate) fn set_model_provider_filter(&mut self, provider: Option<String>) {
         self.model_provider = provider
             .map(|provider| provider.trim().to_string())

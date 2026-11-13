@@ -1,6 +1,6 @@
 //! MCP CLI commands.
 //!
-//! The command names and argument types intentionally follow Codex's
+//! The command names and argument types intentionally follow the upstream
 //! `mcp_cmd.rs`. Configuration mutations still go through App Server JSON-RPC
 //! so Desktop, CLI and TUI share one MCP owner.
 
@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::process::ExitCode;
 
 use anyhow::{bail, Result};
+use app_server_client::AppServerEvent;
+use app_server_protocol::protocol::v2::ServerNotification;
 use app_server_protocol::{
     McpServerCreateParams, McpServerDeleteParams, McpServerListResponse, McpServerOauthLoginParams,
     McpServerOauthLoginResponse, McpServerOauthLogoutParams, McpServerOauthLogoutResponse,
@@ -19,6 +21,7 @@ use clap::Args;
 use serde_json::{json, Value};
 
 use crate::connection::ConnectionArgs;
+use crate::exec::locale::{Label, Locale};
 
 #[derive(Debug, Args)]
 pub(crate) struct McpCli {
@@ -112,6 +115,9 @@ pub(crate) struct ServerNameArgs {
 #[derive(Debug, Args)]
 pub(crate) struct LoginArgs {
     pub(crate) name: String,
+    /// Print the authorization URL without opening a browser.
+    #[arg(long)]
+    pub(crate) no_browser: bool,
     #[arg(long, value_delimiter = ',', value_name = "SCOPE,SCOPE")]
     pub(crate) scopes: Vec<String>,
     #[command(flatten)]
@@ -300,41 +306,65 @@ async fn run_lifecycle(args: ServerNameArgs, method: &str) -> Result<String> {
 }
 
 async fn run_login(args: LoginArgs) -> Result<String> {
-    let response = request(
-        &args.connection,
-        METHOD_MCP_SERVER_OAUTH_LOGIN,
-        serde_json::to_value(McpServerOauthLoginParams {
-            name: args.name.clone(),
-            thread_id: None,
-            scopes: (!args.scopes.is_empty()).then_some(args.scopes),
-            timeout_secs: None,
-        })?,
-    )
-    .await?;
-    let response: McpServerOauthLoginResponse = serde_json::from_value(response)?;
-    Ok(format!(
-        "OAuth login started for `{}`. Open: {}",
-        args.name, response.authorization_url
-    ))
+    let locale = Locale::resolve(None);
+    let mut session = crate::start_session(&args.connection).await?;
+    let result = async {
+        let response: McpServerOauthLoginResponse = session
+            .request_handle()
+            .request(
+                METHOD_MCP_SERVER_OAUTH_LOGIN,
+                McpServerOauthLoginParams {
+                    name: args.name.clone(),
+                    thread_id: None,
+                    scopes: (!args.scopes.is_empty()).then_some(args.scopes),
+                    timeout_secs: None,
+                },
+            )
+            .await?;
+        let Some(login_id) = response.login_id.filter(|id| !id.trim().is_empty()) else {
+            bail!("{}: {}", args.name, locale.label(Label::Failed));
+        };
+        eprintln!("{} {}", locale.label(Label::LoginOpen), response.authorization_url);
+        if !args.no_browser {
+            // Keep the printed URL available when a browser cannot be opened.
+            let url = response.authorization_url;
+            let _ = tokio::task::spawn_blocking(move || webbrowser::open(&url)).await;
+        }
+        loop {
+            tokio::select! {
+                signal = tokio::signal::ctrl_c() => {
+                    signal?;
+                    bail!("{}: {}", args.name, locale.label(Label::McpLoginInterrupted));
+                }
+                event = session.next_event() => match event {
+                    Some(AppServerEvent::ServerNotification(notification)) => {
+                        if let ServerNotification::McpServerOauthLoginCompleted(completed) = *notification {
+                            if completed.name != args.name || completed.thread_id.is_some()
+                                || completed.login_id.as_deref() != Some(login_id.as_str()) {
+                                continue;
+                            }
+                            if !completed.success {
+                                // Provider errors may contain secrets or arbitrary response text.
+                                bail!("{}: {}", args.name, locale.label(Label::Failed));
+                            }
+                            return Ok(format!("{}: {}", args.name, locale.label(Label::LoggedIn)));
+                        }
+                    }
+                    Some(AppServerEvent::Disconnected { .. } | AppServerEvent::Lagged { .. }) | None => {
+                        bail!("{}: {}", args.name, locale.label(Label::Failed));
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }.await;
+    let shutdown = session.shutdown().await;
+    let output = result?;
+    shutdown?;
+    Ok(output)
 }
 
 async fn run_logout(args: LogoutArgs) -> Result<String> {
-    let listed = request(&args.connection, METHOD_MCP_SERVER_LIST, json!({})).await?;
-    let listed: McpServerListResponse = serde_json::from_value(listed)?;
-    let server = listed
-        .servers
-        .into_iter()
-        .find(|server| server_name(server) == args.name)
-        .ok_or_else(|| anyhow::anyhow!("No MCP server named '{}' found.", args.name))?;
-    let transport = server
-        .get("server_config")
-        .and_then(|config| config.get("type").or_else(|| config.get("transport")))
-        .and_then(Value::as_str)
-        .unwrap_or("stdio");
-    if transport != "streamable_http" {
-        bail!("OAuth logout is only supported for streamable_http transports.")
-    }
-
     let response = request(
         &args.connection,
         METHOD_MCP_SERVER_OAUTH_LOGOUT,
@@ -343,12 +373,12 @@ async fn run_logout(args: LogoutArgs) -> Result<String> {
         })?,
     )
     .await?;
-    let response: McpServerOauthLogoutResponse = serde_json::from_value(response)?;
-    if response.removed {
-        Ok(format!("Removed OAuth credentials for `{}`.", args.name))
-    } else {
-        Ok(format!("No OAuth credentials stored for `{}`.", args.name))
-    }
+    let _: McpServerOauthLogoutResponse = serde_json::from_value(response)?;
+    Ok(format!(
+        "{}: {}",
+        args.name,
+        Locale::resolve(None).label(Label::LoggedOut)
+    ))
 }
 
 async fn request(connection: &ConnectionArgs, method: &str, params: Value) -> Result<Value> {
@@ -402,7 +432,7 @@ mod tests {
     use clap::Parser;
 
     #[test]
-    fn mcp_cli_matches_codex_subcommand_names() {
+    fn mcp_cli_matches_upstream_subcommand_names() {
         for args in [
             ["lime", "mcp", "list"].as_slice(),
             ["lime", "mcp", "get", "docs"].as_slice(),

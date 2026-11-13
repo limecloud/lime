@@ -1,12 +1,24 @@
 use serde_json::{json, Value};
 use tempfile::TempDir;
 
+#[path = "remote_plugins_jsonrpc/archive.rs"]
+mod archive;
+#[path = "remote_plugins_jsonrpc/dependencies.rs"]
+mod dependencies;
+#[path = "remote_plugins_jsonrpc/featured.rs"]
+mod featured;
 #[path = "account_jsonrpc/issuer.rs"]
 mod issuer;
 #[path = "remote_plugins_jsonrpc/package.rs"]
 mod package;
+#[path = "remote_plugins_jsonrpc/recovery.rs"]
+mod recovery;
+#[path = "remote_plugins_jsonrpc/resources.rs"]
+mod resources;
 #[path = "remote_plugins_jsonrpc/runtime.rs"]
 mod runtime;
+#[path = "remote_plugins_jsonrpc/types.rs"]
+mod types;
 use issuer::{raw, rpc, server, Fixture};
 
 const MARKET: &str = "lime-cloud-publisher";
@@ -14,12 +26,18 @@ const PLUGIN: &str = "research@lime-cloud-publisher";
 fn detail() -> Value {
     json!({"remoteMarketplaceName":MARKET,"pluginName":"item_research"})
 }
+fn reference(release: &Value) -> Value {
+    json!({"id":release["id"],"manifestSha256":release["manifestSha256"],"archiveSha256":release["archiveSha256"]})
+}
 fn cloud() -> Value {
     json!({"marketplaceKinds":["cloud"]})
 }
 fn install() -> Value {
     let mut value = detail();
     value["installAttemptId"] = json!("original-install-attempt");
+    let (item, _) = package::artifact();
+    value["remoteRelease"] = reference(&item["release"]);
+
     value
 }
 fn summary(value: &Value) -> &Value {
@@ -226,8 +244,17 @@ async fn public_unknown_acquisition_recovers_original_release_after_restart_with
     resumed["installAttemptId"] = json!("different-click-attempt");
     rpc(&cold, "plugin/install", resumed).await;
     assert_eq!(f.count("/market/acquisitions"), 1);
-    assert_eq!(f.count("/market/items/item_research"), 1);
     let state = f.state.lock().unwrap();
+    assert_eq!(
+        state
+            .calls
+            .iter()
+            .filter(|(path, _, _)| {
+                path.split('?').next() == Some("/api/v1/client/market/items/item_research")
+            })
+            .count(),
+        1
+    );
     assert!(state
         .calls
         .iter()

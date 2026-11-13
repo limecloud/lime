@@ -1,4 +1,4 @@
-//! Codex tool-mention scanning and skill resolution at the terminal product boundary.
+//! 上游 tool-mention scanning and skill resolution at the terminal product boundary.
 
 use crate::mention_codec::{is_common_env_var, is_mention_name_char, parse_linked_tool_mention};
 use app_server_protocol::protocol::v2::SkillMetadata;

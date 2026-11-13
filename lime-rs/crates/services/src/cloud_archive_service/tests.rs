@@ -71,7 +71,7 @@ fn portable_paths_and_control_exclusions_are_enforced_on_both_sides() {
 #[test]
 fn local_encryption_key_is_excluded_even_when_its_directory_is_the_archive_root() {
     let directory = tempfile::tempdir().unwrap();
-    let root = directory.path().join("credentials"); fs::create_dir(&root).unwrap();
+    let root = directory.path().join("selected-files"); fs::create_dir(&root).unwrap();
     fs::write(root.join("encryption-key.v1"), [42_u8; 32]).unwrap();
     fs::write(root.join("document"), "user document").unwrap();
     let (identity, key) = identity(directory.path());
@@ -83,6 +83,86 @@ fn local_encryption_key_is_excluded_even_when_its_directory_is_the_archive_root(
         restore(&output, &key, &restored, result["sha256"].as_str().unwrap(), 10000).unwrap();
         assert_eq!(fs::read_to_string(restored.join("document")).unwrap(), "user document");
         assert!(!restored.join("encryption-key.v1").exists());
+    }
+}
+
+#[test]
+fn railway_login_files_require_explicit_sensitive_export_from_home_or_direct_root() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("home");
+    let railway = root.join(".railway");
+    fs::create_dir_all(&railway).unwrap();
+    fs::write(root.join("notes.txt"), "ordinary workspace document").unwrap();
+    let names = ["config.json", "config-staging.json", "config-dev.json"];
+    let fixture = r#"{"user":{"access_token":"synthetic-test-only","refresh_token":"synthetic-refresh-only"}}"#;
+    for name in names { fs::write(railway.join(name), fixture).unwrap(); }
+    let (identity, key) = identity(directory.path());
+
+    let plain = directory.path().join("ordinary.age");
+    let result = export(&root, &["notes.txt".into(), ".railway".into()], &plain, &identity.to_public().to_string(), false, true).unwrap();
+    assert_eq!(result["files"], 1);
+    assert_eq!(result["containsCredentials"], false);
+    let restored = directory.path().join("ordinary-restored");
+    restore(&plain, &key, &restored, result["sha256"].as_str().unwrap(), 1024 * 1024).unwrap();
+    assert_eq!(fs::read_to_string(restored.join("notes.txt")).unwrap(), "ordinary workspace document");
+    assert!(!restored.join(".railway").exists());
+
+    let direct = directory.path().join("direct-root.age");
+    assert_eq!(export(&railway, &["config.json".into()], &direct, &identity.to_public().to_string(), false, true).unwrap_err(), "No eligible regular files selected");
+    assert!(!direct.exists());
+
+    for (label, source, paths, prefix) in [
+        ("home", &root, vec![".railway".into()], ".railway"),
+        ("direct", &railway, names.iter().map(|name| (*name).to_owned()).collect(), ""),
+    ] {
+        let output = directory.path().join(format!("sensitive-{label}.age"));
+        let result = export(source, &paths, &output, &identity.to_public().to_string(), true, true).unwrap();
+        assert_eq!(result["files"], names.len());
+        assert_eq!(result["containsCredentials"], true);
+        let destination = directory.path().join(format!("sensitive-{label}-restored"));
+        restore(&output, &key, &destination, result["sha256"].as_str().unwrap(), 1024 * 1024).unwrap();
+        for name in names { assert_eq!(fs::read_to_string(destination.join(prefix).join(name)).unwrap(), fixture); }
+    }
+}
+
+#[test]
+fn selecting_control_state_as_the_archive_root_cannot_bypass_exclusions() {
+    let directory = tempfile::tempdir().unwrap();
+    let (identity, _) = identity(directory.path());
+    for (index, name) in [".aliyun", ".aws", ".azure", ".age", ".lime", "credentials", "cloud-desktops", ".config/gcloud", ".config/rclone", ".local/share/lime"].iter().enumerate() {
+        let root = directory.path().join("home").join(name);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("config.json"), "synthetic-control-data").unwrap();
+        for sensitive in [false, true] {
+            let output = directory.path().join(format!("control-{index}-{sensitive}.age"));
+            assert_eq!(export(&root, &["config.json".into()], &output, &identity.to_public().to_string(), sensitive, true).unwrap_err(), "No eligible regular files selected", "{name}: sensitive={sensitive}");
+            assert!(!output.exists());
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_archive_root_retains_its_sensitive_directory_context() {
+    use std::os::unix::fs::symlink;
+    let directory = tempfile::tempdir().unwrap();
+    let storage = directory.path().join("external-store");
+    fs::create_dir(&storage).unwrap();
+    fs::write(storage.join("config.json"), "synthetic-login-only").unwrap();
+    let (identity, _) = identity(directory.path());
+    for name in [".railway", ".aliyun"] {
+        let selected = directory.path().join(name);
+        symlink(&storage, &selected).unwrap();
+        for sensitive in [false, true] {
+            let output = directory.path().join(format!("alias-{name}-{sensitive}.age"));
+            let result = export(&selected, &["config.json".into()], &output, &identity.to_public().to_string(), sensitive, true);
+            if name == ".railway" && sensitive {
+                assert_eq!(result.unwrap()["files"], 1);
+            } else {
+                assert_eq!(result.unwrap_err(), "No eligible regular files selected", "{name}: sensitive={sensitive}");
+                assert!(!output.exists());
+            }
+        }
     }
 }
 

@@ -486,15 +486,13 @@ async fn abandoning_the_last_opener_cancels_creation_and_only_an_explicit_open_s
         tokio::spawn(async move { service.open_ecs_tunnel(resource, channel()).await })
     };
     wait_for_session_request(directory.path()).await;
+    let identity = key(&service.root, &resource, channel());
+    // Another resource can prune cancelled entries; observe the actual task.
+    let creation = TUNNELS.lock().await[&identity].task.abort_handle();
     pending.abort();
     assert!(pending.await.unwrap_err().is_cancelled());
-    let identity = key(&service.root, &resource, channel());
     tokio::time::timeout(Duration::from_secs(2), async {
-        loop {
-            let finished = TUNNELS.lock().await[&identity].task.is_finished();
-            if finished {
-                break;
-            }
+        while !creation.is_finished() {
             tokio::task::yield_now().await;
         }
     })

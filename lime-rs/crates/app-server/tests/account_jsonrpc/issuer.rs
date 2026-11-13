@@ -115,7 +115,15 @@ impl Fixture {
                             .push((path.clone(), input.clone(), bearer.clone()));
                         if let Some(response) = state
                             .responses
-                            .get(&path)
+                            .get(&format!(
+                                "{}#{}",
+                                path,
+                                input
+                                    .get("releaseId")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or_default()
+                            ))
+                            .or_else(|| state.responses.get(&path))
                             .or_else(|| state.responses.get(path.split('?').next().unwrap()))
                         {
                             response.clone()
@@ -188,7 +196,14 @@ fn fixture_response(
             }
             let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
             header.kid = Some("native-test-key".into());
-            let claims = json!({"iss":base,"aud":"native","sub":s.user,"nonce":if s.invalid_nonce {"wrong"} else {&s.nonce},"iat":chrono::Utc::now().timestamp(),"exp":chrono::Utc::now().timestamp()+3600});
+            let mut claims = json!({"iss":base,"aud":"native","sub":s.user,"nonce":if s.invalid_nonce {"wrong"} else {&s.nonce},"iat":chrono::Utc::now().timestamp(),"exp":chrono::Utc::now().timestamp()+3600});
+            if s.resource == "connections" {
+                claims["lime_authorization_source"] = json!("sandbox_test_approval");
+                claims["lime_application_id"] = json!("app");
+                claims["lime_environment"] = json!("sandbox");
+                claims["lime_test_approval_expires_at"] =
+                    json!(chrono::Utc::now().timestamp() + 3600);
+            }
             // This key is a public test fixture and never used for real accounts.
             let key = jsonwebtoken::EncodingKey::from_rsa_pem(include_bytes!(
                 "../../src/account/testdata/signing-key.pem"
@@ -220,8 +235,33 @@ fn fixture_response(
             }
             json!({"id":"pusr_person","status":"active","revision":1,"createdAt":"2026-11-12T00:00:00Z"})
         }
+        "/web/prices" => {
+            assert_eq!(bearer, "Bearer access-web");
+            assert!(input.is_null());
+            json!({"items":[{"kind":"search","billingStatus":"unpriced"},{"kind":"page","billingStatus":"unpriced"}]})
+        }
         "/web/searches" if s.invalid_post => return (200, "invalid-json".into()),
         "/web/searches" => json!({"status":"completed","search":{"items":[]}}),
+        "/connection-file-prices" => {
+            json!({"items":[{"action":"drive.files.read","billingStatus":"unpriced"}]})
+        }
+        "/connection-requests" => {
+            assert_eq!(bearer, "Bearer access-connections");
+            assert_eq!(input["connector"], "google-drive");
+            assert_eq!(input["actions"], json!(["drive.files.read"]));
+            assert_eq!(input["fileIds"], json!(["doc_original"]));
+            let now = chrono::Utc::now();
+            let value = json!({"id":"irq_original","consentVersion":"connection-selected-files.v1",
+                "connector":"google-drive","actions":["drive.files.read"],"fileIds":["doc_original"],
+                "requestedExpiresAt":input["expiresAt"],"status":"pending","revision":1,
+                "createdAt":now.to_rfc3339(),"expiresAt":(now+chrono::Duration::minutes(5)).to_rfc3339(),
+                "approvalUrl":"https://console.test/connections/requests/irq_original?environment=sandbox"});
+            s.responses.insert(
+                "/api/v1/client/connection-requests/irq_original".into(),
+                (200, serde_json::to_vec(&value).unwrap()),
+            );
+            value
+        }
         p if p.starts_with("/web/operations/") => {
             if s.web_operation_missing {
                 return (404, json!({"error":"not_found"}).to_string());
@@ -333,10 +373,18 @@ impl Fixture {
     }
 
     pub async fn authorize(&self, server: &AppServer, resource: &str) -> Value {
+        rpc(
+            server,
+            "config/value/write",
+            json!({
+                "keyPath":"cloud.base_url", "value":self.base, "mergeStrategy":"replace"
+            }),
+        )
+        .await;
         let login = rpc(
             server,
             "account/login/start",
-            json!({"type":"cloud","baseUrl":self.base,"resource":resource,"language":"zh-CN"}),
+            json!({"type":"cloud","resource":resource,"language":"zh-CN"}),
         )
         .await;
         self.callback(login["authUrl"].as_str().unwrap()).await;

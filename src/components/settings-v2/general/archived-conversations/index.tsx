@@ -30,10 +30,7 @@ import { useSettingsDraft } from "../../_layout/useSettingsDraft";
 import { DeleteArchivedChatsDialog } from "./DeleteArchivedChatsDialog";
 
 import { listProjectDirectory } from "@/lib/api/projectDirectory";
-import {
-  ArchivedChatsControls,
-  ArchivedProjectActions,
-} from "./ArchivedChatsControls";
+import { ArchivedChatsControls } from "./ArchivedChatsControls";
 import {
   buildArchivedChats,
   groupArchivedChats,
@@ -42,9 +39,7 @@ import {
 } from "./archivedChats";
 
 interface DeleteTarget {
-  scope: "single" | "project" | "all";
   sessions: AgentSessionInfo[];
-  projectLabel?: string;
 }
 
 function resolveTimestampMs(value?: number | null): number | null {
@@ -240,31 +235,6 @@ export function ArchivedConversationsSettings() {
     >
       <SettingsPageHeader
         title={t("settings.desktop.archivedChats")}
-        actions={
-          entries.length ? (
-            <SettingsAction
-              type="button"
-              $tone="danger"
-              aria-label={t("settings.archivedConversations.action.deleteAll")}
-              disabled={loading || busy || deleteTarget !== null}
-              data-testid="settings-archived-delete-all"
-              onClick={(event) =>
-                beginDelete(
-                  {
-                    scope: "all",
-                    sessions: entries.map((entry) => entry.session),
-                  },
-                  event.currentTarget,
-                )
-              }
-            >
-              <Trash2 aria-hidden="true" />
-              <span className="hidden min-[1100px]:inline">
-                {t("settings.archivedConversations.action.deleteAll")}
-              </span>
-            </SettingsAction>
-          ) : undefined
-        }
       />
       <div className="flex min-w-0 flex-col gap-4">
         <div
@@ -342,29 +312,10 @@ export function ArchivedConversationsSettings() {
               }
               actions={
                 effectiveProjectFilter === "all" ? (
-                  <span className="flex items-center gap-2">
-                    <span className="text-[12px] text-muted-foreground">
-                      {t("settings.archivedConversations.groupCount", {
-                        count: group.entries.length,
-                      })}
-                    </span>
-                    {group.projectLabel ? (
-                      <ArchivedProjectActions
-                        disabled={busy || deleteTarget !== null}
-                        onDelete={(trigger) =>
-                          beginDelete(
-                            {
-                              scope: "project",
-                              projectLabel: group.projectLabel!,
-                              sessions: group.entries.map(
-                                (entry) => entry.session,
-                              ),
-                            },
-                            trigger,
-                          )
-                        }
-                      />
-                    ) : null}
+                  <span className="text-[12px] text-muted-foreground">
+                    {t("settings.archivedConversations.groupCount", {
+                      count: group.entries.length,
+                    })}
                   </span>
                 ) : undefined
               }
@@ -408,7 +359,7 @@ export function ArchivedConversationsSettings() {
                         data-session-id={session.id}
                         onClick={(event) => {
                           beginDelete(
-                            { scope: "single", sessions: [session] },
+                            { sessions: [session] },
                             event.currentTarget,
                           );
                         }}
@@ -454,9 +405,6 @@ export function ArchivedConversationsSettings() {
       ) : null}
       {deleteTarget ? (
         <DeleteArchivedChatsDialog
-          scope={deleteTarget.scope}
-          count={deleteTarget.sessions.length}
-          projectLabel={deleteTarget.projectLabel}
           pending={deleting}
           failed={deleteFailed}
           onConfirm={() => void handleDelete()}

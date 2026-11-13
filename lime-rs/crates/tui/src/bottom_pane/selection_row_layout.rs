@@ -16,7 +16,7 @@ use crate::wrapping::{word_wrap_line, RtOptions};
 
 /// Maximum number of selectable rows shown by a selection popup.
 ///
-/// This is the same bounded viewport used by Codex's generic list picker. The
+/// This is the same bounded viewport used by 上游 generic list picker. The
 /// selected row may move the window, but the popup itself stays anchored.
 pub(crate) const MAX_POPUP_ROWS: usize = 8;
 
@@ -260,7 +260,7 @@ pub(crate) fn wrap_stacked_row(row: &SelectionRow, width: u16) -> Vec<Line<'stat
     lines
 }
 
-/// Build wrapped rows while preserving the Codex narrow-width stack fallback.
+/// Build wrapped rows while preserving the 上游 narrow-width stack fallback.
 pub(crate) fn wrap_row(
     row: &SelectionRow,
     desc_col: usize,

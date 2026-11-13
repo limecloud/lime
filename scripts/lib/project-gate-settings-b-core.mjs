@@ -56,7 +56,7 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     tab: "media-services",
     owner: "settings/model-provider",
   },
-  { id: "mcp-create-list", tab: "plugins-settings", owner: "settings/mcp" },
+  { id: "mcp-create-list", tab: "mcp-servers", owner: "settings/mcp" },
   {
     id: "computer-use-permissions",
     tab: "computer-use",
@@ -64,7 +64,7 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
   },
   {
     id: "mcp-lifecycle-recovery",
-    tab: "plugins-settings",
+    tab: "mcp-servers",
     owner: "settings/mcp",
   },
   {

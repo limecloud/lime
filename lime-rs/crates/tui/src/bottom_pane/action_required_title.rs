@@ -1,6 +1,6 @@
 //! Shared action-required presentation for pending App Server interactions.
 //!
-//! Codex keeps the action-required title assembly independent from the source of each value.
+//! 上游 keeps the action-required title assembly independent from the source of each value.
 //! Lime follows the same boundary: the current `BottomPane` request remains the fact source and
 //! this module only joins already-localized display values.
 

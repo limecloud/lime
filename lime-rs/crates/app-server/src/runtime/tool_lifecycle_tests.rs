@@ -158,12 +158,11 @@ fn accepts_unified_exec_output_for_canonical_command_item() {
         "evt_start",
         "item.started",
         json!({
-            "toolCallId": "exec-call-1",
             "item": {
                 "sessionId": "sess_test",
                 "threadId": "thread_test",
                 "turnId": "turn_test",
-                "itemId": "item_exec-call-1",
+                "itemId": "exec-call-1",
                 "sequence": 1,
                 "ordinal": 1,
                 "createdAtMs": 1,
@@ -174,7 +173,10 @@ fn accepts_unified_exec_output_for_canonical_command_item() {
                     "type": "command",
                     "command": "printf hello"
                 },
-                "metadata": {}
+                "metadata": {
+                    "exec_command_call_id": "exec-call-1",
+                    "executionSurface": "unified_exec"
+                }
             }
         }),
     )];
@@ -190,6 +192,33 @@ fn accepts_unified_exec_output_for_canonical_command_item() {
 
     validate_tool_lifecycle_event(&existing, &candidate)
         .expect("unified exec output should match canonical command start");
+
+    let mut validator =
+        ToolLifecycleValidator::from_events(&existing, "sess_test", Some("turn_test"));
+    validator.validate_and_observe(&candidate).unwrap();
+    let wrong_call = event(
+        "evt_unrelated_output",
+        "tool.output.delta",
+        json!({"toolCallId": "other-call", "delta": "unrelated"}),
+    );
+    assert!(validator
+        .validate_and_observe(&wrong_call)
+        .unwrap_err()
+        .contains("tool_output_without_start"));
+
+    let mut terminal = existing[0].clone();
+    terminal.event_id = "evt_terminal".to_string();
+    terminal.event_type = "item.completed".to_string();
+    terminal.payload["item"]["status"] = json!("completed");
+    terminal.payload["item"]["payload"]["output"] = json!("hello");
+    terminal.payload["item"]["payload"]["exit_code"] = json!(0);
+    validator
+        .validate_and_observe(&terminal)
+        .expect("the same raw command identity must complete");
+    assert!(validator
+        .validate_and_observe(&candidate)
+        .unwrap_err()
+        .contains("tool_output_without_start"));
 }
 
 #[test]

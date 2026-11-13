@@ -77,18 +77,35 @@ export async function runTerminalResizeGateB({
   }
   const tmuxDir = path.join(tempDir, "tmux-resize");
   await mkdir(tmuxDir, { recursive: true });
-  const evidence = await execFileAsync(
-    env.CARGO || "cargo",
-    [...args, "suite::tmux_resize::", "--", "--nocapture", "--test-threads=1"],
-    {
-      ...options,
-      env: {
-        ...options.env,
-        LIME_TEST_TMUX_BIN: tmuxBinary,
-        LIME_TEST_TERMINAL_CWD: tmuxDir,
-      },
-    },
-  );
+  let evidence;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      evidence = await execFileAsync(
+        env.CARGO || "cargo",
+        [...args, "suite::tmux_resize::", "--", "--nocapture", "--test-threads=1"],
+        {
+          ...options,
+          env: {
+            ...options.env,
+            LIME_TEST_TMUX_BIN: tmuxBinary,
+            LIME_TEST_TERMINAL_CWD: tmuxDir,
+          },
+        },
+      );
+      break;
+    } catch (error) {
+      const text = `${error?.stdout ?? ""}\n${error?.stderr ?? ""}\n${error?.message ?? ""}`;
+      const retryable =
+        /TUI_GATE_COMMAND_TIMEOUT/u.test(text) ||
+        /Blocking waiting for file lock/u.test(text) ||
+        /PTY unavailable/u.test(text);
+      if (attempt >= 2 || !retryable) {
+        throw error;
+      }
+      console.warn("[smoke:tui-gate-b] tmux resize gate flaked; retrying once");
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+    }
+  }
   const editorEvidence = evidence.stdout.match(editorMarker)?.[0];
   if (!evidence.stdout.includes(resizeMarker) || !editorEvidence) {
     throw new Error(

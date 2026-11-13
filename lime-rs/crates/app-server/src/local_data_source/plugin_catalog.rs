@@ -37,7 +37,6 @@ const MAX_PACKAGE_FILES: usize = 10_000;
 const MAX_PACKAGE_BYTES: u64 = 512 * 1024 * 1024;
 
 mod apps;
-mod bundle;
 mod catalog;
 mod components;
 mod discovery;

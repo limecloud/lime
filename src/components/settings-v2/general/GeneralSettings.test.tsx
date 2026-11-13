@@ -16,12 +16,21 @@ const api = vi.hoisted(() => ({
   loadTargetIcon: vi.fn(),
   setTarget: vi.fn(),
   setPluginEnabled: vi.fn(),
+  pickDirectory: vi.fn(),
   unsubscribe: vi.fn(),
   setLanguage: vi.fn(),
   listener: null as (() => void) | null,
 }));
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: api.getConfig,
+  getConfigSnapshot: async () => ({
+    layer: {
+      name: {
+        type: "user",
+        file: "/Users/test/Library/Application Support/lime/app-server/config.toml",
+      },
+    },
+  }),
   updateConfig: api.updateConfig,
   subscribeAppConfigChanged: (listener: () => void) => {
     api.listener = listener;
@@ -39,6 +48,9 @@ vi.mock("@/lib/api/openIn", () => ({
 vi.mock("@/lib/api/pluginCatalog", () => ({
   setPluginEnabled: api.setPluginEnabled,
 }));
+vi.mock("@/lib/api/filePicker", () => ({
+  pickFilesFromDialog: api.pickDirectory,
+}));
 vi.mock("@/i18n/legacy-patch/I18nPatchProvider", () => ({
   useI18nPatch: () => ({ setLanguage: api.setLanguage }),
 }));
@@ -46,6 +58,18 @@ vi.mock("@/lib/api/project", () => ({
   getDefaultProject: async () => ({ rootPath: "/workspace" }),
 }));
 import { GeneralSettings } from "./GeneralSettings";
+import {
+  getComposerPermissionVisibility,
+  resetComposerPermissionVisibilityForTest,
+} from "@/lib/composerPermissionVisibility";
+import {
+  getComposerEditorPreferences,
+  resetComposerEditorPreferencesForTest,
+} from "@/lib/composerEditorPreferences";
+import {
+  getProjectlessWorkspaceRoot,
+  resetProjectlessWorkspaceRootForTest,
+} from "@/lib/projectlessWorkspacePreference";
 
 let root: Root;
 let container: HTMLDivElement;
@@ -127,6 +151,9 @@ beforeEach(async () => {
   vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux");
   vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Linux");
   notifyManager.setNotifyFunction((callback) => act(callback));
+  resetComposerPermissionVisibilityForTest();
+  resetComposerEditorPreferencesForTest();
+  resetProjectlessWorkspaceRootForTest();
   openInQueryClient.clear();
   vi.stubGlobal(
     "ResizeObserver",
@@ -771,11 +798,98 @@ describe("GeneralSettings", () => {
     },
   );
 
+  it("显示项目外聊天文件夹的默认存储位置", async () => {
+    await mount();
+    expect(container.textContent).toContain(
+      "/Users/test/Library/Application Support/lime/app-server",
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="general-projectless-folder-value"]',
+      ),
+    ).toBeTruthy();
+  });
+
+  it("打开源许可证展示第三方声明", async () => {
+    await mount();
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-settings-search-target="general-source-licenses"] button',
+    )!;
+    act(() => button.click());
+    await vi.waitFor(() =>
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+        "许可证范围",
+      ),
+    );
+  });
+
+  it("更改项目外聊天文件夹后显示并持久化新路径", async () => {
+    api.pickDirectory.mockResolvedValueOnce([
+      { fsPath: "/tmp/lime-projectless" },
+    ]);
+    await mount();
+    const row = container.querySelector<HTMLElement>(
+      '[data-settings-search-target="general-projectless-folder"]',
+    )!;
+    const change = [...row.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent === "更改",
+    )!;
+    act(() => change.click());
+    await vi.waitFor(() =>
+      expect(getProjectlessWorkspaceRoot()).toBe("/tmp/lime-projectless"),
+    );
+    expect(
+      row.querySelector('[data-testid="general-projectless-folder-value"]')
+        ?.textContent,
+    ).toBe("/tmp/lime-projectless");
+  });
+
+  it("纯文本编辑器开关持久化到 composer 偏好", async () => {
+    await mount();
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-settings-search-target="general-plain-text-editor"] [role="switch"]',
+    )!;
+    act(() => toggle.click());
+    await settle();
+    expect(getComposerEditorPreferences().plainTextEditor).toBe(true);
+  });
+
+  it("权限开关控制 composer 中默认权限与完整访问选项", async () => {
+    await mount();
+    const control = (target: string) =>
+      container.querySelector<HTMLButtonElement>(
+        `[data-settings-search-target="${target}"] [role="switch"]`,
+      )!;
+
+    act(() => control("general-default-permission").click());
+    await settle();
+    expect(getComposerPermissionVisibility().defaultPermission).toBe(false);
+
+    act(() => control("general-full-access-permission").click());
+    await settle();
+    expect(getComposerPermissionVisibility().fullAccess).toBe(false);
+    act(() => control("general-full-access-permission").click());
+    await settle();
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector('[role="dialog"]')?.textContent,
+      ).toContain("要启用完整访问权限吗？"),
+    );
+    act(() =>
+      [...document.querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.textContent === "确认")!
+        .click(),
+    );
+    await settle();
+    expect(getComposerPermissionVisibility().fullAccess).toBe(true);
+  });
+
   it("插件保存失败应保留原状态并提供可见错误", async () => {
     api.setPluginEnabled.mockRejectedValueOnce(new Error("write failed"));
     await mount();
-    const toggle =
-      container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-settings-search-target="general-plugins"] [role="switch"]',
+    )!;
     act(() => toggle.click());
     await settle();
     expect(api.setPluginEnabled).toHaveBeenCalledWith({
@@ -806,7 +920,11 @@ describe("GeneralSettings", () => {
       }),
     );
     act(() =>
-      container.querySelector<HTMLButtonElement>('[role="switch"]')!.click(),
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-settings-search-target="general-plugins"] [role="switch"]',
+        )!
+        .click(),
     );
     await settle();
     expect(fileTrigger().disabled).toBe(true);

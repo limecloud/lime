@@ -1,6 +1,600 @@
 # Lime Cloud：BYOC 持久桌面方案与执行计划
 
-状态：实施中，完整 Cloud 产品尚未验收。当前有效实机验收 3/8（37.5%），第 3 组的新下载安装路径已通过私有 OSS 真云复验，默认官方版本产物交付仍开放；下方历史 4/8 记录仅表示当时证据。事实核对日期：2026-11-12。
+状态：实施中，完整 Cloud 产品尚未验收。当前有效完整实机验收 4/8（50%）；第 3 组的默认官方包自动私有 OSS 分发、真实云机安装、认证任务连接与桌面展开／收起已通过。充值后的新一轮已验证真实模型、同盘启停及重启后原会话 CLI 接续；原生 Computer Use、正常 Electron 退出、最新 Linux 包和敏感身份恢复仍待完成。本轮资源状态以本节最新收据为准，历史轮次的清理不能证明本轮已清理。事实核对日期：2026-11-13。
+
+### 当前交付顺序：核心链路优先（2026-11-13，用户明确收敛范围）
+
+- 最终 App Server 构建自然完成（16 分 40 秒），冻结产物 SHA-256 `4f1b2b9887e491ab3b91ae682dae1a08db3b25c638206df78bf2a715b4f6fa6d`，五项原产品输入无漂移。真实公共 RPC 已越过旧摘要失败，随后在网络归属检查拒绝：官方精确 GetStack 的 `DELETE_COMPLETE` 响应为 `Tags: []`。追加原 `network.rs`／原回归最小修复：仅对已验证且身份不变的原栈允许空标签删除读回，仍逐项验证三项资源全部删除及原物理 ID；错误标签、未验证原栈或保留资源继续阻断。夹具同步真实供应商响应并增加未验证删除拒绝；格式及定向 diff 检查通过，新增标准回归与后端复验未执行。没有新购；按相邻任务资源协调要求，将后续 8 项 services 回归与一次 warm App Server 增量链接登记到统一协调线程，等待窗口，不额外启动重编译。
+- 23:00 续接只读核验：原实例／系统盘、专用 VPC／VSwitch／安全组均独立查无；原镜像仍为自有、未共享、Available，唯一系统盘映射加密且源快照与原保存收据一致。未创建新网络或购买意图。两个 test-only 探针分别误假设 `IsSelfShared` 为布尔值、`snapshotId` 位于父收据顶层，均在断言处退出；按供应商实际字符串类型与 `releaseImage.snapshotId` 修正后，直接校验同一份最新响应通过，没有改产品校验或重发云变更。证据为私有 `independent-before-restore.json`。
+- 摘要修复已通过标准领域测试 17/17，以及真实 `preserve_order` 依赖的精确产品模块回归 2/2；旧计算与排序结果不一致已复现。最终现役 App Server 增量构建仍在原 `-j 1` 任务中编译，不新增冷 target 或全量门禁；构建完成后先通过公共 RPC 核验原收据与旧网络已删除，随后才准备新网络和独立核价恢复。相邻任务提出资源协调后已暂缓新增编译；所询问 PID 90992 已自然结束，PID 92187 的日志归 `.lime/release-v1.176.0-gui-smoke.log`，不是本轮 Owner，未停止任何该类进程。
+- 22:02 按已授权的相邻任务资源协调，将精确核对父链的本轮 Cargo 进程树 `SIGSTOP` 保留进度，窗口到 22:15；未处理他人进程，组件测试此前已自然完成 9/9。轻量只读公共 RPC 在网络发现前暴露原保存收据校验失败：新构建启用 `serde_json/preserve_order` 后，`hibernation::digest` 重建外层 JSON 的字段顺序改变，而原实机收据使用排序后的摘要。原私有收据的所有语义字段及排序摘要均独立核对一致。窄写集追加原 `hibernation.rs` 和原回归，统一递归排序再计算摘要；不修改收据、不接受第二摘要格式、不降低校验。标准 `preserve_order` 回归与修复后公共 RPC 待窗口后执行，未创建新网络／实例，完整实机仍 4/8（50%）。
+- 网络删除后重建修复的标准领域回归已完成：`npm run test:rust:unit -- -p lime-services cloud_desktop_service::ecs::network::tests` 7/7、exit 0，包含保留资源／删除身份变化／归属错误阻断及新操作单次准备；没有购买实例。当前 App Server 增量构建沿共享 warm target 排队，不终止其他任务、不另建冷 target。退出诊断中 unavailable 后端一次真实 `app.quit` 以 0 退出，但 runtime 后端仍观察到 `quit` 事件后进程未结束；已增加不附加 Main inspector 的 test-only 驱动，继续定位，不能据一次成功关闭缺口。产品退出代码未改；完整实机仍 4/8（50%）。
+- 本次继续认领原 Cloud 的 `ecs/network.rs` 与原回归的删除后重建切片，以及本计划／原架构说明；保持已有推荐／入站规则变更，其他并行写集只读。Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。真实网络已删后旧收据仍阻断重建；仅在原栈账号／region／ID／name／tag 均匹配、三项固定资源逐项为 `DELETE_COMPLETE` 且物理身份不变后记录 `networkDeleted`，设置入口投影为 `notPrepared`，新显式操作方可准备网络；保留或未知资源继续阻断，旧编号不重放。先验证领域回归，再构建现役 App Server 复验原公共入口；没有在验证完成前购买新实例。
+- 本轮资源收尾已完成：原实例及其系统盘独立查询均为零；专用 ROS 栈 `DELETE_COMPLETE`，随后 VPC／VSwitch／安全组独立查询均为零；原私有 OSS 安装包分发由现役 owner 读回 `cleaned`。保留一份已核实 private／encrypted／ready 的系统镜像及其源快照，有持续存储费，不称为零费用或全部云数据删除。证据为私有 `preservation-state.json`、`provider-cleanup-state.json` 和 `distribution-cleanup.private.json`，与本轮唯一原意图绑定；旧 unknown 采购和其他 profile 未动。
+- 已通过现役 `hibernateEcs` 父收据跑通停止 → 加密冷快照 → 私有系统镜像 → 释放原机／盘，原始镜像包含整个系统与原 Provider 状态，但尚未证明新环境中的敏感身份可用。后续两次恢复检查均在付款意图之前因 `Cannot verify current public IPv4 address` 拒绝，未发起第二台收费实例；同一 Rust 依赖的独立诊断确认 ipify 连接拒绝、另两个来源返回 200，外部读回的两地址一致。该诊断不代替实际 App Server 的采购前检查，不绕过防火墙保护或伪造短期网络证明。专用网络现已清理，后续须先重新准备网络、形成新规格与报价，不能重用本轮已删除的网络编号。
+- 原生授权实机记录：普通唤醒后 native 发现真实 Xfce 与 Zenity 窗口；通过原加密凭据 owner 在可见 Chrome 中认证 noVNC，真实 `computerUse/setup` 显示 Linux 应用授权窗口并请求用户实际点击。90 秒内未取得授权，随后屏幕回到锁屏状态，helper 拒绝为目标身份变化；未发布 grant。收尾独立读回 `AcceptKeyEvents=0`、`AcceptPointerEvents=0`，原 marker 完整；截图为私有 `native-desktop-current.png`。该结果只证明窗口可达，不能记为 Computer Use 操作通过。
+- 当前源码的组件 7/7、native 定向 15/15、OAuth 配置锁 3/3 标准 Rust、Command 当前模块 15/15 及旧实现敏感性回归已完成，定向 ESLint 与 diff 检查通过。标准 App Server Cargo 和 GUI smoke 分别运行超过 1 小时／30 分钟仍在编译，按核心优先收敛，仅结束精确核对根命令、父链与成员的本轮进程组；两命令终态均 exit 130，不计通过，其他 Cargo／Agent 保留。没有重新发起冷构建。当前源码与新 Linux 制品、正常 Electron 退出、原生操作、镜像后真实模型／第三方登录恢复及最终账单仍有验收缺口，完整实机保持 4/8（50%）。
+- 本次续接窄写集追加修改前干净的 `CloudDesktopViewer.tsx` 与原组件回归；共享 runtime／Provider／协议及 Linux helper 保持只读。沿已读取的 `lime-design-language`，此为用户明确要求的 BYOC 必要适配：固定 `view_only=true` 会阻断用户点击真实 Linux 授权弹窗，故客户端允许发送输入，云端默认禁用键鼠及 consent／人工租约、互斥锁与 fence 继续拥有最终输入权限。未新增布局、文案、依赖、授权 authority 或平行实现。Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root；组件 7/7、现役 Linux native 模块 15/15 通过，GUI smoke 的取消终态见上文。完整 Linux suite 的历史 58 项不冒充本次定向 15 项结果。root 已确认原查看器／native owner 边界及同步后的输入授权时序图；源码均为 current，新增驱动与诊断仅 test-only，无 compat／deprecated 或第二 runtime。
+- 保盘启停已沿原 Cloud 公共 RPC 及原操作收据实测：停止至 `computeReleased=true` 为 22,533 ms，启动至 Running 为 10,283 ms；启动提交约 32 秒后原认证 App Server 和 marker 均读回成功。未重新购买、下载、安装或更换令牌；真实 `lime exec --remote … resume` 在原 Thread 中使用原云端 Provider 凭据返回 `LIME_CLOUD_CLI_RESUMED`，canonical Turn completed、CLI exit 0。该计时仅代表本次实例和网络，不承诺普遍时延；证据为私有 `lifecycle-state.json` 与 `after-restart-thread.private.json`。
+- 正常 Electron 退出仍未通过：真实 Main／preload IPC／远端 Thread 历史已显示并截图，`app.close()` 和 SIGTERM 未结束，仅对精确核对父链的本轮 Electron 使用 SIGKILL 后确认退出。首次 CLI 接续被旧云端未结束 Turn 拒绝；后续成功包含云机重启，不能称为正常退出后无重启的连续接续。旧失败与 `electron-quit-observation.json` 均保留。
+- Command 校验修复的当前源码模块及原测试共 15/15 通过，独立 rustc harness 直接引用产品文件，依赖精确匹配现有 App Server 编译参数；同一新回归在旧 HEAD 校验器上准确失败为 `tool_output_without_start`。标准 Cargo 定向目标构建阶段取消、exit 130；不把模块 harness 当作标准 Cargo 或新 Linux 制品验证。OAuth 配置锁的标准 Rust 定向测试 3/3、exit 0，已完成，不重跑冷构建。
+- 本轮续接的最小写集新增现役 `app-server/src/runtime/tool_lifecycle.rs` 与原 `tool_lifecycle_tests.rs`，其修改前工作树为干净；Agent／runtime 其他并行写集保持只读。Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。真实 Linux v1.175.0 的统一命令启动项使用原始调用 ID，且在 metadata 明确携带 `exec_command_call_id`；校验器却只从顶层字段或 `item_` 前缀取 ID，导致已经执行的命令输出被报 `tool_output_without_start`。独立 `command/exec` 已读回模型创建的真实 marker，不能继续将模型的失败报告解释为“命令没有执行”。修复消费明确 metadata，缺省保留 canonical item 原 ID；不放宽审批、输出归属或终态校验，不重写原失败 Turn。回归覆盖真实原始 ID、输出、相同项终态、异项输出拒绝与终态后输出拒绝，Rust 定向测试待完成。
+- 18:42 本轮云机安装完成，认证 App Server 连接与 Linux/Python 命令通过；安装包仍是公开 v1.175.0。启用 native 后真实状态为 `linux_desktop_locked`，Xfce 查询确认 screensaver active；未跳过 OS 授权或伪造 grant。本轮取消自动释放后曾运行计费，随后已完成本节记录的加密保存及精确清理；不沿用上一轮“已清理”作为本轮证据。
+- 18:05 充值后只读核对：国内站尾号 8819 可用现金与余额 CNY 149.29，资金门槛阻塞解除。用户指定模型的 Responses API 已真实返回 `LIME_CLOUD_MODEL_OK`；密钥只经关闭终端回显的 stdin 进入请求内存，未写入仓库、脚本或参数。真实云端模型、Electron 退出后的 CLI 接续仍待验证，不以该直连请求计为第 4 组通过。
+- 本轮沿现役 App Server 单次提交新采购，2 核 4 GiB、80 GiB 加密系统盘，报价 CNY 0.461/小时，公网流量与其他独立计费项另计；原 unknown 购买的 profile、编号和收据保持原状。专用网络与官方安装包私有 OSS 分发均已准备成功。验证驱动位于 `.lime/qc/cloud-core-recharge-20261113/`，私有收据与运行状态位于用户数据目录；不创建第二 runtime，不提交、推送、建分支或启动子 Agent。
+- 官方 v1.175.0 Linux 包的 App Server 不含新模型交付方法；不能把该包记作最新工作树交付接口已通过。首次安装准备明确 `notSubmitted`：验证驱动提前设置的测试实例定时释放触发现役“取消并核实截止后才能使用”保护。该拒绝未发送安装命令；仅取消本轮测试截止并精确读回后再继续，不删除或覆盖原失败证据。完整产品实机验收保持 4/8。
+- 实机发现并行 CLI 调用会立即返回授权配置锁竞争，连接授权收据保持 `connectionPreparing`，桌面安装按原操作进入 `needsAttention`。窄补丁为 `auth/credential_window.rs` 与 `auth/cli.rs`：仅对真实 `WouldBlock` 异步等待最多 60 秒，取得锁后才启动一次 CLI；其他 IO 错误立即失败，取消等待释放本次文件句柄，不重放供应商请求。新增取消等待、释放后获取与 IO 错误回归，定向 Rust 测试正在共享构建锁后排队，尚未计为通过。既有收据不篡改；专用测试安全组经精确空入站、相同出口与原供应商幂等键核对后执行一次管理恢复，再由现役原收据读取核实，不能把该管理恢复记为产品自动安装无人工干预通过。
+- 用户已亲自完成国内站浏览器授权，继续使用该 connected 连接无需再确认账号尾号。此前 17:32 独立 STS 和余额查询成功，尾号 8819、可用现金／余额 CNY 99.29、信用为零；17:33 有效代金券为零张，当时不足新开按量 ECS 的现金加有效券 CNY 100 门槛。该资金阻塞已由本轮充值解除，旧查询仅作历史证据。
+- 本轮只修复该阻塞在产品中的恢复指引。窄写集为原 `ecs/purchase.rs`、原 `tests/ecs_purchase/dry_run.rs`、`CloudDesktopPrimitives.tsx`、独立资金拒绝组件回归、五语言 Cloud 的一个新键及现有架构／本计划；前三个产品输入与前轮快照一致，五语言仅 14 个其他命名空间的并行键有漂移，逐键保持后最小合并一个 Cloud 键。Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。供应商类型化错误只随明确 notSubmitted 的结果投影，界面只有 outcome／submitted／requiresInspection 均一致才提示补款或切换账号；unknown 继续原收据恢复。只执行该路径 Rust／组件必要回归，不扩展基础壳矩阵。
+- 采购网络与资金恢复的两份组件测试共 34/34、定向 lint、文档边界及定向 diff 通过，格式化只针对实际两个 TSX／两个 Rust 文件。唯一 Rust 定向测试仍运行：session 86803、Cargo PID 78102（parent 77965），只读进程与共享 artifact lock 已确认存活，没有退出结论，不重启或启动第二份冷构建。证据 `.lime/qc/cloud-purchase-core-readiness-20261113/validation-summary.json`，九项直接产品输入已登记；本轮新后端公共入口／Electron 验证和真实云模型任务仍未完成，不将组件通过计为整组验收。用户资金选择与原真实模型／第三方身份选择继续待回复，不为等待输入购买收费机器。
+- 阻塞审计：前述定向 Cargo 连续确认存活但未开始编译；按用户核心优先要求，仅结束精确核对父链的本轮等待 Cargo，session 86803 终态 exit 1，原父／子进程均已退出，没有触碰其他任务。不能把主动取消称为测试通过或断言失败，新后端与公共入口验证仍未完成。同一真实模型交付选择在至少三个既有目标回合保持待答复，采购资金又已获实时供应商证据；独立必要修复和可运行回归已收尾，继续完整实机必须等待用户补款／账号选择及指定模型连接，不通过反复静态检查、新夹具或重购制造进度。目标进入 blocked，收到输入后接续原状态；原 unknown 采购和原 profile 保留，不宣称整个 Cloud 已交付。
+- 4/8 只表示下方八组完整实机验收的通过率，不表示源码仅完成一半。首要交付为国内目标账号 → 单次购买 → 自动装配 → 真实模型任务与原生 Computer Use → Electron 退出后的 CLI 同会话接续 → 保盘停机／重启后继续。随后验证敏感登录状态的加密备份与新环境恢复；账单结清按供应商出账时间独立核对。
+- 用户要求先完成全部核心链路，再处理细节。停止扩大浏览器矩阵、基础壳复验、固定快照和全量构建；核心链路改动只执行针对阻断点的必要验证。自动闲置停机继续保持未开放，不能绕过原统一活动准入或共享文件的并行协作约束。
+- 原 `runtime.rs`／`processor/account.rs` 写集继续保护。当前本机 active 元数据实读仍为国内站授权的 connected profile、账号尾号 8819；目标账号和真实模型／第三方测试身份的既有问题尚无答复，不重复询问、不自动重开 OAuth、不用旧账号重购。
+- 本轮新后端构建被其他 Cargo 任务占有的 artifact lock 阻塞；已核对本轮 Node 父链及专用日志 FD，只结束自己的等待 Cargo，包装器 exit 1。没有结束其他构建、清缓存或启动第二份冷构建；新并发修复仍只有领域 195 通过，新的公共入口／Electron 复验保持未完成。
+
+### 启停只读查询的并发锁语义（2026-11-13，实施中）
+
+- 新固定输入 Renderer 取得有效 ready 收据，Host／preload／client／类型与资源构建通过。真实 Electron 首轮已证明设置页禁用、关闭重开、reload 与完全退出重启恢复原 stop；终态查询失败时截图出现“Another cloud desktop change is in progress”，而原磁盘收据已是 lifecycleVerified，页／console errors 均为零。实际失败为读取锁竞争，不以放宽 5 秒断言或重复运行冒充解决。
+- root 追加窄写集：本任务原 `cloud_desktop_service/receipts.rs`、`lifecycle/inspection.rs`、原 `tests/lifecycle.rs`、现有架构的生命周期说明及本计划。修改前这些文件均与本轮冻结摘要一致；共享 runtime／processor account、协议／账号／Provider／其他 UI 与发布继续只读。产品只改原目录，冻结源码继续只作验证，不回写；不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。变更继续严格持有原操作锁；只读 readOperation 在锁竞争时返回校验后的原持久记录，inspect 可仅读取资源但不得改写收据，取得锁后才执行核验写入。锁文件／权限错误、损坏收据不能当作普通竞争吞掉。先运行新增回归复现，再完成领域测试与适用公共入口验证；新后端必须重新构建和登记来源，旧管理制品不证明新实现。原 10 项 Cloud service 摘要及固定 Rust 副本仅代表修复前输入，不将其解释成新后端来源。真云仍 4/8（50%），其他真实账号／模型／备份／账单与共享准入缺口开放。
+- 修复前新增并发回归实际失败（10 通过／2 失败），修复后 `npm run test:rust:unit -- -p lime-services cloud_desktop_service` exit 0，195 通过／0 失败／2 项既有 live ignored，111.71 秒。原标准前端 ready 收据已完成，原工具 session 丢失但构建进程已退出，仅按收据与日志记录完成，不编造工具 exit code。
+- 继续仅在原目录构建新后端，现役 `prepareElectronAppServerAssets` 输出到本轮冻结目录的构建产物位置；固定 Renderer／Host 来源与新后端来源分别登记，冻结 Rust 源码不打补丁。构建前后保存原 Rust 输入、Cloud 全部输入、7 项 UI／保护输入和新二进制摘要；原管理制品及首轮失败保留。此轮不重开 OAuth、重复查询余额或采购，国内 CN 账号尾号 8819 与 13:00 的历史余额证据不代表已切换用户目标账号。
+
+### 设置页恢复的固定输入桌面验证（2026-11-13，标准前端构建通过，后端并发问题已复现）
+
+- 上轮修复设置页未决启停的安装／连接准入，62 项组件、8 组实际浏览器行为通过，属于 progress；标准 Renderer 被移动输入守卫拒绝，当前补丁尚无 Electron 通过结论。本轮原 7 项直接产品输入再次与前轮摘要一致，保留原 failed／invalid 记录。
+- root 窄写集仅本计划及 `.lime/qc/cloud-settings-electron-recovery-20261113/` 的 test-only 快照、脚本和证据。产品源码、共享 runtime／processor account、账号／Provider／协议／发布及其他并行写集只读；快照仅作固定输入验证，禁止在其中开发或回写产品。不启子 Agent、不递交 Git，不发起 OAuth、账务查询、采购或实际云变更。
+- Verification Contract：P1，budget:normal，Architecture impact: none。从当前原目录捕获新快照，运行原标准 Renderer 收据流程并新构建 Host／preload／client，保留摘要及入口守卫；管理 App Server／Code Mode Host 仅在 Cloud service 输入匹配既有有效证据时复用，明确不等于完整 Rust 重建。以真实 Electron／preload IPC／cloud/desktop／磁盘收据／设置及引导 UI 复验 unknown stop、入口禁用、关闭重开、reload、进程重启、原编号核验及新显式 start 单次提交。供应商为明确离线 CLI 夹具，不计真云验收；完整 Cloud 继续 4/8（50%），目标账号、真实模型／第三方认证／账单及共享活动准入接线开放，goal 保持 active。
+
+### 设置页未决启停的连接准入（2026-11-13，组件／浏览器通过，当前桌面门禁开放）
+
+- 用户再次提醒国内／国际站差异后，只读复核原私有授权摘要：12:59 的官方 CN 浏览器授权已成功，仍为账号尾号 8819；13:00 的可用现金 CNY 99.29 仅是历史快照，不认定为目标账号或实时余额，不重复 OAuth、采购或真实云查询。原 unknown 采购必须沿原 profile／原编号恢复。
+- 上轮固定输入的真实 Electron 恢复场景已有新证据，属于 progress。继续核对原设置页发现，任务连接、安装与桌面入口的 running 仅依赖独立实例状态，未接入原启停收据的等待条件；实例仍显示 Running 时，unknown stop 仍可开放新连接或安装。
+- root 窄写集：本任务原 `CloudDesktopsSettings.tsx` 的三处 running 接线、新增独立 `CloudDesktops.lifecycle-recovery.component.test.tsx`、本计划及 `.lime/qc/cloud-setup-electron-recovery-20261113/` 聚合证据。原设置组件摘要与上轮一致；其余产品输入、共享 runtime／processor account、授权／Provider／协议／发布只读。沿用 `lime-design-language` 的现役设置结构，此为 Lime 自有 BYOC 差异，不复制上游托管 Cloud，不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: none。复用现役 isWaitingForState 与原持久收据，不增加 authority、状态副本、依赖或文案。独立组件验证 accepted／unknown start／stop 下拒绝安装、任务连接与桌面变更，旧收据不因时间失效，原收据终态后恢复，其他 profile 同资源编号不误拦截；继续记录标准 GUI 门禁与实际可执行验证的边界。完整真云仍 4/8（50%），目标账号、真实模型／第三方认证／账单及共享活动准入接线继续开放。
+- 已实施：设置页由同一 running 投影连接任务、安装与桌面三处消费者，额外等待原 isWaitingForState 终态；原对话框的只读状态及恢复入口继续可用。独立回归先取得 5 项行为失败／1 项账号隔离通过，修复后 6/6；扩展原设置／安装／连接四个组件文件合计 62/62。首轮测试文案 locator 不匹配、首次扩展命令包含不存在的测试文件均保留，不计行为失败或通过。
+- 当前真实 Chrome Gate A 8/8，通过宽屏浅色／390 窄屏深色下四种未决启停组合：检查安装同意后仍禁用、任务重建禁用、桌面禁用，沿原 operationId 查询核验后桌面恢复；调用仅 listResources／inspect／readOperation 与 installationStatus，变更为零。页面错误零、无横向溢出，两张截图已目视复核。Host／供应商为明确合成夹具，不代替 Electron、真实云或模型任务。
+- 定向语法／语义／全局／编译选项诊断、ESLint、Prettier 与 diff／文档边界通过；定向类型不冒充整仓 typecheck。正式 `npm run verify:gui-smoke` 完成 8,336 模块及约 4 分钟 Renderer 编译后，被原输入摘要守卫以 `Renderer build inputs changed during compilation` 拒绝，exit 1、收据 invalid，未进入 Electron；没有关闭守卫、伪造收据或将上轮固定旧输入的通过移用于新补丁。此后仅将新三处接线的一处 JSX 按 Prettier 收为单行，未改变行为；最终原组件摘要与 Gate A 一致。
+- 证据 `.lime/qc/cloud-setup-electron-recovery-20261113/settings-validation-summary.json`；原固定诊断恢复与本次补丁分开记录。受保护 runtime／processor account 及其余四项 Cloud UI 输入保持原字节，十项 Cloud service 输入保持此前验证摘要；自有测试／浏览器／Vite／标准构建均已终态，无新 OAuth、采购或真实资源变更。KISS／DRY／SOLID 复用现役 owner 和原收据，不新增状态、配置、兼容路径或第二 runtime；分类为 current 与 test-only，架构影响 none。完整实机仍 4/8（50%），goal 保持 active；当前标准桌面门禁、账号及其他真云缺口继续开放。
+
+### 固定输入的 Cloud 桌面恢复验证（2026-11-13，诊断产物行为通过，标准构建未通过）
+
+- 续跑：上一轮得到明确的前端未就绪终态证据，为 progress；本轮读回工作树与原失败日志，宿主负载约 45，RootRouter 转换超过四分钟，尚无业务失败证据。沿同一窄写集从冻结源码执行标准 Renderer 构建，保留输入漂移与入口摘要守卫，改由 Electron 直接加载其构建产物，避免将 dev server 就绪与业务恢复混为一个门禁；不复制旧 Renderer，不改冻结产品源码或全局构建规则。
+- 标准构建于 07:49Z 开始，工具句柄 30797 沿原句柄取得 exit 1 终态，已回收。日志完成 8,335 模块转换、进入 gzip 计算后报 `npx vite build --base ./ exited with null`；脚本未记录 signal，不能推断具体信号或 OOM。原 build receipt 为 invalid，不手动改成 ready。一秒运行中采样仅证明当时执行 JavaScript、峰值约 3.1 GB。原 test-only runner 保留 bundled 的有效收据要求，另以显式 emitted-diagnostic 模式核对原 invalid 收据、2,794 项输入摘要与写出 283 文件的前后 SHA，不将诊断模式视为标准构建通过。显式本地供应商夹具独立合同探针 exit 0，四次离线调用覆盖 unknown stop、StopCharging 与 start；不计产品或真云验收。
+- 上轮补齐重开引导的原启停恢复，并取得 98 项组件与 13 组浏览器证据，属于 progress；标准 Electron 构建受移动工作树影响退出，不能用旧基础壳证据替代本修复的桌面验证。
+- root 窄写集仅本计划与 `.lime/qc/cloud-setup-electron-recovery-20261113/` 的 test-only 脚本、固定源码和证据。产品源码、共享 runtime／processor account、账号／Provider／发布及其他并行写集只读；不启子 Agent，不递交 Git，不发起 OAuth、采购或实际云资源变更。
+- Verification Contract：P1，budget:normal，Architecture impact: none。固定当前原仓库源码逐文件摘要，快照仅用于验证，禁止在其中开发或回写产品。实际 Electron／preload／IPC／cloud/desktop／持久收据与 UI 使用同一资源和原操作编号；供应商为显式本地 CLI 夹具。覆盖关闭／重开引导、主窗口刷新及进程重启后的恢复，终态前不开放新变更或连接，终态后恢复下一步；另尝试固定输入的标准桌面壳检查。
+- 不把本地供应商夹具计为真云验收，第 4／5／6／8 组及统一活动准入合并窗口继续开放，完整实机仍 4/8（50%）。真实模型／第三方测试身份与目标国内账号问题不重复询问，也不读取其凭据。
+- 再次核对本机 active 与对应 connection 元数据，均为 connected、国内站新 profile、账号尾号 8819、地域 cn-guangzhou。国内浏览器重授权已于 12:59 成功；余额仅引用 13:00 的 CNY 99.29 历史快照，不作为实时余额。新授权仍是同一账号，不能据此声称已切换到用户所指的有资金账号；本轮没有 OAuth、账务查询、采购或真实供应商调用，原 unknown 采购及原 profile 保留。
+- 固定 11,096 个源码／资源文件，副本逐文件摘要零漂移。复制期间原目录三项无关 TUI 输入发生变化，完整记录在 snapshot.json；不声明全仓单一时间点快照。冻结源码的 Electron main／preload／client 构建与桌面资产复制均 exit 0。复用已校验管理 App Server／Code Mode Host，十项 Cloud service 输入与其此前有效验证一致；未全量重建 Rust，不声明全部 Rust 源码与制品一一对应。
+- 已准备真实 Electron 恢复 runner，隔离 userData／config／agent root 与显式本地 CLI 夹具，不改 HOME、不读取真实凭据。首轮 Vite 句柄实际 exit 143，Electron 只显示启动壳；第二轮是 test-only Vite 子路径导出错误；修正脚本后第三轮虽 App Server ready，前端仍未进入主界面。隔离生成缓存后的第四／五轮均在依赖准备阶段超时；诊断日志显示源码仍在解析／转换，未据此断言产品根因或账号授权失败。全部失败保留，不关闭构建漂移守卫、不用旧壳结果替代本修复门禁。
+- 前五轮未进入 Cloud 场景，调用与变更均为零；第六轮已通过真实 IPC bind 和 unknown stop，但测试使用不存在的旧首页 selector，停在设置页等待 Composer 超时，不能认定为产品恢复失败。修正 test-only runner 为现役首页入口后，第七轮 exit 0、10 项检查通过：真实 Electron／preload IPC／App Server／持久收据／UI，关闭重开、页面 reload、同隔离根完全退出再启动均恢复原 stop；原收据未决时磁盘 SHA 与 createdAt 保留，显式本地状态推进后核验 lifecycleVerified／computeReleased，再由新显式确认提交 start。stop／start 各一次，40 条 Cloud IPC 记录，page／console errors 均为零。
+- 第七轮仅使用固定源码标准失败构建已写出的 file URL 产物，283 文件前后无漂移；没有伪造 ready，不计标准 GUI smoke、完整当前 Rust 重建、模型任务或真实供应商验收。三张宽／窄视口截图已实际复核，无横向溢出。原七项直接输入均在本轮设置页补丁前再次匹配，冻结源码不改写；管理 App Server／Code Mode Host 摘要保持原值。全部自有 Electron／Vite／构建句柄已终态；证据 `.lime/qc/cloud-setup-electron-recovery-20261113/validation-summary.json` 保留各次失败和标准构建限制。本验证切片只有 test-only 与计划变更，没有新产品 owner 或 runtime；后续设置页新补丁须有独立证据，不借用固定旧输入的通过。完整实机维持 4/8（50%），goal 保持 active。
+
+### 重开云端引导恢复原启停（2026-11-13，组件／浏览器通过，桌面门禁开放）
+
+- 再次只读核对现役托管配置：官方 OAuth / CN、connected、账号尾号 8819，active 与对应 connection 元数据一致；余额仅引用 13:00 的 CNY 99.29 历史快照，不重复 OAuth 或采购，不据站点判断它必然是用户目标账号。旧 unknown 采购继续绑定原 profile／原编号。
+- 上轮启停收据核验属于 progress。本轮发现重开引导仅对十分钟内 accepted start 隐藏启动，unknown 或较旧未决操作仍会提供新意图入口；原操作恢复尚未接入重开后的动作组件。
+- root 窄写集：同任务的 `useCloudDesktopSetup`、`CloudDesktopSetupDialog`、`CloudResourceActions`、`cloudDesktopData`、`CloudDesktopsSettings` 的最小投影接线、对应聚焦组件回归及本计划。共享 runtime／processor account、Account 授权实现、协议／Provider／发布和其他并行改动只读。验证产物仅写 `.lime/qc/cloud-setup-lifecycle-recovery-20261113/`，不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: none；沿现役持久收据投影，不增加业务状态 owner。原未决启停按完整资源身份匹配、无时间失效，只恢复 readOperation；未知停机阻止连接／安装。先复现、后定向组件／五语言／类型与 lint 检查，再执行 GUI smoke。自有 BYOC 是 Lime 保留差异，不复制 Codex 托管账号或云服务；完整实机保持 4/8（50%）。
+- 已实施：由原 `cloudDesktopData` 统一选择精确 profile／region／provider／resource 的未决启停，移除引导的十分钟失效判断；重开恢复原操作编号，动作组件只提供查询，未核验停机不开放连接／安装。设置页同样允许读取原操作，并等待收据的 lifecycleVerified 后恢复下一步；独立实例状态不能替代原收据终态。复用五语言已有 unknown／accepted／查询文案，无新协议、依赖或第二 runtime。
+- 新回归先复现 4 失败／4 通过，最终五个未变输入组件文件 67 项通过，设置文件修订现有等待断言后 31/31 通过，合计 98 项。旧引导夹具补全真实收据必有的 operationId；超过千行的设置测试仅更新原场景，不叠加新场景。首次设置复验先出现 5 秒超时，随后 act 重叠造成 26 失败，失败日志保留；宿主负载超过 44，仅测试命令使用 30 秒超时后全过，不修改生产重试或测试断言。定向 ESLint、diff 与 docs boundary 通过。
+- 真实 Chrome Gate A 共 13 组通过：桌面浅色／窄屏深色的 accepted／unknown 启停恢复、键盘操作、原编号单次查询和五语言，无页面错误、溢出或供应商变更；已目视复核窄屏原收据与宽屏未知停机两张截图。Host／供应商明确为合成夹具，不等同于 Electron 或真云。
+- 标准 GUI smoke 编译期间整体输入摘要已变化，保留两份摘要后仅终止本任务 Vite 子进程，正式 exit 1，未进入 Electron；不能计为桌面通过或把旧 24/24 移植到本修复。整仓 typecheck 在移动工作树／高负载下超过 13 分钟后仅终止本任务进程，exit 143，无全量通过结论；改用定向源文件诊断，结果以证据摘要为准。本轮 Cloud 最终输入及共享 runtime／processor account 摘要未变，未覆盖并行修改，也不盲目重跑整仓构建。
+- 证据 `.lime/qc/cloud-setup-lifecycle-recovery-20261113/`。分类为 current 与 test-only，无新增 compat／deprecated；DRY 复用一个收据选择函数，权限及持久状态仍归原服务。无新 OAuth、云采购、资源变更或 Git 递交；模型／第三方认证／最终账单与共享活动准入窗口继续开放，完整实机仍 4/8（50%），goal 保持 active。
+
+### 启停原收据核验与重复意图拦截（2026-11-13，本地与公共链路验证通过）
+
+- 上轮实际 Zenity／人工 helper 锁交接与国内账号核对属于 progress。本轮沿现役 Cloud 生命周期检查发现：`readOperation` 对 start／stop 直接返回旧收据，不核对目标状态；持久冲突检查也未覆盖这两类未决操作。用户重开界面或独立 Host 换编号时可再次提交，unknown 不能通过仅刷新收据退出。
+- root 窄写集：本任务现役 Cloud service 的 `inspect_operation` 路由、`lifecycle.rs` 与其核验／测试子模块、`receipts.rs` 两处最小接线、`tests.rs` 注册、原 hibernation worker，以及 `CloudResourceActions` 的终态判断和既有定向回归；本计划与架构同步，证据 `.lime/qc/cloud-lifecycle-reconciliation-20261113/`。保留这些文件已有同任务改动；共享 runtime／processor account、协议、Provider、其他 UI 与发布只读，不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。先复现真实 CLI 进程边界下原收据不推进／新编号重复提交，再沿原 profile、region、resource 只读核验并持久化 lifecycleVerified；未到目标、资源缺失、供应商读取失败保持原未决状态。已核验仅证明所记录实例状态，ECS computeReleased 与无影不可读模式分别保留，不把 Stopped 自动解释成停止全部收费。
+- 退出条件：跨进程重启、账号 profile 别名、新编号拦截、原操作单次提交、缺失／错误读回／损坏收据、hibernation 子操作推进和 UI 读取原操作后可继续；执行隔离 Rust 领域回归、组件回归、适用公共 JSON-RPC／GUI 门禁与文档检查，明确环境及证据边界。自动空闲停机仍待原统一准入接线，真实模型／第三方登录／最终结算仍开放，完整实机保持 4/8（50%）。
+- 两个新回归在原实现均失败，证据保留于 `before-rust.log`。首轮修复后领域回归 186 通过／3 失败／2 条既有 live ignored；两项旧夹具分别缺少合法 start 收据字段、启动后未核验就开始下一轮恢复，已补齐必要行为。第三项隧道取消测试在并行运行中按全局表下标读取已被其他资源清理的记录；独立运行通过，根因是测试观察对象错误。追加窄写集仅为这三份回归；取消测试在请求已实际启动后取得原 task 的 AbortHandle，再确认真实任务终态，不以表项缺失充当进程退出，生产隧道实现保持只读。
+- UI 不再把 accepted 加上单独状态采样当作原操作完成；打开的启停确认面板每 1.5 秒读取同一编号，终态、关闭或读取错误停止自动查询，错误仍可沿原编号手动恢复。手动查询与自动查询共用同一 busy guard，未增加字段输入或授权步骤。中间回归 189 项领域、14 项组件及真实 stdio 重启、标准 Electron 基础壳均通过；文案复核发现既有 verified 专指用户确认恢复后的文件／应用，因此启停改用 lifecycleVerified 和独立五语言结果／历史标签，不借用人工恢复的证据语义。追加写集仅为现有五语言 settings.json 的 Cloud 结果键，其他文案保持；最终回归仍须针对该修正后的输入完成。
+- 恢复入口检查补齐：公共 inspect 在存在同一原 profile／region／resource 的未决启停时，持原操作锁复用本次精确供应商查询记录核验，不增加供应商查询，也不允许新 profile 的状态替代原账号证据。无相符未决操作仍沿原 inspect；内部生命周期检查不递归触发恢复。未决启停与环境保存均保留在历史恢复入口中，不受最近 50 条截断限制。新增三个领域回归覆盖资源刷新、profile 隔离与历史截断；公共 stdio 场景补入重启后普通资源查询自动核验，随后读取原收据不再查询或重发供应商。
+- 当前输入最终结果：Cloud 领域 192 通过／2 条既有 live ignored，组件 19/19（含五语言），真实 App Server 公共 stdio 1/1；默认 Standard Electron smoke exit 0、基础壳 24/24 断言通过，覆盖 preload／IPC／现役 App Server、重载与三视口。Rustfmt、定向 diff、ESLint、五语言 JSON 和文档边界通过。公共测试的供应商 CLI 为明确本地进程夹具；Electron 证明基础壳，不代替真实云模型、实际付费启停或整组 Cloud Gate B。中间失败和此前输入的通过保留，最终证据仅以 `current-rust.log`、`public-current-summary.json`、`gui-smoke-current.log` 与当前源码摘要为准。
+- 证据 `.lime/qc/cloud-lifecycle-reconciliation-20261113/validation-summary.json`；当前产品输入在验证期间保持原摘要，受保护 runtime／processor account 与本轮开始时一致。架构原生命周期说明及同源启停时序已同步，责任 root；KISS／DRY 沿原 Cloud owner、操作锁、持久收据和公共 RPC，无新增配置、依赖、兼容实现或第二 runtime。所有本轮测试进程已结束，无新 OAuth、采购、云资源变更、发布或 Git 递交。完整 Cloud 实机仍为 4/8（50%），自动空闲停机及原共享准入接线继续开放。
+
+### Linux 授权弹窗响应人工接管（2026-11-13，本地与隔离验证通过）
+
+- 上轮补齐精确账单的维度核对及官方结算时效，属于 progress。共享 runtime／account 接线窗口仍未获得答复，本轮不修改这些文件，也不重复 OAuth、采购或模型／第三方登录。独立核对 native 的输入互斥发现：managed 授权弹窗持有 desktop.lock 后，显示循环只检查 RPC canceled，不检查后来出现的 human-control latch；人工接管可等到其 10 秒期限失败，弹窗却继续等待最多 90 秒。
+- root 窄写集为此前干净的 `electron/native/linux/linux-native-host.py`、`test_linux_native_host.py`、本计划及现有架构的 managed consent 说明；`.lime/qc/cloud-consent-takeover-20261113/` 保存证据。guest／bootstrap、共享 runtime／protocol／Account／Provider／UI／发布只读，不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。沿现役人工 latch／desktop.lock／fence／native setup owner，先复现“取得 OS lease 的边界出现接管”和“弹窗打开后请求接管”两个行为；修复后不得发布应用授权，实际弹窗终止并 wait 后才禁用 VNC、释放输入锁，保留人工 latch。既有取消、拒绝、VNC 读回失败与输入 fence 不放宽，不新增机器冻结协议、自动停机开关、配置或第二 runtime。
+- 退出条件：定向失败／通过回归、完整 Linux Python suite、隔离 Ubuntu 的实际 Zenity 子进程取消及 VNC 键鼠禁用／锁交接。容器结果明确 amd64 仿真与测试接线范围，不计完整 Cloud 实机分子；新 helper 的当前源码不由旧已发布 guest 包代替验收。共享活动准入、OOS 与整组第 4／5／6／8 仍开放，4/8（50%）。
+- 两个新增回归先在原实现独立失败；现役 helper 仅增加取得锁后的二次检查与弹窗等待时的人工 latch 检查，保留原 finally 的 terminate／wait／kill、VNC 写入读回和失败关闭合同。修复后完整 Linux Python suite 58/58 通过，未新增依赖、协议、配置或第二 owner。
+- 复用固定 Ubuntu 24.04 amd64 测试镜像，在 aarch64 Docker host 上仿真，非 root、无网络、无 capabilities，仅只读挂载本轮 helper 与证据脚本。实际启动现役 guest 的 Xvnc、真实 Zenity 窗口和独立人工接管 helper；目标发现／snapshot 是明确合成 seam，systemd、App Server、ECS 与模型任务未运行。窗口确已映射后发起接管，约 1.354 秒获得控制；真实弹窗 terminate／wait 均发生在原输入锁内，随后读回键鼠为 0，再由人工 helper 取得原锁读回为 1；SIGTERM 停止人工 helper 后实际键鼠为 0，人工 latch 保留、consent latch 清理、应用授权为空。
+- 证据 `.lime/qc/cloud-consent-takeover-20261113/validation-summary.json`，原始失败、58 项日志和实际进程时序分别保留。guest／bootstrap／runtime／processor account 的原摘要未变，测试容器已退出并移除；架构原 managed consent 段已同步，责任 root。当前 helper 摘要不同于上轮重连 probe 的固定输入，上轮结果只对其旧输入成立，不借用旧包证明当前完整云链路。完整实机仍为 4/8（50%），无采购、云资源变更或 Git 递交。
+- 用户指出国内／国际账号差异后再次只读核对：国内站浏览器重新授权已完成，现役 OAuth CN profile 与 connected 状态一致，账号尾号 8819；2026-11-13 13:00（Asia/Shanghai）余额证据为可用现金 CNY 99.29。不能把国际站余额套入国内账号，也不因重复收到提示再次 OAuth 或重购；原 unknown 采购继续沿原编号检查。
+
+### 独立空闲准入接线协调与精确结算查询（2026-11-13，只读审计完成，接线待合并窗口）
+
+- 上轮 guest 重连实现、67 项定向回归及真实 VNC 隔离验证完成，属于 progress。本轮先核对跨任务提交／准备／后台清理／人工接管／保存的原子准入：不能复用会取消任务的 shutdown，也不能用 CPU／心跳或未覆盖的计数器启用自动停机。
+- 完整接线需要共享 `runtime.rs` 的 RuntimeCore 活动准入和 `processor/account.rs` 的归档／模型交付占用；两文件有已核对的独立并行改动。已按仓库并行协作规则发出最小合并窗口确认，尚未获得答复，不通过错误 owner、全局单例或孤立计数器绕过该接线。此处确认与目标阿里云账号／模型连接／第三方测试身份的既有问题分别记录，不重复 OAuth 或采购。
+- 等待期间 root 窄写集为本计划及 `.lime/qc/cloud-settlement-audit-20261113/` 的只读审计代码／脱敏证据；原 Cloud／Account／Provider／runtime／协议／UI／发布仅只读。Verification Contract：P1，budget:normal，Architecture impact: none；沿新 CN profile 通过 STS 验证与两次原生构建私有状态的账号摘要完全一致，才查询精确资源账单，不跨账号、不读取模型凭据、不做云变更或 Git 递交。
+- 新核对的官方 BssOpenApi 元数据声明 `CashAmount`、`PaymentAmount` 与 `OutstandingAmount`，但此前 `IsBillingItem=true` 的实际行缺失这些字段。下一步在同一精确实例与账期使用实例汇总维度 `IsBillingItem=false`，完整分页且 Decimal 汇总，缺字段保持未知；实付／结清与当前账期仍可补出延迟项分别表达，不把应付或账户汇总归为某轮实付。仅核销得到实际证据的范围，完整实机继续 4/8（50%）。
+- 实际查询已完成：新 CN profile 的 STS 账号摘要与两份原生构建状态完全一致；两台精确实例的汇总查询各一页一行、分页完整。当前应付分别 CNY 1.3034741 与 1.019628989，后者较此前 0.933398589 增加 0.0862304；实例维度同样缺失实付、现金支付和未结清字段，不能认定切换汇总维度即可证明支付完成。计费项再核对结果见本轮脱敏证据，不与历史审计金额相加。
+- 官方 `QuerySettleBill` 明确：当月数据仅供参考、最终账单次月 2 日 12 点后可查，消耗与账单存在约 5 小时更新延迟；当前未结清状态的还款也在次月出账时更新。此接口可按账单号查结算，但没有精确实例筛选；实例实际响应又没有可关联的账单号。本轮未为推断实例实付去拉取或归摊整个账号结算数据。当前 November 账期不能据这些证据判为最终结清，第 8 组继续开放；接口合同源与 SHA-256 保存在 `official-api-contract-final.json`。
+
+待合并窗口后的准入实施合同（设计，尚未作为产品能力启用）：
+
+| 原 owner 与补丁点 | 必须成立的行为与验证 |
+| --- | --- |
+| `RuntimeCore` 的统一活动准入 | 原 Arc 状态随 RuntimeCore clone 共享；准入在模型协调、压缩和输入准备之前取得。冻结检查与新准入互斥；在同一锁顺序内核验 canonical Queued／Accepted／Running／WaitingAction，不以另建任务数据库复制状态。用屏障控制的并发提交验证“准入获胜则不冻，冻结获胜则拒绝新工作”。 |
+| Turn driver 与 `ExecutionProcessServer` | 活动租约进入实际拥有执行的 task／进程 owner，保留至 backend drain／进程退出与输出清理结束；不能随 RPC 返回、Turn 提前终态或取消请求立即释放。分别覆盖后台 shell、command/exec 和取消中延迟退出。 |
+| scheduled worker、Computer Use 和保存 | 自动任务 claim 前准入，原 claim 恢复语义保留；CU 租约覆盖 owned task 与实际 helper 清理，人工接管／consent 由同一机器输入锁原子核验；archive 的 spawn_blocking 持有原占用直到真实完成，模型交付／安装／保存同样覆盖。不能只统计 RPC 或面向 UI 的 current。 |
+| 原 Cloud owner 与 durable freeze | 绑定精确策略／代次／boot identity，先私有原子落盘并 fsync 再确认冻结；缺探针、坏状态、重启或身份不符均拒绝停机。重启不因本地租约到期自动解冻；沿原 OOS 父／子执行编号核对终态与 ECS，再由原控制面授权恢复准入，防止迟到停机打断新任务。 |
+| 阿里云 OOS 与产品引导 | 只在用户账号内承接持续触发与固定步骤，guest 不持有云管理凭据；使用原意图／ClientToken 恢复未知操作，显式非强制 StopCharging 并独立读回计算释放。自动释放仍受原备份可恢复性与授权约束；未完成全部准入接线和公共链路验证前不开放自动省钱开关。 |
+
+
+### Linux guest 凭据重连保留桌面会话（2026-11-13，本地与隔离桌面验证完成，实机开放）
+
+- 用户国内／国际站疑问已重新核对：现有真实重授权为官方 OAuth / CN，账号尾号 8819，新 profile 的只读余额证据为 CNY 99.29；不能把站点或重新授权成功当成已切换到用户目标账号。账号选择问题尚未答复，本轮不重复 OAuth、不采购、不重发旧 unknown。
+- root 窄写集为此前干净的 `electron/native/linux/linux-guest.py`、`test_linux_guest_reconnect.py`、现有架构 guest 凭据说明、本计划，以及 `.lime/qc/cloud-guest-reconnect-20261113/` 的隔离证据。bootstrap、runtime_install、协议、Account、Provider、UI、发布与其他并行写集只读，不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。现役安装引导／镜像恢复 -> Electron `CloudGuestInstallations.reconnectRuntime` -> 公共 `cloud/desktop` 固定云助手启动 -> guest `reconnect_credentials`；复用原 token、viewer 密码、安装锁、包完整性和原收据 owner，无新配置或协议。保留 `workSaved` 授权，任务 App Server 停止仍会终止其进程组，不宣称全部应用保留；display／Xfce 及由其启动的应用应保留，人工接管授权继续撤销。
+- 退出条件：先用行为回归证明原重连停止 display／session，再仅停止 task／viewer／human 通道，轮换并 fsync 原私有凭据，仅启动 task／viewer；依赖在需要时补齐 display／session。运行原 Python guest／bootstrap／launcher 定向回归与 Rust runtime_install bundle 长度／AST／解码检查；隔离 prepared Ubuntu 容器实测 TigerVNC 密码文件重读、旧 viewer 连接断开及桌面应用存续，不冒充真实 systemd／ECS／模型任务。证据记录 Docker amd64 仿真、源摘要和实际进程边界，完整实机仍 4/8（50%）。GUI／runtime 业务事件及 read model 不变，本切片无需重复 GUI smoke；未执行的完整云验收继续开放。
+- 原回归先取得 2 通过／1 失败，明确原 `stop` 包含 display／session。修复后仅停止 human／viewer／task，原凭据验证、不可变 release、排他锁与 fsync 保持；任务依赖启动缺失桌面后，通过原有有界 `wait_display` 等待就绪，调用原已验包 helper 的 `vnc_input(False)`，确认关闭键鼠后才启动 viewer。helper 被强制结束后也不依赖其 finally 成功，失败路径保持 viewer 停止，不清除人工接管 latch。
+- 最终 Python guest／bootstrap／native suite 为 56/56，固定 launcher 为 4/4；原 Rust runtime_install 为 7/7、exit 0，覆盖 `workSaved`、单次提交、原编号恢复、包 AST 等价与 BZip2 解码。固定样本 Base64 命令为 24,504／24,576 字节；与 Rust 样本字节数一致的 100 组独立合成身份／摘要采样最大 24,544，零越界，仅作为当前输入采样而非普遍上界证明。生产长度拒绝保护保留，后续 bundle 增长必须继续执行此门禁。
+- Ubuntu 24.04 的真实 TigerVNC 1.13.1／websockify 0.10.0／Xfce 进程验证通过：旧受管 WebSocket／RFB 连接断开、旧密码拒绝、新密码认证成功；Xvnc／Xfce 及由 Xfce autostart 启动的 xmessage PID 均存续。另在重连前实际启用两类 VNC 输入，重连后读回均为零，原合成人工接管 latch 字节保持。最终运行三份直接输入摘要前后一致；系统服务控制及 task／human 服务为显式测试 seam，不冒充真实 systemd、App Server 任务、ECS 或用户登录资料恢复。
+- Docker host 为 aarch64，运行 linux/amd64 仿真，网络关闭、非 root、无 capabilities、无用户 home／凭据／Docker socket 挂载。前两次夹具未识别 QEMU 前缀进程、第三次原生应用准备超过 25 秒，均保留失败证据；修正识别及有界准备等待后，最终固定输入 probe exit 0。观察到的约 4.5 秒仅为此隔离仿真重连，不作为真实云机提速承诺。
+- root 确认现有架构 guest 描述及镜像恢复时序与单一 owner 一致，KISS／DRY 复用现役服务、依赖与 native guard，未增加配置、协议、供应商或第二 runtime。docs boundary、Python AST 与窄 diff 检查通过，三个只读受保护输入摘要保持。证据 `.lime/qc/cloud-guest-reconnect-20261113/validation-summary.json`；仅修改原 guest／回归及既有架构／计划，无新采购、云变更、Git 递交或遗留测试容器。当前本机元数据仍连接新 CN profile、尾号 8819，目标账号未确认；完整实机维持 4/8（50%），goal 保持 active。
+
+### 空闲准入入口核对与授权公共回归续跑（2026-11-13，本地核对及回归完成，独立控制待接入）
+
+- 上轮真实国内站重授权成功并取得新 profile 的身份／余额证据，属于 progress；是否为用户目标账号仍待确认，本轮不重复打开 OAuth 或采购。窄写集为已有 `cloud_alibaba_authorization_jsonrpc.rs`、本计划和 `.lime/qc/cloud-alibaba-rpc-20261113/` 的验证产物；共享 runtime／协议／Account／Provider／UI／发布只读，不启动子 Agent，不递交 Git。
+- 现役 `RuntimeCoreState.shutting_down` 是退出状态，`session_shutdown.rs::shutdown` 会逐个取消非终态 Turn，再关闭 session；它不具备“仅当空闲时冻结”的语义，不可复用作空闲停机。`agent_turn_is_active` 包含 Queued，不能只统计 Running。
+- 已确认以下现役入口，后续准入必须覆盖整个起始区间以及实际 worker／进程终态，不能用 RPC 返回或客户端断开代替占用释放：
+
+| 工作来源 | 现役入口与占用事实 | 停机冻结必须覆盖的边界 |
+| --- | --- | --- |
+| Turn、队列、Goal／内部续接 | `runtime/turn_execution.rs::start_turn_inner_with_context`、`runtime/thread_queue.rs::add_thread_queue_submission`；Turn 在模型协调、自动压缩、输入准备之后才进入锁内准入 | 在准备或排队之前持有统一占用，直至真实 driver 终态；已入队工作也阻止停机 |
+| 独立命令和后台终端 | `processor/command_exec.rs` 直接调用 `CommandExecServer::exec_cancellable`；`execution_process.rs` 持有注册进程及最终快照 | 会话退出标志没有覆盖命令入口；须在启动前原子取得占用，并在实际进程退出后释放，不能只看聊天终态 |
+| Computer Use 与用户接管 | `runtime/computer_use.rs` 校验活跃 Turn；`tool-runtime/computer_use/state.rs::execute` 将执行移入 owned task 持有 OS 租约 | 取消请求或删除可见租约后 helper 可能仍在退出；须等待其取消／回收完成，并覆盖人工接管与租约获取 |
+| 自动任务 | `scheduled_task_worker.rs` 在扫描 claim 后独立 `tokio::spawn`，经 `execute_started_automation_job` 进入原 runtime | 不能仅在 JSON-RPC ingress 冻结；claim 到身份解析及执行的间隙也需要统一准入，失败时须保留原 claim 恢复语义 |
+| 加密导出与恢复 | `processor/cloud_archive_download.rs::prepare`、`cloud_archive_restore.rs::finish` 使用 `spawn_blocking`，已有 permit 持有到 worker 结束 | 恢复 finish 已从可见 current 中取出任务后仍在解密／写入，不能把 current 为空当作空闲；禁止中断敏感备份或恢复 |
+| 模型交付、安装与保存 | `runtime/account.rs` 将模型交付委托原 Provider owner，其余 Cloud 操作进入原 Cloud service；认证远端只开放原归档／模型子集 | 新空闲控制不能放宽云管理凭据边界；本机控制面、云助手安装及原保存操作也必须遵守同一机器代次／冻结合同 |
+
+- 核对结果要求采用同一现役 owner 下的原子占用与持久冻结；单独增加全局计数器、两次孤立采样、复用退出动作或只拦 RPC 都会遗漏当前生产入口。本轮不在并行变更的 `runtime.rs`、`processor/account.rs` 或协议中夹写，也不暴露尚无完整消费者的自动省钱开关；独立云端空闲控制仍未实现／验收。
+- 授权公共 Rust 目标曾因编译中断而未完成。本轮复用原仓库当前 warm Cargo target，精确调用 `cargo test --manifest-path lime-rs/Cargo.toml -p app-server --test cloud_alibaba_authorization_jsonrpc -j 2 -- --nocapture`，不带会扩展目标范围的 `--tests`。沿现役隔离配置／凭据与 V8 环境解析器执行同步子进程，未使用旧二进制替代当前源码编译；原三个场景编译并执行 3/3 通过，exit 0，关闭此前公共 Rust 目标未运行的缺口。历史中断及原有失败保留。
+- 补充第四个真实 stdio 场景：夹具预置带合法请求摘要的 ECS unknown 采购收据，进程重启后从合成账号 A 切到 B，再经公共 `readOperation` 验证仍用 A 的原 profile／区域／原操作标签查询；库存为空仍保持 unknown，活跃连接仍为 B。使用同一原请求／操作编号重放零新增 CLI 调用，原收据字节保持；CLI 只允许两轮 configure／STS 及一次 DescribeInstances，任何真实采购命令均拒绝。该证据覆盖有效收据的产品恢复路径，不冒称真实付费提交丢失响应或完整云供应验收。
+- 最终同一精确目标 4/4 通过，exit 0；六个直接输入摘要运行前后一致，未声称整个并行工作树冻结。证据为 `.lime/qc/cloud-alibaba-rpc-20261113/warm-public-summary.json` 和 `warm-public-recovery-summary.json` 及各自完整日志。产品代码、协议、GUI 与依赖无改动，不重复整仓／GUI／供应商门禁；新增代码为 test-only，没有第二 runtime 或 compat。Architecture impact: none，root 确认原 owner 不变；完整实机仍 4/8（50%），目标账号确认、真实模型／第三方登录复用与恢复／最终结算、独立空闲控制继续开放，goal 保持 active。
+
+### 国内站重新授权实测（2026-11-13，授权成功，目标账号待确认）
+
+- 用户再次要求重新授权并区分国内／国际站。本轮经现役 `cloud/desktop` 公共入口显式发起一次国内站授权，终态 `connected`；新 profile 的官方 CLI 配置核验为 `OAuth / CN`，独立 STS 验证仍为账号尾号 8819。不能把重新授权成功表述为已切换到另一账号。
+- 使用新 profile 只读查询国内账务接口，确认有人民币可用现金；完整余额核验记录仅在本机私有目录，不将旧余额继续充作实时结果，也不将“有资金”等同于满足新按量 ECS 的开通条件。已询问用户是否为其目标国内账号，未据此自动充值、采购或替换旧采购意图。
+- 本轮写集仅现有执行计划、`.lime/qc/cloud-alibaba-rpc-20261113/domestic-reauthorize.mjs` 的显式 live 核验脚本与本机私有证据。Cloud 产品、Account／Provider／协议／UI 只读；未更改产品代码，不启动子 Agent，不进行 Git 递交。
+- 证据等级：真实本机 App Server stdio -> 公共 `cloud/desktop` -> 现役 Cloud OAuth -> 官方 CLI；身份与余额由新 profile 独立读取。使用已有管理产物 SHA-256 `b505bb1d690288cc6f81ca6417cc95de71856e90662d0c68c8ed3e1a122ea82a`，运行前后摘要一致，不冒称本轮重新构建或 Electron Gate B。两项命令退出 0；新增采购和云资源变更均为零。私有结果位于 `~/.local/share/lime-domestic-reauthorization-20261113/`，无 Token、完整账号或原始账务响应进入仓库。
+- 本轮实证关闭“最新重授权失败”的当前阻塞，历史失败记录保留；“是否为目标账号”继续开放。完整 Cloud 实机仍 4/8（50%），真实模型、第三方认证复用／恢复、最终结算及独立空闲控制的验收范围不变，goal 保持 active。
+
+### 保存环境的阶段等待与独立空闲控制调研（2026-11-13，本地验证完成，独立调度待实现）
+
+- 上轮固定产物公共客户端三场景通过并取得旧产物敏感性证据，属于 progress；新 Rust 公共目标的独立编译未完成，原失败不覆盖。本轮继续降低等待与持续费用，不自动重新授权、不查询旧余额或采购。
+- root 窄写集：现役 `hibernation/worker.rs`、原测试的供应商 pending 夹具与新增 `tests/polling.rs`、架构中原保存流程说明、本计划；test-only 证据 `.lime/qc/cloud-idle-control-20261113/`。`hibernation.rs`／生命周期／镜像／收据等现有 owner、共享协议、Account、Provider、UI、TUI 和发布只读，不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。已核验的阶段立即接续；只有供应商仍未完成时保留有界轮询，绝不通过省略停机、快照、镜像或精确释放核验提速。沿原父／子收据、操作互斥、取消与 unknown 恢复，不改变授权或 UI 合同。通过同一推进器注入等待事件验证就绪阶段零等待、pending 快照／镜像等待后只查询不重发、等待中取消保留原盘与已创建备份；随后运行原保存与完整 Cloud 领域回归。
+- 云端独立空闲调度仍需 runtime 活动／命令／人工接管／保存状态及停机前原子冻结合同。先核对官方 OOS TimerTrigger、执行角色、取消／原执行恢复和条件探针，不把固定时间释放、OS 内关机或客户端倒计时充作自动空闲停机。公开文档和模板仅用于调研，不自动创建 OOS／RAM 或向 guest 下发云凭据；完整实机仍 4/8（50%）。
+- 官方事实来源：2026-11-13 获取的 [TimerTrigger 文档](https://help.aliyun.com/zh/oos/user-guide/acs-timertrigger)、[OOS 2019-06-01 API 元数据](https://api.aliyun.com/meta/v1/products/oos/versions/2019-06-01/api-docs.json)，以及官方 [oos-templates 固定 revision](https://github.com/aliyun/oos-templates/tree/0e4decb4dae4f3d5f1ac1326a845e43324d78443)。四份定时停止／命令执行原子模板均核对 Git blob 与 SHA-256，仓库元数据没有许可证，只保留研究证据，不复制到产品。
+- 调研结论：`StartExecution` 支持直接传 `TemplateContent`、原 `ClientToken` 和标签，可省去“先手动创建模板”的步骤，但需用户账号自己的 OOS 执行角色。官方 `ACS-ECS-ScheduleToStopInstances` 不检查 Lime 活动，调用 StopInstance 原子动作时未传 `stoppedMode`，其默认值为空；因此它不能直接作为已保证空闲且节省计算费的实现。Lime 后续流程须明确请求 `StoppedMode=StopCharging`、非强制关机，并独立读回原实例停止与计算释放状态，保盘及其他费用照常说明。
+- 取消合同：TimerTrigger 每次创建子执行，父执行返回 Waiting 不证明其子执行已撤销；`CancelExecution` 成功响应只有 RequestId。必须沿原父／子编号使用 `ListExecutions`（显式 IncludeChildExecution，默认 false）和完整分页核对终态，不能猜测存在 `GetExecution` API，也不能把取消成功响应当作旧 StopInstance 不会再发生的证明。原执行未知只查原意图，不换编号提交第二套计划；源码中的 ClientToken 参数不能单独证明服务端幂等时限或允许安全重放。
+- 本次 API 元数据将 `CancelExecution.operationType` 标为 read，但其行为会改变外部执行状态；后续接入仍按状态变更处理授权，不能因该注解将取消纳入只读查询。该结论只针对已采集版本，执行时仍需复核当前接口合同。
+- 后续实施合同：现役 Cloud owner 负责唯一策略／原操作／模板摘要；OOS 仅承担用户账号内的持续触发与已授权固定步骤。guest 的 App Server 必须原子核验 canonical Turn、命令／子任务、Computer Use 接管与保存占用，并绑定策略编号、运行代次和 boot identity 冻结新任务准入；仅凭 CPU、桌面窗口关闭、心跳消失或两个孤立的空闲采样不够。探针缺失、重启、身份或代次不符时保持原机。停机请求可能发出后，不允许仅因本地租约超时恢复准入；先证明旧父／子执行终止并核对 ECS，再允许原机使用，避免迟到的旧执行关掉新任务。该活动与准入边界、RAM 最小权限和完整 OOS 执行尚未实现／实机验收，不能提前开放自动省钱开关；后续自动释放仍受可恢复备份及原数据授权约束。
+- 实施结果：原推进器返回 Complete／Advanced／Pending 三种内部结果；已核验并持久推进的阶段立即衔接，只有原供应商操作仍在处理时等待 3 秒。等待函数是同一推进器的可注入依赖，无新产品配置、协议、后台 runtime 或第二采购／保存 owner。原授权、父／子收据、租约、取消与释放前核验均保留，不将减少固定等待表述为供应商操作或云启动时间的普遍承诺。
+- 回归证据：初始三个新增场景在未优化的推进器上取得 1 通过／2 失败，失败分别为就绪阶段多余等待和核验后误等下一阶段；同一测试缝下修复后原保存测试合计 15/15 通过。首轮完整 Cloud 为 203 通过／2 项既有 live ignored；为补齐停止和释放的 Pending 分支，再新增第四个事件驱动场景，最终完整领域日志为 204 通过／0 失败／2 ignored。四个新增场景覆盖所有阶段的等待、原变更仅一次和等待中取消；未用缩短测试定时器代替真实流程。旧轮 20 秒观察失败仍保留，不据此宣称其完整根因已被证明。
+- 最终原命令 `npm run test:rust:unit -- -p lime-services --target-dir ".lime/qc/cloud-start-readiness-20261113/frozen/source/lime-rs/target" cloud_` 的终态日志已核对，包含最终四场景及原后台 worker；工具刷新后原 session 句柄缺失，外层 runner exit code 未直接取回，未因此重启已完成测试。独立 ps 确认原 Cargo／测试进程均不存在，证据只陈述实际日志结果。原源码直接修改，仅复用旧 target，没有修改冻结副本。
+- 格式、窄 diff、文档边界与原保存时序图语法检查通过；语法不冒充图像渲染。三个最终直接输入摘要、四个只读领域 owner 摘要复核通过，不称全树冻结；本轮没有 UI／协议或依赖变更，未重复 GUI／contracts／真云门禁。minor 架构责任 root 确认原 owner 及立即推进／待完成轮询边界，新增内容仅 current 与 test-only，无 compat／deprecated、中心账号或第二 runtime，无 Git 递交或供应商状态变更。证据 `.lime/qc/cloud-idle-control-20261113/validation-summary.json`；完整实机仍 4/8（50%），目标账号、上一切片 Rust 公共目标、真实模型／第三方认证／最终结算和独立空闲调度继续开放，goal 保持 active。
+
+### 阿里云授权公共入口联验（2026-11-13，固定产物公共客户端通过，Rust 目标未完成）
+
+- 上轮账号脱敏与请求代次修复属于 progress；真实国内账号仍待用户就绪，不自动启动 OAuth 或重购。本轮补齐新 auth 经真实 stdio App Server 的证据，避免继续只证明领域组件与已有管理产物。
+- root 窄写集：新增 `app-server/tests/cloud_alibaba_authorization_jsonrpc.rs`、本计划和 `.lime/qc/cloud-alibaba-rpc-20261113/` 的 test-only 证据。现役阿里云产品代码只读；Lime 产品 Account／连接／Web 授权测试、Provider／协议／生成物／UI／TUI／发布与其他并行写集只读。现存 `cloud_web_*` 属于 Lime 产品账号，不能用它们代替 BYOC 阿里云验证。不启子 Agent，不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: none。实际新 App Server 二进制 -> stdio 初始化 -> `cloud/desktop` -> RuntimeCore -> 原 Cloud auth -> 显式本机 CLI 夹具 -> 私有元数据 -> 公共脱敏投影。验证授权前不出现尾号、固定 CN、验证后显示、进程重启零重授权、切换替换身份及原 profile 继续可用；旧元数据与原 unknown 只读保持、不泄漏完整身份与凭据。夹具不打开浏览器、不访问真实供应商，不将此结果增加完整实机 4/8 的分子。
+- 构建使用本任务已有 `.lime/qc/cloud-start-readiness-20261113/frozen/source/lime-rs/target`，源码仍来自原仓库，不修改冻结副本或抢占其他构建。退出条件为定向公共 stdio 回归、格式与文档检查，明确当前源码与已编译产物的范围；目标账号及真实 OAuth 继续开放。
+- 隔离、无依赖的 Cargo 选择实验确认 `--tests --test <target>` 会执行两个集成目标，不能把原 integration runner 当成精确定向。核对父链与日志 FD 后，仅中断本任务宽选 Cargo，exit 1 不计通过；改用现役 `withRustTestConfig`／`resolveRustTestEnv`／V8 环境解析器执行精确 `cargo test --test cloud_alibaba_authorization_jsonrpc`，临时配置与凭据隔离直到同步子进程结束。未修改共享 runner 或其他构建，实验结果不计入产品回归数量。
+- 独立 Cargo 在并行内存压力下持续编译 App Server，尚未运行测试；只中断父链与 FD 再次核实的自有进程，exit 1，不记通过。Rust 新目标的编译／运行继续开放；首轮宽选、精确定向和既有完整领域回归的超时失败均保留，不用后续局部通过覆盖。
+- 补充生产 `app-server-client` -> 真实 stdio -> `cloud/desktop` 的独立联验，固定使用另一进程已构建的本机产物 SHA-256 `610a253a0cf5f0526ff0c5dd5cb9b5830c4769fb01f217241976dd26d07e9f60`，复制到隔离目录后核对摘要与四份原生运行库。首次副本缺少动态库在启动即失败，补齐原运行库后，三个合成场景全部通过：验证后脱敏尾号／进程重启零重授权／切换后旧 profile 继续原账号模板查询；失败验证跨重启只读且显式重试不重复 configure；旧元数据及无关 unknown 文件字节保持。旧管理产物 `f1ef4e8…52c3` 在同一场景因尾号缺失按预期失败，证明此断言有区分能力。unknown 场景只证明无关文件字节不变，不代替真实采购恢复。
+- 证据等级为固定产物 App Server integration；不是本轮 Cargo 编译成功、完整移动源码构建、Electron Gate B、真实 OAuth 或供应商验收。新 Rust 回归未完成；本轮产品源码、协议、GUI 和依赖均未改，不重复 GUI／contracts。最终格式、定向 diff、文档门禁和四个直接产品输入摘要复核通过，架构影响 none；current owner 只读，新增内容均为 test-only，无 compat／deprecated／第二 runtime。目标账号登录、真实模型／第三方认证／最终结算与独立空闲调度仍开放，完整 Cloud 实机仍 4/8（50%），goal 保持 active。
+
+### 国内站与实际账号确认（2026-11-13，本地实现已验证，新后端联验及实际切换开放）
+
+- 用户要求区分阿里云国内／国际站并使用有资金的国内账号。原 CN 账号尾号 8819 的历史余额与新授权失败已有独立证据，不能据此认定用户目标账号、自动重开登录或重购。本轮先修复现役连接投影仅显示“已连接”、无法确认实际身份的问题。
+- root 窄写集：原 `cloud_desktop_service/auth.rs`、其授权回归与新增身份回归子模块，原 `AlibabaConnection.tsx`／组件回归，五语言 `settings.cloudDesktop.alibaba*` 的连接文案、本计划及现有架构中的授权说明／时序。保留原 `credential_window` 接线、其他 Cloud 和五语言并行改动；Account／Provider／协议／生成物／聊天／TUI／发布只读。不启子 Agent，不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。当前官方 OAuth 固定 CN，不因计算地域或账务端点推断站点，不新增未经验证的国际站购买入口。显式显示国内站及 STS 验证生成的四位账号尾号，只持久化脱敏值，不投影完整身份或凭据。缺少尾号的原连接显示未知并引导重新授权，原 profile 的资源管理与 unknown 恢复保持可用；切换清空旧选择／报价的原 owner 不变。
+- 退出条件：授权前／验证失败不投影尾号；成功和重启保持脱敏身份；旧元数据可读且读取零云调用；新旧账号不混用；组件覆盖切换、旧记录、错误／不匹配 profile、五语言与禁止自动登录。执行领域／组件回归、类型、定向格式、Gate A 与标准 GUI smoke，分层记录。无真实 OAuth、云 API 状态变更或采购，不提升完整实机 4/8（50%）。
+- 已接入 STS 脱敏尾号与国内站标识，旧记录未记录身份时明确提示重新授权，不修改原 profile、资源与采购收据。新增两个延迟读取回归先复现失败：旧成功结果会重新选中旧账号，旧失败会覆盖新授权。现役组件通过请求代次忽略迟到结果，最终 21/21 组件回归通过，保留修复前 19 通过／2 失败记录；无新状态 owner 或生产重试。
+- 授权领域 14/14 通过。完整 Cloud 扩展回归 199 通过、1 项既有后台保存测试超过其 20 秒观察时限、2 项既有 live 测试 ignored；同一源码和测试程序单独运行该测试为 1/1 通过，10.96 秒，不修改测试时限或保存实现，不将独立复测覆盖为整轮全绿。机器同期存在约 14 GiB swap 使用，只能记录资源争用事实，不据此断言超时根因已关闭。
+- 完整类型、contracts、定向 lint／格式与文档门禁通过。Gate A 在当前 Renderer／Host facade 使用显式合成 JSON-RPC 身份，验证两种主题／视口、五语言、键盘切换、新身份替换、旧记录未知和窄屏无溢出，页面错误零；三张截图已实际复核。原冷加载导航超时保留，沿同一服务重验通过，不冒充真实 OAuth 或 Desktop Gate B。
+- 初次标准 GUI 构建启动后发现并修复上述竞态，输入已过期；核对进程父链与专用日志 FD 后仅结束本轮 Vite 子进程，包装器 exit 1，未记通过、未结束其他构建。最终源码标准 GUI smoke 已重新排队，结果待回填。证据 `.lime/qc/cloud-account-identity-20261113/`；十个直接输入摘要已登记，未声明全仓冻结。
+- 最终前端构建已完成，原生资源、Desktop Host 构建及 Electron 类型均通过；官方后续阶段触发 App Server／code-mode-host 的完整冷编译，仍未取得 Electron 实际启动的终态。完整 Renderer／Node 类型检查通过后另以最终两个组件输入运行语法、语义、全局及编译选项诊断，全部通过，补足竞态修复后的类型证据。旧控制二进制只做摘要存在性核对，未用于冒充新授权代码或完成本轮桌面验证。
+- 完整冷编译存在共享资源争用，核对 Cargo 父链和专用 stderr 后只中断本轮子进程，保留构建缓存与其他构建，标准整体命令 exit 1，不能记通过。Desktop 基础链路改用原管理产物：独立核对原 App Server 和 code-mode-host 摘要，经现役显式 `sourceBinary` 制品接口准备；读取当前 Renderer 收据证明 2794 项输入已就绪，再执行原 `scripts/electron/smoke.mjs`。此结果只覆盖最终 Renderer／Host 与已有管理产物的基础壳，不证明新 auth 后端集成、真实浏览器授权或账号切换；后者仍开放。
+- 基础壳最终 exit 0、24/24，真实 Electron／preload／IPC／App Server 初始化、重载、设置和三个视口通过，全部错误及 mock fallback 断言为零。证据 `project-gates/cloud-account-identity-baseline-20261113/shell-01-electron-smoke/summary.json`，明确使用已校验管理产物，不覆盖标准整命令 exit 1，不升级为本轮新 auth 的公共 RPC／真实账号集成通过。已关闭 Gate A 自有 Vite 与浏览器，两个被中断的自有构建均已终态，无新采购或真实授权。
+- 本切片为 Lime BYOC 保留的自有服务差异，不复制被排除的 Codex 托管 Cloud。root 确认 minor 架构中的单一 CLI／auth owner、脱敏投影、旧资源恢复及请求代次边界；KISS／DRY／SOLID 沿原 owner 增加可缺省尾号，无新依赖、中心账号、第二 runtime、compat 或 deprecated 路径。原 `credential_window` 与无关并行写集保留，十项直接输入最终摘要一致；最终证据 `.lime/qc/cloud-account-identity-20261113/validation-summary.json`。目标国内账号、新后端公共入口联验、真实模型／第三方认证／最终账单继续开放，完整实机仍 4/8（50%），goal 保持 active。
+
+### ECS 供应商采购预检（2026-11-13，本地验证通过，真云验证开放）
+
+- 上轮取得国内账号、有效券和授权失败的终态证据，属于 progress；目标账号登录仍待用户就绪，不自动重新发起授权、不查询旧余额或重购。本轮推进真实采购前的供应商检查，避免已知业务条件错误只有在付费请求后才被发现。
+- root 窄写集：原 `services/cloud_desktop_service/auth/cli.rs`、新增其 `error` 子模块、根服务内旧诊断解析的迁出与原诊断回归、`ecs/purchase.rs`、原 `tests/ecs_purchase.rs` 和嵌套 DryRun 回归、架构中原购买段落及本计划；test-only 证据 `.lime/qc/cloud-ecs-dry-run-20261113/`。上述原 Cloud 输入仍与此前固定源码字节一致；保留并行脏改动，Provider／Account／协议／UI／TUI／发布及其他热区只读，不启子 Agent、不递交 Git。
+- Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。官方 `RunInstances DryRun=true` 不创建实例，成功检查通过非零退出和精确 `DryRunOperation` 表达。原 CLI 进程边界保留类型化、白名单供应商错误；禁止对完整错误文本做 contains 判断。相同资源规格、加密、计费与操作标签只构造一次，DryRun 不携带真实购买 ClientToken，避免不同请求共用幂等 token；真实提交才写 durable unknown 并带原 ClientToken，仍只提交一次。
+- 退出条件：通过检查后单次真实提交、规格一致、预检不写采购收据；余额／权限／库存拒绝、伪造／含混诊断、零退出假成功均明确 notSubmitted；预检后报价或网络证明过期拒绝；真实提交失败仍 unknown，跨重启原编号不重复预检或购买；原 Cloud 领域回归、格式与文档门禁通过。不执行云 DryRun 或收费采购，不用本地夹具宣称新账号或真云验收，完整实机继续 4/8（50%）。
+- 首轮完整领域回归为 194 通过、2 失败、2 项既有 live 测试 ignored。新增窄写集为原 `ecs/preflight/tests.rs`：保留无效网络证明时包括 DryRun 在内的零采购接口断言，并区分有效采购的一次 DryRun 与一次真实提交。实现补在只读核价／库存后、DryRun 前再次验证原报价和网络证明；DryRun 后仍保留同样检查，不能靠放宽旧断言掩盖边界。原夹具同时按实际操作标签／ClientToken 核对 durable 收据顺序，支持不同操作编号。
+- 已沿现役购买 owner 接入官方 DryRun；普通调用继续由原字符串诊断接口投影，进程执行仍只有一个 owner，凭据锁、45 秒超时和输出上限保持原合同。诊断解析迁到 `auth/cli/error.rs`，拒绝重复 JSON 字段／别名、冲突行和非白名单值；只把类型化供应商错误码交给采购判断。真实购买参数与预检共用一次构造，不增加协议、UI、依赖或凭据副本。此为 Lime BYOC 自有供应商边界，未复制仓库规则排除的 Codex 托管 Cloud 服务。
+- 新增 7 项行为回归先在旧实现全部失败，初版接入后 7/7 通过；另新增 2 项解析边界回归。第一次运行因嵌套测试路径错误停在编译，修正后才取得有效行为失败，原日志均保留。完整回归发现上述两处问题并修复后，正式 `npm run test:rust:unit -- -p lime-services --target-dir ".lime/qc/cloud-start-readiness-20261113/frozen/source/lime-rs/target" cloud_` exit 0，196 通过、0 失败、2 项既有外网／真实 OSS 授权测试 ignored；不把重复执行计为不同用例。
+- 共享 target 被其他 App Server 构建持有，本轮两次排队的完整回归均只终止自己的 Cargo 子进程，exit 1 不计通过；中间复用已成功编译的同一测试程序取得 194/2 的真实失败，二进制与所选输入摘要均未漂移。最终复用本任务此前空闲的独立 target，从原仓库最新源码构建和测试；仅复用构建输出，没有修改冻结副本业务源码或其他进程。最终所选 8 项 Cloud 输入摘要复核、rustfmt、定向 diff、文档边界和原购买时序 Mermaid 解析均通过；语法解析不冒充图像渲染。
+- root 确认 minor 架构与购买时序符合唯一 CLI／采购 owner、先预检后 durable unknown、原编号恢复及凭据边界。证据 `.lime/qc/cloud-ecs-dry-run-20261113/validation-summary.json`。分类为 current 与 test-only，无新增 compat／deprecated／第二 runtime。未执行实际供应商 DryRun、收费采购、重新授权或新 GUI／公共 RPC 门禁，不能把本地夹具当成真云验证；本轮内部实现不改变协议与现役 UI 状态合同。目标国内账号、真实模型任务、第三方认证恢复、完整费用与独立空闲调度仍开放，完整实机维持 4/8（50%），goal 保持 active。
+
+### 国内账号重新授权与延迟账单核对（2026-11-13，新授权未完成，账号切换开放）
+
+- 用户再次要求核对国内／国际站并重新授权。本轮只接续现役 `cloud/desktop connectAlibaba`，显式使用官方 CLI 的 CN 浏览器 OAuth；原 active 状态实读为 `failed/authorizationFailed` 后才发起一次新连接，当前为 `authorizing`。旧 profile、资源归属与 unknown 采购记录保留，不读取其他用户凭据、不修改原采购结论、不重复购买。浏览器新建官方 RAM 登录标签，当前页面被其他操作切换，CUA 保护拒绝点击；已请用户在新标签完成目标国内账号授权，尚不能声称切换成功。
+- 2026-11-13T01:59:18Z 的只读检查再次证实原账号为国内站、尾号 8819，可用现金与可用余额均 CNY 99.39、信用额度为零，有效代金券成功查询为零张。官方国内站新开按量 ECS 的现金加代金券门槛为 CNY 100，该账号当时差 CNY 0.61；不能称为账号无资金、误用国际站或用户目标账号。账务 API 使用杭州端点，不代表站点或计算地域切换。此前代金券失败与新成功调用同时存在 API 版本和重试参数差异，不能归因为单一参数。
+- 最新延迟账单已完整分页，两个原生构建实例及各自原系统盘仍不存在。`cloud-model-live-20261113` 四行税前应付合计 CNY 1.3034741，其中计算 0.9413325、系统盘 0.26964、公网 0.0925016、镜像 OS 为零；`cloud-archive-native-20261113` 三行合计 CNY 0.933398589，其中计算 0.722372109、系统盘 0.21102648、镜像 OS 为零。后者尚未观察到公网项不代表免费；本次结果不与旧审计相加。响应缺少实付和未结清字段，仍未证明最终结算，第 8 组继续开放。
+- root 窄写集：本计划、`.lime/qc/cloud-lifecycle-audit-20261113/` 的既有只读审计摘要与 `.lime/qc/cloud-account-reauth-cn-20261113/` 的 test-only 授权接续脚本／白名单证据；产品 Cloud／Account／Provider／协议／UI／发布与其他并行热区只读。财务原始响应和 OAuth 配置仅在本机私有目录，不进入仓库。Verification Contract：P1，budget:normal；Architecture impact: none。无新云资源、Git 递交或第二 runtime，完整实机仍 4/8（50%）。
+- 本轮新授权于 02:07:11Z 开始，02:12:15Z 返回 `failed/authorizationFailed`，仍未获得新账号，不将页面已打开当作授权成功，旧链接不能作为有效授权接续。当前需要用户完成目标国内账号的官方登录；用户就绪后再发起新连接，不后台循环重启授权。账号验证脚本已准备并通过语法检查，只有 active 为 connected 且 profile 为 CN 时才允许调用只读 STS／余额／有效券接口；尚未执行，不能宣称新身份或新余额已验证。只读审计脚本与授权脚本语法、摘要一致性、定向 diff、文档边界均通过，原始云采购零次；产品源码无变更，不重复完整 GUI／Rust 门禁。
+
+### 首次装配的软件包索引锁等待（2026-11-13，本地验证通过，真云复验开放）
+
+- 上轮为 progress：证实原授权属于国内站、现金余额为 CNY 99.47，并核实官方开通按量 ECS 的 100 元现金／代金券门槛；目标账号仍待用户确认，新授权失败、原 unknown 采购保留。本轮不重购、不重复索取账号或模型／第三方登录选择，继续独立安装可靠性切片。
+- root 窄写集：原仓库 `lime-rs/crates/services/src/cloud_desktop_service/prepare/desktop.sh`、同目录 `test_desktop_prepare.py`、本计划与 `.lime/qc/cloud-apt-lock-20261113/` test-only 证据。上述准备器原始工作树干净；Account／Provider／协议／Electron／UI／TUI／发布及其他并行改动只读，不启子 Agent、不递交 Git。Verification Contract：P1，budget:normal，Architecture impact: none，责任 root。
+- 已有证据证明 `DPkg::Lock::Timeout` 不覆盖 `apt-get update` 的 lists 锁。修复在原准备器使用同一种 POSIX 记录锁等待现有索引锁释放，上限 60 秒；不读取锁文件内容、不创建／删除／截断它、不终止系统更新。APT 仍自行取得权威锁，索引更新与安装均只执行一次，真实错误不重试；已备齐环境继续不接触 APT 或其锁。极短的探测到 APT 启动间竞争仍由 APT 自身拒绝，不关闭锁保护。
+- 退出条件：真实子进程持锁／释放、超时与非锁错误、缺失锁不创建、预备环境跳过及失败输出边界回归；已有 Ubuntu 镜像内复现旧行为并验证修复，不修改宿主包管理器或 GoodVision 容器；原 Rust 准备合同、24 KiB 命令限制、shell 与文档检查通过。没有真云新样本不提高完整实机 4/8（50%），不将 arm64 容器当作 x64 云桌面验收。
+- 已在原准备器实现：只在需要安装依赖时等待现有 lists 锁，使用与 APT 相同的非阻塞 POSIX 记录锁及 monotonic 截止时间，最多 60 秒；缺失锁不创建，链接与非争用错误失败关闭。探测结束关闭描述符，APT 继续自行加锁；没有更改系统更新、包源、配置、屏幕锁或日常唤醒路径。此为 Lime BYOC 自有差异，未找到可复制的 Codex 托管 guest 装配源码；KISS／DRY：沿原准备器、失败码、授权和收据 owner，无新 runtime／依赖／协议。
+- 原测试 12 项，新增覆盖后初次 16 项中 5 项因缺少等待实现失败，修复后 16/16 通过；补充软件包命令失败不重试的边界后，最终 macOS 与离线 Ubuntu x86_64 均 17/17 通过，重复平台不重复计入不同用例。真实子进程持锁／释放、超时仍保留持锁进程、非争用错误只尝试一次且不泄漏原异常、缺失文件与 symlink、准备完成跳过锁等待均已覆盖。
+- 实际 APT 离线探针在 Ubuntu arm64 及本机模拟的 x86_64 容器均先复现旧脚本 `packageInstallFailed`，修复后等待锁释放并只执行一次 `apt-get update`，状态继续到 ready。只读挂载产品源码、网络禁用、真实索引更新使用空包源，install 和依赖后检查为显式夹具、实际安装包数为零；只证明锁行为，不证明完整装配、桌面或云启动耗时。首个容器驱动漏传 `-i`，Python 未收到脚本却 exit 0，该记录标为无效证据；修正后必须同时验证实际 JSON 结果和退出码，旧失败保留。
+- Rust `npm run test:rust:unit -- -p lime-services cloud_desktop_service::prepare::tests` 8/8 通过，覆盖固定新脚本提交、命令大小、原编号单次提交、未知结果重启恢复、授权和失败输出拒绝；shell 语法及定向 diff 检查通过。未改 GUI／Host／协议，不重复前轮固定源码 24/24 桌面壳门禁，也不把前轮成功扩张为本修复真云通过。证据 `.lime/qc/cloud-apt-lock-20261113/`；本轮无云资源变更、全局安装、Git 递交或新增 compat/deprecated owner，完整实机仍 4/8（50%）。目标国内账号、开通条件及真实模型／第三方登录选择保持待核对，不重复下单或读取其凭据。
+
+### 可用路径的固定输入桌面验证与启停基线（2026-11-13，固定桌面通过，启停尚无样本）
+
+- 上轮为 progress：已修改原 hook 并完成先失败后通过的 21 项回归、完整类型和真实浏览器验收；标准 GUI smoke 因输入摘要漂移失败，原失败保持有效。本轮先验证固定源码，再测量真云合成环境的保盘启停，不等待模型连接或第三方登录选择，不据此关闭第 4／5／6 组。
+- root 窄写集：本计划、`.lime/qc/cloud-start-readiness-20261113/` 的 test-only 固定副本／脚本／证据，以及本机私有的后续测试状态；原产品源仅只读复制，Account／Provider／MCP／TUI／发布等并行写集只读。Verification Contract：P1，budget:normal，Architecture impact: none。复制严格代码／资源白名单，排除环境文件、用户数据、凭据和生成输出；逐文件验证复制期间与副本摘要，依赖按原锁文件复用，隔离构建输出。
+- 退出条件：固定输入的标准桌面壳验证取得真实终态，两个 Cloud 提速输入与原目录保持一致，副本零改写业务源码；真云测试继续使用既有授权、单次采购、固定运行包、自动释放兜底和精确清理，记录启动到 Running／认证任务握手／首条命令以及停止到计算释放的分段耗时。没有实测的阶段不填推测秒数，不保留收费实例等待输入。完整实机仍 4/8（50%）。
+- 固定副本已完成 10,101 个文件的逐文件复制核验，复制期间及副本均零摘要漂移；隔离 Cargo 缓存采用 APFS clone，正式 clone 句柄 exit 0。标准 GUI smoke 已在副本运行，原目录业务源码保持只读。真云性能使用已发布且校验过的默认 Linux 包建立独立基线，不将其标成最新内部模型／归档包；测试复用现役安装、加密凭据、认证任务连接与公共 command/exec，不建立第二 runtime。全部准备、脚本构建和账号／报价检查先于采购；单次采购与 finally 精确清理使用本轮独立私有状态，不覆盖旧资源记录。
+- 快照装配发现两项 test-only 遗漏：被 Git 忽略但构建必需的 `.cargo/config.toml`，及 Rust `include_bytes/include_str` 引用的 `extensions/` 资源闭包。首次快照构建因缓存锁被本进程精确终止，第二次因缺资源 exit 1，均保留失败日志且不算 Gate B；补充 1+25 个原字节文件与独立摘要收据，第三次标准验证继续使用显式隔离 target。原始 10,101 文件及补充后 10,127 文件均未漂移，两个原目录 hook 输入仍一致；未修改快照业务源码。
+- 真云计时已完成测试准备，软件包在采购前准备实测 44.143／46.185 秒；实际默认包 106,595,589 字节，摘要 `2be878d3a45b444158ce1bffb24bf65b41a1e0459618824c298c1b7f400ac05e`，与最新内部包分开。首次明确 `notSubmitted`，独立实例库存为零且分发清理；第二次在采购前原网络只读查询失败，未发采购；第三次 RunInstances 返回 `InvalidAccountStatus.NotEnoughBalance`，现役收据保持 unknown。按精确名称与正确 `lime-operation` 标签均查无实例，分发已 cleaned；不把查无库存篡改为产品收据已终态，也不换编号重购。软件准备不是开机时间，本轮启停样本为零；已异步请求补充测试账号余额，其余本地验证继续。报价 CNY 0.461／小时是供应商报价，附属费用另计，不代表实付或最终结算。证据 `lifecycle-result.json`、`insufficient-balance-inspection.json`、两份原失败 attempt 与原私有记录均保留，完整实机仍 4/8（50%）。
+- 用户指出国内／国际站及账号选择需重新核对，前述充值请求已撤回。白名单检查当前官方 CLI 的 `oauth_site_type=CN`，STS 身份与浏览器国内站当前账号一致，尾号 8819；该事实不能证明这是用户所指的有资金账号，也不能据余额错误推断为国际站。现役 `connectAlibaba` 已显式发起一次新的 CN 浏览器授权，保留旧 profile、旧资源与 unknown 采购记录；等待用户在官方页面选择正确账号完成授权后，再核对新身份／站点及账户可用条件。新账号不能复用旧账号网络或操作编号，测试采购仍在身份确认和原资源核查之后。证据 `account-site-inspection.json`；不保存 Cookie、认证口令或 OAuth 秘密到仓库。
+- 本次重新授权真实终态为 `failed/authorizationFailed`，没有取得新账号身份，不标记切换成功、不再采购。浏览器新增官方 RAM 登录标签；Chrome 当前页面持续被其他操作切换，CUA 的操作保护拒绝点击／切换，未执行新账号登录或授权确认。当前失败会话不能当作仍有效的授权，需要接续时先读取原状态再显式发起新的连接。最初原账号 `QueryAccountBalance` 因使用该 API 不支持的广州端点未取得有效结果；按照官方 CLI 端点元数据改用 `cn-hangzhou`／`business.aliyuncs.com` 后成功，同一国内账号可用现金和可用余额均为 CNY 99.47，信用额度为零。不能继续表述为账号无资金，也不能把账务地域当作国内／国际站选择。后续购买确认应有可核对的站点与账号身份，避免只有“已授权”而误用旧 profile。
+- 官方[自定义购买 ECS 文档](https://help.aliyun.com/zh/ecs/user-guide/create-an-instance-by-using-the-wizard)明确要求：中国站开通按量 ECS 时，现金余额和代金券总值不得小于人民币 100.00 元。当前现金低于门槛 0.53 元，与 `InvalidAccountStatus.NotEnoughBalance` 相符；有效代金券查询未成功，不据此声称代金券为零或认定唯一根因。国内站身份已有证据，新授权没有成功；已向用户核对尾号 8819 是否目标账号，核对及开通条件解决前不重购。原 unknown 采购及其精确库存检查保持原样，恢复测试前仍需先核对原操作。白名单证据 `account-balance-inspection.json` 和 `ecs-account-condition-docs.json`，原始财务响应与 OAuth 数据仅在本机私有目录。
+- 第三次固定输入 `npm run verify:gui-smoke` 正式 exit 0，真实 Electron／preload／IPC／App Server、重载、设置及三个响应式尺寸共 24/24 通过，页面／控制台／preload／invoke／mock fallback 错误均零；证据 `frozen-gui-smoke-r3-terminal.json` 与 `frozen/source/.lime/qc/project-gates/standalone-shell-01-20261113013133-85688/shell-01-electron-smoke/summary.json`。已实际查看 1280×800 截图，不将全部截图称为已目视。前两次快照失败、原目录输入漂移失败均保留；本次证明固定源码的桌面壳，不证明整个移动工作树、真实模型、云启停或 Codex 像素一致。
+- smoke 结束后重新逐文件核对 10,127 项原始及补充摘要，固定副本漂移为零；原目录两个 Cloud hook 输入仍与验证摘要一致，证据 `frozen-source-final-check.json`。没有修改快照业务源码，本轮新写入仅为既有计划、test-only 证据和本机私有测试状态；未提交 Git。启停实测仍零样本、完整 Cloud 仍 4/8（50%）；下一刀先确认目标国内账号及开通条件，再核对原 unknown 采购，完成合成环境启停／握手／首命令测量，保持单次提交和精确清理。
+
+### 缩短可用路径与避免无关云机阻塞（2026-11-13，定向／浏览器通过，桌面壳门禁未通过）
+
+- 用户新增验收重点：点击到任务可执行的时间、单次实际费用及失败后的人工步骤同时优化。首次装配、保盘启动、镜像冷恢复分别测量，不把供应商 Running 当作任务 ready，不承诺未经实测的启动秒数。准备尽量前移到计费前，日常唤醒复用原安装、环境及授权；既有 30 分钟偏好与安全备份／释放边界保留。
+- 性能口径：首次装配分别记录采购前准备、采购／开机、依赖、包传输、安装和认证任务 ready；保盘唤醒分别记录启动提交、Running、原服务握手和第一条命令成功；冷恢复另外记录镜像采购及身份轮换。停止计时以供应商确认停止及计算释放为终点，存储费用继续单列。远程桌面展开、Computer Use 发现及真实模型首项分别测量，不阻塞普通任务连接或混称一个“启动时间”。
+- 成本／体验策略：默认使用推荐规格和已有资源，先复用运行中连接；短时离开按原授权停机保盘，预计 30 分钟内继续使用优先保留环境；长期闲置走已经恢复验证的加密备份或私有镜像后释放。无明确预算不维持常开预热机；自动缓存仅处理可信公共软件包，不把用户认证装入通用镜像。后续真云性能采样可使用合成桌面及现有固定包，无需等待模型 Key／第三方真实登录，但不能代替第 4／5／6 组。
+- 当前 hook 会检查全部绑定云机，再等整个 `Promise.all` 完成才公布状态；即使界面仅显示已购买目标，无关云机仍在关键路径。root 窄写集为 `src/components/cloud/useCloudDesktopSetup.ts`、新增同 owner 组件回归及本计划；原引导组件、Account／Provider／插件／聊天／TUI／发布与其他脏写集只读。预算 budget:normal，风险 P1，Architecture impact: none；仍为原 Renderer 只读投影，无协议、依赖或第二 runtime。
+- 退出条件：目标模式只检查精确目标；列表模式的已完成结果能独立显示并连接，顺序保持绑定清单顺序；刷新保留既有行，迟到请求、资源切换和卸载不能覆盖新上下文；原释放保护和安装／模型交付授权不变。先用未完成 Promise 复现原行为，再执行定向回归、类型／lint、Gate A 和标准 GUI smoke。完整实机仍 4/8（50%）；本地延迟隔离不代替真云启动时间测量。
+- 同轮只读隔离探针另确认 Ubuntu 的 `apt-get update` 不因 `DPkg::Lock::Timeout` 等待 lists 锁：arm64 容器返回 100，约 0.851 秒；该证据只证明包管理器语义，不是 x64 云机安装失败。首次基础镜像无 Python、amd64 无网络探针超时均未计为复现成功。该安装竞争需在原准备 owner 单独修复与回归，不扩大本次 hook 写集，不用全量升级或终止系统更新规避。
+- 实施已完成：已选目标只执行一次清单读取及目标的两项检查；列表中每台完整检查后独立公布结果，刷新期间保留其他旧行，按清单顺序合并且按完整资源身份匹配。原代际守卫继续覆盖清单读取、异步检查和 React 状态提交。没有自动启动、安装、凭据交付或额外云资源变更。
+- 新回归先复现 4 失败／2 通过，修复后与原引导／设置购买接续合计 3 文件 21 项通过；完整 Renderer／Node 类型检查、定向 ESLint、格式、diff 与文档门禁通过。真实 Chrome Gate A 在 1280×900 浅色、390×844 深色分别验证目标独立检查、列表部分就绪及键盘连接，额外验证迟到结果的原列表顺序，两张截图已实际复核。首轮界面夹具误写按钮文案，改读现役翻译后通过，没有改产品文案或放宽断言；related 初轮因整图分析成本终止，exit 143 不计通过，正式具名回归保留前后完整日志。
+- 标准原目录 GUI smoke 已终态 exit 1：Renderer 编译完成约 10 分 18 秒后，总输入摘要变化，现役构建守卫拒绝发布 ready 收据；未进入 Electron 交互阶段，不算 Gate B。收尾复核本切片两个输入摘要均未变；按修改时间得到 AppPageContent、设置 sections 和五语言文件等候选，原收据仅有总摘要，不能据此逐文件认定字节变更或归因。保留 `gui-smoke-failed.log` 与 `renderer-drift-observation.json`，不盲目重跑移动工作树，不覆盖这些并行写集。
+- 当前证据 `.lime/qc/cloud-start-readiness-20261113/validation-summary.json`；Vite、测试浏览器、隔离测试容器及全部本轮验证进程已结束，无云采购、云变更或 Git 递交，完整实机仍为 4/8（50%）。下一刀由 root 准备仅用于验证的固定输入完成桌面壳检查，再在固定合成云环境实测保盘启动／任务握手／首条命令与停止释放计算的时间；无需等待真实模型或第三方登录选择，不把局部时间证据计为第 4／5／6 整组通过。生产实现仅在原仓库变更，固定副本不作为产品开发目录。
+
+### 最新 Linux 运行包与原生归档验收（2026-11-13，原生验证通过，测试资源已清理）
+
+- 继续降低使用门槛：默认用户只做必要授权与费用确认，工具、网络、安装及连接由 Lime 准备。此次交付验证包含 Railway／敏感根过滤修复的原生 Linux 包，复用同一台临时构建机完成 Railway 安装文件跨启停检查；真实第三方认证与模型任务仍等待前面的选择，不读取相关用户凭据。
+- root 窄写集：本计划、`.lime/qc/cloud-archive-native-20261113/` 的 test-only 构建／验收脚本和独立私有状态。Account、插件、聊天、Provider、TUI、发布及其他并行产品写集只读，不启子 Agent、不递交 Git。Verification Contract：P1，budget:normal；现役产品源只读冻结，依赖锁文件和官方公开工具摘要核对后才采购，复用原供应商授权／网络，单次新意图、独立状态、自动释放兜底和精确清理。
+- 旧构建闭包已有无关并行漂移和删除，不能把旧包或仅替换两个文件的旧源码包当成当前整树。重新从原仓库冻结构建闭包，不在快照内开发；构建输入漂移和产物范围单独记录。退出条件：原生 ELF／loader、manifest、公共 stdio 的真实加密导出／恢复／拒绝路径，Railway 同一安装文件跨停机重启，取回验包后释放实例／系统盘／专用安全组。Architecture impact: none，沿原产品构建及归档 owner；不提高完整实机 4/8（50%）的分子，除非整组合同独立满足。
+- 原仓库重新冻结 4,088 个文件，排除旧闭包中已删除的 22 个文件，依赖锁文件与构建 owner 未变，复用此前已校验的 965 个公开依赖包及官方工具归档。原生 `release` 冷编译约 23 分 49 秒；构建后再次逐文件核对，全部冻结产品输入保持原摘要。收尾原目录的 11 个 TUI／测试支持文件已有并行漂移，归档 owner 未变，不把冻结验证扩张为移动工作树或当前整树通过。
+- 已取回内部 `1.175.0` 验证包，103,313,027 字节；原生三个 ELF／loader、版本、18 文件 manifest 和本机独立归档检查通过，零额外文件、链接或路径越界。该包包含最新归档过滤修复，与此前已发布的默认同版本包不同，尚未公开发布或替换默认分发；包、manifest、源码和摘要关系见 `.lime/qc/cloud-archive-native-20261113/native-artifact-retrieved.json`。
+- 真实 Linux 公共 stdio 的模型接收方 prepare／read 经两个独立进程保持原回执，不含用户模型 Key 或推理；归档公共 RPC 完成四次真实 age 导出／恢复及七类行为检查。默认排除 Railway；显式敏感授权可恢复三个合成 Railway 配置；直接敏感根、根符号链接、云管理／Lime 控制状态、恢复私钥及篡改密文拒绝均通过。仅使用合成文件，不替代认证 WebSocket／Electron 模型任务、真实第三方登录或恢复后的有效会话。
+- 官方 Railway `5.71.1` 在同一原生 x64 实例安装、运行及帮助探针通过；经现役 Cloud 公共接口观察到 `Stopped`／`computeReleased=true`，保盘费用仍存在。重新启动后内核 boot ID 改变，二进制摘要、inode、mtime、权限和版本完全一致，未重装、未执行 login。启动前按产品合同取消本轮释放期限，启动后立即恢复原期限并独立读回；SSH 继续钉住原认证主机密钥。
+- 首次准备明确失败于系统自动更新持有 dpkg 锁，退出 100；原失败与命令编号保留，随后同机带有界锁等待的独立准备完成，没有重购或重放未知操作。原生编译仅有既有 TUI 警告，没有编译错误；本轮没有修改产品实现、协议、依赖或 UI，不重复完整 GUI／contracts。KISS／DRY：沿原构建、归档和生命周期 owner，无第二 runtime 或中心托管账号。
+- 取回并验包后已经产品接口停止／释放，独立查询确认精确实例、原加密系统盘和专用安全组不存在；复用网络保留。本轮未创建快照、镜像、OSS 桶或软件分发对象。费用记录的初版 test-only `diskNetworkKmsExtra` 标签不准确，原记录保留，`cost-clarification.json` 明确当前 ¥1.509／小时报价包含所选系统盘，公网、快照和 KMS 另计。
+- 释放后同账号按精确实例查询当月账单，一页完整返回零行；这是延迟出账观察，不是免费、实付或最终结算。原始账单响应仅保存在本机私有目录。整组第 4／5／6／8 仍开放，完整实机维持 4/8（50%）；下一刀在前述模型连接／第三方登录选择到达后使用本轮固定包继续真实任务与会话恢复，不因无关 TUI 漂移重复构建，不保留收费实例等待输入。
+
+### Railway 工具链预检与归档过滤修复（2026-11-13，本地通过，真实登录开放）
+
+- 上轮完成只读费用审计并取得新的计费口径证据，属于 progress。本轮继续第 5／6 组中此前 Railway 下载未完成的缺口；先在本机准备官方发布归档，复用已有 Docker Linux 环境检查兼容性及持久目录，不购买收费 VM 等待用户授权。
+- root 窄写集：本计划、`.lime/qc/cloud-toolchain-live-20261113/` 的 test-only 归档、预检脚本与隔离测试目录。产品 Cloud／runtime／工具安装 owner 只读，Account／插件／聊天／Provider／TUI／发布等并行写集保持只读。Verification Contract：P2，budget:normal；官方 HTTPS release API 固定版本、资产字节数和 SHA-256，安全检查归档后才执行。无本机用户 home、凭据、Docker socket 或云管理身份挂载到容器。
+- 首个候选为官方 `railwayapp/cli` 的 `v5.71.1`，Linux x64 GNU 包 9,161,023 字节，发布摘要 `8a9455a4c96ced0f6da87882fa63e112a956a05a2e2d498a9135e780d3a7bd56`；此版本固定后不跟随 latest 漂移。容器预检只证明 Linux 执行及文件持久性，若使用 amd64 仿真必须明确记录，不代替真实云机启停、第三方 OAuth 或恢复后的登录读回。
+- 已另行询问用户准备使用哪个第三方专用测试账号进行登录，明确不发送密码／Token；这与仍未答复的模型连接选择分别记录。用户未完成必要登录／敏感备份授权前，不读取或迁移真实认证资料。Architecture impact: none；独立预检、脚本语法与文档检查通过后更新证据边界，完整实机仍为 4/8（50%）。
+- 官方固定 tag 的 `src/config.rs` 确认生产／staging／dev 登录资料存入 `.railway/config*.json`；现役默认排除只覆盖 `railway`，且 `collect` 只判断相对路径，直接选敏感目录为根会丢失过滤上下文。本轮追加窄写集为此前干净的 `services/src/cloud_archive_service.rs`、其 `tests.rs`，以及架构中现役归档边界的一段说明；先用真实 age 导出／恢复回归复现，再修复完整源路径判断和 `.railway` 排除，不新增协议、依赖或第二凭据 owner。风险调整为 P1，Architecture impact: minor；真实用户认证与原始凭据仍不读取。
+- Railway 官方归档已完整取得并核对发布摘要，安全解包仅含一个 21,124,824 字节的 x64 ELF；官方配置源码也与固定 tag 的 Git blob SHA 一致。Ubuntu 24.04 GNU loader、版本和登录帮助通过，两次独立、无网络、无 capabilities 的非 root 容器复用同一个安装文件，摘要、inode、mtime 未变，没有挂载本机 home、凭据或 Docker socket。Docker engine 为 aarch64，实际使用 amd64 仿真；此结果不替代原生云机或真实登录恢复，剩余本轮容器为零。
+- 原 Docker 拉取因 daemon 的 DNS `::1` 不可用而失败，未修改系统配置。测试准备改由主机 HTTPS 获取官方 `library/ubuntu:24.04` 索引及固定 amd64 manifest，校验 config、单一压缩层 SHA 与解压 rootfs diffID 后导入本机临时测试镜像；保留来源和所有摘要，不作为产品镜像或云验收。无需新云资源、全局 CLI 安装或第三方 Token。
+- 新增真实 age 往返回归先复现两个失败：默认导出多带三份 Railway 配置、直接选择 `.aliyun` 根可绕过控制状态过滤。首轮修复后 20 项归档回归通过；进一步符号链接根回归又独立复现失败，最终同时检查原选定根与 canonical 实际源路径。`.railway` 默认排除，仅显式敏感导出可恢复三个合成配置；云管理目录和 Lime 控制状态不论敏感选项均排除。原恢复私钥叶文件回归改用普通混合目录，继续证明密钥独立于目录名被过滤；已知控制目录整根另由新测试明确拒绝。
+- 最终 `npm run test:rust:unit -- -p lime-services cloud_` 退出 0，187 项通过、2 项既有 live 条件测试 ignored；新增三个回归均通过。初始 related 自动扩展十个 crate 后仅终止本任务测试树，exit 143，不计通过；改用隔离配置的明确领域测试，原失败日志保留。无新 ABI、协议、UI 文案或 runtime，按风险执行领域回归、文档、语法及定向 diff，不重复整仓 GUI。架构责任 root，沿现役自有 BYOC 归档 owner 修复，没有复制 Codex 私有 Cloud 或增加兼容路径。
+- 证据 `.lime/qc/cloud-toolchain-live-20261113/validation-summary.json`；本轮产品写集仅归档实现／回归及对应架构／计划，其他并行写集保留，无 Git 递交、云资源新购或真实登录操作。上一轮同源 Linux `guest.tar.gz` 早于本次过滤修复，不能证明或部署为本修复的 Linux 验收产物；后续实机须使用包含本修复的重新构建包。模型连接选择及第三方测试登录仍待用户，完整 Cloud 实机保持 4/8（50%）。
+
+### 当前测试资源费用与附属成本核对（2026-11-13，只读审计完成，最终结算开放）
+
+- 上轮原生 Linux 包验证、独立验包与精确清理取得新证据，属于 progress；真实模型连接选择仍待用户回复。本轮独立推进第 8 组，只读核对同账号、精确测试实例／系统盘／专用分发桶的当前月账单与广州区资源存量，不读取模型 Key，不购买或删除资源。
+- root 窄写集：本计划、`.lime/qc/cloud-cost-audit-20261113/` 的 test-only 只读审计与私有账单响应；其他产品、Account、插件、聊天、Provider、TUI 和发布写集只读。Verification Contract：P2，budget:normal；复用已校验官方 CLI 与原 OAuth，先验证账号摘要，依据现存私有状态和专用分发收据建立精确 allowlist，再查询新版 `DescribeInstanceBill`。原始账单仅保存在本机私有目录，证据只投影资源类型、币种、金额及覆盖范围。
+- 退出条件：API 分页完整性、精确 ID 匹配、金额字段与币种、账期及统计口径均可核实；区分未出账、零金额、累计应付、现金支付及最终结算。缺少历史原始证据或共享账号费用不能归到本轮，资源为空也不推断零费用。无产品代码变化，执行脚本语法、定向 diff 与文档门禁，不重复全仓 GUI／Rust；Architecture impact: none，完整实机仍 4/8（50%）。
+- 当前五份保留测试状态及其分发收据建立 14 个精确资源的 allowlist：五个实例、五个系统盘、四个专用软件分发桶。`DescribeInstanceBill` 已完整查询 2026-11 账期，四个实例有 16 行计费项，税前累计应付 CNY `0.335014650`，其中计算 `0.207378954`、系统盘 `0.119653296`、公网流量 `0.0079824`；最新原生构建机尚无账单。系统盘计费归在 ECS 实例 ID 下，按盘 ID 查询无行不能理解为磁盘免费，也不把累计应付称为已支付或最终总额。
+- 当前同规格只读 `DescribePrice` 明细核对：8 核／16 GiB、160 GiB 构建规格的 CNY `1.509`／小时报价包含计算 `1.173` 和系统盘 `0.336`；公网按流量的预估项为零不代表实际流量免费。该核对纠正“计算报价再另计全部存储”的口径；客户的现役 ECS 文案已将公网、快照及 KMS 与停机保盘费用分开，无需修改产品或重复核价采购。
+- 账户级 OSS 明细六行、税前累计 CNY `0.8936295204`，快照一行 CNY `0.0035042324`；计费 ID 不对应当前四个专用桶／精确测试实例，不归到本轮费用。KMS 暂无计费行，不等于免费。另保留供应商按产品汇总的舍入值和支付／未结字段，但不与上述精确明细或旧审计相加；本机现存证据目录已无此前 42 资源原始审计，不将旧汇总冒充当前独立复核。
+- 独立只读确认广州区实例、磁盘、快照、私有镜像、EIP、NAT 网关六类存量均为零；现役公共 RPC `listOssBuckets` 返回的供应商列表中，四个精确专用分发桶均不存在。账号另有两个非本轮桶，未读取对象或更改；复用网络保留，不声称其他地域或整个账号资源为空。
+- 原始失败保留：账单 API 不支持广州 endpoint，改用官方帮助中的杭州入口；新版 `DescribeInstanceBill` 的 `Items` 是数组，初版 test-only 解析按旧结构失败；NAT 查询每页上限为 50，初次 100 被拒绝；本地帮助的搜索参数不能与 `--help` 同时使用。均只影响只读测试脚本，没有变更云状态或产品放宽校验。证据 `.lime/qc/cloud-cost-audit-20261113/validation-summary.json`；原始响应仅存本机私有目录。最终结算、最新构建机延迟出账和第 4／5／6 组仍开放，完整实机维持 4/8（50%）。
+
+### 低门槛真实模型验收准备（2026-11-13，原生包验证通过，测试资源已清理）
+
+- 用户闭环：首次使用者从 Cloud 入口开始，仅完成供应商授权、费用确认和指定模型密钥交付授权；Lime 自动准备工具、规格、网络、运行包及连接。安装进度必须反映真实阶段，失败恢复沿原操作，不要求用户手动安装 CLI、上传包或重新填写 API Key。
+- 门槛验收：默认路径手填技术字段为零，不要求终端、AccessKey、SSH 私钥、Bucket、运行包地址或开发环境；已有有效云授权直接复用，已有模型连接只做单目标交付授权。准备尽量在付费采购前完成；费用区分计算、保盘、网络、快照及 KMS，不把关机或生命周期规则表述成零费用或精确清理。必要授权、费用确认和数据覆盖／丢弃确认不能用“自动化”省略。
+- root 本轮窄写集：本计划、`.lime/qc/cloud-model-live-20261113/` 的 test-only 构建与验收脚本、私有测试状态；产品代码及 Account／插件／聊天／Provider／TUI／发布等并行写集只读。不启子 Agent，不进行 Git 递交。
+- Verification Contract：root，P1，budget:normal。先在本机准备严格白名单源码、Cargo.lock 校验的公开依赖和工具归档，固定输入摘要后才采购临时原生 Linux x64 构建机；复用原账号授权及网络，重新核价，持久化单次采购编号，设置并独立读取自动释放兜底。管理凭据、用户配置和模型密钥不得进入源码包或构建机。
+- 原生构建使用现役 `scripts/app-server/linux-guest-build.mjs`，不在快照内修改产品实现；取回后检查包摘要、ELF／loader、版本、manifest 和公共协议。观测中断先查原进程／原操作，不重复启动或购买；结束后精确清理本轮实例、系统盘及专用传输对象，保留用户资源与复用网络。
+- 用户尚未回复前轮模型连接选择，因此暂不读取或交付模型密钥、不产生依赖该授权的推理费用。独立构建准备继续，不为等待输入保留收费实例。只有真实模型任务及 Desktop 退出后的独立 CLI 延续满足 canonical Thread／Turn／Item 合同，才能关闭第 4 组；整体仍 4/8（50%）。Architecture impact: none（test-only），责任 root。
+- 本机已冻结并核验 4,045 个源码输入、965 个公开依赖包和四个原生工具归档。原生构建临时采用广州 8 核／16 GiB、160 GiB 加密系统盘，运行小时报价 CNY 1.509（包含该规格系统盘；公网流量、快照及 KMS 另核对）；供应商自动释放时间已独立读回，系统盘确认随实例删除。仅新增本轮专用 SSH 安全组并限制操作者 IPv4 `/32`，不改复用网络或发送云管理／模型凭据。
+- 先前原始失败均保留：官方 Rust 编译器归档下载超时后，单独从公开镜像获取并核对官方 SHA；自动释放首次遇到资源尚不可见，随后只查原实例并核对供应商分钟精度；测试归档带入 macOS 元数据、USTAR 长路径失败及源码白名单漏一份编译期模型目录，均修正 test-only 准备脚本后沿同一实例继续。新增目录文件直接来自原仓库，原有 4,044 个输入字节未变，没有在快照中开发业务代码；Account／插件并行漂移单独记录，产物不冒称冻结整个当前工作树。
+- 本机现有 App Server 已用独立数据目录验证新模型准备／读取接口及两进程相同回执，二进制快照 SHA 稳定；不需要额外重编、不打开用户 Provider 或读取实际模型密钥。Linux 包已沿现役原生入口完成构建、staging、验包和真实公共 stdio 两进程验证；重启后读取同一准备回执，没有用户模型 Key 或推理请求。
+- 最终 Linux x64 包为 103,101,010 字节，SHA-256 `6c7243dbc49156eef22be89eba0a6d03b06e31f85e9ad776fa2681a7dff498cf`；manifest 的 18 个文件、三个 ELF／loader／版本检查及本机独立归档安全检查通过。该 `1.175.0` 是本轮内部同源验收产物，未公开发布，不能与旧官方默认包混同，也不证明整个并行工作树已冻结。
+- 实际链接首次缺少 `libxdo-dev`，只在同一临时构建机补齐后复用缓存续跑；最终 wrapper exit 0，构建和原生验证完成标记均已观察到。三个最终 ELF 没有 libxdo 动态依赖，不据此增加产品桌面运行依赖。最后约 56 秒仅为缓存链接续跑，不能当作完整冷构建耗时；原始失败和完整日志保留。
+- 取回并独立验包后立即走原精确资源的 stop／release，实例、加密系统盘与本轮专用安全组均由独立查询确认不存在，私有状态为 `released-and-cleaned`；复用 VPC／VSwitch 保留。最终账单未核实，不以资源清理推断费用为零。汇总 `.lime/qc/cloud-model-live-20261113/validation-summary.json`；本轮无产品代码、依赖或 Git 递交。
+- 下一刀仍为已授权模型连接的单目标交付、真实云窗口模型任务与 Electron 退出后的独立 CLI 延续；用户尚未选择连接，不读取 Key，不为等待输入保留收费 VM。第 4／5／6／8 组保持开放，完整实机仍为 4/8（50%），goal 保持 active。
+
+### 设置页购买接续与最低操作门槛（2026-11-13，本地验证完成）
+
+- 用户目标：新用户仅处理供应商授权、费用确认及必要数据授权。当前聊天入口已复用购买后接续，但设置页仍默认手填绑定，购买成功也只刷新清单。本切片将设置页默认切到现役购买路径，并把精确核验的新机移交同一 `CloudDesktopSetupDialog`，不新建向导或持久供应状态。
+- root 窄写集：`CloudDesktopsSettings`、`AddCloudDesktop` 的触发器 ref、`CloudDesktopSetupDialog` 的初始资源接线、对应组件回归、已有架构与本计划；其他 Account、Provider、插件、聊天、TUI、发布和五语言文件只读。现有文案复用五语言键，不新增依赖或协议，不采购收费资源，不启子 Agent，不做 Git 递交。
+- Verification Contract：root，P1，budget:normal。现役购买 UI → 原 `cloud/desktop` 采购或原收据查询 → 已核验资源 → 同一只读 inspect/连接状态引导 → 原安装或重连授权。unknown 不接续、不重购；清单延迟不丢失精确新机，账号/地域隔离保留。仅 UI 选中状态与触发器焦点归 Renderer；启动、安装及模型凭据交付不能因本切片自动执行。
+- 退出条件：设置页无需先切购买页；核验完成才自动进入新机设置，unknown 沿原编号查询；原安装同意仍必需；关闭回到添加触发器，重开不会沿用旧采购结果；相关组件、类型/lint、Gate A、标准 GUI smoke 与文档检查分别报告。Architecture impact: minor，沿用既有 owner/架构图补入口，无新增 runtime。完整 Cloud 实机维持 4/8（50%），模型连接与第三方专用测试登录选择仍待前轮回复。
+- 实施结果：设置页默认打开 ECS 购买，继续复用浏览器授权、模板／推荐、运行包准备及费用确认；只有现役收据完整核验后才卸载已完成购买会话并移交精确新机。引导初次打开显式聚焦继续设置标题，关闭恢复添加入口焦点，重开为新购买会话；unknown 的原会话和编号不重置。设置页关闭文案复用既有五语言“关闭”，不显示无关的返回本地／管理同页入口。
+- 最终四文件 63 项回归通过；定向 lint 零警告、格式及定向 diff 检查通过。完整 `npm run typecheck` 通过，随后焦点／测试夹具小改经最终五个文件的语义、语法、全局与编译选项诊断通过；标准 `npm run verify:gui-smoke` 在原目录完成 Renderer、Desktop Host、Electron 类型、sidecar／native 资源构建及真实 Electron 初载、重载与三视口，退出 0。不以通用 smoke 代替本切片真实供应商或 Cloud Gate B。
+- Gate A 通过两组完整交互（1280×900 浅色、390×844 深色）与五语言默认购买入口：可见技术输入为零、费用未确认不可购买、未知结果只读原编号、核验后聚焦新机、未授权不可安装、关闭与重开不会重购。真实 computed style 验证弹窗背景及文本对比，四张最终截图已复核；仅显式 Renderer／Host／JSON-RPC 夹具，无云账号、凭据或真实供应商请求。证据 `.lime/qc/cloud-settings-handoff-20261113/validation-summary.json`。
+- 原失败保留：初次命令重复传入 runner 自带 worker 参数；旧引导夹具仍使用已退役的包可用性检查，已迁移至现役准备与报价网络证明；新夹具遗漏版本／桌面能力并错误按 Portal 顺序选择嵌套弹窗，均修正测试而未放宽产品检查。首次实质回归证明新开弹窗会抢走标题焦点，产品已在原 `onOpenAutoFocus` 修复。额外语义检查发现旧 mock 泛型含构造签名，已明确 `() => void`。浏览器初轮缺本地默认 Playwright 浏览器，改用现有 Chrome；首次冷加载超时后沿同一 Vite 服务重验，最终保留 sandbox。早期截图遗漏主题样式，仅行为证据有效，补齐现役主题入口后重新计算颜色和截图；不将早期截图记为视觉通过。
+- 架构责任 root 已核对现役架构、流程与时序图的双入口、单一采购／安装 owner 和用户授权边界；均为 current，无新增 compat／deprecated、中心服务或第二 runtime。本轮无新采购、云 API 状态变更、全局安装或 Git 递交，Vite 与测试浏览器均已结束。完整实机仍 4/8（50%）；模型任务、真实第三方登录的启停／备份恢复和最终费用结算继续开放，不重复索取前轮选择。
+
+### 剩余整组验收与最新延迟账单复核（2026-11-13，只读审计完成，最终结算开放）
+
+- 上轮设置页接续已交付并经 63 项回归、Gate A 和标准 Electron smoke 验证，属于 progress。本轮依当前实现重审第 4／5／6／8 组，不以新 UI、合成模型或合成登录替代真实整组验收；前轮模型连接与专用第三方测试服务选择尚未收到回复，不读取真实 Key、Cookie 或登录资料，不新购资源等待输入。
+- root 窄写集：本计划与 `.lime/qc/cloud-final-audit-20261113/` 的 test-only 只读审计；模型交付、Provider、Account、插件、聊天、TUI、发布与既有 Cloud 产品代码只读。Verification Contract：P2，budget:normal；只查询两个精确原生构建实例的当月账单及精确实例／系统盘存在性，复用原 OAuth 与摘要钉住的 CLI，分页完整且原始响应仅保存在私有目录。没有新实例、盘、网络、桶或推理请求。
+- 退出条件：延迟计费区分无行、已出账应付、现金支付及最终结算；不重复累加旧审计或扩展到其他账号资源。依据现役 owner、最新原生产物和实际证据记录剩余闭环及其依赖，不把可推断或等待用户的要求判为完成。Architecture impact: none；完整实机仍 4/8（50%）。
+- 同账号、2026-11 账期的精确分页查询取得新出账证据：`cloud-model-live-20261113` 四行，税前应付 CNY `1.2224645`，计算 `0.9413325`、系统盘 `0.26964`、公网 `0.011492`、镜像 OS `0`。使用 Decimal 按币种和实例汇总，不与旧审计相加；响应未提供支付、现金支付、信用支付及未结金额，不能把应付称为实付或结清。`cloud-archive-native-20261113` 仍零行，仅为当前尚未观察到计费记录，不表示免费；两者 `finalSettlement=false`。
+- 独立精确查询确认两台原生构建实例及各自原系统盘均不存在；不扩大为整个账号、其他地域或历史所有附属资源已清空。原始供应商响应保存在本机私有目录，仓库仅有金额字段白名单、资源身份及分页结果。本轮无云状态变更、无新采购、无模型密钥读取或推理费用。
+- 当前原仓库七个模型交付／归档／Linux 装配输入与最新原生包对应 manifest 的摘要一致，仅证明这七个 owner 输入，没有全工作树冻结声明。默认已公开同版本包与最新内部验证包仍明确区分；本轮无已证实产品缺陷，不重复构建或修改 UI。
+- 整组第 4 仍需用户指定连接的真实云模型任务及 Electron 退出后的独立 CLI 同 Thread／Turn／Item；第 5 需专用第三方真实认证跨启停；第 6 需授权后的真实认证经加密备份或镜像恢复并读回有效会话；第 8 需延迟账单、附属成本归属、实付及最终结算。前述两项选择保持待回复，不重复索取、不读取凭据，也不保留收费实例等待。分类仅 current 既有实现与 test-only 审计，无 compat／deprecated 或第二 runtime，完整实机仍 4/8（50%）。
+- 审计与 Decimal 汇总脚本已运行成功，结果见 `.lime/qc/cloud-final-audit-20261113/financial-summary.json`；沿现役购买、安装、连接和生命周期 owner，KISS／DRY 不新增中心服务、产品依赖或凭据副本。脚本语法、定向 diff 与文档门禁结果记录在同目录 `validation-summary.json`；本轮没有产品代码变更，不重跑完整 GUI／Rust，也不借用上一轮 smoke 提升本轮证据等级。
+
+### 最低使用门槛与持续费用验收标准（2026-11-13）
+
+- 默认路径由 Lime 读取有效授权并复用；缺少 CLI 时由私有工具准备器下载和校验。首次用户只处理供应商授权、费用确认及必要的数据授权，不要求终端、开发环境、AccessKey、SSH 私钥、Bucket 或运行包地址。高级字段收起；授权有效时不重复登录，失败沿原操作恢复，不重购。
+- 默认推荐依据所选地域的实时库存和报价，选择满足完整 Linux 桌面的有效候选；现役推荐为 2 核／4 GiB、无 GPU、非抢占按量实例。大规格原生构建机仅用于研发验收，不作为客户默认规格，不把有限候选报价称为全云最低价。
+- 本机工具、运行包缓存和分发尽量在付费采购前准备；购买后显示真实下载、安装和连接阶段。已有软件及登录环境沿持久磁盘或已验证恢复路径复用，默认不为每个任务重装或重新购买。桌面默认收起，用户需要时才建立查看通道。
+- 短期复用可停机并明确计算、保盘及附属资源的剩余费用；长期不用先保存环境并验证可恢复，再释放原计算资源。30 分钟是用户偏好，不能按窗口关闭推断任务空闲，也不能把它当作所有规格的成本平衡点。备份失败保留原资源，客户端退出后的调度能力单独验收。
+- 金额统一区分计算、磁盘、网络、备份／快照与 KMS；无法核实的项目标为另计或待核对。用户自有云账号直接付费，现有 Rust App Server、工具与持久化 owner 复用，不要求 Lime 运营中心运行池或新建第二 runtime。
+- 上述条目作为完成标准，不增加实机验收分子。已取得的购买、自动装配、桌面显隐证据沿原记录；真实模型任务、第三方认证跨启停／新机恢复及完整费用仍须分别关闭，不能用“零填写”文案替代验证。
+
+### 启停速度、费用与等待体验的优化合同（2026-11-13，设计与测量）
+
+- 目标按优先级为：数据和授权可恢复、点击到首条有效命令的时间、实际总费用、人工步骤。单台 BYOC 采用运行中复用、停止计算保留磁盘、已验证保存后释放三种资源形态；停机只保留文件与已落盘授权，不保证内存、运行中原生应用或尚未保存工作。供应商内存休眠如需接入必须另测恢复语义、资格与费用，不能将当前私有镜像归档称作内存休眠。
+- 首次装配：官方工具、软件包下载／摘要校验、区域网络／报价与连接预检尽量在创建计费实例前完成。可信通用软件可缓存；用户凭据、浏览器 Profile、模型 Key 与恢复私钥不得进入通用镜像。预装公共基础镜像应在后续有独立维护和实测收益后再实现，不以建设常开池作为首版前置条件。
+- 日常唤醒：复用原实例／磁盘／系统服务和任务凭据；不下载运行包、不运行 apt、不重新采购。Running、认证 App Server ready、首条命令成功及 Computer Use ready 分开观测；云助手与网络控制通道可能成为关键路径，按实测定位，不能通过跳过认证、开放公网端口或绕过权限提速。多个云机逐台公布可用状态，单目标检查不等待无关资源。
+- 交互：用户明确选择云端后，在其已授权计费范围内开始唤醒；等待期间保留草稿、项目上下文与原操作编号，允许继续编辑及离开页面。提示当前阶段、已等待时间、可恢复失败与下一步；没有统计样本时不编造倒计时或进度百分比。只在认证连接与真实任务探针成功后允许发送；不因云端未就绪改在本机执行。桌面画面默认收起，查看时才加载查看通道；Computer Use 工具则仍需验证对应桌面会话就绪。
+- 空闲与成本：空闲依据 Agent 回合、命令／子任务、人工接管和正在进行的保存，不依据窗口是否关闭。预计 30 分钟内复用优先停机保盘是用户偏好；该值不是统一计价临界点，也不是到点无条件释放。长期保存决策比较保盘费与归档／快照费、转换／恢复流量、KMS／请求费、每次重建开销及等待成本。差价为正时，粗略经济临界时长为转换与恢复固定成本除以每小时存储差价；费用未完整核实时只展示分项，不自动声称最低价。
+- 保存与释放：先确认工作已保存，再保存加密备份或专用加密镜像、验证异机恢复与身份轮换，最后释放原计算和明确授权的原磁盘；保存失败保留原资源。云端独立调度、客户端退出后的空闲判断、自动 stop 与自动释放尚需各自实现和验收，不将仅由客户端倒计时或供应商固定释放截止替代为空闲策略。默认不为未经同意的预测唤醒持续付费；定时预热只有明确时间／预算授权时启用。
+- 性能报告：首次装配、保盘唤醒和归档重建分别记录分段时间及实际成本；少量样本只报样本值和中位数，不宣称 P95 或普遍秒开。停止以供应商确认 Stopped 且 computeReleased 为计时终点，保盘与附属费用继续显示。本轮先收集同一合成实例的重复启停基线，不用模型／登录选择阻断性能测试，也不据此增加完整验收 4/8 的分子。
+
+### 单目标模型连接授权复用（2026-11-13，本地验证通过，真云验收开放）
+
+- 目标：用户选择本机已有连接和一个已连接云电脑，确认密钥交付后即可复用；普通配置导出继续不含真实密钥。不迁移云管理身份、浏览器 Cookie 或整个凭据库，不需要中心代理在线。
+- root 窄写集：Provider service 新增 `connection` 子模块，凭据 owner 仅增加可恢复的保留身份写入；core 新增专用传输回执表；Cloud action、RuntimeCore／AppDataSource／processor 最小接线及生成物；Main 新增模型交付编排与 Renderer 私有 action 守卫；原 Cloud 设置增加连接选择入口、五语言和对应回归。既有 Cloud 持续改动接续，Account／插件／聊天／TUI／发布等并行写集只读；不启子 Agent、不进行 Git 递交。
+- Verification Contract：root，P1，budget:normal。`cloud_desktop_connection` -> Main -> 本机 `cloud/desktop sealModelConnection` -> 认证远端 `prepare/apply/readModelConnection` -> RuntimeCore -> 原 Provider／credential owner。目标生成十分钟一次性 age X25519 recipient；只有精确、已启用 Provider／Key 被封装，交付协议只传公钥、密文及非敏感回执，Renderer 只见选项与固定状态。回执使用独立 DB 表，Provider／Key／route generation／完成状态同事务提交；保留 secret 身份使跨存储中断可沿原编号恢复，已完成或过期不能再导入，不覆盖目标已有 Provider。
+- Happy Path：选择连接并授权，目标准备公钥、本机封装、远端导入、发布模型目录更新；配置是否可用仍由原模型目录／Provider 测试负责。失败显示固定可恢复状态，未知先读取原操作，必要时只重送原密文，不换编号另建；本机 seal 对 Renderer 原始 JSONL 和远端关闭。密钥不经过普通导出、日志、请求明文字段或新网关。
+- 必跑：领域回归、公共 JSON-RPC／认证远端边界、Host 与组件定向测试、协议生成/contracts、类型与风险匹配 GUI；真云需要包含此功能的同源 Linux guest，不使用旧官方包证明新能力。Architecture impact: major（新增跨层授权数据流），架构／时序在同一写集更新，责任 root；本轮本地验证不增加实机 4/8（50%）分子。
+- 原版核对：Codex 公开 App Server 的 Provider 配置不提供用户 BYOC 单连接密钥交付；Codex 私有 Cloud 亦被仓库规则排除。本切片为 Lime 多 Provider／BYOC 保留差异，沿原 JSON-RPC 和 Provider owner 实现，不声称是上游源码复刻。
+- 已实现：十分钟一次性接收方、只封装一个启用 Key、48 KiB 源配置上限、独立 SQLite 回执、保留凭据身份与同事务导入；新建自定义 Provider，不覆盖云端现有配置。Main 加密持久保存原编号／原密文，完成响应丢失时只读恢复，完成或过期后清除本机密文；远端和 Renderer 原始 JSONL 都不能执行本机 seal。云端仅沿原模型目录刷新，不产生推理请求。
+- 新增恢复保护：交付未确认时 `save`／`saveEcsTunnel`／`delete`／`reconnectRuntime` 拒绝改变任务连接，避免原目标身份丢失；五语言就地引导展开复用区域、继续原操作。反向也禁止在安装／轮换未结束时启动模型交付。完成／过期后恢复正常操作，不放宽目标令牌校验。相关 Main 真实本地存储／连接 owner 回归覆盖原凭据不变、零云请求及解除保护；未决交付时远端长期不可达仍需保留原连接，不能把本机经过十分钟当作目标已清理的证明。
+- 最终领域 6/6、原凭据 4/4（另 1 项真实解锁 keyring 测试 ignored）、公共 JSON-RPC 2/2、Main／窗口／私有边界 24/24、组件 24/24，通过的不同用例共 60。公共入口实际经过 JSONL 与认证 WebSocket、Provider／SQLite／凭据 owner：删除源凭据并重建目标服务后，目标凭据及同一回执仍可读，一个导入 Key，推理请求为零。该夹具在本机单进程内运行，不冒充两台机器或独立 CLI。
+- 公共测试首轮引用私有 transport 模块导致仅测试编译失败；第二轮错误读取 JSON-RPC 响应层级使 ciphertext 为 null，协议按类型拒绝。已修正测试，保留 `rust-rpc.log`／`rust-rpc-r2.log`，第三轮及增强源凭据删除断言后的 `rpc-settled.log` 均通过，未调整生产校验或超时。完整 contracts、Renderer／Node 类型、定向 lint、文档边界和窄写集 diff 检查通过。
+- 最终 Gate A 使用原安装／连接 UI、Provider API、Host facade 与 CSS，加显式 test-only Host／Provider 夹具；五语言、1280px 浅色／360px 深色、键盘明确授权、原操作恢复、固定错误、连接更改保护与窄屏无溢出通过，页面／控制台错误为零。截图复核发现恢复状态误用不存在的操作编号翻译键，已改为复用原键，并扩展五语言未知状态与浏览器翻译键泄漏断言；修正后截图和两张架构／时序图已实际查看。10 个直接输入哈希在运行前后保持一致，不称为全仓冻结。
+- 标准 `verify:gui-smoke` 退出 0，真实 Electron／preload／IPC／App Server 初始化、重载、设置及三视口，24/24、错误／mock fallback 均零。最新基础壳证据 `standalone-shell-01-20261112211410-20226/shell-01-electron-smoke/summary.json`；构建后模型选项分隔符从中点收敛为斜线，并复用已有操作编号翻译，其最终样式由组件与 Gate A 复验，不把基础壳提升为模型交付的真实 Electron／真云端到端证据。
+- 证据 `.lime/qc/cloud-model-transfer-20261113/validation-summary.json`。root 确认 major 架构图与时序中的唯一 Provider owner、认证与凭据边界、恢复保护及 Desktop／CLI 共同存储合同。KISS／DRY／SOLID：沿原 Provider、凭据、目录、Host 和认证任务 transport，无新依赖、中心账号、中心代理或第二 runtime。分类 current 与 test-only，无新增 compat／deprecated；保护 Account、插件、聊天、TUI、发布与无关热区，保留并行改动。本轮无云资源采购、启停、清理或 Git 递交。
+- 实际补充写集为 `electron/cloudModelConnections*`、`cloudDesktopWindows*`、`CloudRuntimeInstallation*`、`CloudModelConnection*`、五语言 `settings.cloudDesktop.modelShare*`、该公共 RPC 测试、既有架构／命令／README 和本计划；前述 Provider／DB／协议接线继续归本切片，其余并行写集只读。下一刀由 root 准备包含本功能的同源原生 Linux x64 guest，沿既有授权验证真实云窗口与独立 CLI 模型任务，再推进第三方认证和备份／费用验收；官方旧 1.175.0 包不含本功能，不能作为替代。完整 Cloud 实机仍 4/8（50%），goal 保持 active。
+
+### 云窗口首次模型连接引导（2026-11-13，本地验证通过，真实模型任务未验收）
+
+- 目标：避免云机已连接却缺少模型时让用户自行排查。云窗口自动读取自己的现役模型目录，未配置聊天模型时直接引导到原 Provider 设置；已有配置不重复引导，离开设置后重新检查。检查仅投影配置状态，不发推理请求、不表示真实模型任务已成功。
+- root 窄写集：新增 `src/components/cloud/CloudModelSetupNotice.tsx` 及组件回归，`src/App.tsx` 仅接入该提示；五语言 `settings.cloudDesktop.modelSetup*` 键、本计划。现有 Provider／Account／连接／runtime／CLI／发布实现只读；保留并行脏改动，不启子 Agent，不递交 Git。
+- Verification Contract：root，P2，budget:normal。沿现役 `model/list` 和模型更新 notification 读取远端配置；本机窗口不查询、不显示；失败显示固定提示与重试，不渲染服务端错误。返回设置、窗口恢复焦点或目录变更时重新读取，迟到请求和卸载不得覆盖当前状态。通过现有导航守卫进入模型设置，不增加配置表单、凭据导出、云管理能力或第二 runtime。
+- 退出条件：组件的本机／缺模型／已有模型／媒体模型／失败重试／通知竞争／卸载／导航守卫／五语言回归；类型、定向 lint、浏览器 Gate A 与标准 GUI smoke 分层记录。Architecture impact: minor，延用 Cloud 隔离 transport 与原 Provider owner；不将本轮引导计为第 4 组真实模型任务验收，整体仍 4/8（50%）。
+- 已接入现役 App 主内容区；本机与设置页不挂载观察器，云窗口通过原 API 的完整分页、canonical capability snapshot 与显隐合同投影是否缺少聊天模型。检查不读取凭据、不发推理请求、不创建云资源。重试、返回设置、恢复焦点和 `model/list/updated` 都复用同一 owner；较旧请求不能覆盖新的状态，后端异常只展示固定文案。
+- 定向 20/20（组件 16、RootRouter 4）、完整 Renderer／Node 类型、定向 ESLint、五语言和 diff 检查通过。真实 Chrome Gate A 五语言 360px 深色、1280px 浅色、键盘导航、草稿保留、返回重查、失败重试、目录通知刷新、媒体模型拒绝与本机零查询通过；页面／控制台错误均零。两张截图已实际查看。首次夹具误用非法 capability source，第二次硬编码错误的刷新按钮名称；原失败收据保留，修正夹具后最终通过，未调整产品错误处理或超时。
+- 标准原目录 `npm run verify:gui-smoke` 退出 0；真实 Electron／preload／IPC／App Server、Renderer 重载、设置和三个视口通过，证据 `standalone-shell-01-20261112202353-85398/shell-01-electron-smoke/summary.json`。该基础壳不覆盖真实云窗口模型配置或模型 Turn；Gate A 仅使用显式 Host／JSONL 夹具。汇总 `.lime/qc/cloud-model-setup-20261113/`，记录 13 个直接输入哈希；不将其冒称全仓源码冻结。
+- KISS／DRY：复用原 Provider 设置、模型目录和导航守卫；无新表单、依赖、协议、runtime 或凭据同步路径。分类为 current 和 test-only，没有新增 compat／deprecated。实际追加写集为本节列出的组件、App 五行接线、五语言五键、README 中本能力说明与本计划；其余并行写集保持只读。没有购买、启停、清理或提交资源，没有 Git 递交。下一刀仍为安全授权后的单目标模型连接复用与真实云端 Desktop／CLI 任务，第 4／5／6／8 组缺口继续开放，整体实机仍 4/8（50%）。
+
+### 默认自动分发的完整桌面验收（2026-11-13，通过，完整产品仍实施中）
+
+- 用户目标：降低费用、填写、安装和恢复门槛；复用已有有效浏览器授权，购买前由 Lime 完成官方包缓存与私有分发，用户不提供包地址、Bucket 或密钥。
+- 本轮 root 接续上轮 Cloud 写集；先只读核对已有资源已清理、同账号授权有效与当前源码构建，再使用一台 ECS 验证默认安装、真实桌面展开／收起、原操作恢复和精确清理。Cloud 以外 Account、插件、Provider、聊天、TUI 与发布的并行改动只读，不启子 Agent，不递交 Git。
+- Verification Contract：root，P1，budget:normal。单次采购前先完成本机准备，保留原操作编号，不因未知结果重购；安装测试窗口最多 25 分钟，终止时沿精确原资源释放实例和盘。软件包专用对象和桶走现役清理 owner，用户备份不在清理范围。不得以分发回归替代真实云机安装或完整 Cloud Gate B。
+- 首轮证据目录 `.lime/qc/cloud-default-distribution-live-20261113/`；采购前只读确认授权有效且账号一致，无新浏览器授权。每轮只创建一台测试机，前轮清理后才开始第二轮。
+- 首轮实机：当前原目录 Rust App Server 构建通过，生产输入无漂移；构建期间只有两个未参与二进制编译的插件 integration test 变化，单独记录。真实 Main 默认分发 34.462 秒完成，完成后才以 CNY 0.461/小时报价采购；官方 106,595,589 字节包全部下载，安装 216.586 秒进入 complete，凭据保存成功，原生退出正常。随后 test-only driver 的 `evaluate` 回调错误引用 Node 进程变量，桌面检查未执行；保留 failed 终态，不归因为产品安装故障。现役产品精确释放实例／系统盘，原分发意图已 cleaned。
+- 已定位并修正 test-only 回调参数传递，三个通道先在无 Node 闭包变量的独立上下文预检通过。第二轮使用独立目录 `.lime/qc/cloud-default-distribution-live-r2-20261113/` 和新持久意图，先确认首轮资源清理。首次准备因并行插件源码漂移失败关闭，未采购；复用缓存重新构建后生产输入无漂移。另一次准备只因首轮失败留下的空目录返回 EEXIST，改用可重复目录准备，仍以 `wx` 防止覆盖意图；未删除或覆盖原记录。
+- 第二轮完整链路通过：真实 Main 自动分发准备 43.154 秒，完成后才单次采购；无需自定义包、用户填写存储参数、SSH 密钥或新浏览器授权。官方包完整接收 106,595,589 字节，安装 210.945 秒完成并保存连接；临时安装通道关闭，正常安装已清理原分发。默认隐藏桌面时无 desktop 隧道；点击展开后真实 Xfce 画面与只读 RFB 认证通过，iframe 无自身／父 bridge 及 Node；收起关闭真实 RFB WebSocket、恢复焦点，任务通道保持且重新执行认证 `thread/list` 成功。截图已实际查看，原生退出 460 ms、exit 0。
+- 两轮实例和系统盘均经现役产品释放并独立读取不存在；软件包专用对象与空桶通过原精确分发 owner 清理，用户备份与复用网络不在清理范围。报价 CNY 0.461/小时，存储／流量与最终结算未在本轮核实，不将报价当作实付。
+- 本轮产品文件仅修正 `README.md`、`README.zh-CN.md` 中过时的购买前准备描述并说明桌面显隐；源码与脚本改动限 test-only 验收驱动及本计划。文档边界、定向 diff 检查通过。复用现役 Cloud、安装、分发和连接 owner，无新依赖、中心账号、兼容层或第二 runtime；完整实机更新为 4/8（50%）。最小 Main 和 `thread/list` 投影不覆盖完整生产 Main、真实模型任务、CLI 延续或真实第三方登录；既有全仓 GUI 输入漂移失败仍保留，未冒称本轮通过。
+
+### 用户 OSS 自动分发与低门槛默认路径（2026-11-13，实施中）
+
+- 目标：在付费 VM 采购前自动准备用户账号内的软件包分发，无需填写 bucket、包地址或密钥；只有授权与费用确认需要用户操作。
+- root 窄写集：新增 Main 私有 Cloud action 守卫与回归，`appServerHost.handleJsonLines` 仅增加全批输入前置守卫；现役 `services/cloud_desktop_service/oss` 的软件包分发子模块、Cloud 协议必要 action 与生成物、Main 分发状态及原购买／安装接线、定向回归、本计划和既有架构／命令说明。保留已存在的 Account／Connection 改动，Provider、聊天、TUI、Skills、发布与无关文案只读；不启子 Agent，不进行 Git 递交。
+- Verification Contract：root，P1，budget:normal。Renderer 原始多行／batch／notification 都不得调用私有分发动作；Main 保留直接请求能力，远端沿原 local-control 守卫拒绝管理动作。STS、签名 URL 不进入 Renderer 或普通记录；同一账号／地域／版本绑定同一持久操作，unknown 不另建资源。仅精确删除自身软件包对象与空桶，生命周期作为离线兜底，不能代替精确清理。
+- 退出条件：领域与私有边界回归、协议生成与 contracts、类型、定向 UI／Host 验证与真实 OSS 往返；默认真云安装须独立验证。沿用公开包缓存与原安装 owner，不引入中心账号或第二 runtime；完整实机仍为 3/8（37.5%）。
+- 已接入当前默认购买与首次安装来源：购买前 Main 复核官方缓存，并调用现役 Rust OSS owner 自动创建专用私有分发；阶段进入 `distributing`，用户不输入存储参数。正常安装终止后按精确资源释放引用，最后一个有效引用结束后删除原对象与空桶。公开软件包与 `.age` 用户备份维持各自边界。
+- V4 直接使用现有 `sha2` 与 workspace `hmac`，没有新工具或 SDK；固定参考 Alibaba SDK revision `d3474aa038242301669f48b1f08d1b15cdf7c324` 的 wire 合同与公开向量。单次流式 PUT、Content-MD5、SSE AES256、完整回读 SHA256、私有对象与最多两小时且不超 STS 的 GET 签名；一天对象与未完成分块过期规则在上传前设置并读回。正常删除与离线异步过期分别记录，不将一天规则冒称精确清理。
+- 首轮真实完整包测试在签名阶段因旧会话临近过期返回固定授权失败，原精确桶与对象已清理。已补当前 Cloud `auth/cli` 最小接线与独立 `credential_window`：所有受管 CLI 调用共享配置凭据锁，任务窗口不足时仅使缓存有效期失效，仍由原官方 CLI 刷新和保存 OAuth／STS；不复制长期令牌、不新开浏览器。该窄写集属于现役 Cloud 授权 owner，未修改并行 Account 模块。
+- 第二轮产品 OSS owner 真云复验通过：官方 1.175.0 的 106,595,589 字节，SHA256 `2be878d3a45b444158ce1bffb24bf65b41a1e0459618824c298c1b7f400ac05e`；准备 38.243 秒，重复 prepare 复用同一原编号，签名 GET 完整回读一致，匿名 HTTP 403，结束精确清理确认。无 VM，原失败证据保留；这是本机到 OSS 的产品领域验证，不能当作云机速度、Desktop Gate B 或整组验收。
+- Cloud 领域 166/166、忽略的显式网络验收 2 项；新 Main 编排／Host／购买轮询 37/37、原安装／窗口／私有 helper 54/54，通过。Main 原始 Host 入口的整批拒绝与直接 Main 请求集成断言通过；早期完整 Host 42/43 的唯一失败为范围外插件等待预算断言，未修改该 owner。完整 contracts 已通过一次。
+- 标准 App Server lib 测试先因 V8 默认下载地址 404 失败；复用已固定 SHA 的官方 V8 缓存后，仍因并行插件模块的语法及可见性错误不能编译。保留日志，不修改无关插件，不把私有 helper 测试升级为远端真实拒绝证据。当前等待原目录标准 GUI 与最终类型／浏览器证据闭合，完整实机仍为 3/8（37.5%）。证据 `.lime/qc/cloud-runtime-distribution-20261113/`。
+
+### 购买前完整本机准备与镜像恢复减负（2026-11-13，实施中）
+
+- 目标：先把官方包完整获取和校验放在收费 VM 购买前；从已有系统镜像恢复时直接复用环境。用户不填写包地址或本机路径，准备失败不下单；本机缓存是默认 OSS 分发的必要输入，不将缓存本身冒称已解决云机慢下载。
+- root 本轮窄写集：`electron/cloudGuestRelease.ts`、新增同 owner 的 `cloudGuestReleaseCache.ts` 及回归、`cloudDesktopWindows.ts` 的缓存接线／退出、原 Desktop Host 连接请求与返回类型、`PurchaseEcs` 和原 API facade、独立准备轮询 helper、相关组件回归、五语言一个新提示与本计划／既有架构／命令文档。Account、Provider、Rust、完整 Main、聊天、TUI、Skills、发布及无关翻译只读；不启子 Agent、不提交、推送或建分支。
+- Verification Contract：root，P1，budget:normal。准确版本与官方描述绑定可信字节、SHA-256；受限重定向、私有缓存目录、非跟随文件打开、完整写入后才报告字节，失败临时文件清理，退出中止本机下载。重复点击共享原进程任务，读状态不启动副作用；重启或再次安装重新读取官方描述并复核缓存，损坏自动修复。等待中当前上下文、费用同意或报价失效不能采购，完整准备后才取得原六十秒网络证明。
+- 从镜像恢复仍由原精确镜像核价与采购 owner 执行，略过新包准备不略过网络预检、报价与费用授权。普通首次安装继续双端完整性校验，不把本机验证代替云机校验，不绕过大包会话限制。默认云机仍访问官方 URL，自动 OSS 分发、Main 私有签名请求边界及精确清理接线继续开放。
+- 退出条件：分块计数、截断／超量／摘要错误、缓存篡改、目录链接、重启复用与退出取消回归；组件等待与已满仍校验、到期／卸载拒绝购买、镜像恢复无新包检查；类型、contracts、定向 lint、五语言与 GUI 分层证据。Architecture impact: minor，root 确认新缓存从属原 Main 连接／安装 owner，无新 runtime、云账号或依赖；完整实机仍为 3/8（37.5%），本轮不购买 VM。
+- 已接入原默认购买与安装来源，准备阶段不调用云 API、不访问密钥库、不生成采购编号。原快速 `checkRuntimeRelease` 保留给现有可用性消费者；新准备仅输出固定版本、阶段和实际字节。镜像恢复仍按精确镜像重新核价并确认费用，不要求新包。KISS/DRY：同一个缓存 owner 供购买和安装消费；软件包、管理身份与敏感备份职责分离。
+- 最终准备／Main Host／轮询 24/24、购买／镜像恢复／设置／窗口 68/68、安装／退出／云助手等待 33/33，通过的不同用例合计 125；官方来源解析另 29/29 已通过。首轮组件 73/75 的两个失败分别为旧文案否定断言和恢复仍预期一次 HEAD，按新的实际行为更新后回归通过；首次 Electron 类型检查发现合并 action 的联合类型未完全收窄，已拆成独立请求分支。保留失败口径，不改超时、隔离条件或采购守卫。
+- 真实官方 1.175.0 完整包本机准备通过：106,595,589 字节、SHA-256 `2be878d3a45b444158ce1bffb24bf65b41a1e0459618824c298c1b7f400ac05e`，本轮测得 7.324 秒；再次按新读取的官方描述复核缓存 0.661 秒，零归档下载请求。两个归档请求包含原官方下载和受限重定向；此为本机网络观测，不是云机速度。原驱动一次缺少非直接依赖 esbuild，改用仓库现役 Vite；另一次误把描述文件的资产重定向计入包下载，导致驱动断言失败，修正计数后取得独立最终记录，未修改产品以适配验证。
+- 五语言 Cloud 463 个键及插值合同通过，原购买组件／API／CSS 的真实 Chrome Gate A 五语言 360px 深色、下载字节、满额仍校验、完成后网络预检与单次购买通过，页面／控制台错误均零。初次夹具将三处独立 status 当作唯一元素，且缺 favicon；只修正夹具定位与空 favicon，原失败保留。最终浅色与日文窄屏截图已实际查看；架构、流程、时序三图已实际渲染并查看，缓存明确位于本机边界内。
+- 最终 Electron、Renderer／Node 类型、完整 contracts、定向 ESLint／Prettier 通过；初次 ESLint 拒绝 NodeJS 全局类型命名，已使用局部结构类型。标准原目录 `verify:gui-smoke` 退出 0，真实 Electron／preload／IPC／App Server、重载及三个视口通过，全部错误计数为零，证据 `standalone-shell-01-20261112190709-21360/shell-01-electron-smoke/summary.json`。该壳验证不代替 Cloud 页面或真云端到端安装。
+- 汇总 `.lime/qc/cloud-runtime-preparation-20261113/`，13 项本轮产品／回归输入及 Gate A 的完整直接输入分别保存摘要；这不是全部仓库源码冻结证明。没有购买 VM、创建 OSS 或修改云资源，没有 Git 递交。分类均为 current 与 test-only，无新增 compat/deprecated、第二 runtime、中心账号或依赖；完整 Cloud 实机仍为 3/8（37.5%），自动 OSS 分发、签名边界与清理、默认真云安装和原第 4/5/6/8 组缺口继续开放，不将本机下载成功提高实机分子。
+
+### 默认交付减负与真实下载进度（2026-11-13，实施中）
+
+- 目标：默认路径不要求用户找运行包、填下载地址、准备 CLI 或存储参数。先在没有收费 VM 的情况下验证复用用户原授权的临时对象分发，再决定产品接线；现役供应商会话通道对大包有速率和请求预算限制，不能把 106 MB 官方包改为本机直接上传。自动 OSS 缓存尚未实现或创建，不以方案描述代表产品完成。
+- root 窄写集：原 Linux bootstrap、Main 安装进度校验与加密记录、Desktop Host 状态类型、原进度组件、相关回归及五语言 Cloud 键；现役 OSS owner 先只读验证，若合同成立再登记具体实现写集。Account、Provider、完整 Main、聊天、TUI、Skills、发布及无关翻译保持只读；不启子 Agent、不进行 Git 递交。
+- Verification Contract：root，P1，budget:normal。guest 按实际接收字节报告进度；Main 将总量绑定原可信 artifact，拒绝越界、非整数、回退及身份错配。进度仅表示传输，未校验完成不得表示安装成功；重连不报告运行包进度。UI 显示实际字节和传输比例，错误或进程退出保留最后有效记录，恢复只查询原操作，不重发 download。
+- 退出条件：分块／截断／摘要失败、非法或回退进度、重启读取和原操作恢复的回归；五语言、类型、contracts、标准 GUI smoke 分层记录。对象分发能力探针不得创建 VM，不输出 STS 或签名 URL；若创建测试对象，先记录精确身份，结束核对清理。Architecture impact: minor，仍为现役 bootstrap、安装和 OSS owner，无中心服务或第二 runtime；整体实机维持 3/8（37.5%）。
+- 真实字节进度已接入：`cloudGuestProgress.ts` 重建两个白名单数值并绑定原 artifact；原安装加密记录保存最后有效值，退出／恢复不清零。分块接收与截断 Python 17/17，Main／组件 25/25，相邻安装／退出／等待云助手／窗口 45/45 通过；五语言 360px 深色、满额仍安装、失败保持进度和只读重开 Gate A 通过，页面与控制台错误均零。Electron 类型、完整 Renderer／Node 类型、完整 contracts 与定向 lint 退出 0。原安装时序图已渲染并实际查看，root 确认状态与凭据 owner 不变。标准 GUI smoke 正在现役原目录构建，不拿浏览器投影代替 Electron。
+- 现役 App Server 沿原 OAuth 调用 `listOssBuckets` 成功，固定 SHA 的 rclone 1.73.3 由原准备器自动安装；零 VM。独立新测试意图验证：rclone 建桶需要在 remote 配置中将 `NO_CHECK_BUCKET=false`，地域约束使用 `oss-<region>`，不能仅用同名命令行 flag 覆盖原 remote 环境。首轮上传失败仅记录 created 阶段，未保留细分诊断；补充私有诊断后第二轮捕获 NoSuchBucket，随后一次建桶捕获 InvalidLocationConstraint。没有反推首轮错误码；各轮均独立核对原桶不存在。
+- 正确配置的小对象验证通过：私有桶、SSE AES256 请求、限时签名 GET、下载原文一致、匿名 GET 403、精确删除对象及空桶。原官方 CLI 内置 `oss lifecycle` 可沿相同 OAuth 配置设置并读回 `runtime/` 前缀一天对象过期和一天未完成分块过期规则；该子命令拒绝 `--retry-times`，保留失败，移除不适用参数后通过。不把旧 `oss` 帮助中的全局参数列表视为每个子命令的可执行合同；后续产品应优先核对同 CLI `ossutil api` 的当前合同，避免依赖已弃用入口。
+- 完整官方 1.175.0 发布包在无 VM 情况下完成真实 OSS 往返：106,595,589 字节，上传 22.650 秒、下载 9.459 秒，SHA-256 与已发布包一致，匿名 403、一天过期规则读回通过。测试桶与对象均已精确清理，签名和 STS 没有进入仓库证据或 Renderer。证据 `.lime/qc/cloud-runtime-cache-20261113/oss-official-artifact.json`；这是本机到 OSS 的能力验证，不代表云机速度或默认购买路径已通过。
+- 默认自动缓存仍待接线，未新增产品 OSS 创建接口。下一刀沿 Main 官方来源解析、现役 OSS service 与原购买／安装 owner 实现：购买前自动准备已完整校验的官方包，准备完成后才执行 60 秒网络预检和付费采购；安装时仅交付短期只读 URL。先补 Main 原始 JSONL 对私有分发动作的过滤，不能让 Renderer 直接获取签名；操作记录必须能按原编号核对 unknown，不能换编号建另一份桶。固定一天自动过期只覆盖软件包专用前缀，用户敏感备份继续走原 age／加密镜像边界。该接线、默认真云安装和完整产品仍未完成，不增加 3/8 分子。
+- 同 CLI 的 `ossutil api list-buckets` 只读探针失败：外部 ossutil 不接受 `--config-path`，不能按内置 OSS 的受管 OAuth 合同直接拼接。只输出固定命令／退出码，不输出原始供应商数据；只读复核现存 ossutil 文件创建时间为 2026-11-10，未将它冒称本轮私有安装或修改。产品接线须先解决受管身份、固定工具及私有目录合同，不能退回用户默认配置或把 STS 放进参数。对象生命周期的 Days=1 是供应商异步过期规则，不是精确 24 小时删除保证；正常安装后的精确清理及失败／退出后的兜底需分别实现。
+- 标准 `verify:gui-smoke` 首轮退出 0：真实 Electron／preload／IPC／App Server 初始化、重载、三种视口及设置检查通过，证据 `standalone-shell-01-20261112183516-99280`；这不是云端安装进度或真实模型整组 Gate B。视觉复核发现原生 progress 默认绿色，已按原浏览器下载控件的做法指定浅暗中性色，最终五语言 Gate A、组件 10/10、格式通过，截图已实际查看。最终标准 GUI 退出 1：Vite 编译后输入摘要变化，被守卫拒绝，未进入 Electron；最终 Gate A 的 11 项输入在原目录仍无漂移。不改守卫、不重刷收据，不把样式修正前通过冒称最终全仓通过。
+
+### 默认安装的安全诊断与原操作恢复（2026-11-13，实施中）
+
+- 目标仍是降低用户使用门槛：用户完成必要授权和费用确认，Lime 负责工具准备、购买、安装及恢复。上轮默认官方包安装到达 downloading 后只留下统一恢复提示，本轮先补可复核的故障分类，不能推断下载源、隧道或供应商故障，也不以盲目重试掩盖问题。
+- root 窄写集：`electron/cloudGuestUpload.ts`、`electron/cloudGuestInstallations.ts`、共享 Desktop Host 安装状态类型、对应传输／恢复／窗口夹具回归及本计划和既有命令／架构说明。已有 downloading/installing 改动继续保留；Account、Provider、完整 Main、聊天、TUI、Skills、发布及翻译不在写集。不启子 Agent，不提交、推送或建分支。
+- Verification Contract：root，P1，budget:normal。安装传输仅输出固定 route／reason 和有效 HTTP 状态码，不携带原始异常、cause、地址、证书、头或响应正文。原私有加密记录保存安全分类，被动读取无副作用，显式恢复继续原操作；隧道关闭失败不能覆盖原传输诊断。恢复取得有效进度后清除旧诊断，不额外授权、重发购买或重发 download。
+- 验证：真实本地 TLS/HTTP 失败分类及过期／取消边界；跨实例读取、原操作恢复、prepare/start/download 单次提交；相关窗口及退出回归、完整类型／contracts、标准 GUI smoke 和风险匹配的 Electron 证据。下一台付费实机只在固定新产物、无资源预检和恢复回归闭合后启动，结束精确清理。Architecture impact: minor，扩展原安装 owner，无新 runtime、依赖或供应商控制面；完整 Cloud 实机仍为 3/8（37.5%）。
+- 安装相关七文件 71/71 通过；新增实际 30 秒请求超时及在途取消后，传输最终 4/4 通过。跨重启恢复用例还模拟通道关闭失败，原 HTTP 分类仍可读，prepare/start/download 均仅一次。Electron 完整类型、定向 lint／格式及完整 contracts 退出 0。首轮测试命令多传 `--maxWorkers` 与 runner 固定值冲突，尚未运行测试即退出 1；修正调用后才取得上述结果，不修改 runner 或测试时限。
+- 固定小 Main／原安装及窗口 owner 的 139 项输入与 15 项产物，无资源真实 Electron 启退通过（198 ms）；同一产物官方 1.175.0 运行包预检通过（退出 62 ms）。管理二进制继续固定前轮已验证产物及两份动态库，不宣称与全部并行 Rust 源码或完整生产 Main 等价。构建时 root 误启动重复的 test-only 构建，只对明确属于本轮的重复 PID 97037 发 SIGTERM；其退出 143 保留，验收使用原构建终态及逐项摘要核对。
+- 新建独立测试意图，原已结束状态保持原样；沿原 OAuth／本机网络收据核对并重新核价，CNY 0.461／小时。仅购买一台按量实例，连接准备通过，正在沿默认官方发布包装配。测试驱动只有在固定诊断证明 `/status` 的连接／超时或指定临时 HTTP 状态、且原收据仍精确 `runtimeUploadReady` 时，才可显式恢复原操作一次；不能重新准备、启动或下单。结束后使用原采购身份精确清理，证据 `.lime/qc/cloud-install-diagnostics-20261113/`。
+- 完整 Renderer／Node 类型检查退出 0；标准 GUI smoke 完成模块转换后被输入稳定性守卫拒绝，原因 `Renderer build inputs changed during compilation`，退出 1、未进入 Electron。本轮固定的 139 项输入在当前原目录逐项无漂移，不能因此推断完整 Renderer 的其他输入或唯一变动来源；保留标准失败，不刷新收据或重跑掩盖。
+- 下载较长时，仅对本轮固定安装 UUID 的 `state.json` 阶段与 `runtime.tar.gz` 文件元数据做一次明确 test-only 云助手检查，十秒内从 34,078,575 增至 34,504,559 字节，阶段均为 receiving；未读配置、证书、令牌或归档正文，`KeepCommand=false`，未干预安装。此证据证明该时段有下载进展，不能证明完整包、桌面或某个网络故障；没有将测试侧检查加入产品任意 Shell 入口。
+- 最终真云测试未通过：25 分钟安装测试窗口到期时仍为 downloading，未保存连接凭据，未进入任务连接／noVNC。prepare/start 各一次，无恢复或新安装重发；未观察到产品安装租约自行过期或本轮自发的 TLS／HTTP／连接错误，不能用这次慢下载解释前一轮统一错误的根因。Electron 正常退出 227 ms，原产品 stop/release 成功，独立查询原实例与一块系统盘均不存在。
+- 收尾六类分页清点通过：广州 ECS、盘、快照、私有镜像、无影、EIP 均零，专用保留网络零挂载；无新 OSS。结论不覆盖其他地域／服务、延迟账单或最终结算。清理后真实 Electron 重启读取原加密状态，operationId 不变，needsAttention／`transportFailure={route:"/status",reason:"cancelled"}` 可读，零供应商请求，正常退出 212 ms。这里 cancelled 来自测试结束时主动退出，不能冒充自发连接故障；没有尝试恢复已释放资源。
+- 汇总 `validation-summary.json`。139 项输入及 15 项产物在冻结副本均一致；原目录仅发现并行 zh-CN 翻译整文件变化，全部 `settings.cloudDesktop.*` 键仍一致，未覆写。下一刀改进默认官方包交付与真实字节进度，保持摘要验证、凭据边界和单次提交，不能要求用户手工找包或补无关账号。诊断／恢复切片验证通过，默认安装及完整产品仍未闭合，保持 3/8（37.5%）。
+
+### 付费购买前的本机网络检查（2026-11-12，实施中）
+
+- 上轮为 progress：修复单个公网地址源不可达，15 项领域回归与真实公网查询通过；默认 guest 安装尚未进入，测试机和盘已释放。本轮首先复核当前源码与工作树，不继承旧二进制或当前零资源的隐含结论。
+- root 窄写集：Cloud 协议新增只读预检 action、现役 ECS preflight 子模块／购买提交守卫、共用报价标识校验、原 ECS 测试夹具与独立预检回归；现役购买 hook／进度投影／相关组件回归、五语言 Cloud 键、必要协议生成物与既有架构／命令／本计划。保护 Account、Provider、Main 主文件、聊天、TUI、Skills、发布及无关协议字段；不启子 Agent、不提交、推送或建分支。
+- Verification Contract：root，P1，budget:normal。沿原公网发现 owner 查询，无云资源写入、不传云凭据、不向 Renderer 返回公网地址。预检绑定原有效 quoteId／精确 spec，完成后保存一分钟有效的本机私有检查记录，不修改不可变报价；购买在 durable unknown 之前及只读核价完成后均核对该记录。失败返回明确 notSubmitted，零采购；历史已有原收据的读取／重放不要求新的预检，不重发供应商请求。
+- UI 在原费用同意后自动检查，不增加用户输入或确认；检查期间明确未购买，失败可沿原报价重试，账号／地域／规格／报价变化或卸载拒绝迟到结果。运行包绕过选项不能跳过网络检查。无影保留现有采购合同，不让 ECS 本机检查改变其行为。
+- 退出条件：预检失败、过期／错配／损坏、报价过期、未知重放与单次副作用的领域和公共 RPC 证据；五语言、相关组件、类型、contracts、Gate A 和风险匹配的真实 Electron 分层记录。再以含本次修复的固定管理产物做无云预检，之后才按既有授权推进一台真云默认官方安装与精确清理。Architecture impact: minor，仍为原 Cloud 购买／连接 owner，不增加中心服务、云账号或第二 runtime；完整实机保持 3/8（37.5%）。
+- 购买 hook、服务端守卫、私有记录、公共协议及五语言已接入。首轮相关组件 77/77，通过后修正失败文案仅承诺复用有效报价，独立新组件 22/22 通过；随后补齐费用同意撤回期间的迟到结果拒绝，正在验证最终 23 项。标准 Host／HTTP 预算合同 3/3、定向 lint 和格式检查通过。首轮 Cloud 大组件有既存 act 环境警告，保留原日志，不将警告写成零错误。
+- 首轮新 Rust 预检用例 7/8：丢响应夹具立即被现役恢复查回 provisioned，未构造目标 unknown 状态；增加夹具中的资源暂不可见条件后重跑 Cloud 领域。不是削弱生产查询或将 provisioned 改判 unknown。公共 stdio 新增非法／缺失／错配报价、无检查记录零采购和零 CLI 请求验证；标准 integration runner 会选择所有测试目标，仅核对并终止本任务排队 Cargo，保留原退出，改用相同隔离配置与 V8 解析器运行单个具名 integration target。
+- 现役 Rust writer 生成全部当前协议到本轮 test-only 目录，核对仅三个 schema 中增加预检分支，其他结构完全一致后同步原生成物；TypeScript 沿现役命令生成，未覆盖并行 Account／Connection 字段。完整 contracts 的协议、命令及其他前置门禁通过，最终 docs boundary 仍因范围外已索引的 `internal/exec-plans/readme-brand-refresh-20261112.md` 失败，未修改其文件或索引。标准 GUI smoke 在 Vite 构建阶段 `exited with null`，未进入 Electron，原日志缺少信号细节，不能推断唯一根因。
+- 浏览器 Gate A 五语言、等待／失败／原报价重试／单次采购／未知只读恢复与 360px 深色无溢出通过，当前输入在各轮结束时摘要一致；最后费用撤回守卫增加后仍需取得对应最终证据。原时序图已实际渲染和查看，责任 root 确认同一 Cloud owner。所有边界和失败日志位于 `.lime/qc/cloud-purchase-preflight-20261112/`；本轮尚无云资源变更，没有为授权或构建等待保留收费 VM。完整类型、Cloud 领域、具名公共 RPC 与最终 Gate A 继续取真实终态，不将排队或局部通过记为完整实机通过。
+- 费用同意撤回守卫后的独立新组件 23/23、最终五语言 Gate A 和定向 lint 通过，更新后的窄屏失败界面已实际查看。最终组合回归为 77/78，恢复首项仅报告原 5 秒超时；按相同 5 秒门槛隔离复查该项为 1/1、约 3.8 秒，保留组合失败而不改超时或冒称整套通过。第一轮完整类型检查退出 0，最后守卫后的完整类型仍在运行。验证后五语言整文件出现并行修改，本轮十五个 Cloud 新键仍保持原文；不覆写资源文件，不将冻结 Gate A 扩张为当前全部并行源码通过。
+- 具名 RPC 首次在现役 V8 解析器下载当前锁定的 150.4.0 包时超时，尚未进入 Cargo；通过官方 GitHub asset API 取得同一归档 23,542,428 字节和 binding 39,895 字节，两个 SHA-256 同时匹配官方资产摘要与现役校验清单。只在 test-only 驱动的子进程范围指定已验证文件，仍调用原校验器；未修改依赖、全局配置、其他下载或缓存文件。Cloud 领域及公共 RPC 继续编译，未将网络失败、未执行或运行中记为通过；本轮仍无收费资源。
+- 2026-11-13 续验：最终完整 TypeScript 检查退出 0；具名公共 RPC 退出 0，真实 stdio 用例 1/1，缺失预检时返回 notSubmitted，零 CLI／采购请求。Cloud 领域第一次重跑在测试执行前因 `icrate` 缺少 rlib 退出 101；确认共享产物已生成后沿原隔离 wrapper 重试，继续取得真实终态，不清理共享 target、不终止其他构建。
+- 真云准备发现上轮私有测试目录已不存在，旧状态不能复用；当前应用仍有已连接的阿里云授权，先仅用官方 STS 核验身份，不复制令牌、不手写恢复收据，也不把旧清理报告当作当前资源清单。下一轮仅在测试身份、固定管理产物和只读资源核对闭合后才创建单台计费实例。授权存在不代表可以猜测账号归属；若缺少身份对应证据，保留采购未提交。
+- 官方 STS 只读核验成功；ROS 查询找到与 `.lime/qc/cloud-managed-live-20261112/managed-network.json` 精确操作编号相同的原保留栈，状态 CREATE_COMPLETE。初次 test-only 查询误用 PageSize 100，被 API 拒绝；按现役产品的 50 修正后成功，未改产品或重建网络。含本轮预检的管理二进制与两个动态库已逐字复制并校验，独立 test-only 驱动沿当前应用原授权引用，不复制凭据；继续核对原栈输出／模板、推荐规格／报价与真实 Electron 无资源启动。证据目录 `.lime/qc/cloud-preflight-official-live-20261113/`；固定外部构建产物不冒称与全部并行 Rust 源码等价，当前仍无采购。
+- Cloud 领域复验已退出 101：155 通过、4 失败、1 忽略；本轮新增预检 8/8 全部通过。四项失败均为现有异步夹具的截止时间超限；逐字固定同一测试二进制后按原门槛隔离复查 4/4 通过，不提高超时、不把整组原失败改写为全通过。Desktop 小 Main／原 Cloud owner 构建成功，135 项输入和 15 项产物逐项固定，真实 Electron 无资源预检继续取终态。
+- 只读网络发现驱动误将内部推荐函数当成公共 action，公共协议明确拒绝、零采购；已停止该路线，没有为测试新增推荐 RPC。原网络只有供应商栈而缺少本机原收据，现役连接 owner 必须核对本机持久准备记录，不能仅凭云端标签接管。下一轮沿正常 `prepareEcsPurchase` 建立当前应用可追踪的专用网络，不手写旧收据、不修改旧保留网络；只有报价、网络预检、固定 Electron 启退闭合后才进入计费。
+
+### 购买前预检与默认官方包真云复验（2026-11-13，采购通过，安装未闭合）
+
+- root 沿上节窄写集继续；产品预检源码未再次变化。新增写入仅为本计划及 `.lime/qc/cloud-preflight-official-live-20261113/` 的明确 test-only 驱动、固定快照和脱敏证据。Account、Provider、完整 Main、聊天、TUI、Skills、发布及并行翻译保持原样；无 Git 递交、分支或新 runtime。
+- 当前应用原 OAuth 经官方 STS 核对，并以先前保留 ROS 栈的精确操作编号确认测试账号归属。没有复制令牌或恢复缺失的私有测试目录。由于现役连接必须读取本机原准备收据，按正常产品入口准备一份专用网络，零技术字段输入；旧栈保持原样。新栈只含 VPC、交换机、安全组，没有 NAT、EIP 或计算实例。
+- 含预检的管理二进制 SHA-256 为 `b4e3245a78effe8ac3c7a5c4001b35edae38779a3fef287dd9bb2973067a02bf`，两个必需动态库逐字固定。Desktop 小 Main／原 Cloud owner 的 135 项输入、15 项产物已核对并固定。真实 Electron 无资源启动／退出通过；同一固定程序调用现役官方发布探针成功，真实版本 1.175.0，零供应商资源请求，正常退出 143 ms。此边界不代表完整生产 Main 或全部并行源码通过。
+- 首个采购意图在供应商只读库存检查阶段返回 `notSubmitted/submitted=false/requiresInspection=false`，无采购收据，独立标签／名称查询零实例。test-only 清理驱动误查询不存在的原收据，精确独立清理查询证明零资源；原失败保留。五项只读库存 API 随后全部通过，首次供应商错误原因为固定诊断，不能据此断言某个网络根因。
+- 明确核实已知未提交后，保存第一份结束状态及结果，以新操作编号重新核价、重新执行真实购买前预检，原意图不重发。实际只购入一台 ECS，实时 CNY 0.461／小时，存储／流量及最终结算单列。加密盘／精确规格读回与原产品连接准备通过，没有 SSH 凭据、私有 OSS 包或全网入站规则。
+- 官方同版本默认安装进入 preparing → launching → uploading → downloading，随后转为 needsAttention／CLOUD_INSTALL_RECOVERY_REQUIRED，尚未保存连接凭据，未进入任务连接或 noVNC。当前证据不足以区分 HTTP／TLS／Session Manager／响应校验的具体失败；不得将其写成已证实的下载源或网络根因。未重放安装、上传或新购第二台实际云机。Electron 正常退出 121 ms。
+- 安装失败后，原产品 stop／release 与独立系统盘查询均通过；实例及系统盘确认不存在，专用网络保留复用，无新 OSS。最后六类资源分页清点另记当前终态，不将旧清单冒充当前账号／全地域证明。证据含 `run-live-attempt-two.log`、固定快照中的 `electron-summary.json`／`pipeline-summary.json`、`resource-cleanup.json`；私有失败细节仅保存在工作区外的私有测试目录。
+- 下一刀先补安全的安装传输故障分类／观测，使用本地夹具确认诊断不会包含 endpoint、证书、Authorization、响应正文或凭据，再沿原操作验证恢复；未定位前不盲目新购。真实模型任务、第三方认证、用户对象存储完整恢复和最终账单仍开放。架构责任 root，沿现役安装／连接 owner，完整实机保持 3/8（37.5%），本轮为 progress。
+- 收尾只读分页清点通过：广州 ECS、盘、快照、私有镜像、无影、EIP 六类均为零；本轮实例和一块加密系统盘独立核实不存在，当前专用网络零实例挂载。范围仅广州和原测试资源，不含其他地域／服务或延迟账单。150 项固定输入／产物及三个运行时文件摘要均未变化；原目录 Cloud 产品／测试输入保持稳定，五语言整文件的并行变更保留，十五个本轮新文案键未变化。定向 diff 检查通过，所有本轮运行会话已取得终态；汇总 `.lime/qc/cloud-preflight-official-live-20261113/validation-summary.json`。
+
+### 同版本官方 guest 与连接地址源复验（2026-11-12，局部验证通过，默认安装实机开放）
+
+- 上轮为 progress：备份恢复入口与精确镜像核价落地，69 项回归和最终 Gate A 通过，最终整树 GUI 因其他并行源码变化被守卫拒绝。本轮重新核对外部状态，公开 `v1.175.0` 已发布，现役 `probeCloudGuestRelease`／`selectCloudGuestRelease` 实际通过；之前 404 不再是当前阻塞，不能继续沿用旧结论。
+- root 窄写集：本计划、必要的现役架构／命令说明，以及 `.lime/qc/cloud-official-release-live-20261112/` test-only 驱动和脱敏证据；产品先只读，发现实际缺陷才登记最小源码写集。避让 Account、Provider、Main 主文件、聊天、TUI、Skills 和发布；不启子 Agent、不递交 Git、不发布产物。官方产物为已存在的外部状态，本进程不上传或修改 Release。
+- Verification Contract：root，P1，budget:normal。先通过现役解析器验证描述文件、精确版本、官方来源和包大小，独立校对 GitHub 资产摘要并完整下载校验 manifest。只有无云预检闭合后才考虑已有测试授权范围内的一台按量实例，复用原托管网络与已授权身份；购买前重新核价，durable intent、原操作读取和精确清理继续复用。真实默认安装不能注入私有 OSS 描述文件或把旧版包重命名。
+- 退出条件：官方包真实字节、默认安装／认证远程连接、桌面显示和 CLI／任务链按实际达到层次记录；失败保留原意图与诊断，30 分钟内无后续用途则释放测试计算资源并独立核实盘，现有共享网络保留。第三方登录、真实模型任务、完整账单和当前未覆盖平台仍单独开放，不以版本下载可用计为整组完成。Architecture impact: none，使用现役发布解析和 Cloud owner。
+- 官方完整包与 18 项 manifest 校验通过。两次原 OAuth 请求超时后，官方 CLI 源码及无凭据 Go／curl 探针确认固定端点可达；第三次沿原 profile 的身份核对和刷新成功，没有重新浏览器授权。早期诊断把缺失 refresh expiry 的零值当作过期，该值不能证明失效，已在脱敏证据中更正。原 helper 覆盖了首次私有日志，首次固定失败分类仍保留；现已按尝试保存错误，不补造首次原文。
+- 共享二进制被其他构建替换，第一次 Electron 预检被原摘要守卫拒绝。未修改共享二进制；187 项小型验证输入／输出与新二进制、必需动态库分别冻结，独立核对摘要并重新通过真实 Electron 无资源预检、原身份／网络／报价。新二进制属于独立固定的外部构建产物，不宣称与全部当前脏 Rust 源码等价。
+- 本轮只购买一台按量 ECS，实时 CNY 0.461／小时（保留存储、流量等费用另计）；采购成功后的连接预检因 `api.ipify.org` TCP 拒绝失败，尚未进入 guest 安装。原产品停机／释放成功，独立官方查询确认实例及加密系统盘不存在；没有重购、OSS 或新增网络，原托管网络保留，最终账单开放。
+- 根因切片追加窄写集：现役 `ecs/access/rules.rs` 及其独立 `rules/tests.rs`、现有架构／命令的地址发现合同与本计划。只修复单个地址源不可达造成的可用性问题：固定三个 HTTPS 地址源，有界读取，必须取得两个一致的合法公网 IPv4；响应冲突、非法地址或超限仍拒绝配置。无凭据、无重定向、无全网规则，不扩展协议或供应商写入。本轮不再采购，定向回归与原函数无资源网络复验通过后仍保留默认安装实机缺口。Architecture impact: none，同一 Cloud 连接 owner。
+- 原地址 owner 与完整新测试通过路径直接载入隔离 Cargo 验证，8/8 回归及精确原函数的真实 HTTPS 查询 1/1 通过，无云资源、无凭据或地址原文输出。覆盖断连、服务不可用、确认不足、冲突、非法／私网／超限、未知长度超限、截断、禁止重定向与两源一致后停止。首次隔离驱动因子模块路径误载入上一级测试而编译失败，明确指定测试路径后通过；初次图表渲染缺少 Playwright 预期浏览器，切换现有 Chrome 后通过并实际查看，没有安装新浏览器。
+- 原 services 定向回归首先被范围外 `ServerRequest::ConnectionAuthorize` 的穷尽匹配缺项拒绝；未触碰该 owner。共享目标上的后续隔离任务等待构建锁，只终止核对过的本任务 Cargo，改用 test-only 独立 target；保留退出 143。检测到协议 owner 已补齐该匹配后，重新运行现役 services 连接领域回归，15/15 通过，公共网络用例默认忽略；保留首轮失败，不将其写成首次通过，也不将领域回归冒充公共 JSON-RPC 或真云安装验收。
+- 原 services 的精确公共网络用例再次等待共享构建锁，核对完整参数后仅终止本任务的排队 Cargo，标准 wrapper 退出 1，不能记为通过。改用上述完整领域回归生成的实际测试程序，隔离配置并核对执行前后 SHA-256，直接运行同一精确忽略用例，1/1 通过；未调用云资源 API、读取凭据或输出公网地址。该直接执行与先前隔离 harness 的 1/1 分开记录，不重复累计为不同功能。
+- 收尾独立只读分页查询广州区 ECS、盘、快照、私有镜像、无影与 EIP 均为零；原 ROS 栈、模板归属及安全组零挂载已核对，保留网络供复用。187 项冻结输入／输出无漂移；原目录 `appServerHost.ts`、client 协议生成物与 dist 已发生并行变化，具体清单见汇总，冻结小 Main 的预检不能扩张为当前完整 Main 通过。`docs:boundary` 仍因范围外已索引的 `readme-brand-refresh-20261112.md` 拒绝，未修改其 owner 或索引。
+- 下一刀：将本机地址发现纳入付费采购前的产品只读预检，避免检查在计费后才失败；在含本次修复的固定管理产物下复验同版本官方 guest 默认安装。真实模型任务、第三方登录、真云恢复及最终账单继续独立验收，完整实机仍 3/8（37.5%）。本轮为 progress，current 根因修复及 test-only 证据，无新增兼容入口、中心服务、依赖或第二 runtime；未提交、推送、建分支或发布。
+- 汇总 `.lime/qc/cloud-official-release-live-20261112/validation-summary.json`。连接时序图已实际渲染与查看，架构责任 root 确认仍由原连接 owner 完成地址核对和规则配置；格式与定向差异检查通过，最终两个产品／回归文件摘要保持一致。当前完整 Main、官方默认安装／桌面和未覆盖实机组继续开放，源码局部修复不提升整组完成度。
+
+### 备份页直接恢复购买与精确镜像报价（2026-11-12，定向与 Gate A 通过，最终整树 GUI／真云恢复开放）
+
+- 上轮为 progress：一次授权保存释放与公共 RPC、143 项领域回归和 Electron 基础壳通过。本轮只读发现私有镜像恢复仍藏在普通购买页，推荐／模板可用基础镜像覆盖用户的恢复选择，所选镜像还需手动再次核价。
+- root 窄写集：新增备份恢复入口、现役 `PurchaseEcs`／`EcsSystemImages` 的恢复投影、`useCloudPurchase` 报价解析与陈旧结果保护、对应组件回归、五语言 Cloud 键、现有命令／架构／本计划与 README 的相关使用说明。Rust、Main、Account、Provider、聊天、TUI、发布及外部云资源只读，不启子 Agent、不递交 Git；不覆盖并行 owner。
+- Verification Contract：root，P1，budget:normal。从备份进入复用原浏览器授权、模板／推荐网络准备和报价／购买 owner；用户选择经现役服务验证的私有加密镜像，恢复报价只允许精确镜像及不小于其系统盘大小。模板解析的基础报价不能作为恢复费用确认；应用镜像后重新核价并重新确认。只读发现不创建资源，未知购买仍只读原编号，不绕过运行包前置或最终购买授权。
+- 退出条件：推荐／模板两路径均保留所选镜像；镜像、账号或地域变化使旧报价／确认失效，迟到响应和卸载不能提交；相关组件、类型、五语言、Gate A 与原目录 Electron 分层验证。完整实机维持 3/8；本轮是 Lime BYOC 必要适配，不冒称复制 Codex 私有 Cloud。Architecture impact: minor，沿同一购买 owner，无新协议、依赖或 runtime。
+- 已接入备份页恢复入口，选择镜像后自动解析原模板／推荐网络并按精确镜像重新报价，系统盘不小于镜像大小；基础模板报价、错配 spec 和迟到上下文不能进入费用确认。账号／地域／镜像变化清除旧选择或费用同意。新机必须通过完整购买收据且实际观察到 Running，才开放原任务连接，仍需用户授权轮换凭据。
+- 组件首轮 58/59 发现关闭后重开 unknown 购买会重挂载镜像选择、进而阻止读取原收据；已修复为提交后保留购买身份，查询不依赖重新选择镜像。最终六文件 69/69，通过后补加载提示的相关两文件 15/15；视觉复核再去掉恢复模式的普通新机说明，原恢复／购买两文件 24/24 通过。保留首轮失败；补验两次命令在错误文件过滤、重复 worker 参数处被 runner 拒绝，修正驱动后才执行，不算产品测试通过或失败。
+- 原完整设置页、现役 API facade／CSS 的真实 Chrome Gate A 两轮通过：推荐与模板均核对精确镜像，费用同意随镜像变化失效，unknown 关闭重开只读原编号，零重复购买；五语言 360px 深色无横向溢出，页面／控制台错误为零。20 项完整输入前后摘要一致，最终浅色／窄屏截图和新增恢复时序图已实际查看。架构责任 root 确认同一购买 authority，无新增恢复 runtime；此为显式供应商与 Desktop JSONL 测试夹具，不证明 Electron 或真实云恢复。
+- 五语言各 456 个 Cloud 键及插值合同一致，13 项源码／直接消费者摘要中仅最后的恢复说明显隐补丁发生预期变化；原 `source-manifest.json`、首轮浏览器证据保留，另存最终 manifest／浏览器结果。验证脚本曾误按嵌套字典读取扁平翻译文件而拒绝，按现役完整 key 过滤后校验通过，没有改产品数据以适配验证。
+- 最终 Renderer／Node 类型检查、定向 ESLint／Prettier 与 diff 检查通过。标准原目录 GUI 首轮 Vite 报 `exited with null`，未进入 Electron，信号原因未报告；第二轮退出 0，真实 Electron／preload／IPC／App Server、重载及三个视口 24/24，错误计数为零，见 `standalone-shell-01-20261112142037-71072/shell-01-electron-smoke/summary.json`。该通过发生于最后说明显隐补丁之前，不能代替最终源码验证。
+- 说明显隐补丁后的标准 GUI 完成 Vite 构建，但被 `Renderer build inputs changed during compilation` 守卫拒绝，聚合退出 1，未进入 Electron。构建中 2800 项整树输入摘要已观察到漂移，本轮 13 项 Cloud 输入保持不变；不修改门禁、停止其他 owner 或重复构建以碰运气。摘要观察脚本首轮误将文件计数当作列表，修正 test-only 观察后记录真实整树摘要，不把该驱动错误算为产品失败。最终整树 GUI 仍开放。
+- `docs:boundary` 仍因范围外、已进入 Git 索引的 `internal/exec-plans/readme-brand-refresh-20261112.md` 退出 1；未触碰该 owner、索引或忽略规则。本轮没有新增协议／Main／runtime，不无理由重复 Rust 或完整 contracts；相关前置合同以此前实际结果为限。
+- 汇总 `.lime/qc/cloud-image-restore-20261112/validation-summary.json`。本轮为 current 恢复入口／报价保护及 test-only 回归，无新增 compat/deprecated、中心账号、服务、依赖或第二 runtime；沿原购买／认证／任务连接 owner 实现 DRY 与职责分离。没有新购或变更真实云资源，没有 Git 递交；完整 Cloud 实机仍为 3/8（37.5%），默认同版本 guest 分发、真云保存恢复、真实模型任务及第三方登录验证继续开放。
+
+### 保存环境后释放的一次授权流程（2026-11-12，本地与公共 RPC 验证通过，真云保存恢复开放）
+
+- 上轮为 progress：启停交互与原目录 Electron 门禁通过。本轮将现役停机、加密冷快照、私有镜像验证和保护释放接成同一个可恢复操作，减少长期不用时的人工步骤；不新增云服务或把云管理凭据放到 guest。
+- root 窄写集：Cloud 协议的两项 action、现役 services 中独立 `hibernation` 子模块、生命周期／镜像内部委托与收据互斥、Cloud 页面相应入口／回归／五语言新增键、生成的 Cloud schema/client 必要差异、现有架构／命令与本计划。Account／Provider／TUI／Main 主文件和发布保持只读；共享生成物仅按当前全部输入生成并检查差异，不覆盖并行字段，不启子 Agent、不执行 Git 递交或新购资源。
+- Verification Contract：root，P1，budget:normal。初次明确授权工作已保存、保存整盘敏感资料及删除原机；父操作先持久化固定子操作身份，再复用原停机／快照／镜像／释放 owner。每个供应商写入仍先落原 unknown 收据；只查询已有子收据，不重发。活动父操作锁定同目标的其他变更，包括其他 profile 别名；只有其当前精确子操作可继续。备份不可用、额外磁盘、身份漂移或未知结果不得进入释放。
+- 本机 App Server 内执行有界后台任务；关闭面板继续运行，进程退出后保留原操作供显式接续，读取不自动启动写入。取消只阻止尚未开始的后续步骤，不回滚已停机／已创建的备份；释放可能开始后禁止承诺取消。此流程是用户主动保存并释放，不冒充后台自动判断空闲或已完成独立调度。
+- 退出条件：领域集成验证单次副作用、响应丢失／重启／互斥／取消和备份失败拒绝删除；协议生成、types/contracts、相关组件与真实 GUI 分层记录。真实供应商复验需单独证据，整体八组仍为 3/8（37.5%）。Architecture impact: minor，复用同一管理与凭据 owner，不增加运行时或依赖。
+- 当前实现已接入：一次完整同意后自动发现系统盘，依次停机、保存加密快照、验证私有镜像并保护释放；只读轮询不重启 worker。关闭／重开保留原编号，App Server 退出后须显式原请求接续。取消只停止未来步骤；只有 durable 删除意图已存在时禁止取消，释放预检失败且未落删除意图时仍可停止后续步骤。活动父收据在最近 50 条之外仍可发现，跨 profile 别名不能绕过资源互斥。
+- 完成弹窗由设置页列表外的单一 owner 持有，资源释放从列表移除、或历史刷新移除条目后仍展示最终结果，由用户主动关闭。未提交同意绑定当前目标与可用性；响应目标不匹配时不能显示接续／取消。保留存储等费用、整盘敏感信息、保持 Lime 运行和恢复后验证登录的说明，不将“省步骤”表述为零费用或已完成自动空闲判断。
+- 最终前端组合首轮为 34/64，通过的三个文件保留；失败三个文件的首项触发原 5 秒超时，随后有 overlapping act／空 DOM 连锁失败。未修改超时、断言或产品输入，设置页独立 2/2、另外两文件单 worker 37/37 复查通过，合计 64 个不同用例已通过；原失败日志继续保留，不能写成首次整轮通过。完整 Renderer／Node typecheck、定向 ESLint／Prettier 与差异检查通过。
+- 最终真实 Chrome Gate A 通过原组件和完整 CSS 的单次同意、原编号查询／接续、目标变化清除同意、关闭后焦点和五语言 360px 浅暗检查，页面／控制台错误为零；已实际查看完成窄屏与同意截图。设置页资源／历史刷新通过独立组件回归，不将独立组件 Gate A 冒充完整设置页或 Electron。两张新增 Mermaid 已实际渲染并视觉复核，流程与时序继续由原 Cloud owner 负责；架构责任 root 确认无新增生命周期 authority。
+- 新公共 stdio 负向集成 1/1 通过：三项同意不完整均拒绝，缺失操作的取消／重复读取不创建收据。真实 App Server 两次进程成功验证中途退出、重启后两次读取无供应商调用、显式原请求继续、四项副作用各一次及终态 replay 零调用；两进程退出 0/null，二进制摘要前后一致。供应商为显式本地 CLI 夹具，没有真实云副作用，不计入实机分母。
+- 当前 Cloud 领域回归 143/143 通过，含本次 12 项保存流程、原采购／网络／连接／快照／镜像／释放与通道回归；schema fixture 精确 target 1/1 通过，包含并行 Account 的当前生成字段，未覆盖其 owner。16 项最终产品／回归输入和五语言 Cloud 子集摘要复核一致，453 个键及插值合同一致。
+- 完整 contracts 前置协议／client／命令／harness 等检查通过，末尾仍因范围外、已进入 Git 索引的 `internal/exec-plans/readme-brand-refresh-20261112.md` 违反 docs boundary 而退出 1；不修改该 owner、索引或忽略规则。测试驱动首次误将 `--tests` 扩成全量，已只停止本轮核实的子进程并改为精确 target；后续一次 runner 漏环境和一次图表驱动依赖解析失败均保留，修正仅限 test-only 驱动，不写成产品通过。
+- 标准原目录 GUI smoke 最终退出 0，真实 Electron／preload／IPC／App Server、重载及三个视口 24/24 通过，错误计数为零；证据 `standalone-shell-01-20261112135120-3601/shell-01-electron-smoke/summary.json`。首次构建在本轮输入仍变化时被 freshness guard 拒绝，保留失败，最终固定输入后通过；基础壳门禁不等于真实云保存恢复或完整 Cloud Gate B。
+- 汇总 `.lime/qc/cloud-hibernation-20261112/validation-summary.json`。本轮为 current 功能与 test-only 回归／证据，无新增 compat/deprecated、依赖、中心服务或第二 runtime，没有 Git 递交，未新购或变更真实云资源。设计采用现役生命周期／镜像 owner 的持久顺序编排；一次同意只覆盖原目标与原子操作，读取、重启与响应丢失不扩大授权。完整 Cloud 实机仍为 3/8（37.5%）；同版本默认运行包、真云保存恢复／第三方登录及空闲自动化继续开放，不用本地夹具填满实机分母。
+
+### 日常启停减少技术输入（2026-11-12，局部验证通过）
+
+- 主目标是降低使用门槛。自动准备 CLI／浏览器授权、实时报价与托管网络已经进入现役链路；本轮修正日常启动／停机仍需手输资源 ID 的摩擦。保留目标展示、显式启动确认与停机前保存工作确认，释放／快照的现有确认不扩张简化。
+- root 窄写集：`CloudResourceActions.tsx`、原 `CloudDesktops.component.test.tsx` 的一项启停断言、独立生命周期组件回归、本计划与 `.lime/qc/cloud-lifecycle-friction-20261112/`。其余并行 Main／Rust／协议／账号／聊天／五语言翻译／发布文件只读；不启子 Agent、不新购或变更云资源、不递交 Git。
+- Verification Contract：root，P1，budget:normal。沿用现役请求、精确 confirmation、operationId 和 unknown 收据，禁止以 UI 简化降低 App Server 最终授权。启停确认绑定打开时的资源和可操作状态；目标、状态或可用性变化时关闭未提交确认，重新打开后重新授权；已提交请求只查询原编号，不因变化重发。
+- 退出条件：相关回归、类型／lint、五语言实际界面和标准 Electron smoke；组件不证明真实云启停、后台闲置判断或自动回收。此为 Lime 自有 BYOC 的必要交互适配，不冒称复制 Codex 私有 Cloud。Architecture impact: minor，无新增 owner、协议、依赖或 runtime；完整实机维持 3/8（37.5%）。
+- ECS／无影启动不再要求输入 ID，停机只需确认工作已保存；原目标说明、确认串、单次提交和查询原收据继续复用。共享 `canExecute` 同时约束按钮和执行入口，资源四字段、供应商状态或父级可用性变化后关闭未提交确认，状态恢复也不复活旧同意。释放、快照与备份保护继续经过现役确认；未改 App Server 授权或供应商行为。
+- 新回归在原实现 11 项失败；修改后相关四文件首轮 59/60，唯一失败是测试误选弹窗外同名禁用按钮，限定弹窗后该文件 11/11 通过，合计 60 个不同用例通过。原失败日志均保留。完整 Renderer／Node 类型、定向 ESLint／Prettier 和 diff 检查通过；没有因该纯 UI 切片重复运行协议生成或已知范围外失败的完整 contracts。
+- 原组件和完整 CSS 的真实 Chrome Gate A 通过：启动无输入框，停机仅一个工作保存确认框；五语言 360px 深色无横向溢出，浅色启动／窄屏日语停机截图已实际查看，零页面及控制台错误。验证关闭后焦点返回、可用性变化关闭旧确认、重开清除同意，以及 unknown 只查原编号；八项产品输入摘要前后一致。供应商是显式 props 夹具，不执行真实云操作。
+- 标准原目录 `verify:gui-smoke` 最终退出 0，真实 Electron／preload／IPC／App Server、重载和三个视口 24/24，错误计数为零；证据 `.lime/qc/project-gates/standalone-shell-01-20261112125155-94190/shell-01-electron-smoke/summary.json`。此为基础壳门禁，不代替 Cloud 实机链路。汇总 `.lime/qc/cloud-lifecycle-friction-20261112/validation-summary.json`，收尾三项原目录写集摘要一致；分类 current 修复和 test-only 回归，无新增 compat/deprecated、依赖、云资源或 Git 递交。完整验收仍为 3/8（37.5%），默认同版本运行包、真实云模型任务／第三方登录及闲置自动化继续开放。
+
+### 安装过程的真实下载与安装阶段（2026-11-12，局部验证通过）
+
+- 上轮为 progress：零技术字段采购、真实 guest/noVNC 与精确清理通过。本轮只读查询公开 `v1.175.0` 返回 404，现役精确版本默认安装／发布接线已存在，不能将旧版包改名当作正式交付。继续降低首次安装等待门槛，修正长时间只展示“获取、校验或安装”的不明确进度。
+- root 窄写集为 `cloudGuestInstallations.ts`、对应独立 progress 回归、Host 安装状态类型、`CloudInstallationProgress` 及其回归、五语言安装阶段文案、本计划与 `.lime/qc/cloud-install-progress-20261112/`；Main 主文件、Provider、聊天、TUI、权限、Cloud 管理协议与发布配置只读，不启子 Agent、不递交 Git、不新购云资源。
+- Verification Contract：root，P1，budget:normal。仅在现役已校验 operationId／expiresAt 的 guest `/status` 返回 receiving／installing 时投影新阶段；未收到确认前不推断下载已开始。状态仍加密持久化，重复状态不反复写盘；重开、退出与恢复保留原编号、原包摘要和原始时间，不重新读取版本或重复下发安装／下载。重连保留自身“更换凭据”阶段，不错误显示重新安装。
+- 退出条件：下载／安装／失败与未知身份的回归、持久恢复与单次下载、五语言和可见进度、类型／合同、相关 GUI 证据与原始失败保存。此为 Lime BYOC 必要适配，沿现役安装 owner 和设计 skill，不冒充 Codex 私有 Cloud 源码；Architecture impact: minor，责任 root，未新增 owner、runtime 或外部副作用。完整八组验收保持 3/8（37.5%）。
+- 五文件定向回归 47/47、完整 Renderer／Node 与 Electron 类型、定向 lint／格式和五语言 428 个 Cloud 键及占位符通过。首轮 45/47，两个新增夹具漏了现役启动收据的嵌套 artifact，修正夹具后通过；原失败保留，不把前置校验拒绝冒充下载身份的负向通过。回归独立覆盖读回的下载／安装阶段、停机中断后同编号接续、一次准备／启动／下载、真实失败不保存凭据和重连不显示重新安装。
+- Gate A 原弹窗／进度／CSS 通过：真实 Chrome、五语言 360px 无横向溢出、浅色下载与窄屏深色安装、关闭重开保留原阶段／时间且仅调用状态读取。首次夹具缺少 favicon 的 404 保留为 `browser-first-summary.json`，补明确 data favicon 后页面与控制台错误为零；两张最终截图已实际查看。证据不包含真实 Electron／Rust／供应商或安装，不能覆盖上轮真云输入。
+- 完整 contracts 的前置协议／client／命令等门禁通过，最后 docs boundary 仍因范围外已索引 `internal/exec-plans/readme-brand-refresh-20261112.md` 失败，没有改索引或对方 owner。标准原目录 GUI 最终退出 0，真实 Electron／preload／IPC／App Server、重载与三个视口 24/24 通过、错误计数为零；证据 `standalone-shell-01-20261112124021-40619/shell-01-electron-smoke/summary.json`，只证明基础壳，不替代真云安装或模型任务。
+- 收尾发现五语言文件被并行增加 `settings.cloudAccount.invalidConfiguration`，停止写入并只读复核：逐文件在内存剔除该行后，SHA-256 与原验证摘要完全一致，证明本轮三阶段键及其余已验证内容未变；当前 428 个 Cloud 键与插值再次核对通过。未覆盖并行键、修改旧摘要或重跑无关业务。原始漂移及边界保存在 `source-drift-review.json`，最终汇总 `validation-summary.json`。分类 current 修复与 test-only 证据，无新增 compat/deprecated，完整验收仍为 3/8（37.5%）。
+
+### 自动准备网络与完整桌面实机续验（2026-11-12，局部真云链路通过）
+
+- 上轮为 progress：原目录连接/恢复修复、34 项 Rust、24 项前端及真实 stdio 恢复通过；完整 contracts 与标准 GUI 未闭合，整体实机仍为 3/8。本轮先认领 `.lime/qc/cloud-managed-live-20261112/`、私有测试 state 和本计划；产品 Main/Provider/聊天/权限/插件/发布只读。先准备驱动、固定输入和清理路径，再沿既有云测试授权进行单次低价 Linux 实测；未知结果只观察原操作，不重购。
+- Verification Contract：root，P1，budget:normal。当前管理二进制 SHA-256 固定为 `986e6070a26b2f8c9b8e0a055dbf0d19c21ad2a9391e1cf8a99e5cf7c05908c1`，复用已验证的 138547424 字节 guest 包和最新浏览器授权，不另压大包、不公开发布、不重置 token。新流程需经过现役 prepareEcsPurchase/quoteEcs/purchaseEcs/prepareEcsConnection，单实例报价上限沿原测试范围 CNY 1.5/小时，存储和流量另核对；实际建议采用产品给出的最低有效价格，不手填技术规格。
+- 原测试目录的无窗口 Main 在 uploading 时提前进入 stopping 的根因仍未确定。本轮复制的只是显式测试驱动，加入透明 quit 来源/driver-close 观察并保留原生退出行为；不得将安装进度、进程启动或夹具截图当作完整 Electron/真实模型任务通过。费用开始前完成局部构建与只读预检，真云失败即保存证据并释放实例/系统盘。
+- 收尾保留本次 ROS 管理的 VPC/VSwitch/专用安全组供后续原购买复用；核对组无实例附加，不保留 VM、NAT 或 EIP。此为持久网络，不声称所有云对象消失；账单与最终结算独立验收。原共享 VPC/VSwitch 不改动。默认官方分发、真实模型/第三方认证及 8 组验收范围保持不变。
+- 初次只读预检尝试以私有目录引用复用授权，现役服务拒绝符号链接目录，返回 `Cloud operation directory must be private and regular`；该安全边界按预期生效。已改为直接复用原授权 appData，不复制 refresh token、不放宽目录校验；初次失败保留，未提交任何云资源操作。
+- 最终费用开始前，现有浏览器授权、当前管理二进制和 128 项冻结输入／5 项输出再次核验通过。新建的仅是约 2.26 MB 小型验证闭包，未复制大二进制；测试结束后摘要仍一致，128 项对应原目录文件也均未变化。第一次预检脚本在关闭应用后读取失效 dispatcher，第二次预检遇到测试 Main 启动失败，均保留原日志；增加私有完整错误记录后，最后一次 Electron 预检及真云运行通过，不将未复现写成此前根因已修复。
+- 真实私有 OSS 分发通过：匿名访问 403、AES256、完整下载 138547424 字节及摘要一致。现役公共 RPC 自动发现规格、单次准备 ROS 网络、核价、单次采购及受限连接均通过，技术字段手工输入为零；本轮实际 `ecs.c6a.large` 报价 CNY 0.461/小时，存储和流量另计，只表示当时该地域报价，不是最低价保证或最终账单。
+- 真实 Electron 经现役安装／连接 owner、认证 App Server、云助手与 Session Manager 完成新云机安装；新机 `waitingForAgent` 自动继续，没有人工恢复或重新采购。安装耗时 234603 ms，完成后临时 installation 通道关闭，连接密文保存成功。默认无桌面通道，点击后真实 noVNC/RFB 认证并显示 1920×1080 的非空 Xfce 画面，首次查看加载 20009 ms；只读模式、iframe 与父 bridge/Node 隔离均通过。
+- 收起后真实 RFB WebSocket 1 开／1 关且零 socket 错误，焦点归还；独立 task 通道保持连接，并经新请求成功读取真实 guest `thread/list`。正常原生退出 0/null、430 ms，透明生命周期证明最后退出由测试驱动明确发起，本次没有提前 stopping。此前上传提前停止的历史根因仍开放；两条 noVNC 缺失版本信息的 404 为已登记预期错误，非预期控制台／页面／preload 错误为零。
+- 最终产品精确释放实例和系统盘，并删除登记的 OSS 对象／空桶；独立只读确认原实例和盘不存在、原 ROS 身份／标签与 CREATE_COMPLETE 一致、专用安全组无实例。广州区 ECS、云盘、快照、私有镜像、无影、EIP 六类全分页计数均为零；OSS 另以 NoSuchBucket 读回。仅保留原 VPC／交换机／专用安全组供下次复用，不宣称所有云对象消失或历史费用结清。
+- 证据 `.lime/qc/cloud-managed-live-20261112/`：`pipeline-summary.json`、`electron-summary.json`、`live-build-receipt.json`、`source-consistency.json`、`lifecycle-summary.json`、`inventory.json`、OSS 清理提交与独立读回，以及 `validation-summary.json`。已实际查看 `real-linux-desktop.png`；其外壳是显式最小测试投影，用于确认真实桌面画面，不作为完整产品视觉／UX 通过证据。完整生产 Main、真实模型任务、第三方登录、CLI 同 Thread/Turn/Item 及默认同版本官方 guest 发布均不在本次通过范围。
+- 本轮为 progress，Architecture impact: none（test-only），责任 root；产品 current owner 未修改，无新增 compat/deprecated、中心服务、第二 runtime 或依赖，未递交 Git。当前复用已核验的旧版 1.174.0 guest 包，不以本次成功关闭默认官方分发或完整八组验收，整体保持 3/8（37.5%）。下一刀为同版本默认产物交付及真实模型／第三方登录的已登记独立验收；不重购实例等待输入，不重复请求已有授权。
+- 收尾 `node --check`、定向 `git diff --check` 和证据引用／敏感字段检查通过。相关 `npm run docs:boundary` 仍因范围外、已进入索引的 `internal/exec-plans/readme-brand-refresh-20261112.md` 失败，保留 `docs-boundary.log`；没有修改该 owner、Git 索引或忽略规则。该失败与通过的真云切片分开报告，不宣称完整 contracts 或标准 GUI 已闭合。
+
+### 安装时自动准备连接（2026-11-12，实施中）
+
+- 主目标继续为降低首次使用费用与操作门槛。本轮只扩展现役 ECS connection owner、安装对话框、共享 action/timeout 接线、五语言及对应回归；不触碰 Main、Provider、聊天、权限、插件、TUI 或发布。Codex 私有 Cloud 不在复制范围，该能力为 Lime BYOC 必要适配。
+- Verification Contract：root，P1，budget:normal。用户在安装或重连时授权配置连接；固定 HTTPS 来源核验当前公网 IPv4，仅操作已核验 ROS 原栈创建且只附加到目标实例的专用安全组。固定 TCP 8787/6080、当前 `/32`，不开放 SSH 或全网。新增两条规则核验后按登记 rule ID 清理旧规则；两个阶段先写 durable unknown，超时/重启只观察，不能重发或累积新地址。自定义网络不自动改动。
+- 退出条件：首次安装无需填写 IP/端口；原栈、模板、实例、规则归属严格核验；公网地址异常、未管理网络、共享安全组及规则漂移不能触发写入；未知提交与重启不重发，地址轮换精确清理；安装引导明确授权、进度及恢复。先领域和组件测试，再同步协议/contracts、公共 RPC 与 GUI 门禁；没有真云证据时不调整整体 3/8。
+- 上一切片 Rust 网络测试现已取得终态：6/6 通过，原 session 71525 exit 0；完整输出保存 `rust-network-result.log`。Renderer/Node typecheck 与新版 App Server 继续沿原会话等待，未重启或抢占其他进程。
+- 当前验证：原测试二进制扩大 ECS 购买/模板相关回归 21/21 通过；新连接 helper 4/4 通过，安装组件整轮 7/8、首项原 5 秒超时，修正过滤参数后单项按原门槛复查 1/1 通过。错误过滤命令的层级拒绝与整轮失败均保留，不能合写为整轮通过。定向 lint 通过。
+- 沿既有浏览器身份只读核对实际安全组响应形状，未创建/修改任何云资源或重新授权。真实返回 `IpProtocol=TCP`、`Priority` 为整数；实现与夹具已按此合同接受大小写及数字/字符串 1，仍严格限制固定端口、地址与规则 ID。依据 [AuthorizeSecurityGroup](https://help.aliyun.com/zh/ecs/developer-reference/api-ecs-2014-05-26-authorizesecuritygroup)、[RevokeSecurityGroup](https://help.aliyun.com/zh/ecs/developer-reference/api-ecs-2014-05-26-revokesecuritygroup) 及官方 CLI help 使用 `Permissions.N.*` 和精确 rule ID。没有把只读调用写成连接规则实机验收。
+- 原 typecheck 最终发现推荐组件白名单对象强转的 TS2352；已改为显式构造经过类型核验的 `EcsDesktopSpec`，保留只允许业务字段的边界。原失败日志保留。新协议生成、当前 Rust/公共 RPC 与更新后类型检查尚需终态；原 GUI smoke 的 Vite 提前退出也未改记为通过。
+- 初次连接 Gate A 的固定输入复查已通过，浅/深及 360px 五语言无溢出、零页面/控制台错误；两张 UI 与新增时序图已视觉复核，架构确认 root。首次因测试壳 favicon 404 失败，第二次输入摘要检测到补充观察预算保护时的源码变化，两份失败保留，没有放宽断言。预算保护新增回归后 helper 5/5 通过。
+- 继续补齐原安装被安全组拦截的恢复入口：明确同意连接规则修复后先配置当前地址，再传递原 operationId 给原 `resumeInstallation`，不重新安装或换 Main 原操作。普通原操作查询不触发网络变更。五语言补恢复授权及操作/结果标签，避免操作记录出现原始技术 action；恢复组件与 Gate A 正在验证。
+- 本轮继续收口同一窄写集。发现原网络重建实例时仍核验旧实例的缺陷，已将当前显式目标传入归属观察；原授权请求与摘要不变，新增 `observedResource` 经同 provider/profile/region 及独占网络核验后返回。公网地址不变零规则写入，变化后沿原登记 ID 精确轮换。新增重建回归和前端目标核验，当前 Rust/公共 RPC 与最终 Gate A 待终态；不会用旧二进制验证该修复。
+- 原标准 GUI smoke 已取得退出 1：Vite 完成构建后输入摘要守卫发现编译期间工作树变化，未进入 Electron。保留 `connection-gui-smoke.log`，不修改门禁或表述为产品通过。管理员安装授权文案与恢复入口的前一轮 Gate A 退出 0，本轮 `observedResource` 修正后另跑固定输入验证。
+- 当前 Rust 新连接 7/7、同一隔离测试二进制的网络与连接 13/13，helper 6/6、安装恢复组件 8/8、任务连接组件 10/10 通过。任务连接初次为 8/10，两个旧夹具未提供新增连接准备动作响应；迁移夹具后通过，原失败保留。schema/TypeScript 生成、client 构建、Renderer/Node 类型与定向 lint/格式通过，五语言 Cloud 键各 426 项及插值一致。公共 RPC 仍等最终新构建，不拿此前二进制替代。
+- 实际视觉复核发现修复入口仍复用“不会自动修改安全组”的旧提示，已为此入口补准确的授权恢复说明及五语言，旧手工网络入口保持自身语义。最终 Gate A 通过安装顺序、原操作继续、五语言 360px 暗色安装和修复布局，页面/控制台错误为零；新修复截图及 1729×1191 时序图已实际查看，架构责任 root 确认原请求不可变与新实例独立核验边界。该证据仍不代表 Electron/真云通过。
+- 第二次标准 GUI 在协议生成尚未稳定时启动，Vite 完成后输入守卫再次拒绝，日志 `connection-gui-final.log` 保留；本轮生成客户端也改变构建输入，未将失败推断为唯一外部原因。待协议/client/contracts 固定后再跑必要终验，不降低摘要检查或冒充 Gate B。
+- 当前同一隔离 Rust 二进制原购买/模板/释放回归 21/21 通过，与网络/连接 13/13 合计 34/34。完整 contracts 的协议、client、命令及 harness 等检查通过，最终 docs boundary 因范围外已进入索引的 `internal/exec-plans/readme-brand-refresh-20261112.md` 失败；没有修改其文件、Git 索引或忽略规则来获取通过。生成后的标准 GUI 另取真实终态，完整 contracts 仍记失败。
+- 最终新 App Server 构建通过，SHA-256 `986e6070a26b2f8c9b8e0a055dbf0d19c21ad2a9391e1cf8a99e5cf7c05908c1`。真实 stdio initialize/initialized 与 `cloud/desktop` 全部断言通过：CreateStack/Authorize 各一次、响应丢失、真实进程重启、新编号不重发、原网络重开、新实例独立核验并复用原规则；零额外 Authorize/Revoke、零 RunInstances。供应商 CLI 明确为本地夹具，两个公网地址 HTTPS 来源真实；不是浏览器 OAuth、Electron 或真云连接验收。最终进程关闭 4 ms，二进制摘要前后一致，见 `rpc-summary.json`。
+- 协议稳定后的最后标准 GUI 在 Vite 子进程处 `exited with null`，未进入 Electron，精确终止信号没有报告；保留 `connection-gui-settled.log`，不推断根因或继续重复构建。当前写集 31 项摘要一致，五语言、格式/lint、定向 diff 检查通过；本轮没有真实云资源变更、新授权或 Git 递交。结论为此切片本地行为与公共 RPC 通过、完整 contracts/标准 GUI 未闭合，整体实机仍 3/8（37.5%）。下一刀仍为默认官方 guest 分发与真云新账号购买/装配，不把本地夹具通过计入实机分母。
 
 ### 无模板账号自动准备购买方案（2026-11-12，实施中）
 
@@ -935,14 +1529,14 @@ npm run verify:gui-smoke
 | --- | --- |
 | 1. 既有云机启停、保盘与原文件读回 | 无影及普通 ECS 均实机通过；ECS 使用现役产品启停并验证服务/产物/token/文件跨启动，费用单独归第 8 组 |
 | 2. Linux helper、锁屏拒绝、人工接管和撤销 | 普通 ECS 实机通过，含真实 helper 输入/截图/取消、锁屏拒绝、接管中断及公共协议撤销；测试进程与自动浏览器不计为模型任务 |
-| 3. 同源 App Server 远程部署、认证连接和凭据边界 | 冻结当前源码的原生 release 编译、公共 RPC、摘要校验及私有 OSS 新下载路径真云安装已通过；真实 Electron 的认证连接、原生终端 Computer Use 发现、noVNC、精确远端管理拒绝和两次完整重启恢复均通过。签名未进入 Renderer/管理收据，恢复不重新安装。默认同版本官方产物交付仍开放，不计整组通过 |
+| 3. 同源 App Server 远程部署、认证连接和凭据边界 | 已通过：原生 release 编译、公共 RPC、摘要校验、真实 Electron 认证连接、原生终端 Computer Use 发现、noVNC、精确远端管理拒绝与两次完整重启恢复。2026-11-13 补齐默认同版本官方包的自动私有 OSS 分发与真云安装，准备后才采购；完整接收 106,595,589 字节，安装约 3 分 31 秒。桌面默认隐藏、展开真实 Xfce、收起后任务连接和新的认证读取成功，原生退出正常；签名未进入 Renderer/普通收据。两轮测试实例、系统盘及专用分发均已精确清理；此前失败保留，不将本轮通过当作旧故障根因已证实 |
 | 4. Desktop 与 Electron 退出后的 CLI 执行真实任务并投影同一 Thread/Turn/Item | 本机受控模型的真实 Electron/runtime/远程 CLI 双 Turn 及重启投影一致已验证；真实云机 Provider 与模型任务未验收，基础壳 smoke 不计入本组 |
-| 5. Python/Node/Go/Java、CLI 与浏览器认证跨启停复用 | Python/Node/Go/Java、GitHub CLI、Wrangler、原生 Chrome 与本地测试账号跨启停/快照已验证；Railway 与真实第三方认证未通过整组验收 |
+| 5. Python/Node/Go/Java、CLI 与浏览器认证跨启停复用 | Python/Node/Go/Java、GitHub CLI、Wrangler、原生 Chrome 与本地测试账号跨启停/快照已验证；Railway 5.71.1 已在原生 x64 云机经产品 StopCharging／启动验证同一安装文件保留，未执行第三方登录。真实第三方认证仍未验收，整组开放 |
 | 6. 云端文件加密归档、用户对象存储与新环境恢复 | 云机导出→公共 RPC/age/rclone→真实私有 OSS→新云机三文件恢复已串联通过，含内容/0600/0700、敏感目录排除、脚本、Zenity 和 Computer Use 读回。加密冷快照→私有镜像→保护释放原实例/盘→按镜像购买→原编号无包重连已真云通过，任务与桌面身份轮换，旧任务令牌 HTTP 401；原运行包和文件摘要一致。此前工具链/venv/合成全局工具保留证据继续有效，真实第三方登录状态恢复仍未验收 |
 | 7. 快照创建和恢复后的桌面与应用验证 | 普通 ECS 实机通过：真实 Electron 产品链创建/恢复，桌面文件、原生浏览器本地测试账号与已测工具链读回；冻结 guest 和自动测试操作者边界见实机切片 |
-| 8. 真实购买界面链、账单核对与资源成本说明 | 用户自有 OAuth、真实 Electron 模板购买/正常重启恢复/启停释放及精确清理已通过；原生定时释放、保留镜像/快照及新 App Server 读取原 released 收据已真云验证。组合恢复测试后广州区六类存量为零，本轮专用 OSS 桶与两个对象已清理；42 个精确测试资源 ID 的 58 条明细经两个官方接口核对，税前当月累计 CNY 8.9935413240，包含旧切片且不能与旧汇总相加。OSS、快照/KMS 等完整计费、延迟条目、实付和最终结算仍待核对，整组未完成 |
+| 8. 真实购买界面链、账单核对与资源成本说明 | 用户自有 OAuth、真实 Electron 模板购买/正常重启恢复/启停释放及精确清理已通过；原生定时释放、保留镜像/快照及新 App Server 读取原 released 收据已真云验证。当前可复核费用范围与精确清理见本页最新费用审计和原生运行包切片，历史汇总不能冒充重新独立核对或彼此相加。账户级 OSS、快照/KMS 不能直接归到某轮，尚无计费行不表示免费；延迟账单、实付与最终结算仍开放，整组未完成 |
 
-分类：生命周期、归档、认证 transport、Cloud 设置、Desktop 远程窗口与 Linux guest 装配为 current 实现；私有源自动安装大包传输已真云通过，默认官方产物交付、云端真实模型任务及其余整组验收未完成；无新增 compat、deprecated 或第二 runtime。完整产品当前有效实机验收完成度为 3/8（37.5%）；这不是源码或 UI 完成比例，也不代表可发布。架构责任：当前 root，确认本文 owner 与依赖方向；不将图确认计为产品验收。
+分类：生命周期、归档、认证 transport、Cloud 设置、Desktop 远程窗口与 Linux guest 装配为 current 实现；默认官方包自动分发、真云安装及桌面链路已通过，云端真实模型任务与其余整组验收未完成；无新增 compat、deprecated 或第二 runtime。完整产品当前有效实机验收完成度为 4/8（50%）；这不是源码或 UI 完成比例，也不代表可发布。架构责任：当前 root，确认本文 owner 与依赖方向；不将图确认计为产品验收。
 
 ### 归档传输与文件恢复补齐（2026-11-11）
 

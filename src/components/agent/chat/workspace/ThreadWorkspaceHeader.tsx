@@ -144,38 +144,19 @@ export function ThreadWorkspaceHeader({
 
   useEffect(() => {
     if (!sessionId) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
-      if (!event.metaKey && !event.ctrlKey) return;
-      if (event.altKey && !event.shiftKey && event.key.toLowerCase() === "r") {
-        if (!onRename) return;
-        event.preventDefault();
+    const handleThreadShortcut = (event: Event) => {
+      const action = (event as CustomEvent<string>).detail;
+      if (action === "rename" && onRename) {
         startRename();
-      }
-      if (event.altKey && !event.shiftKey && event.key.toLowerCase() === "p") {
-        event.preventDefault();
+      } else if (action === "pin") {
         requestSessionPinToggle(sessionId);
-      }
-      if (
-        event.shiftKey &&
-        !event.altKey &&
-        event.key.toLowerCase() === "a" &&
-        onArchive
-      ) {
-        event.preventDefault();
+      } else if (action === "archive" && onArchive) {
         void onArchive();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("lime:thread-shortcut", handleThreadShortcut);
+    return () =>
+      window.removeEventListener("lime:thread-shortcut", handleThreadShortcut);
   }, [onArchive, onRename, startRename, sessionId]);
 
   const commitRename = (edit: typeof activeTitleEdit) => {
@@ -248,7 +229,35 @@ export function ThreadWorkspaceHeader({
               {leading}
             </span>
           ) : null}
-          {activeTitleEdit ? (
+          {showConversationTabBar && sessionId ? (
+            <ConversationTabBar
+              currentSessionId={sessionId}
+              onRename={onRename ? startRename : undefined}
+              editingTitle={
+                activeTitleEdit
+                  ? {
+                      sessionId: activeTitleEdit.sessionId,
+                      draft: titleDraft,
+                      prompt: renamePrompt,
+                      inputRef: titleInputRef,
+                      onChange: (value) => {
+                        if (
+                          titleEdit.current === activeTitleEdit &&
+                          currentSessionId.current ===
+                            activeTitleEdit.sessionId
+                        ) {
+                          activeTitleEdit.draft = value;
+                          setTitleDraft(value);
+                        }
+                      },
+                      onCommit: () => commitRename(activeTitleEdit),
+                      onCancel: () => cancelRename(activeTitleEdit),
+                    }
+                  : undefined
+              }
+            />
+          ) : activeTitleEdit ? (
+
             <input
               ref={titleInputRef}
               className="h-7 min-w-[8ch] max-w-[320px] flex-1 rounded-md border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-stage-surface,var(--lime-app-bg,#f4f7f1))] px-2 text-[13px] font-medium text-[color:var(--lime-text-strong)] outline-none"
@@ -275,11 +284,6 @@ export function ThreadWorkspaceHeader({
                   cancelRename(activeTitleEdit);
                 }
               }}
-            />
-          ) : showConversationTabBar && sessionId ? (
-            <ConversationTabBar
-              currentSessionId={sessionId}
-              onRename={onRename ? startRename : undefined}
             />
           ) : (
             <div className="flex min-w-0 items-center gap-1">

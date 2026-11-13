@@ -4,20 +4,27 @@ use super::*;
 use std::io::Read;
 
 mod rclone;
+mod runtime;
+mod runtime_client;
 
 struct Credentials {
     access_key: String,
     secret_key: String,
     token: String,
+    expires_at: i64,
 }
 
 impl CloudDesktopService {
     async fn oss_credentials(&self, profile: &str, region: &str) -> Result<Credentials, String> {
+        self.oss_credentials_for_window(profile, region, 0).await
+    }
+
+    async fn oss_credentials_for_window(&self, profile: &str, region: &str, minimum_seconds: i64) -> Result<Credentials, String> {
         validate_region(region)?;
         let path = self
             .alibaba_config(profile)?
             .ok_or("OSS_BROWSER_CONNECTION_REQUIRED")?;
-        self.call_cli("sts", None, region, profile, &["GetCallerIdentity".into()])
+        self.execute_cli_with_credential_window("sts", None, region, profile, &["GetCallerIdentity".into()], Some(path.clone()), minimum_seconds)
             .await
             .map_err(|_| "OSS_AUTHORIZATION_FAILED")?;
         let mut bytes = Vec::new();
@@ -116,6 +123,9 @@ fn parse_credentials(bytes: &[u8], profile: &str, now: i64) -> Result<Credential
         access_key: field("access_key_id")?,
         secret_key: field("access_key_secret")?,
         token: field("sts_token")?,
+        expires_at: selected["sts_expiration"]
+            .as_i64()
+            .ok_or("OSS_AUTHORIZATION_FAILED")?,
     })
 }
 

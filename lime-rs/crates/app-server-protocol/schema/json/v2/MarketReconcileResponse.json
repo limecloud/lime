@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "MarketAcquisitionCheck": {
+      "properties": {
+        "acquisitionStatus": {
+          "$ref": "#/$defs/MarketAcquisitionStatus"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        },
+        "release": {
+          "$ref": "#/$defs/MarketReleaseReference"
+        }
+      },
+      "required": [
+        "acquisitionStatus",
+        "itemId",
+        "kind",
+        "release"
+      ],
+      "type": "object"
+    },
+    "MarketAcquisitionStatus": {
+      "description": "Only the acquisition is checked; publication and runtime approval are separate.",
+      "enum": [
+        "active",
+        "revoked",
+        "unavailable"
+      ],
+      "type": "string"
+    },
+    "MarketReleaseReference": {
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "type": "object"
+    },
+    "MarketResourceError": {
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/MarketResourceKind"
+        }
+      },
+      "required": [
+        "error",
+        "itemId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "MarketResourceKind": {
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/MarketResourceError"
+      },
+      "type": "array"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/MarketAcquisitionCheck"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "errors",
+    "resources"
+  ],
+  "title": "MarketReconcileResponse",
+  "type": "object"
+}

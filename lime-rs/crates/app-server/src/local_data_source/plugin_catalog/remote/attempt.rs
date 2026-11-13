@@ -1,4 +1,5 @@
 use super::*;
+use crate::market::selection::Selection;
 use std::io::Write;
 
 /// A pending install keeps its original release and operation keys across restarts.
@@ -6,7 +7,9 @@ use std::io::Write;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Attempt {
     id: String,
-    item: Item,
+    selection: Selection,
+    #[serde(default)]
+    dependencies: Vec<Selection>,
 }
 
 fn path(store: &PluginStore, account: &Account, item: &str) -> Result<PathBuf, String> {
@@ -60,7 +63,7 @@ pub(super) async fn load_or_create(
     store: &PluginStore,
     context: &Context<'_>,
     params: &PluginInstallParams,
-) -> Result<(Item, String), String> {
+) -> Result<(Selection, String, Vec<Selection>), String> {
     let path = path(store, &context.account, &params.plugin_name)?;
     let saved = read(&path)?;
     let attempt = if let Some(saved) = saved {
@@ -71,15 +74,28 @@ pub(super) async fn load_or_create(
             .as_deref()
             .filter(|v| valid_id(v))
             .ok_or("install_attempt_id_required")?;
-        let item: Item = context
-            .get(&format!("/market/items/{}", params.plugin_name))
+        let reference = params
+            .remote_release
+            .as_ref()
+            .ok_or("plugin_release_required")?;
+        let selection = context
+            .select(
+                &params.plugin_name,
+                params.remote_marketplace_name.as_deref(),
+                Some(reference),
+            )
             .await
             .map_err(|e| e.to_string())?;
-        validate(&item, params)?;
+        validate(&selection, params)?;
         context.ensure_current().map_err(|e| e.to_string())?;
+        let dependencies = context
+            .select_dependencies(&selection)
+            .await
+            .map_err(|e| e.to_string())?;
         let attempt = Attempt {
             id: id.into(),
-            item,
+            selection,
+            dependencies,
         };
         let bytes = serde_json::to_vec(&attempt).map_err(|_| "invalid plugin install attempt")?;
         if bytes.len() > 4 * 1024 * 1024 {
@@ -100,32 +116,42 @@ pub(super) async fn load_or_create(
     if !valid_id(&attempt.id) {
         return Err("invalid plugin install attempt".into());
     }
-    validate(&attempt.item, params)?;
-    // Read the exact release again, never replace it with a new published version.
-    let release: wire::Release = context
-        .get(&format!("/market/releases/{}", attempt.item.release.id))
-        .await
+    validate(&attempt.selection, params)?;
+    crate::market::selection::validate_dependencies(&attempt.selection, &attempt.dependencies)
         .map_err(|e| e.to_string())?;
-    release.validate().map_err(|e| e.to_string())?;
-    if release.id != attempt.item.release.id
-        || release.item_id != attempt.item.id
-        || release.manifest_sha256 != attempt.item.release.manifest_sha256
-        || release.archive_sha256 != attempt.item.release.archive_sha256
-        || release.archive_size != attempt.item.release.archive_size
-    {
-        return Err("plugin release changed".into());
+    // Read the exact release again, never replace it with a new published version.
+    for selection in std::iter::once(&attempt.selection).chain(&attempt.dependencies) {
+        let release: wire::Release = context
+            .get(&format!("/market/releases/{}", selection.release.id))
+            .await
+            .map_err(|e| e.to_string())?;
+        release.validate().map_err(|e| e.to_string())?;
+        if release.reference() != selection.release.reference()
+            || release.item_id != selection.item.id
+            || release.archive_size != selection.release.archive_size
+        {
+            return Err("plugin release changed".into());
+        }
     }
-    Ok((attempt.item, attempt.id))
+    Ok((attempt.selection, attempt.id, attempt.dependencies))
 }
 
-fn validate(item: &Item, params: &PluginInstallParams) -> Result<(), String> {
-    item.validate().map_err(|e| e.to_string())?;
+fn validate(selection: &Selection, params: &PluginInstallParams) -> Result<(), String> {
+    selection.validate_plugin().map_err(|e| e.to_string())?;
+    let item = &selection.item;
     if item.id != params.plugin_name
         || params.remote_marketplace_name.as_deref() != Some(&item.marketplace())
     {
         return Err("shared plugin identity mismatch".into());
     }
-    if item.compatibility.status != "supported" || !item.release.compatible() {
+    if params
+        .remote_release
+        .as_ref()
+        .is_some_and(|reference| *reference != selection.release.reference())
+    {
+        return Err("plugin_install_pending_other_release".into());
+    }
+    if !selection.compatible() {
         return Err("plugin_host_unsupported".into());
     }
     Ok(())
@@ -163,7 +189,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("attempt.json");
         let raw: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../plugin_remote/testdata/market-releases.json"
+            "../../../market/testdata/market-releases.json"
         ))
         .unwrap();
         let raw = &raw[2];
@@ -177,13 +203,13 @@ mod tests {
                 "archiveSize": raw["archive_size"], "status": raw["status"], "revision": raw["revision"],
             }
         });
-        let original = serde_json::json!({"id":"original-install-attempt","item":item});
+        let original = serde_json::json!({"id":"original-install-attempt","selection":{"release":item["release"],"item":item}});
         fs::write(&path, serde_json::to_vec(&original).unwrap()).unwrap();
         let saved = read(&path).unwrap().unwrap();
         assert_eq!(saved.id, "original-install-attempt");
-        assert_eq!(saved.item.release.id, "rel_plugin");
-        saved.item.validate().unwrap();
-        assert_eq!(saved.item.revision, 1);
+        assert_eq!(saved.selection.release.id, "rel_plugin");
+        saved.selection.validate().unwrap();
+        assert_eq!(saved.selection.item.revision, 1);
         fs::write(&path, b"{invalid}").unwrap();
         assert!(read(&path).is_err());
     }

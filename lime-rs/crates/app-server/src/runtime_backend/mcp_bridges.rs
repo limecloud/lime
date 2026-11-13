@@ -49,6 +49,7 @@ pub(super) async fn ensure_thread_mcp_runtime_if_available(
     };
     agent_state
         .ensure_mcp_runtime(
+            app_data_source.mcp_oauth_store_root(),
             session_id.to_string(),
             thread_id.to_string(),
             app_data_source.mcp_elicitation_router(),

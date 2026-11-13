@@ -1,0 +1,31 @@
+{
+  "$defs": {
+    "MarketResourceKind": {
+      "enum": [
+        "mcp",
+        "skill"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "itemId": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/MarketResourceKind"
+    }
+  },
+  "required": [
+    "enabled",
+    "itemId",
+    "kind"
+  ],
+  "title": "MarketEnabledSetParams",
+  "type": "object"
+}

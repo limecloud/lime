@@ -1,11 +1,13 @@
 use crate::mcp_bridge::McpBridgeRuntimeRegistry;
 use futures::future::join_all;
 use lime_mcp::{ElicitationRequestRouter, McpClientManager, McpRuntimeServerSpec};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tool_runtime::mcp_connection::McpConnectionRegistry;
 
 pub(crate) struct McpThreadRuntime {
+    oauth_store_root: Option<PathBuf>,
     session_id: String,
     thread_id: String,
     manager: Arc<McpClientManager>,
@@ -17,18 +19,24 @@ pub(crate) struct McpThreadRuntime {
 
 impl McpThreadRuntime {
     pub(crate) fn new(
+        oauth_store_root: Option<PathBuf>,
         session_id: String,
         thread_id: String,
         elicitation_router: ElicitationRequestRouter,
         server_specs: Vec<McpRuntimeServerSpec>,
     ) -> Self {
+        let mut manager = McpClientManager::new_runtime(
+            None,
+            elicitation_router.clone(),
+            session_id.clone(),
+            thread_id.clone(),
+        );
+        if let Some(root) = &oauth_store_root {
+            manager = manager.with_oauth_store_root(root);
+        }
         Self {
-            manager: Arc::new(McpClientManager::new_runtime(
-                None,
-                elicitation_router.clone(),
-                session_id.clone(),
-                thread_id.clone(),
-            )),
+            oauth_store_root,
+            manager: Arc::new(manager),
             session_id,
             thread_id,
             connections: McpConnectionRegistry::new(),
@@ -41,6 +49,7 @@ impl McpThreadRuntime {
     #[cfg(test)]
     pub(crate) fn for_test(session_id: &str, thread_id: &str) -> Self {
         Self::new(
+            None,
             session_id.to_string(),
             thread_id.to_string(),
             ElicitationRequestRouter::default(),
@@ -50,6 +59,10 @@ impl McpThreadRuntime {
 
     pub(crate) fn thread_id(&self) -> &str {
         &self.thread_id
+    }
+
+    pub(crate) fn oauth_store_root(&self) -> Option<&Path> {
+        self.oauth_store_root.as_deref()
     }
 
     pub(crate) fn connections(&self) -> &McpConnectionRegistry {

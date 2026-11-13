@@ -16,6 +16,7 @@ pub struct TransportClient {
     pending: VecDeque<Value>,
     runner: JoinHandle<Result<(), String>>,
     shutdown_timeout: Duration,
+    read_timeout: Duration,
 }
 
 impl TransportClient {
@@ -38,12 +39,22 @@ impl TransportClient {
     }
 
     pub async fn start_stdio(program: &Path, root: &Path, name: &str) -> Self {
+        Self::start_stdio_with_env(program, root, name, &[]).await
+    }
+
+    pub async fn start_stdio_with_env(
+        program: &Path,
+        root: &Path,
+        name: &str,
+        environment: &[(String, String)],
+    ) -> Self {
         let mut child = tokio::process::Command::new(program)
             .args(["--stdio", "--backend", "runtime", "--app-data-dir"])
             .arg(root.join("app"))
             .arg("--data-dir")
             .arg(root.join("agent"))
             .env("LIME_CONFIG_PATH", root.join("config.yaml"))
+            .envs(environment.iter().cloned())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::from(
@@ -85,6 +96,7 @@ impl TransportClient {
             pending: VecDeque::new(),
             runner,
             shutdown_timeout,
+            read_timeout: Duration::from_secs(10),
         };
         client
             .request_ok(
@@ -109,6 +121,10 @@ impl TransportClient {
     pub async fn request_ok(&mut self, id: u64, method: &str, params: Value) -> Value {
         let response = self.request(id, method, params).await;
         Self::assert_ok_response(method, response)
+    }
+
+    pub fn set_read_timeout(&mut self, budget: Duration) {
+        self.read_timeout = budget;
     }
 
     pub async fn request(&mut self, id: u64, method: &str, params: Value) -> Value {
@@ -143,8 +159,47 @@ impl TransportClient {
         self.wait_for_completion(thread_id, None).await
     }
 
+    pub async fn wait_for_server_request(&mut self, method: &str) -> Value {
+        loop {
+            if let Some(position) = self.pending.iter().position(|message| {
+                message.get("method") == Some(&json!(method)) && message.get("id").is_some()
+            }) {
+                return self
+                    .pending
+                    .remove(position)
+                    .expect("pending server request");
+            }
+            let message = self.read_message(method).await;
+            if message.get("method") == Some(&json!(method)) && message.get("id").is_some() {
+                return message;
+            }
+            self.pending.push_back(message);
+        }
+    }
+
+    pub async fn wait_for_notification(&mut self, method: &str) -> Value {
+        loop {
+            if let Some(position) = self.pending.iter().position(|message| {
+                message.get("method") == Some(&json!(method)) && message.get("id").is_none()
+            }) {
+                return self.pending.remove(position).expect("pending notification");
+            }
+            let message = self.read_message(method).await;
+            if message.get("method") == Some(&json!(method)) && message.get("id").is_none() {
+                return message;
+            }
+            self.pending.push_back(message);
+        }
+    }
+
+    pub async fn respond(&mut self, request: &Value, result: Value) {
+        assert!(request.get("id").is_some());
+        self.write(json!({"jsonrpc":"2.0","id":request["id"],"result":result}))
+            .await;
+    }
+
     async fn wait_for_completion(&mut self, thread_id: &str, turn_id: Option<&str>) -> Value {
-        timeout(Duration::from_secs(10), async {
+        timeout(self.read_timeout, async {
             loop {
                 let pending_position = self
                     .pending
@@ -183,7 +238,7 @@ impl TransportClient {
     }
 
     async fn read_message(&mut self, scenario: &str) -> Value {
-        let line = timeout(Duration::from_secs(10), self.lines.next_line())
+        let line = timeout(self.read_timeout, self.lines.next_line())
             .await
             .unwrap_or_else(|_| panic!("timed out waiting for JSON-RPC message: {scenario}"))
             .expect("read JSON-RPC message")

@@ -254,6 +254,7 @@ export function ConfigurationPanel() {
                 };
               })}
               disabled={!snapshot}
+              placeholder={t("settings.configuration.userScope")}
               onChange={state.selectScope}
             />
           </div>

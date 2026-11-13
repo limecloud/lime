@@ -436,6 +436,42 @@ function agentSessionEventMessage(options: {
 }
 
 describe("ElectronAppServerHost", () => {
+  it("拒绝整批 Renderer 私有分发动作，但保留 Main 请求入口", async () => {
+    const { ElectronAppServerHost } = await import("./appServerHost");
+    const host = new ElectronAppServerHost();
+    const privateRequest = {
+      id: "private",
+      method: "cloud/desktop",
+      params: { action: "signRuntimeDistribution" },
+    };
+    const publicRequest = { id: "public", method: "thread/list", params: {} };
+    try {
+      for (const lines of [
+        [encodeMessage(privateRequest)],
+        [encodeMessage(publicRequest), encodeMessage(privateRequest)],
+        [JSON.stringify([publicRequest, privateRequest])],
+        [
+          encodeMessage({
+            method: privateRequest.method,
+            params: privateRequest.params,
+          }),
+        ],
+      ]) {
+        await expect(host.handleJsonLines({ lines })).rejects.toThrow(
+          /^CLOUD_RUNTIME_MAIN_ONLY$/u,
+        );
+        expect(recordedRequests).toEqual([]);
+      }
+      await host.request(privateRequest.method, privateRequest.params);
+      expect(recordedRequests).toHaveLength(1);
+      expect(recordedRequests[0]).toMatchObject({
+        method: privateRequest.method,
+        params: privateRequest.params,
+      });
+    } finally {
+      await host.stop();
+    }
+  });
   beforeEach(() => {
     resetFakeConnection();
     delete process.env.LIME_AGENT_RUNTIME_ROOT;

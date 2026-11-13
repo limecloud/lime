@@ -1,14 +1,12 @@
 use super::*;
-use crate::plugin_remote::{
-    Context,
-    wire::{self, Item},
-};
+use crate::market::{wire, Context};
 use app_server_protocol::protocol::v2::{Account, GetAccountParams};
 use serde::{Deserialize, Serialize};
 
 const METADATA_FILE: &str = ".lime-remote-plugin-install.json";
-const MAX_METADATA_BYTES: u64 = 16 * 1024;
+const MAX_METADATA_BYTES: u64 = 4 * 1024 * 1024;
 mod attempt;
+pub(super) mod dependencies;
 pub(super) mod gate;
 mod mutation;
 mod package;
@@ -26,6 +24,9 @@ pub(super) struct InstallMetadata {
     pub release_id: String,
     pub acquisition_id: String,
     pub archive_sha256: String,
+    pub manifest_sha256: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependencies: Vec<dependencies::InstalledDependency>,
 }
 
 pub(super) fn is_marketplace(name: &str) -> bool {
@@ -52,15 +53,17 @@ pub(super) fn metadata(base: &Path) -> Result<Option<InstallMetadata>, String> {
     }
     let value: InstallMetadata =
         serde_json::from_slice(&bytes).map_err(|_| "invalid plugin provenance")?;
-    if value.schema_version != 2
+    if value.schema_version != 3
         || !wire::identifier(&value.remote_plugin_id)
         || !wire::identifier(&value.release_id)
         || !wire::identifier(&value.acquisition_id)
         || !wire::digest(&value.account_id)
         || !wire::digest(&value.archive_sha256)
+        || !wire::digest(&value.manifest_sha256)
     {
         return Err("invalid plugin provenance".into());
     }
+    dependencies::validate_metadata(&value.dependencies)?;
     Ok(Some(value))
 }
 pub(super) fn write_metadata(base: &Path, value: &InstallMetadata) -> Result<(), String> {
@@ -80,8 +83,10 @@ pub(crate) async fn install(
     let context = Context::current(store.account.as_deref(), &store.config_path)
         .map_err(|e| e.to_string())?
         .ok_or("account_login_required")?;
-    let (item, attempt) = attempt::load_or_create(store, &context, &params).await?;
-    let id = PluginId::new(&item.release.manifest.name, &item.marketplace())?;
+    let (selection, attempt, dependencies) =
+        attempt::load_or_create(store, &context, &params).await?;
+    let item = &selection.item;
+    let id = PluginId::new(&selection.release.manifest.name, &item.marketplace())?;
     if let Some(previous) = metadata(&store.base_root(&id))? {
         if previous.remote_plugin_id != item.id
             || previous.account_id
@@ -90,7 +95,8 @@ pub(crate) async fn install(
             return Err("plugin installation identity conflict".into());
         }
     }
-    let prepared = package::prepare(store, &context, &item, &id, &attempt).await?;
+    let prepared =
+        package::prepare(store, &context, &selection, &dependencies, &id, &attempt).await?;
     let account = context.account.clone();
     let store = store.clone();
     let remote_id = item.id.clone();
@@ -139,6 +145,11 @@ pub(super) fn installed_summary(record: &Installation) -> Result<PluginSummary, 
     )?;
     summary.source = PluginSource::Remote;
     summary.remote_plugin_id = Some(remote.remote_plugin_id.clone());
+    summary.local_release = Some(app_server_protocol::protocol::v2::MarketReleaseReference {
+        id: remote.release_id.clone(),
+        manifest_sha256: remote.manifest_sha256.clone(),
+        archive_sha256: remote.archive_sha256.clone(),
+    });
     summary.version = Some(record.version.clone());
     Ok(summary)
 }
@@ -158,7 +169,24 @@ pub(super) fn read(
         })
         .ok_or("plugin is not installed for current account")?;
     let manifest = manifest::read_manifest_with_name(&record.root, Some(&record.id.name))?;
-    let detail = build_capability_detail(&record.root, &manifest)?;
+    let mut detail = build_capability_detail(&record.root, &manifest)?;
+    for (root, release) in dependencies::load(record)? {
+        if release.manifest.kind == "skill" {
+            let skill = dependencies::skill(record, &root, &release)?;
+            detail.skills.push(SkillSummary {
+                name: skill.name,
+                description: skill.description,
+                short_description: None,
+                interface: None,
+                path: Some(skill.skill_file_path.to_string_lossy().into_owned()),
+                enabled: skill.enabled,
+            });
+        } else {
+            detail
+                .mcp_servers
+                .push(dependencies::mcp(record, &root, &release)?.name);
+        }
+    }
     Ok(PluginReadResponse {
         plugin: PluginDetail {
             marketplace_name: record.id.marketplace.clone(),

@@ -5,7 +5,7 @@ use crate::app_server_session::AppServerSession;
 use app_server_protocol::protocol::v2::{ConfigBatchWriteParams, ConfigEdit};
 
 impl App {
-    pub(super) async fn write_tui_preferences(
+    pub(crate) async fn write_tui_preferences(
         &mut self,
         session: &AppServerSession,
         edits: Vec<ConfigEdit>,
@@ -32,5 +32,21 @@ impl App {
                 Err(error)
             }
         }
+    }
+
+    /// Write TUI preference edits, then reload the shared settings snapshot so the running TUI
+    /// observes the new config version, keymap and paste policy immediately.
+    pub(crate) async fn apply_tui_preferences(
+        &mut self,
+        session: &AppServerSession,
+        edits: Vec<ConfigEdit>,
+    ) -> anyhow::Result<()> {
+        let version = self.write_tui_preferences(session, edits).await?;
+        let settings = crate::local_settings::LocalSettings::read(session).await?;
+        self.set_right_click_paste(settings.tui.right_click_paste);
+        self.chat_widget.tui_config = settings.tui;
+        self.chat_widget.config_version = Some(version);
+        self.set_runtime_keymap(settings.keymap);
+        Ok(())
     }
 }

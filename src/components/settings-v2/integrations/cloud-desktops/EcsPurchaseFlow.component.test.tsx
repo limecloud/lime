@@ -12,6 +12,7 @@ vi.mock("@/lib/api/cloudDesktopConnection", () => ({
 import { PurchaseEcs } from "./PurchaseEcs";
 import { initialEcsSpec } from "./purchaseSpecs";
 import { useCloudPurchase } from "./useCloudPurchase";
+import { purchaseNetworkProof } from "./cloudPurchase.testFixtures";
 
 const profile = `lime-oauth-${"a".repeat(32)}`;
 const otherProfile = `lime-oauth-${"b".repeat(32)}`;
@@ -90,8 +91,9 @@ beforeEach(async () => {
   await changeLimeLocale("zh-CN");
   api.request.mockReset();
   api.connection.mockReset().mockResolvedValue({
-    kind: "guestRelease",
-    available: true,
+    kind: "guestPreparation",
+    phase: "ready",
+    busy: false,
     version: "test",
   });
   api.request.mockImplementation(async (params: CloudDesktopParams) => {
@@ -104,6 +106,8 @@ beforeEach(async () => {
         },
       };
     if (params.action === "quoteEcsTemplate") return quote(params);
+    if (params.action === "preflightEcsPurchase")
+      return purchaseNetworkProof(params);
     if (params.action === "purchaseEcs")
       return {
         data: { outcome: "provisioned", operationId: params.operationId },
@@ -159,6 +163,8 @@ describe("ECS 授权与模板购买", () => {
             },
           },
         };
+      if (params.action === "preflightEcsPurchase")
+        return purchaseNetworkProof(params);
       if (params.action === "purchaseEcs")
         return {
           data: { operationId: params.operationId, outcome: "accepted" },
@@ -191,7 +197,9 @@ describe("ECS 授权与模板购买", () => {
       desktopName: expect.stringMatching(/^Lime-/),
     });
     expect(api.connection).toHaveBeenCalledWith({
-      action: "checkRuntimeRelease",
+      action: "prepareRuntimeRelease",
+      profile,
+      regionId: "cn-hangzhou",
     });
     expect(container.querySelector("details[open]")).toBeNull();
   });
@@ -234,7 +242,9 @@ describe("ECS 授权与模板购买", () => {
     await settle();
     await click("确认购买");
     expect(api.connection).toHaveBeenCalledExactlyOnceWith({
-      action: "checkRuntimeRelease",
+      action: "prepareRuntimeRelease",
+      profile,
+      regionId: "cn-hangzhou",
     });
     expect(requests("purchaseEcs")).toEqual([
       expect.objectContaining({
@@ -303,6 +313,8 @@ describe("ECS 授权与模板购买", () => {
             },
           },
         };
+      if (params.action === "preflightEcsPurchase")
+        return purchaseNetworkProof(params);
       if (params.action === "purchaseEcs")
         return {
           data: { outcome: "provisioned", operationId: params.operationId },
@@ -439,6 +451,50 @@ describe("购买前运行包检查", () => {
     await settle();
   }
 
+  it("完整本机准备完成后才检查网络并购买，满字节仍在校验时保持等待", async () => {
+    api.connection
+      .mockResolvedValueOnce({
+        kind: "guestPreparation",
+        version: "test",
+        phase: "downloading",
+        busy: true,
+        receivedBytes: 5 * 1024 ** 2,
+        totalBytes: 10 * 1024 ** 2,
+      })
+      .mockResolvedValueOnce({
+        kind: "guestPreparation",
+        version: "test",
+        phase: "verifying",
+        busy: true,
+        receivedBytes: 10 * 1024 ** 2,
+        totalBytes: 10 * 1024 ** 2,
+      })
+      .mockResolvedValueOnce({
+        kind: "guestPreparation",
+        version: "test",
+        phase: "ready",
+        busy: false,
+      });
+    await ready();
+    await click("确认购买");
+    expect(container.textContent).toContain("此时尚未购买电脑");
+    expect(container.textContent).toContain("5.0 / 10.0 MiB");
+    expect(requests("preflightEcsPurchase")).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    await settle();
+    expect(container.textContent).toContain("10.0 / 10.0 MiB");
+    expect(requests("preflightEcsPurchase")).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    await settle();
+    expect(api.connection.mock.calls).toEqual([
+      [{ action: "prepareRuntimeRelease", profile, regionId: "cn-hangzhou" }],
+      [{ action: "runtimeReleaseStatus", profile, regionId: "cn-hangzhou" }],
+      [{ action: "runtimeReleaseStatus", profile, regionId: "cn-hangzhou" }],
+    ]);
+    expect(requests("preflightEcsPurchase")).toHaveLength(1);
+    expect(requests("purchaseEcs")).toHaveLength(1);
+  });
+
   it("缺包不会购买或创建操作；重试仍核验，只有明确选择自备环境后才可跳过", async () => {
     api.connection.mockRejectedValue(new Error("signed-url-synthetic-secret"));
     await ready();
@@ -462,6 +518,7 @@ describe("购买前运行包检查", () => {
     await click("确认购买");
     expect(api.connection).toHaveBeenCalledTimes(2);
     expect(requests("purchaseEcs")).toHaveLength(1);
+    expect(requests("preflightEcsPurchase")).toHaveLength(1);
   });
 
   it("检查等待期间阻止重复购买；通过后沿原购买编号，未知结果只读原操作", async () => {
@@ -482,11 +539,16 @@ describe("购买前运行包检查", () => {
     await settle();
     expect(button("确认购买").disabled).toBe(true);
     expect(container.textContent).toContain("正在检查此版本");
-    expect(container.textContent).not.toContain("尚未购买电脑");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(api.connection).toHaveBeenCalledTimes(2);
     expect(requests("purchaseEcs")).toEqual([]);
     await act(async () =>
-      resolve({ kind: "guestRelease", available: true, version: "test" }),
+      resolve({
+        kind: "guestPreparation",
+        phase: "ready",
+        busy: false,
+        version: "test",
+      }),
     );
     await settle();
     expect(requests("purchaseEcs")).toHaveLength(1);
@@ -515,7 +577,12 @@ describe("购买前运行包检查", () => {
       await vi.advanceTimersByTimeAsync(900001);
     });
     await act(async () =>
-      resolve({ kind: "guestRelease", available: true, version: "test" }),
+      resolve({
+        kind: "guestPreparation",
+        phase: "ready",
+        busy: false,
+        version: "test",
+      }),
     );
     await settle();
     expect(requests("purchaseEcs")).toEqual([]);
@@ -533,7 +600,12 @@ describe("购买前运行包检查", () => {
     await click("确认购买");
     act(() => root.render(null));
     await act(async () =>
-      resolve({ kind: "guestRelease", available: true, version: "test" }),
+      resolve({
+        kind: "guestPreparation",
+        phase: "ready",
+        busy: false,
+        version: "test",
+      }),
     );
     await settle();
     expect(requests("purchaseEcs")).toEqual([]);

@@ -227,6 +227,15 @@ export interface AppServerClient {
   upgradeMarketplace(
     params: protocol.MarketplaceUpgradeParams,
   ): protocol.JsonRpcRequest;
+  listPendingMarketInstalls(params: protocol.MarketPendingParams): protocol.JsonRpcRequest;
+  cancelMarketInstall(params: protocol.MarketInstallCancelParams): protocol.JsonRpcRequest;
+  reconcileMarketResources(params: protocol.MarketReconcileParams): protocol.JsonRpcRequest;
+  listMarketResources(params: protocol.MarketListParams): protocol.JsonRpcRequest;
+  readMarketResource(params: protocol.MarketReadParams): protocol.JsonRpcRequest;
+  installMarketResource(params: protocol.MarketInstallParams): protocol.JsonRpcRequest;
+  listInstalledMarketResources(params: protocol.MarketInstalledParams): protocol.JsonRpcRequest;
+  setMarketResourceEnabled(params: protocol.MarketEnabledSetParams): protocol.JsonRpcRequest;
+  uninstallMarketResource(params: protocol.MarketUninstallParams): protocol.JsonRpcRequest;
   listPlugins(params?: protocol.PluginListParams): protocol.JsonRpcRequest;
   searchPlugins(params: protocol.PluginSearchParams): protocol.JsonRpcRequest;
   readPlugin(params: protocol.PluginReadParams): protocol.JsonRpcRequest;

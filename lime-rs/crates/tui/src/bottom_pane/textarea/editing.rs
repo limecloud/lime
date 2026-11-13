@@ -161,7 +161,7 @@ impl TextArea {
     /// Move across wrapped rows when the current render width is known.
     ///
     /// The returned boolean distinguishes an unavailable cache from a real boundary move. A
-    /// boundary move still consumes the event and resets the saved column, matching Codex's
+    /// boundary move still consumes the event and resets the saved column, matching 上游
     /// behavior when moving above the first or below the last visual row.
     fn move_visual_vertical(&mut self, direction: i8) -> bool {
         enum Target {

@@ -272,7 +272,7 @@ mod tests {
     use crate::line_truncation::line_width;
 
     #[test]
-    fn elapsed_time_matches_codex_compact_format() {
+    fn elapsed_time_matches_upstream_compact_format() {
         assert_eq!(fmt_elapsed_compact(0), "0s");
         assert_eq!(fmt_elapsed_compact(59), "59s");
         assert_eq!(fmt_elapsed_compact(60), "1m 00s");

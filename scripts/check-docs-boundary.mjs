@@ -298,8 +298,11 @@ function main() {
 
   const trackedIgnoredInternalFiles = listTrackedIgnoredInternalFiles();
   if (trackedIgnoredInternalFiles.length > 0) {
+    const remediation = trackedIgnoredInternalFiles
+      .map((file) => `git rm --cached ${file}`)
+      .join("; ");
     failures.push(
-      `发现已进入 Git 索引但应被忽略的 internal 文件: ${trackedIgnoredInternalFiles.join(", ")}`,
+      `发现已进入 Git 索引但应被忽略的 internal 文件: ${trackedIgnoredInternalFiles.join(", ")}（修复：${remediation}）`,
     );
   }
 

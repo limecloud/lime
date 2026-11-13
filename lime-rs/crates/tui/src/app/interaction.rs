@@ -1,6 +1,6 @@
 //! Key routing and composer-adjacent interaction for the TUI app.
 //!
-//! This is the Lime owner corresponding to Codex `chatwidget/interaction.rs`. It orders terminal
+//! This is the Lime owner corresponding to 上游 `chatwidget/interaction.rs`. It orders terminal
 //! surfaces from most specific to least specific while leaving input ownership in `BottomPane`
 //! and canonical turn state in `ConversationProjection`.
 
@@ -132,6 +132,50 @@ impl App {
         }
         if matches!(&event, TuiEvent::FocusLost | TuiEvent::Resume) {
             self.end_interaction_drag();
+        }
+        let now = std::time::Instant::now();
+        match &event {
+            TuiEvent::FocusLost => self.recap.note_focus_lost(now),
+            TuiEvent::FocusGained => self.recap.note_focus_gained(),
+            _ => {}
+        }
+        if connected
+            && self.chat_widget.tui_config.auto_recap
+            && !self.recap.is_pending()
+            && self.projection.active_turn_id().is_none()
+            && self.recap.should_generate(now)
+            && matches!(
+                &event,
+                TuiEvent::Key(_) | TuiEvent::Paste(_) | TuiEvent::Resize(_) | TuiEvent::FocusGained
+            )
+        {
+            return AppAction::GenerateRecap(crate::app::recap::RecapTrigger::Automatic);
+        }
+
+        if connected {
+            if let TuiEvent::Key(key) = &event {
+                if key.kind == KeyEventKind::Press
+                    && key.code == KeyCode::Char('!')
+                    && key.modifiers.is_empty()
+                    && !self.chat_widget.shell_mode
+                    && self.chat_widget.bottom_pane.composer_is_empty()
+                    && self.composer_owns_clipboard()
+                {
+                    self.chat_widget.shell_mode = true;
+                    return AppAction::None;
+                }
+                if key.kind == KeyEventKind::Press
+                    && key.code == KeyCode::Esc
+                    && key.modifiers.is_empty()
+                    && self.chat_widget.shell_mode
+                {
+                    self.chat_widget.shell_mode = false;
+                    self.chat_widget
+                        .bottom_pane
+                        .set_composer_text(String::new());
+                    return AppAction::None;
+                }
+            }
         }
 
         if !connected {
@@ -392,6 +436,121 @@ impl App {
             }
         }
 
+        if self.chat_widget.process_list_open() {
+            if let Some(action) = self.chat_widget.handle_process_list_event(&event) {
+                return match action {
+                    crate::app::process_list::ProcessListAction::Terminate {
+                        process_id,
+                        command,
+                    } => {
+                        if let Some(thread_id) = self.thread_id.clone() {
+                            self.chat_widget.open_confirm_prompt(
+                                crate::app::confirm_prompt::ConfirmPrompt::terminate_process(
+                                    thread_id, process_id, command,
+                                ),
+                            );
+                        }
+                        AppAction::None
+                    }
+                    crate::app::process_list::ProcessListAction::Cancel
+                    | crate::app::process_list::ProcessListAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.hooks_browser_open() {
+            if let Some(action) = self.chat_widget.handle_hooks_browser_event(&event) {
+                return match action {
+                    crate::app::hooks_browser::HooksBrowserAction::Close => {
+                        self.chat_widget.close_hooks_browser();
+                        AppAction::None
+                    }
+                    crate::app::hooks_browser::HooksBrowserAction::SetEnabled { key, enabled } => {
+                        AppAction::SetHookEnabled { key, enabled }
+                    }
+                    crate::app::hooks_browser::HooksBrowserAction::Trust { key, current_hash } => {
+                        AppAction::TrustHooks {
+                            hooks: vec![(key, current_hash)],
+                        }
+                    }
+                    crate::app::hooks_browser::HooksBrowserAction::TrustAll { hooks } => {
+                        AppAction::TrustHooks { hooks }
+                    }
+                    crate::app::hooks_browser::HooksBrowserAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.memories_settings_open() {
+            if let Some(action) = self.chat_widget.handle_memories_settings_event(&event) {
+                return match action {
+                    crate::app::memories_settings::MemoriesSettingsAction::SetMode(enabled) => {
+                        AppAction::SetMemoryMode(enabled)
+                    }
+                    crate::app::memories_settings::MemoriesSettingsAction::Cancel
+                    | crate::app::memories_settings::MemoriesSettingsAction::None => {
+                        AppAction::None
+                    }
+                };
+            }
+        }
+
+        if self.chat_widget.skills_toggle_open() {
+            if let Some(action) = self.chat_widget.handle_skills_toggle_event(&event) {
+                return match action {
+                    crate::app::skills_toggle::SkillsToggleAction::Toggle {
+                        name,
+                        path,
+                        enabled,
+                    } => AppAction::SetSkillEnabled {
+                        path,
+                        name,
+                        enabled,
+                    },
+                    crate::app::skills_toggle::SkillsToggleAction::Cancel
+                    | crate::app::skills_toggle::SkillsToggleAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.plugin_picker_open() {
+            if let Some(action) = self.chat_widget.handle_plugin_picker_event(&event) {
+                return match action {
+                    crate::app::plugin_picker::PluginPickerAction::Uninstall {
+                        plugin_id,
+                        name,
+                    } => {
+                        self.chat_widget.open_confirm_prompt(
+                            crate::app::confirm_prompt::ConfirmPrompt::uninstall_plugin(
+                                plugin_id, name,
+                            ),
+                        );
+                        AppAction::None
+                    }
+                    crate::app::plugin_picker::PluginPickerAction::Cancel
+                    | crate::app::plugin_picker::PluginPickerAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.keymap_editor_open() {
+            if let Some(action) = self.chat_widget.handle_keymap_editor_event(&event) {
+                return match action {
+                    crate::app::keymap_editor::KeymapEditorAction::Save { path, spec } => {
+                        AppAction::WriteKeybinding { path, spec }
+                    }
+                    crate::app::keymap_editor::KeymapEditorAction::Unbind { path } => {
+                        AppAction::UnbindKeybinding { path }
+                    }
+                    crate::app::keymap_editor::KeymapEditorAction::Reset { path } => {
+                        AppAction::ResetKeybinding { path }
+                    }
+                    crate::app::keymap_editor::KeymapEditorAction::Cancel => AppAction::None,
+                    crate::app::keymap_editor::KeymapEditorAction::None => AppAction::None,
+                };
+            }
+        }
+
         if self.chat_widget.config_menu_open() {
             if let Some(action) = self.chat_widget.handle_config_menu_event(&event) {
                 return match action {
@@ -409,6 +568,28 @@ impl App {
                         }
                         crate::app::config_menu::ConfigItem::StatusLine => {
                             AppAction::OpenStatusLineSetup
+                        }
+                        crate::app::config_menu::ConfigItem::Hooks => AppAction::ListHooks,
+                        crate::app::config_menu::ConfigItem::Skills => {
+                            self.open_skills_toggle_from_catalog();
+                            AppAction::None
+                        }
+                        crate::app::config_menu::ConfigItem::Animations => {
+                            AppAction::ToggleAnimations
+                        }
+                        crate::app::config_menu::ConfigItem::RightClickPaste => {
+                            AppAction::CycleRightClickPaste
+                        }
+                        crate::app::config_menu::ConfigItem::StatusLineColors => {
+                            AppAction::ToggleStatusLineColors
+                        }
+                        crate::app::config_menu::ConfigItem::AutoRecap => {
+                            AppAction::ToggleAutoRecap
+                        }
+                        crate::app::config_menu::ConfigItem::Keymap => {
+                            let entries = self.chat_widget.runtime_keymap.describe();
+                            self.chat_widget.open_keymap_editor(entries);
+                            AppAction::None
                         }
                     },
                     crate::app::config_menu::ConfigMenuAction::Cancel
@@ -454,6 +635,33 @@ impl App {
                         Some(crate::app::confirm_prompt::ConfirmKind::DeleteThread) => {
                             AppAction::DeleteThread
                         }
+                        Some(crate::app::confirm_prompt::ConfirmKind::ResetMemory) => {
+                            AppAction::ResetMemory
+                        }
+                        Some(crate::app::confirm_prompt::ConfirmKind::UninstallPlugin {
+                            plugin_id,
+                            name,
+                        }) => AppAction::UninstallPlugin { plugin_id, name },
+                        Some(crate::app::confirm_prompt::ConfirmKind::TerminateProcess {
+                            thread_id,
+                            process_id,
+                            command,
+                        }) => AppAction::TerminateProcess {
+                            thread_id,
+                            process_id,
+                            command,
+                        },
+                        Some(crate::app::confirm_prompt::ConfirmKind::InstallPlugin {
+                            plugin_name,
+                            marketplace_path,
+                            remote_marketplace_name,
+                            remote_release,
+                        }) => AppAction::InstallPlugin {
+                            plugin_name,
+                            marketplace_path,
+                            remote_marketplace_name,
+                            remote_release,
+                        },
                         None => AppAction::None,
                     },
                     crate::app::confirm_prompt::ConfirmPromptAction::Cancel

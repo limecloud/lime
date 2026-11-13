@@ -58,7 +58,7 @@ describe("EmptyStateLayout", () => {
         ),
       );
       expect(host.querySelector("h1")?.textContent).toBe(
-        "What should we build in Lime?",
+        "What do you want us to build in Lime?",
       );
       expect(
         host.querySelector('[data-testid="home-hero-project-select"]'),
@@ -103,7 +103,7 @@ describe("EmptyStateLayout", () => {
       expect(button?.tagName).toBe("BUTTON");
       expect(button?.textContent).toBe("Lime");
       expect(host.querySelector("h1")?.textContent).toBe(
-        "What should we build in Lime?",
+        "What do you want us to build in Lime?",
       );
       act(() => button?.click());
       expect(onProjectSelect).toHaveBeenCalledTimes(1);

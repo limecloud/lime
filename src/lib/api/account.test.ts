@@ -8,7 +8,6 @@ describe("shared account gateway", () => {
     const exchange = vi.spyOn(client, "exchange");
     const params = {
       type: "cloud" as const,
-      baseUrl: "https://core.example.test",
       language: "zh-CN",
       resource: "market" as const,
     };
@@ -23,9 +22,10 @@ describe("shared account gateway", () => {
       {},
     );
     exchange.mockResolvedValueOnce([
-      { id: 2, result: { account: null, authorizations: [] } },
+      { id: 2, result: { serviceUrl: null, account: null, authorizations: [] } },
     ]);
     await expect(readAccount({}, client)).resolves.toEqual({
+      serviceUrl: null,
       account: null,
       authorizations: [],
     });

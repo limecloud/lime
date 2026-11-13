@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as Tabs from "@radix-ui/react-tabs";
 import type { CloudDesktopResource } from "@limecloud/app-server-client";
 import { requestCloudDesktop } from "@/lib/api/cloud";
+import CloudDesktopSetupDialog from "@/components/cloud/CloudDesktopSetupDialog";
 import {
   SettingsAction,
   SettingsGroup,
@@ -12,7 +13,7 @@ import {
   SettingsSection,
 } from "../../SettingsPrimitives";
 import { CloudReceipt, Field, inputClass } from "./CloudDesktopPrimitives";
-import { object } from "./cloudDesktopData";
+import { object, pendingCloudLifecycleOperation } from "./cloudDesktopData";
 import { CloudResourceActions } from "./CloudResourceActions";
 import {
   CloudSnapshotRestore,
@@ -25,6 +26,8 @@ import { CloudArchivePanel } from "./CloudArchivePanel";
 import { AddCloudDesktop, cloudTabClass } from "./AddCloudDesktop";
 import { CloudSystemImage } from "./CloudSystemImage";
 import { CloudScheduledRelease } from "./CloudScheduledRelease";
+import { CloudHibernation } from "./CloudHibernation";
+import { RestoreCloudDesktop } from "./RestoreCloudDesktop";
 
 function matchesResource(value: unknown, resource: CloudDesktopResource) {
   const target = object(value);
@@ -36,6 +39,12 @@ function matchesResource(value: unknown, resource: CloudDesktopResource) {
 export function CloudDesktopsSettings() {
   const { t } = useTranslation("settings");
   const [resources, setResources] = useState<CloudDesktopResource[]>([]);
+  const [provisioned, setProvisioned] = useState<CloudDesktopResource>();
+  const addComputer = useRef<HTMLButtonElement>(null);
+  const [preservation, setPreservation] = useState<{
+    resource: CloudDesktopResource;
+    trigger: HTMLButtonElement;
+  } | null>(null);
   const [operations, setOperations] = useState<Record<string, unknown>[]>([]);
   const [states, setStates] = useState<Record<string, Record<string, unknown>>>(
     {},
@@ -51,6 +60,7 @@ export function CloudDesktopsSettings() {
   const latestOperation = (resource: CloudDesktopResource) =>
     operations.find((entry) => matchesResource(entry.resource, resource));
   const isWaitingForState = (resource: CloudDesktopResource) => {
+    if (pendingCloudLifecycleOperation(operations, resource)) return true;
     const entry = latestOperation(resource);
     if (
       !entry ||
@@ -72,6 +82,19 @@ export function CloudDesktopsSettings() {
     return Boolean(expected && states[key(resource)]?.status !== expected);
   };
   const waitingForState = resources.some(isWaitingForState);
+  const preserving = (resource: CloudDesktopResource) =>
+    operations.some(
+      (entry) =>
+        entry.action === "hibernateEcs" &&
+        !["hibernated", "cancelled"].includes(String(entry.outcome)) &&
+        matchesResource(entry.resource, resource),
+    );
+  const waitingForPreservation = operations.some(
+    (entry) =>
+      entry.action === "hibernateEcs" &&
+      entry.outcome === "running" &&
+      entry.workerActive !== false,
+  );
   const preparing = (resource: CloudDesktopResource) =>
     operations.some(
       (entry) =>
@@ -132,12 +155,16 @@ export function CloudDesktopsSettings() {
         (Array.isArray(data.operations) ? data.operations.map(object) : []).map(
           async (entry) => {
             if (
-              !["release", "prepareEcsDesktop"].includes(
+              !["release", "prepareEcsDesktop", "hibernateEcs"].includes(
                 String(entry.action),
               ) ||
-              !["accepted", "unknown", "preparing"].includes(
-                String(entry.outcome),
-              )
+              ![
+                "accepted",
+                "unknown",
+                "preparing",
+                "running",
+                "paused",
+              ].includes(String(entry.outcome))
             )
               return entry;
             try {
@@ -149,7 +176,13 @@ export function CloudDesktopsSettings() {
                   })
                 ).data,
               );
-              return { ...entry, outcome: receipt.outcome };
+              return {
+                ...entry,
+                outcome: receipt.outcome,
+                ...(entry.action === "hibernateEcs"
+                  ? { phase: receipt.phase, workerActive: receipt.workerActive }
+                  : {}),
+              };
             } catch (cause) {
               return { ...entry, verificationError: String(cause) };
             }
@@ -207,6 +240,7 @@ export function CloudDesktopsSettings() {
     if (
       pending ||
       (!waitingForState &&
+        !waitingForPreservation &&
         !waitingForPreparation &&
         !Object.values(states).some((state) =>
           ["Starting", "Stopping", "Pending", "Deleting"].includes(
@@ -217,7 +251,14 @@ export function CloudDesktopsSettings() {
       return;
     const timer = window.setTimeout(() => void refresh(), 5000);
     return () => window.clearTimeout(timer);
-  }, [pending, states, refresh, waitingForState, waitingForPreparation]);
+  }, [
+    pending,
+    states,
+    refresh,
+    waitingForState,
+    waitingForPreparation,
+    waitingForPreservation,
+  ]);
 
   async function read(id = operationId) {
     if (busy.current) return;
@@ -235,10 +276,13 @@ export function CloudDesktopsSettings() {
       ).data;
       setReceipt(result);
       refreshNeeded = [
+        "lifecycleVerified",
         "released",
         "provisioned",
         "dependenciesReady",
         "preparationFailed",
+        "hibernated",
+        "cancelled",
       ].includes(String(object(result).outcome));
     } catch (cause) {
       setError(String(cause));
@@ -281,7 +325,18 @@ export function CloudDesktopsSettings() {
         <Tabs.Content value="computers" className="space-y-8 outline-none">
           <SettingsSection
             title={t("settings.cloudDesktop.resources")}
-            actions={<AddCloudDesktop onChanged={() => void refresh()} />}
+            actions={
+              !provisioned && (
+                <AddCloudDesktop
+                  defaultTab="purchase"
+                  triggerRef={addComputer}
+                  onChanged={() => void refresh()}
+                  onProvisioned={(resource) => {
+                    if (active.current) setProvisioned(resource);
+                  }}
+                />
+              )
+            }
           >
             {pending && (
               <p role="status">{t("settings.cloudDesktop.loading")}</p>
@@ -296,6 +351,11 @@ export function CloudDesktopsSettings() {
                 {resources.map((item) => {
                   const state = states[key(item)] ?? {};
                   const status = String(state.status ?? "unknown");
+                  const running =
+                    status === "Running" &&
+                    !isWaitingForState(item) &&
+                    !state.autoReleaseTime &&
+                    !preserving(item);
                   return (
                     <SettingsRow
                       key={key(item)}
@@ -363,24 +423,17 @@ export function CloudDesktopsSettings() {
                         </>
                       }
                     >
-                      <CloudTaskConnection
-                        resource={item}
-                        running={status === "Running" && !state.autoReleaseTime}
-                      />
+                      <CloudTaskConnection resource={item} running={running} />
                       {item.provider === "ecs" && (
                         <CloudRuntimeInstallation
                           resource={item}
-                          running={
-                            status === "Running" && !state.autoReleaseTime
-                          }
+                          running={running}
                         />
                       )}
                       {item.provider === "ecs" && (
                         <CloudDesktopTunnel
                           resource={item}
-                          running={
-                            status === "Running" && !state.autoReleaseTime
-                          }
+                          running={running}
                           request={requestCloudDesktop}
                         />
                       )}
@@ -390,14 +443,43 @@ export function CloudDesktopsSettings() {
                         status={status}
                         disabled={
                           pending ||
-                          isWaitingForState(item) ||
+                          (isWaitingForState(item) &&
+                            !pendingCloudLifecycleOperation(
+                              operations,
+                              item,
+                            )) ||
                           preparing(item) ||
+                          preserving(item) ||
                           !!state.autoReleaseTime
                         }
                         canRelease={state.instanceChargeType === "PostPaid"}
                         request={requestCloudDesktop}
                         onChanged={() => void refresh()}
                       />
+                      {item.provider === "ecs" &&
+                        (preserving(item) ||
+                          (state.instanceChargeType === "PostPaid" &&
+                            ["Running", "Stopped"].includes(status))) && (
+                          <SettingsAction
+                            disabled={
+                              !preserving(item) &&
+                              (pending ||
+                                isWaitingForState(item) ||
+                                preparing(item) ||
+                                !!state.autoReleaseTime)
+                            }
+                            onClick={(event) =>
+                              setPreservation({
+                                resource: item,
+                                trigger: event.currentTarget,
+                              })
+                            }
+                          >
+                            {t(
+                              `settings.cloudDesktop.${preserving(item) ? "preservationProgress" : "hibernateEcs"}`,
+                            )}
+                          </SettingsAction>
+                        )}
                       <CloudScheduledRelease
                         resource={item}
                         status={status}
@@ -408,7 +490,7 @@ export function CloudDesktopsSettings() {
                             : undefined
                         }
                         operations={operations}
-                        disabled={pending}
+                        disabled={pending || preserving(item)}
                         request={requestCloudDesktop}
                         onChanged={() => void refresh()}
                       />
@@ -420,7 +502,8 @@ export function CloudDesktopsSettings() {
                             pending ||
                             !!state.autoReleaseTime ||
                             isWaitingForState(item) ||
-                            preparing(item)
+                            preparing(item) ||
+                            preserving(item)
                           }
                           request={requestCloudDesktop}
                           onChanged={() => void refresh()}
@@ -465,6 +548,27 @@ export function CloudDesktopsSettings() {
                         </>
                       }
                     >
+                      {entry.action === "hibernateEcs" &&
+                        object(entry.resource).provider === "ecs" &&
+                        ["regionId", "resourceId", "profile"].every(
+                          (key) =>
+                            typeof object(entry.resource)[key] === "string",
+                        ) &&
+                        !["hibernated", "cancelled"].includes(
+                          String(entry.outcome),
+                        ) && (
+                          <SettingsAction
+                            onClick={(event) =>
+                              setPreservation({
+                                resource:
+                                  entry.resource as CloudDesktopResource,
+                                trigger: event.currentTarget,
+                              })
+                            }
+                          >
+                            {t("settings.cloudDesktop.preservationProgress")}
+                          </SettingsAction>
+                        )}
                       <SettingsAction
                         disabled={pending}
                         onClick={() => {
@@ -548,6 +652,16 @@ export function CloudDesktopsSettings() {
           )}
         </Tabs.Content>
         <Tabs.Content value="backups" className="outline-none">
+          <div className="mb-4">
+            <RestoreCloudDesktop
+              onChanged={() => void refresh()}
+              isRunning={(resource) =>
+                states[key(resource)]?.status === "Running" &&
+                !states[key(resource)]?.autoReleaseTime &&
+                !preserving(resource)
+              }
+            />
+          </div>
           <CloudSystemImage
             operations={operations}
             request={requestCloudDesktop}
@@ -560,6 +674,38 @@ export function CloudDesktopsSettings() {
           />
         </Tabs.Content>
       </Tabs.Root>
+      {provisioned && (
+        <CloudDesktopSetupDialog
+          initialResource={provisioned}
+          onClose={() => setProvisioned(undefined)}
+          onReturnFocus={() => addComputer.current?.focus()}
+        />
+      )}
+      {preservation && (
+        <CloudHibernation
+          key={JSON.stringify(preservation.resource)}
+          initiallyOpen
+          hideTrigger
+          returnFocus={preservation.trigger}
+          resource={preservation.resource}
+          status={String(
+            states[key(preservation.resource)]?.status ?? "unknown",
+          )}
+          postPaid={
+            states[key(preservation.resource)]?.instanceChargeType ===
+            "PostPaid"
+          }
+          disabled={
+            pending || !!states[key(preservation.resource)]?.autoReleaseTime
+          }
+          operations={operations}
+          request={requestCloudDesktop}
+          onChanged={() => void refresh()}
+          onOpenChange={(open) => {
+            if (!open) setPreservation(null);
+          }}
+        />
+      )}
     </SettingsPageBody>
   );
 }

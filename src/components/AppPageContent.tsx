@@ -20,7 +20,6 @@ import type { AgentBackgroundSessionRuntimeSnapshot } from "./agent/chat";
 import { ScheduledTasksPage } from "./scheduled-tasks/ScheduledTasksPage";
 import { ImConfigPage } from "./channels/ImConfigPage";
 import { SettingsPage } from "./settings-v2";
-import { PluginWorkspaceTabs } from "@/features/plugin/ui/PluginWorkspaceTabs";
 import type { NavigationGuard } from "@/lib/navigationGuard";
 
 const columnPageStyle = {
@@ -70,46 +69,6 @@ interface AppPageContentProps {
   ) => void;
 }
 
-type PluginWorkspacePage = Extract<Page, "plugins" | "skills" | "experts">;
-
-function resolvePluginWorkspaceProjectId(
-  activePage: PluginWorkspacePage,
-  pageParams: PageParams,
-): string | undefined {
-  if (activePage === "skills") {
-    return (pageParams as SkillsPageParams).creationProjectId;
-  }
-  if (activePage === "experts") {
-    const expertsPageParams = pageParams as ExpertsPageParams;
-    return expertsPageParams.currentProjectId ?? expertsPageParams.projectId;
-  }
-  if (activePage === "plugins") {
-    return (pageParams as PluginsPageParams).currentProjectId;
-  }
-  return undefined;
-}
-
-function buildPluginWorkspacePageParams(
-  activePage: PluginWorkspacePage,
-  pageParams: PageParams,
-  targetPage: PluginWorkspacePage,
-): PageParams | undefined {
-  const projectId = resolvePluginWorkspaceProjectId(activePage, pageParams);
-  if (!projectId) {
-    return undefined;
-  }
-  if (targetPage === "skills") {
-    return { creationProjectId: projectId } satisfies SkillsPageParams;
-  }
-  if (targetPage === "experts") {
-    return {
-      currentProjectId: projectId,
-      projectId,
-    } satisfies ExpertsPageParams;
-  }
-  return undefined;
-}
-
 export function AppPageContent({
   currentPage,
   pageParams,
@@ -126,16 +85,6 @@ export function AppPageContent({
 }: AppPageContentProps) {
   const activePage = requestedPage ?? currentPage;
   const activePageParams = requestedPageParams ?? pageParams;
-  const handlePluginWorkspaceNavigate = (targetPage: PluginWorkspacePage) => {
-    onNavigate(
-      targetPage,
-      buildPluginWorkspacePageParams(
-        activePage as PluginWorkspacePage,
-        activePageParams,
-        targetPage,
-      ),
-    );
-  };
   const handleAgentLocationChange = useCallback(
     (location: AgentLocation) => {
       onAgentLocationChange?.({
@@ -236,43 +185,26 @@ export function AppPageContent({
 
   if (activePage === "skills") {
     return (
-      <PluginWorkspaceTabs
-        activePage="skills"
-        onNavigate={handlePluginWorkspaceNavigate}
-      >
-        <SkillsWorkspacePage
-          onNavigate={onNavigate}
-          pageParams={activePageParams as SkillsPageParams}
-        />
-      </PluginWorkspaceTabs>
+      <SkillsWorkspacePage
+        onNavigate={onNavigate}
+        pageParams={activePageParams as SkillsPageParams}
+      />
     );
   }
 
   if (activePage === "plugins") {
-    return (
-      <PluginWorkspaceTabs
-        activePage="plugins"
-        onNavigate={handlePluginWorkspaceNavigate}
-      >
-        <PluginsPage pageParams={activePageParams as PluginsPageParams} />
-      </PluginWorkspaceTabs>
-    );
+    return <PluginsPage pageParams={activePageParams as PluginsPageParams} />;
   }
 
   if (activePage === "experts") {
     const expertsPageParams = activePageParams as ExpertsPageParams;
     return (
-      <PluginWorkspaceTabs
-        activePage="experts"
-        onNavigate={handlePluginWorkspaceNavigate}
-      >
-        <ExpertPlazaPage
-          onNavigate={onNavigate}
-          currentProjectId={
-            expertsPageParams.currentProjectId ?? expertsPageParams.projectId
-          }
-        />
-      </PluginWorkspaceTabs>
+      <ExpertPlazaPage
+        onNavigate={onNavigate}
+        currentProjectId={
+          expertsPageParams.currentProjectId ?? expertsPageParams.projectId
+        }
+      />
     );
   }
 

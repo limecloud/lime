@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { MessageSquare, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { MessageSquare, Pin, Plus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { requestSessionPinToggle } from "@/lib/sessionPinEvents";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -20,25 +21,44 @@ import {
   activateConversationTab,
   closeAllConversationTabs,
   closeConversationTab,
+  closeConversationTabsToTheRight,
   closeOtherConversationTabs,
   moveConversationTab,
   requestNewConversationTab,
+  setConversationTabPinned,
   useConversationTabs,
 } from "@/lib/conversationTabs";
 
 export function ConversationTabBar({
   currentSessionId,
   onRename,
-  homeActive = false,
+  editingTitle,
 }: {
   currentSessionId?: string | null;
   onRename?: () => void;
-  homeActive?: boolean;
+  editingTitle?: {
+    sessionId: string;
+    draft: string;
+    prompt: string;
+    inputRef: RefObject<HTMLInputElement>;
+    onChange: (value: string) => void;
+    onCommit: () => void;
+    onCancel: () => void;
+  };
 }) {
   const { t } = useTranslation("navigation");
   const { tabs, activeSessionId } = useConversationTabs();
   const listRef = useRef<HTMLDivElement | null>(null);
   const [confirmCloseAll, setConfirmCloseAll] = useState(false);
+  const [pendingPinnedClose, setPendingPinnedClose] =
+    useState<{ sessionId: string; title: string } | null>(null);
+  const closeTab = (sessionId: string, title: string, pinned?: boolean) => {
+    if (pinned) {
+      setPendingPinnedClose({ sessionId, title });
+      return;
+    }
+    closeConversationTab(sessionId);
+  };
 
   useEffect(() => {
     if (!activeSessionId) return;
@@ -60,33 +80,9 @@ export function ConversationTabBar({
       )}
       data-testid="conversation-tab-bar"
     >
-      {!currentSessionId ? (
-        <div
-          role="tab"
-          tabIndex={0}
-          aria-selected={homeActive}
-          className={`group relative flex h-8 min-w-[120px] max-w-[220px] shrink-0 items-center gap-1 rounded-lg border py-0 pl-2 pr-2.5 text-[13px] ${
-            homeActive
-              ? "border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] font-medium text-[color:var(--lime-text-strong)] shadow-sm"
-              : "border-transparent text-[color:var(--lime-text-muted)]"
-          }`}
-          data-testid="thread-workspace-header-title"
-        >
-          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]" />
-          <span className="min-w-0 flex-1 truncate" dir="auto">
-            {String(
-              t("navigation.sidebar.conversations.tabs.new", {
-                defaultValue: "新聊天",
-              }),
-            )}
-          </span>
-        </div>
-      ) : null}
       {tabs.map((tab) => {
         const active =
-          !homeActive &&
-          tab.sessionId ===
-            (activeSessionId || currentSessionId);
+          tab.sessionId === (activeSessionId || currentSessionId);
         return (
           <ContextMenu key={tab.sessionId}>
             <ContextMenuTrigger asChild>
@@ -162,7 +158,30 @@ export function ConversationTabBar({
             }}
           >
             <MessageSquare className="h-3.5 w-3.5 shrink-0 text-[color:var(--lime-text-muted)]" />
-            {active && onRename ? (
+            {tab.pinned ? (
+              <Pin className="h-3 w-3 shrink-0 text-[color:var(--lime-text-muted)]" />
+            ) : null}
+            {editingTitle?.sessionId === tab.sessionId ? (
+              <input
+                ref={editingTitle.inputRef}
+                className="h-6 min-w-0 flex-1 rounded border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-1 text-[13px] font-medium text-[color:var(--lime-text-strong)] outline-none"
+                data-testid="thread-workspace-header-title-input"
+                aria-label={editingTitle.prompt}
+                value={editingTitle.draft}
+                onChange={(event) => editingTitle.onChange(event.target.value)}
+                onBlur={editingTitle.onCommit}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    editingTitle.onCommit();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    editingTitle.onCancel();
+                  }
+                }}
+              />
+            ) : active && onRename ? (
               <button
                 type="button"
                 className="min-w-0 flex-1 truncate text-left"
@@ -192,7 +211,7 @@ export function ConversationTabBar({
               data-testid={`conversation-tab-close-${tab.sessionId}`}
               onClick={(event) => {
                 event.stopPropagation();
-                closeConversationTab(tab.sessionId);
+                closeTab(tab.sessionId, tab.title, tab.pinned);
               }}
             >
               <X className="h-3.5 w-3.5" />
@@ -203,12 +222,34 @@ export function ConversationTabBar({
               <ContextMenuItem
                 className="whitespace-nowrap"
                 data-testid="conversation-tab-menu-close"
-                onClick={() => closeConversationTab(tab.sessionId)}
+                onClick={() => closeTab(tab.sessionId, tab.title, tab.pinned)}
               >
                 {String(
                   t("navigation.sidebar.conversations.tabs.close", {
                     defaultValue: "关闭标签页",
                   }),
+                )}
+              </ContextMenuItem>
+              <ContextMenuItem
+                className="whitespace-nowrap"
+                data-testid="conversation-tab-menu-pin"
+                onClick={() => {
+                  setConversationTabPinned(tab.sessionId, !tab.pinned);
+                  requestSessionPinToggle(tab.sessionId);
+                }}
+              >
+                <Pin className="h-3.5 w-3.5" />
+                {String(
+                  t(
+                    tab.pinned
+                      ? "navigation.sidebar.conversations.tabs.unpinFromSidebar"
+                      : "navigation.sidebar.conversations.tabs.pinToSidebar",
+                    {
+                      defaultValue: tab.pinned
+                        ? "从侧栏取消固定"
+                        : "固定到侧栏",
+                    },
+                  ),
                 )}
               </ContextMenuItem>
               {onRename ? (
@@ -235,6 +276,19 @@ export function ConversationTabBar({
                 {String(
                   t("navigation.sidebar.conversations.tabs.closeOthers", {
                     defaultValue: "关闭其他标签页",
+                  }),
+                )}
+              </ContextMenuItem>
+              <ContextMenuItem
+                className="whitespace-nowrap"
+                data-testid="conversation-tab-menu-close-right"
+                onClick={() =>
+                  closeConversationTabsToTheRight(tab.sessionId)
+                }
+              >
+                {String(
+                  t("navigation.sidebar.conversations.tabs.closeRight", {
+                    defaultValue: "关闭右侧标签页",
                   }),
                 )}
               </ContextMenuItem>
@@ -268,6 +322,69 @@ export function ConversationTabBar({
           <Plus className="h-4 w-4" />
         </button>
       </div>
+      <Dialog
+        open={pendingPinnedClose !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPinnedClose(null);
+        }}
+      >
+        <DialogContent
+          className="max-w-[420px]"
+          data-testid="conversation-tab-close-pinned-dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {String(
+                t("navigation.sidebar.conversations.tabs.closePinnedTitle", {
+                  defaultValue: "关闭固定标签页？",
+                }),
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {String(
+                t(
+                  "navigation.sidebar.conversations.tabs.closePinnedDescription",
+                  {
+                    title: pendingPinnedClose?.title ?? "",
+                    defaultValue: "「{{title}}」的固定也会取消。",
+                  },
+                ),
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setPendingPinnedClose(null)}
+            >
+              {String(
+                t("navigation.sidebar.conversations.tabs.closePinnedCancel", {
+                  defaultValue: "取消",
+                }),
+              )}
+            </Button>
+            <Button
+              type="button"
+              data-testid="conversation-tab-close-pinned-confirm"
+              onClick={() => {
+                const pending = pendingPinnedClose;
+                setPendingPinnedClose(null);
+                if (!pending) return;
+                closeConversationTab(pending.sessionId);
+                setConversationTabPinned(pending.sessionId, false);
+                requestSessionPinToggle(pending.sessionId);
+              }}
+            >
+              {String(
+                t("navigation.sidebar.conversations.tabs.closePinnedConfirm", {
+                  defaultValue: "关闭标签页",
+                }),
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={confirmCloseAll} onOpenChange={setConfirmCloseAll}>
         <DialogContent
           className="max-w-[420px]"

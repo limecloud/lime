@@ -629,7 +629,6 @@ export async function resetAppSidebarTest() {
     canCloseWindow: true,
     isActive: true,
   });
-  vi.stubEnv("VITE_LIMECORE_ORIGIN", "https://core.example.test");
   mockOpenExternalUrl.mockResolvedValue(undefined);
   mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
     task();

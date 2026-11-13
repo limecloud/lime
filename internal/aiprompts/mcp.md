@@ -18,7 +18,7 @@ src/lib/api/
 ├── mcpTypes.ts            # 公开类型与 mcp__<server>__<tool> 命名 helper
 └── mcpResponseGuards.ts   # App Server response fail-closed guard
 
-src/components/settings-v2/integrations/plugins/
+src/components/settings-v2/integrations/mcp/
 ├── index.tsx                  # PluginsSettings，插件/MCP/技能/Marketplace 同一管理页
 ├── McpServerManager.tsx        # 用户配置与插件来源分组、启停和认证
 ├── McpServerDetail.tsx         # 新增/编辑/卸载及脏草稿守卫
@@ -115,7 +115,7 @@ MCP runtime 工具命名唯一事实源：
 最低校验按改动范围选择：
 
 ```bash
-npx vitest run "src/lib/api/mcp.test.ts" "src/lib/api/mcp.failClosed.test.ts" "src/components/settings-v2/integrations/plugins/McpServerManager.test.tsx"
+npx vitest run "src/lib/api/mcp.test.ts" "src/lib/api/mcp.failClosed.test.ts" "src/components/settings-v2/integrations/mcp/McpServerManager.test.tsx"
 npm run test:contracts
 npm run verify:gui-smoke
 ```

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-11T13:35:50.528Z",
+  "generatedAt": "2026-11-12T12:19:31.810Z",
   "sources": {
     "lime": "lime-rs/crates",
     "upstreamRoot": "/Users/coso/Documents/dev/rust/codex/codex-rs",
     "upstreamRevision": "1885417cd45a8da5bfdeb7864a5380a7481d48f2"
   },
   "totals": {
-    "limeFiles": 2769,
-    "limeLines": 856181,
+    "limeFiles": 2776,
+    "limeLines": 864690,
     "upstreamFiles": 5932,
     "upstreamLines": 2323902
   },
@@ -140,9 +140,9 @@
         "upstream": "utils/path-uri/src/platform_tests.rs"
       }
     ],
-    "sameNameCompared": 1513,
+    "sameNameCompared": 1507,
     "similarityBuckets": {
-      "0.00-0.20": 1361,
+      "0.00-0.20": 1355,
       "0.20-0.50": 42,
       "0.50-0.80": 38,
       "0.80-0.95": 24,
@@ -363,7 +363,7 @@
       ],
       "capability": "split",
       "owner": null,
-      "limeLines": 131710
+      "limeLines": 131945
     },
     {
       "upstreamCrate": "protocol",
@@ -381,7 +381,7 @@
       ],
       "capability": "equivalent",
       "owner": null,
-      "limeLines": 28000
+      "limeLines": 27867
     },
     {
       "upstreamCrate": "app-server-transport",
@@ -408,7 +408,7 @@
       ],
       "capability": "equivalent",
       "owner": null,
-      "limeLines": 318604
+      "limeLines": 318825
     },
     {
       "upstreamCrate": "app-server-daemon",
@@ -463,7 +463,7 @@
       ],
       "capability": "split",
       "owner": null,
-      "limeLines": 65298
+      "limeLines": 65523
     },
     {
       "upstreamCrate": "sandboxing",
@@ -595,7 +595,7 @@
       ],
       "capability": "partial",
       "owner": null,
-      "limeLines": 9850
+      "limeLines": 9864
     },
     {
       "upstreamCrate": "tui",
@@ -604,7 +604,7 @@
       ],
       "capability": "partial",
       "owner": null,
-      "limeLines": 138504
+      "limeLines": 143188
     }
   ],
   "deadCrates": [
@@ -635,6 +635,10 @@
       "lines": 4687
     },
     {
+      "file": "lime-rs/crates/tui/src/locale.rs",
+      "lines": 4184
+    },
+    {
       "file": "lime-rs/crates/app-server-client/src/lib.rs",
       "lines": 4041
     },
@@ -648,15 +652,11 @@
     },
     {
       "file": "lime-rs/crates/app-server-protocol/src/protocol/v2/tests.rs",
-      "lines": 3610
-    },
-    {
-      "file": "lime-rs/crates/tui/src/locale.rs",
-      "lines": 3513
+      "lines": 3609
     },
     {
       "file": "lime-rs/crates/app-server/src/runtime/turn_execution.rs",
-      "lines": 3238
+      "lines": 3252
     },
     {
       "file": "lime-rs/crates/server/src/handlers/image_api_provider.rs",
@@ -671,6 +671,14 @@
       "lines": 2795
     },
     {
+      "file": "lime-rs/crates/tui/src/runtime_pty_tests.rs",
+      "lines": 2700
+    },
+    {
+      "file": "lime-rs/crates/tui/src/app/tests.rs",
+      "lines": 2698
+    },
+    {
       "file": "lime-rs/crates/permissions/src/permissions.rs",
       "lines": 2650
     },
@@ -683,28 +691,24 @@
       "lines": 2579
     },
     {
-      "file": "lime-rs/crates/tui/src/app/tests.rs",
-      "lines": 2320
-    },
-    {
       "file": "lime-rs/crates/tui/src/projection_tests.rs",
       "lines": 2225
     },
     {
       "file": "lime-rs/crates/app-server-protocol/src/protocol/v2/envelopes.rs",
-      "lines": 2181
+      "lines": 2206
     },
     {
       "file": "lime-rs/crates/app-server/src/runtime/tests/turn_lifecycle.rs",
       "lines": 2132
     },
     {
-      "file": "lime-rs/crates/app-server-protocol/src/protocol/v0/catalog.rs",
-      "lines": 2099
-    },
-    {
       "file": "lime-rs/crates/runtime-core/src/model_route.rs",
       "lines": 2085
+    },
+    {
+      "file": "lime-rs/crates/app-server-protocol/src/protocol/v0/catalog.rs",
+      "lines": 2079
     },
     {
       "file": "lime-rs/crates/agent-runtime/src/session_loop/tests.rs",
@@ -712,7 +716,7 @@
     },
     {
       "file": "lime-rs/crates/app-server/src/lib.rs",
-      "lines": 2045
+      "lines": 2046
     },
     {
       "file": "lime-rs/crates/permissions/src/permissions_tests.rs",
@@ -747,10 +751,6 @@
       "lines": 1769
     },
     {
-      "file": "lime-rs/crates/tui/src/runtime_pty_tests.rs",
-      "lines": 1729
-    },
-    {
       "file": "lime-rs/crates/app-server/src/runtime/tests/sessions.rs",
       "lines": 1728
     },
@@ -777,6 +777,10 @@
     {
       "file": "lime-rs/crates/model-provider/src/provider_stream/tests.rs",
       "lines": 1594
+    },
+    {
+      "file": "lime-rs/crates/tui/src/runtime.rs",
+      "lines": 1444
     },
     {
       "file": "lime-rs/crates/app-server-daemon/src/lib.rs",
@@ -839,12 +843,12 @@
       "lines": 1266
     },
     {
-      "file": "lime-rs/crates/app-server-protocol/src/schema_export/registry.rs",
-      "lines": 1264
-    },
-    {
       "file": "lime-rs/crates/app-server/src/runtime/thread_item_projection/typed_tests.rs",
       "lines": 1255
+    },
+    {
+      "file": "lime-rs/crates/app-server-protocol/src/schema_export/registry.rs",
+      "lines": 1248
     },
     {
       "file": "lime-rs/crates/model-provider/src/current_client/health.rs",
@@ -863,12 +867,12 @@
       "lines": 1200
     },
     {
-      "file": "lime-rs/crates/app-server/src/runtime_backend/model_route_contract.rs",
+      "file": "lime-rs/crates/agent/src/runtime_state.rs",
       "lines": 1189
     },
     {
-      "file": "lime-rs/crates/agent/src/runtime_state.rs",
-      "lines": 1179
+      "file": "lime-rs/crates/app-server/src/runtime_backend/model_route_contract.rs",
+      "lines": 1189
     },
     {
       "file": "lime-rs/crates/server/src/handlers/provider_calls.rs",
@@ -956,7 +960,7 @@
     },
     {
       "file": "lime-rs/crates/cli/src/main.rs",
-      "lines": 1027
+      "lines": 1017
     },
     {
       "file": "lime-rs/crates/thread-store/src/history.rs",
@@ -975,8 +979,8 @@
       "lines": 1008
     },
     {
-      "file": "lime-rs/crates/app-server-protocol/src/protocol/v2/methods.rs",
-      "lines": 1007
+      "file": "lime-rs/crates/app-server/src/external_backend.rs",
+      "lines": 1003
     }
   ]
 }

@@ -68,7 +68,19 @@ pub(crate) fn parse_settings_command(prompt: &str) -> Option<Result<SettingsComm
         | SlashCommand::Config
         | SlashCommand::Hooks
         | SlashCommand::Skills
-        | SlashCommand::Keymap => None,
+        | SlashCommand::Keymap
+        | SlashCommand::Memory
+        | SlashCommand::Usage
+        | SlashCommand::Stop
+        | SlashCommand::Warnings
+        | SlashCommand::Diff
+        | SlashCommand::Cd
+        | SlashCommand::Plugins
+        | SlashCommand::Mention
+        | SlashCommand::Goal
+        | SlashCommand::Memories
+        | SlashCommand::Recap
+        | SlashCommand::Ps => None,
     }
 }
 

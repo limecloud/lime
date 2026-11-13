@@ -44,6 +44,23 @@ pub(super) struct PreparedPackage {
     _lock: fs::File,
 }
 
+impl PreparedPackage {
+    pub(super) fn stage_dependency(
+        &mut self,
+        package: &crate::market::package::PreparedResource,
+    ) -> Result<(), String> {
+        let target = self
+            .staged_base
+            .join(".dependencies")
+            .join(&package.release.id);
+        fs::create_dir_all(&target).map_err(io_error("创建 Plugin dependency 失败"))?;
+        copy_package_tree(package.root.path(), &target)?;
+        crate::market::archive::verify_directory(&target, &package.release)?;
+        remote::dependencies::validate_entry(&target, &package.release)?;
+        Ok(())
+    }
+}
+
 pub(super) fn prepare_remote(
     store: &PluginStore,
     source_root: &Path,

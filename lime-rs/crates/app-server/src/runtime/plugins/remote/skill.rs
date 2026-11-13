@@ -15,6 +15,7 @@ pub(crate) async fn read(
     let detail = runtime
         .app_data_source
         .read_plugin(PluginReadParams {
+            remote_release: None,
             marketplace_path: None,
             remote_marketplace_name: Some(params.remote_marketplace_name),
             plugin_name: params.remote_plugin_id,

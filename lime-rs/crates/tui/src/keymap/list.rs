@@ -165,7 +165,7 @@ impl ListKeymap {
     pub(crate) fn describe(&self) -> Vec<(&'static str, Vec<String>)> {
         self.actions
             .iter()
-            .map(|(action, set)| (list_action_name(*action), set.labels().collect()))
+            .map(|(action, set)| (list_action_name(*action), set.specs()))
             .collect()
     }
 

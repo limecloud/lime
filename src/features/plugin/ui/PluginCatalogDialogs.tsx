@@ -29,11 +29,11 @@ export function PluginCatalogDialogs({
     <>
       {installTarget ? (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/25 px-4"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-[color:var(--lime-surface-muted)]/80 px-4"
           role="presentation"
         >
           <div
-            className="w-full max-w-[520px] rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-5 shadow-xl"
+            className="w-full max-w-[520px] rounded-xl border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-5 "
             role="dialog"
             aria-modal="true"
             aria-labelledby="plugin-catalog-install-title"
@@ -41,12 +41,9 @@ export function PluginCatalogDialogs({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--lime-text-muted)]">
-                  {t("plugin.catalog.v2.review.eyebrow")}
-                </p>
                 <h2
                   id="plugin-catalog-install-title"
-                  className="mt-1 text-lg font-semibold text-[color:var(--lime-text-strong)]"
+                  className="mt-1 text-base font-semibold text-[color:var(--lime-text-strong)]"
                 >
                   {t("plugin.catalog.v2.review.title")}
                 </h2>
@@ -61,14 +58,14 @@ export function PluginCatalogDialogs({
               </button>
             </div>
             {installTarget ? (
-              <div className="mt-5 rounded-lg border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] p-4">
+              <div className="mt-4 border-t-[0.5px] border-[color:var(--lime-surface-border)] pt-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="truncate font-semibold text-[color:var(--lime-text-strong)]">
                       {pluginDisplayName(installTarget.plugin)}
                     </h3>
                     <p className="mt-1 text-xs text-[color:var(--lime-text-muted)]">
-                      {installTarget.plugin.id} ·{" "}
+                      {installTarget.plugin.id}{" "}
                       {t("plugin.catalog.v2.version", {
                         version: installTarget.plugin.version,
                       })}
@@ -76,7 +73,7 @@ export function PluginCatalogDialogs({
                   </div>
                   <ShieldCheck
                     size={19}
-                    className="shrink-0 text-emerald-700"
+                    className="shrink-0 text-[color:var(--lime-success)]"
                   />
                 </div>
                 <p className="mt-3 text-sm leading-6 text-[color:var(--lime-text-muted)]">
@@ -95,7 +92,7 @@ export function PluginCatalogDialogs({
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                className="h-9 rounded-full border border-[color:var(--lime-surface-border)] px-4 text-sm font-semibold text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-surface-hover)]"
+                className="h-9 rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] px-4 text-sm font-semibold text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-surface-hover)]"
                 onClick={() => onCancelInstall()}
               >
                 {t("plugin.catalog.v2.cancel")}
@@ -121,16 +118,16 @@ export function PluginCatalogDialogs({
 
       {uninstallTarget ? (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/25 px-4"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-[color:var(--lime-surface-muted)]/80 px-4"
           role="presentation"
         >
           <div
-            className="w-full max-w-[420px] rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-5 shadow-xl"
+            className="w-full max-w-[420px] rounded-xl border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-5 "
             role="dialog"
             aria-modal="true"
             data-testid="plugin-catalog-uninstall-confirm"
           >
-            <h2 className="text-lg font-semibold text-[color:var(--lime-text-strong)]">
+            <h2 className="text-base font-semibold text-[color:var(--lime-text-strong)]">
               {t("plugin.catalog.v2.uninstallTitle", {
                 name: pluginDisplayName(uninstallTarget),
               })}
@@ -141,7 +138,7 @@ export function PluginCatalogDialogs({
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                className="h-9 rounded-full border border-[color:var(--lime-surface-border)] px-4 text-sm font-semibold text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-surface-hover)]"
+                className="h-9 rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] px-4 text-sm font-semibold text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-surface-hover)]"
                 onClick={() => onCancelUninstall()}
               >
                 {t("plugin.catalog.v2.cancel")}

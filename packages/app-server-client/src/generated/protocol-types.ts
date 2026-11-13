@@ -2,6 +2,7 @@
 // Source: lime-rs/crates/app-server-protocol/schema/json/app_server_protocol.schemas.json
 // Run `npm run generate:protocol-types` to regenerate.
 
+export const METHOD_ACCOUNT_AUTHORIZE = "account/authorize";
 export const METHOD_ACCOUNT_LOGIN_START = "account/login/start";
 export const METHOD_ACCOUNT_LOGOUT = "account/logout";
 export const METHOD_ACCOUNT_READ = "account/read";
@@ -61,6 +62,7 @@ export const METHOD_CONNECT_DEEP_LINK_RESOLVE = "connectDeepLink/resolve";
 export const METHOD_CONNECT_OPEN_DEEP_LINK_RESOLVE =
   "connectOpenDeepLink/resolve";
 export const METHOD_CONNECT_RELAY_API_KEY_SAVE = "connectRelayApiKey/save";
+export const METHOD_CONNECTION_AUTHORIZE = "connection/authorize";
 export const METHOD_CURRENT_TIME_READ = "currentTime/read";
 export const METHOD_DIAGNOSTICS_LOG_STORAGE_READ =
   "diagnostics/logStorage/read";
@@ -161,6 +163,15 @@ export const METHOD_LOG_DIAGNOSTIC_HISTORY_CLEAR =
   "log/diagnosticHistory/clear";
 export const METHOD_LOG_LIST = "log/list";
 export const METHOD_LOG_PERSISTED_TAIL = "log/persistedTail";
+export const METHOD_MARKET_ENABLED_SET = "market/enabled/set";
+export const METHOD_MARKET_INSTALL = "market/install";
+export const METHOD_MARKET_INSTALL_CANCEL = "market/install/cancel";
+export const METHOD_MARKET_PENDING = "market/install/pending";
+export const METHOD_MARKET_INSTALLED = "market/installed";
+export const METHOD_MARKET_LIST = "market/list";
+export const METHOD_MARKET_READ = "market/read";
+export const METHOD_MARKET_RECONCILE = "market/reconcile";
+export const METHOD_MARKET_UNINSTALL = "market/uninstall";
 export const METHOD_MARKETPLACE_ADD = "marketplace/add";
 export const METHOD_MARKETPLACE_REMOVE = "marketplace/remove";
 export const METHOD_MARKETPLACE_UPGRADE = "marketplace/upgrade";
@@ -493,6 +504,10 @@ export const METHOD_WORKSPACE_SKILL_BINDINGS_LIST =
 
 export const GENERATED_APP_SERVER_METHODS = [
   {
+    kind: "serverRequest",
+    method: "account/authorize",
+  },
+  {
     kind: "request",
     method: "account/login/start",
   },
@@ -675,6 +690,10 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "connectRelayApiKey/save",
+  },
+  {
+    kind: "serverRequest",
+    method: "connection/authorize",
   },
   {
     kind: "serverRequest",
@@ -991,6 +1010,42 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "log/persistedTail",
+  },
+  {
+    kind: "request",
+    method: "market/enabled/set",
+  },
+  {
+    kind: "request",
+    method: "market/install",
+  },
+  {
+    kind: "request",
+    method: "market/install/cancel",
+  },
+  {
+    kind: "request",
+    method: "market/install/pending",
+  },
+  {
+    kind: "request",
+    method: "market/installed",
+  },
+  {
+    kind: "request",
+    method: "market/list",
+  },
+  {
+    kind: "request",
+    method: "market/read",
+  },
+  {
+    kind: "request",
+    method: "market/reconcile",
+  },
+  {
+    kind: "request",
+    method: "market/uninstall",
   },
   {
     kind: "request",
@@ -2283,6 +2338,16 @@ export type Account = {
   type: "cloud";
   userId: string;
 };
+
+export interface AccountAuthorizeParams {
+  authUrl: string;
+  authorization: AccountAuthorization;
+  threadId: string;
+}
+
+export interface AccountAuthorizeResponse {
+  action: AuthorizationAction;
+}
 
 export interface AccountUpdatedNotification {
   authMode?: null | string;
@@ -4208,6 +4273,8 @@ export interface AuthMaterialRef {
   providerId?: null | string;
 }
 
+export type AuthorizationAction = "cancelled" | "opened" | "unavailable";
+
 export type AutoReviewDecisionSource = "agent";
 
 export type AutomationTaskSchedule =
@@ -4890,6 +4957,51 @@ export type ClientRequest =
     }
   | {
       id: number | string;
+      method: "market/install/pending";
+      params: MarketPendingParams;
+    }
+  | {
+      id: number | string;
+      method: "market/install/cancel";
+      params: MarketInstallCancelParams;
+    }
+  | {
+      id: number | string;
+      method: "market/reconcile";
+      params: MarketReconcileParams;
+    }
+  | {
+      id: number | string;
+      method: "market/list";
+      params: MarketListParams;
+    }
+  | {
+      id: number | string;
+      method: "market/read";
+      params: MarketReadParams;
+    }
+  | {
+      id: number | string;
+      method: "market/install";
+      params: MarketInstallParams;
+    }
+  | {
+      id: number | string;
+      method: "market/installed";
+      params: MarketInstalledParams;
+    }
+  | {
+      id: number | string;
+      method: "market/enabled/set";
+      params: MarketEnabledSetParams;
+    }
+  | {
+      id: number | string;
+      method: "market/uninstall";
+      params: MarketUninstallParams;
+    }
+  | {
+      id: number | string;
       method: "plugin/list";
       params: PluginListParams;
     }
@@ -5046,6 +5158,27 @@ export interface ClientResponse {
 
 export type CloudDesktopParams =
   | {
+      action: "prepareModelConnection";
+      operationId: string;
+    }
+  | {
+      action: "sealModelConnection";
+      expiresAt: number;
+      keyId: string;
+      operationId: string;
+      providerId: string;
+      recipient: string;
+    }
+  | {
+      action: "applyModelConnection";
+      ciphertext: string;
+      operationId: string;
+    }
+  | {
+      action: "readModelConnection";
+      operationId: string;
+    }
+  | {
       action: "connectAlibaba";
       regionId: string;
     }
@@ -5076,6 +5209,11 @@ export type CloudDesktopParams =
       spec: EcsDesktopSpec;
     }
   | {
+      action: "preflightEcsPurchase";
+      quoteId: string;
+      spec: EcsDesktopSpec;
+    }
+  | {
       action: "prepareEcsPurchase";
       confirmation: string;
       operationId: string;
@@ -5086,6 +5224,12 @@ export type CloudDesktopParams =
       action: "readEcsPurchasePreparation";
       profile: string;
       regionId: string;
+    }
+  | {
+      action: "prepareEcsConnection";
+      confirmation: string;
+      operationId: string;
+      resource: CloudDesktopResource;
     }
   | {
       action: "listEcsTemplates";
@@ -5186,6 +5330,33 @@ export type CloudDesktopParams =
       regionId: string;
     }
   | {
+      action: "prepareRuntimeDistribution";
+      archiveBytes: number;
+      archiveSha256: string;
+      operationId: string;
+      profile: string;
+      regionId: string;
+      version: string;
+    }
+  | {
+      action: "readRuntimeDistribution";
+      operationId: string;
+      profile: string;
+      regionId: string;
+    }
+  | {
+      action: "signRuntimeDistribution";
+      operationId: string;
+      profile: string;
+      regionId: string;
+    }
+  | {
+      action: "cleanupRuntimeDistribution";
+      operationId: string;
+      profile: string;
+      regionId: string;
+    }
+  | {
       action: "transferOssArchive";
       bucket: string;
       expectedSha256: string;
@@ -5252,6 +5423,20 @@ export type CloudDesktopParams =
       operationId: string;
       resource: CloudDesktopResource;
       workSaved: boolean;
+    }
+  | {
+      action: "hibernateEcs";
+      confirmation: string;
+      discardData: boolean;
+      includeCredentials: boolean;
+      operationId: string;
+      resource: CloudDesktopResource;
+      workSaved: boolean;
+    }
+  | {
+      action: "cancelEcsHibernation";
+      confirmation: string;
+      operationId: string;
     }
   | {
       action: "scheduleEcsRelease";
@@ -5892,6 +6077,18 @@ export interface ConnectRelayApiKeySaveResponse {
   keyId: string;
   providerId: string;
   providerName: string;
+}
+
+export interface ConnectionAuthorizeParams {
+  approvalUrl: string;
+  environment: string;
+  expiresAt: string;
+  requestId: string;
+  threadId: string;
+}
+
+export interface ConnectionAuthorizeResponse {
+  action: AuthorizationAction;
 }
 
 export interface ConnectorMetadata {
@@ -6582,6 +6779,8 @@ export interface GetAccountParams {
 export interface GetAccountResponse {
   account?: Account | null;
   authorizations: AccountAuthorization[];
+  serviceError?: null | string;
+  serviceUrl?: null | string;
 }
 
 export interface GitInfo {
@@ -7056,7 +7255,6 @@ export interface LogStorageDiagnosticsResponse {
 }
 
 export type LoginAccountParams = {
-  baseUrl: string;
   installation?: ConnectionInstallation | null;
   language: string;
   resource?: CloudResource;
@@ -7070,6 +7268,152 @@ export type LoginAccountResponse = {
 };
 
 export type LogoutAccountResponse = Record<string, unknown>;
+
+export interface MarketAcquisitionCheck {
+  acquisitionStatus: MarketAcquisitionStatus;
+  itemId: string;
+  kind: MarketResourceKind;
+  release: MarketReleaseReference;
+}
+
+export type MarketAcquisitionStatus = "active" | "revoked" | "unavailable";
+
+export interface MarketEnabledSetParams {
+  enabled: boolean;
+  itemId: string;
+  kind: MarketResourceKind;
+}
+
+export interface MarketEnabledSetResponse {
+  resource: MarketResource;
+}
+
+export interface MarketInstallCancelParams {
+  installAttemptId: string;
+  itemId: string;
+  kind: MarketResourceKind;
+}
+
+export type MarketInstallCancelResponse = Record<string, unknown>;
+
+export interface MarketInstallParams {
+  installAttemptId: string;
+  itemId: string;
+  kind: MarketResourceKind;
+  release: MarketReleaseReference;
+}
+
+export interface MarketInstallResponse {
+  resource: MarketResource;
+}
+
+export interface MarketInstallation {
+  enabled: boolean;
+  mcpServerName?: null | string;
+  release: MarketReleaseReference;
+  version: string;
+}
+
+export interface MarketInstalledParams {
+  kind?: MarketResourceKind | null;
+}
+
+export interface MarketInstalledResponse {
+  errors: MarketResourceError[];
+  resources: MarketResource[];
+}
+
+export interface MarketListParams {
+  cursor?: null | string;
+  kind: MarketResourceKind;
+  limit?: number | null;
+  query?: null | string;
+}
+
+export interface MarketListResponse {
+  nextCursor?: null | string;
+  resources: MarketResource[];
+}
+
+export interface MarketMcp {
+  arguments: string[];
+  authentication: string;
+  endpoint?: null | string;
+  executable?: null | string;
+  scopes: string[];
+  tools: string[];
+  transport: string;
+}
+
+export interface MarketPendingInstall {
+  installAttemptId: string;
+  resource: MarketResource;
+}
+
+export interface MarketPendingParams {
+  kind?: MarketResourceKind | null;
+}
+
+export interface MarketPendingResponse {
+  attempts: MarketPendingInstall[];
+  errors: MarketResourceError[];
+}
+
+export interface MarketReadParams {
+  itemId: string;
+  kind: MarketResourceKind;
+  release?: MarketReleaseReference | null;
+}
+
+export interface MarketReadResponse {
+  resource: MarketResource;
+}
+
+export interface MarketReconcileParams {
+  kind?: MarketResourceKind | null;
+}
+
+export interface MarketReconcileResponse {
+  errors: MarketResourceError[];
+  resources: MarketAcquisitionCheck[];
+}
+
+export interface MarketReleaseReference {
+  archiveSha256: string;
+  id: string;
+  manifestSha256: string;
+}
+
+export interface MarketResource {
+  actions: string[];
+  compatible: boolean;
+  description: string;
+  installation?: MarketInstallation | null;
+  itemId: string;
+  kind: MarketResourceKind;
+  license: string;
+  mcp?: MarketMcp | null;
+  name: string;
+  publisherApplicationId: string;
+  release: MarketReleaseReference;
+  title: string;
+  version: string;
+}
+
+export interface MarketResourceError {
+  error: string;
+  itemId: string;
+  kind: MarketResourceKind;
+}
+
+export type MarketResourceKind = "mcp" | "skill";
+
+export interface MarketUninstallParams {
+  itemId: string;
+  kind: MarketResourceKind;
+}
+
+export type MarketUninstallResponse = Record<string, unknown>;
 
 export interface MarketplaceAddParams {
   refName?: null | string;
@@ -7946,6 +8290,15 @@ export type Method =
   | "localEnvironments/list"
   | "localEnvironments/readConfig"
   | "localEnvironments/saveConfig"
+  | "market/enabled/set"
+  | "market/install"
+  | "market/install/cancel"
+  | "market/install/pending"
+  | "market/installed"
+  | "market/list"
+  | "market/read"
+  | "market/reconcile"
+  | "market/uninstall"
   | "marketplace/add"
   | "marketplace/remove"
   | "marketplace/upgrade"
@@ -8585,6 +8938,7 @@ export interface PluginInstallParams {
   marketplacePath?: null | string;
   pluginName: string;
   remoteMarketplaceName?: null | string;
+  remoteRelease?: MarketReleaseReference | null;
 }
 
 export type PluginInstallPolicy =
@@ -8642,7 +8996,7 @@ export interface PluginListParams {
 }
 
 export interface PluginListResponse {
-  featuredPluginIds?: string[];
+  featuredPlugins?: PluginSearchResult[];
   marketplaceLoadErrors?: MarketplaceLoadErrorInfo[];
   marketplaces: PluginMarketplaceEntry[];
 }
@@ -8658,6 +9012,7 @@ export interface PluginReadParams {
   marketplacePath?: null | string;
   pluginName: string;
   remoteMarketplaceName?: null | string;
+  remoteRelease?: MarketReleaseReference | null;
 }
 
 export interface PluginReadResponse {
@@ -8748,10 +9103,12 @@ export interface PluginSummary {
   installedAt?: number | null;
   interface?: PluginInterface | null;
   keywords?: string[];
+  localRelease?: MarketReleaseReference | null;
   localVersion?: null | string;
   mustShowInstallationInterstitial?: boolean | null;
   name: string;
   remotePluginId?: null | string;
+  remoteRelease?: MarketReleaseReference | null;
   source: PluginSource;
   version?: null | string;
 }
@@ -9818,6 +10175,16 @@ export type ServerNotification =
     };
 
 export type ServerRequest =
+  | {
+      id: number | string;
+      method: "connection/authorize";
+      params: ConnectionAuthorizeParams;
+    }
+  | {
+      id: number | string;
+      method: "account/authorize";
+      params: AccountAuthorizeParams;
+    }
   | {
       id: number | string;
       method: "currentTime/read";
@@ -11992,6 +12359,23 @@ export interface CloudResourceCredential {
   status: CloudCredentialStatus;
 }
 
+export interface AccountAuthorization {
+  expiresAt: string;
+  id: string;
+  resource: CloudResource;
+  status: AccountAuthorizationStatus;
+}
+
+export type AccountAuthorizationStatus =
+  | "cancelled"
+  | "completed"
+  | "denied"
+  | "exchanging"
+  | "expired"
+  | "failed"
+  | "outcome_unknown"
+  | "pending";
+
 export type AgentSessionApprovalDecision =
   | "allow_for_session"
   | "allow_once"
@@ -12066,23 +12450,6 @@ export interface DynamicToolCallApproval {
 }
 
 export type PathUri = string;
-
-export interface AccountAuthorization {
-  expiresAt: string;
-  id: string;
-  resource: CloudResource;
-  status: AccountAuthorizationStatus;
-}
-
-export type AccountAuthorizationStatus =
-  | "cancelled"
-  | "completed"
-  | "denied"
-  | "exchanging"
-  | "expired"
-  | "failed"
-  | "outcome_unknown"
-  | "pending";
 
 export type HookEventName =
   | "interrupt"

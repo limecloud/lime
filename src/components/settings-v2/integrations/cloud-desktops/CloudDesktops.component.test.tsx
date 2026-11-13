@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import type { CloudDesktopParams } from "@limecloud/app-server-client";
+import { purchaseNetworkProof } from "./cloudPurchase.testFixtures";
 
 const api = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock("@/lib/api/cloud", () => ({ requestCloudDesktop: api.request }));
@@ -147,9 +148,14 @@ beforeEach(async () => {
       async (command: string, args: { request: { action: string } }) => {
         if (
           command === "cloud_desktop_connection" &&
-          args.request.action === "checkRuntimeRelease"
+          args.request.action === "prepareRuntimeRelease"
         )
-          return { kind: "guestRelease", available: true, version: "test" };
+          return {
+            kind: "guestPreparation",
+            phase: "ready",
+            busy: false,
+            version: "test",
+          };
         if (
           command === "cloud_desktop_connection" &&
           args.request.action === "readReleaseBackup"
@@ -666,7 +672,11 @@ describe("Cloud desktop operation recovery", () => {
   it("defaults to ECS and locks provider changes while retaining a lost purchase", async () => {
     await purchaseForm("ecs");
     expect(document.body.textContent).toContain("系统盘固定请求加密");
-    api.request.mockRejectedValue(new Error("connection lost"));
+    api.request.mockImplementation(async (params: CloudDesktopParams) => {
+      if (params.action === "preflightEcsPurchase")
+        return purchaseNetworkProof(params);
+      throw new Error("connection lost");
+    });
     const buy = button("确认购买");
     act(() => {
       buy.click();
@@ -715,13 +725,17 @@ describe("Cloud desktop operation recovery", () => {
   it("allows a new quote only after an explicit server non-submission", async () => {
     await purchaseForm("ecs");
     api.request.mockImplementation(async (params: CloudDesktopParams) => ({
-      data: {
-        operationId: "operationId" in params ? params.operationId : undefined,
-        outcome: "notSubmitted",
-        submitted: false,
-        requiresInspection: false,
-        diagnostic: "Price changed",
-      },
+      data:
+        params.action === "preflightEcsPurchase"
+          ? purchaseNetworkProof(params).data
+          : {
+              operationId:
+                "operationId" in params ? params.operationId : undefined,
+              outcome: "notSubmitted",
+              submitted: false,
+              requiresInspection: false,
+              diagnostic: "Price changed",
+            },
     }));
     await click("确认购买");
     expect(document.body.textContent).toContain("尚未下单");
@@ -836,7 +850,7 @@ describe("Cloud desktop operation recovery", () => {
                 {
                   operationId: "stop-persisted",
                   action: "stop",
-                  outcome: "accepted",
+                  outcome: inspections > 1 ? "lifecycleVerified" : "accepted",
                   resource,
                   createdAt: new Date().toISOString(),
                 },
@@ -849,10 +863,13 @@ describe("Cloud desktop operation recovery", () => {
     }));
     act(() => root.render(<CloudDesktopsSettings />));
     await settle();
-    expect(button("停机保留磁盘").disabled).toBe(true);
+    expect(button("查询操作收据").disabled).toBe(false);
     act(() => vi.advanceTimersByTime(5000));
     await settle();
     expect(inspections).toBe(2);
+    expect(button("查询操作收据").disabled).toBe(false);
+    act(() => vi.advanceTimersByTime(5000));
+    await settle();
     expect(button("启动").disabled).toBe(false);
   });
 
@@ -876,7 +893,7 @@ describe("Cloud desktop operation recovery", () => {
     expect(api.request).not.toHaveBeenCalled();
   });
 
-  it("requires the exact resource and saved work, and resumes the same stop receipt", async () => {
+  it("confirms the shown resource and saved work, and resumes the same stop receipt", async () => {
     act(() =>
       root.render(
         <CloudResourceActions
@@ -891,10 +908,11 @@ describe("Cloud desktop operation recovery", () => {
     await settle();
     await click("停机保留磁盘");
     expect(button("确认执行").disabled).toBe(true);
-    await fill("输入电脑 ID 确认", "ecd-other");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      resource.resourceId,
+    );
     await check("我已保存工作，并停止正在写入文件的任务。");
-    expect(button("确认执行").disabled).toBe(true);
-    await fill("输入电脑 ID 确认", "ecd-test");
+    expect(button("确认执行").disabled).toBe(false);
     const confirm = button("确认执行");
     act(() => {
       confirm.click();

@@ -229,6 +229,177 @@ impl ChatWidget {
         Some(action)
     }
 
+    pub(crate) fn open_keymap_editor(&mut self, entries: Vec<crate::keymap::KeymapEntry>) {
+        self.keymap_editor = Some(
+            crate::app::keymap_editor::KeymapEditor::new(entries)
+                .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn keymap_editor_open(&self) -> bool {
+        self.keymap_editor.is_some()
+    }
+
+    pub(crate) fn close_keymap_editor(&mut self) {
+        self.keymap_editor = None;
+    }
+
+    pub(crate) fn handle_keymap_editor_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::keymap_editor::KeymapEditorAction> {
+        let action = {
+            let editor = self.keymap_editor.as_mut()?;
+            editor.handle_event(event.clone())
+        };
+        if !matches!(action, crate::app::keymap_editor::KeymapEditorAction::None) {
+            self.keymap_editor = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn open_process_list(&mut self, list: crate::app::process_list::ProcessList) {
+        self.process_list = Some(list.with_keymap(self.runtime_keymap.list().clone()));
+    }
+
+    pub(crate) fn process_list_open(&self) -> bool {
+        self.process_list.is_some()
+    }
+
+    pub(crate) fn close_process_list(&mut self) {
+        self.process_list = None;
+    }
+
+    pub(crate) fn handle_process_list_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::process_list::ProcessListAction> {
+        let action = {
+            let list = self.process_list.as_mut()?;
+            list.handle_event(event.clone())
+        };
+        if !matches!(action, crate::app::process_list::ProcessListAction::None) {
+            self.process_list = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn open_hooks_browser(
+        &mut self,
+        events: Vec<crate::app::hooks_browser::HookEventView>,
+    ) {
+        self.hooks_browser = Some(
+            crate::app::hooks_browser::HooksBrowser::new(events)
+                .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn hooks_browser_open(&self) -> bool {
+        self.hooks_browser.is_some()
+    }
+
+    pub(crate) fn close_hooks_browser(&mut self) {
+        self.hooks_browser = None;
+    }
+
+    pub(crate) fn handle_hooks_browser_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::hooks_browser::HooksBrowserAction> {
+        let browser = self.hooks_browser.as_mut()?;
+        Some(browser.handle_event(event.clone()))
+    }
+
+    pub(crate) fn open_memories_settings(&mut self, mode: Option<bool>) {
+        self.memories_settings = Some(
+            crate::app::memories_settings::MemoriesSettings::new(mode)
+                .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn memories_settings_open(&self) -> bool {
+        self.memories_settings.is_some()
+    }
+
+    pub(crate) fn close_memories_settings(&mut self) {
+        self.memories_settings = None;
+    }
+
+    pub(crate) fn handle_memories_settings_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::memories_settings::MemoriesSettingsAction> {
+        let action = {
+            let settings = self.memories_settings.as_mut()?;
+            settings.handle_event(event.clone())
+        };
+        if !matches!(
+            action,
+            crate::app::memories_settings::MemoriesSettingsAction::None
+        ) {
+            self.memories_settings = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn open_skills_toggle(
+        &mut self,
+        entries: Vec<crate::app::skills_toggle::SkillToggleEntry>,
+    ) {
+        self.skills_toggle = Some(
+            crate::app::skills_toggle::SkillsToggle::new(entries)
+                .with_keymap(self.runtime_keymap.list().clone()),
+        );
+    }
+
+    pub(crate) fn skills_toggle_open(&self) -> bool {
+        self.skills_toggle.is_some()
+    }
+
+    pub(crate) fn close_skills_toggle(&mut self) {
+        self.skills_toggle = None;
+    }
+
+    pub(crate) fn handle_skills_toggle_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::skills_toggle::SkillsToggleAction> {
+        let action = {
+            let toggle = self.skills_toggle.as_mut()?;
+            toggle.handle_event(event.clone())
+        };
+        if !matches!(action, crate::app::skills_toggle::SkillsToggleAction::None) {
+            self.skills_toggle = None;
+        }
+        Some(action)
+    }
+
+    pub(crate) fn open_plugin_picker(&mut self, picker: crate::app::plugin_picker::PluginPicker) {
+        self.plugin_picker = Some(picker.with_keymap(self.runtime_keymap.list().clone()));
+    }
+
+    pub(crate) fn plugin_picker_open(&self) -> bool {
+        self.plugin_picker.is_some()
+    }
+
+    pub(crate) fn close_plugin_picker(&mut self) {
+        self.plugin_picker = None;
+    }
+
+    pub(crate) fn handle_plugin_picker_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::plugin_picker::PluginPickerAction> {
+        let action = {
+            let picker = self.plugin_picker.as_mut()?;
+            picker.handle_event(event.clone())
+        };
+        if !matches!(action, crate::app::plugin_picker::PluginPickerAction::None) {
+            self.plugin_picker = None;
+        }
+        Some(action)
+    }
+
     pub(crate) fn open_permissions_picker(&mut self) {
         self.permissions_picker = Some(
             crate::app::permissions_picker::PermissionsPicker::new(

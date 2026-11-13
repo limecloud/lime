@@ -187,6 +187,7 @@ class Installation:
         self.process = None
         self.download_thread = None
         self.phase, self.diagnostic = "waiting", None
+        self.received_bytes = None
         self.state_path = root / "state.json"
         self.archive = root / "runtime.tar.gz"
         self.deadline = time.monotonic() + max(0, config["expiresAt"] - time.time())
@@ -291,6 +292,8 @@ class Installation:
                 result.update(block)
                 output.write(block)
                 remaining -= len(block)
+                with self.lock:
+                    self.received_bytes = self.config["archiveBytes"] - remaining
             output.flush()
             os.fsync(output.fileno())
         if check_eof and stream.read(1):
@@ -370,7 +373,10 @@ class Installation:
     def status(self):
         with self.lock:
             return {"operationId": self.config["operationId"], "phase": self.phase,
-                    "diagnostic": self.diagnostic, "expiresAt": self.config["expiresAt"]}
+                    "diagnostic": self.diagnostic, "expiresAt": self.config["expiresAt"],
+                    **({"transfer": {"receivedBytes": self.received_bytes,
+                                     "totalBytes": self.config["archiveBytes"]}}
+                       if self.received_bytes is not None else {})}
 
     def credentials(self):
         with self.lock:

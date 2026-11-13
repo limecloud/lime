@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { formatNumber } from "@/i18n/format";
 import type { InstalledSkillPresentationCopy } from "./installedSkillPresentation";
 import {
   type SkillsWorkspaceView,
@@ -120,7 +119,7 @@ interface SkillsWorkspacePageViewProps {
 }
 
 export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
-  const { t, i18n } = useTranslation("agent");
+  const { t } = useTranslation("agent");
   const [showAllInstalledSkills, setShowAllInstalledSkills] = useState(false);
   const installedSkillPreviewLimit = 6;
   const installedSkillsOverflow =
@@ -144,7 +143,27 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
   return (
     <>
       <div className="lime-workbench-theme-scope flex h-full min-h-0 flex-col overflow-hidden bg-[color:var(--lime-app-bg)] text-[color:var(--lime-text)]">
-        <header className="flex h-16 shrink-0 items-center justify-end gap-3 border-b border-[color:var(--lime-surface-border)] bg-[color:var(--lime-app-bg)] px-5 lg:px-8">
+        <header className="flex shrink-0 items-start justify-between gap-6 bg-[color:var(--lime-app-bg)] px-5 pb-4 pt-8 lg:px-8">
+          <div className="min-w-0">
+            <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-[color:var(--lime-text-strong)]">
+              {t("skills.workspace.header.title")}
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--lime-text-muted)]">
+              {t("skills.workspace.header.subtitle")}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+          <label className="relative hidden w-[280px] sm:block">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--lime-text-muted)]" />
+            <Input
+              value={props.searchQuery}
+              onChange={(event) =>
+                props.onSearchQueryChange(event.target.value)
+              }
+              placeholder={t("skills.workspace.search.placeholder")}
+              className="h-9 rounded-full border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] pl-10 pr-4 text-sm font-semibold text-[color:var(--lime-text-strong)] shadow-none placeholder:text-[color:var(--lime-text-muted)]"
+            />
+          </label>
           <Button
             type="button"
             variant="ghost"
@@ -159,17 +178,6 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
               className={cn("h-4 w-4", props.isRefreshing && "animate-spin")}
             />
           </Button>
-          <label className="relative hidden w-[280px] sm:block">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--lime-text-muted)]" />
-            <Input
-              value={props.searchQuery}
-              onChange={(event) =>
-                props.onSearchQueryChange(event.target.value)
-              }
-              placeholder={t("skills.workspace.search.placeholder")}
-              className="h-9 rounded-full border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] pl-10 pr-4 text-sm font-semibold text-[color:var(--lime-text-strong)] shadow-none placeholder:text-[color:var(--lime-text-muted)]"
-            />
-          </label>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -241,21 +249,11 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
               ? t("skills.workspace.header.installingSkill")
               : t("skills.workspace.header.installSkill")}
           </Button>
+          </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-auto bg-[color:var(--lime-surface)] px-5 pb-10 pt-10">
+        <main className="min-h-0 flex-1 overflow-auto bg-[color:var(--lime-surface)] px-5 pb-10 pt-6">
           <div className="mx-auto w-full max-w-[900px] space-y-8">
-            <section className="space-y-4">
-              <div>
-                <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-[color:var(--lime-text-strong)]">
-                  {t("skills.workspace.header.title")}
-                </h1>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--lime-text-muted)]">
-                  {t("skills.workspace.header.subtitle")}
-                </p>
-              </div>
-            </section>
-
             {(props.serviceSkillsError || props.localSkillsError) && (
               <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
                 {props.serviceSkillsError
@@ -404,12 +402,6 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                       onClick={() => props.onActiveViewChange(tab.key)}
                     >
                       {tab.label}
-                      {tab.key === "installed" &&
-                      typeof tab.count === "number" ? (
-                        <span className="text-xs text-[color:var(--lime-text-muted)]">
-                          {formatNumber(tab.count, { locale: i18n.language })}
-                        </span>
-                      ) : null}
                     </button>
                   );
                 })}

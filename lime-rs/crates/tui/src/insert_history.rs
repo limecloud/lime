@@ -1,6 +1,6 @@
 //! Inserts finalized history rows into terminal scrollback.
 //!
-//! Codex uses the terminal scrollback itself for finalized chat history, so inserting a history
+//! 上游 uses the terminal scrollback itself for finalized chat history, so inserting a history
 //! cell is an escape-sequence operation rather than a normal ratatui render.
 
 use std::fmt;
@@ -42,7 +42,7 @@ use ratatui::text::Span;
 /// Terminal capabilities required by history insertion.
 ///
 /// The owner is deliberately independent from a concrete terminal implementation so Lime can
-/// keep its existing ratatui host while sharing Codex's scrollback algorithm with PTY fixtures.
+/// keep its existing ratatui host while sharing 上游 scrollback algorithm with PTY fixtures.
 /// Terminal capabilities required by history insertion.
 ///
 /// This is public so the Lime-native integration suite can exercise the same

@@ -288,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn compact_inventory_matches_codex_summary_shape() {
+    fn compact_inventory_matches_upstream_summary_shape() {
         let lines = mcp_inventory_lines(
             &[status("alpha", "a-tool")],
             McpServerStatusDetail::ToolsAndAuthOnly,
@@ -301,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn full_inventory_uses_codex_empty_tool_label() {
+    fn full_inventory_uses_upstream_empty_tool_label() {
         let mut empty = status("alpha", "a-tool");
         empty.tools.clear();
         let lines = mcp_inventory_lines(&[empty], McpServerStatusDetail::Full, Locale::EnUs);

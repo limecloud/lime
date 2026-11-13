@@ -329,7 +329,7 @@ impl RequestUserInputOverlay {
                 && key.modifiers.contains(KeyModifiers::CONTROL)
                 && key.code == KeyCode::Char('c') =>
             {
-                // Match Codex's overlay boundary: while editing notes, the first Ctrl-C
+                // Match 上游 overlay boundary: while editing notes, the first Ctrl-C
                 // clears the local draft; only an empty draft cancels the request. This keeps
                 // cancellation explicit and never fabricates a partial answer response.
                 if self.editing() && !self.composer.is_empty() {

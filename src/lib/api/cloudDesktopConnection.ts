@@ -8,6 +8,8 @@ import type {
   CloudDesktopViewConnection,
   CloudGuestInstallationStatus,
   CloudGuestReleaseStatus,
+  CloudGuestPreparationStatus,
+  CloudModelConnectionStatus,
   CloudReleaseBackupResult,
   CloudReleaseWithBackupResult,
 } from "../desktop-host/cloudDesktopConnection";
@@ -18,6 +20,8 @@ export async function configureCloudDesktopConnection(
   | CloudDesktopConnectionMetadata
   | CloudGuestInstallationStatus
   | CloudGuestReleaseStatus
+  | CloudGuestPreparationStatus
+  | CloudModelConnectionStatus
   | CloudArchiveDownloadResult
   | CloudArchiveRestoreResult
   | CloudReleaseBackupResult

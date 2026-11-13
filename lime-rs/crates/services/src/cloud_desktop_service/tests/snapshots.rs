@@ -238,6 +238,13 @@ async fn restore_verification_requires_running_desktop_and_explicit_user_validat
         .await
         .unwrap();
     fs::remove_file(directory.path().join("stopped")).unwrap();
+    let started = service
+        .request(CloudDesktopParams::ReadOperation {
+            operation_id: "start-after-restore".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(started.data["outcome"], "lifecycleVerified");
     let mut invalid = serde_json::to_value(&request).unwrap();
     invalid["applicationsValidated"] = json!(false);
     assert!(service

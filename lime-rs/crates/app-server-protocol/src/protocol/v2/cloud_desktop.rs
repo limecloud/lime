@@ -65,6 +65,26 @@ pub struct EcsDesktopSpec {
     deny_unknown_fields
 )]
 pub enum CloudDesktopParams {
+    /// Short-lived public recipient on the destination; no private key is returned.
+    PrepareModelConnection {
+        operation_id: String,
+    },
+    /// Main-only local action; the selected key is returned only as age ciphertext.
+    SealModelConnection {
+        operation_id: String,
+        recipient: String,
+        expires_at: i64,
+        provider_id: String,
+        key_id: String,
+    },
+    /// Authenticated destination import; receipt and Provider commit atomically.
+    ApplyModelConnection {
+        operation_id: String,
+        ciphertext: String,
+    },
+    ReadModelConnection {
+        operation_id: String,
+    },
     ConnectAlibaba {
         region_id: String,
     },
@@ -86,6 +106,12 @@ pub enum CloudDesktopParams {
     QuoteEcs {
         spec: EcsDesktopSpec,
     },
+    /// Check local connectivity for this exact valid quote before paid purchase.
+    /// No cloud resources are changed and no public address is returned.
+    PreflightEcsPurchase {
+        spec: EcsDesktopSpec,
+        quote_id: String,
+    },
     /// Read the original preparation, or explicitly authorize a network-only ROS stack.
     /// No compute purchase occurs here. Unknown submissions are only inspected.
     PrepareEcsPurchase {
@@ -98,6 +124,13 @@ pub enum CloudDesktopParams {
     ReadEcsPurchasePreparation {
         region_id: String,
         profile: String,
+    },
+    /// Authorize two fixed connection ports from the current public IPv4 only.
+    /// Only a verified Lime-created dedicated network can be changed.
+    PrepareEcsConnection {
+        resource: CloudDesktopResource,
+        operation_id: String,
+        confirmation: String,
     },
     ListEcsTemplates {
         region_id: String,
@@ -187,6 +220,31 @@ pub enum CloudDesktopParams {
         profile: String,
         region_id: String,
     },
+    /// Main-only public software distribution. Never available through Renderer JSONL.
+    PrepareRuntimeDistribution {
+        profile: String,
+        region_id: String,
+        operation_id: String,
+        version: String,
+        archive_bytes: u64,
+        archive_sha256: String,
+    },
+    ReadRuntimeDistribution {
+        profile: String,
+        region_id: String,
+        operation_id: String,
+    },
+    /// Returns a short-lived GET capability to the local native host only.
+    SignRuntimeDistribution {
+        profile: String,
+        region_id: String,
+        operation_id: String,
+    },
+    CleanupRuntimeDistribution {
+        profile: String,
+        region_id: String,
+        operation_id: String,
+    },
     TransferOssArchive {
         profile: String,
         region_id: String,
@@ -252,6 +310,21 @@ pub enum CloudDesktopParams {
         operation_id: String,
         confirmation: String,
         work_saved: bool,
+    },
+    /// Stop, preserve one encrypted system disk as a verified private image, then release.
+    /// Reusing the operation ID resumes only its existing durable child operations.
+    HibernateEcs {
+        resource: CloudDesktopResource,
+        operation_id: String,
+        confirmation: String,
+        work_saved: bool,
+        include_credentials: bool,
+        discard_data: bool,
+    },
+    /// Stop future hibernation steps; cannot undo or cancel an initiated release.
+    CancelEcsHibernation {
+        operation_id: String,
+        confirmation: String,
     },
     /// User-confirmed provider deadline, protected by an exact private image.
     /// The provider executes even when Lime is closed or the instance is running.

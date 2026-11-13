@@ -864,7 +864,7 @@ describe("AppPageContent", () => {
   });
 
   it("skills 页面应把专家注册字段透传给现役管理页", async () => {
-    const { container } = renderContent("skills", {
+    renderContent("skills", {
       initialScaffoldDraft: {
         target: "project",
         directory: "project-report",
@@ -885,90 +885,6 @@ describe("AppPageContent", () => {
         },
         initialScaffoldRequestKey: 20260408,
       },
-    });
-    expect(
-      container.querySelector('[data-testid="plugin-workspace-tabs"]'),
-    ).not.toBeNull();
-    expect(
-      container
-        .querySelector('[data-testid="plugin-workspace-tab-skills"]')
-        ?.getAttribute("aria-selected"),
-    ).toBe("true");
-  });
-
-  it("插件工作台应以插件、Skills、专家三个 Tab 切换现有页面", async () => {
-    const onNavigate = vi.fn();
-    const { container } = renderContentWithNavigationState({
-      currentPage: "plugins",
-      onNavigate,
-    });
-    await flushEffects();
-
-    const tabs = Array.from(
-      container.querySelectorAll(
-        '[data-testid="plugin-workspace-tabs"] [role="tab"]',
-      ),
-    );
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
-      "插件",
-      "Skills",
-      "专家",
-    ]);
-    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="plugin-workspace-tab-skills"]',
-        )
-        ?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith("skills", undefined);
-  });
-
-  it("插件工作台切到 Skills 时应保留当前项目作用域", async () => {
-    const onNavigate = vi.fn();
-    const { container } = renderContentWithNavigationState({
-      currentPage: "plugins",
-      pageParams: { currentProjectId: "project-1" },
-      onNavigate,
-    });
-    await flushEffects();
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="plugin-workspace-tab-skills"]',
-        )
-        ?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith("skills", {
-      creationProjectId: "project-1",
-    });
-  });
-
-  it("Skills 与专家 Tab 切换时应保留当前项目作用域", async () => {
-    const onNavigate = vi.fn();
-    const { container } = renderContentWithNavigationState({
-      currentPage: "skills",
-      pageParams: { creationProjectId: "project-1" },
-      onNavigate,
-    });
-    await flushEffects();
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="plugin-workspace-tab-experts"]',
-        )
-        ?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith("experts", {
-      currentProjectId: "project-1",
-      projectId: "project-1",
     });
   });
 

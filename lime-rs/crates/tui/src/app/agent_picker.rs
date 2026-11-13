@@ -122,7 +122,7 @@ impl AgentPicker {
             KeymapMatch::Pending | KeymapMatch::Cancelled => return AgentPickerAction::None,
             KeymapMatch::PassThrough => {}
         }
-        // Non-search lists share Codex's direct numbered selection.
+        // Non-search lists share 上游 direct numbered selection.
         if let KeyCode::Char(ch) = key.code {
             if !key
                 .modifiers

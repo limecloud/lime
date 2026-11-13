@@ -11,6 +11,26 @@ export type CloudGuestReleaseStatus = {
   version: string;
 };
 
+/** Software preparation and user-owned distribution precede a billed computer. */
+export type CloudGuestPreparationStatus = {
+  kind: "guestPreparation";
+  version: string;
+  phase:
+    | "idle"
+    | "checking"
+    | "downloading"
+    | "verifying"
+    | "distributing"
+    | "ready"
+    | "failed";
+  busy: boolean;
+  receivedBytes?: number;
+  totalBytes?: number;
+  diagnostic?:
+    | "CLOUD_INSTALL_RELEASE_UNAVAILABLE"
+    | "CLOUD_INSTALL_PACKAGE_INVALID";
+};
+
 export type CloudGuestInstallationRequest =
   | { action: "installationStatus"; resource: CloudDesktopResource }
   | { action: "showDesktopPassword"; resource: CloudDesktopResource }
@@ -35,6 +55,31 @@ export type CloudGuestInstallationRequest =
       operationId: string;
     };
 
+/** Fixed transport diagnostics; never contains endpoints, headers or response data. */
+export type CloudGuestUploadFailure = {
+  route:
+    | "/status"
+    | "/runtime"
+    | "/credentials"
+    | "/finish"
+    | "/reconnect"
+    | "/download";
+  reason:
+    | "invalidTarget"
+    | "cancelled"
+    | "expired"
+    | "timeout"
+    | "tls"
+    | "connection"
+    | "httpStatus"
+    | "responseType"
+    | "responseSize"
+    | "responseJson"
+    | "responseShape"
+    | "unexpected";
+  httpStatus?: number;
+};
+
 export type CloudGuestInstallationStatus = {
   kind: "installation";
   available: boolean;
@@ -48,6 +93,8 @@ export type CloudGuestInstallationStatus = {
     | "preparing"
     | "launching"
     | "uploading"
+    | "downloading"
+    | "installing"
     | "saving"
     | "finishPending"
     | "complete"
@@ -56,11 +103,28 @@ export type CloudGuestInstallationStatus = {
     | "failed";
   expiresAt?: number;
   diagnostic?: string;
+  transportFailure?: CloudGuestUploadFailure;
+  transfer?: { receivedBytes: number; totalBytes: number };
   connectionSaved?: boolean;
 };
 
 export type CloudDesktopConnectionRequest =
+  | { action: "modelConnectionStatus"; resource: CloudDesktopResource }
+  | {
+      action: "resumeModelConnection";
+      resource: CloudDesktopResource;
+      operationId: string;
+    }
+  | {
+      action: "shareModelConnection";
+      resource: CloudDesktopResource;
+      providerId: string;
+      keyId: string;
+      confirmation: string;
+    }
   | { action: "checkRuntimeRelease" }
+  | { action: "prepareRuntimeRelease"; profile: string; regionId: string }
+  | { action: "runtimeReleaseStatus"; profile: string; regionId: string }
   | CloudGuestInstallationRequest
   | ({
       action: "downloadArchive";
@@ -95,6 +159,22 @@ export type CloudDesktopConnectionRequest =
       resource: CloudDesktopResource;
       token: string;
     };
+
+/** Local progress contains no key, ciphertext, recipient, endpoint or server error. */
+export type CloudModelConnectionStatus = {
+  kind: "modelConnection";
+  phase:
+    | "idle"
+    | "preparing"
+    | "sealing"
+    | "ready"
+    | "unknown"
+    | "complete"
+    | "expired";
+  operationId?: string;
+  providerId?: string;
+  keyId?: string;
+};
 
 export type CloudArchiveSelection = {
   sourceRoot: string;

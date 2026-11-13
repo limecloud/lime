@@ -22,6 +22,18 @@
 - 两者都不存在时使用默认配置。
   - 首次启动会自动生成强随机 API Key 并写入配置。
 
+### 云服务地址
+
+桌面、CLI 和 TUI 从同一用户 YAML 的 `cloud.base_url` 读取 LimeCore 地址，也可通过
+`LIME_CONFIG_PATH` 指定该用户配置文件。地址必须是完整 HTTPS origin；本机回环开发地址
+允许 HTTP，不能包含账号、密码、路径、查询参数或片段。删除该字段或设为 `null` 表示未配置。
+在设置的 Configuration 中选择用户层即可编辑；项目配置与模型输入不能覆盖此地址。
+
+原生 `account/read` 返回有效地址 `serviceUrl`；`account/login/start` 不接受服务地址或令牌。
+已登录账号和待完成授权绑定原地址，修改用户配置不会迁移它们。需要切换服务时，先注销或
+取消本次登录，再使用新配置登录。无效配置通过 `serviceError` 返回错误代码，账号读取和
+注销仍可用。凭据只存入原生私密存储，不写入 YAML 或浏览器。
+
 ### 项目配置与新聊天默认值
 
 设置中的 Configuration 通过同一 App Server 配置链读取用户 YAML 与项目的

@@ -1,4 +1,4 @@
-//! Terminal display-width helpers adapted from Codex TUI.
+//! Terminal display-width helpers adapted from 上游 TUI.
 
 use unicode_width::UnicodeWidthStr;
 

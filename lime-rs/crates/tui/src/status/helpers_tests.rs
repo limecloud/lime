@@ -34,7 +34,7 @@ fn totals_and_context_use_distinct_canonical_counts_without_double_counting_cach
 }
 
 #[test]
-fn compact_tokens_match_codex_precision_and_remain_safe_at_integer_limits() {
+fn compact_tokens_match_upstream_precision_and_remain_safe_at_integer_limits() {
     for (count, expected) in [
         (i64::MIN, "0"),
         (-1, "0"),

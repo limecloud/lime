@@ -53,8 +53,8 @@ impl ChatWidget {
 impl ExportPicker {
     pub(crate) fn new(thread_id: Option<&str>, keymap: &RuntimeKeymap) -> Self {
         let filename = thread_id
-            .map(|thread_id| format!("codex-session-{thread_id}.md"))
-            .unwrap_or_else(|| "codex-session.md".to_string());
+            .map(|thread_id| format!("lime-session-{thread_id}.md"))
+            .unwrap_or_else(|| "lime-session.md".to_string());
         let mut prompt = CustomPromptView::new(filename);
         prompt.set_keymap_bindings(keymap);
         Self {

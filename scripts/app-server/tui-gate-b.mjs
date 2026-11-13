@@ -11,6 +11,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -99,7 +100,7 @@ const scrollableCompletedText = [
 ].join("\n");
 const selectedScenarios = (
   process.env.LIME_TUI_GATE_B_SCENARIOS ||
-  "complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"
+  "complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,keymap-command,memory-command,memory-reset-command,usage-command,stop-command,warnings-command,diff-command,cd-command,plugins-command,plugins-search-command,ps-command,recap-command,mention-command,goal-command,memories-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"
 )
   .split(",")
   .map((scenario) => scenario.trim())
@@ -172,7 +173,10 @@ async function main() {
     if (scenarios.length === 0) return;
 
     const backendPath = path.join(tempDir, "tui-backend.mjs");
-    const ledgerPath = path.join(tempDir, "tui-backend.jsonl");
+    const retryTimeoutMs = Number(
+      process.env.LIME_TUI_GATE_RETRY_TIMEOUT_MS ?? 1_800_000,
+    );
+    let ledgerPath = path.join(tempDir, "tui-backend.jsonl");
     const permissionConfigPath = path.join(tempDir, "permission-profile.yaml");
     const editorConfigPath = path.join(tempDir, "editor-keymap.yaml");
     const configLines = [
@@ -349,25 +353,75 @@ async function main() {
         },
         maxBuffer: 2 * 1024 * 1024,
         // Complete exercises the full editor/history/status/title flow; predicates stay bounded.
-        timeout: scenario === "complete" ? 180_000 : 60_000,
+        timeout:
+          scenario === "complete"
+            ? 180_000
+            : scenario === "recap-command"
+              ? 120_000
+              : 60_000,
         windowsHide: true,
       };
-      const ptyEvidence = await execFileAsync(
-        process.env.CARGO || "cargo",
-        [
-          "test",
-          "--manifest-path",
-          path.join(rootDir, "lime-rs", "Cargo.toml"),
-          "-p",
-          "tui",
-          "runtime::pty_tests::real_pty_restores_terminal_after_visible_turn_completion",
-          "--",
-          "--exact",
-          "--nocapture",
-        ],
-
-        testOptions,
-      );
+      const cargoArgs = [
+        "test",
+        "--manifest-path",
+        path.join(rootDir, "lime-rs", "Cargo.toml"),
+        "-p",
+        "tui",
+        "runtime::pty_tests::real_pty_restores_terminal_after_visible_turn_completion",
+        "--",
+        "--exact",
+        "--nocapture",
+      ];
+      let ptyEvidence;
+      for (let attempt = 1; ; attempt += 1) {
+        // A retried attempt must not inherit the failed attempt's ledger or cwd: stale turn
+        // rows would break the scenario's own assertions. Keep the shared options untouched so
+        // later scenarios keep writing the primary ledger.
+        const retryLedgerPath = `${ledgerPath}.retry${attempt}`;
+        const retryCwd = `${scenarioDir}-retry${attempt}`;
+        if (attempt > 1) {
+          await mkdir(retryCwd, { recursive: true });
+        }
+        const attemptEnv =
+          attempt === 1
+            ? testOptions.env
+            : {
+                ...testOptions.env,
+                LIME_TEST_TERMINAL_LEDGER: retryLedgerPath,
+                LIME_TEST_TERMINAL_CWD: retryCwd,
+              };
+        try {
+          ptyEvidence = await execFileAsync(
+            process.env.CARGO || "cargo",
+            cargoArgs,
+            {
+              ...testOptions,
+              env: attemptEnv,
+              // A contended artifact lock needs a longer budget than the scenario itself.
+              timeout:
+                attempt === 1
+                  ? testOptions.timeout
+                  : Math.max(testOptions.timeout ?? 0, retryTimeoutMs),
+            },
+          );
+          if (attempt > 1 && existsSync(retryLedgerPath)) {
+            appendFileSync(ledgerPath, readFileSync(retryLedgerPath));
+          }
+          break;
+        } catch (error) {
+          const text = `${error?.stdout ?? ""}\n${error?.stderr ?? ""}\n${error?.message ?? ""}`;
+          const lockBusy =
+            /Blocking waiting for file lock/u.test(text) ||
+            /TUI_GATE_COMMAND_TIMEOUT/u.test(text);
+          if (attempt >= 2 || !lockBusy) {
+            throw error;
+          }
+          console.warn(
+            `[smoke:tui-gate-b] artifact lock busy; retrying ${scenario} (${attempt}/2)`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 5_000));
+        }
+      }
       if (scenario === "approval") {
         const marker = "TUI_EXEC_APPROVAL_REASON_OK label=localized";
         if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
@@ -414,6 +468,104 @@ async function main() {
         const marker = "TUI_COMPACT_COMMAND_OK";
         if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
           throw new Error(`compact-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "memories-command") {
+        const marker = "TUI_MEMORIES_COMMAND_OK mode=off";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`memories-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "goal-command") {
+        const marker = "TUI_GOAL_COMMAND_OK goal=none";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`goal-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "mention-command") {
+        const marker = "TUI_MENTION_COMMAND_OK composer=at";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`mention-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "recap-command") {
+        const marker = "TUI_RECAP_COMMAND_OK panel=recap";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`recap-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "ps-command") {
+        const marker = "TUI_PS_COMMAND_OK panel=ps";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`ps-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "plugins-search-command") {
+        const marker = "TUI_PLUGINS_SEARCH_OK panel=search";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`plugins-search-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "plugins-command") {
+        const marker = "TUI_PLUGINS_COMMAND_OK panel=plugins";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`plugins-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "cd-command") {
+        const marker = "TUI_CD_COMMAND_OK status=reported";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`cd-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "diff-command") {
+        const marker = "TUI_DIFF_COMMAND_OK panel=diff repo=none";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`diff-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "warnings-command") {
+        const marker = "TUI_WARNINGS_COMMAND_OK panel=warnings";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`warnings-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "usage-command") {
+        const marker = "TUI_USAGE_COMMAND_OK panel=usage";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`usage-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "stop-command") {
+        const marker = "TUI_STOP_COMMAND_OK idle=reported";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`stop-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "memory-reset-command") {
+        const marker = "TUI_MEMORY_RESET_OK reset=confirmed";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`memory-reset-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "memory-command") {
+        const marker = "TUI_MEMORY_COMMAND_OK panel=memory";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`memory-command PTY evidence missing: ${marker}`);
         }
         console.log(marker);
       }
@@ -914,7 +1066,21 @@ async function main() {
         scenario !== "effort-picker" &&
         scenario !== "permissions-picker" &&
         scenario !== "skills-command" &&
-        scenario !== "keymap-command",
+        scenario !== "keymap-command" &&
+        scenario !== "memory-command" &&
+        scenario !== "memory-reset-command" &&
+        scenario !== "usage-command" &&
+        scenario !== "stop-command" &&
+        scenario !== "warnings-command" &&
+        scenario !== "diff-command" &&
+        scenario !== "cd-command" &&
+        scenario !== "plugins-command" &&
+        scenario !== "plugins-search-command" &&
+        scenario !== "ps-command" &&
+        scenario !== "recap-command" &&
+        scenario !== "mention-command" &&
+        scenario !== "goal-command" &&
+        scenario !== "memories-command",
     );
     const turnStarts = turnScenarios.map((scenario) => {
       const expectedPrompt = scenarioPrompt(scenario);
@@ -1022,6 +1188,11 @@ async function main() {
       );
     }
     for (const [index, scenario] of turnScenarios.entries()) {
+      if (!(scenario in expectedSequences)) {
+        throw new Error(
+          `missing expectedSequences entry for ${scenario}; add one or exclude it from turnScenarios`,
+        );
+      }
       assertEqual(
         turnStarts[index].eventTypes.join(","),
         expectedSequences[scenario],

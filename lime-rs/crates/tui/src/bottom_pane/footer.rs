@@ -201,6 +201,7 @@ pub(crate) struct FooterProps {
     pub(crate) vim_mode_indicator: Option<Span<'static>>,
     pub(crate) is_task_running: bool,
     pub(crate) plan_mode: bool,
+    pub(crate) shell_mode: bool,
     pub(crate) active_agent_label: Option<String>,
     pub(crate) agents_hint: Option<String>,
     pub(crate) shortcuts_available: bool,
@@ -236,6 +237,14 @@ fn context_window_line(
 }
 
 fn right_footer_line(props: &FooterProps) -> Line<'static> {
+    if props.shell_mode {
+        return Line::from(Span::styled(
+            props.locale.shell_mode_label(),
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Red)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        ));
+    }
     let mut line = if uses_passive_footer_status_layout(props) {
         summary_line("", props.plan_mode.then(|| props.locale.plan_mode_label()))
     } else {
@@ -281,7 +290,7 @@ fn render_context_right(frame: &mut Frame<'_>, area: Rect, line: &Line<'static>)
     );
 }
 
-/// Follow Codex's actionable collapse order without inventing unavailable usage/status facts.
+/// Follow 上游 actionable collapse order without inventing unavailable usage/status facts.
 fn single_line_footer_layout(
     props: &FooterProps,
     area: Rect,

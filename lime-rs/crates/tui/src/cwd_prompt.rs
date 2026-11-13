@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn cwd_prompt_navigation_wraps_in_codex_order() {
+    fn cwd_prompt_navigation_wraps_in_upstream_order() {
         assert_eq!(
             CwdSelection::Session.prev(),
             CwdSelection::CurrentAndRemember

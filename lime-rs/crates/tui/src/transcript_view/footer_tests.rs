@@ -74,7 +74,7 @@ fn status_prefers_selection_and_all_locales_fit_without_panicking() {
 }
 
 #[test]
-fn copy_footer_matches_codex_two_rows_and_shared_key_emphasis() {
+fn copy_footer_matches_upstream_two_rows_and_shared_key_emphasis() {
     let mut terminal = Terminal::new(TestBackend::new(100, 2)).unwrap();
     terminal
         .draw(|frame| {

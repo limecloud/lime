@@ -17,6 +17,8 @@ pub(super) struct Credential {
     pub audience: String,
     pub scope: String,
     pub expires_at: i64,
+    #[serde(default)]
+    pub authorization_expires_at: Option<i64>,
     pub status: CloudCredentialStatus,
 }
 
@@ -44,6 +46,15 @@ pub(super) struct State {
     pub account: Option<Account>,
     pub credentials: BTreeMap<CloudResource, Credential>,
     pub authorizations: BTreeMap<CloudResource, Authorization>,
+    #[serde(default)]
+    pub tool_login: Option<ToolLogin>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct ToolLogin {
+    pub id: String,
+    pub base_url: String,
 }
 
 impl Default for State {
@@ -54,6 +65,7 @@ impl Default for State {
             account: None,
             credentials: BTreeMap::new(),
             authorizations: BTreeMap::new(),
+            tool_login: None,
         }
     }
 }
@@ -138,13 +150,25 @@ pub(super) fn with_lock<T>(
     action: impl FnOnce() -> Result<T, String>,
 ) -> Result<T, String> {
     let parent = path.parent().ok_or("account_store_unavailable")?;
-    let _lock = try_lock(&parent.join("account.lock"))?.ok_or("account_store_busy")?;
+    let lock = open_lock(&parent.join("account.lock"))?;
+    fs2::FileExt::lock_exclusive(&lock).map_err(|_| "account_store_unavailable")?;
     // Network I/O never occurs while this lock is held. All mutations reload the
     // file, including those made by another Desktop/CLI process.
     action()
 }
 
 pub(super) fn try_lock(path: &Path) -> Result<Option<fs::File>, String> {
+    let lock = open_lock(path)?;
+    match fs2::FileExt::try_lock_exclusive(&lock) {
+        Ok(()) => Ok(Some(lock)),
+        Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => {
+            Ok(None)
+        }
+        Err(_) => Err("account_store_unavailable".into()),
+    }
+}
+
+fn open_lock(path: &Path) -> Result<fs::File, String> {
     let parent = path.parent().ok_or("account_store_unavailable")?;
     private_directory(parent)?;
     reject_symlink(path)?;
@@ -160,13 +184,7 @@ pub(super) fn try_lock(path: &Path) -> Result<Option<fs::File>, String> {
         .map_err(|_| "account_store_unavailable")?;
     lime_infra::secure_file::ensure_owner_only_permissions(path)
         .map_err(|_| "account_store_unavailable")?;
-    match fs2::FileExt::try_lock_exclusive(&lock) {
-        Ok(()) => Ok(Some(lock)),
-        Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => {
-            Ok(None)
-        }
-        Err(_) => Err("account_store_unavailable".into()),
-    }
+    Ok(lock)
 }
 
 pub(super) fn check_directory(path: &Path) -> Result<(), String> {
@@ -202,4 +220,85 @@ pub(super) fn private_directory(parent: &Path) -> Result<(), String> {
     lime_infra::secure_file::set_windows_secure_permissions(parent)
         .map_err(|_| "account_store_unavailable")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{mpsc, Arc, Barrier};
+    use std::time::Duration;
+
+    #[test]
+    fn short_transaction_waits_for_an_existing_owner() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("account.json");
+        update(&path, |_| Ok(())).unwrap();
+        let held = try_lock(&root.path().join("account.lock"))
+            .unwrap()
+            .unwrap();
+        assert!(try_lock(&root.path().join("account.lock"))
+            .unwrap()
+            .is_none());
+        let (started, ready) = mpsc::channel();
+        let (completed, result) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            started.send(()).unwrap();
+            completed
+                .send(update(&path, |state| {
+                    state.epoch = "committed-after-original-owner".into();
+                    Ok(())
+                }))
+                .unwrap();
+        });
+        ready.recv_timeout(Duration::from_secs(5)).unwrap();
+        let waiting = result.recv_timeout(Duration::from_millis(50));
+        drop(held);
+        assert!(matches!(waiting, Err(mpsc::RecvTimeoutError::Timeout)));
+        result
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .unwrap();
+        worker.join().unwrap();
+        assert_eq!(
+            load(&root.path().join("account.json")).unwrap().epoch,
+            "committed-after-original-owner"
+        );
+    }
+
+    #[test]
+    fn concurrent_transactions_reload_without_losing_updates() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("account.json");
+        update(&path, |state| {
+            state.epoch = "0".into();
+            Ok(())
+        })
+        .unwrap();
+        let barrier = Arc::new(Barrier::new(8));
+        let workers: Vec<_> = (0..8)
+            .map(|_| {
+                let path = path.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    for _ in 0..8 {
+                        update(&path, |state| {
+                            state.epoch = (state.epoch.parse::<usize>().unwrap() + 1).to_string();
+                            Ok(())
+                        })
+                        .unwrap();
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().unwrap();
+        }
+        assert_eq!(load(&path).unwrap().epoch, "64");
+        assert_eq!(
+            update::<()>(&path, |_| Err("rejected".into())).unwrap_err(),
+            "rejected"
+        );
+        update(&path, |_| Ok(())).unwrap();
+    }
 }

@@ -25,6 +25,7 @@ export const SETTINGS_GATE_A_TABS = Object.freeze([
   "media-services",
   "profile",
   "plugins-settings",
+  "mcp-servers",
   "computer-use",
   "browser-use",
   "cloud-desktops",
@@ -41,6 +42,7 @@ export const SETTINGS_GATE_A_CRITICAL_TABS = Object.freeze([
   "appearance",
   "providers",
   "plugins-settings",
+  "mcp-servers",
   "execution-policy",
   "about",
 ]);

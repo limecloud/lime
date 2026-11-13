@@ -5,7 +5,7 @@ use agent_protocol::TextElement;
 
 impl ChatComposer {
     /// Keep known attachments whose labels remain in the edit, then renumber after remote images.
-    /// Extra occurrences stay literal text, matching Codex's external-editor import boundary.
+    /// Extra occurrences stay literal text, matching 上游 external-editor import boundary.
     pub(crate) fn apply_external_edit(&mut self, text: String) {
         let images = self.local_images();
         let previous_elements = self.draft.textarea.text_element_snapshots();

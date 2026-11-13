@@ -1,6 +1,7 @@
 use super::{
-    AccountUpdatedNotification, CloudRequestParams, GetAccountParams, LoginAccountParams,
-    METHOD_ACCOUNT_UPDATED,
+    AccountAuthorizeParams, AccountUpdatedNotification, CloudRequestParams,
+    ConnectionAuthorizeParams, GetAccountParams, LoginAccountParams, METHOD_ACCOUNT_AUTHORIZE,
+    METHOD_ACCOUNT_UPDATED, METHOD_CONNECTION_AUTHORIZE,
 };
 use super::{
     AgentMessageDeltaNotification, AppListUpdatedNotification, AppsInstalledParams,
@@ -124,6 +125,11 @@ use super::{
     LocalEnvironmentsListParams, LocalEnvironmentsListResponse, LocalEnvironmentsReadConfigParams,
     LocalEnvironmentsReadConfigResponse, LocalEnvironmentsSaveConfigParams,
     LocalEnvironmentsSaveConfigResponse,
+};
+use super::{
+    MarketEnabledSetParams, MarketInstallCancelParams, MarketInstallParams, MarketInstalledParams,
+    MarketListParams, MarketPendingParams, MarketReadParams, MarketReconcileParams,
+    MarketUninstallParams,
 };
 use crate::{JsonRpcNotification, JsonRpcRequest, RequestId};
 use schemars::JsonSchema;
@@ -656,6 +662,51 @@ pub enum ClientRequest {
         id: RequestId,
         params: MarketplaceUpgradeParams,
     },
+    #[serde(rename = "market/install/pending")]
+    MarketPending {
+        id: RequestId,
+        params: MarketPendingParams,
+    },
+    #[serde(rename = "market/install/cancel")]
+    MarketInstallCancel {
+        id: RequestId,
+        params: MarketInstallCancelParams,
+    },
+    #[serde(rename = "market/reconcile")]
+    MarketReconcile {
+        id: RequestId,
+        params: MarketReconcileParams,
+    },
+    #[serde(rename = "market/list")]
+    MarketList {
+        id: RequestId,
+        params: MarketListParams,
+    },
+    #[serde(rename = "market/read")]
+    MarketRead {
+        id: RequestId,
+        params: MarketReadParams,
+    },
+    #[serde(rename = "market/install")]
+    MarketInstall {
+        id: RequestId,
+        params: MarketInstallParams,
+    },
+    #[serde(rename = "market/installed")]
+    MarketInstalled {
+        id: RequestId,
+        params: MarketInstalledParams,
+    },
+    #[serde(rename = "market/enabled/set")]
+    MarketEnabledSet {
+        id: RequestId,
+        params: MarketEnabledSetParams,
+    },
+    #[serde(rename = "market/uninstall")]
+    MarketUninstall {
+        id: RequestId,
+        params: MarketUninstallParams,
+    },
     #[serde(rename = "plugin/list")]
     PluginList {
         id: RequestId,
@@ -911,6 +962,15 @@ impl ClientRequest {
             | Self::MarketplaceAdd { id, .. }
             | Self::MarketplaceRemove { id, .. }
             | Self::MarketplaceUpgrade { id, .. }
+            | Self::MarketList { id, .. }
+            | Self::MarketPending { id, .. }
+            | Self::MarketInstallCancel { id, .. }
+            | Self::MarketReconcile { id, .. }
+            | Self::MarketRead { id, .. }
+            | Self::MarketInstall { id, .. }
+            | Self::MarketInstalled { id, .. }
+            | Self::MarketEnabledSet { id, .. }
+            | Self::MarketUninstall { id, .. }
             | Self::PluginList { id, .. }
             | Self::PluginSearch { id, .. }
             | Self::PluginRead { id, .. }
@@ -1057,6 +1117,15 @@ impl ClientRequest {
             Self::MarketplaceAdd { .. } => Method::MarketplaceAdd,
             Self::MarketplaceRemove { .. } => Method::MarketplaceRemove,
             Self::MarketplaceUpgrade { .. } => Method::MarketplaceUpgrade,
+            Self::MarketPending { .. } => Method::MarketPending,
+            Self::MarketInstallCancel { .. } => Method::MarketInstallCancel,
+            Self::MarketReconcile { .. } => Method::MarketReconcile,
+            Self::MarketList { .. } => Method::MarketList,
+            Self::MarketRead { .. } => Method::MarketRead,
+            Self::MarketInstall { .. } => Method::MarketInstall,
+            Self::MarketInstalled { .. } => Method::MarketInstalled,
+            Self::MarketEnabledSet { .. } => Method::MarketEnabledSet,
+            Self::MarketUninstall { .. } => Method::MarketUninstall,
             Self::PluginList { .. } => Method::PluginList,
             Self::PluginSearch { .. } => Method::PluginSearch,
             Self::PluginRead { .. } => Method::PluginRead,
@@ -1443,6 +1512,16 @@ impl ClientResponsePayload {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method")]
 pub enum ServerRequest {
+    #[serde(rename = "connection/authorize")]
+    ConnectionAuthorize {
+        id: RequestId,
+        params: ConnectionAuthorizeParams,
+    },
+    #[serde(rename = "account/authorize")]
+    AccountAuthorize {
+        id: RequestId,
+        params: AccountAuthorizeParams,
+    },
     #[serde(rename = "currentTime/read")]
     CurrentTimeRead {
         id: RequestId,
@@ -1483,6 +1562,8 @@ pub enum ServerRequest {
 impl ServerRequest {
     pub fn id(&self) -> &RequestId {
         match self {
+            Self::ConnectionAuthorize { id, .. } => id,
+            Self::AccountAuthorize { id, .. } => id,
             Self::CurrentTimeRead { id, .. } | Self::McpServerElicitationRequest { id, .. } => id,
             Self::ItemCommandExecutionRequestApproval { id, .. } => id,
             Self::ItemFileChangeRequestApproval { id, .. } => id,
@@ -1494,6 +1575,8 @@ impl ServerRequest {
 
     pub fn method(&self) -> &'static str {
         match self {
+            Self::ConnectionAuthorize { .. } => METHOD_CONNECTION_AUTHORIZE,
+            Self::AccountAuthorize { .. } => METHOD_ACCOUNT_AUTHORIZE,
             Self::CurrentTimeRead { .. } => METHOD_CURRENT_TIME_READ,
             Self::McpServerElicitationRequest { .. } => METHOD_MCP_SERVER_ELICITATION_REQUEST,
             Self::ItemCommandExecutionRequestApproval { .. } => {
@@ -1513,6 +1596,18 @@ impl TryFrom<JsonRpcRequest> for ServerRequest {
     fn try_from(request: JsonRpcRequest) -> Result<Self, Self::Error> {
         let params = request.params.unwrap_or_else(|| serde_json::json!({}));
         match request.method.as_str() {
+            METHOD_CONNECTION_AUTHORIZE => serde_json::from_value(params)
+                .map(|params| Self::ConnectionAuthorize {
+                    id: request.id,
+                    params,
+                })
+                .map_err(|error| error.to_string()),
+            METHOD_ACCOUNT_AUTHORIZE => serde_json::from_value(params)
+                .map(|params| Self::AccountAuthorize {
+                    id: request.id,
+                    params,
+                })
+                .map_err(|error| error.to_string()),
             METHOD_CURRENT_TIME_READ => serde_json::from_value(params)
                 .map(|params| Self::CurrentTimeRead {
                     id: request.id,
@@ -1563,6 +1658,16 @@ impl TryFrom<JsonRpcRequest> for ServerRequest {
 impl From<ServerRequest> for JsonRpcRequest {
     fn from(request: ServerRequest) -> Self {
         match request {
+            ServerRequest::AccountAuthorize { id, params } => JsonRpcRequest::new(
+                id,
+                METHOD_ACCOUNT_AUTHORIZE,
+                Some(serde_json::to_value(params).expect("serialize v2 app-server request")),
+            ),
+            ServerRequest::ConnectionAuthorize { id, params } => JsonRpcRequest::new(
+                id,
+                METHOD_CONNECTION_AUTHORIZE,
+                Some(serde_json::to_value(params).expect("serialize v2 app-server request")),
+            ),
             ServerRequest::CurrentTimeRead { id, params } => JsonRpcRequest::new(
                 id,
                 METHOD_CURRENT_TIME_READ,

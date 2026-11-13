@@ -58,6 +58,8 @@ impl WorkspaceSkillBindingAppDataSource for TestMcpInventoryDataSource {}
 impl GatewayAppDataSource for TestMcpInventoryDataSource {}
 impl MediaAppDataSource for TestMcpInventoryDataSource {}
 impl VoiceAppDataSource for TestMcpInventoryDataSource {}
+impl crate::MarketDataSource for TestMcpInventoryDataSource {}
+
 impl PluginDataSource for TestMcpInventoryDataSource {}
 impl AutomationOverviewAppDataSource for TestMcpInventoryDataSource {}
 impl AutomationManagementAppDataSource for TestMcpInventoryDataSource {}

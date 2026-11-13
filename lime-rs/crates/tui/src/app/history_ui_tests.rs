@@ -675,7 +675,7 @@ fn visible_activity_kind_ends_reasoning_absorption() {
 }
 
 #[test]
-fn grouped_exploration_uses_codex_compact_shape() {
+fn grouped_exploration_uses_upstream_compact_shape() {
     let content = render_transcript_entries_content(
         &[
             exploration_entry_with_actions(

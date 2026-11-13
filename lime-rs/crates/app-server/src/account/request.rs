@@ -1,6 +1,6 @@
 use super::{
-    cloud, credentials::ensure_credential, oauth::validate_language, operations::Operation, store,
-    AccountManager,
+    billing, cloud, credentials::ensure_credential, oauth::validate_language,
+    operations::Operation, recovery, store, AccountManager,
 };
 use app_server_protocol::protocol::v2::{
     Account, CloudOperationReference, CloudRequestMethod, CloudRequestParams, CloudRequestResponse,
@@ -12,8 +12,21 @@ impl AccountManager {
         &self,
         params: CloudRequestParams,
     ) -> Result<CloudRequestResponse, String> {
-        validate_language(&params.language)?;
         let epoch = store::load(&self.path)?.epoch;
+        self.request_for_generation(params, &epoch).await
+    }
+
+    /// A host task keeps the account generation captured before its first read.
+    /// Credential resolution still performs the final fence before dispatch.
+    pub(crate) async fn request_for_generation(
+        &self,
+        params: CloudRequestParams,
+        epoch: &str,
+    ) -> Result<CloudRequestResponse, String> {
+        validate_language(&params.language)?;
+        if store::load(&self.path)?.epoch != epoch {
+            return Err("account_changed".into());
+        }
         if !params.path.starts_with("/operations/") {
             route(&params.path, params.method)?;
             if params.path.starts_with("/catalog/")
@@ -22,10 +35,10 @@ impl AccountManager {
                 || params.path.starts_with("/connections/")
                 || params.path.starts_with("/connection-")
             {
-                self.ensure_product_user(&params.language, &epoch).await?;
+                self.ensure_product_user(&params.language, epoch).await?;
             }
         }
-        self.dispatch(params, &epoch).await
+        self.dispatch(params, epoch).await
     }
 
     pub(super) async fn dispatch(
@@ -75,6 +88,12 @@ impl AccountManager {
         {
             return Err("cloud_request_invalid".into());
         }
+        // Resolve the private original before credential refresh or any network access.
+        let summary_original = if params.path.starts_with("/recovery/") {
+            Some(self.recovery_operation(&params.path)?)
+        } else {
+            None
+        };
         let operation = if post {
             let key = params
                 .operation_key
@@ -106,6 +125,7 @@ impl AccountManager {
                 language: params.language.clone(),
                 recovery_path,
                 status: "outcome_unknown".into(),
+                rejection_code: None,
                 created_at: chrono::Utc::now().to_rfc3339(),
             })
         } else {
@@ -209,6 +229,11 @@ impl AccountManager {
             Err(error) if !post => return Err(error.into()),
             Err(_) => (502, serde_json::json!({"error":"outcome_unknown"})),
         };
+        if status == 200 {
+            if let Some(original) = &summary_original {
+                recovery::validate_summary(original, &body)?;
+            }
+        }
         // Publication and journal updates share the same short local lock.
         // Logout or refresh cannot replace identity between the final fence and
         // the metadata projection. No network request is made under this lock.
@@ -220,7 +245,7 @@ impl AccountManager {
                 &credential.tokens.access_token,
             )?;
             let mut operation = operation;
-            if !post && status == 200 {
+            if !post && status == 200 && summary_original.is_none() {
                 if let Some(key) = params
                     .path
                     .rsplit('/')
@@ -240,7 +265,11 @@ impl AccountManager {
             }
             if post {
                 if let Some(value) = &mut operation {
-                    value.status = if (200..300).contains(&status) {
+                    value.rejection_code =
+                        billing::rejection(&value.path, status, &body).map(str::to_owned);
+                    value.status = if value.rejection_code.is_some() {
+                        "rejected"
+                    } else if (200..300).contains(&status) {
                         result_status(&body)
                     } else {
                         "outcome_unknown"
@@ -264,6 +293,18 @@ impl AccountManager {
 }
 
 fn duplicate(account: Account, value: &Operation) -> CloudRequestResponse {
+    if let Some(code) = value
+        .rejection_code
+        .as_deref()
+        .filter(|code| value.status == "rejected" && billing::budget_error(code))
+    {
+        return CloudRequestResponse {
+            account,
+            status: 409,
+            body: serde_json::json!({"error":code}),
+            operation: Some(reference(value)),
+        };
+    }
     let resolved = value.status == "resolved";
     CloudRequestResponse {
         account,
@@ -304,6 +345,9 @@ fn route(path: &str, method: CloudRequestMethod) -> Result<(CloudResource, &'sta
         return Err("cloud_request_invalid".into());
     }
     let (pathname, query) = path.split_once('?').unwrap_or((path, ""));
+    if pathname.starts_with("/recovery/") && path.contains('?') {
+        return Err("cloud_request_invalid".into());
+    }
     if pathname.contains('%') {
         return Err("cloud_request_invalid".into());
     }
@@ -316,7 +360,12 @@ fn route(path: &str, method: CloudRequestMethod) -> Result<(CloudResource, &'sta
                         .bytes()
                         .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
             });
-        if method != CloudRequestMethod::Get || !(pathname == "/market/items" || catalog_release) {
+        let market_item = matches!(parts.as_slice(), ["market", "items", id] if cloud::identifier(id))
+            && url::form_urlencoded::parse(query.as_bytes())
+                .all(|(name, _)| matches!(name.as_ref(), "hostId" | "hostVersion" | "capability"));
+        if method != CloudRequestMethod::Get
+            || !(pathname == "/market/items" || catalog_release || market_item)
+        {
             return Err("cloud_request_invalid".into());
         }
     }
@@ -345,6 +394,12 @@ fn route(path: &str, method: CloudRequestMethod) -> Result<(CloudResource, &'sta
             (Market, "")
         }
         (Get, ["market", "operations", key]) if operation_key(key) => (Market, ""),
+        (Get, ["recovery", "market", "operations", key]) if operation_key(key) => (Market, ""),
+        (Get, ["recovery", "web", "operations", key]) if operation_key(key) => (Web, ""),
+        (
+            Get,
+            ["recovery", "connection-requests" | "connection-file-operations", "operations", key],
+        ) if operation_key(key) => (Connections, ""),
         (Post, ["market", "acquisitions"]) => (Market, "/market/operations/"),
         (Post, ["market", "acquisitions", id, "download-tickets" | "revocations"])
             if cloud::identifier(id) =>
@@ -352,8 +407,10 @@ fn route(path: &str, method: CloudRequestMethod) -> Result<(CloudResource, &'sta
             (Market, "/market/operations/")
         }
         (Post, ["web", "searches" | "pages"]) => (Web, "/web/operations/"),
+        (Get, ["web", "prices"]) => (Web, ""),
         (Get, ["web", "operations", key]) if operation_key(key) => (Web, ""),
         (Post, ["connection-requests"]) => (Connections, "/connection-requests/operations/"),
+        (Get, ["connection-file-prices"]) => (Connections, ""),
         (Get, ["connection-requests" | "connection-file-operations", id])
             if cloud::identifier(id) =>
         {
@@ -393,6 +450,24 @@ fn contains_credential(value: &serde_json::Value, token: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn market_item_queries_only_accept_host_metadata_on_read() {
+        let path = "/market/items/item_research?hostId=lime&hostVersion=1.0.0&capability=plugins&capability=skills";
+        assert_eq!(
+            route(path, CloudRequestMethod::Get).unwrap(),
+            (CloudResource::Market, "")
+        );
+        assert!(route(path, CloudRequestMethod::Post).is_err());
+        for path in [
+            "/market/items/item_research?url=https://untrusted.test",
+            "/market/items/item_research?releaseId=another",
+            "/market/releases/rel_research?hostId=lime",
+            "/market/featured?hostId=lime",
+        ] {
+            assert!(route(path, CloudRequestMethod::Get).is_err(), "{path}");
+        }
+    }
 
     #[test]
     fn product_catalog_routes_use_full_slug_and_only_exact_release_query() {

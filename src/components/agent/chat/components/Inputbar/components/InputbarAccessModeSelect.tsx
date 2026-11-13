@@ -6,6 +6,7 @@ import {
   DEFAULT_AGENT_ACCESS_MODE,
   type AgentAccessMode,
 } from "../../../hooks/agentChatStorage";
+import { useComposerPermissionVisibility } from "@/lib/composerPermissionVisibility";
 
 interface InputbarAccessModeSelectProps {
   isFullscreen?: boolean;
@@ -41,12 +42,21 @@ export const InputbarAccessModeSelect: React.FC<
   setAccessMode,
 }) => {
   const { t } = useTranslation("agent");
+  const visibility = useComposerPermissionVisibility();
   if (isFullscreen || !setAccessMode) {
     return null;
   }
-  const accessModeLabel = t(
-    ACCESS_MODE_OPTIONS.find((option) => option.value === accessMode)!.label,
-  );
+  const visibleOptions = ACCESS_MODE_OPTIONS.filter((option) => {
+    if (option.value === "read-only") return true;
+    if (option.value === "current") {
+      return visibility.defaultPermission || accessMode === "current";
+    }
+    return visibility.fullAccess || accessMode === "full-access";
+  });
+  const selectedOption =
+    visibleOptions.find((option) => option.value === accessMode) ??
+    ACCESS_MODE_OPTIONS.find((option) => option.value === accessMode)!;
+  const accessModeLabel = t(selectedOption.label);
 
   return (
     <MetaSelectWrap data-access-mode={accessMode} title={accessModeLabel}>
@@ -65,7 +75,7 @@ export const InputbarAccessModeSelect: React.FC<
           setAccessMode(event.target.value as AgentAccessMode)
         }
       >
-        {ACCESS_MODE_OPTIONS.map((option) => (
+        {visibleOptions.map((option) => (
           <option key={option.value} value={option.value}>
             {t(option.label)}
           </option>

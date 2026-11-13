@@ -4,6 +4,8 @@ use app_server_protocol::protocol::v2::{ServerNotification, ServerRequest};
 
 pub(crate) fn server_request_thread_id(request: &ServerRequest) -> Option<&str> {
     match request {
+        ServerRequest::AccountAuthorize { params, .. } => Some(params.thread_id.as_str()),
+        ServerRequest::ConnectionAuthorize { params, .. } => Some(params.thread_id.as_str()),
         ServerRequest::CurrentTimeRead { params, .. } => Some(params.thread_id.as_str()),
         ServerRequest::McpServerElicitationRequest { params, .. } => {
             Some(params.thread_id.as_str())

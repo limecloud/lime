@@ -91,6 +91,54 @@ class NativeSecurityTests(unittest.TestCase):
                     pass
             self.assertTrue((root / "consent-control").exists())
 
+    def test_human_takeover_at_consent_lock_acquisition_does_not_open_approval(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(host, "lock_root", lambda: Path(directory)), patch.object(host, "vnc_input") as vnc:
+            root = Path(directory)
+            original = host.fcntl.flock
+            def take_over(fd, operation):
+                original(fd, operation)
+                if operation == fcntl.LOCK_EX | fcntl.LOCK_NB:
+                    (root / "human-control").touch(mode=0o600)
+            with patch.object(host.fcntl, "flock", side_effect=take_over):
+                with self.assertRaisesRegex(host.Denied, "human control"):
+                    with host.consent_control(lambda: False):
+                        self.fail("Approval opened after human control was requested")
+            self.assertNotIn(True, [call.args[0] for call in vnc.call_args_list])
+            self.assertTrue((root / "human-control").exists())
+            self.assertFalse((root / "consent-control").exists())
+
+    def test_takeover_after_prompt_opens_cancels_and_reaps_it_before_unlocking(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(host, "lock_root", lambda: Path(directory)), patch.object(host, "vnc_input") as vnc, patch.object(host.os, "environ", {"LIME_MANAGED_VNC_SESSION": "1"}):
+            root = Path(directory)
+            driver = host.Driver.__new__(host.Driver)
+            driver.approved, driver.generation = {}, 1
+            selected = {"windowId": "42"}
+            target = {"revision": "1", "identity": {"appId": "synthetic-app", "title": "Synthetic"}}
+            lifecycle = []
+            polls = 0
+            def poll():
+                nonlocal polls
+                polls += 1
+                (root / "human-control").touch(mode=0o600, exist_ok=True)
+                return None if polls <= 2 else 0
+            def reaped():
+                descriptor = host.private_file(root / "desktop.lock")
+                try:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                finally:
+                    os.close(descriptor)
+                lifecycle.append("reaped while locked")
+            prompt = SimpleNamespace(returncode=0, poll=poll, terminate=lambda: lifecycle.append("terminated"), wait=lambda **kwargs: reaped())
+            with patch.object(driver, "snapshot", return_value={}), patch.object(driver, "select_target", return_value=(target, object())), patch.object(host.subprocess, "Popen", return_value=prompt):
+                with self.assertRaisesRegex(host.Denied, "Approval canceled"):
+                    driver.setup({"adapter": "native", "grantScope": "session", "target": selected}, lambda: False)
+            self.assertEqual(driver.approved, {})
+            self.assertEqual(lifecycle, ["terminated", "reaped while locked"])
+            self.assertEqual([call.args[0] for call in vnc.call_args_list], [True, False])
+            self.assertTrue((root / "human-control").exists())
+            self.assertFalse((root / "consent-control").exists())
+
     def test_only_active_desktop_lock_service_can_report_unlocked(self):
         driver = host.Driver.__new__(host.Driver)
         driver.display, driver.monitor = object(), SimpleNamespace(available=True)

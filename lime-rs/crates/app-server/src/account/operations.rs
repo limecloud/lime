@@ -16,10 +16,39 @@ pub(super) struct Operation {
     pub language: String,
     pub recovery_path: String,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rejection_code: Option<String>,
     pub created_at: String,
 }
 
 impl AccountManager {
+    /// Keep private operation contents inside the account owner.
+    pub(crate) fn operation_dispatched(
+        &self,
+        account: &Account,
+        key: &str,
+    ) -> Result<bool, String> {
+        store::with_lock(&self.path, || {
+            let current = self
+                .read(Default::default())?
+                .account
+                .ok_or("account_changed")?;
+            let Account::Cloud {
+                generation: expected,
+                ..
+            } = account;
+            let Account::Cloud {
+                generation: actual, ..
+            } = &current;
+            if expected != actual
+                || Self::plugin_identity_for(account) != Self::plugin_identity_for(&current)
+            {
+                return Err("account_changed".into());
+            }
+            self.operation(account, key).map(|value| value.is_some())
+        })
+    }
+
     fn operation_path(&self, account: &Account, key: &str) -> Result<std::path::PathBuf, String> {
         if !(16..=128).contains(&key.len())
             || !key

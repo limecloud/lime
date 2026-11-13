@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { LoaderCircle } from "lucide-react";
 import type { StorageState } from "@/lib/api/storage";
+import { revealPathInFinder } from "@/lib/api/fileSystem";
 import { SettingsAction } from "../../SettingsPrimitives";
 import { formatStorageBytes } from "./formatStorageBytes";
 
@@ -51,6 +52,12 @@ export function StorageUsage({
       data-settings-search-target="storage-usage"
       tabIndex={-1}
     >
+      <div
+        className="mb-2 text-[13px] font-medium"
+        data-testid="storage-data-directory"
+      >
+        {t("settings.storage.dataDirectory")}
+      </div>
       <div className="mb-2 flex items-center justify-between gap-4">
         <div className="min-w-0 text-[13px] font-medium">
           {usage
@@ -136,12 +143,21 @@ export function StorageUsage({
               </li>
             ))}
           </ul>
-          <p
-            className="mt-3 select-text break-all text-[12px] text-muted-foreground"
-            title={usage.scannedRoots.join("\n")}
-          >
-            {usage.dataRoot}
-          </p>
+          <div className="mt-3 flex items-start justify-between gap-4">
+            <p
+              className="min-w-0 select-text break-all text-[12px] text-muted-foreground"
+              title={usage.scannedRoots.join("\n")}
+            >
+              {usage.dataRoot}
+            </p>
+            <SettingsAction
+              type="button"
+              className="shrink-0"
+              onClick={() => void revealPathInFinder(usage.dataRoot)}
+            >
+              {t("settings.storage.browseFolder")}
+            </SettingsAction>
+          </div>
         </>
       ) : null}
       <div

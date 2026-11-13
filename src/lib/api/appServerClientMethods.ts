@@ -194,6 +194,15 @@ declare module "./appServerClient" {
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerMarketplaceUpgradeResponse>
     >;
+    listMarketResources(params: history.MarketListParams): Promise<appServer.AppServerRequestResult<history.MarketListResponse>>;
+    readMarketResource(params: history.MarketReadParams): Promise<appServer.AppServerRequestResult<history.MarketReadResponse>>;
+    installMarketResource(params: history.MarketInstallParams): Promise<appServer.AppServerRequestResult<history.MarketInstallResponse>>;
+    listInstalledMarketResources(params: history.MarketInstalledParams): Promise<appServer.AppServerRequestResult<history.MarketInstalledResponse>>;
+    setMarketResourceEnabled(params: history.MarketEnabledSetParams): Promise<appServer.AppServerRequestResult<history.MarketEnabledSetResponse>>;
+    uninstallMarketResource(params: history.MarketUninstallParams): Promise<appServer.AppServerRequestResult<history.MarketUninstallResponse>>;
+    listPendingMarketInstalls(params: history.MarketPendingParams): Promise<appServer.AppServerRequestResult<history.MarketPendingResponse>>;
+    cancelMarketInstall(params: history.MarketInstallCancelParams): Promise<appServer.AppServerRequestResult<history.MarketInstallCancelResponse>>;
+    reconcileMarketResources(params: history.MarketReconcileParams): Promise<appServer.AppServerRequestResult<history.MarketReconcileResponse>>;
     listPlugins(
       params?: appServer.AppServerPluginListParams,
     ): Promise<

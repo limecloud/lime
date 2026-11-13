@@ -4,6 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SidebarOpenedProjectSummary } from "@/components/app-sidebar/sidebarConversationGroups";
 import {
+  ensureConversationTab,
+  getConversationTabsSnapshot,
+} from "@/lib/conversationTabs";
+import {
   AppSidebar,
   mockStartNewConversation,
   act,
@@ -681,6 +685,168 @@ describe("AppSidebar conversations", () => {
     expect(menu?.textContent).not.toContain("归档对话");
     expect(menu?.textContent).toContain("归档聊天");
     expect(menu?.textContent).toContain("移除");
+  });
+
+  it("Ctrl+Shift+] 切换到下一个会话标签", async () => {
+    mountSidebarContainer();
+    await flushEffects(2);
+    ensureConversationTab("session-tab-a", "A");
+    ensureConversationTab("session-tab-b", "B");
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "]",
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+
+    expect(getConversationTabsSnapshot().activeSessionId).toBe("session-tab-a");
+  });
+
+  it("Cmd+Shift+; 复制最后一个代码块", async () => {
+    mountSidebarContainer();
+    await flushEffects(2);
+    const button = document.createElement("button");
+    button.dataset.markdownCodeAction = "";
+    const click = vi.fn();
+    button.addEventListener("click", click);
+    document.body.appendChild(button);
+    try {
+      act(() => {
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: ";",
+            ctrlKey: true,
+            shiftKey: true,
+            bubbles: true,
+          }),
+        );
+      });
+      expect(click).toHaveBeenCalledTimes(1);
+    } finally {
+      button.remove();
+    }
+  });
+
+  it("Cmd+N 打开新聊天标签", async () => {
+    mountSidebarContainer();
+    await flushEffects(2);
+    ensureConversationTab("session-tab-a", "A");
+    const before = mockStartNewConversation.mock.calls.length;
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "n",
+          ctrlKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+    expect(mockStartNewConversation.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it("Cmd+1..9 切换到对应顺序的会话标签", async () => {
+    mountSidebarContainer();
+    await flushEffects(2);
+    ensureConversationTab("session-tab-a", "A");
+    ensureConversationTab("session-tab-b", "B");
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "1",
+          metaKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+    expect(getConversationTabsSnapshot().activeSessionId).toBe("session-tab-a");
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "9",
+          metaKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+    expect(getConversationTabsSnapshot().activeSessionId).toBe("session-tab-a");
+  });
+
+  it("Cmd+Shift+F 切换完整视图", async () => {
+    mountSidebarContainer();
+    await flushEffects(2);
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F",
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+    expect(document.documentElement.getAttribute("data-lime-full-view")).toBe(
+      "true",
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F",
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+    expect(document.documentElement.getAttribute("data-lime-full-view")).toBe(
+      null,
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F",
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    });
+    expect(document.documentElement.getAttribute("data-lime-full-view")).toBe(
+      null,
+    );
+  });
+
+  it("Ctrl+T 请求新建会话标签", async () => {
+    mountSidebarContainer();
+    await flushEffects(2);
+    const before = mockStartNewConversation.mock.calls.length;
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "t",
+          ctrlKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+
+    expect(mockStartNewConversation.mock.calls.length).toBeGreaterThan(before);
   });
 
   it("项目菜单应支持归档项目内全部聊天", async () => {

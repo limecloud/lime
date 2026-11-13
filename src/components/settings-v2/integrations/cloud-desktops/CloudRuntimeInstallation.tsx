@@ -10,6 +10,8 @@ import { configureCloudDesktopConnection } from "@/lib/api/cloudDesktopConnectio
 import { isElectronHostCommandAvailable } from "@/lib/electron-host";
 import { SettingsAction } from "../../SettingsPrimitives";
 import { CloudInstallationProgress } from "./CloudInstallationProgress";
+import { prepareCloudConnection } from "./prepareCloudConnection";
+import { CloudModelConnection } from "./CloudModelConnection";
 
 export function CloudRuntimeInstallation({
   resource,
@@ -50,10 +52,13 @@ function RuntimeInstallationDialog({
   const [status, setStatus] = useState<CloudGuestInstallationStatus>();
   const [pending, setPending] = useState(false);
   const [resolvingRelease, setResolvingRelease] = useState(false);
+  const [preparingConnection, setPreparingConnection] = useState(false);
   const [trusted, setTrusted] = useState(false);
   const [customArtifact, setCustomArtifact] = useState(false);
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
+  const needsConnectionRepair =
+    status?.diagnostic === "CLOUD_INSTALL_SECURITY_GROUP_DENIED";
   const busy = useRef(false);
   const generation = useRef(0);
   useEffect(
@@ -70,10 +75,32 @@ function RuntimeInstallationDialog({
       if (busy.current) return;
       busy.current = true;
       setPending(true);
-      setResolvingRelease(action === "installRuntime" && !customArtifact);
+      setResolvingRelease(false);
       setError("");
       const current = generation.current;
       try {
+        if (
+          action === "installRuntime" ||
+          action === "reconnectRuntime" ||
+          (action === "resumeInstallation" && needsConnectionRepair)
+        ) {
+          if (!consent) throw new Error("CLOUD_CONNECTION_SETUP_FAILED");
+          setPreparingConnection(true);
+          try {
+            if (
+              !(await prepareCloudConnection(
+                resource,
+                () => current === generation.current,
+              ))
+            )
+              return;
+          } catch {
+            throw new Error("CLOUD_CONNECTION_SETUP_FAILED");
+          } finally {
+            if (current === generation.current) setPreparingConnection(false);
+          }
+          setResolvingRelease(action === "installRuntime" && !customArtifact);
+        }
         const request: CloudGuestInstallationRequest =
           action === "installRuntime"
             ? {
@@ -104,13 +131,19 @@ function RuntimeInstallationDialog({
         if (current === generation.current)
           setError(
             t(
-              String(cause).includes("CLOUD_INSTALL_RELEASE_UNAVAILABLE")
-                ? "settings.cloudDesktop.installReleaseUnavailable"
-                : String(cause).includes("CLOUD_INSTALL_DOWNLOAD_REQUIRED")
-                  ? "settings.cloudDesktop.installDownloadRequired"
-                  : String(cause).includes("CLOUD_INSTALL_CONNECTION_EXISTS")
-                    ? `settings.cloudDesktop.${reconnect ? "reconnectWindowOpen" : "installConnectionExists"}`
-                    : `settings.cloudDesktop.${reconnect ? "reconnectRequestFailed" : "installRequestFailed"}`,
+              String(cause).includes("CLOUD_MODEL_CONNECTION_UNRESOLVED")
+                ? "settings.cloudDesktop.modelShareResolveFirst"
+                : String(cause).includes("CLOUD_CONNECTION_SETUP_FAILED")
+                  ? "settings.cloudDesktop.connectionSetupFailed"
+                  : String(cause).includes("CLOUD_INSTALL_RELEASE_UNAVAILABLE")
+                    ? "settings.cloudDesktop.installReleaseUnavailable"
+                    : String(cause).includes("CLOUD_INSTALL_DOWNLOAD_REQUIRED")
+                      ? "settings.cloudDesktop.installDownloadRequired"
+                      : String(cause).includes(
+                            "CLOUD_INSTALL_CONNECTION_EXISTS",
+                          )
+                        ? `settings.cloudDesktop.${reconnect ? "reconnectWindowOpen" : "installConnectionExists"}`
+                        : `settings.cloudDesktop.${reconnect ? "reconnectRequestFailed" : "installRequestFailed"}`,
             ),
           );
       } finally {
@@ -121,7 +154,15 @@ function RuntimeInstallationDialog({
         }
       }
     },
-    [resource, trusted, consent, customArtifact, reconnect, t],
+    [
+      resource,
+      trusted,
+      consent,
+      customArtifact,
+      reconnect,
+      needsConnectionRepair,
+      t,
+    ],
   );
   useEffect(() => {
     if (!open || !status?.busy) return;
@@ -187,6 +228,11 @@ function RuntimeInstallationDialog({
             {t("settings.cloudDesktop.installNetworkHelp")}
           </p>
           <CloudInstallationProgress status={status} reconnect={reconnect} />
+          {preparingConnection && (
+            <p role="status" aria-live="polite" className="text-[13px]">
+              {t("settings.cloudDesktop.connectionPreparing")}
+            </p>
+          )}
           {resolvingRelease && (
             <p role="status" aria-live="polite" className="text-[13px]">
               {t("settings.cloudDesktop.installResolvingRelease")}
@@ -213,7 +259,7 @@ function RuntimeInstallationDialog({
                     ? "settings.cloudDesktop.installPreparationFailed"
                     : status.diagnostic ===
                         "CLOUD_INSTALL_SECURITY_GROUP_DENIED"
-                      ? "settings.cloudDesktop.tunnelSecurityGroupDenied"
+                      ? "settings.cloudDesktop.connectionRepairHelp"
                       : status.phase === "failed"
                         ? `settings.cloudDesktop.${reconnect ? "reconnectFailureHelp" : "installFailureHelp"}`
                         : `settings.cloudDesktop.${reconnect ? "reconnectRecoveryHelp" : "installRecoveryHelp"}`,
@@ -224,6 +270,24 @@ function RuntimeInstallationDialog({
             <p className="text-[13px]">
               {t("settings.cloudDesktop.connectionSaved")}
             </p>
+          )}
+          {status?.connectionSaved && !recoverable && (
+            <CloudModelConnection
+              resource={resource}
+              disabled={pending || !running}
+            />
+          )}
+          {recoverable && needsConnectionRepair && (
+            <label className="flex items-start gap-2 text-[13px]">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={consent}
+                disabled={pending || status?.busy}
+                onChange={(event) => setConsent(event.target.checked)}
+              />
+              <span>{t("settings.cloudDesktop.connectionRepairConsent")}</span>
+            </label>
           )}
           {!recoverable && (!status?.connectionSaved || reconnect) && (
             <div className="space-y-3 text-[13px]">
@@ -305,8 +369,16 @@ function RuntimeInstallationDialog({
                       value ? { ...value, connectionSaved: false } : value,
                     );
                     setConsent(false);
-                  } catch {
-                    setError(t("settings.cloudDesktop.installRequestFailed"));
+                  } catch (cause) {
+                    setError(
+                      t(
+                        String(cause).includes(
+                          "CLOUD_MODEL_CONNECTION_UNRESOLVED",
+                        )
+                          ? "settings.cloudDesktop.modelShareResolveFirst"
+                          : "settings.cloudDesktop.installRequestFailed",
+                      ),
+                    );
                   } finally {
                     busy.current = false;
                     setPending(false);
@@ -326,7 +398,12 @@ function RuntimeInstallationDialog({
             )}
             {status?.connectionSaved && recoverable && (
               <SettingsAction
-                disabled={pending || status.busy || !running}
+                disabled={
+                  pending ||
+                  status.busy ||
+                  !running ||
+                  (needsConnectionRepair && !consent)
+                }
                 onClick={() =>
                   void execute("resumeInstallation", status.operationId)
                 }
@@ -367,7 +444,12 @@ function RuntimeInstallationDialog({
               </SettingsAction>
             ) : recoverable ? (
               <SettingsAction
-                disabled={pending || status?.busy || !running}
+                disabled={
+                  pending ||
+                  status?.busy ||
+                  !running ||
+                  (needsConnectionRepair && !consent)
+                }
                 onClick={() =>
                   void execute("resumeInstallation", status?.operationId)
                 }

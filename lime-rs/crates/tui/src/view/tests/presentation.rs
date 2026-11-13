@@ -115,7 +115,7 @@ fn composer_popup_unicode_rows_stay_within_display_width_for_all_locales() {
 }
 
 #[test]
-fn export_picker_matches_codex_destination_and_filename_flow() {
+fn export_picker_matches_upstream_destination_and_filename_flow() {
     let mut app = App::default();
     app.set_thread_id("00000000-0000-0000-0000-000000000123".to_string());
     app.chat_widget.bottom_pane.insert_str("/export");
@@ -159,7 +159,7 @@ fn export_picker_matches_codex_destination_and_filename_flow() {
         .expect("draw filename");
     let text = buffer_text(&terminal);
     assert!(text.contains("Save conversation"), "{text}");
-    assert!(text.contains("codex-session-00000000-0000-0000-0000-000000000123.md"));
+    assert!(text.contains("lime-session-00000000-0000-0000-0000-000000000123.md"));
 
     assert_eq!(
         dispatch_connected_input(
@@ -168,7 +168,7 @@ fn export_picker_matches_codex_destination_and_filename_flow() {
         ),
         crate::app::AppAction::ExportTranscript {
             path: Some(std::path::PathBuf::from(
-                "codex-session-00000000-0000-0000-0000-000000000123.md",
+                "lime-session-00000000-0000-0000-0000-000000000123.md",
             )),
         }
     );

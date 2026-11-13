@@ -53,7 +53,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn selected_rows_use_codex_marker_and_bold_cyan_style() {
+    fn selected_rows_use_upstream_marker_and_bold_cyan_style() {
         let row = selection_option_row(0, "Model", true);
         let line = &row;
 

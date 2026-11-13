@@ -27,6 +27,54 @@ fn instances(response: &Value) -> Result<&Vec<Value>, String> {
     Ok(items)
 }
 
+fn purchase_args(spec: &EcsDesktopSpec, desktop_name: &str, operation_id: &str) -> Vec<String> {
+    // Fixed API version: Encrypted is an official flat SystemDisk member that
+    // older CLI metadata does not expand. --force bypasses only CLI metadata.
+    let mut args = vec![
+        "RunInstances".into(),
+        "--Amount".into(),
+        "1".into(),
+        "--MinAmount".into(),
+        "1".into(),
+        "--InstanceName".into(),
+        desktop_name.to_owned(),
+        "--InstanceChargeType".into(),
+        "PostPaid".into(),
+        "--AutoRenew".into(),
+        "false".into(),
+        "--InstanceType".into(),
+        spec.instance_type.clone(),
+        "--ImageId".into(),
+        spec.image_id.clone(),
+        "--VSwitchId".into(),
+        spec.v_switch_id.clone(),
+        "--SecurityGroupId".into(),
+        spec.security_group_id.clone(),
+        "--IoOptimized".into(),
+        "optimized".into(),
+        "--SystemDisk.Category".into(),
+        "cloud_essd".into(),
+        "--SystemDisk.PerformanceLevel".into(),
+        "PL1".into(),
+        "--SystemDisk.Size".into(),
+        spec.system_disk_gib.to_string(),
+        "--SystemDisk.Encrypted".into(),
+        "true".into(),
+        "--InternetChargeType".into(),
+        "PayByTraffic".into(),
+        "--InternetMaxBandwidthOut".into(),
+        spec.outbound_mbps.to_string(),
+        "--Tag.1.Key".into(),
+        OPERATION_TAG.into(),
+        "--Tag.1.Value".into(),
+        operation_id.to_owned(),
+    ];
+    if !spec.key_pair_name.is_empty() {
+        args.extend(["--KeyPairName".into(), spec.key_pair_name.clone()]);
+    }
+    args
+}
+
 impl CloudDesktopService {
     pub(in crate::cloud_desktop_service) fn validate_ecs_purchase_receipt(
         &self,
@@ -124,10 +172,12 @@ impl CloudDesktopService {
             return Ok(existing);
         }
         self.check_purchase_available("purchaseEcs", &spec.region_id, &desktop_name, &quote_id)?;
+        let args = purchase_args(&spec, &desktop_name, &operation_id);
         // This block holds the operation lock and contains only read-only calls.
         // Failure here is an explicit non-submission, never an unknown purchase.
-        let preflight: Result<Value, String> = async {
+        let preflight: Result<Value, auth::cli::CliError> = async {
             let quote = self.approved_quote(&request["spec"], &quote_id)?;
+            self.require_ecs_purchase_preflight(&quote, &quote_id)?;
             let network = self.validate_ecs_inventory(&spec).await?;
             if self
                 .ecs_price(
@@ -152,9 +202,31 @@ impl CloudDesktopService {
             if !instances(&inventory)?.is_empty() {
                 return Err("Desktop name already exists; reconcile before purchasing".into());
             }
+            self.approved_quote(&request["spec"], &quote_id)?;
+            self.require_ecs_purchase_preflight(&quote, &quote_id)?;
+            let mut dry_run = args.clone();
+            dry_run.extend(["--DryRun".into(), "true".into()]);
+            match self
+                .execute_cli_result(
+                    "ecs",
+                    Some("2014-05-26"),
+                    &spec.region_id,
+                    &spec.profile,
+                    &dry_run,
+                    self.alibaba_config(&spec.profile)?,
+                    0,
+                )
+                .await
+            {
+                Err(error) if error.provider_code.as_deref() == Some("DryRunOperation") => {}
+                Err(error) => return Err(error),
+                // Official success is a provider error, never a zero-exit JSON body.
+                Ok(_) => return Err("Invalid cloud response".into()),
+            }
             // Read-only preflight can take time; an approval must still be current
             // immediately before recording and sending the paid request.
             self.approved_quote(&request["spec"], &quote_id)?;
+            self.require_ecs_purchase_preflight(&quote, &quote_id)?;
             Ok(quote)
         }
         .await;
@@ -163,59 +235,15 @@ impl CloudDesktopService {
             Err(diagnostic) => {
                 return Ok(json!({ "operationId": operation_id,
                 "outcome": "notSubmitted", "submitted": false, "requiresInspection": false,
-                "diagnostic": diagnostic }))
+                "diagnostic": diagnostic.to_string(), "providerCode": diagnostic.provider_code }))
             }
         };
         let mut receipt = json!({ "operationId": operation_id, "request": request,
             "requestSha256": request_digest(&request)?, "outcome": "unknown", "requiresInspection": true,
             "createdAt": chrono::Utc::now().to_rfc3339(), "quote": quote["price"] });
         self.create_receipt(&operation_id, &receipt)?;
-        // Fixed API version: Encrypted is an official flat SystemDisk member that
-        // older CLI metadata does not expand. --force bypasses only CLI metadata.
-        let mut args = vec![
-            "RunInstances".into(),
-            "--ClientToken".into(),
-            operation_id.clone(),
-            "--Amount".into(),
-            "1".into(),
-            "--MinAmount".into(),
-            "1".into(),
-            "--InstanceName".into(),
-            desktop_name,
-            "--InstanceChargeType".into(),
-            "PostPaid".into(),
-            "--AutoRenew".into(),
-            "false".into(),
-            "--InstanceType".into(),
-            spec.instance_type.clone(),
-            "--ImageId".into(),
-            spec.image_id.clone(),
-            "--VSwitchId".into(),
-            spec.v_switch_id.clone(),
-            "--SecurityGroupId".into(),
-            spec.security_group_id.clone(),
-            "--IoOptimized".into(),
-            "optimized".into(),
-            "--SystemDisk.Category".into(),
-            "cloud_essd".into(),
-            "--SystemDisk.PerformanceLevel".into(),
-            "PL1".into(),
-            "--SystemDisk.Size".into(),
-            spec.system_disk_gib.to_string(),
-            "--SystemDisk.Encrypted".into(),
-            "true".into(),
-            "--InternetChargeType".into(),
-            "PayByTraffic".into(),
-            "--InternetMaxBandwidthOut".into(),
-            spec.outbound_mbps.to_string(),
-            "--Tag.1.Key".into(),
-            OPERATION_TAG.into(),
-            "--Tag.1.Value".into(),
-            operation_id.clone(),
-        ];
-        if !spec.key_pair_name.is_empty() {
-            args.extend(["--KeyPairName".into(), spec.key_pair_name.clone()]);
-        }
+        let mut args = args;
+        args.extend(["--ClientToken".into(), operation_id.clone()]);
         let result = self
             .call_cli(
                 "ecs",

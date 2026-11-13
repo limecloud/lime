@@ -54,6 +54,7 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "endpoint_providers",
     "minimize_to_tray",
     "language",
+    "cloud",
     "models",
     "agent",
     "skills",

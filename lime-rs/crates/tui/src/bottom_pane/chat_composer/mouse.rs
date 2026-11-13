@@ -53,7 +53,7 @@ impl ChatComposer {
     ///
     /// Right-click copy is checked by the app before this method, so an existing selection keeps
     /// its copy-first semantics.  Popup/search and Vim modes remain owner-exclusive, matching
-    /// Codex's rule that a mouse paste cannot steal an active editor surface.
+    /// 上游 rule that a mouse paste cannot steal an active editor surface.
     pub(crate) fn clipboard_paste_request(&self, event: &TuiEvent) -> Option<PasteSource> {
         if self.history_search.is_some()
             || self.vim_search_active()

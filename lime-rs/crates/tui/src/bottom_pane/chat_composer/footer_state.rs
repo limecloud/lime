@@ -1,6 +1,6 @@
 //! Footer presentation state owned by the chat composer.
 //!
-//! This mirrors Codex's owner boundary: transient footer state lives beside composer input, while
+//! This mirrors 上游 owner boundary: transient footer state lives beside composer input, while
 //! the app view only renders the selected mode and text.
 
 use super::super::footer::FooterMode;
@@ -27,7 +27,7 @@ impl super::ChatComposer {
     /// Resolve the effective footer surface from composer-owned transient state.
     ///
     /// The stored mode is only an override. History/Vim search always wins, while the base mode
-    /// follows the rich draft (including attachments), matching Codex's `footer_mode()` contract.
+    /// follows the rich draft (including attachments), matching 上游 `footer_mode()` contract.
     pub(crate) fn footer_mode(&self) -> FooterMode {
         if self.history_search.is_some() || self.vim_search_active() {
             return FooterMode::HistorySearch;

@@ -3,8 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { CloudSystemImage } from "./CloudSystemImage";
-import { EcsSystemImages } from "./EcsSystemImages";
-import { useCloudPurchase } from "./useCloudPurchase";
+import { EcsSystemImages, type EcsSystemImage } from "./EcsSystemImages";
 import { initialEcsSpec } from "./purchaseSpecs";
 
 const api = vi.hoisted(() => ({ request: vi.fn() }));
@@ -66,19 +65,20 @@ async function select(value: string) {
   await settle();
 }
 function Harness() {
-  const purchase = useCloudPurchase({
-    initialSpec: spec,
-    request: api.request,
-    onPurchased: vi.fn(),
-  });
+  const [context, setContext] = useState(spec);
+  const [selected, setSelected] = useState<EcsSystemImage>();
   const [disabled, setDisabled] = useState(false);
   return (
     <>
-      <EcsSystemImages purchase={purchase} disabled={disabled} />
-      <button onClick={() => void purchase.run("quote")}>quote</button>
+      <EcsSystemImages
+        profile={context.profile}
+        regionId={context.regionId}
+        disabled={disabled}
+        onSelected={setSelected}
+      />
       <button
         onClick={() =>
-          purchase.setSpec({ ...spec, profile: "other", regionId: "cn-other" })
+          setContext({ ...spec, profile: "other", regionId: "cn-other" })
         }
       >
         switch
@@ -86,9 +86,7 @@ function Harness() {
       <button onClick={() => setDisabled((value) => !value)}>lock</button>
       <output>
         {JSON.stringify({
-          spec: purchase.spec,
-          quote: purchase.quote,
-          approved: purchase.approved,
+          selected,
         })}
       </output>
     </>
@@ -241,8 +239,8 @@ describe("private system image creation", () => {
   });
 });
 
-describe("existing ECS purchase from a private system image", () => {
-  it("applies only an available image to the existing spec, preserves network and requires a new quote", async () => {
+describe("private system image selection", () => {
+  it("automatically discovers images and only selects an available image without cloud writes", async () => {
     api.request.mockImplementation(async (request) =>
       request.action === "listEcsImages"
         ? {
@@ -261,31 +259,26 @@ describe("existing ECS purchase from a private system image", () => {
     );
     act(() => root.render(<Harness />));
     await settle();
-    await click("quote");
-    await click("读取私有系统镜像");
     expect(
       container.querySelector<HTMLOptionElement>('option[value="m-pending"]')!
         .disabled,
     ).toBe(true);
     await select("m-test");
     const state = JSON.parse(container.querySelector("output")!.textContent!);
-    expect(state.spec).toEqual({
-      ...spec,
+    expect(state.selected).toEqual({
       imageId: "m-test",
-      systemDiskGib: 100,
+      name: image.name,
+      systemDiskGiB: 100,
+      ready: true,
     });
-    expect(state.quote).toBeUndefined();
-    expect(state.approved).toBe(false);
     expect(
       api.request.mock.calls.filter(
         ([request]) => request.action === "purchaseEcs",
       ),
     ).toHaveLength(0);
-    await click("quote");
-    expect(api.request.mock.calls.at(-1)![0]).toEqual({
-      action: "quoteEcs",
-      spec: { ...spec, imageId: "m-test", systemDiskGib: 100 },
-    });
+    expect(api.request.mock.calls.map(([request]) => request.action)).toEqual([
+      "listEcsImages",
+    ]);
   });
 
   it("discards inventory returned after an account/region switch and can load the new context", async () => {
@@ -298,8 +291,9 @@ describe("existing ECS purchase from a private system image", () => {
     );
     act(() => root.render(<Harness />));
     await settle();
-    act(() => button("读取私有系统镜像").click());
-    await settle();
+    api.request.mockResolvedValue({
+      data: { profile: "other", regionId: "cn-other", images: [] },
+    });
     await click("switch");
     await act(async () =>
       resolve({
@@ -319,7 +313,7 @@ describe("existing ECS purchase from a private system image", () => {
     expect(container.textContent).toContain("没有符合条件");
   });
 
-  it("rejects malformed or unencrypted inventory and leaves the original purchase image unchanged", async () => {
+  it("rejects malformed or unencrypted inventory without selecting an image", async () => {
     api.request.mockResolvedValue({
       data: {
         profile: "owned",
@@ -332,8 +326,8 @@ describe("existing ECS purchase from a private system image", () => {
     await click("读取私有系统镜像");
     expect(container.querySelector('[role="alert"]')).toBeTruthy();
     expect(
-      JSON.parse(container.querySelector("output")!.textContent!).spec.imageId,
-    ).toBe("ubuntu-test");
+      JSON.parse(container.querySelector("output")!.textContent!).selected,
+    ).toBeUndefined();
     expect(container.querySelector("select")).toBeNull();
   });
 });

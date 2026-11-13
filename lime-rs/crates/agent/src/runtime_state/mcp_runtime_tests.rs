@@ -47,11 +47,48 @@ fn node_binary() -> Option<String> {
 }
 
 #[tokio::test]
+async fn credential_root_changes_replace_the_session_runtime_generation() {
+    let state = AgentRuntimeState::new();
+    let root = tempfile::tempdir().expect("MCP credential roots");
+    let mut previous = None;
+    for name in ["first", "second"] {
+        let runtime = state
+            .ensure_mcp_runtime_generation(
+                Some(root.path().join(name)),
+                "session".into(),
+                "thread".into(),
+                ElicitationRequestRouter::default(),
+                Vec::new(),
+            )
+            .await
+            .expect("create credential-bound generation");
+        if let Some(previous) = previous {
+            assert!(!Arc::ptr_eq(&previous, &runtime));
+        }
+        let reused = state
+            .ensure_mcp_runtime_generation(
+                Some(root.path().join(name)),
+                "session".into(),
+                "thread".into(),
+                ElicitationRequestRouter::default(),
+                Vec::new(),
+            )
+            .await
+            .expect("reuse same credential-bound generation");
+        assert!(Arc::ptr_eq(&runtime, &reused));
+        previous = Some(runtime);
+    }
+    assert_eq!(state.mcp_runtime_count().await, 1);
+    state.clear_mcp_runtimes().await;
+}
+
+#[tokio::test]
 async fn session_owned_mcp_runtimes_are_thread_exact_and_close_independently() {
     let state = AgentRuntimeState::new();
     let router = ElicitationRequestRouter::default();
     let runtime_a = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-a".to_string(),
             "thread-a".to_string(),
             router.clone(),
@@ -61,6 +98,7 @@ async fn session_owned_mcp_runtimes_are_thread_exact_and_close_independently() {
         .expect("create session A runtime");
     let runtime_b = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-b".to_string(),
             "thread-b".to_string(),
             router,
@@ -91,6 +129,7 @@ async fn unchanged_server_specs_reuse_the_session_generation() {
     let router = ElicitationRequestRouter::default();
     let first = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-a".to_string(),
             "thread-a".to_string(),
             router.clone(),
@@ -100,6 +139,7 @@ async fn unchanged_server_specs_reuse_the_session_generation() {
         .expect("first generation");
     let second = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-a".to_string(),
             "thread-a".to_string(),
             router,
@@ -118,6 +158,7 @@ async fn concurrent_unchanged_runtime_ensures_publish_one_generation() {
     let first = tokio::spawn(async move {
         first_state
             .ensure_mcp_runtime_generation(
+                None,
                 "session-a".to_string(),
                 "thread-a".to_string(),
                 ElicitationRequestRouter::default(),
@@ -129,6 +170,7 @@ async fn concurrent_unchanged_runtime_ensures_publish_one_generation() {
     let second = tokio::spawn(async move {
         second_state
             .ensure_mcp_runtime_generation(
+                None,
                 "session-a".to_string(),
                 "thread-a".to_string(),
                 ElicitationRequestRouter::default(),
@@ -214,6 +256,7 @@ lines.on("line", (line) => {
     let state = AgentRuntimeState::new();
     let runtime = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-a".to_string(),
             "thread-a".to_string(),
             ElicitationRequestRouter::default(),
@@ -324,6 +367,7 @@ lines.on("line", (line) => {
     let state = AgentRuntimeState::new();
     state
         .ensure_mcp_runtime_generation(
+            None,
             "session-app".to_string(),
             "thread-app".to_string(),
             ElicitationRequestRouter::default(),
@@ -375,6 +419,7 @@ async fn required_runtime_server_failure_keeps_the_previous_generation_published
     let state = AgentRuntimeState::new();
     let previous = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-a".to_string(),
             "thread-a".to_string(),
             ElicitationRequestRouter::default(),
@@ -385,6 +430,7 @@ async fn required_runtime_server_failure_keeps_the_previous_generation_published
 
     let result = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-a".to_string(),
             "thread-a".to_string(),
             ElicitationRequestRouter::default(),
@@ -421,6 +467,7 @@ async fn replacement_keeps_previous_generation_visible_until_startup_completes()
     let state = AgentRuntimeState::new();
     let previous = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-a".to_string(),
             "thread-a".to_string(),
             ElicitationRequestRouter::default(),
@@ -489,6 +536,7 @@ lines.on("line", (line) => {
     let replacement = tokio::spawn(async move {
         replacement_state
             .ensure_mcp_runtime_generation(
+                None,
                 "session-a".to_string(),
                 "thread-a".to_string(),
                 ElicitationRequestRouter::default(),
@@ -598,6 +646,7 @@ lines.on("line", (line) => {
     let state = AgentRuntimeState::new();
     let previous = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-replacement".to_string(),
             "thread-replacement".to_string(),
             ElicitationRequestRouter::default(),
@@ -614,6 +663,7 @@ lines.on("line", (line) => {
 
     let replacement = state
         .ensure_mcp_runtime_generation(
+            None,
             "session-replacement".to_string(),
             "thread-replacement".to_string(),
             ElicitationRequestRouter::default(),

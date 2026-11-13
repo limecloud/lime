@@ -42,7 +42,7 @@ describe("SkillsWorkspacePage marketplace", () => {
   useSkillsWorkspacePageTestLifecycle();
 
   it("技能广场点击未安装官方技能应安装标准包并刷新本地列表", async () => {
-    const { container } = renderPage();
+    const { container } = renderPage({ initialView: "store" });
     const card = findMarketplaceCard(container, "数据分析");
     mocks.installOfficialMarketplaceSkill.mockResolvedValueOnce({
       directory: "analysis-official",
@@ -87,6 +87,7 @@ describe("SkillsWorkspacePage marketplace", () => {
     expect(mocks.installOfficialMarketplaceSkill).toHaveBeenCalledWith(
       "analysis",
       "lime",
+      undefined,
     );
     expect(mocks.refreshLocalSkills).toHaveBeenCalled();
     expect(mocks.toastSuccess).toHaveBeenCalledWith("已安装「数据分析」");
@@ -98,7 +99,7 @@ describe("SkillsWorkspacePage marketplace", () => {
   });
 
   it("技能广场点击详情应打开当前技能的 SKILL.md 内容", async () => {
-    const { container } = renderPage();
+    const { container } = renderPage({ initialView: "store" });
     const card = findMarketplaceCard(container, "数据分析");
 
     expect(
@@ -121,6 +122,7 @@ describe("SkillsWorkspacePage marketplace", () => {
     expect(detail).toBeTruthy();
     expect(mocks.getOfficialSkillMarketplaceBundle).toHaveBeenCalledWith(
       "analysis",
+      undefined,
     );
     expect(detail?.textContent).toContain("数据分析");
     expect(detail?.textContent).toContain("以下内容来自该技能的 SKILL.md 原文");
@@ -153,7 +155,7 @@ describe("SkillsWorkspacePage marketplace", () => {
         catalogSource: "user",
       },
     ] as Skill[];
-    const { container, onNavigate } = renderPage();
+    const { container, onNavigate } = renderPage({ initialView: "store" });
     const card = findMarketplaceCard(container, "数据分析");
 
     await clickInstalledMarketplaceAction(card, "使用");
@@ -190,7 +192,7 @@ describe("SkillsWorkspacePage marketplace", () => {
         catalogSource: "user",
       },
     ] as Skill[];
-    const { container, onNavigate } = renderPage();
+    const { container, onNavigate } = renderPage({ initialView: "store" });
     const card = findMarketplaceCard(container, "数据分析");
 
     await clickInstalledMarketplaceAction(card, "卸载");
@@ -204,7 +206,7 @@ describe("SkillsWorkspacePage marketplace", () => {
   it("官方技能市场不可用时应回退显示本地可用技能", () => {
     mocks.officialMarketplaceSkills = [];
     mocks.officialMarketplaceError = "network unavailable";
-    const { container, onNavigate } = renderPage();
+    const { container, onNavigate } = renderPage({ initialView: "store" });
     const card = findMarketplaceCard(container, "深度研究");
 
     expect(container.textContent).toContain(

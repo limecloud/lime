@@ -1,7 +1,6 @@
 import { useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  configuredCloudOrigin,
   getCloudAccountState,
   logoutCloudAccount,
   readCloudAccountState,
@@ -34,12 +33,7 @@ export function UserCenterSessionSettings() {
         a.resource === resource &&
         ["pending", "exchanging", "outcome_unknown"].includes(a.status),
     );
-  let configured = false;
-  try {
-    configured = Boolean(account || configuredCloudOrigin());
-  } catch {
-    /* Show the unavailable service state. */
-  }
+  const configured = Boolean(state.serviceUrl);
 
   const run = async (action: () => Promise<unknown>) => {
     if (busy) return;
@@ -96,7 +90,9 @@ export function UserCenterSessionSettings() {
             role="status"
             className="mt-3 text-[12px] text-[color:var(--lime-text-muted)]"
           >
-            {t("settings.cloudAccount.unconfigured")}
+            {t(state.serviceError
+              ? "settings.cloudAccount.invalidConfiguration"
+              : "settings.cloudAccount.unconfigured")}
           </p>
         ) : null}
       </SettingsSection>

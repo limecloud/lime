@@ -28,10 +28,26 @@ pub(crate) struct ConfirmPrompt {
     kind: ConfirmKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ConfirmKind {
     ArchiveThread,
     DeleteThread,
+    ResetMemory,
+    UninstallPlugin {
+        plugin_id: String,
+        name: String,
+    },
+    TerminateProcess {
+        thread_id: String,
+        process_id: String,
+        command: String,
+    },
+    InstallPlugin {
+        plugin_name: String,
+        marketplace_path: Option<String>,
+        remote_marketplace_name: Option<String>,
+        remote_release: Option<app_server_protocol::protocol::v2::MarketReleaseReference>,
+    },
 }
 
 impl ConfirmPrompt {
@@ -41,6 +57,40 @@ impl ConfirmPrompt {
 
     pub(crate) fn delete_thread() -> Self {
         Self::new(ConfirmKind::DeleteThread)
+    }
+
+    pub(crate) fn reset_memory() -> Self {
+        Self::new(ConfirmKind::ResetMemory)
+    }
+
+    pub(crate) fn uninstall_plugin(plugin_id: String, name: String) -> Self {
+        Self::new(ConfirmKind::UninstallPlugin { plugin_id, name })
+    }
+
+    pub(crate) fn terminate_process(
+        thread_id: String,
+        process_id: String,
+        command: String,
+    ) -> Self {
+        Self::new(ConfirmKind::TerminateProcess {
+            thread_id,
+            process_id,
+            command,
+        })
+    }
+
+    pub(crate) fn install_plugin(
+        plugin_name: String,
+        marketplace_path: Option<String>,
+        remote_marketplace_name: Option<String>,
+        remote_release: Option<app_server_protocol::protocol::v2::MarketReleaseReference>,
+    ) -> Self {
+        Self::new(ConfirmKind::InstallPlugin {
+            plugin_name,
+            marketplace_path,
+            remote_marketplace_name,
+            remote_release,
+        })
     }
 
     fn new(kind: ConfirmKind) -> Self {
@@ -60,7 +110,7 @@ impl ConfirmPrompt {
     }
 
     pub(crate) fn kind(&self) -> ConfirmKind {
-        self.kind
+        self.kind.clone()
     }
 
     pub(crate) fn handle_event(&mut self, event: Event) -> ConfirmPromptAction {
@@ -122,36 +172,53 @@ impl ConfirmPrompt {
     }
 
     fn view(&self, locale: Locale) -> ListSelectionView<'_> {
+        let label = match &self.kind {
+            ConfirmKind::ArchiveThread => locale.confirm_archive_label().to_string(),
+            ConfirmKind::DeleteThread => locale.confirm_delete_label().to_string(),
+            ConfirmKind::ResetMemory => locale.confirm_reset_memory_label().to_string(),
+            ConfirmKind::UninstallPlugin { name, .. } => {
+                locale.confirm_uninstall_plugin_label(name)
+            }
+            ConfirmKind::InstallPlugin { plugin_name, .. } => {
+                locale.confirm_install_plugin_label(plugin_name)
+            }
+            ConfirmKind::TerminateProcess { command, .. } => {
+                locale.confirm_terminate_process_label(command)
+            }
+        };
+        let description = match &self.kind {
+            ConfirmKind::ArchiveThread => locale.confirm_archive_description(),
+            ConfirmKind::DeleteThread => locale.confirm_delete_description(),
+            ConfirmKind::ResetMemory => locale.confirm_reset_memory_description(),
+            ConfirmKind::UninstallPlugin { .. } => locale.confirm_uninstall_plugin_description(),
+            ConfirmKind::InstallPlugin { .. } => locale.confirm_install_plugin_description(),
+            ConfirmKind::TerminateProcess { .. } => locale.confirm_terminate_process_description(),
+        };
         let entries = vec![
             SelectionRow::new(
                 locale.confirm_cancel_label(),
                 Some(locale.confirm_cancel_description().to_string()),
                 Vec::new(),
             ),
-            SelectionRow::new(
-                match self.kind {
-                    ConfirmKind::ArchiveThread => locale.confirm_archive_label(),
-                    ConfirmKind::DeleteThread => locale.confirm_delete_label(),
-                },
-                Some(
-                    match self.kind {
-                        ConfirmKind::ArchiveThread => locale.confirm_archive_description(),
-                        ConfirmKind::DeleteThread => locale.confirm_delete_description(),
-                    }
-                    .to_string(),
-                ),
-                Vec::new(),
-            ),
+            SelectionRow::new(label, Some(description.to_string()), Vec::new()),
         ];
         ListSelectionView {
             footer: None,
             title: match self.kind {
                 ConfirmKind::ArchiveThread => locale.confirm_archive_title(),
                 ConfirmKind::DeleteThread => locale.confirm_delete_title(),
+                ConfirmKind::ResetMemory => locale.confirm_reset_memory_title(),
+                ConfirmKind::UninstallPlugin { .. } => locale.confirm_uninstall_plugin_title(),
+                ConfirmKind::InstallPlugin { .. } => locale.confirm_install_plugin_title(),
+                ConfirmKind::TerminateProcess { .. } => locale.confirm_terminate_process_title(),
             },
             subtitle: Line::from(match self.kind {
                 ConfirmKind::ArchiveThread => locale.confirm_archive_subtitle(),
                 ConfirmKind::DeleteThread => locale.confirm_delete_subtitle(),
+                ConfirmKind::ResetMemory => locale.confirm_reset_memory_subtitle(),
+                ConfirmKind::UninstallPlugin { .. } => locale.confirm_uninstall_plugin_subtitle(),
+                ConfirmKind::InstallPlugin { .. } => locale.confirm_install_plugin_subtitle(),
+                ConfirmKind::TerminateProcess { .. } => locale.confirm_terminate_process_subtitle(),
             }),
             query: None,
             entries,
@@ -221,6 +288,16 @@ mod tests {
         assert_eq!(prompt.kind(), ConfirmKind::DeleteThread);
         let archive = ConfirmPrompt::archive();
         assert_eq!(archive.kind(), ConfirmKind::ArchiveThread);
+        let memory = ConfirmPrompt::reset_memory();
+        assert_eq!(memory.kind(), ConfirmKind::ResetMemory);
+        let plugin = ConfirmPrompt::uninstall_plugin("p1".to_string(), "gate".to_string());
+        assert_eq!(
+            plugin.kind(),
+            ConfirmKind::UninstallPlugin {
+                plugin_id: "p1".to_string(),
+                name: "gate".to_string()
+            }
+        );
     }
 
     #[test]

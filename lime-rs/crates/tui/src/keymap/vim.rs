@@ -63,6 +63,15 @@ macro_rules! modal_keymap {
             }
         }
 
+        impl $keymap {
+            pub(crate) fn describe(&self) -> Vec<(&'static str, Vec<String>)> {
+                self.actions
+                    .iter()
+                    .map(|action| (action.name, action.bindings.specs()))
+                    .collect()
+            }
+        }
+
         impl Default for $keymap {
             fn default() -> Self {
                 Self::from_config(&$config::default()).expect("built-in Vim bindings must be valid")

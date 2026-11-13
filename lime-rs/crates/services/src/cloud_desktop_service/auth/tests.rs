@@ -1,6 +1,8 @@
 use super::*;
 use std::os::unix::fs::{symlink, PermissionsExt};
 
+mod identity;
+
 fn fixture() -> (tempfile::TempDir, CloudDesktopService) {
     let directory = tempfile::tempdir().unwrap();
     let cli = directory.path().join("aliyun");
@@ -16,6 +18,7 @@ config=pathlib.Path(args[args.index('--config-path')+1])
 assert config.is_file() and config.stat().st_mode & 0o077 == 0
 if args[0]=='configure':
  assert args[args.index('--mode')+1]=='OAuth'
+ assert args[args.index('--oauth-site-type')+1]=='CN'
  assert sys.stdin.read()==''
  print('must-not-project-refresh-token',flush=True)
  print('must-not-project-refresh-token',file=sys.stderr,flush=True)
@@ -128,6 +131,7 @@ async fn abandoned_login_is_interrupted_and_does_not_restart_on_read() {
         region_id: "cn-test".into(),
         status: "authorizing".into(),
         error_code: None,
+        account_id_suffix: None,
     };
     let path = service.auth_directory("").unwrap().join("active.json");
     service.write_connection_file(&path, &state).unwrap();
@@ -261,6 +265,7 @@ async fn interrupted_verification_is_read_only_until_explicitly_resumed() {
         region_id: "cn-test".into(),
         status: "verifying".into(),
         error_code: None,
+        account_id_suffix: None,
     };
     let config = service
         .auth_directory(&state.profile)

@@ -405,6 +405,15 @@ impl RequestProcessor {
             app_server_protocol::protocol::v2::METHOD_MARKETPLACE_UPGRADE => {
                 self.handle_marketplace_upgrade_v2_impl(params).boxed()
             }
+            v2::METHOD_MARKET_PENDING => self.handle_market_pending(params).boxed(),
+            v2::METHOD_MARKET_INSTALL_CANCEL => self.handle_market_install_cancel(params).boxed(),
+            v2::METHOD_MARKET_RECONCILE => self.handle_market_reconcile(params).boxed(),
+            v2::METHOD_MARKET_LIST => self.handle_market_list(params).boxed(),
+            v2::METHOD_MARKET_READ => self.handle_market_read(params).boxed(),
+            v2::METHOD_MARKET_INSTALL => self.handle_market_install(params).boxed(),
+            v2::METHOD_MARKET_INSTALLED => self.handle_market_installed(params).boxed(),
+            v2::METHOD_MARKET_ENABLED_SET => self.handle_market_enabled_set(params).boxed(),
+            v2::METHOD_MARKET_UNINSTALL => self.handle_market_uninstall(params).boxed(),
             app_server_protocol::protocol::v2::METHOD_PLUGIN_LIST => {
                 self.handle_plugin_list_v2_impl(params).boxed()
             }

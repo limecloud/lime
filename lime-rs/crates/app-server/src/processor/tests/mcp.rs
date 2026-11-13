@@ -30,6 +30,7 @@ impl crate::GatewayAppDataSource for McpNotificationTestDataSource {}
 impl crate::MediaAppDataSource for McpNotificationTestDataSource {}
 impl crate::VoiceAppDataSource for McpNotificationTestDataSource {}
 impl crate::PluginDataSource for McpNotificationTestDataSource {}
+impl crate::MarketDataSource for McpNotificationTestDataSource {}
 impl crate::AutomationOverviewAppDataSource for McpNotificationTestDataSource {}
 impl crate::AutomationManagementAppDataSource for McpNotificationTestDataSource {}
 impl crate::MemoryAppDataSource for McpNotificationTestDataSource {}

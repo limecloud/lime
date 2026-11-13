@@ -1,6 +1,6 @@
 //! Canonical persisted thread transcript projection for TUI resume/preview.
 //!
-//! Codex keeps this owner separate from the interactive chat widget. Lime does
+//! 上游 keeps this owner separate from the interactive chat widget. Lime does
 //! the same, but its only source is App Server's v2 `Thread/Turn/Item` model;
 //! no rollout files or private local history database are consulted.
 

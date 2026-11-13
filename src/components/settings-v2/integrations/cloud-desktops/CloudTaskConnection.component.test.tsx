@@ -9,6 +9,10 @@ import { CloudWindowBoundary } from "@/components/cloud/CloudWindowBoundary";
 let root: Root;
 let container: HTMLDivElement;
 const invoke = vi.fn();
+const prepareConnection = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/cloud", () => ({
+  requestCloudDesktop: prepareConnection,
+}));
 const resource = {
   provider: "wuying" as const,
   profile: "test",
@@ -56,6 +60,17 @@ beforeEach(async () => {
   document.body.appendChild(container);
   root = createRoot(container);
   invoke.mockReset();
+  prepareConnection.mockReset();
+  prepareConnection.mockImplementation(async (params) => ({
+    data: {
+      operationId: params.operationId,
+      request: { action: params.action, resource: params.resource },
+      observedResource: params.resource,
+      outcome: "connectionReady",
+      phase: "complete",
+      requiresInspection: false,
+    },
+  }));
   window.electronAPI = {
     invoke,
     supportsCommand: () => true,
@@ -239,6 +254,7 @@ describe("cloud task connection", () => {
     expect(document.querySelector('input[type="password"]')).toBeNull();
     expect(document.querySelector('input[type="url"]')).toBeNull();
     expect(button("重建连接").disabled).toBe(true);
+    expect(prepareConnection).not.toHaveBeenCalled();
     const consent = document.querySelector<HTMLInputElement>(
       'input[type="checkbox"]',
     )!;
@@ -256,6 +272,12 @@ describe("cloud task connection", () => {
       button("重建连接").click();
     });
     await settle();
+    expect(prepareConnection).toHaveBeenCalledExactlyOnceWith({
+      action: "prepareEcsConnection",
+      resource: ecs,
+      operationId: expect.any(String),
+      confirmation: "prepareEcsConnection:cn-test:i-test",
+    });
     expect(
       invoke.mock.calls.filter(
         ([, args]) => args.request.action === "reconnectRuntime",

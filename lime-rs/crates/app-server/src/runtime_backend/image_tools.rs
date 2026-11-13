@@ -122,6 +122,8 @@ mod tests {
     impl WorkspaceSkillBindingAppDataSource for ImageToolTestDataSource {}
     impl GatewayAppDataSource for ImageToolTestDataSource {}
     impl VoiceAppDataSource for ImageToolTestDataSource {}
+    impl crate::MarketDataSource for ImageToolTestDataSource {}
+
     impl PluginDataSource for ImageToolTestDataSource {}
     impl AutomationOverviewAppDataSource for ImageToolTestDataSource {}
     impl McpAppDataSource for ImageToolTestDataSource {}

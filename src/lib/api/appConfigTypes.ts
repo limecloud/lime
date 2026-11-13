@@ -275,6 +275,7 @@ export interface ShellEnvironmentPolicyToml {
 }
 
 export interface Config {
+  cloud?: { base_url?: string | null };
   shell_environment_policy?: ShellEnvironmentPolicyToml;
   features?: Record<string, boolean>;
   computer_use?:

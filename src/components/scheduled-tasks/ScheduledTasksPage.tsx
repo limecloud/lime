@@ -57,7 +57,6 @@ export function ScheduledTasksPage({
   );
   const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null);
   const selectedIdRef = useRef(selectedId);
-  const didAutoSelectRef = useRef(false);
   const [runs, setRuns] = useState<ScheduledTaskRunSummary[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ScheduledTaskFilter>("all");
@@ -89,10 +88,6 @@ export function ScheduledTasksPage({
       setSelectedId((current) => {
         if (current && response.items.some((item) => item.id === current)) {
           return current;
-        }
-        if (!didAutoSelectRef.current && response.items.length > 0) {
-          didAutoSelectRef.current = true;
-          return response.items[0].id;
         }
         return null;
       });
@@ -552,8 +547,8 @@ function EmptyWorkbench({
       <div className="flex w-full max-w-md flex-col items-center text-center">
         <div className="flex flex-col items-center gap-3">
           <Clock
-            className="h-7 w-7 text-slate-500"
-            strokeWidth={1.5}
+            className="h-12 w-12 text-slate-400"
+            strokeWidth={1.2}
             aria-hidden="true"
           />
           <div className="flex flex-col items-center gap-0.5">

@@ -4,6 +4,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { subscribeWorkspaceReviewTabRequest } from "@/lib/workspaceReviewTabEvents";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { ReviewThreadSidePanelTarget } from "./ReviewThreadSidePanelTab";
 import type { WorkspaceArticleWorkspace } from "./workspaceArticleWorkspaceModel";
@@ -501,6 +502,14 @@ export function useWorkspaceRightSurfaceActionRuntime({
       canReplaceSidePanelTab,
       setRightSurfaceBrowserTitle,
     ],
+  );
+
+  useEffect(
+    () =>
+      subscribeWorkspaceReviewTabRequest(() => {
+        handleSelectRightSurfaceTab("changes");
+      }),
+    [handleSelectRightSurfaceTab],
   );
 
   const handleSelectPluginSurface = useCallback(

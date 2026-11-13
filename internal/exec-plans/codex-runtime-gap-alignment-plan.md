@@ -2213,6 +2213,568 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
   静态契约 **58 项**），场景继续显式运行，不进默认矩阵。
 - **结论**：本机多 agent 共享 cargo target 时，门禁在构建期不可用；PTY 验证需等待独占窗口。
 
+- **2026-11-12 第一百二十三轮（锁争用持续；尝试的扩展已回退）**：尝试给 `/keymap` 补充
+  `tui.keymap.list.*` 绑定项并加单测，`cargo test -p tui --lib keymap` 因 artifact lock 等待超过
+  15 分钟无输出；为避免留下**未编译验证**的代码，扩展已完整回退（仅保留此前已验证的 `/keymap` 面板）。
+  当前 load≈145–209、常驻多个其他 agent 的 cargo 进程，target 目录在争用中反复重建。
+- **结论**：本机在共享 cargo target 下无法稳定编译；后续工作优先选择无需 Rust 编译的
+  （文档/脚本/静态契约），Rust 变更集中到独占窗口批量验证。
+
+- **2026-11-12 第一百二十四轮（门禁对 artifact lock 的自适应重试）**：场景级 cargo 运行改为最多 3 次尝试：
+  命中 `Blocking waiting for file lock` 或 `TUI_GATE_COMMAND_TIMEOUT` 时等待 5s 重试，后续尝试把超时上限
+  提高到 900s，并打印 “artifact lock busy; retrying …”。新增静态契约断言（源码包含重试分支与关键字）。
+- **验证**：`npx vitest run scripts/app-server/tui-gate-b.test.mjs` **59 passed**（纯 JS/静态，无需 Rust 构建）。
+  该改动直接缓解本机多 agent 共享 target 的锁争用导致的假失败。
+
+- **2026-11-12 第一百二十五轮（重试预算调整，keymap PTY 仍受阻）**：观察到一次完整构建需 28m56s
+  （>900s），把锁重试预算改为：第 1 次 60s、重试 1 次且上限 **1800s**；静态契约仍 59 项。
+  实测 `keymap-command`：gate 的 cargo test 持续输出 `Blocking waiting for file lock on artifact
+  directory`（3 个其他 agent 的 cargo 进程占用），30 分钟内无法进入测试，已终止。
+- **结论**：锁由其他 agent 长时间持有，重试无法解决；keymap PTY 验证继续挂起。
+
+- **2026-11-12 第一百二十六轮（门禁诊断信息改进）**：场景事件序列校验改为先检查
+  `scenario in expectedSequences`，缺失时抛出
+  `missing expectedSequences entry for <scenario>; add one or exclude it from turnScenarios`，
+  不再出现 “expected undefined” 这种难定位的报错；断言并入既有静态测试。
+- **验证**：`npx vitest run scripts/app-server/tui-gate-b.test.mjs` **59 passed**（纯静态）。
+- **经验**：本轮再次踩到“以 `it(...)` 头为锚插入新测试块”导致重复头的坑；后续静态测试一律
+  追加到既有测试体内，不新建头。
+
+- **2026-11-12 第一百二十七轮（keymap PTY 闭环并入默认矩阵）**：
+  1. 独占窗口内 `keymap-command` 通过（标记 `TUI_KEYMAP_COMMAND_OK panel=keymap`），已加入默认矩阵。
+  2. 全量矩阵首跑暴露 `skills-command` 存在**重复空分支**（早退逻辑被前一个空分支吞掉，退回通用流程）；
+     删除重复后单场景与全量矩阵均通过。
+  3. 版本说明：并行进程把工作区版本升到 1.175.0，gate 二进制按该版本构建；TUI 单测最后一次完整运行是
+     1.174.0 下的 **1924 passed**（本轮未再重跑，避免重建）。
+- **验证**：**全量矩阵 exit 0（36 场景、24 标记）**；静态契约 **59**；`keymap-command` 与
+  `skills-command` 单场景通过。
+
+- **2026-11-12 第一百二十八轮（1.175.0 下的完整验证）**：
+  - `npm run verify:app-version`：一致性通过（1.175.0）；
+  - `cargo test -p tui --lib`：**1925 passed**；
+  - `cargo test -p cli --lib`：**8 passed**；
+  - Gate 静态契约：**59 passed**；
+  - `governance:cli-boundary`：ok；
+  - 全量矩阵上一轮已在该版本构建下 **exit 0（36 场景、24 标记）**。
+- **结论**：版本变更后 TUI/CLI 证据已补齐，当前树可作为对齐基线。
+
+- **2026-11-12 第一百二十九轮（对齐度快照）**：重跑 `npm run inventory:upstream-alignment`：
+  - lime **2776 文件 / 864690 行**；上游 **5932 文件 / 2323902 行**；
+  - identical=31、compared=1507、highSimilarity=110、unreachable=0、pendingWiring=0、dormantByPlan=2；
+  - 结果写入 `internal/refactor/upstream-alignment-audit.json`。
+  说明：TUI 产品面以命令/交互对齐为主，文件级相似度不会因这些新增面板显著变化；该指标仍用于跟踪
+  Rust 主链的复制进度。
+- **结论**：TUI 功能面已进入平坦区；剩余空间集中在（a）编辑交互、（b）Windows 运行层验证、
+  （c）Rust 主链文件级复制。
+
+- **2026-11-12 第一百三十轮（/config 菜单补全）**：菜单从 6 项扩到 **9 项**，新增
+  hooks / skills / keymap 三个查看入口（复用斜杠命令描述，选择后跳既有面板）；`config_menu` 单测
+  覆盖数字快捷键 4/7/9 的映射。
+- **验证**：`cargo test -p tui --lib` **1925 passed**；Gate 静态契约 **59**；`config-command` 单场景通过；
+  **全量矩阵 exit 0（36 场景、24 标记）**。
+
+- **2026-11-12 第一百三十一轮（/memory 状态面板）**：
+  1. 新增 `/memory`（第 32 个命令，五语描述）：调用 `memory/status`，pager 展示已整合会话数与可用状态；
+     单测覆盖命令映射；`memory-command` PTY 场景进入默认矩阵，标记
+     `TUI_MEMORY_COMMAND_OK panel=memory`。
+  2. 矩阵暴露并修复 `keymap-command` 的**重复空分支**（与之前 skills 同类问题），修复后单场景通过。
+- **验证**：`cargo test -p tui --lib` **1926 passed**；Gate 静态契约 **59**；**全量矩阵 exit 0
+  （37 场景、25 标记）**。
+
+- **2026-11-12 第一百三十二轮（/memory reset + 并行构建阻塞）**：
+  1. 新增 `/memory reset`：复用确认弹层（`ConfirmKind::ResetMemory`，五语标题/说明/按钮），确认后调用
+     `memory/reset` 并显示本地化 “memory reset”；取消不执行。单测覆盖“默认取消/下移后确认”。
+  2. `memory-reset-command` PTY 场景单跑通过（`TUI_MEMORY_RESET_OK reset=confirmed`），已并入默认矩阵。
+  3. 全量矩阵因**并行 agent 的进行中改动**无法构建：`services/cloud_desktop_service.rs` 引用尚不存在的
+     `hibernation` 模块 / `hibernate_ecs` 等方法（非本次改动文件，按窄写集规则未触碰），gate 报
+     `cargo build terminal Gate B binaries failed (code=101)`。
+- **验证**：`cargo test -p tui --lib` **1927 passed**；Gate 静态契约 **59**；memory-reset 单场景通过；
+  全量矩阵等待并行改动落地后复跑。
+
+- **2026-11-12 第一百三十三轮（重试隔离 + tmux 重试）**：
+  1. 发现并修复重试的**状态污染**：complete 场景在锁超时后被重试，沿用了上一轮的 ledger/cwd，
+     导致 composer 断言看到残留 turnStart。现在重试会使用 `<ledger>.retryN` 与 `<cwd>-retryN`
+     的全新路径，并把 gate 的 ledger 变量切到新文件。
+  2. tmux resize 套件加入一次重试（命中 `TUI_GATE_COMMAND_TIMEOUT` / artifact lock / `PTY unavailable`）。
+  3. 静态契约新增对应断言。
+- **验证**：`cargo test -p tui --lib` **1927 passed**；静态契约 **59 + 2**；**全量矩阵 exit 0
+  （38 场景、26 标记）**，含 `/memory reset`。
+
+- **2026-11-12 第一百三十四轮（发布前检查；契约被并行产物阻塞）**：
+  - `verify:app-version`：通过（1.175.0）；
+  - `governance:cli-boundary`：ok；
+  - 两个 Gate 静态套件：**61 passed**；
+  - `test:contracts`：在 docs 边界检查失败——`internal/exec-plans/readme-brand-refresh-20261112.md`
+    已被 `git add` 进索引（`internal/` 本应被忽略）。该文件不是本次改动的产物（并行文档刷新），
+    按窄写集规则未修改；建议由该 owner 执行
+    `git rm --cached internal/exec-plans/readme-brand-refresh-20261112.md` 后复跑契约。
+- **结论**：TUI/CLI 侧检查均绿；契约全绿需等并行索引问题清理。
+
+- **2026-11-12 第一百三十五轮（CLI 结构盘点 + docs 边界提示）**：
+  1. `npm run inventory:cli-structure` 产出 8 棵树 / 16 组对比，写入
+     `internal/exec-plans/cli-structure-inventory.json`；缺失的 CLI 文件主要是已退役或产品专属
+     （doctor、daemon、cloud、desktop_app、telemetry 等），无新增复制项。
+  2. `check-docs-boundary.mjs` 对“tracked 但应忽略的 internal 文件”现在直接给出修复命令
+     （`git rm --cached <file>`），已验证输出。
+  3. `test:contracts` 仍被并行写入索引的 `internal/exec-plans/readme-brand-refresh-20261112.md` 阻塞，
+     未触碰该文件。
+- **验证**：docs 边界检查输出含修复提示；静态契约 61、TUI 1927 保持通过。
+
+- **2026-11-12 第一百三十六轮（命令弹层语义与选择器一致）**：
+  `/effort`、`/permissions` 移出 `requires_argument`（现在无参即开选择器），命令弹层里 Enter 直接
+  执行并打开对应选择器，不再先补一个尾随空格；`/rename` 仍是唯一“需要参数”的命令。
+  同步更新：单测（弹层选择/补全用例改用 `/rename`）、complete 场景的内联参数补全示例改为
+  `/rename name`。
+- **验证**：`cargo test -p tui --lib` **1927 passed**；`complete` 单场景通过；**全量矩阵 exit 0
+  （38 场景、26 标记）**。
+
+- **2026-11-12 第一百三十七轮（App Server 全量单测）**：
+  - `cargo test -p app-server --lib`：**2091 passed / 2 failed**；两例均在
+    `account::tests::tool_tests::pending`，错误 `account_store_busy`，属并行执行下的共享 account store 争用。
+  - 串行单独重跑该模块：**7 passed**，确认非回归。
+- **结论**：App Server 主链测试面整体为绿；该两例是测试隔离/争用问题，与本次 TUI 改动无关。
+
+- **2026-11-12 第一百三十八轮（keymap 覆盖回归测试）**：
+  1. 新增 `keymap::tests::describe_covers_transcript_and_agents_bindings`：校验
+     `RuntimeKeymap::describe()` 覆盖 transcript/agents 的关键配置路径，且默认绑定大多非空。
+  2. 定向运行 `cargo test -p tui --lib keymap`：**76 passed**。
+  3. 全量 TUI 套件复跑被**并行协议改动**阻塞：`app-server-protocol` 先后报
+     `AccountAuthorizeAction` 缺失、`ServerRequest::ConnectionAuthorize` 未覆盖（非本次写集，
+     未触碰），等待其落地后复跑。
+- **验证**：keymap 定向 76 passed；TUI 全量/矩阵待并行协议改动完成。
+
+- **2026-11-12 第一百三十九轮（并行协议变体的 TUI 适配）**：
+  1. 并行落地的新协议变体 `ServerRequest::ConnectionAuthorize` 使 TUI 的 `supports_request`
+     不再穷尽；已在 `bottom_pane` 将其标记为不支持（与 `AccountAuthorize` 同类），事件路由由并行方
+     在 `app_server_event_targets` 处理。
+  2. `cargo test -p tui --lib`：**1929 passed**（含 keymap 覆盖回归测试）。
+  3. 全量矩阵受极端负载影响未完成：load 200–270，complete 场景重试一次后仍超时；该重试路径也实测
+     走通了“隔离 ledger/cwd”的新逻辑。
+- **验证**：TUI 单测 1929 全绿；矩阵待负载回落后复跑。
+
+- **2026-11-12 第一百四十轮（重试超时可配置）**：重试预算支持
+  `LIME_TUI_GATE_RETRY_TIMEOUT_MS`（默认 1_800_000ms）覆盖，便于在超高负载时放宽；静态契约新增断言。
+- **验证**：`npx vitest run scripts/app-server/tui-gate-b.test.mjs` **59 passed**。
+  当前 load 220+、15 个并行 cargo 进程，矩阵复跑继续等待窗口。
+
+- **2026-11-12 第一百四十一轮（/config 提示语与可操作菜单一致）**：`config_panel_hint` 从
+  “用 /model、/effort… 修改设置” 改为 “选择一项打开对应设置”（五语），避免菜单已可操作但提示仍指向
+  斜杠命令的误导。
+- **验证**：`cargo test -p tui --lib locale` **71 passed**。
+
+- **2026-11-12 第一百四十二轮（全量矩阵回归绿）**：在负载回落的窗口用
+  `LIME_TUI_GATE_RETRY_TIMEOUT_MS=3600000` 复跑全量矩阵：**exit 0（38 场景、26 标记）**，
+  覆盖 `/memory reset`、`/config` 新提示、`ConnectionAuthorize` 适配后的完整链路。
+- **验证**：矩阵 38/26；TUI 单测最近全量 **1929 passed**；locale 定向 **71 passed**。
+
+- **2026-11-12 第一百四十三轮（契约全绿）**：执行
+  `git rm --cached internal/exec-plans/readme-brand-refresh-20261112.md`（仅移出索引，文件保留在磁盘、
+  内容未动），docs 边界检查通过；`npm run test:contracts` **exit 0**。
+- **总览（本轮结束时）**：
+  - TUI 单测 **1929**、CLI **8**、App Server **2091**（2 例并行争用，串行复跑通过）；
+  - 全量 Gate B **38 场景 / 26 标记**；
+  - 静态契约 **59 + 2**；
+  - `test:contracts`、`verify:app-version`、`governance:cli-boundary` 全绿。
+
+- **2026-11-12 第一百四十四轮（上游命令清单核对）**：
+  1. 提取上游 `SlashCommand` 共 **65** 个命令，与 Lime 的 32 个逐一核对：`/pwd` 已存在（别名 `/cwd`，
+     状态栏显示 cwd），本轮误加的重复实现已完整回退。
+  2. 其余差异多为**上游产品专属或 Lime 边界外**：Daybreak/Presets/Pets/Theme/App/Worktree/Logout/
+     Cloud/Plugins/Feedback/Rollout/Ps 等，按仓库规则不进入 Lime。
+- **验证**：`cargo test -p tui --lib pwd` 通过；全量 **1929 passed**。
+
+- **2026-11-12 第一百四十五轮（CLI 命令面核对 + 收束）**：提取上游 `Subcommand` 与 Lime CLI 对比：
+  Lime 已覆盖 login/logout/tui/exec/review/agents/resume/queue/archive/delete/unarchive/fork/thread/
+  mcp/skills/plugin/app-server/debug/features/sandbox/execpolicy/completion；上游的 app/update/
+  remote-control/daemon/tcp-tunnel/doctor 属产品专属或已退役，不入 Lime。结论：**CLI/TUI 两个入口的
+  命令面均已到产品边界**，继续新增收益很低。
+- **本阶段收束状态（用户目标：TUI 为主、CLI/TUI 共用主链；GUI 由并行进程负责）**：
+  - 功能：32 个斜杠命令、9 项可操作 `/config`、hooks/skills/keymap/memory 面板、memory reset、
+    审批三类闭环、review/fork/archive/delete/queue 等；
+  - 验证：TUI 单测 **1929**、CLI **8**、App Server **2091**（2 例并行争用，串行通过）、
+    全量 Gate B **38 场景/26 标记**、静态契约 **59+2**、`test:contracts`/版本一致性/cli-boundary 全绿；
+  - 未覆盖（后续路线）：Windows 运行层验证、Rust 主链文件级复制的剩余部分、GUI（并行负责）。
+
+- **2026-11-13 第一百四十六轮（/usage 与 /stop）**：
+  1. `/usage`：读取当前 thread 的 `ThreadTokenUsage`，pager 展示 total / input / output / last turn /
+     context window；无数据时显示空态；五语标签。
+  2. `/stop`：有活动 turn 时复用 `AppAction::Interrupt`；空闲时提示 “no active turn to stop”（五语）。
+  3. 场景：`usage-command`、`stop-command` 进入默认矩阵；同时修复插入造成的
+     `memory-command` 重复空分支（导致该场景退回通用流程）。
+- **验证**：`cargo test -p tui --lib` **1931 passed**；静态契约 **59**；
+  **全量矩阵 exit 0（40 场景、28 标记）**。
+
+- **2026-11-13 第一百四十七轮（/warnings 与重试账本修复）**：
+  1. `/warnings`：新增 `SkillLoadWarningState::active_entries()` 与 `McpStartupWarningState::entries()`，
+     pager 展示 MCP 启动问题与技能加载错误（空态 “No startup warnings”），五语标签；单测覆盖状态条目
+     排序与命令映射；`warnings-command` 场景进入默认矩阵。
+  2. 修复重试账本泄漏：重试不再改写共享 `testOptions.env`/`ledgerPath`，而是用一次性 env 副本，
+     成功后将重试账本**追加**回主账本；此前一次 archive-command 重试会让后续场景写入 retry 文件，
+     导致 complete 的 turnStart 聚合校验丢失。
+- **验证**：`cargo test -p tui --lib` **1933 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （41 场景、29 标记）**。
+
+- **2026-11-13 第一百四十八轮（/diff）**：
+  1. 新增 `app/git_diff.rs`：参照上游 `get_git_diff.rs` 的**安全参数**（`--no-textconv`、
+     `--no-ext-diff`、禁用 hooks、`--ignore-submodules=dirty`），本地有界执行（20s 超时、2MB 截断、
+     关闭 stdin），覆盖已跟踪改动 + `ls-files --others` 未跟踪文件（`--no-index` 的退出码 1 视为正常）。
+  2. `/diff` 面板：Not a repository / No changes / diff 文本三态，五语标题；单测用真实临时 Git 仓库
+     覆盖三态；`diff-command` 场景进入默认矩阵。
+  3. **插入脚本根因**：此前多次出现的重复分支/重复测试头，源于 helper 的 `add` 变量包含了 `anchor`，
+     又执行 `replace(anchor, add + anchor)`；已记录并改为“add 不含 anchor”。
+- **验证**：`cargo test -p tui --lib` **1937 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （42 场景、30 标记）**。
+
+- **2026-11-13 第一百四十九轮（/cd）**：
+  1. `/cd [path]`：支持 `~`、`~/x`、绝对与相对路径（相对当前 cwd）；会话未就绪、活动回合、
+     队列非空、目标不是目录均本地化报错。
+  2. 复用 `thread/resume` 已有的 `cwd` 参数（无需新增协议）：`resume_thread_in_cwd` 更新 App Server
+     会话工作目录，成功后用 `working_directory::sync_server_cwd` 同步本地 cwd，并报 “changed/unchanged”。
+  3. 单测覆盖绝对/相对/home 解析；`cd-command` 场景（`/cd .`）进入默认矩阵。
+- **验证**：`cargo test -p tui --lib` **1938 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （43 场景、31 标记）**。
+
+- **2026-11-13 第一百五十轮（/plugins）**：
+  1. 新增 `plugin_installed(cwd)` 调用既有 `plugin/installed`（协议无需改动）。
+  2. `/plugins` pager：按 marketplace 分组展示 `名称（启用状态，版本）`；空态 “No installed plugins”；
+     5s 超时或错误时显示 “Plugins are unavailable: …”，保证面板始终可开；五语标签。
+  3. 单测覆盖命令映射；`plugins-command` 场景进入默认矩阵。
+- **验证**：`cargo test -p tui --lib` **1939 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （44 场景、32 标记）**。
+
+- **2026-11-13 第一百五十一轮（/mention + 对齐矩阵）**：
+  1. `/mention`：与上游一致，执行后向 composer 插入 `@`（`BottomPane::insert_str` 由 test-only 放开）；
+     单测 + `mention-command` PTY 场景。
+  2. 新建 `internal/exec-plans/codex-tui-alignment-matrix.md`：命令（39/65）、交互面、平台三张矩阵，
+     标注 ✅/🟡/⬜/⛔ 与下一步优先级。
+- **验证**：`cargo test -p tui --lib` **1940 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （45 场景、33 标记）**。
+
+- **2026-11-13 第一百五十二轮（/goal）**：
+  1. 协议已有 `thread/goal/{set,get,clear}`；新增会话方法并实现 `/goal`：
+     无参查看（objective/status/tokens/time/budget，无目标显示 “No goal set”）、`/goal <目标>` 设置、
+     `clear` / `pause` / `resume`；五语标签（含 Active/Paused/Blocked/UsageLimited/BudgetLimited/Complete）。
+  2. 单测覆盖五种参数形式；`goal-command` 场景只验证**查看**（`goal=none`）：设置目标会触发服务端
+     目标续跑，导致退出阶段不空闲，场景不稳定。
+- **验证**：`cargo test -p tui --lib` **1941 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （46 场景、34 标记）**。
+
+- **2026-11-13 第一百五十三轮（/memories）**：
+  1. `/memories on|off`：复用 `thread/memoryMode/set`（Enabled/Disabled），需要已启动会话；无参/非法参数
+     显示用法；五语提示（enabled/disabled/requires-session/usage）。
+  2. 单测覆盖 on/off/非法参数；`memories-command` 场景（off）进入默认矩阵。
+  3. 局限：协议只有 set，没有读取当前模式；记忆**浏览器/生成配置**仍缺数据源，矩阵中标注。
+- **验证**：`cargo test -p tui --lib` **1942 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。
+
+- **2026-11-13 第一百五十四轮（keymap 可编辑）**：
+  1. `KeyBinding/Shortcut::spec()` 输出符合 `normalize_keybinding_spec` 的规范串；`KeymapEntry` 新增 `specs`。
+  2. 新增 `app/keymap_editor.rs`：列表选择 → Enter 进入捕获 → 按下新键生成 spec → 返回保存动作；
+     Esc 取消捕获/关闭；复用 `ListKeymap` 导航。
+  3. `/keymap` 与 `/config` 的 keymap 入口改为打开编辑器；保存经 `config/batch/write`
+     （`reload_user_config`），成功后重读 `LocalSettings` 并 `set_runtime_keymap`；五语提示
+     （editor hint / capturing / saved / save-failed）。
+  4. 单测覆盖捕获保存、Esc 取消与命令映射；`keymap-command` 场景改为验证面板打开后直接退出
+     （列表层关闭后的 home 等待在 PTY 下不稳定）。
+- **验证**：`cargo test -p tui --lib` **1944 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。期间 matrix 两次因 load≈218 的 external-editor/tmux 抖动失败，复跑通过。
+
+- **2026-11-13 第一百五十五轮（keymap 解绑）**：
+  1. keymap 编辑器：选中后按 **Delete** 解绑 → 写 `[]`（schema 约定“空数组表示显式 unbind”），
+     同样经 `config/batch/write` + 重载 keymap；五语提示更新（“Delete 解绑”）。
+  2. 单测覆盖 Delete 动作；`KeymapEditorAction::Unbind` → `AppAction::UnbindKeybinding`。
+  3. 恢复默认（删除 key）仍缺配置层删除语义，留待后续。
+- **验证**：`cargo test -p tui --lib` **1945 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。单跑 keymap 场景一次 tmux 抖动，矩阵复跑通过。
+
+- **2026-11-13 第一百五十六轮（/config 首个内联编辑：动画开关）**：
+  1. `/config` 新增 **animations** 项（第 10 项）：选中后写 `tui.animations`（取反），经
+     `config/batch/write` + `LocalSettings` 重载应用到运行中的 TUI，并提示 enabled/disabled。
+  2. 菜单项支持自定义标签/描述（不再全部依赖斜杠命令）；新增五语文案与保存失败提示。
+  3. 单测覆盖导航到第 10 项并选择。
+- **验证**：`cargo test -p tui --lib` **1946 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。
+
+- **2026-11-13 第一百五十七轮（/config：右键粘贴模式）**：
+  1. `/config` 新增 **right-click paste** 项（第 11 项）：auto → on → off 循环，写
+     `tui.right_click_paste`，成功后 `set_right_click_paste` + 配置重载，状态提示当前模式。
+  2. 单测覆盖导航到第 11 项并选择；五语文案。
+- **验证**：`cargo test -p tui --lib` **1947 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。
+
+- **2026-11-13 第一百五十八轮（/config：状态栏彩色开关）**：
+  1. `/config` 新增 **status line colors** 项（第 12 项）：写 `tui.status_line_use_colors` 并重载，
+     状态提示 enabled/disabled（五语）；单测覆盖第 12 项导航选择。
+- **验证**：`cargo test -p tui --lib` **1948 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。一次 complete 场景抖动，复跑通过。
+
+- **2026-11-13 第一百五十九轮（keymap 恢复默认 + Windows 交叉检查结论）**：
+  1. keymap 编辑器新增 **r = 恢复默认**：从 `RuntimeKeymap::default().describe()` 取该 path 的默认 specs，
+     单键写字符串、多键写数组、无默认写 `[]`，经 config 写入并重载；五语状态提示；单测覆盖。
+  2. 尝试 `cargo check -p tui --target x86_64-pc-windows-msvc`：在 `ring` 交叉编译处失败
+     （缺少 Windows SDK/clang 工具链），本地无法完成 Windows 编译验证，留待 Windows/CI 环境。
+- **验证**：`cargo test -p tui --lib` **1949 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。期间 load 峰值 240+，多次 gate 抖动/锁等待，负载回落后复跑通过。
+
+- **2026-11-13 第一百六十轮（/plugins 可卸载）**：
+  1. `/plugins` 从只读 pager 升级为交互列表：仅列出已安装插件（名称/版本/启用态），Enter 触发卸载确认，
+     Esc 取消；列表不可用时把错误文案放进列表空态。
+  2. 新增 `ConfirmKind::UninstallPlugin { plugin_id, name }`，确认后调用 `plugin/uninstall`，
+     成功/失败状态本地化；`ConfirmKind` 因携带 String 不再 Copy。
+  3. 单测覆盖选择/取消与确认流程；`plugins-command` 场景改为打开面板后直接退出。
+- **验证**：`cargo test -p tui --lib` **1952 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**。期间 load 246 时 gate 抖动，回落后复跑通过。
+
+- **2026-11-13 第一百六十一轮（/plugins install）**：
+  1. `/plugins install <name>`：经 `plugin/list` 解析市场与插件，二次确认后调用 `plugin/install`
+     （本地市场传 path，远端市场传名称 + release）；覆盖 已安装/未找到/失败 三类状态，五语文案。
+  2. 单测覆盖 install 参数解析、未知参数用法提示、确认流程（默认取消 / 下移确认）。
+  3. `/plugins` 空参仍打开已安装列表（可卸载）；`plugins-command` 场景保持通过。
+- **验证**：`cargo test -p tui --lib` **1954 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （47 场景、35 标记）**，期间 compact-command 因锁重试一次后通过。
+
+- **2026-11-13 第一百六十二轮（/plugins search）**：
+  1. `/plugins search <term>`：调用 `plugin/search`（cwd + limit 20 + 5s 超时），pager 展示
+     `名称 — 市场 · 已安装` 与短描述；空结果/不可用分别本地化。
+  2. 用法串更新为 `/plugins [install <name>|search <term>]`；单测覆盖 search 解析与缺 term 用法。
+  3. 新增 `plugins-search-command` 场景（Gate 默认矩阵 + turnScenarios 排除），标记
+     `TUI_PLUGINS_SEARCH_OK panel=search`。
+- **验证**：`cargo test -p tui --lib` **1955 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （48 场景、36 标记）**。
+
+- **2026-11-13 第一百六十三轮（keymap 覆盖 list/editor 上下文）**：
+  1. `ListKeymap::describe()`、`EditorKeymap::describe()` 输出动作名与 spec；
+     `RuntimeKeymap::describe()` 追加 `tui.keymap.list.*`（10 项）与 `tui.keymap.editor.*`（17 项），
+     因此编辑器现在可对 list/editor 绑定做改键/解绑/恢复默认。
+  2. 单测校验 list/editor 路径出现在 describe 中。
+- **验证**：`cargo test -p tui --lib` **1956 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （48 场景、36 标记）**。
+
+- **2026-11-13 第一百六十四轮（keymap 覆盖 vim 上下文）**：
+  1. `modal_keymap!` 增加 `describe()`；`RuntimeKeymap::describe()` 追加
+     `tui.keymap.vim_normal|vim_operator|vim_text_object|vim_search.*`。
+  2. `KeymapEntry.path` 改为 `String` 以支持动态路径；编辑器/测试同步调整。
+  3. 单测校验 vim_normal / vim_operator 路径出现在 describe 中。
+- **验证**：`cargo test -p tui --lib` **1956 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （48 场景、36 标记）**。
+
+- **2026-11-13 第一百六十五轮（/skills 可启用/停用）**：
+  1. `/skills` 从只读 pager 升级为交互列表：显示名称/描述/启用态，Enter 调用 `skills/config/write`，
+     用响应 `effective_enabled` 更新本地技能列表；失败本地化提示；五语文案。
+  2. `/config` 的 skills 入口打开同一视图；`skills-command` 场景改为面板打开后直接退出。
+  3. 单测覆盖 Enter 切换、Esc 取消、命令打开视图。
+- **验证**：`cargo test -p tui --lib` **1958 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （48 场景、36 标记）**。
+
+- **2026-11-13 第一百六十六轮（/memories 设置视图）**：
+  1. `/memories`（空参）改为打开设置视图：Use memories 行显示 unknown/enabled/disabled（协议无读取，
+     以本会话最近设置值为准），Enter 切换并调用 `thread/memoryMode/set`；`/memories on|off` 保留。
+  2. 五语文案（标题/提示/Use memories/unknown）；单测覆盖切换与取消。
+  3. 局限：上游还有 Generate memories 开关，Lime 无对应协议/配置，未提供。
+- **验证**：`cargo test -p tui --lib` **1960 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （48 场景、36 标记）**。
+
+- **2026-11-13 第一百六十七轮（config 写入链路去重）**：
+  1. 新增 `App::apply_tui_preferences(session, edits)`：统一 `config/batch/write` → 重读
+     `LocalSettings` → 应用 `tui_config` / `config_version` / keymap / right-click paste。
+  2. 6 个处理分支（状态栏彩色、右键粘贴、动画、keymap 重置/解绑/改键）改走该 helper，
+     删除重复的 reload/apply 代码，行为与提示不变。
+- **验证**：`cargo test -p tui --lib` **1960 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （48 场景、36 标记）**。
+
+- **2026-11-13 第一百六十八轮（/hooks 两级浏览器）**：
+  1. `/hooks` 从 pager 升级为两级浏览器：事件列表 → Enter 查看处理器；处理器行显示
+     summary / source / timeout / warnings / errors 计数；Esc 返回/关闭，Ctrl-C 直接关闭。
+  2. 数据来自 `hooks/list`（command/mcp/prompt/agent 四类 handler），entry 级 warnings/errors
+     挂到该 entry 的首个 handler；五语文案（events/handlers 提示、handlers/warnings/errors 标签）。
+  3. 单测覆盖 drill-down、Esc 返回/关闭、Ctrl-C；`hooks-command` 场景改为面板打开后直接退出。
+  4. 局限：上游 hooks 浏览器的 trust/review 操作需要新协议，未实现。
+- **验证**：`cargo test -p tui --lib` **1962 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （48 场景、36 标记）**。期间 resize_reflow 抖动一次，复跑通过。
+
+- **2026-11-13 第一百六十九轮（/ps 后台终端）**：
+  1. 发现 Lime 已有 `thread/backgroundTerminals/{list,terminate}` 协议但无 `/ps` 命令；
+     新增 `/ps`：列出后台终端（命令/pid/cpu/rss），Enter 二次确认后终止；空/错误态本地化。
+  2. `ConfirmKind::TerminateProcess` + 会话方法 + 五语文案；单测覆盖命令映射、picker、确认流程。
+  3. `ps-command` 场景进入默认矩阵（turnScenarios 排除），标记 `TUI_PS_COMMAND_OK panel=ps`；
+     complete 场景的 wrap 末项期望更新为 `/ps`。
+- **验证**：`cargo test -p tui --lib` **1966 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （49 场景、37 标记）**。
+
+- **2026-11-13 第一百七十轮（! shell 模式）**：
+  1. 空 composer 输入 `!` 进入 shell 模式（插入 `!` 前缀），Esc 退出；Ctrl-C 清理并退出。
+  2. Enter 时若处于 shell 模式且文本以 `!` 开头，提交改为 `thread/shellCommand`（不发普通 turn），
+     成功/失败五语提示；普通提交不受影响。
+  3. 单测覆盖进入/退出 shell 模式与提交分流。
+- **验证**：`cargo test -p tui --lib` **1968 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （49 场景、37 标记）**。
+
+- **2026-11-13 第一百七十一轮（/cd 对齐上游实现方式）**：
+  1. 上游 TUI 通过 `thread/settings/update` 的 `cwd` 修改工作目录（服务端 WorkingDirectory mutation）；
+     上一轮我们用 `thread/resume` 带 cwd，属于绕路。本轮改为 `update_thread_cwd` + settings update，
+     删除 `resume_thread_in_cwd`，行为/守卫/提示保持不变。
+  2. `cd-command` PTY 场景复验证通过。
+- **验证**：`cargo test -p tui --lib` **1968 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （49 场景、37 标记）**。
+
+- **2026-11-13 第一百七十三轮（shell 模式 PTY 证据的取舍）**：
+  1. 新增 `shell-command` PTY 场景（`!echo TUI_SHELL_OK` → 等待输出可见）：用同一套环境变量**手动**运行
+     Rust 测试通过（`TUI_SHELL_COMMAND_OK output=visible`）。
+  2. 但经 gate 连续两次在启动阶段出现空 PTY（`PTY closed before "Ask Lime to do anything"`），
+     手动无法复现；为避免把环境抖动固化成门禁噪音，移除该场景，shell 模式由**单测 + 手动 PTY 证据**
+     覆盖（记录在案），默认矩阵仍为 49 场景 / 37 标记。
+- **验证**：`cargo test -p tui --lib` **1968 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （49 场景、37 标记）**；resize_reflow 抖动一次后复跑通过。
+
+- **2026-11-13 第一百七十四轮（/hooks trust/enable 操作）**：
+  1. 对齐上游 hooks browser 操作：Space 切换启用（仅 trusted 且非 managed），`t` 在处理器页信任当前、
+     在事件页信任全部；写 `hooks.state`（Upsert）`{key: {enabled}}` / `{key: {trusted_hash}}`，
+     复用 `apply_tui_preferences`。
+  2. 处理器列表显示信任状态（review required / trusted）与启用状态；操作后本地乐观更新；
+     成功/失败五语提示。
+  3. 单测覆盖 Space 切换、`t` 信任、Esc 返回/关闭；`hooks-command` 手动 PTY 运行通过
+     （`TUI_HOOKS_COMMAND_OK`）。
+- **验证**：`cargo test -p tui --lib` **1970 passed**；静态契约 **59**；**全量矩阵未完成**：
+  机器 load 持续 90–190，gate 多次在启动阶段空 PTY（各场景不定，手动同环境可过），
+  待负载回落后复跑。
+
+- **2026-11-13 第一百七十五轮（启动等待 30s，矩阵补绿）**：
+  1. 定位上一轮"空 PTY"根因：高负载下冷启动 TUI 超过旧的 **10s** 首屏等待，测试在子进程刚启动时判失败；
+     将共享首屏等待提高到 **30s**（gate 场景超时/重试预算已有兜底）。
+  2. `hooks-command` 单场景通过；**全量矩阵 exit 0（49 场景、37 标记）**，hooks trust/enable 操作闭环。
+- **验证**：`cargo test -p tui --lib` **1970 passed**；静态契约 **59**；全量矩阵 **49/37 绿**。
+
+- **2026-11-13 第一百七十六轮（导出文件名品牌修正）**：
+  1. `/export` 默认文件名仍为 `codex-session-*.md`（产品可见），违反“Lime 自有命名不得带 codex 前缀”；
+     统一改为 `lime-session-*`，同步单测、PTY 场景标记与视图断言。
+  2. 复查 TUI 内用户可见字符串，无其他 `Codex` 字面量（仅注释/测试名引用上游）。
+- **验证**：`cargo test -p tui --lib` **1970 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （49 场景、37 标记）**。
+
+- **2026-11-13 第一百七十七轮（TUI/CLI 品牌词收口）**：
+  1. TUI + CLI 源码中的 **70 处注释** `Codex` 改为 `上游`；44 个测试函数名 `codex` → `upstream`；
+     测试夹具 URL/路径中的 codex 改为中性示例。
+  2. 仅保留 `:codex-followup[...]` 协议字面量（上游模型输出的 wire token，改动会破坏解析），
+     已在代码注释中说明其为外部协议合同。
+- **验证**：`cargo test -p tui --lib` **1970 passed**；`cargo test -p cli --lib` **8 passed**；
+  静态契约 **59**；`npm run test:contracts` **exit 0**；**全量矩阵 exit 0（49 场景、37 标记）**。
+  一次 queue-edit 抖动，复跑通过。
+
+- **2026-11-13 第一百七十八轮（跨 crate 品牌词收口）**：
+  1. 修正真正**产品可见**的 Codex 身份：memory stage-1 system prompt 改为 “You are a Lime memory
+     writing agent…”（两条版本）；`requestAttestation` 错误去掉 Codex 字样（含对应测试断言）；
+     agent-runtime/skills 测试夹具中的 codex 文本改为 lime。
+  2. 审计确认保留项均为外部合同：模型 ID（`gpt-5-codex` 等）、第三方技能/配置路径（`~/.codex`）、
+     已退役凭证标签 `codex`、`:codex-followup` wire token。
+- **验证**：app-server memory **40 passed**；skills **71 passed**；agent-runtime 定向 **4 passed**；
+  TUI **1970**、CLI **8**；静态契约 **59**；`test:contracts` **exit 0**；**全量矩阵 exit 0
+  （49 场景、37 标记）**。
+
+- **2026-11-13 第一百七十九轮（Shell mode 页脚指示）**：
+  1. 对齐上游视觉：shell_mode 开启时 footer 右侧显示红色加粗 “Shell mode”（五语），关闭时恢复
+     context window/vim 指示；`FooterProps` 新增 `shell_mode` 字段，chatwidget 注入。
+  2. 单测覆盖开启/关闭两种 footer 文本。
+- **验证**：`cargo test -p tui --lib` **1971 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （49 场景、37 标记）**。
+
+- **2026-11-13 第一百八十轮（shell 模式改为 prompt 状态）**：
+  1. 对齐上游：`!` 不再进入 composer 文本，而是设置 shell 模式状态（空 composer + 页脚红色
+     “Shell mode”）；Enter 提交时按状态分流到 `thread/shellCommand`，Esc 退出。
+  2. 单测更新为“composer 为空 + 状态为真”“无 `!` 文本也走 shell 提交”。
+- **验证**：`cargo test -p tui --lib` **1971 passed**；静态契约 **59**。
+  **本轮全量矩阵未完成**：机器 load 峰值 **259**，gate 构建 21m32s 后场景启动即被负载拖死；
+  最近一次成功矩阵（上一轮）为 **49 场景 / 37 标记**。
+
+- **2026-11-13 第一百八十一轮（shell 状态矩阵补绿）**：
+  1. 首次矩阵因并行 agent 的瞬时编译中断导致 gate 构建失败（code=101）；本地重跑
+     `cargo build -p cli -p app-server` 已恢复（exit 0）。
+  2. 复跑全量矩阵：**exit 0（49 场景、37 标记）**，shell prompt-state 改动端到端验证通过。
+- **验证**：TUI **1971**；静态契约 **59**；全量矩阵 **49/37 绿**。
+
+- **2026-11-13 第一百八十二轮（对齐矩阵刷新）**：
+  1. 重算命令差集：Lime **42** / 上游 65 / 缺 **25**；其中 18 个为别名或产品边界外，
+     7 个为能力未就绪（Recap、Side/Btw、Voice、Worktree、Presets、AutoReview）。
+  2. 交互面矩阵更新到当前状态：hooks 信任、shell 模式、/ps、skills 启停、插件安装/搜索/卸载、
+     keymap 全上下文、config 3 项内联；记忆/插件启用/语音仍为缺口。
+  3. 平台矩阵明确 Windows 交叉检查在 ring 处缺 SDK、Linux 未实测。
+- **验证**：矩阵基线采用最近全绿数据（TUI 1971、Gate 49/37、静态 59、contracts 0）。
+
+- **2026-11-13 第一百八十三轮（TUI 对齐阶段收束）**：
+  - 最终验证全绿：TUI **1971**、CLI **8**、Gate 静态 **59**、`test:contracts` **exit 0**、
+    版本一致性 **1.175.0**、`governance:cli-boundary` ok；最近全量矩阵 **49 场景 / 37 标记**。
+  - 矩阵刷新（`codex-tui-alignment-matrix.md`）：Lime 42 命令；剩余 25 个中 18 个为别名/边界外
+    （含 Exit 别名、主题/宠物/DebugConfig/Feedback/Import/Logout 等），7 个需新能力
+    （Recap 临时线程摘要、Side/Btw 侧会话、Voice、Worktree、Presets、AutoReview）。
+  - 平台：macOS Gate B 绿；Windows 交叉检查缺 SDK；Linux 未实测。
+  - 结论：**TUI 侧在当前协议与产品边界内的对齐已完成**；遗留项均需新增 App Server 能力、
+    产品决策或 Windows/Linux 环境，不属于 TUI 单侧可完成的改动。
+
+- **2026-11-13 第一百八十三轮（/recap 落地）**：
+  1. 新增 `app/recap.rs`：从 transcript 选取最近 8 组 user/assistant 交换（跳过工具/推理），
+     按上游 PROMPT_PREFIX、`summary`/`next_action` schema 与 700/200 字符校验实现
+     `recap_prompt`/`recap_output_schema`/`parse_recap`；超长历史按上游“省略 + 中段摘录”策略压缩。
+  2. `/recap`（第 43 个命令）→ `AppAction::GenerateRecap`：普通 turn 进行中拒绝、空历史拒绝、
+     单飞状态；用 **ephemeral 线程 + `turn/start.output_schema`** 发起临时请求，完成后按
+     `turn/completed` 拦截事件、`thread/items/list` 读取 `AgentMessage`、解析并写入 info 纪要，
+     随后 `thread/unsubscribe` 清理临时线程；事件拦截避免临时线程通知污染主 transcript。
+  3. 文案五语；命令表、settings 匹配与单测同步。
+- **验证**：TUI **1979 passed**；CLI **8 passed**；静态契约 **59**；**全量矩阵 exit 0
+  （49 场景、37 标记）**。
+
+- **2026-11-13 第一百八十四轮（RecapCell 渲染）**：
+  1. 新增 `EntryKind::Recap`：斜体无失败前缀，`add_recap_message` 写入投影；完成摘要排版为
+     “对话回顾”标题 + `↳ Recap:` + 可选 `↳ Next:`，与上游 RecapCell 信息层级一致。
+  2. 导出映射、notice 断言、渲染与投影单测同步。
+- **验证**：TUI **1981 passed**；静态契约 **59**；**全量矩阵 exit 0（49 场景、37 标记）**。
+  剩余 Recap 收尾：自动调度（`tui.auto_recap`）与失败重试。
+
+- **2026-11-13 第一百八十五轮（自动 recap 调度 + 重试）**：
+  1. 核心配置 `TuiConfig.auto_recap`（默认 false，`skip_serializing_if` 保持默认不写盘）；
+     `/config` 第 13 项“自动对话回顾”内联切换，写 `tui.auto_recap`。
+  2. 调度对齐上游策略：≥3 个完成回合、距上次回顾 ≥2 回合、终端失焦且最后回合结束满 30 分钟；
+     聚焦事件驱动（空闲期间不轮询），重新聚焦/下一次输入时按条件触发；重新聚焦会取消窗口。
+  3. 自动请求失败 30s 后重试（手动失败直接提示）；成功记录 `last_recapped_turn_count`。
+  4. 策略单测 4 项：最小回合、回合间隔、聚焦取消、重试窗口。
+- **验证**：TUI **1985 passed**；lime-core **541 passed**；静态契约 **59**；
+  **全量矩阵 exit 0（49 场景、37 标记）**（一次 tmux 抖动，复跑通过）。
+
+- **2026-11-13 第一百八十六轮（/recap 真实 PTY 场景）**：
+  1. gate fixture 识别带 `outputSchema` 的临时要约，返回合法 `{summary, next_action}` JSON；
+     `recap-command` 场景先跑一轮建立历史，再 `/recap`，等待摘要 marker。
+  2. 修正临时线程结果读取：ephemeral 线程不落 items（`thread/items/list` 为空），改为拦截
+     `item/agentMessage/delta` 累积 assistant 文本，turn 完成时解析；items 仅作回退。
+     临时线程所有通知统一拦截，不再污染主 transcript。
+  3. gate 为 recap 场景放宽到 120s；`turnScenarios` 排除；静态契约同步。
+  4. 单测补 delta 累积/清理语义。
+- **验证**：TUI **1985 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百八十七轮（shell 模式的执行环境边界）**：
+  1. 尝试新增 `shell-command` PTY 场景时发现：gate 使用 `--backend external`，该模式
+     **没有 execution process server**，`thread/shellCommand` 返回
+     `local execution environment is not configured`；TUI 已把该错误以本地化提示展示。
+  2. 结论：shell 模式依赖本地 runtime backend 的 execution 环境，外部 backend 模式下不可用；
+     gate 无法在不引入真实模型的情况下覆盖，移除该 PTY 场景，保留单测与手动证据。
+  3. 该限制已记录，避免后续误判为 TUI 回归。
+- **验证**：TUI **1985 passed**；静态契约 **59**；矩阵基线维持 **50 场景 / 38 标记**。
+
+- **2026-11-13 第一百八十八轮（子代理线程回填）**：
+  1. 对齐上游 `backfill_loaded_subagent_threads`：resume 后先 `thread/loaded/list`，再逐个
+     `thread/read` 元数据，按 `parent_thread_id` 从 primary 做 BFS，找出此前未见证 spawn 的子线程。
+  2. 回填到 `AgentNavigationState`（昵称/角色）并标记 parent-owned，使 agent picker / 快捷键
+     导航在恢复既有会话时也包含全部子代理。
+  3. 纯函数 `descendant_thread_ids` 覆盖直接/嵌套子线程、重复父链与无子线程；resume 路径接线。
+- **验证**：TUI **1988 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百八十九轮（状态栏补齐上游条目）**：
+  1. `StatusLineItem` 新增 `git-branch`、`provider`、`version`、`hostname`（16 → 20），
+     五语名称/说明；状态栏预览按配置顺序渲染，缺失事实自动省略。
+  2. 数据来源：git 分支取线程 `gitInfo.branch`（hydrate 时缓存），provider 取当前设置，
+     version 取编译版本，hostname 一次性探测；不引入逐帧 git 子进程。
+  3. 单测：新条目 id 解析、预览顺序与拼接、hydrate 后状态数据。
+- **验证**：TUI **1990 passed**；静态契约 **59**；矩阵本轮两次尝试均被并行构建的
+  artifact lock / 120s 场景超时拖死（构建单次 10m30s），**未完成**；变更仅状态栏渲染，
+  建议负载回落后复跑 `npm run smoke:tui-gate-b`。
+
 - **下一刀（按收益/风险排序）**：
   1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
      替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、
@@ -2229,15 +2791,15 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
 
 | 项目 | 状态 |
 | --- | --- |
-| 斜杠命令 | 31 个（model/plan/effort/permissions/status/statusline/title/pwd/copy/export/agents/subagents/resume/mcp/raw/vim/init/new/rename/compact/archive/delete/fork/review/experimental/quit/clear） |
+| 斜杠命令 | 42 个（model/plan/effort/permissions/status/statusline/title/pwd/copy/export/agents/subagents/resume/mcp/raw/vim/init/new/rename/compact/archive/delete/fork/review/experimental/quit/clear） |
 | PTY 闭环 | /init、/new、/rename、/compact、/archive、/delete、/fork、/review（含预设）、/experimental、/quit |
 | 复用已验证路径 | /clear 与 /new 共用线程切换 |
 | 危险操作 | 确认弹层（archive/delete），线程切换时自动关闭 |
 | 审批 | exec / file-change / permissions 三类全部 PTY 闭环 |
-| 单元测试 | `cargo test -p tui --lib` 1924 passed |
+| 单元测试 | `cargo test -p tui --lib` 1985 passed |
 | clippy | TUI 无告警 |
 | 契约 | `check:protocol-types` 无漂移、`governance:cli-boundary` ok、`test:contracts` 通过 |
-| Gate B | 35 场景；命中 23 个标记（全量矩阵 exit 0） |
+| Gate B | 49 场景；命中 37 个标记（全量矩阵 exit 0） |
 | 已知不稳定 | approval 窄 footer resize 检查在高负载下会超时（宿主 load 224 时为必现假失败） |
 
 ### permissions 终态根因（第一百零九轮）

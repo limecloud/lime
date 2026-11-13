@@ -2,13 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CloudDesktopResource } from "@limecloud/app-server-client";
 import { requestCloudDesktop } from "@/lib/api/cloud";
 import { configureCloudDesktopConnection } from "@/lib/api/cloudDesktopConnection";
-import { object } from "@/components/settings-v2/integrations/cloud-desktops/cloudDesktopData";
+import {
+  object,
+  pendingCloudLifecycleOperation,
+} from "@/components/settings-v2/integrations/cloud-desktops/cloudDesktopData";
 
 export type CloudSetupComputer = {
   resource: CloudDesktopResource;
   name?: string;
   status?: string;
-  starting: boolean;
+  lifecycleOperation: ReturnType<typeof pendingCloudLifecycleOperation>;
   connectionSaved: boolean;
   inspectionFailed: boolean;
   releaseAt?: string;
@@ -45,13 +48,12 @@ export function useCloudDesktopSetup(provisioned?: CloudDesktopResource) {
           throw new Error("Invalid resource");
         return value as CloudDesktopResource;
       });
-      if (
-        provisioned &&
-        !resources.some((resource) => sameCloudResource(resource, provisioned))
-      )
-        resources.push(provisioned);
-      const observed = await Promise.all(
-        resources.map(async (resource) => {
+      // A focused setup must not wait for, or inspect, unrelated computers.
+      const targets = provisioned ? [provisioned] : resources;
+      const observed = new Map<CloudDesktopResource, CloudSetupComputer>();
+      if (targets.length === 0) setComputers([]);
+      await Promise.all(
+        targets.map(async (resource) => {
           const [inspection, connection] = await Promise.allSettled([
             requestCloudDesktop({ action: "inspect", resource }),
             configureCloudDesktopConnection({
@@ -66,7 +68,7 @@ export function useCloudDesktopSetup(provisioned?: CloudDesktopResource) {
               : {};
           const metadata =
             connection.status === "fulfilled" ? object(connection.value) : {};
-          return {
+          const computer: CloudSetupComputer = {
             resource,
             name: typeof state.name === "string" ? state.name : undefined,
             status: typeof state.status === "string" ? state.status : undefined,
@@ -92,19 +94,10 @@ export function useCloudDesktopSetup(provisioned?: CloudDesktopResource) {
                     (key) => object(entry.resource)[key] === resource[key],
                   ),
               ),
-            starting:
-              state.status !== "Running" &&
-              operations.some(
-                (entry) =>
-                  entry.action === "start" &&
-                  entry.outcome === "accepted" &&
-                  Date.now() - Date.parse(String(entry.createdAt)) < 600_000 &&
-                  (
-                    ["provider", "profile", "regionId", "resourceId"] as const
-                  ).every(
-                    (key) => object(entry.resource)[key] === resource[key],
-                  ),
-              ),
+            lifecycleOperation: pendingCloudLifecycleOperation(
+              operations,
+              resource,
+            ),
             connectionSaved:
               resource.provider === "ecs"
                 ? metadata.connectionSaved === true
@@ -114,9 +107,22 @@ export function useCloudDesktopSetup(provisioned?: CloudDesktopResource) {
               connection.status === "rejected" ||
               typeof state.status !== "string",
           };
+          if (current !== generation.current) return;
+          observed.set(resource, computer);
+          setComputers((previous) => {
+            if (current !== generation.current) return previous;
+            // Publish independently while retaining existing rows during refresh.
+            return targets.flatMap((target) => {
+              const value =
+                observed.get(target) ??
+                previous.find((entry) =>
+                  sameCloudResource(entry.resource, target),
+                );
+              return value ? [value] : [];
+            });
+          });
         }),
       );
-      if (current === generation.current) setComputers(observed);
     } catch {
       if (current === generation.current) setFailed(true);
     } finally {
@@ -135,7 +141,7 @@ export function useCloudDesktopSetup(provisioned?: CloudDesktopResource) {
       loading ||
       !computers.some(
         (computer) =>
-          computer.starting ||
+          computer.lifecycleOperation ||
           ["Starting", "Pending"].includes(computer.status ?? ""),
       )
     )

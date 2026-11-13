@@ -26,6 +26,7 @@ function render(
   phase: CloudGuestInstallationStatus["phase"],
   busy = true,
   reconnect = false,
+  transfer?: CloudGuestInstallationStatus["transfer"],
 ) {
   act(() =>
     root.render(
@@ -37,6 +38,7 @@ function render(
           exists: true,
           busy,
           phase,
+          transfer,
           operationId: "same-operation",
           createdAt: Date.parse("2026-11-11T12:00:00Z"),
         }}
@@ -91,3 +93,56 @@ it("新机就绪等待保留准备步骤、原计时与自动接续说明", () =
     "已用时 10 分 0 秒",
   );
 });
+
+it.each(["downloading", "installing"] as const)(
+  "%s 仍属于运行包步骤，保留原耗时并等待真实完成",
+  (phase) => {
+    render(phase);
+    expect(
+      container.querySelector('[aria-current="step"]')?.textContent,
+    ).toContain("获取并安装运行包");
+    expect(container.querySelectorAll('[data-state="complete"]')).toHaveLength(
+      1,
+    );
+    expect(container.querySelector('[role="timer"]')?.textContent).toBe(
+      "已用时 10 分 0 秒",
+    );
+    expect(container.textContent).not.toContain("%");
+  },
+);
+
+it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+  "%s shows actual transfer bytes without marking installation complete",
+  async (locale) => {
+    await act(async () => changeLimeLocale(locale));
+    render("downloading", true, false, {
+      receivedBytes: 512 * 1024,
+      totalBytes: 1024 ** 2,
+    });
+    const progress = container.querySelector("progress")!;
+    expect(progress).not.toBeNull();
+    expect(progress.value).toBe(512 * 1024);
+    expect(progress.max).toBe(1024 ** 2);
+    expect(progress.getAttribute("aria-label")).toBeTruthy();
+    expect(container.textContent).toContain("MiB");
+    expect(container.textContent).not.toContain("settings.cloudDesktop");
+    render("installing", true, false, {
+      receivedBytes: 1024 ** 2,
+      totalBytes: 1024 ** 2,
+    });
+    expect(container.querySelectorAll('[data-state="complete"]')).toHaveLength(
+      1,
+    );
+    expect(container.querySelector('[aria-current="step"]')).not.toBeNull();
+    render("needsAttention", false, false, {
+      receivedBytes: 512 * 1024,
+      totalBytes: 1024 ** 2,
+    });
+    expect(container.querySelector("progress")?.value).toBe(512 * 1024);
+    expect(container.querySelectorAll('[data-state="complete"]')).toHaveLength(
+      0,
+    );
+    render("uploading", true, true, { receivedBytes: 512, totalBytes: 1024 });
+    expect(container.textContent).toBe("");
+  },
+);

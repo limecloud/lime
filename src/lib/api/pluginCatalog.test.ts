@@ -23,7 +23,7 @@ function client(): PluginCatalogClient {
       result: {
         marketplaces: [],
         marketplaceLoadErrors: [],
-        featuredPluginIds: [],
+        featuredPlugins: [],
       },
     }),
     searchPlugins: vi
@@ -39,7 +39,7 @@ function client(): PluginCatalogClient {
       result: {
         marketplaces: [],
         marketplaceLoadErrors: [],
-        featuredPluginIds: [],
+        featuredPlugins: [],
       },
     }),
   };

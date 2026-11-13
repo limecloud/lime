@@ -4,6 +4,44 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl ModelProviderAppDataSource for LocalAppDataSource {
+    async fn prepare_model_connection(
+        &self,
+        id: &str,
+    ) -> Result<serde_json::Value, RuntimeCoreError> {
+        self.api_key_provider_service
+            .prepare_model_connection(&self.db, id)
+            .map_err(data_error)
+    }
+
+    async fn read_model_connection(&self, id: &str) -> Result<serde_json::Value, RuntimeCoreError> {
+        self.api_key_provider_service
+            .read_model_connection(&self.db, id)
+            .map_err(data_error)
+    }
+
+    async fn seal_model_connection(
+        &self,
+        id: &str,
+        recipient: &str,
+        expires_at: i64,
+        provider_id: &str,
+        key_id: &str,
+    ) -> Result<serde_json::Value, RuntimeCoreError> {
+        self.api_key_provider_service
+            .seal_model_connection(&self.db, id, recipient, expires_at, provider_id, key_id)
+            .map_err(data_error)
+    }
+
+    async fn apply_model_connection(
+        &self,
+        id: &str,
+        ciphertext: &str,
+    ) -> Result<serde_json::Value, RuntimeCoreError> {
+        self.api_key_provider_service
+            .apply_model_connection(&self.db, id, ciphertext)
+            .map_err(data_error)
+    }
+
     fn model_catalog_reconciliation_enabled(&self) -> bool {
         true
     }

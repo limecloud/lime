@@ -100,6 +100,7 @@ export const ELECTRON_HOST_COMMANDS = [
   "macos_native_host_invoke",
   "windows_native_host_invoke",
   "show_desktop_notification",
+  "compact_chat_history",
   "open_in_get_targets",
   "open_in_detect_target",
   "open_in_load_target_icon",

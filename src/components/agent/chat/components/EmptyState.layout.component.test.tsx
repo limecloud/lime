@@ -91,7 +91,7 @@ describe("EmptyState layout current integration", () => {
     await flushAsyncEffects();
 
     expect(container.querySelector("h1")?.textContent).toBe(
-      "我们要在 Lime 里构建什么？",
+      "你想让我们在 Lime 中构建什么？",
     );
   });
 });

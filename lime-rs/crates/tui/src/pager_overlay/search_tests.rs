@@ -127,7 +127,7 @@ fn transcript_search_edits_highlights_and_navigates_matches() {
     assert!(overlay.search.is_active());
     assert_eq!(overlay.search.query(), "needle");
     assert_eq!(overlay.search.match_count(), 2);
-    // Find starts at the newest hit, matching Codex's backward history scan.
+    // Find starts at the newest hit, matching 上游 backward history scan.
     assert_eq!(overlay.search.cursor(), 1);
     assert!(buffer_text(&terminal).contains("Find: needle"));
     let buffer = terminal.backend().buffer();

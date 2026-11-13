@@ -15,6 +15,7 @@ type Connection = {
     | "failed";
   profile?: string;
   errorCode?: string;
+  accountIdSuffix?: string;
 };
 
 export function AlibabaConnection({
@@ -36,6 +37,7 @@ export function AlibabaConnection({
   const [error, setError] = useState<"read" | "connect">();
   const active = useRef(false);
   const busy = useRef(false);
+  const generation = useRef(0);
   const current = useRef({ profile, onConnected, locked });
   current.current = { profile, onConnected, locked };
 
@@ -52,7 +54,10 @@ export function AlibabaConnection({
       ].includes(String(data.status)) ||
       (data.status === "connected" &&
         (typeof data.profile !== "string" ||
-          !data.profile.startsWith("lime-oauth-")))
+          !data.profile.startsWith("lime-oauth-"))) ||
+      (data.accountIdSuffix !== undefined &&
+        (typeof data.accountIdSuffix !== "string" ||
+          !/^[0-9]{4}$/.test(data.accountIdSuffix)))
     )
       throw new Error("Invalid Alibaba connection status");
     if (!active.current) return;
@@ -71,13 +76,14 @@ export function AlibabaConnection({
     active.current = true;
     let cancelled = false;
     async function read() {
+      const expected = generation.current;
       try {
         const data = (
           await requestCloudDesktop({ action: "readAlibabaConnection" })
         ).data;
-        if (!cancelled) apply(data);
+        if (!cancelled && expected === generation.current) apply(data);
       } catch {
-        if (!cancelled) setError("read");
+        if (!cancelled && expected === generation.current) setError("read");
       }
     }
     void read();
@@ -96,14 +102,16 @@ export function AlibabaConnection({
     )
       return;
     let cancelled = false;
+    const expected = generation.current;
     const timer = setTimeout(async () => {
       try {
         const result = await requestCloudDesktop({
           action: "readAlibabaConnection",
         });
-        if (!cancelled) apply(result.data, true);
+        if (!cancelled && expected === generation.current)
+          apply(result.data, true);
       } catch {
-        if (!cancelled) setError("read");
+        if (!cancelled && expected === generation.current) setError("read");
       }
     }, 1500);
     return () => {
@@ -115,6 +123,7 @@ export function AlibabaConnection({
   async function connect() {
     if (busy.current || locked) return;
     busy.current = true;
+    generation.current += 1;
     const reading = error === "read";
     if (!reading) current.current.onConnected("");
     setPending(true);
@@ -145,11 +154,14 @@ export function AlibabaConnection({
     return () => onAuthorizingChange(false);
   }, [pending, authorizing, onAuthorizingChange]);
   const connected =
+    !error &&
+    !pending &&
     profile &&
     profile === connection?.profile &&
     connection.status === "connected";
   return (
     <div className="space-y-2 text-[13px]">
+      <p>{t("settings.cloudDesktop.alibabaSiteCN")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <SettingsAction
           disabled={locked || pending || (!!authorizing && !error) || !regionId}
@@ -168,12 +180,26 @@ export function AlibabaConnection({
         {connected && (
           <span role="status">
             {t("settings.cloudDesktop.alibabaConnected")}
+            {connection.accountIdSuffix && (
+              <>
+                {" "}
+                /{" "}
+                {t("settings.cloudDesktop.alibabaAccountSuffix", {
+                  suffix: connection.accountIdSuffix,
+                })}
+              </>
+            )}
           </span>
         )}
       </div>
       <p className="text-muted-foreground">
         {t("settings.cloudDesktop.alibabaAuthorizationDescription")}
       </p>
+      {connected && !connection.accountIdSuffix && (
+        <p role="status" className="text-muted-foreground">
+          {t("settings.cloudDesktop.alibabaAccountUnknown")}
+        </p>
+      )}
       {(pending || authorizing) && (
         <p
           role="status"

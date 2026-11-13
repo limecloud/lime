@@ -250,6 +250,9 @@ pub struct TuiConfig {
     pub right_click_paste: RightClickPaste,
     #[serde(skip_serializing_if = "TuiKeymap::is_default")]
     pub keymap: TuiKeymap,
+    /// 自动生成对话回顾（空闲 30 分钟后、至少完成 3 轮且距上次回顾 ≥2 轮）。
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub auto_recap: bool,
     /// 有序状态栏 item ID；None 使用默认项，Some([]) 显式关闭。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_line: Option<Vec<String>>,
@@ -264,12 +267,17 @@ fn is_true(value: &bool) -> bool {
     *value
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 impl Default for TuiConfig {
     fn default() -> Self {
         Self {
             animations: true,
             right_click_paste: RightClickPaste::default(),
             keymap: TuiKeymap::default(),
+            auto_recap: false,
             status_line: None,
             status_line_use_colors: true,
             terminal_title: None,

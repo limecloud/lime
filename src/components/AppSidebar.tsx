@@ -60,16 +60,27 @@ import { subscribeScheduledTaskRequest } from "@/lib/scheduledTaskEvents";
 import { selectPrioritySessions } from "@/components/app-sidebar/sidebarPrioritySessions";
 import {
   activateConversationTab,
-  closeConversationTab,
   getConversationTabsSnapshot,
+  setConversationTabPinned,
   subscribeConversationTabRequests,
 } from "@/lib/conversationTabs";
+import { isPinnedThreadSession } from "@/lib/api/threadSections";
 import { ConversationHistoryNav } from "@/components/agent/chat/workspace/ConversationHistoryNav";
+import {
+  applyWorkspaceFullViewDefault,
+  isWorkspaceFullViewEnabled,
+  setWorkspaceFullView,
+  subscribeWorkspaceFullView,
+} from "@/lib/workspaceFullView";
 import {
   recordConversationNavigation,
   subscribeConversationHistoryRequests,
 } from "@/lib/conversationHistory";
 import { useAppSidebarProjectActions } from "@/components/app-sidebar/useAppSidebarProjectActions";
+import { NavigationShortcutCommands } from "@/components/app-sidebar/NavigationShortcutCommands";
+import { DesktopNotificationRuntime } from "@/components/app-sidebar/DesktopNotificationRuntime";
+import { AutoArchiveRuntime } from "@/components/app-sidebar/AutoArchiveRuntime";
+import { useComposerEditorPreferences } from "@/lib/composerEditorPreferences";
 import { useAppSidebarSessions } from "@/components/app-sidebar/useAppSidebarSessions";
 import { useSidebarThreadSearch } from "@/components/app-sidebar/useSidebarThreadSearch";
 import { mergeSidebarThreadSearchSessions } from "@/components/app-sidebar/sidebarThreadSearch";
@@ -201,6 +212,7 @@ export function AppSidebar({
   const isAgentWorkspace = activePage === "agent";
   const isConversation = isAgentWorkspace && agentEntry === "conversation";
   const isNewTaskHome = activePage === "agent" && agentEntry === "new-task";
+  const { defaultStandaloneChat } = useComposerEditorPreferences();
   const [rememberedProjectId, setRememberedProjectId] = useState<string | null>(
     () =>
       typeof window === "undefined"
@@ -215,6 +227,9 @@ export function AppSidebar({
   const currentProjectId = activeAgentProjectId;
   const projectScopedNavigationProjectId =
     activeAgentProjectId || rememberedProjectId;
+  const newChatProjectId = defaultStandaloneChat
+    ? null
+    : projectScopedNavigationProjectId;
   const openedProjects = useOpenedProjectSummaries(
     conversationScopeProjectId
       ? {
@@ -608,7 +623,10 @@ export function AppSidebar({
     () =>
       subscribeConversationTabRequests((request) => {
         if (request.type === "create") {
-          onStartNewConversation?.({ projectId: null, freshDraft: false });
+          onStartNewConversation?.({
+            projectId: newChatProjectId,
+            freshDraft: false,
+          });
           return;
         }
         if (!request.sessionId) {
@@ -622,23 +640,58 @@ export function AppSidebar({
       }),
     [
       conversationActions,
+      newChatProjectId,
       onNavigate,
       onStartNewConversation,
     ],
   );
 
   useEffect(() => {
+    for (const session of visibleRecentSidebarSessions) {
+      setConversationTabPinned(session.id, isPinnedThreadSession(session));
+    }
+  }, [visibleRecentSidebarSessions]);
+
+  useEffect(() => {
+    const applyFullView = () => {
+      const root = document.documentElement;
+      if (isWorkspaceFullViewEnabled()) {
+        root.setAttribute("data-lime-full-view", "true");
+      } else {
+        root.removeAttribute("data-lime-full-view");
+      }
+    };
+    applyWorkspaceFullViewDefault();
+    applyFullView();
+    const stop = subscribeWorkspaceFullView(applyFullView);
+    return () => {
+      stop();
+      document.documentElement.removeAttribute("data-lime-full-view");
+    };
+  }, []);
+
+  useEffect(() => {
     const handleTabShortcut = (event: KeyboardEvent) => {
-      const closeTabModifier =
+      if (
+        event.key === "Escape" &&
+        isWorkspaceFullViewEnabled() &&
+        !document.querySelector('[role="dialog"],[role="menu"]')
+      ) {
+        event.preventDefault();
+        setWorkspaceFullView(false);
+        return;
+      }
+      const digitTabModifier =
         (event.metaKey || event.ctrlKey) &&
         !event.altKey &&
         !event.shiftKey &&
-        event.key.toLowerCase() === "w";
-      if (closeTabModifier) {
-        const { tabs, activeSessionId } = getConversationTabsSnapshot();
-        if (tabs.length > 0 && activeSessionId) {
+        /^[1-9]$/.test(event.key);
+      if (digitTabModifier) {
+        const { tabs } = getConversationTabsSnapshot();
+        const target = tabs[Number(event.key) - 1];
+        if (target) {
           event.preventDefault();
-          closeConversationTab(activeSessionId);
+          activateConversationTab(target.sessionId);
         }
         return;
       }
@@ -659,7 +712,7 @@ export function AppSidebar({
     };
     window.addEventListener("keydown", handleTabShortcut);
     return () => window.removeEventListener("keydown", handleTabShortcut);
-  }, []);
+  }, [onNavigate]);
 
   const handleNavigate = (item: SidebarNavItem) => {
     if (item.id === "new-chat") {
@@ -785,8 +838,17 @@ export function AppSidebar({
   const searchMoreMatchesLabel = t("navigation.sidebar.search.moreMatches");
   const searchMoreRecentLabel = t("navigation.sidebar.search.moreRecent");
 
+  useEffect(() => {
+    const toggle = () => setCollapsed((value) => !value);
+    window.addEventListener("lime:toggle-sidebar", toggle);
+    return () => window.removeEventListener("lime:toggle-sidebar", toggle);
+  }, []);
+
   return (
     <TooltipProvider>
+      <NavigationShortcutCommands />
+      <DesktopNotificationRuntime />
+      <AutoArchiveRuntime />
       {isAgentWorkspace ? (
         <HeaderAction
           actionId="conversation-history"
@@ -843,7 +905,7 @@ export function AppSidebar({
               onClick={() => {
                 setCollapsed(false);
                 onStartNewConversation?.({
-                  projectId: null,
+                  projectId: newChatProjectId,
                   freshDraft: false,
                 });
               }}
@@ -879,7 +941,7 @@ export function AppSidebar({
                     $collapsed={collapsed}
                     onClick={() =>
                       onStartNewConversation?.({
-                        projectId: null,
+                        projectId: newChatProjectId,
                         freshDraft: false,
                       })
                     }

@@ -11,6 +11,7 @@ mod browser;
 mod browser_computer_use_requirements;
 mod browser_use;
 mod browser_use_validation;
+mod cloud;
 mod computer_use;
 mod computer_use_validation;
 mod desktop;
@@ -51,6 +52,7 @@ pub use browser_computer_use_requirements::{
     RequestHeaderToml,
 };
 pub use browser_use::{BrowserUseConfigToml, BrowserUseOriginPolicyConfigToml};
+pub use cloud::{validated_cloud_origin, CloudConfig};
 pub use computer_use::{
     ComputerUseConfigToml, ComputerUseMacosConfigToml, ComputerUseWindowsConfigToml,
     ComputerUseWindowsExeConfigToml,

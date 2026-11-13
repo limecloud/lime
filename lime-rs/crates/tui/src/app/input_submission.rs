@@ -1,6 +1,6 @@
 //! Submission lowering at the TUI boundary.
 //!
-//! This module owns the Lime subset of Codex `chatwidget/input_submission`:
+//! This module owns the Lime subset of 上游 `chatwidget/input_submission`:
 //! composer results become app actions, canonical queued submissions can be
 //! edited without losing attachments, and the composer owns attachment state.
 //! Transport execution remains in the runtime and App Server session.
@@ -170,9 +170,20 @@ impl App {
             } => {
                 self.chat_widget.last_status_copy_targets = None;
                 self.chat_widget.bottom_pane.clear_completion_popup();
-                AppAction::Submit {
-                    text,
-                    text_elements,
+                if self.chat_widget.shell_mode {
+                    self.chat_widget.shell_mode = false;
+                    let command = text.trim().to_string();
+                    if command.is_empty() {
+                        AppAction::None
+                    } else {
+                        AppAction::RunShellCommand(command)
+                    }
+                } else {
+                    self.chat_widget.shell_mode = false;
+                    AppAction::Submit {
+                        text,
+                        text_elements,
+                    }
                 }
             }
             InputResult::Queued {
@@ -187,6 +198,7 @@ impl App {
                 }
             }
             InputResult::Interrupt => {
+                self.chat_widget.shell_mode = false;
                 let cleared = self
                     .chat_widget
                     .bottom_pane
@@ -194,7 +206,7 @@ impl App {
                     .is_some();
                 if cleared {
                     self.chat_widget.bottom_pane.clear_completion_popup();
-                    // Codex treats Ctrl-C as composer cancellation when a draft is present.
+                    // 上游 treats Ctrl-C as composer cancellation when a draft is present.
                     // Do not also interrupt the active turn: a follow-up Ctrl-C can then be
                     // handled after the terminal projection settles.
                     AppAction::None

@@ -497,7 +497,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_codex_config_sources_fail_closed() {
+    fn unsupported_upstream_config_sources_fail_closed() {
         let mut unsupported = options(Some(":workspace"), None);
         unsupported.config_profile = Some("work".to_string());
         let error = command_exec_params(unsupported, vec!["pwd".to_string()], false, &[])

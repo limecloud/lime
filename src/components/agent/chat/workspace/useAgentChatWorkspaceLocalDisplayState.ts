@@ -1,9 +1,11 @@
 import {
   useCallback,
+  useMemo,
   useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { useComposerEditorPreferences } from "@/lib/composerEditorPreferences";
 import { useComposerController } from "@/components/input-kit/useComposerController";
 import type { AgentInitialInputCapabilityParams } from "@/types/page";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
@@ -31,8 +33,13 @@ export function useAgentChatWorkspaceLocalDisplayState({
   const [showSidebar, setShowSidebar] = useState(
     () => defaultTopicSidebarVisible,
   );
+  const editorPreferences = useComposerEditorPreferences();
+  const controllerOptions = useMemo(
+    () => ({ plainTextMode: editorPreferences.plainTextEditor }),
+    [editorPreferences.plainTextEditor],
+  );
   const { controller: composerController, snapshot: composerSnapshot } =
-    useComposerController();
+    useComposerController({ controllerOptions });
   const input = composerSnapshot.document.text;
   const setInput = useCallback<Dispatch<SetStateAction<string>>>(
     (value) => {

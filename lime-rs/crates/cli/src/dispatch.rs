@@ -31,6 +31,8 @@ pub(crate) fn inherit_root_options(cli: &mut MultitoolCli) {
         Subcommand::Exec(args) => Some(&mut args.locale),
         Subcommand::Agents(args) => Some(&mut args.locale),
         Subcommand::Resume(args) => Some(&mut args.locale),
+        Subcommand::Login(args) => Some(&mut args.locale),
+        Subcommand::Logout(args) => Some(&mut args.locale),
         _ => None,
     };
     if let Some(locale) = locale {
@@ -43,6 +45,8 @@ pub(crate) fn inherit_root_options(cli: &mut MultitoolCli) {
 impl Subcommand {
     pub(crate) fn connection_mut(&mut self) -> Option<&mut ConnectionArgs> {
         Some(match self {
+            Self::Login(args) => &mut args.connection,
+            Self::Logout(args) => &mut args.connection,
             Self::Tui(args) => &mut args.connection,
             Self::Exec(args) => &mut args.connection,
             Self::Agents(args) => &mut args.connection,
@@ -61,6 +65,7 @@ impl Subcommand {
                 SkillsSubcommand::List(args) => &mut args.connection,
             },
             Self::Plugin(args) => args.connection_mut(),
+            Self::Market(args) => args.connection_mut(),
             Self::Debug(args) => match &mut args.subcommand {
                 DebugSubcommand::Models(args) => &mut args.connection,
                 DebugSubcommand::ClearMemories(args) => &mut args.connection,
@@ -82,6 +87,8 @@ pub(crate) async fn run_cli(mut cli: MultitoolCli) -> ExitCode {
     inherit_root_options(&mut cli);
     let root_locale = cli.interactive.locale.clone();
     match cli.subcommand {
+        Some(Subcommand::Login(args)) => args.run().await,
+        Some(Subcommand::Logout(args)) => args.run().await,
         None => run_interactive_tui(cli.interactive).await,
         Some(Subcommand::Tui(args)) => run_interactive_tui(args).await,
         Some(Subcommand::Exec(args)) => exec::run(args).await,
@@ -97,6 +104,7 @@ pub(crate) async fn run_cli(mut cli: MultitoolCli) -> ExitCode {
         Some(Subcommand::Mcp(args)) => args.run().await,
         Some(Subcommand::Skills(args)) => run_skills(args).await,
         Some(Subcommand::Plugin(args)) => args.run().await,
+        Some(Subcommand::Market(args)) => args.run().await,
         Some(Subcommand::AppServer(args)) => run(args),
         Some(Subcommand::Debug(args)) => run_debug_command(args).await,
         Some(Subcommand::Features(args)) => run_features_command(args).await,

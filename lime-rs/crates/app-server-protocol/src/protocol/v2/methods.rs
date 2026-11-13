@@ -104,6 +104,15 @@ pub const METHOD_SKILLS_CONFIG_WRITE: &str = "skills/config/write";
 pub const METHOD_MARKETPLACE_ADD: &str = "marketplace/add";
 pub const METHOD_MARKETPLACE_REMOVE: &str = "marketplace/remove";
 pub const METHOD_MARKETPLACE_UPGRADE: &str = "marketplace/upgrade";
+pub const METHOD_MARKET_PENDING: &str = "market/install/pending";
+pub const METHOD_MARKET_INSTALL_CANCEL: &str = "market/install/cancel";
+pub const METHOD_MARKET_RECONCILE: &str = "market/reconcile";
+pub const METHOD_MARKET_LIST: &str = "market/list";
+pub const METHOD_MARKET_READ: &str = "market/read";
+pub const METHOD_MARKET_INSTALL: &str = "market/install";
+pub const METHOD_MARKET_INSTALLED: &str = "market/installed";
+pub const METHOD_MARKET_ENABLED_SET: &str = "market/enabled/set";
+pub const METHOD_MARKET_UNINSTALL: &str = "market/uninstall";
 pub const METHOD_PLUGIN_LIST: &str = "plugin/list";
 pub const METHOD_PLUGIN_SEARCH: &str = "plugin/search";
 pub const METHOD_PLUGIN_READ: &str = "plugin/read";
@@ -196,6 +205,8 @@ pub const METHOD_MCP_SERVER_OAUTH_LOGIN_COMPLETED: &str = "mcpServer/oauthLogin/
 pub const METHOD_MCP_SERVER_STARTUP_STATUS_UPDATED: &str = "mcpServer/startupStatus/updated";
 pub const METHOD_MCP_SERVER_EVENT_STREAM_NOTIFICATION: &str = "mcpServer/event/stream/notification";
 pub const METHOD_CURRENT_TIME_READ: &str = "currentTime/read";
+pub const METHOD_ACCOUNT_AUTHORIZE: &str = "account/authorize";
+pub const METHOD_CONNECTION_AUTHORIZE: &str = "connection/authorize";
 pub const METHOD_MCP_SERVER_ELICITATION_REQUEST: &str = "mcpServer/elicitation/request";
 pub const METHOD_ITEM_COMMAND_EXECUTION_REQUEST_APPROVAL: &str =
     "item/commandExecution/requestApproval";
@@ -408,6 +419,24 @@ pub enum Method {
     MarketplaceRemove,
     #[serde(rename = "marketplace/upgrade")]
     MarketplaceUpgrade,
+    #[serde(rename = "market/list")]
+    MarketList,
+    #[serde(rename = "market/read")]
+    MarketRead,
+    #[serde(rename = "market/install")]
+    MarketInstall,
+    #[serde(rename = "market/installed")]
+    MarketInstalled,
+    #[serde(rename = "market/enabled/set")]
+    MarketEnabledSet,
+    #[serde(rename = "market/uninstall")]
+    MarketUninstall,
+    #[serde(rename = "market/install/pending")]
+    MarketPending,
+    #[serde(rename = "market/install/cancel")]
+    MarketInstallCancel,
+    #[serde(rename = "market/reconcile")]
+    MarketReconcile,
     #[serde(rename = "plugin/list")]
     PluginList,
     #[serde(rename = "plugin/search")]
@@ -585,6 +614,15 @@ impl Method {
             Self::MarketplaceAdd => METHOD_MARKETPLACE_ADD,
             Self::MarketplaceRemove => METHOD_MARKETPLACE_REMOVE,
             Self::MarketplaceUpgrade => METHOD_MARKETPLACE_UPGRADE,
+            Self::MarketPending => METHOD_MARKET_PENDING,
+            Self::MarketInstallCancel => METHOD_MARKET_INSTALL_CANCEL,
+            Self::MarketReconcile => METHOD_MARKET_RECONCILE,
+            Self::MarketList => METHOD_MARKET_LIST,
+            Self::MarketRead => METHOD_MARKET_READ,
+            Self::MarketInstall => METHOD_MARKET_INSTALL,
+            Self::MarketInstalled => METHOD_MARKET_INSTALLED,
+            Self::MarketEnabledSet => METHOD_MARKET_ENABLED_SET,
+            Self::MarketUninstall => METHOD_MARKET_UNINSTALL,
             Self::PluginList => METHOD_PLUGIN_LIST,
             Self::PluginSearch => METHOD_PLUGIN_SEARCH,
             Self::PluginRead => METHOD_PLUGIN_READ,
@@ -733,6 +771,15 @@ impl Method {
             METHOD_MARKETPLACE_ADD => Some(Self::MarketplaceAdd),
             METHOD_MARKETPLACE_REMOVE => Some(Self::MarketplaceRemove),
             METHOD_MARKETPLACE_UPGRADE => Some(Self::MarketplaceUpgrade),
+            METHOD_MARKET_PENDING => Some(Self::MarketPending),
+            METHOD_MARKET_INSTALL_CANCEL => Some(Self::MarketInstallCancel),
+            METHOD_MARKET_RECONCILE => Some(Self::MarketReconcile),
+            METHOD_MARKET_LIST => Some(Self::MarketList),
+            METHOD_MARKET_READ => Some(Self::MarketRead),
+            METHOD_MARKET_INSTALL => Some(Self::MarketInstall),
+            METHOD_MARKET_INSTALLED => Some(Self::MarketInstalled),
+            METHOD_MARKET_ENABLED_SET => Some(Self::MarketEnabledSet),
+            METHOD_MARKET_UNINSTALL => Some(Self::MarketUninstall),
             METHOD_PLUGIN_LIST => Some(Self::PluginList),
             METHOD_PLUGIN_SEARCH => Some(Self::PluginSearch),
             METHOD_PLUGIN_READ => Some(Self::PluginRead),
@@ -871,6 +918,15 @@ pub const METHODS: &[&str] = &[
     METHOD_MARKETPLACE_ADD,
     METHOD_MARKETPLACE_REMOVE,
     METHOD_MARKETPLACE_UPGRADE,
+    METHOD_MARKET_LIST,
+    METHOD_MARKET_PENDING,
+    METHOD_MARKET_INSTALL_CANCEL,
+    METHOD_MARKET_RECONCILE,
+    METHOD_MARKET_READ,
+    METHOD_MARKET_INSTALL,
+    METHOD_MARKET_INSTALLED,
+    METHOD_MARKET_ENABLED_SET,
+    METHOD_MARKET_UNINSTALL,
     METHOD_PLUGIN_LIST,
     METHOD_PLUGIN_SEARCH,
     METHOD_PLUGIN_READ,
@@ -974,6 +1030,8 @@ pub const NOTIFICATION_METHODS: &[&str] = &[
 
 pub const SERVER_REQUEST_METHODS: &[&str] = &[
     METHOD_CURRENT_TIME_READ,
+    METHOD_ACCOUNT_AUTHORIZE,
+    METHOD_CONNECTION_AUTHORIZE,
     METHOD_MCP_SERVER_ELICITATION_REQUEST,
     METHOD_ITEM_COMMAND_EXECUTION_REQUEST_APPROVAL,
     METHOD_ITEM_FILE_CHANGE_REQUEST_APPROVAL,

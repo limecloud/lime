@@ -12,6 +12,15 @@ export type AppServerClientMethodSpec = {
 };
 
 export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
+  { name: "listMarketResources", method: constants.APP_SERVER_METHOD_MARKET_LIST, params: "required" },
+  { name: "readMarketResource", method: constants.APP_SERVER_METHOD_MARKET_READ, params: "required" },
+  { name: "installMarketResource", method: constants.APP_SERVER_METHOD_MARKET_INSTALL, params: "required" },
+  { name: "listInstalledMarketResources", method: constants.APP_SERVER_METHOD_MARKET_INSTALLED, params: "required" },
+  { name: "setMarketResourceEnabled", method: constants.APP_SERVER_METHOD_MARKET_ENABLED_SET, params: "required" },
+  { name: "uninstallMarketResource", method: constants.APP_SERVER_METHOD_MARKET_UNINSTALL, params: "required" },
+  { name: "listPendingMarketInstalls", method: constants.APP_SERVER_METHOD_MARKET_PENDING, params: "required" },
+  { name: "cancelMarketInstall", method: constants.APP_SERVER_METHOD_MARKET_INSTALL_CANCEL, params: "required" },
+  { name: "reconcileMarketResources", method: constants.APP_SERVER_METHOD_MARKET_RECONCILE, params: "required" },
   { name: "requestCloudDesktop", method: constants.APP_SERVER_METHOD_CLOUD_DESKTOP, params: "required" },
   {
     name: "readComputerUseStatus",

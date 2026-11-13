@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 export interface ConversationTab {
   sessionId: string;
   title: string;
+  pinned?: boolean;
 }
 
 export type ConversationTabRequest =
@@ -13,6 +14,7 @@ const STORAGE_KEY = "lime.conversation.tabs.v1";
 const MAX_TABS = 20;
 
 let tabs: ConversationTab[] = loadTabs();
+let closedTabs: ConversationTab[] = [];
 let activeSessionId: string | null = null;
 let snapshot: { tabs: ConversationTab[]; activeSessionId: string | null } = {
   tabs,
@@ -95,9 +97,8 @@ export function ensureConversationTab(sessionId: string, title: string) {
   const existing = tabs.find((tab) => tab.sessionId === normalizedId);
   let changed = false;
   if (!existing) {
-    tabs = [{ sessionId: normalizedId, title: normalizedTitle }, ...tabs].slice(
-      0,
-      MAX_TABS,
+    tabs = [...tabs, { sessionId: normalizedId, title: normalizedTitle }].slice(
+      -MAX_TABS,
     );
     changed = true;
   } else if (existing.title !== normalizedTitle) {
@@ -113,6 +114,18 @@ export function ensureConversationTab(sessionId: string, title: string) {
     changed = true;
   }
   if (changed) publish();
+}
+
+export function setConversationTabPinned(
+  sessionId: string,
+  pinned: boolean,
+) {
+  const current = tabs.find((tab) => tab.sessionId === sessionId);
+  if (!current || Boolean(current.pinned) === pinned) return;
+  tabs = tabs.map((tab) =>
+    tab.sessionId === sessionId ? { ...tab, pinned } : tab,
+  );
+  publish();
 }
 
 export function updateConversationTabTitle(sessionId: string, title: string) {
@@ -136,10 +149,19 @@ export function activateConversationTab(sessionId: string) {
   request({ type: "navigate", sessionId });
 }
 
+function rememberClosedTab(tab: ConversationTab | undefined) {
+  if (!tab) return;
+  closedTabs = [
+    tab,
+    ...closedTabs.filter((entry) => entry.sessionId !== tab.sessionId),
+  ].slice(0, 10);
+}
+
 export function closeConversationTab(sessionId: string) {
   const index = tabs.findIndex((tab) => tab.sessionId === sessionId);
   if (index < 0) return;
   const wasActive = activeSessionId === sessionId;
+  rememberClosedTab(tabs[index]);
   tabs = tabs.filter((tab) => tab.sessionId !== sessionId);
   if (wasActive) {
     const next = tabs[Math.min(index, tabs.length - 1)] ?? null;
@@ -152,17 +174,53 @@ export function closeConversationTab(sessionId: string) {
 }
 
 export function closeOtherConversationTabs(sessionId: string) {
+  for (const tab of tabs) {
+    if (tab.sessionId !== sessionId) rememberClosedTab(tab);
+  }
   tabs = tabs.filter((tab) => tab.sessionId === sessionId);
   activeSessionId = sessionId;
   publish();
   request({ type: "navigate", sessionId });
 }
 
-export function closeAllConversationTabs() {
-  tabs = [];
-  activeSessionId = null;
+export function closeConversationTabsToTheRight(sessionId: string) {
+  const index = tabs.findIndex((tab) => tab.sessionId === sessionId);
+  if (index < 0) return;
+  for (const tab of tabs.slice(index + 1)) rememberClosedTab(tab);
+  tabs = tabs.slice(0, index + 1);
+  if (!tabs.some((tab) => tab.sessionId === activeSessionId)) {
+    activeSessionId = sessionId;
+  }
   publish();
-  request({ type: "navigate", sessionId: null });
+}
+
+export function closeAllConversationTabs() {
+  const pinnedTabs = tabs.filter((tab) => tab.pinned);
+  for (const tab of tabs) {
+    if (!tab.pinned) rememberClosedTab(tab);
+  }
+  tabs = pinnedTabs;
+  const nextActive = pinnedTabs.some(
+    (tab) => tab.sessionId === activeSessionId,
+  )
+    ? activeSessionId
+    : (pinnedTabs[0]?.sessionId ?? null);
+  activeSessionId = nextActive;
+  publish();
+  request({ type: "navigate", sessionId: nextActive });
+}
+
+export function reopenLastClosedConversationTab(): string | null {
+  const restored = closedTabs.shift();
+  if (!restored) return null;
+  tabs = [
+    restored,
+    ...tabs.filter((tab) => tab.sessionId !== restored.sessionId),
+  ].slice(0, MAX_TABS);
+  activeSessionId = restored.sessionId;
+  publish();
+  request({ type: "navigate", sessionId: restored.sessionId });
+  return restored.sessionId;
 }
 
 export function requestNewConversationTab() {
@@ -178,6 +236,7 @@ export function subscribeConversationTabRequests(
 
 export function resetConversationTabsForTest() {
   tabs = [];
+  closedTabs = [];
   activeSessionId = null;
   snapshot = { tabs, activeSessionId };
   persist();

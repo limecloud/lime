@@ -46,8 +46,8 @@ const MAX_SEARCH_LIMIT: usize = 200;
 const MEMORY_STAGE1_LEASE_SECONDS: i64 = 3_600;
 const MEMORY_STAGE1_RETRY_SECONDS: i64 = 3_600;
 const MEMORY_STAGE1_MAX_JOBS: usize = 8;
-const STAGE_ONE_SYSTEM_PROMPT_V1: &str = "You are a Codex memory writing agent. Read the rollout as immutable evidence. Return only the requested JSON object. Preserve user decisions and durable workflow facts, redact secrets, and return empty fields when nothing merits retention.";
-const STAGE_ONE_SYSTEM_PROMPT_V2: &str = "You are a Codex memory writing agent. Read the rollout as immutable evidence. Return only the requested JSON object with rollout_summary and rollout_slug. Preserve user decisions and durable workflow facts, redact secrets, and return empty fields when nothing merits retention.";
+const STAGE_ONE_SYSTEM_PROMPT_V1: &str = "You are a Lime memory writing agent. Read the rollout as immutable evidence. Return only the requested JSON object. Preserve user decisions and durable workflow facts, redact secrets, and return empty fields when nothing merits retention.";
+const STAGE_ONE_SYSTEM_PROMPT_V2: &str = "You are a Lime memory writing agent. Read the rollout as immutable evidence. Return only the requested JSON object with rollout_summary and rollout_slug. Preserve user decisions and durable workflow facts, redact secrets, and return empty fields when nothing merits retention.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryStageOneVersion {
@@ -515,7 +515,7 @@ impl MemoryBackend for LocalMemoryBackend {
             end.max(start_line_number)
         };
 
-        // Codex memory usage feeds the next phase-2 selection. The read contract stays
+        // 上游 memory usage feeds the next phase-2 selection. The read contract stays
         // fail-open for callers when the auxiliary state database is unavailable.
         let scope_key = self.state_scope_key(&root)?;
         let _ = self

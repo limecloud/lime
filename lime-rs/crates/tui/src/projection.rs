@@ -39,6 +39,7 @@ pub(crate) enum EntryKind {
     Warning,
     Error,
     System,
+    Recap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -276,6 +277,10 @@ impl ConversationProjection {
 
     pub(crate) fn add_warning_message(&mut self, message: impl Into<String>) {
         self.push_notice(EntryKind::Warning, message.into());
+    }
+
+    pub(crate) fn add_recap_message(&mut self, message: impl Into<String>) {
+        self.push_notice(EntryKind::Recap, message.into());
     }
 
     pub(crate) fn add_info_message(&mut self, message: impl Into<String>) {
@@ -754,7 +759,7 @@ impl ConversationProjection {
     fn push_notice(&mut self, kind: EntryKind, text: String) {
         debug_assert!(matches!(
             kind,
-            EntryKind::Warning | EntryKind::Error | EntryKind::System
+            EntryKind::Warning | EntryKind::Error | EntryKind::System | EntryKind::Recap
         ));
         self.entries.push(TranscriptEntry {
             id: format!("system-{}", self.entries.len()),

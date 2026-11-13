@@ -42,7 +42,7 @@ impl RuntimeBackend {
                 route.resolution.decision_payload.get("modelRegistry"),
             ),
             &self.current_plugin_turn_snapshots().await?,
-            &[],
+            &self.current_market_skills().await?,
         );
         let configuration = model_route_contract::provider_configuration_from_runtime(
             &route.selection,

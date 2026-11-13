@@ -1,4 +1,4 @@
-use super::{AppSummary, HookEventName, SkillInterface};
+use super::{AppSummary, HookEventName, MarketReleaseReference, SkillInterface};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -42,7 +42,7 @@ pub struct PluginListResponse {
     #[serde(default)]
     pub marketplace_load_errors: Vec<MarketplaceLoadErrorInfo>,
     #[serde(default)]
-    pub featured_plugin_ids: Vec<String>,
+    pub featured_plugins: Vec<PluginSearchResult>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, JsonSchema)]
@@ -92,6 +92,8 @@ pub struct PluginReadParams {
     pub marketplace_path: Option<PathBuf>,
     pub remote_marketplace_name: Option<String>,
     pub plugin_name: String,
+    /// Exact catalog release. Omit to read an installed plugin.
+    pub remote_release: Option<MarketReleaseReference>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -122,6 +124,8 @@ pub struct PluginInstallParams {
     /// Client-generated identifier used to correlate one installation attempt.
     pub install_attempt_id: Option<String>,
     pub plugin_name: String,
+    /// Required for a new shared-market installation.
+    pub remote_release: Option<MarketReleaseReference>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -345,6 +349,10 @@ pub struct PluginSummary {
     pub id: String,
     #[serde(default)]
     pub remote_plugin_id: Option<String>,
+    #[serde(default)]
+    pub remote_release: Option<MarketReleaseReference>,
+    #[serde(default)]
+    pub local_release: Option<MarketReleaseReference>,
     #[serde(default)]
     pub version: Option<String>,
     #[serde(default)]

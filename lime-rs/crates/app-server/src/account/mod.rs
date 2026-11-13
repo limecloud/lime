@@ -1,11 +1,17 @@
+mod billing;
 mod cloud;
+mod config;
+mod continuation;
 mod credentials;
 mod oauth;
 mod operations;
 mod product;
+mod recovery;
 mod request;
 mod store;
 mod tools;
+
+pub(crate) use config::configured_language;
 
 #[cfg(test)]
 mod tests;
@@ -20,21 +26,33 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone)]
 pub(crate) struct AccountManager {
     path: PathBuf,
+    config_path: PathBuf,
     client: reqwest::Client,
     loopback_client: reqwest::Client,
+    host_requests: std::sync::OnceLock<crate::host_request::HostRequestRouter>,
 }
 
 impl AccountManager {
-    pub(crate) fn new(app_data_root: &Path) -> Self {
+    pub(crate) fn set_host_requests(&self, host: crate::host_request::HostRequestRouter) {
+        let _ = self.host_requests.set(host);
+    }
+
+    pub(crate) fn new(app_data_root: &Path, config_path: &Path) -> Self {
         Self {
             path: app_data_root.join("credentials").join("account.json"),
+            config_path: config_path.to_path_buf(),
             client: session_client(false),
             loopback_client: session_client(true),
+            host_requests: Default::default(),
         }
     }
 
     pub(crate) fn read(&self, _params: GetAccountParams) -> Result<GetAccountResponse, String> {
         let state = store::load(&self.path)?;
+        let (service_url, service_error) = match self.service_url(&state) {
+            Ok(url) => (url, None),
+            Err(error) => (None, Some(error)),
+        };
         let now = chrono::Utc::now().timestamp();
         let account = state.account.map(|mut account| {
             let Account::Cloud { resources, .. } = &mut account;
@@ -77,9 +95,34 @@ impl AccountManager {
             })
             .collect();
         Ok(GetAccountResponse {
+            service_url,
+            service_error,
             account,
             authorizations,
         })
+    }
+
+    fn service_url(&self, state: &store::State) -> Result<Option<String>, String> {
+        if let Some(Account::Cloud { base_url, .. }) = &state.account {
+            return Ok(Some(base_url.clone()));
+        }
+        if let Some(authorization) = state.authorizations.get(&Default::default()) {
+            if matches!(
+                authorization.public.status,
+                AccountAuthorizationStatus::Pending
+                    | AccountAuthorizationStatus::Exchanging
+                    | AccountAuthorizationStatus::OutcomeUnknown
+            ) {
+                return Ok(Some(authorization.base_url.clone()));
+            }
+        }
+        lime_core::config::ConfigManager::load(&self.config_path)
+            .map(|manager| manager.config().cloud.base_url.clone())
+            .map_err(|_| "account_config_invalid".into())
+    }
+
+    pub(crate) fn set_config_path(&mut self, path: PathBuf) {
+        self.config_path = path;
     }
 
     pub(crate) fn logout(&self) -> Result<LogoutAccountResponse, String> {

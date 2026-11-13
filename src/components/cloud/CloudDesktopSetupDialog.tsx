@@ -21,13 +21,15 @@ import {
 export default function CloudDesktopSetupDialog({
   onClose,
   onReturnFocus,
+  initialResource,
 }: {
   onClose: () => void;
   onReturnFocus?: () => void;
+  initialResource?: CloudDesktopResource;
 }) {
   const { t } = useTranslation("settings");
   const navigate = useAppNavigationRequest();
-  const [provisioned, setProvisioned] = useState<CloudDesktopResource>();
+  const [provisioned, setProvisioned] = useState(initialResource);
   const { computers, loading, failed, refresh } =
     useCloudDesktopSetup(provisioned);
   const visibleComputers = provisioned
@@ -50,7 +52,8 @@ export default function CloudDesktopSetupDialog({
     };
   }, []);
   async function connect(computer: CloudSetupComputer) {
-    if (busy.current || computer.releasePending) return;
+    if (busy.current || computer.releasePending || computer.lifecycleOperation)
+      return;
     busy.current = true;
     setOpening(computer.resource.resourceId);
     setOpenFailed(false);
@@ -84,6 +87,12 @@ export default function CloudDesktopSetupDialog({
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-[70] max-h-[85vh] w-[min(560px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 space-y-5 overflow-y-auto rounded-xl border-[0.5px] border-border bg-popover p-6 text-popover-foreground outline-none"
           data-testid="cloud-desktop-setup"
+          onOpenAutoFocus={(event) => {
+            if (provisioned) {
+              event.preventDefault();
+              heading.current?.focus();
+            }
+          }}
           onCloseAutoFocus={(event) => {
             if (onReturnFocus) {
               event.preventDefault();
@@ -182,7 +191,7 @@ export default function CloudDesktopSetupDialog({
                       className={`text-[12px] ${computer.inspectionFailed ? "text-destructive" : "text-muted-foreground"}`}
                     >
                       {t(
-                        `settings.cloudDesktop.${computer.inspectionFailed ? "setupReadFailed" : computer.releasePending ? "cancelBeforeUse" : computer.starting || ["Starting", "Pending"].includes(computer.status ?? "") ? "setupStarting" : computer.status === "Stopped" ? "setupStopped" : computer.connectionSaved ? "setupConnectionSaved" : computer.resource.provider === "ecs" ? "setupInstallationRequired" : "setupConnectionRequired"}`,
+                        `settings.cloudDesktop.${computer.inspectionFailed ? "setupReadFailed" : computer.releasePending ? "cancelBeforeUse" : computer.lifecycleOperation?.outcome === "unknown" ? "outcome.unknown" : computer.lifecycleOperation?.action === "stop" ? "outcome.accepted" : computer.lifecycleOperation || ["Starting", "Pending"].includes(computer.status ?? "") ? "setupStarting" : computer.status === "Stopped" ? "setupStopped" : computer.connectionSaved ? "setupConnectionSaved" : computer.resource.provider === "ecs" ? "setupInstallationRequired" : "setupConnectionRequired"}`,
                       )}
                     </p>
                     {computer.releaseAt && (
@@ -196,10 +205,11 @@ export default function CloudDesktopSetupDialog({
                   {!computer.inspectionFailed && !computer.releasePending && (
                     <CloudResourceActions
                       resource={computer.resource}
-                      status={
-                        computer.starting
-                          ? "Starting"
-                          : (computer.status ?? "unknown")
+                      status={computer.status ?? "unknown"}
+                      operations={
+                        computer.lifecycleOperation
+                          ? [computer.lifecycleOperation]
+                          : []
                       }
                       disabled={!!opening}
                       only="start"
@@ -209,6 +219,7 @@ export default function CloudDesktopSetupDialog({
                   )}
                   {!computer.inspectionFailed &&
                     !computer.releasePending &&
+                    !computer.lifecycleOperation &&
                     computer.status === "Running" &&
                     (computer.connectionSaved ? (
                       <SettingsAction
@@ -263,7 +274,7 @@ export default function CloudDesktopSetupDialog({
             </p>
           )}
           <div className="flex flex-wrap justify-end gap-2">
-            {navigate && (
+            {navigate && !initialResource && (
               <SettingsAction
                 disabled={!!opening}
                 onClick={() => {
@@ -275,7 +286,9 @@ export default function CloudDesktopSetupDialog({
               </SettingsAction>
             )}
             <SettingsAction disabled={!!opening} onClick={close}>
-              {t("settings.cloudDesktop.setupReturnLocal")}
+              {t(
+                `settings.cloudDesktop.${initialResource ? "close" : "setupReturnLocal"}`,
+              )}
             </SettingsAction>
           </div>
         </Dialog.Content>

@@ -32,6 +32,7 @@ import {
 } from "../../../skill-selection/inputCapabilitySelection";
 import { buildInputbarToolPreferencesOverride } from "../utils/inputbarModeRequestMetadata";
 import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
+import { useComposerEditorPreferences } from "@/lib/composerEditorPreferences";
 import type {
   BaseComposerSendMetadata,
   ComposerController,
@@ -98,6 +99,7 @@ export function useInputbarSend({
   onGoalSubmittingChange,
 }: UseInputbarSendParams) {
   const { t } = useTranslation("agent");
+  const { followUpMode } = useComposerEditorPreferences();
   const mounted = useRef(true);
   const goalSubmissionPending = useRef(false);
   const surface = useRef({
@@ -128,7 +130,7 @@ export function useInputbarSend({
       const resolvedSubmitTarget: ComposerSubmitTarget =
         triggerMetadata?.submitTarget ??
         submitTarget ??
-        (isLoading ? "steer" : "start");
+        (isLoading ? followUpMode : "start");
       let goalHistoryText: string | undefined;
       const settlement = createComposerSubmissionSettlement({
         controller: composerController,
@@ -472,6 +474,7 @@ export function useInputbarSend({
       input,
       hasAdditionalContent,
       isLoading,
+      followUpMode,
       onComposerAccepted,
       onComposerCommitted,
       projectId,

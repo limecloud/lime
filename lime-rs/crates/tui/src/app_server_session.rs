@@ -1,4 +1,6 @@
+mod account;
 mod config;
+mod connection;
 mod history;
 mod thread;
 
@@ -93,6 +95,7 @@ impl ThreadSettingsPatch {
 }
 
 pub(crate) struct AppServerSession {
+    remote: bool,
     session: ClientSession,
     request_handle: RequestHandle,
     thread_id: Option<String>,
@@ -172,6 +175,7 @@ impl AppServerSession {
                 )
             })?;
         Ok(Self {
+            remote: false,
             request_handle: session.request_handle(),
             session,
             thread_id: None,
@@ -188,6 +192,7 @@ impl AppServerSession {
                 format!("failed to initialize remote App Server at {websocket_url}")
             })?;
         Ok(Self {
+            remote: true,
             request_handle: session.request_handle(),
             session,
             thread_id: None,
@@ -286,6 +291,244 @@ impl AppServerSession {
             .await
             .map(|_: app_server_protocol::protocol::v2::ThreadArchiveResponse| ())
             .context("failed to archive App Server thread")
+    }
+
+    pub(crate) async fn memory_reset(&self) -> Result<()> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_MEMORY_RESET,
+                serde_json::json!({}),
+            )
+            .await
+            .map(|_: app_server_protocol::protocol::v2::MemoryResetResponse| ())
+            .context("failed to reset memory")
+    }
+
+    pub(crate) async fn thread_memory_mode_set(
+        &self,
+        thread_id: String,
+        mode: app_server_protocol::protocol::v2::ThreadMemoryMode,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadMemoryModeSetResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_MEMORY_MODE_SET,
+                app_server_protocol::protocol::v2::ThreadMemoryModeSetParams { thread_id, mode },
+            )
+            .await
+            .context("failed to update the thread memory mode")
+    }
+
+    pub(crate) async fn thread_goal_get(
+        &self,
+        thread_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadGoalGetResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_GOAL_GET,
+                app_server_protocol::protocol::v2::ThreadGoalGetParams { thread_id },
+            )
+            .await
+            .context("failed to read the thread goal")
+    }
+
+    pub(crate) async fn thread_goal_set(
+        &self,
+        thread_id: String,
+        objective: Option<String>,
+        status: Option<app_server_protocol::protocol::v2::ThreadGoalStatus>,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadGoalSetResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_GOAL_SET,
+                app_server_protocol::protocol::v2::ThreadGoalSetParams {
+                    thread_id,
+                    objective,
+                    status,
+                    token_budget: None,
+                },
+            )
+            .await
+            .context("failed to update the thread goal")
+    }
+
+    pub(crate) async fn thread_goal_clear(
+        &self,
+        thread_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadGoalClearResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_GOAL_CLEAR,
+                app_server_protocol::protocol::v2::ThreadGoalClearParams { thread_id },
+            )
+            .await
+            .context("failed to clear the thread goal")
+    }
+
+    pub(crate) async fn plugin_list(
+        &self,
+        cwd: std::path::PathBuf,
+    ) -> Result<app_server_protocol::protocol::v2::PluginListResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_PLUGIN_LIST,
+                app_server_protocol::protocol::v2::PluginListParams {
+                    cwds: Some(vec![cwd]),
+                    marketplace_kinds: None,
+                    force_refetch: false,
+                },
+            )
+            .await
+            .context("failed to list plugins")
+    }
+
+    pub(crate) async fn thread_shell_command(
+        &self,
+        thread_id: String,
+        command: String,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadShellCommandResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_SHELL_COMMAND,
+                app_server_protocol::protocol::v2::ThreadShellCommandParams { thread_id, command },
+            )
+            .await
+            .context("failed to run the shell command")
+    }
+
+    pub(crate) async fn background_terminals_list(
+        &self,
+        thread_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadBackgroundTerminalsListResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_BACKGROUND_TERMINALS_LIST,
+                app_server_protocol::protocol::v2::ThreadBackgroundTerminalsListParams {
+                    thread_id,
+                    cursor: None,
+                    limit: Some(100),
+                },
+            )
+            .await
+            .context("failed to list background terminals")
+    }
+
+    pub(crate) async fn background_terminals_terminate(
+        &self,
+        thread_id: String,
+        process_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::ThreadBackgroundTerminalsTerminateResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_BACKGROUND_TERMINALS_TERMINATE,
+                app_server_protocol::protocol::v2::ThreadBackgroundTerminalsTerminateParams {
+                    thread_id,
+                    process_id,
+                },
+            )
+            .await
+            .context("failed to terminate the background terminal")
+    }
+
+    pub(crate) async fn skills_config_write(
+        &self,
+        path: std::path::PathBuf,
+        name: String,
+        enabled: bool,
+    ) -> Result<app_server_protocol::protocol::v2::SkillsConfigWriteResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_SKILLS_CONFIG_WRITE,
+                app_server_protocol::protocol::v2::SkillsConfigWriteParams {
+                    path: Some(path),
+                    name: Some(name),
+                    enabled,
+                },
+            )
+            .await
+            .context("failed to update the skill configuration")
+    }
+
+    pub(crate) async fn plugin_search(
+        &self,
+        term: String,
+        cwd: std::path::PathBuf,
+    ) -> Result<app_server_protocol::protocol::v2::PluginSearchResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_PLUGIN_SEARCH,
+                app_server_protocol::protocol::v2::PluginSearchParams {
+                    search_term: term,
+                    scope: None,
+                    cwds: Some(vec![cwd.to_string_lossy().into_owned()]),
+                    cursor: None,
+                    limit: Some(20),
+                },
+            )
+            .await
+            .context("failed to search plugins")
+    }
+
+    pub(crate) async fn plugin_install(
+        &self,
+        marketplace_path: Option<std::path::PathBuf>,
+        remote_marketplace_name: Option<String>,
+        plugin_name: String,
+        remote_release: Option<app_server_protocol::protocol::v2::MarketReleaseReference>,
+    ) -> Result<app_server_protocol::protocol::v2::PluginInstallResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_PLUGIN_INSTALL,
+                app_server_protocol::protocol::v2::PluginInstallParams {
+                    marketplace_path,
+                    remote_marketplace_name,
+                    install_attempt_id: None,
+                    plugin_name,
+                    remote_release,
+                },
+            )
+            .await
+            .context("failed to install the plugin")
+    }
+
+    pub(crate) async fn plugin_uninstall(
+        &self,
+        plugin_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::PluginUninstallResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_PLUGIN_UNINSTALL,
+                app_server_protocol::protocol::v2::PluginUninstallParams { plugin_id },
+            )
+            .await
+            .context("failed to uninstall the plugin")
+    }
+
+    pub(crate) async fn plugin_installed(
+        &self,
+        cwd: std::path::PathBuf,
+    ) -> Result<app_server_protocol::protocol::v2::PluginInstalledResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_PLUGIN_INSTALLED,
+                app_server_protocol::protocol::v2::PluginInstalledParams {
+                    cwds: Some(vec![cwd]),
+                    install_suggestion_plugin_names: None,
+                },
+            )
+            .await
+            .context("failed to read installed plugins")
+    }
+
+    pub(crate) async fn memory_status(
+        &self,
+    ) -> Result<app_server_protocol::protocol::v2::MemoryStatusResponse> {
+        self.request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_MEMORY_STATUS,
+                app_server_protocol::protocol::v2::MemoryStatusParams::default(),
+            )
+            .await
+            .context("failed to read memory status")
     }
 
     pub(crate) async fn hooks_list(

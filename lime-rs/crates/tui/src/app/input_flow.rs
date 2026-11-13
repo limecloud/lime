@@ -1,6 +1,6 @@
 //! Keyboard input flow for the TUI app.
 //!
-//! This owner mirrors Codex `chatwidget/input_flow`: App owns global routing,
+//! This owner mirrors 上游 `chatwidget/input_flow`: App owns global routing,
 //! while BottomPane owns editor and popup interaction.
 
 use super::*;

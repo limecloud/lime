@@ -329,7 +329,7 @@ impl ChatComposer {
     /// Leave the cursor after one horizontal separator following a file completion.
     ///
     /// Existing horizontal whitespace is reused when it already separates the completed path
-    /// from a suffix. Newlines are not reused as separators, matching Codex completion behavior.
+    /// from a suffix. Newlines are not reused as separators, matching 上游 completion behavior.
     pub(super) fn advance_past_file_completion_separator(&mut self) {
         let cursor = self.draft.textarea.cursor();
         let text = self.draft.textarea.text();

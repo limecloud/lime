@@ -247,7 +247,9 @@ impl BottomPane {
             ServerRequest::McpServerElicitationRequest { id, params } => {
                 McpServerElicitationOverlay::from_server_request(id.clone(), params).is_some()
             }
-            ServerRequest::DynamicToolCall { .. } => false,
+            ServerRequest::AccountAuthorize { .. }
+            | ServerRequest::ConnectionAuthorize { .. }
+            | ServerRequest::DynamicToolCall { .. } => false,
             ServerRequest::CurrentTimeRead { .. }
             | ServerRequest::ItemCommandExecutionRequestApproval { .. }
             | ServerRequest::ItemFileChangeRequestApproval { .. }

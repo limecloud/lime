@@ -31,7 +31,8 @@ export function CloudDesktopViewer({ onClose }: { onClose: () => void }) {
       const url = new URL(validateCloudDesktopViewEndpoint(response.endpoint));
       url.searchParams.set("autoconnect", "true");
       url.searchParams.set("resize", "scale");
-      url.searchParams.set("view_only", "true");
+      // The guest enables input only during consent or a human-control lease.
+      url.searchParams.set("view_only", "false");
       if (current.active) setEndpoint(url.toString());
     } catch (cause) {
       if (current.active)

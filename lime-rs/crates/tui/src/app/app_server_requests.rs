@@ -16,6 +16,26 @@ impl App {
         request: ServerRequest,
     ) {
         match request {
+            ServerRequest::ConnectionAuthorize { id, params } => {
+                let active = self.thread_id.as_deref() == Some(params.thread_id.as_str())
+                    && !self.history_replacement.is_pending();
+                if let Err(error) = app_server_client
+                    .respond_connection_authorization(id, params, active)
+                    .await
+                {
+                    self.projection.set_status(error.to_string());
+                }
+            }
+            ServerRequest::AccountAuthorize { id, params } => {
+                let active = self.thread_id.as_deref() == Some(params.thread_id.as_str())
+                    && !self.history_replacement.is_pending();
+                if let Err(error) = app_server_client
+                    .respond_account_authorization(id, params, active)
+                    .await
+                {
+                    self.projection.set_status(error.to_string());
+                }
+            }
             ServerRequest::CurrentTimeRead { id, .. } => {
                 if let Err(error) = app_server_client.respond_current_time(id).await {
                     self.projection.set_status(error.to_string());

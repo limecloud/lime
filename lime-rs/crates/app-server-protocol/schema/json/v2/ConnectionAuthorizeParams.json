@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The host opens the original file approval; the Cloud decision is read separately.",
+  "properties": {
+    "approvalUrl": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "type": "string"
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "approvalUrl",
+    "environment",
+    "expiresAt",
+    "requestId",
+    "threadId"
+  ],
+  "title": "ConnectionAuthorizeParams",
+  "type": "object"
+}

@@ -4,6 +4,9 @@ use super::*;
 use sha2::{Digest, Sha256};
 use std::io::{Read, Seek};
 
+mod error;
+pub(in crate::cloud_desktop_service) use error::CliError;
+
 const VERSION: &str = "3.5.2";
 const MAX_ARCHIVE: u64 = 150 * 1024 * 1024;
 const MAX_EXECUTABLE: u64 = 300 * 1024 * 1024;
@@ -254,6 +257,50 @@ impl CloudDesktopService {
         args: &[String],
         config: Option<PathBuf>,
     ) -> Result<Value, String> {
+        self.execute_cli_with_credential_window(product, version, region, profile, args, config, 0)
+            .await
+    }
+
+    pub(in crate::cloud_desktop_service) async fn execute_cli_with_credential_window(
+        &self,
+        product: &str,
+        version: Option<&str>,
+        region: &str,
+        profile: &str,
+        args: &[String],
+        config: Option<PathBuf>,
+        minimum_seconds: i64,
+    ) -> Result<Value, String> {
+        self.execute_cli_result(
+            product,
+            version,
+            region,
+            profile,
+            args,
+            config,
+            minimum_seconds,
+        )
+        .await
+        .map_err(|error| error.to_string())
+    }
+
+    pub(in crate::cloud_desktop_service) async fn execute_cli_result(
+        &self,
+        product: &str,
+        version: Option<&str>,
+        region: &str,
+        profile: &str,
+        args: &[String],
+        config: Option<PathBuf>,
+        minimum_seconds: i64,
+    ) -> Result<Value, CliError> {
+        let _credential_lock = match config.as_ref() {
+            Some(path) => Some(
+                self.lease_cli_configuration(path, profile, minimum_seconds)
+                    .await?,
+            ),
+            None => None,
+        };
         let mut command = Command::new(program(self));
         command.arg(product).args(args);
         if let Some(config) = config {
@@ -299,16 +346,16 @@ impl CloudDesktopService {
             )
             .map_err(|_| "Cannot read cloud response".to_owned())?;
             if bytes.len() as u64 > MAX_PROVIDER_BYTES || errors.len() > 16384 {
-                return Err("Cloud response exceeds size limit".to_owned());
+                return Err(CliError::from("Cloud response exceeds size limit"));
             }
             let status = child
                 .wait()
                 .await
                 .map_err(|_| "Cannot wait for cloud response".to_owned())?;
             if !status.success() {
-                return Err(provider_diagnostic(&errors));
+                return Err(CliError::provider(&errors));
             }
-            serde_json::from_slice(&bytes).map_err(|_| "Invalid cloud response".to_owned())
+            serde_json::from_slice(&bytes).map_err(|_| CliError::from("Invalid cloud response"))
         })
         .await
         .map_err(|_| "Cloud request timed out; outcome may be unknown")?;

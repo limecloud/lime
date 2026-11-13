@@ -249,7 +249,7 @@ fn searchable_picker_keeps_plain_vim_letters_for_query_input() {
 }
 
 #[test]
-fn picker_control_navigation_matches_codex_list_bindings() {
+fn picker_control_navigation_matches_upstream_list_bindings() {
     let mut picker = PickerState::new(
         vec![
             thread("one", "first", false),
@@ -362,7 +362,7 @@ fn picker_search_filters_preview_name_path_and_thread_id() {
 }
 
 #[test]
-fn picker_controls_match_codex_resume_shortcut_shapes() {
+fn picker_controls_match_upstream_resume_shortcut_shapes() {
     let mut picker = PickerState::new(
         vec![thread("one", "first", false)],
         SessionPickerAction::Resume,
@@ -395,7 +395,7 @@ fn picker_controls_match_codex_resume_shortcut_shapes() {
 }
 
 #[test]
-fn raw_ctrl_t_keycode_matches_codex_resume_shortcut() {
+fn raw_ctrl_t_keycode_matches_upstream_resume_shortcut() {
     let mut picker = PickerState::new(
         vec![thread("one", "first", false)],
         SessionPickerAction::Resume,
@@ -413,7 +413,7 @@ fn raw_ctrl_t_keycode_matches_codex_resume_shortcut() {
 }
 
 #[test]
-fn raw_ctrl_e_keycode_matches_codex_resume_shortcut() {
+fn raw_ctrl_e_keycode_matches_upstream_resume_shortcut() {
     let mut picker = PickerState::new(
         vec![thread("one", "first", false)],
         SessionPickerAction::Resume,
@@ -555,7 +555,7 @@ fn query_mutation_invalidates_a_previous_page_cursor() {
 }
 
 #[test]
-fn page_navigation_matches_codex_shape_and_reaches_the_next_cursor() {
+fn page_navigation_matches_upstream_shape_and_reaches_the_next_cursor() {
     let mut picker = PickerState::new(
         (0..12)
             .map(|index| thread(&format!("thread-{index}"), "preview", false))

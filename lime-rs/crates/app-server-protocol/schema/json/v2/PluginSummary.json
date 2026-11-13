@@ -1,5 +1,26 @@
 {
   "$defs": {
+    "MarketReleaseReference": {
+      "additionalProperties": false,
+      "description": "Immutable artifact identity, independent of the item's current publication.",
+      "properties": {
+        "archiveSha256": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archiveSha256",
+        "id",
+        "manifestSha256"
+      ],
+      "type": "object"
+    },
     "PluginAuthPolicy": {
       "enum": [
         "ON_INSTALL",
@@ -358,6 +379,17 @@
       },
       "type": "array"
     },
+    "localRelease": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MarketReleaseReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "localVersion": {
       "default": null,
       "type": [
@@ -381,6 +413,17 @@
         "null",
         "string"
       ]
+    },
+    "remoteRelease": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MarketReleaseReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "source": {
       "$ref": "#/$defs/PluginSource"

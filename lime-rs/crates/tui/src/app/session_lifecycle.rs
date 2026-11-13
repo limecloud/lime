@@ -56,7 +56,65 @@ impl App {
         );
         self.chat_widget.set_active_reasoning_effort_baseline();
         self.refresh_queued_submissions(session).await;
+        self.backfill_loaded_subagents(session).await;
         Ok(())
+    }
+
+    /// Register loaded child threads discovered after resume, so agent navigation and the agent
+    /// picker include subagents spawned before this process attached.
+    pub(crate) async fn backfill_loaded_subagents(&mut self, session: &AppServerSession) -> usize {
+        let Some(primary_thread_id) = self
+            .primary_thread_id
+            .clone()
+            .or_else(|| self.thread_id.clone())
+        else {
+            return 0;
+        };
+        let loaded_ids = match session.thread_loaded_list().await {
+            Ok(loaded_ids) => loaded_ids,
+            Err(error) => {
+                tracing::warn!(%error, "failed to list loaded threads for subagent backfill");
+                return 0;
+            }
+        };
+        let mut nodes = Vec::new();
+        let mut threads = std::collections::HashMap::new();
+        for thread_id in loaded_ids {
+            if thread_id == primary_thread_id {
+                continue;
+            }
+            match session.thread_read_metadata(thread_id).await {
+                Ok(thread) => {
+                    nodes.push(super::subagent_backfill::LoadedThreadNode {
+                        thread_id: thread.id.clone(),
+                        parent_thread_id: thread.parent_thread_id.clone(),
+                    });
+                    threads.insert(thread.id.clone(), thread);
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read loaded thread during subagent backfill");
+                }
+            }
+        }
+        let discovered =
+            super::subagent_backfill::descendant_thread_ids(&primary_thread_id, &nodes);
+        for thread_id in &discovered {
+            let Some(thread) = threads.get(thread_id) else {
+                continue;
+            };
+            self.chat_widget.agent_navigation.upsert(
+                thread.id.clone(),
+                thread.agent_nickname.clone(),
+                thread.agent_role.clone(),
+                false,
+            );
+            if thread.parent_thread_id.is_some() {
+                self.chat_widget
+                    .agent_navigation
+                    .mark_parent_owned(thread.id.clone());
+            }
+        }
+        discovered.len()
     }
 
     /// Create a new canonical thread and make it the interactive target.

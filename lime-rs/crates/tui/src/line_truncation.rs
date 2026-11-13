@@ -1,4 +1,4 @@
-//! Styled line truncation adapted from Codex TUI.
+//! Styled line truncation adapted from 上游 TUI.
 
 use ratatui::text::{Line, Span};
 use unicode_segmentation::UnicodeSegmentation;
