@@ -57,8 +57,7 @@
     "desktop_permissions_complete",
     "open_external_url",
     "is_default_browser",
-    "show_desktop_notification",
-    "start_oem_cloud_oauth_callback_bridge"
+    "show_desktop_notification"
   ],
   "fileBrowserCommands": [
     "open_in_get_targets",

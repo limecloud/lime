@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import agentCommandCatalog from "../src/lib/governance/agentCommandCatalog.json";
 
 import {
   ELECTRON_APP_SERVER_COMMANDS,
@@ -194,7 +195,10 @@ describe("electron/ipcChannels", () => {
       true,
     );
     expect(isElectronHostCommand("start_oem_cloud_oauth_callback_bridge")).toBe(
-      true,
+      false,
+    );
+    expect(agentCommandCatalog.systemUtilityCommands).not.toContain(
+      "start_oem_cloud_oauth_callback_bridge",
     );
     expect(
       isElectronHostCommand("get_skill_package_file_association_status"),
