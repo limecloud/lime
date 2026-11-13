@@ -1713,7 +1713,7 @@ describe("ElectronAppServerHost", () => {
     expect(requestCalls[0]?.[2]).toMatchObject({ timeoutMs: 240000 });
   });
 
-  it("插件安装、协调与分享保留长等待窗口", async () => {
+  it("插件安装与协调保留长等待窗口", async () => {
     const { ElectronAppServerHost } = await import("./appServerHost");
     const host = new ElectronAppServerHost();
 
@@ -1732,14 +1732,6 @@ describe("ElectronAppServerHost", () => {
           method: "plugin/reconcile",
           params: {},
         }),
-        ...["save", "list", "updateTargets", "checkout", "delete"].map(
-          (operation) =>
-            encodeMessage({
-              id: `share-${operation}`,
-              method: `plugin/share/${operation}`,
-              params: {},
-            }),
-        ),
       ],
     });
 
@@ -1749,14 +1741,9 @@ describe("ElectronAppServerHost", () => {
     expect(requestCalls.map(([, method]) => method)).toEqual([
       "plugin/install",
       "plugin/reconcile",
-      "plugin/share/save",
-      "plugin/share/list",
-      "plugin/share/updateTargets",
-      "plugin/share/checkout",
-      "plugin/share/delete",
     ]);
     expect(requestCalls.map(([, , options]) => options.timeoutMs)).toEqual([
-      150000, 150000, 150000, 150000, 150000, 150000, 150000,
+      150000, 150000,
     ]);
   });
 });

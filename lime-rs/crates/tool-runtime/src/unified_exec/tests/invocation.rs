@@ -117,10 +117,12 @@ async fn polls_and_write_stdin_keep_original_invocation_and_publish_one_executio
 
 #[tokio::test]
 async fn background_exit_publishes_original_command_without_another_tool_call() {
+    let thread_id = "thread-background-autonomous";
     let params = json!({"cmd": "long-running", "yield_time_ms": 250});
     let gateway = Arc::new(FixtureGateway::default());
     let sink = Arc::new(RecordingOutputSink::default());
     let mut start = request(EXEC_COMMAND_TOOL_NAME, &params, "call-autonomous");
+    start.thread_id = thread_id;
     start.output_sink = Some(sink.clone());
     let running = execute_runtime_unified_exec_tool(gateway.clone(), start)
         .await
@@ -161,5 +163,25 @@ async fn background_exit_publishes_original_command_without_another_tool_call() 
         terminals[0].output.as_ref().unwrap().metadata["command_output"],
         json!("started\nfinished\n")
     );
+    drop(results);
+    assert!(find_session(session_id).is_ok());
+
+    let params = json!({"session_id":session_id,"chars":"","yield_time_ms":250});
+    let mut poll = request(WRITE_STDIN_TOOL_NAME, &params, "collect-autonomous");
+    poll.thread_id = thread_id;
+    let result = execute_runtime_unified_exec_tool(gateway, poll)
+        .await
+        .expect("a published exit must remain available to the model");
+    assert_eq!(result.structured_content.unwrap()["exit_code"], 0);
     assert!(find_session(session_id).is_err());
+    assert_eq!(
+        sink.command_results
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|event| event.output.as_ref().unwrap().metadata["session_id"].is_null())
+            .count(),
+        1,
+        "collecting the exit must not publish another terminal event"
+    );
 }
