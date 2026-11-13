@@ -99,7 +99,7 @@ describe("useAgentChat slash skill 执行链路", () => {
         "react",
         expect.objectContaining({
           runStartHooks: true,
-          workingDir: null,
+          workingDir: undefined,
         }),
       );
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledWith(
@@ -211,7 +211,7 @@ describe("useAgentChat slash skill 执行链路", () => {
         "react",
         {
           runStartHooks: true,
-          workingDir: null,
+          workingDir: undefined,
           metadata: expect.objectContaining({
             modelName: expect.any(String),
             providerSelector: expect.any(String),
@@ -306,7 +306,7 @@ describe("useAgentChat slash skill 执行链路", () => {
         "react",
         {
           runStartHooks: true,
-          workingDir: null,
+          workingDir: undefined,
           metadata: {
             providerSelector: selectedProvider,
             modelName: selectedModel,

@@ -249,16 +249,18 @@ async fn write_stdin(
     let process_id = session_identity.process_id.clone();
     {
         let mut session = session.lock().await;
-        if session.completed {
-            return Err(unified_exec_error("unified exec process already completed"));
-        }
         if session.thread_id != request.thread_id {
             return Err(unified_exec_error(format!(
                 "unified exec session {} does not belong to thread {}",
                 input.session_id, request.thread_id
             )));
         }
-        gateway.write_stdin(&session.process_id, input.chars.as_bytes())?;
+        if !input.chars.is_empty() {
+            if session.completed {
+                return Err(unified_exec_error("unified exec process already completed"));
+            }
+            gateway.write_stdin(&session.process_id, input.chars.as_bytes())?;
+        }
         session
             .invocation
             .record_interaction(&process_id, terminal_interaction_summary(&input.chars));

@@ -18,6 +18,9 @@ mod invocation;
 #[path = "tests/cancellation.rs"]
 mod cancellation;
 
+#[path = "tests/completion.rs"]
+mod completion;
+
 #[test]
 fn powershell_login_flag_controls_profile_loading() {
     assert_eq!(

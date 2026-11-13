@@ -91,7 +91,7 @@ async fn stdio_preflight_validates_exact_quote_and_purchase_cannot_skip_it() {
         result["result"]["data"],
         json!({"operationId":"preflight-required",
         "outcome":"notSubmitted","submitted":false,"requiresInspection":false,
-        "diagnostic":"CLOUD_PURCHASE_PREFLIGHT_REQUIRED"})
+        "diagnostic":"CLOUD_PURCHASE_PREFLIGHT_REQUIRED","providerCode":null})
     );
     let listed = peer
         .request_ok(6, "cloud/desktop", json!({"action":"listResources"}))

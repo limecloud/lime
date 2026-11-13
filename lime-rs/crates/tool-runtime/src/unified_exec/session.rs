@@ -111,10 +111,7 @@ async fn sessions_for_scope(
     let mut owned = Vec::new();
     for (id, session) in sessions {
         let facts = session_facts(&session).await;
-        if facts.thread_id == thread_id
-            && turn_id.is_none_or(|turn_id| facts.turn_id == turn_id)
-            && !facts.completed
-        {
+        if facts.thread_id == thread_id && turn_id.is_none_or(|turn_id| facts.turn_id == turn_id) {
             owned.push((id, session));
         }
     }

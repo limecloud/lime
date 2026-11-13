@@ -32,6 +32,7 @@ async fn terminate_processes(
         let facts = session_facts(&session).await;
         let _interaction = facts.interaction_lock.lock().await;
         if session.lock().await.completed {
+            remove_session(id);
             continue;
         }
         let result = async {

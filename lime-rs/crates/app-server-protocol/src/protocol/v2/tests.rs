@@ -2623,6 +2623,8 @@ fn v2_method_registry_round_trips_wire_names() {
         SERVER_REQUEST_METHODS,
         &[
             METHOD_CURRENT_TIME_READ,
+            METHOD_ACCOUNT_AUTHORIZE,
+            METHOD_CONNECTION_AUTHORIZE,
             METHOD_MCP_SERVER_ELICITATION_REQUEST,
             METHOD_ITEM_COMMAND_EXECUTION_REQUEST_APPROVAL,
             METHOD_ITEM_FILE_CHANGE_REQUEST_APPROVAL,
@@ -3333,6 +3335,8 @@ fn plugin_search_matches_codex_request_and_response_wire() {
             "plugin": {
                 "id": "browser",
                 "remotePluginId": null,
+                "remoteRelease": null,
+                "localRelease": null,
                 "version": "1.0.0",
                 "localVersion": null,
                 "name": "Browser",

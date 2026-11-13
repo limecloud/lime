@@ -23,7 +23,8 @@ pub(super) fn spawn_exit_watcher(
                     let snapshot = gateway.wait_for_exit(&facts.process_id).await?;
                     observe_output(gateway.as_ref(), &session, &snapshot).await?;
                     publish_snapshot(session_id, &session, snapshot).await?;
-                    remove_session(session_id);
+                    // Keep the uncollected exit for the next model poll. The
+                    // collector or explicit shutdown owns session removal.
                     return Ok::<_, crate::tool_executor::RuntimeToolExecutionError>(true);
                 }
                 Ok(false)

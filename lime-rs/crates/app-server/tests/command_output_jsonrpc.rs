@@ -56,7 +56,10 @@ impl ExecutionBackend for CommandOutputBackend {
             kind: payload.kind(),
             status: ItemStatus::InProgress,
             payload,
-            metadata: json!({"executionSurface": "unified_exec"}),
+            metadata: json!({
+                "executionSurface": "unified_exec",
+                "exec_command_call_id": "raw-command",
+            }),
         };
         sink.emit(RuntimeEvent::new("item.started", json!({"item": item})))?;
         for delta in DELTAS {

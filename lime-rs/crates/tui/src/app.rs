@@ -445,6 +445,13 @@ impl App {
         if self.thread_id.as_deref() != Some(thread_id) {
             return;
         }
+        self.apply_live_thread_status(status);
+    }
+
+    fn apply_live_thread_status(
+        &mut self,
+        status: &app_server_protocol::protocol::v2::ThreadStatus,
+    ) {
         use app_server_protocol::protocol::v2::ThreadStatus;
         match status {
             ThreadStatus::Active { active_flags } => {
@@ -485,7 +492,7 @@ impl App {
     }
 
     pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
-        self.note_thread_status(&thread.id, &thread.status);
+        self.apply_live_thread_status(&thread.status);
         self.thread_git_branch = thread
             .git_info
             .as_ref()

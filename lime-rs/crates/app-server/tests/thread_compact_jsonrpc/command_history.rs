@@ -54,12 +54,12 @@ fn script(wire: Wire) -> impl FnMut(&Capture) -> Option<(String, String, Value)>
             }
             _ => {
                 let entries = invocations(capture, wire);
-                let result = serde_json::from_str::<Value>(
-                    entries.last().expect("command result")["output"]
-                        .as_str()
-                        .expect("structured command result"),
-                )
-                .expect("command result JSON");
+                let output = entries.last().expect("command result")["output"]
+                    .as_str()
+                    .expect("structured command result");
+                let result = serde_json::from_str::<Value>(output).unwrap_or_else(|error| {
+                    panic!("command result JSON for {wire:?}: {error}; output={output:?}")
+                });
                 if !result["exit_code"].is_null() {
                     assert_eq!(result["exit_code"], 0, "command failed: {result}");
                     return None;

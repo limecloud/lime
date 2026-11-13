@@ -320,7 +320,7 @@ describe("useAgentChat 偏好持久化 - storage cleanup", () => {
         "react",
         {
           runStartHooks: true,
-          workingDir: null,
+          workingDir: undefined,
           metadata: expectCurrentProviderRoutingMetadata(),
         },
       );
@@ -373,7 +373,7 @@ describe("useAgentChat 偏好持久化 - storage cleanup", () => {
         "react",
         {
           runStartHooks: true,
-          workingDir: null,
+          workingDir: undefined,
           metadata: expectCurrentProviderRoutingMetadata(),
         },
       );
