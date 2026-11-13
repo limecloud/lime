@@ -434,7 +434,6 @@ export function buildWorkspaceRequestMetadata(
     workspaceRequestMetadataBase,
     sendOptions,
 
-    currentProviderType,
     effectiveToolPreferences,
     mappedTheme,
     isThemeWorkbench,

@@ -70,7 +70,7 @@ export function useOfficialSkillMarketplace(
     } finally {
       if (pending.current === request) setIsLoading(false);
     }
-  }, [enabled, identity, language]);
+  }, [enabled, identity]);
 
   useEffect(() => {
     setSkills([]);
@@ -78,7 +78,7 @@ export function useOfficialSkillMarketplace(
     return () => {
       pending.current = null;
     };
-  }, [refresh]);
+  }, [language, refresh]);
 
   return { skills, isLoading, error, refresh };
 }

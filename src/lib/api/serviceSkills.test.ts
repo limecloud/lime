@@ -149,24 +149,6 @@ function buildLegacyExecutionLocationRemoteCatalog(): ServiceSkillCompatCatalog 
   };
 }
 
-function buildStaleRemoteCatalog(): ServiceSkillCatalog {
-  const seeded = getSeededServiceSkillCatalog();
-  return {
-    version: "tenant-2026-03-20",
-    tenantId: "tenant-demo",
-    syncedAt: "2026-03-20T08:00:00.000Z",
-    items: [
-      {
-        ...seeded.items[0]!,
-        id: "tenant-stale-skill",
-        title: "过期目录项",
-        summary: "旧的租户目录快照",
-        version: "tenant-2026-03-20",
-      },
-    ],
-  };
-}
-
 describe("serviceSkills API", () => {
   beforeEach(() => {
     window.localStorage.clear();

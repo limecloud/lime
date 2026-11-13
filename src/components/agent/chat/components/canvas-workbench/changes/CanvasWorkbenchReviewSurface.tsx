@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { CanvasWorkbenchChangesContent } from "./CanvasWorkbenchChangesContent";
-import { CanvasWorkbenchViewedChangesProvider } from "./CanvasWorkbenchViewedChangesContext";
+import { CanvasWorkbenchViewedChangesProvider } from "./CanvasWorkbenchViewedChangesProvider";
 import {
   CanvasWorkbenchChangesToolbar,
   type CanvasWorkbenchChangesToolbarProps,
