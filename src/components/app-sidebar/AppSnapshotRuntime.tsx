@@ -17,10 +17,17 @@ interface BareModifierEvent {
   timestamp?: unknown;
 }
 
+export function supportsNativeAppSnapshots(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const platform = navigator.platform || navigator.userAgent || "";
+  return /mac/i.test(platform);
+}
+
 export function AppSnapshotRuntime() {
   const { t } = useTranslation("navigation");
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!supportsNativeAppSnapshots()) return;
     const detector = new DoubleCommandDetector();
     let disposed = false;
     let triggering = false;

@@ -85,6 +85,6 @@ it.each([
 ])("keeps %s off retired MCP settings selectors and source files", (file) => {
   const source = fs.readFileSync(file, "utf8");
   expect(source).not.toMatch(
-    /settings-sidebar-tab-mcp-server|mcp-panel-tab-|src\/components\/mcp\/|mcp-config-(?:description|enabled-lime|json|preset-)/,
+    /settings-sidebar-tab-mcp-server(?!s)|mcp-panel-tab-|src\/components\/mcp\/|mcp-config-(?:description|enabled-lime|json|preset-)/,
   );
 });

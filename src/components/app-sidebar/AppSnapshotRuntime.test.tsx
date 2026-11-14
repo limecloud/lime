@@ -37,6 +37,7 @@ let container: HTMLDivElement;
 beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.clearAllMocks();
+  vi.spyOn(window.navigator, "platform", "get").mockReturnValue("MacIntel");
   mocks.trigger.mockResolvedValue(true);
   mocks.start.mockResolvedValue({ started: true });
   mocks.listen.mockImplementation((_event, handler) => {
@@ -52,6 +53,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  vi.restoreAllMocks();
   container.remove();
 });
 
