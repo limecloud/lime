@@ -2627,5 +2627,7 @@
   "settings.browser.passwordManagerEdit": "Edit",
   "settings.connections.editTitle": "Edit SSH connection",
   "settings.connections.edit": "Edit",
-  "settings.connections.updateFailed": "Could not update the SSH connection"
+  "settings.connections.updateFailed": "Could not update the SSH connection",
+  "settings.browser.extensionsEnable": "Enable",
+  "settings.browser.extensionsDisable": "Disable"
 }

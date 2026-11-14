@@ -32,6 +32,7 @@ describe("browserExtensionsHost", () => {
         version: "1.0.0",
         manifestVersion: 3,
         path: "/tmp/ext",
+        enabled: true,
       },
     ]);
   });
@@ -44,6 +45,7 @@ describe("browserExtensionsHost", () => {
       version: "1.0.0",
       manifestVersion: 3,
       path: "/tmp/ext",
+      enabled: true,
     });
     expect(fake.loadExtension).toHaveBeenCalledWith("/tmp/ext", {
       allowFileAccess: true,
@@ -72,11 +74,16 @@ describe("BrowserExtensionStore", () => {
     await store.add({ id: "a", path: "/tmp/a" });
     await store.add({ id: "b", path: "/tmp/b" });
     expect(await store.read()).toEqual([
-      { id: "a", path: "/tmp/a" },
-      { id: "b", path: "/tmp/b" },
+      { id: "a", path: "/tmp/a", enabled: true },
+      { id: "b", path: "/tmp/b", enabled: true },
     ]);
+    await expect(store.setEnabled("a", false)).resolves.toBe(true);
+    expect((await store.read())[0]).toMatchObject({ id: "a", enabled: false });
+    await expect(store.setEnabled("missing", false)).resolves.toBe(false);
     await store.remove("a");
-    expect(await store.read()).toEqual([{ id: "b", path: "/tmp/b" }]);
+    expect(await store.read()).toEqual([
+      { id: "b", path: "/tmp/b", enabled: true },
+    ]);
   });
 
   it("启动时恢复记录并跳过损坏扩展", async () => {
@@ -112,6 +119,7 @@ describe("BrowserExtensionStore", () => {
         version: "1.0.0",
         path: "/tmp/a",
         manifestVersion: 3,
+        enabled: true,
       },
     ]);
   });

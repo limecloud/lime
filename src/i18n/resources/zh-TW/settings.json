@@ -2627,5 +2627,7 @@
   "settings.browser.passwordManagerEdit": "編輯",
   "settings.connections.editTitle": "編輯 SSH 連線",
   "settings.connections.edit": "編輯",
-  "settings.connections.updateFailed": "無法更新 SSH 連線"
+  "settings.connections.updateFailed": "無法更新 SSH 連線",
+  "settings.browser.extensionsEnable": "啟用",
+  "settings.browser.extensionsDisable": "停用"
 }

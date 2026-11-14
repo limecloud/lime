@@ -2627,5 +2627,7 @@
   "settings.browser.passwordManagerEdit": "편집",
   "settings.connections.editTitle": "SSH 연결 편집",
   "settings.connections.edit": "편집",
-  "settings.connections.updateFailed": "SSH 연결을 업데이트하지 못했습니다"
+  "settings.connections.updateFailed": "SSH 연결을 업데이트하지 못했습니다",
+  "settings.browser.extensionsEnable": "사용",
+  "settings.browser.extensionsDisable": "사용 안 함"
 }

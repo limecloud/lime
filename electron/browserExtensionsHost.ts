@@ -7,6 +7,7 @@ export interface BrowserExtensionRecord {
   version: string;
   manifestVersion: number | null;
   path: string;
+  enabled: boolean;
 }
 
 interface RawBrowserExtension {
@@ -33,6 +34,7 @@ function toRecord(extension: RawBrowserExtension): BrowserExtensionRecord {
     version: extension.version,
     manifestVersion: extension.manifest?.manifest_version ?? null,
     path: extension.path,
+    enabled: true,
   };
 }
 
@@ -67,6 +69,9 @@ export function removeBrowserExtension(
 export interface PersistedBrowserExtension {
   id: string;
   path: string;
+  name?: string;
+  version?: string;
+  enabled?: boolean;
 }
 
 export class BrowserExtensionStore {
@@ -98,8 +103,21 @@ export class BrowserExtensionStore {
     const next = records.filter(
       (entry) => entry.id !== record.id && entry.path !== record.path,
     );
-    next.push(record);
+    next.push({ ...record, enabled: record.enabled !== false });
     await this.#write(next);
+  }
+
+  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
+    const records = await this.read();
+    const record = records.find((entry) => entry.id === id);
+    if (!record) return false;
+    record.enabled = enabled;
+    await this.#write(records);
+    return true;
+  }
+
+  async find(id: string): Promise<PersistedBrowserExtension | null> {
+    return (await this.read()).find((entry) => entry.id === id) ?? null;
   }
 
   async remove(id: string): Promise<void> {
@@ -119,6 +137,7 @@ export async function restoreBrowserExtensions(
 ): Promise<BrowserExtensionRecord[]> {
   const restored: BrowserExtensionRecord[] = [];
   for (const record of await store.read()) {
+    if (record.enabled === false) continue;
     try {
       restored.push(
         toRecord(

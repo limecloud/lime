@@ -60,6 +60,7 @@ export const ELECTRON_HOST_COMMANDS = [
   "browser_extensions_list",
   "browser_extensions_load",
   "browser_extensions_remove",
+  "browser_extensions_set_enabled",
   "browser_passwords_list",
   "browser_passwords_save",
   "browser_passwords_remove",

@@ -7,6 +7,7 @@ import {
   listBrowserExtensions,
   loadBrowserExtension,
   removeBrowserExtension,
+  setBrowserExtensionEnabled,
   type BrowserExtensionSummary,
 } from "@/lib/api/browserExtensions";
 import { BROWSER_SETTINGS_BUTTON } from "./BrowserSettingsFields";
@@ -85,6 +86,19 @@ export function BrowserExtensionsDialog({
     }
   };
 
+  const toggleEnabled = async (extension: BrowserExtensionSummary) => {
+    setPending(true);
+    setError(null);
+    try {
+      await setBrowserExtensionEnabled(extension.id, !extension.enabled);
+      await refresh();
+    } catch {
+      if (alive.current) setError("import");
+    } finally {
+      if (alive.current) setPending(false);
+    }
+  };
+
   const remove = async (id: string) => {
     setPending(true);
     setError(null);
@@ -152,6 +166,16 @@ export function BrowserExtensionsDialog({
                       {extension.path}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    className={BROWSER_SETTINGS_BUTTON}
+                    disabled={pending}
+                    onClick={() => void toggleEnabled(extension)}
+                  >
+                    {extension.enabled
+                      ? t("settings.browser.extensionsDisable")
+                      : t("settings.browser.extensionsEnable")}
+                  </button>
                   <button
                     type="button"
                     className={BROWSER_SETTINGS_BUTTON}

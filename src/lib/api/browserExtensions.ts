@@ -6,6 +6,7 @@ export interface BrowserExtensionSummary {
   version: string;
   manifestVersion: number | null;
   path: string;
+  enabled: boolean;
 }
 
 function isExtensionSummary(value: unknown): value is BrowserExtensionSummary {
@@ -17,6 +18,7 @@ function isExtensionSummary(value: unknown): value is BrowserExtensionSummary {
     typeof record.name === "string" &&
     typeof record.version === "string" &&
     typeof record.path === "string" &&
+    typeof record.enabled === "boolean" &&
     (record.manifestVersion === null ||
       typeof record.manifestVersion === "number")
   );
@@ -51,4 +53,18 @@ export async function removeBrowserExtension(id: string): Promise<void> {
   if (result !== true) {
     throw new Error("browser extension remove failed");
   }
+}
+
+export async function setBrowserExtensionEnabled(
+  id: string,
+  enabled: boolean,
+): Promise<BrowserExtensionSummary> {
+  const result = await safeInvoke<unknown>("browser_extensions_set_enabled", {
+    id,
+    enabled,
+  });
+  if (!isExtensionSummary(result)) {
+    throw new Error("browser extension update returned an invalid result");
+  }
+  return result;
 }

@@ -110,6 +110,24 @@ impl AppServerSession {
         Ok(response.data)
     }
 
+    pub(crate) async fn thread_read_with_turns(
+        &self,
+        thread_id: String,
+    ) -> Result<app_server_protocol::protocol::v2::Thread> {
+        let response: app_server_protocol::protocol::v2::ThreadReadResponse = self
+            .request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_READ,
+                app_server_protocol::protocol::v2::ThreadReadParams {
+                    thread_id,
+                    include_turns: true,
+                },
+            )
+            .await
+            .context("failed to read the parent thread for the side pane")?;
+        Ok(response.thread)
+    }
+
     pub(crate) async fn thread_read_metadata(
         &self,
         thread_id: String,

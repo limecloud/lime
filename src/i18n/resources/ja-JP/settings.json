@@ -2627,5 +2627,7 @@
   "settings.browser.passwordManagerEdit": "編集",
   "settings.connections.editTitle": "SSH 接続を編集",
   "settings.connections.edit": "編集",
-  "settings.connections.updateFailed": "SSH 接続を更新できませんでした"
+  "settings.connections.updateFailed": "SSH 接続を更新できませんでした",
+  "settings.browser.extensionsEnable": "有効化",
+  "settings.browser.extensionsDisable": "無効化"
 }

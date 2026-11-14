@@ -3,6 +3,7 @@ import {
   listBrowserExtensions,
   loadBrowserExtension,
   removeBrowserExtension,
+  setBrowserExtensionEnabled,
 } from "./browserExtensions";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -14,6 +15,7 @@ const extension = {
   version: "1.0.0",
   manifestVersion: 3,
   path: "/tmp/ext",
+  enabled: true,
 };
 
 describe("browserExtensions", () => {
@@ -52,5 +54,17 @@ describe("browserExtensions", () => {
     await expect(removeBrowserExtension("abc123")).rejects.toThrow(
       "remove failed",
     );
+  });
+
+  it("启用/禁用扩展并校验返回结构", async () => {
+    const disabled = { ...extension, enabled: false };
+    invoke.mockResolvedValue(disabled);
+    await expect(setBrowserExtensionEnabled("abc123", false)).resolves.toEqual(
+      disabled,
+    );
+    expect(invoke).toHaveBeenCalledWith("browser_extensions_set_enabled", {
+      id: "abc123",
+      enabled: false,
+    });
   });
 });

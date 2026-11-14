@@ -90211,7 +90211,7 @@
         "wrapping/tests.rs",
         "wrapping/url.rs"
       ],
-      "symbolCount": 6861,
+      "symbolCount": 6864,
       "symbols": [
         {
           "path": "app.rs",
@@ -90392,6 +90392,11 @@
           "path": "app.rs",
           "name": "TranscriptSelectionTarget",
           "kind": "type"
+        },
+        {
+          "path": "app.rs",
+          "name": "update_side_parent_snapshot",
+          "kind": "function"
         },
         {
           "path": "app/agent_center/hints.rs",
@@ -95160,6 +95165,11 @@
         },
         {
           "path": "app/tests.rs",
+          "name": "side_parent_snapshot_can_be_refreshed_while_the_side_is_open",
+          "kind": "function"
+        },
+        {
+          "path": "app/tests.rs",
           "name": "side_thread_title_uses_the_parent_name_when_known",
           "kind": "function"
         },
@@ -96931,6 +96941,11 @@
         {
           "path": "app_server_session/thread.rs",
           "name": "thread_read_metadata",
+          "kind": "function"
+        },
+        {
+          "path": "app_server_session/thread.rs",
+          "name": "thread_read_with_turns",
           "kind": "function"
         },
         {
@@ -124519,7 +124534,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "759f610c8f0ebf308ff61839e0c6a73a84b9a4e659a18247738d138ecf3500b5"
+      "treeSha256": "3e1ff0762afcfb6e1cb33f2b91d9835f55d8b3d176f5a32c78d7683eb0aff198"
     },
     "codex-rs/tui/tests": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/tui/tests",
@@ -143419,6 +143434,7 @@
       "side_parent_needs_input",
       "side_parent_pane_title",
       "side_parent_snapshot",
+      "side_parent_snapshot_can_be_refreshed_while_the_side_is_open",
       "side_parent_working",
       "side_returned",
       "side_split_renders_parent_snapshot_and_side_transcript",
@@ -143721,6 +143737,7 @@
       "thread_notifications_route_to_their_thread",
       "thread_pages_append_unique_threads_and_keep_the_next_cursor",
       "thread_read_metadata",
+      "thread_read_with_turns",
       "thread_state",
       "thread_to_transcript_entries",
       "thread_turns_for_items",
@@ -143959,6 +143976,7 @@
       "update_rows",
       "update_settings",
       "update_settings_with_policy",
+      "update_side_parent_snapshot",
       "update_snapshot_layout",
       "update_thread_cwd",
       "updated_label",

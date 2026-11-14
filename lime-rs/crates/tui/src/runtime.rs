@@ -83,6 +83,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     status_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut recap_tick = tokio::time::interval(Duration::from_secs(60));
     recap_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut side_refresh_tick = tokio::time::interval(Duration::from_secs(5));
+    side_refresh_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let run_result: Result<()> = async {
         let mut resume_picker_load_tx: Option<tokio::sync::mpsc::UnboundedSender<PickerLoadEvent>> =
             None;
@@ -355,6 +357,31 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                 }
                 _ = status_tick.tick(), if app.projection.active_turn_id().is_some() => {
                     frame_requester.schedule_frame();
+                }
+                _ = side_refresh_tick.tick(), if app.side_parent_snapshot().is_some() => {
+                    let parent_thread_id = app
+                        .thread_id
+                        .as_deref()
+                        .and_then(|thread_id| app.side_state.parent_of(thread_id))
+                        .map(str::to_string);
+                    let Some(parent_thread_id) = parent_thread_id else { continue };
+                    let Some(session_ref) = session.as_ref() else { continue };
+                    if let Ok(thread) = session_ref
+                        .thread_read_with_turns(parent_thread_id)
+                        .await
+                    {
+                        let title = thread
+                            .name
+                            .clone()
+                            .unwrap_or_else(|| thread.id.clone());
+                        let mut projection =
+                            crate::projection::ConversationProjection::default();
+                        projection.hydrate_thread(thread);
+                        app.update_side_parent_snapshot(
+                            title,
+                            projection.entries().to_vec(),
+                        );
+                    }
                 }
                 _ = recap_tick.tick(), if app.chat_widget.tui_config.auto_recap => {
                     let due = app.projection.active_turn_id().is_none()

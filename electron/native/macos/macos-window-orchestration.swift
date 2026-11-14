@@ -90,6 +90,11 @@ func accessibilityWindowMatching(ownerPID: pid_t, frame: CGRect) throws -> AXUIE
         "AXManualAccessibility" as CFString,
         kCFBooleanTrue
     )
+    AXUIElementSetAttributeValue(
+        application,
+        "AXEnhancedUserInterface" as CFString,
+        kCFBooleanTrue
+    )
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &value) == .success,
           let value,

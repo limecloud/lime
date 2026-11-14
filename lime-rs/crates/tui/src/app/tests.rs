@@ -848,6 +848,26 @@ fn voice_slash_command_starts_dictation_when_idle() {
 }
 
 #[test]
+fn side_parent_snapshot_can_be_refreshed_while_the_side_is_open() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.projection.add_info_message("parent update");
+    let entries = app.projection.entries().to_vec();
+    app.side_state
+        .open("side-thread".to_string(), "parent-thread".to_string());
+    app.set_thread_id("side-thread".into());
+    app.update_side_parent_snapshot("Roadmap".to_string(), entries);
+    let snapshot = app
+        .side_parent_snapshot()
+        .expect("snapshot without side thread");
+    assert_eq!(snapshot.title, "Roadmap");
+    assert!(snapshot
+        .entries
+        .iter()
+        .any(|entry| entry.text.contains("parent update")));
+}
+
+#[test]
 fn side_thread_title_uses_the_parent_name_when_known() {
     let mut app = App::default();
     app.set_locale(Locale::EnUs);

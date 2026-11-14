@@ -177,8 +177,49 @@ export class ElectronHostCommands {
         await this.#browserExtensionsStore.add({
           id: extension.id,
           path: extension.path,
+          name: extension.name,
+          version: extension.version,
+          enabled: true,
         });
         return extension;
+      }
+      case "browser_extensions_set_enabled": {
+        const record = toRecord(args) ?? {};
+        const id = readRequiredString(record, "id");
+        const enabled = record.enabled;
+        if (typeof enabled !== "boolean") {
+          throw new Error("Invalid extension enabled flag");
+        }
+        const session = openEmbeddedBrowserSession();
+        if (enabled) {
+          const stored = await this.#browserExtensionsStore.find(id);
+          if (!stored) throw new Error("扩展不存在");
+          const extension = await loadBrowserExtension(session, stored.path);
+          await this.#browserExtensionsStore.add({
+            id: extension.id,
+            path: extension.path,
+            name: extension.name,
+            version: extension.version,
+            enabled: true,
+          });
+          return extension;
+        }
+        try {
+          removeBrowserExtension(session, id);
+        } catch {
+          // 已禁用的扩展可能未被加载。
+        }
+        await this.#browserExtensionsStore.setEnabled(id, false);
+        const stored = await this.#browserExtensionsStore.find(id);
+        if (!stored) throw new Error("扩展不存在");
+        return {
+          id: stored.id,
+          name: stored.name ?? stored.path,
+          version: stored.version ?? "",
+          manifestVersion: null,
+          path: stored.path,
+          enabled: false,
+        };
       }
       case "browser_extensions_remove": {
         const id = readRequiredString(toRecord(args) ?? {}, "id");

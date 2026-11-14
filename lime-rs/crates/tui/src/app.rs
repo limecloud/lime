@@ -466,6 +466,15 @@ impl App {
             .unwrap_or_else(|| thread_id.to_string())
     }
 
+    pub(crate) fn update_side_parent_snapshot(
+        &mut self,
+        title: String,
+        entries: Vec<crate::projection::TranscriptEntry>,
+    ) {
+        self.side_state
+            .set_parent_snapshot(side::SideParentSnapshot { title, entries });
+    }
+
     pub(crate) fn side_parent_snapshot(&self) -> Option<&side::SideParentSnapshot> {
         let thread_id = self.thread_id.as_deref()?;
         self.side_state
