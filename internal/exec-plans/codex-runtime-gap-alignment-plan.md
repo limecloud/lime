@@ -2969,6 +2969,15 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
 - **验证**：TUI **2020 passed**；app-server-protocol **154 passed**；结构清单+gate 静态 **101 passed**；
   `current-entrypoints` **29 passed**；本机全量 Matrix 受锁竞争未完成。
 
+- **2026-11-14 第二百零九轮（阻塞收口）**：
+  - v1.177.0、v1.177.1 两次 tag 的 Windows 安装版 smoke 均在 `installed-shell-01` 失败，
+    阶段 `renderer-reload`，`bridge.electron=false`；构建/打包与安装步骤通过，属 Electron
+    renderer 重载失败，非 TUI。
+  - Frontend Full 仍有 MCP fixture 引用退役 settings 选择器（GUI/MCP owner）。
+  - TUI 侧可落地项：`/voice` 默认麦克风听写、侧会话父线程 5s 轮询近实时并排；事件级实时父线程、
+    焦点切换、分栏拖动需要第二份实时 projection 与焦点路由，属独立架构任务。
+  - 目标“验证通过后打 tag”受 GUI owner 失败阻塞；TUI 测试 2020、protocol 154、结构清单 101 均绿。
+
 - **下一刀（按收益/风险排序）**：
   1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
      替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、

@@ -152,14 +152,30 @@ export function BrowserExtensionsDialog({
               {t("settings.browser.extensionsLoading")}
             </p>
           ) : null}
+          {extensions && extensions.length > 0 ? (
+            <input
+              type="search"
+              aria-label={t("settings.browser.extensionsSearch")}
+              placeholder={t("settings.browser.extensionsSearch")}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className={`mt-4 ${EXTENSION_SEARCH_CLASS}`}
+            />
+          ) : null}
           {extensions && extensions.length === 0 ? (
             <p className="mt-4 text-sm text-muted-foreground">
-              {extensions && extensions.length > 0
-                ? t("settings.browser.extensionsNoResults")
-                : t("settings.browser.extensionsEmpty")}
+              {t("settings.browser.extensionsEmpty")}
             </p>
           ) : null}
-          {extensions && extensions.length > 0 ? (
+          {filtered &&
+          filtered.length === 0 &&
+          extensions &&
+          extensions.length > 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              {t("settings.browser.extensionsNoResults")}
+            </p>
+          ) : null}
+          {filtered && filtered.length > 0 ? (
             <ul className="mt-4 divide-y divide-border rounded-xl border border-border">
               {filtered.map((extension) => (
                 <li
