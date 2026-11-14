@@ -12,6 +12,7 @@
 
 - Fix packaged macOS validation getting blocked by a delayed first-run permission guide; continue through the normal “Set up later” action.
 - Fix Windows workbench reload failures caused by starting macOS-only app snapshot listeners.
+- Check Input Monitoring permission before starting macOS app snapshot shortcuts to avoid unauthorized monitoring calls on first launch.
 - Improve attachment handling, pending app snapshot recovery, settings search, and voice and connection state synchronization.
 - Fix a missing runtime TOML dependency in Electron packages, overflowing protocol test timestamps, and overly broad version-script matching.
 - Upgrade the TOML dependency to a patched version to address a high-severity denial-of-service vulnerability in malformed documents.

@@ -1,16 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   base64PngToFile,
   deliverAppSnapshot,
   DoubleCommandDetector,
   flattenAccessibilityText,
   pickFrontmostWindow,
+  startBareModifierMonitor,
 } from "./appSnapshot";
+
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock("@/lib/dev-bridge", () => ({ safeInvoke: invoke }));
 
 const pngBase64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 describe("appSnapshot", () => {
+  beforeEach(() => {
+    invoke.mockReset();
+  });
+
   afterEach(() => {
     document.body.innerHTML = "";
   });
@@ -169,5 +177,51 @@ describe("appSnapshot", () => {
 
   it("没有 composer 时返回 false", () => {
     expect(deliverAppSnapshot(base64PngToFile(pngBase64))).toBe(false);
+  });
+
+  it("已获输入监控权限时启动监听，不主动请求权限", async () => {
+    invoke.mockResolvedValueOnce({ status: "ready" });
+    invoke.mockResolvedValueOnce({ started: true });
+
+    await expect(startBareModifierMonitor()).resolves.toEqual({
+      started: true,
+    });
+    expect(invoke.mock.calls).toEqual([
+      [
+        "macos_native_host_invoke",
+        { method: "inputMonitoring.read", params: undefined },
+      ],
+      [
+        "macos_native_host_invoke",
+        {
+          method: "bareModifierMonitor.start",
+          params: { requestPermission: false },
+        },
+      ],
+    ]);
+  });
+
+  it.each([{ status: "not_granted" }, { status: "unavailable" }, {}, null])(
+    "权限未就绪时不启动监听：%j",
+    async (permission) => {
+      invoke.mockResolvedValueOnce(permission);
+
+      await expect(startBareModifierMonitor()).resolves.toEqual({
+        started: false,
+      });
+      expect(invoke).toHaveBeenCalledOnce();
+      expect(invoke).toHaveBeenCalledWith("macos_native_host_invoke", {
+        method: "inputMonitoring.read",
+        params: undefined,
+      });
+    },
+  );
+
+  it("权限查询失败时保留错误，不尝试启动监听", async () => {
+    const error = new Error("native host unavailable");
+    invoke.mockRejectedValueOnce(error);
+
+    await expect(startBareModifierMonitor()).rejects.toBe(error);
+    expect(invoke).toHaveBeenCalledOnce();
   });
 });

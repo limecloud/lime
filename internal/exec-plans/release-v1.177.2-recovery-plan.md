@@ -103,3 +103,14 @@
 - `registry.test.ts` 的 11 项回归通过。冻结副本仅为测试允许其共享依赖目录，不修改原仓库 `vite.config.ts`；所有测试逻辑及失败时限不变。
 - Workspace owner 守卫将 Composer hook 的无参数调用写死，误拒绝现役 `controllerOptions` 注入；仅将定位改为函数调用前缀，继续检查唯一 LocalDisplayState owner 和禁止第二业务 store。测试文件为本轮窄写集，未改 Workspace 产品源码。
 - Workspace 边界 15 项通过；冻结候选 `bd77ea194` 的完整 Rust CI job `132449597310`（run `43595677708`）已成功，包括公共能力查询和 CLI OAuth；后续 Rust 仅有上述已通过 346 项回归的纯职责迁移。
+- 收敛修正已提交推送为 `f10b0518e4d903bf39dcaa8c627186df67ec6f43`，最终候选 Quality run 为 `43599954983`。
+- 冻结副本批次 114 用时 574 秒，首个用户问答面板用例触发原 5 秒超时后产生 15 项级联失败；同一原目录 `RequestUserInputPanel.component.test.tsx` 单独运行 17 项全部通过（模块加载约 50 秒、测试共 11 秒），不提高时限或改产品。保留失败 checkpoint，独立按原 runner 参数补跑其余 pending 批次，最终以干净 checkout CI 复核完整矩阵。
+
+## macOS 启动权限检查
+
+- `f10b0518e` 的完整 Rust、Windows Shell Runtime、Integrity 与依赖审计通过，Frontend Full 继续运行；GUI Smoke 的三视口、设置与真实 App Server 均通过，唯一起始原生 IPC 错误使 `noInvokeErrors` 失败。
+- 当前 artifact 未记录原生子方法与错误详情，不能据此断言具体错误码。沿启动调用核查发现：`AppSnapshotRuntime` 无条件调用 `bareModifierMonitor.start`，Swift helper 在输入监控未授权时明确抛出 `notGranted`。
+- 在 current `appSnapshot.ts` 先调用现有 `inputMonitoring.read`，只有 `ready` 才启动；未就绪返回 `started:false`，查询失败仍传播，不授予系统权限，不改原生拒绝逻辑或 smoke 门禁。手动快照入口保持现役行为。
+- 窄写集：`src/lib/appSnapshot.ts`、对应测试、中英文发布说明与本计划；不触碰其他会话外观、浏览器、快捷键写集。
+- 补充已授权启动、未授权/不可用/非法状态阻止启动、查询错误传播回归；真实 Electron CI 继续确认新候选无调用错误。
+- 权限预检与组件回归 2 文件 16 项通过；定向 ESLint（零 warning）、完整 `npm run typecheck`、`npm run test:contracts` 和 whitespace 检查通过。协议与现役 host 命令不变。
