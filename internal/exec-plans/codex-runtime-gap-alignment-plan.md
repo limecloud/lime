@@ -2990,6 +2990,16 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
   4. 发布 1.177.2（tag v1.177.2）触发 Windows 验证；本机 GUI smoke 因并行改动导致
      renderer build 输入变化未完成（16m 构建后报 inputs changed），未作为通过证据。
 
+- **2026-11-14 第二百一十一轮（Windows 验证通过）**：
+  - tag **v1.177.2** 的 Release Windows-x64 job **success**；
+  - 证据 `windows-squirrel-rc-evidence-x86_64-pc-windows-msvc/1.177.2`：
+    - `PLT-02-windows-squirrel-rc`: `result=pass`，`failed=[]`；
+    - `SHELL-01-electron-smoke`: `result=pass`，`bridge.electron=true`、`preloadInvoke=true`、
+      `appServerIpcHitCount=30`。
+  - 修复点：macOS-only 的 App Snapshot 监听在 Windows 被调用，产生
+    `macos_native_host_invoke` 错误并阻塞 reload 就绪；现按平台门控。
+  - Quality（main）仍在跑，Frontend Full 仍失败（并行 WIP/GUI 其他项），不作为 tag 验证依据。
+
 - **下一刀（按收益/风险排序）**：
   1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
      替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、
