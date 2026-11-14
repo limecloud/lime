@@ -61,7 +61,11 @@ export function subscribeAccentColor(listener: () => void) {
 }
 
 export function useAccentColor(): AccentColor {
-  return useSyncExternalStore(subscribeAccentColor, getAccentColor, getAccentColor);
+  return useSyncExternalStore(
+    subscribeAccentColor,
+    getAccentColor,
+    getAccentColor,
+  );
 }
 
 export interface AccentPalette {

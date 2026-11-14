@@ -6771,6 +6771,25 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
+              "const": "voiceRealtime/clientSecret/create",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
               "const": "instructions/read",
               "type": "string"
             },
@@ -8792,6 +8811,7 @@
         "voiceInstruction/save",
         "voiceModel/default/set",
         "voiceModel/testTranscribeFile",
+        "voiceRealtime/clientSecret/create",
         "voiceTranscription/polishText",
         "voiceTranscription/transcribeAudio",
         "wechatChannel/account/remove",
@@ -49311,12 +49331,37 @@
           "oneOf": [
             {
               "const": "providerRealtimeUnsupported",
-              "description": "当前 provider 路由没有实时语音 wire 适配器。",
+              "description": "当前默认 provider 不是官方 OpenAI API-key 路由，没有可用的 Realtime wire。",
+              "type": "string"
+            },
+            {
+              "const": "providerKeyMissing",
+              "description": "官方 OpenAI provider 已配置，但没有可解密使用的启用 API key。",
+              "type": "string"
+            },
+            {
+              "const": "realtimeModelUnconfigured",
+              "description": "没有显式配置实时语音模型。",
+              "type": "string"
+            },
+            {
+              "const": "realtimeModelUnsupported",
+              "description": "显式配置的模型不在本构建的实时语音 wire 支持集合内。",
+              "type": "string"
+            },
+            {
+              "const": "realtimeVoiceUnconfigured",
+              "description": "没有显式配置实时语音音色。",
+              "type": "string"
+            },
+            {
+              "const": "realtimeVoiceUnsupported",
+              "description": "显式配置的音色不受官方 Realtime API 支持。",
               "type": "string"
             },
             {
               "const": "realtimeTransportUnimplemented",
-              "description": "App Server / 宿主还没有实时语音会话 owner，无法承载音频与转录事件。",
+              "description": "宿主缺少浏览器 WebRTC / 麦克风 / SDP 会话路径。",
               "type": "string"
             }
           ]
@@ -49331,12 +49376,42 @@
           "type": "boolean"
         },
         "realtime": {
-          "description": "当前 provider 路由与 App Server 是否已经具备端到端实时语音能力。\n\n`namespaceTools` 同属 Lime 在 Codex 形状上的扩展字段。该值为 `false`\n时，`realtimeBlockers` 给出具体缺失环节。",
+          "description": "当前 provider 路由、配置与宿主是否已经具备端到端实时语音能力。\n\n`namespaceTools` 同属 Lime 在 Codex 形状上的扩展字段。该值为 `false`\n时，`realtimeBlockers` 给出具体缺失环节。",
           "type": "boolean"
         },
         "realtimeBlockers": {
           "items": {
             "$ref": "#/$defs/RealtimeVoiceBlocker"
+          },
+          "type": "array"
+        },
+        "realtimeModel": {
+          "description": "显式配置的实时语音模型；未配置时为空。",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "realtimeModels": {
+          "default": [],
+          "description": "本构建可用的实时语音模型选项；provider 不可用时为空。",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "realtimeVoice": {
+          "description": "显式配置的实时语音音色；未配置时为空。",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "realtimeVoices": {
+          "default": [],
+          "description": "官方 Realtime API 支持的音色选项；provider 不可用时为空。",
+          "items": {
+            "type": "string"
           },
           "type": "array"
         },
@@ -61935,12 +62010,37 @@
       "oneOf": [
         {
           "const": "providerRealtimeUnsupported",
-          "description": "当前 provider 路由没有实时语音 wire 适配器。",
+          "description": "当前默认 provider 不是官方 OpenAI API-key 路由，没有可用的 Realtime wire。",
+          "type": "string"
+        },
+        {
+          "const": "providerKeyMissing",
+          "description": "官方 OpenAI provider 已配置，但没有可解密使用的启用 API key。",
+          "type": "string"
+        },
+        {
+          "const": "realtimeModelUnconfigured",
+          "description": "没有显式配置实时语音模型。",
+          "type": "string"
+        },
+        {
+          "const": "realtimeModelUnsupported",
+          "description": "显式配置的模型不在本构建的实时语音 wire 支持集合内。",
+          "type": "string"
+        },
+        {
+          "const": "realtimeVoiceUnconfigured",
+          "description": "没有显式配置实时语音音色。",
+          "type": "string"
+        },
+        {
+          "const": "realtimeVoiceUnsupported",
+          "description": "显式配置的音色不受官方 Realtime API 支持。",
           "type": "string"
         },
         {
           "const": "realtimeTransportUnimplemented",
-          "description": "App Server / 宿主还没有实时语音会话 owner，无法承载音频与转录事件。",
+          "description": "宿主缺少浏览器 WebRTC / 麦克风 / SDP 会话路径。",
           "type": "string"
         }
       ],
@@ -128708,6 +128808,49 @@
       "title": "VoiceModelTestTranscribeFileResponse",
       "type": "object"
     },
+    "VoiceRealtimeClientSecretCreateParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "请求 App Server 兑换一次短时 OpenAI Realtime client secret。\n\n模型、音色与 provider key 都由 App Server 从用户配置和 provider 凭证中解析，\nrenderer 不能覆盖这些值，也不能看到标准 OpenAI API key。",
+      "title": "VoiceRealtimeClientSecretCreateParams",
+      "type": "object"
+    },
+    "VoiceRealtimeClientSecretResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "短时 OpenAI Realtime client secret 与浏览器 SDP endpoint。\n\n`clientSecret` 是 `ek_...` 短时凭证，只用于 renderer 直接发起 WebRTC SDP\n交换；它不包含标准 API key。字段的 Debug 输出会隐藏 secret。",
+      "properties": {
+        "callsUrl": {
+          "type": "string"
+        },
+        "clientSecret": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "voice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "callsUrl",
+        "clientSecret",
+        "model",
+        "providerId",
+        "voice"
+      ],
+      "title": "VoiceRealtimeClientSecretResponse",
+      "type": "object"
+    },
     "VoiceTranscriptionPolishTextParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -131162,6 +131305,7 @@
               "voiceInstruction/save",
               "voiceModel/default/set",
               "voiceModel/testTranscribeFile",
+              "voiceRealtime/clientSecret/create",
               "voiceTranscription/polishText",
               "voiceTranscription/transcribeAudio",
               "wechatChannel/account/remove",

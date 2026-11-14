@@ -42,21 +42,48 @@ async fn realtime_voice_capability_fails_closed_over_public_jsonrpc() {
     assert_eq!(
         response.pointer("/result/realtime"),
         Some(&json!(false)),
-        "realtime voice must not be claimed without a wire adapter and session owner"
+        "realtime voice must not be claimed without a provider key and explicit model/voice"
     );
     let blockers = response
         .pointer("/result/realtimeBlockers")
         .and_then(Value::as_array)
         .expect("realtimeBlockers array");
     let blockers: Vec<&str> = blockers.iter().filter_map(Value::as_str).collect();
-    assert!(
-        blockers.contains(&"providerRealtimeUnsupported"),
-        "missing provider blocker: {blockers:?}"
-    );
-    assert!(
-        blockers.contains(&"realtimeTransportUnimplemented"),
-        "missing transport blocker: {blockers:?}"
-    );
+    for expected in [
+        "providerRealtimeUnsupported",
+        "realtimeModelUnconfigured",
+        "realtimeVoiceUnconfigured",
+    ] {
+        assert!(
+            blockers.contains(&expected),
+            "missing realtime blocker {expected}: {blockers:?}"
+        );
+    }
+    assert_eq!(response.pointer("/result/realtimeModels"), Some(&json!([])));
+    assert_eq!(response.pointer("/result/realtimeVoices"), Some(&json!([])));
+}
+
+/// client secret mint 方法必须注册，但在配置/凭证缺失时 fail closed，
+/// 不能返回任何 secret，也不能假装会话可开始。
+#[tokio::test]
+async fn realtime_client_secret_mint_is_registered_and_fails_closed() {
+    let server = test_server();
+    initialize(&server).await;
+
+    let response = request(
+        &server,
+        2,
+        "voiceRealtime/clientSecret/create",
+        json!({}),
+    )
+    .await;
+    let error = response
+        .pointer("/error/message")
+        .and_then(Value::as_str)
+        .expect("clear JSON-RPC error");
+    assert!(error.contains("realtime voice unavailable"), "{error}");
+    assert!(error.contains("providerRealtimeUnsupported"), "{error}");
+    assert_eq!(response.pointer("/result"), None);
 }
 
 /// 实时语音会话方法不得在 transport owner 缺失时注册。

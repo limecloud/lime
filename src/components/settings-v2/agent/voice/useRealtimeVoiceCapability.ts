@@ -7,6 +7,10 @@ import {
 export interface RealtimeVoiceCapability {
   available: boolean;
   blockers: RealtimeVoiceBlocker[];
+  model?: string;
+  voice?: string;
+  models: string[];
+  voices: string[];
 }
 
 export type RealtimeVoiceCapabilityState =
@@ -38,6 +42,10 @@ export function useRealtimeVoiceCapability() {
         capability: {
           available: capabilities.realtime === true,
           blockers: capabilities.realtimeBlockers,
+          model: capabilities.realtimeModel,
+          voice: capabilities.realtimeVoice,
+          models: capabilities.realtimeModels,
+          voices: capabilities.realtimeVoices,
         },
       });
     } catch {

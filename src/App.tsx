@@ -76,6 +76,7 @@ import {
   persistVoiceModelSettingsFocusRequest,
 } from "./lib/voiceModelSettingsNavigation";
 import { listenAppMenuCommand } from "./lib/appMenuNavigation";
+import { requestNewConversationTab } from "./lib/conversationTabs";
 
 const AppContainer = styled.div`
   display: flex;
@@ -208,6 +209,10 @@ function AppContent() {
   useEffect(
     () =>
       listenAppMenuCommand((command) => {
+        if (command === "new-tab" || command === "new-chat") {
+          requestNewConversationTab();
+          return;
+        }
         handleNavigate(
           "settings",
           command === "about" ? { tab: SettingsTabs.About } : undefined,

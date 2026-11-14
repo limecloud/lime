@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSnapshotRuntime } from "./AppSnapshotRuntime";
+import { setAppSnapshotPreferences } from "@/lib/appSnapshotPreferences";
 
 const mocks = vi.hoisted(() => ({
   trigger: vi.fn(),
@@ -38,6 +39,7 @@ beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.clearAllMocks();
   vi.spyOn(window.navigator, "platform", "get").mockReturnValue("MacIntel");
+  setAppSnapshotPreferences({ hotkeyEnabled: true });
   mocks.trigger.mockResolvedValue(true);
   mocks.start.mockResolvedValue({ started: true });
   mocks.listen.mockImplementation((_event, handler) => {

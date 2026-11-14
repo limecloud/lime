@@ -383,6 +383,33 @@ describe("BrowserSiteSettingsPage", () => {
     ]);
   });
 
+  it("clears all site settings after confirmation", async () => {
+    api.get.mockResolvedValue({
+      ...empty(),
+      sites: [site("https://example.com"), site("https://other.org")],
+    });
+    await act(async () =>
+      root.render(<BrowserSiteSettingsPage onBack={back} />),
+    );
+    await act(async () => Promise.resolve());
+    const clear = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Clear all site settings",
+    )!;
+    await act(async () => clear.click());
+    await act(async () => Promise.resolve());
+    const dialog = [...document.querySelectorAll('[role="dialog"]')].find(
+      (candidate) =>
+        candidate.textContent?.includes("Clear all site settings?") ?? false,
+    )!;
+    const confirm = [...dialog.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Clear all site settings",
+    ) as HTMLButtonElement;
+    await act(async () => confirm.click());
+    await act(async () => Promise.resolve());
+    expect(api.remove).toHaveBeenCalledWith("https://example.com");
+    expect(api.remove).toHaveBeenCalledWith("https://other.org");
+  });
+
   it("filters the site list", async () => {
     api.get.mockResolvedValue({
       ...empty(),

@@ -6,7 +6,6 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/prism";
-import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Copy, Check, Quote } from "lucide-react";
 import { parseA2UIJson } from "@/components/workspace/a2ui/parser";
 import type { A2UIFormData } from "@/components/workspace/a2ui/types";
@@ -32,7 +31,9 @@ import { markdownElements } from "./MarkdownElements";
 import { remarkPromptLinks } from "./remarkPromptLinks";
 import { remarkCjkAutolinks } from "./remarkCjkAutolinks";
 import {
+  CODE_BLOCK_TEXT,
   CODE_FONT_FAMILY,
+  CODE_FONT_SIZE,
   CodeBlockContainer,
   CodeHeader,
   CodeHeaderInfo,
@@ -495,13 +496,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
             <div className="overflow-auto px-3 py-3">
               <div
                 data-testid="markdown-plain-code-content"
-                className="whitespace-pre-wrap break-words text-[12px] leading-6 text-slate-700"
+                className="whitespace-pre-wrap break-words leading-6"
                 style={{
                   margin: 0,
                   padding: 0,
                   border: "none",
                   background: "transparent",
+                  color: CODE_BLOCK_TEXT,
                   fontFamily: CODE_FONT_FAMILY,
+                  fontSize: CODE_FONT_SIZE,
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
                   textShadow: "none",
@@ -553,8 +556,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                 FLOW_ARROW_ONLY_PATTERN.test(line) ? (
                   <div
                     key={`${line}:${index}`}
-                    className="pl-3 text-sm leading-5 text-slate-500"
+                    className="pl-3 text-sm leading-5"
                     style={{
+                      color: "var(--lime-code-muted, #666666)",
                       fontFamily: CODE_FONT_FAMILY,
                       textShadow: "none",
                       fontVariantLigatures: "none",
@@ -565,9 +569,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                 ) : (
                   <div
                     key={`${line}:${index}`}
-                    className="inline-flex max-w-full items-center rounded-xl border border-slate-200 bg-white/90 px-3 py-1.5 text-[12px] leading-5 text-slate-700 shadow-sm"
+                    className="inline-flex max-w-full items-center rounded-xl border px-3 py-1.5 leading-5 shadow-sm"
                     style={{
+                      borderColor: "var(--lime-code-border, #d9d9d9)",
+                      background: "var(--lime-code-inline-surface, #f7f7f7)",
+                      color: "var(--lime-code-text, #0d0d0d)",
                       fontFamily: CODE_FONT_FAMILY,
+                      fontSize: CODE_FONT_SIZE,
                       textShadow: "none",
                       fontVariantLigatures: "none",
                     }}
@@ -756,7 +764,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                         </CopyButton>
                       </CodeHeader>
                       <SyntaxHighlighter
-                        style={oneLight}
+                        useInlineStyles={false}
                         language={language}
                         PreTag="div"
                         codeTagProps={{
@@ -776,7 +784,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                           margin: 0,
                           padding: "12px 14px 14px",
                           background: "transparent",
-                          fontSize: "12.5px",
+                          fontSize: CODE_FONT_SIZE,
                           lineHeight: "1.55",
                           fontFamily: CODE_FONT_FAMILY,
                           overflowX: "auto",

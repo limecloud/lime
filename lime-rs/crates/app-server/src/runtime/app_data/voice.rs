@@ -4,6 +4,18 @@ use super::RuntimeCoreError;
 use app_server_protocol::*;
 use async_trait::async_trait;
 
+/// 默认 provider 的实时语音路由快照。
+///
+/// 该结构不携带 API key，只暴露 provider 身份与 key 可用性；真正的短时
+/// client secret 只由 `create_realtime_voice_client_secret` 在宿主内兑换。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RealtimeVoiceProviderSnapshot {
+    pub provider_id: String,
+    pub provider_type: String,
+    pub api_host: String,
+    pub key_available: bool,
+}
+
 #[async_trait]
 pub trait VoiceAppDataSource: Send + Sync {
     async fn list_dictation_history(
@@ -141,6 +153,24 @@ pub trait VoiceAppDataSource: Send + Sync {
         _params: VoiceModelDefaultSetParams,
     ) -> Result<VoiceModelDefaultSetResponse, RuntimeCoreError> {
         Err(unavailable("voiceModel/default/set"))
+    }
+
+    /// 读取默认 provider 的实时语音路由快照。
+    async fn realtime_voice_provider_snapshot(
+        &self,
+        _provider_id: &str,
+    ) -> Result<Option<RealtimeVoiceProviderSnapshot>, RuntimeCoreError> {
+        Err(unavailable("voiceRealtime/provider/read"))
+    }
+
+    /// 使用宿主内的标准 OpenAI API key 兑换短时 Realtime client secret。
+    async fn create_realtime_voice_client_secret(
+        &self,
+        _provider_id: &str,
+        _model: &str,
+        _voice: &str,
+    ) -> Result<VoiceRealtimeClientSecretResponse, RuntimeCoreError> {
+        Err(unavailable("voiceRealtime/clientSecret/create"))
     }
 }
 

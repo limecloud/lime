@@ -1,5 +1,6 @@
 use super::*;
 use crate::{CapabilitySnapshot, JsonRpcNotification, ModelCapabilitiesInfo, RequestId};
+use crate::VoiceRealtimeClientSecretResponse;
 use schemars::schema_for;
 use serde_json::json;
 
@@ -1122,9 +1123,13 @@ fn model_provider_capabilities_read_round_trips_exact_codex_shape() {
         web_search: true,
         realtime: false,
         realtime_blockers: vec![
-            RealtimeVoiceBlocker::ProviderRealtimeUnsupported,
-            RealtimeVoiceBlocker::RealtimeTransportUnimplemented,
+            RealtimeVoiceBlocker::ProviderKeyMissing,
+            RealtimeVoiceBlocker::RealtimeModelUnconfigured,
         ],
+        realtime_model: None,
+        realtime_voice: Some("marin".to_string()),
+        realtime_models: vec!["gpt-realtime-2.1".to_string()],
+        realtime_voices: vec!["marin".to_string(), "cedar".to_string()],
     };
     assert_eq!(
         serde_json::to_value(response).expect("encode provider capabilities response"),
@@ -1134,21 +1139,28 @@ fn model_provider_capabilities_read_round_trips_exact_codex_shape() {
             "webSearch": true,
             "realtime": false,
             "realtimeBlockers": [
-                "providerRealtimeUnsupported",
-                "realtimeTransportUnimplemented"
-            ]
+                "providerKeyMissing",
+                "realtimeModelUnconfigured"
+            ],
+            "realtimeVoice": "marin",
+            "realtimeModels": ["gpt-realtime-2.1"],
+            "realtimeVoices": ["marin", "cedar"]
         })
     );
 }
 
 #[test]
-fn model_provider_capabilities_realtime_fails_closed_without_wire_support() {
+fn model_provider_capabilities_realtime_requires_explicit_wire_config() {
     let available = ModelProviderCapabilitiesReadResponse {
         namespace_tools: false,
         image_generation: false,
         web_search: false,
         realtime: true,
         realtime_blockers: Vec::new(),
+        realtime_model: Some("gpt-realtime-2.1".to_string()),
+        realtime_voice: Some("marin".to_string()),
+        realtime_models: vec!["gpt-realtime-2.1".to_string()],
+        realtime_voices: vec!["marin".to_string()],
     };
     assert_eq!(
         serde_json::to_value(available).expect("encode available realtime capability"),
@@ -1157,7 +1169,37 @@ fn model_provider_capabilities_realtime_fails_closed_without_wire_support() {
             "imageGeneration": false,
             "webSearch": false,
             "realtime": true,
-            "realtimeBlockers": []
+            "realtimeBlockers": [],
+            "realtimeModel": "gpt-realtime-2.1",
+            "realtimeVoice": "marin",
+            "realtimeModels": ["gpt-realtime-2.1"],
+            "realtimeVoices": ["marin"]
+        })
+    );
+}
+
+#[test]
+fn realtime_client_secret_response_redacts_the_ephemeral_secret() {
+    let response = VoiceRealtimeClientSecretResponse {
+        client_secret: "ek_super_secret".to_string(),
+        expires_at: Some(1_893_456_000),
+        model: "gpt-realtime-2.1".to_string(),
+        voice: "marin".to_string(),
+        calls_url: "https://api.openai.com/v1/realtime/calls".to_string(),
+        provider_id: "openai".to_string(),
+    };
+    let debug = format!("{response:?}");
+    assert!(!debug.contains("ek_super_secret"));
+    assert!(debug.contains("[REDACTED]"));
+    assert_eq!(
+        serde_json::to_value(&response).expect("encode client secret response"),
+        json!({
+            "clientSecret": "ek_super_secret",
+            "expiresAt": 1_893_456_000,
+            "model": "gpt-realtime-2.1",
+            "voice": "marin",
+            "callsUrl": "https://api.openai.com/v1/realtime/calls",
+            "providerId": "openai"
         })
     );
 }

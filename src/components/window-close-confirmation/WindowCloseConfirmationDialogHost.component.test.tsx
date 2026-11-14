@@ -53,7 +53,7 @@ describe("window close AppShell integration", () => {
     await settle();
     const closeTab = vi.fn();
     const stop = registerCommand({
-      id: "closeTab",
+      id: "navigation.closeTab",
       titleKey: "tab",
       section: "panels",
       bindings: [],

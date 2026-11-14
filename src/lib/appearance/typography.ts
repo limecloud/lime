@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-export const CONTENT_FONT_SIZES = [12, 14, 16, 18, 20] as const;
+// Codex Pages content font size: integer px, 12..24, default 15.
+export const CONTENT_FONT_SIZES = [
+  12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+] as const;
 export type ContentFontSize = (typeof CONTENT_FONT_SIZES)[number];
 
 const STORAGE_KEY = "lime.appearance.content-font-size.v1";
@@ -8,14 +11,14 @@ let current = read();
 const listeners = new Set<() => void>();
 
 function read(): ContentFontSize {
-  if (typeof window === "undefined") return 14;
+  if (typeof window === "undefined") return 15;
   try {
     const value = Number(window.localStorage.getItem(STORAGE_KEY));
     return CONTENT_FONT_SIZES.includes(value as ContentFontSize)
       ? (value as ContentFontSize)
-      : 14;
+      : 15;
   } catch {
-    return 14;
+    return 15;
   }
 }
 
@@ -53,5 +56,5 @@ export function useContentFontSize(): ContentFontSize {
 }
 
 export function resetContentFontSizeForTest() {
-  setContentFontSize(14);
+  setContentFontSize(15);
 }

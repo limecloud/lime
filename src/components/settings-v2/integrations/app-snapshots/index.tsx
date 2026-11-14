@@ -13,6 +13,10 @@ import {
   type AppSnapshotWindow,
 } from "@/lib/api/appSnapshots";
 import { setPendingAppSnapshot } from "@/lib/pendingAppSnapshot";
+import {
+  setAppSnapshotPreferences,
+  useAppSnapshotPreferences,
+} from "@/lib/appSnapshotPreferences";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import {
   SettingsAction,
@@ -24,11 +28,6 @@ import {
   SettingsSection,
   SettingsSwitch,
 } from "../../SettingsPrimitives";
-import {
-  setAppSnapshotPreferences,
-  useAppSnapshotPreferences,
-} from "@/lib/appSnapshotPreferences";
-
 export function AppSnapshotsSettings() {
   const { t } = useTranslation("settings");
   const navigate = useAppNavigationRequest();
@@ -234,6 +233,20 @@ export function AppSnapshotsSettings() {
         ) : null}
       </SettingsSection>
       <SettingsSection title={t("settings.appSnapshots.windows")}>
+        <SettingsGroup>
+          <SettingsRow
+            label={t("settings.appSnapshots.hotkey")}
+            description={t("settings.appSnapshots.hotkeyDescription")}
+            targetId="app-snapshots-hotkey"
+          >
+            <SettingsSwitch
+              checked={snapshotPreferences.hotkeyEnabled}
+              onCheckedChange={(hotkeyEnabled) =>
+                setAppSnapshotPreferences({ hotkeyEnabled })
+              }
+            />
+          </SettingsRow>
+        </SettingsGroup>
         <div className="flex flex-col gap-3">
           <SettingsAction
             type="button"

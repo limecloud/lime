@@ -28,14 +28,14 @@ vi.mock("react-syntax-highlighter/dist/esm/prism", () => ({
     children,
     language,
     className,
-    style,
+    useInlineStyles,
     customStyle,
     codeTagProps,
   }: {
     children: React.ReactNode;
     language?: string;
     className?: string;
-    style?: Record<string, unknown>;
+    useInlineStyles?: boolean;
     customStyle?: React.CSSProperties;
     codeTagProps?: {
       style?: React.CSSProperties;
@@ -45,8 +45,9 @@ vi.mock("react-syntax-highlighter/dist/esm/prism", () => ({
       data-testid="syntax-highlighter"
       data-language={language}
       className={className}
-      data-theme={(style as { __theme?: string } | undefined)?.__theme}
+      data-inline-styles={String(useInlineStyles)}
       data-font-family={customStyle?.fontFamily}
+      data-font-size={customStyle?.fontSize}
       data-text-shadow={customStyle?.textShadow}
       data-font-ligatures={String(codeTagProps?.style?.fontVariantLigatures)}
     >
@@ -64,11 +65,6 @@ vi.mock("react-syntax-highlighter/dist/esm/prism", () => ({
       </code>
     </pre>
   ),
-}));
-
-vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
-  oneDark: { __theme: "dark" },
-  oneLight: { __theme: "light" },
 }));
 
 vi.mock("./ArtifactPlaceholder", () => ({

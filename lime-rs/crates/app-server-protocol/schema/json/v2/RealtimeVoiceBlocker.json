@@ -4,12 +4,37 @@
   "oneOf": [
     {
       "const": "providerRealtimeUnsupported",
-      "description": "当前 provider 路由没有实时语音 wire 适配器。",
+      "description": "当前默认 provider 不是官方 OpenAI API-key 路由，没有可用的 Realtime wire。",
+      "type": "string"
+    },
+    {
+      "const": "providerKeyMissing",
+      "description": "官方 OpenAI provider 已配置，但没有可解密使用的启用 API key。",
+      "type": "string"
+    },
+    {
+      "const": "realtimeModelUnconfigured",
+      "description": "没有显式配置实时语音模型。",
+      "type": "string"
+    },
+    {
+      "const": "realtimeModelUnsupported",
+      "description": "显式配置的模型不在本构建的实时语音 wire 支持集合内。",
+      "type": "string"
+    },
+    {
+      "const": "realtimeVoiceUnconfigured",
+      "description": "没有显式配置实时语音音色。",
+      "type": "string"
+    },
+    {
+      "const": "realtimeVoiceUnsupported",
+      "description": "显式配置的音色不受官方 Realtime API 支持。",
       "type": "string"
     },
     {
       "const": "realtimeTransportUnimplemented",
-      "description": "App Server / 宿主还没有实时语音会话 owner，无法承载音频与转录事件。",
+      "description": "宿主缺少浏览器 WebRTC / 麦克风 / SDP 会话路径。",
       "type": "string"
     }
   ],

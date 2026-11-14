@@ -4,7 +4,6 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { subscribeWorkspaceReviewTabRequest } from "@/lib/workspaceReviewTabEvents";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { ReviewThreadSidePanelTarget } from "./ReviewThreadSidePanelTab";
 import type { WorkspaceArticleWorkspace } from "./workspaceArticleWorkspaceModel";
@@ -16,6 +15,7 @@ import {
 } from "./workspacePluginSurfaceModel";
 import type { WorkspaceRightSurfaceKind } from "./right-surface";
 import type { WorkspaceRightSurfaceBrowserIntent } from "./workspaceRightSurfaceBrowserIntent";
+import { useWorkspaceReviewTabShortcuts } from "./useWorkspaceReviewTabShortcuts";
 
 type ConsumePendingRequestsForSurface = (
   surface: WorkspaceRightSurfaceKind,
@@ -504,14 +504,6 @@ export function useWorkspaceRightSurfaceActionRuntime({
     ],
   );
 
-  useEffect(
-    () =>
-      subscribeWorkspaceReviewTabRequest(() => {
-        handleSelectRightSurfaceTab("changes");
-      }),
-    [handleSelectRightSurfaceTab],
-  );
-
   const handleSelectPluginSurface = useCallback(
     (surface: WorkspacePluginSurfaceDescriptor) => {
       setHarnessPanelVisible(false);
@@ -594,6 +586,20 @@ export function useWorkspaceRightSurfaceActionRuntime({
       setLayoutMode,
     ],
   );
+
+  const handleOpenChangesPanel = useCallback(
+    () => handleSelectRightSurfaceTab("changes"),
+    [handleSelectRightSurfaceTab],
+  );
+  const handleCloseChangesPanel = useCallback(
+    () => handleCloseRightSurfaceTab("changes"),
+    [handleCloseRightSurfaceTab],
+  );
+  useWorkspaceReviewTabShortcuts({
+    activeSurface: rightSurfaceActiveSurface,
+    onOpen: handleOpenChangesPanel,
+    onClose: handleCloseChangesPanel,
+  });
 
   return {
     handleCloseRightSurfaceTab,

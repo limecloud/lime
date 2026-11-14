@@ -168,6 +168,7 @@ pub use app_data::PluginTurnSnapshot;
 pub use app_data::RightSurfaceAppDataSource;
 pub use app_data::SessionAppDataSource;
 pub use app_data::SkillAppDataSource;
+pub use app_data::RealtimeVoiceProviderSnapshot;
 pub use app_data::VoiceAppDataSource;
 pub use app_data::WorkspaceAppDataSource;
 pub use app_data::WorkspaceSkillBindingAppDataSource;

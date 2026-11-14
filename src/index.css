@@ -11,10 +11,30 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family:
-      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-      Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    font-family: var(
+      --lime-ui-font-family,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      Oxygen,
+      Ubuntu,
+      Cantarell,
+      "Open Sans",
+      "Helvetica Neue",
+      sans-serif
+    );
     overflow: hidden;
+  }
+
+  html[data-font-smoothing="true"] body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html[data-font-smoothing="false"] body {
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
   }
 
   /* Custom scrollbar styles */
@@ -805,7 +825,6 @@ html[data-lime-window="update-notification"] .index-startup-shell {
   display: none !important;
 }
 
-
 html[data-lime-full-view="true"] [data-testid="app-sidebar-rail"],
 html[data-lime-full-view="true"] [data-testid="app-sidebar"] {
   display: none !important;
@@ -825,5 +844,51 @@ html[data-pointer-cursors="true"] label[for] {
 
 [data-markdown-container] {
   font-family: var(--lime-content-font-family, inherit);
-  font-size: var(--lime-content-font-size, 14px);
+  font-size: var(--lime-content-font-size, 15px);
+}
+
+/*
+ * Codex reduced-motion semantics: explicit on/off wins over the OS, while an
+ * absent attribute leaves ownership to prefers-reduced-motion.
+ */
+:root[data-reduced-motion="true"] *,
+:root[data-reduced-motion="true"] *::before,
+:root[data-reduced-motion="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduced-motion="false"]) *,
+  :root:not([data-reduced-motion="false"]) *::before,
+  :root:not([data-reduced-motion="false"]) *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Codex code font applies to chat code blocks and diff surfaces. */
+pre.font-mono,
+code.font-mono,
+[data-diff-line-type],
+[data-diff-line-type] .font-mono {
+  font-family: var(
+    --lime-code-font-family,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
+}
+
+pre.font-mono,
+code.font-mono,
+[data-diff-line-type] {
+  font-size: var(--lime-code-font-size, 12px);
 }

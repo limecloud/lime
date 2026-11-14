@@ -16,6 +16,9 @@ const LABELS: Record<
     settings: string;
     checkForUpdates: string;
     file: string;
+    newTab: string;
+    newWindow: string;
+    newChat: string;
     help: string;
     systemStatus: string;
     taskManager: string;
@@ -30,6 +33,9 @@ const LABELS: Record<
     settings: "设置…",
     checkForUpdates: "检查更新…",
     file: "文件",
+    newTab: "新建标签页",
+    newWindow: "新建窗口",
+    newChat: "新聊天",
     help: "帮助",
     systemStatus: "系统状态",
     taskManager: "任务管理器",
@@ -43,6 +49,9 @@ const LABELS: Record<
     settings: "設定…",
     checkForUpdates: "檢查更新…",
     file: "檔案",
+    newTab: "新增分頁",
+    newWindow: "新增視窗",
+    newChat: "新對話",
     help: "說明",
     systemStatus: "系統狀態",
     taskManager: "工作管理員",
@@ -56,6 +65,9 @@ const LABELS: Record<
     settings: "Settings…",
     checkForUpdates: "Check for Updates…",
     file: "File",
+    newTab: "New Tab",
+    newWindow: "New Window",
+    newChat: "New Chat",
     help: "Help",
     systemStatus: "System Status",
     taskManager: "Task Manager",
@@ -69,6 +81,9 @@ const LABELS: Record<
     settings: "設定…",
     checkForUpdates: "アップデートを確認…",
     file: "ファイル",
+    newTab: "新しいタブ",
+    newWindow: "新規ウインドウ",
+    newChat: "新しいチャット",
     help: "ヘルプ",
     systemStatus: "システムの状態",
     taskManager: "タスクマネージャー",
@@ -82,6 +97,9 @@ const LABELS: Record<
     settings: "설정…",
     checkForUpdates: "업데이트 확인…",
     file: "파일",
+    newTab: "새 탭",
+    newWindow: "새 창",
+    newChat: "새 채팅",
     help: "도움말",
     systemStatus: "시스템 상태",
     taskManager: "작업 관리자",
@@ -137,6 +155,9 @@ export function buildApplicationMenuTemplate({
   onOpenSystemStatus,
   onOpenTaskManager,
   onOpenTroubleshooting,
+  onNewTab,
+  onNewWindow,
+  onNewChat,
   isMac,
 }: {
   appName: string;
@@ -149,6 +170,9 @@ export function buildApplicationMenuTemplate({
   onOpenSystemStatus: () => void;
   onOpenTaskManager: () => void;
   onOpenTroubleshooting: () => void;
+  onNewTab: () => void;
+  onNewWindow: () => void;
+  onNewChat: () => void;
   isMac: boolean;
 }): MenuItemConstructorOptions[] {
   const labels = applicationMenuLabels(locale);
@@ -184,9 +208,29 @@ export function buildApplicationMenuTemplate({
       { label: labels.openLogs, click: onOpenLogs },
     ],
   };
+  const fileMenu: MenuItemConstructorOptions = {
+    label: labels.file,
+    submenu: [
+      {
+        label: labels.newTab,
+        accelerator: "CommandOrControl+T",
+        click: onNewTab,
+      },
+      {
+        label: labels.newWindow,
+        click: onNewWindow,
+      },
+      {
+        label: labels.newChat,
+        accelerator: "CommandOrControl+N",
+        click: onNewChat,
+      },
+    ],
+  };
   if (isMac) {
     return [
       applicationMenu,
+      fileMenu,
       { role: "editMenu" },
       { role: "viewMenu" },
       { role: "windowMenu" },
@@ -197,6 +241,18 @@ export function buildApplicationMenuTemplate({
     {
       label: labels.file,
       submenu: [
+        {
+          label: labels.newTab,
+          accelerator: "CommandOrControl+T",
+          click: onNewTab,
+        },
+        { label: labels.newWindow, click: onNewWindow },
+        {
+          label: labels.newChat,
+          accelerator: "CommandOrControl+N",
+          click: onNewChat,
+        },
+        { type: "separator" },
         { label: labels.settings, click: onOpenSettings },
         { label: labels.checkForUpdates, click: onCheckForUpdates },
         { type: "separator" },

@@ -104,6 +104,16 @@ describe("ContactAutofillDialog", () => {
     )!;
     await act(async () => clear.click());
     await act(async () => Promise.resolve());
+    const confirmDialog = [
+      ...document.querySelectorAll('[role="dialog"]'),
+    ].find(
+      (candidate) => candidate.textContent?.includes("清除联系信息？") ?? false,
+    )!;
+    const confirm = [...confirmDialog.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "清除联系信息",
+    ) as HTMLButtonElement;
+    await act(async () => confirm.click());
+    await act(async () => Promise.resolve());
     expect(api.clear).toHaveBeenCalled();
     expect(
       [...document.querySelectorAll<HTMLInputElement>("input")].map(

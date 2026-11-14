@@ -40,8 +40,11 @@ async fn model_provider_capabilities_read_uses_runtime_config_route() {
             "realtime": false,
             "realtimeBlockers": [
                 "providerRealtimeUnsupported",
-                "realtimeTransportUnimplemented"
-            ]
+                "realtimeModelUnconfigured",
+                "realtimeVoiceUnconfigured"
+            ],
+            "realtimeModels": [],
+            "realtimeVoices": []
         })
     );
 
@@ -67,8 +70,11 @@ async fn model_provider_capabilities_read_uses_runtime_config_route() {
             "realtime": false,
             "realtimeBlockers": [
                 "providerRealtimeUnsupported",
-                "realtimeTransportUnimplemented"
-            ]
+                "realtimeModelUnconfigured",
+                "realtimeVoiceUnconfigured"
+            ],
+            "realtimeModels": [],
+            "realtimeVoices": []
         })
     );
 }

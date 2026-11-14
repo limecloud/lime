@@ -6,7 +6,9 @@
 
 - Add default-microphone dictation in the TUI and periodically refresh the parent conversation while a side conversation is open.
 - Show realtime voice availability and explicit blockers for the current model connection in voice settings.
+- Connect temporary realtime voice credentials and WebRTC sessions, with model and voice selection and connection feedback.
 - Add clearing of saved browser passwords and improve extension, site-permission, and model-connection feedback.
+- Add desktop menu entries for new tabs, windows, and chats, and improve app snapshot and workspace review shortcuts.
 
 ### Fixes
 
@@ -23,6 +25,7 @@
 - Synchronize realtime voice capabilities across public protocols, JSON schemas, generated clients, and frontend consumers; explicitly report unavailable transports.
 - Simplify redundant App Server conversions and test code while retaining current runtime, projection, and Provider ownership.
 - Update Simplified Chinese, Traditional Chinese, English, Japanese, and Korean settings resources.
+- Improve appearance fonts, sizes, code styling, and light/dark settings, together with Markdown and diff review rendering.
 
 ### Testing and Quality
 

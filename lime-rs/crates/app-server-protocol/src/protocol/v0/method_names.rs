@@ -118,6 +118,8 @@ pub const METHOD_VOICE_INSTRUCTION_DELETE: &str = "voiceInstruction/delete";
 pub const METHOD_VOICE_MODEL_DEFAULT_SET: &str = "voiceModel/default/set";
 pub const METHOD_VOICE_MODEL_TEST_TRANSCRIBE_FILE: &str = "voiceModel/testTranscribeFile";
 pub const METHOD_VOICE_TRANSCRIPTION_TRANSCRIBE_AUDIO: &str = "voiceTranscription/transcribeAudio";
+pub const METHOD_VOICE_REALTIME_CLIENT_SECRET_CREATE: &str =
+    "voiceRealtime/clientSecret/create";
 pub const METHOD_INSTRUCTIONS_READ: &str = "instructions/read";
 pub const METHOD_INSTRUCTIONS_WRITE: &str = "instructions/write";
 pub const METHOD_DICTATION_HISTORY_LIST: &str = "dictationHistory/list";

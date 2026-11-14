@@ -1536,6 +1536,10 @@
     },
     {
       "kind": "request",
+      "method": "voiceRealtime/clientSecret/create"
+    },
+    {
+      "kind": "request",
       "method": "voiceTranscription/polishText"
     },
     {
@@ -2247,6 +2251,8 @@
       "VoiceModelDefaultSetResponse",
       "VoiceModelTestTranscribeFileParams",
       "VoiceModelTestTranscribeFileResponse",
+      "VoiceRealtimeClientSecretCreateParams",
+      "VoiceRealtimeClientSecretResponse",
       "VoiceTranscriptionPolishTextParams",
       "VoiceTranscriptionPolishTextResponse",
       "VoiceTranscriptionTranscribeAudioParams",

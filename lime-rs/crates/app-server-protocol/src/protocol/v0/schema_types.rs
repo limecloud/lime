@@ -206,6 +206,8 @@ pub const V0_SCHEMA_TYPE_NAMES: &[&str] = &[
     "VoiceAsrCredentialWriteResponse",
     "VoiceAsrCredentialMutationResponse",
     "VoiceAsrCredentialTestResponse",
+    "VoiceRealtimeClientSecretCreateParams",
+    "VoiceRealtimeClientSecretResponse",
     "VoiceInstruction",
     "VoiceInstructionSaveParams",
     "VoiceInstructionIdParams",

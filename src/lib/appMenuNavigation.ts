@@ -3,7 +3,7 @@ import { safeListen } from "@/lib/dev-bridge";
 export const APP_MENU_WINDOW_EVENT = "lime-app-menu-command";
 export const APP_MENU_HOST_EVENT = "app-menu-command";
 
-export type AppMenuCommand = "settings" | "about";
+export type AppMenuCommand = "settings" | "about" | "new-tab" | "new-chat";
 
 function readCommand(value: unknown): AppMenuCommand | null {
   if (!value || typeof value !== "object") return null;
@@ -13,7 +13,12 @@ function readCommand(value: unknown): AppMenuCommand | null {
       ? (record.payload as Record<string, unknown>)
       : record;
   const command = payload.command;
-  return command === "settings" || command === "about" ? command : null;
+  return command === "settings" ||
+    command === "about" ||
+    command === "new-tab" ||
+    command === "new-chat"
+    ? command
+    : null;
 }
 
 export function listenAppMenuCommand(

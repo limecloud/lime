@@ -145,6 +145,26 @@ it("设置列表沿用当前命令的参考顺序，重新挂载后保持稳定"
   });
   expect(order()).toEqual(expected);
 });
+it("新增未绑定命令显示翻译标题与未分配状态，仍可直接设置键位", async () => {
+  await act(async () => {
+    releases.push(
+      registerCommand({
+        id: "panels.toggleChangesPanel",
+        titleKey: "commands.toggleChangesPanel.title",
+        descriptionKey: "commands.toggleChangesPanel.description",
+        section: "panels",
+        bindings: [],
+        handler,
+      }),
+    );
+  });
+  const target = container.querySelector<HTMLElement>(
+    '[data-command-id="panels.toggleChangesPanel"]',
+  )!;
+  expect(target.textContent).toContain("Toggle Changes panel");
+  expect(target.textContent).toContain("Unassigned");
+  expect(target.querySelector("[data-binding-button]")).not.toBeNull();
+});
 const writes = () =>
   request.mock.calls.filter(([method]) => method === "config/batchWrite");
 async function key(target: EventTarget, key: string, extra = {}) {

@@ -327,6 +327,23 @@ describe("current settings search projection", () => {
     },
   );
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds realtime model and voice settings",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      for (const query of [
+        t("settings.voice.chat.model.label"),
+        t("settings.voice.chat.voice.label"),
+      ]) {
+        expect(searchSettings(query, groups, t)).toContainEqual(
+          expect.objectContaining({
+            section: SettingsTabs.Voice,
+            targetId: "voice-chat",
+          }),
+        );
+      }
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s finds dictation dictionary without indexing user entries",
     (locale) => {
       const { t, groups } = localize(locale);
@@ -413,6 +430,26 @@ describe("current settings search projection", () => {
     );
     expect(search("display instructions")).toEqual([]);
     expect(search("   ")).toEqual([]);
+  });
+  it("finds Codex theme presets by their extracted names", () => {
+    expect(search("ChatGPT")).toContainEqual(
+      expect.objectContaining({
+        section: SettingsTabs.Appearance,
+        targetId: "appearance-code-theme",
+      }),
+    );
+    expect(search("Light chrome theme")).toContainEqual(
+      expect.objectContaining({
+        section: SettingsTabs.Appearance,
+        targetId: "appearance-chrome-theme",
+      }),
+    );
+    expect(search("code theme")).toContainEqual(
+      expect.objectContaining({
+        section: SettingsTabs.Appearance,
+        targetId: "appearance-code-theme",
+      }),
+    );
   });
   it("normalizes width and case, prioritizes panel titles and returns one result per panel", () => {
     const results = search("ＡＰＰＥＡＲＡＮＣＥ");

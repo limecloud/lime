@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-export const UI_FONT_SIZES = [12, 13, 14, 15, 16] as const;
+// Codex `sansFontSize`: integer px, 11..16, default 14.
+export const UI_FONT_SIZES = [11, 12, 13, 14, 15, 16] as const;
 export type UiFontSize = (typeof UI_FONT_SIZES)[number];
 
 const STORAGE_KEY = "lime.appearance.ui-font-size.v1";
@@ -45,7 +46,11 @@ export function subscribeUiFontSize(listener: () => void) {
 }
 
 export function useUiFontSize(): UiFontSize {
-  return useSyncExternalStore(subscribeUiFontSize, getUiFontSize, getUiFontSize);
+  return useSyncExternalStore(
+    subscribeUiFontSize,
+    getUiFontSize,
+    getUiFontSize,
+  );
 }
 
 export function resetUiFontSizeForTest() {

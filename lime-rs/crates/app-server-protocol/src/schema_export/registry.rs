@@ -286,6 +286,10 @@ pub(super) fn v0_schemas() -> Vec<GeneratedJsonSchema> {
         typed_schema::<VoiceAsrCredentialWriteResponse>("VoiceAsrCredentialWriteResponse"),
         typed_schema::<VoiceAsrCredentialMutationResponse>("VoiceAsrCredentialMutationResponse"),
         typed_schema::<VoiceAsrCredentialTestResponse>("VoiceAsrCredentialTestResponse"),
+        typed_schema::<VoiceRealtimeClientSecretCreateParams>(
+            "VoiceRealtimeClientSecretCreateParams",
+        ),
+        typed_schema::<VoiceRealtimeClientSecretResponse>("VoiceRealtimeClientSecretResponse"),
         typed_schema::<VoiceInstruction>("VoiceInstruction"),
         typed_schema::<VoiceInstructionSaveParams>("VoiceInstructionSaveParams"),
         typed_schema::<VoiceInstructionIdParams>("VoiceInstructionIdParams"),

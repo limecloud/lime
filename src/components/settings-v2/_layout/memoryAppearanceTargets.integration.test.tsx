@@ -88,6 +88,24 @@ const targets = [
     "personalization.instructions",
   ],
   [SettingsTabs.Appearance, "", "appearance-theme", "appearance.theme.title"],
+  [
+    SettingsTabs.Appearance,
+    "",
+    "appearance-code-font-family",
+    "appearance.codeFontFamily",
+  ],
+  [
+    SettingsTabs.Appearance,
+    "",
+    "appearance-code-font-size",
+    "appearance.codeFontSize",
+  ],
+  [
+    SettingsTabs.Appearance,
+    "",
+    "appearance-reduced-motion",
+    "appearance.reducedMotion",
+  ],
   [SettingsTabs.General, "", "general-language", "desktop.language"],
 ] as const;
 const t = (key: string) =>

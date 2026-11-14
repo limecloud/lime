@@ -253,3 +253,41 @@ pub struct VoiceTranscriptionPolishTextResponse {
     #[serde(default)]
     pub polished: bool,
 }
+
+/// 请求 App Server 兑换一次短时 OpenAI Realtime client secret。
+///
+/// 模型、音色与 provider key 都由 App Server 从用户配置和 provider 凭证中解析，
+/// renderer 不能覆盖这些值，也不能看到标准 OpenAI API key。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceRealtimeClientSecretCreateParams {}
+
+/// 短时 OpenAI Realtime client secret 与浏览器 SDP endpoint。
+///
+/// `clientSecret` 是 `ek_...` 短时凭证，只用于 renderer 直接发起 WebRTC SDP
+/// 交换；它不包含标准 API key。字段的 Debug 输出会隐藏 secret。
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceRealtimeClientSecretResponse {
+    pub client_secret: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+    pub model: String,
+    pub voice: String,
+    pub calls_url: String,
+    pub provider_id: String,
+}
+
+impl std::fmt::Debug for VoiceRealtimeClientSecretResponse {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("VoiceRealtimeClientSecretResponse")
+            .field("client_secret", &"[REDACTED]")
+            .field("expires_at", &self.expires_at)
+            .field("model", &self.model)
+            .field("voice", &self.voice)
+            .field("calls_url", &self.calls_url)
+            .field("provider_id", &self.provider_id)
+            .finish()
+    }
+}

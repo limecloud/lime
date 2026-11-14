@@ -175,6 +175,8 @@ beforeEach(async () => {
       "providerRealtimeUnsupported",
       "realtimeTransportUnimplemented",
     ],
+    realtimeModels: [],
+    realtimeVoices: [],
   });
 });
 

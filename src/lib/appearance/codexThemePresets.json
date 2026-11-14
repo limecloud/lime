@@ -1,0 +1,3992 @@
+{
+  "ayu": {
+    "label": "Ayu",
+    "variants": {
+      "dark": {
+        "codeThemeName": "ayu-dark",
+        "background": "#10141c",
+        "foreground": "#bfbdb6",
+        "tokens": {
+          "comment": {
+            "color": "#5a6673",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#ff8f40"
+          },
+          "property": {
+            "color": "#39bae6"
+          },
+          "tag": {
+            "color": "#39bae6"
+          },
+          "boolean": {
+            "color": "#d2a6ff"
+          },
+          "number": {
+            "color": "#d2a6ff"
+          },
+          "constant": {
+            "color": "#5a6673"
+          },
+          "symbol": {
+            "color": "#aad94c"
+          },
+          "deleted": {
+            "color": "#f26d78"
+          },
+          "attr-name": {
+            "color": "#ffb454"
+          },
+          "string": {
+            "color": "#aad94c"
+          },
+          "char": {
+            "color": "#95e6cb"
+          },
+          "builtin": {
+            "color": "#f07178"
+          },
+          "inserted": {
+            "color": "#70bf56"
+          },
+          "operator": {
+            "color": "#f29668"
+          },
+          "entity": {
+            "color": "#59c2ff"
+          },
+          "url": {
+            "color": "#39bae6"
+          },
+          "variable": {
+            "color": "#d2a6ff"
+          },
+          "attr-value": {
+            "color": "#aad94c"
+          },
+          "function": {
+            "color": "#ffb454"
+          },
+          "class-name": {
+            "color": "#39bae6"
+          },
+          "regex": {
+            "color": "#95e6cb"
+          },
+          "important": {
+            "color": "#f07178",
+            "bold": true
+          },
+          "bold": {
+            "color": "#f07178",
+            "bold": true
+          },
+          "italic": {
+            "color": "#f07178",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#ff8f40"
+          },
+          "title": {
+            "color": "#aad94c",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#e6b450",
+          "ink": "#bfbdb6",
+          "semanticColors": {
+            "diffAdded": "#70bf56",
+            "diffRemoved": "#f26d78"
+          },
+          "surface": "#10141c"
+        }
+      }
+    }
+  },
+  "catppuccin": {
+    "label": "Catppuccin",
+    "variants": {
+      "light": {
+        "codeThemeName": "catppuccin-latte",
+        "background": "#eff1f5",
+        "foreground": "#4c4f69",
+        "tokens": {
+          "comment": {
+            "color": "#7c7f93",
+            "italic": true
+          },
+          "prolog": {
+            "color": "#4c4f69"
+          },
+          "doctype": {
+            "color": "#4c4f69"
+          },
+          "cdata": {
+            "color": "#4c4f69"
+          },
+          "punctuation": {
+            "color": "#7c7f93"
+          },
+          "namespace": {
+            "color": "#df8e1d"
+          },
+          "property": {
+            "color": "#df8e1d"
+          },
+          "tag": {
+            "color": "#1e66f5"
+          },
+          "boolean": {
+            "color": "#fe640b"
+          },
+          "number": {
+            "color": "#fe640b"
+          },
+          "constant": {
+            "color": "#ea76cb"
+          },
+          "symbol": {
+            "color": "#e64553"
+          },
+          "deleted": {
+            "color": "#d20f39"
+          },
+          "attr-name": {
+            "color": "#df8e1d"
+          },
+          "string": {
+            "color": "#40a02b"
+          },
+          "char": {
+            "color": "#ea76cb"
+          },
+          "builtin": {
+            "color": "#1e66f5",
+            "italic": true
+          },
+          "inserted": {
+            "color": "#40a02b"
+          },
+          "operator": {
+            "color": "#179299"
+          },
+          "entity": {
+            "color": "#df8e1d"
+          },
+          "url": {
+            "color": "#1e66f5"
+          },
+          "variable": {
+            "color": "#4c4f69"
+          },
+          "attr-value": {
+            "color": "#40a02b"
+          },
+          "function": {
+            "color": "#1e66f5",
+            "italic": true
+          },
+          "class-name": {
+            "color": "#df8e1d",
+            "italic": true
+          },
+          "regex": {
+            "color": "#4c4f69"
+          },
+          "important": {
+            "color": "#d20f39",
+            "bold": true
+          },
+          "bold": {
+            "color": "#d20f39",
+            "bold": true
+          },
+          "italic": {
+            "color": "#d20f39",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#8839ef"
+          },
+          "title": {
+            "color": "#d20f39"
+          }
+        },
+        "chrome": {
+          "accent": "#8839ef",
+          "ink": "#4c4f69",
+          "semanticColors": {
+            "diffAdded": "#40a02b",
+            "diffRemoved": "#d20f39"
+          },
+          "surface": "#eff1f5",
+          "palette": {
+            "blue": "#1e66f5",
+            "green": "#40a02b",
+            "orange": "#fe640b",
+            "purple": "#8839ef",
+            "red": "#d20f39",
+            "yellow": "#df8e1d"
+          }
+        }
+      },
+      "dark": {
+        "codeThemeName": "catppuccin-mocha",
+        "background": "#1e1e2e",
+        "foreground": "#cdd6f4",
+        "tokens": {
+          "comment": {
+            "color": "#9399b2",
+            "italic": true
+          },
+          "prolog": {
+            "color": "#cdd6f4"
+          },
+          "doctype": {
+            "color": "#cdd6f4"
+          },
+          "cdata": {
+            "color": "#cdd6f4"
+          },
+          "punctuation": {
+            "color": "#9399b2"
+          },
+          "namespace": {
+            "color": "#f9e2af"
+          },
+          "property": {
+            "color": "#f9e2af"
+          },
+          "tag": {
+            "color": "#89b4fa"
+          },
+          "boolean": {
+            "color": "#fab387"
+          },
+          "number": {
+            "color": "#fab387"
+          },
+          "constant": {
+            "color": "#f5c2e7"
+          },
+          "symbol": {
+            "color": "#eba0ac"
+          },
+          "deleted": {
+            "color": "#f38ba8"
+          },
+          "attr-name": {
+            "color": "#f9e2af"
+          },
+          "string": {
+            "color": "#a6e3a1"
+          },
+          "char": {
+            "color": "#f5c2e7"
+          },
+          "builtin": {
+            "color": "#89b4fa",
+            "italic": true
+          },
+          "inserted": {
+            "color": "#a6e3a1"
+          },
+          "operator": {
+            "color": "#94e2d5"
+          },
+          "entity": {
+            "color": "#f9e2af"
+          },
+          "url": {
+            "color": "#89b4fa"
+          },
+          "variable": {
+            "color": "#cdd6f4"
+          },
+          "attr-value": {
+            "color": "#a6e3a1"
+          },
+          "function": {
+            "color": "#89b4fa",
+            "italic": true
+          },
+          "class-name": {
+            "color": "#f9e2af",
+            "italic": true
+          },
+          "regex": {
+            "color": "#cdd6f4"
+          },
+          "important": {
+            "color": "#f38ba8",
+            "bold": true
+          },
+          "bold": {
+            "color": "#f38ba8",
+            "bold": true
+          },
+          "italic": {
+            "color": "#f38ba8",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#cba6f7"
+          },
+          "title": {
+            "color": "#f38ba8"
+          }
+        },
+        "chrome": {
+          "accent": "#cba6f7",
+          "ink": "#cdd6f4",
+          "semanticColors": {
+            "diffAdded": "#a6e3a1",
+            "diffRemoved": "#f38ba8"
+          },
+          "surface": "#1e1e2e",
+          "palette": {
+            "blue": "#89b4fa",
+            "green": "#a6e3a1",
+            "orange": "#fab387",
+            "purple": "#cba6f7",
+            "red": "#f38ba8",
+            "yellow": "#f9e2af"
+          }
+        }
+      }
+    }
+  },
+  "absolutely": {
+    "label": "Absolutely",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Absolutely Dark",
+        "background": "#2d2d2b",
+        "foreground": "#f9f9f7",
+        "tokens": {
+          "comment": {
+            "color": "#b2b2b0"
+          },
+          "punctuation": {
+            "color": "#b2b2b0"
+          },
+          "boolean": {
+            "color": "#ff5f38"
+          },
+          "number": {
+            "color": "#ff5f38"
+          },
+          "constant": {
+            "color": "#ff5f38"
+          },
+          "symbol": {
+            "color": "#00c853"
+          },
+          "string": {
+            "color": "#00c853"
+          },
+          "builtin": {
+            "color": "#f9f9f7"
+          },
+          "entity": {
+            "color": "#f9f9f7"
+          },
+          "variable": {
+            "color": "#f9f9f7"
+          },
+          "attr-value": {
+            "color": "#00c853"
+          },
+          "function": {
+            "color": "#f9f9f7"
+          },
+          "class-name": {
+            "color": "#d28e73"
+          },
+          "keyword": {
+            "color": "#ff5f38"
+          }
+        },
+        "chrome": {
+          "accent": "#cc7d5e",
+          "ink": "#f9f9f7",
+          "semanticColors": {
+            "diffAdded": "#00c853",
+            "diffRemoved": "#ff5f38"
+          },
+          "surface": "#2d2d2b"
+        }
+      },
+      "light": {
+        "codeThemeName": "Absolutely Light",
+        "background": "#f9f9f7",
+        "foreground": "#2d2d2b",
+        "tokens": {
+          "comment": {
+            "color": "#939391"
+          },
+          "punctuation": {
+            "color": "#939391"
+          },
+          "boolean": {
+            "color": "#ff5f38"
+          },
+          "number": {
+            "color": "#ff5f38"
+          },
+          "constant": {
+            "color": "#ff5f38"
+          },
+          "symbol": {
+            "color": "#00c853"
+          },
+          "string": {
+            "color": "#00c853"
+          },
+          "builtin": {
+            "color": "#2d2d2b"
+          },
+          "entity": {
+            "color": "#2d2d2b"
+          },
+          "variable": {
+            "color": "#2d2d2b"
+          },
+          "attr-value": {
+            "color": "#00c853"
+          },
+          "function": {
+            "color": "#2d2d2b"
+          },
+          "class-name": {
+            "color": "#bc7559"
+          },
+          "keyword": {
+            "color": "#ff5f38"
+          }
+        },
+        "chrome": {
+          "accent": "#cc7d5e",
+          "ink": "#2d2d2b",
+          "semanticColors": {
+            "diffAdded": "#00c853",
+            "diffRemoved": "#ff5f38"
+          },
+          "surface": "#f9f9f7"
+        }
+      }
+    }
+  },
+  "codex": {
+    "label": "Codex",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Codex Dark",
+        "background": "#111111",
+        "foreground": "#fcfcfc",
+        "tokens": {
+          "comment": {
+            "color": "#999999"
+          },
+          "punctuation": {
+            "color": "#999999"
+          },
+          "namespace": {
+            "color": "#fa994c"
+          },
+          "property": {
+            "color": "#999999"
+          },
+          "tag": {
+            "color": "#f67576"
+          },
+          "boolean": {
+            "color": "#6dcbf4"
+          },
+          "number": {
+            "color": "#6dcbf4"
+          },
+          "constant": {
+            "color": "#fa994c"
+          },
+          "symbol": {
+            "color": "#85df7b"
+          },
+          "deleted": {
+            "color": "#f67576"
+          },
+          "selector": {
+            "color": "#6dcbf4"
+          },
+          "attr-name": {
+            "color": "#6dcbf4"
+          },
+          "string": {
+            "color": "#85df7b"
+          },
+          "char": {
+            "color": "#fa994c"
+          },
+          "builtin": {
+            "color": "#b06dff"
+          },
+          "inserted": {
+            "color": "#85df7b"
+          },
+          "operator": {
+            "color": "#999999"
+          },
+          "entity": {
+            "color": "#fa994c"
+          },
+          "url": {
+            "color": "#b06dff"
+          },
+          "variable": {
+            "color": "#fa994c"
+          },
+          "attr-value": {
+            "color": "#85df7b"
+          },
+          "function": {
+            "color": "#b06dff"
+          },
+          "class-name": {
+            "color": "#b06dff"
+          },
+          "regex": {
+            "color": "#3d8dff"
+          },
+          "important": {
+            "color": "#fa994c"
+          },
+          "bold": {
+            "color": "#fa994c"
+          },
+          "italic": {
+            "color": "#f67576",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#f67576"
+          },
+          "title": {
+            "color": "#f67576"
+          }
+        },
+        "chrome": null
+      },
+      "light": {
+        "codeThemeName": "Codex Light",
+        "background": "#ffffff",
+        "foreground": "#0d0d0d",
+        "tokens": {
+          "comment": {
+            "color": "#666666"
+          },
+          "punctuation": {
+            "color": "#666666"
+          },
+          "namespace": {
+            "color": "#bd5800"
+          },
+          "property": {
+            "color": "#666666"
+          },
+          "tag": {
+            "color": "#d53538"
+          },
+          "boolean": {
+            "color": "#0071ea"
+          },
+          "number": {
+            "color": "#0071ea"
+          },
+          "constant": {
+            "color": "#bd5800"
+          },
+          "symbol": {
+            "color": "#008809"
+          },
+          "deleted": {
+            "color": "#d53538"
+          },
+          "selector": {
+            "color": "#0071ea"
+          },
+          "attr-name": {
+            "color": "#0071ea"
+          },
+          "string": {
+            "color": "#008809"
+          },
+          "char": {
+            "color": "#bd5800"
+          },
+          "builtin": {
+            "color": "#751ed9"
+          },
+          "inserted": {
+            "color": "#008809"
+          },
+          "operator": {
+            "color": "#666666"
+          },
+          "entity": {
+            "color": "#bd5800"
+          },
+          "url": {
+            "color": "#751ed9"
+          },
+          "variable": {
+            "color": "#bd5800"
+          },
+          "attr-value": {
+            "color": "#008809"
+          },
+          "function": {
+            "color": "#751ed9"
+          },
+          "class-name": {
+            "color": "#751ed9"
+          },
+          "regex": {
+            "color": "#001bcb"
+          },
+          "important": {
+            "color": "#bd5800"
+          },
+          "bold": {
+            "color": "#bd5800"
+          },
+          "italic": {
+            "color": "#d53538",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#d53538"
+          },
+          "title": {
+            "color": "#d53538"
+          }
+        },
+        "chrome": null
+      }
+    }
+  },
+  "dracula": {
+    "label": "Dracula",
+    "variants": {
+      "dark": {
+        "codeThemeName": "dracula",
+        "background": "#282a36",
+        "foreground": "#f8f8f2",
+        "tokens": {
+          "comment": {
+            "color": "#6272a4"
+          },
+          "punctuation": {
+            "color": "#f8f8f2"
+          },
+          "tag": {
+            "color": "#ff79c6"
+          },
+          "boolean": {
+            "color": "#f8f8f2"
+          },
+          "constant": {
+            "color": "#bd93f9"
+          },
+          "symbol": {
+            "color": "#ff79c6"
+          },
+          "deleted": {
+            "color": "#ff5555"
+          },
+          "attr-name": {
+            "color": "#50fa7b",
+            "italic": true
+          },
+          "string": {
+            "color": "#f1fa8c"
+          },
+          "char": {
+            "color": "#f1fa8c"
+          },
+          "builtin": {
+            "color": "#50fa7b"
+          },
+          "inserted": {
+            "color": "#50fa7b"
+          },
+          "operator": {
+            "color": "#f8f8f2"
+          },
+          "entity": {
+            "color": "#f1fa8c",
+            "italic": true
+          },
+          "url": {
+            "color": "#8be9fd"
+          },
+          "variable": {
+            "color": "#ffb86c",
+            "italic": true
+          },
+          "attr-value": {
+            "color": "#f1fa8c"
+          },
+          "function": {
+            "color": "#50fa7b"
+          },
+          "class-name": {
+            "color": "#8be9fd"
+          },
+          "regex": {
+            "color": "#f1fa8c"
+          },
+          "important": {
+            "color": "#ffb86c",
+            "bold": true
+          },
+          "bold": {
+            "color": "#ffb86c",
+            "bold": true
+          },
+          "italic": {
+            "color": "#f1fa8c",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#ff79c6"
+          },
+          "title": {
+            "color": "#bd93f9",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#ff79c6",
+          "ink": "#f8f8f2",
+          "semanticColors": {
+            "diffAdded": "#50fa7b",
+            "diffRemoved": "#ff5555"
+          },
+          "surface": "#282a36"
+        }
+      }
+    }
+  },
+  "everforest": {
+    "label": "Everforest",
+    "variants": {
+      "dark": {
+        "codeThemeName": "everforest-dark",
+        "background": "#2d353b",
+        "foreground": "#d3c6aa",
+        "tokens": {
+          "comment": {
+            "color": "#859289",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#d3c6aa"
+          },
+          "namespace": {
+            "color": "#83c092"
+          },
+          "property": {
+            "color": "#d3c6aa"
+          },
+          "tag": {
+            "color": "#e69875"
+          },
+          "boolean": {
+            "color": "#d699b6"
+          },
+          "number": {
+            "color": "#d699b6"
+          },
+          "constant": {
+            "color": "#859289"
+          },
+          "deleted": {
+            "color": "#e67e80"
+          },
+          "selector": {
+            "color": "#d699b6"
+          },
+          "attr-name": {
+            "color": "#dbbc7f"
+          },
+          "string": {
+            "color": "#dbbc7f"
+          },
+          "char": {
+            "color": "#859289"
+          },
+          "builtin": {
+            "color": "#a7c080"
+          },
+          "inserted": {
+            "color": "#a7c080"
+          },
+          "operator": {
+            "color": "#e69875"
+          },
+          "entity": {
+            "color": "#e69875"
+          },
+          "url": {
+            "color": "#a7c080"
+          },
+          "variable": {
+            "color": "#d3c6aa"
+          },
+          "atrule": {
+            "color": "#83c092"
+          },
+          "attr-value": {
+            "color": "#dbbc7f"
+          },
+          "function": {
+            "color": "#a7c080"
+          },
+          "class-name": {
+            "color": "#7fbbb3"
+          },
+          "regex": {
+            "color": "#dbbc7f"
+          },
+          "keyword": {
+            "color": "#7fbbb3"
+          },
+          "title": {
+            "color": "#e67e80",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#a7c080",
+          "ink": "#d3c6aa",
+          "semanticColors": {
+            "diffAdded": "#a7c080",
+            "diffRemoved": "#e67e80"
+          },
+          "surface": "#2d353b",
+          "palette": {
+            "blue": "#7fbbb3",
+            "green": "#a7c080",
+            "orange": "#e69875",
+            "purple": "#d699b6",
+            "red": "#e67e80",
+            "yellow": "#dbbc7f"
+          }
+        }
+      },
+      "light": {
+        "codeThemeName": "everforest-light",
+        "background": "#fdf6e3",
+        "foreground": "#5c6a72",
+        "tokens": {
+          "comment": {
+            "color": "#939f91",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#5c6a72"
+          },
+          "namespace": {
+            "color": "#35a77c"
+          },
+          "property": {
+            "color": "#5c6a72"
+          },
+          "tag": {
+            "color": "#f57d26"
+          },
+          "boolean": {
+            "color": "#df69ba"
+          },
+          "number": {
+            "color": "#df69ba"
+          },
+          "constant": {
+            "color": "#939f91"
+          },
+          "deleted": {
+            "color": "#f85552"
+          },
+          "selector": {
+            "color": "#df69ba"
+          },
+          "attr-name": {
+            "color": "#dfa000"
+          },
+          "string": {
+            "color": "#dfa000"
+          },
+          "char": {
+            "color": "#939f91"
+          },
+          "builtin": {
+            "color": "#8da101"
+          },
+          "inserted": {
+            "color": "#8da101"
+          },
+          "operator": {
+            "color": "#f57d26"
+          },
+          "entity": {
+            "color": "#f57d26"
+          },
+          "url": {
+            "color": "#8da101"
+          },
+          "variable": {
+            "color": "#5c6a72"
+          },
+          "atrule": {
+            "color": "#35a77c"
+          },
+          "attr-value": {
+            "color": "#dfa000"
+          },
+          "function": {
+            "color": "#8da101"
+          },
+          "class-name": {
+            "color": "#3a94c5"
+          },
+          "regex": {
+            "color": "#dfa000"
+          },
+          "keyword": {
+            "color": "#3a94c5"
+          },
+          "title": {
+            "color": "#f85552",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#93b259",
+          "ink": "#5c6a72",
+          "semanticColors": {
+            "diffAdded": "#8da101",
+            "diffRemoved": "#f85552"
+          },
+          "surface": "#fdf6e3",
+          "palette": {
+            "blue": "#3a94c5",
+            "green": "#8da101",
+            "orange": "#f57d26",
+            "purple": "#df69ba",
+            "red": "#f85552",
+            "yellow": "#dfa000"
+          }
+        }
+      }
+    }
+  },
+  "github": {
+    "label": "GitHub",
+    "variants": {
+      "dark": {
+        "codeThemeName": "github-dark-default",
+        "background": "#0d1117",
+        "foreground": "#e6edf3",
+        "tokens": {
+          "comment": {
+            "color": "#8b949e"
+          },
+          "punctuation": {
+            "color": "#ffa657"
+          },
+          "property": {
+            "color": "#7ee787"
+          },
+          "tag": {
+            "color": "#7ee787"
+          },
+          "constant": {
+            "color": "#79c0ff"
+          },
+          "deleted": {
+            "color": "#ffa198"
+          },
+          "string": {
+            "color": "#a5d6ff"
+          },
+          "char": {
+            "color": "#ff7b72"
+          },
+          "builtin": {
+            "color": "#7ee787"
+          },
+          "inserted": {
+            "color": "#7ee787"
+          },
+          "entity": {
+            "color": "#ffa657"
+          },
+          "url": {
+            "color": "#a5d6ff"
+          },
+          "variable": {
+            "color": "#79c0ff"
+          },
+          "attr-value": {
+            "color": "#a5d6ff"
+          },
+          "function": {
+            "color": "#d2a8ff"
+          },
+          "class-name": {
+            "color": "#7ee787"
+          },
+          "regex": {
+            "color": "#a5d6ff"
+          },
+          "important": {
+            "color": "#e6edf3",
+            "bold": true
+          },
+          "bold": {
+            "color": "#e6edf3",
+            "bold": true
+          },
+          "italic": {
+            "color": "#e6edf3",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#ff7b72"
+          },
+          "title": {
+            "color": "#79c0ff",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#1f6feb",
+          "ink": "#e6edf3",
+          "semanticColors": {
+            "diffAdded": "#3fb950",
+            "diffRemoved": "#f85149"
+          },
+          "surface": "#0d1117"
+        }
+      },
+      "light": {
+        "codeThemeName": "github-light-default",
+        "background": "#ffffff",
+        "foreground": "#1f2328",
+        "tokens": {
+          "comment": {
+            "color": "#6e7781"
+          },
+          "punctuation": {
+            "color": "#953800"
+          },
+          "property": {
+            "color": "#116329"
+          },
+          "tag": {
+            "color": "#116329"
+          },
+          "constant": {
+            "color": "#0550ae"
+          },
+          "deleted": {
+            "color": "#82071e"
+          },
+          "string": {
+            "color": "#0a3069"
+          },
+          "char": {
+            "color": "#cf222e"
+          },
+          "builtin": {
+            "color": "#116329"
+          },
+          "inserted": {
+            "color": "#116329"
+          },
+          "entity": {
+            "color": "#953800"
+          },
+          "url": {
+            "color": "#0a3069"
+          },
+          "variable": {
+            "color": "#0550ae"
+          },
+          "attr-value": {
+            "color": "#0a3069"
+          },
+          "function": {
+            "color": "#8250df"
+          },
+          "class-name": {
+            "color": "#116329"
+          },
+          "regex": {
+            "color": "#0a3069"
+          },
+          "important": {
+            "color": "#1f2328",
+            "bold": true
+          },
+          "bold": {
+            "color": "#1f2328",
+            "bold": true
+          },
+          "italic": {
+            "color": "#1f2328",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#cf222e"
+          },
+          "title": {
+            "color": "#0550ae",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#0969da",
+          "ink": "#1f2328",
+          "semanticColors": {
+            "diffAdded": "#1a7f37",
+            "diffRemoved": "#cf222e"
+          },
+          "surface": "#ffffff"
+        }
+      }
+    }
+  },
+  "gruvbox": {
+    "label": "Gruvbox",
+    "variants": {
+      "dark": {
+        "codeThemeName": "gruvbox-dark-medium",
+        "background": "#282828",
+        "foreground": "#ebdbb2",
+        "tokens": {
+          "comment": {
+            "color": "#928374",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#a89984"
+          },
+          "property": {
+            "color": "#689d6a"
+          },
+          "tag": {
+            "color": "#8ec07c"
+          },
+          "constant": {
+            "color": "#d3869b"
+          },
+          "deleted": {
+            "color": "#d65d0e"
+          },
+          "selector": {
+            "color": "#b8bb26"
+          },
+          "attr-name": {
+            "color": "#fabd2f"
+          },
+          "string": {
+            "color": "#b8bb26"
+          },
+          "builtin": {
+            "color": "#fabd2f"
+          },
+          "inserted": {
+            "color": "#b8bb26"
+          },
+          "operator": {
+            "color": "#8ec07c"
+          },
+          "entity": {
+            "color": "#fabd2f"
+          },
+          "url": {
+            "color": "#d3869b"
+          },
+          "variable": {
+            "color": "#83a598"
+          },
+          "attr-value": {
+            "color": "#b8bb26"
+          },
+          "function": {
+            "color": "#fabd2f"
+          },
+          "class-name": {
+            "color": "#fabd2f"
+          },
+          "regex": {
+            "color": "#fe8019"
+          },
+          "important": {
+            "color": "#fe8019",
+            "bold": true
+          },
+          "bold": {
+            "color": "#fe8019",
+            "bold": true
+          },
+          "keyword": {
+            "color": "#fe8019"
+          },
+          "title": {
+            "color": "#fe8019",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#458588",
+          "ink": "#ebdbb2",
+          "semanticColors": {
+            "diffAdded": "#ebdbb2",
+            "diffRemoved": "#cc241d"
+          },
+          "surface": "#282828"
+        }
+      },
+      "light": {
+        "codeThemeName": "gruvbox-light-medium",
+        "background": "#fbf1c7",
+        "foreground": "#3c3836",
+        "tokens": {
+          "comment": {
+            "color": "#928374",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#7c6f64"
+          },
+          "property": {
+            "color": "#689d6a"
+          },
+          "tag": {
+            "color": "#427b58"
+          },
+          "constant": {
+            "color": "#8f3f71"
+          },
+          "deleted": {
+            "color": "#d65d0e"
+          },
+          "selector": {
+            "color": "#79740e"
+          },
+          "attr-name": {
+            "color": "#b57614"
+          },
+          "string": {
+            "color": "#79740e"
+          },
+          "builtin": {
+            "color": "#b57614"
+          },
+          "inserted": {
+            "color": "#79740e"
+          },
+          "operator": {
+            "color": "#427b58"
+          },
+          "entity": {
+            "color": "#b57614"
+          },
+          "url": {
+            "color": "#8f3f71"
+          },
+          "variable": {
+            "color": "#076678"
+          },
+          "attr-value": {
+            "color": "#79740e"
+          },
+          "function": {
+            "color": "#b57614"
+          },
+          "class-name": {
+            "color": "#b57614"
+          },
+          "regex": {
+            "color": "#af3a03"
+          },
+          "important": {
+            "color": "#af3a03",
+            "bold": true
+          },
+          "bold": {
+            "color": "#af3a03",
+            "bold": true
+          },
+          "keyword": {
+            "color": "#af3a03"
+          },
+          "title": {
+            "color": "#af3a03",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#458588",
+          "ink": "#3c3836",
+          "semanticColors": {
+            "diffAdded": "#3c3836",
+            "diffRemoved": "#cc241d"
+          },
+          "surface": "#fbf1c7"
+        }
+      }
+    }
+  },
+  "linear": {
+    "label": "Linear",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Linear Dark",
+        "background": "#17181d",
+        "foreground": "#e6e9ef",
+        "tokens": {
+          "comment": {
+            "color": "#636b7b"
+          },
+          "punctuation": {
+            "color": "#b5bccb"
+          },
+          "property": {
+            "color": "#e6e9ef"
+          },
+          "boolean": {
+            "color": "#f5c56a"
+          },
+          "number": {
+            "color": "#f5c56a"
+          },
+          "constant": {
+            "color": "#f5c56a"
+          },
+          "symbol": {
+            "color": "#7ad9c0"
+          },
+          "attr-name": {
+            "color": "#7ad9c0"
+          },
+          "string": {
+            "color": "#7ad9c0"
+          },
+          "char": {
+            "color": "#f5c56a"
+          },
+          "builtin": {
+            "color": "#c2a1ff"
+          },
+          "operator": {
+            "color": "#b5bccb"
+          },
+          "entity": {
+            "color": "#c2a1ff"
+          },
+          "variable": {
+            "color": "#e6e9ef"
+          },
+          "attr-value": {
+            "color": "#7ad9c0"
+          },
+          "function": {
+            "color": "#c2a1ff"
+          },
+          "class-name": {
+            "color": "#73b7ff"
+          },
+          "regex": {
+            "color": "#f5c56a"
+          },
+          "keyword": {
+            "color": "#8c97ff"
+          }
+        },
+        "chrome": {
+          "accent": "#606acc",
+          "ink": "#e3e4e6",
+          "semanticColors": {
+            "diffAdded": "#69c967",
+            "diffRemoved": "#ff7e78"
+          },
+          "surface": "#0f0f11",
+          "fonts": {
+            "ui": "Inter"
+          },
+          "opaqueWindows": true
+        }
+      },
+      "light": {
+        "codeThemeName": "Linear Light",
+        "background": "#f7f8fa",
+        "foreground": "#2a3140",
+        "tokens": {
+          "comment": {
+            "color": "#8a93a6"
+          },
+          "punctuation": {
+            "color": "#6f7788"
+          },
+          "property": {
+            "color": "#2a3140"
+          },
+          "boolean": {
+            "color": "#b4831f"
+          },
+          "number": {
+            "color": "#b4831f"
+          },
+          "constant": {
+            "color": "#b4831f"
+          },
+          "symbol": {
+            "color": "#0f8f83"
+          },
+          "attr-name": {
+            "color": "#0f8f83"
+          },
+          "string": {
+            "color": "#0f8f83"
+          },
+          "char": {
+            "color": "#b4831f"
+          },
+          "builtin": {
+            "color": "#8160d8"
+          },
+          "operator": {
+            "color": "#6f7788"
+          },
+          "entity": {
+            "color": "#8160d8"
+          },
+          "variable": {
+            "color": "#2a3140"
+          },
+          "attr-value": {
+            "color": "#0f8f83"
+          },
+          "function": {
+            "color": "#8160d8"
+          },
+          "class-name": {
+            "color": "#4380d8"
+          },
+          "regex": {
+            "color": "#b4831f"
+          },
+          "keyword": {
+            "color": "#5e6ad2"
+          }
+        },
+        "chrome": {
+          "accent": "#5e6ad2",
+          "ink": "#1b1b1b",
+          "semanticColors": {
+            "diffAdded": "#52a450",
+            "diffRemoved": "#c94446"
+          },
+          "surface": "#fcfcfd",
+          "fonts": {
+            "ui": "Inter"
+          },
+          "opaqueWindows": true
+        }
+      }
+    }
+  },
+  "lobster": {
+    "label": "Lobster",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Lobster Dark",
+        "background": "#111827",
+        "foreground": "#e4e4e7",
+        "tokens": {
+          "comment": {
+            "color": "#71717a"
+          },
+          "punctuation": {
+            "color": "#71717a"
+          },
+          "property": {
+            "color": "#e4e4e7"
+          },
+          "boolean": {
+            "color": "#f59e0b"
+          },
+          "number": {
+            "color": "#f59e0b"
+          },
+          "constant": {
+            "color": "#f59e0b"
+          },
+          "symbol": {
+            "color": "#14b8a6"
+          },
+          "attr-name": {
+            "color": "#14b8a6"
+          },
+          "string": {
+            "color": "#a1a1aa"
+          },
+          "char": {
+            "color": "#f59e0b"
+          },
+          "builtin": {
+            "color": "#22c55e"
+          },
+          "operator": {
+            "color": "#ff7070"
+          },
+          "entity": {
+            "color": "#22c55e"
+          },
+          "variable": {
+            "color": "#e4e4e7"
+          },
+          "attr-value": {
+            "color": "#14b8a6"
+          },
+          "function": {
+            "color": "#22c55e"
+          },
+          "class-name": {
+            "color": "#3b82f6"
+          },
+          "regex": {
+            "color": "#f59e0b"
+          },
+          "important": {
+            "color": "#e4e4e7"
+          },
+          "bold": {
+            "color": "#e4e4e7"
+          },
+          "italic": {
+            "color": "#e4e4e7"
+          },
+          "keyword": {
+            "color": "#ff5c5c"
+          },
+          "title": {
+            "color": "#22c55e"
+          }
+        },
+        "chrome": {
+          "accent": "#ff5c5c",
+          "ink": "#e4e4e7",
+          "semanticColors": {
+            "diffAdded": "#22c55e",
+            "diffRemoved": "#ff5c5c"
+          },
+          "surface": "#111827",
+          "fonts": {
+            "ui": "Satoshi"
+          }
+        }
+      }
+    }
+  },
+  "material": {
+    "label": "Material",
+    "variants": {
+      "dark": {
+        "codeThemeName": "material-theme-darker",
+        "background": "#212121",
+        "foreground": "#eeffff",
+        "tokens": {
+          "comment": {
+            "color": "#545454",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#89ddff"
+          },
+          "property": {
+            "color": "#f07178"
+          },
+          "tag": {
+            "color": "#f07178"
+          },
+          "boolean": {
+            "color": "#ff9cac"
+          },
+          "number": {
+            "color": "#f78c6c"
+          },
+          "constant": {
+            "color": "#f78c6c"
+          },
+          "symbol": {
+            "color": "#89ddff"
+          },
+          "deleted": {
+            "color": "#f07178"
+          },
+          "selector": {
+            "color": "#ffcb6b"
+          },
+          "attr-name": {
+            "color": "#c792ea"
+          },
+          "string": {
+            "color": "#89ddff"
+          },
+          "char": {
+            "color": "#f78c6c"
+          },
+          "builtin": {
+            "color": "#82aaff"
+          },
+          "inserted": {
+            "color": "#c3e88d"
+          },
+          "entity": {
+            "color": "#ffcb6b"
+          },
+          "variable": {
+            "color": "#eeffff"
+          },
+          "attr-value": {
+            "color": "#c3e88d"
+          },
+          "function": {
+            "color": "#82aaff"
+          },
+          "class-name": {
+            "color": "#ffcb6b"
+          },
+          "important": {
+            "color": "#f07178",
+            "bold": true
+          },
+          "bold": {
+            "color": "#f07178",
+            "bold": true
+          },
+          "italic": {
+            "color": "#f07178",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#c792ea"
+          },
+          "title": {
+            "color": "#89ddff"
+          }
+        },
+        "chrome": {
+          "accent": "#80cbc4",
+          "ink": "#eeffff",
+          "semanticColors": {
+            "diffAdded": "#c3e88d",
+            "diffRemoved": "#f07178"
+          },
+          "surface": "#212121"
+        }
+      }
+    }
+  },
+  "matrix": {
+    "label": "Matrix",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Matrix Dark",
+        "background": "#040805",
+        "foreground": "#b8ffca",
+        "tokens": {
+          "comment": {
+            "color": "#3f8f52"
+          },
+          "punctuation": {
+            "color": "#6bd985"
+          },
+          "property": {
+            "color": "#b8ffca"
+          },
+          "boolean": {
+            "color": "#55ff7d"
+          },
+          "number": {
+            "color": "#55ff7d"
+          },
+          "constant": {
+            "color": "#55ff7d"
+          },
+          "symbol": {
+            "color": "#7dff95"
+          },
+          "attr-name": {
+            "color": "#7dff95"
+          },
+          "string": {
+            "color": "#7dff95"
+          },
+          "char": {
+            "color": "#55ff7d"
+          },
+          "builtin": {
+            "color": "#9bffb8"
+          },
+          "operator": {
+            "color": "#6bd985"
+          },
+          "entity": {
+            "color": "#9bffb8"
+          },
+          "variable": {
+            "color": "#b8ffca"
+          },
+          "attr-value": {
+            "color": "#7dff95"
+          },
+          "function": {
+            "color": "#9bffb8"
+          },
+          "class-name": {
+            "color": "#3adf6a"
+          },
+          "regex": {
+            "color": "#55ff7d"
+          },
+          "keyword": {
+            "color": "#1eff5a"
+          }
+        },
+        "chrome": {
+          "accent": "#1eff5a",
+          "ink": "#b8ffca",
+          "semanticColors": {
+            "diffAdded": "#1eff5a"
+          },
+          "surface": "#040805",
+          "fonts": {
+            "code": null,
+            "ui": "ui-monospace, \"SFMono-Regular\", \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace"
+          },
+          "opaqueWindows": true
+        }
+      }
+    }
+  },
+  "monokai": {
+    "label": "Monokai",
+    "variants": {
+      "dark": {
+        "codeThemeName": "monokai",
+        "background": "#272822",
+        "foreground": "#f8f8f2",
+        "tokens": {
+          "comment": {
+            "color": "#88846f"
+          },
+          "punctuation": {
+            "color": "#f92672"
+          },
+          "namespace": {
+            "color": "#a6e22e"
+          },
+          "tag": {
+            "color": "#f92672"
+          },
+          "boolean": {
+            "color": "#ae81ff"
+          },
+          "number": {
+            "color": "#ae81ff"
+          },
+          "constant": {
+            "color": "#7c60ad"
+          },
+          "deleted": {
+            "color": "#f92672"
+          },
+          "attr-name": {
+            "color": "#a6e22e"
+          },
+          "string": {
+            "color": "#e6db74"
+          },
+          "char": {
+            "color": "#ae81ff"
+          },
+          "builtin": {
+            "color": "#66d9ef"
+          },
+          "inserted": {
+            "color": "#a6e22e"
+          },
+          "entity": {
+            "color": "#e6db74"
+          },
+          "url": {
+            "color": "#ae81ff"
+          },
+          "variable": {
+            "color": "#fd971f",
+            "italic": true
+          },
+          "attr-value": {
+            "color": "#e6db74"
+          },
+          "function": {
+            "color": "#a6e22e"
+          },
+          "class-name": {
+            "color": "#a6e22e"
+          },
+          "important": {
+            "color": "#66d9ef"
+          },
+          "bold": {
+            "color": "#66d9ef"
+          },
+          "italic": {
+            "color": "#66d9ef"
+          },
+          "keyword": {
+            "color": "#66d9ef",
+            "italic": true
+          },
+          "title": {
+            "color": "#a6e22e"
+          }
+        },
+        "chrome": {
+          "accent": "#99947c",
+          "ink": "#f8f8f2",
+          "semanticColors": {
+            "diffAdded": "#86b42b",
+            "diffRemoved": "#c4265e"
+          },
+          "surface": "#272822"
+        }
+      }
+    }
+  },
+  "night-owl": {
+    "label": "Night Owl",
+    "variants": {
+      "dark": {
+        "codeThemeName": "night-owl",
+        "background": "#011627",
+        "foreground": "#d6deeb",
+        "tokens": {
+          "comment": {
+            "color": "#637777",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#ff5874"
+          },
+          "property": {
+            "color": "#80cbc4"
+          },
+          "tag": {
+            "color": "#caece6"
+          },
+          "boolean": {
+            "color": "#ff5874"
+          },
+          "number": {
+            "color": "#f78c6c"
+          },
+          "constant": {
+            "color": "#f78c6c"
+          },
+          "deleted": {
+            "color": "#ff0000"
+          },
+          "selector": {
+            "color": "#ff6363"
+          },
+          "attr-name": {
+            "color": "#c5e478",
+            "italic": true
+          },
+          "string": {
+            "color": "#d9f5dd"
+          },
+          "char": {
+            "color": "#82aaff"
+          },
+          "builtin": {
+            "color": "#82aaff"
+          },
+          "inserted": {
+            "color": "#036a07"
+          },
+          "operator": {
+            "color": "#7fdbca"
+          },
+          "entity": {
+            "color": "#7fdbca"
+          },
+          "url": {
+            "color": "#ff869a"
+          },
+          "variable": {
+            "color": "#ffcb8b"
+          },
+          "attr-value": {
+            "color": "#ecc48d"
+          },
+          "function": {
+            "color": "#c792ea",
+            "italic": true
+          },
+          "class-name": {
+            "color": "#c5e478"
+          },
+          "regex": {
+            "color": "#5ca7e4"
+          },
+          "important": {
+            "color": "#c5e478",
+            "bold": true
+          },
+          "bold": {
+            "color": "#c5e478",
+            "bold": true
+          },
+          "italic": {
+            "color": "#c792ea",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#c792ea"
+          },
+          "title": {
+            "color": "#82b1ff"
+          }
+        },
+        "chrome": {
+          "accent": "#44596b",
+          "ink": "#d6deeb",
+          "semanticColors": {
+            "diffAdded": "#c5e478",
+            "diffRemoved": "#ef5350"
+          },
+          "surface": "#011627"
+        }
+      }
+    }
+  },
+  "nord": {
+    "label": "Nord",
+    "variants": {
+      "dark": {
+        "codeThemeName": "nord",
+        "background": "#2e3440",
+        "foreground": "#d8dee9",
+        "tokens": {
+          "comment": {
+            "color": "#616e88"
+          },
+          "punctuation": {
+            "color": "#eceff4"
+          },
+          "tag": {
+            "color": "#81a1c1"
+          },
+          "boolean": {
+            "color": "#81a1c1"
+          },
+          "number": {
+            "color": "#b48ead"
+          },
+          "constant": {
+            "color": "#d8dee9",
+            "bold": true
+          },
+          "symbol": {
+            "color": "#d8dee9",
+            "bold": true
+          },
+          "deleted": {
+            "color": "#bf616a"
+          },
+          "attr-name": {
+            "color": "#8fbcbb"
+          },
+          "string": {
+            "color": "#a3be8c"
+          },
+          "char": {
+            "color": "#ebcb8b"
+          },
+          "builtin": {
+            "color": "#88c0d0"
+          },
+          "inserted": {
+            "color": "#a3be8c"
+          },
+          "operator": {
+            "color": "#81a1c1"
+          },
+          "entity": {
+            "color": "#8fbcbb"
+          },
+          "variable": {
+            "color": "#d8dee9"
+          },
+          "attr-value": {
+            "color": "#a3be8c"
+          },
+          "function": {
+            "color": "#88c0d0"
+          },
+          "class-name": {
+            "color": "#8fbcbb"
+          },
+          "regex": {
+            "color": "#ebcb8b"
+          },
+          "keyword": {
+            "color": "#81a1c1"
+          },
+          "title": {
+            "color": "#88c0d0"
+          }
+        },
+        "chrome": {
+          "accent": "#88c0d0",
+          "ink": "#d8dee9",
+          "semanticColors": {
+            "diffAdded": "#a3be8c",
+            "diffRemoved": "#bf616a"
+          },
+          "surface": "#2e3440",
+          "palette": {
+            "blue": "#81a1c1",
+            "green": "#a3be8c",
+            "orange": "#d08770",
+            "purple": "#b48ead",
+            "red": "#bf616a",
+            "yellow": "#ebcb8b"
+          }
+        }
+      }
+    }
+  },
+  "notion": {
+    "label": "Notion",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Notion Dark",
+        "background": "#191919",
+        "foreground": "#d9d9d8",
+        "tokens": {
+          "comment": {
+            "color": "#6a9955"
+          },
+          "punctuation": {
+            "color": "#d4d4d4"
+          },
+          "property": {
+            "color": "#d9d9d8"
+          },
+          "boolean": {
+            "color": "#b5cea8"
+          },
+          "number": {
+            "color": "#b5cea8"
+          },
+          "constant": {
+            "color": "#b5cea8"
+          },
+          "symbol": {
+            "color": "#ce9178"
+          },
+          "string": {
+            "color": "#ce9178"
+          },
+          "builtin": {
+            "color": "#dcdcaa"
+          },
+          "operator": {
+            "color": "#d4d4d4"
+          },
+          "entity": {
+            "color": "#dcdcaa"
+          },
+          "variable": {
+            "color": "#d9d9d8"
+          },
+          "attr-value": {
+            "color": "#ce9178"
+          },
+          "function": {
+            "color": "#dcdcaa"
+          },
+          "class-name": {
+            "color": "#4ec9b0"
+          },
+          "regex": {
+            "color": "#b5cea8"
+          },
+          "keyword": {
+            "color": "#569cd6"
+          }
+        },
+        "chrome": {
+          "accent": "#3183d8",
+          "ink": "#d9d9d8",
+          "semanticColors": {
+            "diffAdded": "#4ec9b0"
+          },
+          "surface": "#191919",
+          "fonts": {
+            "code": null,
+            "ui": null
+          },
+          "opaqueWindows": true
+        }
+      },
+      "light": {
+        "codeThemeName": "Notion Light",
+        "background": "#ffffff",
+        "foreground": "#37352f",
+        "tokens": {
+          "comment": {
+            "color": "#008000"
+          },
+          "punctuation": {
+            "color": "#37352f"
+          },
+          "property": {
+            "color": "#37352f"
+          },
+          "boolean": {
+            "color": "#098658"
+          },
+          "number": {
+            "color": "#098658"
+          },
+          "constant": {
+            "color": "#098658"
+          },
+          "symbol": {
+            "color": "#a31515"
+          },
+          "string": {
+            "color": "#a31515"
+          },
+          "builtin": {
+            "color": "#795e26"
+          },
+          "operator": {
+            "color": "#37352f"
+          },
+          "entity": {
+            "color": "#795e26"
+          },
+          "variable": {
+            "color": "#37352f"
+          },
+          "attr-value": {
+            "color": "#a31515"
+          },
+          "function": {
+            "color": "#795e26"
+          },
+          "class-name": {
+            "color": "#267f99"
+          },
+          "regex": {
+            "color": "#098658"
+          },
+          "keyword": {
+            "color": "#0000ff"
+          }
+        },
+        "chrome": {
+          "accent": "#3183d8",
+          "ink": "#37352f",
+          "semanticColors": {
+            "diffAdded": "#008000",
+            "diffRemoved": "#a31515"
+          },
+          "surface": "#ffffff",
+          "fonts": {
+            "code": null,
+            "ui": null
+          },
+          "opaqueWindows": true
+        }
+      }
+    }
+  },
+  "og": {
+    "label": "OG",
+    "variants": {
+      "dark": {
+        "codeThemeName": "OG Dark",
+        "background": "#343541",
+        "foreground": "#d1d5db",
+        "tokens": {
+          "comment": {
+            "color": "#acacbe"
+          },
+          "punctuation": {
+            "color": "#d1d5db"
+          },
+          "boolean": {
+            "color": "#f8b86f"
+          },
+          "number": {
+            "color": "#f8b86f"
+          },
+          "constant": {
+            "color": "#f8b86f"
+          },
+          "symbol": {
+            "color": "#65c99a"
+          },
+          "string": {
+            "color": "#65c99a"
+          },
+          "char": {
+            "color": "#f8b86f"
+          },
+          "builtin": {
+            "color": "#8dc8f4"
+          },
+          "operator": {
+            "color": "#d1d5db"
+          },
+          "entity": {
+            "color": "#8dc8f4"
+          },
+          "variable": {
+            "color": "#d1d5db"
+          },
+          "attr-value": {
+            "color": "#65c99a"
+          },
+          "function": {
+            "color": "#8dc8f4"
+          },
+          "class-name": {
+            "color": "#8bd5ca"
+          },
+          "keyword": {
+            "color": "#b4a1e5"
+          }
+        },
+        "chrome": {
+          "accent": "#10a37f",
+          "ink": "#d1d5db",
+          "semanticColors": {
+            "diffAdded": "#65c99a",
+            "diffRemoved": "#f28b82"
+          },
+          "surface": "#343541",
+          "fonts": {
+            "code": null,
+            "content": "Arial, sans-serif",
+            "ui": "Arial, sans-serif"
+          },
+          "opaqueWindows": true
+        }
+      }
+    }
+  },
+  "oscurange": {
+    "label": "Oscurange",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Oscurange",
+        "background": "#0b0b0f",
+        "foreground": "#e6e6e6",
+        "tokens": {
+          "comment": {
+            "color": "#46474f"
+          },
+          "punctuation": {
+            "color": "#5c6974"
+          },
+          "property": {
+            "color": "#e6e6e6"
+          },
+          "tag": {
+            "color": "#f9b98c"
+          },
+          "boolean": {
+            "color": "#f9b98c"
+          },
+          "number": {
+            "color": "#f9b98c"
+          },
+          "constant": {
+            "color": "#f9b98c"
+          },
+          "attr-name": {
+            "color": "#9099a1"
+          },
+          "string": {
+            "color": "#e6e6e6"
+          },
+          "char": {
+            "color": "#9592a4"
+          },
+          "builtin": {
+            "color": "#f9b98c"
+          },
+          "operator": {
+            "color": "#9099a1"
+          },
+          "entity": {
+            "color": "#ffa16c",
+            "bold": true
+          },
+          "url": {
+            "color": "#479ffa",
+            "italic": true
+          },
+          "variable": {
+            "color": "#e6e6e6"
+          },
+          "attr-value": {
+            "color": "#e6e6e6"
+          },
+          "function": {
+            "color": "#f9b98c"
+          },
+          "class-name": {
+            "color": "#9592a4"
+          },
+          "regex": {
+            "color": "#9592a4"
+          },
+          "keyword": {
+            "color": "#f9b98c"
+          },
+          "title": {
+            "color": "#ffa16c",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#f9b98c",
+          "ink": "#e6e6e6",
+          "surface": "#0b0b0f"
+        }
+      }
+    }
+  },
+  "one": {
+    "label": "One",
+    "variants": {
+      "dark": {
+        "codeThemeName": "one-dark-pro",
+        "background": "#282c34",
+        "foreground": "#abb2bf",
+        "tokens": {
+          "comment": {
+            "color": "#7f848e",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#abb2bf"
+          },
+          "namespace": {
+            "color": "#e5c07b"
+          },
+          "property": {
+            "color": "#abb2bf"
+          },
+          "tag": {
+            "color": "#e06c75"
+          },
+          "boolean": {
+            "color": "#56b6c2"
+          },
+          "number": {
+            "color": "#d19a66"
+          },
+          "constant": {
+            "color": "#d19a66"
+          },
+          "symbol": {
+            "color": "#56b6c2"
+          },
+          "deleted": {
+            "color": "#e06c75"
+          },
+          "selector": {
+            "color": "#d19a66"
+          },
+          "attr-name": {
+            "color": "#d19a66"
+          },
+          "string": {
+            "color": "#56b6c2"
+          },
+          "char": {
+            "color": "#d19a66"
+          },
+          "builtin": {
+            "color": "#56b6c2"
+          },
+          "inserted": {
+            "color": "#98c379"
+          },
+          "operator": {
+            "color": "#abb2bf"
+          },
+          "entity": {
+            "color": "#e5c07b"
+          },
+          "url": {
+            "color": "#61afef"
+          },
+          "variable": {
+            "color": "#e06c75"
+          },
+          "attr-value": {
+            "color": "#98c379"
+          },
+          "function": {
+            "color": "#61afef"
+          },
+          "class-name": {
+            "color": "#e5c07b"
+          },
+          "regex": {
+            "color": "#56b6c2"
+          },
+          "important": {
+            "color": "#d19a66"
+          },
+          "bold": {
+            "color": "#d19a66"
+          },
+          "italic": {
+            "color": "#c678dd"
+          },
+          "keyword": {
+            "color": "#c678dd"
+          },
+          "title": {
+            "color": "#e06c75"
+          }
+        },
+        "chrome": {
+          "accent": "#4d78cc",
+          "ink": "#abb2bf",
+          "semanticColors": {
+            "diffAdded": "#8cc265",
+            "diffRemoved": "#e05561"
+          },
+          "surface": "#282c34"
+        }
+      },
+      "light": {
+        "codeThemeName": "one-light",
+        "background": "#fafafa",
+        "foreground": "#383a42",
+        "tokens": {
+          "comment": {
+            "color": "#a0a1a7"
+          },
+          "punctuation": {
+            "color": "#383a42"
+          },
+          "property": {
+            "color": "#383a42"
+          },
+          "tag": {
+            "color": "#e45649"
+          },
+          "boolean": {
+            "color": "#0184bc"
+          },
+          "number": {
+            "color": "#986801"
+          },
+          "constant": {
+            "color": "#986801"
+          },
+          "symbol": {
+            "color": "#0184bc"
+          },
+          "deleted": {
+            "color": "#e45649"
+          },
+          "attr-name": {
+            "color": "#986801"
+          },
+          "string": {
+            "color": "#0184bc"
+          },
+          "char": {
+            "color": "#986801"
+          },
+          "builtin": {
+            "color": "#0184bc"
+          },
+          "inserted": {
+            "color": "#50a14f"
+          },
+          "operator": {
+            "color": "#383a42"
+          },
+          "entity": {
+            "color": "#4078f2"
+          },
+          "url": {
+            "color": "#e45649"
+          },
+          "variable": {
+            "color": "#383a42"
+          },
+          "attr-value": {
+            "color": "#50a14f"
+          },
+          "function": {
+            "color": "#4078f2"
+          },
+          "class-name": {
+            "color": "#c18401"
+          },
+          "regex": {
+            "color": "#0184bc"
+          },
+          "important": {
+            "color": "#986801",
+            "bold": true
+          },
+          "bold": {
+            "color": "#986801",
+            "bold": true
+          },
+          "italic": {
+            "color": "#a626a4",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#a626a4"
+          },
+          "title": {
+            "color": "#e45649"
+          }
+        },
+        "chrome": {
+          "accent": "#526fff",
+          "ink": "#383a42",
+          "semanticColors": {
+            "diffAdded": "#3bba54",
+            "diffRemoved": "#e45649"
+          },
+          "surface": "#fafafa"
+        }
+      }
+    }
+  },
+  "proof": {
+    "label": "Proof",
+    "variants": {
+      "light": {
+        "codeThemeName": "Proof Light",
+        "background": "#f5f3ed",
+        "foreground": "#2f312d",
+        "tokens": {
+          "comment": {
+            "color": "#8b877c"
+          },
+          "punctuation": {
+            "color": "#7a766d"
+          },
+          "property": {
+            "color": "#2f312d"
+          },
+          "boolean": {
+            "color": "#d3b45b"
+          },
+          "number": {
+            "color": "#d3b45b"
+          },
+          "constant": {
+            "color": "#d3b45b"
+          },
+          "symbol": {
+            "color": "#3d755d"
+          },
+          "string": {
+            "color": "#3d755d"
+          },
+          "builtin": {
+            "color": "#3d755d"
+          },
+          "operator": {
+            "color": "#7a766d"
+          },
+          "entity": {
+            "color": "#3d755d"
+          },
+          "variable": {
+            "color": "#2f312d"
+          },
+          "attr-value": {
+            "color": "#3d755d"
+          },
+          "function": {
+            "color": "#3d755d"
+          },
+          "class-name": {
+            "color": "#5f6ac2"
+          },
+          "regex": {
+            "color": "#d3b45b"
+          },
+          "keyword": {
+            "color": "#5f6ac2"
+          }
+        },
+        "chrome": {
+          "accent": "#3d755d",
+          "ink": "#2f312d",
+          "semanticColors": {
+            "diffAdded": "#3d755d"
+          },
+          "surface": "#f5f3ed",
+          "fonts": {
+            "code": null,
+            "ui": null
+          },
+          "opaqueWindows": false
+        }
+      }
+    }
+  },
+  "raycast": {
+    "label": "Raycast",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Raycast Dark",
+        "background": "#141414",
+        "foreground": "#ffffff",
+        "tokens": {
+          "comment": {
+            "color": "#666666"
+          },
+          "punctuation": {
+            "color": "#999999"
+          },
+          "property": {
+            "color": "#999999"
+          },
+          "tag": {
+            "color": "#ff6363"
+          },
+          "boolean": {
+            "color": "#ffffff"
+          },
+          "number": {
+            "color": "#ffffff"
+          },
+          "constant": {
+            "color": "#ffffff"
+          },
+          "deleted": {
+            "color": "#ff6363"
+          },
+          "attr-name": {
+            "color": "#ff9217"
+          },
+          "string": {
+            "color": "#ff6363"
+          },
+          "char": {
+            "color": "#ffffff"
+          },
+          "builtin": {
+            "color": "#ff9217"
+          },
+          "inserted": {
+            "color": "#59d499"
+          },
+          "operator": {
+            "color": "#ffffff"
+          },
+          "entity": {
+            "color": "#999999"
+          },
+          "url": {
+            "color": "#4fa3f8"
+          },
+          "variable": {
+            "color": "#cccccc",
+            "italic": true
+          },
+          "attr-value": {
+            "color": "#ff6363"
+          },
+          "function": {
+            "color": "#ff9217"
+          },
+          "class-name": {
+            "color": "#ff9217"
+          },
+          "regex": {
+            "color": "#ff6363"
+          },
+          "keyword": {
+            "color": "#999999"
+          }
+        },
+        "chrome": {
+          "accent": "#ff6363",
+          "ink": "#fefefe",
+          "semanticColors": {
+            "diffAdded": "#59d499",
+            "diffRemoved": "#ff6363"
+          },
+          "surface": "#101010",
+          "fonts": {
+            "code": "\"Jetbrains Mono\"",
+            "ui": "Inter"
+          },
+          "opaqueWindows": false
+        }
+      },
+      "light": {
+        "codeThemeName": "Raycast Light",
+        "background": "#ffffff",
+        "foreground": "#000000",
+        "tokens": {
+          "comment": {
+            "color": "#999999"
+          },
+          "punctuation": {
+            "color": "#666666"
+          },
+          "property": {
+            "color": "#666666"
+          },
+          "tag": {
+            "color": "#c75d07"
+          },
+          "boolean": {
+            "color": "#000000"
+          },
+          "number": {
+            "color": "#000000"
+          },
+          "constant": {
+            "color": "#000000"
+          },
+          "deleted": {
+            "color": "#b12424"
+          },
+          "attr-name": {
+            "color": "#c75d07"
+          },
+          "string": {
+            "color": "#c03030"
+          },
+          "char": {
+            "color": "#000000"
+          },
+          "builtin": {
+            "color": "#c75d07"
+          },
+          "inserted": {
+            "color": "#006b4f"
+          },
+          "operator": {
+            "color": "#000000"
+          },
+          "entity": {
+            "color": "#666666"
+          },
+          "url": {
+            "color": "#138af2"
+          },
+          "variable": {
+            "color": "#333333",
+            "italic": true
+          },
+          "attr-value": {
+            "color": "#c75d07"
+          },
+          "function": {
+            "color": "#c75d07"
+          },
+          "class-name": {
+            "color": "#c75d07"
+          },
+          "regex": {
+            "color": "#c75d07"
+          },
+          "keyword": {
+            "color": "#666666"
+          }
+        },
+        "chrome": {
+          "accent": "#ff6363",
+          "ink": "#030303",
+          "semanticColors": {
+            "diffAdded": "#006b4f",
+            "diffRemoved": "#b12424"
+          },
+          "surface": "#ffffff",
+          "fonts": {
+            "code": "\"Jetbrains Mono\"",
+            "ui": "Inter"
+          },
+          "opaqueWindows": false
+        }
+      }
+    }
+  },
+  "rose-pine": {
+    "label": "Rose Pine",
+    "variants": {
+      "dark": {
+        "codeThemeName": "rose-pine-moon",
+        "background": "#232136",
+        "foreground": "#e0def4",
+        "tokens": {
+          "comment": {
+            "color": "#6e6a86",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#908caa"
+          },
+          "namespace": {
+            "color": "#9ccfd8"
+          },
+          "tag": {
+            "color": "#9ccfd8"
+          },
+          "boolean": {
+            "color": "#ea9a97"
+          },
+          "number": {
+            "color": "#ea9a97"
+          },
+          "constant": {
+            "color": "#3e8fb0"
+          },
+          "deleted": {
+            "color": "#eb6f92"
+          },
+          "attr-name": {
+            "color": "#c4a7e7",
+            "italic": true
+          },
+          "string": {
+            "color": "#f6c177"
+          },
+          "builtin": {
+            "color": "#eb6f92",
+            "italic": true
+          },
+          "inserted": {
+            "color": "#9ccfd8"
+          },
+          "entity": {
+            "color": "#ea9a97"
+          },
+          "variable": {
+            "color": "#c4a7e7"
+          },
+          "attr-value": {
+            "color": "#f6c177"
+          },
+          "function": {
+            "color": "#eb6f92",
+            "italic": true
+          },
+          "class-name": {
+            "color": "#9ccfd8"
+          },
+          "keyword": {
+            "color": "#3e8fb0"
+          }
+        },
+        "chrome": {
+          "accent": "#ea9a97",
+          "ink": "#e0def4",
+          "semanticColors": {
+            "diffAdded": "#9ccfd8",
+            "diffRemoved": "#908caa"
+          },
+          "surface": "#232136",
+          "palette": {
+            "blue": "#9ccfd8",
+            "green": "#3e8fb0",
+            "orange": "#ea9a97",
+            "purple": "#c4a7e7",
+            "red": "#eb6f92",
+            "yellow": "#f6c177"
+          }
+        }
+      },
+      "light": {
+        "codeThemeName": "rose-pine-dawn",
+        "background": "#faf4ed",
+        "foreground": "#575279",
+        "tokens": {
+          "comment": {
+            "color": "#9893a5",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#797593"
+          },
+          "namespace": {
+            "color": "#56949f"
+          },
+          "tag": {
+            "color": "#56949f"
+          },
+          "boolean": {
+            "color": "#d7827e"
+          },
+          "number": {
+            "color": "#d7827e"
+          },
+          "constant": {
+            "color": "#286983"
+          },
+          "deleted": {
+            "color": "#b4637a"
+          },
+          "attr-name": {
+            "color": "#907aa9",
+            "italic": true
+          },
+          "string": {
+            "color": "#ea9d34"
+          },
+          "builtin": {
+            "color": "#b4637a",
+            "italic": true
+          },
+          "inserted": {
+            "color": "#56949f"
+          },
+          "entity": {
+            "color": "#d7827e"
+          },
+          "variable": {
+            "color": "#907aa9"
+          },
+          "attr-value": {
+            "color": "#ea9d34"
+          },
+          "function": {
+            "color": "#b4637a",
+            "italic": true
+          },
+          "class-name": {
+            "color": "#56949f"
+          },
+          "keyword": {
+            "color": "#286983"
+          }
+        },
+        "chrome": {
+          "accent": "#d7827e",
+          "ink": "#575279",
+          "semanticColors": {
+            "diffAdded": "#56949f",
+            "diffRemoved": "#797593"
+          },
+          "surface": "#faf4ed",
+          "palette": {
+            "blue": "#56949f",
+            "green": "#286983",
+            "orange": "#d7827e",
+            "purple": "#907aa9",
+            "red": "#b4637a",
+            "yellow": "#ea9d34"
+          }
+        }
+      }
+    }
+  },
+  "sentry": {
+    "label": "Sentry",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Sentry Dark",
+        "background": "#2d2935",
+        "foreground": "#e6dff9",
+        "tokens": {
+          "comment": {
+            "color": "#8d849f"
+          },
+          "punctuation": {
+            "color": "#c8bedf"
+          },
+          "property": {
+            "color": "#e6dff9"
+          },
+          "boolean": {
+            "color": "#f4c46a"
+          },
+          "number": {
+            "color": "#f4c46a"
+          },
+          "constant": {
+            "color": "#f4c46a"
+          },
+          "symbol": {
+            "color": "#8ee6d7"
+          },
+          "attr-name": {
+            "color": "#8ee6d7"
+          },
+          "string": {
+            "color": "#8ee6d7"
+          },
+          "char": {
+            "color": "#f4c46a"
+          },
+          "builtin": {
+            "color": "#a58cff"
+          },
+          "operator": {
+            "color": "#c8bedf"
+          },
+          "entity": {
+            "color": "#a58cff"
+          },
+          "variable": {
+            "color": "#e6dff9"
+          },
+          "attr-value": {
+            "color": "#8ee6d7"
+          },
+          "function": {
+            "color": "#a58cff"
+          },
+          "class-name": {
+            "color": "#c39bff"
+          },
+          "regex": {
+            "color": "#f4c46a"
+          },
+          "keyword": {
+            "color": "#7055f6"
+          }
+        },
+        "chrome": {
+          "accent": "#7055f6",
+          "ink": "#e6dff9",
+          "semanticColors": {
+            "diffAdded": "#8ee6d7"
+          },
+          "surface": "#2d2935",
+          "fonts": {
+            "code": null,
+            "ui": null
+          }
+        }
+      }
+    }
+  },
+  "solarized": {
+    "label": "Solarized",
+    "variants": {
+      "dark": {
+        "codeThemeName": "solarized-dark",
+        "background": "#002b36",
+        "foreground": "#839496",
+        "tokens": {
+          "comment": {
+            "color": "#586e75",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#6c71c4"
+          },
+          "namespace": {
+            "color": "#cb4b16"
+          },
+          "tag": {
+            "color": "#268bd2"
+          },
+          "boolean": {
+            "color": "#b58900"
+          },
+          "number": {
+            "color": "#d33682"
+          },
+          "constant": {
+            "color": "#cb4b16"
+          },
+          "deleted": {
+            "color": "#dc322f"
+          },
+          "attr-name": {
+            "color": "#93a1a1"
+          },
+          "string": {
+            "color": "#2aa198"
+          },
+          "char": {
+            "color": "#cb4b16"
+          },
+          "builtin": {
+            "color": "#268bd2"
+          },
+          "inserted": {
+            "color": "#859900"
+          },
+          "entity": {
+            "color": "#cb4b16"
+          },
+          "variable": {
+            "color": "#268bd2"
+          },
+          "attr-value": {
+            "color": "#2aa198"
+          },
+          "function": {
+            "color": "#268bd2"
+          },
+          "class-name": {
+            "color": "#cb4b16"
+          },
+          "regex": {
+            "color": "#dc322f"
+          },
+          "important": {
+            "color": "#d33682"
+          },
+          "bold": {
+            "color": "#d33682"
+          },
+          "italic": {
+            "color": "#d33682"
+          },
+          "keyword": {
+            "color": "#859900"
+          },
+          "title": {
+            "color": "#268bd2",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#d30102",
+          "ink": "#839496",
+          "semanticColors": {
+            "diffAdded": "#859900",
+            "diffRemoved": "#dc322f"
+          },
+          "surface": "#002b36"
+        }
+      },
+      "light": {
+        "codeThemeName": "solarized-light",
+        "background": "#fdf6e3",
+        "foreground": "#657b83",
+        "tokens": {
+          "comment": {
+            "color": "#93a1a1",
+            "italic": true
+          },
+          "punctuation": {
+            "color": "#6c71c4"
+          },
+          "namespace": {
+            "color": "#cb4b16"
+          },
+          "tag": {
+            "color": "#268bd2"
+          },
+          "boolean": {
+            "color": "#b58900"
+          },
+          "number": {
+            "color": "#d33682"
+          },
+          "constant": {
+            "color": "#cb4b16"
+          },
+          "deleted": {
+            "color": "#dc322f"
+          },
+          "attr-name": {
+            "color": "#93a1a1"
+          },
+          "string": {
+            "color": "#2aa198"
+          },
+          "char": {
+            "color": "#cb4b16"
+          },
+          "builtin": {
+            "color": "#268bd2"
+          },
+          "inserted": {
+            "color": "#859900"
+          },
+          "entity": {
+            "color": "#cb4b16"
+          },
+          "variable": {
+            "color": "#268bd2"
+          },
+          "attr-value": {
+            "color": "#2aa198"
+          },
+          "function": {
+            "color": "#268bd2"
+          },
+          "class-name": {
+            "color": "#cb4b16"
+          },
+          "regex": {
+            "color": "#dc322f"
+          },
+          "important": {
+            "color": "#d33682"
+          },
+          "bold": {
+            "color": "#d33682"
+          },
+          "italic": {
+            "color": "#d33682"
+          },
+          "keyword": {
+            "color": "#859900"
+          },
+          "title": {
+            "color": "#268bd2",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#b58900",
+          "ink": "#657b83",
+          "semanticColors": {
+            "diffAdded": "#859900",
+            "diffRemoved": "#dc322f"
+          },
+          "surface": "#fdf6e3"
+        }
+      }
+    }
+  },
+  "temple": {
+    "label": "Temple",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Temple Dark",
+        "background": "#02120c",
+        "foreground": "#c7e6da",
+        "tokens": {
+          "comment": {
+            "color": "#394d46"
+          },
+          "punctuation": {
+            "color": "#4f5e13"
+          },
+          "property": {
+            "color": "#c7e6da"
+          },
+          "boolean": {
+            "color": "#e4f222"
+          },
+          "number": {
+            "color": "#e4f222"
+          },
+          "constant": {
+            "color": "#e4f222"
+          },
+          "symbol": {
+            "color": "#e4f222"
+          },
+          "attr-name": {
+            "color": "#788617"
+          },
+          "string": {
+            "color": "#e4f222"
+          },
+          "builtin": {
+            "color": "#e4f222"
+          },
+          "operator": {
+            "color": "#788617"
+          },
+          "entity": {
+            "color": "#e4f222"
+          },
+          "variable": {
+            "color": "#c7e6da"
+          },
+          "attr-value": {
+            "color": "#c7e6da"
+          },
+          "function": {
+            "color": "#e4f222"
+          },
+          "class-name": {
+            "color": "#859419"
+          },
+          "keyword": {
+            "color": "#e4f222"
+          }
+        },
+        "chrome": {
+          "accent": "#e4f222",
+          "ink": "#c7e6da",
+          "surface": "#02120c"
+        }
+      }
+    }
+  },
+  "tokyo-night": {
+    "label": "Tokyo Night",
+    "variants": {
+      "dark": {
+        "codeThemeName": "tokyo-night",
+        "background": "#1a1b26",
+        "foreground": "#a9b1d6",
+        "tokens": {
+          "comment": {
+            "color": "#51597d"
+          },
+          "prolog": {
+            "color": "#51597d"
+          },
+          "doctype": {
+            "color": "#51597d"
+          },
+          "cdata": {
+            "color": "#51597d"
+          },
+          "punctuation": {
+            "color": "#89ddff"
+          },
+          "namespace": {
+            "color": "#0db9d7"
+          },
+          "property": {
+            "color": "#73daca"
+          },
+          "tag": {
+            "color": "#f7768e"
+          },
+          "boolean": {
+            "color": "#ff9e64"
+          },
+          "number": {
+            "color": "#ff9e64"
+          },
+          "constant": {
+            "color": "#9aa5ce"
+          },
+          "symbol": {
+            "color": "#9ece6a"
+          },
+          "deleted": {
+            "color": "#914c54"
+          },
+          "selector": {
+            "color": "#9ece6a"
+          },
+          "attr-name": {
+            "color": "#bb9af7"
+          },
+          "string": {
+            "color": "#89ddff"
+          },
+          "char": {
+            "color": "#bb9af7"
+          },
+          "builtin": {
+            "color": "#0db9d7"
+          },
+          "inserted": {
+            "color": "#449dab"
+          },
+          "operator": {
+            "color": "#89ddff"
+          },
+          "entity": {
+            "color": "#c0caf5"
+          },
+          "url": {
+            "color": "#73daca"
+          },
+          "variable": {
+            "color": "#e0af68"
+          },
+          "atrule": {
+            "color": "#9d7cd8"
+          },
+          "attr-value": {
+            "color": "#9ece6a"
+          },
+          "function": {
+            "color": "#7aa2f7"
+          },
+          "class-name": {
+            "color": "#0db9d7"
+          },
+          "regex": {
+            "color": "#b4f9f8"
+          },
+          "important": {
+            "color": "#bb9af7"
+          },
+          "bold": {
+            "color": "#c0caf5",
+            "bold": true
+          },
+          "italic": {
+            "color": "#c0caf5",
+            "italic": true
+          },
+          "keyword": {
+            "color": "#9d7cd8"
+          }
+        },
+        "chrome": {
+          "accent": "#3d59a1",
+          "ink": "#a9b1d6",
+          "semanticColors": {
+            "diffAdded": "#449dab",
+            "diffRemoved": "#914c54"
+          },
+          "surface": "#1a1b26",
+          "palette": {
+            "blue": "#7aa2f7",
+            "green": "#41a6b5",
+            "orange": "#ff9e64",
+            "purple": "#9d7cd8",
+            "red": "#f7768e",
+            "yellow": "#e0af68"
+          }
+        }
+      }
+    }
+  },
+  "vercel": {
+    "label": "Vercel",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Vercel Dark",
+        "background": "#000000",
+        "foreground": "#ededed",
+        "tokens": {
+          "comment": {
+            "color": "#666666"
+          },
+          "punctuation": {
+            "color": "#a1a1a1"
+          },
+          "property": {
+            "color": "#ededed"
+          },
+          "boolean": {
+            "color": "#9540d5"
+          },
+          "number": {
+            "color": "#9540d5"
+          },
+          "constant": {
+            "color": "#9540d5"
+          },
+          "symbol": {
+            "color": "#00ad3a"
+          },
+          "attr-name": {
+            "color": "#00ad3a"
+          },
+          "string": {
+            "color": "#00ad3a"
+          },
+          "char": {
+            "color": "#9540d5"
+          },
+          "builtin": {
+            "color": "#9540d5"
+          },
+          "operator": {
+            "color": "#a1a1a1"
+          },
+          "entity": {
+            "color": "#9540d5"
+          },
+          "variable": {
+            "color": "#ededed"
+          },
+          "attr-value": {
+            "color": "#00ad3a"
+          },
+          "function": {
+            "color": "#9540d5"
+          },
+          "class-name": {
+            "color": "#52a8ff"
+          },
+          "regex": {
+            "color": "#9540d5"
+          },
+          "keyword": {
+            "color": "#006efe"
+          }
+        },
+        "chrome": {
+          "accent": "#006efe",
+          "ink": "#ededed",
+          "semanticColors": {
+            "diffAdded": "#00ad3a",
+            "diffRemoved": "#f13342"
+          },
+          "surface": "#000000",
+          "contrast": 50,
+          "fonts": {
+            "code": "\"Geist Mono\", ui-monospace, \"SFMono-Regular\"",
+            "ui": "Geist, Inter"
+          },
+          "opaqueWindows": true
+        }
+      },
+      "light": {
+        "codeThemeName": "Vercel Light",
+        "background": "#ffffff",
+        "foreground": "#171717",
+        "tokens": {
+          "comment": {
+            "color": "#666666"
+          },
+          "punctuation": {
+            "color": "#666666"
+          },
+          "property": {
+            "color": "#171717"
+          },
+          "boolean": {
+            "color": "#a100f8"
+          },
+          "number": {
+            "color": "#a100f8"
+          },
+          "constant": {
+            "color": "#a100f8"
+          },
+          "symbol": {
+            "color": "#28a948"
+          },
+          "attr-name": {
+            "color": "#28a948"
+          },
+          "string": {
+            "color": "#28a948"
+          },
+          "char": {
+            "color": "#a100f8"
+          },
+          "builtin": {
+            "color": "#a100f8"
+          },
+          "operator": {
+            "color": "#666666"
+          },
+          "entity": {
+            "color": "#a100f8"
+          },
+          "variable": {
+            "color": "#171717"
+          },
+          "attr-value": {
+            "color": "#28a948"
+          },
+          "function": {
+            "color": "#a100f8"
+          },
+          "class-name": {
+            "color": "#0059d1"
+          },
+          "regex": {
+            "color": "#a100f8"
+          },
+          "keyword": {
+            "color": "#006aff"
+          }
+        },
+        "chrome": {
+          "accent": "#006aff",
+          "ink": "#171717",
+          "semanticColors": {
+            "diffAdded": "#28a948",
+            "diffRemoved": "#eb001d"
+          },
+          "surface": "#ffffff",
+          "contrast": 40,
+          "fonts": {
+            "code": "\"Geist Mono\", ui-monospace, \"SFMono-Regular\"",
+            "ui": "Geist, Inter"
+          },
+          "opaqueWindows": true
+        }
+      }
+    }
+  },
+  "vscode-plus": {
+    "label": "VS Code Plus",
+    "variants": {
+      "dark": {
+        "codeThemeName": "dark-plus",
+        "background": "#1e1e1e",
+        "foreground": "#d4d4d4",
+        "tokens": {
+          "comment": {
+            "color": "#6a9955"
+          },
+          "punctuation": {
+            "color": "#569cd6"
+          },
+          "namespace": {
+            "color": "#4ec9b0"
+          },
+          "property": {
+            "color": "#9cdcfe"
+          },
+          "tag": {
+            "color": "#569cd6"
+          },
+          "boolean": {
+            "color": "#569cd6"
+          },
+          "number": {
+            "color": "#b5cea8"
+          },
+          "constant": {
+            "color": "#d16969"
+          },
+          "deleted": {
+            "color": "#ce9178"
+          },
+          "selector": {
+            "color": "#d7ba7d"
+          },
+          "attr-name": {
+            "color": "#9cdcfe"
+          },
+          "string": {
+            "color": "#ce9178"
+          },
+          "char": {
+            "color": "#569cd6"
+          },
+          "builtin": {
+            "color": "#dcdcaa"
+          },
+          "inserted": {
+            "color": "#b5cea8"
+          },
+          "operator": {
+            "color": "#d4d4d4"
+          },
+          "entity": {
+            "color": "#dcdcaa"
+          },
+          "variable": {
+            "color": "#569cd6"
+          },
+          "attr-value": {
+            "color": "#ce9178"
+          },
+          "function": {
+            "color": "#dcdcaa"
+          },
+          "class-name": {
+            "color": "#4ec9b0"
+          },
+          "regex": {
+            "color": "#d16969"
+          },
+          "important": {
+            "color": "#569cd6",
+            "bold": true
+          },
+          "bold": {
+            "color": "#569cd6",
+            "bold": true
+          },
+          "keyword": {
+            "color": "#569cd6"
+          },
+          "title": {
+            "color": "#569cd6",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#007acc",
+          "ink": "#d4d4d4",
+          "semanticColors": {
+            "diffAdded": "#369432",
+            "diffRemoved": "#f44747"
+          },
+          "surface": "#1e1e1e"
+        }
+      },
+      "light": {
+        "codeThemeName": "light-plus",
+        "background": "#ffffff",
+        "foreground": "#000000",
+        "tokens": {
+          "comment": {
+            "color": "#008000"
+          },
+          "punctuation": {
+            "color": "#0000ff"
+          },
+          "namespace": {
+            "color": "#267f99"
+          },
+          "property": {
+            "color": "#e50000"
+          },
+          "tag": {
+            "color": "#800000"
+          },
+          "boolean": {
+            "color": "#0000ff"
+          },
+          "number": {
+            "color": "#098658"
+          },
+          "constant": {
+            "color": "#811f3f"
+          },
+          "deleted": {
+            "color": "#a31515"
+          },
+          "selector": {
+            "color": "#800000"
+          },
+          "attr-name": {
+            "color": "#e50000"
+          },
+          "string": {
+            "color": "#a31515"
+          },
+          "char": {
+            "color": "#0000ff"
+          },
+          "builtin": {
+            "color": "#795e26"
+          },
+          "inserted": {
+            "color": "#098658"
+          },
+          "operator": {
+            "color": "#000000"
+          },
+          "entity": {
+            "color": "#795e26"
+          },
+          "variable": {
+            "color": "#0000ff"
+          },
+          "attr-value": {
+            "color": "#a31515"
+          },
+          "function": {
+            "color": "#795e26"
+          },
+          "class-name": {
+            "color": "#267f99"
+          },
+          "regex": {
+            "color": "#811f3f"
+          },
+          "important": {
+            "color": "#000080",
+            "bold": true
+          },
+          "bold": {
+            "color": "#000080",
+            "bold": true
+          },
+          "keyword": {
+            "color": "#0000ff"
+          },
+          "title": {
+            "color": "#800000",
+            "bold": true
+          }
+        },
+        "chrome": {
+          "accent": "#007acc",
+          "ink": "#000000",
+          "semanticColors": {
+            "diffAdded": "#008000",
+            "diffRemoved": "#ee0000"
+          },
+          "surface": "#ffffff"
+        }
+      }
+    }
+  },
+  "xcode": {
+    "label": "Xcode",
+    "variants": {
+      "dark": {
+        "codeThemeName": "Xcode Dark",
+        "background": "#1f1f24",
+        "foreground": "#dedede",
+        "tokens": {
+          "comment": {
+            "color": "#6c7986"
+          },
+          "punctuation": {
+            "color": "#6c7986"
+          },
+          "boolean": {
+            "color": "#d0bf69"
+          },
+          "number": {
+            "color": "#d0bf69"
+          },
+          "constant": {
+            "color": "#d0bf69"
+          },
+          "symbol": {
+            "color": "#fc6a5d"
+          },
+          "string": {
+            "color": "#fc6a5d"
+          },
+          "char": {
+            "color": "#d0bf69"
+          },
+          "builtin": {
+            "color": "#67b7a4"
+          },
+          "entity": {
+            "color": "#67b7a4"
+          },
+          "url": {
+            "color": "#5482ff"
+          },
+          "variable": {
+            "color": "#67b7a4"
+          },
+          "attr-value": {
+            "color": "#fc6a5d"
+          },
+          "function": {
+            "color": "#67b7a4"
+          },
+          "class-name": {
+            "color": "#5dd8ff"
+          },
+          "keyword": {
+            "color": "#fc5fa3"
+          }
+        },
+        "chrome": {
+          "accent": "#5482ff",
+          "ink": "#ffffff",
+          "semanticColors": {
+            "diffAdded": "#67b7a4",
+            "diffRemoved": "#fc6a5d"
+          },
+          "surface": "#1f1f24",
+          "fonts": {
+            "code": "\"SFMono-Medium\""
+          }
+        }
+      },
+      "light": {
+        "codeThemeName": "Xcode Light",
+        "background": "#ffffff",
+        "foreground": "#262626",
+        "tokens": {
+          "comment": {
+            "color": "#5d6c79"
+          },
+          "punctuation": {
+            "color": "#5d6c79"
+          },
+          "boolean": {
+            "color": "#1c00cf"
+          },
+          "number": {
+            "color": "#1c00cf"
+          },
+          "constant": {
+            "color": "#1c00cf"
+          },
+          "symbol": {
+            "color": "#c41a16"
+          },
+          "string": {
+            "color": "#c41a16"
+          },
+          "char": {
+            "color": "#1c00cf"
+          },
+          "builtin": {
+            "color": "#326d74"
+          },
+          "entity": {
+            "color": "#326d74"
+          },
+          "url": {
+            "color": "#0e0eff"
+          },
+          "variable": {
+            "color": "#326d74"
+          },
+          "attr-value": {
+            "color": "#c41a16"
+          },
+          "function": {
+            "color": "#326d74"
+          },
+          "class-name": {
+            "color": "#0b4f79"
+          },
+          "keyword": {
+            "color": "#9b2393"
+          }
+        },
+        "chrome": {
+          "accent": "#0e0eff",
+          "ink": "#000000",
+          "semanticColors": {
+            "diffRemoved": "#c41a16"
+          },
+          "surface": "#ffffff",
+          "fonts": {
+            "code": "\"SFMono-Regular\""
+          }
+        }
+      }
+    }
+  }
+}

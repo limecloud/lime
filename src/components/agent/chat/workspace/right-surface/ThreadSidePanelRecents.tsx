@@ -16,6 +16,7 @@ import {
   Presentation,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isReducedMotionPreferred } from "@/lib/appearance/reducedMotion";
 import type { ThreadOutput } from "./threadOutputs";
 import { outputFileName } from "./threadOutputPaths";
 import { websiteOutputName } from "./threadOutputWebsite";
@@ -103,9 +104,7 @@ export function ThreadSidePanelRecents({
     );
     list.scrollBy({
       top: direction * rows * size.row,
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth",
+      behavior: isReducedMotionPreferred() ? "instant" : "smooth",
     });
   };
   const locale = i18n.resolvedLanguage || i18n.language;

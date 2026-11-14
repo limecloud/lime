@@ -1,6 +1,6 @@
 # Lime v1.177.2 发布修复
 
-日期：2026-11-14。状态：发布暂停；按用户更正移除 Linux 分发目标。
+日期：2026-11-14。状态：用户恢复发布并要求立即递交全部当前改动；保持 `v1.177.2`，仅发布 macOS/Windows。
 
 ## 目标与授权
 
@@ -154,3 +154,10 @@
 - 草稿资产 `lime-npm-linux-x64-1.177.2.tgz` 已删除并复核，草稿仅剩 macOS arm64/x64 与 Windows x64 三份 CLI 平台包；草稿发布说明同步删除 Linux 缓存修复声明。
 - legacy 扫描唯一违规是原有 `app-server/src/main.rs` 单元测试中的 `/tmp/lime-legacy/app.db`；核对该文件与 HEAD 无差异，命中内容在 HEAD 已存在，不改无关 runtime 或降低守卫。
 - `smoke:cli-npm-gate-b` 因本机 `lime-rs/target/debug` 不存在而未进入产品进程；尝试读取当前草稿的 macOS 包，网络约 1.7 MB/96 秒，停止本进程发起的下载，未用旧版全局 CLI 冒充本次 Gate B。当前 74 项是打包/launcher/守卫证据，不是新的跨平台打包或完整发版验收。
+
+## 恢复发布与全部递交
+
+- 用户明确要求“继续推进发布”“马上递交发布，所有的都递交”，撤销暂停并将当前全部 tracked/untracked 产品改动纳入候选；原先避让的并行写集本轮按用户明确授权一起冻结递交。
+- 候选包括 Electron 菜单/浏览器、工作区快捷键与应用快照、外观和 Markdown/差异展示、实时语音 Provider/协议/schema/客户端/会话链路、五语言资源及测试；本地缓存和 ignored 验证产物不进入 Git。
+- 版本继续 `1.177.2`，发布矩阵只有 macOS arm64/x64 与 Windows x64。补全中英文说明，以准确租约将既有未公开 tag 更新到完整候选后构建全部产物，避免跨 SHA 混发。
+- 按 release skill 的“马上递交”规则将本机完整 typecheck 作为非阻断并行检查；已启动 typecheck、contracts 与版本校验，结果如实记录。后续打包、签名、公证和平台验收由同 SHA Release 流水线完成。

@@ -203,6 +203,7 @@ pub use runtime::ProjectionStore;
 pub use runtime::ProviderModelCatalog;
 #[doc(hidden)]
 pub use runtime::ProviderTurnHistory;
+pub use runtime::RealtimeVoiceProviderSnapshot;
 pub use runtime::RightSurfaceAppDataSource;
 pub use runtime::RuntimeCore;
 pub use runtime::RuntimeCoreError;

@@ -387,6 +387,9 @@ impl RequestProcessor {
             METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT => self
                 .handle_voice_transcription_polish_text_impl(params)
                 .boxed(),
+            METHOD_VOICE_REALTIME_CLIENT_SECRET_CREATE => self
+                .handle_voice_realtime_client_secret_create_impl(params)
+                .boxed(),
             METHOD_WORKSPACE_RIGHT_SURFACE_REQUEST => self
                 .handle_workspace_right_surface_request_impl(params)
                 .boxed(),

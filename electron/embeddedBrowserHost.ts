@@ -748,7 +748,8 @@ export class ElectronEmbeddedBrowserHost {
           path.dirname(fileURLToPath(import.meta.url)),
           "../preload/browserPage.cjs",
         ),
-        nodeIntegrationInSubFrames: false,
+        // 自动填充需要子 frame（SSO/内嵌登录）也运行 preload；注释仍在主 frame 安装。
+        nodeIntegrationInSubFrames: true,
       },
     });
     view.setBackgroundColor("#ffffff");

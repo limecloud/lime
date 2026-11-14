@@ -304,8 +304,11 @@ beforeEach(async () => {
     realtime: false,
     realtimeBlockers: [
       "providerRealtimeUnsupported",
-      "realtimeTransportUnimplemented",
+      "realtimeModelUnconfigured",
+      "realtimeVoiceUnconfigured",
     ],
+    realtimeModels: [],
+    realtimeVoices: [],
   });
 });
 

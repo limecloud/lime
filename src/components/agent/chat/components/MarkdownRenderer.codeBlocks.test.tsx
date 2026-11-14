@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { initializeLimeAppearance } from "@/lib/appearance/applyAppearance";
 import { renderMarkdown as render } from "./MarkdownRenderer.testHarness";
 
 describe("MarkdownRenderer code blocks", () => {
@@ -38,30 +39,37 @@ describe("MarkdownRenderer code blocks", () => {
     expect(syntaxHighlighter?.getAttribute("data-font-family")).toContain(
       "ui-monospace",
     );
+    expect(syntaxHighlighter?.getAttribute("data-font-size")).toContain(
+      "--lime-code-font-size",
+    );
   });
 
-  it("代码块应改用浅色主题与浅底容器，避免整片黑底压过正文", () => {
-    const content = ["```typescript", "const answer = 42;", "```"].join("\n");
+  it("代码块使用 Codex 代码主题语义变量，默认浅色背景不再是硬编码色", () => {
+    const cleanup = initializeLimeAppearance();
+    try {
+      const content = ["```typescript", "const answer = 42;", "```"].join("\n");
 
-    const container = render(content);
-    const syntaxHighlighter = container.querySelector(
-      '[data-testid="syntax-highlighter"]',
-    );
-    const codeBlock = container.querySelector(
-      '[data-testid="markdown-syntax-code-block"]',
-    );
+      const container = render(content);
+      const syntaxHighlighter = container.querySelector(
+        '[data-testid="syntax-highlighter"]',
+      );
+      const codeBlock = container.querySelector(
+        '[data-testid="markdown-syntax-code-block"]',
+      );
 
-    expect(syntaxHighlighter?.getAttribute("data-theme")).toBe("light");
-    expect(codeBlock).not.toBeNull();
-    const backgroundColor = getComputedStyle(
-      codeBlock as HTMLElement,
-    ).backgroundColor;
-    const rgbMatch = /rgb\((\d+), (\d+), (\d+)\)/.exec(backgroundColor);
-    expect(rgbMatch).not.toBeNull();
-    const [, red = "0", green = "0", blue = "0"] = rgbMatch ?? [];
-    expect(Number(red)).toBeGreaterThanOrEqual(240);
-    expect(Number(green)).toBeGreaterThanOrEqual(240);
-    expect(Number(blue)).toBeGreaterThanOrEqual(240);
+      expect(syntaxHighlighter?.getAttribute("data-inline-styles")).toBe(
+        "false",
+      );
+      expect(codeBlock).not.toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue("--lime-code-surface"),
+      ).toBe("#ffffff");
+      expect(
+        document.documentElement.style.getPropertyValue("--lime-code-text"),
+      ).toBe("#0d0d0d");
+    } finally {
+      cleanup();
+    }
   });
 
   it("inline code 应单独标记，块级代码不应再继承胶囊样式", () => {
@@ -238,5 +246,4 @@ describe("MarkdownRenderer code blocks", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("||------||");
   });
-
 });

@@ -102,10 +102,20 @@ type ModelProviderIdRecord = {
 
 export type RealtimeVoiceBlocker =
   | "providerRealtimeUnsupported"
+  | "providerKeyMissing"
+  | "realtimeModelUnconfigured"
+  | "realtimeModelUnsupported"
+  | "realtimeVoiceUnconfigured"
+  | "realtimeVoiceUnsupported"
   | "realtimeTransportUnimplemented";
 
 const REALTIME_VOICE_BLOCKERS: readonly RealtimeVoiceBlocker[] = [
   "providerRealtimeUnsupported",
+  "providerKeyMissing",
+  "realtimeModelUnconfigured",
+  "realtimeModelUnsupported",
+  "realtimeVoiceUnconfigured",
+  "realtimeVoiceUnsupported",
   "realtimeTransportUnimplemented",
 ];
 
@@ -113,10 +123,18 @@ export type ModelProviderCapabilities = {
   namespaceTools: boolean;
   imageGeneration: boolean;
   webSearch: boolean;
-  /** 当前 provider 路由与运行时是否已具备端到端实时语音能力。 */
+  /** 当前 provider、显式模型/音色与 renderer WebRTC 路径是否端到端可用。 */
   realtime: boolean;
   /** `realtime` 为 false 时的具体缺失环节；未知值被丢弃并 fail closed。 */
   realtimeBlockers: RealtimeVoiceBlocker[];
+  /** 已配置的实时语音模型；未配置时为空。 */
+  realtimeModel?: string;
+  /** 已配置的实时语音音色；未配置时为空。 */
+  realtimeVoice?: string;
+  /** 本构建可选的模型；provider 不可用时为空。 */
+  realtimeModels: string[];
+  /** 官方 Realtime API 支持的音色选项；provider 不可用时为空。 */
+  realtimeVoices: string[];
 };
 
 function emptyModelProviderCapabilities(): ModelProviderCapabilities {
@@ -126,6 +144,8 @@ function emptyModelProviderCapabilities(): ModelProviderCapabilities {
     webSearch: false,
     realtime: false,
     realtimeBlockers: [],
+    realtimeModels: [],
+    realtimeVoices: [],
   };
 }
 
@@ -157,14 +177,37 @@ function parseModelProviderCapabilities(
     return emptyModelProviderCapabilities();
   }
   const realtimeBlockers = normalizeRealtimeBlockers(source.realtimeBlockers);
+  const realtimeModel = nonEmptyString(source.realtimeModel) ?? undefined;
+  const realtimeVoice = nonEmptyString(source.realtimeVoice) ?? undefined;
   return {
     namespaceTools: source.namespaceTools,
     imageGeneration: source.imageGeneration,
     webSearch: source.webSearch,
-    // 只有服务端显式声明 available 且没有阻断项时才可用；缺字段一律不可用。
-    realtime: source.realtime === true && realtimeBlockers.length === 0,
+    // 只有服务端显式声明 available、没有阻断项且模型/音色都有显式配置时
+    // 才可用；缺字段一律不可用。
+    realtime:
+      source.realtime === true &&
+      realtimeBlockers.length === 0 &&
+      Boolean(realtimeModel) &&
+      Boolean(realtimeVoice),
     realtimeBlockers,
+    realtimeModel,
+    realtimeVoice,
+    realtimeModels: normalizeStringList(source.realtimeModels),
+    realtimeVoices: normalizeStringList(source.realtimeVoices),
   };
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const values: string[] = [];
+  for (const entry of value) {
+    const normalized = nonEmptyString(entry);
+    if (normalized && !values.includes(normalized) && values.length < 64) {
+      values.push(normalized);
+    }
+  }
+  return values;
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {

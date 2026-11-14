@@ -11,7 +11,11 @@ import {
   reopenLastClosedConversationTab,
   requestNewConversationTab,
 } from "@/lib/conversationTabs";
-import { requestWorkspaceReviewTab } from "@/lib/workspaceReviewTabEvents";
+import {
+  requestWorkspaceReviewTab,
+  requestWorkspaceReviewTabClose,
+  requestWorkspaceReviewTabToggle,
+} from "@/lib/workspaceReviewTabEvents";
 import { toggleWorkspaceFullView } from "@/lib/workspaceFullView";
 import {
   requestConversationHistoryBack,
@@ -44,7 +48,7 @@ export function NavigationShortcutCommands({
         titleKey: "commands.newChat.title",
         descriptionKey: "commands.newChat.description",
         section: "navigation",
-        bindings: ["CommandOrControl+N"],
+        bindings: ["CommandOrControl+N", "CommandOrControl+Shift+O"],
         allowInInput: true,
         handler: requestNewConversationTab,
       },
@@ -195,9 +199,7 @@ export function NavigationShortcutCommands({
         section: "panels",
         bindings: [],
         handler: () =>
-          window.dispatchEvent(
-            new CustomEvent("lime:toggle-summary-panel"),
-          ),
+          window.dispatchEvent(new CustomEvent("lime:toggle-summary-panel")),
       },
       {
         id: "panels.openTerminal",
@@ -243,6 +245,19 @@ export function NavigationShortcutCommands({
         },
       },
       {
+        id: "navigation.focusSidebar",
+        titleKey: "commands.focusSidebar.title",
+        descriptionKey: "commands.focusSidebar.description",
+        section: "navigation",
+        bindings: [],
+        handler: () => {
+          const target = document.querySelector<HTMLElement>(
+            '[data-testid="app-sidebar-search-button"]',
+          );
+          target?.focus();
+        },
+      },
+      {
         id: "panels.fullView",
         titleKey: "commands.fullView.title",
         descriptionKey: "commands.fullView.description",
@@ -259,6 +274,24 @@ export function NavigationShortcutCommands({
         bindings: ["CommandOrControl+Shift+G"],
         allowInInput: true,
         handler: requestWorkspaceReviewTab,
+      },
+      {
+        id: "panels.toggleChangesPanel",
+        titleKey: "commands.toggleChangesPanel.title",
+        descriptionKey: "commands.toggleChangesPanel.description",
+        section: "panels",
+        bindings: ["CommandOrControl+Alt+B"],
+        allowInInput: true,
+        handler: requestWorkspaceReviewTabToggle,
+      },
+      {
+        id: "panels.closeChangesPanel",
+        titleKey: "commands.closeChangesPanel.title",
+        descriptionKey: "commands.closeChangesPanel.description",
+        section: "panels",
+        bindings: [],
+        allowInInput: true,
+        handler: requestWorkspaceReviewTabClose,
       },
       {
         id: "thread.archiveChat",
@@ -319,7 +352,7 @@ export function NavigationShortcutCommands({
         titleKey: "commands.copyWorkingDirectory.title",
         descriptionKey: "commands.copyWorkingDirectory.description",
         section: "app",
-        bindings: [],
+        bindings: ["CommandOrControl+Shift+C"],
         handler: () =>
           window.dispatchEvent(new CustomEvent("lime:copy-working-directory")),
       },
@@ -365,6 +398,14 @@ export function NavigationShortcutCommands({
         handler: () => onNavigate?.("scheduled-tasks"),
       },
       {
+        id: "app.openSkills",
+        titleKey: "commands.openSkills.title",
+        descriptionKey: "commands.openSkills.description",
+        section: "skills",
+        bindings: [],
+        handler: () => onNavigate?.("skills"),
+      },
+      {
         id: "app.copyConversationMarkdown",
         titleKey: "commands.copyConversationMarkdown.title",
         descriptionKey: "commands.copyConversationMarkdown.description",
@@ -380,7 +421,7 @@ export function NavigationShortcutCommands({
         titleKey: "commands.copyConversationLink.title",
         descriptionKey: "commands.copyConversationLink.description",
         section: "app",
-        bindings: [],
+        bindings: ["CommandOrControl+Alt+L"],
         handler: () => {
           void navigator.clipboard?.writeText(window.location.href);
         },

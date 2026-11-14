@@ -186,6 +186,7 @@ app_server_client_request_definitions! {
     VoiceModelTestTranscribeFile => "voiceModel/testTranscribeFile",
     VoiceTranscriptionTranscribeAudio => "voiceTranscription/transcribeAudio",
     VoiceTranscriptionPolishText => "voiceTranscription/polishText",
+    VoiceRealtimeClientSecretCreate => "voiceRealtime/clientSecret/create",
     InstructionsRead => "instructions/read",
     InstructionsWrite => "instructions/write",
     DictationHistoryList => "dictationHistory/list",

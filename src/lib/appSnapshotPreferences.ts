@@ -2,10 +2,14 @@ import { useSyncExternalStore } from "react";
 
 export interface AppSnapshotPreferences {
   soundEnabled: boolean;
+  hotkeyEnabled: boolean;
 }
 
 const STORAGE_KEY = "lime.app-snapshots.preferences.v1";
-const DEFAULTS: AppSnapshotPreferences = { soundEnabled: true };
+const DEFAULTS: AppSnapshotPreferences = {
+  soundEnabled: true,
+  hotkeyEnabled: false,
+};
 let current = read();
 const listeners = new Set<() => void>();
 
@@ -20,6 +24,10 @@ function read(): AppSnapshotPreferences {
         typeof parsed?.soundEnabled === "boolean"
           ? parsed.soundEnabled
           : DEFAULTS.soundEnabled,
+      hotkeyEnabled:
+        typeof parsed?.hotkeyEnabled === "boolean"
+          ? parsed.hotkeyEnabled
+          : DEFAULTS.hotkeyEnabled,
     };
   } catch {
     return DEFAULTS;

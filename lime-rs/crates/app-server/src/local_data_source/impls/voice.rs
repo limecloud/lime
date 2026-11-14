@@ -168,4 +168,103 @@ impl VoiceAppDataSource for LocalAppDataSource {
     ) -> Result<VoiceModelDefaultSetResponse, RuntimeCoreError> {
         voice_asr_credentials::set_default_voice_model(params)
     }
+
+    async fn realtime_voice_provider_snapshot(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<RealtimeVoiceProviderSnapshot>, RuntimeCoreError> {
+        let Some(provider) = self
+            .api_key_provider_service
+            .get_provider(&self.db, provider_id)
+            .map_err(data_error)?
+        else {
+            return Ok(None);
+        };
+        let key_available = provider
+            .api_keys
+            .iter()
+            .filter(|key| key.enabled)
+            .any(|key| {
+                self.api_key_provider_service
+                    .read_api_key(&key.api_key_encrypted)
+                    .is_ok()
+            });
+        Ok(Some(RealtimeVoiceProviderSnapshot {
+            provider_id: provider.provider.id.clone(),
+            provider_type: provider.provider.effective_provider_type().to_string(),
+            api_host: provider.provider.api_host.clone(),
+            key_available,
+        }))
+    }
+
+    async fn create_realtime_voice_client_secret(
+        &self,
+        provider_id: &str,
+        model: &str,
+        voice: &str,
+    ) -> Result<VoiceRealtimeClientSecretResponse, RuntimeCoreError> {
+        let provider = self
+            .api_key_provider_service
+            .get_provider(&self.db, provider_id)
+            .map_err(data_error)?
+            .ok_or_else(|| {
+                RuntimeCoreError::Backend(format!(
+                    "realtime voice unavailable: provider `{provider_id}` is not configured"
+                ))
+            })?;
+        if !provider.provider.enabled {
+            return Err(RuntimeCoreError::Backend(
+                "realtime voice unavailable: the default provider is disabled".to_string(),
+            ));
+        }
+        let provider_type = provider.provider.effective_provider_type().to_string();
+        let api_host = provider.provider.api_host.clone();
+        if !crate::realtime::realtime_provider_wire_supported(&provider_type, &api_host) {
+            return Err(RuntimeCoreError::Backend(
+                "realtime voice unavailable: the default provider is not the official OpenAI API-key route"
+                    .to_string(),
+            ));
+        }
+        let credential = self
+            .api_key_provider_service
+            .select_credential_for_provider(
+                &self.db,
+                &provider_type,
+                Some(provider.provider.id.as_str()),
+                None,
+            )
+            .await
+            .map_err(data_error)?
+            .ok_or_else(|| {
+                RuntimeCoreError::Backend(
+                    "realtime voice unavailable: providerKeyMissing".to_string(),
+                )
+            })?;
+        let api_key = match credential.credential {
+            lime_core::models::RuntimeCredentialData::OpenAIKey { api_key, .. } => api_key,
+            _ => {
+                return Err(RuntimeCoreError::Backend(
+                    "realtime voice unavailable: the provider key is not an OpenAI API key"
+                        .to_string(),
+                ));
+            }
+        };
+        let minted = model_provider::realtime::mint_openai_realtime_client_secret(
+            &api_host, &api_key, model, voice,
+        )
+        .await
+        .map_err(|error| {
+            RuntimeCoreError::Backend(format!(
+                "failed to mint the OpenAI Realtime client secret: {error}"
+            ))
+        })?;
+        Ok(VoiceRealtimeClientSecretResponse {
+            client_secret: minted.client_secret,
+            expires_at: minted.expires_at,
+            model: model.trim().to_string(),
+            voice: voice.trim().to_string(),
+            calls_url: minted.calls_url,
+            provider_id: provider.provider.id.clone(),
+        })
+    }
 }

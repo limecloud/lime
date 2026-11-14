@@ -14,9 +14,19 @@ pub struct ModelProviderCapabilitiesReadParams {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum RealtimeVoiceBlocker {
-    /// 当前 provider 路由没有实时语音 wire 适配器。
+    /// 当前默认 provider 不是官方 OpenAI API-key 路由，没有可用的 Realtime wire。
     ProviderRealtimeUnsupported,
-    /// App Server / 宿主还没有实时语音会话 owner，无法承载音频与转录事件。
+    /// 官方 OpenAI provider 已配置，但没有可解密使用的启用 API key。
+    ProviderKeyMissing,
+    /// 没有显式配置实时语音模型。
+    RealtimeModelUnconfigured,
+    /// 显式配置的模型不在本构建的实时语音 wire 支持集合内。
+    RealtimeModelUnsupported,
+    /// 没有显式配置实时语音音色。
+    RealtimeVoiceUnconfigured,
+    /// 显式配置的音色不受官方 Realtime API 支持。
+    RealtimeVoiceUnsupported,
+    /// 宿主缺少浏览器 WebRTC / 麦克风 / SDP 会话路径。
     RealtimeTransportUnimplemented,
 }
 
@@ -26,12 +36,24 @@ pub struct ModelProviderCapabilitiesReadResponse {
     pub namespace_tools: bool,
     pub image_generation: bool,
     pub web_search: bool,
-    /// 当前 provider 路由与 App Server 是否已经具备端到端实时语音能力。
+    /// 当前 provider 路由、配置与宿主是否已经具备端到端实时语音能力。
     ///
     /// `namespaceTools` 同属 Lime 在 Codex 形状上的扩展字段。该值为 `false`
     /// 时，`realtimeBlockers` 给出具体缺失环节。
     pub realtime: bool,
     pub realtime_blockers: Vec<RealtimeVoiceBlocker>,
+    /// 显式配置的实时语音模型；未配置时为空。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub realtime_model: Option<String>,
+    /// 显式配置的实时语音音色；未配置时为空。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub realtime_voice: Option<String>,
+    /// 本构建可用的实时语音模型选项；provider 不可用时为空。
+    #[serde(default)]
+    pub realtime_models: Vec<String>,
+    /// 官方 Realtime API 支持的音色选项；provider 不可用时为空。
+    #[serde(default)]
+    pub realtime_voices: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

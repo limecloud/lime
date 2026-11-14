@@ -1166,6 +1166,17 @@ pub struct VoiceInputConfig {
     /// 翻译模式使用的指令 ID
     #[serde(default = "default_translate_instruction_id")]
     pub translate_instruction_id: String,
+    /// 实时语音使用的 OpenAI Realtime 模型。
+    ///
+    /// 这是显式配置，不从 chat 模型或 provider 品牌推断；未配置时实时语音
+    /// 必须 fail closed。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub realtime_model: Option<String>,
+    /// 实时语音使用的 OpenAI Realtime 音色。
+    ///
+    /// 与模型一样必须显式配置，未配置时不得开始会话。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub realtime_voice: Option<String>,
 }
 
 fn default_voice_shortcut() -> String {
@@ -1193,6 +1204,8 @@ impl Default for VoiceInputConfig {
             sound_enabled: default_sound_enabled(),
             dictation_dictionary: Vec::new(),
             translate_instruction_id: default_translate_instruction_id(),
+            realtime_model: None,
+            realtime_voice: None,
         }
     }
 }

@@ -1,17 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   requestWorkspaceReviewTab,
+  requestWorkspaceReviewTabClose,
+  requestWorkspaceReviewTabToggle,
   subscribeWorkspaceReviewTabRequest,
 } from "./workspaceReviewTabEvents";
 
 describe("workspaceReviewTabEvents", () => {
-  it("notifies subscribers and unsubscribes", () => {
+  it("向订阅者派发 open/toggle/close 并在退订后停止", () => {
     const listener = vi.fn();
     const stop = subscribeWorkspaceReviewTabRequest(listener);
     requestWorkspaceReviewTab();
-    expect(listener).toHaveBeenCalledTimes(1);
+    requestWorkspaceReviewTabToggle();
+    requestWorkspaceReviewTabClose();
+    expect(listener.mock.calls).toEqual([["open"], ["toggle"], ["close"]]);
     stop();
-    requestWorkspaceReviewTab();
-    expect(listener).toHaveBeenCalledTimes(1);
+    requestWorkspaceReviewTabToggle();
+    expect(listener).toHaveBeenCalledTimes(3);
   });
 });

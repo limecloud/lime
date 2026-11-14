@@ -61,7 +61,8 @@ export function WindowCloseConfirmationDialogHost() {
     allowInInput: true,
     enabled: canCloseWindow(),
     handler: () => {
-      if (!runCommand("closeTab")) void requestWindowClose().catch(report);
+      if (!runCommand("navigation.closeTab"))
+        void requestWindowClose().catch(report);
     },
   });
   return requestId ? (

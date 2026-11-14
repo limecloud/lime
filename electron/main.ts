@@ -358,7 +358,7 @@ function buildRendererWebPreferences(): Electron.WebPreferences {
   };
 }
 
-function createMainWindow(): BrowserWindow {
+function buildAppWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -431,6 +431,11 @@ function createMainWindow(): BrowserWindow {
     );
   }
 
+  return window;
+}
+
+function createMainWindow(): BrowserWindow {
+  const window = buildAppWindow();
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = null;
@@ -450,6 +455,12 @@ function createMainWindow(): BrowserWindow {
   installWindowCloseShortcut(window, process.platform);
 
   mainWindow = window;
+  return window;
+}
+
+function createNewWindow(): BrowserWindow {
+  const window = buildAppWindow();
+  installWindowCloseShortcut(window, process.platform);
   return window;
 }
 
@@ -1600,6 +1611,11 @@ function installApplicationMenu(): void {
       broadcast(APP_MENU_COMMAND_EVENT, { command: "about" }),
     onOpenTaskManager: () => showTaskManagerDialog(),
     onOpenTroubleshooting: () => showTroubleshootingDialog(),
+    onNewTab: () => broadcast(APP_MENU_COMMAND_EVENT, { command: "new-tab" }),
+    onNewWindow: () => {
+      createNewWindow();
+    },
+    onNewChat: () => broadcast(APP_MENU_COMMAND_EVENT, { command: "new-chat" }),
     onOpenDocumentation: () => openDocumentation(),
     onOpenLogs: () => openLogsFolder(),
   });

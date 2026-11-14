@@ -275,6 +275,21 @@ export function useVoiceSettings() {
       }),
       false,
     );
+  const handleRealtimeSelectionChange = useCallback(
+    (
+      field: "realtime_model" | "realtime_voice",
+      value: string | undefined,
+    ) =>
+      persistVoiceConfig(
+        (current) => ({
+          ...current,
+          [field]: normalizeOptionalText(value),
+        }),
+        false,
+      ),
+    [persistVoiceConfig],
+  );
+
   return {
     config,
     voiceConfig,
@@ -299,5 +314,6 @@ export function useVoiceSettings() {
     handleResetPreference,
     handleMicrophoneChange,
     handleDictionarySave,
+    handleRealtimeSelectionChange,
   };
 }

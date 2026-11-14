@@ -63,6 +63,25 @@ describe("外部文件冲突审阅", () => {
     expect(onAction.mock.calls).toEqual([["edit"], ["reject"], ["accept"]]);
   });
 
+  it("差异面板与上下文消费代码主题语义变量", () => {
+    act(() =>
+      root.render(
+        <InlineFileDiffReview
+          oldFile={{ name: "notes.txt", contents: "context\nold" }}
+          newFile={{ name: "notes.txt", contents: "context\nnew" }}
+          canEdit
+          onAction={vi.fn()}
+        />,
+      ),
+    );
+    const panel = host.querySelector(
+      '[data-testid="canvas-workbench-inline-diff"]',
+    );
+    const context = host.querySelector('[data-diff-line-type="context"]');
+    expect(panel?.className).toContain("--lime-code-diff-surface");
+    expect(context?.className).toContain("--lime-code-diff-text");
+  });
+
   it.each(["x".repeat(262145), "x\n".repeat(5000)])(
     "超限输入跳过差异计算并保留审阅动作（%#）",
     (contents) => {

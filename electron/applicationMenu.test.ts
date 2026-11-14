@@ -22,6 +22,9 @@ const handlers = {
   onOpenSystemStatus: vi.fn(),
   onOpenTaskManager: vi.fn(),
   onOpenTroubleshooting: vi.fn(),
+  onNewWindow: vi.fn(),
+  onNewTab: vi.fn(),
+  onNewChat: vi.fn(),
 };
 
 describe("applicationMenu", () => {
@@ -61,11 +64,29 @@ describe("applicationMenu", () => {
     });
     expect(template.map((item) => item.role ?? item.label)).toEqual([
       "Lime",
+      "文件",
       "editMenu",
       "viewMenu",
       "windowMenu",
       "help",
     ]);
+    const fileItems = submenu(template[1]);
+    expect(fileItems[0]).toMatchObject({
+      label: "新建标签页",
+      accelerator: "CommandOrControl+T",
+    });
+    expect(fileItems[1]).toMatchObject({ label: "新建窗口" });
+    expect(fileItems[1].accelerator).toBeUndefined();
+    expect(fileItems[2]).toMatchObject({
+      label: "新聊天",
+      accelerator: "CommandOrControl+N",
+    });
+    (fileItems[0].click as () => void)();
+    (fileItems[1].click as () => void)();
+    (fileItems[2].click as () => void)();
+    expect(handlers.onNewTab).toHaveBeenCalledOnce();
+    expect(handlers.onNewWindow).toHaveBeenCalledOnce();
+    expect(handlers.onNewChat).toHaveBeenCalledOnce();
     const appItems = submenu(template[0]);
     expect(appItems[0]).toMatchObject({ label: "关于 Lime" });
     expect(appItems[1]).toMatchObject({
@@ -116,8 +137,17 @@ describe("applicationMenu", () => {
       ...handlers,
     });
     expect(template[0]).toMatchObject({ label: "File" });
-    expect(submenu(template[0])[0]).toMatchObject({ label: "Settings…" });
-    expect(submenu(template[0])[1]).toMatchObject({
+    expect(submenu(template[0])[0]).toMatchObject({
+      label: "New Tab",
+      accelerator: "CommandOrControl+T",
+    });
+    expect(submenu(template[0])[1]).toMatchObject({ label: "New Window" });
+    expect(submenu(template[0])[2]).toMatchObject({
+      label: "New Chat",
+      accelerator: "CommandOrControl+N",
+    });
+    expect(submenu(template[0])[4]).toMatchObject({ label: "Settings…" });
+    expect(submenu(template[0])[5]).toMatchObject({
       label: "Check for Updates…",
     });
     expect(template.map((item) => item.role ?? item.label)).toEqual([

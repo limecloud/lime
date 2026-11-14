@@ -160,6 +160,10 @@ export async function triggerAppSnapshot(): Promise<boolean> {
   return deliverAppSnapshot(capture.file, capture.text);
 }
 
+export async function stopBareModifierMonitor(): Promise<unknown> {
+  return invokeNative("bareModifierMonitor.stop");
+}
+
 export async function startBareModifierMonitor(): Promise<unknown> {
   const permission = (await invokeNative("inputMonitoring.read")) as {
     status?: unknown;

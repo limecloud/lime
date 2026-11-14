@@ -271,6 +271,8 @@ pub enum AppServerRequestMethod {
     VoiceTranscriptionTranscribeAudio,
     #[serde(rename = "voiceTranscription/polishText")]
     VoiceTranscriptionPolishText,
+    #[serde(rename = "voiceRealtime/clientSecret/create")]
+    VoiceRealtimeClientSecretCreate,
     #[serde(rename = "instructions/read")]
     InstructionsRead,
     #[serde(rename = "instructions/write")]
@@ -575,6 +577,7 @@ impl AppServerRequestMethod {
             Self::VoiceModelTestTranscribeFile => METHOD_VOICE_MODEL_TEST_TRANSCRIBE_FILE,
             Self::VoiceTranscriptionTranscribeAudio => METHOD_VOICE_TRANSCRIPTION_TRANSCRIBE_AUDIO,
             Self::VoiceTranscriptionPolishText => METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT,
+            Self::VoiceRealtimeClientSecretCreate => METHOD_VOICE_REALTIME_CLIENT_SECRET_CREATE,
             Self::InstructionsRead => METHOD_INSTRUCTIONS_READ,
             Self::InstructionsWrite => METHOD_INSTRUCTIONS_WRITE,
             Self::DictationHistoryList => METHOD_DICTATION_HISTORY_LIST,
@@ -802,6 +805,9 @@ impl AppServerRequestMethod {
                 Some(Self::VoiceTranscriptionTranscribeAudio)
             }
             METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT => Some(Self::VoiceTranscriptionPolishText),
+            METHOD_VOICE_REALTIME_CLIENT_SECRET_CREATE => {
+                Some(Self::VoiceRealtimeClientSecretCreate)
+            }
             METHOD_INSTRUCTIONS_READ => Some(Self::InstructionsRead),
             METHOD_INSTRUCTIONS_WRITE => Some(Self::InstructionsWrite),
             METHOD_DICTATION_HISTORY_LIST => Some(Self::DictationHistoryList),
@@ -1375,6 +1381,10 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     },
     AppServerMethodSpec {
         method: METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_VOICE_REALTIME_CLIENT_SECRET_CREATE,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {

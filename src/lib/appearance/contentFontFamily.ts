@@ -1,11 +1,17 @@
 import { useSyncExternalStore } from "react";
 import {
+  getUiFontFamily,
   resolveUiFontFamily,
   type UiFontFamily,
 } from "./uiFontFamily";
 
-export type ContentFontFamily = UiFontFamily;
+/**
+ * Codex content font: `ui` means "Same as UI font" and follows UI font
+ * changes; the remaining values are explicit font stacks.
+ */
+export type ContentFontFamily = "ui" | UiFontFamily;
 export const CONTENT_FONT_FAMILIES: readonly ContentFontFamily[] = [
+  "ui",
   "system",
   "sans",
   "serif",
@@ -16,14 +22,14 @@ let current = read();
 const listeners = new Set<() => void>();
 
 function read(): ContentFontFamily {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "ui";
   try {
     const value = window.localStorage.getItem(STORAGE_KEY);
     return CONTENT_FONT_FAMILIES.includes(value as ContentFontFamily)
       ? (value as ContentFontFamily)
-      : "system";
+      : "ui";
   } catch {
-    return "system";
+    return "ui";
   }
 }
 
@@ -60,10 +66,16 @@ export function useContentFontFamily(): ContentFontFamily {
   );
 }
 
-export function resolveContentFontFamily(family: ContentFontFamily): string {
+export function resolveContentFontFamily(
+  family: ContentFontFamily,
+  uiFamily: UiFontFamily = getUiFontFamily(),
+): string {
+  if (family === "ui") {
+    return resolveUiFontFamily(uiFamily);
+  }
   return resolveUiFontFamily(family);
 }
 
 export function resetContentFontFamilyForTest() {
-  setContentFontFamily("system");
+  setContentFontFamily("ui");
 }

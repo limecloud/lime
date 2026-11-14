@@ -57,6 +57,16 @@ impl ProviderCapabilities {
         let hosted_tools = protocol == RuntimeProviderProtocol::Responses
             && official_responses_provider
             && is_official_openai_host(base_url);
+        let realtime = matches!(
+            provider.as_str(),
+            "openai" | "openai_response" | "openai_responses" | "responses"
+        ) && crate::realtime::openai_realtime_base_url(
+            base_url
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or("https://api.openai.com"),
+        )
+        .is_some();
         Self {
             namespace_tools: false,
             // Custom tools execute in the client host; their Responses wire support
@@ -65,9 +75,10 @@ impl ProviderCapabilities {
             custom_tools: protocol.uses_responses_api(),
             image_generation: hosted_tools,
             web_search: hosted_tools,
-            // 实时语音需要独立 wire（WebRTC 或双向 WebSocket 会话），
-            // 现有 chat/responses 适配器都不承载它。
-            realtime: false,
+            // Realtime voice has its own WebRTC client-secret + SDP wire. It is
+            // only exposed on official OpenAI API-key routes; Codex cloud auth is
+            // not a provider route and must never claim this capability.
+            realtime,
         }
     }
 
@@ -97,16 +108,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn current_chat_adapters_do_not_claim_unimplemented_hosted_tools() {
-        let expected = Some(ProviderCapabilities::NONE);
-
+    fn chat_adapters_only_claim_realtime_on_official_api_key_routes() {
         for provider_type in [
             "openai",
-            "new-api",
-            "gateway",
             "openai-response",
             "openai_responses",
             "responses",
+        ] {
+            let capabilities = ProviderCapabilities::from_provider_type(provider_type)
+                .expect("current chat adapter");
+            assert!(
+                capabilities.realtime,
+                "official api-key route must expose the realtime wire: {provider_type}"
+            );
+            assert_eq!(
+                capabilities,
+                ProviderCapabilities {
+                    realtime: true,
+                    ..ProviderCapabilities::NONE
+                },
+                "provider_type={provider_type}"
+            );
+        }
+
+        for provider_type in [
+            "new-api",
+            "gateway",
             "codex",
             "ollama",
             "anthropic",
@@ -118,17 +145,25 @@ mod tests {
             "azure-openai",
             "vertexai",
         ] {
-            assert_eq!(
-                ProviderCapabilities::from_provider_type(provider_type),
-                expected,
-                "provider_type={provider_type}"
+            let capabilities = ProviderCapabilities::from_provider_type(provider_type)
+                .expect("current chat adapter");
+            assert!(
+                !capabilities.realtime,
+                "non-OpenAI routes must not claim realtime voice: {provider_type}"
             );
         }
     }
 
     #[test]
     fn hosted_tools_require_official_responses_route_and_host() {
-        let expected = Some(ProviderCapabilities {
+        let official_openai = Some(ProviderCapabilities {
+            namespace_tools: false,
+            custom_tools: true,
+            image_generation: true,
+            web_search: true,
+            realtime: true,
+        });
+        let official_codex = Some(ProviderCapabilities {
             namespace_tools: false,
             custom_tools: true,
             image_generation: true,
@@ -147,14 +182,14 @@ mod tests {
                 "openai-response",
                 Some("https://api.openai.com/v1"),
             ),
-            expected
+            official_openai
         );
         assert_eq!(
             ProviderCapabilities::from_provider_route(
                 "codex",
                 Some("https://api.openai.com/v1/responses"),
             ),
-            expected
+            official_codex
         );
         assert_eq!(
             ProviderCapabilities::from_provider_route(
@@ -180,7 +215,7 @@ mod tests {
                 &ProtocolKind::OpenaiResponses,
                 Some("https://api.openai.com/v1"),
             ),
-            expected.expect("official Responses capability")
+            official_openai.expect("official Responses capability")
         );
         assert_eq!(
             ProviderCapabilities::from_route(
@@ -188,7 +223,10 @@ mod tests {
                 &ProtocolKind::OpenaiChat,
                 Some("https://api.openai.com/v1"),
             ),
-            ProviderCapabilities::NONE
+            ProviderCapabilities {
+                realtime: true,
+                ..ProviderCapabilities::NONE
+            }
         );
         assert_eq!(
             ProviderCapabilities::from_route(
@@ -219,6 +257,7 @@ mod tests {
         assert!(!capabilities.image_generation);
         assert!(!capabilities.web_search);
         assert!(!capabilities.namespace_tools);
+        assert!(!capabilities.realtime);
         assert_eq!(
             ProviderCapabilities::from_route(
                 "gateway",
@@ -230,15 +269,29 @@ mod tests {
     }
 
     #[test]
-    fn current_routes_never_claim_realtime_voice_without_a_wire_adapter() {
-        // 实时语音不能被品牌、host 或 Responses 兼容性推断出来；
-        // 在真实适配器落地前，所有路由都必须 fail closed。
-        let routes: &[(&str, Option<&str>)] = &[
+    fn realtime_wire_requires_an_official_openai_api_key_route() {
+        for (provider_type, base_url) in [
             ("openai", Some("https://api.openai.com/v1")),
             ("openai-response", Some("https://api.openai.com/v1")),
+            ("responses", Some("https://api.openai.com")),
+        ] {
+            assert!(
+                ProviderCapabilities::from_provider_route(provider_type, base_url)
+                    .expect("current provider")
+                    .realtime,
+                "provider_type={provider_type} base_url={base_url:?}"
+            );
+        }
+
+        // Brand, chat compatibility, Azure or a proxy host cannot imply the
+        // official WebRTC session contract.
+        let routes: &[(&str, Option<&str>)] = &[
             ("codex", Some("https://api.openai.com/v1")),
+            ("openai", Some("https://gateway.example.com/v1")),
+            ("openai-response", Some("https://gateway.example.com/v1")),
+            ("new-api", Some("https://api.openai.com/v1")),
+            ("gateway", Some("https://api.openai.com/v1")),
             ("azure-openai", Some("https://resource.openai.azure.com")),
-            ("gateway", Some("https://gateway.example.com/v1")),
             ("ollama", Some("http://127.0.0.1:11434")),
             ("anthropic", None),
             ("gemini", None),
@@ -253,8 +306,6 @@ mod tests {
             );
         }
         for protocol in [
-            ProtocolKind::OpenaiChat,
-            ProtocolKind::OpenaiResponses,
             ProtocolKind::AnthropicMessages,
             ProtocolKind::GeminiGenerateContent,
             ProtocolKind::VertexGemini,

@@ -1,7 +1,26 @@
-import { useEffect } from "react";
 import styled from "styled-components";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { LimeThemeMode } from "@/lib/appearance/themeMode";
+import {
+  LIME_THEME_CHANGED_EVENT,
+  getEffectiveLimeThemeMode,
+  loadLimeThemeMode,
+  type LimeEffectiveThemeMode,
+  type LimeThemeMode,
+} from "@/lib/appearance/themeMode";
+import {
+  getChromeThemeOptions,
+  getCodeThemeOptions,
+  getCodexThemePreset,
+  type ChromeThemeId,
+  type CodeThemeId,
+} from "@/lib/appearance/codexThemePresets";
+import {
+  setChromeTheme,
+  setCodeTheme,
+  useChromeTheme,
+  useCodeTheme,
+} from "@/lib/appearance/themePresets";
 import {
   SettingsGroup,
   SettingsPageBody,
@@ -9,7 +28,9 @@ import {
   SettingsAction,
   SettingsRow,
   SettingsSection,
+  SettingsSegmentedControl,
   SettingsSwitch,
+  SettingsValueMenu,
 } from "../../SettingsPrimitives";
 import {
   setPointerCursorsEnabled,
@@ -28,20 +49,19 @@ import {
   type UiFontSize,
 } from "@/lib/appearance/uiFontSize";
 import {
+  UI_FONT_FAMILIES,
   setUiFontFamily,
   useUiFontFamily,
-  resolveUiFontFamily,
   type UiFontFamily,
 } from "@/lib/appearance/uiFontFamily";
 import {
+  CONTENT_FONT_FAMILIES,
   setContentFontFamily,
   useContentFontFamily,
-  resolveContentFontFamily,
   type ContentFontFamily,
 } from "@/lib/appearance/contentFontFamily";
 import {
   ACCENT_COLORS,
-  applyAccentColor,
   setAccentColor,
   useAccentColor,
   type AccentColor,
@@ -51,26 +71,34 @@ import {
   useSmartPunctuationEnabled,
 } from "@/lib/appearance/smartPunctuation";
 import {
-  setSeparateAccentPreferences,
-  useSeparateAccentPreferences,
-} from "@/lib/appearance/separateAccent";
-import { resetUiFontFamilyForTest } from "@/lib/appearance/uiFontFamily";
-import { resetUiFontSizeForTest } from "@/lib/appearance/uiFontSize";
-import { resetContentFontFamilyForTest } from "@/lib/appearance/contentFontFamily";
-import { resetContentFontSizeForTest } from "@/lib/appearance/typography";
-import { resetPointerCursorsForTest } from "@/lib/appearance/pointerCursor";
-import { SettingsValueMenu } from "../../SettingsPrimitives";
-
-export interface ThemeOption {
-  id: LimeThemeMode;
-  label: string;
-}
-
-interface AppearanceSettingsViewProps {
-  theme: LimeThemeMode;
-  themeOptions: readonly ThemeOption[];
-  handleThemeChange: (theme: LimeThemeMode) => void;
-}
+  setSeparateModePreferences,
+  setSeparateModesEnabled,
+  useSeparateModePreferences,
+} from "@/lib/appearance/separateModes";
+import {
+  setReducedMotionPreference,
+  useReducedMotionPreference,
+  type ReducedMotionPreference,
+} from "@/lib/appearance/reducedMotion";
+import {
+  isMacOSPlatform,
+  setFontSmoothingEnabled,
+  useFontSmoothingEnabled,
+} from "@/lib/appearance/fontSmoothing";
+import {
+  CODE_FONT_FAMILIES,
+  setCodeFontFamily,
+  useCodeFontFamily,
+  type CodeFontFamily,
+} from "@/lib/appearance/codeFontFamily";
+import {
+  CODE_FONT_SIZE_MAX,
+  CODE_FONT_SIZE_MIN,
+  setCodeFontSize,
+  useCodeFontSize,
+} from "@/lib/appearance/codeFontSize";
+import { resetAppearancePreferences } from "@/lib/appearance/reset";
+import { FontSizeField } from "./FontSizeField";
 
 const ModeChoices = styled.div`
   display: flex;
@@ -138,6 +166,274 @@ const ModeChoices = styled.div`
   }
 `;
 
+function useEffectiveThemeVariant(
+  theme: LimeThemeMode,
+): LimeEffectiveThemeMode {
+  const [variant, setVariant] = useState<LimeEffectiveThemeMode>(() =>
+    getEffectiveLimeThemeMode(theme),
+  );
+
+  useEffect(() => {
+    const update = () =>
+      setVariant(getEffectiveLimeThemeMode(loadLimeThemeMode()));
+    update();
+    window.addEventListener(LIME_THEME_CHANGED_EVENT, update);
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    media?.addEventListener?.("change", update);
+    return () => {
+      window.removeEventListener(LIME_THEME_CHANGED_EVENT, update);
+      media?.removeEventListener?.("change", update);
+    };
+  }, [theme]);
+
+  return variant;
+}
+
+function ChromeThemeRow({
+  label,
+  description,
+  targetId,
+  variant,
+  value,
+  onChange,
+  requireBothVariants = false,
+}: {
+  label: string;
+  description?: string;
+  targetId: string;
+  variant: LimeEffectiveThemeMode;
+  value: ChromeThemeId;
+  onChange: (value: ChromeThemeId) => void;
+  requireBothVariants?: boolean;
+}) {
+  const options = getChromeThemeOptions(variant, { requireBothVariants });
+  if (!options.some((option) => option.id === value)) {
+    options.unshift({ id: value, label: getCodexThemePreset(value).label });
+  }
+  return (
+    <SettingsRow label={label} description={description} targetId={targetId}>
+      <SettingsValueMenu
+        targetId={targetId}
+        described={Boolean(description)}
+        value={value}
+        disabled={false}
+        options={options.map((option) => ({
+          value: option.id as ChromeThemeId,
+          label: option.label,
+        }))}
+        onChange={(next) => onChange(next as ChromeThemeId)}
+      />
+    </SettingsRow>
+  );
+}
+
+function CodeThemeRow({
+  label,
+  description,
+  targetId,
+  variant,
+  value,
+  onChange,
+  requireBothVariants = false,
+}: {
+  label: string;
+  description?: string;
+  targetId: string;
+  variant: LimeEffectiveThemeMode;
+  value: CodeThemeId;
+  onChange: (value: CodeThemeId) => void;
+  requireBothVariants?: boolean;
+}) {
+  const { t } = useTranslation("settings");
+  const options = getCodeThemeOptions(variant, { requireBothVariants });
+  if (!options.some((option) => option.id === value)) {
+    options.unshift({ id: value, label: getCodexThemePreset(value).label });
+  }
+  return (
+    <SettingsRow label={label} description={description} targetId={targetId}>
+      <SettingsValueMenu
+        targetId={targetId}
+        described={Boolean(description)}
+        value={value}
+        disabled={false}
+        options={options.map((option) => ({
+          value: option.id as CodeThemeId,
+          label:
+            option.id === "codex"
+              ? t("settings.appearance.codeTheme.chatgpt")
+              : option.label,
+        }))}
+        onChange={(next) => onChange(next as CodeThemeId)}
+      />
+    </SettingsRow>
+  );
+}
+
+function AccentRow({
+  label,
+  targetId,
+  value,
+  onChange,
+}: {
+  label: string;
+  targetId: string;
+  value: AccentColor;
+  onChange: (value: AccentColor) => void;
+}) {
+  const { t } = useTranslation("settings");
+  return (
+    <SettingsRow label={label} targetId={targetId}>
+      <SettingsValueMenu
+        targetId={targetId}
+        disabled={false}
+        value={value}
+        options={ACCENT_COLORS.map((color) => ({
+          value: color,
+          label: t(`settings.appearance.accent.${color}`),
+        }))}
+        onChange={(next) => onChange(next as AccentColor)}
+      />
+    </SettingsRow>
+  );
+}
+
+function UiFontFamilyRow({
+  label,
+  description,
+  targetId,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  targetId: string;
+  value: UiFontFamily;
+  onChange: (value: UiFontFamily) => void;
+}) {
+  const { t } = useTranslation("settings");
+  return (
+    <SettingsRow label={label} description={description} targetId={targetId}>
+      <SettingsValueMenu
+        targetId={targetId}
+        described={Boolean(description)}
+        value={value}
+        disabled={false}
+        options={UI_FONT_FAMILIES.map((family) => ({
+          value: family,
+          label: t(`settings.appearance.fontFamily.${family}`),
+        }))}
+        onChange={(next) => onChange(next as UiFontFamily)}
+      />
+    </SettingsRow>
+  );
+}
+
+function ContentFontFamilyRow({
+  label,
+  description,
+  targetId,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  targetId: string;
+  value: ContentFontFamily;
+  onChange: (value: ContentFontFamily) => void;
+}) {
+  const { t } = useTranslation("settings");
+  return (
+    <SettingsRow label={label} description={description} targetId={targetId}>
+      <SettingsValueMenu
+        targetId={targetId}
+        described={Boolean(description)}
+        value={value}
+        disabled={false}
+        options={CONTENT_FONT_FAMILIES.map((family) => ({
+          value: family,
+          label:
+            family === "ui"
+              ? t("settings.appearance.contentFontFamilySameAsUi")
+              : t(`settings.appearance.fontFamily.${family}`),
+        }))}
+        onChange={(next) => onChange(next as ContentFontFamily)}
+      />
+    </SettingsRow>
+  );
+}
+
+function CodeFontFamilyRow({
+  label,
+  description,
+  targetId,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  targetId: string;
+  value: CodeFontFamily;
+  onChange: (value: CodeFontFamily) => void;
+}) {
+  const { t } = useTranslation("settings");
+  return (
+    <SettingsRow label={label} description={description} targetId={targetId}>
+      <SettingsValueMenu
+        targetId={targetId}
+        described={Boolean(description)}
+        value={value}
+        disabled={false}
+        options={CODE_FONT_FAMILIES.map((family) => ({
+          value: family,
+          label: t(`settings.appearance.codeFontFamilyOption.${family}`),
+        }))}
+        onChange={(next) => onChange(next as CodeFontFamily)}
+      />
+    </SettingsRow>
+  );
+}
+
+function FontSizeRow({
+  label,
+  description,
+  targetId,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  targetId: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <SettingsRow label={label} description={description} targetId={targetId}>
+      <FontSizeField
+        value={value}
+        min={min}
+        max={max}
+        label={label}
+        onChange={onChange}
+      />
+    </SettingsRow>
+  );
+}
+
+export interface ThemeOption {
+  id: LimeThemeMode;
+  label: string;
+}
+
+interface AppearanceSettingsViewProps {
+  theme: LimeThemeMode;
+  themeOptions: readonly ThemeOption[];
+  handleThemeChange: (theme: LimeThemeMode) => void;
+}
+
 export function AppearanceSettingsView({
   theme,
   themeOptions,
@@ -150,85 +446,31 @@ export function AppearanceSettingsView({
   const uiFontFamily = useUiFontFamily();
   const contentFontFamily = useContentFontFamily();
   const accentColor = useAccentColor();
+  const chromeTheme = useChromeTheme();
+  const codeTheme = useCodeTheme();
+  const effectiveVariant = useEffectiveThemeVariant(theme);
   const smartPunctuation = useSmartPunctuationEnabled();
-  const separateAccent = useSeparateAccentPreferences();
-  useEffect(() => {
-    if (!separateAccent.enabled) {
-      applyAccentColor(accentColor);
-      return () => applyAccentColor("default");
-    }
-    const applyForMode = () => {
-      const dark =
-        document.documentElement.dataset.limeThemeEffective === "dark";
-      applyAccentColor(dark ? separateAccent.dark : separateAccent.light);
-    };
-    applyForMode();
-    const observer = new MutationObserver(applyForMode);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-lime-theme-effective"],
-    });
-    return () => {
-      observer.disconnect();
-      applyAccentColor("default");
-    };
-  }, [accentColor, separateAccent]);
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--lime-content-font-family",
-      resolveContentFontFamily(contentFontFamily),
-    );
-    return () => {
-      document.documentElement.style.removeProperty("--lime-content-font-family");
-    };
-  }, [contentFontFamily]);
-  useEffect(() => {
-    document.body.style.fontFamily = resolveUiFontFamily(uiFontFamily);
-    return () => {
-      document.body.style.removeProperty("font-family");
-    };
-  }, [uiFontFamily]);
-  useEffect(() => {
-    document.documentElement.style.fontSize = `${uiFontSize}px`;
-    return () => {
-      document.documentElement.style.removeProperty("font-size");
-    };
-  }, [uiFontSize]);
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--lime-content-font-size",
-      `${contentFontSize}px`,
-    );
-    return () => {
-      document.documentElement.style.removeProperty("--lime-content-font-size");
-    };
-  }, [contentFontSize]);
-  useEffect(() => {
-    document.documentElement.dataset.pointerCursors = String(pointerCursors);
-    return () => {
-      delete document.documentElement.dataset.pointerCursors;
-    };
-  }, [pointerCursors]);
+  const separateModes = useSeparateModePreferences();
+  const reducedMotion = useReducedMotionPreference();
+  const fontSmoothing = useFontSmoothingEnabled();
+  const codeFontFamily = useCodeFontFamily();
+  const codeFontSize = useCodeFontSize();
+  const showFontSmoothing = isMacOSPlatform();
+
   return (
     <SettingsPageBody>
-      <SettingsPageHeader title={t("settings.appearance.hero.title")} />
-      <div className="flex justify-end">
-        <SettingsAction
-          type="button"
-          data-testid="appearance-reset-defaults"
-          onClick={() => {
-            resetUiFontFamilyForTest();
-            resetUiFontSizeForTest();
-            resetContentFontFamilyForTest();
-            resetContentFontSizeForTest();
-            resetPointerCursorsForTest();
-            setAccentColor("default");
-            setSeparateAccentPreferences({ enabled: false });
-          }}
-        >
-          {t("settings.appearance.resetToDefault")}
-        </SettingsAction>
-      </div>
+      <SettingsPageHeader
+        title={t("settings.appearance.hero.title")}
+        actions={
+          <SettingsAction
+            type="button"
+            data-testid="appearance-reset-defaults"
+            onClick={resetAppearancePreferences}
+          >
+            {t("settings.appearance.resetToDefault")}
+          </SettingsAction>
+        }
+      />
       <SettingsSection title={t("settings.desktop.visualStyle")}>
         <SettingsGroup>
           <SettingsRow
@@ -311,150 +553,206 @@ export function AppearanceSettingsView({
             targetId="appearance-separate-modes"
           >
             <SettingsSwitch
-              checked={separateAccent.enabled}
-              onCheckedChange={(enabled) =>
-                setSeparateAccentPreferences({ enabled })
-              }
+              checked={separateModes.enabled}
+              onCheckedChange={setSeparateModesEnabled}
             />
           </SettingsRow>
-          {separateAccent.enabled ? (
+          {separateModes.enabled ? (
             <>
-              <SettingsRow label={t("settings.appearance.lightAccent")}>
-                <SettingsValueMenu
-                  targetId="appearance-light-accent"
-                  disabled={false}
-                  value={separateAccent.light}
-                  options={ACCENT_COLORS.map((color) => ({
-                    value: color,
-                    label: t(`settings.appearance.accent.${color}`),
-                  }))}
-                  onChange={(value) =>
-                    setSeparateAccentPreferences({
-                      light: value as AccentColor,
-                    })
-                  }
-                />
-              </SettingsRow>
-              <SettingsRow label={t("settings.appearance.darkAccent")}>
-                <SettingsValueMenu
-                  targetId="appearance-dark-accent"
-                  disabled={false}
-                  value={separateAccent.dark}
-                  options={ACCENT_COLORS.map((color) => ({
-                    value: color,
-                    label: t(`settings.appearance.accent.${color}`),
-                  }))}
-                  onChange={(value) =>
-                    setSeparateAccentPreferences({
-                      dark: value as AccentColor,
-                    })
-                  }
-                />
-              </SettingsRow>
+              <ChromeThemeRow
+                label={t("settings.appearance.lightChromeTheme")}
+                targetId="appearance-light-chrome-theme"
+                variant="light"
+                value={separateModes.light.chromeTheme}
+                onChange={(chromeTheme) =>
+                  setSeparateModePreferences({ light: { chromeTheme } })
+                }
+              />
+              <CodeThemeRow
+                label={t("settings.appearance.lightCodeTheme")}
+                targetId="appearance-light-code-theme"
+                variant="light"
+                value={separateModes.light.codeTheme}
+                onChange={(codeTheme) =>
+                  setSeparateModePreferences({ light: { codeTheme } })
+                }
+              />
+              <AccentRow
+                label={t("settings.appearance.lightAccent")}
+                targetId="appearance-light-accent"
+                value={separateModes.light.accent}
+                onChange={(accent) =>
+                  setSeparateModePreferences({ light: { accent } })
+                }
+              />
+              <UiFontFamilyRow
+                label={t("settings.appearance.lightUiFont")}
+                targetId="appearance-light-ui-font"
+                value={separateModes.light.uiFontFamily}
+                onChange={(uiFontFamily) =>
+                  setSeparateModePreferences({
+                    light: { uiFontFamily },
+                  })
+                }
+              />
+              <ContentFontFamilyRow
+                label={t("settings.appearance.lightContentFont")}
+                targetId="appearance-light-content-font"
+                value={separateModes.light.contentFontFamily}
+                onChange={(contentFontFamily) =>
+                  setSeparateModePreferences({
+                    light: { contentFontFamily },
+                  })
+                }
+              />
+              <CodeFontFamilyRow
+                label={t("settings.appearance.lightCodeFont")}
+                targetId="appearance-light-code-font"
+                value={separateModes.light.codeFontFamily}
+                onChange={(codeFontFamily) =>
+                  setSeparateModePreferences({
+                    light: { codeFontFamily },
+                  })
+                }
+              />
+              <ChromeThemeRow
+                label={t("settings.appearance.darkChromeTheme")}
+                targetId="appearance-dark-chrome-theme"
+                variant="dark"
+                value={separateModes.dark.chromeTheme}
+                onChange={(chromeTheme) =>
+                  setSeparateModePreferences({ dark: { chromeTheme } })
+                }
+              />
+              <CodeThemeRow
+                label={t("settings.appearance.darkCodeTheme")}
+                targetId="appearance-dark-code-theme"
+                variant="dark"
+                value={separateModes.dark.codeTheme}
+                onChange={(codeTheme) =>
+                  setSeparateModePreferences({ dark: { codeTheme } })
+                }
+              />
+              <AccentRow
+                label={t("settings.appearance.darkAccent")}
+                targetId="appearance-dark-accent"
+                value={separateModes.dark.accent}
+                onChange={(accent) =>
+                  setSeparateModePreferences({ dark: { accent } })
+                }
+              />
+              <UiFontFamilyRow
+                label={t("settings.appearance.darkUiFont")}
+                targetId="appearance-dark-ui-font"
+                value={separateModes.dark.uiFontFamily}
+                onChange={(uiFontFamily) =>
+                  setSeparateModePreferences({
+                    dark: { uiFontFamily },
+                  })
+                }
+              />
+              <ContentFontFamilyRow
+                label={t("settings.appearance.darkContentFont")}
+                targetId="appearance-dark-content-font"
+                value={separateModes.dark.contentFontFamily}
+                onChange={(contentFontFamily) =>
+                  setSeparateModePreferences({
+                    dark: { contentFontFamily },
+                  })
+                }
+              />
+              <CodeFontFamilyRow
+                label={t("settings.appearance.darkCodeFont")}
+                targetId="appearance-dark-code-font"
+                value={separateModes.dark.codeFontFamily}
+                onChange={(codeFontFamily) =>
+                  setSeparateModePreferences({
+                    dark: { codeFontFamily },
+                  })
+                }
+              />
             </>
-          ) : null}
-          <SettingsRow
-            label={t("settings.appearance.accentColor")}
-            description={t("settings.appearance.accentColorDescription")}
-            targetId="appearance-accent-color"
-          >
-            <SettingsValueMenu
-              targetId="appearance-accent-color"
-              described
-              value={accentColor}
-              disabled={false}
-              options={ACCENT_COLORS.map((color) => ({
-                value: color,
-                label: t(`settings.appearance.accent.${color}`),
-              }))}
-              onChange={(value) => setAccentColor(value as AccentColor)}
-            />
-          </SettingsRow>
-          <SettingsRow
-            label={t("settings.appearance.contentFontFamily")}
-            description={t("settings.appearance.contentFontFamilyDescription")}
-            targetId="appearance-content-font-family"
-          >
-            <SettingsValueMenu
-              targetId="appearance-content-font-family"
-              described
-              value={contentFontFamily}
-              disabled={false}
-              options={(["system", "sans", "serif", "mono"] as const).map(
-                (family) => ({
-                  value: family,
-                  label: t(`settings.appearance.fontFamily.${family}`),
-                }),
-              )}
-              onChange={(value) =>
-                setContentFontFamily(value as ContentFontFamily)
-              }
-            />
-          </SettingsRow>
-          <SettingsRow
-            label={t("settings.appearance.uiFontFamily")}
-            description={t("settings.appearance.uiFontFamilyDescription")}
-            targetId="appearance-ui-font-family"
-          >
-            <SettingsValueMenu
-              targetId="appearance-ui-font-family"
-              described
-              value={uiFontFamily}
-              disabled={false}
-              options={(["system", "sans", "serif", "mono"] as const).map(
-                (family) => ({
-                  value: family,
-                  label: t(`settings.appearance.fontFamily.${family}`),
-                }),
-              )}
-              onChange={(value) =>
-                setUiFontFamily(value as UiFontFamily)
-              }
-            />
-          </SettingsRow>
-          <SettingsRow
+          ) : (
+            <>
+              <ChromeThemeRow
+                label={t("settings.appearance.chromeTheme")}
+                description={t("settings.appearance.chromeThemeDescription")}
+                targetId="appearance-chrome-theme"
+                variant={effectiveVariant}
+                value={chromeTheme}
+                onChange={setChromeTheme}
+                requireBothVariants
+              />
+              <CodeThemeRow
+                label={t("settings.appearance.codeTheme")}
+                description={t("settings.appearance.codeThemeDescription")}
+                targetId="appearance-code-theme"
+                variant={effectiveVariant}
+                value={codeTheme}
+                onChange={setCodeTheme}
+                requireBothVariants
+              />
+              <AccentRow
+                label={t("settings.appearance.accentColor")}
+                targetId="appearance-accent-color"
+                value={accentColor}
+                onChange={setAccentColor}
+              />
+              <UiFontFamilyRow
+                label={t("settings.appearance.uiFontFamily")}
+                description={t("settings.appearance.uiFontFamilyDescription")}
+                targetId="appearance-ui-font-family"
+                value={uiFontFamily}
+                onChange={setUiFontFamily}
+              />
+              <ContentFontFamilyRow
+                label={t("settings.appearance.contentFontFamily")}
+                description={t(
+                  "settings.appearance.contentFontFamilyDescription",
+                )}
+                targetId="appearance-content-font-family"
+                value={contentFontFamily}
+                onChange={setContentFontFamily}
+              />
+              <CodeFontFamilyRow
+                label={t("settings.appearance.codeFontFamily")}
+                description={t("settings.appearance.codeFontFamilyDescription")}
+                targetId="appearance-code-font-family"
+                value={codeFontFamily}
+                onChange={setCodeFontFamily}
+              />
+            </>
+          )}
+          <FontSizeRow
             label={t("settings.appearance.uiFontSize")}
             description={t("settings.appearance.uiFontSizeDescription")}
             targetId="appearance-ui-font-size"
-          >
-            <SettingsValueMenu
-              targetId="appearance-ui-font-size"
-              described
-              value={String(uiFontSize)}
-              disabled={false}
-              options={UI_FONT_SIZES.map((size) => ({
-                value: String(size),
-                label: t("settings.appearance.fontSizeValue", { size }),
-              }))}
-              onChange={(value) =>
-                setUiFontSize(Number(value) as UiFontSize)
-              }
-            />
-          </SettingsRow>
-          <SettingsRow
+            value={uiFontSize}
+            min={UI_FONT_SIZES[0]}
+            max={UI_FONT_SIZES[UI_FONT_SIZES.length - 1]}
+            onChange={(value) => setUiFontSize(value as UiFontSize)}
+          />
+          <FontSizeRow
+            label={t("settings.appearance.codeFontSize")}
+            description={t("settings.appearance.codeFontSizeDescription")}
+            targetId="appearance-code-font-size"
+            value={codeFontSize}
+            min={CODE_FONT_SIZE_MIN}
+            max={CODE_FONT_SIZE_MAX}
+            onChange={setCodeFontSize}
+          />
+          <FontSizeRow
             label={t("settings.appearance.contentFontSize")}
             description={t("settings.appearance.contentFontSizeDescription")}
             targetId="appearance-content-font-size"
-          >
-            <SettingsValueMenu
-              targetId="appearance-content-font-size"
-              described
-              value={String(contentFontSize)}
-              disabled={false}
-              options={CONTENT_FONT_SIZES.map((size) => ({
-                value: String(size),
-                label: t("settings.appearance.fontSizeValue", { size }),
-              }))}
-              onChange={(value) =>
-                setContentFontSize(Number(value) as ContentFontSize)
-              }
-            />
-          </SettingsRow>
+            value={contentFontSize}
+            min={CONTENT_FONT_SIZES[0]}
+            max={CONTENT_FONT_SIZES[CONTENT_FONT_SIZES.length - 1]}
+            onChange={(value) => setContentFontSize(value as ContentFontSize)}
+          />
           <SettingsRow
             label={t("settings.appearance.usePointerCursors")}
-            description={t(
-              "settings.appearance.usePointerCursorsDescription",
-            )}
+            description={t("settings.appearance.usePointerCursorsDescription")}
             targetId="appearance-pointer-cursors"
           >
             <SettingsSwitch
@@ -464,6 +762,49 @@ export function AppearanceSettingsView({
               onCheckedChange={setPointerCursorsEnabled}
             />
           </SettingsRow>
+          <SettingsRow
+            label={t("settings.appearance.reducedMotion")}
+            description={t("settings.appearance.reducedMotionDescription")}
+            targetId="appearance-reduced-motion"
+          >
+            <SettingsSegmentedControl
+              targetId="appearance-reduced-motion"
+              described
+              value={reducedMotion}
+              disabled={false}
+              options={[
+                {
+                  value: "system",
+                  label: t("settings.appearance.reducedMotion.system"),
+                },
+                {
+                  value: "on",
+                  label: t("settings.appearance.reducedMotion.on"),
+                },
+                {
+                  value: "off",
+                  label: t("settings.appearance.reducedMotion.off"),
+                },
+              ]}
+              onChange={(value) =>
+                setReducedMotionPreference(value as ReducedMotionPreference)
+              }
+            />
+          </SettingsRow>
+          {showFontSmoothing ? (
+            <SettingsRow
+              label={t("settings.appearance.fontSmoothing")}
+              description={t("settings.appearance.fontSmoothingDescription")}
+              targetId="appearance-font-smoothing"
+            >
+              <SettingsSwitch
+                aria-labelledby="appearance-font-smoothing-label"
+                aria-describedby="appearance-font-smoothing-description"
+                checked={fontSmoothing}
+                onCheckedChange={setFontSmoothingEnabled}
+              />
+            </SettingsRow>
+          ) : null}
         </SettingsGroup>
       </SettingsSection>
     </SettingsPageBody>

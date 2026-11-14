@@ -2072,6 +2072,25 @@
           "$ref": "#/$defs/RequestId"
         },
         "method": {
+          "const": "voiceRealtime/clientSecret/create",
+          "type": "string"
+        },
+        "params": {
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "method"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
           "const": "instructions/read",
           "type": "string"
         },

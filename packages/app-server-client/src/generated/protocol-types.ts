@@ -452,6 +452,8 @@ export const METHOD_VOICE_INSTRUCTION_SAVE = "voiceInstruction/save";
 export const METHOD_VOICE_MODEL_DEFAULT_SET = "voiceModel/default/set";
 export const METHOD_VOICE_MODEL_TEST_TRANSCRIBE_FILE =
   "voiceModel/testTranscribeFile";
+export const METHOD_VOICE_REALTIME_CLIENT_SECRET_CREATE =
+  "voiceRealtime/clientSecret/create";
 export const METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT =
   "voiceTranscription/polishText";
 export const METHOD_VOICE_TRANSCRIPTION_TRANSCRIBE_AUDIO =
@@ -2030,6 +2032,10 @@ export const GENERATED_APP_SERVER_METHODS = [
   },
   {
     kind: "request",
+    method: "voiceRealtime/clientSecret/create",
+  },
+  {
+    kind: "request",
     method: "voiceTranscription/polishText",
   },
   {
@@ -3418,6 +3424,11 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
+      method: "voiceRealtime/clientSecret/create";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
       method: "instructions/read";
       params?: unknown;
     }
@@ -4074,6 +4085,7 @@ export type AppServerRequestMethod =
   | "voiceInstruction/save"
   | "voiceModel/default/set"
   | "voiceModel/testTranscribeFile"
+  | "voiceRealtime/clientSecret/create"
   | "voiceTranscription/polishText"
   | "voiceTranscription/transcribeAudio"
   | "wechatChannel/account/remove"
@@ -8537,6 +8549,10 @@ export interface ModelProviderCapabilitiesReadResponse {
   namespaceTools: boolean;
   realtime: boolean;
   realtimeBlockers: RealtimeVoiceBlocker[];
+  realtimeModel?: null | string;
+  realtimeModels?: string[];
+  realtimeVoice?: null | string;
+  realtimeVoices?: string[];
   webSearch: boolean;
 }
 
@@ -9519,6 +9535,11 @@ export interface QueuedSubmission {
 
 export type RealtimeVoiceBlocker =
   | "providerRealtimeUnsupported"
+  | "providerKeyMissing"
+  | "realtimeModelUnconfigured"
+  | "realtimeModelUnsupported"
+  | "realtimeVoiceUnconfigured"
+  | "realtimeVoiceUnsupported"
   | "realtimeTransportUnimplemented";
 
 export interface ReasoningEffortOption {
@@ -11965,6 +11986,17 @@ export interface VoiceModelTestTranscribeFileResponse {
   language?: null | string;
   sample_rate: number;
   text: string;
+}
+
+export type VoiceRealtimeClientSecretCreateParams = Record<string, unknown>;
+
+export interface VoiceRealtimeClientSecretResponse {
+  callsUrl: string;
+  clientSecret: string;
+  expiresAt?: number | null;
+  model: string;
+  providerId: string;
+  voice: string;
 }
 
 export interface VoiceTranscriptionPolishTextParams {

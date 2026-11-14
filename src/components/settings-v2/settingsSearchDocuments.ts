@@ -1,23 +1,65 @@
 import { SettingsTabs } from "@/types/settings";
 import type { HotkeyPlatform } from "@/lib/hotkeys/platform";
+import {
+  CODEX_THEME_IDS,
+  getCodexThemePreset,
+} from "@/lib/appearance/codexThemePresets";
 
 interface SettingsSearchDocument {
   section: SettingsTabs;
   targetId: string;
   labelKey: string;
   termKeys: readonly string[];
+  literalTerms?: readonly string[];
   path?: string;
   platform?: HotkeyPlatform;
   excludePlatform?: HotkeyPlatform;
 }
 
+const chromeThemeSearchTerms = CODEX_THEME_IDS.map(
+  (id) => getCodexThemePreset(id).label,
+);
+const codeThemeSearchTerms = CODEX_THEME_IDS.map((id) =>
+  id === "codex" ? "ChatGPT" : getCodexThemePreset(id).label,
+);
+
 // 只登记 current 页面上的静态消息；不索引用户资料、配置值或凭证。
 export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   {
     section: SettingsTabs.Appearance,
+    targetId: "appearance-chrome-theme",
+    labelKey: "settings.appearance.chromeTheme",
+    termKeys: [
+      "settings.appearance.chromeThemeDescription",
+      "settings.appearance.lightChromeTheme",
+      "settings.appearance.darkChromeTheme",
+    ],
+    literalTerms: chromeThemeSearchTerms,
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-code-theme",
+    labelKey: "settings.appearance.codeTheme",
+    termKeys: [
+      "settings.appearance.codeThemeDescription",
+      "settings.appearance.lightCodeTheme",
+      "settings.appearance.darkCodeTheme",
+    ],
+    literalTerms: codeThemeSearchTerms,
+  },
+  {
+    section: SettingsTabs.Appearance,
     targetId: "appearance-separate-modes",
     labelKey: "settings.appearance.separateModes",
-    termKeys: ["settings.appearance.separateModesDescription"],
+    termKeys: [
+      "settings.appearance.separateModesDescription",
+      "settings.appearance.lightUiFont",
+      "settings.appearance.darkUiFont",
+      "settings.appearance.lightContentFont",
+      "settings.appearance.darkContentFont",
+      "settings.appearance.lightCodeFont",
+      "settings.appearance.darkCodeFont",
+    ],
   },
   {
     section: SettingsTabs.Appearance,
@@ -41,7 +83,10 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     section: SettingsTabs.Appearance,
     targetId: "appearance-content-font-family",
     labelKey: "settings.appearance.contentFontFamily",
-    termKeys: ["settings.appearance.contentFontFamilyDescription"],
+    termKeys: [
+      "settings.appearance.contentFontFamilyDescription",
+      "settings.appearance.contentFontFamilySameAsUi",
+    ],
   },
   {
     section: SettingsTabs.Appearance,
@@ -72,6 +117,43 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     targetId: "appearance-pointer-cursors",
     labelKey: "settings.appearance.usePointerCursors",
     termKeys: ["settings.appearance.usePointerCursorsDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-code-font-family",
+    labelKey: "settings.appearance.codeFontFamily",
+    termKeys: [
+      "settings.appearance.codeFontFamilyDescription",
+      "settings.appearance.codeFontFamilyOption.system",
+      "settings.appearance.codeFontFamilyOption.sfMono",
+      "settings.appearance.codeFontFamilyOption.menlo",
+      "settings.appearance.codeFontFamilyOption.consolas",
+      "settings.appearance.codeFontFamilyOption.courier",
+    ],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-code-font-size",
+    labelKey: "settings.appearance.codeFontSize",
+    termKeys: ["settings.appearance.codeFontSizeDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-reduced-motion",
+    labelKey: "settings.appearance.reducedMotion",
+    termKeys: [
+      "settings.appearance.reducedMotionDescription",
+      "settings.appearance.reducedMotion.system",
+      "settings.appearance.reducedMotion.on",
+      "settings.appearance.reducedMotion.off",
+    ],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-font-smoothing",
+    labelKey: "settings.appearance.fontSmoothing",
+    termKeys: ["settings.appearance.fontSmoothingDescription"],
+    platform: "mac",
   },
   {
     section: SettingsTabs.Import,
@@ -340,6 +422,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   },
   {
     section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-hotkey",
+    labelKey: "settings.appSnapshots.hotkey",
+    termKeys: ["settings.appSnapshots.hotkeyDescription"],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
     targetId: "app-snapshots-screen-capture",
     labelKey: "settings.appSnapshots.screenCapture",
     termKeys: ["settings.appSnapshots.screenCaptureDescription"],
@@ -385,6 +473,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
       "browserSiteSettings.geolocation",
       "browserSiteSettings.notifications",
     ],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-hotkey",
+    labelKey: "settings.appSnapshots.hotkey",
+    termKeys: ["settings.appSnapshots.hotkeyDescription"],
   },
   {
     section: SettingsTabs.AppSnapshots,
@@ -491,7 +585,14 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     section: SettingsTabs.Voice,
     targetId: "voice-chat",
     labelKey: "settings.voice.chat.label",
-    termKeys: ["settings.voice.chat.title", "settings.voice.chat.description"],
+    termKeys: [
+      "settings.voice.chat.title",
+      "settings.voice.chat.description",
+      "settings.voice.chat.model.label",
+      "settings.voice.chat.voice.label",
+      "settings.voice.chat.action.start",
+      "settings.voice.chat.transcript.title",
+    ],
   },
   {
     section: SettingsTabs.Voice,
@@ -575,6 +676,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   })),
   {
     section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-hotkey",
+    labelKey: "settings.appSnapshots.hotkey",
+    termKeys: ["settings.appSnapshots.hotkeyDescription"],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
     targetId: "app-snapshots-screen-capture",
     labelKey: "settings.appSnapshots.screenCapture",
     termKeys: ["settings.appSnapshots.screenCaptureDescription"],
@@ -584,6 +691,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     targetId: "browser-web-target",
     labelKey: "settings.browser.web",
     termKeys: ["settings.browser.inApp", "settings.browser.external"],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-hotkey",
+    labelKey: "settings.appSnapshots.hotkey",
+    termKeys: ["settings.appSnapshots.hotkeyDescription"],
   },
   {
     section: SettingsTabs.AppSnapshots,

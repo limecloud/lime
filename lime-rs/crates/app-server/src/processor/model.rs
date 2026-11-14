@@ -132,13 +132,22 @@ impl RequestProcessor {
         let capabilities =
             ProviderCapabilities::from_provider_route(&provider, base_url.as_deref())
                 .unwrap_or(ProviderCapabilities::NONE);
-        let realtime_blockers = crate::realtime::realtime_blockers(capabilities.realtime);
+        let realtime = self
+            .runtime
+            .realtime_voice_capability()
+            .await
+            .map_err(to_jsonrpc_error)?;
+        let provider_wire_supported = realtime.readiness.provider_wire_supported;
         dispatch_result(ModelProviderCapabilitiesReadResponse {
             namespace_tools: capabilities.namespace_tools,
             image_generation: capabilities.image_generation,
             web_search: capabilities.web_search,
-            realtime: realtime_blockers.is_empty(),
-            realtime_blockers,
+            realtime: realtime.available(),
+            realtime_blockers: realtime.blockers,
+            realtime_model: realtime.readiness.model,
+            realtime_voice: realtime.readiness.voice,
+            realtime_models: crate::realtime::realtime_model_options(provider_wire_supported),
+            realtime_voices: crate::realtime::realtime_voice_options(provider_wire_supported),
         })
     }
 

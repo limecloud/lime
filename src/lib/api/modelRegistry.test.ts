@@ -181,9 +181,12 @@ describe("modelRegistry API", () => {
       webSearch: true,
       realtime: false,
       realtimeBlockers: [
-        "providerRealtimeUnsupported",
-        "realtimeTransportUnimplemented",
+        "providerKeyMissing",
+        "realtimeModelUnconfigured",
       ],
+      realtimeVoice: "marin",
+      realtimeModels: ["gpt-realtime-2.1"],
+      realtimeVoices: ["marin", "cedar"],
     });
 
     await expect(readModelProviderCapabilities()).resolves.toEqual({
@@ -191,10 +194,10 @@ describe("modelRegistry API", () => {
       imageGeneration: false,
       webSearch: true,
       realtime: false,
-      realtimeBlockers: [
-        "providerRealtimeUnsupported",
-        "realtimeTransportUnimplemented",
-      ],
+      realtimeBlockers: ["providerKeyMissing", "realtimeModelUnconfigured"],
+      realtimeVoice: "marin",
+      realtimeModels: ["gpt-realtime-2.1"],
+      realtimeVoices: ["marin", "cedar"],
     });
     expectAppServerRequest(1, "modelProvider/capabilities/read", {});
   });
@@ -212,6 +215,8 @@ describe("modelRegistry API", () => {
       webSearch: false,
       realtime: false,
       realtimeBlockers: [],
+      realtimeModels: [],
+      realtimeVoices: [],
     });
   });
 
@@ -226,6 +231,8 @@ describe("modelRegistry API", () => {
         "futureUnsafeBlocker",
         "realtimeTransportUnimplemented",
       ],
+      realtimeModel: "gpt-realtime-2.1",
+      realtimeVoice: "marin",
     });
 
     await expect(readModelProviderCapabilities()).resolves.toEqual({
@@ -234,6 +241,34 @@ describe("modelRegistry API", () => {
       webSearch: false,
       realtime: false,
       realtimeBlockers: ["realtimeTransportUnimplemented"],
+      realtimeModel: "gpt-realtime-2.1",
+      realtimeVoice: "marin",
+      realtimeModels: [],
+      realtimeVoices: [],
+    });
+  });
+
+  it("readModelProviderCapabilities 要求显式模型和音色才声明可用", async () => {
+    resolveAppServerRequest({
+      namespaceTools: false,
+      imageGeneration: false,
+      webSearch: false,
+      realtime: true,
+      realtimeBlockers: [],
+      realtimeVoice: "marin",
+      realtimeModels: ["gpt-realtime-2.1"],
+      realtimeVoices: ["marin"],
+    });
+
+    await expect(readModelProviderCapabilities()).resolves.toEqual({
+      namespaceTools: false,
+      imageGeneration: false,
+      webSearch: false,
+      realtime: false,
+      realtimeBlockers: [],
+      realtimeVoice: "marin",
+      realtimeModels: ["gpt-realtime-2.1"],
+      realtimeVoices: ["marin"],
     });
   });
 
@@ -250,6 +285,8 @@ describe("modelRegistry API", () => {
       webSearch: false,
       realtime: false,
       realtimeBlockers: [],
+      realtimeModels: [],
+      realtimeVoices: [],
     });
   });
 

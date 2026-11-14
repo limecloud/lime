@@ -63,7 +63,7 @@ export function resolveUiFontFamily(family: UiFontFamily): string {
     case "serif":
       return 'ui-serif, Georgia, Cambria, "Times New Roman", serif';
     case "mono":
-      return 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+      return "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
     default:
       return 'system-ui, -apple-system, "Segoe UI", sans-serif';
   }

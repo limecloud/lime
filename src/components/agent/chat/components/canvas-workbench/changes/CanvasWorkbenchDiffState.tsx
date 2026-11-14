@@ -50,7 +50,10 @@ export function CanvasWorkbenchDiffState({
 
     return (
       <div
-        className={cn("h-full overflow-hidden", panelClassName)}
+        className={cn(
+          "h-full overflow-hidden bg-[color:var(--lime-code-diff-surface,var(--lime-surface))]",
+          panelClassName,
+        )}
         data-testid="canvas-workbench-split-diff"
       >
         <div className="grid border-b border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-subtle)] text-[11px] font-semibold text-[color:var(--lime-text-muted)] lg:grid-cols-2">
@@ -141,7 +144,8 @@ export function CanvasWorkbenchDiffState({
                       "bg-[color:var(--lime-danger-soft)] text-[color:var(--lime-text-strong)]",
                     line.type === "add" &&
                       "bg-[color:var(--lime-surface-subtle)] text-[color:var(--lime-text-muted)]",
-                    line.type === "context" && "text-[color:var(--lime-text)]",
+                    line.type === "context" &&
+                      "text-[color:var(--lime-code-diff-text,var(--lime-text))]",
                   )}
                   data-testid="canvas-workbench-split-diff-before"
                 >
@@ -177,7 +181,8 @@ export function CanvasWorkbenchDiffState({
                       "bg-[color:var(--lime-brand-soft)] text-[color:var(--lime-text-strong)]",
                     line.type === "remove" &&
                       "bg-[color:var(--lime-surface-subtle)] text-[color:var(--lime-text-muted)]",
-                    line.type === "context" && "text-[color:var(--lime-text)]",
+                    line.type === "context" &&
+                      "text-[color:var(--lime-code-diff-text,var(--lime-text))]",
                   )}
                   data-testid="canvas-workbench-split-diff-after"
                 >
@@ -219,7 +224,7 @@ export function CanvasWorkbenchDiffState({
   return (
     <div
       className={cn(
-        "h-full overflow-hidden border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)]",
+        "h-full overflow-hidden border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-code-diff-surface,var(--lime-surface))]",
         panelClassName,
       )}
       data-testid="canvas-workbench-inline-diff"
@@ -265,7 +270,7 @@ export function CanvasWorkbenchDiffState({
                 line.type === "remove" &&
                   "border-l-[color:var(--lime-diff-remove-border)] bg-[color:var(--lime-diff-remove-bg)] text-[color:var(--lime-text-strong)]",
                 line.type === "context" &&
-                  "border-l-transparent bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]",
+                  "border-l-transparent bg-[color:var(--lime-code-diff-surface,var(--lime-surface))] text-[color:var(--lime-code-diff-text,var(--lime-text))]",
               )}
             >
               <span

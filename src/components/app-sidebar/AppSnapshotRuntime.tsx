@@ -7,9 +7,13 @@ import {
   DoubleCommandDetector,
   playSnapshotSound,
   startBareModifierMonitor,
+  stopBareModifierMonitor,
   triggerAppSnapshot,
 } from "@/lib/appSnapshot";
-import { getAppSnapshotPreferences } from "@/lib/appSnapshotPreferences";
+import {
+  getAppSnapshotPreferences,
+  useAppSnapshotPreferences,
+} from "@/lib/appSnapshotPreferences";
 
 interface BareModifierEvent {
   modifier?: unknown;
@@ -25,6 +29,7 @@ function supportsNativeAppSnapshots(): boolean {
 
 export function AppSnapshotRuntime() {
   const { t } = useTranslation("navigation");
+  const preferences = useAppSnapshotPreferences();
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!supportsNativeAppSnapshots()) return;
@@ -52,16 +57,21 @@ export function AppSnapshotRuntime() {
     const onManualTrigger = () => run();
     window.addEventListener(APP_SNAPSHOT_TRIGGER_EVENT, onManualTrigger);
 
-    void safeListen<BareModifierEvent>("bareModifier.changed", (event) => {
-      if (disposed) return;
-      if (detector.handle(event?.payload ?? {})) run();
-    }).catch(() => undefined);
-    void startBareModifierMonitor().catch(() => undefined);
+    if (preferences.hotkeyEnabled) {
+      void safeListen<BareModifierEvent>("bareModifier.changed", (event) => {
+        if (disposed) return;
+        if (detector.handle(event?.payload ?? {})) run();
+      }).catch(() => undefined);
+      void startBareModifierMonitor().catch(() => undefined);
+    }
 
     return () => {
       disposed = true;
       window.removeEventListener(APP_SNAPSHOT_TRIGGER_EVENT, onManualTrigger);
+      if (preferences.hotkeyEnabled) {
+        void stopBareModifierMonitor().catch(() => undefined);
+      }
     };
-  }, [t]);
+  }, [preferences.hotkeyEnabled, t]);
   return null;
 }

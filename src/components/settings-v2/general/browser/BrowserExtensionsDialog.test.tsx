@@ -99,6 +99,20 @@ describe("BrowserExtensionsDialog", () => {
     expect(document.body.textContent).toContain("暂无扩展");
   });
 
+  it("点击刷新重新读取扩展列表", async () => {
+    api.list.mockResolvedValue([]);
+    await act(async () =>
+      root.render(
+        <BrowserExtensionsDialog open onOpenChange={() => undefined} />,
+      ),
+    );
+    await act(async () => Promise.resolve());
+    expect(api.list).toHaveBeenCalledTimes(1);
+    await act(async () => button("刷新").click());
+    await act(async () => Promise.resolve());
+    expect(api.list).toHaveBeenCalledTimes(2);
+  });
+
   it("按名称或路径过滤扩展", async () => {
     api.list.mockResolvedValue([
       extension,

@@ -133,6 +133,10 @@ export interface VoiceInputConfig {
   dictation_dictionary?: string[];
   /** 翻译模式使用的指令 ID */
   translate_instruction_id: string;
+  /** 显式配置的 OpenAI Realtime 模型；不从 chat 模型推断。 */
+  realtime_model?: string;
+  /** 显式配置的 OpenAI Realtime 音色。 */
+  realtime_voice?: string;
 }
 
 type ConfigWithVoiceInput = Config & {

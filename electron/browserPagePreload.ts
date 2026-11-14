@@ -768,12 +768,13 @@ export function installBrowserPageAnnotations(): () => void {
   };
 }
 
+// 自动填充需要在子 frame（SSO/内嵌登录）中生效；注释只装主 frame。
+installBrowserPasswordAutofill({
+  invoke: (channel) => ipcRenderer.invoke(channel),
+});
+installBrowserContactAutofill({
+  invoke: (channel) => ipcRenderer.invoke(channel),
+});
 if (process.isMainFrame) {
   installBrowserPageAnnotations();
-  installBrowserPasswordAutofill({
-    invoke: (channel) => ipcRenderer.invoke(channel),
-  });
-  installBrowserContactAutofill({
-    invoke: (channel) => ipcRenderer.invoke(channel),
-  });
 }

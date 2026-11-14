@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import type {
   BrowserSitePermission,
@@ -38,6 +39,7 @@ export function BrowserSiteSettingsPage({ onBack }: { onBack: () => void }) {
   const [origin, setOrigin] = useState("");
   const [originError, setOriginError] = useState(false);
   const [query, setQuery] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
   const snapshot = settings.snapshot;
   const filteredSites =
     snapshot?.sites.filter((site) => {
@@ -144,11 +146,21 @@ export function BrowserSiteSettingsPage({ onBack }: { onBack: () => void }) {
         title={t("browserSiteSettings.sites")}
         action={
           snapshot?.sites.length ? (
-            <span className="text-xs text-muted-foreground">
-              {t("browserSiteSettings.siteCount", {
-                count: snapshot.sites.length,
-              })}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {t("browserSiteSettings.siteCount", {
+                  count: snapshot.sites.length,
+                })}
+              </span>
+              <button
+                type="button"
+                className={BROWSER_SETTINGS_BUTTON}
+                disabled={disabled}
+                onClick={() => setConfirmClear(true)}
+              >
+                {t("browserSiteSettings.clearAll")}
+              </button>
+            </div>
           ) : undefined
         }
       >
@@ -256,6 +268,23 @@ export function BrowserSiteSettingsPage({ onBack }: { onBack: () => void }) {
           </p>
         ) : null}
       </BrowserSettingsSection>
+      <ConfirmDialog
+        isOpen={confirmClear}
+        title={t("browserSiteSettings.clearTitle")}
+        message={t("browserSiteSettings.clearMessage")}
+        confirmText={t("browserSiteSettings.clearAll")}
+        cancelText={t("browserSiteSettings.cancel")}
+        onCancel={() => setConfirmClear(false)}
+        onConfirm={() => {
+          const sites = snapshot?.sites ?? [];
+          setConfirmClear(false);
+          void (async () => {
+            for (const site of sites) {
+              await settings.remove(site.origin);
+            }
+          })();
+        }}
+      />
     </div>
   );
 }

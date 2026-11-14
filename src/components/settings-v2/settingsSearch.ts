@@ -22,9 +22,7 @@ export function isSettingsSearchTarget(
   targetId: string,
   platform = resolveHotkeyPlatform(globalThis.navigator),
 ): boolean {
-  return Boolean(
-    getSettingsSearchDocument(section, targetId, platform),
-  );
+  return Boolean(getSettingsSearchDocument(section, targetId, platform));
 }
 
 export function getSettingsSearchDocument(
@@ -74,6 +72,7 @@ export function searchSettings(
           item.label,
           label,
           ...document.termKeys.map((key) => t(key)),
+          ...(document.literalTerms ?? []),
         ].join(" ");
         if (!matches(text)) continue;
         const score = matches(label) ? 2 : 1;

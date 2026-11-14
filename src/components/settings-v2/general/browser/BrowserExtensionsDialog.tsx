@@ -239,6 +239,14 @@ export function BrowserExtensionsDialog({
               type="button"
               className={BROWSER_SETTINGS_BUTTON}
               disabled={pending}
+              onClick={() => void refresh()}
+            >
+              {t("settings.browser.extensionsRefresh")}
+            </button>
+            <button
+              type="button"
+              className={BROWSER_SETTINGS_BUTTON}
+              disabled={pending}
               onClick={() => void add()}
             >
               {t("settings.browser.extensionsLoad")}

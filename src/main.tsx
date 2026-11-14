@@ -11,6 +11,7 @@ import "./i18n/config";
 import { initCrashReporting } from "@/lib/crashReporting";
 import { scheduleStyledRuntimeDiagnostics } from "@/lib/styledRuntime";
 import { initializeLimeThemeMode } from "@/lib/appearance/themeMode";
+import { initializeLimeAppearance } from "@/lib/appearance/applyAppearance";
 
 // 启动诊断工具
 import { startupTracker } from "@/lib/diagnostics/startupPerformance";
@@ -25,6 +26,8 @@ startupTracker.mark("renderers registered");
 
 initializeLimeThemeMode();
 startupTracker.mark("theme mode initialized");
+initializeLimeAppearance();
+startupTracker.mark("appearance initialized");
 
 void initCrashReporting();
 
