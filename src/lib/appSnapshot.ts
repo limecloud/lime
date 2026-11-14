@@ -16,7 +16,25 @@ export interface AppSnapshotCapture {
   height: number;
   ownerName: string;
   title: string;
+  text: string;
 }
+
+export interface AccessibilityTreeLike {
+  role?: unknown;
+  value?: unknown;
+  title?: unknown;
+  description?: unknown;
+  children?: unknown;
+}
+
+const MAX_ACCESSIBILITY_TEXT = 4000;
+const TEXT_ROLES = new Set([
+  "AXStaticText",
+  "AXTextArea",
+  "AXTextField",
+  "AXHeading",
+  "AXLink",
+]);
 
 const LIME_BUNDLE_ID = "com.limecloud.lime";
 const LIME_OWNER_NAME = "Lime";
@@ -96,16 +114,18 @@ export async function captureAppSnapshot(): Promise<AppSnapshotCapture | null> {
     windowId: target.windowId,
   })) as { data?: unknown; width?: unknown; height?: unknown } | null;
   if (!shot || typeof shot.data !== "string" || !shot.data) return null;
+  const text = await readAccessibilityText(target.windowId);
   return {
     file: base64PngToFile(shot.data),
     width: Number(shot.width) || 0,
     height: Number(shot.height) || 0,
     ownerName: target.ownerName ?? "",
     title: target.title ?? "",
+    text,
   };
 }
 
-export function deliverAppSnapshot(file: File): boolean {
+export function deliverAppSnapshot(file: File, text = ""): boolean {
   if (typeof document === "undefined") return false;
   const editor = document.querySelector('[data-testid="composer-editor"]');
   if (!(editor instanceof HTMLElement)) return false;
@@ -119,13 +139,25 @@ export function deliverAppSnapshot(file: File): boolean {
       cancelable: true,
     }),
   );
+  if (text.trim().length >= 20) {
+    const textTransfer = new DataTransfer();
+    textTransfer.setData("text/plain", text);
+    textTransfer.setData("application/x-lime-paste-atom", "1");
+    editor.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: textTransfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }
   return true;
 }
 
 export async function triggerAppSnapshot(): Promise<boolean> {
   const capture = await captureAppSnapshot();
   if (!capture) return false;
-  return deliverAppSnapshot(capture.file);
+  return deliverAppSnapshot(capture.file, capture.text);
 }
 
 export function startBareModifierMonitor(): Promise<unknown> {
@@ -163,5 +195,52 @@ export function playSnapshotSound(): void {
     }, 300);
   } catch {
     // 音效不可用时静默。
+  }
+}
+
+function accessibleText(node: AccessibilityTreeLike): string {
+  for (const value of [node.value, node.title, node.description]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+export function flattenAccessibilityText(tree: unknown): string {
+  const lines: string[] = [];
+  let length = 0;
+  const visit = (node: AccessibilityTreeLike) => {
+    if (length >= MAX_ACCESSIBILITY_TEXT) return;
+    if (typeof node.role === "string" && TEXT_ROLES.has(node.role)) {
+      const text = accessibleText(node);
+      if (text && lines[lines.length - 1] !== text) {
+        lines.push(text);
+        length += text.length + 1;
+      }
+    }
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) {
+        if (child && typeof child === "object") {
+          visit(child as AccessibilityTreeLike);
+        }
+      }
+    }
+  };
+  if (tree && typeof tree === "object") visit(tree as AccessibilityTreeLike);
+  const joined = lines.join("\n");
+  return joined.length > MAX_ACCESSIBILITY_TEXT
+    ? joined.slice(0, MAX_ACCESSIBILITY_TEXT)
+    : joined;
+}
+
+async function readAccessibilityText(windowId: number): Promise<string> {
+  try {
+    const result = (await invokeNative("accessibilityTree.read", {
+      windowId,
+      maxDepth: 18,
+      maxNodes: 3000,
+    })) as { tree?: unknown } | null;
+    return flattenAccessibilityText(result?.tree);
+  } catch {
+    return "";
   }
 }

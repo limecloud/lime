@@ -491,7 +491,7 @@ fn syntax_highlighted_insert_wraps_text() {
 }
 
 #[test]
-fn fixed_syntax_theme_uses_upstream_default_diff_surface() {
+fn fixed_syntax_theme_uses_codex_default_diff_surface() {
     let style =
         DiffRenderStyleContext::new(None, crate::terminal_palette::StdoutColorLevel::Ansi256);
     let lines = render_with_style(

@@ -2937,6 +2937,24 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
      未使用该工具。
 - **验证**：TUI **2019 passed**；静态契约 **59**；矩阵本轮复跑中（新增 voice-core 依赖使构建变长）。
 
+- **2026-11-14 第二百零七轮（1.177.0 发布 + 语音/侧栏落地）**：
+  1. `/voice`（第 49 个命令）：`voice-core` 录制 macOS 默认输入设备，停止后 WAV→base64 调
+     v0 `voiceTranscription/transcribeAudio`，转写插入输入框；录音线程独立，失败均有五语提示。
+  2. 侧会话并排首版：进入侧会话时快照父线程，宽终端左侧「主对话（快照）」+ 右侧实时侧线程；
+     退出清除快照。父线程非实时、无焦点切换/拖动。
+  3. 版本升至 1.177.0；修复 `update-version.sh` 误改 workspace 依赖版本的问题（window/winapi/
+     cocoa 等已还原），Cargo.lock 增加 voice-core。
+  4. 修复并行改动缺口：`ClientRequest::ThreadImport` 缺 `id()`/`ClientResponsePayload`/
+     app-server ingress 分支，已补齐使主链恢复编译。
+  5. 本机 rusty-v8 缓存被清理，已用 `resolveRustyV8CargoEnv` 重新下载并校验。
+  6. 已提交全部工作树改动：`d3f25cbd2 chore: release 1.177.0`；推送 main 与 tag `v1.177.0`。
+- **验证**：TUI **2019 passed**、CLI **8 passed**、静态契约 **59**、contracts exit 0、
+  版本一致性 1.177.0；本机全量矩阵受并行 cargo 测试锁竞争影响未完成（此前基线 51/39）；
+  GitHub Actions 已触发 Release（含 Windows-x64 构建）与 Quality。
+- **语音设置（macOS）**：保持默认输入设备；在「系统设置 → 隐私与安全性 → 麦克风」勾选运行
+  `lime` 的终端应用（Terminal/iTerm2/WezTerm/VS Code 等）并重启终端；ASR 需在 Lime 语音设置
+  中配置默认 provider/凭证。首次 `/voice` 触发系统授权弹窗。
+
 - **下一刀（按收益/风险排序）**：
   1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
      替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、

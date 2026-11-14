@@ -176,7 +176,14 @@ export function ComposerEditor(props: ComposerEditorProps) {
           // External resources take priority; only the known schema parses HTML.
           event.preventDefault();
           if (html && controller.ingestHTML(html)) return true;
-          if (text) controller.ingestPaste(text);
+          if (text) {
+            controller.ingestPaste(text, {
+              preferPasteAtom:
+                event.clipboardData?.getData(
+                  "application/x-lime-paste-atom",
+                ) === "1",
+            });
+          }
           return true;
         },
       },

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   readBrowserAutofillEnabled,
   setBrowserAutofillEnabled,
@@ -6,6 +8,7 @@ import {
 import { BrowserSettingsSwitch } from "./BrowserSettingsFields";
 
 export function BrowserAutofillToggle() {
+  const { t } = useTranslation("settings");
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
@@ -27,7 +30,10 @@ export function BrowserAutofillToggle() {
       disabled={false}
       onChange={(next) => {
         setEnabled(next);
-        void setBrowserAutofillEnabled(next).catch(() => setEnabled(!next));
+        void setBrowserAutofillEnabled(next).catch(() => {
+          setEnabled(!next);
+          toast.error(t("settings.browser.autofillUpdateFailed"));
+        });
       }}
     />
   );

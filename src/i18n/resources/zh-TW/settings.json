@@ -2622,5 +2622,10 @@
   "settings.browser.autofill": "自動填入",
   "settings.browser.autofillDescription": "在登入和聯絡資訊表單中自動填入已儲存的資料",
   "settings.browser.contactEmailInvalid": "電子郵件格式無效",
-  "settings.browser.passwordManagerInvalidOrigin": "網站地址無效"
+  "settings.browser.passwordManagerInvalidOrigin": "網站地址無效",
+  "settings.browser.autofillUpdateFailed": "無法更新自動填入設定",
+  "settings.browser.passwordManagerEdit": "編輯",
+  "settings.connections.editTitle": "編輯 SSH 連線",
+  "settings.connections.edit": "編輯",
+  "settings.connections.updateFailed": "無法更新 SSH 連線"
 }

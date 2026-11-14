@@ -4,14 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { SshConnectionDialog } from "./SshConnectionDialog";
 
-const api = vi.hoisted(() => ({ add: vi.fn() }));
+const api = vi.hoisted(() => ({ add: vi.fn(), update: vi.fn() }));
 vi.mock("@/lib/api/sshConnections", () => ({
   addSshConnection: api.add,
+  updateSshConnection: api.update,
 }));
 
 let root: Root;
 let container: HTMLDivElement;
-const onAdded = vi.fn();
+const onSaved = vi.fn();
 const onOpenChange = vi.fn();
 
 function inputs(): HTMLInputElement[] {
@@ -39,7 +40,7 @@ beforeEach(async () => {
       <SshConnectionDialog
         open
         onOpenChange={onOpenChange}
-        onAdded={onAdded}
+        onSaved={onSaved}
       />,
     ),
   );
@@ -78,8 +79,55 @@ describe("SshConnectionDialog", () => {
       user: "deploy",
       port: 2222,
     });
-    expect(onAdded).toHaveBeenCalledWith(connection);
+    expect(onSaved).toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("编辑模式回填并更新连接", async () => {
+    api.update.mockResolvedValue(true);
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () =>
+      root.render(
+        <SshConnectionDialog
+          open
+          initial={{
+            alias: "prod",
+            hostName: "1.1.1.1",
+            user: "old",
+            port: 22,
+          }}
+          onOpenChange={onOpenChange}
+          onSaved={onSaved}
+        />,
+      ),
+    );
+    const fields = inputs();
+    expect(fields.map((input) => input.value)).toEqual([
+      "prod",
+      "1.1.1.1",
+      "old",
+      "22",
+    ]);
+    expect(fields[0].disabled).toBe(true);
+    expect(document.body.textContent).toContain("编辑 SSH 连接");
+    await setValue(fields[1], "10.0.0.1");
+    await setValue(fields[2], "deploy");
+    await setValue(fields[3], "2222");
+    await act(async () =>
+      document
+        .querySelector("form")!
+        .dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        ),
+    );
+    await act(async () => Promise.resolve());
+    expect(api.update).toHaveBeenCalledWith("prod", {
+      hostName: "10.0.0.1",
+      user: "deploy",
+      port: 2222,
+    });
+    expect(onSaved).toHaveBeenCalled();
   });
 
   it("仅在必填项填写后可保存，失败显示错误", async () => {
@@ -102,6 +150,6 @@ describe("SshConnectionDialog", () => {
     );
     await act(async () => Promise.resolve());
     expect(document.body.textContent).toContain("无法添加 SSH 连接");
-    expect(onAdded).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
   });
 });

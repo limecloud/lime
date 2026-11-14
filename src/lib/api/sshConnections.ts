@@ -63,3 +63,23 @@ export async function removeSshConnection(alias: string): Promise<boolean> {
   }
   return result;
 }
+
+export interface SshConnectionUpdateInput {
+  hostName: string;
+  user?: string;
+  port?: number;
+}
+
+export async function updateSshConnection(
+  alias: string,
+  input: SshConnectionUpdateInput,
+): Promise<boolean> {
+  const result = await safeInvoke<unknown>("ssh_connection_update", {
+    alias,
+    ...input,
+  });
+  if (typeof result !== "boolean") {
+    throw new Error("ssh connection update returned an invalid result");
+  }
+  return result;
+}

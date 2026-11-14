@@ -217,3 +217,92 @@ export async function removeSshConnection(
   await writeFile(configPath, next);
   return true;
 }
+
+export interface SshConnectionUpdateInput {
+  hostName: string;
+  user?: string;
+  port?: number;
+}
+
+function validateUpdateInput(input: SshConnectionUpdateInput) {
+  const hostName = input.hostName.trim();
+  if (!hostName || /\s/.test(hostName)) {
+    throw new Error("SSH 主机名不能为空且不能包含空白字符");
+  }
+  const user = input.user?.trim();
+  if (user && /\s/.test(user)) {
+    throw new Error("SSH 用户名不能包含空白字符");
+  }
+  if (
+    input.port !== undefined &&
+    (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535)
+  ) {
+    throw new Error("SSH 端口必须在 1-65535 之间");
+  }
+  return { hostName, user, port: input.port };
+}
+
+export function updateSshHostBlock(
+  text: string,
+  alias: string,
+  input: SshConnectionUpdateInput,
+): string | null {
+  const record = validateUpdateInput(input);
+  const lines = text.split("\n");
+  const blocks: { header: number; end: number; aliases: string[] }[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^\s*Host\s+(.+)$/i.exec(lines[index]);
+    if (!match) continue;
+    blocks.push({
+      header: index,
+      end: lines.length,
+      aliases: match[1].trim().split(/\s+/),
+    });
+  }
+  for (let index = 0; index < blocks.length; index += 1) {
+    blocks[index].end =
+      index + 1 < blocks.length ? blocks[index + 1].header : lines.length;
+  }
+  const block = blocks.find((item) => item.aliases.includes(alias));
+  if (!block) return null;
+  if (block.aliases.length > 1) {
+    throw new Error("多别名 Host 块暂不支持编辑");
+  }
+  const headerLine = lines[block.header];
+  const indent = /^\s*/.exec(headerLine)?.[0] ?? "";
+  const directives = [
+    `${indent}  HostName ${record.hostName}`,
+    ...(record.user ? [`${indent}  User ${record.user}`] : []),
+    ...(record.port !== undefined ? [`${indent}  Port ${record.port}`] : []),
+  ];
+  const kept: string[] = [];
+  for (let index = block.header + 1; index < block.end; index += 1) {
+    if (/^\s*(HostName|User|Port)\s+/i.test(lines[index])) continue;
+    kept.push(lines[index]);
+  }
+  lines.splice(
+    block.header + 1,
+    block.end - block.header - 1,
+    ...directives,
+    ...kept,
+  );
+  return lines.join("\n");
+}
+
+export async function updateSshConnection(
+  homeDir: string,
+  alias: string,
+  input: SshConnectionUpdateInput,
+): Promise<boolean> {
+  const configPath = path.join(homeDir, ".ssh", "config");
+  let text: string;
+  try {
+    text = await readFile(configPath, "utf8");
+  } catch {
+    return false;
+  }
+  const next = updateSshHostBlock(text, alias, input);
+  if (next === null) return false;
+  await writeFile(configPath, next);
+  return true;
+}

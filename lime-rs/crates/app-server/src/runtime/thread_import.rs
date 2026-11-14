@@ -1,7 +1,6 @@
 use agent_protocol::{
     AgentInput, ItemId, ItemStatus, MessageContentPart, SessionId, Thread, ThreadId, ThreadItem,
-    ThreadItemPayload, ThreadStatus, ThreadTurnsView, TurnAdmissionState, TurnId, TurnItemsView,
-    TurnQueueState, TurnStatus,
+    ThreadItemPayload, ThreadStatus, ThreadTurnsView, TurnId,
 };
 use app_server_protocol::protocol::v2::{
     ThreadImportMessage, ThreadImportParams, ThreadImportResponse, ThreadImportRole,
@@ -11,7 +10,10 @@ use app_server_protocol::AgentEvent;
 use chrono::{SecondsFormat, TimeZone, Utc};
 use serde_json::json;
 use std::collections::HashSet;
-use thread_store::{ApplyThreadHistoryParams, CreateThreadParams, ReadThreadParams, ThreadStore};
+use thread_store::{
+    ApplyThreadHistoryParams, CreateThreadParams, ReadThreadParams, ThreadMetadataPatch,
+    UpdateThreadMetadataParams,
+};
 use uuid::Uuid;
 
 use super::thread_item_projection;
@@ -174,6 +176,23 @@ impl RuntimeCore {
                 "thread/import history was not applied".to_string(),
             ));
         }
+        store
+            .update_thread_metadata(UpdateThreadMetadataParams {
+                thread_id: thread.thread_id.clone(),
+                patch: ThreadMetadataPatch {
+                    metadata_values: thread
+                        .metadata
+                        .as_object()
+                        .cloned()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .collect(),
+                    ..Default::default()
+                },
+                include_archived: true,
+            })
+            .await
+            .map_err(store_error)?;
         Ok(ThreadImportResponse {
             thread_id,
             session_id,

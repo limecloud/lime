@@ -2622,5 +2622,10 @@
   "settings.browser.autofill": "Autofill",
   "settings.browser.autofillDescription": "Autofill saved data in sign-in and contact forms",
   "settings.browser.contactEmailInvalid": "Invalid email address",
-  "settings.browser.passwordManagerInvalidOrigin": "Invalid website address"
+  "settings.browser.passwordManagerInvalidOrigin": "Invalid website address",
+  "settings.browser.autofillUpdateFailed": "Could not update autofill settings",
+  "settings.browser.passwordManagerEdit": "Edit",
+  "settings.connections.editTitle": "Edit SSH connection",
+  "settings.connections.edit": "Edit",
+  "settings.connections.updateFailed": "Could not update the SSH connection"
 }

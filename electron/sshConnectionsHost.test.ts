@@ -4,6 +4,7 @@ import {
   ensureSshConfig,
   parseSshConfig,
   removeSshConnection,
+  updateSshConnection,
 } from "./sshConnectionsHost";
 
 describe("parseSshConfig", () => {
@@ -171,5 +172,54 @@ describe("removeSshConnection", () => {
     await writeFile(configPath, original);
     await expect(removeSshConnection(home, "missing")).resolves.toBe(false);
     expect(await readFile(configPath, "utf8")).toBe(original);
+  });
+});
+
+describe("updateSshConnection", () => {
+  it("替换 HostName/User/Port 并保留其他指令与块", async () => {
+    const { mkdtemp, readFile, writeFile } = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const home = await mkdtemp(path.join(os.tmpdir(), "lime-ssh-update-"));
+    await ensureSshConfig(home);
+    const configPath = path.join(home, ".ssh", "config");
+    await writeFile(
+      configPath,
+      "Host prod\n  HostName 1.1.1.1\n  User old\n  Port 22\n  ForwardAgent yes\n\nHost other\n  HostName 2.2.2.2\n",
+    );
+    await expect(
+      updateSshConnection(home, "prod", {
+        hostName: "10.0.0.1",
+        user: "deploy",
+        port: 2222,
+      }),
+    ).resolves.toBe(true);
+    const text = await readFile(configPath, "utf8");
+    expect(text).toContain("HostName 10.0.0.1");
+    expect(text).toContain("User deploy");
+    expect(text).toContain("Port 2222");
+    expect(text).toContain("ForwardAgent yes");
+    expect(text).toContain("Host other");
+    expect(text).not.toContain("1.1.1.1");
+    expect(text).not.toContain("User old");
+  });
+
+  it("多别名块与缺失别名/非法输入", async () => {
+    const { mkdtemp, writeFile } = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const home = await mkdtemp(path.join(os.tmpdir(), "lime-ssh-update-"));
+    await ensureSshConfig(home);
+    const configPath = path.join(home, ".ssh", "config");
+    await writeFile(configPath, "Host a b\n  HostName 1.1.1.1\n");
+    await expect(
+      updateSshConnection(home, "a", { hostName: "2.2.2.2" }),
+    ).rejects.toThrow("多别名");
+    await expect(
+      updateSshConnection(home, "missing", { hostName: "2.2.2.2" }),
+    ).resolves.toBe(false);
+    await expect(
+      updateSshConnection(home, "a", { hostName: "bad host" }),
+    ).rejects.toThrow("主机名");
   });
 });

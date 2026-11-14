@@ -191,6 +191,8 @@ export type ComposerSubmitResult =
 export interface ComposerPasteOptions {
   platform?: "macos" | "windows" | "linux" | "unknown";
   bracketed?: boolean;
+  /** 强制把粘贴内容折叠为 paste 原子（如应用快照文本）。 */
+  preferPasteAtom?: boolean;
 }
 
 export interface ComposerState {

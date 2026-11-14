@@ -57,7 +57,7 @@ impl AppServerSession {
             .context("failed to start App Server thread")
     }
 
-    pub(crate) async fn fork_thread(
+    pub(crate) async fn request_thread_fork(
         &mut self,
         thread_id: String,
     ) -> Result<app_server_protocol::protocol::v2::ThreadForkResponse> {

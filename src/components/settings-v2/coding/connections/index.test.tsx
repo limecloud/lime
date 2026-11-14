@@ -16,6 +16,7 @@ vi.mock("@/lib/api/sshConnections", () => ({
   ensureSshConfig: api.ensure,
   listSshConnections: api.list,
   removeSshConnection: api.remove,
+  updateSshConnection: api.update,
 }));
 vi.mock("@/lib/api/openIn", () => ({
   openIn: { open: api.open },
@@ -84,6 +85,30 @@ describe("ConnectionsSettings", () => {
     await act(async () => retry.click());
     await act(async () => Promise.resolve());
     expect(container.textContent).toContain("10.0.0.1");
+  });
+
+  it("点击编辑打开预填的连接表单", async () => {
+    api.list.mockResolvedValue([
+      { alias: "prod", hostName: "10.0.0.1", user: "deploy", port: 22 },
+    ]);
+    await mount();
+    const edit = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "编辑",
+    )!;
+    await act(async () => edit.click());
+    await act(async () => Promise.resolve());
+    expect(document.body.textContent).toContain("编辑 SSH 连接");
+    const inputs = [
+      ...document.querySelectorAll<HTMLInputElement>(
+        "[data-testid=ssh-connection-dialog] input",
+      ),
+    ];
+    expect(inputs.map((input) => input.value)).toEqual([
+      "prod",
+      "10.0.0.1",
+      "deploy",
+      "22",
+    ]);
   });
 
   it("打开配置时确保并打开 ~/.ssh/config", async () => {

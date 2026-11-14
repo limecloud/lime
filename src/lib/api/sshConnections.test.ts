@@ -3,6 +3,7 @@ import {
   addSshConnection,
   ensureSshConfig,
   listSshConnections,
+  updateSshConnection,
 } from "./sshConnections";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -65,4 +66,25 @@ it("添加 SSH 连接并校验返回结构", async () => {
   await expect(addSshConnection({ alias: "x", hostName: "y" })).rejects.toThrow(
     "invalid result",
   );
+});
+
+it("更新 SSH 连接并校验返回值", async () => {
+  invoke.mockResolvedValue(true);
+  await expect(
+    updateSshConnection("prod", {
+      hostName: "10.0.0.2",
+      user: "deploy",
+      port: 2222,
+    }),
+  ).resolves.toBe(true);
+  expect(invoke).toHaveBeenCalledWith("ssh_connection_update", {
+    alias: "prod",
+    hostName: "10.0.0.2",
+    user: "deploy",
+    port: 2222,
+  });
+  invoke.mockResolvedValue(null);
+  await expect(
+    updateSshConnection("prod", { hostName: "10.0.0.2" }),
+  ).rejects.toThrow("invalid result");
 });

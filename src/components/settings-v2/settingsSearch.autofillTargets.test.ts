@@ -1,0 +1,23 @@
+import { describe, expect, it } from "vitest";
+import { settingsSearchDocuments } from "./settingsSearchDocuments";
+
+const expected = [
+  "browser-autofill",
+  "browser-password-manager",
+  "browser-contact-info",
+  "app-snapshots-shortcut",
+  "app-snapshots-target",
+  "app-snapshots-sound",
+  "connections-ssh",
+];
+
+describe("settings search targets for browser autofill/snapshots/ssh", () => {
+  it.each(expected)("%s is searchable", (targetId) => {
+    const document = settingsSearchDocuments.find(
+      (entry) => entry.targetId === targetId,
+    );
+    expect(document).toBeDefined();
+    expect(document?.labelKey).toMatch(/^settings\./);
+    expect(document?.termKeys.length).toBeGreaterThan(0);
+  });
+});

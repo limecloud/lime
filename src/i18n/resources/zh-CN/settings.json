@@ -2622,5 +2622,10 @@
   "settings.browser.autofill": "自动填充",
   "settings.browser.autofillDescription": "在登录和联系信息表单中自动填充已保存的数据",
   "settings.browser.contactEmailInvalid": "邮箱格式无效",
-  "settings.browser.passwordManagerInvalidOrigin": "网站地址无效"
+  "settings.browser.passwordManagerInvalidOrigin": "网站地址无效",
+  "settings.browser.autofillUpdateFailed": "无法更新自动填充设置",
+  "settings.browser.passwordManagerEdit": "编辑",
+  "settings.connections.editTitle": "编辑 SSH 连接",
+  "settings.connections.edit": "编辑",
+  "settings.connections.updateFailed": "无法更新 SSH 连接"
 }

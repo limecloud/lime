@@ -2622,5 +2622,10 @@
   "settings.browser.autofill": "自動入力",
   "settings.browser.autofillDescription": "ログインと連絡先フォームに保存済みデータを自動入力します",
   "settings.browser.contactEmailInvalid": "メールアドレスの形式が正しくありません",
-  "settings.browser.passwordManagerInvalidOrigin": "Web サイトのアドレスが正しくありません"
+  "settings.browser.passwordManagerInvalidOrigin": "Web サイトのアドレスが正しくありません",
+  "settings.browser.autofillUpdateFailed": "自動入力設定を更新できませんでした",
+  "settings.browser.passwordManagerEdit": "編集",
+  "settings.connections.editTitle": "SSH 接続を編集",
+  "settings.connections.edit": "編集",
+  "settings.connections.updateFailed": "SSH 接続を更新できませんでした"
 }

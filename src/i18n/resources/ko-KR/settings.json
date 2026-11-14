@@ -2622,5 +2622,10 @@
   "settings.browser.autofill": "자동 완성",
   "settings.browser.autofillDescription": "로그인 및 연락처 양식에 저장된 데이터를 자동 완성합니다",
   "settings.browser.contactEmailInvalid": "이메일 형식이 올바르지 않습니다",
-  "settings.browser.passwordManagerInvalidOrigin": "웹사이트 주소가 올바르지 않습니다"
+  "settings.browser.passwordManagerInvalidOrigin": "웹사이트 주소가 올바르지 않습니다",
+  "settings.browser.autofillUpdateFailed": "자동 완성 설정을 업데이트하지 못했습니다",
+  "settings.browser.passwordManagerEdit": "편집",
+  "settings.connections.editTitle": "SSH 연결 편집",
+  "settings.connections.edit": "편집",
+  "settings.connections.updateFailed": "SSH 연결을 업데이트하지 못했습니다"
 }

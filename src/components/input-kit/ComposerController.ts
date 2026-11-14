@@ -420,7 +420,7 @@ export class ComposerController {
 
   ingestPaste(
     value: string,
-    _options: ComposerPasteOptions = {},
+    options: ComposerPasteOptions = {},
   ): {
     handled: boolean;
     insertedText: string;
@@ -459,7 +459,7 @@ export class ComposerController {
         insertedText: projectComposerDocument(parsed).text,
       };
     }
-    if (text.length > LARGE_PASTE_CHAR_THRESHOLD) {
+    if (options.preferPasteAtom || text.length > LARGE_PASTE_CHAR_THRESHOLD) {
       const ids = new Set<string>();
       this.state.doc.descendants((node) => {
         if (node.type.name === "paste") ids.add(node.attrs.id);

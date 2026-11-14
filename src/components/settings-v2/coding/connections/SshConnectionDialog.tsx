@@ -1,7 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
-import { addSshConnection, type SshConnection } from "@/lib/api/sshConnections";
+import {
+  addSshConnection,
+  updateSshConnection,
+  type SshConnection,
+} from "@/lib/api/sshConnections";
 import { SettingsAction } from "../../SettingsPrimitives";
 
 const inputClass =
@@ -9,14 +13,17 @@ const inputClass =
 
 export function SshConnectionDialog({
   open,
+  initial,
   onOpenChange,
-  onAdded,
+  onSaved,
 }: {
   open: boolean;
+  initial?: SshConnection | null;
   onOpenChange: (open: boolean) => void;
-  onAdded: (connection: SshConnection) => void;
+  onSaved: () => void;
 }) {
   const { t } = useTranslation("settings");
+  const editing = Boolean(initial);
   const [alias, setAlias] = useState("");
   const [hostName, setHostName] = useState("");
   const [user, setUser] = useState("");
@@ -26,13 +33,13 @@ export function SshConnectionDialog({
 
   useEffect(() => {
     if (!open) return;
-    setAlias("");
-    setHostName("");
-    setUser("");
-    setPort("");
+    setAlias(initial?.alias ?? "");
+    setHostName(initial?.hostName ?? "");
+    setUser(initial?.user ?? "");
+    setPort(initial?.port ? String(initial.port) : "");
     setPending(false);
     setError(false);
-  }, [open]);
+  }, [open, initial]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -40,13 +47,17 @@ export function SshConnectionDialog({
     setPending(true);
     setError(false);
     try {
-      const connection = await addSshConnection({
-        alias: alias.trim(),
+      const input = {
         hostName: hostName.trim(),
         ...(user.trim() ? { user: user.trim() } : {}),
         ...(port.trim() ? { port: Number(port) } : {}),
-      });
-      onAdded(connection);
+      };
+      if (initial) {
+        await updateSshConnection(initial.alias, input);
+      } else {
+        await addSshConnection({ alias: alias.trim(), ...input });
+      }
+      onSaved();
       onOpenChange(false);
     } catch {
       setError(true);
@@ -65,7 +76,9 @@ export function SshConnectionDialog({
           aria-describedby={undefined}
         >
           <Dialog.Title className="text-lg font-semibold">
-            {t("settings.connections.addTitle")}
+            {editing
+              ? t("settings.connections.editTitle")
+              : t("settings.connections.addTitle")}
           </Dialog.Title>
           <form
             className="mt-4 space-y-3"
@@ -74,7 +87,8 @@ export function SshConnectionDialog({
             <label className="block text-[12px] text-muted-foreground">
               {t("settings.connections.alias")}
               <input
-                autoFocus
+                autoFocus={!editing}
+                disabled={editing}
                 value={alias}
                 onChange={(event) => setAlias(event.target.value)}
                 className={`mt-1 ${inputClass}`}
@@ -83,6 +97,7 @@ export function SshConnectionDialog({
             <label className="block text-[12px] text-muted-foreground">
               {t("settings.connections.hostName")}
               <input
+                autoFocus={editing}
                 value={hostName}
                 onChange={(event) => setHostName(event.target.value)}
                 className={`mt-1 ${inputClass}`}
@@ -109,7 +124,9 @@ export function SshConnectionDialog({
             </label>
             {error ? (
               <p role="alert" className="text-[12px] text-destructive">
-                {t("settings.connections.addFailed")}
+                {editing
+                  ? t("settings.connections.updateFailed")
+                  : t("settings.connections.addFailed")}
               </p>
             ) : null}
             <div className="flex justify-end gap-2 pt-2">

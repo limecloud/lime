@@ -16,6 +16,7 @@ import {
   ensureSshConfig,
   parseSshConfig,
   removeSshConnection,
+  updateSshConnection,
 } from "./sshConnectionsHost";
 import {
   METHOD_CONFIG_READ,
@@ -250,6 +251,26 @@ export class ElectronHostCommands {
         return await this.#browserPasswordStore.reveal(
           readRequiredString(toRecord(args) ?? {}, "id"),
         );
+      case "ssh_connection_update": {
+        const record = toRecord(args) ?? {};
+        const port = record.port;
+        if (
+          port !== undefined &&
+          (typeof port !== "number" || !Number.isInteger(port))
+        ) {
+          throw new Error("Invalid SSH port");
+        }
+        const user = readString(record, "user") ?? undefined;
+        return await updateSshConnection(
+          app.getPath("home"),
+          readRequiredString(record, "alias"),
+          {
+            hostName: readRequiredString(record, "hostName"),
+            ...(user ? { user } : {}),
+            ...(port !== undefined ? { port } : {}),
+          },
+        );
+      }
       case "ssh_connection_remove":
         return await removeSshConnection(
           app.getPath("home"),

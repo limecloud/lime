@@ -299,6 +299,18 @@ export function BrowserPasswordsDialog({
                         <button
                           type="button"
                           className={BROWSER_SETTINGS_BUTTON}
+                          onClick={() => {
+                            setOrigin(item.origin);
+                            setUsername(item.username);
+                            setPassword("");
+                            setError(null);
+                          }}
+                        >
+                          {t("settings.browser.passwordManagerEdit")}
+                        </button>
+                        <button
+                          type="button"
+                          className={BROWSER_SETTINGS_BUTTON}
                           onClick={() => void copy(item)}
                         >
                           {copiedId === item.id

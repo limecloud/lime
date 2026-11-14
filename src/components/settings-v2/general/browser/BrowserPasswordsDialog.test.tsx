@@ -149,6 +149,37 @@ describe("BrowserPasswordsDialog", () => {
     expect(api.remove).toHaveBeenCalledWith("p1");
   });
 
+  it("编辑已有密码时回填并保存新密码", async () => {
+    api.list.mockResolvedValue([item]);
+    api.save.mockResolvedValue(item);
+    await mount();
+    await act(async () => buttons("编辑")[0].click());
+    await act(async () => Promise.resolve());
+    const dialog = document.querySelector(
+      "[data-testid=browser-passwords-dialog]",
+    )!;
+    const inputs = [...dialog.querySelectorAll<HTMLInputElement>("form input")];
+    expect(inputs.map((input) => input.value)).toEqual([
+      "https://example.com",
+      "alice",
+      "",
+    ]);
+    await setValue(inputs[2], "new-secret");
+    await act(async () =>
+      dialog
+        .querySelector("form")!
+        .dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        ),
+    );
+    await act(async () => Promise.resolve());
+    expect(api.save).toHaveBeenCalledWith({
+      origin: "https://example.com",
+      username: "alice",
+      password: "new-secret",
+    });
+  });
+
   it("按网站或用户名过滤密码", async () => {
     api.list.mockResolvedValue([
       item,

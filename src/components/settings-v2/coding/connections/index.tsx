@@ -43,6 +43,7 @@ export function ConnectionsSettings() {
     null,
   );
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<SshConnection | null>(null);
 
   const load = async () => {
     setLoadError(false);
@@ -171,7 +172,13 @@ export function ConnectionsSettings() {
             <SettingsAction type="button" onClick={() => void openConfig()}>
               {t("settings.connections.openConfig")}
             </SettingsAction>
-            <SettingsAction type="button" onClick={() => setAddOpen(true)}>
+            <SettingsAction
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setAddOpen(true);
+              }}
+            >
               {t("settings.connections.add")}
             </SettingsAction>
           </div>
@@ -181,9 +188,15 @@ export function ConnectionsSettings() {
           {t("settings.connections.sectionDescription")}
         </p>
         <SshConnectionDialog
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          onAdded={() => void load()}
+          open={addOpen || editing !== null}
+          initial={editing}
+          onOpenChange={(next) => {
+            if (!next) {
+              setAddOpen(false);
+              setEditing(null);
+            }
+          }}
+          onSaved={() => void load()}
         />
         <SettingsGroup>
           {connections && connections.length > 0 ? (
@@ -194,6 +207,15 @@ export function ConnectionsSettings() {
                 label={connection.alias}
                 description={connectionTarget(connection)}
               >
+                <SettingsAction
+                  type="button"
+                  onClick={() => {
+                    setAddOpen(false);
+                    setEditing(connection);
+                  }}
+                >
+                  {t("settings.connections.edit")}
+                </SettingsAction>
                 <SettingsAction
                   type="button"
                   onClick={() => setPendingRemove(connection)}

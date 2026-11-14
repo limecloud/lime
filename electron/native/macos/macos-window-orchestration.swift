@@ -84,6 +84,12 @@ func accessibilityWindowMatching(ownerPID: pid_t, frame: CGRect) throws -> AXUIE
         throw HostError.notGranted("macOS Accessibility permission is required for window control.")
     }
     let application = AXUIElementCreateApplication(ownerPID)
+    // Chromium/Electron 默认延迟构建 AX 树；显式请求手动辅助功能可让窗口属性可用。
+    AXUIElementSetAttributeValue(
+        application,
+        "AXManualAccessibility" as CFString,
+        kCFBooleanTrue
+    )
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &value) == .success,
           let value,

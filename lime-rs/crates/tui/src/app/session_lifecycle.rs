@@ -157,7 +157,7 @@ impl App {
         let Some(thread_id) = self.thread_id.clone() else {
             anyhow::bail!("no active thread");
         };
-        let response = session.fork_thread(thread_id).await?;
+        let response = session.request_thread_fork(thread_id).await?;
         let forked_id = response.thread.id.clone();
         let snapshot = self.take_thread_event_snapshot(&forked_id, true);
         self.capture_current_thread_input();

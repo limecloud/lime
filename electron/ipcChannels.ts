@@ -107,6 +107,7 @@ export const ELECTRON_HOST_COMMANDS = [
   "ssh_config_ensure",
   "ssh_connection_add",
   "ssh_connection_remove",
+  "ssh_connection_update",
   "get_or_create_default_project",
   "analyze_layered_design_flat_image",
   "open_external_url",
