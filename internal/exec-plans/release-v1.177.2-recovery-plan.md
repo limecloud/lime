@@ -179,3 +179,5 @@
 - 本轮直接写集为快照偏好回归、两份发布说明和本计划；Rust 导出及其它并行修改先只读核对再按用户“全部递交”授权冻结。新候选的完整平台打包和真实 GUI 结果继续由同 SHA CI 核实，不把静态检查标作 Gate B。
 - 验证通过：完整 `test:contracts`、`verify:app-version`，8 文件 757 项浏览器/设置搜索/存储根/快照偏好回归，4 文件 17 项联系人自动填充/语音设置/快照组件回归。完整 typecheck 已对上一候选通过，本轮冻结后的新增内容继续检查。
 - Rust 测试 wrapper 对本机临时 V8 archive 的 SHA-256 校验失败，未进入 Cargo；保留拒绝结果，不放宽校验。Provider 改为不依赖 V8 override 的直接 crate 单测，App Server 使用定向 `cargo check --tests`；当前受共享 Cargo cache 锁等待影响，最终编译结果由本机与同 SHA CI 交叉核对。
+- 已冻结的 56 文件提交并推送为 `02c86a29e7829b8ec83aaa0305f909c475a4576b`，提交 tree 与验证快照 `e232dab8d191ed967243ad904eb2ca90047eeaf6` 完全一致；23 文件定向 ESLint 零 warning。
+- 随后核对原仓库新增的两处 Rust 清理：删除没有生产消费者的 `realtime_available` 包装，测试直接检查 blocker；移除公共 JSON-RPC 测试的未用 import。两项随发布补充递交，避免修复编译错误后继续被 unused 门禁阻断。

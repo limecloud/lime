@@ -81,10 +81,6 @@ pub fn realtime_blockers(readiness: &RealtimeVoiceReadiness) -> Vec<RealtimeVoic
     blockers
 }
 
-pub fn realtime_available(readiness: &RealtimeVoiceReadiness) -> bool {
-    realtime_blockers(readiness).is_empty()
-}
-
 /// provider 路由是否真正承载官方 OpenAI Realtime wire。
 ///
 /// 只看显式 provider type 与 host；不从品牌文案、chat 模型名或 Responses
@@ -156,7 +152,7 @@ mod tests {
     #[test]
     fn shipping_build_exposes_the_renderer_webrtc_transport() {
         assert!(realtime_transport_available());
-        assert!(realtime_available(&ready()));
+        assert!(realtime_blockers(&ready()).is_empty());
     }
 
     #[test]

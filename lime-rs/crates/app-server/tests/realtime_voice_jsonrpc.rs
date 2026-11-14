@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use app_server::{
-    AppServer, AppDataSource, AutomationManagementAppDataSource, AutomationOverviewAppDataSource,
+    AppServer, AutomationManagementAppDataSource, AutomationOverviewAppDataSource,
     ConnectAppDataSource, DiagnosticsAppDataSource, GatewayAppDataSource, MarketDataSource,
     McpAppDataSource, MediaAppDataSource, MemoryAppDataSource, MockBackend,
     ModelProviderAppDataSource, PluginDataSource, RealtimeVoiceProviderSnapshot,
