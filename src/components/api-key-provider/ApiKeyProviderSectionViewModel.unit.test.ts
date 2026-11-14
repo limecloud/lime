@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
 import {
   buildApiKeyProviderSectionViewModel,
-  isSelectedProviderLoginRequired,
   planDeleteProviderConfig,
   planEnabledModelSelection,
 } from "./ApiKeyProviderSectionViewModel";
@@ -40,61 +39,7 @@ function createProvider(
 }
 
 describe("ApiKeyProviderSectionViewModel", () => {
-  it("未登录 Lime Hub 只有显式暴露登录提示时才进入 login_required", () => {
-    const limeHub = createProvider({
-      id: "lime-hub",
-      name: "Lime Hub",
-      api_key_count: 0,
-      api_keys: [],
-      models: [],
-    });
-
-    expect(
-      isSelectedProviderLoginRequired({
-        provider: limeHub,
-        exposeOemLoginPrompt: true,
-      }),
-    ).toBe(true);
-    expect(
-      isSelectedProviderLoginRequired({
-        provider: createProvider({
-          id: "lime-hub",
-          api_key_count: undefined as unknown as number,
-          api_keys: [],
-          models: [],
-        }),
-        exposeOemLoginPrompt: true,
-      }),
-    ).toBe(true);
-    expect(
-      isSelectedProviderLoginRequired({
-        provider: limeHub,
-        exposeOemLoginPrompt: false,
-      }),
-    ).toBe(false);
-    expect(
-      isSelectedProviderLoginRequired({
-        provider: createProvider({
-          id: "lime-hub",
-          api_key_count: 1,
-        }),
-        exposeOemLoginPrompt: true,
-      }),
-    ).toBe(false);
-    expect(
-      isSelectedProviderLoginRequired({
-        provider: createProvider({
-          id: "lime-hub",
-          api_key_count: 0,
-          api_keys: [],
-          models: [{ id: "gpt-5.2-pro" }],
-        }),
-        exposeOemLoginPrompt: true,
-      }),
-    ).toBe(false);
-  });
-
-  it("构建设置区 VM 时保留未登录 Lime Hub 选择，不重定向到本地 Provider", () => {
+  it("构建设置区 VM 时过滤未配置 Provider，并修正不可见的旧选择", () => {
     const limeHub = createProvider({
       id: "lime-hub",
       name: "Lime Hub",
@@ -107,22 +52,22 @@ describe("ApiKeyProviderSectionViewModel", () => {
 
     const viewModel = buildApiKeyProviderSectionViewModel({
       providers: [limeHub, deepseek],
-      selectedProvider: limeHub,
-      exposeOemLoginPrompt: true,
     });
 
     expect(viewModel.enabledModelItems.map((item) => item.id)).toEqual([
-      "lime-hub",
       "deepseek",
     ]);
-    expect(viewModel.selectedProviderLoginRequired).toBe(true);
+    expect(viewModel.enabledModelItems[0]).toMatchObject({
+      status: "ready",
+      isDefault: true,
+    });
     expect(
       planEnabledModelSelection({
         enabledModelItems: viewModel.enabledModelItems,
         selectedProviderId: "lime-hub",
         showAddModelFlow: false,
       }),
-    ).toEqual({ type: "none" });
+    ).toEqual({ type: "select", providerId: "deepseek" });
   });
 
   it("自动选择计划只修正空选中或不可见选中项", () => {
@@ -159,21 +104,6 @@ describe("ApiKeyProviderSectionViewModel", () => {
         showAddModelFlow: true,
       }),
     ).toEqual({ type: "none" });
-  });
-
-  it("存在未登录 Lime Hub 提示时应优先选中登录提示", () => {
-    const items = [
-      { id: "lime-hub", status: "login_required" as const },
-      { id: "openai", status: "ready" as const },
-    ];
-
-    expect(
-      planEnabledModelSelection({
-        enabledModelItems: items,
-        selectedProviderId: "openai",
-        showAddModelFlow: false,
-      }),
-    ).toEqual({ type: "select", providerId: "lime-hub" });
   });
 
   it("没有可见模型时只在存在旧选中项时清空选择", () => {

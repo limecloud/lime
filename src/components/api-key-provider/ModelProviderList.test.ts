@@ -59,7 +59,7 @@ describe("ModelProviderList helpers", () => {
     expect(isProviderVisibleInEnabledModelList(unconfigured)).toBe(false);
   });
 
-  it("显式打开 OEM 登录提示时，应展示未登录 Lime Hub 但不标为默认模型", () => {
+  it("未配置的 Lime Hub 不应抢占已配置 Provider 的默认模型", () => {
     const limeHub = createProvider({
       id: "lime-hub",
       name: "Lime Hub",
@@ -75,19 +75,10 @@ describe("ModelProviderList helpers", () => {
     });
 
     expect(isProviderVisibleInEnabledModelList(limeHub)).toBe(false);
-    expect(
-      isProviderVisibleInEnabledModelList(limeHub, {
-        exposeOemLoginPrompt: true,
-      }),
-    ).toBe(true);
-
-    const items = buildEnabledModelItems([limeHub, deepseek], {
-      exposeOemLoginPrompt: true,
-    });
+    const items = buildEnabledModelItems([limeHub, deepseek]);
 
     expect(items.map((item) => [item.id, item.status, item.isDefault])).toEqual(
       [
-        ["lime-hub", "login_required", false],
         ["deepseek", "ready", true],
       ],
     );

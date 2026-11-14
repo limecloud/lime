@@ -70,3 +70,10 @@
 - CI Rust Full 仅两个 target 失败：`model_provider_capabilities_jsonrpc` 的旧完整响应断言缺少新增实时语音字段；`cli/mcp_oauth` 清空子进程环境时丢弃 Cargo 原生动态库查找路径，CLI 在启动前找不到 `libsherpa-onnx-c-api.dylib`，8 项均未进入 fixture。
 - 同步 official/compatible 两条公共 JSON-RPC 响应的完整断言；CLI test-only fixture 继续隔离配置与凭据，只透传 `DYLD_LIBRARY_PATH`、`DYLD_FALLBACK_LIBRARY_PATH`、`LD_LIBRARY_PATH`，不改变生产路径或权限。
 - 最终 `npm run typecheck` 通过；两份 Rust 测试的 `rustfmt --check` 与变更 whitespace 检查通过。新增 Rust 集成测试仍编译中，下一轮冻结 CI 继续验证完整矩阵，不预记通过。
+
+## 全量前端迁移补齐
+
+- `eedcf2e83f95a9f4b64545e55b58c68c4f91e730` 已提交并推送；Quality run `43593983127` 的审计、Integrity、Lint、Typecheck 和 GUI Smoke 通过。
+- 全量前端在批次 `54/155` 被 4 份 Provider 测试的 6 个旧 OEM 登录断言阻断；此前批次通过。该路径已在 `shared-cloud-capabilities.md` 明确退役，现役源码和设置入口的负向测试均不再提供旧参数。
+- 不恢复 `exposeOemLoginPrompt`、旧登录 helper 或 `login_required` 模型选项；将 VM、列表与 UI 测试迁移为未配置 Provider 过滤、默认模型保持及不可见旧选择恢复，删除只覆盖已退役路径的 `ApiKeyProviderSection.oem.test.tsx`。
+- 仅迁移测试和记录，产品实现不变；3 文件 43 项定向回归、定向 ESLint（零 warning）与 whitespace 检查均通过。

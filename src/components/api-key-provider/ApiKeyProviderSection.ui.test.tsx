@@ -515,8 +515,7 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     expect(hookState.selectProvider).toHaveBeenCalledWith("coding-provider");
   });
 
-  it("未登录时可在 AI 服务商列表中展示 Lime Hub 登录提示", async () => {
-    const onOemLogin = vi.fn();
+  it("未配置的 Lime Hub 不显示旧登录提示，并将选择恢复到已配置 Provider", async () => {
     const limeHub = createProvider({
       id: "lime-hub",
       name: "Lime 云端",
@@ -534,34 +533,13 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
       filteredProviders: [deepseek],
     });
 
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    act(() => {
-      root.render(
-        <ApiKeyProviderSection exposeOemLoginPrompt onOemLogin={onOemLogin} />,
-      );
-    });
-    mountedRoots.push({ container, root });
+    const container = renderSection();
     await flushEffects();
 
-    expect(maybeProviderItem(container, "lime-hub")).not.toBeNull();
-    expect(container.textContent ?? "").toContain("Lime 云端");
-    expect(container.textContent ?? "").toContain("需要登录");
-    expect(container.textContent ?? "").toContain(
-      "登录后会自动同步 Lime Hub 的可用模型",
-    );
-    expect(hookState.selectProvider).not.toHaveBeenCalledWith("deepseek");
-
-    await act(async () => {
-      maybeByTestId<HTMLButtonElement>(
-        container,
-        "provider-login-button",
-      )?.click();
-      await Promise.resolve();
-    });
-
-    expect(onOemLogin).toHaveBeenCalledTimes(1);
+    expect(maybeProviderItem(container, "lime-hub")).toBeNull();
+    expect(maybeProviderItem(container, "deepseek")).not.toBeNull();
+    expect(maybeByTestId(container, "provider-login-required")).toBeNull();
+    expect(hookState.selectProvider).toHaveBeenCalledWith("deepseek");
   });
 
   it("Provider 设置页请求聊天试跑时应走真实聊天测试命令", async () => {
