@@ -10,12 +10,14 @@ const api = vi.hoisted(() => ({
   remove: vi.fn(),
   pick: vi.fn(),
   reveal: vi.fn(),
+  setEnabled: vi.fn(),
 }));
 
 vi.mock("@/lib/api/browserExtensions", () => ({
   listBrowserExtensions: api.list,
   loadBrowserExtension: api.load,
   removeBrowserExtension: api.remove,
+  setBrowserExtensionEnabled: api.setEnabled,
 }));
 vi.mock("@/lib/api/filePicker", () => ({
   pickFilesFromDialog: api.pick,
@@ -30,6 +32,7 @@ const extension = {
   version: "1.0.0",
   manifestVersion: 3,
   path: "/tmp/ext",
+  enabled: true,
 };
 
 let root: Root;
@@ -94,6 +97,20 @@ describe("BrowserExtensionsDialog", () => {
     await act(async () => Promise.resolve());
     expect(api.remove).toHaveBeenCalledWith("abc123");
     expect(document.body.textContent).toContain("暂无扩展");
+  });
+
+  it("启用/禁用扩展", async () => {
+    api.list.mockResolvedValue([extension]);
+    api.setEnabled.mockResolvedValue({ ...extension, enabled: false });
+    await act(async () =>
+      root.render(
+        <BrowserExtensionsDialog open onOpenChange={() => undefined} />,
+      ),
+    );
+    await act(async () => Promise.resolve());
+    await act(async () => button("禁用").click());
+    await act(async () => Promise.resolve());
+    expect(api.setEnabled).toHaveBeenCalledWith("abc123", false);
   });
 
   it("在文件夹中显示扩展目录", async () => {

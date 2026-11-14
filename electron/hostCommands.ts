@@ -167,8 +167,22 @@ export class ElectronHostCommands {
         return this.#layeredDesignProjectHost.recognizeText(args);
       case "analyze_layered_design_flat_image":
         return this.#layeredDesignProjectHost.analyzeFlatImage(args);
-      case "browser_extensions_list":
-        return listBrowserExtensions(openEmbeddedBrowserSession());
+      case "browser_extensions_list": {
+        const extensions = await listBrowserExtensions(
+          openEmbeddedBrowserSession(),
+        );
+        const disabled = (await this.#browserExtensionsStore.read())
+          .filter((entry) => entry.enabled === false)
+          .map((entry) => ({
+            id: entry.id,
+            name: entry.name ?? entry.path,
+            version: entry.version ?? "",
+            manifestVersion: null,
+            path: entry.path,
+            enabled: false,
+          }));
+        return [...extensions, ...disabled];
+      }
       case "browser_extensions_load": {
         const extension = await loadBrowserExtension(
           openEmbeddedBrowserSession(),

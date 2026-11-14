@@ -86,6 +86,42 @@ describe("BrowserExtensionStore", () => {
     ]);
   });
 
+  it("启动时跳过已禁用扩展并兼容旧记录", async () => {
+    const { mkdtemp, writeFile } = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const directory = await mkdtemp(
+      path.join(os.tmpdir(), "lime-ext-restore-"),
+    );
+    const store = new BrowserExtensionStore(
+      path.join(directory, "browser-extensions.json"),
+    );
+    await writeFile(
+      path.join(directory, "browser-extensions.json"),
+      JSON.stringify([
+        { id: "disabled", path: "/tmp/disabled", enabled: false },
+        { id: "legacy", path: "/tmp/legacy" },
+      ]),
+    );
+    const loadExtension = vi.fn(async (extensionPath: string) => ({
+      id: extensionPath.includes("legacy") ? "legacy" : "disabled",
+      name: extensionPath,
+      version: "1.0.0",
+      path: extensionPath,
+      manifest: { manifest_version: 3 },
+    }));
+    const session = {
+      getAllExtensions: vi.fn(() => [] as never),
+      loadExtension,
+      removeExtension: vi.fn(),
+    };
+    await restoreBrowserExtensions(session, store);
+    expect(loadExtension).toHaveBeenCalledTimes(1);
+    expect(loadExtension).toHaveBeenCalledWith("/tmp/legacy", {
+      allowFileAccess: true,
+    });
+  });
+
   it("启动时恢复记录并跳过损坏扩展", async () => {
     const { mkdtemp } = await import("node:fs/promises");
     const os = await import("node:os");

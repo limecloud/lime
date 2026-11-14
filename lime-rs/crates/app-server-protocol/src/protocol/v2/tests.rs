@@ -739,24 +739,24 @@ fn thread_import_round_trips_source_turns_and_messages() {
             "sourcePath": "/home/user/.codex/sessions/rollout-1.jsonl",
             "title": "导入会话",
             "cwd": "/repo/lime",
-            "createdAtMs": 1794000000000,
-            "updatedAtMs": 1794000060000,
+            "createdAtMs": 1794000000000_i64,
+            "updatedAtMs": 1794000060000_i64,
             "turns": [{
                 "sourceTurnId": "turn-a",
                 "status": "completed",
-                "startedAtMs": 1794000000000,
-                "completedAtMs": 1794000060000,
+                "startedAtMs": 1794000000000_i64,
+                "completedAtMs": 1794000060000_i64,
                 "messages": [
                     {
                         "role": "user",
                         "text": "问题",
-                        "createdAtMs": 1794000001000,
+                        "createdAtMs": 1794000001000_i64,
                         "sourceItemId": "msg-user"
                     },
                     {
                         "role": "assistant",
                         "text": "回答",
-                        "createdAtMs": 1794000002000
+                        "createdAtMs": 1794000002000_i64
                     }
                 ]
             }]
@@ -1388,7 +1388,7 @@ fn strict_review_required_notification_round_trips_codex_shape() {
         "params": {
             "threadId": "thread-guardian",
             "turnId": "turn-guardian",
-            "startedAtMs": 1_783_814_400_100i64
+            "startedAtMs": 1_783_814_400_100_i64
         }
     });
     let notification: ServerNotification =
@@ -1412,7 +1412,7 @@ fn strict_review_required_notification_round_trips_codex_shape() {
             "params": {
                 "threadId": "thread-guardian",
                 "turnId": "turn-guardian",
-                "startedAtMs": 1,
+                "startedAtMs": 1_i64,
                 "extra": true
             }
         }),
@@ -2876,7 +2876,7 @@ fn typed_v2_server_envelopes_fail_closed_for_unknown_methods() {
             "turnId": "turn-1",
             "itemId": "item-1",
             "environmentId": "environment-1",
-            "startedAtMs": 1_783_860_000_123,
+            "startedAtMs": 1_783_860_000_123_i64,
             "cwd": "/tmp/workspace",
             "reason": "Allow generated files",
             "permissions": {
@@ -3033,7 +3033,7 @@ fn typed_v2_server_envelopes_fail_closed_for_unknown_methods() {
             "threadId": "thread_1",
             "turnId": "turn_1",
             "itemId": "item_command",
-            "startedAtMs": 1783860000000,
+            "startedAtMs": 1783860000000_i64,
             "approvalId": "approval-1",
             "command": "npm test",
             "availableDecisions": ["accept", "acceptForSession", "decline", "cancel"]
@@ -3062,7 +3062,7 @@ fn typed_v2_server_envelopes_fail_closed_for_unknown_methods() {
             "threadId": "thread_1",
             "turnId": "turn_1",
             "itemId": "item_file_change",
-            "startedAtMs": 1783860000000,
+            "startedAtMs": 1783860000000_i64,
             "reason": "需要修改文件",
             "grantRoot": "/workspace"
         }
@@ -3234,7 +3234,7 @@ fn lifecycle_notifications_round_trip_only_the_v2_shapes() {
                 "item": item,
                 "threadId": "thread_1",
                 "turnId": "turn_1",
-                "startedAtMs": 12
+                "startedAtMs": 12_i64
             }
         }),
         json!({
@@ -3247,7 +3247,7 @@ fn lifecycle_notifications_round_trip_only_the_v2_shapes() {
                 },
                 "threadId": "thread_1",
                 "turnId": "turn_1",
-                "completedAtMs": 13
+                "completedAtMs": 13_i64
             }
         }),
         json!({
