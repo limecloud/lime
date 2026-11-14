@@ -46,4 +46,9 @@
 
 - 本轮候选共 81 个文件；包含用户要求的全部初始改动、本轮测试与发布说明、执行记录。
 - 分类：产品与协议 owner 为 current；first-run helper 与相关用例为 test-only；未新增 compat/deprecated 路径，未删除产品能力。
-- 状态：门禁结果已记录，准备 commit、带租约更新同版本 tag 并推送；最终结果继续补充。
+- 已提交：`b0374606b`，81 文件，包含请求时全部 76 文件及本轮修复。
+- 随后补入应用快照辅助功能搜索入口及对应两份测试；3 文件最新回归共 686 项通过，与主提交合计 82 个不同文件。
+- 第二轮 GUI 编译完成（3 分 40 秒），但又因并行源码变化被输入一致性守卫拒绝；不能作为 smoke 通过。发布 CI 使用冻结 commit 的干净 checkout 继续真实打包验收。
+- 候选冻结后新出现的 `src/lib/appearance/{codeFontSize,fontSmoothing,reducedMotion,separateModes}.ts` 属于另一份进行中的写集，均非请求时 76 文件或发布修复；保留原状，不将后续未完成开发混入冻结候选。
+- 原失败 draft 的两份 Linux guest 资产已按 draft 状态和旧 target SHA 核对后清理；其他 CLI draft 资产由现役工作流覆盖，不放开正式版本不可变守卫。
+- 状态：补充候选后带租约更新同版本 tag 并推送，最终远端结果继续补充。

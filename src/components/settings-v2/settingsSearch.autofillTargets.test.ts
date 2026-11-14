@@ -8,6 +8,7 @@ const expected = [
   "app-snapshots-shortcut",
   "app-snapshots-target",
   "app-snapshots-sound",
+  "app-snapshots-accessibility",
   "connections-ssh",
 ];
 

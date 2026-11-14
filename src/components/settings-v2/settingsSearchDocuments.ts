@@ -369,6 +369,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: ["settings.appSnapshots.soundDescription"],
   },
   {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-accessibility",
+    labelKey: "settings.appSnapshots.accessibility",
+    termKeys: ["settings.appSnapshots.accessibilityDescription"],
+  },
+  {
     section: SettingsTabs.Browser,
     targetId: "browser-site-settings",
     labelKey: "browserSiteSettings.title",

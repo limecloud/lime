@@ -53,7 +53,10 @@ beforeEach(async () => {
   resetAppSnapshotPreferencesForTest();
   resetPendingAppSnapshotForTest();
   api.read.mockResolvedValue({
-    permissions: [{ id: "screenCapture", state: "granted" }],
+    permissions: [
+      { id: "screenCapture", state: "granted" },
+      { id: "accessibility", state: "granted" },
+    ],
   });
   snapshotApi.list.mockResolvedValue(windows);
   await changeLimeLocale("zh-CN");
@@ -100,6 +103,7 @@ describe("AppSnapshotsSettings", () => {
     expect(text).toContain("同时按下两个 ⌘ 键");
     expect(text).toContain("⌘ + ⌘");
     expect(text).toContain("播放音效");
+    expect(text).toContain("辅助功能");
     expect(text).toContain("应用快照目标位置");
     expect(text).toContain("Lime 没有 Mini，应用快照会添加到当前聊天");
     const toggle =
