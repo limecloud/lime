@@ -860,13 +860,14 @@ jobs:
         shell: bash
         run: |
           node scripts/lib/rusty-v8-artifacts.mjs --github-env
-          # The CLI payload is built with the release profile. Clear the matching
-          # target-specific V8 fingerprint so cached build-script output cannot
-          # reference a missing gn_out static archive.
+          # Refresh target-specific native build scripts in the release profile.
+          # Cached output can reference V8 or sherpa libraries not restored with
+          # the Cargo cache; rerun their existing native-library preparation.
           CARGO_TARGET_DIR="${{ github.workspace }}/lime-rs/target" \
             cargo clean \
               --manifest-path lime-rs/Cargo.toml \
               --package v8 \
+              --package sherpa-onnx-sys \
               --release \
               --target "${{ matrix.target }}"
 

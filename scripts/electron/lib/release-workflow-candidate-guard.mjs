@@ -156,6 +156,26 @@ function assertCliNpmTrustedPublishing(workflow) {
   assertIncludes(publishStep?.run, "--provenance", "CLI npm publishing");
 }
 
+function assertCliNativeArtifactRefresh(workflow) {
+  const steps = workflow?.jobs?.publish_cli_assets?.steps || [];
+  const refresh = stepByName(steps, "Refresh sandboxed rusty_v8 artifacts");
+  const build = stepByName(steps, "Build CLI runtime payload");
+  for (const required of [
+    "cargo clean",
+    "--package v8",
+    "--package sherpa-onnx-sys",
+    "--release",
+    '--target "${{ matrix.target }}"',
+  ]) {
+    assertIncludes(refresh?.run, required, "CLI native artifact refresh");
+  }
+  if (!build || steps.indexOf(refresh) >= steps.indexOf(build)) {
+    throw new Error(
+      "CLI native artifact refresh must run before the payload build",
+    );
+  }
+}
+
 export function validateReleaseCandidateWorkflow(workflow) {
   assertCandidatePermissions(workflow);
   assertPrepareReleaseSteps(workflow);
@@ -163,6 +183,7 @@ export function validateReleaseCandidateWorkflow(workflow) {
   assertBuildCandidateIdentity(workflow);
   assertReleaseProvenance(workflow);
   assertCliNpmTrustedPublishing(workflow);
+  assertCliNativeArtifactRefresh(workflow);
   const uploadStep = stepByName(
     workflow?.jobs?.publish_updater_assets_r2?.steps || [],
     "Upload Electron updater assets to Cloudflare R2",

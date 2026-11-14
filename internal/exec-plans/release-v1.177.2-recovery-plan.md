@@ -118,3 +118,20 @@
 - `f10b0518e` 的完整前端 CI 前 131 批通过，第 132 批唯一失败是 `ComputerUseSettings.test.tsx` 导航顺序漏掉现役 `AppSnapshots`。原工作树已有同一行修正，核对差异后仅纳入该必要断言，不夹带其他并行改动。
 - 本地 pending 批次 136 同样暴露该断言；批次 138 的配置/执行策略用例出现原 5 秒超时，尚未发现断言不一致。独立 Computer Use 验证中首个渲染用例也超时，其余 16 项通过；保留失败记录，等待后台批次结束后复核，不延长超时或据此修改产品。
 - 导航断言定向验证通过（1 项，16 项未选择），定向 ESLint 零 warning。修正仅一行测试预期，16 项组件行为已有上述干净 CI 成功证据；最新候选完整 CI 继续复核，不将本地超时标为成功。
+
+## 最终候选与发布跟踪
+
+- 最终候选 `8217c0fefa9c63abe1ec22bbb38380c8723b9807` 已提交并推送；相对已通过真实 GUI Smoke 的 `1b014d276` 仅增加上述一行测试预期及执行记录。
+- 核对 GitHub Release 仍为 draft、npm 根包 `1.177.2` 仍为 E404、无活跃 Release run，draft 只有四份 CLI tarball，无 Linux guest 残留。
+- 以旧 tag object `a25f17b724fd184ebdbb5ce7a8eda97ceada5e9d` 的准确租约推送同版本 annotated tag；新 tag object 为 `af605c14802f2dd6b6902c094acefc2e757f2564`，远端解引用确认指向最终候选。
+- 最终 Quality run：`43604619853`；Release run：`43604757999`。全量测试和同 SHA 多平台打包并行继续核对，当前尚未宣称发布完成。
+
+## Linux CLI 缓存修复
+
+- Release `43604757999` 的 Windows 构建、安装更新与打包后验收通过；macOS arm64 签名、公证与 packaged native host Gate B 通过，原始权限向导失败已在真实产物关闭。
+- Linux CLI job `132476998302` 链接失败：`unable to find library -lsherpa-onnx-c-api`、`-lonnxruntime`。恢复的 Cargo build-script output 保留了 `target/sherpa-onnx-prebuilt/.../lib` 链接目录，实际原生库未被恢复。
+- `sherpa-onnx-sys@1.13.0/build.rs` 在正常执行时负责下载并复制 Unix 运行库，但缓存复用跳过了该脚本。沿用现役 CLI native artifact refresh，仅在相同 release profile 和 target 的 `cargo clean` 增加 `--package sherpa-onnx-sys`，促使既有脚本重新准备库；不增加 fallback、依赖或绕开 native payload 校验。
+- 窄写集为 release workflow、现有 candidate guard、发布守卫测试、中英文发布说明和本计划。发布守卫增加缺失 sherpa 清理时的拒绝回归，47 项全部通过，定向 ESLint 零 warning。
+- 本地 pending 批次 115..154 已全部收集，失败保留为 136（已修正导航断言）、138 和 150（首个 5 秒超时及级联失败）；其余批次通过。对 7 份相关文件串行复核，配置文件仍有超时，等待干净 CI 完整复核，不延长限制或记为通过。
+- 7 文件复核完成：6 文件通过，配置页 `system/configuration/index.test.tsx` 仍有 3 项原 5 秒超时，总计 69 通过、3 超时；保留该失败证据。导航完整 17 项在此轮通过，未改产品或时限。
+- 缓存修复后的 `npm run test:contracts` 全部通过；TypeScript 产品源码相对已通过完整 typecheck 和 Electron Smoke 的候选没有变化，发布修复仅涉及已通过 47 项回归的 workflow/JS guard。后续以新的同版本候选重新构建全部发布产物。

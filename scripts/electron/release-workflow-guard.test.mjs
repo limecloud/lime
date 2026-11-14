@@ -45,6 +45,16 @@ describe("Electron release workflow guard", () => {
     expect(() => validateReleaseWorkflow()).not.toThrow();
   });
 
+  it("rejects restoring CLI build-script output without refreshing sherpa libraries", () => {
+    const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
+    const workflowPath = tempWorkflowPath(
+      current.replace("              --package sherpa-onnx-sys \\\n", ""),
+    );
+    expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
+      /CLI native artifact refresh must include --package sherpa-onnx-sys/u,
+    );
+  });
+
   it("rejects publishing the application before its cloud guest is available", () => {
     const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
     const workflowPath = tempWorkflowPath(
