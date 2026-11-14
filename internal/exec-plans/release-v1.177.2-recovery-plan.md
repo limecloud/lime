@@ -77,3 +77,15 @@
 - 全量前端在批次 `54/155` 被 4 份 Provider 测试的 6 个旧 OEM 登录断言阻断；此前批次通过。该路径已在 `shared-cloud-capabilities.md` 明确退役，现役源码和设置入口的负向测试均不再提供旧参数。
 - 不恢复 `exposeOemLoginPrompt`、旧登录 helper 或 `login_required` 模型选项；将 VM、列表与 UI 测试迁移为未配置 Provider 过滤、默认模型保持及不可见旧选择恢复，删除只覆盖已退役路径的 `ApiKeyProviderSection.oem.test.tsx`。
 - 仅迁移测试和记录，产品实现不变；3 文件 43 项定向回归、定向 ESLint（零 warning）与 whitespace 检查均通过。
+- 测试迁移已提交并推送：`bd77ea194054cead6aad6dcba4ffcea9320f10be`；冻结候选质量 run：`43595677708`。
+- `eedcf2e83` 的 Windows Shell Runtime 已通过，包括原生安全矩阵、Shell fallback 与 App Server 合同；后续提交只迁移前端测试，不改变 Windows 产品代码。
+- 本地分层 Rust 入口会额外选择 `--tests`，已停止本次两份扩大选择并复用隔离配置与 V8 helper，以精确 Cargo target 串行验证。`app-server/model_provider_capabilities_jsonrpc` 1 项通过；CLI OAuth 仍在运行。
+- 精确 Rust 验证已完成：公共能力查询 1 项和 CLI OAuth 真实进程 8 项全部通过，包含五语言成功、失败、关联、断开与中断终态。`bd77ea194` 的 CI GUI Smoke 也已通过。
+
+## 本地化断言迁移
+
+- `bd77ea194` 的全量前端前 61 批通过，批次 `62/154` 被 namespace loader 的三个旧断言阻断：第三方导入来源误判为产品品牌、退役插件目录文案、旧版号 build 展示。
+- 本轮只认领 `src/i18n/__tests__/{loadNamespace,types}.test.ts` 与本计划；五语言资源及其他会话进行中的外观/浏览器/快捷键写集保持原状。
+- 按已登记的第三方集成边界列出精确导入 key 例外，普通文案品牌守卫继续生效；插件断言迁入 current MCP 管理入口，版本回落断言同步现役 About 展示。
+- loader 测试原已超过千行，本次仅迁移相关断言和显式第三方例外，不添加业务逻辑；退出条件为该文件完整用例及类型测试通过，不扩大重构。
+- 两份本地化测试 10 项全部通过，定向 ESLint（零 warning）和 whitespace 检查通过；不修改产品资源或品牌合同。

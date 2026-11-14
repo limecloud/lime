@@ -54,11 +54,32 @@ describe("i18n namespace loader", () => {
       "gpt-5.2-codex",
       "gpt-5.3-codex",
     ];
+    // 第三方导入来源保留目标应用名称，边界见 codex-source-alignment.md。
+    const externalImportKeys = new Set([
+      "settings.import.codexSkills",
+      "settings.import.codexSkillsDescription",
+      "settings.import.none",
+      "settings.import.settingsTitle",
+      "settings.import.codexSettings",
+      "settings.import.settingsNone",
+      "settings.import.projectsTitle",
+      "settings.import.codexProjects",
+      "settings.import.codexProjectsDescription",
+      "settings.import.projectsNone",
+      "settings.import.autoSyncDescription",
+      "settings.import.description",
+      "settings.import.chatsTitle",
+      "settings.import.chatsDescription",
+      "settings.import.chatsEmpty",
+      "settings.import.chatsLoading",
+      "settings.import.chatsLabel",
+    ]);
 
     for (const locale of SUPPORTED_LOCALES) {
       for (const [namespace, entries] of Object.entries(resources[locale])) {
         for (const [key, value] of Object.entries(entries)) {
           if (
+            (namespace === "settings" && externalImportKeys.has(key)) ||
             allowedValueFragments.some((fragment) => value.includes(fragment))
           ) {
             continue;
@@ -884,10 +905,10 @@ describe("i18n namespace loader", () => {
         "settings.userCenterSession.login.google.title",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.plugins.subtitle",
+        "settings.plugins.mcp.servers",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.plugins.browseDirectory",
+        "settings.plugins.mcp.addServer",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.voice.model.action.download",
@@ -1106,7 +1127,7 @@ describe("i18n namespace loader", () => {
       loadNamespaceResource("fr-FR", "settings")[
         "settings.about.version.label"
       ],
-    ).toBe("版本 {{version}}（{{build}}）");
+    ).toBe("版本 {{version}}");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.about.update.errorDownload"
@@ -1138,13 +1159,13 @@ describe("i18n namespace loader", () => {
       ],
     ).toBe("显示继承的环境（{{count}}）");
     expect(
-      loadNamespaceResource("fr-FR", "settings")["settings.plugins.subtitle"],
-    ).toBe("管理插件、技能和 MCP");
+      loadNamespaceResource("fr-FR", "settings")["settings.plugins.mcp.servers"],
+    ).toBe("服务器");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.plugins.browseDirectory"
+        "settings.plugins.mcp.addServer"
       ],
-    ).toBe("浏览目录");
+    ).toBe("添加服务器");
     expect(
       loadNamespaceResource("fr-FR", "agent")["skills.contentDialog.loading"],
     ).toBe("正在检查 Skill 包...");

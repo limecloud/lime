@@ -728,8 +728,8 @@ function assertI18nKeyTypes() {
   });
   i18n.t("settings.userCenterSession.title", { ns: "settings" });
   i18n.t("settings.userCenterSession.login.google.title", { ns: "settings" });
-  i18n.t("settings.plugins.subtitle", { ns: "settings" });
-  i18n.t("settings.plugins.browseDirectory", { ns: "settings" });
+  i18n.t("settings.plugins.mcp.servers", { ns: "settings" });
+  i18n.t("settings.plugins.mcp.addServer", { ns: "settings" });
   i18n.t("settings.voice.model.action.download", { ns: "settings" });
   i18n.t("settings.voice.page.dictation", { ns: "settings" });
   i18n.t("settings.voice.media.title", { ns: "settings" });
