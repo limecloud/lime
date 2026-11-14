@@ -349,21 +349,7 @@ it("edits all agent permission categories, normalizes a site exception, and reje
     });
   };
   await setSelect("Default Browsing", "deny");
-  await act(async () =>
-    section
-      .querySelector<HTMLButtonElement>(
-        "button[aria-label='Next permissions']",
-      )!
-      .click(),
-  );
   await setSelect("Default Uploads", "allow");
-  await act(async () =>
-    section
-      .querySelector<HTMLButtonElement>(
-        "button[aria-label='Next permissions']",
-      )!
-      .click(),
-  );
   await setSelect("Default Site tools", "deny");
   expect(persisted.browser_use).toMatchObject({
     default_origin_policy: { access: "deny", uploads: "allow" },
@@ -718,9 +704,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
       /(?:settings|browserDownloads)\./u,
     );
     for (const target of ["browser-web-target", "browser-local-target"]) {
-      expect(isSettingsSearchTarget(SettingsTabs.Browser, target)).toBe(
-        true,
-      );
+      expect(isSettingsSearchTarget(SettingsTabs.Browser, target)).toBe(true);
       expect(container.querySelector(`#${target}`)).not.toBeNull();
     }
     await renderPage(true);
@@ -759,13 +743,6 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
     expect(inherited.textContent).not.toContain("settings.");
     expect(ask.title.length).toBeGreaterThan(15);
     expect(ask.title).not.toContain("settings.");
-    const next = () =>
-      container
-        .querySelector<HTMLButtonElement>(
-          "#browser-agent-permissions thead button:last-child",
-        )!
-        .click();
-    await act(async () => next());
     const cdp = container.querySelector<HTMLSelectElement>(
       'select[data-browser-permission-action="debug"][data-browser-permission-pattern=""]',
     )!;
@@ -773,7 +750,6 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
       "allow",
       "deny",
     ]);
-    await act(async () => next());
     const web = container.querySelector<HTMLSelectElement>(
       'select[data-browser-permission-action="site_tools"][data-browser-permission-pattern=""]',
     )!;

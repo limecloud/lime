@@ -30,7 +30,7 @@ impl RolloutStore {
                 path.display()
             ));
         }
-        let (path, reader) = open_rollout_reader(&path)?;
+        let (path, reader) = compression::open_rollout_line_reader(&path)?;
         // Explicit reads accept a copied rollout outside agent home, like Codex. Validate
         // its recorded identity and digest; the caller's filename is not authoritative.
         let scan = scan_rollout_reader(reader, &path)?;
@@ -71,59 +71,4 @@ impl RolloutStore {
             runtime_events,
         ))
     }
-}
-
-/// Prefer plain JSONL while retaining the open representation during a concurrent compression.
-/// Decoding is streamed into the existing record/digest scanner, with no durable materialization.
-pub(super) fn open_rollout_reader(requested: &Path) -> Result<(PathBuf, Box<dyn BufRead>), String> {
-    let plain = compression::plain_path(requested);
-    let compressed = compression::compressed_path(&plain);
-    for attempt in 0..4 {
-        for (path, compressed) in [(&plain, false), (&compressed, true)] {
-            let file = match File::open(path) {
-                Ok(file) => file,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => {
-                    return Err(format!(
-                        "failed to read rollout file {}: {error}",
-                        path.display()
-                    ))
-                }
-            };
-            if !file
-                .metadata()
-                .map_err(|error| error.to_string())?
-                .is_file()
-            {
-                return Err(format!("rollout path is not a file: {}", path.display()));
-            }
-            let canonical = match fs::canonicalize(path) {
-                Ok(path) => path,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => {
-                    return Err(format!(
-                        "failed to resolve rollout file {}: {error}",
-                        path.display()
-                    ))
-                }
-            };
-            let reader: Box<dyn BufRead> = if compressed {
-                Box::new(BufReader::new(
-                    zstd::stream::read::Decoder::new(file).map_err(|error| {
-                        format!("invalid compressed rollout {}: {error}", path.display())
-                    })?,
-                ))
-            } else {
-                Box::new(BufReader::new(file))
-            };
-            return Ok((canonical, reader));
-        }
-        if attempt < 3 {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-    }
-    Err(format!(
-        "failed to resolve rollout path `{}`: file does not exist",
-        requested.display()
-    ))
 }

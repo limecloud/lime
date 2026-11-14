@@ -232,7 +232,7 @@ describe("AboutSection", () => {
       HTMLImageElement,
     );
     expect(text).toContain("Lime");
-    expect(text).toContain("Version 1.10.0 (1.10.0)");
+    expect(text).toContain("Version 1.10.0");
     expect(text).toContain("Copyright © 2026 Lime");
     expect(text).toContain("Update available: 1.10.1");
     expect(text).toContain("Check for Updates");
@@ -455,7 +455,7 @@ describe("AboutSection", () => {
       await waitForLoad();
 
       const text = container.textContent ?? "";
-      expect(text).toContain("Version 1.60.0 (1.60.0)");
+      expect(text).toContain("Version 1.60.0");
       expect(text).toContain(
         "Unable to check for updates right now. Please try again later.",
       );

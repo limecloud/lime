@@ -32,6 +32,7 @@ pub const METHOD_THREAD_COMPACT_START: &str = "thread/compact/start";
 pub const METHOD_THREAD_TURNS_LIST: &str = "thread/turns/list";
 pub const METHOD_THREAD_ITEMS_LIST: &str = "thread/items/list";
 pub const METHOD_THREAD_INJECT_ITEMS: &str = "thread/inject_items";
+pub const METHOD_THREAD_IMPORT: &str = "thread/import";
 pub const METHOD_THREAD_SEARCH: &str = "thread/search";
 pub const METHOD_THREAD_SEARCH_OCCURRENCES: &str = "thread/searchOccurrences";
 pub const METHOD_THREAD_SETTINGS_UPDATE: &str = "thread/settings/update";
@@ -271,6 +272,8 @@ pub enum Method {
     ThreadItemsList,
     #[serde(rename = "thread/inject_items")]
     ThreadInjectItems,
+    #[serde(rename = "thread/import")]
+    ThreadImport,
     #[serde(rename = "thread/search")]
     ThreadSearch,
     #[serde(rename = "thread/searchOccurrences")]
@@ -536,6 +539,7 @@ impl Method {
             Self::ThreadTurnsList => METHOD_THREAD_TURNS_LIST,
             Self::ThreadItemsList => METHOD_THREAD_ITEMS_LIST,
             Self::ThreadInjectItems => METHOD_THREAD_INJECT_ITEMS,
+            Self::ThreadImport => METHOD_THREAD_IMPORT,
             Self::ThreadSearch => METHOD_THREAD_SEARCH,
             Self::ThreadSearchOccurrences => METHOD_THREAD_SEARCH_OCCURRENCES,
             Self::ThreadSettingsUpdate => METHOD_THREAD_SETTINGS_UPDATE,
@@ -687,6 +691,7 @@ impl Method {
             METHOD_THREAD_TURNS_LIST => Some(Self::ThreadTurnsList),
             METHOD_THREAD_ITEMS_LIST => Some(Self::ThreadItemsList),
             METHOD_THREAD_INJECT_ITEMS => Some(Self::ThreadInjectItems),
+            METHOD_THREAD_IMPORT => Some(Self::ThreadImport),
             METHOD_THREAD_SEARCH => Some(Self::ThreadSearch),
             METHOD_THREAD_SEARCH_OCCURRENCES => Some(Self::ThreadSearchOccurrences),
             METHOD_THREAD_SETTINGS_UPDATE => Some(Self::ThreadSettingsUpdate),
@@ -845,6 +850,7 @@ pub const METHODS: &[&str] = &[
     METHOD_THREAD_TURNS_LIST,
     METHOD_THREAD_ITEMS_LIST,
     METHOD_THREAD_INJECT_ITEMS,
+    METHOD_THREAD_IMPORT,
     METHOD_THREAD_SEARCH,
     METHOD_THREAD_SEARCH_OCCURRENCES,
     METHOD_THREAD_SETTINGS_UPDATE,

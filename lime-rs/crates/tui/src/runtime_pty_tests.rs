@@ -1085,6 +1085,55 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             }
         }
         return;
+    } else if scenario == "side-command" {
+        write_typed_text(&mut writer, b"/side");
+        wait_for_compact_marker(&output_rx, &mut output, "/side", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("start the side conversation");
+        writer.flush().expect("flush side start");
+        wait_for_compact_marker(&output_rx, &mut output, "Side·", Duration::from_secs(45));
+        write_typed_text(&mut writer, b"/side");
+        wait_for_compact_marker(&output_rx, &mut output, "/side", Duration::from_secs(10));
+        writer.write_all(b"\x1b").expect("close the slash popup");
+        writer.flush().expect("flush popup close");
+        std::thread::sleep(Duration::from_millis(100));
+        writer
+            .write_all(b"\x05\r")
+            .expect("return from the side conversation");
+        writer.flush().expect("flush side return");
+        // The status line is reflowed across cursor moves, so the parent's terminal title is the
+        // stable proof that the side thread actually returned.
+        terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
+        println!("TUI_SIDE_COMMAND_OK panel=side");
+        writer
+            .write_all(b"\x03")
+            .expect("clear the composer before exit");
+        writer.write_all(&[4]).expect("exit TUI");
+        writer.flush().expect("flush TUI exit");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut last_exit = Instant::now();
+        while !output.contains("\u{1b}[?1049l") {
+            assert!(
+                Instant::now() < deadline,
+                "terminal did not leave the alternate screen after side"
+            );
+            if last_exit.elapsed() >= Duration::from_secs(2) {
+                writer
+                    .write_all(b"\x03")
+                    .expect("clear the composer before retry");
+                writer.write_all(&[4]).expect("retry exit TUI");
+                writer.flush().expect("flush retry exit");
+                last_exit = Instant::now();
+            }
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                output.push_str(&String::from_utf8_lossy(&chunk));
+            }
+        }
+        return;
     } else if scenario == "ps-command" {
         write_typed_text(&mut writer, b"/ps");
         wait_for_compact_marker(&output_rx, &mut output, "/ps", Duration::from_secs(10));

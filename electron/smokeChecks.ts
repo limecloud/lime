@@ -21,7 +21,6 @@ import {
   ELECTRON_SMOKE_LAYOUT_CLAIM_BOUNDARY,
   ELECTRON_SMOKE_LAYOUT_PROOF_LEVEL,
   ELECTRON_SMOKE_LAYOUT_VIEWPORTS,
-  isElectronSmokeStartupUrl,
   normalizeElectronSmokeRunId,
   sanitizeElectronSmokeLocation,
   type ElectronSmokeDiagnostics,
@@ -71,7 +70,6 @@ interface RendererSmokeCollection {
 }
 
 interface ElectronSmokeRunner {
-  isStartupUrl(url: string): boolean;
   run(): Promise<ElectronSmokeSummary>;
   recordFailure(stage: string): Promise<ElectronSmokeSummary>;
 }
@@ -134,34 +132,17 @@ export function createElectronSmokeRunner(
   let screenshotCaptured = false;
   let pageErrorsBeforeReload = 0;
   let lastSummary: ElectronSmokeSummary | null = null;
-  let startupCapture = Promise.resolve();
+  const initialWindowHidden = !options.window.isVisible();
 
   installMainProcessDiagnostics(options.window, diagnostics);
-  options.window.webContents.on("did-finish-load", () => {
-    const loadedUrl = options.window.webContents.getURL();
-    if (!isElectronSmokeStartupUrl(loadedUrl)) {
-      return;
-    }
-    startupCapture = captureStartupRoute(options.window)
-      .then((route) => {
-        replaceRoute(routes, route);
-      })
-      .catch(() => {
-        replaceRoute(routes, {
-          stage: "startup",
-          ready: false,
-          location: sanitizeElectronSmokeLocation(loadedUrl),
-        });
-      });
-  });
 
   async function writeSummary(
     failureStage: string | null,
   ): Promise<ElectronSmokeSummary> {
-    await startupCapture;
     mkdirSync(evidenceDir, { recursive: true });
     const summary = buildElectronSmokeSummary({
       runId,
+      initialWindowHidden,
       startedAt,
       completedAt: new Date().toISOString(),
       appVersion: options.appVersion,
@@ -187,7 +168,6 @@ export function createElectronSmokeRunner(
   }
 
   return {
-    isStartupUrl: isElectronSmokeStartupUrl,
     async run() {
       let stage = "renderer-error-capture";
       try {
@@ -372,25 +352,6 @@ function installMainProcessDiagnostics(
       }
     },
   );
-}
-
-async function captureStartupRoute(
-  window: BrowserWindow,
-): Promise<ElectronSmokeRouteSnapshot> {
-  const snapshot = (await window.webContents.executeJavaScript(
-    `({
-      ready: Boolean(document.querySelector("[data-lime-startup-shell]")),
-      url: window.location.href,
-      title: document.title || "",
-    })`,
-    true,
-  )) as { ready?: boolean; url?: string; title?: string };
-  return {
-    stage: "startup",
-    ready: snapshot.ready === true,
-    location: sanitizeElectronSmokeLocation(snapshot.url),
-    title: snapshot.title ?? null,
-  };
 }
 
 async function installRendererErrorCapture(

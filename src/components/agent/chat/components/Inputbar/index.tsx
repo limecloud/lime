@@ -7,7 +7,7 @@ import type {
   ComposerDraftCapture,
 } from "@/components/input-kit/ComposerDraftCoordinator";
 import type { AcceptedRuntimeSubmissionResult } from "@/components/agent/chat/hooks/agentSendResult";
-import React from "react";
+import React, { useEffect } from "react";
 import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import type { MessagePathReference } from "../../types";
@@ -266,6 +266,12 @@ export const Inputbar: React.FC<InputbarProps> = ({
     isSkillsLoading,
     submitTarget,
   });
+
+  useEffect(() => {
+    const clear = () => composerController.clear();
+    window.addEventListener("lime:clear-composer", clear);
+    return () => window.removeEventListener("lime:clear-composer", clear);
+  }, [composerController]);
 
   return (
     <InputbarSurface

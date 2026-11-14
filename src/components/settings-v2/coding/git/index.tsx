@@ -7,8 +7,8 @@ import {
   SettingsPageBody,
   SettingsPageHeader,
   SettingsRow,
+  SettingsSegmentedControl,
   SettingsSwitch,
-  SettingsValueMenu,
 } from "../../SettingsPrimitives";
 import { GitTextField } from "./GitTextField";
 import { useGitSettings } from "./useGitSettings";
@@ -65,6 +65,25 @@ export function GitSettings() {
               savedValue={preferences["branch-prefix"]}
               save={savePrefix}
             />
+            <SettingsRow
+              targetId="git-merge-method"
+              label={t("settings.git.mergeMethod")}
+              description={t("settings.git.mergeMethodDescription")}
+            >
+              <SettingsSegmentedControl
+                targetId="git-merge-method"
+                described
+                value={preferences["pull-request-merge-method"]}
+                disabled={pending}
+                options={[
+                  { value: "merge", label: t("settings.git.merge") },
+                  { value: "squash", label: t("settings.git.squash") },
+                ]}
+                onChange={(value) =>
+                  void save("pull-request-merge-method", value).catch(() => {})
+                }
+              />
+            </SettingsRow>
             {(["forcePush", "draftPr"] as const).map((field) => {
               const key =
                 field === "forcePush"
@@ -91,30 +110,11 @@ export function GitSettings() {
               );
             })}
             <SettingsRow
-              targetId="git-merge-method"
-              label={t("settings.git.mergeMethod")}
-              description={t("settings.git.mergeMethodDescription")}
-            >
-              <SettingsValueMenu
-                targetId="git-merge-method"
-                described
-                value={preferences["pull-request-merge-method"]}
-                disabled={pending}
-                options={[
-                  { value: "merge", label: t("settings.git.merge") },
-                  { value: "squash", label: t("settings.git.squash") },
-                ]}
-                onChange={(value) =>
-                  void save("pull-request-merge-method", value).catch(() => {})
-                }
-              />
-            </SettingsRow>
-            <SettingsRow
               targetId="git-review-delivery"
               label={t("settings.git.reviewDelivery")}
               description={t("settings.git.reviewDeliveryDescription")}
             >
-              <SettingsValueMenu
+              <SettingsSegmentedControl
                 targetId="git-review-delivery"
                 described
                 value={preferences["review-delivery"]}

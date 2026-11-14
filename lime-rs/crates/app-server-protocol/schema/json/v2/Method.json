@@ -108,6 +108,7 @@
     "thread/goal/clear",
     "thread/goal/get",
     "thread/goal/set",
+    "thread/import",
     "thread/increment_elicitation",
     "thread/inject_items",
     "thread/items/list",

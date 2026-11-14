@@ -1,7 +1,7 @@
 {
   "browserData.settingLabel": "閲覧データ",
-  "browserData.settingDescription": "閲覧履歴、Cookie、キャッシュなどの閲覧データを削除します。",
-  "browserData.open": "削除…",
+  "browserData.settingDescription": "アプリ内ブラウザーの閲覧履歴、サイトデータ、キャッシュ、ダウンロード履歴を削除します。",
+  "browserData.open": "閲覧データを消去",
   "browserData.opening": "開いています…",
   "browserData.title": "閲覧データを削除",
   "browserData.timeRange": "期間",

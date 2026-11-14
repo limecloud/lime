@@ -8,7 +8,14 @@
  * _需求: 2.2, 3.2, 5.2_
  */
 
-import React, { Suspense, lazy, useState, useCallback, useEffect, useMemo } from "react";
+import React, {
+  Suspense,
+  lazy,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import { withI18nPatch } from "./i18n/withI18nPatch";
@@ -60,7 +67,7 @@ import { SettingsTabs } from "./types/settings";
 import { hasDesktopHostInvokeCapability } from "./lib/desktop-runtime";
 import {
   hasNativeStartupScreen,
-  hideNativeStartupOverlayWhenReady,
+  NativeStartupWindowReady,
 } from "./lib/nativeStartupScreen";
 import { shouldReserveMacWindowControls } from "./lib/windowControls";
 import { startWindowDragFromMouseEvent } from "./lib/windowDrag";
@@ -68,6 +75,7 @@ import {
   listenOpenVoiceModelSettingsRequest,
   persistVoiceModelSettingsFocusRequest,
 } from "./lib/voiceModelSettingsNavigation";
+import { listenAppMenuCommand } from "./lib/appMenuNavigation";
 
 const AppContainer = styled.div`
   display: flex;
@@ -196,6 +204,17 @@ function AppContent() {
     [handleNavigate],
   );
   useCommand(showSettingsCommand);
+
+  useEffect(
+    () =>
+      listenAppMenuCommand((command) => {
+        handleNavigate(
+          "settings",
+          command === "about" ? { tab: SettingsTabs.About } : undefined,
+        );
+      }),
+    [handleNavigate],
+  );
 
   const [agentHasMessages, setAgentHasMessages] = useState(false);
   const activeAgentSessionId = agentLocation?.sessionId ?? null;
@@ -422,7 +441,6 @@ function AppContent() {
 
     startupTracker.mark("Native startup screen: renderer ready");
     preloadDefaultProject();
-    hideNativeStartupOverlayWhenReady();
   }, [nativeStartupScreenAvailable, showSplash]);
 
   const handleWindowDragStart = useCallback(
@@ -543,6 +561,7 @@ function AppContent() {
                       handleBackgroundSessionRuntimeChange
                     }
                   />
+                  <NativeStartupWindowReady />
                 </BrowserHistoryNavigationContext.Provider>
               </AppNavigationContext.Provider>
             </Suspense>

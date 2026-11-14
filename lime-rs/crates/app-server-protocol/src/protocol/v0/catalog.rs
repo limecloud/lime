@@ -1825,6 +1825,10 @@ pub const APP_SERVER_REQUEST_SERIALIZATION_SCOPES: &[AppServerRequestSerializati
         scope: AppServerRequestSerializationScope::Thread,
     },
     AppServerRequestSerializationScopeSpec {
+        method: crate::protocol::v2::METHOD_THREAD_IMPORT,
+        scope: AppServerRequestSerializationScope::Thread,
+    },
+    AppServerRequestSerializationScopeSpec {
         method: crate::protocol::v2::METHOD_THREAD_SETTINGS_UPDATE,
         scope: AppServerRequestSerializationScope::Thread,
     },

@@ -27,9 +27,9 @@ pub mod managed;
 mod output;
 mod path_utils;
 mod permissions;
-mod shell_environment_policy;
 mod persistence;
 mod plugins;
+mod shell_environment_policy;
 mod tool_execution;
 mod tools;
 mod tui_keymap;
@@ -48,8 +48,7 @@ pub use browser_computer_use_requirements::{
     AllowDenyRequirementToml, BrowserUseAccessApprovalLifetimeToml,
     BrowserUseExtensionRequirementsToml, BrowserUseOriginPolicyToml, BrowserUseRequirementsToml,
     ComputerUseMacosRequirementsToml, ComputerUseRequirementsToml,
-    ComputerUseWindowsExeRequirementToml, ComputerUseWindowsRequirementsToml,
-    RequestHeaderToml,
+    ComputerUseWindowsExeRequirementToml, ComputerUseWindowsRequirementsToml, RequestHeaderToml,
 };
 pub use browser_use::{BrowserUseConfigToml, BrowserUseOriginPolicyConfigToml};
 pub use cloud::{validated_cloud_origin, CloudConfig};
@@ -58,7 +57,8 @@ pub use computer_use::{
     ComputerUseWindowsExeConfigToml,
 };
 pub use desktop::{
-    ComposerEnterBehavior, DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget, ReasoningEffort,
+    ComposerEnterBehavior, DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget,
+    ReasoningEffort,
 };
 pub use export::{ExportBundle, ExportOptions, ExportService, REDACTED_PLACEHOLDER};
 pub use file_lock::config_file_lock;
@@ -72,10 +72,10 @@ pub use in_app_browser_requirements::InAppBrowserRequirementsToml;
 pub use output::{ModelVerbosity, ReasoningSummary};
 pub use path_utils::{collapse_tilde, contains_tilde, expand_tilde};
 pub use permissions::{ApprovalPolicy, SandboxMode, SandboxWorkspaceWrite};
-pub use shell_environment_policy::ShellEnvironmentPolicyToml;
 pub use plugins::{
     MarketplaceConfig, MarketplaceSourceType, PluginConfig, PluginsConfig, PluginsDefaultConfig,
 };
+pub use shell_environment_policy::ShellEnvironmentPolicyToml;
 pub use tool_execution::{
     ToolExecutionCommandRiskLevelConfig, ToolExecutionCommandRuleConfig,
     ToolExecutionCommandRuleMatchTypeConfig, ToolExecutionNetworkRuleConfig,
@@ -85,8 +85,8 @@ pub use tool_execution::{
 };
 pub use tools::{ExperimentalRequestUserInput, ToolsConfig};
 pub use tui_keymap::{
-    KeybindingSpec, KeybindingsSpec, RightClickPaste, TuiAgentsKeymap, TuiConfig, TuiEditorKeymap,
-    TuiGlobalKeymap, TuiKeymap, TuiListKeymap, TuiPagerKeymap, TuiVimNormalKeymap,
+    KeybindingSpec, KeybindingsSpec, QuickDial, RightClickPaste, TuiAgentsKeymap, TuiConfig,
+    TuiEditorKeymap, TuiGlobalKeymap, TuiKeymap, TuiListKeymap, TuiPagerKeymap, TuiVimNormalKeymap,
     TuiVimOperatorKeymap, TuiVimSearchKeymap, TuiVimTextObjectKeymap, MAX_FUNCTION_KEY,
 };
 pub use types::{
@@ -102,20 +102,19 @@ pub use types::{
     FeishuAccountConfig, FeishuBotConfig, FeishuGroupConfig, GatewayConfig, GatewayTunnelConfig,
     GeminiApiKeyEntry, HintRouteSettingsEntry, HintRouterSettings, ImageGenConfig,
     InjectionRuleConfig, InjectionSettings, LoggingConfig, MemoryAutoConfig, MemoryConfig,
-    MemoryEmbeddingConfig, MemoryEmbeddingProvider, MemoryResolveConfig,
-    MemorySourcesConfig, ModelInfo, ModelsConfig,
-    NativeAgentConfig, NavigationConfig, OpenAIAsrConfig, OrchestratorConfig,
-    OrchestratorFeatureConfig, PairingSettings, PermissionFilesystemConfig,
+    MemoryEmbeddingConfig, MemoryEmbeddingProvider, MemoryResolveConfig, MemorySourcesConfig,
+    ModelInfo, ModelsConfig, NativeAgentConfig, NavigationConfig, OpenAIAsrConfig,
+    OrchestratorConfig, OrchestratorFeatureConfig, PairingSettings, PermissionFilesystemConfig,
     PermissionNetworkConfig, PermissionProfileConfig, ProviderConfig, ProviderModelsConfig,
     ProvidersConfig, QuotaExceededConfig, RateLimitSettings, RemoteManagementConfig,
     ResponseCacheSettings, RetrySettings, RolloutBudgetConfig, RoutingConfig,
     SenseVoiceLocalConfig, ServerConfig, ShellEnvironmentImportConfig, SkillConfig, SkillsConfig,
     TaskSchedule, TelegramAccountConfig, TelegramBotConfig, TelegramGroupConfig,
-    TelegramTopicConfig, TlsConfig, UpdateCheckConfig, VertexApiKeyEntry,
-    VertexModelAlias, VoiceInputConfig, VoiceInstruction, VoiceOutputConfig, VoiceOutputMode,
-    VoiceProcessorConfig, WechatAccountConfig, WechatBotConfig, WechatGroupConfig,
-    WhisperLocalConfig, WhisperModelSize, WindowsSandboxMode, WorkspacePreferencesConfig,
-    WorkspaceSandboxConfig, XunfeiConfig, DEFAULT_API_KEY,
+    TelegramTopicConfig, TlsConfig, UpdateCheckConfig, VertexApiKeyEntry, VertexModelAlias,
+    VoiceInputConfig, VoiceInstruction, VoiceOutputConfig, VoiceOutputMode, VoiceProcessorConfig,
+    WechatAccountConfig, WechatBotConfig, WechatGroupConfig, WhisperLocalConfig, WhisperModelSize,
+    WindowsSandboxMode, WorkspacePreferencesConfig, WorkspaceSandboxConfig, XunfeiConfig,
+    DEFAULT_API_KEY,
 };
 pub use worktrees::{UpstreamRefreshMode, WorktreeConfig};
 pub use yaml::{load_config, save_config, ConfigError, ConfigManager, YamlService};

@@ -59,6 +59,7 @@ impl ChatWidget {
             is_task_running,
             plan_mode: self.should_show_plan_mode_hint(),
             shell_mode: self.shell_mode,
+            side_context_label: None,
             active_agent_label: self
                 .agent_navigation
                 .active_agent_label(thread_id, primary_thread_id),

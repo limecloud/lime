@@ -95,7 +95,7 @@ export function BrowserSitePermissionSelect({
           aria-label={`${name} ${t(`settings.browser.permissionAction.${action}`)}`}
           aria-describedby={described ? descriptionId : undefined}
           title={explanation || undefined}
-          className={`min-w-max max-w-full rounded-lg border-[0.5px] border-border bg-background py-1.5 pl-2 pr-7 text-xs focus-visible:outline-ring disabled:opacity-50 ${cell.inherited ? "text-muted-foreground" : ""}`}
+          className={`min-w-max max-w-full rounded-lg border-[0.5px] border-border bg-background py-1.5 pl-1.5 pr-6 text-xs focus-visible:outline-ring disabled:opacity-50 ${cell.inherited ? "text-muted-foreground" : ""}`}
           onChange={(event) => {
             const next = event.target.value as BrowserSitePermission;
             if (

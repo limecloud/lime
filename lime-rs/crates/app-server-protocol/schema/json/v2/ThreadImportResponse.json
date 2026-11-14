@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "alreadyImported": {
+      "type": "boolean"
+    },
+    "importedMessageCount": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "importedTurnCount": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "alreadyImported",
+    "importedMessageCount",
+    "importedTurnCount",
+    "sessionId",
+    "threadId"
+  ],
+  "title": "ThreadImportResponse",
+  "type": "object"
+}

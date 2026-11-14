@@ -814,3 +814,16 @@ html[data-lime-full-view="true"] [data-testid="app-sidebar"] {
 html[data-lime-full-view="true"] [data-testid="workspace-main-area"] {
   padding-left: 200px;
 }
+
+html[data-pointer-cursors="true"] button:not(:disabled),
+html[data-pointer-cursors="true"] [role="button"]:not([aria-disabled="true"]),
+html[data-pointer-cursors="true"] a[href],
+html[data-pointer-cursors="true"] summary,
+html[data-pointer-cursors="true"] label[for] {
+  cursor: pointer;
+}
+
+[data-markdown-container] {
+  font-family: var(--lime-content-font-family, inherit);
+  font-size: var(--lime-content-font-size, 14px);
+}

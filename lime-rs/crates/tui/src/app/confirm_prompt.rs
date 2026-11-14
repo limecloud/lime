@@ -42,6 +42,13 @@ pub(crate) enum ConfirmKind {
         process_id: String,
         command: String,
     },
+    DeleteWorktree {
+        worktree_path: String,
+    },
+    ApproveGuardianRetry {
+        summary: String,
+        event: serde_json::Value,
+    },
     InstallPlugin {
         plugin_name: String,
         marketplace_path: Option<String>,
@@ -77,6 +84,14 @@ impl ConfirmPrompt {
             process_id,
             command,
         })
+    }
+
+    pub(crate) fn delete_worktree(worktree_path: String) -> Self {
+        Self::new(ConfirmKind::DeleteWorktree { worktree_path })
+    }
+
+    pub(crate) fn approve_guardian_retry(summary: String, event: serde_json::Value) -> Self {
+        Self::new(ConfirmKind::ApproveGuardianRetry { summary, event })
     }
 
     pub(crate) fn install_plugin(
@@ -182,6 +197,12 @@ impl ConfirmPrompt {
             ConfirmKind::InstallPlugin { plugin_name, .. } => {
                 locale.confirm_install_plugin_label(plugin_name)
             }
+            ConfirmKind::ApproveGuardianRetry { summary, .. } => {
+                locale.confirm_approve_guardian_retry_label(summary)
+            }
+            ConfirmKind::DeleteWorktree { worktree_path } => {
+                locale.confirm_delete_worktree_label(worktree_path)
+            }
             ConfirmKind::TerminateProcess { command, .. } => {
                 locale.confirm_terminate_process_label(command)
             }
@@ -192,6 +213,10 @@ impl ConfirmPrompt {
             ConfirmKind::ResetMemory => locale.confirm_reset_memory_description(),
             ConfirmKind::UninstallPlugin { .. } => locale.confirm_uninstall_plugin_description(),
             ConfirmKind::InstallPlugin { .. } => locale.confirm_install_plugin_description(),
+            ConfirmKind::ApproveGuardianRetry { .. } => {
+                locale.confirm_approve_guardian_retry_description()
+            }
+            ConfirmKind::DeleteWorktree { .. } => locale.confirm_delete_worktree_description(),
             ConfirmKind::TerminateProcess { .. } => locale.confirm_terminate_process_description(),
         };
         let entries = vec![
@@ -210,6 +235,10 @@ impl ConfirmPrompt {
                 ConfirmKind::ResetMemory => locale.confirm_reset_memory_title(),
                 ConfirmKind::UninstallPlugin { .. } => locale.confirm_uninstall_plugin_title(),
                 ConfirmKind::InstallPlugin { .. } => locale.confirm_install_plugin_title(),
+                ConfirmKind::ApproveGuardianRetry { .. } => {
+                    locale.confirm_approve_guardian_retry_title()
+                }
+                ConfirmKind::DeleteWorktree { .. } => locale.confirm_delete_worktree_title(),
                 ConfirmKind::TerminateProcess { .. } => locale.confirm_terminate_process_title(),
             },
             subtitle: Line::from(match self.kind {
@@ -218,6 +247,10 @@ impl ConfirmPrompt {
                 ConfirmKind::ResetMemory => locale.confirm_reset_memory_subtitle(),
                 ConfirmKind::UninstallPlugin { .. } => locale.confirm_uninstall_plugin_subtitle(),
                 ConfirmKind::InstallPlugin { .. } => locale.confirm_install_plugin_subtitle(),
+                ConfirmKind::ApproveGuardianRetry { .. } => {
+                    locale.confirm_approve_guardian_retry_subtitle()
+                }
+                ConfirmKind::DeleteWorktree { .. } => locale.confirm_delete_worktree_subtitle(),
                 ConfirmKind::TerminateProcess { .. } => locale.confirm_terminate_process_subtitle(),
             }),
             query: None,

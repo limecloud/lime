@@ -3,6 +3,8 @@ mod config;
 mod connection;
 mod history;
 mod thread;
+mod voice;
+mod worktree;
 
 pub(crate) use history::{
     thread_items_page_params, thread_items_page_with_handle, thread_turns_for_items_with_handle,

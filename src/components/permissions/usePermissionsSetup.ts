@@ -29,7 +29,7 @@ interface SetupError {
 }
 
 export function usePermissionsSetup() {
-  const [open, setOpen] = useState(hasDesktopHostInvokeCapability);
+  const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [snapshot, setSnapshot] = useState<DesktopPermissionsSnapshot | null>(
     null,
@@ -117,13 +117,8 @@ export function usePermissionsSetup() {
     alive.current = true;
     if (hasDesktopHostInvokeCapability())
       void run(async () => {
-        try {
-          const result = await refresh();
-          if (alive.current) setOpen(!result.setupComplete);
-        } catch (cause) {
-          if (alive.current) setOpen(true);
-          throw cause;
-        }
+        const result = await refresh();
+        if (alive.current) setOpen(!result.setupComplete);
       });
     const unsubscribe = listenPermissionsSetup(() => {
       setError(null);

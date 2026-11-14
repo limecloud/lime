@@ -1,7 +1,15 @@
+use super::canonical_rollout::RolloutCompressionTrigger;
 use super::{RuntimeCore, RuntimeCoreError};
 
 impl RuntimeCore {
     pub(crate) fn compress_rollouts(&self) -> Result<(), RuntimeCoreError> {
+        self.spawn_rollout_compression_worker(RolloutCompressionTrigger::Rpc)
+    }
+
+    fn spawn_rollout_compression_worker(
+        &self,
+        trigger: RolloutCompressionTrigger,
+    ) -> Result<(), RuntimeCoreError> {
         let store = self
             .projection_store
             .as_deref()
@@ -11,7 +19,7 @@ impl RuntimeCore {
                     "rollout/compress is not supported yet".to_string(),
                 )
             })?;
-        store.spawn_compression();
+        store.spawn_rollout_compression_worker(trigger);
         Ok(())
     }
 
@@ -20,7 +28,9 @@ impl RuntimeCore {
             .map(|manager| manager.config().experimental.local_thread_store_compression)
             .unwrap_or(false);
         if enabled && tokio::runtime::Handle::try_current().is_ok() {
-            if let Err(error) = self.compress_rollouts() {
+            if let Err(error) =
+                self.spawn_rollout_compression_worker(RolloutCompressionTrigger::Startup)
+            {
                 tracing::warn!(%error, "rollout startup compression could not start");
             }
         }

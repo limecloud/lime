@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, createElement, lazy, Suspense } from "react";
+import { createRoot, type Root } from "react-dom/client";
 
 import {
   hasNativeStartupScreen,
-  hideNativeStartupOverlayWhenReady,
+  NativeStartupWindowReady,
 } from "./nativeStartupScreen";
+
+const revealWindow = vi.hoisted(() => vi.fn());
+vi.mock("./startupWindowReveal", () => ({
+  revealStartupWindowWhenReady: revealWindow,
+}));
 
 const desktopRuntimeMock = vi.hoisted(() => ({
   hasDesktopHostInvokeCapability: vi.fn(() => false),
@@ -15,22 +22,21 @@ vi.mock("@/lib/desktop-runtime", () => ({
 }));
 
 describe("hasNativeStartupScreen", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      (callback: (time: number) => void) =>
-        window.setTimeout(() => callback(performance.now()), 0),
-    );
+    vi.clearAllMocks();
+    desktopRuntimeMock.hasDesktopHostInvokeCapability.mockReturnValue(true);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
   });
 
-  afterEach(() => {
-    document.body.innerHTML = "";
-    document.documentElement.removeAttribute("data-lime-native-startup");
-    document.documentElement.removeAttribute("data-lime-native-startup-ready");
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
     window.history.replaceState(null, "", "/");
-    vi.unstubAllGlobals();
-    vi.useRealTimers();
   });
 
   it("Electron Desktop Host 可用且 URL 带标记时认为已有原生启动页接管", () => {
@@ -54,32 +60,43 @@ describe("hasNativeStartupScreen", () => {
     expect(hasNativeStartupScreen()).toBe(false);
   });
 
-  it("主界面首帧准备后应淡出并移除 index.html 静态启动层", async () => {
+  it("初始页面挂起时保持隐藏，页面提交后才请求显示窗口", async () => {
     window.history.replaceState(null, "", "/?nativeStartup=1");
-    document.documentElement.dataset.limeNativeStartup = "1";
-    const overlay = document.createElement("main");
-    overlay.setAttribute("data-lime-startup-shell", "");
-    document.body.appendChild(overlay);
-
-    hideNativeStartupOverlayWhenReady();
-
-    expect(document.querySelector("[data-lime-startup-shell]")).toBe(overlay);
-    expect(document.documentElement.dataset.limeNativeStartupReady).toBe(
-      undefined,
+    let resolvePage!: (module: {
+      default: () => ReturnType<typeof createElement>;
+    }) => void;
+    const Page = lazy(
+      () =>
+        new Promise<{ default: () => ReturnType<typeof createElement> }>(
+          (resolve) => {
+            resolvePage = resolve;
+          },
+        ),
     );
 
-    await vi.runOnlyPendingTimersAsync();
-    await vi.runOnlyPendingTimersAsync();
-
-    expect(document.documentElement.dataset.limeNativeStartupReady).toBe("1");
-    expect(document.querySelector("[data-lime-startup-shell]")).toBe(overlay);
-
-    await vi.advanceTimersByTimeAsync(180);
-
-    expect(document.querySelector("[data-lime-startup-shell]")).toBeNull();
-    expect(document.documentElement.dataset.limeNativeStartup).toBe(undefined);
-    expect(document.documentElement.dataset.limeNativeStartupReady).toBe(
-      undefined,
+    await act(async () =>
+      root.render(
+        createElement(
+          Suspense,
+          { fallback: "loading" },
+          createElement(Page),
+          createElement(NativeStartupWindowReady),
+        ),
+      ),
     );
+    expect(container.textContent).toBe("loading");
+    expect(revealWindow).not.toHaveBeenCalled();
+
+    await act(async () =>
+      resolvePage({ default: () => createElement("main", null, "ready") }),
+    );
+
+    expect(container.textContent).toBe("ready");
+    expect(revealWindow).toHaveBeenCalledOnce();
+  });
+
+  it("普通浏览器页面不会请求显示原生窗口", async () => {
+    await act(async () => root.render(createElement(NativeStartupWindowReady)));
+    expect(revealWindow).not.toHaveBeenCalled();
   });
 });

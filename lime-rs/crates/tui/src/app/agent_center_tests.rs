@@ -40,6 +40,7 @@ pub(super) fn row(id: &str, group: AgentsOverviewGroup, current: bool) -> Agents
         thread: thread(id, ThreadStatus::Idle, 1),
         group,
         is_current: current,
+        loaded: false,
     }
 }
 
@@ -380,6 +381,7 @@ fn live_center_columns() {
             thread,
             group: AgentsOverviewGroup::for_status(&status),
             is_current: index == 0,
+            loaded: false,
         }
     })
     .collect::<Vec<_>>();
@@ -460,6 +462,7 @@ fn live_center_pages_visible_rows_without_wrapping() {
                     thread,
                     group: AgentsOverviewGroup::Ready,
                     is_current: false,
+                    loaded: false,
                 }
             })
             .collect::<Vec<_>>();

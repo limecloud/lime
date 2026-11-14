@@ -1,34 +1,18 @@
 import { hasDesktopHostInvokeCapability } from "@/lib/desktop-runtime";
+import { useEffect } from "react";
+import { revealStartupWindowWhenReady } from "./startupWindowReveal";
 
-const NATIVE_STARTUP_OVERLAY_SELECTOR = "[data-lime-startup-shell]";
-const NATIVE_STARTUP_OVERLAY_EXIT_MS = 180;
+// Mount inside the page Suspense boundary so a loading fallback cannot reveal
+// the desktop window before its initial page has committed.
+export function NativeStartupWindowReady(): null {
+  useEffect(() => {
+    if (hasNativeStartupScreen()) revealStartupWindowWhenReady();
+  }, []);
+  return null;
+}
 
 export function hasNativeStartupScreen(): boolean {
   return hasDesktopHostInvokeCapability() && hasNativeStartupScreenFlag();
-}
-
-export function hideNativeStartupOverlayWhenReady(): void {
-  if (!hasNativeStartupScreenFlag() || typeof window === "undefined") {
-    return;
-  }
-
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      const overlay = document.querySelector<HTMLElement>(
-        NATIVE_STARTUP_OVERLAY_SELECTOR,
-      );
-      if (!overlay) {
-        return;
-      }
-
-      document.documentElement.dataset.limeNativeStartupReady = "1";
-      window.setTimeout(() => {
-        overlay.remove();
-        delete document.documentElement.dataset.limeNativeStartup;
-        delete document.documentElement.dataset.limeNativeStartupReady;
-      }, NATIVE_STARTUP_OVERLAY_EXIT_MS);
-    });
-  });
 }
 
 function hasNativeStartupScreenFlag(): boolean {
@@ -36,5 +20,7 @@ function hasNativeStartupScreenFlag(): boolean {
     return false;
   }
 
-  return new URLSearchParams(window.location.search).get("nativeStartup") === "1";
+  return (
+    new URLSearchParams(window.location.search).get("nativeStartup") === "1"
+  );
 }

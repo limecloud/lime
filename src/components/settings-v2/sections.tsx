@@ -18,8 +18,11 @@ import {
   Variable,
   Info,
   GitBranch,
+  Cable,
   SlidersHorizontal,
   Webhook,
+  Download,
+  Monitor,
   type LucideIcon,
 } from "lucide-react";
 import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
@@ -54,6 +57,7 @@ export interface SettingsSection {
 }
 
 const loadGeneral = () => import("./general/GeneralSettings");
+const loadImport = () => import("./general/import");
 const loadConfiguration = () => import("./system/configuration");
 const ConfigurationPanel = lazy(() =>
   loadConfiguration().then((module) => ({
@@ -75,6 +79,9 @@ const GitSettings = lazy(() =>
 const GeneralSettings = lazy(() =>
   loadGeneral().then((module) => ({ default: module.GeneralSettings })),
 );
+const ImportSettings = lazy(() =>
+  loadImport().then((module) => ({ default: module.ImportSettings })),
+);
 const loadVoice = () => import("./agent/voice");
 const VoiceSettings = lazy(() =>
   loadVoice().then((module) => ({ default: module.VoiceSettings })),
@@ -91,8 +98,14 @@ const MemorySettings = lazy(() =>
 );
 
 const loadBrowser = () => import("./general/browser");
+const loadAppSnapshots = () => import("./integrations/app-snapshots");
 const BrowserUseSettings = lazy(() =>
   loadBrowser().then((module) => ({ default: module.BrowserUseSettings })),
+);
+const AppSnapshotsSettings = lazy(() =>
+  loadAppSnapshots().then((module) => ({
+    default: module.AppSnapshotsSettings,
+  })),
 );
 const loadKeyboardShortcuts = () => import("./general/keyboard-shortcuts");
 const KeyboardShortcutsSettings = lazy(() =>
@@ -173,6 +186,10 @@ const loadHooks = () => import("./coding/hooks");
 const HooksSettings = lazy(() =>
   loadHooks().then((module) => ({ default: module.HooksSettings })),
 );
+const loadConnections = () => import("./coding/connections");
+const ConnectionsSettings = lazy(() =>
+  loadConnections().then((module) => ({ default: module.ConnectionsSettings })),
+);
 const ExecutionPolicySettings = lazy(() =>
   loadExecutionPolicy().then((module) => ({
     default: module.ExecutionPolicySettings,
@@ -189,6 +206,15 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.layout.loading.general",
     preload: loadGeneral,
     render: () => <GeneralSettings />,
+  },
+  {
+    key: SettingsTabs.Import,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.tab.import",
+    icon: Download,
+    loadingKey: "settings.layout.loading.import",
+    preload: loadImport,
+    render: () => <ImportSettings />,
   },
   {
     key: SettingsTabs.Appearance,
@@ -301,9 +327,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: Server,
     loadingKey: "settings.mcp.loading",
     preload: loadMcpServers,
-    render: (context) => (
-      <McpServersSettings onNavigate={context.onNavigate} />
-    ),
+    render: (context) => <McpServersSettings onNavigate={context.onNavigate} />,
   },
   {
     key: SettingsTabs.ComputerUse,
@@ -313,6 +337,15 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.computerUse.loading",
     preload: loadComputerUse,
     render: () => <ComputerUseSettings />,
+  },
+  {
+    key: SettingsTabs.AppSnapshots,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.appSnapshots.title",
+    icon: Monitor,
+    loadingKey: "settings.layout.loading.appSnapshots",
+    preload: loadAppSnapshots,
+    render: () => <AppSnapshotsSettings />,
   },
   {
     key: SettingsTabs.Browser,
@@ -350,6 +383,15 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.hooks.loading",
     preload: loadHooks,
     render: () => <HooksSettings />,
+  },
+  {
+    key: SettingsTabs.Connections,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.connections.title",
+    icon: Cable,
+    loadingKey: "settings.layout.loading.connections",
+    preload: loadConnections,
+    render: () => <ConnectionsSettings />,
   },
   {
     key: SettingsTabs.Git,

@@ -109,6 +109,23 @@ afterEach(() => {
 });
 
 describe("WindowsNativeHostClient", () => {
+  it("释放后拒绝迟到的查询，不重新启动原生子进程", async () => {
+    createExecutableFixture(`
+      require("node:readline").createInterface({ input: process.stdin }).on("line", (line) => {
+        const request = JSON.parse(line);
+        process.stdout.write(JSON.stringify({ id: request.id, ok: true, result: "ready" }) + "\\n");
+      });
+    `);
+    const client = new WindowsNativeHostClient();
+    try {
+      await expect(client.invoke({ method: "windows.window.read" })).resolves.toBe("ready");
+      client.dispose();
+      await expect(client.invoke({ method: "windows.window.read" })).rejects.toMatchObject({ code: "stopped" });
+    } finally {
+      client.dispose();
+    }
+  });
+
   it("匹配并发 JSONL 响应并转发 native event", async () => {
     const { helperPath } = createExecutableFixture(`
       const readline = require("node:readline");

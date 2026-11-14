@@ -552,13 +552,6 @@ export class ElectronAppServerHost {
     this.#stage = "stopped";
   }
 
-  async restartForMaintenance(): Promise<void> {
-    this.#stopping = false;
-    this.#stage = "idle";
-    this.#lastFailure = null;
-    await this.warmup();
-  }
-
   terminateSidecarForE2e(): AppServerSidecarTermination {
     if (process.env.LIME_ELECTRON_E2E !== "1") {
       throw new Error(

@@ -24,6 +24,7 @@ pub(crate) struct AgentsOverviewState {
     pub(crate) seen_cursors: HashSet<String>,
     pub(crate) loading_more: bool,
     pub(crate) load_more_failed: bool,
+    pub(crate) loaded_thread_ids: HashSet<String>,
 }
 
 impl AgentsOverviewState {
@@ -54,7 +55,20 @@ impl AgentsOverviewState {
             seen_cursors: HashSet::new(),
             loading_more: false,
             load_more_failed: false,
+            loaded_thread_ids: HashSet::new(),
         }
+    }
+
+    pub(crate) fn set_loaded_thread_ids(&mut self, loaded_thread_ids: HashSet<String>) {
+        self.loaded_thread_ids = loaded_thread_ids;
+    }
+
+    pub(crate) fn mark_thread_loaded(&mut self, thread_id: &str) {
+        self.loaded_thread_ids.insert(thread_id.to_string());
+    }
+
+    pub(crate) fn mark_thread_unloaded(&mut self, thread_id: &str) {
+        self.loaded_thread_ids.remove(thread_id);
     }
 
     pub(crate) fn begin_refresh(&mut self) -> u64 {
@@ -109,7 +123,7 @@ impl AgentsOverviewState {
             by_id.insert(thread.id.clone(), thread);
         }
         self.threads = by_id.into_values().collect();
-        let rows = build_rows(&self.threads, primary_thread_id);
+        let rows = build_rows(&self.threads, primary_thread_id, &self.loaded_thread_ids);
         self.view.update_rows(rows);
         self.refreshing = false;
         self.next_cursor = next_cursor;
@@ -161,8 +175,11 @@ impl AgentsOverviewState {
         self.next_cursor = next_cursor;
         self.loading_more = false;
         self.load_more_failed = false;
-        self.view
-            .update_rows(build_rows(&self.threads, primary_thread_id));
+        self.view.update_rows(build_rows(
+            &self.threads,
+            primary_thread_id,
+            &self.loaded_thread_ids,
+        ));
         self.sync_pagination();
     }
 
@@ -192,6 +209,7 @@ impl AgentsOverviewState {
 pub(crate) fn build_rows(
     threads: &[Thread],
     primary_thread_id: Option<&str>,
+    loaded_thread_ids: &HashSet<String>,
 ) -> Vec<AgentsOverviewRow> {
     let mut by_id = HashMap::new();
     for thread in threads.iter().filter(|thread| !thread.ephemeral) {
@@ -210,6 +228,7 @@ pub(crate) fn build_rows(
             thread: (*thread).clone(),
             group: agents_overview_group(thread, &children),
             is_current: primary_thread_id == Some(thread.id.as_str()),
+            loaded: loaded_thread_ids.contains(&thread.id),
         })
         .collect::<Vec<_>>();
     if rows.is_empty() {
@@ -219,6 +238,7 @@ pub(crate) fn build_rows(
                 thread: (*thread).clone(),
                 group: AgentsOverviewGroup::for_status(&thread.status),
                 is_current: primary_thread_id == Some(thread.id.as_str()),
+                loaded: loaded_thread_ids.contains(&thread.id),
             })
             .collect();
     }

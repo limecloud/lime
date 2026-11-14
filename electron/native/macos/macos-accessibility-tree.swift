@@ -36,6 +36,10 @@ private func boundedText(_ value: CFTypeRef?) -> String? {
     return String(text.prefix(accessibilityTreeMaximumText))
 }
 
+func accessibilityRoleName(_ element: AXUIElement) -> String? {
+    accessibilityAttribute(element, kAXRoleAttribute as CFString) as? String
+}
+
 private func accessibilityAttribute(_ element: AXUIElement, _ key: CFString) -> CFTypeRef? {
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(element, key, &value) == .success else {

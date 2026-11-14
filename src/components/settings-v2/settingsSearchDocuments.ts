@@ -14,6 +14,100 @@ interface SettingsSearchDocument {
 // 只登记 current 页面上的静态消息；不索引用户资料、配置值或凭证。
 export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-separate-modes",
+    labelKey: "settings.appearance.separateModes",
+    termKeys: ["settings.appearance.separateModesDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-smart-punctuation",
+    labelKey: "settings.appearance.smartPunctuation",
+    termKeys: ["settings.appearance.smartPunctuationDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-reset-defaults",
+    labelKey: "settings.appearance.resetToDefault",
+    termKeys: [],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-accent-color",
+    labelKey: "settings.appearance.accentColor",
+    termKeys: ["settings.appearance.accentColorDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-content-font-family",
+    labelKey: "settings.appearance.contentFontFamily",
+    termKeys: ["settings.appearance.contentFontFamilyDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-ui-font-family",
+    labelKey: "settings.appearance.uiFontFamily",
+    termKeys: [
+      "settings.appearance.uiFontFamilyDescription",
+      "settings.appearance.fontFamily.system",
+      "settings.appearance.fontFamily.sans",
+      "settings.appearance.fontFamily.serif",
+      "settings.appearance.fontFamily.mono",
+    ],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-ui-font-size",
+    labelKey: "settings.appearance.uiFontSize",
+    termKeys: ["settings.appearance.uiFontSizeDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-content-font-size",
+    labelKey: "settings.appearance.contentFontSize",
+    termKeys: ["settings.appearance.contentFontSizeDescription"],
+  },
+  {
+    section: SettingsTabs.Appearance,
+    targetId: "appearance-pointer-cursors",
+    labelKey: "settings.appearance.usePointerCursors",
+    termKeys: ["settings.appearance.usePointerCursorsDescription"],
+  },
+  {
+    section: SettingsTabs.Import,
+    targetId: "import-codex-chats",
+    labelKey: "settings.import.chatsTitle",
+    termKeys: [
+      "settings.import.chatsDescription",
+      "settings.import.chatsRefresh",
+      "settings.import.chatsImportRecent",
+    ],
+  },
+  {
+    section: SettingsTabs.Import,
+    targetId: "import-auto-sync",
+    labelKey: "settings.import.autoSync",
+    termKeys: ["settings.import.autoSyncDescription"],
+  },
+  {
+    section: SettingsTabs.Import,
+    targetId: "import-codex-projects",
+    labelKey: "settings.import.codexProjects",
+    termKeys: ["settings.import.codexProjectsDescription"],
+  },
+  {
+    section: SettingsTabs.Import,
+    targetId: "import-codex-settings",
+    labelKey: "settings.import.codexSettings",
+    termKeys: ["settings.import.codexSettingsDescription"],
+  },
+  {
+    section: SettingsTabs.Import,
+    targetId: "import-codex-skills",
+    labelKey: "settings.import.codexSkills",
+    termKeys: ["settings.import.codexSkillsDescription"],
+  },
+  {
     section: SettingsTabs.General,
     targetId: "general-confirm-before-close",
     labelKey: "settings.general.confirmBeforeClose.label",
@@ -90,6 +184,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   },
   {
     section: SettingsTabs.General,
+    targetId: "general-reasoning-efforts",
+    labelKey: "settings.configuration.modelFeatures.label",
+    termKeys: ["settings.configuration.modelFeatures.description"],
+  },
+  {
+    section: SettingsTabs.General,
     targetId: "general-source-licenses",
     labelKey: "settings.desktop.sourceLicenses",
     termKeys: ["settings.desktop.sourceLicensesDescription"],
@@ -104,7 +204,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     section: SettingsTabs.General,
     targetId: "general-show-context-usage",
     labelKey: "settings.desktop.showContextWindowUsage",
-    termKeys: ["settings.desktop.showContextWindowUsageDescription"],
+    termKeys: [],
   },
   {
     section: SettingsTabs.General,
@@ -149,7 +249,15 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     section: SettingsTabs.General,
     targetId: "general-notification-sound",
     labelKey: "settings.notifications.sound",
-    termKeys: ["settings.notifications.soundDescription"],
+    termKeys: [
+      "settings.notifications.soundDescription",
+      "settings.notifications.soundDefault",
+      "settings.notifications.soundNone",
+      "settings.notifications.soundCustom",
+      "settings.notifications.soundCustomReplace",
+      "settings.notifications.soundPreview",
+      "settings.notifications.soundRemove",
+    ],
   },
   {
     section: SettingsTabs.General,
@@ -158,6 +266,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: [
       "settings.notifications.systemDescription",
       "settings.notifications.openSystemSettings",
+      "settings.notifications.disabled",
     ],
   },
   {
@@ -212,6 +321,54 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
+    section: SettingsTabs.Connections,
+    targetId: "connections-grants",
+    labelKey: "settings.connections.external.title",
+    termKeys: [
+      "settings.connections.external.description",
+      "settings.connections.external.empty",
+    ],
+  },
+  {
+    section: SettingsTabs.Connections,
+    targetId: "connections-ssh",
+    labelKey: "settings.connections.description",
+    termKeys: [
+      "settings.connections.sectionDescription",
+      "settings.connections.title",
+    ],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-screen-capture",
+    labelKey: "settings.appSnapshots.screenCapture",
+    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-shortcut",
+    labelKey: "settings.appSnapshots.shortcutLabel",
+    termKeys: [
+      "settings.appSnapshots.shortcut",
+      "settings.appSnapshots.shortcutDescription",
+    ],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-target",
+    labelKey: "settings.appSnapshots.targetLabel",
+    termKeys: [
+      "settings.appSnapshots.target",
+      "settings.appSnapshots.targetDescription",
+    ],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-sound",
+    labelKey: "settings.appSnapshots.sound",
+    termKeys: ["settings.appSnapshots.soundDescription"],
+  },
+  {
     section: SettingsTabs.Browser,
     targetId: "browser-site-settings",
     labelKey: "browserSiteSettings.title",
@@ -221,6 +378,48 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
       "browserSiteSettings.microphone",
       "browserSiteSettings.geolocation",
       "browserSiteSettings.notifications",
+    ],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-screen-capture",
+    labelKey: "settings.appSnapshots.screenCapture",
+    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
+  },
+  {
+    section: SettingsTabs.Browser,
+    targetId: "browser-autofill",
+    labelKey: "settings.browser.autofill",
+    termKeys: [
+      "settings.browser.autofillDescription",
+      "settings.browser.passwordAndAutofill",
+    ],
+  },
+  {
+    section: SettingsTabs.Browser,
+    targetId: "browser-password-manager",
+    labelKey: "settings.browser.passwordManager",
+    termKeys: [
+      "settings.browser.passwordManagerDescription",
+      "settings.browser.passwordAndAutofill",
+    ],
+  },
+  {
+    section: SettingsTabs.Browser,
+    targetId: "browser-contact-info",
+    labelKey: "settings.browser.contactTitle",
+    termKeys: [
+      "settings.browser.contactDescription",
+      "settings.browser.passwordAndAutofill",
+    ],
+  },
+  {
+    section: SettingsTabs.Browser,
+    targetId: "browser-extension-manager",
+    labelKey: "settings.browser.extensionManager",
+    termKeys: [
+      "settings.browser.extensionManagerDescription",
+      "settings.browser.extensionsTitle",
     ],
   },
   {
@@ -363,10 +562,22 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: [],
   })),
   {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-screen-capture",
+    labelKey: "settings.appSnapshots.screenCapture",
+    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
+  },
+  {
     section: SettingsTabs.Browser,
     targetId: "browser-web-target",
     labelKey: "settings.browser.web",
     termKeys: ["settings.browser.inApp", "settings.browser.external"],
+  },
+  {
+    section: SettingsTabs.AppSnapshots,
+    targetId: "app-snapshots-screen-capture",
+    labelKey: "settings.appSnapshots.screenCapture",
+    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
   },
   {
     section: SettingsTabs.Browser,
@@ -413,15 +624,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
         : []),
     ],
   })),
-  {
-    section: SettingsTabs.Configuration,
-    targetId: "configuration-scope",
-    labelKey: "settings.configuration.modelFeatures.label",
-    termKeys: [
-      "settings.configuration.modelFeatures.title",
-      "settings.configuration.modelFeatures.description",
-    ],
-  },
   ...(["plan", "shell", "network"] as const).map((field) => ({
     section: SettingsTabs.ExecutionPolicy,
     targetId: `execution-policy-${field}`,

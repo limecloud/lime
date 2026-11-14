@@ -10,6 +10,7 @@ use serde_json::Value;
 
 mod append_guard;
 mod compression;
+pub(in crate::runtime) use compression::RolloutCompressionTrigger;
 mod delete;
 mod digest;
 mod history;
@@ -19,8 +20,9 @@ mod read;
 mod scan;
 use lifecycle::RolloutMove;
 use scan::scan_rollout_reader;
-pub(in crate::runtime) mod maintenance;
 mod tail_repair;
+#[cfg(test)]
+mod compression_tests;
 #[cfg(test)]
 mod tests;
 mod writer_lock;
@@ -148,7 +150,7 @@ impl RolloutStore {
         let _writer = self.acquire_writer(thread.thread_id.as_str())?;
         let stored_path = active_storage_path(relative_path)?;
         let path = self.resolve_active(relative_path)?;
-        self.materialize_for_append(&path)?;
+        self.materialize_rollout_for_append_blocking(&path)?;
         if path.exists() {
             return self.validate_existing_thread(&path, thread, &stored_path);
         }
@@ -209,7 +211,7 @@ impl RolloutStore {
                 relative_path.to_path_buf(),
             )
         };
-        self.materialize_for_append(&path)?;
+        self.materialize_rollout_for_append_blocking(&path)?;
         let scan = scan_rollout_repaired(&path)?;
         validate_scan_identity(
             &scan,
@@ -345,7 +347,7 @@ impl RolloutStore {
             } else {
                 self.resolve_active(&relative_path)?
             };
-            let thread_id = maintenance::thread_id(&path).map_err(|error| error.to_string())?;
+            let thread_id = compression::thread_id(&path).map_err(|error| error.to_string())?;
             let _writer = self.acquire_writer(&thread_id)?;
             let scan = scan_rollout_repaired(&path)?;
             let active_path = if archived {
@@ -464,8 +466,8 @@ fn validate_scan_identity(
 }
 
 fn scan_rollout_repaired(path: &Path) -> Result<RolloutScan, String> {
-    if compression::existing_path(path)?.is_some_and(|existing| existing != path) {
-        let (physical, reader) = read::open_rollout_reader(path)?;
+    if compression::existing_rollout_path(path)?.is_some_and(|existing| existing != path) {
+        let (physical, reader) = compression::open_rollout_line_reader(path)?;
         return scan_rollout_reader(reader, &physical);
     }
     tail_repair::repair_crash_tail(path)?;
@@ -547,7 +549,7 @@ fn collect_rollout_files(
                 && (name.ends_with(".jsonl") || name.ends_with(".jsonl.zst"))
         });
         if metadata.is_file() && is_rollout {
-            output.push(compression::plain_path(&relative_path));
+            output.push(compression::plain_rollout_path(&relative_path));
         }
     }
     Ok(())

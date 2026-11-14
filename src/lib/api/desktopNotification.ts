@@ -6,6 +6,7 @@ export type DesktopNotificationStatus = "failed" | "sent" | "unsupported";
 export interface DesktopNotificationRequest {
   body: string;
   silent?: boolean;
+  sound?: string;
   tag?: string;
   title: string;
 }

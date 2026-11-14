@@ -177,6 +177,9 @@ impl RequestProcessor {
             app_server_protocol::protocol::v2::METHOD_THREAD_INJECT_ITEMS => {
                 self.handle_thread_inject_items_v2(params).boxed()
             }
+            app_server_protocol::protocol::v2::METHOD_THREAD_IMPORT => {
+                self.handle_thread_import_v2(params).boxed()
+            }
             app_server_protocol::protocol::v2::METHOD_THREAD_SEARCH => {
                 self.handle_thread_search_v2(params).boxed()
             }

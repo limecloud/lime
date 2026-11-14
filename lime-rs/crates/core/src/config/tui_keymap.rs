@@ -250,6 +250,12 @@ pub struct TuiConfig {
     pub right_click_paste: RightClickPaste,
     #[serde(skip_serializing_if = "TuiKeymap::is_default")]
     pub keymap: TuiKeymap,
+    /// 编号预设：槽位 → 可复用输入。
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub presets: BTreeMap<String, QuickDial>,
+    /// 侧会话映射：side thread → parent thread（用于重启后返回与页脚标识）。
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub side_threads: BTreeMap<String, String>,
     /// 自动生成对话回顾（空闲 30 分钟后、至少完成 3 轮且距上次回顾 ≥2 轮）。
     #[serde(default, skip_serializing_if = "is_false")]
     pub auto_recap: bool,
@@ -261,6 +267,14 @@ pub struct TuiConfig {
     /// 有序终端标题 item ID；None 使用默认项，Some([]) 显式关闭。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_title: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuickDial {
+    pub input: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
 fn is_true(value: &bool) -> bool {
@@ -277,6 +291,8 @@ impl Default for TuiConfig {
             animations: true,
             right_click_paste: RightClickPaste::default(),
             keymap: TuiKeymap::default(),
+            presets: BTreeMap::new(),
+            side_threads: BTreeMap::new(),
             auto_recap: false,
             status_line: None,
             status_line_use_colors: true,
@@ -446,6 +462,26 @@ fn normalize_key_name(key: &str, original: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn side_threads_and_presets_round_trip_through_tui_config() {
+        let config: TuiConfig = serde_yaml::from_str(
+            "presets:
+  \"1\":
+    input: /review main
+    label: Review
+side_threads:
+  side-1: main
+",
+        )
+        .expect("valid presets and side threads");
+        assert_eq!(config.presets["1"].input, "/review main");
+        assert_eq!(config.presets["1"].label.as_deref(), Some("Review"));
+        assert_eq!(config.side_threads["side-1"], "main");
+        let serialized = serde_json::to_value(&config).expect("serialize tui config");
+        assert_eq!(serialized["side_threads"]["side-1"], "main");
+        assert_eq!(serialized["presets"]["1"]["input"], "/review main");
+    }
 
     #[test]
     fn keymap_normalizes_aliases_chords_and_explicit_unbinds() {

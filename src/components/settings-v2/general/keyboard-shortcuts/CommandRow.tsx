@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pencil, RotateCcw, X } from "lucide-react";
+import { Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { bindingIdentity } from "@/lib/commands/bindings";
 import { useShortcutCapture } from "@/lib/commands/useShortcutCapture";
@@ -153,20 +153,13 @@ export function CommandRow({
                     {binding
                       ? formatShortcutStrokes(binding, platform).map(
                           (stroke, strokeIndex) => (
-                            <span
+                            <kbd
                               key={strokeIndex}
                               data-shortcut-stroke
-                              className={`flex items-center gap-1${strokeIndex ? " ml-2" : ""}`}
+                              className={`inline-flex h-5 items-center rounded-[10px] bg-[var(--lime-surface-subtle,hsl(var(--muted)))] px-2 font-sans text-[12px] font-normal text-muted-foreground${strokeIndex ? " ml-2" : ""}`}
                             >
-                              {stroke.map((token, keyIndex) => (
-                                <kbd
-                                  key={keyIndex}
-                                  className="font-sans font-normal"
-                                >
-                                  {token}
-                                </kbd>
-                              ))}
-                            </span>
+                              {stroke.join("")}
+                            </kbd>
                           ),
                         )
                       : t("settings.keyboardShortcuts.unassigned")}
@@ -226,7 +219,7 @@ export function CommandRow({
                         );
                       }}
                     >
-                      <X className="size-4" aria-hidden="true" />
+                      <Trash2 className="size-4" aria-hidden="true" />
                     </button>
                   ) : null}
                   {command.customized && index === resetIndex ? (

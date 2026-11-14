@@ -307,6 +307,77 @@ pub struct ThreadInjectItemsParams {
 #[serde(rename_all = "camelCase")]
 pub struct ThreadInjectItemsResponse {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum ThreadImportRole {
+    User,
+    Assistant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum ThreadImportTurnStatus {
+    Completed,
+    Interrupted,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadImportMessage {
+    pub role: ThreadImportRole,
+    pub text: String,
+    pub created_at_ms: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_item_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadImportTurn {
+    pub source_turn_id: String,
+    pub status: ThreadImportTurnStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at_ms: Option<i64>,
+    pub messages: Vec<ThreadImportMessage>,
+}
+
+/// Canonical import of an external conversation into a new Thread.
+///
+/// Turns and messages are source-owned. The App Server creates real canonical
+/// Turn/Item history through the same projection/rollout owner as live turns;
+/// it does not invent assistant text or store a second history copy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadImportParams {
+    /// External source family, e.g. `codex`.
+    pub source: String,
+    /// Stable external conversation identity used for idempotency.
+    pub source_conversation_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at_ms: Option<i64>,
+    pub turns: Vec<ThreadImportTurn>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadImportResponse {
+    pub thread_id: String,
+    pub session_id: String,
+    pub imported_turn_count: u32,
+    pub imported_message_count: u32,
+    pub already_imported: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ThreadListParams {

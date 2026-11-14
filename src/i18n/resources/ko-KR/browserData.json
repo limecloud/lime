@@ -1,7 +1,7 @@
 {
   "browserData.settingLabel": "인터넷 사용 기록",
-  "browserData.settingDescription": "방문 기록, 쿠키, 캐시 및 기타 인터넷 사용 데이터를 삭제합니다.",
-  "browserData.open": "삭제…",
+  "browserData.settingDescription": "앱 내 브라우저의 방문 기록, 사이트 데이터, 캐시, 다운로드 기록을 삭제합니다.",
+  "browserData.open": "브라우징 데이터 지우기",
   "browserData.opening": "여는 중…",
   "browserData.title": "인터넷 사용 기록 삭제",
   "browserData.timeRange": "기간",

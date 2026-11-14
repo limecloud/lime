@@ -2,6 +2,8 @@
 /* global process */
 import { ipcRenderer } from "electron";
 import { BrowserDesignPreview } from "./browserDesignPreview";
+import { installBrowserPasswordAutofill } from "./browserPasswordAutofillPage";
+import { installBrowserContactAutofill } from "./browserContactAutofillPage";
 import { prepareDesignCapture } from "./browserDesignCapturePage";
 import {
   BROWSER_ANNOTATION_PAGE_COMMAND,
@@ -766,4 +768,12 @@ export function installBrowserPageAnnotations(): () => void {
   };
 }
 
-if (process.isMainFrame) installBrowserPageAnnotations();
+if (process.isMainFrame) {
+  installBrowserPageAnnotations();
+  installBrowserPasswordAutofill({
+    invoke: (channel) => ipcRenderer.invoke(channel),
+  });
+  installBrowserContactAutofill({
+    invoke: (channel) => ipcRenderer.invoke(channel),
+  });
+}

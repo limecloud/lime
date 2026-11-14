@@ -223,7 +223,6 @@ export function AboutSection() {
   const versionLabel = currentVersion
     ? t("settings.about.version.label", {
         version: currentVersion,
-        build: currentVersion,
       })
     : t("settings.about.version.loadingLabel", {
         loading: t("settings.about.version.loading"),

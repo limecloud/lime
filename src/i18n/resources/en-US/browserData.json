@@ -1,7 +1,7 @@
 {
   "browserData.settingLabel": "Browsing data",
-  "browserData.settingDescription": "Clear browsing history, cookies, cache, and other browsing data.",
-  "browserData.open": "Clear…",
+  "browserData.settingDescription": "Clear browsing history, site data, cache, and download history from the in-app browser.",
+  "browserData.open": "Clear browsing data",
   "browserData.opening": "Opening…",
   "browserData.title": "Clear browsing data",
   "browserData.timeRange": "Time range",

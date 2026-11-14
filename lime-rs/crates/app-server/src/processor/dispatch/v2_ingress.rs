@@ -147,6 +147,7 @@ pub(super) fn into_parts(
         ClientRequest::ThreadInjectItems { id, params } => {
             parts(id, Method::ThreadInjectItems, params)
         }
+        ClientRequest::ThreadImport { id, params } => parts(id, Method::ThreadImport, params),
         ClientRequest::ThreadSearch { id, params } => parts(id, Method::ThreadSearch, params),
         ClientRequest::ThreadSearchOccurrences { id, params } => {
             parts(id, Method::ThreadSearchOccurrences, params)

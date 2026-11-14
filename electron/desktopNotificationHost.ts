@@ -13,8 +13,17 @@ export interface DesktopNotificationResult {
 const DESKTOP_NOTIFICATION_ALLOWED_FIELDS = new Set([
   "body",
   "silent",
+  "sound",
   "tag",
   "title",
+]);
+const DESKTOP_NOTIFICATION_SOUNDS = new Set([
+  "Basso",
+  "Glass",
+  "Ping",
+  "Pop",
+  "Purr",
+  "Tink",
 ]);
 const DESKTOP_NOTIFICATION_TITLE_LIMIT = 120;
 const DESKTOP_NOTIFICATION_BODY_LIMIT = 320;
@@ -58,6 +67,14 @@ function normalizeSilent(value: unknown): boolean {
   return typeof value === "boolean" ? value : false;
 }
 
+function normalizeSound(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  if (!DESKTOP_NOTIFICATION_SOUNDS.has(value)) {
+    throw new Error(`桌面通知包含不支持的提示音: ${value}`);
+  }
+  return value;
+}
+
 function assertAllowedFields(request: Record<string, unknown>): void {
   const extraFields = Object.keys(request).filter(
     (key) => !DESKTOP_NOTIFICATION_ALLOWED_FIELDS.has(key),
@@ -85,10 +102,12 @@ function normalizeDesktopNotificationOptions(
     DESKTOP_NOTIFICATION_BODY_LIMIT,
   );
   const id = normalizeTag(request.tag);
+  const sound = normalizeSound(request.sound);
   return {
     body,
     ...(id ? { id } : {}),
     silent: normalizeSilent(request.silent),
+    ...(sound ? { sound } : {}),
     title,
   };
 }

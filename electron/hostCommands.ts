@@ -1,6 +1,23 @@
 /* global process */
 import { app } from "./electronRuntime";
 import {
+  BrowserExtensionStore,
+  listBrowserExtensions,
+  loadBrowserExtension,
+  removeBrowserExtension,
+} from "./browserExtensionsHost";
+import { BrowserPasswordStore } from "./browserPasswordStore";
+import { AutofillPreferencesStore } from "./autofillPreferencesStore";
+import { ContactAutofillStore } from "./contactAutofillStore";
+import { openEmbeddedBrowserSession } from "./embeddedBrowserSession";
+import type { SafeStorageLike } from "./secureCredentialStore";
+import {
+  appendSshConnection,
+  ensureSshConfig,
+  parseSshConfig,
+  removeSshConnection,
+} from "./sshConnectionsHost";
+import {
   METHOD_CONFIG_READ,
   METHOD_MODEL_LIST,
   METHOD_MODEL_PROVIDER_LIST,
@@ -25,11 +42,14 @@ import {
   type WorkspaceProjectsRootReadResponse,
   type WorkspaceReadResponse,
 } from "@limecloud/app-server-client";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronAppServerHost } from "./appServerHost";
 import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
-import { compactChatHistory } from "./chatHistoryCompaction";
+import { importCodexSkills } from "./externalAgentImport";
+import { readCodexSettings } from "./codexSettingsImport";
+import { listCodexChats, readCodexChat } from "./codexChatImport";
+import { listAppSnapshotWindows } from "./appSnapshotHost";
 import { showDesktopNotification } from "./desktopNotificationHost";
 import { FileShellHost } from "./fileShellHost";
 import { LayeredDesignProjectHost } from "./layeredDesignProjectHost";
@@ -45,11 +65,14 @@ type AppServerParams = Record<string, unknown>;
 type HostEventEmitter = (event: string, payload?: unknown) => void;
 export class ElectronHostCommands {
   readonly #appServerHost: ElectronAppServerHost;
-  readonly #appDataRoot: string;
   readonly #fileShellHost: FileShellHost;
   readonly #layeredDesignProjectHost = new LayeredDesignProjectHost();
   readonly #systemUtilityHost: SystemUtilityHost;
   readonly #voiceModelHost: VoiceModelHost;
+  readonly #browserExtensionsStore: BrowserExtensionStore;
+  readonly #browserPasswordStore: BrowserPasswordStore;
+  readonly #contactAutofillStore: ContactAutofillStore;
+  readonly #autofillPreferencesStore: AutofillPreferencesStore;
   readonly #secureCredentialStore: SecureCredentialStore | null;
 
   constructor(
@@ -58,9 +81,9 @@ export class ElectronHostCommands {
     emit: HostEventEmitter = () => undefined,
     appDataRoot = resolveCurrentDesktopStorageRoots(userDataDir).appDataRoot,
     secureCredentialStore: SecureCredentialStore | null = null,
+    credentialEncryption: SafeStorageLike | null = null,
   ) {
     this.#appServerHost = appServerHost;
-    this.#appDataRoot = appDataRoot;
     this.#secureCredentialStore = secureCredentialStore;
     this.#systemUtilityHost = new SystemUtilityHost({
       appDataRoot,
@@ -72,6 +95,19 @@ export class ElectronHostCommands {
         this.#systemUtilityHost.invokeMacOSNativeHost(args),
     });
     this.#voiceModelHost = new VoiceModelHost(appDataRoot, emit);
+    this.#browserExtensionsStore = new BrowserExtensionStore(
+      path.join(appDataRoot, "browser-extensions.json"),
+    );
+    this.#browserPasswordStore = new BrowserPasswordStore(
+      path.join(appDataRoot, "browser-passwords.json"),
+      credentialEncryption,
+    );
+    this.#contactAutofillStore = new ContactAutofillStore(
+      path.join(appDataRoot, "contact-autofill.json"),
+    );
+    this.#autofillPreferencesStore = new AutofillPreferencesStore(
+      path.join(appDataRoot, "browser-autofill.json"),
+    );
   }
 
   async invoke(command: string, args?: HostArgs): Promise<unknown> {
@@ -90,11 +126,24 @@ export class ElectronHostCommands {
         return await this.#systemUtilityHost.invokeWindowsNativeHost(args);
       case "show_desktop_notification":
         return showDesktopNotification(args);
-      case "compact_chat_history":
-        return compactChatHistory({
-          appDataRoot: this.#appDataRoot,
-          appServerHost: this.#appServerHost,
+      case "list_app_snapshot_windows":
+        return listAppSnapshotWindows();
+      case "read_codex_settings":
+        return readCodexSettings();
+      case "import_codex_skills":
+        return importCodexSkills();
+      case "list_codex_chats": {
+        const record = toRecord(args) ?? {};
+        return await listCodexChats({
+          limit: typeof record.limit === "number" ? record.limit : undefined,
         });
+      }
+      case "read_codex_chat": {
+        const record = toRecord(args) ?? {};
+        return await readCodexChat({
+          sourcePath: readRequiredString(record, "sourcePath"),
+        });
+      }
       case "reveal_in_finder":
         return this.#fileShellHost.revealInFinder(args);
       case "open_in_get_targets":
@@ -117,8 +166,103 @@ export class ElectronHostCommands {
         return this.#layeredDesignProjectHost.recognizeText(args);
       case "analyze_layered_design_flat_image":
         return this.#layeredDesignProjectHost.analyzeFlatImage(args);
+      case "browser_extensions_list":
+        return listBrowserExtensions(openEmbeddedBrowserSession());
+      case "browser_extensions_load": {
+        const extension = await loadBrowserExtension(
+          openEmbeddedBrowserSession(),
+          readRequiredString(toRecord(args) ?? {}, "path"),
+        );
+        await this.#browserExtensionsStore.add({
+          id: extension.id,
+          path: extension.path,
+        });
+        return extension;
+      }
+      case "browser_extensions_remove": {
+        const id = readRequiredString(toRecord(args) ?? {}, "id");
+        const removed = removeBrowserExtension(
+          openEmbeddedBrowserSession(),
+          id,
+        );
+        await this.#browserExtensionsStore.remove(id);
+        return removed;
+      }
       case "get_home_dir":
         return this.#fileShellHost.getHomeDir();
+      case "ssh_config_ensure":
+        return ensureSshConfig(app.getPath("home"));
+      case "ssh_connection_add": {
+        const record = toRecord(args) ?? {};
+        const port = record.port;
+        if (
+          port !== undefined &&
+          (typeof port !== "number" || !Number.isInteger(port))
+        ) {
+          throw new Error("Invalid SSH port");
+        }
+        const user = readString(record, "user") ?? undefined;
+        return await appendSshConnection(app.getPath("home"), {
+          alias: readRequiredString(record, "alias"),
+          hostName: readRequiredString(record, "hostName"),
+          ...(user ? { user } : {}),
+          ...(port !== undefined ? { port } : {}),
+        });
+      }
+      case "browser_autofill_get":
+        return await this.#autofillPreferencesStore.read();
+      case "browser_autofill_set": {
+        const enabled = toRecord(args)?.enabled;
+        if (typeof enabled !== "boolean") {
+          throw new Error("Invalid autofill enabled flag");
+        }
+        return await this.#autofillPreferencesStore.set(enabled);
+      }
+      case "browser_contact_profile_read":
+        return await this.#contactAutofillStore.read();
+      case "browser_contact_profile_clear":
+        await this.#contactAutofillStore.clear();
+        return true;
+      case "browser_contact_profile_save": {
+        const record = toRecord(args) ?? {};
+        return await this.#contactAutofillStore.save({
+          fullName: readString(record, "fullName") ?? "",
+          email: readString(record, "email") ?? "",
+          phone: readString(record, "phone") ?? "",
+          address: readString(record, "address") ?? "",
+        });
+      }
+      case "browser_passwords_list":
+        return await this.#browserPasswordStore.list();
+      case "browser_passwords_save": {
+        const record = toRecord(args) ?? {};
+        return await this.#browserPasswordStore.save({
+          origin: readRequiredString(record, "origin"),
+          username: readRequiredString(record, "username"),
+          password: readRequiredString(record, "password"),
+        });
+      }
+      case "browser_passwords_remove":
+        return await this.#browserPasswordStore.remove(
+          readRequiredString(toRecord(args) ?? {}, "id"),
+        );
+      case "browser_passwords_reveal":
+        return await this.#browserPasswordStore.reveal(
+          readRequiredString(toRecord(args) ?? {}, "id"),
+        );
+      case "ssh_connection_remove":
+        return await removeSshConnection(
+          app.getPath("home"),
+          readRequiredString(toRecord(args) ?? {}, "alias"),
+        );
+      case "ssh_connections_list": {
+        const configPath = path.join(app.getPath("home"), ".ssh", "config");
+        try {
+          return parseSshConfig(await readFile(configPath, "utf8"));
+        } catch {
+          return [];
+        }
+      }
       case "get_file_icon_data_url":
         return await this.#fileShellHost.getFileIconDataUrl(args);
       case "get_runtime_provider_selection":

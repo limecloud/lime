@@ -1091,15 +1091,21 @@ Architecture impact: major; Desktop-only product chain expanded to shared Deskto
 
 `electron/appQuitLifecycle` 是 Electron 退出事件的唯一协调入口；`main` 只注入
 原有同步资源清理、`appServerHost.stop` 与错误记录。`before-quit` 仅准备一次，
-`will-quit` 阻止退出并等待同一异步清理，完成或拒绝后再调用 `app.quit()`；恢复的
+阻止窗口提前销毁并等待同一异步清理，完成或拒绝后再调用 `app.quit()`；恢复的
 退出事件不重复清理。它不接管 sidecar 连接、终止策略或业务状态。
 
 ```text
-Electron before-quit -> Main 同步资源清理（once）
-Electron will-quit -> preventDefault -> AppServerHost.stop
+Electron before-quit -> preventDefault -> Main 同步资源清理（once）
+  -> BrowserTabHost.prepareShutdown -> CloudDesktopWindows.stop / AppServerHost.stop
   -> existing SidecarLifecycle.stop -> existing sidecar.close
   -> fulfilled / rejected -> app.quit -> resumed will-quit
 ```
+
+`MacOSNativeHostClient` 与 `WindowsNativeHostClient` 的 `dispose` 是终态；迟到的权限
+或窗口查询返回 `stopped`，不能重新启动 helper。macOS readiness 的异步边界后再次检查
+终态，避免清理完成后继续注册请求。原生资源继续归现役客户端，不增加全局进程扫描、
+第二清理 owner 或强制退出成功兜底。此边界的架构影响为 minor，root 于 2026-11-14
+确认依赖方向不变；真实正常退出及云端同 Thread 接续按 Cloud 执行计划独立验收。
 
 此顺序依据同版本安装包的 REA `eZe` / `u7` 静态证据；上游完整 flush 集合、
 context 资源树与五秒 dispose 界限不等同于 Lime 的资源合同。Lime 复用既有 sidecar
@@ -2056,7 +2062,7 @@ wire 上的 `items` 保持 Codex opaque JSON shape，但 RuntimeCore 必须在�
 扩展字段；Chat Completions、Anthropic 与其他不支持 raw Responses item 的 route 在发网前拒绝。当前 method
 boundary 不关闭 P0-03 的全局 canonical history/rollout、rollback/fork/replay 与未知记录一致性缺口。
 
-session start 返回成功前必须先同步写入 rollout metadata 首行并提交 Thread metadata row，再把 session 暴露到 RuntimeCore 内存状态；文件或 SQLite 失败都不得留下 memory-only session，DB commit 失败后的 metadata 文件由同 identity 重试接管而不是覆盖。canonical `session_id`、`thread_id` 与非空 `rollout_path` 均为唯一 identity，跨 RuntimeCore 重启也不得一对多。显式 session delete 与 import replace 的文件/metadata 原子协议尚未完成，当前入口不得被描述为安全清理能力；GUI、AgentSession adapter 和首事件 lazy create 都不能充当 empty Thread fallback。首事件 ensure 只保留为防御式幂等边界，不再拥有 Thread 创建时点。
+session start 返回成功前必须先同步写入 rollout metadata 首行并提交 Thread metadata row，再把 session 暴露到 RuntimeCore 内存状态；文件或 SQLite 失败都不得留下 memory-only session，DB commit 失败后的 metadata 文件由同 identity 重试接管而不是覆盖。canonical `session_id`、`thread_id` 与非空 `rollout_path` 均为唯一 identity，跨 RuntimeCore 重启也不得一对多。显式 session delete 与 import replace 的文件/metadata 原子协议尚未完成，当前入口不得被描述为安全清理能力；GUI、AgentSession adapter 和首事件 lazy create 都不能充当 empty Thread fallback。首事件 ensure 只保留为防御式幂等边界，不再拥有 Thread 创建时点。 Codex 聊天历史导入的 current owner 是 v2 `thread/import`：Desktop Host 只解析 rollout 的 user/assistant 文本与 source turn 边界，RuntimeCore 用 canonical `turn.started`/`item.completed`/`turn.completed` 事件经现有 materializer 生成真实 Turn/Item，再走 `ProjectionStore::create_thread` + `apply_history_with_runtime_sync` 持久化到 canonical history/rollout；source identity 的 UUID v5 决定 thread/session id 以提供幂等。`thread/inject_items` 仍为 provider-only，不得冒充可见历史导入 owner。
 
 action-required/approval 与 ask-user 的 live continuation 归 `agent-runtime` session/turn scoped pending state；可持久化恢复事实归 RuntimeCore canonical events。Codex v2 typed server request 必须先从 canonical descriptor 恢复 scope，再校验 caller 参数；不得信任 caller type、从 presentation/read-model JSON 二次解析、或让 RuntimeBackend 回读 AppDataSource。重启后只能恢复 typed descriptor，不能伪造原 oneshot；无 continuation 时返回结构化 `action_not_resumable` 且不得写 resolved。ask-user 的否定响应必须消费 waiter 并投影 canceled。MCP server-originated elicitation 不属于 approval 链，不能写入这些 runtime event 或 canonical Item。
 
@@ -7753,8 +7759,10 @@ flowchart TD
 父收据摘要在序列化前递归排序 JSON 对象，避免 Cargo feature 合并启用
 `serde_json/preserve_order` 后改变同一请求的摘要；读取仍只接受唯一摘要，不改写旧收据。
 重新准备网络前，原网络栈必须读回三项原物理资源均已删除。ROS 在
-`DELETE_COMPLETE` 后清空标签时，仅此前已验证的原栈可结合不变的栈身份和完整删除清单
-确认结束；未验证的原栈、错误标签、保留资源或变化的物理身份继续阻断重建。
+`DELETE_COMPLETE` 后清空标签与物理 ID 时，仅此前已验证的原栈可结合不变的栈身份、
+三项固定资源的完整删除清单，以及原交换机／安全组 ID 的独立查无确认结束；
+返回的非空物理 ID 仍须匹配。未验证原栈、错误标签、保留资源、变化的物理身份、
+仍存在的原资源或不完整的查询结果继续阻断重建。
 释放前重用原镜像保护核验，完成再比对原释放收据及精确实例不存在；保留资源费用和应用验证独立。
 取消在同一操作锁内判定，仅停止后续步骤，已创建备份保留；删除意图持久化后不能取消。
 外部控制台仍可修改资源，用户须保持源机停止且不在控制台操作；当前实例查询无法证明外部

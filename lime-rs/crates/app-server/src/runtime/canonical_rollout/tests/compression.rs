@@ -1,8 +1,8 @@
-use super::super::compression::compressed_path;
+use super::super::compression::compressed_rollout_path;
 use super::*;
 
 fn compress(path: &Path, keep_plain: bool) -> PathBuf {
-    let compressed = compressed_path(path);
+    let compressed = compressed_rollout_path(path);
     fs::write(
         &compressed,
         zstd::stream::encode_all(fs::read(path).unwrap().as_slice(), 3).unwrap(),
@@ -119,7 +119,9 @@ fn compressed_archive_metadata_restore_and_delete_do_not_resurrect_siblings() {
     );
     assert!(!path.exists());
     assert!(compressed.exists());
-    store.materialize_for_append(&path).unwrap();
+    store
+        .materialize_rollout_for_append_blocking(&path)
+        .unwrap();
     for keep_plain in [false, true] {
         if !path.exists() {
             store.ensure_thread(&relative, &source).unwrap();

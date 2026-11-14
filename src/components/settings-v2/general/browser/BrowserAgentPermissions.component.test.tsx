@@ -169,12 +169,6 @@ it("rejects synthetic changes while a native capability is disabled", async () =
       />,
     ),
   );
-  const next = () =>
-    container
-      .querySelector<HTMLButtonElement>("thead button:last-child")!
-      .click();
-  await act(async () => next());
-  await act(async () => next());
   const node = select("site_tools", "example.com");
   expect(node.value).toBe("allow");
   expect(node.dataset.browserPermissionEffective).toBe("deny");

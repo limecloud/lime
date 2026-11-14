@@ -79,7 +79,7 @@ tracing-opentelemetry.workspace = true
 tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
 urlencoding.workspace = true
 url.workspace = true
-uuid.workspace = true
+uuid = { workspace = true, features = ["v5"] }
 zip.workspace = true
 zstd.workspace = true
 

@@ -50,7 +50,6 @@ import { ElectronSecureCredentialStore } from "./secureCredentialStore";
 import { createCredentialEncryption } from "./localCredentialEncryption";
 import {
   buildMainWindowChromeOptions,
-  buildMainWindowStartupHtml,
   buildMainWindowStartupOptions,
 } from "./mainWindowOptions";
 import {
@@ -70,6 +69,22 @@ import {
   type RectangleLike,
 } from "./updateNotificationWindowPosition";
 import { buildUpdateNotificationWindowUrl } from "./updateNotificationWindowUrl";
+import {
+  BrowserExtensionStore,
+  restoreBrowserExtensions,
+} from "./browserExtensionsHost";
+import { AutofillPreferencesStore } from "./autofillPreferencesStore";
+import { registerBrowserContactAutofill } from "./browserContactAutofillHost";
+import { registerBrowserPasswordAutofill } from "./browserPasswordAutofillHost";
+import { BrowserPasswordStore } from "./browserPasswordStore";
+import { ContactAutofillStore } from "./contactAutofillStore";
+import { openEmbeddedBrowserSession } from "./embeddedBrowserSession";
+import {
+  APP_MENU_COMMAND_EVENT,
+  applicationMenuLabels,
+  buildApplicationMenuTemplate,
+  formatTaskManagerDetail,
+} from "./applicationMenu";
 import {
   app,
   BrowserWindow,
@@ -94,7 +109,7 @@ import {
   type IpcMainInvokeEvent,
 } from "./electronRuntime";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -156,7 +171,11 @@ const cloudDesktopWindows = new CloudDesktopWindows(
     return selection.canceled ? undefined : selection.filePaths[0];
   },
   async (password) => {
-    await dialog.showMessageBox({ type: "info", title: "Lime", message: password });
+    await dialog.showMessageBox({
+      type: "info",
+      title: "Lime",
+      message: password,
+    });
   },
   async () => {
     const selection = await dialog.showSaveDialog({
@@ -238,6 +257,7 @@ const hostCommands = new ElectronHostCommands(
     desktopStorageRoots.appDataRoot,
     credentialEncryption,
   ),
+  credentialEncryption,
 );
 const persistedAtomHost = new PersistedAtomHost(
   desktopStorageRoots.appDataRoot,
@@ -278,7 +298,6 @@ const pendingDeepLinks: string[] = [];
 const pendingSkillPackageOpenPaths: string[] = [];
 const SKILL_PACKAGE_OPEN_EVENT = "skill-package://open";
 const TRAY_MODEL_SELECTED_EVENT = "tray-model-selected";
-const STARTUP_SCREEN_VISIBLE_TIMEOUT_MS = 900;
 const ELECTRON_SMOKE_SHUTDOWN_TIMEOUT_MS = 10_000;
 const UPDATE_NOTIFICATION_ANCHOR_SELECTOR =
   '[data-testid="app-sidebar-update-button"]';
@@ -288,6 +307,7 @@ const UPDATE_NOTIFICATION_WINDOW_SIZE = {
 };
 
 let mainWindow: BrowserWindow | null = null;
+const readyMainWindows = new WeakSet<BrowserWindow>();
 let updateNotificationWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
@@ -362,7 +382,7 @@ function createMainWindow(): BrowserWindow {
         appVersion: app.getVersion(),
       })
     : null;
-  void showStartupScreenBeforeRenderer(window, devServerUrl).catch((error) => {
+  void loadMainWindowRenderer(window, devServerUrl).catch((error) => {
     if (
       isMainWindowRendererLoadInterruption(error, mainWindowLoadState(window))
     ) {
@@ -377,10 +397,6 @@ function createMainWindow(): BrowserWindow {
 
   if (smokeRunner) {
     const runSmokeAfterRendererLoad = () => {
-      const loadedUrl = window.webContents.getURL();
-      if (smokeRunner.isStartupUrl(loadedUrl)) {
-        return;
-      }
       window.webContents.off("did-finish-load", runSmokeAfterRendererLoad);
       console.log("[electron-smoke] renderer loaded");
       void smokeRunner
@@ -452,16 +468,6 @@ function registerLocalAssetProtocol(): void {
   });
 }
 
-async function showStartupScreenBeforeRenderer(
-  window: BrowserWindow,
-  devServerUrl?: string,
-): Promise<void> {
-  await loadMainWindowStartupScreen(window);
-  await waitForMainWindowStartupScreenVisible(window);
-  showMainWindowDuringStartup(window);
-  await loadMainWindowRenderer(window, devServerUrl);
-}
-
 function showMainWindowDuringStartup(window: BrowserWindow): void {
   if (window.isDestroyed() || !shouldShowMainWindowDuringStartup()) {
     return;
@@ -483,82 +489,6 @@ function shouldShowMainWindowDuringStartup(): boolean {
 
 function isElectronSmokeMode(): boolean {
   return process.env.LIME_ELECTRON_SMOKE === "1";
-}
-
-async function loadMainWindowStartupScreen(
-  window: BrowserWindow,
-): Promise<void> {
-  const iconDataUrl = resolveStartupIconDataUrl();
-  const startupHtml = buildMainWindowStartupHtml({
-    appName: APP_NAME,
-    iconDataUrl,
-    locale: app.getLocale(),
-  });
-
-  try {
-    await window.loadURL(writeMainWindowStartupHtmlFile(startupHtml));
-  } catch (error) {
-    console.warn(
-      `[electron-host] startup screen failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
-}
-
-function writeMainWindowStartupHtmlFile(html: string): string {
-  const startupDir = path.join(app.getPath("userData"), "startup");
-  mkdirSync(startupDir, { recursive: true });
-  const startupPath = path.join(startupDir, "main-window-startup.html");
-  writeFileSync(startupPath, html, "utf8");
-  return pathToFileURL(startupPath).toString();
-}
-
-async function waitForMainWindowStartupScreenVisible(
-  window: BrowserWindow,
-): Promise<void> {
-  if (window.isDestroyed()) {
-    return;
-  }
-
-  try {
-    await Promise.race([
-      window.webContents.executeJavaScript(
-        `new Promise((resolve) => {
-          const finish = () => resolve(true);
-          const waitForPaint = () => {
-            requestAnimationFrame(() => requestAnimationFrame(finish));
-          };
-          const logo = document.querySelector("[data-lime-startup-logo]");
-          if (!logo || logo.tagName !== "IMG") {
-            waitForPaint();
-            return;
-          }
-          if (logo.complete && logo.naturalWidth > 0) {
-            waitForPaint();
-            return;
-          }
-          if (typeof logo.decode === "function") {
-            logo.decode().catch(() => undefined).then(waitForPaint);
-            return;
-          }
-          logo.addEventListener("load", waitForPaint, { once: true });
-          logo.addEventListener("error", waitForPaint, { once: true });
-        })`,
-      ),
-      new Promise((resolve) => {
-        setTimeout(resolve, STARTUP_SCREEN_VISIBLE_TIMEOUT_MS);
-      }),
-    ]);
-  } catch (error) {
-    if (!window.isDestroyed()) {
-      console.warn(
-        `[electron-host] startup screen visibility wait failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
-  }
 }
 
 async function loadMainWindowRenderer(
@@ -928,6 +858,7 @@ function showMainWindow(): void {
     createMainWindow();
     return;
   }
+  if (!readyMainWindows.has(mainWindow)) return;
   mainWindow.show();
   if (mainWindow.isMinimized()) {
     mainWindow.restore();
@@ -1360,7 +1291,10 @@ function handleWindowCommand(
 ): unknown {
   switch (command) {
     case "show":
-      window.show();
+      if (window === mainWindow) {
+        readyMainWindows.add(window);
+        showMainWindowDuringStartup(window);
+      } else window.show();
       return null;
     case "hide":
       window.hide();
@@ -1383,7 +1317,7 @@ function handleWindowCommand(
       window.center();
       return null;
     case "setFocus":
-      window.focus();
+      if (window !== mainWindow || !isElectronSmokeMode()) window.focus();
       return null;
     case "startDragging":
       return null;
@@ -1610,6 +1544,71 @@ function recordSkillPackageOpenPaths(paths: string[]): void {
   }
 }
 
+function openDocumentation(): void {
+  void shell.openExternal("https://limecloud.github.io/lime/");
+}
+
+function openLogsFolder(): void {
+  const logsPath = app.getPath("logs") || app.getPath("userData");
+  mkdirSync(logsPath, { recursive: true });
+  void shell.openPath(logsPath);
+}
+
+function showTroubleshootingDialog(): void {
+  const labels = applicationMenuLabels(app.getLocale());
+  void dialog
+    .showMessageBox({
+      title: labels.troubleshooting,
+      message: labels.troubleshooting,
+      detail: [
+        `${app.name} ${app.getVersion()}`,
+        `${process.platform} ${process.arch}`,
+        `${app.getPath("logs") || app.getPath("userData")}`,
+      ].join("\n"),
+      buttons: [labels.openLogs, labels.documentation, labels.close],
+      cancelId: 2,
+    })
+    .then(({ response }) => {
+      if (response === 0) openLogsFolder();
+      if (response === 1) openDocumentation();
+    });
+}
+
+function showTaskManagerDialog(): void {
+  const labels = applicationMenuLabels(app.getLocale());
+  void dialog.showMessageBox({
+    title: labels.taskManager,
+    message: labels.taskManager,
+    detail: formatTaskManagerDetail(app.getAppMetrics()),
+  });
+}
+
+function installApplicationMenu(): void {
+  const template = buildApplicationMenuTemplate({
+    appName: app.name,
+    locale: app.getLocale(),
+    isMac: process.platform === "darwin",
+    onOpenAbout: () => broadcast(APP_MENU_COMMAND_EVENT, { command: "about" }),
+    onOpenSettings: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "settings" }),
+    onCheckForUpdates: () => {
+      void updateHost.checkForUpdates().catch((error) => {
+        console.error("[app-menu] 检查更新失败", error);
+      });
+    },
+    onOpenSystemStatus: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "about" }),
+    onOpenTaskManager: () => showTaskManagerDialog(),
+    onOpenTroubleshooting: () => showTroubleshootingDialog(),
+    onOpenDocumentation: () => openDocumentation(),
+    onOpenLogs: () => openLogsFolder(),
+  });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  console.log(
+    `[app-menu] installed items=${template.length} locale=${app.getLocale()}`,
+  );
+}
+
 function takePendingSkillPackageOpenRequests(): string[] {
   return pendingSkillPackageOpenPaths.splice(0);
 }
@@ -1653,7 +1652,36 @@ if (isWindowsSquirrelStartup) {
     devHttpBridge = startDevHttpBridge();
     if (process.platform !== "darwin") tray = createTray();
     void warmupAppServer();
+    void restoreBrowserExtensions(
+      openEmbeddedBrowserSession(),
+      new BrowserExtensionStore(
+        path.join(desktopStorageRoots.appDataRoot, "browser-extensions.json"),
+      ),
+    ).catch((error) => {
+      console.error("[browser-extensions] restore failed", error);
+    });
+    const autofillPreferences = new AutofillPreferencesStore(
+      path.join(desktopStorageRoots.appDataRoot, "browser-autofill.json"),
+    );
+    registerBrowserPasswordAutofill({
+      ipcMain,
+      session: openEmbeddedBrowserSession(),
+      store: new BrowserPasswordStore(
+        path.join(desktopStorageRoots.appDataRoot, "browser-passwords.json"),
+        credentialEncryption,
+      ),
+      isEnabled: () => autofillPreferences.read(),
+    });
+    registerBrowserContactAutofill({
+      ipcMain,
+      session: openEmbeddedBrowserSession(),
+      store: new ContactAutofillStore(
+        path.join(desktopStorageRoots.appDataRoot, "contact-autofill.json"),
+      ),
+      isEnabled: () => autofillPreferences.read(),
+    });
     createMainWindow();
+    installApplicationMenu();
   });
 }
 
@@ -1725,7 +1753,8 @@ function handleWindowsSquirrelStartup(): boolean {
         appDataPath: app.getPath("appData"),
         execPath: process.execPath,
         appUserModelId: APP_BUNDLE_IDENTIFIER,
-        readShortcutLink: (shortcutPath) => shell.readShortcutLink(shortcutPath),
+        readShortcutLink: (shortcutPath) =>
+          shell.readShortcutLink(shortcutPath),
         onError: (error) =>
           console.warn(
             "[electron-host] Notification shortcut cleanup failed",
@@ -1791,16 +1820,6 @@ function resolveDesktopAsset(
   }
 
   return path.resolve(process.cwd(), sourceRelativePath);
-}
-
-function resolveStartupIconDataUrl(): string | null {
-  const iconPath = resolveDesktopAsset(APP_ICON_SOURCE, APP_ICON_PACKAGED_NAME);
-  try {
-    const icon = readFileSync(iconPath);
-    return `data:image/png;base64,${icon.toString("base64")}`;
-  } catch {
-    return null;
-  }
 }
 
 function configureApplicationIdentity(): void {

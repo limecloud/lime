@@ -76,6 +76,25 @@ impl AppServerSession {
         Ok(response)
     }
 
+    pub(crate) async fn approve_guardian_denied_action(
+        &self,
+        thread_id: String,
+        event: serde_json::Value,
+    ) -> Result<()> {
+        let _: app_server_protocol::protocol::v2::ThreadApproveGuardianDeniedActionResponse = self
+            .request_handle
+            .request(
+                app_server_protocol::protocol::v2::METHOD_THREAD_APPROVE_GUARDIAN_DENIED_ACTION,
+                app_server_protocol::protocol::v2::ThreadApproveGuardianDeniedActionParams {
+                    thread_id,
+                    event,
+                },
+            )
+            .await
+            .context("failed to approve the Guardian denied action")?;
+        Ok(())
+    }
+
     pub(crate) async fn thread_loaded_list(&self) -> Result<Vec<String>> {
         let response: app_server_protocol::protocol::v2::ThreadLoadedListResponse = self
             .request_handle

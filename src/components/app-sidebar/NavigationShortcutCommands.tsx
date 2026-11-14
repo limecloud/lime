@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import type { Page, PageParams } from "@/types/page";
+import { SettingsTabs } from "@/types/settings";
 import { useCommand } from "@/lib/commands/useCommand";
 import type { CommandRegistration } from "@/lib/commands/registry";
 import {
@@ -11,13 +13,21 @@ import {
 } from "@/lib/conversationTabs";
 import { requestWorkspaceReviewTab } from "@/lib/workspaceReviewTabEvents";
 import { toggleWorkspaceFullView } from "@/lib/workspaceFullView";
+import {
+  requestConversationHistoryBack,
+  requestConversationHistoryForward,
+} from "@/lib/conversationHistory";
 
 function ShortcutCommand({ command }: { command: CommandRegistration }) {
   useCommand(command);
   return null;
 }
 
-export function NavigationShortcutCommands() {
+export function NavigationShortcutCommands({
+  onNavigate,
+}: {
+  onNavigate?: (page: Page, params?: PageParams) => void;
+} = {}) {
   const commands = useMemo<CommandRegistration[]>(() => {
     const activeTab = () => getConversationTabsSnapshot().activeSessionId;
     const moveTab = (offset: number) => {
@@ -37,6 +47,16 @@ export function NavigationShortcutCommands() {
         bindings: ["CommandOrControl+N"],
         allowInInput: true,
         handler: requestNewConversationTab,
+      },
+      {
+        id: "navigation.newStandaloneChat",
+        titleKey: "commands.newStandaloneChat.title",
+        descriptionKey: "commands.newStandaloneChat.description",
+        section: "navigation",
+        bindings: ["CommandOrControl+Alt+O"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:new-standalone-chat")),
       },
       {
         id: "navigation.newTab",
@@ -97,6 +117,107 @@ export function NavigationShortcutCommands() {
         bindings: ["CommandOrControl+Shift+T"],
         allowInInput: true,
         handler: reopenLastClosedConversationTab,
+      },
+      {
+        id: "navigation.previousViewedChat",
+        titleKey: "commands.previousViewedChat.title",
+        descriptionKey: "commands.previousViewedChat.description",
+        section: "navigation",
+        bindings: [],
+        handler: requestConversationHistoryBack,
+      },
+      {
+        id: "navigation.nextViewedChat",
+        titleKey: "commands.nextViewedChat.title",
+        descriptionKey: "commands.nextViewedChat.description",
+        section: "navigation",
+        bindings: [],
+        handler: requestConversationHistoryForward,
+      },
+      ...Array.from({ length: 9 }, (_, index) => ({
+        id: `navigation.recentChat${index + 1}`,
+        titleKey: `commands.recentChat${index + 1}.title`,
+        descriptionKey: `commands.recentChat${index + 1}.description`,
+        section: "navigation" as const,
+        bindings: [`CommandOrControl+Alt+${index + 1}`],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:open-recent-chat", { detail: index }),
+          ),
+      })),
+      {
+        id: "navigation.previousSidebarItem",
+        titleKey: "commands.previousSidebarItem.title",
+        descriptionKey: "commands.previousSidebarItem.description",
+        section: "navigation",
+        bindings: ["CommandOrControl+Alt+["],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:cycle-sidebar-item", { detail: -1 }),
+          ),
+      },
+      {
+        id: "navigation.nextSidebarItem",
+        titleKey: "commands.nextSidebarItem.title",
+        descriptionKey: "commands.nextSidebarItem.description",
+        section: "navigation",
+        bindings: ["CommandOrControl+Alt+]"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:cycle-sidebar-item", { detail: 1 }),
+          ),
+      },
+      {
+        id: "inputbar.togglePlanMode",
+        titleKey: "commands.togglePlanMode.title",
+        descriptionKey: "commands.togglePlanMode.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:toggle-plan-mode")),
+      },
+      {
+        id: "inputbar.clearPrompt",
+        titleKey: "commands.clearPrompt.title",
+        descriptionKey: "commands.clearPrompt.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:clear-composer")),
+      },
+      {
+        id: "panels.toggleSummaryPanel",
+        titleKey: "commands.toggleSummaryPanel.title",
+        descriptionKey: "commands.toggleSummaryPanel.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:toggle-summary-panel"),
+          ),
+      },
+      {
+        id: "panels.openTerminal",
+        titleKey: "commands.openTerminal.title",
+        descriptionKey: "commands.openTerminal.description",
+        section: "panels",
+        bindings: ["Control+`"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:open-terminal")),
+      },
+      {
+        id: "panels.toggleBottomPanel",
+        titleKey: "commands.toggleBottomPanel.title",
+        descriptionKey: "commands.toggleBottomPanel.description",
+        section: "panels",
+        bindings: ["CommandOrControl+J"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:toggle-bottom-terminal")),
       },
       {
         id: "navigation.toggleSidebar",
@@ -173,6 +294,98 @@ export function NavigationShortcutCommands() {
           ),
       },
       {
+        id: "navigation.markAllRead",
+        titleKey: "commands.markAllRead.title",
+        descriptionKey: "commands.markAllRead.description",
+        section: "navigation",
+        bindings: ["Shift+Escape"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:mark-all-read")),
+      },
+      {
+        id: "thread.forkChat",
+        titleKey: "commands.forkChat.title",
+        descriptionKey: "commands.forkChat.description",
+        section: "thread",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:thread-shortcut", { detail: "fork" }),
+          ),
+      },
+      {
+        id: "app.copyWorkingDirectory",
+        titleKey: "commands.copyWorkingDirectory.title",
+        descriptionKey: "commands.copyWorkingDirectory.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:copy-working-directory")),
+      },
+      {
+        id: "app.openKeyboardShortcutsSettings",
+        titleKey: "commands.openKeyboardShortcutsSettings.title",
+        descriptionKey: "commands.openKeyboardShortcutsSettings.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          onNavigate?.("settings", {
+            tab: SettingsTabs.KeyboardShortcuts,
+          } as PageParams),
+      },
+      {
+        id: "app.openMcpSettings",
+        titleKey: "commands.openMcpSettings.title",
+        descriptionKey: "commands.openMcpSettings.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          onNavigate?.("settings", {
+            tab: SettingsTabs.McpServers,
+          } as PageParams),
+      },
+      {
+        id: "app.openImportSettings",
+        titleKey: "commands.openImportSettings.title",
+        descriptionKey: "commands.openImportSettings.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          onNavigate?.("settings", {
+            tab: SettingsTabs.Import,
+          } as PageParams),
+      },
+      {
+        id: "app.openScheduledTasks",
+        titleKey: "commands.openScheduledTasks.title",
+        descriptionKey: "commands.openScheduledTasks.description",
+        section: "app",
+        bindings: [],
+        handler: () => onNavigate?.("scheduled-tasks"),
+      },
+      {
+        id: "app.copyConversationMarkdown",
+        titleKey: "commands.copyConversationMarkdown.title",
+        descriptionKey: "commands.copyConversationMarkdown.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:copy-conversation-markdown"),
+          ),
+      },
+      {
+        id: "app.copyConversationLink",
+        titleKey: "commands.copyConversationLink.title",
+        descriptionKey: "commands.copyConversationLink.description",
+        section: "app",
+        bindings: [],
+        handler: () => {
+          void navigator.clipboard?.writeText(window.location.href);
+        },
+      },
+      {
         id: "app.copyLastCode",
         titleKey: "commands.copyLastCode.title",
         descriptionKey: "commands.copyLastCode.description",
@@ -187,7 +400,7 @@ export function NavigationShortcutCommands() {
         },
       },
     ];
-  }, []);
+  }, [onNavigate]);
   return (
     <>
       {commands.map((command) => (

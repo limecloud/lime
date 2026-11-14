@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   BROWSER_PERMISSION_ACTIONS,
@@ -31,7 +31,6 @@ export function BrowserAgentPermissions({
 }) {
   const { t } = useTranslation("settings");
   const value = settings.agent_permissions;
-  const [page, setPage] = useState(0);
   const [adding, setAdding] = useState(false);
   const [editingPattern, setEditingPattern] = useState<string | null>(null);
   const [pattern, setPattern] = useState("");
@@ -40,7 +39,7 @@ export function BrowserAgentPermissions({
   const [baseline, setBaseline] = useState<
     BrowserSettings["agent_permissions"] | null
   >(null);
-  const actions = BROWSER_PERMISSION_ACTIONS.slice(page * 2, page * 2 + 2);
+  const actions = BROWSER_PERMISSION_ACTIONS;
   const userPatterns = new Set(
     context?.userPermissions.sites.map((site) => site.pattern),
   );
@@ -231,37 +230,26 @@ export function BrowserAgentPermissions({
         <table className="w-full text-left text-xs">
           <thead className="border-b border-border text-muted-foreground">
             <tr>
-              <th scope="col" className="px-3 py-3 font-normal">
+              <th
+                scope="col"
+                className="min-w-24 whitespace-nowrap px-2 py-3 font-normal"
+              >
                 {t("settings.browser.websitePattern")}
               </th>
               {actions.map((action) => (
-                <th key={action} scope="col" className="px-2 py-3 font-normal">
+                <th
+                  key={action}
+                  scope="col"
+                  className="px-1.5 py-3 font-normal"
+                >
                   {t(`settings.browser.permissionAction.${action}`)}
                 </th>
               ))}
-              <th scope="col" className="w-16 px-2 py-2">
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    className="rounded p-1 hover:bg-muted disabled:opacity-30"
-                    disabled={page === 0}
-                    aria-label={t("settings.browser.previousPermissions")}
-                    onClick={() => setPage(page - 1)}
-                  >
-                    <ChevronLeft className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-1 hover:bg-muted disabled:opacity-30"
-                    disabled={
-                      (page + 1) * 2 >= BROWSER_PERMISSION_ACTIONS.length
-                    }
-                    aria-label={t("settings.browser.nextPermissions")}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    <ChevronRight className="size-3.5" />
-                  </button>
-                </div>
+              <th
+                scope="col"
+                className="w-14 whitespace-nowrap px-2 py-2 text-right font-normal"
+              >
+                {t("settings.browser.permissionOperations")}
               </th>
             </tr>
           </thead>
@@ -289,13 +277,13 @@ export function BrowserAgentPermissions({
                   >
                     <th
                       scope="row"
-                      className="max-w-52 truncate px-3 py-3 font-normal"
+                      className="max-w-52 truncate px-2 py-3 font-normal"
                       title={name}
                     >
                       {name}
                     </th>
                     {actions.map((action) => (
-                      <td key={action} className="px-2 py-3">
+                      <td key={action} className="px-1.5 py-3">
                         <BrowserSitePermissionSelect
                           settings={settings}
                           context={context}

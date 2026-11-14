@@ -23,6 +23,14 @@ impl App {
             _ => None,
         };
         match notification {
+            ServerNotification::ThreadStarted(params) => {
+                if !params.thread.ephemeral {
+                    overview.mark_thread_loaded(&params.thread.id);
+                }
+            }
+            _ => {}
+        }
+        match notification {
             ServerNotification::ThreadStarted(params) if !params.thread.ephemeral => {
                 if let Some(existing) = overview
                     .threads
@@ -35,16 +43,19 @@ impl App {
                 }
             }
             ServerNotification::ThreadArchived(params) => {
+                overview.mark_thread_unloaded(&params.thread_id);
                 overview
                     .threads
                     .retain(|thread| thread.id != params.thread_id);
             }
             ServerNotification::ThreadDeleted(params) => {
+                overview.mark_thread_unloaded(&params.thread_id);
                 overview
                     .threads
                     .retain(|thread| thread.id != params.thread_id);
             }
             ServerNotification::ThreadClosed(params) => {
+                overview.mark_thread_unloaded(&params.thread_id);
                 if let Some(thread) = overview
                     .threads
                     .iter_mut()
@@ -54,6 +65,16 @@ impl App {
                 }
             }
             ServerNotification::ThreadStatusChanged(params) => {
+                match &params.status {
+                    ThreadStatus::NotLoaded => {
+                        overview.mark_thread_unloaded(&params.thread_id);
+                    }
+                    ThreadStatus::Idle
+                    | ThreadStatus::SystemError
+                    | ThreadStatus::Active { .. } => {
+                        overview.mark_thread_loaded(&params.thread_id);
+                    }
+                }
                 if let Some(thread) = overview
                     .threads
                     .iter_mut()
@@ -89,6 +110,7 @@ impl App {
             .update_rows(super::agents_overview::build_rows(
                 &overview.threads,
                 primary.as_deref(),
+                &overview.loaded_thread_ids,
             ));
     }
 
@@ -117,13 +139,21 @@ impl App {
                 })
                 .await
                 .context("failed to refresh agents overview threads")?;
-            Ok::<_, anyhow::Error>((page.data, page.next_cursor))
+            let loaded_thread_ids = app_server
+                .thread_loaded_list()
+                .await
+                .ok()
+                .map(|ids| ids.into_iter().collect::<std::collections::HashSet<_>>());
+            Ok::<_, anyhow::Error>((page.data, page.next_cursor, loaded_thread_ids))
         }
         .await;
         match result {
-            Ok((threads, next_cursor)) => {
+            Ok((threads, next_cursor, loaded_thread_ids)) => {
                 let primary = self.primary_thread_id.clone();
                 if let Some(overview) = self.chat_widget.agents_overview.as_mut() {
+                    if let Some(loaded_thread_ids) = loaded_thread_ids {
+                        overview.set_loaded_thread_ids(loaded_thread_ids);
+                    }
                     overview.apply_refresh_page(
                         generation,
                         threads,

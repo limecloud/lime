@@ -44,11 +44,17 @@ pub(crate) enum SlashCommand {
     Goal,
     Memories,
     Recap,
+    AutoReview,
+    Presets,
+    Worktree,
+    Side,
+    Btw,
+    Voice,
     Ps,
 }
 
 impl SlashCommand {
-    pub(crate) const ALL: [Self; 43] = [
+    pub(crate) const ALL: [Self; 49] = [
         Self::Model,
         Self::Plan,
         Self::Effort,
@@ -91,6 +97,12 @@ impl SlashCommand {
         Self::Goal,
         Self::Memories,
         Self::Recap,
+        Self::AutoReview,
+        Self::Presets,
+        Self::Worktree,
+        Self::Side,
+        Self::Btw,
+        Self::Voice,
         Self::Ps,
     ];
 
@@ -138,6 +150,12 @@ impl SlashCommand {
             Self::Goal => "goal",
             Self::Memories => "memories",
             Self::Recap => "recap",
+            Self::AutoReview => "autoreview",
+            Self::Presets => "presets",
+            Self::Worktree => "worktree",
+            Self::Side => "side",
+            Self::Btw => "btw",
+            Self::Voice => "voice",
             Self::Ps => "ps",
         }
     }
@@ -250,6 +268,12 @@ mod tests {
                 "goal",
                 "memories",
                 "recap",
+                "autoreview",
+                "presets",
+                "worktree",
+                "side",
+                "btw",
+                "voice",
                 "ps",
             ]
         );

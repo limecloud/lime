@@ -4,7 +4,6 @@ import {
   ELECTRON_SMOKE_LAYOUT_CLAIM_BOUNDARY,
   ELECTRON_SMOKE_LAYOUT_PROOF_LEVEL,
   ELECTRON_SMOKE_LAYOUT_VIEWPORTS,
-  isElectronSmokeStartupUrl,
   normalizeElectronSmokeRunId,
   sanitizeElectronSmokeLocation,
   type ElectronSmokeLayoutEvidence,
@@ -85,6 +84,7 @@ function passingLayout(): ElectronSmokeLayoutEvidence {
 function passingInput(): ElectronSmokeSummaryInput {
   return {
     runId: "candidate-20260716",
+    initialWindowHidden: true,
     startedAt: "2026-07-16T00:00:00.000Z",
     completedAt: "2026-07-16T00:00:02.000Z",
     appVersion: "0.1.0",
@@ -92,11 +92,6 @@ function passingInput(): ElectronSmokeSummaryInput {
     hostAppServerInitialized: true,
     hostAppServerProtocol: "v0",
     routes: [
-      {
-        stage: "startup",
-        ready: true,
-        location: "file:///main-window-startup.html",
-      },
       {
         stage: "workbench",
         ready: true,
@@ -170,7 +165,7 @@ describe("electron smoke evidence", () => {
 
   it("fails closed when bridge, route, or error assertions are missing", () => {
     const input = passingInput();
-    input.routes = input.routes.filter((route) => route.stage !== "startup");
+    input.initialWindowHidden = false;
     input.renderer.appServerIpcHitCount = 0;
     input.renderer.appServerMethods = [];
     input.diagnostics.consoleErrorCount = 1;
@@ -185,7 +180,7 @@ describe("electron smoke evidence", () => {
     expect(summary.nextAction).toMatch(/rerun/);
     expect(summary.assertions.failed).toEqual(
       expect.arrayContaining([
-        "startupVisible",
+        "initialWindowHidden",
         "electronIpcAppServerBridgeUsed",
         "currentAppServerMethodObserved",
         "noConsoleErrors",
@@ -225,17 +220,13 @@ describe("electron smoke evidence", () => {
     ).toBe("http://127.0.0.1:1420/workspace?nativeStartup");
   });
 
-  it("recognizes both file and data startup documents", () => {
-    expect(
-      isElectronSmokeStartupUrl(
-        "file:///tmp/profile/startup/main-window-startup.html",
-      ),
-    ).toBe(true);
-    expect(isElectronSmokeStartupUrl("data:text/html,<main></main>")).toBe(
-      true,
-    );
-    expect(
-      isElectronSmokeStartupUrl("http://127.0.0.1:1420/?nativeStartup=1"),
-    ).toBe(false);
+  it("rejects a window exposed before the renderer is ready", () => {
+    const input = passingInput();
+    input.initialWindowHidden = false;
+
+    const summary = buildElectronSmokeSummary(input);
+
+    expect(summary.result).toBe("fail");
+    expect(summary.assertions.failed).toEqual(["initialWindowHidden"]);
   });
 });

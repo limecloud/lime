@@ -49,12 +49,21 @@ export function BottomTerminalPanel({
       setSelectedId(target.id);
       setOpen(true);
     };
+    const openTerminal = () => {
+      if (terminals.length > 0) setOpen(true);
+    };
+    const togglePanel = () => setOpen((value) => !value);
     window.addEventListener("lime:open-bottom-terminal", openFromWorkspace);
-    return () =>
+    window.addEventListener("lime:toggle-bottom-terminal", togglePanel);
+    window.addEventListener("lime:open-terminal", openTerminal);
+    return () => {
       window.removeEventListener(
         "lime:open-bottom-terminal",
         openFromWorkspace,
       );
+      window.removeEventListener("lime:toggle-bottom-terminal", togglePanel);
+      window.removeEventListener("lime:open-terminal", openTerminal);
+    };
   }, [terminals, threadId]);
 
   if (!visible || (!open && terminals.length === 0)) return null;

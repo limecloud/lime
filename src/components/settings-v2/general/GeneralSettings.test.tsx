@@ -7,6 +7,7 @@ import {
   openInQueryClient,
   openInTargetsQueryOptions,
 } from "@/lib/openInTargets";
+import { setNotificationPreferences } from "@/lib/notificationPreferences";
 
 const api = vi.hoisted(() => ({
   getConfig: vi.fn(),
@@ -19,18 +20,18 @@ const api = vi.hoisted(() => ({
   pickDirectory: vi.fn(),
   unsubscribe: vi.fn(),
   setLanguage: vi.fn(),
+  writeEfforts: vi.fn(),
+  models: vi.fn(),
+  modelSubscribe: vi.fn(),
+  snapshot: vi.fn(),
+  permissions: vi.fn(),
+  openPermission: vi.fn(),
   listener: null as (() => void) | null,
 }));
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: api.getConfig,
-  getConfigSnapshot: async () => ({
-    layer: {
-      name: {
-        type: "user",
-        file: "/Users/test/Library/Application Support/lime/app-server/config.toml",
-      },
-    },
-  }),
+  getConfigSnapshot: () => api.snapshot(),
+  writeReasoningEffortPreferences: api.writeEfforts,
   updateConfig: api.updateConfig,
   subscribeAppConfigChanged: (listener: () => void) => {
     api.listener = listener;
@@ -57,6 +58,16 @@ vi.mock("@/i18n/legacy-patch/I18nPatchProvider", () => ({
 vi.mock("@/lib/api/project", () => ({
   getDefaultProject: async () => ({ rootPath: "/workspace" }),
 }));
+vi.mock("@/lib/api/modelRegistry", () => ({
+  modelRegistryApi: {
+    getModelRegistry: api.models,
+    subscribeModelRegistryUpdates: api.modelSubscribe,
+  },
+}));
+vi.mock("@/lib/api/desktopPermissions", () => ({
+  readDesktopPermissions: api.permissions,
+  openDesktopPermissionSettings: api.openPermission,
+}));
 import { GeneralSettings } from "./GeneralSettings";
 import {
   getComposerPermissionVisibility,
@@ -66,6 +77,10 @@ import {
   getComposerEditorPreferences,
   resetComposerEditorPreferencesForTest,
 } from "@/lib/composerEditorPreferences";
+import {
+  getTerminalPanelPreferences,
+  resetTerminalPanelPreferencesForTest,
+} from "@/lib/terminalPanelPreferences";
 import {
   getProjectlessWorkspaceRoot,
   resetProjectlessWorkspaceRootForTest,
@@ -153,6 +168,7 @@ beforeEach(async () => {
   notifyManager.setNotifyFunction((callback) => act(callback));
   resetComposerPermissionVisibilityForTest();
   resetComposerEditorPreferencesForTest();
+  resetTerminalPanelPreferencesForTest();
   resetProjectlessWorkspaceRootForTest();
   openInQueryClient.clear();
   vi.stubGlobal(
@@ -177,6 +193,29 @@ beforeEach(async () => {
     workspace_preferences: { agent_response_language: "ja-JP" },
   };
   api.getConfig.mockImplementation(async () => config);
+  api.snapshot.mockResolvedValue({
+    layer: {
+      name: {
+        type: "user",
+        file: "/Users/test/Library/Application Support/lime/app-server/config.toml",
+      },
+    },
+  });
+  api.models.mockResolvedValue([
+    { reasoning_policy: { supported_reasoning_efforts: ["ultra"] } },
+  ]);
+  api.modelSubscribe.mockReturnValue(vi.fn());
+  api.permissions.mockResolvedValue({
+    permissions: [{ id: "notifications", state: "granted" }],
+  });
+  api.openPermission.mockResolvedValue(undefined);
+  api.writeEfforts.mockImplementation(async (value: string[]) => {
+    config.desktop = {
+      ...(config.desktop as Record<string, unknown> | undefined),
+      "enabled-reasoning-efforts": value,
+    };
+    return config;
+  });
   api.updateConfig.mockImplementation(
     async (update: (current: object) => object) => {
       config = update(config) as typeof config;
@@ -307,7 +346,7 @@ describe("GeneralSettings", () => {
     );
     await settle();
     expect(config.desktop).toBeUndefined();
-    expect(trigger.textContent).toBe("仅关闭快捷键");
+    expect(trigger.textContent).toBe("仅在使用“关闭”快捷键时");
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
   });
   it.each([undefined, null, false, true])(
@@ -506,10 +545,10 @@ describe("GeneralSettings", () => {
         }),
     );
     await mount();
-    expect(enterTrigger().textContent).toBe("Enter");
+    expect(enterTrigger().textContent).toBe("按 Enter 键");
     await selectEnterBehavior(2);
     expect(enterTrigger().disabled).toBe(true);
-    expect(enterTrigger().textContent).toBe("Enter");
+    expect(enterTrigger().textContent).toBe("按 Enter 键");
     expect(
       container.querySelector<HTMLButtonElement>(
         '[data-settings-search-target="general-language"] button',
@@ -517,7 +556,7 @@ describe("GeneralSettings", () => {
     ).toBe(true);
     await act(async () => release());
     await settle();
-    expect(enterTrigger().textContent).toContain("始终使用");
+    expect(enterTrigger().textContent).toContain("总是使用");
     expect(config.desktop).toEqual({
       "open-link-in-target-preference": "external-browser",
       composerEnterBehavior: "cmdAlways",
@@ -534,7 +573,7 @@ describe("GeneralSettings", () => {
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
     expect(enterTrigger().disabled).toBe(false);
     await selectEnterBehavior(2);
-    expect(enterTrigger().textContent).toContain("始终使用");
+    expect(enterTrigger().textContent).toContain("总是使用");
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -871,9 +910,9 @@ describe("GeneralSettings", () => {
     act(() => control("general-full-access-permission").click());
     await settle();
     await vi.waitFor(() =>
-      expect(
-        document.querySelector('[role="dialog"]')?.textContent,
-      ).toContain("要启用完整访问权限吗？"),
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+        "要启用完整访问权限吗？",
+      ),
     );
     act(() =>
       [...document.querySelectorAll<HTMLButtonElement>("button")]
@@ -930,5 +969,288 @@ describe("GeneralSettings", () => {
     expect(fileTrigger().disabled).toBe(true);
     await act(async () => release());
     await settle();
+  });
+
+  it("persists local thread store compression through the App Server config gate", async () => {
+    config.experimental = { local_thread_store_compression: false };
+    await mount();
+    const toggle = () =>
+      container.querySelector<HTMLButtonElement>(
+        '[data-settings-search-target="general-compress-history"] [role="switch"]',
+      )!;
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    act(() => toggle().click());
+    await settle();
+    expect(config.experimental).toEqual({
+      local_thread_store_compression: true,
+    });
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("persists reasoning effort visibility through the shared config writer", async () => {
+    config.desktop = {
+      "enabled-reasoning-efforts": ["low", "medium", "high", "xhigh"],
+    };
+    await mount();
+    const row = container.querySelector<HTMLElement>(
+      '[data-settings-search-target="general-reasoning-efforts"]',
+    )!;
+    const trigger = row.querySelector<HTMLButtonElement>("button")!;
+    expect(trigger.textContent).toContain("4");
+    act(() =>
+      trigger.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          bubbles: true,
+          cancelable: true,
+        }),
+      ),
+    );
+    await settle();
+    const ultra = [
+      ...document.querySelectorAll<HTMLElement>("[role=menuitemcheckbox]"),
+    ].find((item) => item.textContent === "超高")!;
+    expect(ultra).toBeTruthy();
+    act(() => ultra.click());
+    await settle();
+    expect(api.writeEfforts).toHaveBeenCalledWith([
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "ultra",
+    ]);
+  });
+
+  it("locks reasoning efforts when an administrator manages the field", async () => {
+    api.snapshot.mockResolvedValue({
+      layer: {
+        name: {
+          type: "user",
+          file: "/Users/test/Library/Application Support/lime/app-server/config.toml",
+        },
+      },
+      origins: {
+        "desktop.enabled-reasoning-efforts": {
+          name: { type: "mdm", domain: "com.limecloud.lime", key: "k" },
+          version: "1",
+        },
+      },
+    });
+    await mount();
+    const row = container.querySelector<HTMLElement>(
+      '[data-settings-search-target="general-reasoning-efforts"]',
+    )!;
+    expect(row.querySelector<HTMLButtonElement>("button")!.disabled).toBe(true);
+    expect(row.textContent).toContain("此设置由系统管理员管理。");
+  });
+
+  it("gates notification options when the system permission is off", async () => {
+    api.permissions.mockResolvedValue({
+      permissions: [{ id: "notifications", state: "denied" }],
+    });
+    await mount();
+    const system = container.querySelector<HTMLElement>(
+      '[data-settings-search-target="general-system-notifications"]',
+    )!;
+    expect(system.textContent).toContain("通知已关闭");
+    const openSettings = system.querySelector<HTMLButtonElement>("button")!;
+    expect(openSettings.textContent).toContain("打开系统设置");
+    const turn = container.querySelector<HTMLButtonElement>(
+      '[data-settings-search-target="general-turn-notifications"] button',
+    )!;
+    expect(turn.disabled).toBe(true);
+    act(() => openSettings.click());
+    expect(api.openPermission).toHaveBeenCalledWith("notifications");
+  });
+
+  it("keeps notification options enabled when the system permission is granted", async () => {
+    await mount();
+    const system = container.querySelector<HTMLElement>(
+      '[data-settings-search-target="general-system-notifications"]',
+    )!;
+    expect(system.textContent).toContain("系统通知");
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-settings-search-target="general-turn-notifications"] button',
+      )!.disabled,
+    ).toBe(false);
+  });
+
+  it("offers the Codex notification sounds", async () => {
+    await mount();
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-settings-search-target="general-notification-sound"] button',
+    )!;
+    expect(trigger.textContent).toContain("默认");
+    expect(trigger.disabled).toBe(false);
+    await act(async () =>
+      trigger.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      ),
+    );
+    const options = [
+      ...document.querySelectorAll<HTMLElement>("[role=menuitemradio]"),
+    ].map((item) => item.textContent?.trim());
+    expect(options).toEqual([
+      "默认",
+      "经典",
+      "无",
+      "Basso",
+      "Glass",
+      "Ping",
+      "Pop",
+      "Purr",
+      "Tink",
+      "自定义提示音…",
+    ]);
+  });
+
+  it("shows an error when the custom sound cannot be imported", async () => {
+    window.localStorage.removeItem("lime.notifications.custom-sound.v1");
+    api.pickDirectory.mockRejectedValueOnce(new Error("nope"));
+    await mount();
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-settings-search-target="general-notification-sound"] button',
+    )!;
+    await act(async () =>
+      trigger.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      ),
+    );
+    const option = [
+      ...document.querySelectorAll<HTMLElement>("[role=menuitemradio]"),
+    ].find((item) => item.textContent?.trim() === "自定义提示音…")!;
+    expect(option).toBeDefined();
+    await act(async () => option.click());
+    await act(async () => Promise.resolve());
+    expect(container.querySelector("[role=alert]")?.textContent).toContain(
+      "无法导入提示音",
+    );
+  });
+
+  it("shows custom sound actions when a custom sound is stored", async () => {
+    window.localStorage.setItem(
+      "lime.notifications.custom-sound.v1",
+      JSON.stringify({
+        name: "chime.wav",
+        mime: "audio/wav",
+        dataBase64: btoa("abc"),
+        bytes: 3,
+      }),
+    );
+    try {
+      setNotificationPreferences({ sound: "custom" });
+      await mount();
+      const trigger = container.querySelector<HTMLButtonElement>(
+        '[data-settings-search-target="general-notification-sound"] button',
+      )!;
+      expect(trigger.textContent).toContain("chime.wav");
+      await act(async () =>
+        trigger.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+        ),
+      );
+      const options = [
+        ...document.querySelectorAll<HTMLElement>("[role=menuitemradio]"),
+      ].map((item) => item.textContent?.trim());
+      expect(options).toEqual([
+        "默认",
+        "经典",
+        "无",
+        "Basso",
+        "Glass",
+        "Ping",
+        "Pop",
+        "Purr",
+        "Tink",
+        "chime.wav",
+        "试听",
+        "更换自定义提示音…",
+        "移除自定义提示音",
+      ]);
+    } finally {
+      setNotificationPreferences({ sound: "default" });
+      window.localStorage.removeItem("lime.notifications.custom-sound.v1");
+    }
+  });
+
+  it("keeps Codex's general and editor row order", async () => {
+    await mount();
+    const order = [
+      ...container.querySelectorAll<HTMLElement>(
+        "[data-settings-search-target]",
+      ),
+    ].map((node) => node.getAttribute("data-settings-search-target"));
+    // Codex 26.1112 的常规/编辑器行序；平台条件行（菜单栏、防休眠）按存在性参与相对顺序。
+    const expected = [
+      "general-projectless-folder",
+      "general-file-target",
+      "general-language",
+      "general-menu-bar",
+      "general-confirm-before-close",
+      "general-default-full-view",
+      "general-bottom-panel-control",
+      "general-terminal-location",
+      "general-prevent-sleep",
+      "general-auto-archive",
+      "general-compress-history",
+      "general-reasoning-efforts",
+      "general-source-licenses",
+      "general-plugins",
+      "general-plain-text-editor",
+      "general-show-context-usage",
+      "general-enter-behavior",
+      "general-follow-up-behavior",
+      "general-default-standalone-chat",
+    ];
+    const actual = order.filter((id): id is string =>
+      Boolean(id && expected.includes(id)),
+    );
+    expect(actual).toEqual(expected.filter((id) => actual.includes(id)));
+  });
+
+  it("uses Codex's pill choice for terminal location and follow-up behavior", async () => {
+    await mount();
+    const pills = (targetId: string) => [
+      ...container.querySelectorAll<HTMLButtonElement>(
+        `[data-settings-search-target="${targetId}"] [role="group"] button`,
+      ),
+    ];
+
+    const terminal = pills("general-terminal-location");
+    expect(terminal.map((button) => button.textContent)).toEqual([
+      "底部",
+      "右侧",
+    ]);
+    const initialTerminal =
+      getTerminalPanelPreferences().location === "right" ? 1 : 0;
+    expect(terminal[initialTerminal].getAttribute("aria-pressed")).toBe("true");
+    const otherTerminal = initialTerminal === 1 ? 0 : 1;
+    act(() => terminal[otherTerminal].click());
+    await settle();
+    expect(getTerminalPanelPreferences().location).toBe(
+      otherTerminal === 1 ? "right" : "bottom",
+    );
+    expect(terminal[otherTerminal].getAttribute("aria-pressed")).toBe("true");
+    expect(terminal[initialTerminal].getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+
+    const followUp = pills("general-follow-up-behavior");
+    expect(followUp.map((button) => button.textContent)).toEqual([
+      "排队",
+      "引导",
+    ]);
+    const initialFollowUp =
+      getComposerEditorPreferences().followUpMode === "steer" ? 1 : 0;
+    expect(followUp[initialFollowUp].getAttribute("aria-pressed")).toBe("true");
+    const otherFollowUp = initialFollowUp === 1 ? 0 : 1;
+    act(() => followUp[otherFollowUp].click());
+    await settle();
+    expect(getComposerEditorPreferences().followUpMode).toBe(
+      otherFollowUp === 1 ? "steer" : "queue",
+    );
+    expect(followUp[otherFollowUp].getAttribute("aria-pressed")).toBe("true");
   });
 });

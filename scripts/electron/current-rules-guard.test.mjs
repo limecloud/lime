@@ -286,14 +286,15 @@ describe("Electron current repository rules guard", () => {
     expect(content).not.toContain("SC_DISABLE_SPEEDY");
   });
 
-  it("keeps renderer HTML entrypoint covered by the native startup shell", () => {
+  it("keeps renderer loading free of the retired decorative startup shell", () => {
     const content = readFile("index.html");
 
-    expect(content).toContain("data-lime-native-startup");
-    expect(content).toContain("data-lime-startup-shell");
-    expect(content).toContain("data-lime-startup-logo");
-    expect(content).toContain('params.get("nativeStartup") === "1"');
-    expect(content).toContain("index-startup-progress-shift");
-    expect(content).toContain("animation: index-startup-progress-shift");
+    expect(content).toContain('<div id="root"></div>');
+    expect(content).not.toContain("data-lime-startup-shell");
+    expect(content).not.toContain("startup-progress");
+    expect(content).not.toContain("radial-gradient");
+    const main = readFile("electron/main.ts");
+    expect(main).not.toContain("showStartupScreenBeforeRenderer");
+    expect(main).not.toContain("buildMainWindowStartupHtml");
   });
 });

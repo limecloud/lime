@@ -33,8 +33,8 @@ describe("hotkey platform helpers", () => {
 
   it("应按平台格式化快捷键显示", () => {
     expect(formatShortcutTokens("CommandOrControl+Shift+S", "mac")).toEqual([
-      "⌘",
       "⇧",
+      "⌘",
       "S",
     ]);
     expect(

@@ -17,7 +17,7 @@ export const ELECTRON_SMOKE_LAYOUT_VIEWPORTS = [
 ] as const;
 
 export interface ElectronSmokeRouteSnapshot {
-  stage: "startup" | "workbench" | "workbench-reload" | "settings-memory";
+  stage: "workbench" | "workbench-reload" | "settings-memory";
   ready: boolean;
   location: string | null;
   title?: string | null;
@@ -97,6 +97,7 @@ export interface ElectronSmokeDiagnostics {
 
 export interface ElectronSmokeSummaryInput {
   runId: string;
+  initialWindowHidden: boolean;
   startedAt: string;
   completedAt: string;
   appVersion: string;
@@ -186,19 +187,6 @@ export function normalizeElectronSmokeRunId(
   return runId;
 }
 
-export function isElectronSmokeStartupUrl(value: string): boolean {
-  if (value.startsWith("data:text/html")) {
-    return true;
-  }
-  try {
-    return (
-      path.basename(new URL(value).pathname) === "main-window-startup.html"
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function sanitizeElectronSmokeLocation(
   value: string | undefined,
 ): string | null {
@@ -225,7 +213,7 @@ export function buildElectronSmokeSummary(
     input.routes.map((route) => [route.stage, route]),
   );
   const assertionDetails = {
-    startupVisible: routeStages.get("startup")?.ready === true,
+    initialWindowHidden: input.initialWindowHidden === true,
     workbenchReady: routeStages.get("workbench")?.ready === true,
     workbenchReloadReady: routeStages.get("workbench-reload")?.ready === true,
     settingsMemoryReady: routeStages.get("settings-memory")?.ready === true,
@@ -334,7 +322,7 @@ function classifyElectronSmokeFailure(
   failedAssertions: string[],
 ): "harness" | "product" {
   const harnessOnly = new Set([
-    "startupVisible",
+    "initialWindowHidden",
     "traceCaptured",
     "screenshotCaptured",
   ]);

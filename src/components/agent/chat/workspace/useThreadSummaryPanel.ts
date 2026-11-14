@@ -34,6 +34,12 @@ export function useThreadSummaryPanel(threadId: string | null) {
   useEffect(() => {
     setPopoverOpen(false);
   }, [threadId, displayMode]);
+  useEffect(() => {
+    const toggleSummary = () => setPinned(!pinned);
+    window.addEventListener("lime:toggle-summary-panel", toggleSummary);
+    return () =>
+      window.removeEventListener("lime:toggle-summary-panel", toggleSummary);
+  }, [pinned, setPinned]);
   const togglePinned = useCallback(
     () => setPinned(!pinned),
     [setPinned, pinned],

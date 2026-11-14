@@ -828,6 +828,365 @@ fn delete_slash_command_opens_the_confirmation() {
     );
 }
 
+fn open_presets(app: &mut App) {
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/presets".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.presets_menu_open());
+}
+
+#[test]
+fn voice_slash_command_starts_dictation_when_idle() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/voice".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::StartVoiceInput));
+    assert!(!app.voice.is_recording());
+}
+
+#[test]
+fn side_thread_title_uses_the_parent_name_when_known() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .set_status_thread_name("main-thread".to_string(), Some("Roadmap".to_string()));
+    assert_eq!(
+        app.side_thread_title("main-thread"),
+        "Side · Roadmap".to_string()
+    );
+    assert_eq!(
+        app.side_thread_title("unknown"),
+        "Side · unknown".to_string()
+    );
+}
+
+#[test]
+fn side_and_btw_start_and_exit_a_side_conversation() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/side".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app
+        .projection
+        .status()
+        .contains("before the session starts"));
+
+    app.set_thread_id("main-thread".into());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/side what changed?".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::StartSideConversation {
+            prompt: "what changed?".to_string()
+        })
+    );
+
+    app.side_state
+        .open("side-thread".to_string(), "main-thread".to_string());
+    app.set_thread_id("side-thread".into());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/btw".to_string());
+    assert_eq!(
+        app.run_local_command(),
+        Some(AppAction::ExitSideConversation)
+    );
+
+    app.set_thread_id("main-thread".into());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/side".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.projection.status().contains("already open"));
+}
+
+#[test]
+fn worktree_picker_create_and_delete_actions_are_mapped() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .open_worktree_picker(crate::app::worktree_picker::WorktreePicker::new(
+            "/repo".to_string(),
+            vec![crate::app::worktree_picker::WorktreeEntry {
+                path: "/repo/.lime/worktrees/one".to_string(),
+                repository_root: "/repo".to_string(),
+                branch: Some("feature".to_string()),
+                thread_id: None,
+                thread_summary: None,
+            }],
+        ));
+    let name_mode = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(name_mode, AppAction::None);
+    for ch in "next".chars() {
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE)),
+            true,
+        );
+    }
+    let create = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        create,
+        AppAction::CreateWorktree {
+            root_path: "/repo".to_string(),
+            name: "next".to_string()
+        }
+    );
+    assert!(!app.chat_widget.worktree_picker_open());
+
+    app.chat_widget
+        .open_worktree_picker(crate::app::worktree_picker::WorktreePicker::new(
+            "/repo".to_string(),
+            vec![crate::app::worktree_picker::WorktreeEntry {
+                path: "/repo/.lime/worktrees/one".to_string(),
+                repository_root: "/repo".to_string(),
+                branch: None,
+                thread_id: None,
+                thread_summary: None,
+            }],
+        ));
+    let delete_request = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(delete_request, AppAction::None);
+    assert!(app.chat_widget.confirm_prompt_open());
+    let down = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(down, AppAction::None);
+    let delete = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        delete,
+        AppAction::DeleteWorktree {
+            worktree_path: "/repo/.lime/worktrees/one".to_string()
+        }
+    );
+}
+
+#[test]
+fn worktree_command_opens_the_picker_and_enter_enters_the_worktree() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/worktree".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::ListWorktrees));
+
+    app.chat_widget
+        .open_worktree_picker(crate::app::worktree_picker::WorktreePicker::new(
+            "/repo".to_string(),
+            vec![crate::app::worktree_picker::WorktreeEntry {
+                path: "/repo/.lime/worktrees/one".to_string(),
+                repository_root: "/repo".to_string(),
+                branch: Some("feature".to_string()),
+                thread_id: Some("thread-1".to_string()),
+                thread_summary: Some("Active task".to_string()),
+            }],
+        ));
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        enter,
+        AppAction::EnterWorktree {
+            path: "/repo/.lime/worktrees/one".to_string(),
+            thread_id: Some("thread-1".to_string())
+        }
+    );
+    assert!(!app.chat_widget.worktree_picker_open());
+
+    app.chat_widget
+        .open_worktree_picker(crate::app::worktree_picker::WorktreePicker::new(
+            "/repo".to_string(),
+            Vec::new(),
+        ));
+    let cancel = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(cancel, AppAction::None);
+    assert!(!app.chat_widget.worktree_picker_open());
+}
+
+#[test]
+fn presets_menu_recalls_saves_and_deletes_from_the_config() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.tui_config = serde_json::from_value(serde_json::json!({
+        "presets": {
+            "1": {"input": "review the diff", "label": "Review"}
+        }
+    }))
+    .unwrap();
+    open_presets(&mut app);
+    let recall = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        recall,
+        AppAction::InsertComposerText("review the diff".into())
+    );
+    assert!(!app.chat_widget.presets_menu_open());
+
+    open_presets(&mut app);
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+        true,
+    );
+    for ch in "summarize the plan".chars() {
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE)),
+            true,
+        );
+    }
+    let save = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        save,
+        AppAction::SavePreset {
+            slot: "2".to_string(),
+            input: "summarize the plan".to_string()
+        }
+    );
+    assert!(!app.chat_widget.presets_menu_open());
+
+    open_presets(&mut app);
+    let delete = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(
+        delete,
+        AppAction::DeletePreset {
+            slot: "1".to_string()
+        }
+    );
+}
+
+#[test]
+fn presets_label_edit_maps_to_the_config_action() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.chat_widget.tui_config = serde_json::from_value(serde_json::json!({
+        "presets": {
+            "1": {"input": "review the diff", "label": "Review"}
+        }
+    }))
+    .unwrap();
+    open_presets(&mut app);
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE)),
+            true
+        ),
+        AppAction::None
+    );
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true
+        ),
+        AppAction::SetPresetLabel {
+            slot: "1".to_string(),
+            label: "Review".to_string()
+        }
+    );
+    assert!(!app.chat_widget.presets_menu_open());
+}
+
+#[test]
+fn presets_save_prompt_ignores_empty_input_and_keeps_the_menu() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    open_presets(&mut app);
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+            true
+        ),
+        AppAction::None
+    );
+    assert_eq!(
+        app.handle_tui_event(
+            TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            true
+        ),
+        AppAction::None
+    );
+    assert!(app.chat_widget.presets_menu_open());
+}
+
+#[test]
+fn autoreview_requires_a_recent_denial_and_confirms_the_exact_event() {
+    let mut app = App::default();
+    app.set_locale(Locale::EnUs);
+    app.set_thread_id("thread-autoreview".into());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/autoreview".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(!app.chat_widget.confirm_prompt_open());
+    assert!(app
+        .projection
+        .status()
+        .contains("no recent auto-review denial"));
+
+    let notification: app_server_protocol::protocol::v2::ItemGuardianApprovalReviewCompletedNotification =
+        serde_json::from_value(serde_json::json!({
+            "threadId": "thread-autoreview",
+            "turnId": "turn-1",
+            "startedAtMs": 1,
+            "completedAtMs": 2,
+            "reviewId": "review-1",
+            "decisionSource": "agent",
+            "review": {"status": "denied"},
+            "action": {"type": "command", "source": "shell", "command": "rm -rf build", "cwd": "/workspace"}
+        }))
+        .unwrap();
+    assert!(app.guardian_denials.record(&notification));
+
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/autoreview".to_string());
+    assert_eq!(app.run_local_command(), Some(AppAction::None));
+    assert!(app.chat_widget.confirm_prompt_open());
+    let down = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        true,
+    );
+    assert_eq!(down, AppAction::None);
+    let enter = app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        true,
+    );
+    let AppAction::ApproveGuardianRetry(event) = enter else {
+        panic!("expected guardian retry approval, got {enter:?}");
+    };
+    assert_eq!(event["id"], "review-1");
+    assert_eq!(event["status"], "denied");
+    assert_eq!(event["action"]["command"], "rm -rf build");
+}
+
 #[test]
 fn delete_confirmation_maps_enter_to_delete() {
     let mut app = App::default();

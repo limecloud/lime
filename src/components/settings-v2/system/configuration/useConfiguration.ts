@@ -4,7 +4,6 @@ import {
   configLayerFile,
   subscribeAppConfigChanged,
   writeConfigValue,
-  writeReasoningEffortPreferences,
   type AppConfigSnapshot,
 } from "@/lib/api/appConfig";
 import {
@@ -12,7 +11,6 @@ import {
   type ConfigRequirements,
 } from "@/lib/api/configRequirements";
 import { getDefaultProject } from "@/lib/api/project";
-import type { KnownModelReasoningEffort } from "@/lib/model/modelReasoningPolicy";
 import {
   configLayerScope,
   isConfigFieldManaged,
@@ -25,9 +23,8 @@ export type ConfigurationField =
   | "sandbox_workspace_write.network_access"
   | "web_search"
   | "model_verbosity"
-  | "model_reasoning_summary"
-  | "desktop.enabled-reasoning-efforts";
-type FieldValue = string | boolean | KnownModelReasoningEffort[] | null;
+  | "model_reasoning_summary";
+type FieldValue = string | boolean | null;
 interface FailedWrite {
   field: ConfigurationField;
   value: FieldValue;
@@ -123,13 +120,11 @@ export function useConfiguration() {
   }, [scope, snapshot]);
   const selectedLayer =
     layers.find((layer) => configLayerScope(layer) === scope) ??
-    [...layers].reverse().find((layer) => layer.name.type === "project") ??
-    snapshot?.layer;
+    [...layers].reverse().find((layer) => layer.name.type === "user") ??
+    snapshot?.layer ??
+    [...layers].reverse().find((layer) => layer.name.type === "project");
   const selectedFile = selectedLayer ? configLayerFile(selectedLayer) : null;
-  const fieldFile = (field: ConfigurationField) =>
-    field === "desktop.enabled-reasoning-efforts"
-      ? snapshot?.layer.name.file
-      : selectedFile;
+  const fieldFile = (_field: ConfigurationField) => selectedFile;
   const errors: Partial<Record<ConfigurationField, FailedWrite>> = {};
   for (const failure of Object.values(failedWrites)) {
     if (failure && failure.filePath === fieldFile(failure.field))
@@ -150,8 +145,7 @@ export function useConfiguration() {
       writes.current.has(key) ||
       !active.current ||
       readError ||
-      (field !== "desktop.enabled-reasoning-efforts" &&
-        selectedLayer &&
+      (selectedLayer &&
         (isManagedSource(selectedLayer.name) ||
           selectedLayer.disabledReason)) ||
       (snapshot && isConfigFieldManaged(snapshot.origins, field))
@@ -164,22 +158,15 @@ export function useConfiguration() {
     setFailedWrites((current) => ({ ...current, [key]: undefined }));
     try {
       const layer = layers.find((layer) => configLayerFile(layer) === filePath);
-      const next =
-        field === "desktop.enabled-reasoning-efforts"
-          ? await writeReasoningEffortPreferences(
-              value as KnownModelReasoningEffort[],
-            ).then((user) =>
-              cwd.current ? getConfigSnapshot({ cwd: cwd.current }) : user,
-            )
-          : await writeConfigValue({
-              keyPath: field,
-              value,
-              filePath,
-              ...(cwd.current ? { cwd: cwd.current } : {}),
-              ...(layer?.name.type === "project"
-                ? { expectedVersion: layer.version }
-                : {}),
-            });
+      const next = await writeConfigValue({
+        keyPath: field,
+        value,
+        filePath,
+        ...(cwd.current ? { cwd: cwd.current } : {}),
+        ...(layer?.name.type === "project"
+          ? { expectedVersion: layer.version }
+          : {}),
+      });
       if (active.current && generation.current === view) {
         setSnapshot(next);
         setReadError(false);

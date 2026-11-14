@@ -55,6 +55,63 @@ pub(crate) struct PendingRecap {
     pub(crate) assistant_text: String,
 }
 
+impl super::App {
+    /// Shared entry point for manual `/recap` and the idle automatic timer.
+    ///
+    /// Returns whether an ephemeral recap request was started.
+    pub(crate) async fn start_recap(
+        &mut self,
+        session: &crate::app_server_session::AppServerSession,
+        trigger: RecapTrigger,
+    ) -> bool {
+        let locale = self.chat_widget.locale;
+        let automatic = trigger == RecapTrigger::Automatic;
+        if self.projection.active_turn_id().is_some() {
+            if !automatic {
+                self.projection.set_status(locale.recap_wait_for_turn());
+            }
+            return false;
+        }
+        if self.recap.is_pending() {
+            if !automatic {
+                self.projection.set_status(locale.recap_in_progress());
+            }
+            return false;
+        }
+        let history = recap_history(self.projection.entries());
+        if history.is_empty() {
+            if !automatic {
+                self.projection.set_status(locale.recap_empty());
+            }
+            return false;
+        }
+        let model = self.chat_widget.model.clone();
+        let provider = self.chat_widget.model_provider.clone();
+        let cwd = self.cwd.display().to_string();
+        match session
+            .start_recap_request(model, provider, cwd, history)
+            .await
+        {
+            Ok(thread_id) => {
+                self.recap.begin(thread_id, trigger);
+                if !automatic {
+                    self.projection.set_status(locale.recap_generating());
+                }
+                true
+            }
+            Err(error) => {
+                if automatic {
+                    self.recap.schedule_retry(std::time::Instant::now());
+                } else {
+                    self.projection
+                        .set_status(locale.recap_failed_with(&format!("{error:#}")));
+                }
+                false
+            }
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct RecapState {
     pending: Option<PendingRecap>,

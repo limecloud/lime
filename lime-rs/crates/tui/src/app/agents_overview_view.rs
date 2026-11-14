@@ -57,6 +57,8 @@ pub(crate) struct AgentsOverviewRow {
     pub(crate) thread: Thread,
     pub(crate) group: AgentsOverviewGroup,
     pub(crate) is_current: bool,
+    /// Whether App Server currently has this thread loaded in memory (not the same as running).
+    pub(crate) loaded: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

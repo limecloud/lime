@@ -2775,6 +2775,168 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
   artifact lock / 120s 场景超时拖死（构建单次 10m30s），**未完成**；变更仅状态栏渲染，
   建议负载回落后复跑 `npm run smoke:tui-gate-b`。
 
+- **2026-11-13 第一百九十轮（恢复时以线程状态 seed 实时状态）**：
+  1. 恢复/水合线程时直接采信 `ThreadStatus`：`Active{flags}` → 运行中/等待审批/等待输入，
+     不再只依赖通知重放；`hydrate` 先于 thread_id 赋值也生效。
+  2. `ThreadStatusChanged` 与主线程 `TurnCompleted` 同步更新；状态面板与状态栏 Status 使用同一
+     实时状态，`waiting approval` / `waiting input` 五语标签。
+  3. 单测：hydrate 待审批 → `waiting approval`、切换待输入 → `waiting input`、Idle 清理。
+- **验证**：TUI **1991 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**
+  （并行构建 24m13s，版本已由并行改动升至 1.176.0）。
+
+- **2026-11-13 第一百九十一轮（/autoreview 自动审核重试）**：
+  1. 新增 `app/auto_review.rs`：记录当前线程最近的 `ItemAutoApprovalReviewCompleted`
+     拒绝事件（按 reviewId 去重、上限 20），保留可直接回传的 Guardian 事件
+     `{id, status: denied, action}`。
+  2. `/autoreview`（第 44 个命令）无拒绝时提示；有拒绝时用确认弹窗展示具体动作摘要，
+     确认后调用 `thread/approveGuardianDeniedAction`，成功/失败五语提示；切换线程清空。
+  3. 单测覆盖：拒绝事件记录/去重/清理、命令无拒绝路径、确认后回传精确事件。
+  4. gate 重试目录改为保留原场景 basename（`.retryN/<scenario>`），修复终端标题断言
+     因重试目录改名导致的失败。
+- **验证**：TUI **1994 passed**；静态契约 **59**；矩阵三次复跑均因并行构建的
+  artifact lock 饥饿（`Blocking waiting for file lock` → 60s/30min 超时）未进入场景，
+  非产品失败；待负载回落后补跑。
+
+- **2026-11-13 第一百九十二轮（/presets 预设）**：
+  1. 核心配置新增 `tui.presets: BTreeMap<String, QuickDial{input,label}>`（默认空、不写盘）；
+      `LocalSettings` 读取后随 `tui_config` 进入 TUI。
+  2. `/presets`（第 45 个命令）打开编号预设菜单（槽位 1–9、0）：Enter 载入草稿（插入输入框），
+     `n` 把当前草稿保存到第一个空槽，`d` 删除选中槽，Esc/Ctrl-C 关闭；五语文案。
+  3. 保存写 `tui.presets.<slot>`（Replace），删除重写整个 `tui.presets` 映射；复用
+     `apply_tui_preferences` 即时刷新配置。
+  4. 单测：菜单 recall/save/delete、空草稿拒绝、首空槽计算、命令注册表。
+- **验证**：TUI **1999 passed**；lime-core **541 passed**；静态契约 **59**；
+  **全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百九十三轮（自动 recap 空闲定时）**：
+  1. 抽出 `App::start_recap` 作为手动/自动共用入口（守卫、历史、状态、ephemeral 请求、失败重试）。
+  2. runtime 增加 60s `recap_tick`：`auto_recap` 开启且满足失焦 30 分钟/回合间隔时，即使无人操作
+     也生成 recap；返回终端时摘要已就绪，与上游“离开期间准备”语义一致。
+  3. `/recap` 手动路径复用同一入口，行为不变。
+- **验证**：TUI **1999 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百九十四轮（/worktree 工作树）**：
+  1. 接入 v0 `projectGit/worktree/list`：`/worktree`（第 46 个命令）读取托管 worktree 清单，
+     弹窗展示分支/path/关联线程；Enter 优先继续 active > pinned > 未归档线程，
+     无关联线程时以该 worktree 为 cwd 新建线程。
+  2. 五语文案与错误提示；列表/进入/取消失败均落状态栏。
+  3. 单测：命令分发、picker Enter/Cancel、入口构造。
+  4. 说明：创建/删除 worktree 的 v0 协议已存在但本轮未接 UI（需产品语义确认）；
+     清单依赖 App Server 的项目 git 配置。
+- **验证**：TUI **2002 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百九十五轮（Agent Center 已加载状态）**：
+  1. `thread/loaded/list` 与 `thread/list` 合并：刷新时拉取已加载集合，行上携带 `loaded`
+     标记；详情面板显示「已加载 / 未加载」，与运行状态（Working/Ready/Finished）区分开。
+  2. 通知同步：`ThreadStarted`/`Active`/`Idle` 标记加载，`ThreadClosed`/`Archived`/`Deleted`/
+     `NotLoaded` 清除；loaded 列表失败不影响 `thread/list` 刷新。
+  3. 单测：loaded 行标记独立于运行状态、状态集合的增删。
+- **验证**：TUI **2003 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百九十六轮（Worktree 创建/删除）**：
+  1. `/worktree` picker 扩展：`n` 输入名称创建（`projectGit/worktree/create`，root 取清单返回的
+     repository root），创建成功后进入新 worktree 并新建线程；`d` 确认后删除
+     （`projectGit/worktree/delete`，服务端归档关联线程）；`r` 重新拉取清单。
+  2. 名称输入复用 `CustomPromptView` 渲染；Enter/Esc 在 picker 层直接处理，避免粘贴突发
+     把 Enter 当换行。
+  3. 五语文案与确认弹窗（确认后执行、失败落状态栏）；单测覆盖创建/删除/刷新与名称输入。
+- **验证**：TUI **2007 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百九十七轮（侧会话里程碑一）**：
+  1. 新增 `app/side.rs`：记录 side thread → parent 映射（内存态，单父单侧）。
+  2. `/side`、`/btw`（第 47/48 个命令）：主线程内 fork 出侧线程并切换；带参数时在侧线程
+     直接提交该消息；在侧线程内再次执行则返回父线程并 `thread/unsubscribe` 清理；
+     已有侧会话时拒绝新开；活动回合中拒绝开启。
+  3. 五语状态与错误提示；单测覆盖映射增删、三种分发分支。
+  4. 限制：暂无上游的并排侧栏/焦点切换/保留策略，重启后侧关系丢失（fork 仍可见）；
+     属于里程碑一，后续可在此基础上加并排展示。
+- **验证**：TUI **2009 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百九十八轮（侧会话页脚标识）**：
+  1. FooterProps 新增 `side_context_label`：处于侧线程时右侧以强调色显示「Side · 父线程」
+     （父线程优先显示名称，否则显示 ID），与 shell 模式互斥且优先。
+  2. `App::side_context_label` 从 side 映射与线程名派生；view 统一注入。
+  3. 单测：侧线程显示标签、返回父线程后消失。
+- **验证**：TUI **2010 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第一百九十九轮（侧会话关系持久化）**：
+  1. 核心配置新增 `tui.side_threads: BTreeMap<side, parent>`（默认空、不写盘）；
+     启动时由 `LocalSettings` 读入并加载到 `SideState`。
+  2. 开启/返回侧会话后整表写入 `tui.side_threads`（Replace），保证配置与内存映射一致；
+     重启后页脚标识与 `/side` 返回目标仍可用。
+  3. 单测：映射 load/export 往返、TuiConfig YAML/JSON 往返（含 presets）。
+- **验证**：TUI **2011 passed**；lime-core **542 passed**；静态契约 **59**；
+  **全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第二百轮（Presets 标签编辑）**：
+  1. `/presets` 菜单新增 `e`：编辑选中槽位标签（`CustomPromptView` 预填当前标签）；
+     Enter 保存、Esc 返回；标签留空则回退显示输入内容。
+  2. 写 `tui.presets.<slot>`：保留 input，label 为空时移除标签；复用 `apply_tui_preferences`。
+  3. 五语文案；菜单与 App 分发单测。
+- **验证**：TUI **2013 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第二百零一轮（侧会话父线程状态）**：
+  1. `AgentNavigationState` 增加 active flags 跟踪与 `note_thread_status`：Active/Idle/SystemError/
+     NotLoaded 同时更新 liveness 与 waiting 标记（ThreadStatusChanged 统一走该入口）。
+  2. 侧会话页脚标识追加父线程状态：`Side · <parent> · working/needs input/needs approval`；
+     waiting 标记优先于普通运行态。
+  3. 单测：标记优先级与清除；页脚渲染断言。
+- **验证**：TUI **2014 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第二百零二轮（侧线程命名 + 平台验证评估）**：
+  1. 开启侧会话时调用 `thread/name/set` 命名为「Side · 父线程」，并同步本地线程名，
+     便于恢复列表/Agent Center 识别；`App::side_thread_title` 单测覆盖名称与 ID 回退。
+  2. 平台验证评估：本机 Docker 可用，但可用磁盘仅 ~16Gi、容器无 Rust 工具链，
+     全量 workspace 构建 + Linux v8 制品不可行为本机完成 Linux 实机验证；
+     Windows 仍缺 SDK。结论记录，避免重复尝试。
+- **验证**：TUI **2015 passed**；静态契约 **59**；**全量矩阵 exit 0（50 场景、38 标记）**。
+
+- **2026-11-13 第二百零三轮（侧会话关闭语义 + PTY 覆盖）**：
+  1. 返回父线程前先中断侧线程的活动回合（`turn/interrupt`），再 resume 父线程与
+     `thread/unsubscribe` 侧线程，对齐上游关闭顺序。
+  2. 新增 `side-command` PTY 场景：`/side` 启动后等待页脚「Side·」标记，再次 `/side`
+     返回；返回以终端标题恢复为稳定证据（状态行会被光标移动拆字）。
+  3. gate 默认场景 51、期望标记 39；turnScenarios 排除与静态契约同步。
+- **验证**：TUI **2015 passed**；静态契约 **59**；**全量矩阵 exit 0（51 场景、39 标记）**。
+
+- **2026-11-13 第二百零四轮（预设保存交互修复）**：
+  1. 发现保存流程不可用：打开 `/presets` 时输入框内容已被命令本身替换，`n` 读取到的是
+     `/presets`。改为 `n` 弹出「保存预设输入」提示（CustomPromptView），Enter 保存、
+     空输入不提交、Esc 返回。
+  2. 菜单 action 改为携带输入文本；交互层只负责挑选首个空槽，不再读 composer 草稿。
+  3. 单测改为输入提示路径；移除失效的「空草稿」状态文案。
+  4. 侧会话并排面板评估：需要第二份 projection 与分栏渲染/焦点路由，属大改；
+     本轮不动，已记录为里程碑二。
+- **验证**：TUI **2015 passed**；静态契约 **59**；**全量矩阵 exit 0（51 场景、39 标记）**。
+
+- **2026-11-13 第二百零五轮（对齐边界收口）**：
+  - 已验证可达的 TUI 对齐项全部落地：45+ 命令/交互、recap、presets、worktree、autoreview、
+    侧会话里程碑一、状态栏/agent center/子代理回填、品牌收口、51 场景 Gate B。
+  - 剩余项均需要当前会话不具备的基础设施，逐项登记：
+    1. **侧会话并排面板**：需要第二份实时 projection、分栏布局与焦点路由（上游 sidebar/side pane
+       子系统），属架构级改造；当前仅 fork + 返回 + 状态/持久化，无并排展示。
+    2. **Voice**：上游是实时语音会话；Lime 仅有 `voice-core`（cpal 录音）+ v0
+       `voiceTranscription/transcribeAudio` 的听写能力，没有 realtime 语音链路；需要产品语义
+       决策与音频权限/设备基础设施，TUI 未接入。
+    3. **Windows/Linux 实机验证**：本机无 Windows SDK；Docker 可用但磁盘仅 ~16Gi、容器无 Rust
+       工具链与 Linux v8 制品，无法完成实机构建/运行。
+  - 以上阻塞自第 12 轮起持续存在，短期无会话内可解除路径；继续零散修补不再推进目标边界。
+  - 当前基线：TUI **2015**、core **542**、CLI **8**、静态契约 **59**、全量矩阵
+    **51 场景 / 39 标记**、版本一致性 1.176.0。
+
+- **2026-11-14 第二百零六轮（语音输入 + 侧会话并排首版）**：
+  1. `/voice`（第 49 个命令）：使用 `voice-core` 录制 macOS 默认输入设备；再次执行停止，
+     WAV 经 base64 交给 v0 `voiceTranscription/transcribeAudio`，结果插入输入框光标处；
+     五语状态（录音/转写/完成/空结果/失败）。录音线程由 `RecordingService` 托管，避免阻塞 UI。
+  2. macOS 权限与默认设备由终端宿主掌握：用户需在系统设置中授权终端应用麦克风并选择默认输入；
+     ASR provider 仍需在 Lime 语音设置中配置默认凭证/模型。
+  3. 侧会话并排首版：进入侧会话时快照父线程 transcript；页面在宽终端（≥72 列）左侧渲染
+     「主对话（快照）」，右侧渲染实时侧线程，底部输入/页脚保持单份；退出侧会话清除快照。
+     父线程为静态快照（非实时），焦点切换/分栏拖动尚未实现。
+  4. 说明：craft-anything 面向已构建产物的调查，本任务有完整源码，按准则直接读源码；
+     未使用该工具。
+- **验证**：TUI **2019 passed**；静态契约 **59**；矩阵本轮复跑中（新增 voice-core 依赖使构建变长）。
+
 - **下一刀（按收益/风险排序）**：
   1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
      替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、

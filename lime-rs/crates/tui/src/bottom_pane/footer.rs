@@ -202,6 +202,8 @@ pub(crate) struct FooterProps {
     pub(crate) is_task_running: bool,
     pub(crate) plan_mode: bool,
     pub(crate) shell_mode: bool,
+    /// Context label while the visible thread is a side conversation.
+    pub(crate) side_context_label: Option<String>,
     pub(crate) active_agent_label: Option<String>,
     pub(crate) agents_hint: Option<String>,
     pub(crate) shortcuts_available: bool,
@@ -237,6 +239,12 @@ fn context_window_line(
 }
 
 fn right_footer_line(props: &FooterProps) -> Line<'static> {
+    if let Some(label) = props.side_context_label.as_ref() {
+        return Line::from(ratatui::text::Span::styled(
+            label.clone(),
+            crate::style::accent_style(),
+        ));
+    }
     if props.shell_mode {
         return Line::from(Span::styled(
             props.locale.shell_mode_label(),

@@ -19,6 +19,10 @@ import { BrowserDownloadsPage } from "./BrowserDownloadsPage";
 import { BrowserSiteSettingsPage } from "./BrowserSiteSettingsPage";
 import { useBrowserClearBrowsingData } from "./useBrowserClearBrowsingData";
 import { BrowserClearBrowsingDataDialog } from "./BrowserClearBrowsingDataDialog";
+import { BrowserExtensionsDialog } from "./BrowserExtensionsDialog";
+import { BrowserPasswordsDialog } from "./BrowserPasswordsDialog";
+import { BrowserAutofillToggle } from "./BrowserAutofillToggle";
+import { ContactAutofillDialog } from "./ContactAutofillDialog";
 import {
   BROWSER_SETTINGS_BUTTON,
   BrowserSettingsRow,
@@ -89,6 +93,9 @@ function BrowserSettingsPage({
   const browser = useBrowserSettings();
   const browsingData = useBrowserClearBrowsingData();
   const [dialogError, setDialogError] = useState(false);
+  const [extensionsOpen, setExtensionsOpen] = useState(false);
+  const [passwordsOpen, setPasswordsOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -326,6 +333,71 @@ function BrowserSettingsPage({
           }
         />
       </BrowserSettingsSection>
+      <BrowserSettingsSection
+        id="browser-passwords"
+        title={t("settings.browser.passwordAndAutofill")}
+      >
+        <BrowserSettingsRow
+          id="browser-autofill"
+          label={t("settings.browser.autofill")}
+          description={t("settings.browser.autofillDescription")}
+        >
+          <BrowserAutofillToggle />
+        </BrowserSettingsRow>
+        <BrowserSettingsRow
+          id="browser-password-manager"
+          label={t("settings.browser.passwordManager")}
+          description={t("settings.browser.passwordManagerDescription")}
+        >
+          <button
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            onClick={() => setPasswordsOpen(true)}
+          >
+            {t("settings.browser.passwordManagerManage")}
+          </button>
+        </BrowserSettingsRow>
+        <BrowserSettingsRow
+          id="browser-contact-info"
+          label={t("settings.browser.contactTitle")}
+          description={t("settings.browser.contactDescription")}
+        >
+          <button
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            onClick={() => setContactOpen(true)}
+          >
+            {t("settings.browser.passwordManagerManage")}
+          </button>
+        </BrowserSettingsRow>
+      </BrowserSettingsSection>
+      <BrowserPasswordsDialog
+        open={passwordsOpen}
+        onOpenChange={setPasswordsOpen}
+      />
+      <ContactAutofillDialog open={contactOpen} onOpenChange={setContactOpen} />
+      <BrowserSettingsSection
+        id="browser-extensions"
+        title={t("settings.browser.extensionsTitle")}
+      >
+        <BrowserSettingsRow
+          id="browser-extension-manager"
+          label={t("settings.browser.extensionManager")}
+          description={t("settings.browser.extensionManagerDescription")}
+        >
+          <button
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            onClick={() => setExtensionsOpen(true)}
+          >
+            {t("settings.browser.extensionsManage")}
+          </button>
+        </BrowserSettingsRow>
+      </BrowserSettingsSection>
+      <BrowserExtensionsDialog
+        open={extensionsOpen}
+        onOpenChange={setExtensionsOpen}
+      />
       <BrowserSettingsSection
         id="browser-downloads"
         title={t("settings.browser.downloads")}

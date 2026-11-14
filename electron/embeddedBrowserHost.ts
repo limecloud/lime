@@ -1,6 +1,10 @@
 import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { EmbeddedBrowserSiteAudio } from "./embeddedBrowserSiteAudio";
+import {
+  EMBEDDED_BROWSER_PARTITION,
+  openEmbeddedBrowserSession,
+} from "./embeddedBrowserSession";
 import { allowsEmbeddedBrowserImage } from "./embeddedBrowserImages";
 import {
   effectiveBrowserSettings,
@@ -35,12 +39,7 @@ import {
   sanitizeDownloadFilename,
   classifyLoadFailure,
 } from "./embeddedBrowserState";
-import {
-  app,
-  session,
-  WebContentsView,
-  type BrowserWindow,
-} from "./electronRuntime";
+import { app, WebContentsView, type BrowserWindow } from "./electronRuntime";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
@@ -186,7 +185,6 @@ export interface EmbeddedBrowserNativeView {
   containerBounds: BrowserDeviceBounds;
 }
 
-const EMBEDDED_BROWSER_PARTITION = "persist:embedded-browser";
 const EMBEDDED_BROWSER_ACCEPT_LANGUAGES = "zh-CN,zh,en-US,en";
 
 export function isEmbeddedBrowserCommand(
@@ -1179,9 +1177,7 @@ function configureEmbeddedBrowserSession(): {
   embeddedSession: ElectronSession;
   userAgent: string;
 } {
-  const embeddedSession = session.fromPartition(EMBEDDED_BROWSER_PARTITION, {
-    cache: true,
-  });
+  const embeddedSession = openEmbeddedBrowserSession();
   const userAgent = normalizeEmbeddedBrowserUserAgent(
     embeddedSession.getUserAgent(),
   );

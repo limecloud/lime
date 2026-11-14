@@ -249,8 +249,8 @@ describe("current settings search projection", () => {
         ),
       ).toContainEqual(
         expect.objectContaining({
-          section: SettingsTabs.Configuration,
-          targetId: "configuration-scope",
+          section: SettingsTabs.General,
+          targetId: "general-reasoning-efforts",
         }),
       );
       for (const field of [
@@ -456,5 +456,31 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
       true,
     );
     expect(searchSettings("fixture-secret-mcp-token", groups, t)).toEqual([]);
+  },
+);
+
+it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+  "%s finds application connections as a separate Connections target",
+  (locale) => {
+    const { t, groups } = localize(locale);
+    expect(
+      searchSettings(t("settings.connections.external.title"), groups, t),
+    ).toContainEqual(
+      expect.objectContaining({
+        section: SettingsTabs.Connections,
+        targetId: "connections-grants",
+      }),
+    );
+    expect(
+      searchSettings(t("settings.connections.description"), groups, t),
+    ).toContainEqual(
+      expect.objectContaining({
+        section: SettingsTabs.Connections,
+        targetId: "connections-ssh",
+      }),
+    );
+    expect(
+      isSettingsSearchTarget(SettingsTabs.Connections, "connections-grants"),
+    ).toBe(true);
   },
 );

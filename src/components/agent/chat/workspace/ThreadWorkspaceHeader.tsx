@@ -152,12 +152,14 @@ export function ThreadWorkspaceHeader({
         requestSessionPinToggle(sessionId);
       } else if (action === "archive" && onArchive) {
         void onArchive();
+      } else if (action === "fork" && onFork) {
+        void onFork();
       }
     };
     window.addEventListener("lime:thread-shortcut", handleThreadShortcut);
     return () =>
       window.removeEventListener("lime:thread-shortcut", handleThreadShortcut);
-  }, [onArchive, onRename, startRename, sessionId]);
+  }, [onArchive, onFork, onRename, startRename, sessionId]);
 
   const commitRename = (edit: typeof activeTitleEdit) => {
     if (

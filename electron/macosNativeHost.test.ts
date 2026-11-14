@@ -120,6 +120,22 @@ afterEach(() => {
 });
 
 describe("MacOSNativeHostClient", () => {
+  it("释放后拒绝迟到的查询，不重新启动原生子进程", async () => {
+    const { client } = createClient(`
+      require("node:readline").createInterface({ input: process.stdin }).on("line", (line) => {
+        const request = JSON.parse(line);
+        process.stdout.write(JSON.stringify({ id: request.id, ok: true, result: "ready" }) + "\\n");
+      });
+    `);
+    try {
+      await expect(client.invoke({ method: "accessibility.read" })).resolves.toBe("ready");
+      client.dispose();
+      await expect(client.invoke({ method: "accessibility.read" })).rejects.toMatchObject({ code: "stopped" });
+    } finally {
+      client.dispose();
+    }
+  });
+
   it("匹配并发 JSONL 响应且允许响应乱序返回", async () => {
     const { client } = createClient(`
       const readline = require("node:readline");

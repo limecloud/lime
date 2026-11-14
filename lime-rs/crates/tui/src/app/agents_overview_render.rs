@@ -29,6 +29,11 @@ pub(super) fn render_details(
             width,
         ),
         Line::from(vec![dot, " ".into(), status.into()]),
+        Line::from(
+            locale
+                .agent_center_label(if task.loaded { "Loaded" } else { "Not loaded" })
+                .dim(),
+        ),
         Line::default(),
         Line::from(locale.agent_center_label("Project").dim()),
         Line::from(task.thread.cwd.display().to_string()),
@@ -120,6 +125,7 @@ mod tests {
             },
             group: AgentsOverviewGroup::Ready,
             is_current: false,
+            loaded: false,
         }
     }
 

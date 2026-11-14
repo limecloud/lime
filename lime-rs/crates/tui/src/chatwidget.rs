@@ -129,6 +129,8 @@ pub(crate) struct ChatWidget {
     pub(crate) hooks_browser: Option<crate::app::hooks_browser::HooksBrowser>,
     pub(crate) process_list: Option<crate::app::process_list::ProcessList>,
     pub(crate) shell_mode: bool,
+    pub(crate) presets_menu: Option<crate::app::presets_menu::PresetsMenu>,
+    pub(crate) worktree_picker: Option<crate::app::worktree_picker::WorktreePicker>,
     pub(crate) memory_mode: Option<bool>,
     pub(crate) agent_picker: Option<AgentPicker>,
     pub(crate) resume_picker: Option<PickerState>,

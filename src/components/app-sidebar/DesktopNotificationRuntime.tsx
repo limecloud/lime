@@ -3,6 +3,11 @@ import { useTranslation } from "react-i18next";
 import { subscribeAppServerNotifications } from "@/lib/api/appServerEventBus";
 import { showDesktopNotification } from "@/lib/api/desktopNotification";
 import { getNotificationPreferences } from "@/lib/notificationPreferences";
+import {
+  playClassicNotificationSound,
+  playCustomNotificationSound,
+  resolveNotificationSound,
+} from "@/lib/notificationSound";
 
 function readTurnCompletion(params: unknown) {
   if (!params || typeof params !== "object") return null;
@@ -26,10 +31,13 @@ export function DesktopNotificationRuntime() {
       if (!method) return;
       if (typeof document !== "undefined" && document.hasFocus()) return;
       const preferences = getNotificationPreferences();
-      if (
-        method.endsWith("requestApproval") &&
-        preferences.permissions
-      ) {
+      const sound = resolveNotificationSound(preferences.sound);
+      const playCustom = () => {
+        if (sound.playCustom) playCustomNotificationSound();
+        if (sound.playClassic) playClassicNotificationSound();
+      };
+      if (method.endsWith("requestApproval") && preferences.permissions) {
+        playCustom();
         void showDesktopNotification({
           title: t("notifications.permission.title", {
             defaultValue: "Lime",
@@ -37,13 +45,14 @@ export function DesktopNotificationRuntime() {
           body: t("notifications.permission.body", {
             defaultValue: "需要你的批准",
           }),
-          silent: !preferences.sound,
+          ...sound.request,
           tag: `lime-permission:${method}`,
         }).catch(() => undefined);
       } else if (
         method === "item/tool/requestUserInput" &&
         preferences.questions
       ) {
+        playCustom();
         void showDesktopNotification({
           title: t("notifications.question.title", {
             defaultValue: "Lime",
@@ -51,7 +60,7 @@ export function DesktopNotificationRuntime() {
           body: t("notifications.question.body", {
             defaultValue: "需要你的回答",
           }),
-          silent: !preferences.sound,
+          ...sound.request,
           tag: "lime-question",
         }).catch(() => undefined);
       }
@@ -78,6 +87,9 @@ export function DesktopNotificationRuntime() {
           ) {
             continue;
           }
+          const sound = resolveNotificationSound(preferences.sound);
+          if (sound.playCustom) playCustomNotificationSound();
+          if (sound.playClassic) playClassicNotificationSound();
           void showDesktopNotification({
             title: t("notifications.turnComplete.title", {
               defaultValue: "Lime",
@@ -85,7 +97,7 @@ export function DesktopNotificationRuntime() {
             body: t("notifications.turnComplete.body", {
               defaultValue: "任务已完成",
             }),
-            silent: !preferences.sound,
+            ...sound.request,
             tag: `lime-turn:${identity}`,
           }).catch(() => undefined);
         }

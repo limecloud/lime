@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use app_server_client::AppServerEvent;
+use base64::Engine as _;
 use futures::StreamExt;
 
 use crate::app::event_dispatch::{EventContext, EventDispatch};
@@ -34,6 +35,19 @@ use history::{
     clear_history_page_error, complete_history_load, current_transcript_page_size,
     fail_history_load, history_top_up_needed,
 };
+
+async fn persist_side_threads(app: &mut crate::app::App, session: &AppServerSession) {
+    let mappings = match serde_json::to_value(app.side_state.mappings()) {
+        Ok(value) => value,
+        Err(_) => return,
+    };
+    let edit = app_server_protocol::protocol::v2::ConfigEdit {
+        key_path: "tui.side_threads".to_string(),
+        value: mappings,
+        merge_strategy: app_server_protocol::protocol::v2::MergeStrategy::Replace,
+    };
+    let _ = app.apply_tui_preferences(session, vec![edit]).await;
+}
 
 pub async fn run_tui(options: TuiOptions) -> Result<()> {
     let (app_event_tx, mut app_event_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -67,6 +81,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     frame_requester.schedule_frame();
     let mut status_tick = tokio::time::interval(Duration::from_secs(1));
     status_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut recap_tick = tokio::time::interval(Duration::from_secs(60));
+    recap_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let run_result: Result<()> = async {
         let mut resume_picker_load_tx: Option<tokio::sync::mpsc::UnboundedSender<PickerLoadEvent>> =
             None;
@@ -339,6 +355,20 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                 }
                 _ = status_tick.tick(), if app.projection.active_turn_id().is_some() => {
                     frame_requester.schedule_frame();
+                }
+                _ = recap_tick.tick(), if app.chat_widget.tui_config.auto_recap => {
+                    let due = app.projection.active_turn_id().is_none()
+                        && !app.recap.is_pending()
+                        && app.recap.should_generate(std::time::Instant::now());
+                    if due {
+                        if let Some(session_ref) = session.as_ref() {
+                            app.start_recap(
+                                session_ref,
+                                crate::app::recap::RecapTrigger::Automatic,
+                            )
+                            .await;
+                        }
+                    }
                 }
                 event = input.next() => {
                     let Some(event) = event else { break };
@@ -1779,58 +1809,402 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 ),
                             }
                         }
-                        AppAction::GenerateRecap(trigger) => {
+                        AppAction::ListWorktrees => {
                             let locale = app.chat_widget.locale;
-                            let automatic = trigger == crate::app::recap::RecapTrigger::Automatic;
-                            if app.projection.active_turn_id().is_some() {
-                                if !automatic {
-                                    app.projection.set_status(locale.recap_wait_for_turn());
-                                }
-                                continue;
-                            }
-                            if app.recap.is_pending() {
-                                if !automatic {
-                                    app.projection.set_status(locale.recap_in_progress());
-                                }
-                                continue;
-                            }
-                            let history =
-                                crate::app::recap::recap_history(app.projection.entries());
-                            if history.is_empty() {
-                                if !automatic {
-                                    app.projection.set_status(locale.recap_empty());
-                                }
-                                continue;
-                            }
                             let Some(session_ref) = session.as_ref() else {
-                                if !automatic {
-                                    app.projection.set_status(locale.recap_failed());
-                                }
+                                app.projection
+                                    .set_status(locale.worktree_unavailable("session unavailable"));
                                 continue;
                             };
-                            let model = app.chat_widget.model.clone();
-                            let provider = app.chat_widget.model_provider.clone();
-                            let cwd = app.cwd.display().to_string();
-                            match session_ref
-                                .start_recap_request(model, provider, cwd, history)
-                                .await
-                            {
-                                Ok(thread_id) => {
-                                    app.recap.begin(thread_id, trigger);
-                                    if !automatic {
-                                        app.projection.set_status(locale.recap_generating());
-                                    }
-                                }
-                                Err(error) => {
-                                    if automatic {
-                                        app.recap.schedule_retry(std::time::Instant::now());
+                            match session_ref.worktree_list().await {
+                                Ok(response) => {
+                                    if response.worktrees.is_empty() {
+                                        app.projection.set_status(locale.worktree_empty());
                                     } else {
-                                        app.projection.set_status(
-                                            locale.recap_failed_with(&format!("{error:#}")),
+                                        let entries = response
+                                            .worktrees
+                                            .iter()
+                                            .map(|worktree| {
+                                                let thread = worktree
+                                                    .threads
+                                                    .iter()
+                                                    .find(|thread| thread.active)
+                                                    .or_else(|| {
+                                                        worktree
+                                                            .threads
+                                                            .iter()
+                                                            .find(|thread| thread.pinned)
+                                                    })
+                                                    .or_else(|| {
+                                                        worktree
+                                                            .threads
+                                                            .iter()
+                                                            .find(|thread| !thread.archived)
+                                                    });
+                                                let thread_summary = (!worktree.threads.is_empty()).then(|| {
+                                                    worktree
+                                                        .threads
+                                                        .iter()
+                                                        .take(2)
+                                                        .map(|thread| thread.name.clone())
+                                                        .collect::<Vec<_>>()
+                                                        .join(" · ")
+                                                });
+                                                crate::app::worktree_picker::WorktreeEntry {
+                                                    path: worktree.worktree_path.clone(),
+                                                    repository_root: worktree.repository_root.clone(),
+                                                    branch: worktree.branch.clone(),
+                                                    thread_id: thread.map(|thread| thread.thread_id.clone()),
+                                                    thread_summary,
+                                                }
+                                            })
+                                            .collect();
+                                        app.chat_widget.open_worktree_picker(
+                                            crate::app::worktree_picker::WorktreePicker::new(
+                                                response.root_path,
+                                                entries,
+                                            ),
                                         );
                                     }
                                 }
+                                Err(error) => app.projection.set_status(
+                                    locale.worktree_unavailable(&format!("{error:#}")),
+                                ),
                             }
+                        }
+                        AppAction::StartSideConversation { prompt } => {
+                            let locale = app.chat_widget.locale;
+                            if app.projection.active_turn_id().is_some() {
+                                app.projection.set_status(locale.side_wait_for_turn());
+                                continue;
+                            }
+                            let Some(session_ref) = session.as_mut() else {
+                                app.projection
+                                    .set_status(locale.side_failed("session unavailable"));
+                                continue;
+                            };
+                            let Some(parent_thread_id) = app.thread_id.clone() else {
+                                app.projection.set_status(locale.side_unavailable());
+                                continue;
+                            };
+                            let parent_snapshot = crate::app::side::SideParentSnapshot {
+                                title: app.thread_display_name(&parent_thread_id),
+                                entries: app.projection.entries().to_vec(),
+                            };
+                            match app.fork_current_thread(session_ref).await {
+                                Ok(()) => {
+                                    let parent_title =
+                                        app.side_thread_title(&parent_thread_id);
+                                    if let Some(side_thread_id) = app.thread_id.clone() {
+                                        app.side_state
+                                            .open(side_thread_id.clone(), parent_thread_id);
+                                        let _ = session_ref
+                                            .thread_set_name(
+                                                side_thread_id.clone(),
+                                                parent_title.clone(),
+                                            )
+                                            .await;
+                                        app.chat_widget.set_status_thread_name(
+                                            side_thread_id,
+                                            Some(parent_title),
+                                        );
+                                    }
+                                    app.side_state.set_parent_snapshot(parent_snapshot);
+                                    persist_side_threads(&mut app, session_ref).await;
+                                    app.projection.set_status(locale.side_started());
+                                    if !prompt.is_empty() {
+                                        input_submission::handle_submission(
+                                            &mut app,
+                                            session_ref,
+                                            prompt,
+                                            Vec::new(),
+                                            false,
+                                        )
+                                        .await;
+                                    }
+                                }
+                                Err(error) => app.projection.set_status(
+                                    locale.side_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::ExitSideConversation => {
+                            let locale = app.chat_widget.locale;
+                            let Some(side_thread_id) = app.thread_id.clone() else {
+                                continue;
+                            };
+                            let Some(parent_thread_id) = app.side_state.close(&side_thread_id)
+                            else {
+                                continue;
+                            };
+                            let side_turn_id = app.projection.active_turn_id().map(str::to_string);
+                            let Some(session_ref) = session.as_mut() else {
+                                app.side_state
+                                    .open(side_thread_id, parent_thread_id);
+                                app.projection
+                                    .set_status(locale.side_failed("session unavailable"));
+                                continue;
+                            };
+                            if let Some(turn_id) = side_turn_id.as_deref() {
+                                let _ = session_ref.interrupt(turn_id).await;
+                            }
+                            match app
+                                .resume_target_session(
+                                    session_ref,
+                                    parent_thread_id.clone(),
+                                    &options,
+                                )
+                                .await
+                            {
+                                Ok(()) => {
+                                    let _ = session_ref
+                                        .thread_unsubscribe(side_thread_id)
+                                        .await;
+                                    persist_side_threads(&mut app, session_ref).await;
+                                    app.projection.set_status(locale.side_returned());
+                                }
+                                Err(error) => {
+                                    app.side_state
+                                        .open(side_thread_id, parent_thread_id);
+                                    app.projection.set_status(
+                                        locale.side_failed(&format!("{error:#}")),
+                                    );
+                                }
+                            }
+                        }
+                        AppAction::StartVoiceInput => {
+                            let locale = app.chat_widget.locale;
+                            match app.voice.start() {
+                                Ok(()) => app.projection.set_status(locale.voice_listening()),
+                                Err(error) => app
+                                    .projection
+                                    .set_status(locale.voice_failed(&error)),
+                            }
+                        }
+                        AppAction::StopVoiceInput => {
+                            let locale = app.chat_widget.locale;
+                            let audio = match app.voice.stop() {
+                                Ok(audio) => audio,
+                                Err(error) => {
+                                    app.projection.set_status(locale.voice_failed(&error));
+                                    continue;
+                                }
+                            };
+                            app.projection.set_status(locale.voice_transcribing());
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.voice_failed("session unavailable"));
+                                continue;
+                            };
+                            let wav = audio.to_wav_bytes();
+                            let encoded = base64::engine::general_purpose::STANDARD.encode(wav);
+                            match session_ref
+                                .transcribe_audio(encoded, "audio/wav".to_string())
+                                .await
+                            {
+                                Ok(response) => {
+                                    let text = response.text.trim().to_string();
+                                    if text.is_empty() {
+                                        app.projection.set_status(locale.voice_empty());
+                                    } else {
+                                        app.chat_widget.bottom_pane.insert_str(&text);
+                                        app.projection.set_status(locale.voice_transcribed());
+                                    }
+                                }
+                                Err(error) => app.projection.set_status(
+                                    locale.voice_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::CreateWorktree { root_path, name } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_mut() else {
+                                app.projection.set_status(
+                                    locale.worktree_unavailable("session unavailable"),
+                                );
+                                continue;
+                            };
+                            match session_ref.worktree_create(root_path, name).await {
+                                Ok(response) => {
+                                    app.set_cwd(std::path::PathBuf::from(
+                                        &response.worktree_path,
+                                    ));
+                                    match app.start_new_thread(session_ref).await {
+                                        Ok(()) => app.projection.set_status(
+                                            locale.worktree_created(&response.worktree_path),
+                                        ),
+                                        Err(error) => app.projection.set_status(
+                                            locale.worktree_unavailable(&format!("{error:#}")),
+                                        ),
+                                    }
+                                }
+                                Err(error) => app.projection.set_status(
+                                    locale.worktree_unavailable(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::DeleteWorktree { worktree_path } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.worktree_unavailable("session unavailable"),
+                                );
+                                continue;
+                            };
+                            match session_ref.worktree_delete(worktree_path.clone()).await {
+                                Ok(_) => app
+                                    .projection
+                                    .set_status(locale.worktree_deleted(&worktree_path)),
+                                Err(error) => app.projection.set_status(
+                                    locale.worktree_unavailable(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::EnterWorktree { path, thread_id } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_mut() else {
+                                app.projection
+                                    .set_status(locale.worktree_unavailable("session unavailable"));
+                                continue;
+                            };
+                            let result = match thread_id {
+                                Some(thread_id) => {
+                                    app.resume_target_session(session_ref, thread_id, &options)
+                                        .await
+                                }
+                                None => {
+                                    app.set_cwd(std::path::PathBuf::from(&path));
+                                    app.start_new_thread(session_ref).await
+                                }
+                            };
+                            match result {
+                                Ok(()) => app
+                                    .projection
+                                    .set_status(locale.worktree_selected(&path)),
+                                Err(error) => app.projection.set_status(
+                                    locale.worktree_unavailable(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::SavePreset { slot, input } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.preset_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: format!("tui.presets.{slot}"),
+                                value: serde_json::json!({ "input": input }),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(locale.preset_saved(&slot)),
+                                Err(error) => app.projection.set_status(
+                                    locale.preset_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::SetPresetLabel { slot, label } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(dial) = app.chat_widget.tui_config.presets.get(&slot).cloned()
+                            else {
+                                app.projection
+                                    .set_status(locale.preset_save_failed("preset not found"));
+                                continue;
+                            };
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.preset_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let mut value = serde_json::json!({ "input": dial.input });
+                            if !label.trim().is_empty() {
+                                value["label"] = serde_json::Value::String(label);
+                            }
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: format!("tui.presets.{slot}"),
+                                value,
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(locale.preset_saved(&slot)),
+                                Err(error) => app.projection.set_status(
+                                    locale.preset_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::DeletePreset { slot } => {
+                            let locale = app.chat_widget.locale;
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection.set_status(
+                                    locale.preset_save_failed("session unavailable"),
+                                );
+                                continue;
+                            };
+                            let mut presets = serde_json::Map::new();
+                            for (key, dial) in &app.chat_widget.tui_config.presets {
+                                if key == &slot {
+                                    continue;
+                                }
+                                let mut entry = serde_json::Map::new();
+                                entry.insert(
+                                    "input".to_string(),
+                                    serde_json::Value::String(dial.input.clone()),
+                                );
+                                if let Some(label) = dial.label.clone() {
+                                    entry.insert("label".to_string(), serde_json::Value::String(label));
+                                }
+                                presets.insert(key.clone(), serde_json::Value::Object(entry));
+                            }
+                            let edit = app_server_protocol::protocol::v2::ConfigEdit {
+                                key_path: "tui.presets".to_string(),
+                                value: serde_json::Value::Object(presets),
+                                merge_strategy:
+                                    app_server_protocol::protocol::v2::MergeStrategy::Replace,
+                            };
+                            match app.apply_tui_preferences(session_ref, vec![edit]).await {
+                                Ok(()) => app.projection.set_status(locale.preset_deleted(&slot)),
+                                Err(error) => app.projection.set_status(
+                                    locale.preset_save_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::ApproveGuardianRetry(event) => {
+                            let locale = app.chat_widget.locale;
+                            let Some(thread_id) = app.thread_id.clone() else {
+                                app.projection
+                                    .set_status(locale.auto_review_no_denials());
+                                continue;
+                            };
+                            let Some(session_ref) = session.as_ref() else {
+                                app.projection
+                                    .set_status(locale.auto_review_failed("session unavailable"));
+                                continue;
+                            };
+                            match session_ref
+                                .approve_guardian_denied_action(thread_id, event)
+                                .await
+                            {
+                                Ok(()) => app.projection.set_status(locale.auto_review_approved()),
+                                Err(error) => app.projection.set_status(
+                                    locale.auto_review_failed(&format!("{error:#}")),
+                                ),
+                            }
+                        }
+                        AppAction::GenerateRecap(trigger) => {
+                            let Some(session_ref) = session.as_ref() else {
+                                if trigger == crate::app::recap::RecapTrigger::Manual {
+                                    app.projection
+                                        .set_status(app.chat_widget.locale.recap_failed());
+                                }
+                                continue;
+                            };
+                            app.start_recap(session_ref, trigger).await;
                         }
                         AppAction::RunShellCommand(command) => {
                             let locale = app.chat_widget.locale;

@@ -86,20 +86,34 @@ func accessibilityWindowMatching(ownerPID: pid_t, frame: CGRect) throws -> AXUIE
     let application = AXUIElementCreateApplication(ownerPID)
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &value) == .success,
-          let windows = value as? [AXUIElement],
-          !windows.isEmpty else {
+          let value,
+          CFGetTypeID(value) == CFArrayGetTypeID() else {
+        throw HostError.unavailable("The requested macOS window has no Accessibility element.")
+    }
+    let rawWindows = value as! CFArray
+    var windows: [AXUIElement] = []
+    for index in 0..<CFArrayGetCount(rawWindows) {
+        let raw = CFArrayGetValueAtIndex(rawWindows, index)
+        windows.append(unsafeBitCast(raw, to: AXUIElement.self))
+    }
+    guard !windows.isEmpty else {
         throw HostError.unavailable("The requested macOS window has no Accessibility element.")
     }
     var closest: (window: AXUIElement, distance: CGFloat)?
+    var diagnostics: [String] = []
     for window in windows {
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
+        let positionStatus = AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue)
+        let sizeStatus = AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue)
+        guard positionStatus == .success,
+              sizeStatus == .success,
               let positionValue,
               let sizeValue,
               CFGetTypeID(positionValue) == AXValueGetTypeID(),
               CFGetTypeID(sizeValue) == AXValueGetTypeID() else {
+            let role = accessibilityRoleName(window) ?? "?"
+            diagnostics.append("pos=\(positionStatus.rawValue) size=\(sizeStatus.rawValue) role=\(role)")
             continue
         }
         let positionAXValue = positionValue as! AXValue
@@ -120,7 +134,9 @@ func accessibilityWindowMatching(ownerPID: pid_t, frame: CGRect) throws -> AXUIE
         }
     }
     guard let closest else {
-        throw HostError.unavailable("The requested macOS window could not be matched to an Accessibility element.")
+        throw HostError.unavailable(
+            "The requested macOS window could not be matched to an Accessibility element. windows=\(windows.count) \(diagnostics.prefix(3).joined(separator: "; "))"
+        )
     }
     return closest.window
 }

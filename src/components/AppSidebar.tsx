@@ -17,6 +17,7 @@ import {
   Bell,
   Home,
   Search,
+  SquarePen,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -79,8 +80,10 @@ import {
 import { useAppSidebarProjectActions } from "@/components/app-sidebar/useAppSidebarProjectActions";
 import { NavigationShortcutCommands } from "@/components/app-sidebar/NavigationShortcutCommands";
 import { DesktopNotificationRuntime } from "@/components/app-sidebar/DesktopNotificationRuntime";
+import { AppSnapshotRuntime } from "@/components/app-sidebar/AppSnapshotRuntime";
 import { AutoArchiveRuntime } from "@/components/app-sidebar/AutoArchiveRuntime";
 import { useComposerEditorPreferences } from "@/lib/composerEditorPreferences";
+import { markSessionRead } from "@/lib/sessionUnreadState";
 import { useAppSidebarSessions } from "@/components/app-sidebar/useAppSidebarSessions";
 import { useSidebarThreadSearch } from "@/components/app-sidebar/useSidebarThreadSearch";
 import { mergeSidebarThreadSearchSessions } from "@/components/app-sidebar/sidebarThreadSearch";
@@ -536,7 +539,6 @@ export function AppSidebar({
     [onNavigate],
   );
 
-
   const unreadSessionCount = selectPrioritySessions(
     visibleRecentSidebarSessions,
   ).length;
@@ -638,12 +640,7 @@ export function AppSidebar({
           initialSessionId: request.sessionId,
         } as AgentPageParams);
       }),
-    [
-      conversationActions,
-      newChatProjectId,
-      onNavigate,
-      onStartNewConversation,
-    ],
+    [conversationActions, newChatProjectId, onNavigate, onStartNewConversation],
   );
 
   useEffect(() => {
@@ -695,14 +692,17 @@ export function AppSidebar({
         }
         return;
       }
-      if (event.key !== "Tab" || !event.ctrlKey || event.altKey || event.metaKey) {
+      if (
+        event.key !== "Tab" ||
+        !event.ctrlKey ||
+        event.altKey ||
+        event.metaKey
+      ) {
         return;
       }
       const { tabs, activeSessionId } = getConversationTabsSnapshot();
       if (tabs.length < 2) return;
-      const index = tabs.findIndex(
-        (tab) => tab.sessionId === activeSessionId,
-      );
+      const index = tabs.findIndex((tab) => tab.sessionId === activeSessionId);
       const nextIndex =
         (index + (event.shiftKey ? -1 : 1) + tabs.length) % tabs.length;
       const next = tabs[nextIndex];
@@ -817,6 +817,7 @@ export function AppSidebar({
   const navigationToggleLabel = collapsed
     ? expandNavigationLabel
     : collapseNavigationLabel;
+  const newChatLabel = t("navigation.sidebar.items.newChat");
   const searchTaskLabel = t("navigation.sidebar.search.label");
   const searchConversationTitleLabel = t(
     "navigation.sidebar.search.inputLabel",
@@ -839,15 +840,63 @@ export function AppSidebar({
   const searchMoreRecentLabel = t("navigation.sidebar.search.moreRecent");
 
   useEffect(() => {
+    const openRecent = (event: Event) => {
+      const index = Number((event as CustomEvent<number>).detail);
+      if (!Number.isInteger(index) || index < 0) return;
+      const session = visibleRecentSidebarSessions[index];
+      if (session) conversationActions.navigateToConversation(session);
+    };
+    window.addEventListener("lime:open-recent-chat", openRecent);
+    return () =>
+      window.removeEventListener("lime:open-recent-chat", openRecent);
+  }, [conversationActions, visibleRecentSidebarSessions]);
+
+  useEffect(() => {
+    const cycle = (event: Event) => {
+      const offset = (event as CustomEvent<number>).detail;
+      if (!["1", "-1"].includes(String(offset))) return;
+      const sessions = [...visibleRecentSidebarSessions];
+      if (sessions.length === 0) return;
+      const index = sessions.findIndex(
+        (session) => session.id === currentSessionId,
+      );
+      const nextIndex =
+        index < 0
+          ? 0
+          : (index + Number(offset) + sessions.length) % sessions.length;
+      conversationActions.navigateToConversation(sessions[nextIndex]);
+    };
+    window.addEventListener("lime:cycle-sidebar-item", cycle);
+    return () => window.removeEventListener("lime:cycle-sidebar-item", cycle);
+  }, [conversationActions, currentSessionId, visibleRecentSidebarSessions]);
+
+  useEffect(() => {
+    const markAllRead = () => {
+      for (const session of visibleRecentSidebarSessions) {
+        markSessionRead(session.id);
+      }
+    };
+    window.addEventListener("lime:mark-all-read", markAllRead);
+    return () => window.removeEventListener("lime:mark-all-read", markAllRead);
+  }, [visibleRecentSidebarSessions]);
+
+  useEffect(() => {
     const toggle = () => setCollapsed((value) => !value);
+    const newStandaloneChat = () =>
+      onStartNewConversation?.({ projectId: null, freshDraft: false });
     window.addEventListener("lime:toggle-sidebar", toggle);
-    return () => window.removeEventListener("lime:toggle-sidebar", toggle);
-  }, []);
+    window.addEventListener("lime:new-standalone-chat", newStandaloneChat);
+    return () => {
+      window.removeEventListener("lime:toggle-sidebar", toggle);
+      window.removeEventListener("lime:new-standalone-chat", newStandaloneChat);
+    };
+  }, [onStartNewConversation]);
 
   return (
     <TooltipProvider>
-      <NavigationShortcutCommands />
+      <NavigationShortcutCommands onNavigate={onNavigate} />
       <DesktopNotificationRuntime />
+      <AppSnapshotRuntime />
       <AutoArchiveRuntime />
       {isAgentWorkspace ? (
         <HeaderAction
@@ -870,6 +919,24 @@ export function AppSidebar({
             onClick={toggleSidebarCollapsed}
           >
             {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+          </IconActionButton>
+        </HeaderAction>
+      ) : null}
+      {activePage !== "settings" ? (
+        <HeaderAction actionId="new-chat" slotPosition="left" order={2}>
+          <IconActionButton
+            type="button"
+            title={newChatLabel}
+            aria-label={newChatLabel}
+            data-testid="app-sidebar-new-chat"
+            onClick={() =>
+              onStartNewConversation?.({
+                projectId: newChatProjectId,
+                freshDraft: false,
+              })
+            }
+          >
+            <SquarePen />
           </IconActionButton>
         </HeaderAction>
       ) : null}

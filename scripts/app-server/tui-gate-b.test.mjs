@@ -1259,6 +1259,7 @@ it("retries scenario runs when the cargo artifact lock is busy", () => {
   expect(gateSource).toContain("TUI_PLUGINS_SEARCH_OK panel=search");
   expect(gateSource).toContain("TUI_PS_COMMAND_OK panel=ps");
   expect(gateSource).toContain("TUI_RECAP_COMMAND_OK panel=recap");
+  expect(gateSource).toContain("TUI_SIDE_COMMAND_OK panel=side");
   expect(gateSource).toContain("TUI_MENTION_COMMAND_OK composer=at");
   expect(gateSource).toContain("TUI_GOAL_COMMAND_OK goal=none");
   expect(gateSource).toContain("TUI_MEMORIES_COMMAND_OK mode=off");
@@ -1493,7 +1494,7 @@ it("drives the real TUI through a portable PTY and current App Server", () => {
       'event.payload?.source === "thread/queue/delete"',
     );
     expect(gateSource).toContain(
-      '"complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,keymap-command,memory-command,memory-reset-command,usage-command,stop-command,warnings-command,diff-command,cd-command,plugins-command,plugins-search-command,ps-command,recap-command,mention-command,goal-command,memories-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"',
+      '"complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,keymap-command,memory-command,memory-reset-command,usage-command,stop-command,warnings-command,diff-command,cd-command,plugins-command,plugins-search-command,ps-command,recap-command,side-command,mention-command,goal-command,memories-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"',
     );
   });
 

@@ -258,6 +258,56 @@ impl ChatWidget {
         Some(action)
     }
 
+    pub(crate) fn open_worktree_picker(
+        &mut self,
+        picker: crate::app::worktree_picker::WorktreePicker,
+    ) {
+        self.worktree_picker = Some(picker.with_keymap(self.runtime_keymap.list().clone()));
+    }
+
+    pub(crate) fn worktree_picker_open(&self) -> bool {
+        self.worktree_picker.is_some()
+    }
+
+    pub(crate) fn close_worktree_picker(&mut self) {
+        self.worktree_picker = None;
+    }
+
+    pub(crate) fn handle_worktree_picker_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::worktree_picker::WorktreePickerAction> {
+        let picker = self.worktree_picker.as_mut()?;
+        Some(picker.handle_event(event.clone()))
+    }
+
+    pub(crate) fn open_presets_menu(&mut self, menu: crate::app::presets_menu::PresetsMenu) {
+        self.presets_menu = Some(menu.with_keymap(self.runtime_keymap.list().clone()));
+    }
+
+    pub(crate) fn presets_menu_open(&self) -> bool {
+        self.presets_menu.is_some()
+    }
+
+    pub(crate) fn presets_menu_entries(&self) -> Vec<crate::app::presets_menu::PresetEntry> {
+        self.presets_menu
+            .as_ref()
+            .map(|menu| menu.entries().to_vec())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn close_presets_menu(&mut self) {
+        self.presets_menu = None;
+    }
+
+    pub(crate) fn handle_presets_menu_event(
+        &mut self,
+        event: &Event,
+    ) -> Option<crate::app::presets_menu::PresetsMenuAction> {
+        let menu = self.presets_menu.as_mut()?;
+        Some(menu.handle_event(event.clone()))
+    }
+
     pub(crate) fn open_process_list(&mut self, list: crate::app::process_list::ProcessList) {
         self.process_list = Some(list.with_keymap(self.runtime_keymap.list().clone()));
     }

@@ -626,7 +626,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
             </MarkdownBlockActionButton>
           </MarkdownBlockActions>
         ) : null}
-        <MarkdownContainer>
+        <MarkdownContainer data-markdown-container>
           {renderBase64Images()}
 
           {!hasOnlyPlaceholders && processedContent.text.trim() && (

@@ -91,6 +91,53 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("Permission setup flow", () => {
+  it.each([true, false])(
+    "keeps the guide hidden while completion loads (complete=%s)",
+    async (setupComplete) => {
+      let resolveRead!: (value: DesktopPermissionsSnapshot) => void;
+      api.read.mockImplementationOnce(
+        () =>
+          new Promise<DesktopPermissionsSnapshot>((resolve) => {
+            resolveRead = resolve;
+          }),
+      );
+
+      await mount();
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+      await act(async () => {
+        resolveRead({ ...snapshot, setupComplete });
+      });
+      await settle();
+      expect(Boolean(document.querySelector('[role="dialog"]'))).toBe(
+        !setupComplete,
+      );
+      expect(api.request).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps startup read failures hidden and allows reopening from settings", async () => {
+    const failure = new Error("desktop permission read timed out");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    api.read.mockRejectedValueOnce(failure);
+    snapshot.setupComplete = true;
+    try {
+      await mount();
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      expect(api.request).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalled();
+
+      act(() => openPermissionsSetup());
+      await settle();
+      expect(document.querySelector('[role="dialog"]')).toBeTruthy();
+      expect(api.request).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("opens first run, requests only on click, and keeps denied access on the same step", async () => {
     await mount();
     expect(document.querySelector('[role="dialog"]')).toBeTruthy();

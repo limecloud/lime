@@ -103,6 +103,30 @@ export function useGeneralSettings() {
     }
   };
 
+  const handleLocalThreadStoreCompressionChange = async (enabled: boolean) => {
+    if (!config || saving.current) return;
+    saving.current = true;
+    ++revision.current;
+    try {
+      const saved = await updateConfig((current) => ({
+        ...current,
+        experimental: {
+          ...current.experimental,
+          local_thread_store_compression: enabled,
+        },
+      }));
+      if (alive.current) {
+        setConfig(saved);
+        setError(null);
+      }
+    } catch {
+      await loadConfig();
+      if (alive.current) setError(t("settings.desktop.saveError"));
+    } finally {
+      saving.current = false;
+    }
+  };
+
   return {
     loading,
     config: Boolean(config),
@@ -111,6 +135,9 @@ export function useGeneralSettings() {
     loadConfig,
     language: normalizeLocalePreference(config?.language),
     handleLanguageChange,
+    localThreadStoreCompression:
+      config?.experimental?.local_thread_store_compression === true,
+    handleLocalThreadStoreCompressionChange,
     handleEnterBehaviorChange: (value: ComposerEnterBehavior) =>
       handleDesktopPreferenceChange("composerEnterBehavior", value),
     handleMacMenuBarEnabledChange: (value: boolean) =>

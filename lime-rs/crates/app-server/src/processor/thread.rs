@@ -6,6 +6,7 @@ mod lifecycle;
 mod output_defaults;
 pub(super) mod projection;
 mod shell_environment;
+mod thread_import;
 
 use super::v2_notifications::{project_events, V2NotificationProjector};
 use super::{

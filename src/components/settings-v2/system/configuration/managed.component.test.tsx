@@ -8,14 +8,11 @@ import { ConfigurationPanel } from ".";
 const api = vi.hoisted(() => ({
   read: vi.fn(),
   write: vi.fn(),
-  efforts: vi.fn(),
   subscribe: vi.fn(),
-  models: vi.fn(),
 }));
 vi.mock("@/lib/api/appConfig", () => ({
   getConfigSnapshot: api.read,
   writeConfigValue: api.write,
-  writeReasoningEffortPreferences: api.efforts,
   subscribeAppConfigChanged: api.subscribe,
   configLayerFile: (layer: AppConfigSnapshot["layer"]) =>
     layer.name.type === "user" ? layer.name.file : null,
@@ -38,12 +35,6 @@ vi.mock("@/lib/api/configRequirements", () => ({
   getConfigRequirements: async () => null,
 }));
 vi.mock("@/lib/api/project", () => ({ getDefaultProject: async () => null }));
-vi.mock("@/lib/api/modelRegistry", () => ({
-  modelRegistryApi: {
-    getModelRegistry: api.models,
-    subscribeModelRegistryUpdates: () => () => undefined,
-  },
-}));
 
 let root: Root,
   container: HTMLDivElement,
@@ -78,7 +69,6 @@ beforeEach(async () => {
           model_verbosity: "high",
           sandbox_mode: "workspace-write",
           sandbox_workspace_write: { network_access: false },
-          desktop: { "enabled-reasoning-efforts": [] },
         },
       },
     ],
@@ -87,14 +77,12 @@ beforeEach(async () => {
       model_verbosity: "high",
       sandbox_mode: "workspace-write",
       sandbox_workspace_write: { network_access: false },
-      desktop: { "enabled-reasoning-efforts": [] },
     },
     origins: Object.fromEntries(
       [
         "model_verbosity",
         "sandbox_mode",
         "sandbox_workspace_write.network_access",
-        "desktop.enabled-reasoning-efforts",
       ].map((key) => [key, { name, version: "m1" }]),
     ),
   } as AppConfigSnapshot;
@@ -103,9 +91,6 @@ beforeEach(async () => {
     changed = fn;
     return () => undefined;
   });
-  api.models.mockResolvedValue([
-    { reasoning_policy: { supported_reasoning_efforts: ["max"] } },
-  ]);
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -141,7 +126,6 @@ it("shows managed canonical values and locks only fields with administrator orig
     "model_verbosity",
     "sandbox_mode",
     "sandbox_workspace_write-network_access",
-    "reasoning-efforts",
   ])
     expect(control(key).disabled, key).toBe(true);
   expect(control("approval_policy").disabled).toBe(false);

@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "ThreadImportMessage": {
+      "properties": {
+        "createdAtMs": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "role": {
+          "$ref": "#/$defs/ThreadImportRole"
+        },
+        "sourceItemId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAtMs",
+        "role",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ThreadImportRole": {
+      "enum": [
+        "assistant",
+        "user"
+      ],
+      "type": "string"
+    },
+    "ThreadImportTurn": {
+      "properties": {
+        "completedAtMs": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/ThreadImportMessage"
+          },
+          "type": "array"
+        },
+        "sourceTurnId": {
+          "type": "string"
+        },
+        "startedAtMs": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ThreadImportTurnStatus"
+        }
+      },
+      "required": [
+        "messages",
+        "sourceTurnId",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ThreadImportTurnStatus": {
+      "enum": [
+        "completed",
+        "failed",
+        "interrupted"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Canonical import of an external conversation into a new Thread.\n\nTurns and messages are source-owned. The App Server creates real canonical\nTurn/Item history through the same projection/rollout owner as live turns;\nit does not invent assistant text or store a second history copy.",
+  "properties": {
+    "createdAtMs": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cwd": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "source": {
+      "description": "External source family, e.g. `codex`.",
+      "type": "string"
+    },
+    "sourceConversationId": {
+      "description": "Stable external conversation identity used for idempotency.",
+      "type": "string"
+    },
+    "sourcePath": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "turns": {
+      "items": {
+        "$ref": "#/$defs/ThreadImportTurn"
+      },
+      "type": "array"
+    },
+    "updatedAtMs": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "source",
+    "sourceConversationId",
+    "title",
+    "turns"
+  ],
+  "title": "ThreadImportParams",
+  "type": "object"
+}

@@ -50,12 +50,16 @@ fn agents_overview_group_bubbles_child_status_and_hides_ephemeral_threads() {
     );
     let mut ephemeral = thread("ephemeral", None, ThreadStatus::Idle);
     ephemeral.ephemeral = true;
-    let rows = build_rows(&[root.clone(), child, ephemeral], Some("root"));
+    let rows = build_rows(
+        &[root.clone(), child, ephemeral],
+        Some("root"),
+        &std::collections::HashSet::new(),
+    );
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].group, AgentsOverviewGroup::Working);
     root.status = ThreadStatus::SystemError;
     assert_eq!(
-        build_rows(&[root], None)[0].group,
+        build_rows(&[root], None, &std::collections::HashSet::new())[0].group,
         AgentsOverviewGroup::NeedsYou
     );
 }
@@ -261,4 +265,22 @@ fn agents_overview_filter_and_pagination_share_the_live_view_after_notifications
     assert_eq!(state.view.selected_thread_id(), Some("background"));
     assert!(state.view.load_more_failed());
     assert!(!state.view.loading_more());
+}
+
+#[test]
+fn loaded_threads_are_marked_independently_of_run_state() {
+    let idle = thread("idle", None, ThreadStatus::Idle);
+    let mut loaded = std::collections::HashSet::new();
+    loaded.insert("idle".to_string());
+    let rows = build_rows(std::slice::from_ref(&idle), None, &loaded);
+    assert!(rows[0].loaded);
+    assert_eq!(rows[0].group, AgentsOverviewGroup::Ready);
+
+    let mut state = AgentsOverviewState::new(None);
+    state.set_loaded_thread_ids(loaded.clone());
+    assert!(state.loaded_thread_ids.contains("idle"));
+    state.mark_thread_unloaded("idle");
+    assert!(!state.loaded_thread_ids.contains("idle"));
+    state.mark_thread_loaded("idle");
+    assert!(state.loaded_thread_ids.contains("idle"));
 }

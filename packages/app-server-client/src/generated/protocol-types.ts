@@ -390,6 +390,7 @@ export const METHOD_THREAD_GOAL_CLEARED = "thread/goal/cleared";
 export const METHOD_THREAD_GOAL_GET = "thread/goal/get";
 export const METHOD_THREAD_GOAL_SET = "thread/goal/set";
 export const METHOD_THREAD_GOAL_UPDATED = "thread/goal/updated";
+export const METHOD_THREAD_IMPORT = "thread/import";
 export const METHOD_THREAD_INCREMENT_ELICITATION =
   "thread/increment_elicitation";
 export const METHOD_THREAD_INJECT_ITEMS = "thread/inject_items";
@@ -1793,6 +1794,10 @@ export const GENERATED_APP_SERVER_METHODS = [
   },
   {
     kind: "request",
+    method: "thread/import",
+  },
+  {
+    kind: "request",
     method: "thread/increment_elicitation",
   },
   {
@@ -2253,6 +2258,10 @@ export const GENERATED_APP_SERVER_REQUEST_SERIALIZATION_SCOPES = [
   },
   {
     method: "thread/goal/set",
+    scope: "thread",
+  },
+  {
+    method: "thread/import",
     scope: "thread",
   },
   {
@@ -4586,6 +4595,11 @@ export type ClientRequest =
       id: number | string;
       method: "thread/inject_items";
       params: ThreadInjectItemsParams;
+    }
+  | {
+      id: number | string;
+      method: "thread/import";
+      params: ThreadImportParams;
     }
   | {
       id: number | string;
@@ -8355,6 +8369,7 @@ export type Method =
   | "thread/goal/clear"
   | "thread/goal/get"
   | "thread/goal/set"
+  | "thread/import"
   | "thread/increment_elicitation"
   | "thread/inject_items"
   | "thread/items/list"
@@ -10931,6 +10946,44 @@ export interface ThreadGoalUpdatedNotification {
 }
 
 export type ThreadHistoryMode = "legacy" | "paginated";
+
+export interface ThreadImportMessage {
+  createdAtMs: number;
+  role: ThreadImportRole;
+  sourceItemId?: null | string;
+  text: string;
+}
+
+export interface ThreadImportParams {
+  createdAtMs?: number | null;
+  cwd?: null | string;
+  source: string;
+  sourceConversationId: string;
+  sourcePath?: null | string;
+  title: string;
+  turns: ThreadImportTurn[];
+  updatedAtMs?: number | null;
+}
+
+export interface ThreadImportResponse {
+  alreadyImported: boolean;
+  importedMessageCount: number;
+  importedTurnCount: number;
+  sessionId: string;
+  threadId: string;
+}
+
+export type ThreadImportRole = "assistant" | "user";
+
+export interface ThreadImportTurn {
+  completedAtMs?: number | null;
+  messages: ThreadImportMessage[];
+  sourceTurnId: string;
+  startedAtMs?: number | null;
+  status: ThreadImportTurnStatus;
+}
+
+export type ThreadImportTurnStatus = "completed" | "failed" | "interrupted";
 
 export interface ThreadIncrementElicitationParams {
   threadId: string;

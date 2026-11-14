@@ -73,6 +73,16 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     owner: "settings/plugins",
   },
   {
+    id: "app-snapshots-permission",
+    tab: "app-snapshots",
+    owner: "settings/app-snapshots",
+  },
+  {
+    id: "import-settings",
+    tab: "import",
+    owner: "settings/import",
+  },
+  {
     id: "web-search-route",
     tab: "configuration",
     owner: "settings/app-server",
@@ -100,6 +110,11 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
   {
     id: "hooks-lifecycle",
     tab: "hooks",
+    owner: "settings/app-server",
+  },
+  {
+    id: "connections-grants-read",
+    tab: "connections",
     owner: "settings/app-server",
   },
   {

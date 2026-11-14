@@ -80,6 +80,12 @@ pub(crate) fn parse_settings_command(prompt: &str) -> Option<Result<SettingsComm
         | SlashCommand::Goal
         | SlashCommand::Memories
         | SlashCommand::Recap
+        | SlashCommand::AutoReview
+        | SlashCommand::Presets
+        | SlashCommand::Worktree
+        | SlashCommand::Side
+        | SlashCommand::Btw
+        | SlashCommand::Voice
         | SlashCommand::Ps => None,
     }
 }

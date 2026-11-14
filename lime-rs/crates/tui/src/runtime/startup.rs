@@ -27,6 +27,8 @@ pub(super) async fn initialize_app(
         app.projection
             .set_show_raw_agent_reasoning(local_settings.show_raw_agent_reasoning);
         app.chat_widget.tui_config = local_settings.tui;
+        app.side_state
+            .load(app.chat_widget.tui_config.side_threads.clone());
         app.chat_widget.config_version = local_settings.config_version;
         app.set_runtime_keymap(local_settings.keymap);
         if let Some(cwd) = options.cwd.as_ref() {

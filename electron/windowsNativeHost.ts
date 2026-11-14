@@ -41,6 +41,7 @@ type NativeHostResponse = {
 
 export class WindowsNativeHostClient {
   #child: ChildProcessWithoutNullStreams | null = null;
+  #disposed = false;
   #stdoutBuffer = "";
   #nextRequestId = 1;
   readonly #pending = new Map<string, PendingRequest>();
@@ -57,6 +58,9 @@ export class WindowsNativeHostClient {
     method,
     params = {},
   }: WindowsNativeHostRequest): Promise<unknown> {
+    if (this.#disposed) {
+      throw new NativeHostError("stopped", "Windows native host stopped");
+    }
     if (process.platform !== "win32") {
       throw new NativeHostError(
         "unsupported",
@@ -94,6 +98,7 @@ export class WindowsNativeHostClient {
   }
 
   dispose(): void {
+    this.#disposed = true;
     const child = this.#child;
     this.#child = null;
     if (child && !child.killed) child.kill();

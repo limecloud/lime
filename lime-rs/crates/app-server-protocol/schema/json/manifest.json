@@ -1300,6 +1300,10 @@
     },
     {
       "kind": "request",
+      "method": "thread/import"
+    },
+    {
+      "kind": "request",
       "method": "thread/increment_elicitation"
     },
     {
@@ -1755,6 +1759,10 @@
     },
     {
       "method": "thread/goal/set",
+      "scope": "thread"
+    },
+    {
+      "method": "thread/import",
       "scope": "thread"
     },
     {
@@ -2785,6 +2793,12 @@
       "ThreadGoalStatus",
       "ThreadGoalUpdatedNotification",
       "ThreadHistoryMode",
+      "ThreadImportMessage",
+      "ThreadImportParams",
+      "ThreadImportResponse",
+      "ThreadImportRole",
+      "ThreadImportTurn",
+      "ThreadImportTurnStatus",
       "ThreadIncrementElicitationParams",
       "ThreadIncrementElicitationResponse",
       "ThreadInjectItemsParams",

@@ -8,20 +8,16 @@ import { ConfigurationPanel } from ".";
 const api = vi.hoisted(() => ({
   read: vi.fn(),
   write: vi.fn(),
-  writeEfforts: vi.fn(),
   subscribe: vi.fn(),
   targets: vi.fn(),
   open: vi.fn(),
   external: vi.fn(),
-  models: vi.fn(),
-  modelSubscribe: vi.fn(),
   workspace: vi.fn(),
   requirements: vi.fn(),
 }));
 vi.mock("@/lib/api/appConfig", () => ({
   getConfigSnapshot: api.read,
   writeConfigValue: api.write,
-  writeReasoningEffortPreferences: api.writeEfforts,
   subscribeAppConfigChanged: api.subscribe,
   configLayerFile: (
     layer:
@@ -55,12 +51,6 @@ vi.mock("@/lib/api/openIn", () => ({
 }));
 vi.mock("@/lib/api/externalUrl", () => ({
   openExternalUrlWithSystemBrowser: api.external,
-}));
-vi.mock("@/lib/api/modelRegistry", () => ({
-  modelRegistryApi: {
-    getModelRegistry: api.models,
-    subscribeModelRegistryUpdates: api.modelSubscribe,
-  },
 }));
 let root: Root,
   container: HTMLDivElement,
@@ -131,16 +121,10 @@ beforeEach(async () => {
     sandbox_workspace_write: { network_access: false },
   };
   api.read.mockImplementation(async () => snapshot());
-  api.models.mockResolvedValue([]);
-  api.modelSubscribe.mockReturnValue(vi.fn());
   api.write.mockImplementation(async ({ keyPath, value }) => {
     if (keyPath === "sandbox_workspace_write.network_access")
       config.sandbox_workspace_write = { network_access: value };
     else config[keyPath] = value;
-    return snapshot();
-  });
-  api.writeEfforts.mockImplementation(async (value) => {
-    config.desktop = { "enabled-reasoning-efforts": value };
     return snapshot();
   });
   api.subscribe.mockImplementation((listener) => {
@@ -210,7 +194,7 @@ function scopedSnapshot(
   } as AppConfigSnapshot;
 }
 
-it("defaults to the actual project layer, inherits omitted values and writes the chosen file with its revision", async () => {
+it("defaults to the user layer, inherits project values after selecting it and writes the chosen file with its revision", async () => {
   let project: Record<string, unknown> = {
     model_verbosity: "high",
     sandbox_mode: "workspace-write",
@@ -226,7 +210,9 @@ it("defaults to the actual project layer, inherits omitted values and writes the
   expect(api.read).toHaveBeenCalledWith({ cwd: "/workspace/repo" });
   expect(
     container.querySelector("#configuration-scope-value")?.textContent,
-  ).toBe("repo");
+  ).toBe("User");
+  expect(control("model_verbosity").textContent).toBe("Model default");
+  await chooseScope("repo");
   expect(control("model_verbosity").textContent).toBe("High");
   expect(control("approval_policy").textContent).toBe("On request");
   expect(row("sandbox_workspace_write-network_access")).not.toBeNull();
@@ -262,6 +248,7 @@ it("keeps project errors and pending writes attached to their file when switchin
     .mockReturnValueOnce(gate.promise)
     .mockImplementation(async () => scopedSnapshot(project));
   await mount();
+  await chooseScope("repo");
   await choose("model_verbosity", "Low");
   expect(control("model_verbosity").disabled).toBe(true);
   await chooseScope("User");
@@ -292,72 +279,6 @@ it("keeps project errors and pending writes attached to their file when switchin
       filePath: "/workspace/repo/.lime/config.toml",
     }),
   );
-});
-
-it("disables an untrusted project layer while keeping user scope and global model features editable", async () => {
-  api.models.mockResolvedValue([
-    {
-      reasoning_policy: { supported_reasoning_efforts: ["low", "high", "max"] },
-    },
-  ]);
-  api.workspace.mockResolvedValue({ rootPath: "/workspace/repo" });
-  api.read.mockImplementation(async () =>
-    scopedSnapshot({ model_verbosity: "high" }, "not trusted"),
-  );
-  await mount();
-  expect(control("model_verbosity").disabled).toBe(true);
-  expect(container.textContent).toContain("Trust this project");
-  const features = container
-    .querySelector("#configuration-reasoning-efforts")
-    ?.querySelector("button");
-  expect(features?.disabled).toBe(false);
-  await chooseScope("User");
-  expect(control("model_verbosity").disabled).toBe(false);
-  expect(container.textContent).not.toContain("Trust this project");
-  expect(api.write).not.toHaveBeenCalled();
-});
-
-it("opens the selected project file and keeps model features in the user layer", async () => {
-  api.workspace.mockResolvedValue({ rootPath: "/workspace/repo" });
-  api.read.mockImplementation(async () =>
-    scopedSnapshot({ model_verbosity: "high" }),
-  );
-  api.models.mockResolvedValue([
-    {
-      reasoning_policy: {
-        supported_reasoning_efforts: ["low", "medium", "high", "ultra"],
-      },
-    },
-  ]);
-  await mount();
-  await click("Open config.toml");
-  expect(api.open).toHaveBeenCalledWith(
-    expect.objectContaining({
-      path: "/workspace/repo/.lime/config.toml",
-      openMode: "file",
-    }),
-  );
-  await act(async () =>
-    control("reasoning-efforts").dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
-    ),
-  );
-  const ultra = [
-    ...document.querySelectorAll<HTMLElement>("[role=menuitemcheckbox]"),
-  ].find((item) => item.textContent === "Ultra")!;
-  await act(async () => ultra.click());
-  expect(api.writeEfforts).toHaveBeenCalledWith([
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "persistent",
-  ]);
-  expect(api.write).not.toHaveBeenCalled();
-  expect(
-    container.querySelector("#configuration-scope-value")?.textContent,
-  ).toBe("repo");
-  expect(control("model_verbosity").textContent).toBe("High");
 });
 
 it("saves all four web search access modes immediately through the public configuration owner", async () => {
@@ -411,129 +332,6 @@ it("renders the real user scope, current values and no manual save or network co
   expect(container.textContent).toContain("Open config.yaml");
   expect(container.textContent).not.toContain("Save policy");
   expect(document.querySelectorAll("[role=menuitemradio]")).toHaveLength(0);
-});
-
-it("shows real model capabilities and saves an optional reasoning effort immediately", async () => {
-  api.models.mockResolvedValue([
-    {
-      reasoning_policy: {
-        supported_reasoning_efforts: [
-          "low",
-          "medium",
-          "high",
-          "xhigh",
-          "max",
-          "ultra",
-          "persistent",
-        ],
-      },
-    },
-  ]);
-  await mount();
-  const trigger = control("reasoning-efforts");
-  expect(trigger.textContent).toBe("6 selected");
-  await act(async () =>
-    trigger.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
-    ),
-  );
-  const option = (label: string) =>
-    [...document.querySelectorAll<HTMLElement>("[role=menuitemcheckbox]")].find(
-      (item) => item.textContent === label,
-    )!;
-  expect(option("Low").getAttribute("data-disabled")).not.toBeNull();
-  expect(option("Persistent").getAttribute("aria-checked")).toBe("true");
-  expect(option("Maximum").getAttribute("aria-checked")).toBe("false");
-  await act(async () => option("Maximum").click());
-  expect(api.writeEfforts).toHaveBeenLastCalledWith([
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "ultra",
-    "persistent",
-    "max",
-  ]);
-  expect(api.write).not.toHaveBeenCalled();
-  expect(trigger.textContent).toBe("7 selected");
-});
-
-it("retains confirmed reasoning preference on failure and retries the requested value", async () => {
-  api.models.mockResolvedValue([
-    {
-      reasoning_policy: {
-        supported_reasoning_efforts: ["low", "medium", "high", "ultra"],
-      },
-    },
-  ]);
-  await mount();
-  api.writeEfforts.mockRejectedValueOnce(new Error("IO"));
-  await act(async () =>
-    control("reasoning-efforts").dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
-    ),
-  );
-  const ultra = [
-    ...document.querySelectorAll<HTMLElement>("[role=menuitemcheckbox]"),
-  ].find((item) => item.textContent === "Ultra")!;
-  await act(async () => ultra.click());
-  expect(ultra.getAttribute("aria-checked")).toBe("true");
-  expect(row("reasoning-efforts").querySelector("[role=alert]")).not.toBeNull();
-  await act(async () =>
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-    ),
-  );
-  await click("Retry");
-  expect(api.writeEfforts).toHaveBeenLastCalledWith([
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "persistent",
-  ]);
-  expect(control("reasoning-efforts").textContent).toBe("4 selected");
-});
-
-it("does not expose an unsupported optional effort and refreshes real catalog updates", async () => {
-  let updated!: () => void;
-  api.modelSubscribe.mockImplementation((listener) => {
-    updated = listener;
-    return vi.fn();
-  });
-  api.models.mockResolvedValue([
-    { reasoning_policy: { supported_reasoning_efforts: ["low", "ultra"] } },
-  ]);
-  await mount();
-  await act(async () =>
-    control("reasoning-efforts").dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
-    ),
-  );
-  expect(
-    [...document.querySelectorAll("[role=menuitemcheckbox]")].map(
-      (item) => item.textContent,
-    ),
-  ).toEqual(["Low", "Medium", "High", "Extra high", "Ultra"]);
-  api.models.mockResolvedValue([
-    { reasoning_policy: { supported_reasoning_efforts: ["low"] } },
-  ]);
-  await act(async () => updated());
-  expect(row("reasoning-efforts")).toBeNull();
-});
-
-it("shows catalog read errors with a retry and does not fabricate model availability", async () => {
-  api.models.mockRejectedValueOnce(new Error("unavailable"));
-  await mount();
-  expect(control("reasoning-efforts").disabled).toBe(true);
-  expect(row("reasoning-efforts").textContent).toContain(
-    "Could not load model capabilities",
-  );
-  api.models.mockResolvedValue([
-    { reasoning_policy: { supported_reasoning_efforts: ["max"] } },
-  ]);
-  await click("Retry");
-  expect(control("reasoning-efforts").disabled).toBe(false);
 });
 
 it("saves permission defaults immediately and conditionally enables the real workspace network field", async () => {
@@ -742,16 +540,10 @@ it.each([
   ["ja-JP", "構成"],
   ["ko-KR", "구성"],
 ])("renders the configuration controls in %s", async (locale, title) => {
-  api.models.mockResolvedValue([
-    { reasoning_policy: { supported_reasoning_efforts: ["ultra"] } },
-  ]);
   await changeLimeLocale(locale);
   await mount();
   expect(container.querySelector("h1")?.textContent).toBe(title);
   expect(container.textContent).not.toContain("settings.configuration.");
-  expect(control("reasoning-efforts").textContent).not.toContain(
-    "modelFeatures",
-  );
   expect(control("model_verbosity").getAttribute("aria-labelledby")).toContain(
     "configuration-model_verbosity-label",
   );

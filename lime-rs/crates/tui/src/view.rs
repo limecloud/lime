@@ -91,7 +91,11 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         || app.chat_widget.agent_picker.is_some()
         || app.chat_widget.export_picker.is_some();
 
-    app.render_owned_transcript(frame, chunks.transcript);
+    if let Some(snapshot) = app.side_parent_snapshot() {
+        render_side_transcript_split(frame, chunks.transcript, app, snapshot);
+    } else {
+        app.render_owned_transcript(frame, chunks.transcript);
+    }
     if !app.chat_widget.bottom_pane.is_active() {
         if let Some(elapsed) = active_elapsed {
             let inline_status = active_status_message(app);
@@ -145,6 +149,15 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
                 app.chat_widget.locale,
                 &app.status_surface_data(),
             );
+        } else if let Some(picker) = app.chat_widget.worktree_picker.as_ref() {
+            crate::app::worktree_picker::render(
+                frame,
+                chunks.input,
+                picker,
+                app.chat_widget.locale,
+            );
+        } else if let Some(menu) = app.chat_widget.presets_menu.as_ref() {
+            crate::app::presets_menu::render(frame, chunks.input, menu, app.chat_widget.locale);
         } else if let Some(list) = app.chat_widget.process_list.as_ref() {
             crate::app::process_list::render(frame, chunks.input, list, app.chat_widget.locale);
         } else if let Some(browser) = app.chat_widget.hooks_browser.as_ref() {
@@ -240,6 +253,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
             app.primary_thread_id.as_deref(),
         );
         let items = app.chat_widget.status_line_items();
+        footer_props.side_context_label = app.side_context_label();
         footer_props.status_line_enabled = !items.is_empty();
         let data = app.status_surface_data();
         footer_props.context_window_percent = data
@@ -277,6 +291,62 @@ struct ScreenChunks {
     shortcuts: Rect,
     input: Rect,
     footer: Rect,
+}
+
+/// Split view while a side conversation is focused: the parent transcript stays visible on the
+/// left as the snapshot captured when the side started, and the live side thread renders on the
+/// right. Narrow terminals keep the single focused transcript to avoid unusable columns.
+fn render_side_transcript_split(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    app: &App,
+    snapshot: &crate::app::side::SideParentSnapshot,
+) {
+    if area.width < 72 || area.height < 6 {
+        app.render_owned_transcript(frame, area);
+        return;
+    }
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(52), Constraint::Percentage(48)])
+        .split(area);
+    let parent_area = columns[0];
+    let title_area = Rect {
+        height: 1,
+        ..parent_area
+    };
+    let parent_area = Rect {
+        y: parent_area.y.saturating_add(1),
+        height: parent_area.height.saturating_sub(1),
+        ..parent_area
+    };
+    let title = Line::from(vec![
+        Span::styled(
+            app.chat_widget.locale.side_parent_pane_title(),
+            crate::style::muted_style(),
+        ),
+        Span::styled(" · ", crate::style::muted_style()),
+        Span::styled(snapshot.title.clone(), crate::style::muted_style()),
+    ]);
+    frame.render_widget(
+        Paragraph::new(title).style(crate::style::muted_style()),
+        title_area,
+    );
+    if parent_area.height > 0 {
+        let content = crate::app::history_ui::render_main_transcript_entries_content(
+            app,
+            &snapshot.entries,
+            parent_area.width.saturating_sub(2),
+            false,
+        );
+        let rows = crate::terminal_hyperlinks::HyperlinkParagraph::new(&content.lines)
+            .line_count(parent_area.width);
+        let scroll = rows.saturating_sub(usize::from(parent_area.height));
+        let paragraph = crate::terminal_hyperlinks::HyperlinkParagraph::new(&content.lines)
+            .scroll(u16::try_from(scroll).unwrap_or(u16::MAX));
+        frame.render_widget(paragraph, parent_area);
+    }
+    app.render_owned_transcript(frame, columns[1]);
 }
 
 fn screen_chunks(
@@ -341,6 +411,12 @@ fn screen_chunks(
     } else if let Some(picker) = app.chat_widget.status_line_setup.as_ref() {
         picker
             .desired_height(app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(picker) = app.chat_widget.worktree_picker.as_ref() {
+        crate::app::worktree_picker::desired_height(picker, app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(menu) = app.chat_widget.presets_menu.as_ref() {
+        crate::app::presets_menu::desired_height(menu, app.chat_widget.locale, area.width)
             .min(area.height.saturating_sub(1))
     } else if let Some(list) = app.chat_widget.process_list.as_ref() {
         crate::app::process_list::desired_height(list, app.chat_widget.locale, area.width)

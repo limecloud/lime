@@ -2,7 +2,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopNotificationRuntime } from "./DesktopNotificationRuntime";
-import { resetNotificationPreferencesForTest, setNotificationPreferences } from "@/lib/notificationPreferences";
+import {
+  resetNotificationPreferencesForTest,
+  setNotificationPreferences,
+} from "@/lib/notificationPreferences";
 
 const mocks = vi.hoisted(() => ({
   handler: null as null | ((notifications: unknown[]) => void),
@@ -43,13 +46,16 @@ afterEach(() => {
 
 describe("DesktopNotificationRuntime", () => {
   it("notifies once for an always-enabled completed turn", async () => {
-    setNotificationPreferences({ turnComplete: "always", sound: false });
+    setNotificationPreferences({ turnComplete: "always", sound: "none" });
     act(() => root.render(<DesktopNotificationRuntime />));
     await act(async () => {
       mocks.handler?.([
         {
           method: "turn/completed",
-          params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed" } },
+          params: {
+            threadId: "thread-1",
+            turn: { id: "turn-1", status: "completed" },
+          },
         },
       ]);
     });
@@ -63,7 +69,10 @@ describe("DesktopNotificationRuntime", () => {
       mocks.handler?.([
         {
           method: "turn/completed",
-          params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed" } },
+          params: {
+            threadId: "thread-1",
+            turn: { id: "turn-1", status: "completed" },
+          },
         },
       ]);
     });

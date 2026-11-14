@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { getDefaultProject } from "@/lib/api/project";
-import { getConfigSnapshot } from "@/lib/api/appConfig";
-import { revealPathInFinder } from "@/lib/api/fileSystem";
+import {
+  getConfigSnapshot,
+  writeReasoningEffortPreferences,
+} from "@/lib/api/appConfig";
+import { isConfigFieldManaged } from "@/lib/api/configLayers";
 import {
   openInQueryClient,
   openInTargetsQueryOptions,
@@ -16,9 +19,18 @@ import {
   setComposerPermissionVisibility,
 } from "@/lib/composerPermissionVisibility";
 import {
+  NOTIFICATION_SOUNDS,
   setNotificationPreferences,
   useNotificationPreferences,
+  type NotificationSoundChoice,
 } from "@/lib/notificationPreferences";
+import {
+  clearCustomNotificationSound,
+  importCustomNotificationSound,
+  playCustomNotificationSound,
+  readCustomNotificationSound,
+  type CustomNotificationSound,
+} from "@/lib/notificationSound";
 import {
   setAutoArchivePreference,
   useAutoArchivePreference,
@@ -27,9 +39,12 @@ import {
   setComposerEditorPreferences,
   useComposerEditorPreferences,
 } from "@/lib/composerEditorPreferences";
-import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
 import { pickFilesFromDialog } from "@/lib/api/filePicker";
-import { compactChatHistory } from "@/lib/api/chatHistoryCompaction";
+import {
+  openDesktopPermissionSettings,
+  readDesktopPermissions,
+  type DesktopPermissionState,
+} from "@/lib/api/desktopPermissions";
 import {
   setProjectlessWorkspaceRoot,
   useProjectlessWorkspaceRoot,
@@ -39,6 +54,7 @@ import {
   useTerminalPanelPreferences,
 } from "@/lib/terminalPanelPreferences";
 import { SourceLicensesDialog } from "./SourceLicensesDialog";
+import { ReasoningEffortsRow } from "./ReasoningEffortsRow";
 import {
   Dialog,
   DialogContent,
@@ -61,16 +77,11 @@ import {
   SettingsPageHeader,
   SettingsRow,
   SettingsSection,
+  SettingsSegmentedControl,
   SettingsSwitch,
   SettingsLoading,
   SettingsValueMenu,
 } from "../SettingsPrimitives";
-
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export function GeneralSettings() {
   const { t } = useTranslation("settings");
@@ -110,14 +121,47 @@ export function GeneralSettings() {
   );
   const [confirmFullAccess, setConfirmFullAccess] = useState(false);
   const [licensesOpen, setLicensesOpen] = useState(false);
+  const [reasoningLock, setReasoningLock] = useState<string | null>(null);
+  const [notificationsPermission, setNotificationsPermission] =
+    useState<DesktopPermissionState | null>(null);
   const preferredProjectlessRoot = useProjectlessWorkspaceRoot();
   const terminalPreferences = useTerminalPanelPreferences();
   const [choosingFolder, setChoosingFolder] = useState(false);
-  const [compactingHistory, setCompactingHistory] = useState(false);
-  const [compactionMessage, setCompactionMessage] = useState<string | null>(
-    null,
-  );
   const notifications = useNotificationPreferences();
+  const [customSound, setCustomSound] =
+    useState<CustomNotificationSound | null>(readCustomNotificationSound);
+  const [soundError, setSoundError] = useState<string | null>(null);
+  const changeNotificationSound = async (value: string) => {
+    setSoundError(null);
+    if (value === "custom-preview") {
+      playCustomNotificationSound();
+      return;
+    }
+    if (value === "custom-remove") {
+      clearCustomNotificationSound();
+      setCustomSound(null);
+      setNotificationPreferences({ sound: "default" });
+      return;
+    }
+    if (value === "custom" && customSound) {
+      setNotificationPreferences({ sound: "custom" });
+      return;
+    }
+    if (value === "custom" || value === "custom-import") {
+      try {
+        const imported = await importCustomNotificationSound({
+          title: t("settings.notifications.soundChooseTitle"),
+        });
+        if (!imported) return;
+        setCustomSound(imported);
+        setNotificationPreferences({ sound: "custom" });
+      } catch {
+        setSoundError(t("settings.notifications.soundImportFailed"));
+      }
+      return;
+    }
+    setNotificationPreferences({ sound: value as NotificationSoundChoice });
+  };
   const autoArchive = useAutoArchivePreference();
   const editorPreferences = useComposerEditorPreferences();
   const saving = useRef(false);
@@ -143,17 +187,53 @@ export function GeneralSettings() {
     let active = true;
     void getConfigSnapshot()
       .then((snapshot) => {
+        if (!active) return;
         const file = snapshot?.layer?.name?.file;
-        if (!active || !file) return;
-        const normalized = file.replaceAll("\\", "/");
-        const folder = normalized.slice(0, normalized.lastIndexOf("/"));
-        if (folder) setProjectlessFolder(folder);
+        if (file) {
+          const normalized = file.replaceAll("\\", "/");
+          const folder = normalized.slice(0, normalized.lastIndexOf("/"));
+          if (folder) setProjectlessFolder(folder);
+        }
+        if (
+          isConfigFieldManaged(
+            snapshot?.origins ?? {},
+            "desktop.enabled-reasoning-efforts",
+          )
+        ) {
+          setReasoningLock(t("settings.configuration.managedByAdmin"));
+        } else if (snapshot?.layer?.disabledReason) {
+          setReasoningLock(t("settings.configuration.readonly"));
+        } else {
+          setReasoningLock(null);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [t]);
+
+  useEffect(() => {
+    let active = true;
+    void readDesktopPermissions()
+      .then((snapshot) => {
+        if (!active) return;
+        setNotificationsPermission(
+          snapshot.permissions.find(
+            (permission) => permission.id === "notifications",
+          )?.state ?? null,
+        );
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
   }, []);
+
+  const notificationsOff =
+    notificationsPermission === "denied" ||
+    notificationsPermission === "notDetermined" ||
+    notificationsPermission === "restricted";
 
   useEffect(() => {
     alive.current = true;
@@ -212,9 +292,7 @@ export function GeneralSettings() {
         <SettingsGroup>
           <SettingsRow
             label={t("settings.desktop.defaultPermission")}
-            description={t(
-              "settings.desktop.defaultPermissionDescription",
-            )}
+            description={t("settings.desktop.defaultPermissionDescription")}
             targetId="general-default-permission"
           >
             <SettingsSwitch
@@ -231,9 +309,7 @@ export function GeneralSettings() {
           </SettingsRow>
           <SettingsRow
             label={t("settings.desktop.fullAccessPermission")}
-            description={t(
-              "settings.desktop.fullAccessPermissionDescription",
-            )}
+            description={t("settings.desktop.fullAccessPermissionDescription")}
             targetId="general-full-access-permission"
           >
             <SettingsSwitch
@@ -263,7 +339,9 @@ export function GeneralSettings() {
               <span
                 className="max-w-[260px] truncate text-[12px] text-muted-foreground"
                 data-testid="general-projectless-folder-value"
-                title={preferredProjectlessRoot ?? projectlessFolder ?? undefined}
+                title={
+                  preferredProjectlessRoot ?? projectlessFolder ?? undefined
+                }
               >
                 {preferredProjectlessRoot ?? projectlessFolder ?? "—"}
               </span>
@@ -288,16 +366,6 @@ export function GeneralSettings() {
                 }}
               >
                 {t("settings.desktop.changeFolder")}
-              </SettingsAction>
-              <SettingsAction
-                type="button"
-                disabled={!preferredProjectlessRoot && !projectlessFolder}
-                onClick={() => {
-                  const target = preferredProjectlessRoot ?? projectlessFolder;
-                  if (target) void revealPathInFinder(target);
-                }}
-              >
-                {t("settings.storage.browseFolder")}
               </SettingsAction>
             </div>
           </SettingsRow>
@@ -419,6 +487,40 @@ export function GeneralSettings() {
               }}
             />
           </SettingsRow>
+          <SettingsRow
+            label={t("settings.desktop.bottomPanelControl")}
+            description={t("settings.desktop.bottomPanelControlDescription")}
+            targetId="general-bottom-panel-control"
+          >
+            <SettingsSwitch
+              aria-labelledby="general-bottom-panel-control-label"
+              aria-describedby="general-bottom-panel-control-description"
+              checked={terminalPreferences.showControl}
+              onCheckedChange={(showControl) =>
+                setTerminalPanelPreferences({ showControl })
+              }
+            />
+          </SettingsRow>
+          <SettingsRow
+            label={t("settings.desktop.terminalLocation")}
+            description={t("settings.desktop.terminalLocationDescription")}
+            targetId="general-terminal-location"
+          >
+            <SettingsSegmentedControl
+              targetId="general-terminal-location"
+              described
+              value={terminalPreferences.location}
+              disabled={false}
+              options={[
+                {
+                  value: "bottom",
+                  label: t("settings.desktop.terminalBottom"),
+                },
+                { value: "right", label: t("settings.desktop.terminalRight") },
+              ]}
+              onChange={(location) => setTerminalPanelPreferences({ location })}
+            />
+          </SettingsRow>
           {platform !== "windows" ? (
             <SettingsRow
               label={t("settings.desktop.preventSleepWhileRunning")}
@@ -441,100 +543,6 @@ export function GeneralSettings() {
             </SettingsRow>
           ) : null}
           <SettingsRow
-            label={t("settings.desktop.bottomPanelControl")}
-            description={t("settings.desktop.bottomPanelControlDescription")}
-            targetId="general-bottom-panel-control"
-          >
-            <SettingsSwitch
-              aria-labelledby="general-bottom-panel-control-label"
-              aria-describedby="general-bottom-panel-control-description"
-              checked={terminalPreferences.showControl}
-              onCheckedChange={(showControl) =>
-                setTerminalPanelPreferences({ showControl })
-              }
-            />
-          </SettingsRow>
-          <SettingsRow
-            label={t("settings.desktop.terminalLocation")}
-            description={t("settings.desktop.terminalLocationDescription")}
-            targetId="general-terminal-location"
-          >
-            <SettingsValueMenu
-              targetId="general-terminal-location"
-              described
-              value={terminalPreferences.location}
-              disabled={false}
-              options={[
-                { value: "bottom", label: t("settings.desktop.terminalBottom") },
-                { value: "right", label: t("settings.desktop.terminalRight") },
-              ]}
-              onChange={(location) =>
-                setTerminalPanelPreferences({
-                  location: location as "right" | "bottom",
-                })
-              }
-            />
-          </SettingsRow>
-          <SettingsRow
-            label={t("settings.desktop.compressHistory")}
-            description={t("settings.desktop.compressHistoryDescription")}
-            targetId="general-compress-history"
-          >
-            <div className="flex min-w-0 flex-col items-end gap-1">
-              <SettingsAction
-                type="button"
-                disabled={compactingHistory}
-                onClick={async () => {
-                  setCompactingHistory(true);
-                  setCompactionMessage(null);
-                  try {
-                    const result = await compactChatHistory();
-                    const saved = Math.max(
-                      0,
-                      result.beforeBytes - result.afterBytes,
-                    );
-                    setCompactionMessage(
-                      t("settings.desktop.compressHistoryDone", {
-                        count: result.databases,
-                        size: formatBytes(saved),
-                      }),
-                    );
-                  } catch {
-                    setCompactionMessage(
-                      t("settings.desktop.compressHistoryFailed"),
-                    );
-                  } finally {
-                    setCompactingHistory(false);
-                  }
-                }}
-              >
-                {compactingHistory
-                  ? t("settings.desktop.compressHistoryRunning")
-                  : t("settings.desktop.compressHistoryAction")}
-              </SettingsAction>
-              {compactionMessage ? (
-                <span
-                  role="status"
-                  className="max-w-[260px] text-right text-[11px] text-muted-foreground"
-                >
-                  {compactionMessage}
-                </span>
-              ) : null}
-            </div>
-          </SettingsRow>
-          <SettingsRow
-            label={t("settings.desktop.sourceLicenses")}
-            description={t("settings.desktop.sourceLicensesDescription")}
-            targetId="general-source-licenses"
-          >
-            <SettingsAction
-              type="button"
-              onClick={() => setLicensesOpen(true)}
-            >
-              {t("settings.desktop.viewSourceLicenses")}
-            </SettingsAction>
-          </SettingsRow>
-          <SettingsRow
             label={t("settings.desktop.autoArchive")}
             description={t("settings.desktop.autoArchiveDescription")}
             targetId="general-auto-archive"
@@ -546,9 +554,18 @@ export function GeneralSettings() {
               disabled={false}
               options={[
                 { value: "0", label: t("settings.desktop.autoArchiveNever") },
-                { value: "7", label: t("settings.desktop.autoArchiveDays", { count: 7 }) },
-                { value: "30", label: t("settings.desktop.autoArchiveDays", { count: 30 }) },
-                { value: "90", label: t("settings.desktop.autoArchiveDays", { count: 90 }) },
+                {
+                  value: "7",
+                  label: t("settings.desktop.autoArchiveDays", { count: 7 }),
+                },
+                {
+                  value: "30",
+                  label: t("settings.desktop.autoArchiveDays", { count: 30 }),
+                },
+                {
+                  value: "90",
+                  label: t("settings.desktop.autoArchiveDays", { count: 90 }),
+                },
               ]}
               onChange={(value) =>
                 setAutoArchivePreference({
@@ -557,6 +574,46 @@ export function GeneralSettings() {
                 })
               }
             />
+          </SettingsRow>
+          <SettingsRow
+            label={t("settings.desktop.compressHistory")}
+            description={t("settings.desktop.compressHistoryDescription")}
+            targetId="general-compress-history"
+          >
+            <SettingsSwitch
+              aria-labelledby="general-compress-history-label"
+              aria-describedby="general-compress-history-description"
+              checked={preferences.localThreadStoreCompression}
+              disabled={pending || !preferences.config}
+              onCheckedChange={(enabled) =>
+                void mutate(() =>
+                  preferences.handleLocalThreadStoreCompressionChange(enabled),
+                )
+              }
+            />
+          </SettingsRow>
+          <ReasoningEffortsRow
+            value={
+              preferences.loadedConfig?.desktop?.["enabled-reasoning-efforts"]
+            }
+            disabled={pending || !preferences.config || Boolean(reasoningLock)}
+            readOnlyReason={reasoningLock}
+            error={null}
+            onChange={(next) =>
+              void mutate(async () => {
+                await writeReasoningEffortPreferences(next);
+                await preferences.loadConfig();
+              })
+            }
+          />
+          <SettingsRow
+            label={t("settings.desktop.sourceLicenses")}
+            description={t("settings.desktop.sourceLicensesDescription")}
+            targetId="general-source-licenses"
+          >
+            <SettingsAction type="button" onClick={() => setLicensesOpen(true)}>
+              {t("settings.desktop.viewSourceLicenses")}
+            </SettingsAction>
           </SettingsRow>
           <SettingsRow
             label={t("settings.desktop.plugins")}
@@ -582,22 +639,6 @@ export function GeneralSettings() {
       <SettingsSection title={t("settings.desktop.composer")}>
         <SettingsGroup>
           <SettingsRow
-            label={t("settings.desktop.showContextWindowUsage")}
-            description={t(
-              "settings.desktop.showContextWindowUsageDescription",
-            )}
-            targetId="general-show-context-usage"
-          >
-            <SettingsSwitch
-              aria-labelledby="general-show-context-usage-label"
-              aria-describedby="general-show-context-usage-description"
-              checked={editorPreferences.showContextWindowUsage}
-              onCheckedChange={(showContextWindowUsage) =>
-                setComposerEditorPreferences({ showContextWindowUsage })
-              }
-            />
-          </SettingsRow>
-          <SettingsRow
             label={t("settings.desktop.plainTextEditor")}
             description={t("settings.desktop.plainTextEditorDescription")}
             targetId="general-plain-text-editor"
@@ -612,45 +653,15 @@ export function GeneralSettings() {
             />
           </SettingsRow>
           <SettingsRow
-            label={t("settings.desktop.defaultStandaloneChat")}
-            description={t(
-              "settings.desktop.defaultStandaloneChatDescription",
-            )}
-            targetId="general-default-standalone-chat"
+            label={t("settings.desktop.showContextWindowUsage")}
+            targetId="general-show-context-usage"
           >
             <SettingsSwitch
-              aria-labelledby="general-default-standalone-chat-label"
-              aria-describedby="general-default-standalone-chat-description"
-              checked={editorPreferences.defaultStandaloneChat}
-              onCheckedChange={(defaultStandaloneChat) =>
-                setComposerEditorPreferences({ defaultStandaloneChat })
-              }
-            />
-          </SettingsRow>
-          <SettingsRow
-            label={t("settings.desktop.followUpBehavior")}
-            description={t("settings.desktop.followUpBehaviorDescription")}
-            targetId="general-follow-up-behavior"
-          >
-            <SettingsValueMenu
-              targetId="general-follow-up-behavior"
-              described
-              value={editorPreferences.followUpMode}
-              disabled={false}
-              options={[
-                {
-                  value: "queue",
-                  label: t("settings.desktop.followUpQueue"),
-                },
-                {
-                  value: "steer",
-                  label: t("settings.desktop.followUpSteer"),
-                },
-              ]}
-              onChange={(followUpMode) =>
-                setComposerEditorPreferences({
-                  followUpMode: followUpMode as "queue" | "steer",
-                })
+              aria-labelledby="general-show-context-usage-label"
+              aria-describedby="general-show-context-usage-description"
+              checked={editorPreferences.showContextWindowUsage}
+              onCheckedChange={(showContextWindowUsage) =>
+                setComposerEditorPreferences({ showContextWindowUsage })
               }
             />
           </SettingsRow>
@@ -675,10 +686,67 @@ export function GeneralSettings() {
               }
             />
           </SettingsRow>
+          <SettingsRow
+            label={t("settings.desktop.followUpBehavior")}
+            description={t("settings.desktop.followUpBehaviorDescription")}
+            targetId="general-follow-up-behavior"
+          >
+            <SettingsSegmentedControl
+              targetId="general-follow-up-behavior"
+              described
+              value={editorPreferences.followUpMode}
+              disabled={false}
+              options={[
+                {
+                  value: "queue",
+                  label: t("settings.desktop.followUpQueue"),
+                },
+                {
+                  value: "steer",
+                  label: t("settings.desktop.followUpSteer"),
+                },
+              ]}
+              onChange={(followUpMode) =>
+                setComposerEditorPreferences({ followUpMode })
+              }
+            />
+          </SettingsRow>
+          <SettingsRow
+            label={t("settings.desktop.defaultStandaloneChat")}
+            description={t("settings.desktop.defaultStandaloneChatDescription")}
+            targetId="general-default-standalone-chat"
+          >
+            <SettingsSwitch
+              aria-labelledby="general-default-standalone-chat-label"
+              aria-describedby="general-default-standalone-chat-description"
+              checked={editorPreferences.defaultStandaloneChat}
+              onCheckedChange={(defaultStandaloneChat) =>
+                setComposerEditorPreferences({ defaultStandaloneChat })
+              }
+            />
+          </SettingsRow>
         </SettingsGroup>
       </SettingsSection>
       <SettingsSection title={t("settings.notifications.title")}>
         <SettingsGroup>
+          <SettingsRow
+            label={
+              notificationsOff
+                ? t("settings.notifications.disabled")
+                : t("settings.notifications.system")
+            }
+            description={t("settings.notifications.systemDescription")}
+            targetId="general-system-notifications"
+          >
+            <SettingsAction
+              type="button"
+              onClick={() =>
+                void openDesktopPermissionSettings("notifications")
+              }
+            >
+              {t("settings.notifications.openSystemSettings")}
+            </SettingsAction>
+          </SettingsRow>
           <SettingsRow
             label={t("settings.notifications.turnComplete")}
             description={t("settings.notifications.turnCompleteDescription")}
@@ -688,7 +756,7 @@ export function GeneralSettings() {
               targetId="general-turn-notifications"
               described
               value={notifications.turnComplete}
-              disabled={false}
+              disabled={notificationsOff}
               options={(["unfocused", "always", "never"] as const).map(
                 (value) => ({
                   value,
@@ -709,6 +777,7 @@ export function GeneralSettings() {
               aria-labelledby="general-permission-notifications-label"
               aria-describedby="general-permission-notifications-description"
               checked={notifications.permissions}
+              disabled={notificationsOff}
               onCheckedChange={(permissions) =>
                 setNotificationPreferences({ permissions })
               }
@@ -723,6 +792,7 @@ export function GeneralSettings() {
               aria-labelledby="general-question-notifications-label"
               aria-describedby="general-question-notifications-description"
               checked={notifications.questions}
+              disabled={notificationsOff}
               onCheckedChange={(questions) =>
                 setNotificationPreferences({ questions })
               }
@@ -733,36 +803,57 @@ export function GeneralSettings() {
             description={t("settings.notifications.soundDescription")}
             targetId="general-notification-sound"
           >
-            <SettingsSwitch
-              aria-labelledby="general-notification-sound-label"
-              aria-describedby="general-notification-sound-description"
-              checked={notifications.sound}
-              onCheckedChange={(sound) =>
-                setNotificationPreferences({ sound })
-              }
-            />
+            <div className="flex min-w-0 flex-col items-end gap-1">
+              <SettingsValueMenu
+                targetId="general-notification-sound"
+                described
+                value={notifications.sound}
+                disabled={notificationsOff}
+                options={[
+                  ...NOTIFICATION_SOUNDS.map((sound) => ({
+                    value: sound,
+                    label:
+                      sound === "default"
+                        ? t("settings.notifications.soundDefault")
+                        : sound === "none"
+                          ? t("settings.notifications.soundNone")
+                          : sound === "classic"
+                            ? t("settings.notifications.soundClassic")
+                            : sound,
+                  })),
+                  ...(customSound
+                    ? [
+                        { value: "custom" as const, label: customSound.name },
+                        {
+                          value: "custom-preview" as const,
+                          label: t("settings.notifications.soundPreview"),
+                        },
+                        {
+                          value: "custom-import" as const,
+                          label: t("settings.notifications.soundCustomReplace"),
+                        },
+                        {
+                          value: "custom-remove" as const,
+                          label: t("settings.notifications.soundRemove"),
+                        },
+                      ]
+                    : [
+                        {
+                          value: "custom" as const,
+                          label: t("settings.notifications.soundCustom"),
+                        },
+                      ]),
+                ]}
+                onChange={(value) => void changeNotificationSound(value)}
+              />
+              {soundError ? (
+                <span role="alert" className="text-[11px] text-destructive">
+                  {soundError}
+                </span>
+              ) : null}
+            </div>
           </SettingsRow>
         </SettingsGroup>
-        <SettingsRow
-          label={t("settings.notifications.system")}
-          description={t("settings.notifications.systemDescription")}
-          targetId="general-system-notifications"
-        >
-          <SettingsAction
-            type="button"
-            onClick={() =>
-              void openExternalUrlWithSystemBrowser(
-                platform === "mac"
-                  ? "x-apple.systempreferences:com.apple.preference.notifications"
-                  : platform === "windows"
-                    ? "ms-settings:notifications"
-                    : "about:blank",
-              )
-            }
-          >
-            {t("settings.notifications.openSystemSettings")}
-          </SettingsAction>
-        </SettingsRow>
       </SettingsSection>
       <SourceLicensesDialog
         open={licensesOpen}

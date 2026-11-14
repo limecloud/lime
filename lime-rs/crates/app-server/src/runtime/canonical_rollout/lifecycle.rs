@@ -108,18 +108,18 @@ impl RolloutStore {
             .map_err(|error| error.to_string())?
             .to_path_buf();
         let storage_path = location_storage_path(&relative_path)?;
-        let physical_source = compression::existing_path(source)?;
-        let physical_destination = compression::existing_path(destination)?;
+        let physical_source = compression::existing_rollout_path(source)?;
+        let physical_destination = compression::existing_rollout_path(destination)?;
         let (source, destination) = match (physical_source, physical_destination) {
             (Some(physical_source), None) => {
                 let scan = scan_rollout_repaired(source)?;
                 validate_scan_identity(&scan, active_path, session_id, thread_id, source)?;
                 // A stale compressed sibling must not resurrect the source on rebuild.
                 let physical_destination = if physical_source == source {
-                    compression::remove_compressed(source)?;
+                    compression::remove_compressed_rollout(source)?;
                     destination.to_path_buf()
                 } else {
-                    compression::compressed_path(destination)
+                    compression::compressed_rollout_path(destination)
                 };
                 let parent = destination.parent().ok_or_else(|| {
                     format!("rollout path has no parent: {}", destination.display())
@@ -174,7 +174,7 @@ impl RolloutStore {
 }
 
 pub(super) fn file_updated_at_ms(path: &Path) -> Result<i64, String> {
-    let physical = compression::existing_path(path)?
+    let physical = compression::existing_rollout_path(path)?
         .ok_or_else(|| format!("rollout file is missing: {}", path.display()))?;
     fs::metadata(&physical)
         .and_then(|metadata| metadata.modified())

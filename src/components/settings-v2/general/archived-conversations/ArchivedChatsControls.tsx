@@ -1,4 +1,11 @@
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Folder,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -49,7 +56,7 @@ export function ArchivedChatsControls({
               onQuery("");
             }
           }}
-          className="h-9 w-full min-w-0 rounded-xl border border-border bg-transparent pl-9 pr-9 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-search-cancel-button]:appearance-none"
+          className="h-9 w-full min-w-0 rounded-full border border-border bg-transparent pl-9 pr-9 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-search-cancel-button]:appearance-none"
           data-testid="settings-archived-search"
         />
         {query ? (
@@ -72,11 +79,16 @@ export function ArchivedChatsControls({
           <Menu.Trigger asChild>
             <SettingsAction
               type="button"
+              $variant="outline"
               disabled={disabled}
               aria-label={t("settings.archivedConversations.filter.ariaLabel")}
               aria-labelledby="archived-filter-label archived-filter-value"
               data-testid="settings-archived-filter"
             >
+              <SlidersHorizontal
+                aria-hidden="true"
+                className="size-4 shrink-0"
+              />
               <span id="archived-filter-value" className="min-w-0 truncate">
                 {t("settings.archivedConversations.filter.all")}
               </span>
@@ -148,6 +160,8 @@ export function ArchivedChatsControls({
         <SettingsValueMenu
           targetId="archived-project"
           value={projectFilter}
+          variant="outline"
+          leading={<Folder aria-hidden="true" className="size-4 shrink-0" />}
           disabled={disabled}
           onChange={onProject}
           options={[

@@ -21,7 +21,6 @@ import {
   SettingsValueMenu,
 } from "../../SettingsPrimitives";
 import { useConfiguration, type ConfigurationField } from "./useConfiguration";
-import { ModelFeaturesSection } from "./ModelFeaturesSection";
 import { WorkspaceDependenciesSection } from "./WorkspaceDependenciesSection";
 
 const FIELDS = [
@@ -88,10 +87,6 @@ export function ConfigurationPanel() {
 
   function lockReason(field: ConfigurationField) {
     if (managedField(field)) return t("settings.configuration.managedByAdmin");
-    if (field === "desktop.enabled-reasoning-efforts")
-      return snapshot?.layer.disabledReason
-        ? t("settings.configuration.readonly")
-        : null;
     if (managed || !file || layerLock)
       return t("settings.configuration.readonly");
     if (
@@ -227,10 +222,10 @@ export function ConfigurationPanel() {
               align="start"
               value={state.selectedScope}
               options={[
+                ...state.layers.filter((layer) => layer.name.type === "user"),
                 ...[...state.layers]
                   .reverse()
                   .filter((layer) => layer.name.type === "project"),
-                ...state.layers.filter((layer) => layer.name.type === "user"),
                 ...state.layers.filter((layer) => isManagedSource(layer.name)),
               ].map((layer) => {
                 const path = configLayerFile(layer);
@@ -395,26 +390,6 @@ export function ConfigurationPanel() {
         </SettingsGroup>
       </SettingsSection>
       <WorkspaceDependenciesSection snapshot={snapshot} />
-      <ModelFeaturesSection
-        value={
-          (managedField("desktop.enabled-reasoning-efforts")
-            ? snapshot?.config
-            : (snapshot?.layer.config as Partial<Config> | undefined)
-          )?.desktop?.["enabled-reasoning-efforts"]
-        }
-        disabled={disabled("desktop.enabled-reasoning-efforts")}
-        error={
-          <>
-            {lockReason("desktop.enabled-reasoning-efforts") ? (
-              <div>{lockReason("desktop.enabled-reasoning-efforts")}</div>
-            ) : null}
-            {saveError("desktop.enabled-reasoning-efforts")}
-          </>
-        }
-        onChange={(value) =>
-          void state.change("desktop.enabled-reasoning-efforts", value)
-        }
-      />
     </SettingsPageBody>
   );
 }

@@ -17,7 +17,7 @@ impl RolloutStore {
         let (changes, runtime_events) = (&changes, runtime_events.as_slice());
         scan::validate_runtime_events(session_id, thread_id, changes.sequence, runtime_events)?;
         let path = self.resolve_active(relative_path)?;
-        self.materialize_for_append(&path)?;
+        self.materialize_rollout_for_append_blocking(&path)?;
         tail_repair::repair_crash_tail(&path)?;
         let latest =
             append_guard::latest_history_for_append(&path, relative_path, session_id, thread_id)?;

@@ -16244,6 +16244,138 @@
           ],
           "type": "string"
         },
+        "ThreadImportMessage": {
+          "properties": {
+            "createdAtMs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "role": {
+              "$ref": "#/$defs/ThreadImportRole"
+            },
+            "sourceItemId": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAtMs",
+            "role",
+            "text"
+          ],
+          "type": "object"
+        },
+        "ThreadImportParams": {
+          "description": "Canonical import of an external conversation into a new Thread.\n\nTurns and messages are source-owned. The App Server creates real canonical\nTurn/Item history through the same projection/rollout owner as live turns;\nit does not invent assistant text or store a second history copy.",
+          "properties": {
+            "createdAtMs": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "cwd": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "source": {
+              "description": "External source family, e.g. `codex`.",
+              "type": "string"
+            },
+            "sourceConversationId": {
+              "description": "Stable external conversation identity used for idempotency.",
+              "type": "string"
+            },
+            "sourcePath": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "turns": {
+              "items": {
+                "$ref": "#/$defs/ThreadImportTurn"
+              },
+              "type": "array"
+            },
+            "updatedAtMs": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "source",
+            "sourceConversationId",
+            "title",
+            "turns"
+          ],
+          "type": "object"
+        },
+        "ThreadImportRole": {
+          "enum": [
+            "assistant",
+            "user"
+          ],
+          "type": "string"
+        },
+        "ThreadImportTurn": {
+          "properties": {
+            "completedAtMs": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "messages": {
+              "items": {
+                "$ref": "#/$defs/ThreadImportMessage"
+              },
+              "type": "array"
+            },
+            "sourceTurnId": {
+              "type": "string"
+            },
+            "startedAtMs": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "status": {
+              "$ref": "#/$defs/ThreadImportTurnStatus"
+            }
+          },
+          "required": [
+            "messages",
+            "sourceTurnId",
+            "status"
+          ],
+          "type": "object"
+        },
+        "ThreadImportTurnStatus": {
+          "enum": [
+            "completed",
+            "failed",
+            "interrupted"
+          ],
+          "type": "string"
+        },
         "ThreadIncrementElicitationParams": {
           "properties": {
             "threadId": {
@@ -18356,6 +18488,26 @@
             },
             "params": {
               "$ref": "#/$defs/ThreadInjectItemsParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "thread/import",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ThreadImportParams"
             }
           },
           "required": [
@@ -47659,6 +47811,7 @@
         "thread/goal/clear",
         "thread/goal/get",
         "thread/goal/set",
+        "thread/import",
         "thread/increment_elicitation",
         "thread/inject_items",
         "thread/items/list",
@@ -84118,6 +84271,312 @@
         "paginated"
       ],
       "title": "ThreadHistoryMode",
+      "type": "string"
+    },
+    "ThreadImportMessage": {
+      "$defs": {
+        "ThreadImportRole": {
+          "enum": [
+            "assistant",
+            "user"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "createdAtMs": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "role": {
+          "$ref": "#/$defs/ThreadImportRole"
+        },
+        "sourceItemId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAtMs",
+        "role",
+        "text"
+      ],
+      "title": "ThreadImportMessage",
+      "type": "object"
+    },
+    "ThreadImportParams": {
+      "$defs": {
+        "ThreadImportMessage": {
+          "properties": {
+            "createdAtMs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "role": {
+              "$ref": "#/$defs/ThreadImportRole"
+            },
+            "sourceItemId": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAtMs",
+            "role",
+            "text"
+          ],
+          "type": "object"
+        },
+        "ThreadImportRole": {
+          "enum": [
+            "assistant",
+            "user"
+          ],
+          "type": "string"
+        },
+        "ThreadImportTurn": {
+          "properties": {
+            "completedAtMs": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "messages": {
+              "items": {
+                "$ref": "#/$defs/ThreadImportMessage"
+              },
+              "type": "array"
+            },
+            "sourceTurnId": {
+              "type": "string"
+            },
+            "startedAtMs": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "status": {
+              "$ref": "#/$defs/ThreadImportTurnStatus"
+            }
+          },
+          "required": [
+            "messages",
+            "sourceTurnId",
+            "status"
+          ],
+          "type": "object"
+        },
+        "ThreadImportTurnStatus": {
+          "enum": [
+            "completed",
+            "failed",
+            "interrupted"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "Canonical import of an external conversation into a new Thread.\n\nTurns and messages are source-owned. The App Server creates real canonical\nTurn/Item history through the same projection/rollout owner as live turns;\nit does not invent assistant text or store a second history copy.",
+      "properties": {
+        "createdAtMs": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cwd": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "source": {
+          "description": "External source family, e.g. `codex`.",
+          "type": "string"
+        },
+        "sourceConversationId": {
+          "description": "Stable external conversation identity used for idempotency.",
+          "type": "string"
+        },
+        "sourcePath": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/ThreadImportTurn"
+          },
+          "type": "array"
+        },
+        "updatedAtMs": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "sourceConversationId",
+        "title",
+        "turns"
+      ],
+      "title": "ThreadImportParams",
+      "type": "object"
+    },
+    "ThreadImportResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "alreadyImported": {
+          "type": "boolean"
+        },
+        "importedMessageCount": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "importedTurnCount": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "alreadyImported",
+        "importedMessageCount",
+        "importedTurnCount",
+        "sessionId",
+        "threadId"
+      ],
+      "title": "ThreadImportResponse",
+      "type": "object"
+    },
+    "ThreadImportRole": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "assistant",
+        "user"
+      ],
+      "title": "ThreadImportRole",
+      "type": "string"
+    },
+    "ThreadImportTurn": {
+      "$defs": {
+        "ThreadImportMessage": {
+          "properties": {
+            "createdAtMs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "role": {
+              "$ref": "#/$defs/ThreadImportRole"
+            },
+            "sourceItemId": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAtMs",
+            "role",
+            "text"
+          ],
+          "type": "object"
+        },
+        "ThreadImportRole": {
+          "enum": [
+            "assistant",
+            "user"
+          ],
+          "type": "string"
+        },
+        "ThreadImportTurnStatus": {
+          "enum": [
+            "completed",
+            "failed",
+            "interrupted"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "completedAtMs": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/ThreadImportMessage"
+          },
+          "type": "array"
+        },
+        "sourceTurnId": {
+          "type": "string"
+        },
+        "startedAtMs": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ThreadImportTurnStatus"
+        }
+      },
+      "required": [
+        "messages",
+        "sourceTurnId",
+        "status"
+      ],
+      "title": "ThreadImportTurn",
+      "type": "object"
+    },
+    "ThreadImportTurnStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "completed",
+        "failed",
+        "interrupted"
+      ],
+      "title": "ThreadImportTurnStatus",
       "type": "string"
     },
     "ThreadIncrementElicitationParams": {
@@ -130612,6 +131071,7 @@
               "thread/goal/clear",
               "thread/goal/get",
               "thread/goal/set",
+              "thread/import",
               "thread/increment_elicitation",
               "thread/inject_items",
               "thread/items/list",

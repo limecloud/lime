@@ -33,6 +33,10 @@ import {
 import { buildInputbarToolPreferencesOverride } from "../utils/inputbarModeRequestMetadata";
 import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
 import { useComposerEditorPreferences } from "@/lib/composerEditorPreferences";
+import {
+  applySmartPunctuation,
+  useSmartPunctuationEnabled,
+} from "@/lib/appearance/smartPunctuation";
 import type {
   BaseComposerSendMetadata,
   ComposerController,
@@ -100,6 +104,7 @@ export function useInputbarSend({
 }: UseInputbarSendParams) {
   const { t } = useTranslation("agent");
   const { followUpMode } = useComposerEditorPreferences();
+  const smartPunctuation = useSmartPunctuationEnabled();
   const mounted = useRef(true);
   const goalSubmissionPending = useRef(false);
   const surface = useRef({
@@ -125,6 +130,9 @@ export function useInputbarSend({
       if (goalSubmissionPending.current) return { kind: "rejected" as const };
       const goalSubmission = prepareThreadGoalSubmit?.();
       if (goalSubmission) return goalSubmission;
+      if (smartPunctuation && composerController && input.trim()) {
+        composerController.setText(applySmartPunctuation(input));
+      }
       const handlerEnteredAt = Date.now();
       const sendRestoreEpoch = getInputRestoreEpoch?.() ?? 0;
       const resolvedSubmitTarget: ComposerSubmitTarget =
@@ -486,6 +494,7 @@ export function useInputbarSend({
       onSend,
       pendingImages,
       pathReferences,
+      smartPunctuation,
       t,
     ],
   );

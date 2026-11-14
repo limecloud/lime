@@ -69,6 +69,34 @@ describe("showDesktopNotification", () => {
     expect(notificationShowMock).toHaveBeenCalledOnce();
   });
 
+  it("把受支持的提示音传给 Electron Notification", () => {
+    expect(
+      showDesktopNotification({
+        request: {
+          body: "任务已完成",
+          sound: "Ping",
+          title: "Lime",
+        },
+      }),
+    ).toEqual({ status: "sent" });
+    expect(notificationOptions).toEqual([
+      { body: "任务已完成", silent: false, sound: "Ping", title: "Lime" },
+    ]);
+  });
+
+  it("拒绝不支持的提示音且不构造通知", () => {
+    expect(() =>
+      showDesktopNotification({
+        request: {
+          body: "任务已完成",
+          sound: "../../evil",
+          title: "Lime",
+        },
+      }),
+    ).toThrow("不支持的提示音");
+    expect(notificationCtorMock).not.toHaveBeenCalled();
+  });
+
   it("桌面通知不支持时返回 unsupported 且不构造通知", () => {
     notificationIsSupportedMock.mockReturnValueOnce(false);
 

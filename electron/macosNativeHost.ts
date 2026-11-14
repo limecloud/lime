@@ -54,6 +54,7 @@ type MacOSNativeHostDescriptor = {
 
 export class MacOSNativeHostClient {
   #child: ChildProcessWithoutNullStreams | null = null;
+  #disposed = false;
   #ready: Promise<void> | null = null;
   #readyChild: ChildProcessWithoutNullStreams | null = null;
   #stdoutBuffer = "";
@@ -70,6 +71,7 @@ export class MacOSNativeHostClient {
     method,
     params = {},
   }: MacOSNativeHostRequest): Promise<unknown> {
+    this.#assertActive();
     if (process.platform !== "darwin") {
       throw new NativeHostError(
         "unsupported",
@@ -85,6 +87,7 @@ export class MacOSNativeHostClient {
     }
     const child = this.#ensureChild(descriptor.path);
     await this.#ensureReady(child, descriptor.protocolVersion);
+    this.#assertActive();
     return await this.#invoke(child, method, params);
   }
 
@@ -119,6 +122,7 @@ export class MacOSNativeHostClient {
   }
 
   dispose(): void {
+    this.#disposed = true;
     const child = this.#child;
     this.#child = null;
     this.#ready = null;
@@ -128,6 +132,12 @@ export class MacOSNativeHostClient {
     }
     this.#settleAllFailure(new Error("macOS native host stopped"));
     this.#eventListeners.clear();
+  }
+
+  #assertActive(): void {
+    if (this.#disposed) {
+      throw new NativeHostError("stopped", "macOS native host stopped");
+    }
   }
 
   #ensureChild(helperPath: string): ChildProcessWithoutNullStreams {

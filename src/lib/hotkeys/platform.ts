@@ -76,6 +76,23 @@ export function resolveHotkeyPlatform(
   return "other";
 }
 
+const MODIFIER_DISPLAY_ORDER: Record<HotkeyPlatform, Record<string, number>> = {
+  mac: { "⌃": 0, Ctrl: 0, "⌥": 1, "⇧": 2, "⌘": 3 },
+  windows: { Ctrl: 0, Alt: 1, Shift: 2, Win: 3 },
+  other: { Ctrl: 0, Alt: 1, Shift: 2, Cmd: 3, Super: 3 },
+};
+
+function orderShortcutStroke(
+  tokens: string[],
+  platform: HotkeyPlatform,
+): string[] {
+  const rank = MODIFIER_DISPLAY_ORDER[platform];
+  return tokens
+    .map((token, index) => ({ token, index, order: rank[token] ?? 9 }))
+    .sort((left, right) => left.order - right.order || left.index - right.index)
+    .map(({ token }) => token);
+}
+
 export function formatShortcutStrokes(
   shortcut: string | undefined,
   platform: HotkeyPlatform,
@@ -90,10 +107,13 @@ export function formatShortcutStrokes(
     .replace(/\s*\+\s*/g, "+")
     .split(/\s+/)
     .map((stroke) =>
-      stroke
-        .split("+")
-        .filter(Boolean)
-        .map((part) => modifierMap[part] ?? part.toUpperCase()),
+      orderShortcutStroke(
+        stroke
+          .split("+")
+          .filter(Boolean)
+          .map((part) => modifierMap[part] ?? part.toUpperCase()),
+        platform,
+      ),
     );
   return strokes.some((stroke) => stroke.length)
     ? strokes

@@ -19,6 +19,7 @@ export enum SettingsGroupKey {
  */
 export enum SettingsTabs {
   General = "general",
+  Import = "import",
   Voice = "voice",
   // 账号
   Profile = "profile",
@@ -37,11 +38,13 @@ export enum SettingsTabs {
   Plugins = "plugins-settings",
   McpServers = "mcp-servers",
   ComputerUse = "computer-use",
+  AppSnapshots = "app-snapshots",
   CloudDesktops = "cloud-desktops",
   MediaServices = "media-services",
 
   // 系统
   Hooks = "hooks",
+  Connections = "connections",
   LocalEnvironments = "local-environments",
   Git = "git",
   Worktrees = "worktrees",

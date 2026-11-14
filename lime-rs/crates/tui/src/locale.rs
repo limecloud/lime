@@ -507,6 +507,52 @@ impl Locale {
             (Self::EnUs, SlashCommand::Recap) => "summarize the current conversation now",
             (Self::JaJp, SlashCommand::Recap) => "現在の会話を今すぐ要約",
             (Self::KoKr, SlashCommand::Recap) => "현재 대화를 지금 요약",
+            (Self::ZhCn, SlashCommand::AutoReview) => "批准一次最近自动审核拒绝的重试",
+            (Self::ZhTw, SlashCommand::AutoReview) => "核准一次最近自動審核拒絕的重試",
+            (Self::EnUs, SlashCommand::AutoReview) => {
+                "approve one retry of a recent auto-review denial"
+            }
+            (Self::JaJp, SlashCommand::AutoReview) => "最近の自動レビュー拒否を一度だけ再試行承認",
+            (Self::KoKr, SlashCommand::AutoReview) => "최근 자동 검토 거부를 한 번 재시도 승인",
+            (Self::ZhCn, SlashCommand::Presets) => "运行或保存可复用的提示与命令",
+            (Self::ZhTw, SlashCommand::Presets) => "執行或儲存可重用的提示與命令",
+            (Self::EnUs, SlashCommand::Presets) => {
+                "run or save reusable prompts and slash commands"
+            }
+            (Self::JaJp, SlashCommand::Presets) => "再利用可能なプロンプトやコマンドを実行・保存",
+            (Self::KoKr, SlashCommand::Presets) => "재사용 가능한 프롬프트와 명령 실행/저장",
+            (Self::ZhCn, SlashCommand::Worktree) => "在新的 worktree 中开始或继续对话",
+            (Self::ZhTw, SlashCommand::Worktree) => "在新的 worktree 中開始或繼續對話",
+            (Self::EnUs, SlashCommand::Worktree) => {
+                "start or continue a conversation in a new worktree"
+            }
+            (Self::JaJp, SlashCommand::Worktree) => "新しい worktree で会話を開始または継続",
+            (Self::KoKr, SlashCommand::Worktree) => "새 worktree에서 대화 시작 또는 계속",
+            (Self::ZhCn, SlashCommand::Side) => "从当前对话开启侧会话，再次输入返回",
+            (Self::ZhTw, SlashCommand::Side) => "從目前對話開啟側對話，再次輸入返回",
+            (Self::EnUs, SlashCommand::Side) => {
+                "open a side conversation from this thread; run again to return"
+            }
+            (Self::JaJp, SlashCommand::Side) => {
+                "現在のスレッドからサイド会話を開く（再実行で戻る）"
+            }
+            (Self::KoKr, SlashCommand::Side) => {
+                "현재 스레드에서 사이드 대화 열기 (다시 실행하면 복귀)"
+            }
+            (Self::ZhCn, SlashCommand::Btw) => "就当前上下文快速开一个侧会话",
+            (Self::ZhTw, SlashCommand::Btw) => "就目前上下文快速開一個側對話",
+            (Self::EnUs, SlashCommand::Btw) => {
+                "start a quick side conversation from the current context"
+            }
+            (Self::JaJp, SlashCommand::Btw) => "現在の文脈から素早くサイド会話を開始",
+            (Self::KoKr, SlashCommand::Btw) => "현재 컨텍스트에서 빠르게 사이드 대화 시작",
+            (Self::ZhCn, SlashCommand::Voice) => "使用默认麦克风开始/停止语音输入",
+            (Self::ZhTw, SlashCommand::Voice) => "使用預設麥克風開始/停止語音輸入",
+            (Self::EnUs, SlashCommand::Voice) => {
+                "start or stop voice input with the default microphone"
+            }
+            (Self::JaJp, SlashCommand::Voice) => "既定のマイクで音声入力を開始/停止",
+            (Self::KoKr, SlashCommand::Voice) => "기본 마이크로 음성 입력 시작/중지",
             (Self::ZhCn, SlashCommand::Ps) => "查看后台终端",
             (Self::ZhTw, SlashCommand::Ps) => "檢視背景終端",
             (Self::EnUs, SlashCommand::Ps) => "list background terminals",
@@ -1033,6 +1079,516 @@ impl Locale {
             Self::EnUs => "memory reset",
             Self::JaJp => "メモリをリセットしました",
             Self::KoKr => "메모리가 재설정되었습니다",
+        }
+    }
+
+    pub(crate) fn side_wait_for_turn(self) -> &'static str {
+        match self {
+            Self::ZhCn => "请等待当前任务结束后再开启侧会话",
+            Self::ZhTw => "請等待目前任務結束後再開啟側對話",
+            Self::EnUs => "Wait for the current task to finish before opening a side conversation.",
+            Self::JaJp => "現在のタスクが終わってからサイド会話を開いてください",
+            Self::KoKr => "현재 작업이 끝난 후 사이드 대화를 여세요",
+        }
+    }
+
+    pub(crate) fn voice_listening(self) -> &'static str {
+        match self {
+            Self::ZhCn => "正在录音…再次输入 /voice 停止并转写",
+            Self::ZhTw => "正在錄音…再次輸入 /voice 停止並轉寫",
+            Self::EnUs => "Listening… run /voice again to stop and transcribe.",
+            Self::JaJp => "録音中… 再度 /voice で停止して文字起こし",
+            Self::KoKr => "녹음 중… /voice를 다시 실행하면 중지 후 변환합니다",
+        }
+    }
+
+    pub(crate) fn voice_transcribing(self) -> &'static str {
+        match self {
+            Self::ZhCn => "正在转写语音…",
+            Self::ZhTw => "正在轉寫語音…",
+            Self::EnUs => "Transcribing voice…",
+            Self::JaJp => "音声を文字起こししています…",
+            Self::KoKr => "음성을 변환하는 중…",
+        }
+    }
+
+    pub(crate) fn voice_transcribed(self) -> &'static str {
+        match self {
+            Self::ZhCn => "语音已写入输入框",
+            Self::ZhTw => "語音已寫入輸入框",
+            Self::EnUs => "Voice transcript inserted into the composer.",
+            Self::JaJp => "音声を入力欄に挿入しました",
+            Self::KoKr => "음성 텍스트를 입력창에 삽입했습니다",
+        }
+    }
+
+    pub(crate) fn voice_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有识别到语音内容",
+            Self::ZhTw => "沒有辨識到語音內容",
+            Self::EnUs => "No speech was recognized.",
+            Self::JaJp => "音声を認識できませんでした",
+            Self::KoKr => "음성을 인식하지 못했습니다",
+        }
+    }
+
+    pub(crate) fn voice_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("语音输入失败：{error}"),
+            Self::ZhTw => format!("語音輸入失敗：{error}"),
+            Self::EnUs => format!("Voice input failed: {error}"),
+            Self::JaJp => format!("音声入力に失敗しました：{error}"),
+            Self::KoKr => format!("음성 입력 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn side_parent_pane_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "主对话（快照）",
+            Self::ZhTw => "主對話（快照）",
+            Self::EnUs => "Main conversation (snapshot)",
+            Self::JaJp => "メイン会話（スナップショット）",
+            Self::KoKr => "메인 대화 (스냅샷)",
+        }
+    }
+
+    pub(crate) fn side_thread_title(&self, parent: &str) -> String {
+        match self {
+            Self::ZhCn => format!("侧会话 · {parent}"),
+            Self::ZhTw => format!("側對話 · {parent}"),
+            Self::EnUs => format!("Side · {parent}"),
+            Self::JaJp => format!("サイド · {parent}"),
+            Self::KoKr => format!("사이드 · {parent}"),
+        }
+    }
+
+    pub(crate) fn side_parent_working(self) -> &'static str {
+        match self {
+            Self::ZhCn => "运行中",
+            Self::ZhTw => "執行中",
+            Self::EnUs => "working",
+            Self::JaJp => "実行中",
+            Self::KoKr => "작업 중",
+        }
+    }
+
+    pub(crate) fn side_parent_needs_input(self) -> &'static str {
+        match self {
+            Self::ZhCn => "等待输入",
+            Self::ZhTw => "等待輸入",
+            Self::EnUs => "needs input",
+            Self::JaJp => "入力待ち",
+            Self::KoKr => "입력 필요",
+        }
+    }
+
+    pub(crate) fn side_parent_needs_approval(self) -> &'static str {
+        match self {
+            Self::ZhCn => "等待审批",
+            Self::ZhTw => "等待核准",
+            Self::EnUs => "needs approval",
+            Self::JaJp => "承認待ち",
+            Self::KoKr => "승인 필요",
+        }
+    }
+
+    pub(crate) fn side_context_label(&self, parent: &str) -> String {
+        match self {
+            Self::ZhCn => format!("侧会话 · {parent}"),
+            Self::ZhTw => format!("側對話 · {parent}"),
+            Self::EnUs => format!("Side · {parent}"),
+            Self::JaJp => format!("サイド · {parent}"),
+            Self::KoKr => format!("사이드 · {parent}"),
+        }
+    }
+
+    pub(crate) fn side_started(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已开启侧会话，再次输入 /side 返回",
+            Self::ZhTw => "已開啟側對話，再次輸入 /side 返回",
+            Self::EnUs => "Side conversation started; run /side again to return.",
+            Self::JaJp => "サイド会話を開始しました。再度 /side で戻ります",
+            Self::KoKr => "사이드 대화가 시작되었습니다. /side를 다시 실행하면 복귀합니다",
+        }
+    }
+
+    pub(crate) fn side_returned(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已返回主对话",
+            Self::ZhTw => "已返回主對話",
+            Self::EnUs => "Returned from the side conversation.",
+            Self::JaJp => "サイド会話から戻りました",
+            Self::KoKr => "사이드 대화에서 복귀했습니다",
+        }
+    }
+
+    pub(crate) fn side_already_open(self) -> &'static str {
+        match self {
+            Self::ZhCn => "当前对话已有侧会话；先返回再开启新的",
+            Self::ZhTw => "目前對話已有側對話；先返回再開啟新的",
+            Self::EnUs => "A side conversation is already open; return before starting another.",
+            Self::JaJp => "サイド会話が既に開いています。戻ってから新規に開いてください",
+            Self::KoKr => "이미 사이드 대화가 열려 있습니다. 복귀 후 새로 시작하세요",
+        }
+    }
+
+    pub(crate) fn side_unavailable(self) -> &'static str {
+        match self {
+            Self::ZhCn => "会话尚未开始，无法开启侧会话",
+            Self::ZhTw => "工作階段尚未開始，無法開啟側對話",
+            Self::EnUs => "Side conversations are unavailable before the session starts.",
+            Self::JaJp => "セッション開始前はサイド会話を開けません",
+            Self::KoKr => "세션이 시작되기 전에는 사이드 대화를 열 수 없습니다",
+        }
+    }
+
+    pub(crate) fn side_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("侧会话操作失败：{error}"),
+            Self::ZhTw => format!("側對話操作失敗：{error}"),
+            Self::EnUs => format!("Side conversation failed: {error}"),
+            Self::JaJp => format!("サイド会話に失敗しました：{error}"),
+            Self::KoKr => format!("사이드 대화 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn worktree_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "工作树",
+            Self::ZhTw => "工作樹",
+            Self::EnUs => "Worktrees",
+            Self::JaJp => "ワークツリー",
+            Self::KoKr => "워크트리",
+        }
+    }
+
+    pub(crate) fn worktree_subtitle(self, root: &str) -> String {
+        match self {
+            Self::ZhCn => format!("仓库 {root} · Enter 进入"),
+            Self::ZhTw => format!("儲存庫 {root} · Enter 進入"),
+            Self::EnUs => format!("Repository {root} · Enter to enter"),
+            Self::JaJp => format!("リポジトリ {root} · Enter で入る"),
+            Self::KoKr => format!("저장소 {root} · Enter로 이동"),
+        }
+    }
+
+    pub(crate) fn worktree_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "没有可用的托管 worktree",
+            Self::ZhTw => "沒有可用的託管 worktree",
+            Self::EnUs => "No managed worktrees are available.",
+            Self::JaJp => "管理された worktree がありません",
+            Self::KoKr => "관리되는 worktree가 없습니다",
+        }
+    }
+
+    pub(crate) fn worktree_unavailable(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("无法读取 worktree：{error}"),
+            Self::ZhTw => format!("無法讀取 worktree：{error}"),
+            Self::EnUs => format!("Could not load worktrees: {error}"),
+            Self::JaJp => format!("ワークツリーを読み込めません：{error}"),
+            Self::KoKr => format!("워크트리를 불러올 수 없습니다: {error}"),
+        }
+    }
+
+    pub(crate) fn worktree_create_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "新建工作树",
+            Self::ZhTw => "新增工作樹",
+            Self::EnUs => "New worktree",
+            Self::JaJp => "新しいワークツリー",
+            Self::KoKr => "새 워크트리",
+        }
+    }
+
+    pub(crate) fn worktree_create_placeholder(self) -> &'static str {
+        match self {
+            Self::ZhCn => "输入名称（留空使用服务端默认）",
+            Self::ZhTw => "輸入名稱（留空使用伺服器預設）",
+            Self::EnUs => "Worktree name (blank uses the server default)",
+            Self::JaJp => "ワークツリー名（空欄はサーバー既定）",
+            Self::KoKr => "워크트리 이름 (비우면 서버 기본값)",
+        }
+    }
+
+    pub(crate) fn worktree_create_submit(self) -> &'static str {
+        match self {
+            Self::ZhCn => "创建",
+            Self::ZhTw => "建立",
+            Self::EnUs => "create",
+            Self::JaJp => "作成",
+            Self::KoKr => "생성",
+        }
+    }
+
+    pub(crate) fn worktree_created(&self, path: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已创建工作树：{path}"),
+            Self::ZhTw => format!("已建立工作樹：{path}"),
+            Self::EnUs => format!("Created worktree: {path}"),
+            Self::JaJp => format!("ワークツリーを作成しました：{path}"),
+            Self::KoKr => format!("워크트리 생성됨: {path}"),
+        }
+    }
+
+    pub(crate) fn worktree_deleted(&self, path: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已删除工作树：{path}"),
+            Self::ZhTw => format!("已刪除工作樹：{path}"),
+            Self::EnUs => format!("Deleted worktree: {path}"),
+            Self::JaJp => format!("ワークツリーを削除しました：{path}"),
+            Self::KoKr => format!("워크트리 삭제됨: {path}"),
+        }
+    }
+
+    pub(crate) fn confirm_delete_worktree_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "删除工作树",
+            Self::ZhTw => "刪除工作樹",
+            Self::EnUs => "Delete worktree",
+            Self::JaJp => "ワークツリーを削除",
+            Self::KoKr => "워크트리 삭제",
+        }
+    }
+
+    pub(crate) fn confirm_delete_worktree_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "该工作树及其线程会被归档；此操作不可撤销",
+            Self::ZhTw => "該工作樹及其執行緒會被封存；此操作不可復原",
+            Self::EnUs => "Its threads will be archived; this cannot be undone",
+            Self::JaJp => "スレッドはアーカイブされます。元に戻せません",
+            Self::KoKr => "스레드가 보관되며 되돌릴 수 없습니다",
+        }
+    }
+
+    pub(crate) fn confirm_delete_worktree_label(&self, path: &str) -> String {
+        match self {
+            Self::ZhCn => format!("删除 {path}"),
+            Self::ZhTw => format!("刪除 {path}"),
+            Self::EnUs => format!("Delete {path}"),
+            Self::JaJp => format!("{path} を削除"),
+            Self::KoKr => format!("{path} 삭제"),
+        }
+    }
+
+    pub(crate) fn confirm_delete_worktree_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "归档关联线程并移除该工作树",
+            Self::ZhTw => "封存關聯執行緒並移除該工作樹",
+            Self::EnUs => "Archive its threads and remove the worktree",
+            Self::JaJp => "スレッドをアーカイブしてワークツリーを削除します",
+            Self::KoKr => "관련 스레드를 보관하고 워크트리를 제거합니다",
+        }
+    }
+
+    pub(crate) fn worktree_selected(&self, path: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已进入 worktree：{path}"),
+            Self::ZhTw => format!("已進入 worktree：{path}"),
+            Self::EnUs => format!("Entered worktree: {path}"),
+            Self::JaJp => format!("ワークツリーに入りました：{path}"),
+            Self::KoKr => format!("워크트리로 이동: {path}"),
+        }
+    }
+
+    pub(crate) fn presets_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "预设",
+            Self::ZhTw => "預設",
+            Self::EnUs => "Presets",
+            Self::JaJp => "プリセット",
+            Self::KoKr => "프리셋",
+        }
+    }
+
+    pub(crate) fn presets_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "Enter 载入草稿 · n 保存当前草稿 · d 删除 · Esc 关闭",
+            Self::ZhTw => "Enter 載入草稿 · n 儲存目前草稿 · d 刪除 · Esc 關閉",
+            Self::EnUs => "Enter recalls · n saves the draft · d deletes · Esc closes",
+            Self::JaJp => "Enter で読み込み · n で下書き保存 · d で削除 · Esc で閉じる",
+            Self::KoKr => "Enter 불러오기 · n 초안 저장 · d 삭제 · Esc 닫기",
+        }
+    }
+
+    pub(crate) fn presets_empty(self) -> &'static str {
+        match self {
+            Self::ZhCn => "还没有预设：在输入框写好内容后按 n 保存",
+            Self::ZhTw => "還沒有預設：在輸入框寫好內容後按 n 儲存",
+            Self::EnUs => "No presets yet: write a draft, then press n to save it.",
+            Self::JaJp => "プリセットはまだありません。入力後に n で保存できます",
+            Self::KoKr => "프리셋이 없습니다. 초안을 입력한 뒤 n으로 저장하세요",
+        }
+    }
+
+    pub(crate) fn preset_save_input_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "保存预设输入",
+            Self::ZhTw => "儲存預設輸入",
+            Self::EnUs => "Save preset input",
+            Self::JaJp => "プリセット入力を保存",
+            Self::KoKr => "프리셋 입력 저장",
+        }
+    }
+
+    pub(crate) fn preset_save_input_placeholder(self) -> &'static str {
+        match self {
+            Self::ZhCn => "输入要复用的提示或命令",
+            Self::ZhTw => "輸入要重用的提示或命令",
+            Self::EnUs => "Prompt or slash command to reuse",
+            Self::JaJp => "再利用するプロンプトまたはコマンド",
+            Self::KoKr => "재사용할 프롬프트 또는 명령",
+        }
+    }
+
+    pub(crate) fn preset_save_input_submit(self) -> &'static str {
+        match self {
+            Self::ZhCn => "保存",
+            Self::ZhTw => "儲存",
+            Self::EnUs => "save",
+            Self::JaJp => "保存",
+            Self::KoKr => "저장",
+        }
+    }
+
+    pub(crate) fn preset_edit_label_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "编辑预设标签",
+            Self::ZhTw => "編輯預設標籤",
+            Self::EnUs => "Edit preset label",
+            Self::JaJp => "プリセットのラベルを編集",
+            Self::KoKr => "프리셋 라벨 편집",
+        }
+    }
+
+    pub(crate) fn preset_edit_label_placeholder(self) -> &'static str {
+        match self {
+            Self::ZhCn => "留空则显示输入内容",
+            Self::ZhTw => "留空則顯示輸入內容",
+            Self::EnUs => "Leave blank to show the input text",
+            Self::JaJp => "空欄の場合は入力内容を表示",
+            Self::KoKr => "비우면 입력 내용을 표시",
+        }
+    }
+
+    pub(crate) fn preset_edit_label_submit(self) -> &'static str {
+        match self {
+            Self::ZhCn => "保存标签",
+            Self::ZhTw => "儲存標籤",
+            Self::EnUs => "save label",
+            Self::JaJp => "ラベルを保存",
+            Self::KoKr => "라벨 저장",
+        }
+    }
+
+    pub(crate) fn preset_saved(self, slot: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已保存预设 {slot}"),
+            Self::ZhTw => format!("已儲存預設 {slot}"),
+            Self::EnUs => format!("Saved preset {slot}"),
+            Self::JaJp => format!("プリセット {slot} を保存しました"),
+            Self::KoKr => format!("프리셋 {slot} 저장됨"),
+        }
+    }
+
+    pub(crate) fn preset_deleted(self, slot: &str) -> String {
+        match self {
+            Self::ZhCn => format!("已删除预设 {slot}"),
+            Self::ZhTw => format!("已刪除預設 {slot}"),
+            Self::EnUs => format!("Deleted preset {slot}"),
+            Self::JaJp => format!("プリセット {slot} を削除しました"),
+            Self::KoKr => format!("프리셋 {slot} 삭제됨"),
+        }
+    }
+
+    pub(crate) fn presets_all_slots_used(self) -> &'static str {
+        match self {
+            Self::ZhCn => "10 个预设槽位已全部使用",
+            Self::ZhTw => "10 個預設槽位已全部使用",
+            Self::EnUs => "All 10 preset slots are already used.",
+            Self::JaJp => "10 個のプリセット枠はすべて使用済みです",
+            Self::KoKr => "프리셋 슬롯 10개가 모두 사용 중입니다",
+        }
+    }
+
+    pub(crate) fn preset_save_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("预设保存失败：{error}"),
+            Self::ZhTw => format!("預設儲存失敗：{error}"),
+            Self::EnUs => format!("Failed to save the preset: {error}"),
+            Self::JaJp => format!("プリセットの保存に失敗しました：{error}"),
+            Self::KoKr => format!("프리셋 저장 실패: {error}"),
+        }
+    }
+
+    pub(crate) fn confirm_approve_guardian_retry_title(self) -> &'static str {
+        match self {
+            Self::ZhCn => "批准自动审核重试",
+            Self::ZhTw => "核准自動審核重試",
+            Self::EnUs => "Approve auto-review retry",
+            Self::JaJp => "自動レビューの再試行を承認",
+            Self::KoKr => "자동 검토 재시도 승인",
+        }
+    }
+
+    pub(crate) fn confirm_approve_guardian_retry_subtitle(self) -> &'static str {
+        match self {
+            Self::ZhCn => "仅批准该次被拒绝操作的一次重试",
+            Self::ZhTw => "僅核准該次被拒絕操作的一次重試",
+            Self::EnUs => "Approve one retry of the exact denied action",
+            Self::JaJp => "拒否された操作を一度だけ再試行承認します",
+            Self::KoKr => "거부된 작업을 한 번만 재시도 승인합니다",
+        }
+    }
+
+    pub(crate) fn confirm_approve_guardian_retry_label(&self, summary: &str) -> String {
+        match self {
+            Self::ZhCn => format!("批准重试：{summary}"),
+            Self::ZhTw => format!("核准重試：{summary}"),
+            Self::EnUs => format!("Approve retry: {summary}"),
+            Self::JaJp => format!("再試行を承認：{summary}"),
+            Self::KoKr => format!("재시도 승인: {summary}"),
+        }
+    }
+
+    pub(crate) fn confirm_approve_guardian_retry_description(self) -> &'static str {
+        match self {
+            Self::ZhCn => "同一上下文中的这一操作将被允许一次",
+            Self::ZhTw => "同一情境中的此操作將被允許一次",
+            Self::EnUs => "Allows that exact action once in the same context",
+            Self::JaJp => "同じコンテキストでその操作を一度だけ許可します",
+            Self::KoKr => "같은 컨텍스트에서 해당 작업을 한 번 허용합니다",
+        }
+    }
+
+    pub(crate) fn auto_review_no_denials(self) -> &'static str {
+        match self {
+            Self::ZhCn => "最近没有可重试的自动审核拒绝",
+            Self::ZhTw => "最近沒有可重試的自動審核拒絕",
+            Self::EnUs => "There is no recent auto-review denial to retry.",
+            Self::JaJp => "再試行できる自動レビュー拒否はありません",
+            Self::KoKr => "재시도할 최근 자동 검토 거부가 없습니다",
+        }
+    }
+
+    pub(crate) fn auto_review_approved(self) -> &'static str {
+        match self {
+            Self::ZhCn => "已批准一次自动审核重试",
+            Self::ZhTw => "已核准一次自動審核重試",
+            Self::EnUs => "auto-review retry approved",
+            Self::JaJp => "自動レビューの再試行を承認しました",
+            Self::KoKr => "자동 검토 재시도를 승인했습니다",
+        }
+    }
+
+    pub(crate) fn auto_review_failed(&self, error: &str) -> String {
+        match self {
+            Self::ZhCn => format!("自动审核重试失败：{error}"),
+            Self::ZhTw => format!("自動審核重試失敗：{error}"),
+            Self::EnUs => format!("Failed to approve the auto-review retry: {error}"),
+            Self::JaJp => format!("自動レビュー再試行の承認に失敗しました：{error}"),
+            Self::KoKr => format!("자동 검토 재시도 승인 실패: {error}"),
         }
     }
 

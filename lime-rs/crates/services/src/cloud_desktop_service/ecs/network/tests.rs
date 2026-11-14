@@ -44,6 +44,7 @@ elif action=='GetStack':
  if flag('deleted') and not flag('wrong-tag'): out['Tags']=[]
 elif action=='ListStackResources':
  resources=[{'LogicalResourceId':logical,'PhysicalResourceId':physical,'ResourceType':kind,'StackId':'stack-test','Status':'DELETE_COMPLETE'} for logical,physical,kind in [('Vpc','vpc-test','ALIYUN::ECS::VPC'),('Switch','vsw-test','ALIYUN::ECS::VSwitch'),('Group','sg-test','ALIYUN::ECS::SecurityGroup')]]
+ for resource in resources: resource['PhysicalResourceId']=''
  if flag('retained'): resources[0]['Status']='DELETE_SKIPPED'
  if flag('changed-deleted'): resources[1]['PhysicalResourceId']='vsw-other'
  out={'Resources':resources}
@@ -52,6 +53,15 @@ elif action=='GetTemplate':
  if flag('changed-template'): body['Resources']['Unexpected']={'Type':'ALIYUN::ECS::Instance'}
  out={'TemplateBody':json.dumps(body)}
 elif action=='DescribeVSwitchAttributes': out={'VSwitchId':'vsw-test','Status':'Available','AvailableIpAddressCount':200,'ZoneId':'cn-wrong' if flag('wrong-zone') else 'cn-test-a','VpcId':'vpc-test'}
+elif action=='DescribeVSwitches':
+ assert arg('--VSwitchId')=='vsw-test'
+ items=[{'VSwitchId':'vsw-test'}] if flag('switch-still-present') else []
+ out={'TotalCount':len(items),'VSwitches':{'VSwitch':items}}
+elif action=='DescribeSecurityGroups':
+ assert arg('--SecurityGroupId')=='sg-test'
+ items=[{'SecurityGroupId':'sg-test'}] if flag('group-still-present') else []
+ out={'TotalCount':len(items),'SecurityGroups':{'SecurityGroup':items}}
+ if flag('malformed-deleted-inventory'): del out['SecurityGroups']
 elif action=='DescribeSecurityGroupAttribute':
  out={'SecurityGroupId':'sg-test','VpcId':'vpc-test','RegionId':'cn-test','Permissions':{'Permission':[{'Direction':'ingress','PortRange':'22/22'}] if flag('inbound') else [{'Direction':'egress'}]}}
 else: sys.exit(2)
@@ -245,7 +255,14 @@ async fn deleted_network_requires_all_original_resources_removed_before_new_prep
         .await
         .unwrap();
     fs::write(directory.path().join("deleted"), "").unwrap();
-    for flag in ["retained", "changed-deleted", "wrong-tag"] {
+    for flag in [
+        "retained",
+        "changed-deleted",
+        "wrong-tag",
+        "switch-still-present",
+        "group-still-present",
+        "malformed-deleted-inventory",
+    ] {
         fs::write(directory.path().join(flag), "").unwrap();
         assert!(
             service

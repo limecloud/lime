@@ -17,7 +17,7 @@ impl RolloutStore {
         } else {
             self.resolve_active(relative_path)?
         };
-        if super::compression::existing_path(&path)?.is_none() {
+        if super::compression::existing_rollout_path(&path)?.is_none() {
             return Ok(false);
         }
         let active = if archived {
@@ -28,7 +28,7 @@ impl RolloutStore {
         let scan = super::scan_rollout_repaired(&path)?;
         super::validate_scan_identity(&scan, &active, session_id, thread_id, &path)?;
         // Remove the hidden representation first so a failed deletion cannot revive it.
-        super::compression::remove_compressed(&path)?;
+        super::compression::remove_compressed_rollout(&path)?;
         match fs::remove_file(&path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

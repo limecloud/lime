@@ -182,16 +182,27 @@ export function SettingsRow({
   );
 }
 
-export const SettingsAction = styled.button<{ $tone?: "danger" }>`
+export const SettingsAction = styled.button<{
+  $tone?: "danger";
+  $variant?: "outline";
+}>`
   display: inline-flex;
-  min-height: 28px;
+  min-height: ${({ $variant }) => ($variant === "outline" ? "36px" : "28px")};
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 0;
-  border-radius: 8px;
-  padding: 4px 10px;
-  background: var(--lime-surface-subtle, hsl(var(--muted)));
+  border: ${({ $variant }) =>
+    $variant === "outline"
+      ? "1px solid var(--lime-surface-border, hsl(var(--border)))"
+      : "0"};
+  border-radius: ${({ $variant }) =>
+    $variant === "outline" ? "9999px" : "8px"};
+  padding: ${({ $variant }) =>
+    $variant === "outline" ? "8px 12px" : "4px 10px"};
+  background: ${({ $variant }) =>
+    $variant === "outline"
+      ? "transparent"
+      : "var(--lime-surface-subtle, hsl(var(--muted)))"};
   color: ${({ $tone }) =>
     $tone === "danger"
       ? "var(--lime-danger, hsl(var(--destructive)))"
@@ -247,6 +258,9 @@ export function SettingsValueMenu<T extends string>({
   disabled,
   onChange,
   align = "end",
+  variant,
+  leading,
+  triggerClassName,
 }: {
   targetId: string;
   described?: boolean;
@@ -263,6 +277,9 @@ export function SettingsValueMenu<T extends string>({
   disabled: boolean;
   onChange: (value: T) => void;
   align?: "start" | "end";
+  variant?: "outline";
+  leading?: ReactNode;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -270,11 +287,13 @@ export function SettingsValueMenu<T extends string>({
       <Menu.Trigger asChild>
         <SettingsAction
           type="button"
-          className="min-w-0 max-w-full"
+          $variant={variant}
+          className={`min-w-0 max-w-full${triggerClassName ? ` ${triggerClassName}` : ""}`}
           disabled={disabled}
           aria-labelledby={`${targetId}-label ${targetId}-value`}
           aria-describedby={described ? `${targetId}-description` : undefined}
         >
+          {leading}
           <span id={`${targetId}-value`} className="min-w-0 truncate">
             {options.find((option) => option.value === value)?.label ??
               placeholder}
@@ -345,6 +364,86 @@ export function SettingsValueMenu<T extends string>({
         </Menu.Content>
       </Menu.Portal>
     </Menu.Root>
+  );
+}
+
+const SegmentedRoot = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const SegmentedOption = styled.button<{ $selected: boolean }>`
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 0 10px;
+  background: ${({ $selected }) =>
+    $selected
+      ? "var(--lime-surface-hover, hsl(var(--accent)))"
+      : "transparent"};
+  color: ${({ $selected }) =>
+    $selected
+      ? "var(--lime-text-strong, hsl(var(--foreground)))"
+      : "var(--lime-text-muted, hsl(var(--muted-foreground)))"};
+  font-size: 13px;
+  font-weight: 430;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  &:hover {
+    background: var(--lime-surface-hover, hsl(var(--accent)));
+  }
+  &:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
+/** Codex's in-row segmented choice: two or three 24px pills, no menu. */
+export function SettingsSegmentedControl<T extends string>({
+  targetId,
+  described,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  targetId: string;
+  described?: boolean;
+  value: T;
+  options: readonly { value: T; label: ReactNode }[];
+  disabled: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <SegmentedRoot
+      role="group"
+      aria-labelledby={`${targetId}-label`}
+      aria-describedby={described ? `${targetId}-description` : undefined}
+    >
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <SegmentedOption
+            key={option.value}
+            type="button"
+            $selected={selected}
+            aria-pressed={selected}
+            disabled={disabled}
+            onClick={() => {
+              if (!selected) onChange(option.value);
+            }}
+          >
+            {option.label}
+          </SegmentedOption>
+        );
+      })}
+    </SegmentedRoot>
   );
 }
 

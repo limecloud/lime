@@ -436,6 +436,85 @@ impl App {
             }
         }
 
+        if self.chat_widget.worktree_picker_open() {
+            if let Some(action) = self.chat_widget.handle_worktree_picker_event(&event) {
+                return match action {
+                    crate::app::worktree_picker::WorktreePickerAction::Enter {
+                        path,
+                        thread_id,
+                    } => {
+                        self.chat_widget.close_worktree_picker();
+                        AppAction::EnterWorktree { path, thread_id }
+                    }
+                    crate::app::worktree_picker::WorktreePickerAction::Create {
+                        root_path,
+                        name,
+                    } => {
+                        self.chat_widget.close_worktree_picker();
+                        AppAction::CreateWorktree { root_path, name }
+                    }
+                    crate::app::worktree_picker::WorktreePickerAction::DeleteRequest {
+                        worktree_path,
+                    } => {
+                        self.chat_widget.close_worktree_picker();
+                        self.chat_widget.open_confirm_prompt(
+                            crate::app::confirm_prompt::ConfirmPrompt::delete_worktree(
+                                worktree_path,
+                            ),
+                        );
+                        AppAction::None
+                    }
+                    crate::app::worktree_picker::WorktreePickerAction::Refresh => {
+                        self.chat_widget.close_worktree_picker();
+                        AppAction::ListWorktrees
+                    }
+                    crate::app::worktree_picker::WorktreePickerAction::Cancel => {
+                        self.chat_widget.close_worktree_picker();
+                        AppAction::None
+                    }
+                    crate::app::worktree_picker::WorktreePickerAction::None => AppAction::None,
+                };
+            }
+        }
+
+        if self.chat_widget.presets_menu_open() {
+            if let Some(action) = self.chat_widget.handle_presets_menu_event(&event) {
+                return match action {
+                    crate::app::presets_menu::PresetsMenuAction::Recall { input } => {
+                        self.chat_widget.close_presets_menu();
+                        AppAction::InsertComposerText(input)
+                    }
+                    crate::app::presets_menu::PresetsMenuAction::Save { input } => {
+                        let entries = self.chat_widget.presets_menu_entries();
+                        match crate::app::presets_menu::PresetEntry::first_free_slot(&entries) {
+                            Some(slot) => {
+                                self.chat_widget.close_presets_menu();
+                                AppAction::SavePreset { slot, input }
+                            }
+                            None => {
+                                self.projection
+                                    .set_status(self.chat_widget.locale.presets_all_slots_used());
+                                AppAction::None
+                            }
+                        }
+                    }
+                    crate::app::presets_menu::PresetsMenuAction::Delete { slot } => {
+                        self.chat_widget.close_presets_menu();
+                        AppAction::DeletePreset { slot }
+                    }
+                    crate::app::presets_menu::PresetsMenuAction::EditLabel { slot, label } => {
+                        self.chat_widget.close_presets_menu();
+                        AppAction::SetPresetLabel { slot, label }
+                    }
+                    crate::app::presets_menu::PresetsMenuAction::Cancel => {
+                        self.chat_widget.close_presets_menu();
+                        AppAction::None
+                    }
+                    crate::app::presets_menu::PresetsMenuAction::None => AppAction::None,
+                };
+            }
+        }
+
         if self.chat_widget.process_list_open() {
             if let Some(action) = self.chat_widget.handle_process_list_event(&event) {
                 return match action {
@@ -651,6 +730,13 @@ impl App {
                             process_id,
                             command,
                         },
+                        Some(crate::app::confirm_prompt::ConfirmKind::DeleteWorktree {
+                            worktree_path,
+                        }) => AppAction::DeleteWorktree { worktree_path },
+                        Some(crate::app::confirm_prompt::ConfirmKind::ApproveGuardianRetry {
+                            event,
+                            ..
+                        }) => AppAction::ApproveGuardianRetry(event),
                         Some(crate::app::confirm_prompt::ConfirmKind::InstallPlugin {
                             plugin_name,
                             marketplace_path,

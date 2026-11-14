@@ -8,6 +8,7 @@ use crate::multi_agents::{
     format_agent_picker_item_name, next_agent_shortcut, previous_agent_shortcut,
     AgentPickerThreadEntry, SubAgentActivityDisplay,
 };
+use app_server_protocol::protocol::v2::{ThreadActiveFlag, ThreadStatus};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AgentNavigationDirection {
@@ -21,6 +22,7 @@ pub(crate) struct AgentNavigationState {
     order: Vec<String>,
     stopped_threads: std::collections::HashSet<String>,
     parent_owned_threads: std::collections::HashSet<String>,
+    active_flags: std::collections::HashMap<String, Vec<ThreadActiveFlag>>,
 }
 
 impl AgentNavigationState {
@@ -34,6 +36,48 @@ impl AgentNavigationState {
 
     pub(crate) fn mark_parent_owned(&mut self, thread_id: impl Into<String>) {
         self.parent_owned_threads.insert(thread_id.into());
+    }
+
+    /// Applies one canonical thread status to liveness plus waiting flags.
+    pub(crate) fn note_thread_status(&mut self, thread_id: &str, status: &ThreadStatus) {
+        match status {
+            ThreadStatus::Active { active_flags } => {
+                self.mark_running(thread_id);
+                if active_flags.is_empty() {
+                    self.active_flags.remove(thread_id);
+                } else {
+                    self.active_flags
+                        .insert(thread_id.to_string(), active_flags.clone());
+                }
+            }
+            ThreadStatus::Idle | ThreadStatus::SystemError => {
+                self.mark_stopped(thread_id);
+                self.active_flags.remove(thread_id);
+            }
+            ThreadStatus::NotLoaded => {
+                self.active_flags.remove(thread_id);
+            }
+        }
+    }
+
+    /// Waiting flags take priority over plain running activity for a parent label.
+    pub(crate) fn parent_status_label(
+        &self,
+        thread_id: &str,
+        locale: crate::locale::Locale,
+    ) -> Option<String> {
+        if let Some(flags) = self.active_flags.get(thread_id) {
+            if flags.contains(&ThreadActiveFlag::WaitingOnUserInput) {
+                return Some(locale.side_parent_needs_input().to_string());
+            }
+            if flags.contains(&ThreadActiveFlag::WaitingOnApproval) {
+                return Some(locale.side_parent_needs_approval().to_string());
+            }
+        }
+        self.threads
+            .get(thread_id)
+            .filter(|entry| entry.is_running)
+            .map(|_| locale.side_parent_working().to_string())
     }
 
     pub(crate) fn upsert(
@@ -289,5 +333,44 @@ mod tests {
         let subtitle = AgentNavigationState::picker_subtitle(crate::locale::Locale::EnUs);
         assert!(subtitle.contains("⌥← previous"));
         assert!(subtitle.contains("⌥→ next"));
+    }
+
+    #[test]
+    fn parent_status_prefers_waiting_flags_over_running() {
+        use crate::locale::Locale;
+        let mut state = AgentNavigationState::default();
+        state.upsert("main", None, None, false);
+        state.note_thread_status(
+            "main",
+            &ThreadStatus::Active {
+                active_flags: vec![ThreadActiveFlag::WaitingOnUserInput],
+            },
+        );
+        assert_eq!(
+            state.parent_status_label("main", Locale::EnUs).as_deref(),
+            Some("needs input")
+        );
+        state.note_thread_status(
+            "main",
+            &ThreadStatus::Active {
+                active_flags: vec![ThreadActiveFlag::WaitingOnApproval],
+            },
+        );
+        assert_eq!(
+            state.parent_status_label("main", Locale::EnUs).as_deref(),
+            Some("needs approval")
+        );
+        state.note_thread_status(
+            "main",
+            &ThreadStatus::Active {
+                active_flags: Vec::new(),
+            },
+        );
+        assert_eq!(
+            state.parent_status_label("main", Locale::EnUs).as_deref(),
+            Some("working")
+        );
+        state.note_thread_status("main", &ThreadStatus::Idle);
+        assert_eq!(state.parent_status_label("main", Locale::EnUs), None);
     }
 }

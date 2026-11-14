@@ -729,6 +729,69 @@ fn thread_inject_items_round_trips_raw_response_items() {
 }
 
 #[test]
+fn thread_import_round_trips_source_turns_and_messages() {
+    let expected = json!({
+        "id": 45,
+        "method": "thread/import",
+        "params": {
+            "source": "codex",
+            "sourceConversationId": "conversation-1",
+            "sourcePath": "/home/user/.codex/sessions/rollout-1.jsonl",
+            "title": "导入会话",
+            "cwd": "/repo/lime",
+            "createdAtMs": 1794000000000,
+            "updatedAtMs": 1794000060000,
+            "turns": [{
+                "sourceTurnId": "turn-a",
+                "status": "completed",
+                "startedAtMs": 1794000000000,
+                "completedAtMs": 1794000060000,
+                "messages": [
+                    {
+                        "role": "user",
+                        "text": "问题",
+                        "createdAtMs": 1794000001000,
+                        "sourceItemId": "msg-user"
+                    },
+                    {
+                        "role": "assistant",
+                        "text": "回答",
+                        "createdAtMs": 1794000002000
+                    }
+                ]
+            }]
+        }
+    });
+    let request: ClientRequest =
+        serde_json::from_value(expected.clone()).expect("decode thread/import request");
+    assert_eq!(
+        serde_json::to_value(request).expect("encode thread/import request"),
+        expected
+    );
+    assert_eq!(
+        Method::parse(METHOD_THREAD_IMPORT),
+        Some(Method::ThreadImport)
+    );
+    assert_eq!(
+        serde_json::to_value(ThreadImportResponse {
+            thread_id: "thread-1".to_string(),
+            session_id: "thread-1".to_string(),
+            imported_turn_count: 1,
+            imported_message_count: 2,
+            already_imported: false,
+        })
+        .expect("encode thread/import response"),
+        json!({
+            "threadId": "thread-1",
+            "sessionId": "thread-1",
+            "importedTurnCount": 1,
+            "importedMessageCount": 2,
+            "alreadyImported": false
+        })
+    );
+}
+
+#[test]
 fn artifact_write_round_trips_typed_snapshot_shape() {
     let expected = json!({
         "id": 4,
@@ -2802,7 +2865,7 @@ fn typed_v2_server_envelopes_fail_closed_for_unknown_methods() {
             current_time_at: 1_783_860_000,
         })
         .expect("encode current-time response"),
-        json!({ "currentTimeAt": 1_783_860_000_i64 })
+        json!({ "currentTimeAt": 1_783_860_000 })
     );
 
     let permissions_value = json!({
@@ -2813,7 +2876,7 @@ fn typed_v2_server_envelopes_fail_closed_for_unknown_methods() {
             "turnId": "turn-1",
             "itemId": "item-1",
             "environmentId": "environment-1",
-            "startedAtMs": 1_783_860_000_123_i64,
+            "startedAtMs": 1_783_860_000_123,
             "cwd": "/tmp/workspace",
             "reason": "Allow generated files",
             "permissions": {
@@ -2970,7 +3033,7 @@ fn typed_v2_server_envelopes_fail_closed_for_unknown_methods() {
             "threadId": "thread_1",
             "turnId": "turn_1",
             "itemId": "item_command",
-            "startedAtMs": 1783860000000_i64,
+            "startedAtMs": 1783860000000,
             "approvalId": "approval-1",
             "command": "npm test",
             "availableDecisions": ["accept", "acceptForSession", "decline", "cancel"]
@@ -2999,7 +3062,7 @@ fn typed_v2_server_envelopes_fail_closed_for_unknown_methods() {
             "threadId": "thread_1",
             "turnId": "turn_1",
             "itemId": "item_file_change",
-            "startedAtMs": 1783860000000_i64,
+            "startedAtMs": 1783860000000,
             "reason": "需要修改文件",
             "grantRoot": "/workspace"
         }

@@ -1,8 +1,8 @@
 //! 独立于用户、项目和会话配置的系统管理员约束。
 
 use super::{
-    ApplicationRequirementsToml, ApprovalPolicy, BrowserUseRequirementsToml, ComputerUseRequirementsToml, Config, ConfigError,
-    InAppBrowserRequirementsToml, SandboxMode,
+    ApplicationRequirementsToml, ApprovalPolicy, BrowserUseRequirementsToml,
+    ComputerUseRequirementsToml, Config, ConfigError, InAppBrowserRequirementsToml, SandboxMode,
 };
 use agent_protocol::WebSearchMode;
 use serde::Deserialize;
@@ -35,7 +35,10 @@ impl ConfigRequirements {
             && self.allowed_sandbox_modes.is_none()
             && self.allowed_web_search_modes.is_none()
             && self.allow_browser_and_computer_use.is_none()
-            && self.computer_use.as_ref().is_none_or(ComputerUseRequirementsToml::is_empty)
+            && self
+                .computer_use
+                .as_ref()
+                .is_none_or(ComputerUseRequirementsToml::is_empty)
             && self
                 .browser_use
                 .as_ref()

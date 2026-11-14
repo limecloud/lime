@@ -306,6 +306,53 @@ fn token_usage_handoff_hydrates_then_replays_only_the_target_threads_buffer() {
 }
 
 #[test]
+fn side_split_renders_parent_snapshot_and_side_transcript() {
+    let mut app = app();
+    app.set_locale(Locale::EnUs);
+    app.projection.add_info_message("parent context");
+    let entries = app.projection.entries().to_vec();
+    app.projection.add_info_message("side context");
+    app.side_state
+        .open("side-thread".to_string(), "parent-thread".to_string());
+    app.side_state
+        .set_parent_snapshot(crate::app::side::SideParentSnapshot {
+            title: "Roadmap".to_string(),
+            entries,
+        });
+    app.set_thread_id("side-thread".into());
+    let painted = screen(&app);
+    assert!(painted.contains("Main conversation (snapshot)"));
+    assert!(painted.contains("Roadmap"));
+    assert!(painted.contains("parent context"));
+    assert!(painted.contains("side context"));
+}
+
+#[test]
+fn side_conversation_is_labeled_in_the_footer() {
+    let mut app = app();
+    app.set_locale(Locale::EnUs);
+    app.side_state
+        .open("side-thread".to_string(), "thread-status".to_string());
+    app.set_thread_id("side-thread".into());
+    assert!(screen(&app).contains("Side · thread-status"));
+    app.chat_widget.agent_navigation.note_thread_status(
+        "thread-status",
+        &app_server_protocol::protocol::v2::ThreadStatus::Active {
+            active_flags: vec![
+                app_server_protocol::protocol::v2::ThreadActiveFlag::WaitingOnUserInput,
+            ],
+        },
+    );
+    assert!(screen(&app).contains("Side · thread-status · needs input"));
+    app.chat_widget.agent_navigation.note_thread_status(
+        "thread-status",
+        &app_server_protocol::protocol::v2::ThreadStatus::Idle,
+    );
+    app.set_thread_id("thread-status".into());
+    assert!(!screen(&app).contains("Side ·"));
+}
+
+#[test]
 fn resumed_waiting_thread_seeds_live_status_before_notification_replay() {
     let mut app = app();
     app.hydrate_thread(serde_json::from_value(json!({

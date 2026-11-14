@@ -6,6 +6,7 @@ import {
   flushEffects,
   mockListRecentThreads,
   mockScheduleMinimumDelayIdleTask,
+  mockStartNewConversation,
   mountSidebarContainer,
   resetAppSidebarTest,
 } from "./AppSidebar.testFixtures";
@@ -71,6 +72,20 @@ describe("AppSidebar navigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("settings", { tab: "general" });
     act(() => buttons[0].click());
     expect(onNavigate).toHaveBeenCalledWith("scheduled-tasks", undefined);
+  });
+
+  it("标题栏提供新聊天按钮并复用新会话动作", async () => {
+    const container = mountSidebarContainer();
+    await flushEffects(2);
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="app-sidebar-new-chat"]',
+    );
+    expect(button).not.toBeNull();
+    expect(button!.getAttribute("aria-label")).toBe("新聊天");
+    act(() => button!.click());
+    expect(mockStartNewConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ freshDraft: false }),
+    );
   });
 
   it("折叠后保留图标导航，设置和首页仍可操作", async () => {

@@ -1,0 +1,37 @@
+{
+  "$defs": {
+    "ThreadImportRole": {
+      "enum": [
+        "assistant",
+        "user"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "createdAtMs": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "role": {
+      "$ref": "#/$defs/ThreadImportRole"
+    },
+    "sourceItemId": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "createdAtMs",
+    "role",
+    "text"
+  ],
+  "title": "ThreadImportMessage",
+  "type": "object"
+}

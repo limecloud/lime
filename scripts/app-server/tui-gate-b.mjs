@@ -100,7 +100,7 @@ const scrollableCompletedText = [
 ].join("\n");
 const selectedScenarios = (
   process.env.LIME_TUI_GATE_B_SCENARIOS ||
-  "complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,keymap-command,memory-command,memory-reset-command,usage-command,stop-command,warnings-command,diff-command,cd-command,plugins-command,plugins-search-command,ps-command,recap-command,mention-command,goal-command,memories-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"
+  "complete,approval,file-change-approval,permissions-approval,init-command,config-command,hooks-command,effort-picker,permissions-picker,skills-command,keymap-command,memory-command,memory-reset-command,usage-command,stop-command,warnings-command,diff-command,cd-command,plugins-command,plugins-search-command,ps-command,recap-command,side-command,mention-command,goal-command,memories-command,review-command,review-picker,review-branch,review-commit,experimental-command,quit-command,clear-command,new-command,rename-command,compact-command,archive-command,delete-command,fork-command,user-input,interrupt,failure,queue-edit,agents-overview,agents-command,large-paste,diff-display,images,skills,copy-mode"
 )
   .split(",")
   .map((scenario) => scenario.trim())
@@ -378,7 +378,13 @@ async function main() {
         // rows would break the scenario's own assertions. Keep the shared options untouched so
         // later scenarios keep writing the primary ledger.
         const retryLedgerPath = `${ledgerPath}.retry${attempt}`;
-        const retryCwd = `${scenarioDir}-retry${attempt}`;
+        // Keep the scenario directory basename stable: terminal-title and prompt facts derive
+        // from the cwd name, and a suffixed directory would change those canonical assertions.
+        const retryCwd = path.join(
+          path.dirname(scenarioDir),
+          `.retry${attempt}`,
+          path.basename(scenarioDir),
+        );
         if (attempt > 1) {
           await mkdir(retryCwd, { recursive: true });
         }
@@ -489,6 +495,13 @@ async function main() {
         const marker = "TUI_MENTION_COMMAND_OK composer=at";
         if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
           throw new Error(`mention-command PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
+      if (scenario === "side-command") {
+        const marker = "TUI_SIDE_COMMAND_OK panel=side";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`side-command PTY evidence missing: ${marker}`);
         }
         console.log(marker);
       }
@@ -1078,6 +1091,7 @@ async function main() {
         scenario !== "plugins-search-command" &&
         scenario !== "ps-command" &&
         scenario !== "recap-command" &&
+        scenario !== "side-command" &&
         scenario !== "mention-command" &&
         scenario !== "goal-command" &&
         scenario !== "memories-command",

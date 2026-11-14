@@ -1,9 +1,20 @@
 # Lime Cloud：BYOC 持久桌面方案与执行计划
 
-状态：实施中，完整 Cloud 产品尚未验收。当前有效完整实机验收 4/8（50%）；第 3 组的默认官方包自动私有 OSS 分发、真实云机安装、认证任务连接与桌面展开／收起已通过。充值后的新一轮已验证真实模型、同盘启停及重启后原会话 CLI 接续；原生 Computer Use、正常 Electron 退出、最新 Linux 包和敏感身份恢复仍待完成。本轮资源状态以本节最新收据为准，历史轮次的清理不能证明本轮已清理。事实核对日期：2026-11-13。
+状态：实施中，完整 Cloud 产品尚未验收。当前有效完整实机验收 5/8（62.5%）；已验证默认官方包自动分发与安装、真实模型、保盘启停、私有镜像异机恢复，以及真实 Electron 正常退出后 CLI 在原 Thread 接续真实模型且无需重启云机。原生 Computer Use 模型操作、最新 Linux 包、真实第三方登录恢复与最终账单仍待完成。本轮资源状态以本节最新收据为准，历史轮次的清理不能证明本轮已清理。事实核对日期：2026-11-14。
 
-### 当前交付顺序：核心链路优先（2026-11-13，用户明确收敛范围）
+### 当前交付顺序：核心链路优先（2026-11-14，用户明确收敛范围）
 
+- 本轮恢复测试资源已完成精确收尾：现役产品 stop → release 均沿单次原操作收据核实；独立 ECS 查询确认该新实例与记录的唯一加密系统盘不存在，专用 ROS 栈 `DELETE_COMPLETE`，VPC／VSwitch／安全组独立查询均为零。原镜像及源快照保留并继续产生存储费，不宣称全部费用归零，也不把本轮清理扩大到历史 unknown 采购。原生实机本轮未通过：已启用人工接管并打开认证桌面，但未收到用户解锁反馈；结束前通过现役 `control ai` 交还控制，读回键鼠均为 0，native 仍以 `linux_desktop_locked` 拒绝，未发布 grant。证据 `.lime/qc/cloud-core-recharge-20261113/restore-network-verify-current.log` 及私有输入禁用／最终状态。没有继续持有等待中的收费 VM。
+- 第 4 组现已实机通过：私有镜像恢复后的原 Thread 在真实 Electron Main／preload／IPC／认证远端 App Server 中完成模型回合，并显示准确响应；正常 `app.quit` 至主进程 exit 0 为 1,911 ms，退出时只剩 stdout／stderr Socket、无原生 helper。随后真实 `lime exec --remote … resume` 使用同一 Thread 与原 Provider 返回 `LIME_CLOUD_GUI_TO_CLI_OK`、canonical Turn completed；没有 VM 重启或强制结束 Electron。原生客户端 28/28、真实 GUI smoke、主进程构建与 Electron 类型检查均 exit 0；原失败保留，证据 `.lime/qc/cloud-core-recharge-20261113/handoff-restored-dispose-fixed-source-refreshed.log` 及私有结果。完整实机推进为 5/8（62.5%）；本次不将真实模型凭据恢复扩大为第三方浏览器／CLI 登录恢复通过。
+- 最新恢复实机已通过：新网络单次创建、新机单次采购，原加密私有镜像中的文件与运行包保留；现役原编号重连完成后，使用原 Provider 凭据与原 Thread 的真实 `lime exec --remote … resume` 返回 `LIME_CLOUD_IMAGE_RESTORED`，canonical Turn completed。没有重新安装运行包、输入模型密钥或改写原失败收据。guest 仍为公开 v1.175.0，不代表本机 v1.176.0 Linux 制品已交付；第三方真实登录恢复保持开放。新机／盘及专用网络已精确收尾，原镜像／快照保留并计费。
+- 正常退出实机定位到 `quit` 后残留的 `macos-native-host` 子进程；窄写集追加原 `macosNativeHost.ts`、`windowsNativeHost.ts` 与两份原测试。Verification Contract：P1，budget:normal，Architecture impact: minor，责任 root。仅将原客户端 `dispose` 设为终态并在 macOS readiness 返回后复核，迟到调用拒绝为 `stopped`，不重新 spawn。新增两项回归在旧实现均失败，修复后原生客户端／系统工具／退出生命周期共 28/28；真实 Electron GUI smoke pass、主进程构建 exit 0。原 ESLint 命令仍报文件既有 `no-undef`／`no-empty`，未借机重排无关源码。正常退出→同原 Thread CLI 真模型接续正在实机复验，不提前计整组通过。
+- 连接复验观察到当前出口与原登记来源不符，供应商拒绝旧规则；沿现役 `prepareEcsConnection` 明确创建新来源授权意图，原收据保留，精确 `/32` 来源与固定 8787／6080 端口读回 `connectionReady/complete`。没有开放公共通配来源。此前安装的首个 `runtimePreflightFailed/notSubmitted`、脚本漏接连接授权导致的 `needsAttention` 及 busy 轮询误判均保留为失败证据，不称为产品自动无干预通过。
+
+- 最新空物理 ID 修复的标准领域测试 8/8、exit 0。原 warm target 长时间等待共享锁后，仅结束本轮等待任务；以 APFS COW 复制现有缓存到独立验证目录，产品继续直接读取原仓库源码，未创建冷缓存或改动他人进程。标准编译 11 分 23 秒、断言 36.38 秒，日志 `.lime/qc/cloud-core-recharge-20261113/network-redacted-identities-isolated-rust.log`。编译采样显示大量递归类型调试信息；原测试在调整前自然完成，多余重跑已明确取消、exit 130，不计入通过项。当前只运行一份同源 App Server 构建，仅通过命令参数关闭 `lime-services` 与 `app-server` 的调试符号，未修改构建配置或测试断言。修复后公共 RPC、新机恢复及清理仍按原顺序执行，未提交新购买。
+
+- 新 App Server 构建 exit 0，冻结摘要 `3652a1e01cce680e6e3a864bb872050da2c80f9c358f8c0d7c7260f160dd94c6`。真实公共 RPC 越过空标签校验后，确认 ROS 同时将三项已删除资源的 `PhysicalResourceId` 清空，原非空 ID 校验继续拒绝，没有采购。对原两份 Rust 文件补齐实际供应商合同：仅此前已验证的原栈可接受全部 `DELETE_COMPLETE` 清单中的空 ID，并以原保存 spec 的交换机／安全组精确 ID 独立查询，数量与数组必须均为空且无后续页；非空但变化的 ID、仍存在资源、畸形查询继续拒绝。夹具同步空 ID 并扩展原回归负向场景；重新运行同一 8 项标准领域测试，完成后再构建及复验，不改写原私有收据。
+- 删除后空标签修复的标准回归已通过：`CARGO_BUILD_JOBS=1 npm run test:rust:unit -- -p lime-services cloud_desktop_service::ecs::network::tests`，exit 0，8/8；当前 v1.176.0 依赖编译 9 分 35 秒，断言阶段 14.48 秒。覆盖真实 `Tags: []`、未验证原栈拒绝、保留／变化身份阻断及新操作单次准备。源码摘要无漂移；随后仅启动一份原 warm target 的 App Server `-j 1` 构建，真实公共 RPC 与新环境恢复继续执行，尚未提交新购买。
+- 用户最新要求“专注你自己的任务，不要协调了”：停止跨任务资源沟通，直接按原定顺序执行 8 项网络领域回归、同源 warm App Server 增量构建和真实公共 RPC；通过后继续原镜像恢复意图。当前仅一份自有定向测试等待 Cargo 正常共享锁，不终止其他进程、不重复起构建、不新建冷 target。四文件此前持稳与旧队列记录为历史状态，不再作为本轮启动前置条件。
 - 最终 App Server 构建自然完成（16 分 40 秒），冻结产物 SHA-256 `4f1b2b9887e491ab3b91ae682dae1a08db3b25c638206df78bf2a715b4f6fa6d`，五项原产品输入无漂移。真实公共 RPC 已越过旧摘要失败，随后在网络归属检查拒绝：官方精确 GetStack 的 `DELETE_COMPLETE` 响应为 `Tags: []`。追加原 `network.rs`／原回归最小修复：仅对已验证且身份不变的原栈允许空标签删除读回，仍逐项验证三项资源全部删除及原物理 ID；错误标签、未验证原栈或保留资源继续阻断。夹具同步真实供应商响应并增加未验证删除拒绝；格式及定向 diff 检查通过，新增标准回归与后端复验未执行。没有新购；按相邻任务资源协调要求，将后续 8 项 services 回归与一次 warm App Server 增量链接登记到统一协调线程，等待窗口，不额外启动重编译。
 - 23:00 续接只读核验：原实例／系统盘、专用 VPC／VSwitch／安全组均独立查无；原镜像仍为自有、未共享、Available，唯一系统盘映射加密且源快照与原保存收据一致。未创建新网络或购买意图。两个 test-only 探针分别误假设 `IsSelfShared` 为布尔值、`snapshotId` 位于父收据顶层，均在断言处退出；按供应商实际字符串类型与 `releaseImage.snapshotId` 修正后，直接校验同一份最新响应通过，没有改产品校验或重发云变更。证据为私有 `independent-before-restore.json`。
 - 摘要修复已通过标准领域测试 17/17，以及真实 `preserve_order` 依赖的精确产品模块回归 2/2；旧计算与排序结果不一致已复现。最终现役 App Server 增量构建仍在原 `-j 1` 任务中编译，不新增冷 target 或全量门禁；构建完成后先通过公共 RPC 核验原收据与旧网络已删除，随后才准备新网络和独立核价恢复。相邻任务提出资源协调后已暂缓新增编译；所询问 PID 90992 已自然结束，PID 92187 的日志归 `.lime/release-v1.176.0-gui-smoke.log`，不是本轮 Owner，未停止任何该类进程。
@@ -1530,7 +1541,7 @@ npm run verify:gui-smoke
 | 1. 既有云机启停、保盘与原文件读回 | 无影及普通 ECS 均实机通过；ECS 使用现役产品启停并验证服务/产物/token/文件跨启动，费用单独归第 8 组 |
 | 2. Linux helper、锁屏拒绝、人工接管和撤销 | 普通 ECS 实机通过，含真实 helper 输入/截图/取消、锁屏拒绝、接管中断及公共协议撤销；测试进程与自动浏览器不计为模型任务 |
 | 3. 同源 App Server 远程部署、认证连接和凭据边界 | 已通过：原生 release 编译、公共 RPC、摘要校验、真实 Electron 认证连接、原生终端 Computer Use 发现、noVNC、精确远端管理拒绝与两次完整重启恢复。2026-11-13 补齐默认同版本官方包的自动私有 OSS 分发与真云安装，准备后才采购；完整接收 106,595,589 字节，安装约 3 分 31 秒。桌面默认隐藏、展开真实 Xfce、收起后任务连接和新的认证读取成功，原生退出正常；签名未进入 Renderer/普通收据。两轮测试实例、系统盘及专用分发均已精确清理；此前失败保留，不将本轮通过当作旧故障根因已证实 |
-| 4. Desktop 与 Electron 退出后的 CLI 执行真实任务并投影同一 Thread/Turn/Item | 本机受控模型的真实 Electron/runtime/远程 CLI 双 Turn 及重启投影一致已验证；真实云机 Provider 与模型任务未验收，基础壳 smoke 不计入本组 |
+| 4. Desktop 与 Electron 退出后的 CLI 执行真实任务并投影同一 Thread/Turn/Item | 已通过：私有镜像恢复后的真实云机沿原 Provider 与原 Thread，在真实 Electron／preload／IPC／认证 App Server 完成模型回合并显示响应；Electron 正常退出 1,911 ms、exit 0，随后真实 CLI 在无 VM 重启条件下接续同 Thread 完成模型回合。原生 helper 迟到请求的退出阻塞已修复并复验，旧失败保留；基础壳 smoke 独立记录 |
 | 5. Python/Node/Go/Java、CLI 与浏览器认证跨启停复用 | Python/Node/Go/Java、GitHub CLI、Wrangler、原生 Chrome 与本地测试账号跨启停/快照已验证；Railway 5.71.1 已在原生 x64 云机经产品 StopCharging／启动验证同一安装文件保留，未执行第三方登录。真实第三方认证仍未验收，整组开放 |
 | 6. 云端文件加密归档、用户对象存储与新环境恢复 | 云机导出→公共 RPC/age/rclone→真实私有 OSS→新云机三文件恢复已串联通过，含内容/0600/0700、敏感目录排除、脚本、Zenity 和 Computer Use 读回。加密冷快照→私有镜像→保护释放原实例/盘→按镜像购买→原编号无包重连已真云通过，任务与桌面身份轮换，旧任务令牌 HTTP 401；原运行包和文件摘要一致。此前工具链/venv/合成全局工具保留证据继续有效，真实第三方登录状态恢复仍未验收 |
 | 7. 快照创建和恢复后的桌面与应用验证 | 普通 ECS 实机通过：真实 Electron 产品链创建/恢复，桌面文件、原生浏览器本地测试账号与已测工具链读回；冻结 guest 和自动测试操作者边界见实机切片 |

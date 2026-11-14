@@ -150,3 +150,34 @@ async fn public_rejects_old_token_import_arbitrary_routes_and_wrong_nonce() {
     assert!(result["account"].is_null());
     assert_eq!(fixture.count("/auth/token"), 1);
 }
+
+#[tokio::test]
+async fn public_connections_list_is_a_fixed_read_only_route() {
+    let temp = TempDir::new().unwrap();
+    let fixture = Fixture::start().await;
+    let server = server(temp.path()).await;
+    fixture.authorize(&server, "default").await;
+    fixture.authorize(&server, "connections").await;
+    let result = rpc(
+        &server,
+        "cloud/request",
+        json!({"path":"/connections","method":"GET","language":"zh-CN"}),
+    )
+    .await;
+    assert_eq!(result["status"], 200);
+    assert_eq!(result["body"]["items"][0]["id"], "icg_original");
+    assert_eq!(result["body"]["items"][0]["applicationId"], "app_original");
+    assert_eq!(fixture.count("/connections"), 1);
+    assert_eq!(fixture.count("/product-users"), 1);
+    for params in [
+        json!({"path":"/connections/icg_other","method":"GET","language":"zh-CN"}),
+        json!({"path":"/connections?cursor=next","method":"GET","language":"zh-CN"}),
+        json!({"path":"/connections","method":"POST","body":{},"operationKey":"original-operation-key","taskId":"task","language":"zh-CN"}),
+    ] {
+        assert!(raw(&server, "cloud/request", params)
+            .await
+            .get("error")
+            .is_some());
+    }
+    assert_eq!(fixture.count("/connections"), 1);
+}

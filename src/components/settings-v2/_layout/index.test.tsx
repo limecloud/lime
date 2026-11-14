@@ -61,6 +61,12 @@ vi.mock("../integrations/mcp", () => ({
 vi.mock("@/features/plugin/ui/PluginCatalogPage", () => ({
   PluginCatalogPage: () => <div>plugins</div>,
 }));
+vi.mock("../general/import", () => ({
+  ImportSettings: () => <div>import</div>,
+}));
+vi.mock("../integrations/app-snapshots", () => ({
+  AppSnapshotsSettings: () => <div>app-snapshots</div>,
+}));
 vi.mock("../agent/media-services", () => ({
   MediaServicesSettings: () => <div>media-services</div>,
 }));
@@ -79,6 +85,9 @@ vi.mock("../agent/providers", () => ({
 }));
 vi.mock("../coding/local-environments/LocalEnvironmentsSettings", () => ({
   LocalEnvironmentsSettings: () => <div>local-environments</div>,
+}));
+vi.mock("../coding/connections", () => ({
+  ConnectionsSettings: () => <div>connections</div>,
 }));
 vi.mock("../system/execution-policy", () => ({
   ExecutionPolicySettings: (props: unknown) => {
@@ -484,9 +493,12 @@ describe("SettingsPage current sections", () => {
     [SettingsTabs.Memory, "memory"],
     [SettingsTabs.ArchivedConversations, "archived-conversations"],
     [SettingsTabs.Providers, "providers"],
+    [SettingsTabs.Import, "import"],
+    [SettingsTabs.AppSnapshots, "app-snapshots"],
     [SettingsTabs.Plugins, "plugins"],
     [SettingsTabs.McpServers, "mcp-servers"],
     [SettingsTabs.MediaServices, "media-services"],
+    [SettingsTabs.Connections, "connections"],
     [SettingsTabs.LocalEnvironments, "local-environments"],
     [SettingsTabs.ExecutionPolicy, "execution-policy"],
     [SettingsTabs.About, "about"],

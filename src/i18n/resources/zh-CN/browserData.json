@@ -1,7 +1,7 @@
 {
   "browserData.settingLabel": "浏览数据",
-  "browserData.settingDescription": "清除浏览记录、Cookie、缓存和其他浏览数据。",
-  "browserData.open": "清除…",
+  "browserData.settingDescription": "清除应用内浏览器中的浏览历史记录、网站数据、缓存和下载历史记录",
+  "browserData.open": "清除浏览数据",
   "browserData.opening": "正在打开…",
   "browserData.title": "清除浏览数据",
   "browserData.timeRange": "时间范围",

@@ -52,6 +52,7 @@ import { useThreadSummaryPanel } from "./useThreadSummaryPanel";
 import type { ThreadWorkspaceHeaderViewModel } from "./threadWorkspaceHeaderViewModel";
 import { QueuedMessageList } from "../components/QueuedMessageList";
 import { BottomTerminalPanel } from "./BottomTerminalPanel";
+import { WorkspaceShortcutRuntime } from "./WorkspaceShortcutRuntime";
 import { ThreadProjectSelector } from "../components/ThreadProjectSelector";
 import { ReviewThreadSidePanelProjectionContext } from "./ReviewThreadSidePanelProjection";
 
@@ -215,7 +216,12 @@ function renderWorkspaceChatContent({
   );
 
   return (
-    <ChatContainer>
+    <>
+      <WorkspaceShortcutRuntime
+        cwd={messageListProps.threadRead?.thread_settings?.cwd}
+        messages={messageListProps.messages}
+      />
+      <ChatContainer>
       <ChatContainerInner $taskCenterSurface={taskCenterSurface}>
         {landingSurface.entryBannerVisible &&
         landingSurface.entryBannerMessage ? (
@@ -297,6 +303,7 @@ function renderWorkspaceChatContent({
         )}
       </ChatContainerInner>
     </ChatContainer>
+    </>
   );
 }
 

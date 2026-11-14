@@ -7,6 +7,7 @@ pub(crate) mod agents_overview_view;
 pub(crate) mod app_server_event_targets;
 mod app_server_events;
 pub(crate) mod app_server_requests;
+pub(crate) mod auto_review;
 mod clipboard;
 pub(crate) mod config_menu;
 pub(crate) mod confirm_prompt;
@@ -25,11 +26,15 @@ pub(crate) mod keymap_editor;
 pub(crate) mod memories_settings;
 pub(crate) mod permissions_picker;
 pub(crate) mod plugin_picker;
+pub(crate) mod presets_menu;
 pub(crate) mod process_list;
 pub(crate) mod recap;
 pub(crate) mod review_picker;
+pub(crate) mod side;
 pub(crate) mod skills_toggle;
 pub(crate) mod subagent_backfill;
+pub(crate) mod voice;
+pub(crate) mod worktree_picker;
 pub(crate) use interaction::FullscreenSurface;
 mod interrupts;
 pub(crate) mod mcp_login;
@@ -151,6 +156,36 @@ pub(crate) enum AppAction {
     RunShellCommand(String),
     GenerateRecap(recap::RecapTrigger),
     ToggleAutoRecap,
+    ApproveGuardianRetry(serde_json::Value),
+    SavePreset {
+        slot: String,
+        input: String,
+    },
+    DeletePreset {
+        slot: String,
+    },
+    SetPresetLabel {
+        slot: String,
+        label: String,
+    },
+    ListWorktrees,
+    StartSideConversation {
+        prompt: String,
+    },
+    ExitSideConversation,
+    EnterWorktree {
+        path: String,
+        thread_id: Option<String>,
+    },
+    CreateWorktree {
+        root_path: String,
+        name: String,
+    },
+    DeleteWorktree {
+        worktree_path: String,
+    },
+    StartVoiceInput,
+    StopVoiceInput,
     SetHookEnabled {
         key: String,
         enabled: bool,
@@ -283,6 +318,9 @@ pub(crate) struct App {
     pub(crate) thread_git_branch: Option<String>,
     pub(crate) thread_running: bool,
     pub(crate) thread_active_flags: Vec<app_server_protocol::protocol::v2::ThreadActiveFlag>,
+    pub(crate) guardian_denials: auto_review::GuardianDenialStore,
+    pub(crate) side_state: side::SideState,
+    pub(crate) voice: voice::VoiceState,
 }
 
 impl App {
@@ -420,6 +458,52 @@ impl App {
     /// Return the user-visible status while keeping active-turn and explicit command status ahead
     /// of app-scoped MCP startup diagnostics.
     /// Canonical live state for surfaces that cannot infer it from local turn projections.
+    pub(crate) fn thread_display_name(&self, thread_id: &str) -> String {
+        self.chat_widget
+            .thread_names
+            .get(thread_id)
+            .cloned()
+            .unwrap_or_else(|| thread_id.to_string())
+    }
+
+    pub(crate) fn side_parent_snapshot(&self) -> Option<&side::SideParentSnapshot> {
+        let thread_id = self.thread_id.as_deref()?;
+        self.side_state
+            .is_side_thread(thread_id)
+            .then(|| self.side_state.parent_snapshot())
+            .flatten()
+    }
+
+    pub(crate) fn side_thread_title(&self, parent_thread_id: &str) -> String {
+        let display = self
+            .chat_widget
+            .thread_names
+            .get(parent_thread_id)
+            .cloned()
+            .unwrap_or_else(|| parent_thread_id.to_string());
+        self.chat_widget.locale.side_thread_title(&display)
+    }
+
+    pub(crate) fn side_context_label(&self) -> Option<String> {
+        let thread_id = self.thread_id.as_deref()?;
+        let parent = self.side_state.parent_of(thread_id)?;
+        let display = self
+            .chat_widget
+            .thread_names
+            .get(parent)
+            .cloned()
+            .unwrap_or_else(|| parent.to_string());
+        let mut label = self.chat_widget.locale.side_context_label(&display);
+        if let Some(status) = self
+            .chat_widget
+            .agent_navigation
+            .parent_status_label(parent, self.chat_widget.locale)
+        {
+            label.push_str(&format!(" · {status}"));
+        }
+        Some(label)
+    }
+
     pub(crate) fn live_thread_status(&self) -> Option<&'static str> {
         use app_server_protocol::protocol::v2::ThreadActiveFlag;
         if self
@@ -492,6 +576,7 @@ impl App {
     }
 
     pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
+        self.guardian_denials.clear();
         self.apply_live_thread_status(&thread.status);
         self.thread_git_branch = thread
             .git_info
@@ -770,6 +855,80 @@ impl App {
             }
             SlashCommand::Mention => AppAction::InsertComposerText("@".to_string()),
             SlashCommand::Recap => AppAction::GenerateRecap(recap::RecapTrigger::Manual),
+            SlashCommand::Worktree => AppAction::ListWorktrees,
+            SlashCommand::Voice => {
+                if self.voice.is_recording() {
+                    AppAction::StopVoiceInput
+                } else {
+                    AppAction::StartVoiceInput
+                }
+            }
+            SlashCommand::Side | SlashCommand::Btw => {
+                let prompt = text
+                    .split_once(char::is_whitespace)
+                    .map(|(_, rest)| rest.trim().to_string())
+                    .unwrap_or_default();
+                if self.thread_id.is_none() {
+                    self.projection
+                        .set_status(self.chat_widget.locale.side_unavailable());
+                    AppAction::None
+                } else {
+                    let thread_id = self.thread_id.clone().expect("thread id checked above");
+                    if self.side_state.is_side_thread(&thread_id) {
+                        AppAction::ExitSideConversation
+                    } else if self.side_state.has_open_side(&thread_id) {
+                        self.projection
+                            .set_status(self.chat_widget.locale.side_already_open());
+                        AppAction::None
+                    } else {
+                        AppAction::StartSideConversation { prompt }
+                    }
+                }
+            }
+            SlashCommand::Presets => {
+                let entries = self
+                    .chat_widget
+                    .tui_config
+                    .presets
+                    .iter()
+                    .map(|(slot, dial)| crate::app::presets_menu::PresetEntry {
+                        slot: slot.clone(),
+                        label: dial
+                            .label
+                            .clone()
+                            .filter(|label| !label.trim().is_empty())
+                            .unwrap_or_else(|| dial.input.lines().next().unwrap_or("").to_string()),
+                        input: dial.input.clone(),
+                    })
+                    .collect();
+                self.chat_widget
+                    .open_presets_menu(crate::app::presets_menu::PresetsMenu::new(entries));
+                AppAction::None
+            }
+            SlashCommand::AutoReview => {
+                if self.thread_id.is_none() {
+                    self.projection
+                        .set_status(self.chat_widget.locale.auto_review_no_denials());
+                    AppAction::None
+                } else {
+                    match self.guardian_denials.latest() {
+                        Some(denial) => {
+                            let prompt =
+                                crate::app::confirm_prompt::ConfirmPrompt::approve_guardian_retry(
+                                    denial.summary.clone(),
+                                    denial.event.clone(),
+                                );
+                            self.chat_widget.open_confirm_prompt(prompt);
+                            AppAction::None
+                        }
+                        None => {
+                            self.projection
+                                .set_status(self.chat_widget.locale.auto_review_no_denials());
+                            AppAction::None
+                        }
+                    }
+                }
+            }
             SlashCommand::Ps => AppAction::ListProcesses,
             SlashCommand::Memories => {
                 let argument = text

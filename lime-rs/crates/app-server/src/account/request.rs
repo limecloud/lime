@@ -32,6 +32,7 @@ impl AccountManager {
             if params.path.starts_with("/catalog/")
                 || params.path.starts_with("/market/")
                 || params.path.starts_with("/web/")
+                || params.path == "/connections"
                 || params.path.starts_with("/connections/")
                 || params.path.starts_with("/connection-")
             {
@@ -409,6 +410,7 @@ fn route(path: &str, method: CloudRequestMethod) -> Result<(CloudResource, &'sta
         (Post, ["web", "searches" | "pages"]) => (Web, "/web/operations/"),
         (Get, ["web", "prices"]) => (Web, ""),
         (Get, ["web", "operations", key]) if operation_key(key) => (Web, ""),
+        (Get, ["connections"]) => (Connections, ""),
         (Post, ["connection-requests"]) => (Connections, "/connection-requests/operations/"),
         (Get, ["connection-file-prices"]) => (Connections, ""),
         (Get, ["connection-requests" | "connection-file-operations", id])
@@ -466,6 +468,23 @@ mod tests {
             "/market/featured?hostId=lime",
         ] {
             assert!(route(path, CloudRequestMethod::Get).is_err(), "{path}");
+        }
+    }
+
+    #[test]
+    fn connection_grants_are_a_fixed_read_only_route() {
+        assert_eq!(
+            route("/connections", CloudRequestMethod::Get).unwrap(),
+            (CloudResource::Connections, "")
+        );
+        for (path, method) in [
+            ("/connections", CloudRequestMethod::Post),
+            ("/connections/", CloudRequestMethod::Get),
+            ("/connections/icg_other", CloudRequestMethod::Get),
+            ("/connections?cursor=next", CloudRequestMethod::Get),
+            ("/connections/%2e%2e", CloudRequestMethod::Get),
+        ] {
+            assert!(route(path, method).is_err(), "{path}");
         }
     }
 

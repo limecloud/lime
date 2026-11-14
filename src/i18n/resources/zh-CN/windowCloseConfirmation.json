@@ -1,9 +1,9 @@
 {
   "settings.general.confirmBeforeClose.label": "关闭窗口前确认",
-  "settings.general.confirmBeforeClose.shortcutDescription": "当关闭标签页快捷键将关闭窗口时提醒",
+  "settings.general.confirmBeforeClose.shortcutDescription": "使用关闭标签页的快捷键会导致窗口关闭时，显示警告",
   "settings.general.confirmBeforeClose.description": "选择何时在关闭窗口前提醒。只有选择“始终”时，Alt+F4 和关闭按钮才会提醒",
   "settings.general.confirmBeforeClose.never": "从不",
-  "settings.general.confirmBeforeClose.keyboardOnly": "仅关闭快捷键",
+  "settings.general.confirmBeforeClose.keyboardOnly": "仅在使用“关闭”快捷键时",
   "settings.general.confirmBeforeClose.always": "始终",
   "desktop.windowCloseConfirmation.title": "确定要关闭窗口吗？",
   "desktop.windowCloseConfirmation.doNotAskAgain": "不再询问",

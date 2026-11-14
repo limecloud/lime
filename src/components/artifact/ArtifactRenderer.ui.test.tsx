@@ -205,7 +205,7 @@ describe("ArtifactRenderer 空内容态", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("图层设计 Canvas");
+    expect(container.textContent).toContain("图层设计 画布");
     expect(container.textContent).toContain("LayeredDesignDocument");
     expect(container.textContent).toContain("Artifact 图层海报");
     expect(container.textContent).toContain("标题层");
@@ -631,7 +631,8 @@ describe("ArtifactRenderer 空内容态", () => {
           sourcePath: "/tmp/lime/deck.ppt",
           filePath: "/tmp/lime/deck.ppt",
           filename: "deck.ppt",
-          mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
           capabilities: {
             preview: false,
             systemOpen: true,
@@ -652,7 +653,9 @@ describe("ArtifactRenderer 空内容态", () => {
     expect(container.textContent).toContain("请用系统应用打开");
     expect(container.textContent).toContain("deck.ppt");
     expect(container.textContent).toContain("/tmp/lime/deck.ppt");
-    expect(container.textContent).toContain("类型：application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    expect(container.textContent).toContain(
+      "类型：application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    );
     expect(
       container.querySelector('[data-testid="artifact-empty-surface"]'),
     ).toBeNull();
@@ -733,9 +736,7 @@ describe("ArtifactRenderer 空内容态", () => {
 
     expect(surface).not.toBeNull();
     expect(surface?.getAttribute("data-preview-source")).toBe("url");
-    expect(surface?.getAttribute("data-preview-content-kind")).toBe(
-      "markdown",
-    );
+    expect(surface?.getAttribute("data-preview-content-kind")).toBe("markdown");
     expect(container.textContent).toContain("网页来源");
     expect(container.textContent).toContain("在线报告");
     expect(container.textContent).toContain("https://example.com/report");

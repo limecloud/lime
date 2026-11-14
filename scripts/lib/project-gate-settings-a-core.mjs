@@ -14,6 +14,7 @@ export const SETTINGS_GATE_A_LOCALES = Object.freeze([
 
 export const SETTINGS_GATE_A_TABS = Object.freeze([
   "general",
+  "import",
   "appearance",
   "archived-conversations",
   "voice",
@@ -27,10 +28,12 @@ export const SETTINGS_GATE_A_TABS = Object.freeze([
   "plugins-settings",
   "mcp-servers",
   "computer-use",
+  "app-snapshots",
   "browser-use",
   "cloud-desktops",
   "execution-policy",
   "hooks",
+  "connections",
   "git",
   "local-environments",
   "worktrees",
@@ -39,6 +42,7 @@ export const SETTINGS_GATE_A_TABS = Object.freeze([
 
 export const SETTINGS_GATE_A_CRITICAL_TABS = Object.freeze([
   "general",
+  "import",
   "appearance",
   "providers",
   "plugins-settings",

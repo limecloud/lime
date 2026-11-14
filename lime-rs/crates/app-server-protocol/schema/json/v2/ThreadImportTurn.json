@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "ThreadImportMessage": {
+      "properties": {
+        "createdAtMs": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "role": {
+          "$ref": "#/$defs/ThreadImportRole"
+        },
+        "sourceItemId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAtMs",
+        "role",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ThreadImportRole": {
+      "enum": [
+        "assistant",
+        "user"
+      ],
+      "type": "string"
+    },
+    "ThreadImportTurnStatus": {
+      "enum": [
+        "completed",
+        "failed",
+        "interrupted"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "completedAtMs": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "messages": {
+      "items": {
+        "$ref": "#/$defs/ThreadImportMessage"
+      },
+      "type": "array"
+    },
+    "sourceTurnId": {
+      "type": "string"
+    },
+    "startedAtMs": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "status": {
+      "$ref": "#/$defs/ThreadImportTurnStatus"
+    }
+  },
+  "required": [
+    "messages",
+    "sourceTurnId",
+    "status"
+  ],
+  "title": "ThreadImportTurn",
+  "type": "object"
+}

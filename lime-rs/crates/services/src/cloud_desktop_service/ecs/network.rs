@@ -338,8 +338,8 @@ impl CloudDesktopService {
             tags.iter()
                 .any(|tag| tag["Key"] == "lime-operation" && tag["Value"] == operation)
         });
-        // ROS removes stack tags after deletion; only a previously verified stack may use
-        // its immutable identity and the exact deleted resource inventory below instead.
+        // ROS removes tags and physical IDs after deletion. Only a previously verified
+        // stack may use its immutable identity and the deletion/absence checks below.
         let deleted_verified_stack = status == "DELETE_COMPLETE"
             && tags.is_some_and(Vec::is_empty)
             && matches!(
@@ -389,6 +389,7 @@ impl CloudDesktopService {
                 {
                     return Err("Deleted network inventory is incomplete or changed".into());
                 }
+                let mut redacted_identity = false;
                 for (logical, kind) in [
                     ("Vpc", "ALIYUN::ECS::VPC"),
                     ("Switch", "ALIYUN::ECS::VSwitch"),
@@ -408,6 +409,13 @@ impl CloudDesktopService {
                     let physical = matches[0]["PhysicalResourceId"]
                         .as_str()
                         .ok_or("Missing deleted network identity")?;
+                    if physical.is_empty() {
+                        if !deleted_verified_stack {
+                            return Err("Deleted network has no verified original identity".into());
+                        }
+                        redacted_identity = true;
+                        continue;
+                    }
                     validate_id(physical)?;
                     if let Some(previous) = receipt["spec"]
                         .get(match logical {
@@ -419,6 +427,56 @@ impl CloudDesktopService {
                     {
                         if previous != physical {
                             return Err("Deleted network resource identity changed".into());
+                        }
+                    }
+                }
+                if redacted_identity {
+                    let original: EcsDesktopSpec = serde_json::from_value(receipt["spec"].clone())
+                        .map_err(|_| "Missing original network identities")?;
+                    validate_spec(&original)?;
+                    let switches = self
+                        .call_cli(
+                            "vpc",
+                            None,
+                            &region,
+                            &profile,
+                            &[
+                                "DescribeVSwitches".into(),
+                                "--VSwitchId".into(),
+                                original.v_switch_id.clone(),
+                                "--PageSize".into(),
+                                "50".into(),
+                            ],
+                        )
+                        .await?;
+                    let groups = self
+                        .ecs(
+                            &original,
+                            &[
+                                "DescribeSecurityGroups".into(),
+                                "--SecurityGroupId".into(),
+                                original.security_group_id.clone(),
+                                "--PageSize".into(),
+                                "100".into(),
+                            ],
+                        )
+                        .await?;
+                    for (response, path) in [
+                        (&switches, "/VSwitches/VSwitch"),
+                        (&groups, "/SecurityGroups/SecurityGroup"),
+                    ] {
+                        if response["TotalCount"].as_u64() != Some(0)
+                            || !response
+                                .pointer(path)
+                                .and_then(Value::as_array)
+                                .is_some_and(Vec::is_empty)
+                            || response
+                                .get("NextToken")
+                                .is_some_and(|token| !token.is_null() && token != "")
+                        {
+                            return Err(
+                                "Original network resources are still present or unverified".into(),
+                            );
                         }
                     }
                 }

@@ -245,6 +245,11 @@ fn fixture_response(
         "/connection-file-prices" => {
             json!({"items":[{"action":"drive.files.read","billingStatus":"unpriced"}]})
         }
+        "/connections" => {
+            assert_eq!(bearer, "Bearer access-connections");
+            assert!(input.is_null());
+            json!({"items":[{"id":"icg_original","connectionId":"icn_original","connectionRevision":2,"applicationId":"app_original","applicationName":"Lime","actions":["drive.files.read"],"fileCount":1,"status":"active","revision":1,"expiresAt":"2026-11-13T00:00:00Z"}]})
+        }
         "/connection-requests" => {
             assert_eq!(bearer, "Bearer access-connections");
             assert_eq!(input["connector"], "google-drive");
