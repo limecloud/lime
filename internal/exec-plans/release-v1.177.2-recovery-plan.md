@@ -52,3 +52,21 @@
 - 候选冻结后新出现的 `src/lib/appearance/{codeFontSize,fontSmoothing,reducedMotion,separateModes}.ts` 属于另一份进行中的写集，均非请求时 76 文件或发布修复；保留原状，不将后续未完成开发混入冻结候选。
 - 原失败 draft 的两份 Linux guest 资产已按 draft 状态和旧 target SHA 核对后清理；其他 CLI draft 资产由现役工作流覆盖，不放开正式版本不可变守卫。
 - 状态：补充候选后带租约更新同版本 tag 并推送，最终远端结果继续补充。
+
+## CI 阻塞修复
+
+- `c950de482c96a707bcae1a12637736651fd675b1` 已推送 main 与同版本 tag；Release run `43591079445` 在正式发布前主动取消，未发布 npm，GitHub Release 仍为 draft。
+- Quality run `43591071030` 的 Integrity、Bridge & Contracts 通过；Frontend Full 被 `AppSnapshotRuntime.tsx` 导出内部函数产生的 Fast Refresh lint warning 阻断，移除无消费者的 export，保留行为。
+- Dependency review 的 Rust 审计通过；JavaScript 审计发现 `smol-toml <=1.7.0` 命中 `GHSA-7w5x-hrqm-74c2`，升级到最小修复版本 `1.7.1` 并同步 manifest、锁文件，不忽略公告或降低审计级别。
+- 本节修复仅修改应用快照组件、依赖事实源、发布说明与本计划；持续避让冻结后外观写集。
+- 串行 Rust domain 验证已完成：`app-server-protocol` 155 项、`model-provider` 308 项均通过。
+- `c950de482` 的 CI GUI Smoke 已通过。本机冻结副本编译受并行内存竞争持续运行超过 15 分钟，在 CI 已提供相同候选 smoke 成功证据后停止本轮重复编译，不记为本机通过。
+- 应用快照组件定向 ESLint（`--max-warnings 0`）通过。
+- 最终依赖更新只保留 `smol-toml` manifest 版本及锁文件对应 resolution/snapshot；已撤销包管理器本次重解析产生的无关 workspace registry 漂移与排序，现役包仍链接工作区源码。
+- `pnpm install --frozen-lockfile --ignore-scripts --link-workspace-packages` 通过，跳过解析；实际安装 `smol-toml@1.7.1`。再次 `verify:app-version` 通过，版本仍为 `1.177.2`。
+- `pnpm audit --prod --audit-level=high` 通过，高危项已消除；保留审计发现的 2 low、3 moderate，不调整门禁阈值。
+- 安全升级后的应用快照、本地环境 TOML 序列化与环境对话框回归全部通过；连同 Electron 入口守卫共 64 项通过，1 项权限 owner 文件扫描在本机 5 秒限制下超时，保持原限制单独复跑，不扩大该守卫实现。
+- 权限 owner 守卫在 Vitest 下单独复跑仍超时；直接运行同一检测器并执行完整断言通过，保留 Vitest 超时的环境限制，不提高门禁时限。
+- CI Rust Full 仅两个 target 失败：`model_provider_capabilities_jsonrpc` 的旧完整响应断言缺少新增实时语音字段；`cli/mcp_oauth` 清空子进程环境时丢弃 Cargo 原生动态库查找路径，CLI 在启动前找不到 `libsherpa-onnx-c-api.dylib`，8 项均未进入 fixture。
+- 同步 official/compatible 两条公共 JSON-RPC 响应的完整断言；CLI test-only fixture 继续隔离配置与凭据，只透传 `DYLD_LIBRARY_PATH`、`DYLD_FALLBACK_LIBRARY_PATH`、`LD_LIBRARY_PATH`，不改变生产路径或权限。
+- 最终 `npm run typecheck` 通过；两份 Rust 测试的 `rustfmt --check` 与变更 whitespace 检查通过。新增 Rust 集成测试仍编译中，下一轮冻结 CI 继续验证完整矩阵，不预记通过。

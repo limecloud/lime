@@ -394,7 +394,7 @@
     "docx-preview": "0.4.1",
     "exceljs": "4.4.0",
     "jszip": "3.10.2",
-    "smol-toml": "^1.6.1",
+    "smol-toml": "^1.7.1",
     "ssf": "0.11.2"
   },
   "devDependencies": {

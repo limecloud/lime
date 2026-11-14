@@ -33,6 +33,15 @@ fn command(
             "LIME_MCP_CLI_TEST_PROTOCOL",
             app_server_protocol::PROTOCOL_VERSION,
         );
+    for name in [
+        "DYLD_LIBRARY_PATH",
+        "DYLD_FALLBACK_LIBRARY_PATH",
+        "LD_LIBRARY_PATH",
+    ] {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
     if action == "login" {
         command.args(["--no-browser", "--scopes", "research:read"]);
     }

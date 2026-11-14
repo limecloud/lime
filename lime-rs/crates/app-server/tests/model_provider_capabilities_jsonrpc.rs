@@ -33,7 +33,16 @@ async fn model_provider_capabilities_read_uses_runtime_config_route() {
     .await;
     assert_eq!(
         official["result"],
-        json!({"namespaceTools": false, "imageGeneration": true, "webSearch": true})
+        json!({
+            "namespaceTools": false,
+            "imageGeneration": true,
+            "webSearch": true,
+            "realtime": false,
+            "realtimeBlockers": [
+                "providerRealtimeUnsupported",
+                "realtimeTransportUnimplemented"
+            ]
+        })
     );
 
     let mut compatible = Config::default();
@@ -51,7 +60,16 @@ async fn model_provider_capabilities_read_uses_runtime_config_route() {
     .await;
     assert_eq!(
         compatible_response["result"],
-        json!({"namespaceTools": false, "imageGeneration": false, "webSearch": false})
+        json!({
+            "namespaceTools": false,
+            "imageGeneration": false,
+            "webSearch": false,
+            "realtime": false,
+            "realtimeBlockers": [
+                "providerRealtimeUnsupported",
+                "realtimeTransportUnimplemented"
+            ]
+        })
     );
 }
 

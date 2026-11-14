@@ -17,7 +17,7 @@ interface BareModifierEvent {
   timestamp?: unknown;
 }
 
-export function supportsNativeAppSnapshots(): boolean {
+function supportsNativeAppSnapshots(): boolean {
   if (typeof navigator === "undefined") return false;
   const platform = navigator.platform || navigator.userAgent || "";
   return /mac/i.test(platform);
