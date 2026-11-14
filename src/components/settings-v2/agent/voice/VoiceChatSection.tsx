@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import type { VoiceInputConfig } from "@/lib/api/asrProvider";
 import {
   SettingsAction,
   SettingsGroup,
@@ -47,7 +46,6 @@ const ACTIVE_STATES = new Set([
 ]);
 
 interface VoiceChatSectionProps {
-  voiceConfig?: VoiceInputConfig | null;
   saving?: boolean;
   onRealtimeSelectionChange?: (
     field: "realtime_model" | "realtime_voice",
@@ -63,7 +61,6 @@ interface VoiceChatSectionProps {
  * 只兑换短时 client secret，标准 OpenAI key 不进入 renderer。
  */
 export function VoiceChatSection({
-  voiceConfig: _voiceConfig,
   saving = false,
   onRealtimeSelectionChange,
 }: VoiceChatSectionProps) {

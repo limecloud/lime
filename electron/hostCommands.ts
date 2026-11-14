@@ -6,18 +6,14 @@ import {
   loadBrowserExtension,
   removeBrowserExtension,
 } from "./browserExtensionsHost";
-import { BrowserPasswordStore } from "./browserPasswordStore";
+import {
+  BrowserPasswordManagerStore,
+  BROWSER_PASSWORD_MANAGER_PROVIDERS,
+} from "./browserPasswordManagerStore";
 import { AutofillPreferencesStore } from "./autofillPreferencesStore";
 import { ContactAutofillStore } from "./contactAutofillStore";
 import { openEmbeddedBrowserSession } from "./embeddedBrowserSession";
-import type { SafeStorageLike } from "./secureCredentialStore";
-import {
-  appendSshConnection,
-  ensureSshConfig,
-  parseSshConfig,
-  removeSshConnection,
-  updateSshConnection,
-} from "./sshConnectionsHost";
+
 import {
   METHOD_CONFIG_READ,
   METHOD_MODEL_LIST,
@@ -43,7 +39,7 @@ import {
   type WorkspaceProjectsRootReadResponse,
   type WorkspaceReadResponse,
 } from "@limecloud/app-server-client";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronAppServerHost } from "./appServerHost";
 import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
@@ -71,7 +67,7 @@ export class ElectronHostCommands {
   readonly #systemUtilityHost: SystemUtilityHost;
   readonly #voiceModelHost: VoiceModelHost;
   readonly #browserExtensionsStore: BrowserExtensionStore;
-  readonly #browserPasswordStore: BrowserPasswordStore;
+  readonly #browserPasswordManagerStore: BrowserPasswordManagerStore;
   readonly #contactAutofillStore: ContactAutofillStore;
   readonly #autofillPreferencesStore: AutofillPreferencesStore;
   readonly #secureCredentialStore: SecureCredentialStore | null;
@@ -82,7 +78,6 @@ export class ElectronHostCommands {
     emit: HostEventEmitter = () => undefined,
     appDataRoot = resolveCurrentDesktopStorageRoots(userDataDir).appDataRoot,
     secureCredentialStore: SecureCredentialStore | null = null,
-    credentialEncryption: SafeStorageLike | null = null,
   ) {
     this.#appServerHost = appServerHost;
     this.#secureCredentialStore = secureCredentialStore;
@@ -99,9 +94,8 @@ export class ElectronHostCommands {
     this.#browserExtensionsStore = new BrowserExtensionStore(
       path.join(appDataRoot, "browser-extensions.json"),
     );
-    this.#browserPasswordStore = new BrowserPasswordStore(
-      path.join(appDataRoot, "browser-passwords.json"),
-      credentialEncryption,
+    this.#browserPasswordManagerStore = new BrowserPasswordManagerStore(
+      path.join(appDataRoot, "browser-password-manager.json"),
     );
     this.#contactAutofillStore = new ContactAutofillStore(
       path.join(appDataRoot, "contact-autofill.json"),
@@ -246,25 +240,6 @@ export class ElectronHostCommands {
       }
       case "get_home_dir":
         return this.#fileShellHost.getHomeDir();
-      case "ssh_config_ensure":
-        return ensureSshConfig(app.getPath("home"));
-      case "ssh_connection_add": {
-        const record = toRecord(args) ?? {};
-        const port = record.port;
-        if (
-          port !== undefined &&
-          (typeof port !== "number" || !Number.isInteger(port))
-        ) {
-          throw new Error("Invalid SSH port");
-        }
-        const user = readString(record, "user") ?? undefined;
-        return await appendSshConnection(app.getPath("home"), {
-          alias: readRequiredString(record, "alias"),
-          hostName: readRequiredString(record, "hostName"),
-          ...(user ? { user } : {}),
-          ...(port !== undefined ? { port } : {}),
-        });
-      }
       case "browser_autofill_get":
         return await this.#autofillPreferencesStore.read();
       case "browser_autofill_set": {
@@ -288,59 +263,23 @@ export class ElectronHostCommands {
           address: readString(record, "address") ?? "",
         });
       }
-      case "browser_passwords_list":
-        return await this.#browserPasswordStore.list();
-      case "browser_passwords_save": {
-        const record = toRecord(args) ?? {};
-        return await this.#browserPasswordStore.save({
-          origin: readRequiredString(record, "origin"),
-          username: readRequiredString(record, "username"),
-          password: readRequiredString(record, "password"),
-        });
-      }
-      case "browser_passwords_clear":
-        await this.#browserPasswordStore.clear();
-        return true;
-      case "browser_passwords_remove":
-        return await this.#browserPasswordStore.remove(
-          readRequiredString(toRecord(args) ?? {}, "id"),
-        );
-      case "browser_passwords_reveal":
-        return await this.#browserPasswordStore.reveal(
-          readRequiredString(toRecord(args) ?? {}, "id"),
-        );
-      case "ssh_connection_update": {
-        const record = toRecord(args) ?? {};
-        const port = record.port;
+      case "browser_password_manager_get":
+        return await this.#browserPasswordManagerStore.read();
+      case "browser_password_manager_set": {
+        const provider = toRecord(args)?.provider;
         if (
-          port !== undefined &&
-          (typeof port !== "number" || !Number.isInteger(port))
+          provider !== null &&
+          !BROWSER_PASSWORD_MANAGER_PROVIDERS.includes(
+            provider as (typeof BROWSER_PASSWORD_MANAGER_PROVIDERS)[number],
+          )
         ) {
-          throw new Error("Invalid SSH port");
+          throw new Error("Invalid password manager provider");
         }
-        const user = readString(record, "user") ?? undefined;
-        return await updateSshConnection(
-          app.getPath("home"),
-          readRequiredString(record, "alias"),
-          {
-            hostName: readRequiredString(record, "hostName"),
-            ...(user ? { user } : {}),
-            ...(port !== undefined ? { port } : {}),
-          },
+        return await this.#browserPasswordManagerStore.set(
+          provider as
+            | (typeof BROWSER_PASSWORD_MANAGER_PROVIDERS)[number]
+            | null,
         );
-      }
-      case "ssh_connection_remove":
-        return await removeSshConnection(
-          app.getPath("home"),
-          readRequiredString(toRecord(args) ?? {}, "alias"),
-        );
-      case "ssh_connections_list": {
-        const configPath = path.join(app.getPath("home"), ".ssh", "config");
-        try {
-          return parseSshConfig(await readFile(configPath, "utf8"));
-        } catch {
-          return [];
-        }
       }
       case "get_file_icon_data_url":
         return await this.#fileShellHost.getFileIconDataUrl(args);

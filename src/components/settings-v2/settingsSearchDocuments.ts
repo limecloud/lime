@@ -412,15 +412,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.Connections,
-    targetId: "connections-ssh",
-    labelKey: "settings.connections.description",
-    termKeys: [
-      "settings.connections.sectionDescription",
-      "settings.connections.title",
-    ],
-  },
-  {
     section: SettingsTabs.AppSnapshots,
     targetId: "app-snapshots-hotkey",
     labelKey: "settings.appSnapshots.hotkey",
@@ -485,15 +476,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     targetId: "app-snapshots-screen-capture",
     labelKey: "settings.appSnapshots.screenCapture",
     termKeys: ["settings.appSnapshots.screenCaptureDescription"],
-  },
-  {
-    section: SettingsTabs.Browser,
-    targetId: "browser-autofill",
-    labelKey: "settings.browser.autofill",
-    termKeys: [
-      "settings.browser.autofillDescription",
-      "settings.browser.passwordAndAutofill",
-    ],
   },
   {
     section: SettingsTabs.Browser,

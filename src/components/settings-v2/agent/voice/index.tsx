@@ -49,7 +49,6 @@ export function VoiceSettings() {
             </SettingsGroup>
           </SettingsSection>
           <VoiceChatSection
-            voiceConfig={settings.voiceConfig}
             saving={settings.saving}
             onRealtimeSelectionChange={settings.handleRealtimeSelectionChange}
           />

@@ -64,9 +64,8 @@ pub fn openai_realtime_base_url(api_host: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    let parsed = Url::parse(trimmed)
-        .or_else(|_| Url::parse(&format!("https://{trimmed}")))
-        .ok()?;
+    // Require an explicit HTTPS provider route; never upgrade or guess a scheme.
+    let parsed = Url::parse(trimmed).ok()?;
     if parsed.scheme() != "https"
         || !parsed
             .host_str()

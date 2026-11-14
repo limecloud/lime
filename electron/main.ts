@@ -75,8 +75,6 @@ import {
 } from "./browserExtensionsHost";
 import { AutofillPreferencesStore } from "./autofillPreferencesStore";
 import { registerBrowserContactAutofill } from "./browserContactAutofillHost";
-import { registerBrowserPasswordAutofill } from "./browserPasswordAutofillHost";
-import { BrowserPasswordStore } from "./browserPasswordStore";
 import { ContactAutofillStore } from "./contactAutofillStore";
 import { openEmbeddedBrowserSession } from "./embeddedBrowserSession";
 import {
@@ -257,7 +255,6 @@ const hostCommands = new ElectronHostCommands(
     desktopStorageRoots.appDataRoot,
     credentialEncryption,
   ),
-  credentialEncryption,
 );
 const persistedAtomHost = new PersistedAtomHost(
   desktopStorageRoots.appDataRoot,
@@ -1679,15 +1676,6 @@ if (isWindowsSquirrelStartup) {
     const autofillPreferences = new AutofillPreferencesStore(
       path.join(desktopStorageRoots.appDataRoot, "browser-autofill.json"),
     );
-    registerBrowserPasswordAutofill({
-      ipcMain,
-      session: openEmbeddedBrowserSession(),
-      store: new BrowserPasswordStore(
-        path.join(desktopStorageRoots.appDataRoot, "browser-passwords.json"),
-        credentialEncryption,
-      ),
-      isEnabled: () => autofillPreferences.read(),
-    });
     registerBrowserContactAutofill({
       ipcMain,
       session: openEmbeddedBrowserSession(),

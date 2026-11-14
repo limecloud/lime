@@ -1,11 +1,3 @@
-export const BROWSER_PASSWORD_AUTOFILL_CHANNEL =
-  "browser-password-autofill:lookup";
-
-export interface BrowserPasswordCredential {
-  username: string;
-  password: string;
-}
-
 export function normalizeAutofillOrigin(value: string): string | null {
   try {
     const url = new URL(value);
@@ -16,7 +8,7 @@ export function normalizeAutofillOrigin(value: string): string | null {
   }
 }
 
-/** 仅在 https 或本机 http 页面自动填充，避免明文页面泄露凭据/资料。 */
+/** 仅在 https 或本机 http 页面自动填充，避免明文页面泄露资料。 */
 export function isSecureAutofillUrl(value: string): boolean {
   try {
     const url = new URL(value);

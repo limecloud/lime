@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import type { ContactAutofillProfile } from "./contactAutofillStore";
 import { BROWSER_CONTACT_AUTOFILL_CHANNEL } from "./browserContactAutofillModel";
-import { isSecureAutofillUrl } from "./browserPasswordAutofillModel";
+import { isSecureAutofillUrl } from "./browserAutofillModel";
 
 interface AutofillIpc {
   invoke(channel: string): Promise<unknown>;

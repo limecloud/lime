@@ -166,3 +166,16 @@
 - 首轮本机 typecheck 报 `VoiceChatSection.tsx` 的可空 capability 访问；改为可选链与显式数量回落。CI Frontend 的 lint 报六类 WebRTC DOM 类型 `no-undef` 和测试实例 `this` 别名；使用标准 `globalThis` 类型命名空间，测试实例交由 fixture holder 持有，不关闭规则或增加全局白名单。
 - 四文件定向 ESLint 零 warning，独立 TypeScript DOM 类型解析通过；两文件语音回归及完整 typecheck 已重启。同步纳入用户要求的现行实时语音架构文档，Provider wire、App Server 凭据交换与 renderer 媒体职责分别归原 owner。
 - 修正后的两文件语音回归 16 项全部通过；完整 typecheck 继续作为用户“马上递交”授权下的非阻断项执行。
+
+## Rust 导出与快照偏好回归修复
+
+- 候选 `b1b1968c04a6805136a104678ca85c16a75c146a` 已推送；该 SHA 的完整本机 typecheck 退出码为 0，CI 的 Lint、Typecheck、版本完整性与依赖审计通过。
+- Release `43611538201` 的 macOS/Windows CLI 与 Electron 构建因同一 `app_data::RealtimeVoiceProviderSnapshot` 导出缺失失败；Quality `43611297890` 的 Rust 与 GUI Smoke 同因失败。补齐 app_data 的公开导出和 local_data_source 的显式导入，不改协议或关闭编译检查。
+- Frontend Full 的实际失败为 `appSnapshotPreferences.test.ts` 仍按旧结构断言；更新默认快捷键关闭的完整结构，并验证音效与快捷键偏好互不覆盖且正确持久化。
+- 同步现役 Provider 能力推导与 HTTPS realtime 路由校验；不猜测缺失 scheme、不把非 realtime 协议标为支持。
+- 旧 Release 已请求取消并复核为 `completed/cancelled`；v1.177.2 仍是草稿，只有三份非 Linux CLI tarball，尚未公开。
+- 本轮同时验证并纳入已形成闭包的浏览器密码管理器偏好、旧密码存储/SSH 设置清理及语音设置参数裁剪；这些改动由当前原仓库提供，不在验证副本开发。
+- 另一个进程在本轮期间持续删除专家广场、消息渠道及导航，涉及仓库明确保留边界，且尚未形成冻结候选；这部分活动写集保留原工作树，发布仍使用已递交的现役页面与导航，不覆盖并行源码。
+- 本轮直接写集为快照偏好回归、两份发布说明和本计划；Rust 导出及其它并行修改先只读核对再按用户“全部递交”授权冻结。新候选的完整平台打包和真实 GUI 结果继续由同 SHA CI 核实，不把静态检查标作 Gate B。
+- 验证通过：完整 `test:contracts`、`verify:app-version`，8 文件 757 项浏览器/设置搜索/存储根/快照偏好回归，4 文件 17 项联系人自动填充/语音设置/快照组件回归。完整 typecheck 已对上一候选通过，本轮冻结后的新增内容继续检查。
+- Rust 测试 wrapper 对本机临时 V8 archive 的 SHA-256 校验失败，未进入 Cargo；保留拒绝结果，不放宽校验。Provider 改为不依赖 V8 override 的直接 crate 单测，App Server 使用定向 `cargo check --tests`；当前受共享 Cargo cache 锁等待影响，最终编译结果由本机与同 SHA CI 交叉核对。

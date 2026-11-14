@@ -1,7 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent, Session } from "electron";
 import { ContactAutofillStore } from "./contactAutofillStore";
 import { BROWSER_CONTACT_AUTOFILL_CHANNEL } from "./browserContactAutofillModel";
-import { isSecureAutofillUrl } from "./browserPasswordAutofillModel";
+import { isSecureAutofillUrl } from "./browserAutofillModel";
 
 export function registerBrowserContactAutofill({
   ipcMain,

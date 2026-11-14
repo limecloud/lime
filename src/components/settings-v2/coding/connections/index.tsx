@@ -1,60 +1,24 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ensureSshConfig,
-  listSshConnections,
-  removeSshConnection,
-  type SshConnection,
-} from "@/lib/api/sshConnections";
-import { openIn } from "@/lib/api/openIn";
-import {
   listConnectionGrants,
   type ConnectionGrant,
 } from "@/lib/api/connections";
 import { formatDate } from "@/i18n/format";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { SshConnectionDialog } from "./SshConnectionDialog";
 import {
   SettingsAction,
   SettingsEmptyState,
   SettingsGroup,
-  SettingsLoading,
   SettingsPageBody,
   SettingsPageHeader,
   SettingsRow,
   SettingsSection,
 } from "../../SettingsPrimitives";
 
-function connectionTarget(connection: SshConnection): string {
-  const user = connection.user ? `${connection.user}@` : "";
-  const port = connection.port ? `:${connection.port}` : "";
-  return `${user}${connection.hostName}${port}`;
-}
-
 export function ConnectionsSettings() {
   const { t } = useTranslation("settings");
-  const [connections, setConnections] = useState<SshConnection[] | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  const [query, setQuery] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
-  const [openError, setOpenError] = useState(false);
-  const [removeError, setRemoveError] = useState(false);
   const [grants, setGrants] = useState<ConnectionGrant[] | null>(null);
   const [grantsError, setGrantsError] = useState(false);
-  const [pendingRemove, setPendingRemove] = useState<SshConnection | null>(
-    null,
-  );
-  const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<SshConnection | null>(null);
-
-  const load = async () => {
-    setLoadError(false);
-    try {
-      setConnections(await listSshConnections());
-    } catch {
-      setLoadError(true);
-    }
-  };
 
   const loadGrants = async () => {
     setGrantsError(false);
@@ -66,49 +30,8 @@ export function ConnectionsSettings() {
   };
 
   useEffect(() => {
-    void load();
     void loadGrants();
   }, []);
-
-  const confirmRemove = async () => {
-    if (!pendingRemove) return;
-    const alias = pendingRemove.alias;
-    setPendingRemove(null);
-    setRemoveError(false);
-    try {
-      const removed = await removeSshConnection(alias);
-      if (!removed) setRemoveError(true);
-      else await load();
-    } catch {
-      setRemoveError(true);
-    }
-  };
-
-  const openConfig = async () => {
-    setOpenError(false);
-    try {
-      const configPath = await ensureSshConfig();
-      await openIn.open({
-        target: "systemDefault",
-        path: configPath,
-        openMode: "file",
-      });
-    } catch {
-      setOpenError(true);
-    }
-  };
-
-  if (connections === null && !loadError) return <SettingsLoading />;
-
-  const filtered =
-    connections?.filter((connection) => {
-      const needle = query.trim().toLowerCase();
-      if (!needle) return true;
-      return [connection.alias, connection.hostName, connection.user ?? ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
-    }) ?? null;
 
   return (
     <SettingsPageBody>
@@ -174,132 +97,6 @@ export function ConnectionsSettings() {
             {t("settings.connections.external.empty")}
           </SettingsEmptyState>
         )}
-      </SettingsSection>
-      <SettingsSection
-        data-settings-search-target="connections-ssh"
-        tabIndex={-1}
-        title={t("settings.connections.description")}
-        actions={
-          <div className="flex items-center gap-2">
-            <SettingsAction
-              type="button"
-              disabled={refreshing}
-              onClick={async () => {
-                setRefreshing(true);
-                try {
-                  await load();
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
-            >
-              {t("settings.connections.refresh")}
-            </SettingsAction>
-            <SettingsAction type="button" onClick={() => void openConfig()}>
-              {t("settings.connections.openConfig")}
-            </SettingsAction>
-            <SettingsAction
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setAddOpen(true);
-              }}
-            >
-              {t("settings.connections.add")}
-            </SettingsAction>
-          </div>
-        }
-      >
-        <p className="mb-3 text-xs text-muted-foreground">
-          {t("settings.connections.sectionDescription")}
-        </p>
-        <SshConnectionDialog
-          open={addOpen || editing !== null}
-          initial={editing}
-          onOpenChange={(next) => {
-            if (!next) {
-              setAddOpen(false);
-              setEditing(null);
-            }
-          }}
-          onSaved={() => void load()}
-        />
-        {connections && connections.length > 0 ? (
-          <input
-            type="search"
-            aria-label={t("settings.connections.search")}
-            placeholder={t("settings.connections.search")}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="mb-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          />
-        ) : null}
-        <SettingsGroup>
-          {filtered && filtered.length > 0 ? (
-            filtered.map((connection) => (
-              <SettingsRow
-                key={connection.alias}
-                targetId={`ssh-connection-${connection.alias}`}
-                label={connection.alias}
-                description={connectionTarget(connection)}
-              >
-                <SettingsAction
-                  type="button"
-                  onClick={() => {
-                    setAddOpen(false);
-                    setEditing(connection);
-                  }}
-                >
-                  {t("settings.connections.edit")}
-                </SettingsAction>
-                <SettingsAction
-                  type="button"
-                  onClick={() => setPendingRemove(connection)}
-                >
-                  {t("settings.connections.remove")}
-                </SettingsAction>
-              </SettingsRow>
-            ))
-          ) : (
-            <SettingsEmptyState>
-              {connections && connections.length > 0
-                ? t("settings.connections.noResults")
-                : t("settings.connections.empty")}
-            </SettingsEmptyState>
-          )}
-        </SettingsGroup>
-        <ConfirmDialog
-          isOpen={pendingRemove !== null}
-          title={t("settings.connections.removeTitle")}
-          message={t("settings.connections.removeMessage", {
-            alias: pendingRemove?.alias ?? "",
-          })}
-          confirmText={t("settings.connections.remove")}
-          cancelText={t("settings.connections.cancel")}
-          onCancel={() => setPendingRemove(null)}
-          onConfirm={() => void confirmRemove()}
-        />
-        {removeError ? (
-          <p role="alert" className="mt-2 text-[12px] text-destructive">
-            {t("settings.connections.removeFailed")}
-          </p>
-        ) : null}
-        {openError ? (
-          <p role="alert" className="mt-2 text-[12px] text-destructive">
-            {t("settings.connections.openFailed")}
-          </p>
-        ) : null}
-        {loadError ? (
-          <div
-            role="alert"
-            className="mt-2 flex items-center gap-3 text-[12px] text-destructive"
-          >
-            {t("settings.connections.loadFailed")}
-            <SettingsAction type="button" onClick={() => void load()}>
-              {t("settings.connections.retry")}
-            </SettingsAction>
-          </div>
-        ) : null}
       </SettingsSection>
     </SettingsPageBody>
   );

@@ -2,7 +2,6 @@
 /* global process */
 import { ipcRenderer } from "electron";
 import { BrowserDesignPreview } from "./browserDesignPreview";
-import { installBrowserPasswordAutofill } from "./browserPasswordAutofillPage";
 import { installBrowserContactAutofill } from "./browserContactAutofillPage";
 import { prepareDesignCapture } from "./browserDesignCapturePage";
 import {
@@ -768,10 +767,7 @@ export function installBrowserPageAnnotations(): () => void {
   };
 }
 
-// 自动填充需要在子 frame（SSO/内嵌登录）中生效；注释只装主 frame。
-installBrowserPasswordAutofill({
-  invoke: (channel) => ipcRenderer.invoke(channel),
-});
+// 联系信息自动填充需要在子 frame（SSO/内嵌登录）中生效；注释只装主 frame。
 installBrowserContactAutofill({
   invoke: (channel) => ipcRenderer.invoke(channel),
 });

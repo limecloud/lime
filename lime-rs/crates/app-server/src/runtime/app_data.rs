@@ -29,6 +29,7 @@ pub use right_surface::RightSurfaceAppDataSource;
 pub use sessions::SessionAppDataSource;
 pub use skills::SkillAppDataSource;
 pub use skills::WorkspaceSkillBindingAppDataSource;
+pub use voice::RealtimeVoiceProviderSnapshot;
 pub use voice::VoiceAppDataSource;
 pub use workspaces::WorkspaceAppDataSource;
 

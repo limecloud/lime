@@ -514,7 +514,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
 );
 
 it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-  "%s finds application connections as a separate Connections target",
+  "%s finds application connections target",
   (locale) => {
     const { t, groups } = localize(locale);
     expect(
@@ -523,14 +523,6 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
       expect.objectContaining({
         section: SettingsTabs.Connections,
         targetId: "connections-grants",
-      }),
-    );
-    expect(
-      searchSettings(t("settings.connections.description"), groups, t),
-    ).toContainEqual(
-      expect.objectContaining({
-        section: SettingsTabs.Connections,
-        targetId: "connections-ssh",
       }),
     );
     expect(

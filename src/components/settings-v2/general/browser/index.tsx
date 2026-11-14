@@ -20,8 +20,7 @@ import { BrowserSiteSettingsPage } from "./BrowserSiteSettingsPage";
 import { useBrowserClearBrowsingData } from "./useBrowserClearBrowsingData";
 import { BrowserClearBrowsingDataDialog } from "./BrowserClearBrowsingDataDialog";
 import { BrowserExtensionsDialog } from "./BrowserExtensionsDialog";
-import { BrowserPasswordsDialog } from "./BrowserPasswordsDialog";
-import { BrowserAutofillToggle } from "./BrowserAutofillToggle";
+import { BrowserPasswordManagerDialog } from "./BrowserPasswordManagerDialog";
 import { ContactAutofillDialog } from "./ContactAutofillDialog";
 import {
   BROWSER_SETTINGS_BUTTON,
@@ -338,13 +337,6 @@ function BrowserSettingsPage({
         title={t("settings.browser.passwordAndAutofill")}
       >
         <BrowserSettingsRow
-          id="browser-autofill"
-          label={t("settings.browser.autofill")}
-          description={t("settings.browser.autofillDescription")}
-        >
-          <BrowserAutofillToggle />
-        </BrowserSettingsRow>
-        <BrowserSettingsRow
           id="browser-password-manager"
           label={t("settings.browser.passwordManager")}
           description={t("settings.browser.passwordManagerDescription")}
@@ -371,7 +363,7 @@ function BrowserSettingsPage({
           </button>
         </BrowserSettingsRow>
       </BrowserSettingsSection>
-      <BrowserPasswordsDialog
+      <BrowserPasswordManagerDialog
         open={passwordsOpen}
         onOpenChange={setPasswordsOpen}
       />

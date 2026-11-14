@@ -2,14 +2,12 @@ import { describe, expect, it } from "vitest";
 import { settingsSearchDocuments } from "./settingsSearchDocuments";
 
 const expected = [
-  "browser-autofill",
   "browser-password-manager",
   "browser-contact-info",
   "app-snapshots-shortcut",
   "app-snapshots-target",
   "app-snapshots-sound",
   "app-snapshots-accessibility",
-  "connections-ssh",
   "browser-site-settings",
   "browser-extension-manager",
 ];

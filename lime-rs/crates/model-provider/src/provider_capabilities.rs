@@ -26,7 +26,8 @@ impl ProviderCapabilities {
     };
 
     pub fn from_provider_type(provider_type: &str) -> Option<Self> {
-        RuntimeProviderProtocol::from_provider_type(provider_type).map(|_| Self::NONE)
+        let protocol = RuntimeProviderProtocol::from_provider_type(provider_type)?;
+        Some(Self::from_resolved_route(provider_type, protocol, None))
     }
 
     pub fn from_provider_route(provider_type: &str, base_url: Option<&str>) -> Option<Self> {
@@ -58,6 +59,9 @@ impl ProviderCapabilities {
             && official_responses_provider
             && is_official_openai_host(base_url);
         let realtime = matches!(
+            protocol,
+            RuntimeProviderProtocol::ChatCompletions | RuntimeProviderProtocol::Responses
+        ) && matches!(
             provider.as_str(),
             "openai" | "openai_response" | "openai_responses" | "responses"
         ) && crate::realtime::openai_realtime_base_url(
@@ -120,14 +124,6 @@ mod tests {
             assert!(
                 capabilities.realtime,
                 "official api-key route must expose the realtime wire: {provider_type}"
-            );
-            assert_eq!(
-                capabilities,
-                ProviderCapabilities {
-                    realtime: true,
-                    ..ProviderCapabilities::NONE
-                },
-                "provider_type={provider_type}"
             );
         }
 
