@@ -170,6 +170,11 @@ beforeEach(async () => {
     namespaceTools: true,
     imageGeneration: true,
     webSearch: false,
+    realtime: false,
+    realtimeBlockers: [
+      "providerRealtimeUnsupported",
+      "realtimeTransportUnimplemented",
+    ],
   });
 });
 

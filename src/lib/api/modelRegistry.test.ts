@@ -179,12 +179,22 @@ describe("modelRegistry API", () => {
       namespaceTools: true,
       imageGeneration: false,
       webSearch: true,
+      realtime: false,
+      realtimeBlockers: [
+        "providerRealtimeUnsupported",
+        "realtimeTransportUnimplemented",
+      ],
     });
 
     await expect(readModelProviderCapabilities()).resolves.toEqual({
       namespaceTools: true,
       imageGeneration: false,
       webSearch: true,
+      realtime: false,
+      realtimeBlockers: [
+        "providerRealtimeUnsupported",
+        "realtimeTransportUnimplemented",
+      ],
     });
     expectAppServerRequest(1, "modelProvider/capabilities/read", {});
   });
@@ -200,6 +210,46 @@ describe("modelRegistry API", () => {
       namespaceTools: false,
       imageGeneration: false,
       webSearch: false,
+      realtime: false,
+      realtimeBlockers: [],
+    });
+  });
+
+  it("readModelProviderCapabilities 对未知 realtime 阻断项 fail closed", async () => {
+    resolveAppServerRequest({
+      namespaceTools: false,
+      imageGeneration: false,
+      webSearch: false,
+      realtime: true,
+      realtimeBlockers: [
+        "realtimeTransportUnimplemented",
+        "futureUnsafeBlocker",
+        "realtimeTransportUnimplemented",
+      ],
+    });
+
+    await expect(readModelProviderCapabilities()).resolves.toEqual({
+      namespaceTools: false,
+      imageGeneration: false,
+      webSearch: false,
+      realtime: false,
+      realtimeBlockers: ["realtimeTransportUnimplemented"],
+    });
+  });
+
+  it("readModelProviderCapabilities 缺少 realtime 字段时保持不可用", async () => {
+    resolveAppServerRequest({
+      namespaceTools: false,
+      imageGeneration: false,
+      webSearch: false,
+    });
+
+    await expect(readModelProviderCapabilities()).resolves.toEqual({
+      namespaceTools: false,
+      imageGeneration: false,
+      webSearch: false,
+      realtime: false,
+      realtimeBlockers: [],
     });
   });
 

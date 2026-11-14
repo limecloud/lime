@@ -226,10 +226,14 @@ async fn dynamic_tool_host_wire_routes_one_owner_and_rebinds_only_after_disconne
     )));
     let shutdown = CancellationToken::new();
     let (events_tx, events_rx) = mpsc::channel(64);
-    let (address, acceptor) =
-        start_websocket_acceptor("127.0.0.1:0".parse().unwrap(), events_tx, shutdown.clone(), Default::default())
-            .await
-            .unwrap();
+    let (address, acceptor) = start_websocket_acceptor(
+        "127.0.0.1:0".parse().unwrap(),
+        events_tx,
+        shutdown.clone(),
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let runner = tokio::spawn(run_transport_events(
         server.clone(),
         events_rx,

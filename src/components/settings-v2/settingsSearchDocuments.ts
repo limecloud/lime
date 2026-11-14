@@ -483,6 +483,12 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   })),
   {
     section: SettingsTabs.Voice,
+    targetId: "voice-chat",
+    labelKey: "settings.voice.chat.label",
+    termKeys: ["settings.voice.chat.title", "settings.voice.chat.description"],
+  },
+  {
+    section: SettingsTabs.Voice,
     targetId: "voice-history",
     labelKey: "settings.voice.history.label",
     termKeys: ["settings.voice.history.description"],

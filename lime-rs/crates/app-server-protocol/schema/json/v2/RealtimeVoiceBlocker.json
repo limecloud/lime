@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "阻断实时语音会话的单个原因。\n\n只有 `realtime == true` 时该列表才为空；UI 只能按这些原因展示不可用状态，\n不得渲染开始/停止等伪控制。",
+  "oneOf": [
+    {
+      "const": "providerRealtimeUnsupported",
+      "description": "当前 provider 路由没有实时语音 wire 适配器。",
+      "type": "string"
+    },
+    {
+      "const": "realtimeTransportUnimplemented",
+      "description": "App Server / 宿主还没有实时语音会话 owner，无法承载音频与转录事件。",
+      "type": "string"
+    }
+  ],
+  "title": "RealtimeVoiceBlocker"
+}

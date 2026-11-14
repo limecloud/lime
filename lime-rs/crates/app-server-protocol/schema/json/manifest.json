@@ -2715,6 +2715,7 @@
       "PromptHistoryReadParams",
       "PromptHistoryReadResponse",
       "QueuedSubmission",
+      "RealtimeVoiceBlocker",
       "ReasoningEffortOption",
       "ReasoningSummaryPartAddedNotification",
       "ReasoningSummaryTextDeltaNotification",

@@ -41,6 +41,7 @@ mod permission_profile;
 mod permission_server_request;
 mod process;
 mod processor;
+mod realtime;
 mod runtime;
 mod runtime_backend;
 mod runtime_factory;

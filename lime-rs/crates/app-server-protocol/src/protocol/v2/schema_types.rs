@@ -249,6 +249,7 @@ pub const V2_SCHEMA_TYPE_NAMES: &[&str] = &[
     "ModelListParams",
     "ModelProviderCapabilitiesReadParams",
     "ModelProviderCapabilitiesReadResponse",
+    "RealtimeVoiceBlocker",
     "InputModality",
     "ModelAvailabilityNux",
     "ModelServiceTier",

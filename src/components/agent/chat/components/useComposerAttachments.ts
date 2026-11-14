@@ -1,12 +1,17 @@
-import { useCallback, useMemo, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ComposerController } from "@/components/input-kit";
 import { useComposerController } from "@/components/input-kit/useComposerController";
 import { pickFilesFromDialog, type PickedFile } from "@/lib/api/filePicker";
 import { readFileBytes } from "@/lib/api/fileBrowser";
+import {
+  consumePendingAppSnapshot,
+  restorePendingAppSnapshot,
+} from "@/lib/pendingAppSnapshot";
 import type { MessageImage, MessagePathReference } from "../types";
 import {
+  createImageAttachmentFile,
   getClipboardImageCandidates,
   MAX_IMAGE_ATTACHMENTS_PER_TURN,
   normalizeImageMimeType,
@@ -20,6 +25,14 @@ import {
 } from "../utils/pathReferences";
 import { buildComposerAttachmentsCopy } from "./composerAttachmentsCopy";
 import { useAttachmentGeneration } from "./useAttachmentGeneration";
+
+function pendingSnapshotFileName(windowName: string): string {
+  const base = windowName
+    .replace(/[\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${(base || "app-snapshot").slice(0, 80)}.png`;
+}
 
 export function useComposerAttachments({
   controller,
@@ -40,6 +53,7 @@ export function useComposerAttachments({
     invalidateGeneration,
     runAttachmentWrite,
   } = useAttachmentGeneration(owner);
+  const pendingSnapshotAttempted = useRef(false);
   const setPendingImages = useCallback(
     (images: MessageImage[]) => {
       runAttachmentWrite(images, () => owner.setAttachments(images));
@@ -76,41 +90,72 @@ export function useComposerAttachments({
       generation: number,
       label: string,
       success?: string,
-    ) => {
-      if (!isCurrentGeneration(generation)) return;
+    ): boolean => {
+      if (!isCurrentGeneration(generation)) return false;
       const images = owner.getDocument().attachments;
       if (images.length >= MAX_IMAGE_ATTACHMENTS_PER_TURN) {
         toast.error(copy.imageReadFailed(label));
-        return;
+        return false;
       }
       setPendingImages([...images, image]);
       if (success && isCurrentGeneration(generation)) toast.success(success);
+      return true;
     },
     [owner, copy, isCurrentGeneration, setPendingImages],
   );
   const addImages = useCallback(
-    async (files: { file: File; mediaType?: string }[], success?: string) => {
+    async (
+      files: { file: File; mediaType?: string }[],
+      success?: string,
+    ): Promise<number> => {
       const generation = captureGeneration();
+      let appended = 0;
       await Promise.all(
         files.map(async ({ file, mediaType }, index) => {
           const label = file.name || copy.unnamedImage;
           try {
             const image = await readImageAttachment(file, mediaType);
-            appendImage(
-              image,
-              generation,
-              label,
-              index === 0 && success ? success : copy.imageAdded(label),
-            );
+            if (
+              appendImage(
+                image,
+                generation,
+                label,
+                index === 0 && success ? success : copy.imageAdded(label),
+              )
+            ) {
+              appended += 1;
+            }
           } catch {
             if (isCurrentGeneration(generation))
               toast.error(copy.imageReadFailed(label));
           }
         }),
       );
+      return appended;
     },
     [appendImage, captureGeneration, copy, isCurrentGeneration],
   );
+  useEffect(() => {
+    if (pendingSnapshotAttempted.current) return;
+    pendingSnapshotAttempted.current = true;
+    const pendingSnapshot = consumePendingAppSnapshot();
+    if (!pendingSnapshot) return;
+    const fileName = pendingSnapshotFileName(pendingSnapshot.windowName);
+    const label = pendingSnapshot.windowName ? fileName : copy.unnamedImage;
+    void (async () => {
+      let appended = 0;
+      try {
+        const file = createImageAttachmentFile(
+          pendingSnapshot.dataUrl,
+          fileName,
+        );
+        appended = await addImages([{ file }]);
+      } catch {
+        toast.error(copy.imageReadFailed(label));
+      }
+      if (appended === 0) restorePendingAppSnapshot(pendingSnapshot);
+    })();
+  }, [addImages, copy]);
   const addPickedFiles = useCallback(
     async (files: readonly PickedFile[]) => {
       const generation = captureGeneration();

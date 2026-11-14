@@ -154,7 +154,9 @@ fn image_tool_result_emits_canonical_media_lifecycle_only_for_available_images()
         assert_eq!(complete.turn_id.as_str(), "turn-image");
         assert_eq!(start.status, ItemStatus::InProgress);
         assert_eq!(complete.status, ItemStatus::Completed);
-        assert!(!serde_json::to_string(&complete).unwrap().contains("data:image"));
+        assert!(!serde_json::to_string(&complete)
+            .unwrap()
+            .contains("data:image"));
         let ThreadItemPayload::AgentMessage { content_parts, .. } = complete.payload else {
             panic!("media message")
         };

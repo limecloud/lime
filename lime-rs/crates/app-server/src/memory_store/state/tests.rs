@@ -245,12 +245,7 @@ fn citation_usage_resolves_exported_source_thread_identity() {
     let content = "# rollout\n\n- threadId: `thread-1`\n";
     let source_updated_at = test_now_seconds().to_string();
     store
-        .register_rollout(
-            "global",
-            "rollout.md",
-            content,
-            &source_updated_at,
-        )
+        .register_rollout("global", "rollout.md", content, &source_updated_at)
         .unwrap();
     assert!(store
         .try_claim_stage1("global", "rollout.md", "worker", 60, 8)

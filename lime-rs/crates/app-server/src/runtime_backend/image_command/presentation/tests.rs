@@ -85,8 +85,6 @@ fn parses_and_normalizes_model_generated_presentation() {
     );
 }
 
-
-
 #[test]
 fn rejects_internal_or_branded_visible_copy() {
     let raw = format!(

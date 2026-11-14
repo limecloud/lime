@@ -84,8 +84,7 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_m
         // Standalone runtime tests may provide a capability without an EventLog receipt.
         // Keep that signal transient; a missing receipt must never create a second durable
         // compaction marker.
-        let events =
-            tool_events::runtime_events_from_agent_event(event)?;
+        let events = tool_events::runtime_events_from_agent_event(event)?;
         for event in events {
             sink.emit_transient(event)?;
         }
@@ -140,12 +139,7 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_m
             {
                 sink.emit(event)?;
             }
-            emit_presentation_events(
-                event,
-                model_route_evidence,
-                proposed_plan_parser,
-                sink,
-            )?;
+            emit_presentation_events(event, model_route_evidence, proposed_plan_parser, sink)?;
         }
         RuntimeAgentEvent::ReasoningSummaryPartAdded {
             item_id,
@@ -157,12 +151,7 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_m
             {
                 sink.emit(event)?;
             }
-            emit_presentation_events(
-                event,
-                model_route_evidence,
-                proposed_plan_parser,
-                sink,
-            )?;
+            emit_presentation_events(event, model_route_evidence, proposed_plan_parser, sink)?;
         }
         RuntimeAgentEvent::ReasoningContentDelta {
             item_id,
@@ -175,12 +164,7 @@ pub(super) fn emit_runtime_agent_event_with_coding_mirror_and_plan_parser_with_m
             {
                 sink.emit(event)?;
             }
-            emit_presentation_events(
-                event,
-                model_route_evidence,
-                proposed_plan_parser,
-                sink,
-            )?;
+            emit_presentation_events(event, model_route_evidence, proposed_plan_parser, sink)?;
         }
         RuntimeAgentEvent::ReasoningEnd { item_id } => {
             for event in reasoning_event_state
@@ -221,9 +205,7 @@ fn emit_presentation_events(
     proposed_plan_parser: &mut proposed_plan_parser::ProposedPlanParser,
     sink: &mut dyn RuntimeEventSink,
 ) -> Result<(), RuntimeCoreError> {
-    for mut event in
-        tool_events::runtime_events_from_agent_event(event)?
-    {
+    for mut event in tool_events::runtime_events_from_agent_event(event)? {
         if matches!(
             event.event_type.as_str(),
             "model.server_reported" | "provider.usage" | "provider.step"

@@ -87,6 +87,48 @@ describe("ConnectionsSettings", () => {
     expect(container.textContent).toContain("10.0.0.1");
   });
 
+  it("点击刷新重新读取连接", async () => {
+    api.list.mockResolvedValue([
+      { alias: "prod", hostName: "10.0.0.1", user: null, port: null },
+    ]);
+    await mount();
+    expect(api.list).toHaveBeenCalledTimes(1);
+    const refresh = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "刷新",
+    )!;
+    await act(async () => refresh.click());
+    await act(async () => Promise.resolve());
+    expect(api.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("按别名/主机/用户过滤连接", async () => {
+    api.list.mockResolvedValue([
+      { alias: "prod", hostName: "10.0.0.1", user: "deploy", port: null },
+      { alias: "dev", hostName: "dev.local", user: "alice", port: 2222 },
+    ]);
+    await mount();
+    const search = container.querySelector<HTMLInputElement>(
+      'input[type="search"]',
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(search, "alice");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("dev");
+    expect(container.textContent).not.toContain("10.0.0.1");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(search, "zzz");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("没有匹配的连接");
+  });
+
   it("点击编辑打开预填的连接表单", async () => {
     api.list.mockResolvedValue([
       { alias: "prod", hostName: "10.0.0.1", user: "deploy", port: 22 },

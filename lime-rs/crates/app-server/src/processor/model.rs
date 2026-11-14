@@ -132,10 +132,13 @@ impl RequestProcessor {
         let capabilities =
             ProviderCapabilities::from_provider_route(&provider, base_url.as_deref())
                 .unwrap_or(ProviderCapabilities::NONE);
+        let realtime_blockers = crate::realtime::realtime_blockers(capabilities.realtime);
         dispatch_result(ModelProviderCapabilitiesReadResponse {
             namespace_tools: capabilities.namespace_tools,
             image_generation: capabilities.image_generation,
             web_search: capabilities.web_search,
+            realtime: realtime_blockers.is_empty(),
+            realtime_blockers,
         })
     }
 
@@ -711,6 +714,7 @@ mod capability_route_tests {
                 custom_tools: true,
                 image_generation: true,
                 web_search: true,
+                realtime: false,
             })
         );
     }

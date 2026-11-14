@@ -37,7 +37,13 @@ export function BrowserSiteSettingsPage({ onBack }: { onBack: () => void }) {
   const settings = useBrowserSiteSettings();
   const [origin, setOrigin] = useState("");
   const [originError, setOriginError] = useState(false);
+  const [query, setQuery] = useState("");
   const snapshot = settings.snapshot;
+  const filteredSites =
+    snapshot?.sites.filter((site) => {
+      const needle = query.trim().toLowerCase();
+      return !needle || site.origin.toLowerCase().includes(needle);
+    }) ?? null;
   const disabled = settings.pending || !snapshot;
 
   const addOrigin = async (event: FormEvent<HTMLFormElement>) => {
@@ -179,7 +185,24 @@ export function BrowserSiteSettingsPage({ onBack }: { onBack: () => void }) {
           </p>
         ) : null}
         {snapshot?.sites.length ? (
-          snapshot.sites.map((site) => (
+          <input
+            type="search"
+            aria-label={t("browserSiteSettings.search")}
+            placeholder={t("browserSiteSettings.search")}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="mb-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+        ) : null}
+        {filteredSites &&
+        filteredSites.length === 0 &&
+        snapshot?.sites.length ? (
+          <p className="py-5 text-sm text-muted-foreground">
+            {t("browserSiteSettings.noResults")}
+          </p>
+        ) : null}
+        {filteredSites?.length ? (
+          filteredSites.map((site) => (
             <div
               key={site.origin}
               className="border-b border-border last:border-0"
@@ -223,15 +246,15 @@ export function BrowserSiteSettingsPage({ onBack }: { onBack: () => void }) {
               </div>
             </div>
           ))
-        ) : snapshot ? (
-          <p className="py-5 text-sm text-muted-foreground">
-            {t("browserSiteSettings.empty")}
-          </p>
-        ) : (
+        ) : !snapshot ? (
           <p className="py-5 text-sm text-muted-foreground" role="status">
             {t("browserSiteSettings.loading")}
           </p>
-        )}
+        ) : snapshot.sites.length === 0 ? (
+          <p className="py-5 text-sm text-muted-foreground">
+            {t("browserSiteSettings.empty")}
+          </p>
+        ) : null}
       </BrowserSettingsSection>
     </div>
   );

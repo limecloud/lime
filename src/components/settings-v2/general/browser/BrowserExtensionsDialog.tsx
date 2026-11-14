@@ -12,6 +12,9 @@ import {
 } from "@/lib/api/browserExtensions";
 import { BROWSER_SETTINGS_BUTTON } from "./BrowserSettingsFields";
 
+const EXTENSION_SEARCH_CLASS =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
+
 type ErrorKind = "load" | "import" | "remove" | "reveal";
 
 export function BrowserExtensionsDialog({

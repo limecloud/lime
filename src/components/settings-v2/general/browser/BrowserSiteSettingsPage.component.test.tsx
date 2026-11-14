@@ -33,6 +33,18 @@ vi.mock("./BrowserManagementHeader", () => ({
   ),
 }));
 
+const site = (origin: string) => ({
+  origin,
+  camera: null,
+  microphone: null,
+  geolocation: null,
+  notifications: null,
+  clipboard: null,
+  sound: null,
+  protectedContent: null,
+  automaticDownloads: null,
+  images: null,
+});
 const empty = (): BrowserSiteSettingsSnapshot => ({
   revision: 0,
   defaults: { ...DEFAULT_BROWSER_SITE_SETTINGS },
@@ -369,5 +381,36 @@ describe("BrowserSiteSettingsPage", () => {
       "allow",
       "block",
     ]);
+  });
+
+  it("filters the site list", async () => {
+    api.get.mockResolvedValue({
+      ...empty(),
+      sites: [site("https://example.com"), site("https://other.org")],
+    });
+    await act(async () =>
+      root.render(<BrowserSiteSettingsPage onBack={back} />),
+    );
+    await act(async () => Promise.resolve());
+    const search = container.querySelector<HTMLInputElement>(
+      'input[type="search"]',
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(search, "other");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("https://other.org");
+    expect(container.textContent).not.toContain("https://example.com");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(search, "missing");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("No matching sites");
   });
 });

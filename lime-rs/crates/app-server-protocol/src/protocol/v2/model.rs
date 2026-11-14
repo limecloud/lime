@@ -7,12 +7,31 @@ use crate::protocol::v0::CapabilitySnapshot;
 #[serde(rename_all = "camelCase")]
 pub struct ModelProviderCapabilitiesReadParams {}
 
+/// 阻断实时语音会话的单个原因。
+///
+/// 只有 `realtime == true` 时该列表才为空；UI 只能按这些原因展示不可用状态，
+/// 不得渲染开始/停止等伪控制。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RealtimeVoiceBlocker {
+    /// 当前 provider 路由没有实时语音 wire 适配器。
+    ProviderRealtimeUnsupported,
+    /// App Server / 宿主还没有实时语音会话 owner，无法承载音频与转录事件。
+    RealtimeTransportUnimplemented,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelProviderCapabilitiesReadResponse {
     pub namespace_tools: bool,
     pub image_generation: bool,
     pub web_search: bool,
+    /// 当前 provider 路由与 App Server 是否已经具备端到端实时语音能力。
+    ///
+    /// `namespaceTools` 同属 Lime 在 Codex 形状上的扩展字段。该值为 `false`
+    /// 时，`realtimeBlockers` 给出具体缺失环节。
+    pub realtime: bool,
+    pub realtime_blockers: Vec<RealtimeVoiceBlocker>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

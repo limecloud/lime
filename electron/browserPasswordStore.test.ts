@@ -97,6 +97,23 @@ describe("BrowserPasswordStore", () => {
     expect(await store.remove(saved.id)).toBe(false);
   });
 
+  it("清除所有密码", async () => {
+    const { store } = await createStore();
+    await store.save({
+      origin: "https://a.example",
+      username: "a",
+      password: "1",
+    });
+    await store.save({
+      origin: "https://b.example",
+      username: "b",
+      password: "2",
+    });
+    await store.clear();
+    expect(await store.list()).toEqual([]);
+    await expect(store.lookupForUrl("https://a.example")).resolves.toEqual([]);
+  });
+
   it("安全存储不可用时拒绝保存", async () => {
     const store = new BrowserPasswordStore("/tmp/unused.json", {
       isEncryptionAvailable: () => false,

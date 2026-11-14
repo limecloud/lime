@@ -24,7 +24,6 @@ const AUTO_COMPACT_CONTEXT_WINDOW_RATIO_NUMERATOR: usize = 9;
 const AUTO_COMPACT_CONTEXT_WINDOW_RATIO_DENOMINATOR: usize = 10;
 const CONTEXT_POLICY_PACKET_BUDGET_RATIO_DENOMINATOR: usize = 10;
 
-
 impl RuntimeCore {
     pub(in crate::runtime) async fn prepare_memory_prompt_context(
         &self,
@@ -155,7 +154,6 @@ pub(crate) fn append_memory_context_to_system_prompt(
             .and_then(|assembly| assembly.rendered),
     )
 }
-
 
 fn memory_prompt_assembly_from_metadata(
     metadata: Option<&Value>,
@@ -426,8 +424,6 @@ fn positive_usize_field(value: &Value, keys: &[&str]) -> Option<usize> {
         })
         .filter(|value| *value > 0)
 }
-
-
 
 fn memory_summary_roots(params: &TurnStartRequest) -> Vec<MemoryStoreRootParams> {
     let mut roots = Vec::with_capacity(2);
@@ -783,9 +779,6 @@ mod tests {
             500
         );
     }
-
-
-
 
     #[test]
     fn workspace_root_prefers_runtime_request_absolute_root() {

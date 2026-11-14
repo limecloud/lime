@@ -34,6 +34,7 @@ const {
   mockSetDefaultVoiceModel,
   mockTestTranscribeVoiceModelFile,
   mockOpenDialog,
+  mockReadModelProviderCapabilities,
 } = vi.hoisted(() => {
   return {
     mockListDictationHistory: vi.fn(),
@@ -51,6 +52,16 @@ const {
     mockSetDefaultVoiceModel: vi.fn(),
     mockTestTranscribeVoiceModelFile: vi.fn(),
     mockOpenDialog: vi.fn(),
+    mockReadModelProviderCapabilities: vi.fn(),
+  };
+});
+
+vi.mock("@/lib/api/modelRegistry", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/api/modelRegistry")>();
+  return {
+    ...actual,
+    readModelProviderCapabilities: mockReadModelProviderCapabilities,
   };
 });
 
@@ -286,6 +297,16 @@ beforeEach(async () => {
     },
   );
   mockSaveVoiceInputConfig.mockResolvedValue(undefined);
+  mockReadModelProviderCapabilities.mockResolvedValue({
+    namespaceTools: false,
+    imageGeneration: false,
+    webSearch: false,
+    realtime: false,
+    realtimeBlockers: [
+      "providerRealtimeUnsupported",
+      "realtimeTransportUnimplemented",
+    ],
+  });
 });
 
 afterEach(async () => {
@@ -437,6 +458,47 @@ describe("VoiceSettings", () => {
     ).toBeNull();
     expect(text).not.toContain("Translation mode shortcut registered");
     expect(text).not.toContain("settings.voice");
+  });
+
+  it("语音聊天实时能力只显示可用性，保留听写字段且不出现伪控制", async () => {
+    const container = renderComponent();
+    await flushEffects(8);
+
+    const chatRow = container.querySelector(
+      '[data-settings-search-target="voice-chat"]',
+    );
+    expect(chatRow).toBeInstanceOf(HTMLDivElement);
+    expect(container.textContent).toContain("Voice chat");
+    expect(chatRow?.textContent).toContain("Realtime voice conversation");
+    expect(chatRow?.textContent).toContain("Unavailable");
+    expect(
+      chatRow
+        ?.querySelector('[role="status"]')
+        ?.getAttribute("data-realtime-voice-availability"),
+    ).toBe("false");
+    expect(mockReadModelProviderCapabilities).toHaveBeenCalled();
+
+    // 实时语音入口不得提供开始/停止、音色或语言控制。
+    const chatButtons = Array.from(chatRow?.querySelectorAll("button") ?? []);
+    expect(chatButtons.map((button) => button.textContent)).toEqual([
+      "Check again",
+    ]);
+    expect(chatRow?.querySelector("select")).toBeNull();
+
+    // 既有听写字段保持不变。
+    expect(
+      container.querySelector('[data-settings-search-target="voice-sounds"]'),
+    ).toBeInstanceOf(HTMLDivElement);
+    expect(
+      container.querySelector(
+        '[data-settings-search-target="voice-microphone"]',
+      ),
+    ).toBeInstanceOf(HTMLDivElement);
+    expect(
+      container.querySelector(
+        '[data-settings-search-target="voice-dictionary"]',
+      ),
+    ).toBeInstanceOf(HTMLDivElement);
   });
 
   it("点击下载模型时应调用本地模型下载命令", async () => {

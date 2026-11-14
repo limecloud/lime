@@ -1120,13 +1120,44 @@ fn model_provider_capabilities_read_round_trips_exact_codex_shape() {
         namespace_tools: true,
         image_generation: false,
         web_search: true,
+        realtime: false,
+        realtime_blockers: vec![
+            RealtimeVoiceBlocker::ProviderRealtimeUnsupported,
+            RealtimeVoiceBlocker::RealtimeTransportUnimplemented,
+        ],
     };
     assert_eq!(
         serde_json::to_value(response).expect("encode provider capabilities response"),
         json!({
             "namespaceTools": true,
             "imageGeneration": false,
-            "webSearch": true
+            "webSearch": true,
+            "realtime": false,
+            "realtimeBlockers": [
+                "providerRealtimeUnsupported",
+                "realtimeTransportUnimplemented"
+            ]
+        })
+    );
+}
+
+#[test]
+fn model_provider_capabilities_realtime_fails_closed_without_wire_support() {
+    let available = ModelProviderCapabilitiesReadResponse {
+        namespace_tools: false,
+        image_generation: false,
+        web_search: false,
+        realtime: true,
+        realtime_blockers: Vec::new(),
+    };
+    assert_eq!(
+        serde_json::to_value(available).expect("encode available realtime capability"),
+        json!({
+            "namespaceTools": false,
+            "imageGeneration": false,
+            "webSearch": false,
+            "realtime": true,
+            "realtimeBlockers": []
         })
     );
 }

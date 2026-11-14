@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   isSecureAutofillUrl,
@@ -98,6 +98,10 @@ export class BrowserPasswordStore {
     ]);
     const { password: _password, ...summary } = record;
     return summary;
+  }
+
+  async clear(): Promise<void> {
+    await rm(this.#filePath, { force: true });
   }
 
   async remove(id: string): Promise<boolean> {

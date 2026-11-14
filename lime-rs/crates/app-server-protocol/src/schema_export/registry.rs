@@ -861,6 +861,7 @@ pub(super) fn v2_schemas() -> Vec<GeneratedJsonSchema> {
         typed_schema::<v2::ModelProviderCapabilitiesReadResponse>(
             "ModelProviderCapabilitiesReadResponse",
         ),
+        typed_schema::<v2::RealtimeVoiceBlocker>("RealtimeVoiceBlocker"),
         typed_schema::<v2::InputModality>("InputModality"),
         typed_schema::<v2::ModelAvailabilityNux>("ModelAvailabilityNux"),
         typed_schema::<v2::ModelServiceTier>("ModelServiceTier"),

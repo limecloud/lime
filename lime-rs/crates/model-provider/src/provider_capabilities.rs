@@ -7,6 +7,13 @@ pub struct ProviderCapabilities {
     pub custom_tools: bool,
     pub image_generation: bool,
     pub web_search: bool,
+    /// 当前 provider 路由是否已接入实时语音 wire。
+    ///
+    /// 这不是按 provider 品牌或模型名推断的开关：只有 model-provider 中
+    /// 存在真实的实时语音适配器，并且 catalog 显式声明了相应能力时才可为
+    /// `true`。目前没有任何适配器实现实时语音 wire，因此所有路由都必须为
+    /// `false`，Voice 设置页只能显示不可用状态，不得伪造开始/停止控制。
+    pub realtime: bool,
 }
 
 impl ProviderCapabilities {
@@ -15,6 +22,7 @@ impl ProviderCapabilities {
         custom_tools: false,
         image_generation: false,
         web_search: false,
+        realtime: false,
     };
 
     pub fn from_provider_type(provider_type: &str) -> Option<Self> {
@@ -57,6 +65,9 @@ impl ProviderCapabilities {
             custom_tools: protocol.uses_responses_api(),
             image_generation: hosted_tools,
             web_search: hosted_tools,
+            // 实时语音需要独立 wire（WebRTC 或双向 WebSocket 会话），
+            // 现有 chat/responses 适配器都不承载它。
+            realtime: false,
         }
     }
 
@@ -122,12 +133,14 @@ mod tests {
             custom_tools: true,
             image_generation: true,
             web_search: true,
+            realtime: false,
         });
         let custom_only = ProviderCapabilities {
             namespace_tools: false,
             custom_tools: true,
             image_generation: false,
             web_search: false,
+            realtime: false,
         };
         assert_eq!(
             ProviderCapabilities::from_provider_route(
@@ -214,6 +227,48 @@ mod tests {
             ),
             ProviderCapabilities::NONE
         );
+    }
+
+    #[test]
+    fn current_routes_never_claim_realtime_voice_without_a_wire_adapter() {
+        // 实时语音不能被品牌、host 或 Responses 兼容性推断出来；
+        // 在真实适配器落地前，所有路由都必须 fail closed。
+        let routes: &[(&str, Option<&str>)] = &[
+            ("openai", Some("https://api.openai.com/v1")),
+            ("openai-response", Some("https://api.openai.com/v1")),
+            ("codex", Some("https://api.openai.com/v1")),
+            ("azure-openai", Some("https://resource.openai.azure.com")),
+            ("gateway", Some("https://gateway.example.com/v1")),
+            ("ollama", Some("http://127.0.0.1:11434")),
+            ("anthropic", None),
+            ("gemini", None),
+            ("vertexai", None),
+        ];
+        for (provider_type, base_url) in routes {
+            let capabilities = ProviderCapabilities::from_provider_route(provider_type, *base_url)
+                .unwrap_or(ProviderCapabilities::NONE);
+            assert!(
+                !capabilities.realtime,
+                "provider_type={provider_type} base_url={base_url:?}"
+            );
+        }
+        for protocol in [
+            ProtocolKind::OpenaiChat,
+            ProtocolKind::OpenaiResponses,
+            ProtocolKind::AnthropicMessages,
+            ProtocolKind::GeminiGenerateContent,
+            ProtocolKind::VertexGemini,
+        ] {
+            assert!(
+                !ProviderCapabilities::from_route(
+                    "openai",
+                    &protocol,
+                    Some("https://api.openai.com/v1"),
+                )
+                .realtime
+            );
+        }
+        assert!(!ProviderCapabilities::NONE.realtime);
     }
 
     #[test]

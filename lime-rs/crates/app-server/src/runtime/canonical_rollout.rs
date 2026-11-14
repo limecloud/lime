@@ -20,9 +20,9 @@ mod read;
 mod scan;
 use lifecycle::RolloutMove;
 use scan::scan_rollout_reader;
-mod tail_repair;
 #[cfg(test)]
 mod compression_tests;
+mod tail_repair;
 #[cfg(test)]
 mod tests;
 mod writer_lock;

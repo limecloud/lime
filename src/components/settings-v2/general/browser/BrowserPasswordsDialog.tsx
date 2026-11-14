@@ -3,15 +3,24 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
+  clearBrowserPasswords,
   listBrowserPasswords,
   removeBrowserPassword,
   revealBrowserPassword,
   saveBrowserPassword,
   type BrowserPasswordSummary,
 } from "@/lib/api/browserPasswords";
+import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
 import { BROWSER_SETTINGS_BUTTON } from "./BrowserSettingsFields";
 
-type ErrorKind = "load" | "save" | "remove" | "reveal" | "copy";
+type ErrorKind =
+  | "load"
+  | "save"
+  | "remove"
+  | "reveal"
+  | "copy"
+  | "clear"
+  | "open";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-ring";
@@ -34,6 +43,7 @@ export function BrowserPasswordsDialog({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] =
     useState<BrowserPasswordSummary | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState<ErrorKind | null>(null);
   const [pending, setPending] = useState(false);
   const [query, setQuery] = useState("");
@@ -71,6 +81,12 @@ export function BrowserPasswordsDialog({
       if (alive.current) setError("load");
     }
   };
+
+  useEffect(() => {
+    if (Object.keys(revealed).length === 0) return;
+    const timer = window.setTimeout(() => setRevealed({}), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [revealed]);
 
   useEffect(() => {
     if (!open) return;
@@ -128,6 +144,15 @@ export function BrowserPasswordsDialog({
     }
   };
 
+  const openSite = async (item: BrowserPasswordSummary) => {
+    setError(null);
+    try {
+      await openExternalUrlWithSystemBrowser(item.origin);
+    } catch {
+      if (alive.current) setError("open");
+    }
+  };
+
   const copy = async (item: BrowserPasswordSummary) => {
     setError(null);
     try {
@@ -144,6 +169,17 @@ export function BrowserPasswordsDialog({
       }
     } catch {
       if (alive.current) setError("copy");
+    }
+  };
+
+  const clearAll = async () => {
+    setConfirmClear(false);
+    setError(null);
+    try {
+      await clearBrowserPasswords();
+      await refresh();
+    } catch {
+      if (alive.current) setError("clear");
     }
   };
 
@@ -181,7 +217,11 @@ export function BrowserPasswordsDialog({
             ? t("settings.browser.passwordManagerRevealFailed")
             : error === "copy"
               ? t("settings.browser.passwordManagerCopyFailed")
-              : null;
+              : error === "clear"
+                ? t("settings.browser.passwordManagerClearFailed")
+                : error === "open"
+                  ? t("settings.browser.passwordManagerOpenFailed")
+                  : null;
 
   return (
     <>
@@ -278,7 +318,14 @@ export function BrowserPasswordsDialog({
                       className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm">{item.origin}</p>
+                        <button
+                          type="button"
+                          className="max-w-full truncate text-left text-sm underline-offset-2 hover:underline"
+                          title={item.origin}
+                          onClick={() => void openSite(item)}
+                        >
+                          {item.origin}
+                        </button>
                         <p className="truncate text-[12px] text-muted-foreground">
                           {item.username}
                           {revealed[item.id] !== undefined
@@ -331,7 +378,16 @@ export function BrowserPasswordsDialog({
               )}
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-end gap-2">
+              {passwords && passwords.length > 0 ? (
+                <button
+                  type="button"
+                  className={BROWSER_SETTINGS_BUTTON}
+                  onClick={() => setConfirmClear(true)}
+                >
+                  {t("settings.browser.passwordManagerClearAll")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={BROWSER_SETTINGS_BUTTON}
@@ -344,6 +400,15 @@ export function BrowserPasswordsDialog({
         </Dialog.Portal>
       </Dialog.Root>
 
+      <ConfirmDialog
+        isOpen={confirmClear}
+        title={t("settings.browser.passwordManagerClearTitle")}
+        message={t("settings.browser.passwordManagerClearMessage")}
+        confirmText={t("settings.browser.passwordManagerClearAll")}
+        cancelText={t("settings.browser.passwordManagerCancel")}
+        onCancel={() => setConfirmClear(false)}
+        onConfirm={() => void clearAll()}
+      />
       <ConfirmDialog
         isOpen={pendingRemove !== null}
         title={t("settings.browser.passwordManagerRemoveTitle")}

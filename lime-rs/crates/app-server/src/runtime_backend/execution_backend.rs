@@ -587,9 +587,7 @@ impl ExecutionBackend for RuntimeBackend {
         )
         .await
         {
-            for runtime_event in
-                tool_events::runtime_events_from_agent_event(&event)?
-            {
+            for runtime_event in tool_events::runtime_events_from_agent_event(&event)? {
                 sink.emit(runtime_event)?;
             }
         }

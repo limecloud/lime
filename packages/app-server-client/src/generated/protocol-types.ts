@@ -8535,6 +8535,8 @@ export type ModelProviderCapabilitiesReadParams = Record<string, unknown>;
 export interface ModelProviderCapabilitiesReadResponse {
   imageGeneration: boolean;
   namespaceTools: boolean;
+  realtime: boolean;
+  realtimeBlockers: RealtimeVoiceBlocker[];
   webSearch: boolean;
 }
 
@@ -9514,6 +9516,10 @@ export interface QueuedSubmission {
   id: string;
   input: UserInput[];
 }
+
+export type RealtimeVoiceBlocker =
+  | "providerRealtimeUnsupported"
+  | "realtimeTransportUnimplemented";
 
 export interface ReasoningEffortOption {
   description: string;

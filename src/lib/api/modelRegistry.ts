@@ -100,10 +100,23 @@ type ModelProviderIdRecord = {
   id?: unknown;
 };
 
+export type RealtimeVoiceBlocker =
+  | "providerRealtimeUnsupported"
+  | "realtimeTransportUnimplemented";
+
+const REALTIME_VOICE_BLOCKERS: readonly RealtimeVoiceBlocker[] = [
+  "providerRealtimeUnsupported",
+  "realtimeTransportUnimplemented",
+];
+
 export type ModelProviderCapabilities = {
   namespaceTools: boolean;
   imageGeneration: boolean;
   webSearch: boolean;
+  /** 当前 provider 路由与运行时是否已具备端到端实时语音能力。 */
+  realtime: boolean;
+  /** `realtime` 为 false 时的具体缺失环节；未知值被丢弃并 fail closed。 */
+  realtimeBlockers: RealtimeVoiceBlocker[];
 };
 
 function emptyModelProviderCapabilities(): ModelProviderCapabilities {
@@ -111,7 +124,24 @@ function emptyModelProviderCapabilities(): ModelProviderCapabilities {
     namespaceTools: false,
     imageGeneration: false,
     webSearch: false,
+    realtime: false,
+    realtimeBlockers: [],
   };
+}
+
+function normalizeRealtimeBlockers(value: unknown): RealtimeVoiceBlocker[] {
+  if (!Array.isArray(value)) return [];
+  const blockers: RealtimeVoiceBlocker[] = [];
+  for (const entry of value) {
+    if (
+      typeof entry === "string" &&
+      (REALTIME_VOICE_BLOCKERS as readonly string[]).includes(entry) &&
+      !blockers.includes(entry as RealtimeVoiceBlocker)
+    ) {
+      blockers.push(entry as RealtimeVoiceBlocker);
+    }
+  }
+  return blockers;
 }
 
 function parseModelProviderCapabilities(
@@ -126,10 +156,14 @@ function parseModelProviderCapabilities(
   ) {
     return emptyModelProviderCapabilities();
   }
+  const realtimeBlockers = normalizeRealtimeBlockers(source.realtimeBlockers);
   return {
     namespaceTools: source.namespaceTools,
     imageGeneration: source.imageGeneration,
     webSearch: source.webSearch,
+    // 只有服务端显式声明 available 且没有阻断项时才可用；缺字段一律不可用。
+    realtime: source.realtime === true && realtimeBlockers.length === 0,
+    realtimeBlockers,
   };
 }
 

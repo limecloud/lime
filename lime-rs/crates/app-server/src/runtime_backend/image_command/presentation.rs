@@ -270,7 +270,6 @@ pub(super) fn normalize_existing_presentation(
     )
 }
 
-
 fn resolve_presentation_model_selection(
     request: &ExecutionRequest,
 ) -> Result<RuntimeModelSelection, RuntimeCoreError> {
@@ -438,7 +437,6 @@ pub(super) fn merge_generated_presentation(
     }
     Some(Value::Object(merged))
 }
-
 
 fn parse_generated_presentation(
     raw_text: &str,

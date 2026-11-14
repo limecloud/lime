@@ -9,12 +9,18 @@ const api = vi.hoisted(() => ({
   save: vi.fn(),
   remove: vi.fn(),
   reveal: vi.fn(),
+  clear: vi.fn(),
+  openSite: vi.fn(),
 }));
 vi.mock("@/lib/api/browserPasswords", () => ({
   listBrowserPasswords: api.list,
   saveBrowserPassword: api.save,
   removeBrowserPassword: api.remove,
   revealBrowserPassword: api.reveal,
+  clearBrowserPasswords: api.clear,
+}));
+vi.mock("@/lib/api/externalUrl", () => ({
+  openExternalUrlWithSystemBrowser: api.openSite,
 }));
 
 const item = {
@@ -117,6 +123,8 @@ describe("BrowserPasswordsDialog", () => {
     api.list.mockResolvedValue([item]);
     api.reveal.mockResolvedValue("secret");
     api.remove.mockResolvedValue(true);
+    api.clear.mockResolvedValue(true);
+    api.openSite.mockResolvedValue(undefined);
     await mount();
     await act(async () => buttons("显示密码")[0].click());
     await act(async () => Promise.resolve());
@@ -178,6 +186,60 @@ describe("BrowserPasswordsDialog", () => {
       username: "alice",
       password: "new-secret",
     });
+  });
+
+  it("显示密码 15 秒后自动隐藏", async () => {
+    vi.useFakeTimers();
+    try {
+      api.list.mockResolvedValue([item]);
+      api.reveal.mockResolvedValue("secret");
+      await mount();
+      await act(async () => buttons("显示密码")[0].click());
+      await act(async () => Promise.resolve());
+      expect(document.body.textContent).toContain("secret");
+      await act(async () => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(document.body.textContent).not.toContain("secret");
+      expect(buttons("显示密码")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("点击网站地址在系统浏览器打开", async () => {
+    api.list.mockResolvedValue([item]);
+    await mount();
+    const dialog = document.querySelector(
+      "[data-testid=browser-passwords-dialog]",
+    )!;
+    const origin = [...dialog.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "https://example.com",
+    )!;
+    await act(async () => origin.click());
+    await act(async () => Promise.resolve());
+    expect(api.openSite).toHaveBeenCalledWith("https://example.com");
+  });
+
+  it("确认后清除所有密码", async () => {
+    api.list.mockResolvedValue([item]);
+    await mount();
+    const clear = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "清除所有密码",
+    )!;
+    await act(async () => clear.click());
+    await act(async () => Promise.resolve());
+    const dialog = [...document.querySelectorAll('[role="dialog"]')].find(
+      (candidate) => candidate.textContent?.includes("清除所有密码？") ?? false,
+    )!;
+    const confirm = [...dialog.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "清除所有密码",
+    ) as HTMLButtonElement;
+    api.list.mockResolvedValue([]);
+    await act(async () => confirm.click());
+    await act(async () => Promise.resolve());
+    expect(api.clear).toHaveBeenCalled();
+    expect(document.body.textContent).toContain("尚未保存密码");
   });
 
   it("按网站或用户名过滤密码", async () => {

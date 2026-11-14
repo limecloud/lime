@@ -63,3 +63,11 @@ export async function revealBrowserPassword(
   }
   return result;
 }
+
+export async function clearBrowserPasswords(): Promise<boolean> {
+  const result = await safeInvoke<unknown>("browser_passwords_clear");
+  if (typeof result !== "boolean") {
+    throw new Error("browser password clear returned an invalid result");
+  }
+  return result;
+}

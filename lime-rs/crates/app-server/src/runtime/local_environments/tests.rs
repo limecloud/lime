@@ -240,10 +240,7 @@ fn remote_relative_and_outside_paths_fail_without_creating_files() {
             .join("wrong.toml")
             .to_string_lossy()
             .into_owned(),
-        format!(
-            "{}/.lime/environments/../wrong.toml",
-            temp.path().display()
-        ),
+        format!("{}/.lime/environments/../wrong.toml", temp.path().display()),
     ] {
         assert!(save_config(LocalEnvironmentsSaveConfigParams {
             config_path: path,

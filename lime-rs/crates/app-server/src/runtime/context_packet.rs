@@ -160,7 +160,6 @@ impl ContextPacket {
         }
     }
 
-
     pub(crate) fn session_compaction(
         content: impl Into<String>,
         token_budget: usize,
@@ -372,7 +371,6 @@ fn render_memory_summary(packet: &ContextPacket, content: &str, truncated: bool)
          ```memory-summary\n{content}\n```"
     )
 }
-
 
 fn render_session_context_compaction(
     packet: &ContextPacket,

@@ -313,6 +313,20 @@ describe("current settings search projection", () => {
     },
   );
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds the realtime voice chat section",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      expect(
+        searchSettings(t("settings.voice.chat.label"), groups, t),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.Voice,
+          targetId: "voice-chat",
+        }),
+      );
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s finds dictation dictionary without indexing user entries",
     (locale) => {
       const { t, groups } = localize(locale);
@@ -367,22 +381,25 @@ describe("current settings search projection", () => {
       }
     },
   );
-  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-    "%s resolves current static targets with existing messages",
+  describe.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s current static search targets",
     (locale) => {
-      const { t, groups } = localize(locale);
-      for (const document of settingsSearchDocuments) {
-        expect(t(document.labelKey)).not.toBe(document.labelKey);
-        for (const key of document.termKeys) expect(t(key)).not.toBe(key);
-        expect(
-          searchSettings(t(document.labelKey), groups, t, document.platform),
-        ).toContainEqual(
-          expect.objectContaining({
-            section: document.section,
-            targetId: document.targetId,
-          }),
-        );
-      }
+      it.each(settingsSearchDocuments)(
+        "$targetId resolves with existing messages",
+        (document) => {
+          const { t, groups } = localize(locale);
+          expect(t(document.labelKey)).not.toBe(document.labelKey);
+          for (const key of document.termKeys) expect(t(key)).not.toBe(key);
+          expect(
+            searchSettings(t(document.labelKey), groups, t, document.platform),
+          ).toContainEqual(
+            expect.objectContaining({
+              section: document.section,
+              targetId: document.targetId,
+            }),
+          );
+        },
+      );
     },
   );
   it("matches descriptions and multiple words from the same target and panel", () => {

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
 import {
   openDesktopPermissionSettings,
   readDesktopPermissions,
@@ -10,6 +12,8 @@ import {
   listAppSnapshotWindows,
   type AppSnapshotWindow,
 } from "@/lib/api/appSnapshots";
+import { setPendingAppSnapshot } from "@/lib/pendingAppSnapshot";
+import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import {
   SettingsAction,
   SettingsGroup,
@@ -27,13 +31,30 @@ import {
 
 export function AppSnapshotsSettings() {
   const { t } = useTranslation("settings");
+  const navigate = useAppNavigationRequest();
   const snapshotPreferences = useAppSnapshotPreferences();
   const [state, setState] = useState<DesktopPermissionState | null>(null);
+  const [accessibility, setAccessibility] =
+    useState<DesktopPermissionState | null>(null);
   const [error, setError] = useState(false);
   const [pending, setPending] = useState(false);
   const [windows, setWindows] = useState<AppSnapshotWindow[] | null>(null);
   const [loadingWindows, setLoadingWindows] = useState(false);
   const [copiedWindow, setCopiedWindow] = useState<string | null>(null);
+
+  const addWindowToChat = (window: AppSnapshotWindow) => {
+    if (!navigate) return;
+    if (
+      !setPendingAppSnapshot({
+        dataUrl: window.thumbnail,
+        windowName: window.name,
+      })
+    ) {
+      return;
+    }
+    navigate("agent", buildHomeAgentParams());
+    toast.success(t("settings.appSnapshots.addToChatQueued"));
+  };
 
   const load = async () => {
     setError(false);
@@ -42,6 +63,11 @@ export function AppSnapshotsSettings() {
       setState(
         snapshot.permissions.find(
           (permission) => permission.id === "screenCapture",
+        )?.state ?? "unavailable",
+      );
+      setAccessibility(
+        snapshot.permissions.find(
+          (permission) => permission.id === "accessibility",
         )?.state ?? "unavailable",
       );
     } catch {
@@ -53,7 +79,9 @@ export function AppSnapshotsSettings() {
     void load();
   }, []);
 
-  if (state === null && !error) return <SettingsLoading />;
+  if ((state === null || accessibility === null) && !error) {
+    return <SettingsLoading />;
+  }
 
   const status = state ?? "unknown";
   return (
@@ -151,6 +179,47 @@ export function AppSnapshotsSettings() {
               )}
             </div>
           </SettingsRow>
+          <SettingsRow
+            label={t("settings.appSnapshots.accessibility")}
+            description={t("settings.appSnapshots.accessibilityDescription")}
+            targetId="app-snapshots-accessibility"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] text-muted-foreground">
+                {t(`settings.appSnapshots.state.${accessibility ?? "unknown"}`)}
+              </span>
+              {accessibility === "granted" ? null : (
+                <SettingsAction
+                  type="button"
+                  disabled={pending}
+                  onClick={async () => {
+                    setPending(true);
+                    try {
+                      if (accessibility === "notDetermined") {
+                        const snapshot =
+                          await requestDesktopPermission("accessibility");
+                        setAccessibility(
+                          snapshot.permissions.find(
+                            (permission) => permission.id === "accessibility",
+                          )?.state ?? "unavailable",
+                        );
+                      } else {
+                        await openDesktopPermissionSettings("accessibility");
+                      }
+                    } catch {
+                      setError(true);
+                    } finally {
+                      setPending(false);
+                    }
+                  }}
+                >
+                  {accessibility === "notDetermined"
+                    ? t("settings.appSnapshots.request")
+                    : t("settings.appSnapshots.openSettings")}
+                </SettingsAction>
+              )}
+            </div>
+          </SettingsRow>
         </SettingsGroup>
         {error ? (
           <div
@@ -203,27 +272,40 @@ export function AppSnapshotsSettings() {
                   />
                   <figcaption className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-muted-foreground">
                     <span className="truncate">{window.name}</span>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded px-1.5 py-0.5 hover:bg-muted"
-                      onClick={async () => {
-                        try {
-                          const response = await fetch(window.thumbnail);
-                          const blob = await response.blob();
-                          await navigator.clipboard.write([
-                            new ClipboardItem({ [blob.type]: blob }),
-                          ]);
-                          setCopiedWindow(window.id);
-                          globalThis.setTimeout(() => setCopiedWindow(null), 1500);
-                        } catch {
-                          setError(true);
-                        }
-                      }}
-                    >
-                      {copiedWindow === window.id
-                        ? t("settings.appSnapshots.copied")
-                        : t("settings.appSnapshots.copy")}
-                    </button>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        className="rounded px-1.5 py-0.5 hover:bg-muted disabled:opacity-40"
+                        disabled={!navigate}
+                        onClick={() => addWindowToChat(window)}
+                      >
+                        {t("settings.appSnapshots.addToChat")}
+                      </button>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded px-1.5 py-0.5 hover:bg-muted"
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(window.thumbnail);
+                            const blob = await response.blob();
+                            await navigator.clipboard.write([
+                              new ClipboardItem({ [blob.type]: blob }),
+                            ]);
+                            setCopiedWindow(window.id);
+                            globalThis.setTimeout(
+                              () => setCopiedWindow(null),
+                              1500,
+                            );
+                          } catch {
+                            setError(true);
+                          }
+                        }}
+                      >
+                        {copiedWindow === window.id
+                          ? t("settings.appSnapshots.copied")
+                          : t("settings.appSnapshots.copy")}
+                      </button>
+                    </span>
                   </figcaption>
                 </figure>
               ))}

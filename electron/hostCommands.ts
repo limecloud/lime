@@ -298,6 +298,9 @@ export class ElectronHostCommands {
           password: readRequiredString(record, "password"),
         });
       }
+      case "browser_passwords_clear":
+        await this.#browserPasswordStore.clear();
+        return true;
       case "browser_passwords_remove":
         return await this.#browserPasswordStore.remove(
           readRequiredString(toRecord(args) ?? {}, "id"),

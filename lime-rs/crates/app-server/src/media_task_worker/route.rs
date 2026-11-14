@@ -656,11 +656,7 @@ fn image_request_body_format_from_route(
     route: &Value,
     protocol: &str,
 ) -> ImageGenerationRequestBodyFormat {
-    if matches!(
-        protocol,
-        "openai_images" | "openai_responses"
-    ) && is_agnes_image_route(route)
-    {
+    if matches!(protocol, "openai_images" | "openai_responses") && is_agnes_image_route(route) {
         return ImageGenerationRequestBodyFormat::AgnesImages;
     }
 
@@ -775,17 +771,11 @@ fn is_agnes_image_model_id(model_id: &str) -> bool {
 }
 
 fn is_zhipu_image_route_for_protocol(route: &Value, protocol: &str) -> bool {
-    matches!(
-        protocol,
-        "openai_images" | "openai_responses"
-    ) && is_zhipu_image_route(route)
+    matches!(protocol, "openai_images" | "openai_responses") && is_zhipu_image_route(route)
 }
 
 fn is_dashscope_image_route_for_protocol(route: &Value, protocol: &str) -> bool {
-    matches!(
-        protocol,
-        "openai_images" | "openai_responses"
-    ) && is_dashscope_image_route(route)
+    matches!(protocol, "openai_images" | "openai_responses") && is_dashscope_image_route(route)
 }
 
 fn read_value_string(value: &Value, keys: &[&str]) -> Option<String> {

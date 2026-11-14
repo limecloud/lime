@@ -11,6 +11,7 @@ import {
 import { MicrophoneSettings } from "./MicrophoneSettings";
 import { VoiceModelSection } from "./VoiceModelSection";
 import { VoiceProcessingSettings } from "./VoiceProcessingSettings";
+import { VoiceChatSection } from "./VoiceChatSection";
 import { VoiceServiceSettings } from "./VoiceServiceSettings";
 import { useVoiceSettings } from "./useVoiceSettings";
 
@@ -47,6 +48,7 @@ export function VoiceSettings() {
               />
             </SettingsGroup>
           </SettingsSection>
+          <VoiceChatSection />
           <VoiceProcessingSettings
             settings={settings}
             capabilityRevision={capabilityRevision}

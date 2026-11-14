@@ -35,6 +35,8 @@ export function ConnectionsSettings() {
   const { t } = useTranslation("settings");
   const [connections, setConnections] = useState<SshConnection[] | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [query, setQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [openError, setOpenError] = useState(false);
   const [removeError, setRemoveError] = useState(false);
   const [grants, setGrants] = useState<ConnectionGrant[] | null>(null);
@@ -97,6 +99,16 @@ export function ConnectionsSettings() {
   };
 
   if (connections === null && !loadError) return <SettingsLoading />;
+
+  const filtered =
+    connections?.filter((connection) => {
+      const needle = query.trim().toLowerCase();
+      if (!needle) return true;
+      return [connection.alias, connection.hostName, connection.user ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    }) ?? null;
 
   return (
     <SettingsPageBody>
@@ -169,6 +181,20 @@ export function ConnectionsSettings() {
         title={t("settings.connections.description")}
         actions={
           <div className="flex items-center gap-2">
+            <SettingsAction
+              type="button"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                try {
+                  await load();
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+            >
+              {t("settings.connections.refresh")}
+            </SettingsAction>
             <SettingsAction type="button" onClick={() => void openConfig()}>
               {t("settings.connections.openConfig")}
             </SettingsAction>
@@ -198,9 +224,19 @@ export function ConnectionsSettings() {
           }}
           onSaved={() => void load()}
         />
+        {connections && connections.length > 0 ? (
+          <input
+            type="search"
+            aria-label={t("settings.connections.search")}
+            placeholder={t("settings.connections.search")}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="mb-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+        ) : null}
         <SettingsGroup>
-          {connections && connections.length > 0 ? (
-            connections.map((connection) => (
+          {filtered && filtered.length > 0 ? (
+            filtered.map((connection) => (
               <SettingsRow
                 key={connection.alias}
                 targetId={`ssh-connection-${connection.alias}`}
@@ -226,7 +262,9 @@ export function ConnectionsSettings() {
             ))
           ) : (
             <SettingsEmptyState>
-              {t("settings.connections.empty")}
+              {connections && connections.length > 0
+                ? t("settings.connections.noResults")
+                : t("settings.connections.empty")}
             </SettingsEmptyState>
           )}
         </SettingsGroup>

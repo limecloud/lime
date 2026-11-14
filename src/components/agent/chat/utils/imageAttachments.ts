@@ -112,6 +112,32 @@ export function readMessageImageFromDataUrl(dataUrl: string): MessageImage {
   };
 }
 
+/** 把 data URL 还原成 File，交给 addImages 走与选择/粘贴相同的读取与校验路径。 */
+export function createImageAttachmentFile(
+  dataUrl: string,
+  fileName = "app-snapshot.png",
+): File {
+  const image = readMessageImageFromDataUrl(dataUrl);
+  if (!image.data) {
+    throw new Error("invalid_image_data");
+  }
+
+  let bytes: Uint8Array;
+  try {
+    const binary = atob(image.data);
+    bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+  } catch {
+    throw new Error("invalid_image_data");
+  }
+
+  return new File([bytes.buffer as ArrayBuffer], fileName, {
+    type: image.mediaType,
+  });
+}
+
 export function buildMessageImageDataUrl(image: MessageImage): string {
   const normalizedMediaType =
     normalizeImageMimeType(image.mediaType) || "image/png";

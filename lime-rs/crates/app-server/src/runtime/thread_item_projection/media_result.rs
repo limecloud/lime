@@ -203,10 +203,7 @@ fn item_from_task_record_with_source(
             "normalized_status": input.normalized_status,
         }),
     });
-    let item_id = media_item_id(
-        input.turn_id.unwrap_or("session"),
-        input.task_id,
-    );
+    let item_id = media_item_id(input.turn_id.unwrap_or("session"), input.task_id);
     let metadata = item_metadata(
         &event,
         source,
@@ -534,7 +531,8 @@ mod tests {
 
         let projected = super::super::thread_items_from_events(&stored);
         assert!(projected.iter().any(|item| {
-            item.get("id").and_then(Value::as_str) == Some("item_media-task-result:turn-1:task-image-1")
+            item.get("id").and_then(Value::as_str)
+                == Some("item_media-task-result:turn-1:task-image-1")
                 && item
                     .pointer("/contentParts/0/reference/uri")
                     .and_then(Value::as_str)

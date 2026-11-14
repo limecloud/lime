@@ -99,6 +99,46 @@ describe("BrowserExtensionsDialog", () => {
     expect(document.body.textContent).toContain("暂无扩展");
   });
 
+  it("按名称或路径过滤扩展", async () => {
+    api.list.mockResolvedValue([
+      extension,
+      {
+        id: "ext-2",
+        name: "Other Extension",
+        version: "2.0.0",
+        manifestVersion: 3,
+        path: "/tmp/other",
+        enabled: true,
+      },
+    ]);
+    await act(async () =>
+      root.render(
+        <BrowserExtensionsDialog open onOpenChange={() => undefined} />,
+      ),
+    );
+    await act(async () => Promise.resolve());
+    const search = document.querySelector<HTMLInputElement>(
+      'input[type="search"]',
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(search, "other");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(document.querySelectorAll("li")).toHaveLength(1);
+    expect(document.body.textContent).toContain("Other Extension");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(search, "zzz");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(document.body.textContent).toContain("没有匹配的扩展");
+  });
+
   it("启用/禁用扩展", async () => {
     api.list.mockResolvedValue([extension]);
     api.setEnabled.mockResolvedValue({ ...extension, enabled: false });

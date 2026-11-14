@@ -65,6 +65,7 @@ export const ELECTRON_HOST_COMMANDS = [
   "browser_passwords_save",
   "browser_passwords_remove",
   "browser_passwords_reveal",
+  "browser_passwords_clear",
   "browser_contact_profile_read",
   "browser_contact_profile_save",
   "browser_contact_profile_clear",

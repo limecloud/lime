@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createImageAttachmentFile,
   getClipboardImageCandidates,
   MAX_IMAGE_ATTACHMENT_BYTES,
   readImageAttachment,
@@ -39,5 +40,30 @@ describe("imageAttachments", () => {
     );
 
     await expect(readImageAttachment(file)).rejects.toThrow("image_too_large");
+  });
+
+  it("把 data URL 还原为 File 并保留媒体类型", () => {
+    const file = createImageAttachmentFile(
+      "data:image/png;base64,ZmFrZQ==",
+      "Editor.png",
+    );
+
+    expect(file.name).toBe("Editor.png");
+    expect(file.type).toBe("image/png");
+  });
+
+  it("拒绝非图片、空内容与超大 data URL", () => {
+    expect(() =>
+      createImageAttachmentFile("data:text/plain;base64,ZmFrZQ=="),
+    ).toThrow("unsupported_image_type");
+    expect(() => createImageAttachmentFile("data:image/png;base64,")).toThrow(
+      "invalid_image_data",
+    );
+    const tooLargePayload = "a".repeat(
+      Math.ceil(((MAX_IMAGE_ATTACHMENT_BYTES + 1) * 4) / 3),
+    );
+    expect(() =>
+      createImageAttachmentFile(`data:image/png;base64,${tooLargePayload}`),
+    ).toThrow("image_too_large");
   });
 });

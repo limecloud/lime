@@ -75,10 +75,14 @@ async fn client_context_websocket_clients_share_threads_but_isolate_cancellation
     let server = AppServer::with_runtime(runtime);
     let shutdown = CancellationToken::new();
     let (events_tx, events_rx) = mpsc::channel(64);
-    let (address, acceptor) =
-        start_websocket_acceptor("127.0.0.1:0".parse().unwrap(), events_tx, shutdown.clone(), Default::default())
-            .await
-            .unwrap();
+    let (address, acceptor) = start_websocket_acceptor(
+        "127.0.0.1:0".parse().unwrap(),
+        events_tx,
+        shutdown.clone(),
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let runner = tokio::spawn(run_transport_events(
         server,
         events_rx,

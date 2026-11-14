@@ -37,16 +37,19 @@ pub(super) fn list_projects(
         )
         .map_err(error)?;
     let rows = statement
-        .query_map(params![anchor_position, anchor_id, limit as i64 + 1], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i64>(3)?,
-                row.get::<_, i64>(4)?,
-                row.get::<_, i64>(5)?,
-            ))
-        })
+        .query_map(
+            params![anchor_position, anchor_id, limit as i64 + 1],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            },
+        )
         .map_err(error)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(error)?;

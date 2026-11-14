@@ -3,8 +3,14 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
+import {
+  getPendingAppSnapshot,
+  resetPendingAppSnapshotForTest,
+  setPendingAppSnapshot,
+} from "@/lib/pendingAppSnapshot";
 import { useComposerAttachments } from "./useComposerAttachments";
 import { ComposerController } from "@/components/input-kit/ComposerController";
+import { MAX_IMAGE_ATTACHMENTS_PER_TURN } from "../utils/imageAttachments";
 
 const { toastMock } = vi.hoisted(() => ({
   toastMock: {
@@ -184,6 +190,7 @@ beforeEach(async () => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   globalThis.FileReader = MockFileReader as never;
+  resetPendingAppSnapshotForTest();
   await changeLimeLocale("zh-CN");
 });
 
@@ -587,5 +594,108 @@ describe("useComposerAttachments 读取生命周期", () => {
     expect(images(container)).toEqual([restoredImage]);
     expect(toastMock.error).toHaveBeenCalledOnce();
     expect(toastMock.success).not.toHaveBeenCalled();
+  });
+});
+
+describe("useComposerAttachments 应用快照", () => {
+  const pendingSnapshot = {
+    dataUrl: "data:image/png;base64,ZmFrZS1zbmFwc2hvdA==",
+    windowName: "Editor",
+  };
+
+  async function flush() {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  function imageCount(container: HTMLDivElement) {
+    return container.querySelector('[data-testid="image-count"]')?.textContent;
+  }
+
+  function images(container: HTMLDivElement) {
+    return JSON.parse(
+      container.querySelector('[data-testid="images"]')?.textContent ?? "[]",
+    );
+  }
+
+  it("挂载时消费待发送快照，走现有图片路径只追加一次", async () => {
+    setPendingAppSnapshot(pendingSnapshot);
+    const first = renderHarness();
+    await flush();
+
+    expect(imageCount(first)).toBe("1");
+    expect(images(first)).toEqual([
+      { data: "ZmFrZS1pbWFnZQ==", mediaType: "image/png" },
+    ]);
+    expect(getPendingAppSnapshot()).toBeNull();
+    expect(toastMock.success).toHaveBeenCalledWith("已添加图片：Editor.png");
+
+    const second = renderHarness();
+    await flush();
+    expect(imageCount(second)).toBe("0");
+    expect(toastMock.success).toHaveBeenCalledOnce();
+  });
+
+  it("data URL 无效时提示错误并把快照留给下次重试", async () => {
+    const invalidSnapshot = {
+      dataUrl: "data:text/plain;base64,ZmFrZQ==",
+      windowName: "Editor",
+    };
+    setPendingAppSnapshot(invalidSnapshot);
+    const container = renderHarness();
+    await flush();
+
+    expect(imageCount(container)).toBe("0");
+    expect(getPendingAppSnapshot()).toEqual(invalidSnapshot);
+    expect(toastMock.error).toHaveBeenCalledWith("图片读取失败：Editor.png");
+  });
+
+  it("读取失败时保留快照，重新挂载后可成功追加", async () => {
+    setPendingAppSnapshot(pendingSnapshot);
+    class FailingFileReader extends MockFileReader {
+      readAsDataURL() {
+        this.error = new Error("delayed_read_failed");
+        this.onerror?.();
+      }
+    }
+    globalThis.FileReader = FailingFileReader as never;
+    const first = renderHarness();
+    await flush();
+
+    expect(imageCount(first)).toBe("0");
+    expect(getPendingAppSnapshot()).toEqual(pendingSnapshot);
+    expect(toastMock.error).toHaveBeenCalledWith("图片读取失败：Editor.png");
+
+    const mounted = mountedRoots.pop();
+    expect(mounted).toBeDefined();
+    act(() => mounted?.root.unmount());
+    mounted?.container.remove();
+    globalThis.FileReader = MockFileReader as never;
+
+    const retry = renderHarness();
+    await flush();
+    expect(imageCount(retry)).toBe("1");
+    expect(getPendingAppSnapshot()).toBeNull();
+  });
+
+  it("达到附件上限时不越权追加，并保留快照", async () => {
+    const controller = new ComposerController({
+      attachments: Array.from(
+        { length: MAX_IMAGE_ATTACHMENTS_PER_TURN },
+        (_, index) => ({ data: `existing-${index}`, mediaType: "image/png" }),
+      ),
+    });
+    setPendingAppSnapshot(pendingSnapshot);
+    const container = renderHarness(controller);
+    await flush();
+
+    expect(imageCount(container)).toBe(String(MAX_IMAGE_ATTACHMENTS_PER_TURN));
+    expect(controller.getDocument().attachments).toHaveLength(
+      MAX_IMAGE_ATTACHMENTS_PER_TURN,
+    );
+    expect(getPendingAppSnapshot()).toEqual(pendingSnapshot);
+    expect(toastMock.error).toHaveBeenCalledWith("图片读取失败：Editor.png");
   });
 });

@@ -16,9 +16,7 @@ use super::trace_store::TraceEventWriter;
 use super::turn_input_events;
 use super::*;
 use crate::agent_ui_event_schema;
-use crate::runtime_backend::{
-    tool_process_external_metadata,
-};
+use crate::runtime_backend::tool_process_external_metadata;
 use app_server_protocol::*;
 use serde_json::Value;
 use std::collections::HashSet;
