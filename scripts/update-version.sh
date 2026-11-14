@@ -25,9 +25,16 @@ echo "✓ package.json"
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$PROJECT_ROOT/packages/cli/package.json"
 echo "✓ packages/cli/package.json"
 
-# 更新 Cargo.toml
-sed -i '' "s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" "$PROJECT_ROOT/lime-rs/Cargo.toml"
-echo "✓ lime-rs/Cargo.toml"
+# 更新 Cargo.toml：只改 [workspace.package] 段，避免误改依赖版本
+CARGO_TOML="$PROJECT_ROOT/lime-rs/Cargo.toml"
+TMP_TOML="$(mktemp)"
+awk -v version="$NEW_VERSION" '
+    /^\[/ { in_package = ($0 == "[workspace.package]") }
+    in_package && /^version = "/ { print "version = \"" version "\""; next }
+    { print }
+' "$CARGO_TOML" > "$TMP_TOML"
+mv "$TMP_TOML" "$CARGO_TOML"
+echo "✓ lime-rs/Cargo.toml (workspace.package only)"
 
 echo ""
 echo "版本已更新到 $NEW_VERSION"
