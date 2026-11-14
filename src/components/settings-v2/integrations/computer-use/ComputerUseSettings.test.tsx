@@ -83,6 +83,7 @@ it("registers Computer use between Plugins and Browser in the integrations group
     SettingsTabs.Plugins,
     SettingsTabs.McpServers,
     SettingsTabs.ComputerUse,
+    SettingsTabs.AppSnapshots,
     SettingsTabs.Browser,
     SettingsTabs.CloudDesktops,
   ]);
