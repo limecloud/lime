@@ -2978,6 +2978,18 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
     焦点切换、分栏拖动需要第二份实时 projection 与焦点路由，属独立架构任务。
   - 目标“验证通过后打 tag”受 GUI owner 失败阻塞；TUI 测试 2020、protocol 154、结构清单 101 均绿。
 
+- **2026-11-14 第二百一十轮（GUI smoke 修复，用户完全授权）**：
+  1. Windows 安装版 `renderer-reload` 根因：`AppSnapshotRuntime` 在 Windows 也调用
+     `macos_native_host_invoke`（`bareModifierMonitor.start`），两次调用进入
+     `lime_invoke_error_buffer_v1`，导致 workbench reload 永远不 ready。
+     修复：`supportsNativeAppSnapshots()` 以 `navigator.platform` 判定 macOS，非 macOS 不启动监听。
+  2. Frontend Full 的 MCP fixture 失败是迁移守卫正则过宽：`settings-sidebar-tab-mcp-server`
+     前缀匹配了现役 `settings-sidebar-tab-mcp-servers`；改为负向前瞻 `(?!s)`。
+  3. 定向测试：AppSnapshotRuntime + MCP migration + current-entrypoints **41 passed**；
+     contracts exit 0。
+  4. 发布 1.177.2（tag v1.177.2）触发 Windows 验证；本机 GUI smoke 因并行改动导致
+     renderer build 输入变化未完成（16m 构建后报 inputs changed），未作为通过证据。
+
 - **下一刀（按收益/风险排序）**：
   1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
      替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、
