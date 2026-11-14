@@ -15,7 +15,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 const PACKAGE_ROOT = path.resolve(
@@ -23,6 +23,40 @@ const PACKAGE_ROOT = path.resolve(
 );
 const LAUNCHER_SOURCE = path.join(PACKAGE_ROOT, "bin", "lime.js");
 const BUILD_SCRIPT = path.join(PACKAGE_ROOT, "scripts", "build_npm_package.py");
+
+for (const arch of ["x64", "arm64"]) {
+  test(`launcher rejects Linux ${arch} before resolving a platform package`, () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `
+      Object.defineProperty(process, "platform", { value: "linux" });
+      Object.defineProperty(process, "arch", { value: ${JSON.stringify(arch)} });
+      await import(${JSON.stringify(pathToFileURL(LAUNCHER_SOURCE).href)});
+    `,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 1);
+    assert.match(
+      result.stderr,
+      new RegExp(`Unsupported platform: linux \\(${arch}\\)`),
+    );
+    assert.doesNotMatch(result.stderr, /Missing optional dependency/u);
+  });
+}
+
+test("staging rejects the removed Linux platform package", () => {
+  const result = spawnSync(
+    "python3",
+    [BUILD_SCRIPT, "--package", "lime-linux-x64", "--version", "1.2.3"],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /invalid choice: 'lime-linux-x64'/u);
+});
 
 test("launcher current owner does not expose Codex helper names", () => {
   const source = readFileSync(LAUNCHER_SOURCE, "utf8");
@@ -57,13 +91,6 @@ function currentPlatform() {
       packageName: "lime-darwin-x64",
       packageAlias: "@limecloud/lime-darwin-x64",
       targetTriple: "x86_64-apple-darwin",
-    };
-  }
-  if (process.platform === "linux" && process.arch === "x64") {
-    return {
-      packageName: "lime-linux-x64",
-      packageAlias: "@limecloud/lime-linux-x64",
-      targetTriple: "x86_64-unknown-linux-gnu",
     };
   }
   if (process.platform === "win32" && process.arch === "x64") {
@@ -135,53 +162,68 @@ function runLauncher(tree, args = [], env = {}) {
   });
 }
 
-test("launcher resolves the optional platform package and mirrors exit code", (t) => {
-  const tree = createInstalledPackage(t);
-  const prefixArgs = installFakeNative(
-    tree,
-    `console.log(JSON.stringify({
+test(
+  "launcher resolves the optional platform package and mirrors exit code",
+  { skip: !currentPlatform() },
+  (t) => {
+    const tree = createInstalledPackage(t);
+    const prefixArgs = installFakeNative(
+      tree,
+      `console.log(JSON.stringify({
       args: process.argv.slice(2),
       root: process.env.LIME_MANAGED_PACKAGE_ROOT,
       npm: process.env.LIME_MANAGED_BY_NPM,
       pnpm: process.env.LIME_MANAGED_BY_PNPM
     }));
     process.exit(Number(process.env.FAKE_EXIT_CODE || 0));`,
-  );
-  const result = runLauncher(tree, [...prefixArgs, "alpha", "beta"], {
-    FAKE_EXIT_CODE: "23",
-    npm_config_user_agent: "npm/10.0.0 node/v22.0.0",
-  });
+    );
+    const result = runLauncher(tree, [...prefixArgs, "alpha", "beta"], {
+      FAKE_EXIT_CODE: "23",
+      npm_config_user_agent: "npm/10.0.0 node/v22.0.0",
+    });
 
-  assert.equal(result.status, 23, result.stderr);
-  const payload = JSON.parse(result.stdout.trim());
-  assert.deepEqual(payload.args, ["alpha", "beta"]);
-  assert.equal(payload.root, realpathSync(tree.packageRoot));
-  assert.equal(payload.npm, "1");
-  assert.equal(payload.pnpm, undefined);
-});
+    assert.equal(result.status, 23, result.stderr);
+    const payload = JSON.parse(result.stdout.trim());
+    assert.deepEqual(payload.args, ["alpha", "beta"]);
+    assert.equal(payload.root, realpathSync(tree.packageRoot));
+    assert.equal(payload.npm, "1");
+    assert.equal(payload.pnpm, undefined);
+  },
+);
 
-test("launcher uses the root vendor tree only as a development fallback", (t) => {
-  const tree = createInstalledPackage(t, { platformPackage: false });
-  const prefixArgs = installFakeNative(tree, "console.log('root-vendor');");
-  const result = runLauncher(tree, prefixArgs);
+test(
+  "launcher uses the root vendor tree only as a development fallback",
+  { skip: !currentPlatform() },
+  (t) => {
+    const tree = createInstalledPackage(t, { platformPackage: false });
+    const prefixArgs = installFakeNative(tree, "console.log('root-vendor');");
+    const result = runLauncher(tree, prefixArgs);
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), "root-vendor");
-});
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), "root-vendor");
+  },
+);
 
-test("launcher fails closed when the optional package payload is missing", (t) => {
-  const tree = createInstalledPackage(t);
-  rmSync(tree.nativePath, { force: true });
-  const result = runLauncher(tree);
+test(
+  "launcher fails closed when the optional package payload is missing",
+  { skip: !currentPlatform() },
+  (t) => {
+    const tree = createInstalledPackage(t);
+    rmSync(tree.nativePath, { force: true });
+    const result = runLauncher(tree);
 
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /Missing optional dependency @limecloud\/lime-/u);
-  assert.match(result.stderr, /Reinstall Lime:/u);
-});
+    assert.equal(result.status, 1);
+    assert.match(
+      result.stderr,
+      /Missing optional dependency @limecloud\/lime-/u,
+    );
+    assert.match(result.stderr, /Reinstall Lime:/u);
+  },
+);
 
 test(
   "launcher mirrors native signal termination",
-  { skip: process.platform === "win32" },
+  { skip: !currentPlatform() || process.platform === "win32" },
   (t) => {
     const tree = createInstalledPackage(t);
     writeFileSync(tree.nativePath, "#!/bin/sh\nkill -TERM $$\n");
@@ -195,7 +237,7 @@ test(
 
 test(
   "launcher forwards parent termination signals to the native process",
-  { skip: process.platform === "win32" },
+  { skip: !currentPlatform() || process.platform === "win32" },
   async (t) => {
     const tree = createInstalledPackage(t);
     const readyPath = path.join(tree.root, "ready");
@@ -263,8 +305,8 @@ test("staging creates Lime root platform dependencies and a real npm tarball", (
   assert.equal(packageJson.bin.lime, "bin/lime.js");
   assert.equal(packageJson.packageManager, "pnpm@9.15.9");
   assert.equal(packageJson.scripts, undefined);
+  assert.deepEqual(packageJson.os, ["darwin", "win32"]);
   assert.deepEqual(packageJson.optionalDependencies, {
-    "@limecloud/lime-linux-x64": "1.2.3-linux-x64",
     "@limecloud/lime-darwin-x64": "1.2.3-darwin-x64",
     "@limecloud/lime-darwin-arm64": "1.2.3-darwin-arm64",
     "@limecloud/lime-win32-x64": "1.2.3-win32-x64",

@@ -16,6 +16,8 @@ const RETIRED_PATHS = [
   "packages/cli/scripts/run.js",
   "packages/cli/scripts/release-meta.js",
   "packages/cli/scripts/build-release.js",
+  "scripts/app-server/linux-guest-release.mjs",
+  "scripts/electron/lib/release-workflow-cloud-guest-guard.mjs",
   "lime-rs/crates/cli/src/exec/human_output.rs",
 ];
 
@@ -216,7 +218,6 @@ export function checkCliBoundary(repoRoot = process.cwd()) {
 
   const launcher = read(repoRoot, "packages/cli/bin/lime.js");
   for (const required of [
-    "@limecloud/lime-linux-x64",
     "@limecloud/lime-darwin-x64",
     "@limecloud/lime-darwin-arm64",
     "@limecloud/lime-win32-x64",
@@ -252,7 +253,6 @@ export function checkCliBoundary(repoRoot = process.cwd()) {
   );
   for (const required of [
     'NPM_NAME = "@limecloud/lime"',
-    '"lime-linux-x64"',
     '"lime-darwin-x64"',
     '"lime-darwin-arm64"',
     '"lime-win32-x64"',
@@ -320,6 +320,17 @@ export function checkCliBoundary(repoRoot = process.cwd()) {
     failures.push("CLI npm Gate B must remain a root quality entrypoint");
   }
   const npmGate = read(repoRoot, "scripts/app-server/cli-npm-gate-b.mjs");
+  for (const [relativePath, source] of [
+    ["packages/cli/bin/lime.js", launcher],
+    ["packages/cli/scripts/build_npm_package.py", npmBuilder],
+    ["scripts/app-server/cli-npm-gate-b.mjs", npmGate],
+  ]) {
+    if (/lime-linux-|unknown-linux-gnu|["']linux["']/u.test(source)) {
+      failures.push(
+        `CLI distribution must not restore Linux targets: ${relativePath}`,
+      );
+    }
+  }
   for (const required of [
     "LIME_CLI_BIN: launcherPath",
     'LIME_CLI_GATE_B_USE_SIBLING_APP_SERVER: "1"',

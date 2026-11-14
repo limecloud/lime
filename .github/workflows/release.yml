@@ -802,11 +802,6 @@ jobs:
             package: lime-win32-x64
             npm_tag: win32-x64
             name: Windows-x64-cli
-          - platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            package: lime-linux-x64
-            npm_tag: linux-x64
-            name: Linux-x64-cli
 
     runs-on: ${{ matrix.platform }}
 
@@ -826,13 +821,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install Linux CLI build dependencies
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libasound2-dev libxdo-dev
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
@@ -860,19 +848,15 @@ jobs:
         shell: bash
         run: |
           node scripts/lib/rusty-v8-artifacts.mjs --github-env
-          # Refresh target-specific native build scripts in the release profile.
-          # Cached output can reference V8 or sherpa libraries not restored with
-          # the Cargo cache; rerun their existing native-library preparation.
+          # Refresh target-specific V8 artifacts in the release profile.
           CARGO_TARGET_DIR="${{ github.workspace }}/lime-rs/target" \
             cargo clean \
               --manifest-path lime-rs/Cargo.toml \
               --package v8 \
-              --package sherpa-onnx-sys \
               --release \
               --target "${{ matrix.target }}"
 
       - name: Prepare CLI sherpa-onnx runtime
-        if: matrix.target != 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
           set -euo pipefail
@@ -906,7 +890,6 @@ jobs:
           fi
 
       - name: Finalize CLI runtime libraries
-        if: matrix.target != 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
           set -euo pipefail
@@ -942,15 +925,13 @@ jobs:
           done < <(
             find "$PROFILE_DIR" -maxdepth 1 \
               \( -type f -o -type l \) \
-              \( -name '*.dylib' -o -name '*.dll' -o -name '*.so' -o -name '*.so.*' \) \
+              \( -name '*.dylib' -o -name '*.dll' \) \
               -print | sort
           )
 
-          if [ "$RUNNER_OS" != "Linux" ]; then
-            LIME_CLI_RESOURCE_BINARY="$BIN_DIR/app-server${EXE_SUFFIX}" \
-            LIME_CLI_RESOURCE_VERSION="$VERSION" \
-              node --input-type=module -e 'import { prepareLocalComputerUseResources } from "./scripts/lib/electron-desktop-resources.mjs"; prepareLocalComputerUseResources({ binaryPath: process.env.LIME_CLI_RESOURCE_BINARY, version: process.env.LIME_CLI_RESOURCE_VERSION });'
-          fi
+          LIME_CLI_RESOURCE_BINARY="$BIN_DIR/app-server${EXE_SUFFIX}" \
+          LIME_CLI_RESOURCE_VERSION="$VERSION" \
+            node --input-type=module -e 'import { prepareLocalComputerUseResources } from "./scripts/lib/electron-desktop-resources.mjs"; prepareLocalComputerUseResources({ binaryPath: process.env.LIME_CLI_RESOURCE_BINARY, version: process.env.LIME_CLI_RESOURCE_VERSION });'
 
           ASSET_PATH="packages/cli/dist/lime-npm-${{ matrix.npm_tag }}-${VERSION}.tgz"
           python3 packages/cli/scripts/build_npm_package.py \
@@ -960,42 +941,6 @@ jobs:
             --pack-output "$ASSET_PATH"
           test -f "$ASSET_PATH"
           echo "asset_path=$ASSET_PATH" >> "$GITHUB_OUTPUT"
-
-      - name: Package Linux cloud guest from the same release runtime
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
-        run: |
-          set -euo pipefail
-          VERSION="${RELEASE_TAG#v}"
-          node scripts/app-server/linux-guest-release.mjs \
-            --runtime-dir "$GITHUB_WORKSPACE/lime-rs/target/${{ matrix.target }}/release" \
-            --out "$RUNNER_TEMP/lime-guest-linux-x64-$VERSION" \
-            --version "$VERSION"
-
-      - name: Upload Linux cloud guest to GitHub Release
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
-        run: |
-          set -euo pipefail
-          VERSION="${RELEASE_TAG#v}"
-          gh release upload "$RELEASE_TAG" \
-            "$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz" \
-            "$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz.json" \
-            --repo "$GITHUB_REPOSITORY"
-
-      - name: Upload Linux cloud guest build artifact
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloud-guest-linux-x64
-          path: ${{ runner.temp }}/lime-guest-linux-x64-*.tar.gz*
-          if-no-files-found: error
-          retention-days: 7
 
       - name: Upload CLI npm tarball to GitHub Release
         env:
@@ -1088,7 +1033,6 @@ jobs:
           VERSION="${VERSION#v}"
           ROOT_TARBALL="dist/npm/lime-npm-${VERSION}.tgz"
           PLATFORM_TARBALLS=(
-            "dist/npm/lime-npm-linux-x64-${VERSION}.tgz"
             "dist/npm/lime-npm-darwin-x64-${VERSION}.tgz"
             "dist/npm/lime-npm-darwin-arm64-${VERSION}.tgz"
             "dist/npm/lime-npm-win32-x64-${VERSION}.tgz"
@@ -1119,8 +1063,7 @@ jobs:
             return "$status"
           }
 
-          publish_tarball "${PLATFORM_TARBALLS[0]}" --tag linux-x64
-          publish_tarball "${PLATFORM_TARBALLS[1]}" --tag darwin-x64
-          publish_tarball "${PLATFORM_TARBALLS[2]}" --tag darwin-arm64
-          publish_tarball "${PLATFORM_TARBALLS[3]}" --tag win32-x64
+          publish_tarball "${PLATFORM_TARBALLS[0]}" --tag darwin-x64
+          publish_tarball "${PLATFORM_TARBALLS[1]}" --tag darwin-arm64
+          publish_tarball "${PLATFORM_TARBALLS[2]}" --tag win32-x64
           publish_tarball "$ROOT_TARBALL"

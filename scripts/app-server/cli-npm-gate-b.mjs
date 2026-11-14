@@ -242,13 +242,6 @@ function resolvePlatform() {
       targetTriple: "x86_64-apple-darwin",
     };
   }
-  if (process.platform === "linux" && process.arch === "x64") {
-    return {
-      aliasName: "lime-linux-x64",
-      package: "lime-linux-x64",
-      targetTriple: "x86_64-unknown-linux-gnu",
-    };
-  }
   if (process.platform === "win32" && process.arch === "x64") {
     return {
       aliasName: "lime-win32-x64",

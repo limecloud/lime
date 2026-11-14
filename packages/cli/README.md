@@ -19,7 +19,7 @@ macOS/Windows 平台包还包含 Computer Use 原生 helper 与严格资源清�
 请求准确目标授权。系统权限和原生确认仍然生效，连接结束后需要重新授权。Windows 驱动与
 各平台的实际支持范围以验收记录为准，包含 helper 不代表所有平台操作已验证。
 
-当前发布目标为 macOS arm64/x64、Windows x64 与 Linux x64 GNU。尚无真实构建和运行证据的平台会明确拒绝启动，不发布空壳 optional package。
+当前发布目标为 macOS arm64/x64、Windows x64。其他平台会明确拒绝启动，不发布空壳 optional package。
 
 ## 命令
 
@@ -207,7 +207,7 @@ python3 scripts/build_npm_package.py \
   --pack-output dist/lime-npm-1.140.0.tgz
 ```
 
-平台包使用 `--package lime-<platform>-<arch> --vendor-src <vendor-root>` staging。`vendor-root` 必须使用 `vendor/<target-triple>/bin` 布局并包含完整 runtime payload。发布工作流先串行发布四个平台版本，最后发布 `@limecloud/lime` 根版本。
+平台包使用 `--package lime-<platform>-<arch> --vendor-src <vendor-root>` staging。`vendor-root` 必须使用 `vendor/<target-triple>/bin` 布局并包含完整 runtime payload。发布工作流先串行发布各平台版本，最后发布 `@limecloud/lime` 根版本。
 
 ## Licenses
 

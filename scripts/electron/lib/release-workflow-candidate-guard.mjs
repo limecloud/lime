@@ -163,7 +163,6 @@ function assertCliNativeArtifactRefresh(workflow) {
   for (const required of [
     "cargo clean",
     "--package v8",
-    "--package sherpa-onnx-sys",
     "--release",
     '--target "${{ matrix.target }}"',
   ]) {

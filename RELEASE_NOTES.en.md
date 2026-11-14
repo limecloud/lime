@@ -16,10 +16,10 @@
 - Improve attachment handling, pending app snapshot recovery, settings search, and voice and connection state synchronization.
 - Fix a missing runtime TOML dependency in Electron packages, overflowing protocol test timestamps, and overly broad version-script matching.
 - Upgrade the TOML dependency to a patched version to address a high-severity denial-of-service vulnerability in malformed documents.
-- Fix Linux CLI release linking when restored Cargo build-script output references missing ONNX shared libraries.
 
 ### Improvements and Refactoring
 
+- Limit release artifacts to macOS arm64/x64 and Windows x64, removing Linux distribution targets and upload steps.
 - Synchronize realtime voice capabilities across public protocols, JSON schemas, generated clients, and frontend consumers; explicitly report unavailable transports.
 - Simplify redundant App Server conversions and test code while retaining current runtime, projection, and Provider ownership.
 - Update Simplified Chinese, Traditional Chinese, English, Japanese, and Korean settings resources.

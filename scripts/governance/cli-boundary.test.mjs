@@ -30,6 +30,23 @@ describe("CLI current owner boundary", () => {
   );
 
   it.each([
+    "packages/cli/bin/lime.js",
+    "packages/cli/scripts/build_npm_package.py",
+    "scripts/app-server/cli-npm-gate-b.mjs",
+  ])("rejects restoring Linux npm distribution in %s", (relativePath) => {
+    const readFileSync = fs.readFileSync;
+    vi.spyOn(fs, "readFileSync").mockImplementation((file, options) => {
+      const contents = readFileSync(file, options);
+      return path.resolve(String(file)) === path.resolve(relativePath)
+        ? `${contents}\n// lime-linux-x64\n`
+        : contents;
+    });
+    expect(checkCliBoundary()).toContain(
+      `CLI distribution must not restore Linux targets: ${relativePath}`,
+    );
+  });
+
+  it.each([
     ["lime-rs/Cargo.toml", "upstream/execpolicy"],
     ["lime-rs/crates/cli/Cargo.toml", "../../upstream/execpolicy"],
     ["lime-rs/Cargo.toml", "../codex-rs/cli"],

@@ -13,7 +13,6 @@ const require = createRequire(import.meta.url);
 const limePackageRoot = realpathSync(path.join(__dirname, ".."));
 
 const PLATFORM_PACKAGE_BY_TARGET = {
-  "x86_64-unknown-linux-gnu": "@limecloud/lime-linux-x64",
   "x86_64-apple-darwin": "@limecloud/lime-darwin-x64",
   "aarch64-apple-darwin": "@limecloud/lime-darwin-arm64",
   "x86_64-pc-windows-msvc": "@limecloud/lime-win32-x64",
@@ -23,11 +22,6 @@ const { platform, arch } = process;
 
 let targetTriple = null;
 switch (platform) {
-  case "linux":
-    if (arch === "x64") {
-      targetTriple = "x86_64-unknown-linux-gnu";
-    }
-    break;
   case "darwin":
     if (arch === "x64") {
       targetTriple = "x86_64-apple-darwin";
@@ -204,10 +198,6 @@ env[packageManagerEnvVar] = "1";
 const nativeRuntimeDir = path.dirname(binaryPath);
 if (process.platform === "darwin") {
   env.DYLD_LIBRARY_PATH = [nativeRuntimeDir, env.DYLD_LIBRARY_PATH]
-    .filter(Boolean)
-    .join(path.delimiter);
-} else if (process.platform === "linux") {
-  env.LD_LIBRARY_PATH = [nativeRuntimeDir, env.LD_LIBRARY_PATH]
     .filter(Boolean)
     .join(path.delimiter);
 }

@@ -24,6 +24,10 @@ Agent 业务主链固定为：
 
 CLI/TUI 当前 owner 分为 Rust 产品面与 npm 分发面：`lime-rs/crates/cli`、`lime-rs/crates/tui`、`app-server-client` 负责 current 产品行为，`packages/cli/bin/lime.js` 与 `packages/cli/scripts/build_npm_package.py` 只负责 Codex 风格平台选择和交付。旧 `lime-cli`、`terminal-ui` 命名、npm `postinstall` 下载、同步 Node wrapper、源码 `cargo run` fallback 和只携带 `lime` 的 release asset 均为 `dead / deleted / forbidden-to-restore`；对应的 `packages/cli/scripts/{install,run,release-meta,build-release}.js` 已物理删除并由 CLI 边界守卫禁止恢复。平台包不允许裁掉 `app-server`、`code-mode-host`、Windows sandbox helper 或必需动态库后宣称 CLI/TUI 可交付。
 
+正式 Desktop 与 CLI 分发只接受 macOS arm64/x64、Windows x64。Linux npm 平台包与
+`linux-guest-release.mjs` 发布入口为 `dead / deleted / forbidden-to-restore`；Release
+矩阵和 CLI 边界守卫共同拒绝回流。独立 BYOC 的 Linux 源码装配及共享平台实现不属于发行目标。
+
 非交互输出的 current owner 是 `cli/src/exec/event_processor_with_human_output.rs` 与
 `exec/event_processor_with_jsonl_output.rs`，机器合同归 `exec/exec_events.rs`，参数归
 同名 `exec/cli.rs`；旧 `exec/human_output.rs` 与 `tui::run_exec` 为

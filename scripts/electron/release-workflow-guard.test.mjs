@@ -45,36 +45,62 @@ describe("Electron release workflow guard", () => {
     expect(() => validateReleaseWorkflow()).not.toThrow();
   });
 
-  it("rejects restoring CLI build-script output without refreshing sherpa libraries", () => {
+  it("rejects restoring CLI build-script output without refreshing V8 libraries", () => {
     const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
     const workflowPath = tempWorkflowPath(
-      current.replace("              --package sherpa-onnx-sys \\\n", ""),
+      current.replace("              --package v8 \\\n", ""),
     );
     expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
-      /CLI native artifact refresh must include --package sherpa-onnx-sys/u,
+      /CLI native artifact refresh must include --package v8/u,
     );
   });
 
-  it("rejects publishing the application before its cloud guest is available", () => {
+  it("rejects publishing the application before its CLI assets are available", () => {
     const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
     const workflowPath = tempWorkflowPath(
       current.replace("needs: [build, publish_cli_assets]", "needs: build"),
     );
     expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
-      /Cloud guest assets must be prepared/u,
+      /CLI platform assets must be prepared/u,
     );
   });
 
-  it("rejects overwriting an existing versioned cloud runtime", () => {
+  it("rejects restoring a Linux CLI release target", () => {
     const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
     const workflowPath = tempWorkflowPath(
       current.replace(
-        '"$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz.json" \\',
-        '"$RUNNER_TEMP/lime-guest-linux-x64-$VERSION.tar.gz.json" --clobber \\',
+        "            name: Windows-x64-cli",
+        "            name: Windows-x64-cli\n          - platform: ubuntu-22.04\n            target: x86_64-unknown-linux-gnu\n            package: lime-linux-x64\n            npm_tag: linux-x64\n            name: Linux-x64-cli",
       ),
     );
     expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
-      /preserve versioned assets/u,
+      /CLI release matrix must contain only supported macOS and Windows targets/u,
+    );
+  });
+
+  it("rejects restoring Linux release artifacts outside the build matrix", () => {
+    const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
+    const workflowPath = tempWorkflowPath(
+      current.replace(
+        '          ROOT_TARBALL="dist/npm/lime-npm-${VERSION}.tgz"',
+        '          ROOT_TARBALL="dist/npm/lime-npm-linux-x64-${VERSION}.tgz"',
+      ),
+    );
+    expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
+      /release workflow must not publish Linux artifacts/u,
+    );
+  });
+
+  it("rejects extra desktop release targets", () => {
+    const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
+    const workflowPath = tempWorkflowPath(
+      current.replace(
+        "            name: Windows-x64\n",
+        "            name: Windows-x64\n          - name: Linux-x64\n            platform: ubuntu-22.04\n",
+      ),
+    );
+    expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
+      /release build matrix must contain only supported macOS and Windows targets/u,
     );
   });
 

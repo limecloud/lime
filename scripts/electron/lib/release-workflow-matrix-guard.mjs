@@ -52,4 +52,59 @@ export function validateReleaseMatrix(buildJob) {
       }
     }
   }
+  if (matrix.length !== EXPECTED_RELEASE_MATRIX.size) {
+    throw new Error(
+      "release build matrix must contain only supported macOS and Windows targets",
+    );
+  }
+}
+
+export function validateCliReleaseMatrix(workflow) {
+  const jobs = workflow?.jobs ?? {};
+  const matrix = jobs.publish_cli_assets?.strategy?.matrix?.include;
+  const expected = [
+    [
+      "macos-latest",
+      "aarch64-apple-darwin",
+      "lime-darwin-arm64",
+      "darwin-arm64",
+    ],
+    ["macos-15-intel", "x86_64-apple-darwin", "lime-darwin-x64", "darwin-x64"],
+    ["windows-2022", "x86_64-pc-windows-msvc", "lime-win32-x64", "win32-x64"],
+  ];
+  if (
+    !Array.isArray(matrix) ||
+    matrix.length !== expected.length ||
+    expected.some(
+      (fields) =>
+        !matrix.some((row) =>
+          ["platform", "target", "package", "npm_tag"].every(
+            (key, index) => row?.[key] === fields[index],
+          ),
+        ),
+    )
+  ) {
+    throw new Error(
+      "CLI release matrix must contain only supported macOS and Windows targets",
+    );
+  }
+  if (
+    /(?:unknown-linux|lime-(?:npm-|guest-)?linux-|linux-guest-release\.mjs)/iu.test(
+      JSON.stringify(jobs),
+    )
+  ) {
+    throw new Error("release workflow must not publish Linux artifacts");
+  }
+  const dependencies = (job) =>
+    Array.isArray(job?.needs) ? job.needs : [job?.needs];
+  if (
+    !dependencies(jobs.publish_release_assets).includes("publish_cli_assets") ||
+    !dependencies(jobs.publish_cli_assets).includes("prepare_release") ||
+    dependencies(jobs.publish_cli_assets).includes("publish_release_assets") ||
+    !dependencies(jobs.publish_cli_npm).includes("publish_release_assets")
+  ) {
+    throw new Error(
+      "CLI platform assets must be prepared before the release is published",
+    );
+  }
 }

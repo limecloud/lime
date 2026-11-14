@@ -1426,14 +1426,14 @@ Main 仅在原目标、原编号、明确未提交与就绪均核验通过后，
 Linux 源码构建入口 `scripts/app-server/linux-guest-build.mjs --out <新的绝对目录> [--profile dev|release]`
 额外交付相邻 `.tar.gz` 和 `.tar.gz.json` 摘要收据。默认 dev，显式 `--profile release` 将同一模式传给 Cargo，分别从 `lime-rs/target/debug` 或 `lime-rs/target/release` 装配，并将实际选择写入 guest manifest；不把 dev 构建自动标成 release。不接受未知、重复或缺值参数，不自动上传或发布。可选
 `--download-url <明确已发布的公开 HTTPS 产物地址>` 将 URL 写入描述文件；该参数拒绝凭据、query、fragment、IP literal 和非 443 端口，不执行发布。
-正式发布使用 `scripts/app-server/linux-guest-release.mjs --runtime-dir <同次构建的 Linux release 目录> --out <新的绝对目录>/lime-guest-linux-x64-<版本> --version <版本>`，
-复用 CLI 的同源二进制、动态库和 native 资源。公共 staging 核对 loader、CLI 版本和现役 guest verifier，输出版本化压缩包与描述文件。
-发布工作流先向草稿上传 Linux guest，再发布应用版本；guest 资产不覆盖已存在文件。
+正式发布仅包含 macOS arm64/x64 与 Windows x64 的 Desktop、CLI 产物，不发布 Linux npm 包或 guest 资产。
+Linux 源码装配属于独立 BYOC 开发入口，不构成 Linux 发行版。
 本机私有 Host 的 `installRuntime` 必须明确 `source=release|file`。默认 release 由 Main 使用
 `app.getVersion()` 与仓库 metadata 构造精确 GitHub 版本描述地址，只允许官方资产重定向，
 描述不超过 8 KiB；校验 archive 名和精确下载地址，再完成本机运行包准备才进入原安装状态机。
 描述缺失/网络错误返回固定 `CLOUD_INSTALL_RELEASE_UNAVAILABLE`，且不准备依赖或下发云命令；
 非法描述继续拒绝。Renderer 不传入 URL，系统安装同意仍必需。
+当前版本没有官方 Linux guest 资产，release 来源的自动安装与购买前准备会拒绝继续；本地 file 来源继续核验用户自行装配的包。
 新机购买页在原 `purchaseEcs` 之前调用同一 Host 的 `prepareRuntimeRelease`，参数只含当前 `profile/regionId`，无须资源、路径或 URL。
 Main 的 `CloudGuestReleaseCache` 以已安装应用精确版本解析官方描述，在十五分钟内完整下载并按
 可信字节与 SHA-256 核验；后续使用重新读取官方描述并复核缓存，损坏时自动重新下载。

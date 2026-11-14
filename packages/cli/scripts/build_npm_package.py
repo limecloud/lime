@@ -18,13 +18,6 @@ NPM_NAME = "@limecloud/lime"
 # Platform package names are resolved by bin/lime.js. Every platform tarball is
 # published under its own name with a unique version suffix.
 PLATFORM_PACKAGES: dict[str, dict[str, str]] = {
-    "lime-linux-x64": {
-        "npm_name": "@limecloud/lime-linux-x64",
-        "npm_tag": "linux-x64",
-        "target_triple": "x86_64-unknown-linux-gnu",
-        "os": "linux",
-        "cpu": "x64",
-    },
     "lime-darwin-x64": {
         "npm_name": "@limecloud/lime-darwin-x64",
         "npm_tag": "darwin-x64",
@@ -130,6 +123,7 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         shutil.copy2(CLI_ROOT / "exec-events.schema.json", staging_dir / "exec-events.schema.json")
         package_json = dict(root_package_json)
         package_json["version"] = version
+        package_json["os"] = ["darwin", "win32"]
         package_json["files"] = ["bin/lime.js", "exec-events.schema.json", "LICENSE", "NOTICE", "LICENSES.md", "licenses"]
         package_json.pop("scripts", None)
         package_json["optionalDependencies"] = {
@@ -195,7 +189,6 @@ def validate_native_payload(target_root: Path, platform: dict[str, str], version
     names = [entry.name for entry in bin_dir.iterdir() if entry.is_file()]
     runtime_markers = {
         "darwin": ("libsherpa-onnx-c-api", "libonnxruntime"),
-        "linux": ("libsherpa-onnx-c-api", "libonnxruntime"),
         "win32": ("sherpa-onnx-c-api.dll", "onnxruntime.dll"),
     }[platform["os"]]
     missing_runtime = [
@@ -206,8 +199,7 @@ def validate_native_payload(target_root: Path, platform: dict[str, str], version
             f"Incomplete native runtime libraries for {platform['target_triple']}: "
             f"missing {', '.join(missing_runtime)}"
         )
-    if platform["os"] in ("darwin", "win32"):
-        validate_computer_use_resources(bin_dir, platform, version)
+    validate_computer_use_resources(bin_dir, platform, version)
 
 
 def validate_computer_use_resources(bin_dir: Path, platform: dict[str, str], version: str) -> None:

@@ -1,6 +1,6 @@
 # Lime v1.177.2 发布修复
 
-日期：2026-11-14。状态：修复与验证中。
+日期：2026-11-14。状态：发布暂停；按用户更正移除 Linux 分发目标。
 
 ## 目标与授权
 
@@ -135,3 +135,22 @@
 - 本地 pending 批次 115..154 已全部收集，失败保留为 136（已修正导航断言）、138 和 150（首个 5 秒超时及级联失败）；其余批次通过。对 7 份相关文件串行复核，配置文件仍有超时，等待干净 CI 完整复核，不延长限制或记为通过。
 - 7 文件复核完成：6 文件通过，配置页 `system/configuration/index.test.tsx` 仍有 3 项原 5 秒超时，总计 69 通过、3 超时；保留该失败证据。导航完整 17 项在此轮通过，未改产品或时限。
 - 缓存修复后的 `npm run test:contracts` 全部通过；TypeScript 产品源码相对已通过完整 typecheck 和 Electron Smoke 的候选没有变化，发布修复仅涉及已通过 47 项回归的 workflow/JS guard。后续以新的同版本候选重新构建全部发布产物。
+- 后台验证退出后，将配置页剩余 3 项超时用例独立按原 5 秒限制复核，3 项全部通过（其余 24 项未选择）。不修改组件、fixture 或时限；原批次和首次复核的失败记录继续保留。
+- 缓存修复已提交并推送为 `8a307a11c66f707d7124b2048a433539401a8f80`，版本一致性与 release workflow guard 再次通过。
+- 已取消阻断的 Release `43604757999`，确认剩余任务仅 post-action 缓存收尾、无产物写入后带准确租约更新同版本 tag；新 tag object `45f0f6fa73e7b93f706fb938c4884f8dbf816a15`，远端解引用确认指向 `8a307a11c`。
+- 当前最终 Quality run：`43606739298`；当前最终 Release run：`43606988271`。旧 run 已确认 cancelled，草稿无 Linux guest 残留，不放宽版本产物不可变检查。
+
+## Linux 发布目标删除
+
+- 用户明确本产品没有 Linux 版本，应删除对应目标；发布 Goal 已暂停，本轮不恢复发版、不重打 tag，版本继续为 `1.177.2`。
+- Release `43606988271` 已确认 `completed/cancelled`；GitHub Release 仍为 draft，未公开或发布 npm。
+- 本轮窄写集：Release workflow、CLI launcher/staging/测试/README、CLI Gate B 平台选择、发布矩阵与 CLI 边界守卫及其测试、两份发布说明、治理/命令/架构文档和本计划。避让其他会话的 Electron、前端与 Rust WIP。
+- current 发布平台只保留 macOS arm64/x64、Windows x64；删除 Linux npm 包、动态库环境分支、Linux 构建依赖、guest 打包与上传、专用 release 脚本及强制发布守卫。Linux 专用 sherpa 缓存修复与发布说明同时撤回。
+- `linux-guest-release.mjs` 及对应云端发布守卫为 dead/deleted/forbidden-to-restore，不新增 compat 或 deprecated 包装。
+- Linux 源码装配与共享 runtime 的独立 BYOC 消费者继续保留；当前无官方 guest 资产，release 来源自动安装/购买前准备按既有合同拒绝继续，不宣称云桌面交付可用。
+- 退出条件：CLI 真正 npm tarball/launcher 测试、发布守卫回归、contracts、scripts 治理和版本检查通过，legacy 扫描无本轮新增违规，当前 draft 的 Linux tarball 清除。正式发布保持暂停。
+- 本轮是分发目标收敛，没有重建 runtime 或改动架构图；架构文档仅同步现行制品边界，不作为产品 Gate B 证据。
+- 验证通过：`node --test packages/cli/tests/npm-package.test.mjs` 12 项；release workflow、CLI boundary、CLI npm Gate B 守卫 3 文件 62 项；完整 `npm run test:contracts`（含 scripts、release/CLI guard 与文档边界）；`verify:app-version` 为 `1.177.2`；9 份 JS 定向 ESLint 零 warning；8 个 CLI 发布 Bash step 的语法检查和窄写集 whitespace 检查。
+- 草稿资产 `lime-npm-linux-x64-1.177.2.tgz` 已删除并复核，草稿仅剩 macOS arm64/x64 与 Windows x64 三份 CLI 平台包；草稿发布说明同步删除 Linux 缓存修复声明。
+- legacy 扫描唯一违规是原有 `app-server/src/main.rs` 单元测试中的 `/tmp/lime-legacy/app.db`；核对该文件与 HEAD 无差异，命中内容在 HEAD 已存在，不改无关 runtime 或降低守卫。
+- `smoke:cli-npm-gate-b` 因本机 `lime-rs/target/debug` 不存在而未进入产品进程；尝试读取当前草稿的 macOS 包，网络约 1.7 MB/96 秒，停止本进程发起的下载，未用旧版全局 CLI 冒充本次 Gate B。当前 74 项是打包/launcher/守卫证据，不是新的跨平台打包或完整发版验收。

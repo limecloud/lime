@@ -7042,8 +7042,8 @@ OSS V4 互操作合同固定参考 Alibaba SDK revision `d3474aa038242301669f48b
 上传前配置并读回 `runtime/` 的一天对象及未完成分块过期规则；这是供应商异步过期兜底，
 不保证精确二十四小时删除，也不代替正常清理。清理只删除原对象和空桶，未知内容阻止删桶。
 只读 `checkRuntimeRelease` 保留为二十秒的描述与 HEAD 可用性检查，不代表本机缓存已准备。
-正式发布复用 Linux CLI 的 release 构建，经过 loader、二进制版本和 guest manifest 校验后
-先上传 guest 与描述，再发布应用版本；不覆盖既有版本资产。工作流接线不表示产物已经发布。
+正式发布仅包含 macOS arm64/x64 与 Windows x64 的 Desktop、CLI 产物，不构建或上传 Linux guest。
+当前没有官方 guest 资产，release 来源的自动安装与购买前准备返回 `CLOUD_INSTALL_RELEASE_UNAVAILABLE`，不会继续云端操作。
 用户自行构建通过同一 `linux-guest-build.mjs --profile release` 选择正式模式；省略时使用 dev。
 Cargo 模式、读取的 target 目录与 guest manifest 一致，构建与 staging 均不执行上传。
 
