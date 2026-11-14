@@ -115,6 +115,13 @@ const CURRENT_APP_DATA_ROOT_CHILDREN: UsageBaseline = {
   "electron/desktopPermissionsSetupStore.ts": { permissions: 1 },
   // Single Host-owned preference value; no machine-asset directory or runtime root.
   "electron/fileTargetPreferences.ts": { "open-in-target-preferences.json": 1 },
+  // Host-owned browser stores receive explicit AppDataRoot paths; passwords are encrypted.
+  "electron/hostCommands.ts": {
+    "browser-extensions.json": 1,
+    "browser-passwords.json": 1,
+    "contact-autofill.json": 1,
+    "browser-autofill.json": 1,
+  },
   "electron/systemUtilityHost.ts": { connectors: 2, macos: 1 },
   "electron/voiceModelHost.ts": { models: 2 },
 };

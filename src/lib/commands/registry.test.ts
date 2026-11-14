@@ -133,14 +133,19 @@ describe("实际 UI command 注册", () => {
     expect(getRegisteredCommands()).toEqual([]);
   });
 
-  it("未绑定和不可用命令不进列表，不可用命令不截断按键", () => {
+  it("未绑定命令保留在列表供配置，不可用命令不显示或截断按键", () => {
     const disabled = mountCommand({ id: "disabled", enabled: false });
     const unbound = mountCommand({ id: "unbound", bindings: [] });
-    expect(getRegisteredCommands()).toEqual([]);
+    expect(getRegisteredCommands().map((command) => command.id)).toEqual([
+      "unbound",
+    ]);
+    expect(getRegisteredCommands()[0].bindings).toEqual([]);
     expect(key(window).defaultPrevented).toBe(false);
     expect(runCommand("disabled")).toBe(false);
     expect(disabled.handler).not.toHaveBeenCalled();
     expect(unbound.handler).not.toHaveBeenCalled();
+    expect(runCommand("unbound")).toBe(true);
+    expect(unbound.handler).toHaveBeenCalledOnce();
   });
 
   it("同一 target 冲突采用最新注册，撤销后恢复上一处理器", () => {

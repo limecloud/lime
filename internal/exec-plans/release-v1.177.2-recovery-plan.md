@@ -89,3 +89,17 @@
 - 按已登记的第三方集成边界列出精确导入 key 例外，普通文案品牌守卫继续生效；插件断言迁入 current MCP 管理入口，版本回落断言同步现役 About 展示。
 - loader 测试原已超过千行，本次仅迁移相关断言和显式第三方例外，不添加业务逻辑；退出条件为该文件完整用例及类型测试通过，不扩大重构。
 - 两份本地化测试 10 项全部通过，定向 ESLint（零 warning）和 whitespace 检查通过；不修改产品资源或品牌合同。
+
+## Runtime facade 大小收敛
+
+- 冻结副本后续前端批次发现 `appServerRuntimeBoundary` 的有效守卫失败：`runtime_backend.rs` 已有 817 行，超过既定 800 行 facade 上限。
+- 窄写集只增加该主文件、现有 `agent_skills_context.rs` 与 `plugin_hooks.rs`；将技能列表读取与插件回合快照读取原样迁入对应子模块，调用结构、错误传播和当前数据源保持一致，不提高门禁上限。
+- 这属于现有 owner 内部的职责迁移，不改变架构、公开协议或产品行为；退出条件为边界守卫与受影响 App Server Rust 回归通过。
+- facade 已收敛为 799 行，`appServerRuntimeBoundary` 的 24 项回归通过。
+- 后续存储根守卫遗漏了现有 Host 构造器注入的四个浏览器 store 文件；在 `storageRootBoundary.test.ts` 精确登记各一次路径，密码继续由 `BrowserPasswordStore` 使用原生加密。没有新增数据目录、数据源、路径回退或放开通配符。
+- 存储根守卫 15 项通过；`npm run test:rust:unit -- -p app-server runtime_backend::` 的 346 项通过（1826 项未选择），只验证本次 owner 内职责迁移。
+- macOS 与 Linux 测试发现顺序不同，按 CI 已通过文件与本地跳过清单计算缺口，补查 56 文件；发现一份 registry 旧断言仍隐藏未绑定命令，迁移为可配置列表且键盘不拦截、显式菜单执行同一 handler 的现役合同。
+- 冻结副本共享 `node_modules` 导致 PDF 资源 URL 触发 Vite 文件访问限制；原目录 `pdfDocument.test.ts` 四项通过，不为副本环境修改产品加载逻辑。
+- `registry.test.ts` 的 11 项回归通过。冻结副本仅为测试允许其共享依赖目录，不修改原仓库 `vite.config.ts`；所有测试逻辑及失败时限不变。
+- Workspace owner 守卫将 Composer hook 的无参数调用写死，误拒绝现役 `controllerOptions` 注入；仅将定位改为函数调用前缀，继续检查唯一 LocalDisplayState owner 和禁止第二业务 store。测试文件为本轮窄写集，未改 Workspace 产品源码。
+- Workspace 边界 15 项通过；冻结候选 `bd77ea194` 的完整 Rust CI job `132449597310`（run `43595677708`）已成功，包括公共能力查询和 CLI OAuth；后续 Rust 仅有上述已通过 346 项回归的纯职责迁移。

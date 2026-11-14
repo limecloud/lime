@@ -75,7 +75,7 @@ describe("AgentChatWorkspace local display boundary", () => {
     expect(ownerSource).not.toMatch(retiredInputStore);
     expect(workspaceSource).not.toMatch(retiredInputStore);
     for (const localDisplayStateOwner of [
-      "useComposerController();",
+      "useComposerController(",
       "const input = composerSnapshot.document.text;",
       "composerController.setText(",
       "composerController.clear();",

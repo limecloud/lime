@@ -1,8 +1,21 @@
-use crate::AppDataSource;
+use super::RuntimeBackend;
+use crate::runtime::PluginTurnSnapshot;
+use crate::{AppDataSource, RuntimeCoreError};
 use std::sync::Arc;
 use tool_runtime::hook_source::{
     PluginHookLoadFuture, PluginHookSourceProvider, PluginHookSourceProviderHandle,
 };
+
+impl RuntimeBackend {
+    pub(super) async fn current_plugin_turn_snapshots(
+        &self,
+    ) -> Result<Vec<PluginTurnSnapshot>, RuntimeCoreError> {
+        let Some(app_data_source) = self.current_app_data_source()? else {
+            return Ok(Vec::new());
+        };
+        app_data_source.list_enabled_plugin_turn_snapshots().await
+    }
+}
 
 pub(super) fn source(
     data: Option<Arc<dyn AppDataSource>>,

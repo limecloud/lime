@@ -774,24 +774,6 @@ impl RuntimeBackend {
             })
             .map(|guard| guard.clone())
     }
-
-    async fn current_market_skills(
-        &self,
-    ) -> Result<Vec<lime_skills::AgentSkillMetadata>, RuntimeCoreError> {
-        let Some(source) = self.current_app_data_source()? else {
-            return Ok(Vec::new());
-        };
-        source.list_market_skills().await
-    }
-
-    async fn current_plugin_turn_snapshots(
-        &self,
-    ) -> Result<Vec<crate::runtime::PluginTurnSnapshot>, RuntimeCoreError> {
-        let Some(app_data_source) = self.current_app_data_source()? else {
-            return Ok(Vec::new());
-        };
-        app_data_source.list_enabled_plugin_turn_snapshots().await
-    }
 }
 
 fn backend_error(error: impl std::fmt::Display) -> RuntimeCoreError {

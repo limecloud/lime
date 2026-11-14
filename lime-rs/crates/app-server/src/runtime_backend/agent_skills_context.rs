@@ -1,6 +1,8 @@
 use std::path::Path;
 
+use super::RuntimeBackend;
 use crate::runtime::PluginTurnSnapshot;
+use crate::RuntimeCoreError;
 use lime_core::config::SkillConfig;
 use lime_skills::{
     agent_skill_roots_for_workspace, build_agent_skill_snapshot_from_roots,
@@ -12,6 +14,17 @@ use lime_skills::{
     AgentSkillSnapshot, DEFAULT_AGENT_SKILL_BODY_TOKEN_BUDGET,
 };
 use serde_json::Value;
+
+impl RuntimeBackend {
+    pub(super) async fn current_market_skills(
+        &self,
+    ) -> Result<Vec<AgentSkillMetadata>, RuntimeCoreError> {
+        let Some(source) = self.current_app_data_source()? else {
+            return Ok(Vec::new());
+        };
+        source.list_market_skills().await
+    }
+}
 
 pub(super) struct AgentSkillsTurnContext {
     pub system_prompt: Option<String>,
