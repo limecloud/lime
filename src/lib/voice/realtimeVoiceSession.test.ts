@@ -4,7 +4,7 @@ import { RealtimeVoiceSession } from "./realtimeVoiceSession";
 
 class FakeDataChannel {
   readonly label: string;
-  readyState: RTCDataChannelState = "connecting";
+  readyState: globalThis.RTCDataChannelState = "connecting";
   private readonly listeners = new Map<
     string,
     Set<(event: { data?: unknown; target?: unknown }) => void>
@@ -14,7 +14,10 @@ class FakeDataChannel {
     this.label = label;
   }
 
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+  addEventListener(
+    type: string,
+    listener: globalThis.EventListenerOrEventListenerObject,
+  ) {
     const set = this.listeners.get(type) ?? new Set();
     set.add(listener as (event: never) => void);
     this.listeners.set(type, set);
@@ -22,7 +25,7 @@ class FakeDataChannel {
 
   removeEventListener(
     type: string,
-    listener: EventListenerOrEventListenerObject,
+    listener: globalThis.EventListenerOrEventListenerObject,
   ) {
     this.listeners.get(type)?.delete(listener as (event: never) => void);
   }
@@ -42,8 +45,8 @@ class FakeDataChannel {
 }
 
 class FakePeerConnection {
-  iceGatheringState: RTCIceGatheringState = "complete";
-  connectionState: RTCPeerConnectionState = "new";
+  iceGatheringState: globalThis.RTCIceGatheringState = "complete";
+  connectionState: globalThis.RTCPeerConnectionState = "new";
   localDescription: RTCSessionDescription | null = null;
   remoteDescription: RTCSessionDescription | null = null;
   readonly dataChannel: FakeDataChannel;
@@ -55,7 +58,10 @@ class FakePeerConnection {
     this.dataChannel = new FakeDataChannel("oai-events");
   }
 
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+  addEventListener(
+    type: string,
+    listener: globalThis.EventListenerOrEventListenerObject,
+  ) {
     const set = this.listeners.get(type) ?? new Set();
     set.add(listener as () => void);
     this.listeners.set(type, set);
@@ -63,12 +69,12 @@ class FakePeerConnection {
 
   removeEventListener(
     type: string,
-    listener: EventListenerOrEventListenerObject,
+    listener: globalThis.EventListenerOrEventListenerObject,
   ) {
     this.listeners.get(type)?.delete(listener as () => void);
   }
 
-  emitConnectionState(state: RTCPeerConnectionState) {
+  emitConnectionState(state: globalThis.RTCPeerConnectionState) {
     this.connectionState = state;
     for (const listener of this.listeners.get("connectionstatechange") ?? []) {
       listener();
@@ -86,10 +92,13 @@ class FakePeerConnection {
   }
 
   async createOffer() {
-    return { type: "offer", sdp: "v=0\r\noffer" } as RTCSessionDescriptionInit;
+    return {
+      type: "offer",
+      sdp: "v=0\r\noffer",
+    } as globalThis.RTCSessionDescriptionInit;
   }
 
-  async setLocalDescription(description: RTCSessionDescriptionInit) {
+  async setLocalDescription(description: globalThis.RTCSessionDescriptionInit) {
     this.localDescription = {
       type: description.type,
       sdp: description.sdp ?? "",
@@ -97,7 +106,9 @@ class FakePeerConnection {
     } as RTCSessionDescription;
   }
 
-  async setRemoteDescription(description: RTCSessionDescriptionInit) {
+  async setRemoteDescription(
+    description: globalThis.RTCSessionDescriptionInit,
+  ) {
     this.remoteDescription = {
       type: description.type,
       sdp: description.sdp ?? "",

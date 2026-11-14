@@ -2090,9 +2090,15 @@ App Server / RuntimeCore tool dispatch
 
 `BING_SEARCH_ENDPOINT` 与 `GOOGLE_SEARCH_ENDPOINT` 仅覆盖对应工具 API 的完整 URL；缺省或空白继续使用供应商地址，非法 URL 或非 HTTP(S) scheme 作为单个提供商失败进入既有回退链。API key、Google engine ID、请求参数、响应格式及工具权限仍由原 owner 处理。该配置不属于模型 Provider 控制面，不新增持久化、协议、搜索后端或网络策略旁路。按敏感路径门禁完成架构确认；责任开发者 root 已核对目录归属、数据流、依赖方向、协议边界与定向回归，实际影响为既有工具 API 的配置扩展。
 
-Codex `thread/realtime/*` 的WebRTC/session control与通知已纳入planned，必须在同一App Server
-Thread/Turn生命周期中重建；当前没有该exact接线，不据此声明已交付。旧录音、麦克风和
-realtime voice GUI保持dead，不能恢复成第二套Thread lifecycle或Renderer音频后端。
+Lime 实时语音采用 OpenAI Realtime WebRTC 的 renderer 会话，不走 Codex 的
+`thread/realtime/*` native thread 生命周期，也不使用 Codex Cloud auth。`model-provider::realtime`
+是唯一 provider wire：用宿主内标准 OpenAI API key 向官方 `/v1/realtime/client_secrets` 兑换
+短时 `ek_...` secret；App Server `voiceRealtime/clientSecret/create` 只向 renderer 返回短时
+secret 与官方 `/v1/realtime/calls` URL，标准 key 不进入 renderer。Renderer 的
+`RTCPeerConnection` + `oai-events` data channel 负责麦克风、远端音频、转录/错误/关闭事件；
+Voice 设置只在默认 provider、API key、显式模型/音色与 WebRTC 路径全部可用时声明
+`realtime=true`。旧录音、麦克风进程内实时入口保持 dead，不能恢复成第二套 Thread lifecycle
+或 Renderer 音频后端。
 音频、语音和媒体能力仍以 Codex 的产品/runtime 语义为准；保留 Lime 多模型、多协议，
 仅参考 grok-build 的适用多模型机制，由 `model-provider` 承接 catalog/capability/readiness 与 sampling/lowering，再由
 `voice-core` / `media-runtime` 承接领域执行和 artifact 生命周期。

@@ -78,8 +78,7 @@ export function VoiceChatSection({
       blocker === "providerRealtimeUnsupported" ||
       blocker === "providerKeyMissing",
   );
-  const canConfigure =
-    Boolean(capability && capability.models.length > 0) && !providerBlocked;
+  const canConfigure = (capability?.models.length ?? 0) > 0 && !providerBlocked;
   const sessionActive = ACTIVE_STATES.has(snapshot.state);
   const connectionText = t(CONNECTION_KEYS[snapshot.state]);
   const locked = saving || sessionActive;

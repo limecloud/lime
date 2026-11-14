@@ -31,7 +31,7 @@ interface FakeChannel {
   close: () => void;
 }
 
-let lastPeer: FakePeer | null = null;
+const peerState: { current: FakePeer | null } = { current: null };
 
 class FakePeer {
   iceGatheringState = "complete";
@@ -46,7 +46,7 @@ class FakePeer {
   >();
 
   constructor() {
-    lastPeer = this;
+    peerState.current = this;
     this.channel = {
       readyState: "connecting",
       emit: (type, data) => {
@@ -63,7 +63,10 @@ class FakePeer {
     };
   }
 
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+  addEventListener(
+    type: string,
+    listener: globalThis.EventListenerOrEventListenerObject,
+  ) {
     const set = this.listeners.get(type) ?? new Set();
     set.add(listener as () => void);
     this.listeners.set(type, set);
@@ -71,7 +74,7 @@ class FakePeer {
 
   removeEventListener(
     type: string,
-    listener: EventListenerOrEventListenerObject,
+    listener: globalThis.EventListenerOrEventListenerObject,
   ) {
     this.listeners.get(type)?.delete(listener as () => void);
   }
@@ -103,7 +106,10 @@ class FakePeer {
   }
 
   async createOffer() {
-    return { type: "offer", sdp: "v=0\r\noffer" } as RTCSessionDescriptionInit;
+    return {
+      type: "offer",
+      sdp: "v=0\r\noffer",
+    } as globalThis.RTCSessionDescriptionInit;
   }
 
   async setLocalDescription() {
@@ -199,7 +205,7 @@ beforeEach(async () => {
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
-  lastPeer = null;
+  peerState.current = null;
   await changeLimeLocale("en-US");
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,
@@ -304,12 +310,12 @@ describe("VoiceChatSection", () => {
 
     expect(mockMintSecret).toHaveBeenCalledTimes(1);
     expect(mockGetUserMedia).toHaveBeenCalledTimes(1);
-    expect(lastPeer).not.toBeNull();
+    expect(peerState.current).not.toBeNull();
     expect(container?.textContent).toContain("Connecting…");
     expect(container?.querySelector('[role="log"]')).toBeNull();
 
     await act(async () => {
-      lastPeer?.channel.emit("message", {
+      peerState.current?.channel.emit("message", {
         type: "session.created",
         session: { id: "sess_1" },
       });
@@ -318,12 +324,12 @@ describe("VoiceChatSection", () => {
     expect(container?.textContent).toContain("Connected");
 
     await act(async () => {
-      lastPeer?.channel.emit("message", {
+      peerState.current?.channel.emit("message", {
         type: "conversation.item.input_audio_transcription.delta",
         item_id: "user-1",
         delta: "Hello from the microphone",
       });
-      lastPeer?.channel.emit("message", {
+      peerState.current?.channel.emit("message", {
         type: "response.output_audio_transcript.delta",
         item_id: "assistant-1",
         delta: "Hello back",
@@ -341,7 +347,7 @@ describe("VoiceChatSection", () => {
       await flush();
     });
     expect(container?.textContent).toContain("Conversation ended");
-    expect(lastPeer?.closed).toBe(true);
+    expect(peerState.current?.closed).toBe(true);
   });
 
   it("fails closed with a clear error when the host cannot mint a secret", async () => {

@@ -161,3 +161,8 @@
 - 候选包括 Electron 菜单/浏览器、工作区快捷键与应用快照、外观和 Markdown/差异展示、实时语音 Provider/协议/schema/客户端/会话链路、五语言资源及测试；本地缓存和 ignored 验证产物不进入 Git。
 - 版本继续 `1.177.2`，发布矩阵只有 macOS arm64/x64 与 Windows x64。补全中英文说明，以准确租约将既有未公开 tag 更新到完整候选后构建全部产物，避免跨 SHA 混发。
 - 按 release skill 的“马上递交”规则将本机完整 typecheck 作为非阻断并行检查；已启动 typecheck、contracts 与版本校验，结果如实记录。后续打包、签名、公证和平台验收由同 SHA Release 流水线完成。
+- 全部 138 文件已提交并推送为 `f34765b1ef0a6839a97b745c48630853b6342466`，递交后工作树为空；远端 main 与 tag 解引用均核对为该 SHA，annotated tag object 为 `51c60adf0b455732ac0dde900e68c54252446bbf`。
+- Release run `43610381369`、Quality run `43610329839` 已启动；本机完整 contracts 与版本检查通过，24 文件 107 项外观、菜单、快捷键及语音定向测试通过。
+- 首轮本机 typecheck 报 `VoiceChatSection.tsx` 的可空 capability 访问；改为可选链与显式数量回落。CI Frontend 的 lint 报六类 WebRTC DOM 类型 `no-undef` 和测试实例 `this` 别名；使用标准 `globalThis` 类型命名空间，测试实例交由 fixture holder 持有，不关闭规则或增加全局白名单。
+- 四文件定向 ESLint 零 warning，独立 TypeScript DOM 类型解析通过；两文件语音回归及完整 typecheck 已重启。同步纳入用户要求的现行实时语音架构文档，Provider wire、App Server 凭据交换与 renderer 媒体职责分别归原 owner。
+- 修正后的两文件语音回归 16 项全部通过；完整 typecheck 继续作为用户“马上递交”授权下的非阻断项执行。

@@ -26,7 +26,9 @@ export interface RealtimeVoiceSessionSnapshot {
 
 export interface RealtimeVoiceSessionOptions {
   mintClientSecret: () => Promise<RealtimeVoiceClientSecret>;
-  getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+  getUserMedia?: (
+    constraints: globalThis.MediaStreamConstraints,
+  ) => Promise<MediaStream>;
   fetchImpl?: typeof fetch;
   createPeerConnection?: () => RTCPeerConnection;
   createAudioElement?: () => HTMLAudioElement;
@@ -123,7 +125,7 @@ export class RealtimeVoiceSession {
       });
       const getUserMedia =
         this.options.getUserMedia ??
-        ((constraints: MediaStreamConstraints) =>
+        ((constraints: globalThis.MediaStreamConstraints) =>
           navigator.mediaDevices.getUserMedia(constraints));
       const microphone = await getUserMedia({
         audio: {
