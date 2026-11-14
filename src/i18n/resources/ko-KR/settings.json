@@ -2629,5 +2629,7 @@
   "settings.connections.edit": "편집",
   "settings.connections.updateFailed": "SSH 연결을 업데이트하지 못했습니다",
   "settings.browser.extensionsEnable": "사용",
-  "settings.browser.extensionsDisable": "사용 안 함"
+  "settings.browser.extensionsDisable": "사용 안 함",
+  "settings.browser.extensionsSearch": "확장 프로그램 검색",
+  "settings.browser.extensionsNoResults": "일치하는 확장 프로그램이 없습니다"
 }

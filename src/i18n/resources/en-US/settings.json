@@ -2629,5 +2629,7 @@
   "settings.connections.edit": "Edit",
   "settings.connections.updateFailed": "Could not update the SSH connection",
   "settings.browser.extensionsEnable": "Enable",
-  "settings.browser.extensionsDisable": "Disable"
+  "settings.browser.extensionsDisable": "Disable",
+  "settings.browser.extensionsSearch": "Search extensions",
+  "settings.browser.extensionsNoResults": "No matching extensions"
 }

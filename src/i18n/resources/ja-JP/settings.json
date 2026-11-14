@@ -2629,5 +2629,7 @@
   "settings.connections.edit": "編集",
   "settings.connections.updateFailed": "SSH 接続を更新できませんでした",
   "settings.browser.extensionsEnable": "有効化",
-  "settings.browser.extensionsDisable": "無効化"
+  "settings.browser.extensionsDisable": "無効化",
+  "settings.browser.extensionsSearch": "拡張機能を検索",
+  "settings.browser.extensionsNoResults": "一致する拡張機能はありません"
 }

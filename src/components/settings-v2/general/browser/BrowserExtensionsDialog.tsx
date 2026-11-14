@@ -27,6 +27,7 @@ export function BrowserExtensionsDialog({
   >(null);
   const [error, setError] = useState<ErrorKind | null>(null);
   const [pending, setPending] = useState(false);
+  const [query, setQuery] = useState("");
   const alive = useRef(true);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function BrowserExtensionsDialog({
     if (open) {
       setExtensions(null);
       setError(null);
+      setQuery("");
       void refresh();
     }
     // refresh 仅依赖浏览器扩展 API，打开时读取一次即可。
@@ -112,6 +114,16 @@ export function BrowserExtensionsDialog({
     }
   };
 
+  const filtered =
+    extensions?.filter((extension) => {
+      const needle = query.trim().toLowerCase();
+      if (!needle) return true;
+      return (
+        extension.name.toLowerCase().includes(needle) ||
+        extension.path.toLowerCase().includes(needle)
+      );
+    }) ?? null;
+
   const errorMessage =
     error === "load"
       ? t("settings.browser.extensionsLoadFailed")
@@ -142,12 +154,14 @@ export function BrowserExtensionsDialog({
           ) : null}
           {extensions && extensions.length === 0 ? (
             <p className="mt-4 text-sm text-muted-foreground">
-              {t("settings.browser.extensionsEmpty")}
+              {extensions && extensions.length > 0
+                ? t("settings.browser.extensionsNoResults")
+                : t("settings.browser.extensionsEmpty")}
             </p>
           ) : null}
           {extensions && extensions.length > 0 ? (
             <ul className="mt-4 divide-y divide-border rounded-xl border border-border">
-              {extensions.map((extension) => (
+              {filtered.map((extension) => (
                 <li
                   key={extension.id}
                   className="flex items-center gap-3 px-3 py-2.5"

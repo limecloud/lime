@@ -2629,5 +2629,7 @@
   "settings.connections.edit": "編輯",
   "settings.connections.updateFailed": "無法更新 SSH 連線",
   "settings.browser.extensionsEnable": "啟用",
-  "settings.browser.extensionsDisable": "停用"
+  "settings.browser.extensionsDisable": "停用",
+  "settings.browser.extensionsSearch": "搜尋擴充功能",
+  "settings.browser.extensionsNoResults": "沒有符合的擴充功能"
 }

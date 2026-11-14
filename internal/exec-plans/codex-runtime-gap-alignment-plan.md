@@ -2955,6 +2955,20 @@ owner r8 编译因 target 临时目录 ENOENT 未执行；完整 TUI 构建取�
   `lime` 的终端应用（Terminal/iTerm2/WezTerm/VS Code 等）并重启终端；ASR 需在 Lime 语音设置
   中配置默认 provider/凭证。首次 `/voice` 触发系统授权弹窗。
 
+- **2026-11-14 第二百零八轮（侧栏实时刷新 + CI 修复）**：
+  1. 侧会话打开期间每 5s `thread/read(includeTurns)` 父线程，重建快照投影，左侧「主对话」由静态
+     快照升级为近实时（非事件推送，延迟≤5s）；退出侧会话停止刷新。
+  2. 修复并行 `ThreadImport` 测试的 `i32` 时间戳字面量（13 处 `_i64`），
+     `app-server-protocol` 154 tests 通过。
+  3. `smol-toml` 从 devDependencies 移到 dependencies（Forge prune 要求），更新 pnpm lock，
+     `current-entrypoints` 29 tests 通过。
+  4. 修复 `update-version.sh` 只改 `[workspace.package]`，避免破坏依赖版本。
+  5. CI 观察：v1.177.1 Windows 安装版 smoke 仍失败于 `renderer-reload`（Electron/GUI 范围）；
+     Frontend Full 剩余 1 项 MCP fixture 仍引用退役 settings 选择器（GUI/MCP owner 范围）；
+     Rust Full 的 i64 编译失败已在本轮修复。
+- **验证**：TUI **2020 passed**；app-server-protocol **154 passed**；结构清单+gate 静态 **101 passed**；
+  `current-entrypoints` **29 passed**；本机全量 Matrix 受锁竞争未完成。
+
 - **下一刀（按收益/风险排序）**：
   1. `sandboxing` owner 对齐：把 Codex `sandboxing` 复制进 `tool-runtime` 现役沙箱 owner，
      替换手写 seatbelt 字符串与自研 Windows WFP；窄写集 `lime-rs/crates/tool-runtime/src/sandbox*`、
