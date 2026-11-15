@@ -246,6 +246,13 @@ jobs:
             --candidate-sha "$LIME_CANDIDATE_SHA" \
             --run-id "$LIME_GATE_RUN_ID"
 
+      - name: Reset packaged app data before plugin gate
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:LOCALAPPDATA "lime"
+          if (Test-Path $root) { Remove-Item -Recurse -Force $root }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+
       - name: Run installed Windows Agent Plugin Gate B
         if: ${{ github.event.inputs.skip_plugin_gate != 'true' }}
         shell: bash
