@@ -19,6 +19,10 @@ on:
         description: "可选原 Release run ID；补验其签名 Windows 产物，不重新构建"
         required: false
         default: ""
+      skip_plugin_gate:
+        description: "跳过已安装 Windows Agent Plugin Gate B（仅用于隔离已知插件市场问题）"
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -100,7 +104,7 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.100.0
         with:
           targets: x86_64-pc-windows-msvc
 
@@ -243,6 +247,7 @@ jobs:
             --run-id "$LIME_GATE_RUN_ID"
 
       - name: Run installed Windows Agent Plugin Gate B
+        if: ${{ github.event.inputs.skip_plugin_gate != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
