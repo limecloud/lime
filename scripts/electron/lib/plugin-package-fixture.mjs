@@ -241,7 +241,12 @@ export async function installPluginPackageFromAppCenter({
   observedMethods,
   screenshotPath,
 }) {
-  await page.locator('[data-testid="plugin-catalog-install-' + plugin.id + '"]').click();
+  await page
+    .locator(`[data-testid="plugin-catalog-actions-${plugin.id}"]`)
+    .click();
+  await page
+    .locator('[data-testid="plugin-catalog-install-' + plugin.id + '"]')
+    .click();
   const review = page.locator('[data-testid="plugin-catalog-install-review"]');
   await review.waitFor({ state: "visible", timeout: options.timeoutMs });
   assert((await review.textContent())?.includes(PLUGIN_PACKAGE_NAME),
