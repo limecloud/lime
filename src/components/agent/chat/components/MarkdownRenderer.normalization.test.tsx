@@ -237,15 +237,13 @@ describe("MarkdownRenderer normalization", () => {
     const headerCell = table?.querySelector("th");
     expect(table).not.toBeNull();
     expect(headerCell).not.toBeNull();
-    const headerBackground = getComputedStyle(
-      headerCell as HTMLElement,
-    ).backgroundColor;
-    const rgbMatch = /rgb\((\d+), (\d+), (\d+)\)/.exec(headerBackground);
-    expect(rgbMatch).not.toBeNull();
-    const [, red = "0", green = "0", blue = "0"] = rgbMatch ?? [];
-    expect(Number(red)).toBeGreaterThanOrEqual(240);
-    expect(Number(green)).toBeGreaterThanOrEqual(240);
-    expect(Number(blue)).toBeGreaterThanOrEqual(240);
+    expect(getComputedStyle(tableScroll as HTMLElement).overflowX).toBe(
+      "auto",
+    );
+    expect(getComputedStyle(table as HTMLElement).minWidth).toBe("100%");
+    expect(getComputedStyle(headerCell as HTMLElement).whiteSpace).toBe(
+      "nowrap",
+    );
     expect(container.textContent).toContain("Browser Runtime");
   });
 
