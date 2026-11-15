@@ -1,0 +1,25 @@
+[package]
+name = "utils-model-facing-id"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Stable, model-facing identifiers."
+
+[lib]
+name = "utils_model_facing_id"
+path = "src/lib.rs"
+doctest = false
+test = false
+
+[dependencies]
+blake3 = "1"
+schemars = "0.8"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

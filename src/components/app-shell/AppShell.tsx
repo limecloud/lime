@@ -29,6 +29,9 @@ import { CommandMenuHost } from "@/components/command-menu/CommandMenuHost";
 import { FileSearchHost } from "@/components/file-search/FileSearchDialog";
 import { SpotlightRuntime } from "@/components/command-menu/SpotlightRuntime";
 import { GlobalDictationRuntime } from "@/components/command-menu/GlobalDictationRuntime";
+import { QuickCaptureOverlay } from "@/components/quick-capture/QuickCaptureOverlay";
+import { SideChatPanel } from "@/components/side-chat/SideChatPanel";
+import { ScreenCaptureRuntime } from "@/components/screen-capture/ScreenCaptureRuntime";
 import { KeyboardShortcutsDialogHost } from "@/components/keyboard-shortcuts/KeyboardShortcutsDialogHost";
 import { GitBlameDialogHost } from "@/components/git/GitBlameDialogHost";
 import { GitBranchCreateDialogHost } from "@/components/git/GitBranchCreateDialogHost";
@@ -56,6 +59,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <FileSearchHost />
       <SpotlightRuntime />
       <GlobalDictationRuntime />
+      <QuickCaptureOverlay />
+      <SideChatPanel />
+      <ScreenCaptureRuntime />
       <KeyboardShortcutsDialogHost />
       <GitCommitDialogHost />
       <GitBlameDialogHost />

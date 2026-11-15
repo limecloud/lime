@@ -253,6 +253,13 @@ export function createElectronSmokeRunner(
         replaceRoute(routes, memoryRouteSnapshot(memory));
         console.log("[electron-smoke] memory settings ready");
 
+        stage = "side-chat";
+        const sideChat = await waitForElectronSmokeSideChatReady(options.window);
+        if (!sideChat.ready) {
+          throw new Error("side chat panel did not open");
+        }
+        console.log("[electron-smoke] side chat ready");
+
         stage = "bridge-evidence";
         rendererCollection = await collectRendererSmokeEvidence(
           options.window,
@@ -732,6 +739,31 @@ async function readElectronSmokeLayoutViewport(
     })()`,
     true,
   )) as ElectronSmokeLayoutViewportEvidence;
+}
+
+
+async function waitForElectronSmokeSideChatReady(
+  window: BrowserWindow,
+): Promise<{ ready: boolean }> {
+  return (await window.webContents.executeJavaScript(
+    `new Promise((resolve) => {
+      window.dispatchEvent(new CustomEvent("lime:toggle-side-chat"));
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        const panel = document.querySelector('[data-testid="side-chat-panel"]');
+        if (panel) {
+          clearInterval(timer);
+          resolve({ ready: true });
+          return;
+        }
+        if (Date.now() - startedAt > 45000) {
+          clearInterval(timer);
+          resolve({ ready: false });
+        }
+      }, 250);
+    })`,
+    true,
+  )) as { ready: boolean };
 }
 
 async function waitForElectronSmokeWorkbenchReady(

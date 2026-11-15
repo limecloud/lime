@@ -5,6 +5,9 @@ import { bindingIdentity } from "@/lib/commands/bindings";
 import { getRegisteredCommands, runCommand } from "@/lib/commands/registry";
 import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
 import {
+  ensureConversationTab,
+} from "@/lib/conversationTabs";
+import {
   subscribeWorkspaceReviewTabRequest,
   type WorkspaceReviewTabAction,
 } from "@/lib/workspaceReviewTabEvents";
@@ -107,6 +110,20 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       section: "skills",
       bindings: [],
     });
+  });
+
+  it("复制会话 Deep Link 使用 lime://session", async () => {
+    ensureConversationTab("session-deeplink", "Deep");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      clipboard: { writeText },
+    });
+    expect(runCommand("app.copyConversationDeepLink")).toBe(true);
+    await Promise.resolve();
+    expect(writeText).toHaveBeenCalledWith(
+      "lime://session?sessionId=session-deeplink",
+    );
   });
 
   it("临时聊天使用 ephemeral 创建并导航到新会话", async () => {

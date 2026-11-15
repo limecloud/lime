@@ -1,0 +1,1199 @@
+use crate::route_aware_redirect::MAX_REDIRECTS;
+use std::collections::HashMap;
+use std::io;
+use std::io::Read;
+use std::io::Write;
+use std::net::TcpListener;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
+use std::time::Instant;
+
+use bytes::Bytes;
+use futures::FutureExt;
+use futures::stream;
+use http::HeaderValue;
+use pretty_assertions::assert_eq;
+use tracing_subscriber::Layer;
+use tracing_subscriber::layer::SubscriberExt;
+
+use super::*;
+use crate::OutboundProxyPolicy;
+use crate::request_draft::RequestDraft;
+
+#[tokio::test]
+async fn redirects_honor_sensitive_header_protection_without_changing_default_behavior() {
+    for policy in [
+        OutboundProxyPolicy::ReqwestDefault,
+        OutboundProxyPolicy::RespectSystemProxy,
+    ] {
+        for protect_sensitive_headers in [false, true] {
+            let (target, target_server) = spawn_response_server(vec![
+                "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".into(),
+            ]);
+            let (source, source_server) = spawn_response_server(vec![
+            "HTTP/1.1 307 Temporary Redirect\r\nLocation: /same\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+            format!("HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{target}/final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"),
+        ]);
+            let url = format!("http://{source}/start");
+            let factory = HttpClientFactory::new(policy);
+            let factory = if protect_sensitive_headers {
+                factory.with_sensitive_header_protection()
+            } else {
+                factory
+            };
+            let client = factory.build_client(&url, ClientRouteClass::Api).unwrap();
+            let mut proof = HeaderValue::from_static("private-proof");
+            proof.set_sensitive(/*val*/ true);
+            let response = client
+                .get(&url)
+                .header("authorization", "Bearer private-token")
+                .header("x-custom-proof", proof)
+                .header("x-public", "retained")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.text().await.unwrap(), "ok");
+            let source_requests = source_server.join().unwrap();
+            assert_eq!(source_requests.len(), 2);
+            for request in source_requests {
+                assert!(request.contains("authorization: Bearer private-token\r\n"));
+                assert!(request.contains("x-custom-proof: private-proof\r\n"));
+            }
+            let target_requests = target_server.join().unwrap();
+            assert_eq!(target_requests.len(), 1);
+            assert!(!target_requests[0].contains("private-token"));
+            assert_eq!(
+                target_requests[0].contains("private-proof"),
+                !protect_sensitive_headers
+            );
+            assert!(target_requests[0].contains("x-public: retained\r\n"));
+        }
+    }
+}
+
+#[tokio::test]
+async fn initial_url_auth_is_built_once_after_routing_and_retained_only_on_same_origin_redirects() {
+    let (first_proxy, first_server) = spawn_response_server(vec![
+        "HTTP/1.1 302 Found\r\nLocation: http://other:secret@origin.test/same?route=2\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+        "HTTP/1.1 302 Found\r\nLocation: http://other:secret@other.test/final?route=3\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+    ]);
+    let (last_proxy, last_server) = spawn_response_server(vec![
+        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+    ]);
+    let urls = [
+        "http://user:pass@origin.test/start?route=1",
+        "http://other:secret@origin.test/same?route=2",
+        "http://other:secret@other.test/final?route=3",
+    ];
+    let resolver = FakeRouteResolver::new(
+        urls.iter()
+            .zip([first_proxy, first_proxy, last_proxy])
+            .map(|(url, proxy)| {
+                (
+                    url.to_string(),
+                    OutboundProxyRoute::Proxy {
+                        url: format!("http://{proxy}"),
+                        no_proxy: None,
+                    },
+                )
+            })
+            .collect(),
+    );
+    let pool = manual_redirect_pool();
+    let mut request = RequestDraft::new(Method::GET, urls[0]).expect("valid request");
+    *request.request.timeout_mut() = Some(Duration::from_secs(/*secs*/ 3));
+    let response = pool
+        .send_with_resolver(request, |url| resolver.resolve(url))
+        .await
+        .expect("request should follow both redirects");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(resolver.observed_urls(), urls.map(str::to_string));
+    let mut requests = first_server.join().expect("first proxy should finish");
+    requests.extend(last_server.join().expect("last proxy should finish"));
+    let auth = requests
+        .iter()
+        .map(|request| {
+            request
+                .lines()
+                .filter_map(|line| line.split_once(':'))
+                .filter(|(name, _)| name.eq_ignore_ascii_case("authorization"))
+                .map(|(_, value)| value.trim())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        auth,
+        vec![
+            vec!["Basic dXNlcjpwYXNz"],
+            vec!["Basic dXNlcjpwYXNz"],
+            vec![]
+        ]
+    );
+}
+
+#[tokio::test]
+async fn fixed_transport_preserves_url_auth_and_explicit_authorization() {
+    use crate::HttpTransport;
+    use crate::ReqwestTransport;
+    for authorization in [None, Some("Bearer explicit")] {
+        let (address, server) = spawn_response_server(vec![
+            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+        ]);
+        let client = HttpClientBuilder::new()
+            .build_direct()
+            .expect("client should build");
+        let transport = ReqwestTransport::from_http_client(client);
+        let mut request = crate::Request::new(Method::GET, format!("http://user:pass@{address}/"));
+        if let Some(authorization) = authorization {
+            request
+                .headers
+                .insert(http::header::AUTHORIZATION, authorization.parse().unwrap());
+        }
+        transport
+            .execute(request)
+            .await
+            .expect("transport should send");
+        let requests = server.join().expect("server should finish");
+        let auth = requests[0]
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .filter(|(name, _)| name.eq_ignore_ascii_case("authorization"))
+            .map(|(_, value)| value.trim())
+            .collect::<Vec<_>>();
+        assert_eq!(auth, vec![authorization.unwrap_or("Basic dXNlcjpwYXNz")]);
+    }
+}
+
+#[tokio::test]
+async fn direct_and_routed_clients_build_equivalent_requests() {
+    let (address, server) = spawn_response_server(vec![
+        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(); 4
+    ]);
+    let mut defaults = HeaderMap::new();
+    defaults.append("x-values", "default-one".parse().unwrap());
+    defaults.append("x-values", "default-two".parse().unwrap());
+    let builder = HttpClientBuilder::new().default_headers(defaults.clone());
+    let direct = builder.build_direct().unwrap();
+    assert!(!format!("{direct:?}").contains("default-one"));
+    let controller = crate::NetworkPolicyController::default();
+    let policy = controller.policy();
+    controller.publish(policy.revision(), crate::DestinationPolicy::Unrestricted);
+    let routed = RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault).with_network_policy(policy),
+        ClientRouteClass::Api,
+        HttpClientBuilder::new().default_headers(defaults),
+    )
+    .into_client();
+    for client in [direct, routed] {
+        client
+            .post(format!("http://{address}/submit?existing=1"))
+            .query(&[("value", "hello world"), ("value", "second")])
+            .header("x-values", "old")
+            .headers(HeaderMap::from_iter([(
+                "x-values".parse().unwrap(),
+                "first".parse().unwrap(),
+            )]))
+            .header("x-values", "second")
+            .bearer_auth("test-token")
+            .timeout(Duration::from_secs(/*secs*/ 5))
+            .version(http::Version::HTTP_11)
+            .json(&serde_json::json!({"value": 1}))
+            .send()
+            .await
+            .unwrap();
+        let auth = client.get(format!("http://alice:p%40ss@{address}/auth"));
+        auth.send().await.unwrap();
+    }
+    let requests = server.join().unwrap();
+    assert_eq!(requests[0], requests[2]);
+    assert_eq!(requests[1], requests[3]);
+    assert!(requests[1].contains("authorization: Basic YWxpY2U6cEBzcw==\r\n"));
+    assert!(requests[1].contains("x-values: default-one\r\n"));
+    assert!(requests[1].contains("x-values: default-two\r\n"));
+    let request = &requests[0];
+    assert!(
+        request.starts_with("POST /submit?existing=1&value=hello+world&value=second HTTP/1.1\r\n")
+    );
+    assert!(request.contains("authorization: Bearer test-token\r\n"));
+    assert!(request.contains("content-type: application/json\r\n"));
+    assert!(request.contains("x-values: first\r\n"));
+    assert!(request.contains("x-values: second\r\n"));
+    assert!(!request.contains("x-values: old") && !request.contains("x-values: default"));
+    assert!(request.ends_with("\r\n\r\n{\"value\":1}"));
+}
+
+#[tokio::test]
+async fn request_failures_classify_real_untrusted_certificate_handshakes() {
+    assert_untrusted_certificate_classified(HttpClientBuilder::new()).await;
+}
+
+#[tokio::test]
+async fn request_failures_classify_real_untrusted_rustls_certificate_handshakes() {
+    assert_untrusted_certificate_classified(HttpClientBuilder::new().with_rustls_tls()).await;
+}
+
+async fn assert_untrusted_certificate_classified(client_builder: HttpClientBuilder) {
+    utils_rustls_provider::ensure_rustls_crypto_provider();
+    let certificate = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
+        .expect("self-signed certificate should generate");
+    let private_key = rustls::pki_types::PrivateKeyDer::Pkcs8(
+        rustls::pki_types::PrivatePkcs8KeyDer::from(certificate.signing_key.serialize_der()),
+    );
+    let configuration = Arc::new(
+        rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![certificate.cert.der().clone()], private_key)
+            .expect("TLS server should be configured"),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0").expect("TLS server should bind");
+    let address = listener
+        .local_addr()
+        .expect("TLS server should have an address");
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("TLS server should accept");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .expect("TLS handshake timeout");
+        let mut connection = rustls::ServerConnection::new(configuration)
+            .expect("TLS server connection should be created");
+        let _ = connection.complete_io(&mut stream);
+    });
+    let pool = RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Api,
+        client_builder.without_request_logging(),
+    );
+
+    let mut request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse(&format!("https://localhost:{}/", address.port())).unwrap(),
+    );
+    *request.timeout_mut() = Some(Duration::from_secs(3));
+    let error = pool
+        .send_with_resolver(request, |_| async { Ok(OutboundProxyRoute::Direct) })
+        .await
+        .expect_err("self-signed server certificate must not be trusted");
+    drop(std::net::TcpStream::connect(address));
+    server.join().expect("TLS server should finish");
+
+    assert_eq!(
+        error.failure_class(),
+        Some(RouteFailureClass::TlsError),
+        "unexpected certificate error: {error:?}"
+    );
+}
+
+#[tokio::test]
+async fn request_failures_classify_https_proxy_authentication_challenges() {
+    let (address, proxy) = spawn_response_server(vec![
+        "HTTP/1.1 407 Proxy Authentication Required\r\n\
+         Proxy-Authenticate: Basic realm=\"lime\"\r\n\
+         Content-Length: 0\r\n\
+         Connection: close\r\n\r\n"
+            .to_string(),
+    ]);
+    let pool = RouteAwareClientPool::new_without_request_logging(
+        HttpClientFactory::new(OutboundProxyPolicy::RespectSystemProxy),
+        ClientRouteClass::Api,
+    );
+    let mut request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse("https://example.com/").expect("request URL should parse"),
+    );
+    *request.timeout_mut() = Some(Duration::from_secs(3));
+
+    let error = pool
+        .send_with_resolver(request, move |_| async move {
+            Ok(OutboundProxyRoute::Proxy {
+                url: format!("http://{address}"),
+                no_proxy: None,
+            })
+        })
+        .await
+        .expect_err("HTTPS proxy challenge should reject the CONNECT request");
+    let requests = proxy.join().expect("proxy fixture should finish");
+
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].starts_with("CONNECT example.com:443 HTTP/1.1\r\n"));
+    assert_eq!(
+        error.failure_class(),
+        Some(RouteFailureClass::ProxyAuthenticationRequired),
+        "unexpected HTTPS proxy error: {error:?}"
+    );
+}
+
+#[test]
+fn request_builder_debug_redacts_url_secrets() {
+    let pool = RouteAwareClientPool::new(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Api,
+    );
+    let request = pool.get(
+        "https://username:password@private.example/secret-path?sig=query-secret#fragment-secret",
+    );
+
+    assert_eq!(
+        format!("{request:?}"),
+        "RequestBuilder { method: Some(GET), url: \"<redacted>\", .. }"
+    );
+}
+
+#[tokio::test]
+async fn streams_request_bodies_without_exposing_reqwest_body() {
+    let (address, server) = spawn_response_server(vec![
+        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+    ]);
+    let pool = RouteAwareClientPool::new(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Api,
+    );
+    let response = pool
+        .put(format!("http://{address}/upload"))
+        .header(http::header::CONTENT_LENGTH, /*value*/ 5)
+        .body_stream(stream::iter(vec![Ok::<_, io::Error>(Bytes::from_static(
+            b"hello",
+        ))]))
+        .send()
+        .await
+        .expect("streaming request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let requests = server.join().expect("response server should finish");
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].ends_with("\r\n\r\nhello"));
+}
+
+#[tokio::test]
+async fn legacy_custom_ca_fallback_is_limited_to_reqwest_default() {
+    const CHILD_POLICY_ENV: &str = "CODEX_HTTP_CLIENT_POOL_INVALID_CA_TEST_POLICY";
+
+    let Ok(policy_name) = std::env::var(CHILD_POLICY_ENV) else {
+        let temp_dir = tempfile::tempdir().expect("temporary directory should be created");
+        let invalid_ca_path = temp_dir.path().join("invalid-ca.pem");
+        std::fs::write(&invalid_ca_path, "not a PEM certificate")
+            .expect("invalid CA fixture should be written");
+
+        for ca_env in ["CODEX_CA_CERTIFICATE", "SSL_CERT_FILE"] {
+            for policy_name in [
+                "reqwest-default",
+                "respect-system-proxy",
+                "strict-reqwest-default",
+                "strict-direct",
+            ] {
+                let output = std::process::Command::new(
+                    std::env::current_exe().expect("test executable should be available"),
+                )
+                .arg("--exact")
+                .arg("route_aware_client_pool::tests::legacy_custom_ca_fallback_is_limited_to_reqwest_default")
+                .arg("--nocapture")
+                .env_remove("CODEX_CA_CERTIFICATE")
+                .env_remove("SSL_CERT_FILE")
+                .env(ca_env, &invalid_ca_path)
+                .env(CHILD_POLICY_ENV, policy_name)
+                .output()
+                .expect("isolated CA subprocess should run");
+
+                assert!(
+                    output.status.success(),
+                    "{policy_name} failed with invalid {ca_env}\nstdout:\n{}\nstderr:\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr),
+                );
+            }
+        }
+        return;
+    };
+
+    let outbound_proxy_policy = match policy_name.as_str() {
+        "reqwest-default" | "strict-reqwest-default" | "strict-direct" => {
+            OutboundProxyPolicy::ReqwestDefault
+        }
+        "respect-system-proxy" => OutboundProxyPolicy::RespectSystemProxy,
+        _ => panic!("unexpected test proxy policy: {policy_name}"),
+    };
+    let pool = RouteAwareClientPool::with_chatgpt_cloudflare_cookies(
+        HttpClientFactory::new(outbound_proxy_policy),
+        ClientRouteClass::Other,
+    );
+    let pool = match policy_name.as_str() {
+        "strict-reqwest-default" => pool,
+        "strict-direct" => pool.with_direct_proxy(),
+        _ => pool.with_legacy_custom_ca_fallback(),
+    };
+
+    match policy_name.as_str() {
+        "reqwest-default" => {
+            let (address, server) = spawn_response_server(vec![
+                "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+            ]);
+            let response = pool
+                .get(format!("http://{address}/update"))
+                .send()
+                .await
+                .expect("default-routed request should fall back to system roots");
+
+            assert_eq!(response.status(), StatusCode::OK);
+            let requests = server.join().expect("response server should finish");
+            assert_eq!(requests.len(), 1);
+        }
+        _ => {
+            let error = pool
+                .client_for_url_with_resolver("http://127.0.0.1/update", |_| async {
+                    if policy_name == "strict-direct" {
+                        Err(io::Error::other(
+                            "direct routing must not need proxy discovery",
+                        ))
+                    } else {
+                        Ok(OutboundProxyRoute::Direct)
+                    }
+                })
+                .await
+                .expect_err("strict routes should reject invalid custom CAs");
+
+            assert!(matches!(error, RouteAwareClientPoolError::Build(_)));
+        }
+    }
+}
+
+#[tokio::test]
+async fn without_url_redacts_transport_error_urls() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listener should bind");
+    let address = listener.local_addr().expect("listener should have address");
+    drop(listener);
+    let secret = "signed-secret";
+    let error = reqwest::Client::new()
+        .get(format!("http://{address}/upload?sig={secret}"))
+        .send()
+        .await
+        .expect_err("closed listener should reject request");
+    let error = RouteAwareRequestError::from(error).without_url();
+
+    assert!(!error.to_string().contains(secret));
+}
+
+#[tokio::test]
+async fn forwards_exact_urls_and_caches_clients_by_resolved_route() {
+    let pool = RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Api,
+        HttpClientBuilder::new(),
+    );
+
+    let direct_url = "https://example.com/first?target=direct";
+    let same_route_url = "https://example.com/second?target=direct%202";
+    let proxy_url = "https://example.com/third?target=proxy";
+    let resolver = FakeRouteResolver::new(HashMap::from([
+        (direct_url.to_string(), OutboundProxyRoute::Direct),
+        (same_route_url.to_string(), OutboundProxyRoute::Direct),
+        (
+            proxy_url.to_string(),
+            OutboundProxyRoute::Proxy {
+                url: "http://proxy.example".to_string(),
+                no_proxy: None,
+            },
+        ),
+    ]));
+
+    resolve_with(&pool, &resolver, direct_url)
+        .await
+        .expect("first client should build");
+    resolve_with(&pool, &resolver, same_route_url)
+        .await
+        .expect("second client should reuse the route");
+    resolve_with(&pool, &resolver, proxy_url)
+        .await
+        .expect("proxy client should build separately");
+
+    assert_eq!(pool.clients.lock().expect("client cache lock").len(), 2);
+    assert_eq!(
+        resolver.observed_urls(),
+        vec![
+            direct_url.to_string(),
+            same_route_url.to_string(),
+            proxy_url.to_string(),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn cached_tls_backend_only_changes_its_destination_and_route() {
+    let pool = RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Other,
+        HttpClientBuilder::new(),
+    )
+    .with_tls_backend_fallback();
+    let rustls_url = "https://mcp.example.com/first";
+    let native_url = "https://another.example.com/first";
+    let proxied_url = "https://mcp.example.com/proxied";
+    let proxy = OutboundProxyRoute::Proxy {
+        url: "http://proxy.example.com".to_string(),
+        no_proxy: None,
+    };
+    let resolver = FakeRouteResolver::new(HashMap::from([
+        (rustls_url.to_string(), OutboundProxyRoute::Direct),
+        (native_url.to_string(), OutboundProxyRoute::Direct),
+        (proxied_url.to_string(), proxy),
+    ]));
+    let fallback_client = HttpClientBuilder::new()
+        .with_rustls_tls()
+        .build_for_resolved_route(
+            &HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+            ClientRouteClass::Api,
+            &OutboundProxyRoute::Direct,
+        )
+        .expect("rustls client should build without proxy autodiscovery");
+    pool.rustls_clients
+        .as_ref()
+        .expect("TLS fallback cache")
+        .remember(
+            &reqwest::Url::parse(rustls_url).expect("valid rustls URL"),
+            &OutboundProxyRoute::Direct,
+            fallback_client,
+        );
+
+    resolve_with(&pool, &resolver, rustls_url)
+        .await
+        .expect("remembered destination should build the rustls client");
+    assert_eq!(pool.clients.lock().expect("client cache lock").len(), 0);
+
+    resolve_with(&pool, &resolver, native_url)
+        .await
+        .expect("another destination should retain its native TLS client");
+    resolve_with(&pool, &resolver, proxied_url)
+        .await
+        .expect("another proxy route should retain its native TLS client");
+    assert_eq!(pool.clients.lock().expect("client cache lock").len(), 2);
+}
+
+#[tokio::test]
+async fn tls_fallback_pool_reselects_routes_for_each_redirect_hop() {
+    let (address, server) = spawn_response_server(vec![
+        "HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            .to_string(),
+        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".to_string(),
+    ]);
+    let initial_url = format!("http://{address}/start");
+    let final_url = format!("http://{address}/final");
+    let resolver = FakeRouteResolver::new(HashMap::from([
+        (initial_url.clone(), OutboundProxyRoute::Direct),
+        (final_url.clone(), OutboundProxyRoute::Direct),
+    ]));
+    let pool = RouteAwareClientPool::new(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Other,
+    )
+    .with_tls_backend_fallback();
+    let request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse(&initial_url).expect("valid initial URL"),
+    );
+
+    let response = pool
+        .send_with_resolver(request, |url| resolver.resolve(url))
+        .await
+        .expect("fallback-enabled client should follow redirects");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(resolver.observed_urls(), vec![initial_url, final_url]);
+    assert_eq!(
+        server.join().expect("redirect server should finish").len(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn reqwest_default_route_preserves_transport_redirects() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("redirect listener should bind");
+    let address = listener
+        .local_addr()
+        .expect("redirect listener should have an address");
+    listener
+        .set_nonblocking(true)
+        .expect("redirect listener should become nonblocking");
+    let server = std::thread::spawn(move || {
+        let mut request_lines = Vec::new();
+        for response in [
+            "HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+        ] {
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let (mut stream, _) = loop {
+                match listener.accept() {
+                    Ok(connection) => break connection,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        assert!(
+                            Instant::now() < deadline,
+                            "redirect server should receive the next request"
+                        );
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("redirect server should accept: {error}"),
+                }
+            };
+            // Accepted sockets inherit the listener's nonblocking mode on macOS.
+            stream
+                .set_nonblocking(false)
+                .expect("redirect stream should become blocking");
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .expect("redirect stream should get a read timeout");
+            let mut buffer = [0_u8; 1024];
+            let size = stream
+                .read(&mut buffer)
+                .expect("redirect server should read request");
+            let request = String::from_utf8_lossy(&buffer[..size]);
+            request_lines.push(
+                request
+                    .lines()
+                    .next()
+                    .expect("request should have a request line")
+                    .to_string(),
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("redirect server should write response");
+        }
+        request_lines
+    });
+    let pool = RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Api,
+        HttpClientBuilder::new(),
+    );
+    let initial_url = format!("http://{address}/start");
+    let request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse(&initial_url).expect("request URL should parse"),
+    );
+
+    let response = pool
+        .send_with_resolver(request, |_| async { Ok(OutboundProxyRoute::Direct) })
+        .await
+        .expect("default-routed request should follow redirect");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.url().as_str(), format!("http://{address}/final"));
+    assert_eq!(
+        server.join().expect("redirect server should finish"),
+        vec![
+            "GET /start HTTP/1.1".to_string(),
+            "GET /final HTTP/1.1".to_string(),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn no_redirect_pool_returns_redirect_response() {
+    for outbound_proxy_policy in [
+        OutboundProxyPolicy::ReqwestDefault,
+        OutboundProxyPolicy::RespectSystemProxy,
+    ] {
+        let (address, server) = spawn_response_server(vec![
+            "HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .to_string(),
+        ]);
+        let pool = RouteAwareClientPool::new_without_redirects(
+            HttpClientFactory::new(outbound_proxy_policy),
+            ClientRouteClass::Api,
+        );
+        let initial_url = format!("http://{address}/start");
+        let request = reqwest::Request::new(
+            Method::GET,
+            reqwest::Url::parse(&initial_url).expect("request URL should parse"),
+        );
+
+        let response = pool
+            .send_with_resolver(request, |_| async { Ok(OutboundProxyRoute::Direct) })
+            .await
+            .expect("no-redirect request should finish");
+
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let requests = server.join().expect("redirect server should finish");
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("GET /start HTTP/1.1\r\n"));
+    }
+}
+
+#[tokio::test]
+async fn bounds_cached_routes_and_rebuilds_an_evicted_route() {
+    let pool = RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ClientRouteClass::Api,
+        HttpClientBuilder::new(),
+    );
+    let routes = (0..=MAX_CACHED_ROUTES)
+        .map(|index| {
+            (
+                format!("https://target-{index}.example"),
+                OutboundProxyRoute::Proxy {
+                    url: format!("http://proxy-{index}.example"),
+                    no_proxy: None,
+                },
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let resolver = FakeRouteResolver::new(routes.clone());
+
+    for request_url in routes.keys() {
+        resolve_with(&pool, &resolver, request_url)
+            .await
+            .expect("client should build");
+    }
+    let evicted_route = {
+        let clients = pool.clients.lock().expect("client cache lock");
+        assert_eq!(clients.len(), MAX_CACHED_ROUTES);
+        routes
+            .iter()
+            .find(|(_, route)| !clients.contains_key(*route))
+            .map(|(request_url, _)| request_url.clone())
+            .expect("one route should have been evicted")
+    };
+
+    resolve_with(&pool, &resolver, &evicted_route)
+        .await
+        .expect("evicted client should rebuild");
+
+    let clients = pool.clients.lock().expect("client cache lock");
+    assert_eq!(clients.len(), MAX_CACHED_ROUTES);
+    assert!(clients.contains_key(&routes[&evicted_route]));
+}
+
+#[tokio::test]
+async fn request_timeout_covers_route_selection() {
+    let pool = manual_redirect_pool();
+    let mut request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse("http://route-selection-timeout.test/start")
+            .expect("request URL should parse"),
+    );
+    *request.timeout_mut() = Some(Duration::from_millis(10));
+    let resolver_calls = Arc::new(AtomicUsize::new(0));
+    let observed_resolver_calls = Arc::clone(&resolver_calls);
+
+    let error = pool
+        .send_with_resolver(request, move |_| {
+            observed_resolver_calls.fetch_add(1, Ordering::SeqCst);
+            async {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                Ok(OutboundProxyRoute::Direct)
+            }
+        })
+        .await
+        .expect_err("request should time out during route selection");
+
+    assert!(matches!(error, RouteAwareRequestError::Timeout));
+    assert_eq!(resolver_calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn managed_request_timeout_covers_queued_transport_construction() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(/*val*/ 1)
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(/*nonblocking*/ true).unwrap();
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let blocker = tokio::task::spawn_blocking(move || {
+            started_tx.send(()).unwrap();
+            let _ = release_rx.recv();
+        });
+        started_rx.await.unwrap();
+
+        let controller = crate::NetworkPolicyController::default();
+        let policy = controller.policy();
+        controller.publish(policy.revision(), crate::DestinationPolicy::Unrestricted);
+        let pool = RouteAwareClientPool::new(
+            HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault).with_network_policy(policy),
+            ClientRouteClass::Api,
+        );
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        let requests = (0..8).map(|_| {
+            pool.get(&url)
+                .timeout(Duration::from_millis(/*millis*/ 200))
+                .send()
+        });
+        for result in futures::future::join_all(requests).await {
+            assert!(result.unwrap_err().is_timeout());
+        }
+        assert!(pool.client_build.try_lock().is_err());
+        assert!(pool.clients.lock().unwrap().is_empty());
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+        drop(release_tx);
+        blocker.await.unwrap();
+
+        let build_finished =
+            tokio::time::timeout(Duration::from_secs(/*secs*/ 5), pool.client_build.lock())
+                .await
+                .unwrap();
+        assert!(
+            pool.clients
+                .lock()
+                .unwrap()
+                .contains_key(&OutboundProxyRoute::TransportDefault)
+        );
+        let (_, _, backend) = pool
+            .client_for_url_with_resolver(&url, |_| async {
+                Ok(OutboundProxyRoute::TransportDefault)
+            })
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        assert_eq!(backend, SelectedTlsBackend::TransportDefault);
+        drop(build_finished);
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+    });
+}
+
+#[tokio::test]
+async fn request_timeout_is_shared_across_redirect_hops() {
+    let (address, server) = spawn_response_server(vec![
+        "HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            .to_string(),
+    ]);
+    let pool = manual_redirect_pool();
+    let mut request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse(&format!("http://{address}/start")).expect("request URL should parse"),
+    );
+    *request.timeout_mut() = Some(Duration::from_secs(2));
+    let resolver_calls = Arc::new(AtomicUsize::new(0));
+    let observed_resolver_calls = Arc::clone(&resolver_calls);
+
+    let error = pool
+        .send_with_resolver(request, move |_| {
+            let resolver_call = observed_resolver_calls.fetch_add(1, Ordering::SeqCst);
+            async move {
+                let delay = if resolver_call == 0 {
+                    Duration::from_millis(500)
+                } else {
+                    Duration::from_millis(1_750)
+                };
+                tokio::time::sleep(delay).await;
+                Ok(OutboundProxyRoute::Direct)
+            }
+        })
+        .await
+        .expect_err("redirect chain should exceed its shared timeout");
+
+    assert!(matches!(error, RouteAwareRequestError::Timeout));
+    assert_eq!(resolver_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        server.join().expect("redirect server should finish").len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn rejects_replayable_redirect_to_unsupported_scheme() {
+    let (address, server) = spawn_response_server(vec![
+        "HTTP/1.1 307 Temporary Redirect\r\nLocation: ftp://example.com/final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            .to_string(),
+    ]);
+    let pool = manual_redirect_pool();
+    let request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse(&format!("http://{address}/start")).expect("request URL should parse"),
+    );
+
+    let error = pool
+        .send_with_resolver(request, |_| async { Ok(OutboundProxyRoute::Direct) })
+        .await
+        .expect_err("unsupported redirect scheme should fail");
+
+    assert!(matches!(
+        error,
+        RouteAwareRequestError::UnsupportedRedirectScheme(scheme) if scheme == "ftp"
+    ));
+    assert_eq!(
+        server.join().expect("redirect server should finish").len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn rejects_redirects_beyond_the_limit() {
+    let responses = (0..=MAX_REDIRECTS)
+        .map(|redirect| {
+            format!(
+                "HTTP/1.1 302 Found\r\nLocation: /hop/{}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                redirect + 1
+            )
+        })
+        .collect();
+    let (address, server) = spawn_response_server(responses);
+    let pool = manual_redirect_pool();
+    let request = reqwest::Request::new(
+        Method::GET,
+        reqwest::Url::parse(&format!("http://{address}/start")).expect("request URL should parse"),
+    );
+
+    let error = pool
+        .send_with_resolver(request, |_| async { Ok(OutboundProxyRoute::Direct) })
+        .await
+        .expect_err("redirect chain should stop at the limit");
+    let requests = server.join().expect("redirect server should finish");
+
+    assert!(matches!(error, RouteAwareRequestError::TooManyRedirects));
+    assert_eq!(requests.len(), MAX_REDIRECTS + 1);
+    assert_eq!(
+        requests.last().and_then(|request| request.lines().next()),
+        Some("GET /hop/10 HTTP/1.1")
+    );
+}
+
+#[tokio::test]
+async fn disabled_pool_logging_does_not_expose_request_or_response_data() {
+    let (address, server) = spawn_response_server(vec![
+        "HTTP/1.1 200 OK\r\nx-sensitive-response: response-secret-value\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+            .to_string(),
+    ]);
+    let pool = RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::RespectSystemProxy),
+        ClientRouteClass::Api,
+        HttpClientBuilder::new().without_request_logging(),
+    );
+    let buffer = Arc::new(Mutex::new(Vec::new()));
+    let subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::fmt::layer()
+            .with_ansi(false)
+            .with_writer(TestLogWriter {
+                buffer: Arc::clone(&buffer),
+            })
+            .with_filter(
+                tracing_subscriber::filter::Targets::new()
+                    .with_target("http_client", tracing::Level::TRACE),
+            ),
+    );
+    let _guard = tracing::subscriber::set_default(subscriber);
+    tracing::debug!(target: "http_client", "log capture sentinel");
+    let request_url = format!(
+        "http://auth-user:password-secret-value@{address}/token?client_secret=query-secret-value"
+    );
+    let mut request = reqwest::Request::new(
+        Method::POST,
+        reqwest::Url::parse(&request_url).expect("request URL should parse"),
+    );
+    request.headers_mut().insert(
+        "x-sensitive-request",
+        HeaderValue::from_static("request-header-secret-value"),
+    );
+    *request.body_mut() = Some("request-body-secret-value".into());
+    *request.timeout_mut() = Some(Duration::from_secs(2));
+
+    let response = pool
+        .send_with_resolver(request, |_| async { Ok(OutboundProxyRoute::Direct) })
+        .await
+        .expect("route-aware request should succeed");
+    assert_eq!(response.status(), StatusCode::OK);
+    server.join().expect("server thread should finish");
+
+    let unresponsive_listener =
+        TcpListener::bind(("127.0.0.1", 0)).expect("unresponsive listener should bind");
+    let unresponsive_address = unresponsive_listener
+        .local_addr()
+        .expect("unresponsive listener should have an address");
+    let failure_url = format!(
+        "http://auth-user:failure-password-secret-value@{unresponsive_address}/token?client_secret=failure-query-secret-value"
+    );
+    let mut request = reqwest::Request::new(
+        Method::POST,
+        reqwest::Url::parse(&failure_url).expect("failure URL should parse"),
+    );
+    *request.timeout_mut() = Some(Duration::from_millis(100));
+
+    let error = pool
+        .send_with_resolver(request, |_| async { Ok(OutboundProxyRoute::Direct) })
+        .await
+        .expect_err("request to an unresponsive listener should time out");
+    assert!(error.is_timeout());
+
+    let logs = String::from_utf8(buffer.lock().expect("log buffer lock").clone())
+        .expect("logs should be UTF-8");
+    assert!(logs.contains("log capture sentinel"));
+    for secret in [
+        "password-secret-value",
+        "query-secret-value",
+        "request-header-secret-value",
+        "request-body-secret-value",
+        "response-secret-value",
+        "failure-password-secret-value",
+        "failure-query-secret-value",
+    ] {
+        assert!(!logs.contains(secret), "logs exposed {secret}:\n{logs}");
+    }
+}
+
+#[derive(Clone)]
+struct FakeRouteResolver {
+    routes: Arc<HashMap<String, OutboundProxyRoute>>,
+    observed_urls: Arc<Mutex<Vec<String>>>,
+}
+
+impl FakeRouteResolver {
+    fn new(routes: HashMap<String, OutboundProxyRoute>) -> Self {
+        Self {
+            routes: Arc::new(routes),
+            observed_urls: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    async fn resolve(&self, request_url: String) -> io::Result<OutboundProxyRoute> {
+        self.observed_urls
+            .lock()
+            .expect("observed URL lock")
+            .push(request_url.clone());
+        self.routes
+            .get(&request_url)
+            .cloned()
+            .ok_or_else(|| io::Error::other(format!("no route for {request_url}")))
+    }
+
+    fn observed_urls(&self) -> Vec<String> {
+        self.observed_urls
+            .lock()
+            .expect("observed URL lock")
+            .clone()
+    }
+}
+
+async fn resolve_with(
+    pool: &RouteAwareClientPool,
+    resolver: &FakeRouteResolver,
+    request_url: &str,
+) -> Result<TransportClient, RouteAwareClientPoolError> {
+    let resolver = resolver.clone();
+    let (_, client, _) = pool
+        .client_for_url_with_resolver(request_url, move |request_url| async move {
+            resolver.resolve(request_url).await
+        })
+        .await?;
+    Ok(client)
+}
+
+fn manual_redirect_pool() -> RouteAwareClientPool {
+    RouteAwareClientPool::with_builder(
+        HttpClientFactory::new(OutboundProxyPolicy::RespectSystemProxy),
+        ClientRouteClass::Api,
+        HttpClientBuilder::new(),
+    )
+}
+
+pub(super) fn spawn_response_server(
+    responses: Vec<String>,
+) -> (std::net::SocketAddr, std::thread::JoinHandle<Vec<String>>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("response listener should bind");
+    let address = listener
+        .local_addr()
+        .expect("response listener should have an address");
+    listener
+        .set_nonblocking(true)
+        .expect("response listener should become nonblocking");
+    let server = std::thread::spawn(move || {
+        let mut requests = Vec::new();
+        for response in responses {
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let (mut stream, _) = loop {
+                match listener.accept() {
+                    Ok(connection) => break connection,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        assert!(
+                            Instant::now() < deadline,
+                            "response server should receive the next request"
+                        );
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("response server should accept: {error}"),
+                }
+            };
+            stream
+                .set_nonblocking(false)
+                .expect("response stream should become blocking");
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .expect("response stream should get a read timeout");
+            requests.push(read_http_message(&mut stream));
+            stream
+                .write_all(response.as_bytes())
+                .expect("response server should write response");
+        }
+        requests
+    });
+    (address, server)
+}
+
+fn read_http_message(stream: &mut impl Read) -> String {
+    let mut buffer = Vec::new();
+    let mut chunk = [0_u8; 1024];
+    loop {
+        let bytes_read = stream.read(&mut chunk).expect("HTTP message should read");
+        if bytes_read == 0 {
+            break;
+        }
+        buffer.extend_from_slice(&chunk[..bytes_read]);
+        if let Some(header_end) = buffer.windows(4).position(|window| window == b"\r\n\r\n") {
+            let body_start = header_end + 4;
+            let headers = String::from_utf8_lossy(&buffer[..body_start]);
+            let content_length = headers
+                .lines()
+                .filter_map(|line| line.split_once(':'))
+                .find_map(|(name, value)| {
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            if buffer.len() >= body_start + content_length {
+                break;
+            }
+        }
+    }
+    String::from_utf8_lossy(&buffer).into_owned()
+}
+
+#[derive(Clone)]
+struct TestLogWriter {
+    buffer: Arc<Mutex<Vec<u8>>>,
+}
+
+struct TestLogSink {
+    buffer: Arc<Mutex<Vec<u8>>>,
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for TestLogWriter {
+    type Writer = TestLogSink;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        TestLogSink {
+            buffer: Arc::clone(&self.buffer),
+        }
+    }
+}
+
+impl Write for TestLogSink {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let mut log_buffer = self
+            .buffer
+            .lock()
+            .map_err(|_| io::Error::other("log buffer lock was poisoned"))?;
+        log_buffer.extend(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}

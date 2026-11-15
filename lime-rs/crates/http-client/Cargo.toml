@@ -1,0 +1,47 @@
+[package]
+name = "http-client"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "HTTP client stack for Lime runtime."
+
+[lib]
+name = "http_client"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+bytes.workspace = true
+futures.workspace = true
+http = "1"
+http-body = "1.0.1"
+httpdate = "1"
+native-tls = "0.2"
+opentelemetry.workspace = true
+reqwest = { workspace = true, features = ["gzip", "json", "rustls-tls", "rustls-tls-native-roots", "stream", "zstd"] }
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
+rustls-native-certs = "0.8"
+rustls-pki-types = "1"
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded = "0.7"
+sha2.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "time", "sync"] }
+tracing.workspace = true
+tracing-opentelemetry.workspace = true
+url.workspace = true
+utils-rustls-provider = { path = "../utils-rustls-provider" }
+zstd.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+system-configuration = "0.6"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+curl = { version = "0.4.50", features = ["static-curl", "ntlm"] }
+rustls-platform-verifier = "0.7.0"
+socket2 = "0.6"
+tokio-rustls = "0.26"
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Networking_WinHttp"] }

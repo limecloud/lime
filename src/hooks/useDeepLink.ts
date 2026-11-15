@@ -64,6 +64,7 @@ interface UseDeepLinkReturn {
 
 interface UseDeepLinkOptions {
   onOpenWebsiteDeepLink?: (payload: OpenDeepLinkPayload) => void;
+  onOpenSessionDeepLink?: (sessionId: string) => void;
 }
 
 export interface OpenDeepLinkPayload {
@@ -120,6 +121,7 @@ interface OpenDeepLinkResult {
 export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
   const { t } = useTranslation("common");
   const onOpenWebsiteDeepLink = options?.onOpenWebsiteDeepLink;
+  const onOpenSessionDeepLink = options?.onOpenSessionDeepLink;
 
   // 状态
   const [connectPayload, setConnectPayload] = useState<ConnectPayload | null>(
@@ -185,12 +187,19 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
         const target = new URL(normalizedUrl);
         if (
           target.protocol !== "lime:" ||
-          !["open", "connect"].includes(target.hostname)
+          !["open", "connect", "session"].includes(target.hostname)
         ) {
           showDeepLinkError(
             t("common.deepLink.unsupported"),
             "UNSUPPORTED_URL",
           );
+          return;
+        }
+        if (target.hostname === "session") {
+          const sessionId =
+            target.searchParams.get("sessionId")?.trim() ||
+            target.searchParams.get("session")?.trim();
+          if (sessionId) onOpenSessionDeepLink?.(sessionId);
           return;
         }
         if (target.hostname === "open") {
@@ -205,7 +214,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
         showDeepLinkError(connectError.message, connectError.code);
       }
     },
-    [handleDeepLinkEvent, handleOpenDeepLinkEvent, t],
+    [handleDeepLinkEvent, handleOpenDeepLinkEvent, onOpenSessionDeepLink, t],
   );
 
   /**

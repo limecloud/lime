@@ -864,6 +864,22 @@ export function AppSidebar({
     return () => window.removeEventListener("lime:cycle-sidebar-item", cycle);
   }, [conversationActions, currentSessionId, visibleRecentSidebarSessions]);
 
+  useEffect(() => {
+    const deleteActive = async () => {
+      const session = visibleRecentSidebarSessions.find(
+        (item) => item.id === currentSessionId,
+      );
+      if (session) await conversationActions.deleteConversation(session);
+    };
+    window.addEventListener("lime:delete-active-chat", deleteActive);
+    return () =>
+      window.removeEventListener("lime:delete-active-chat", deleteActive);
+  }, [
+    conversationActions,
+    currentSessionId,
+    visibleRecentSidebarSessions,
+  ]);
+
   const [, setUnreadRevision] = useState(0);
   useEffect(() => {
     const markActiveUnread = () => {

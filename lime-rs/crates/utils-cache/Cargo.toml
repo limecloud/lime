@@ -1,0 +1,21 @@
+[package]
+name = "utils-cache"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Small async cache helpers."
+
+[lib]
+name = "utils_cache"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+lru = "0.16"
+sha1 = "0.10"
+tokio = { workspace = true, features = ["sync", "rt", "rt-multi-thread"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }

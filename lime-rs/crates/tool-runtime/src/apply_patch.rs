@@ -976,4 +976,18 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn apply_patch_command_form_still_enforces_workspace_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let patch = "*** Begin Patch\n*** Add File: ../outside.txt\n+hi\n*** End Patch";
+        let command = format!("apply_patch <<'EOF'\n{patch}\nEOF");
+        let error = check_runtime_apply_patch_permissions(
+            &json!({ "command": command }),
+            dir.path(),
+        )
+        .expect_err("outside path must be rejected");
+        assert!(error.message().contains("must stay inside workspace"));
+    }
+
 }

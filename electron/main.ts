@@ -84,6 +84,7 @@ import {
 } from "./applicationMenu";
 import {
   app,
+  clipboard,
   BrowserWindow,
   dialog,
   globalShortcut,
@@ -105,8 +106,9 @@ import {
   Tray,
   type IpcMainInvokeEvent,
 } from "./electronRuntime";
-import { spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -1276,6 +1278,12 @@ async function handleHostInvoke(
     syncTrayModelShortcuts(args);
     return null;
   }
+  if (command === "screen_capture_region") {
+    return await captureScreenRegion();
+  }
+  if (command === "text_insert") {
+    return await insertTextAtFrontmostApp(args?.text);
+  }
   if (command === "take_pending_skill_package_open_requests") {
     return takePendingSkillPackageOpenRequests();
   }
@@ -1308,6 +1316,102 @@ function normalizeSaveDialogOptions(options: unknown): SaveDialogOptions {
   return options && typeof options === "object"
     ? (options as SaveDialogOptions)
     : {};
+}
+
+function captureScreenRegion(): Promise<{ data: string } | null> {
+  if (process.platform === "win32") {
+    return new Promise((resolve) => {
+      clipboard.clear();
+      void shell.openExternal("ms-screenclip:");
+      const startedAt = Date.now();
+      const timer = globalThis.setInterval(() => {
+        const image = clipboard.readImage();
+        if (!image.isEmpty()) {
+          globalThis.clearInterval(timer);
+          resolve({ data: image.toPNG().toString("base64") });
+          return;
+        }
+        if (Date.now() - startedAt > 120_000) {
+          globalThis.clearInterval(timer);
+          resolve(null);
+        }
+      }, 250);
+    });
+  }
+  return new Promise((resolve, reject) => {
+    if (process.platform !== "darwin") {
+      reject(new Error("Region capture is currently supported on macOS and Windows only."));
+      return;
+    }
+    const filePath = path.join(app.getPath("temp"), `lime-capture-${randomUUID()}.png`);
+    execFile(
+      "screencapture",
+      ["-i", "-x", "-t", "png", filePath],
+      { timeout: 120_000 },
+      (error) => {
+        try {
+          if (error || !existsSync(filePath)) {
+            resolve(null);
+            return;
+          }
+          const bytes = readFileSync(filePath);
+          if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024) {
+            resolve(null);
+            return;
+          }
+          resolve({ data: bytes.toString("base64") });
+        } finally {
+          try {
+            rmSync(filePath, { force: true });
+          } catch {
+            // temp cleanup is best effort
+          }
+        }
+      },
+    );
+  });
+}
+
+function insertTextAtFrontmostApp(text: unknown): Promise<null> {
+  return new Promise((resolve, reject) => {
+    const supported = process.platform === "darwin" || process.platform === "win32";
+    if (!supported) {
+      reject(new Error("Text insertion is currently supported on macOS and Windows only."));
+      return;
+    }
+    if (typeof text !== "string" || !text || text.length > 8000 || text.includes("\0")) {
+      reject(new Error("Text length is invalid."));
+      return;
+    }
+    const previous = clipboard.readText();
+    clipboard.writeText(text);
+    const command =
+      process.platform === "darwin" ? "osascript" : "powershell.exe";
+    const commandArgs =
+      process.platform === "darwin"
+        ? ["-e", 'tell application "System Events" to keystroke "v" using command down']
+        : [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^v")',
+          ];
+    execFile(
+      command,
+      commandArgs,
+      { timeout: 5000 },
+      (error) => {
+        globalThis.setTimeout(() => {
+          if (clipboard.readText() === text) clipboard.writeText(previous);
+        }, 500);
+        if (error) {
+          reject(new Error(`Could not insert dictated text: ${error.message}`));
+          return;
+        }
+        resolve(null);
+      },
+    );
+  });
 }
 
 function handleWindowCommand(

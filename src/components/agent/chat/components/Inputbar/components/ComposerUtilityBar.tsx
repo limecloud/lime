@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Cloud,
@@ -225,6 +225,27 @@ function ComposerUtilityBarWorkspace({
   const modeTrigger = React.useRef<HTMLButtonElement>(null);
   const modeState = useComposerMode();
   const composerMode = controlledMode ?? modeState?.composerMode ?? "local";
+  const composerModeRef = useRef(composerMode);
+  composerModeRef.current = composerMode;
+  useEffect(() => {
+    const openCloudLocation = () => setCloudSetupOpen(true);
+    window.addEventListener("lime:open-cloud-run-location", openCloudLocation);
+    return () =>
+      window.removeEventListener(
+        "lime:open-cloud-run-location",
+        openCloudLocation,
+      );
+  }, []);
+  useEffect(() => {
+    const toggle = () => {
+      const setMode = setControlledMode ?? modeState?.setComposerMode;
+      if (!setMode) return;
+      setMode(composerModeRef.current === "worktree" ? "local" : "worktree");
+    };
+    window.addEventListener("lime:toggle-worktree-mode", toggle);
+    return () =>
+      window.removeEventListener("lime:toggle-worktree-mode", toggle);
+  }, [modeState?.setComposerMode, setControlledMode]);
   const setComposerMode = setControlledMode ?? modeState?.setComposerMode;
   const [searchQuery, setSearchQuery] = useState("");
   const [uncontrolledProjectOpen, setUncontrolledProjectOpen] = useState(false);

@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { register, unregister } from "@/lib/desktop-host/global-shortcut";
-import { getElectronHostBridge } from "@/lib/electron-host";
+import {
+  armGlobalDictation,
+  cancelGlobalDictation,
+} from "@/lib/globalDictation";
 
 const GLOBAL_DICTATION_SHORTCUT = "Alt+D";
 
@@ -11,13 +14,14 @@ const GLOBAL_DICTATION_SHORTCUT = "Alt+D";
 export function GlobalDictationRuntime() {
   useEffect(() => {
     let registered = false;
+    let disarmTimer: number | undefined;
     const toggle = () => {
-      const host = getElectronHostBridge();
-      void Promise.resolve(host?.window?.show()).catch(() => undefined);
-      void Promise.resolve(host?.window?.setFocus()).catch(() => undefined);
+      armGlobalDictation();
+      window.clearTimeout(disarmTimer);
       window.setTimeout(() => {
         window.dispatchEvent(new CustomEvent("lime:toggle-dictation"));
       }, 180);
+      disarmTimer = window.setTimeout(cancelGlobalDictation, 60_000);
     };
     void register(GLOBAL_DICTATION_SHORTCUT, toggle)
       .then(() => {
@@ -25,6 +29,8 @@ export function GlobalDictationRuntime() {
       })
       .catch(() => undefined);
     return () => {
+      window.clearTimeout(disarmTimer);
+      cancelGlobalDictation();
       if (!registered) return;
       void unregister(GLOBAL_DICTATION_SHORTCUT).catch(() => undefined);
     };

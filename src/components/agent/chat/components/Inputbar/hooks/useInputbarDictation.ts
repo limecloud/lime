@@ -8,6 +8,11 @@ import type {
   ComposerEditorHandle,
 } from "@/components/input-kit";
 import { applyDictationTranscript } from "./composerDictationDraft";
+import {
+  consumeGlobalDictation,
+  insertGlobalDictation,
+  isGlobalDictationArmed,
+} from "@/lib/globalDictation";
 import { playDictationSound } from "./inputbarDictationSounds";
 import { DictationHistoryWriter } from "@/lib/dictationHistoryWriter";
 import { selectDictationHistory } from "@/lib/dictationHistoryRecovery";
@@ -350,6 +355,23 @@ export function useInputbarDictation({
       if (composing()) {
         finishSession(session);
         return false;
+      }
+      if (
+        isGlobalDictationArmed() &&
+        (final ? consumeGlobalDictation() : true)
+      ) {
+        if (final) {
+          void insertGlobalDictation(text).catch(() => {
+            if (
+              applyDictationTranscript(session.owner, session.draft, text)
+            ) {
+              session.applied = true;
+              setText(session.owner.getDocument().text);
+              editorRef.current?.focus();
+            }
+          });
+        }
+        return true;
       }
       if (!applyDictationTranscript(session.owner, session.draft, text))
         return false;

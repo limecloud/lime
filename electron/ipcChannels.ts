@@ -32,6 +32,8 @@ export const ELECTRON_HOST_COMMANDS = [
   "get_runtime_provider_selection",
   "sync_tray_model_shortcuts",
   "take_pending_skill_package_open_requests",
+  "text_insert",
+  "screen_capture_region",
   "browser_tab_mount",
   "browser_tab_list",
   "browser_tab_set_bounds",

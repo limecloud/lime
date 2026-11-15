@@ -1,0 +1,18 @@
+[package]
+name = "utils-redacted-string"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Redacted string wrapper for secrets in serialized output."
+
+[lib]
+name = "utils_redacted_string"
+path = "src/lib.rs"
+doctest = false
+test = false
+
+[dependencies]
+schemars = "0.8"
+serde = { workspace = true, features = ["derive"] }

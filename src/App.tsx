@@ -457,6 +457,8 @@ function AppContent() {
     handleCancel,
   } = useDeepLink({
     onOpenWebsiteDeepLink: handleOpenWebsiteDeepLink,
+    onOpenSessionDeepLink: (sessionId) =>
+      handleNavigate("agent", buildConversationParams({ initialSessionId: sessionId })),
   });
 
   useAppStartupEffects({

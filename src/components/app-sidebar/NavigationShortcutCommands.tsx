@@ -4,6 +4,11 @@ import { createAgentRuntimeSession } from "@/lib/api/agentRuntime/sessionClient"
 import { readAgentRuntimeSessionRolloutPath } from "@/lib/api/agentRuntime/sessionPath";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import {
+  exportDiagnosticsTrace,
+  listDiagnosticsTraces,
+} from "@/lib/api/serverRuntime";
+import { toast } from "sonner";
+import {
   downloadTraceRecording,
   isTraceRecording,
   startTraceRecording,
@@ -279,6 +284,93 @@ export function NavigationShortcutCommands({
           window.dispatchEvent(new CustomEvent("lime:toggle-plan-mode")),
       },
       {
+        id: "app.focusSideChat",
+        titleKey: "commands.focusSideChat.title",
+        descriptionKey: "commands.focusSideChat.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:focus-side-chat")),
+      },
+      {
+        id: "app.openAvatarOverlay",
+        titleKey: "commands.openAvatarOverlay.title",
+        descriptionKey: "commands.openAvatarOverlay.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:open-quick-capture")),
+      },
+      {
+        id: "app.toggleNotch",
+        titleKey: "commands.toggleNotch.title",
+        descriptionKey: "commands.toggleNotch.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:toggle-notch")),
+      },
+      {
+        id: "app.notchVoice",
+        titleKey: "commands.notchVoice.title",
+        descriptionKey: "commands.notchVoice.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:notch-voice")),
+      },
+      {
+        id: "app.toggleSideChat",
+        titleKey: "commands.toggleSideChat.title",
+        descriptionKey: "commands.toggleSideChat.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:toggle-side-chat")),
+      },
+      {
+        id: "app.quickCapture",
+        titleKey: "commands.quickCapture.title",
+        descriptionKey: "commands.quickCapture.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:open-quick-capture")),
+      },
+      {
+        id: "app.exportDiagnosticsTrace",
+        titleKey: "commands.exportDiagnosticsTrace.title",
+        descriptionKey: "commands.exportDiagnosticsTrace.description",
+        section: "app",
+        bindings: [],
+        handler: async () => {
+          const sessionId = activeTab();
+          if (!sessionId) return;
+          const list = await listDiagnosticsTraces({
+            session_id: sessionId,
+            limit: 1,
+          });
+          const trace = list.traces[0];
+          if (!trace) {
+            toast.error(t("commands.exportDiagnosticsTrace.empty"));
+            return;
+          }
+          const result = await exportDiagnosticsTrace({
+            session_id: sessionId,
+            trace_id: trace.trace_id,
+          });
+          if (result.bundle_path) {
+            toast.success(
+              t("commands.exportDiagnosticsTrace.success", {
+                path: result.bundle_path,
+              }),
+            );
+          } else {
+            toast.error(t("commands.exportDiagnosticsTrace.failed"));
+          }
+        },
+      },
+      {
         id: "app.toggleTraceRecording",
         titleKey: "commands.toggleTraceRecording.title",
         descriptionKey: "commands.toggleTraceRecording.description",
@@ -302,6 +394,26 @@ export function NavigationShortcutCommands({
         handler: () => {
           window.dispatchEvent(new CustomEvent("lime:toggle-dictation"));
         },
+      },
+      {
+        id: "composer.toggleWorkRunLocation",
+        titleKey: "commands.toggleWorkRunLocation.title",
+        descriptionKey: "commands.toggleWorkRunLocation.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:open-cloud-run-location"),
+          ),
+      },
+      {
+        id: "composer.toggleWorktreeMode",
+        titleKey: "commands.toggleWorktreeMode.title",
+        descriptionKey: "commands.toggleWorktreeMode.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:toggle-worktree-mode")),
       },
       {
         id: "composer.cycleReasoningEffort",
@@ -535,6 +647,28 @@ export function NavigationShortcutCommands({
         handler: () =>
           window.dispatchEvent(
             new CustomEvent("lime:thread-shortcut", { detail: "fork" }),
+          ),
+      },
+      {
+        id: "app.screenshotCurrentChat",
+        titleKey: "commands.screenshotCurrentChat.title",
+        descriptionKey: "commands.screenshotCurrentChat.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:screenshot-current-chat"),
+          ),
+      },
+      {
+        id: "app.screenshotNewChat",
+        titleKey: "commands.screenshotNewChat.title",
+        descriptionKey: "commands.screenshotNewChat.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:screenshot-new-chat"),
           ),
       },
       {
@@ -795,6 +929,29 @@ export function NavigationShortcutCommands({
         bindings: [],
         handler: () =>
           window.dispatchEvent(new CustomEvent("lime:browser-reload")),
+      },
+      {
+        id: "app.copyConversationDeepLink",
+        titleKey: "commands.copyConversationDeepLink.title",
+        descriptionKey: "commands.copyConversationDeepLink.description",
+        section: "thread",
+        bindings: [],
+        handler: async () => {
+          const sessionId = activeTab();
+          if (!sessionId) return;
+          await navigator.clipboard.writeText(
+            `lime://session?sessionId=${encodeURIComponent(sessionId)}`,
+          );
+        },
+      },
+      {
+        id: "thread.deleteChat",
+        titleKey: "commands.deleteChat.title",
+        descriptionKey: "commands.deleteChat.description",
+        section: "thread",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:delete-active-chat")),
       },
       {
         id: "thread.copyConversationPath",

@@ -1,0 +1,23 @@
+[package]
+name = "extension-items"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Extension item declarations."
+
+[lib]
+name = "extension_items"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+lime-utils-absolute-path.workspace = true
+schemars = "0.8"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+ts-rs = "11"
+
+[dev-dependencies]
+pretty_assertions.workspace = true

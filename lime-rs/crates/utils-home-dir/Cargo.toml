@@ -1,0 +1,21 @@
+[package]
+name = "utils-home-dir"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Home directory resolution."
+
+[lib]
+name = "utils_home_dir"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+lime-utils-absolute-path.workspace = true
+dirs = "6"
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true

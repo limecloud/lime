@@ -230,6 +230,16 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     window.addEventListener("lime:toggle-dictation", toggle);
     return () => window.removeEventListener("lime:toggle-dictation", toggle);
   }, [dictationEnabled, handleDictationToggle, isDictationBusy]);
+  useEffect(() => {
+    const applyDraft = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: unknown }>).detail?.text;
+      if (typeof text !== "string") return;
+      controller.setText(text);
+    };
+    window.addEventListener("lime:set-composer-draft", applyDraft);
+    return () =>
+      window.removeEventListener("lime:set-composer-draft", applyDraft);
+  }, [controller]);
   const dictationShowTranscript = isDictationBusy
     ? Boolean(liveTranscript.trim())
     : undefined;

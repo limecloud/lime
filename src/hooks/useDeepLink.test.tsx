@@ -229,4 +229,20 @@ describe("useDeepLink", () => {
     expect(mockResolveConnectDeepLink).not.toHaveBeenCalled();
     expect(mockResolveOpenDeepLink).not.toHaveBeenCalled();
   });
+
+  it("lime://session 深链应回调 sessionId", async () => {
+    let deepLinkHandler: ((urls: string[]) => void) | null = null;
+    vi.mocked(onOpenUrl).mockImplementation(async (handler) => {
+      deepLinkHandler = handler;
+      return vi.fn();
+    });
+    const onOpenSessionDeepLink = vi.fn();
+    await renderHook({ onOpenSessionDeepLink });
+    await act(async () => {
+      deepLinkHandler?.(["lime://session?sessionId=session-123"]);
+      await Promise.resolve();
+    });
+    expect(onOpenSessionDeepLink).toHaveBeenCalledWith("session-123");
+  });
+
 });

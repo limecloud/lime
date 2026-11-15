@@ -47,7 +47,16 @@ file-search = { path = "crates/file-search" }
 lime-utils-absolute-path = { path = "crates/utils-absolute-path" }
 lime-utils-path-uri = { path = "crates/utils-path-uri" }
 async-utils = { path = "crates/async-utils" }
+extension-items = { path = "crates/extension-items" }
+http-client = { path = "crates/http-client" }
 process-hardening = { path = "crates/process-hardening" }
+utils-model-facing-id = { path = "crates/utils-model-facing-id" }
+utils-cache = { path = "crates/utils-cache" }
+utils-image = { path = "crates/utils-image" }
+utils-rustls-provider = { path = "crates/utils-rustls-provider" }
+utils-home-dir = { path = "crates/utils-home-dir" }
+utils-string = { path = "crates/utils-string" }
+utils-redacted-string = { path = "crates/utils-redacted-string" }
 lime-permissions = { path = "crates/permissions" }
 code-mode-protocol = { path = "crates/code-mode-protocol" }
 code-mode-runtime = { path = "crates/code-mode-runtime" }

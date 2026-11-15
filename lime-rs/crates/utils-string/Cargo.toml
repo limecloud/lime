@@ -1,0 +1,21 @@
+[package]
+name = "utils-string"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "String helpers shared by Lime runtime components."
+
+[lib]
+name = "utils_string"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+regex-lite = "0.1"
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
