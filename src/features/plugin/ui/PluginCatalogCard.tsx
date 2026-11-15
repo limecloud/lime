@@ -90,6 +90,11 @@ export function PluginCatalogCard({
               aria-hidden="true"
             />
           ) : null}
+          {plugin.version ? (
+            <span className="shrink-0 rounded-full border border-[color:var(--lime-surface-border)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--lime-text-muted)]">
+              v{plugin.version}
+            </span>
+          ) : null}
         </div>
         <p className="mt-0.5 line-clamp-1 text-sm leading-5 text-[color:var(--lime-text-muted)]">
           {pluginDescription(plugin) ||
