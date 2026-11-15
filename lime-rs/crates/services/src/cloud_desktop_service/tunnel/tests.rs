@@ -169,17 +169,16 @@ async fn closing_a_tunnel_owns_its_listener_and_every_open_stream() {
         .await
         .unwrap()
         .unwrap();
-    // Rebind synchronously to prove the listener was closed and reserve its port
-    // before another parallel test can reuse it for an unrelated listener.
-    let replacement = tokio::net::TcpSocket::new_v4().unwrap();
-    #[cfg(unix)]
-    replacement.set_reuseaddr(true).unwrap();
-    replacement
-        .bind((std::net::Ipv4Addr::LOCALHOST, tunnel.port).into())
-        .unwrap();
-    let _replacement_listener = replacement.listen(1).unwrap();
+    // Joining the task also drops its owned listener. Probing the released port
+    // would instead observe OS socket state or an unrelated parallel listener.
     assert_eq!(tunnel.state.active.load(Ordering::Relaxed), 0);
-    assert_eq!(client.read(&mut [0; 1]).await.unwrap(), 0);
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), client.read(&mut [0; 1]))
+            .await
+            .expect("closing the tunnel must close its existing stream")
+            .unwrap(),
+        0
+    );
     server.abort();
 }
 
