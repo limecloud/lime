@@ -1,0 +1,43 @@
+{
+  "$defs": {
+    "ProjectGitCommitStatus": {
+      "enum": [
+        "committed"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "repositoryRoot": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "rootPath": {
+      "type": "string"
+    },
+    "sha": {
+      "type": "string"
+    },
+    "shortSha": {
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ProjectGitCommitStatus"
+    },
+    "subject": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "rootPath",
+    "sha",
+    "shortSha",
+    "status",
+    "subject"
+  ],
+  "title": "ProjectGitCommitResponse",
+  "type": "object"
+}

@@ -18,6 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+caseless.workspace = true
 clap.workspace = true
 lime-utils-absolute-path.workspace = true
 multimap = "0.10.0"
@@ -26,6 +27,7 @@ serde_json.workspace = true
 shlex.workspace = true
 starlark = { version = "0.14.2", default-features = false }
 tempfile.workspace = true
+unicode-normalization.workspace = true
 thiserror = "2.0.17"
 tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt"] }
 

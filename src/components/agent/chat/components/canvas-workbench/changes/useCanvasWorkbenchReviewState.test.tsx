@@ -211,6 +211,60 @@ describe("useCanvasWorkbenchReviewState request identity", () => {
     expect(hook.state.loadFullFile).toBe(true);
   });
 
+  it("提交成功后只刷新对应工作区的审阅投影", async () => {
+    git.diff.mockResolvedValue(patch("a.ts", "committed"));
+    const hook = mount();
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("lime:git-commit-completed", {
+          detail: { rootPath: "/other" },
+        }),
+      );
+      await Promise.resolve();
+    });
+    expect(git.diff).not.toHaveBeenCalled();
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("lime:git-commit-completed", {
+          detail: { rootPath: "/workspace/" },
+        }),
+      );
+      await Promise.resolve();
+    });
+    expect(git.diff).toHaveBeenCalledWith("/workspace", 3);
+    expect(git.status).toHaveBeenCalledWith("/workspace");
+    expect(hook.state.gitUncommittedFileCount).toBe(1);
+  });
+
+  it("创建分支成功后只刷新对应工作区的审阅投影", async () => {
+    git.diff.mockResolvedValue(patch("a.ts", "created-branch"));
+    const hook = mount();
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("lime:git-branch-created", {
+          detail: { rootPath: "/other" },
+        }),
+      );
+      await Promise.resolve();
+    });
+    expect(git.diff).not.toHaveBeenCalled();
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("lime:git-branch-created", {
+          detail: { rootPath: "/workspace/" },
+        }),
+      );
+      await Promise.resolve();
+    });
+    expect(git.diff).toHaveBeenCalledWith("/workspace", 3);
+    expect(git.status).toHaveBeenCalledWith("/workspace");
+    expect(hook.state.gitUncommittedFileCount).toBe(1);
+  });
+
   it("全文失败可重试；新 turn 不复用相同 id 的全文缓存", async () => {
     const loadFilePreview = vi
       .fn()

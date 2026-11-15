@@ -12,6 +12,13 @@ export function markSessionRead(sessionId: string): void {
   );
 }
 
+export function markSessionUnread(sessionId: string): void {
+  if (typeof window === "undefined") return;
+  const normalized = sessionId.trim();
+  if (!normalized) return;
+  window.localStorage.setItem(`${READ_AT_KEY_PREFIX}${normalized}`, "1");
+}
+
 export function isSessionUnread(session: AgentSessionInfo): boolean {
   if (typeof window === "undefined") return false;
   const raw = window.localStorage.getItem(

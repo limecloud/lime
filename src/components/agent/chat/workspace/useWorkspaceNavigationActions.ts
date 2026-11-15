@@ -151,10 +151,6 @@ export function useWorkspaceNavigationActions({
     [onNavigate],
   );
 
-  const handleOpenChannels = useCallback(() => {
-    onNavigate?.("channels");
-  }, [onNavigate]);
-
   const handleCompactContext = useCallback(() => {
     void compactSession();
   }, [compactSession]);
@@ -177,7 +173,6 @@ export function useWorkspaceNavigationActions({
     handleDismissEntryBanner,
     handleDismissWorkspaceAlert,
     handleManageProviders,
-    handleOpenChannels,
     handleOpenExecutionPolicySettings,
     handleOpenRuntimeMemoryWorkbench,
     handleOpenAppearanceSettings,

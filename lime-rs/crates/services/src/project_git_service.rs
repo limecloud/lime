@@ -5,8 +5,16 @@ use std::time::Duration;
 
 mod process;
 use process::git_command_output_from;
+mod blame;
+pub use blame::{read_blame, validate_blame_path, ProjectGitBlame, ProjectGitBlameLine};
 mod status;
 pub use status::read_status;
+
+mod commit;
+pub use commit::{
+    commit, ProjectGitCommitResult, ProjectGitCommitStatus, MAX_COMMIT_MESSAGE_CHARS,
+    MAX_COMMIT_PATH_COUNT,
+};
 
 mod worktrees;
 pub use worktrees::{
@@ -21,6 +29,9 @@ pub use worktrees::{
 pub use worktrees::{restore_worktree, snapshot_worktree, WorktreeSnapshot};
 
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Git 分支名上限，按字符计。
+pub const MAX_BRANCH_NAME_CHARS: usize = 200;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -403,14 +414,21 @@ fn validate_commit_sha(commit_sha: Option<&str>) -> Result<&str, String> {
 
 pub async fn checkout_branch(root_path: &str, branch: &str) -> Result<ProjectGitStatus, String> {
     let root = required_root_path(root_path)?;
-    validate_branch_name(branch)?;
+    let branch = validate_branch_name(branch)?;
     git_output(&root, &["switch", branch]).await?;
     read_status(root_path).await
 }
 
 pub async fn create_branch(root_path: &str, branch: &str) -> Result<ProjectGitStatus, String> {
+    let status = read_status(root_path).await?;
+    if !status.has_git_repository {
+        return Err("当前工作区不是 Git 仓库".to_string());
+    }
     let root = required_root_path(root_path)?;
-    validate_branch_name(branch)?;
+    let branch = validate_branch_name(branch)?;
+    if status.branches.iter().any(|existing| existing == branch) {
+        return Err(format!("分支已存在: {branch}"));
+    }
     git_output(&root, &["switch", "-c", branch]).await?;
     read_status(root_path).await
 }
@@ -515,13 +533,13 @@ fn output_to_string(output: Output) -> Result<String, String> {
     }
 }
 
-fn validate_branch_name(branch: &str) -> Result<(), String> {
+pub fn validate_branch_name(branch: &str) -> Result<&str, String> {
     let branch = branch.trim();
     if branch.is_empty() {
         return Err("分支名不能为空".to_string());
     }
-    if branch.len() > 128 {
-        return Err("分支名过长".to_string());
+    if branch.chars().count() > MAX_BRANCH_NAME_CHARS {
+        return Err(format!("分支名过长（最多 {MAX_BRANCH_NAME_CHARS} 个字符）"));
     }
     if branch.starts_with('-') || branch.starts_with('/') || branch.ends_with('/') {
         return Err("分支名格式无效".to_string());
@@ -542,7 +560,7 @@ fn validate_branch_name(branch: &str) -> Result<(), String> {
     {
         return Err("分支名格式无效".to_string());
     }
-    Ok(())
+    Ok(branch)
 }
 
 #[cfg(test)]
@@ -868,15 +886,38 @@ mod tests {
             return;
         };
 
-        let created = create_branch(&repo.to_string_lossy(), "feature/demo")
+        let created = create_branch(&repo.to_string_lossy(), "  feature/demo  ")
             .await
             .expect("create branch");
         assert_eq!(created.current_branch.as_deref(), Some("feature/demo"));
+        assert!(created
+            .branches
+            .iter()
+            .any(|branch| branch == "feature/demo"));
 
         let checked_out = checkout_branch(&repo.to_string_lossy(), "main")
             .await
             .expect("checkout");
         assert_eq!(checked_out.current_branch.as_deref(), Some("main"));
+    }
+
+    #[tokio::test]
+    async fn branch_create_fails_cleanly_for_existing_branch_and_missing_repository() {
+        let Some((_temp, repo)) = init_repo() else {
+            return;
+        };
+
+        let error = create_branch(&repo.to_string_lossy(), "main")
+            .await
+            .expect_err("existing branch must fail");
+        assert!(error.contains("分支已存在"));
+
+        let temp = tempfile::tempdir().expect("temp dir");
+        let error = create_branch(&temp.path().to_string_lossy(), "feature/demo")
+            .await
+            .expect_err("missing repository must fail");
+        assert!(error.contains("Git 仓库"));
+        assert!(!temp.path().join(".git").exists());
     }
 
     #[test]
@@ -885,6 +926,14 @@ mod tests {
         assert!(validate_branch_name("bad name").is_err());
         assert!(validate_branch_name("bad..name").is_err());
         assert!(validate_branch_name("bad~name").is_err());
+        assert!(validate_branch_name("bad\u{7f}name").is_err());
+        assert_eq!(
+            validate_branch_name("  feature/demo  ").expect("trimmed branch"),
+            "feature/demo"
+        );
+        let max = "a".repeat(MAX_BRANCH_NAME_CHARS);
+        assert!(validate_branch_name(&max).is_ok());
+        assert!(validate_branch_name(&format!("{max}a")).is_err());
     }
 
     #[tokio::test]

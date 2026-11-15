@@ -228,6 +228,8 @@ export function readCanonicalThreadDetail(
       sessionId,
     created_at: createdAtMs,
     updated_at: updatedAtMs,
+    ephemeral:
+      readOptionalBooleanField(thread, "ephemeral", "ephemeral") ?? false,
     model:
       readOptionalStringField(thread, "modelProvider") ||
       metadataString(metadata, "model", "modelName", "model_name"),
@@ -249,6 +251,8 @@ export function readCanonicalThreadDetail(
     items,
     thread_read: {
       thread_id: threadId,
+      ephemeral:
+        readOptionalBooleanField(thread, "ephemeral", "ephemeral") ?? false,
       reasoning_effort:
         metadataString(metadata, "reasoningEffort", "effort") ?? null,
       thread_items: items,
@@ -262,11 +266,8 @@ export function readCanonicalThreadDetail(
       profile_status: profileStatus,
       active_turn_id: turns.find((turn) => turn.status === "running")?.id,
       forked_from_id:
-        readOptionalStringField(
-          thread,
-          "forkedFromId",
-          "forked_from_id",
-        ) ?? null,
+        readOptionalStringField(thread, "forkedFromId", "forked_from_id") ??
+        null,
       turns: turns.map((turn) => ({
         turn_id: turn.id,
         status: canonicalProfileStatus(turn.status),

@@ -173,5 +173,7 @@
   "common.modelCapabilities.reasoning.inactive": "無思考",
   "common.modelCapabilities.vision.active": "支援多模態",
   "common.modelCapabilities.vision.inactive": "無多模態",
-  "common.modelSelector.state.loginRequired": "需要登入"
+  "common.modelSelector.state.loginRequired": "需要登入",
+  "common.temporaryChat.name": "臨時對話",
+  "common.temporaryChat.failed": "無法建立臨時對話"
 }

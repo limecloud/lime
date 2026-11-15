@@ -83,7 +83,7 @@ import { DesktopNotificationRuntime } from "@/components/app-sidebar/DesktopNoti
 import { AppSnapshotRuntime } from "@/components/app-sidebar/AppSnapshotRuntime";
 import { AutoArchiveRuntime } from "@/components/app-sidebar/AutoArchiveRuntime";
 import { useComposerEditorPreferences } from "@/lib/composerEditorPreferences";
-import { markSessionRead } from "@/lib/sessionUnreadState";
+import { markSessionRead, markSessionUnread } from "@/lib/sessionUnreadState";
 import { useAppSidebarSessions } from "@/components/app-sidebar/useAppSidebarSessions";
 import { useSidebarThreadSearch } from "@/components/app-sidebar/useSidebarThreadSearch";
 import { mergeSidebarThreadSearchSessions } from "@/components/app-sidebar/sidebarThreadSearch";
@@ -193,9 +193,7 @@ export function AppSidebar({
   );
   const activePage = requestedPage ?? currentPage;
   const activePageParams = requestedPageParams ?? currentPageParams;
-  const isCustomizationPage = ["plugins", "skills", "experts"].includes(
-    activePage,
-  );
+  const isCustomizationPage = ["plugins", "skills"].includes(activePage);
   const activeNavigationTarget = {
     page: activePage,
     rawParams: activePageParams,
@@ -296,6 +294,15 @@ export function AppSidebar({
   const currentSessionId =
     requestedAgentSessionId || liveAgentSessionId || routeAgentSessionId;
   const [activityViewOpen, setActivityViewOpen] = useState(false);
+  useEffect(() => {
+    const togglePriority = () => setActivityViewOpen((open) => !open);
+    window.addEventListener("lime:toggle-priority-filter", togglePriority);
+    return () =>
+      window.removeEventListener(
+        "lime:toggle-priority-filter",
+        togglePriority,
+      );
+  }, []);
   const [preferredCollapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return false;
@@ -349,7 +356,8 @@ export function AppSidebar({
     titleKey: "commands.searchThreads.title",
     descriptionKey: "commands.searchThreads.description",
     section: "navigation",
-    bindings: ["CommandOrControl+K"],
+    // Codex 的 searchChats 没有默认键位；⌘K 归 app.openCommandMenu。
+    bindings: [],
     enabled: true,
     allowInInput: true,
     handler: openSidebarSearchDialog,
@@ -678,20 +686,6 @@ export function AppSidebar({
         setWorkspaceFullView(false);
         return;
       }
-      const digitTabModifier =
-        (event.metaKey || event.ctrlKey) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        /^[1-9]$/.test(event.key);
-      if (digitTabModifier) {
-        const { tabs } = getConversationTabsSnapshot();
-        const target = tabs[Number(event.key) - 1];
-        if (target) {
-          event.preventDefault();
-          activateConversationTab(target.sessionId);
-        }
-        return;
-      }
       if (
         event.key !== "Tab" ||
         !event.ctrlKey ||
@@ -869,6 +863,18 @@ export function AppSidebar({
     window.addEventListener("lime:cycle-sidebar-item", cycle);
     return () => window.removeEventListener("lime:cycle-sidebar-item", cycle);
   }, [conversationActions, currentSessionId, visibleRecentSidebarSessions]);
+
+  const [, setUnreadRevision] = useState(0);
+  useEffect(() => {
+    const markActiveUnread = () => {
+      if (!currentSessionId) return;
+      markSessionUnread(currentSessionId);
+      setUnreadRevision((revision) => revision + 1);
+    };
+    window.addEventListener("lime:mark-active-unread", markActiveUnread);
+    return () =>
+      window.removeEventListener("lime:mark-active-unread", markActiveUnread);
+  }, [currentSessionId]);
 
   useEffect(() => {
     const markAllRead = () => {

@@ -1,4 +1,14 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { createAgentRuntimeSession } from "@/lib/api/agentRuntime/sessionClient";
+import { readAgentRuntimeSessionRolloutPath } from "@/lib/api/agentRuntime/sessionPath";
+import { buildHomeAgentParams } from "@/lib/workspace/navigation";
+import {
+  downloadTraceRecording,
+  isTraceRecording,
+  startTraceRecording,
+  stopTraceRecording,
+} from "@/lib/traceRecording";
 import type { Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import { useCommand } from "@/lib/commands/useCommand";
@@ -32,6 +42,7 @@ export function NavigationShortcutCommands({
 }: {
   onNavigate?: (page: Page, params?: PageParams) => void;
 } = {}) {
+  const { t } = useTranslation("navigation");
   const commands = useMemo<CommandRegistration[]>(() => {
     const activeTab = () => getConversationTabsSnapshot().activeSessionId;
     const moveTab = (offset: number) => {
@@ -51,6 +62,78 @@ export function NavigationShortcutCommands({
         bindings: ["CommandOrControl+N", "CommandOrControl+Shift+O"],
         allowInInput: true,
         handler: requestNewConversationTab,
+      },
+      {
+        id: "approval.approve",
+        titleKey: "commands.approvePending.title",
+        descriptionKey: "commands.approvePending.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:approve-pending")),
+      },
+      {
+        id: "approval.deny",
+        titleKey: "commands.denyPending.title",
+        descriptionKey: "commands.denyPending.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:deny-pending")),
+      },
+      {
+        id: "app.snapshotNewChat",
+        titleKey: "commands.snapshotNewChat.title",
+        descriptionKey: "commands.snapshotNewChat.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:snapshot-new-chat")),
+      },
+      {
+        id: "app.snapshotCurrentChat",
+        titleKey: "commands.snapshotCurrentChat.title",
+        descriptionKey: "commands.snapshotCurrentChat.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:snapshot-current-chat"),
+          ),
+      },
+      {
+        id: "app.searchFiles",
+        titleKey: "commands.searchFiles.title",
+        descriptionKey: "commands.searchFiles.description",
+        section: "navigation",
+        bindings: ["CommandOrControl+P"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:open-file-search")),
+      },
+      {
+        id: "navigation.temporaryChat",
+        titleKey: "commands.temporaryChat.title",
+        descriptionKey: "commands.temporaryChat.description",
+        section: "navigation",
+        bindings: ["CommandOrControl+Shift+N"],
+        allowInInput: true,
+        handler: async () => {
+          const name = t("commands.temporaryChat.title");
+          const sessionId = await createAgentRuntimeSession(
+            undefined,
+            name,
+            undefined,
+            { ephemeral: true },
+          );
+          onNavigate?.(
+            "agent",
+            buildHomeAgentParams({
+              initialSessionId: sessionId,
+              initialSessionName: name,
+            }),
+          );
+        },
       },
       {
         id: "navigation.newStandaloneChat",
@@ -139,6 +222,18 @@ export function NavigationShortcutCommands({
         handler: requestConversationHistoryForward,
       },
       ...Array.from({ length: 9 }, (_, index) => ({
+        id: `navigation.focusTab${index + 1}`,
+        titleKey: `commands.focusTab${index + 1}.title`,
+        descriptionKey: `commands.focusTab${index + 1}.description`,
+        section: "navigation" as const,
+        bindings: [`CommandOrControl+${index + 1}`],
+        allowInInput: true,
+        handler: () => {
+          const target = getConversationTabsSnapshot().tabs[index];
+          if (target) activateConversationTab(target.sessionId);
+        },
+      })),
+      ...Array.from({ length: 9 }, (_, index) => ({
         id: `navigation.recentChat${index + 1}`,
         titleKey: `commands.recentChat${index + 1}.title`,
         descriptionKey: `commands.recentChat${index + 1}.description`,
@@ -182,6 +277,60 @@ export function NavigationShortcutCommands({
         bindings: [],
         handler: () =>
           window.dispatchEvent(new CustomEvent("lime:toggle-plan-mode")),
+      },
+      {
+        id: "app.toggleTraceRecording",
+        titleKey: "commands.toggleTraceRecording.title",
+        descriptionKey: "commands.toggleTraceRecording.description",
+        section: "app",
+        bindings: [],
+        handler: () => {
+          if (isTraceRecording()) {
+            const snapshot = stopTraceRecording();
+            if (snapshot) downloadTraceRecording(snapshot);
+          } else {
+            startTraceRecording();
+          }
+        },
+      },
+      {
+        id: "app.globalDictation",
+        titleKey: "commands.globalDictation.title",
+        descriptionKey: "commands.globalDictation.description",
+        section: "panels",
+        bindings: [],
+        handler: () => {
+          window.dispatchEvent(new CustomEvent("lime:toggle-dictation"));
+        },
+      },
+      {
+        id: "composer.cycleReasoningEffort",
+        titleKey: "commands.cycleReasoningEffort.title",
+        descriptionKey: "commands.cycleReasoningEffort.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:cycle-reasoning-effort"),
+          ),
+      },
+      {
+        id: "inputbar.toggleDictation",
+        titleKey: "commands.toggleDictation.title",
+        descriptionKey: "commands.toggleDictation.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:toggle-dictation")),
+      },
+      {
+        id: "inputbar.attachFiles",
+        titleKey: "commands.attachFiles.title",
+        descriptionKey: "commands.attachFiles.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:attach-files")),
       },
       {
         id: "inputbar.clearPrompt",
@@ -243,6 +392,37 @@ export function NavigationShortcutCommands({
           );
           target?.focus();
         },
+      },
+      {
+        id: "search.previousChat",
+        titleKey: "commands.searchPreviousChat.title",
+        descriptionKey: "commands.searchPreviousChat.description",
+        section: "navigation",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:search-chats-previous"),
+          ),
+      },
+      {
+        id: "search.nextChat",
+        titleKey: "commands.searchNextChat.title",
+        descriptionKey: "commands.searchNextChat.description",
+        section: "navigation",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:search-chats-next")),
+      },
+      {
+        id: "navigation.togglePriorityFilter",
+        titleKey: "commands.togglePriorityFilter.title",
+        descriptionKey: "commands.togglePriorityFilter.description",
+        section: "navigation",
+        bindings: ["CommandOrControl+Alt+U"],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:toggle-priority-filter"),
+          ),
       },
       {
         id: "navigation.focusSidebar",
@@ -337,6 +517,16 @@ export function NavigationShortcutCommands({
           window.dispatchEvent(new CustomEvent("lime:mark-all-read")),
       },
       {
+        id: "thread.markUnread",
+        titleKey: "commands.markUnread.title",
+        descriptionKey: "commands.markUnread.description",
+        section: "thread",
+        bindings: ["CommandOrControl+Shift+U"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:mark-active-unread")),
+      },
+      {
         id: "thread.forkChat",
         titleKey: "commands.forkChat.title",
         descriptionKey: "commands.forkChat.description",
@@ -417,6 +607,209 @@ export function NavigationShortcutCommands({
           ),
       },
       {
+        id: "browser.back",
+        titleKey: "commands.browserBack.title",
+        descriptionKey: "commands.browserBack.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-back")),
+      },
+      {
+        id: "browser.forward",
+        titleKey: "commands.browserForward.title",
+        descriptionKey: "commands.browserForward.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-forward")),
+      },
+      {
+        id: "browser.findNext",
+        titleKey: "commands.browserFindNext.title",
+        descriptionKey: "commands.browserFindNext.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-find-next")),
+      },
+      {
+        id: "browser.findPrevious",
+        titleKey: "commands.browserFindPrevious.title",
+        descriptionKey: "commands.browserFindPrevious.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-find-previous")),
+      },
+      {
+        id: "browser.find",
+        titleKey: "commands.browserFind.title",
+        descriptionKey: "commands.browserFind.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:open-browser-find")),
+      },
+      {
+        id: "browser.focusPage",
+        titleKey: "commands.browserFocusPage.title",
+        descriptionKey: "commands.browserFocusPage.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-focus-page")),
+      },
+      {
+        id: "browser.closeAllTabs",
+        titleKey: "commands.browserCloseAllTabs.title",
+        descriptionKey: "commands.browserCloseAllTabs.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:browser-close-all-tabs"),
+          ),
+      },
+      {
+        id: "browser.closeOtherTabs",
+        titleKey: "commands.browserCloseOtherTabs.title",
+        descriptionKey: "commands.browserCloseOtherTabs.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(
+            new CustomEvent("lime:browser-close-other-tabs"),
+          ),
+      },
+      {
+        id: "browser.nextTab",
+        titleKey: "commands.browserNextTab.title",
+        descriptionKey: "commands.browserNextTab.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-next-tab")),
+      },
+      {
+        id: "browser.previousTab",
+        titleKey: "commands.browserPreviousTab.title",
+        descriptionKey: "commands.browserPreviousTab.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-previous-tab")),
+      },
+      {
+        id: "browser.closeTab",
+        titleKey: "commands.browserCloseTab.title",
+        descriptionKey: "commands.browserCloseTab.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-close-tab")),
+      },
+      {
+        id: "browser.newTab",
+        titleKey: "commands.browserNewTab.title",
+        descriptionKey: "commands.browserNewTab.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-new-tab")),
+      },
+      {
+        id: "browser.stopLoading",
+        titleKey: "commands.browserStop.title",
+        descriptionKey: "commands.browserStop.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-stop")),
+      },
+      ...(
+        [
+          ["browser.zoomIn", "browser-zoom-in", "browserZoomIn"],
+          ["browser.zoomOut", "browser-zoom-out", "browserZoomOut"],
+          ["browser.zoomReset", "browser-zoom-reset", "browserZoomReset"],
+          ["browser.toggleMute", "browser-toggle-mute", "browserToggleMute"],
+        ] as const
+      ).map(([id, event, copy]) => ({
+        id,
+        titleKey: `commands.${copy}.title`,
+        descriptionKey: `commands.${copy}.description`,
+        section: "panels" as const,
+        bindings: [],
+        handler: () => window.dispatchEvent(new CustomEvent(`lime:${event}`)),
+      })),
+      {
+        id: "browser.copyUrl",
+        titleKey: "commands.browserCopyUrl.title",
+        descriptionKey: "commands.browserCopyUrl.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:copy-browser-url")),
+      },
+      {
+        id: "browser.copyScreenshot",
+        titleKey: "commands.browserScreenshot.title",
+        descriptionKey: "commands.browserScreenshot.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-copy-screenshot")),
+      },
+      {
+        id: "browser.print",
+        titleKey: "commands.browserPrint.title",
+        descriptionKey: "commands.browserPrint.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-print")),
+      },
+      {
+        id: "browser.focusAddress",
+        titleKey: "commands.browserFocusAddress.title",
+        descriptionKey: "commands.browserFocusAddress.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:focus-browser-address")),
+      },
+      {
+        id: "browser.hardReload",
+        titleKey: "commands.browserHardReload.title",
+        descriptionKey: "commands.browserHardReload.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-hard-reload")),
+      },
+      {
+        id: "browser.reload",
+        titleKey: "commands.browserReload.title",
+        descriptionKey: "commands.browserReload.description",
+        section: "panels",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:browser-reload")),
+      },
+      {
+        id: "thread.copyConversationPath",
+        titleKey: "commands.copyConversationPath.title",
+        descriptionKey: "commands.copyConversationPath.description",
+        section: "thread",
+        bindings: [],
+        handler: async () => {
+          const sessionId = activeTab();
+          if (!sessionId) return;
+          const path = await readAgentRuntimeSessionRolloutPath(sessionId);
+          if (path) await navigator.clipboard.writeText(path);
+        },
+      },
+      {
         id: "app.copyConversationLink",
         titleKey: "commands.copyConversationLink.title",
         descriptionKey: "commands.copyConversationLink.description",
@@ -441,7 +834,7 @@ export function NavigationShortcutCommands({
         },
       },
     ];
-  }, [onNavigate]);
+  }, [onNavigate, t]);
   return (
     <>
       {commands.map((command) => (

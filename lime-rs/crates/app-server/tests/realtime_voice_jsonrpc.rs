@@ -10,8 +10,8 @@ use app_server::{
     WorkspaceSkillBindingAppDataSource,
 };
 use app_server_protocol::{
-    METHOD_INITIALIZE, METHOD_INITIALIZED, METHOD_MODEL_PROVIDER_CAPABILITIES_READ,
-    VoiceRealtimeClientSecretResponse, PROTOCOL_VERSION,
+    VoiceRealtimeClientSecretResponse, METHOD_INITIALIZE, METHOD_INITIALIZED,
+    METHOD_MODEL_PROVIDER_CAPABILITIES_READ, PROTOCOL_VERSION,
 };
 use async_trait::async_trait;
 use lime_core::config::{Config, ConfigManager};
@@ -81,10 +81,7 @@ impl VoiceAppDataSource for RealtimeTestDataSource {
     }
 }
 
-fn test_server(
-    data_source: Arc<RealtimeTestDataSource>,
-    temp: &TempDir,
-) -> AppServer {
+fn test_server(data_source: Arc<RealtimeTestDataSource>, temp: &TempDir) -> AppServer {
     let config_path = temp.path().join("config.yaml");
     let mut config = Config::default();
     config.default_provider = "openai".to_string();
@@ -111,7 +108,9 @@ fn official_snapshot(key_available: bool) -> RealtimeVoiceProviderSnapshot {
 #[tokio::test]
 async fn realtime_capability_and_mint_use_only_host_owned_configuration() {
     let temp = TempDir::new().expect("temp config");
-    let data_source = Arc::new(RealtimeTestDataSource::with_snapshot(official_snapshot(true)));
+    let data_source = Arc::new(RealtimeTestDataSource::with_snapshot(official_snapshot(
+        true,
+    )));
     let server = test_server(data_source.clone(), &temp);
     initialize(&server).await;
 
@@ -150,13 +149,7 @@ async fn realtime_capability_and_mint_use_only_host_owned_configuration() {
         "capability read must never expose a provider key"
     );
 
-    let minted = request(
-        &server,
-        3,
-        "voiceRealtime/clientSecret/create",
-        json!({}),
-    )
-    .await;
+    let minted = request(&server, 3, "voiceRealtime/clientSecret/create", json!({})).await;
     assert_eq!(
         minted.pointer("/result/clientSecret"),
         Some(&json!("ek_test_ephemeral")),
@@ -184,7 +177,9 @@ async fn realtime_capability_and_mint_use_only_host_owned_configuration() {
 #[tokio::test]
 async fn missing_provider_key_blocks_capability_and_mint_without_fake_secret() {
     let temp = TempDir::new().expect("temp config");
-    let data_source = Arc::new(RealtimeTestDataSource::with_snapshot(official_snapshot(false)));
+    let data_source = Arc::new(RealtimeTestDataSource::with_snapshot(official_snapshot(
+        false,
+    )));
     let server = test_server(data_source.clone(), &temp);
     initialize(&server).await;
 
@@ -200,15 +195,11 @@ async fn missing_provider_key_blocks_capability_and_mint_without_fake_secret() {
         .pointer("/result/realtimeBlockers")
         .and_then(Value::as_array)
         .expect("blockers");
-    assert!(blockers.iter().any(|blocker| blocker == "providerKeyMissing"));
+    assert!(blockers
+        .iter()
+        .any(|blocker| blocker == "providerKeyMissing"));
 
-    let minted = request(
-        &server,
-        3,
-        "voiceRealtime/clientSecret/create",
-        json!({}),
-    )
-    .await;
+    let minted = request(&server, 3, "voiceRealtime/clientSecret/create", json!({})).await;
     assert_eq!(minted.pointer("/result"), None);
     let error = minted
         .pointer("/error/message")

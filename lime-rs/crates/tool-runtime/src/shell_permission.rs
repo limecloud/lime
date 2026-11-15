@@ -4,6 +4,8 @@ use crate::path_guard::{
     evaluate_path_mutations, summarize_paths, summarize_raw_paths, PathGuardFinding,
     PathMutationCandidate,
 };
+use crate::command_safety::is_dangerous_command::dangerous_command_match;
+use crate::command_safety::is_dangerous_command::DangerousCommandMatch;
 use crate::shell::{shell_kind, shell_script_from_argv, ShellKind};
 
 mod bash;
@@ -33,6 +35,9 @@ pub fn check_shell_command_permission(
     let Some(executable) = command.first() else {
         return ShellPermissionDecision::Deny("Missing command parameter".into());
     };
+    if let Some(matched) = dangerous_command_match(command) {
+        return ShellPermissionDecision::Deny(dangerous_command_reason(matched));
+    }
     match shell_kind(executable) {
         Some(ShellKind::PowerShell) => {
             powershell::check_command_args(&command[1..], working_directory)
@@ -63,6 +68,13 @@ pub fn check_bash_command_permission(
     if trimmed.is_empty() {
         return ShellPermissionDecision::Deny("Missing command parameter".to_string());
     }
+    if let Some(matched) = dangerous_command_match(&[
+        "bash".to_string(),
+        "-c".to_string(),
+        trimmed.to_string(),
+    ]) {
+        return ShellPermissionDecision::Deny(dangerous_command_reason(matched));
+    }
     bash::check_permission(trimmed, working_directory)
 }
 
@@ -74,7 +86,24 @@ pub fn check_powershell_command_permission(
     if trimmed.is_empty() {
         return ShellPermissionDecision::Deny("Command cannot be empty".to_string());
     }
+    if let Some(matched) = dangerous_command_match(&[
+        "pwsh".to_string(),
+        "-c".to_string(),
+        trimmed.to_string(),
+    ]) {
+        return ShellPermissionDecision::Deny(dangerous_command_reason(matched));
+    }
     powershell::check_permission(trimmed, working_directory)
+}
+
+fn dangerous_command_reason(matched: DangerousCommandMatch) -> String {
+    match matched {
+        DangerousCommandMatch::ForcedRm => {
+            "dangerous command blocked: rm -f style commands are not permitted. Use a safer approach"
+                .to_string()
+        }
+        DangerousCommandMatch::Other => "dangerous command blocked by policy".to_string(),
+    }
 }
 
 fn validate_command_paths(

@@ -181,6 +181,27 @@ function useProjectGitStatus(rootPath?: string | null) {
     };
   }, [refresh]);
 
+  React.useEffect(() => {
+    const handleBranchCreated = (event: Event) => {
+      const detail = (event as CustomEvent<{ rootPath?: unknown }>).detail;
+      const createdRoot =
+        typeof detail?.rootPath === "string" ? detail.rootPath.trim() : "";
+      if (!createdRoot || !normalizedRootPath) return;
+      if (
+        createdRoot.replace(/[\\/]+$/u, "") !==
+        normalizedRootPath.replace(/[\\/]+$/u, "")
+      )
+        return;
+      void refresh();
+    };
+    window.addEventListener("lime:git-branch-created", handleBranchCreated);
+    return () =>
+      window.removeEventListener(
+        "lime:git-branch-created",
+        handleBranchCreated,
+      );
+  }, [normalizedRootPath, refresh]);
+
   return { status, changeSummary, loading, error, refresh };
 }
 

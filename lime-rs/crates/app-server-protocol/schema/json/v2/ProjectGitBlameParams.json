@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "读取仓库内单个文件的逐行 blame。\n\n`path` 是相对 `rootPath` 的文件路径；拒绝绝对路径、`..`、`.git` 和控制字符。",
+  "properties": {
+    "path": {
+      "type": "string"
+    },
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "path",
+    "rootPath"
+  ],
+  "title": "ProjectGitBlameParams",
+  "type": "object"
+}

@@ -90,6 +90,27 @@ export function useComposerUtilityActions({
     };
   }, [rootPath, showModeControls, readRevision]);
 
+  useEffect(() => {
+    const handleBranchCreated = (event: Event) => {
+      const detail = (event as CustomEvent<{ rootPath?: unknown }>).detail;
+      const createdRoot =
+        typeof detail?.rootPath === "string" ? detail.rootPath.trim() : "";
+      if (!createdRoot || !rootPath) return;
+      if (
+        createdRoot.replace(/[\\/]+$/u, "") !==
+        rootPath.trim().replace(/[\\/]+$/u, "")
+      )
+        return;
+      setReadRevision((revision) => revision + 1);
+    };
+    window.addEventListener("lime:git-branch-created", handleBranchCreated);
+    return () =>
+      window.removeEventListener(
+        "lime:git-branch-created",
+        handleBranchCreated,
+      );
+  }, [rootPath]);
+
   const selectProject = (project: ComposerProject | null) => {
     if (!activeRef.current) {
       return;
@@ -144,7 +165,7 @@ export function useComposerUtilityActions({
       toast.success(copy.projectCreated);
     });
 
-  const useExistingFolder = () =>
+  const openExistingFolder = () =>
     runMutation("folder", copy.projectOpenFailed, async (isCurrent) => {
       const selectedPath = await requestChatHostOpenPath({
         directory: true,
@@ -218,13 +239,34 @@ export function useComposerUtilityActions({
     }
   };
 
+  const projectActionsRef = useRef({
+    createBlankProject,
+    openExistingFolder,
+  });
+  projectActionsRef.current = { createBlankProject, openExistingFolder };
+
+  useEffect(() => {
+    const handleNewProject = () => {
+      void projectActionsRef.current.createBlankProject();
+    };
+    const handleOpenFolder = () => {
+      void projectActionsRef.current.openExistingFolder();
+    };
+    window.addEventListener("lime:new-project", handleNewProject);
+    window.addEventListener("lime:open-folder", handleOpenFolder);
+    return () => {
+      window.removeEventListener("lime:new-project", handleNewProject);
+      window.removeEventListener("lime:open-folder", handleOpenFolder);
+    };
+  }, []);
+
   return {
     mutation,
     gitStatus,
     gitReadState,
     selectProject,
     createBlankProject,
-    useExistingFolder,
+    openExistingFolder,
     checkoutBranch,
     createBranch,
     retryGitStatus,

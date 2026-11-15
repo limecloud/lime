@@ -70,13 +70,7 @@ async fn realtime_client_secret_mint_is_registered_and_fails_closed() {
     let server = test_server();
     initialize(&server).await;
 
-    let response = request(
-        &server,
-        2,
-        "voiceRealtime/clientSecret/create",
-        json!({}),
-    )
-    .await;
+    let response = request(&server, 2, "voiceRealtime/clientSecret/create", json!({})).await;
     let error = response
         .pointer("/error/message")
         .and_then(Value::as_str)

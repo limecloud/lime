@@ -1,6 +1,7 @@
 pub mod agent_control;
 pub mod apply_patch;
 pub mod code_mode;
+pub mod command_safety;
 pub mod command_semantics;
 pub mod computer_use;
 pub mod connection_file;
@@ -42,6 +43,7 @@ pub mod request_user_input;
 pub mod request_user_input_async;
 pub mod sandbox;
 pub mod shell;
+pub mod shell_detect;
 pub mod shell_analysis;
 pub mod shell_permission;
 pub mod shell_runtime;

@@ -10,9 +10,11 @@ import {
   navigateBrowserTab,
   goBackBrowserTab,
   goForwardBrowserTab,
+  focusBrowserTabPage,
   printBrowserTab,
   reloadBrowserTab,
   setBrowserTabZoom,
+  setBrowserTabAudioMuted,
   setBrowserTabDevice,
   selectBrowserTab,
   setBrowserTabBounds,
@@ -51,6 +53,7 @@ import { useBrowserWorkspaceHydration } from "./useBrowserWorkspaceHydration";
 import { observeBrowserBounds } from "./observeBrowserBounds";
 import { matchesBrowserTabEvent } from "./browserTabEventIdentity";
 import { BrowserOptionsMenu } from "./BrowserOptionsMenu";
+import { BrowserExtensionsToolbar } from "./BrowserExtensionsToolbar";
 import { BrowserDeviceToolbar } from "./BrowserDeviceToolbar";
 import { BrowserDeviceViewport } from "./BrowserDeviceViewport";
 
@@ -144,6 +147,50 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
   annotationsRef.current = annotations;
 
   useEffect(() => setFindVisible(false), [selected?.tabId, selected?.url]);
+  useEffect(() => {
+    const tabId = selected?.tabId;
+    if (!tabId) return;
+    const currentZoom = selected?.zoomFactor ?? 1;
+    const zoom = (factor: number) =>
+      void setBrowserTabZoom(tabId, clampBrowserZoom(factor));
+    const zoomIn = () => zoom(currentZoom + BROWSER_ZOOM_STEP);
+    const zoomOut = () => zoom(currentZoom - BROWSER_ZOOM_STEP);
+    const resetZoom = () => zoom(1);
+    const toggleMute = () =>
+      void setBrowserTabAudioMuted(tabId, !selected?.audioMuted);
+    window.addEventListener("lime:browser-zoom-in", zoomIn);
+    window.addEventListener("lime:browser-zoom-out", zoomOut);
+    window.addEventListener("lime:browser-zoom-reset", resetZoom);
+    window.addEventListener("lime:browser-toggle-mute", toggleMute);
+    return () => {
+      window.removeEventListener("lime:browser-zoom-in", zoomIn);
+      window.removeEventListener("lime:browser-zoom-out", zoomOut);
+      window.removeEventListener("lime:browser-zoom-reset", resetZoom);
+      window.removeEventListener("lime:browser-toggle-mute", toggleMute);
+    };
+  }, [selected?.audioMuted, selected?.tabId, selected?.zoomFactor]);
+  useEffect(() => {
+    if (!selected) return;
+    const focusPage = () => void focusBrowserTabPage(selected);
+    window.addEventListener("lime:browser-focus-page", focusPage);
+    return () =>
+      window.removeEventListener("lime:browser-focus-page", focusPage);
+  }, [selected]);
+  useEffect(() => {
+    const copyUrl = () => {
+      const url = selected?.url?.trim();
+      if (url) void navigator.clipboard?.writeText(url);
+    };
+    window.addEventListener("lime:copy-browser-url", copyUrl);
+    return () => window.removeEventListener("lime:copy-browser-url", copyUrl);
+  }, [selected?.url]);
+  useEffect(() => {
+    const openFind = () => {
+      if (selected) setFindVisible(true);
+    };
+    window.addEventListener("lime:open-browser-find", openFind);
+    return () => window.removeEventListener("lime:open-browser-find", openFind);
+  }, [selected]);
 
   const acceptsSelectedHostEvent = useCallback(
     (
@@ -475,32 +522,35 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
             </button>
           }
           actions={
-            <BrowserOptionsMenu
-              selected={selected}
-              owner={owner}
-              active={active}
-              run={run}
-              onFind={() => setFindVisible(true)}
-              onError={reportHostError}
-              onDeviceToggle={() => {
-                if (!selected) return;
-                void run(() =>
-                  setBrowserTabDevice(
-                    selected.tabId,
-                    selected.device
-                      ? null
-                      : {
-                          presetId: "responsive",
-                          width: 390,
-                          height: 844,
-                          deviceScaleFactor: 3,
-                          scale: 1,
-                          mobile: true,
-                        },
-                  ),
-                );
-              }}
-            />
+            <>
+              <BrowserExtensionsToolbar translate={translate} />
+              <BrowserOptionsMenu
+                selected={selected}
+                owner={owner}
+                active={active}
+                run={run}
+                onFind={() => setFindVisible(true)}
+                onError={reportHostError}
+                onDeviceToggle={() => {
+                  if (!selected) return;
+                  void run(() =>
+                    setBrowserTabDevice(
+                      selected.tabId,
+                      selected.device
+                        ? null
+                        : {
+                            presetId: "responsive",
+                            width: 390,
+                            height: 844,
+                            deviceScaleFactor: 3,
+                            scale: 1,
+                            mobile: true,
+                          },
+                    ),
+                  );
+                }}
+              />
+            </>
           }
           addressFocusRequest={addressFocusRequest}
         />

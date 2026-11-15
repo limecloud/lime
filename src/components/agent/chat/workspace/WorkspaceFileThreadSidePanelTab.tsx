@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { FileSearch, PanelRight } from "lucide-react";
+import { GitBlameCommand } from "@/components/git/GitBlameCommand";
 import { useTranslation } from "react-i18next";
 import { readFilePreview } from "@/lib/api/fileBrowser";
 import { ReviewThreadSidePanelProjectionContext } from "./ReviewThreadSidePanelProjection";
@@ -221,6 +222,7 @@ export function WorkspaceFileThreadSidePanelTab({
           }
         />
       ) : null}
+      <GitBlameCommand rootPath={root} filePath={filePath} active={active} />
     </section>
   );
 }

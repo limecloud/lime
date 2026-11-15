@@ -173,5 +173,7 @@
   "common.modelCapabilities.reasoning.inactive": "思考なし",
   "common.modelCapabilities.vision.active": "マルチモーダル対応",
   "common.modelCapabilities.vision.inactive": "マルチモーダルなし",
-  "common.modelSelector.state.loginRequired": "ログインが必要"
+  "common.modelSelector.state.loginRequired": "ログインが必要",
+  "common.temporaryChat.name": "一時チャット",
+  "common.temporaryChat.failed": "一時チャットを開始できませんでした"
 }

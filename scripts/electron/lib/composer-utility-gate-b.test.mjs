@@ -30,7 +30,7 @@ describe("Composer Utility Gate B oracle", () => {
     const traceRaw = JSON.stringify(
       [
         "projectGit/status",
-        "projectGit/branch/create",
+        "project/git/branch/create",
         "projectGit/branch/checkout",
       ].map((method) => ({
         command: "app_server_handle_json_lines",

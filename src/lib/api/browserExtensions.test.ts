@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  importChromeBrowserExtensions,
   listBrowserExtensions,
   loadBrowserExtension,
   removeBrowserExtension,
@@ -28,6 +29,25 @@ describe("browserExtensions", () => {
 
     invoke.mockResolvedValue([{ id: "" }]);
     await expect(listBrowserExtensions()).rejects.toThrow("invalid list");
+  });
+
+  it("导入 Chrome 扩展并汇总数量", async () => {
+    invoke.mockResolvedValue({
+      imported: [extension],
+      skipped: 2,
+      failed: [{ id: "broken", name: "Broken" }],
+    });
+    await expect(importChromeBrowserExtensions()).resolves.toEqual({
+      imported: 1,
+      skipped: 2,
+      failed: 1,
+    });
+    expect(invoke).toHaveBeenCalledWith("browser_extensions_import_chrome");
+
+    invoke.mockResolvedValue({ imported: "nope", skipped: 0, failed: [] });
+    await expect(importChromeBrowserExtensions()).rejects.toThrow(
+      "invalid result",
+    );
   });
 
   it("加载扩展并校验结果", async () => {

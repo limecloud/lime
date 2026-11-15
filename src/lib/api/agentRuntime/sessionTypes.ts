@@ -313,6 +313,7 @@ export interface AgentRuntimeThreadDiagnostics {
 
 export interface AgentRuntimeThreadReadModel {
   thread_id: string;
+  ephemeral?: boolean;
   thread_settings?: ThreadSettings;
   reasoning_effort?: string | null;
   can_accept_direct_input?: boolean | null;
@@ -575,6 +576,7 @@ export interface AgentSessionHistoryCursor {
  */
 export interface AgentSessionDetail {
   id: string;
+  ephemeral?: boolean;
   thread_id?: string;
   name?: string;
   created_at: number;

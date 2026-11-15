@@ -217,34 +217,71 @@ export function PlanComposerDecisionPanel({
     );
   };
 
-  const submitResponse = (
-    response: ConfirmResponse,
-    nextState: SubmissionState,
-  ) => {
-    if (!onSubmit || isSubmitting) {
-      return;
-    }
-    setSubmissionState(nextState);
-    try {
-      const result = onSubmit(response);
-      if (isPromiseLike(result)) {
-        void result.finally(() => {
-          setSubmissionState((current) =>
-            current?.kind === nextState.kind ? null : current,
-          );
-        });
+  const submitResponse = useCallback(
+    (response: ConfirmResponse, nextState: SubmissionState) => {
+      if (!onSubmit || isSubmitting) {
         return;
       }
-      setSubmissionState((current) =>
-        current?.kind === nextState.kind ? null : current,
+      setSubmissionState(nextState);
+      try {
+        const result = onSubmit(response);
+        if (isPromiseLike(result)) {
+          void result.finally(() => {
+            setSubmissionState((current) =>
+              current?.kind === nextState.kind ? null : current,
+            );
+          });
+          return;
+        }
+        setSubmissionState((current) =>
+          current?.kind === nextState.kind ? null : current,
+        );
+      } catch (error) {
+        setSubmissionState((current) =>
+          current?.kind === nextState.kind ? null : current,
+        );
+        throw error;
+      }
+    },
+    [isSubmitting, onSubmit],
+  );
+
+  useEffect(() => {
+    const approve = () => {
+      submitResponse(
+        buildSubmitPayload({ request, selectedLabel, adjustment }),
+        { kind: "submit" },
       );
-    } catch (error) {
-      setSubmissionState((current) =>
-        current?.kind === nextState.kind ? null : current,
+    };
+    const deny = () => {
+      onDismiss?.(request.requestId);
+      submitResponse(
+        {
+          requestId: request.requestId,
+          confirmed: false,
+          response: translatePlanDecision(
+            "agentChat.planComposerDecision.ignoreResponse",
+          ),
+          actionType: request.actionType,
+          userData: "",
+        },
+        { kind: "ignore" },
       );
-      throw error;
-    }
-  };
+    };
+    window.addEventListener("lime:approve-pending", approve);
+    window.addEventListener("lime:deny-pending", deny);
+    return () => {
+      window.removeEventListener("lime:approve-pending", approve);
+      window.removeEventListener("lime:deny-pending", deny);
+    };
+  }, [
+    adjustment,
+    onDismiss,
+    request,
+    selectedLabel,
+    submitResponse,
+    translatePlanDecision,
+  ]);
 
   const handleSubmit = (event: ReactMouseEvent<HTMLButtonElement>) => {
     if (!isExplicitUserActivation(event)) {

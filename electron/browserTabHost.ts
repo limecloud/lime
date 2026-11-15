@@ -1,3 +1,4 @@
+import type { BrowserHistoryVisit } from "../src/lib/api/browserHistoryTypes";
 import { BrowserOverlayHost } from "./browserOverlayHost";
 import { BrowserAnnotationHost } from "./browserAnnotationHost";
 import {
@@ -479,6 +480,12 @@ export class ElectronBrowserTabHost {
       this.#policy.invalidate();
       this.#revokeBrowserPermissions();
     });
+  }
+
+  importHistoryVisits(
+    visits: readonly BrowserHistoryVisit[],
+  ): Promise<{ imported: number; failed: number }> {
+    return this.#history.importVisits(visits);
   }
 
   setSettings(settings: BrowserSettings, locale?: string): void {

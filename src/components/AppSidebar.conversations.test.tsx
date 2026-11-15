@@ -760,7 +760,7 @@ describe("AppSidebar conversations", () => {
       window.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "1",
-          metaKey: true,
+          ctrlKey: true,
           bubbles: true,
         }),
       );
@@ -771,7 +771,7 @@ describe("AppSidebar conversations", () => {
       window.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "9",
-          metaKey: true,
+          ctrlKey: true,
           bubbles: true,
         }),
       );

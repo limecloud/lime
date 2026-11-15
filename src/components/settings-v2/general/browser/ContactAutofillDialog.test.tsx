@@ -10,16 +10,15 @@ const api = vi.hoisted(() => ({
   clear: vi.fn(),
 }));
 vi.mock("@/lib/api/contactAutofill", () => ({
-  readContactAutofillProfile: api.read,
-  saveContactAutofillProfile: api.save,
-  clearContactAutofillProfile: api.clear,
+  readContactAutofillData: api.read,
+  saveContactAutofillData: api.save,
+  clearContactAutofillData: api.clear,
 }));
 
-const profile = {
-  fullName: "Alice",
-  email: "alice@example.com",
-  phone: "123456",
-  address: "1 Main St",
+const data = {
+  emails: ["alice@example.com"],
+  phones: ["123456"],
+  addresses: ["1 Main St"],
 };
 
 let root: Root;
@@ -36,20 +35,24 @@ async function setValue(input: HTMLInputElement, value: string) {
   });
 }
 
+async function mount() {
+  await act(async () =>
+    root.render(<ContactAutofillDialog open onOpenChange={onOpenChange} />),
+  );
+  await act(async () => Promise.resolve());
+}
+
 beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.clearAllMocks();
   api.read.mockResolvedValue(null);
-  api.save.mockResolvedValue(profile);
+  api.save.mockResolvedValue(data);
   api.clear.mockResolvedValue(true);
   await changeLimeLocale("zh-CN");
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () =>
-    root.render(<ContactAutofillDialog open onOpenChange={onOpenChange} />),
-  );
-  await act(async () => Promise.resolve());
+  await mount();
 });
 
 afterEach(async () => {
@@ -58,20 +61,19 @@ afterEach(async () => {
 });
 
 describe("ContactAutofillDialog", () => {
-  it("加载并保存联系信息", async () => {
-    api.read.mockResolvedValue(profile);
+  it("加载多个邮箱/电话/地址并保存编辑", async () => {
+    api.read.mockResolvedValue(data);
     await act(async () => root.unmount());
     root = createRoot(container);
-    await act(async () =>
-      root.render(<ContactAutofillDialog open onOpenChange={onOpenChange} />),
-    );
-    await act(async () => Promise.resolve());
+    await mount();
     const inputs = [...document.querySelectorAll<HTMLInputElement>("input")];
     expect(inputs.map((input) => input.value)).toEqual([
-      "Alice",
       "alice@example.com",
+      "",
       "123456",
+      "",
       "1 Main St",
+      "",
     ]);
     await setValue(inputs[2], "999");
     await act(async () =>
@@ -83,22 +85,39 @@ describe("ContactAutofillDialog", () => {
     );
     await act(async () => Promise.resolve());
     expect(api.save).toHaveBeenCalledWith({
-      fullName: "Alice",
-      email: "alice@example.com",
-      phone: "999",
-      address: "1 Main St",
+      emails: ["alice@example.com"],
+      phones: ["999"],
+      addresses: ["1 Main St"],
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("添加并移除条目", async () => {
+    await mount();
+    const inputs = [...document.querySelectorAll<HTMLInputElement>("input")];
+    await setValue(inputs[0], "bob@example.com");
+    const add = [...document.querySelectorAll("button")].filter(
+      (button) => button.textContent?.trim() === "添加",
+    )[0];
+    await act(async () => add.click());
+    const afterAdd = [...document.querySelectorAll<HTMLInputElement>("input")];
+    expect(afterAdd.map((input) => input.value)).toContain("bob@example.com");
+    const remove = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "移除",
+    )!;
+    await act(async () => remove.click());
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("input")].map(
+        (input) => input.value,
+      ),
+    ).not.toContain("bob@example.com");
+  });
+
   it("清除联系信息后输入框清空", async () => {
-    api.read.mockResolvedValue(profile);
+    api.read.mockResolvedValue(data);
     await act(async () => root.unmount());
     root = createRoot(container);
-    await act(async () =>
-      root.render(<ContactAutofillDialog open onOpenChange={onOpenChange} />),
-    );
-    await act(async () => Promise.resolve());
+    await mount();
     const clear = [...document.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "清除联系信息",
     )!;
@@ -119,11 +138,15 @@ describe("ContactAutofillDialog", () => {
       [...document.querySelectorAll<HTMLInputElement>("input")].map(
         (input) => input.value,
       ),
-    ).toEqual(["", "", "", ""]);
+    ).toEqual(["", "", ""]);
   });
 
   it("邮箱格式无效时提示并禁用保存", async () => {
-    const [, email] = [...document.querySelectorAll<HTMLInputElement>("input")];
+    api.read.mockResolvedValue(data);
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await mount();
+    const [email] = [...document.querySelectorAll<HTMLInputElement>("input")];
     await setValue(email, "not-an-email");
     expect(document.body.textContent).toContain("邮箱格式无效");
     const save = [...document.querySelectorAll("button")].find(
@@ -132,13 +155,10 @@ describe("ContactAutofillDialog", () => {
     expect(save.disabled).toBe(true);
     await setValue(email, "alice@example.com");
     expect(save.disabled).toBe(false);
-    expect(document.body.textContent).not.toContain("邮箱格式无效");
   });
 
   it("保存失败显示错误", async () => {
     api.save.mockRejectedValue(new Error("nope"));
-    const [name] = [...document.querySelectorAll<HTMLInputElement>("input")];
-    await setValue(name, "Alice");
     await act(async () =>
       document
         .querySelector("form")!

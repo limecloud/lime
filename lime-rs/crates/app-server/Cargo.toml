@@ -16,6 +16,8 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
+async-utils.workspace = true
+process-hardening.workspace = true
 clap = { workspace = true, features = ["derive"] }
 anyhow.workspace = true
 async-trait.workspace = true

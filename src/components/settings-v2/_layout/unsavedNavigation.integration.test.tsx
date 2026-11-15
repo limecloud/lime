@@ -48,7 +48,7 @@ vi.mock("./SettingsNavigation", () => ({
     onTabChange: (tab: SettingsTabs) => void;
   }) => (
     <nav>
-      <button onClick={() => onTabChange(SettingsTabs.About)}>Section</button>
+      <button onClick={() => onTabChange(SettingsTabs.General)}>Section</button>
       <button onClick={onBack}>Back</button>
     </nav>
   ),
@@ -191,7 +191,7 @@ describe("Settings unsaved navigation with instructions", () => {
     await click(button("Save"));
     await click(button("Section"));
     expect(dialog()).toBeNull();
-    expect(navigation.requestedPageParams).toEqual({ tab: SettingsTabs.About });
+    expect(navigation.requestedPageParams).toEqual({ tab: SettingsTabs.General });
     expect(api.writeInstructions).toHaveBeenCalledTimes(2);
   });
   it("pending writes block discard and preserve newer edits", async () => {

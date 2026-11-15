@@ -1,6 +1,6 @@
 use super::*;
-use crate::{CapabilitySnapshot, JsonRpcNotification, ModelCapabilitiesInfo, RequestId};
 use crate::VoiceRealtimeClientSecretResponse;
+use crate::{CapabilitySnapshot, JsonRpcNotification, ModelCapabilitiesInfo, RequestId};
 use schemars::schema_for;
 use serde_json::json;
 

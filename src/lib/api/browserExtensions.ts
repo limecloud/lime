@@ -48,6 +48,36 @@ export async function loadBrowserExtension(
   return result;
 }
 
+export interface ChromeExtensionImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+}
+
+export async function importChromeBrowserExtensions(): Promise<ChromeExtensionImportResult> {
+  const result = await safeInvoke<unknown>("browser_extensions_import_chrome");
+  if (!result || typeof result !== "object") {
+    throw new Error("browser extension import returned an invalid result");
+  }
+  const record = result as {
+    imported?: unknown;
+    skipped?: unknown;
+    failed?: unknown;
+  };
+  if (
+    !Array.isArray(record.imported) ||
+    !Array.isArray(record.failed) ||
+    typeof record.skipped !== "number"
+  ) {
+    throw new Error("browser extension import returned an invalid result");
+  }
+  return {
+    imported: record.imported.filter(isExtensionSummary).length,
+    skipped: record.skipped,
+    failed: record.failed.length,
+  };
+}
+
 export async function removeBrowserExtension(id: string): Promise<void> {
   const result = await safeInvoke<unknown>("browser_extensions_remove", { id });
   if (result !== true) {

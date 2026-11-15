@@ -292,13 +292,24 @@ export const METHOD_PROCESS_WRITE_STDIN = "process/writeStdin";
 export const METHOD_PROJECT_CHANGED = "project/changed";
 export const METHOD_PROJECT_CREATE = "project/create";
 export const METHOD_PROJECT_DELETE = "project/delete";
+export const METHOD_PROJECT_GIT_BLAME = "project/git/blame";
+export const METHOD_PROJECT_GIT_BRANCH_CREATE = "project/git/branch/create";
+export const METHOD_PROJECT_GIT_COMMIT = "project/git/commit";
+export const METHOD_PROJECT_GIT_PULL_REQUEST_CREATE =
+  "project/git/pull_request/create";
+export const METHOD_PROJECT_GIT_PULL_REQUEST_MERGE =
+  "project/git/pull_request/merge";
+export const METHOD_PROJECT_GIT_PULL_REQUEST_OPEN =
+  "project/git/pull_request/open";
+export const METHOD_PROJECT_GIT_PULL_REQUEST_STATUS =
+  "project/git/pull_request/status";
 export const METHOD_PROJECT_IMPORT = "project/import";
 export const METHOD_PROJECT_LIST = "project/list";
 export const METHOD_PROJECT_MOVE = "project/move";
 export const METHOD_PROJECT_READ = "project/read";
 export const METHOD_PROJECT_UPDATE = "project/update";
 export const METHOD_PROJECT_GIT_BRANCH_CHECKOUT = "projectGit/branch/checkout";
-export const METHOD_PROJECT_GIT_BRANCH_CREATE = "projectGit/branch/create";
+export const METHOD_PROJECT_GIT_BRANCH_CREATE_V0 = "projectGit/branch/create";
 export const METHOD_PROJECT_GIT_COMMITS_LIST = "projectGit/commits/list";
 export const METHOD_PROJECT_GIT_DIFF = "projectGit/diff";
 export const METHOD_PROJECT_GIT_STATUS = "projectGit/status";
@@ -1445,6 +1456,34 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "project/delete",
+  },
+  {
+    kind: "request",
+    method: "project/git/blame",
+  },
+  {
+    kind: "request",
+    method: "project/git/branch/create",
+  },
+  {
+    kind: "request",
+    method: "project/git/commit",
+  },
+  {
+    kind: "request",
+    method: "project/git/pull_request/create",
+  },
+  {
+    kind: "request",
+    method: "project/git/pull_request/merge",
+  },
+  {
+    kind: "request",
+    method: "project/git/pull_request/open",
+  },
+  {
+    kind: "request",
+    method: "project/git/pull_request/status",
   },
   {
     kind: "request",
@@ -4760,6 +4799,41 @@ export type ClientRequest =
       id: number | string;
       method: "project/delete";
       params: ProjectDeleteParams;
+    }
+  | {
+      id: number | string;
+      method: "project/git/branch/create";
+      params: ProjectGitBranchCreateParams;
+    }
+  | {
+      id: number | string;
+      method: "project/git/commit";
+      params: ProjectGitCommitParams;
+    }
+  | {
+      id: number | string;
+      method: "project/git/pull_request/create";
+      params: ProjectGitPullRequestCreateParams;
+    }
+  | {
+      id: number | string;
+      method: "project/git/pull_request/open";
+      params: ProjectGitPullRequestOpenParams;
+    }
+  | {
+      id: number | string;
+      method: "project/git/pull_request/status";
+      params: ProjectGitPullRequestStatusParams;
+    }
+  | {
+      id: number | string;
+      method: "project/git/pull_request/merge";
+      params: ProjectGitPullRequestMergeParams;
+    }
+  | {
+      id: number | string;
+      method: "project/git/blame";
+      params: ProjectGitBlameParams;
     }
   | {
       id: number | string;
@@ -8357,6 +8431,13 @@ export type Method =
   | "process/writeStdin"
   | "project/create"
   | "project/delete"
+  | "project/git/blame"
+  | "project/git/branch/create"
+  | "project/git/commit"
+  | "project/git/pull_request/create"
+  | "project/git/pull_request/merge"
+  | "project/git/pull_request/open"
+  | "project/git/pull_request/status"
   | "project/import"
   | "project/list"
   | "project/move"
@@ -9263,6 +9344,27 @@ export interface ProjectDeleteParams {
 
 export type ProjectDeleteResponse = Record<string, unknown>;
 
+export interface ProjectGitBlameLine {
+  author: string;
+  authorTime: string;
+  content: string;
+  lineNumber: number;
+  sha: string;
+  shortSha: string;
+  summary: string;
+}
+
+export interface ProjectGitBlameParams {
+  path: string;
+  rootPath: string;
+}
+
+export interface ProjectGitBlameResponse {
+  lines: ProjectGitBlameLine[];
+  repositoryRoot?: null | string;
+  rootPath: string;
+}
+
 export interface ProjectGitBranchCheckoutParams {
   branch: string;
   rootPath: string;
@@ -9294,6 +9396,23 @@ export interface ProjectGitCommitListResponse {
   rootPath: string;
 }
 
+export interface ProjectGitCommitParams {
+  message: string;
+  paths?: string[] | null;
+  rootPath: string;
+}
+
+export interface ProjectGitCommitResponse {
+  repositoryRoot?: null | string;
+  rootPath: string;
+  sha: string;
+  shortSha: string;
+  status: ProjectGitCommitStatus;
+  subject: string;
+}
+
+export type ProjectGitCommitStatus = "committed";
+
 export type ProjectGitDiffBase =
   | "branch"
   | "commit"
@@ -9324,6 +9443,68 @@ export interface ProjectGitManagedWorktree {
   repositoryRoot: string;
   threads: ProjectGitWorktreeThread[];
   worktreePath: string;
+}
+
+export interface ProjectGitPullRequestCreateParams {
+  base?: null | string;
+  body: string;
+  draft?: boolean;
+  rootPath: string;
+  title: string;
+}
+
+export interface ProjectGitPullRequestCreateResponse {
+  draft: boolean;
+  number?: number | null;
+  rootPath: string;
+  title?: null | string;
+  url?: null | string;
+}
+
+export interface ProjectGitPullRequestInfo {
+  baseRefName: string;
+  headRefName: string;
+  isDraft: boolean;
+  number: number;
+  state: string;
+  title: string;
+  url: string;
+}
+
+export type ProjectGitPullRequestMergeMethod = "merge" | "rebase" | "squash";
+
+export interface ProjectGitPullRequestMergeParams {
+  deleteBranch?: boolean;
+  method?: ProjectGitPullRequestMergeMethod;
+  prNumber?: number | null;
+  rootPath: string;
+}
+
+export interface ProjectGitPullRequestMergeResponse {
+  deleteBranch: boolean;
+  merged: boolean;
+  method: ProjectGitPullRequestMergeMethod;
+  number?: number | null;
+  rootPath: string;
+  url?: null | string;
+}
+
+export interface ProjectGitPullRequestOpenParams {
+  rootPath: string;
+}
+
+export interface ProjectGitPullRequestOpenResponse {
+  rootPath: string;
+  url?: null | string;
+}
+
+export interface ProjectGitPullRequestStatusParams {
+  rootPath: string;
+}
+
+export interface ProjectGitPullRequestStatusResponse {
+  pullRequest?: ProjectGitPullRequestInfo | null;
+  rootPath: string;
 }
 
 export interface ProjectGitStatusParams {

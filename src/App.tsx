@@ -54,7 +54,12 @@ import { AppNavigationContext } from "./contexts/AppNavigationContext";
 import { BrowserHistoryNavigationContext } from "./contexts/BrowserHistoryNavigationContext";
 import { useBrowserHistoryNavigation } from "./hooks/useBrowserHistoryNavigation";
 import type { OpenDeepLinkPayload } from "./hooks/useDeepLink";
-import { buildConversationParams } from "./lib/workspace/navigation";
+import {
+  buildConversationParams,
+  buildHomeAgentParams,
+} from "./lib/workspace/navigation";
+import { createAgentRuntimeSession } from "./lib/api/agentRuntime/sessionClient";
+import { runCommand } from "./lib/commands/registry";
 import {
   resolveWebsiteInstalledSkillNavigation,
   resolveWebsiteOpenNavigation,
@@ -76,7 +81,11 @@ import {
   persistVoiceModelSettingsFocusRequest,
 } from "./lib/voiceModelSettingsNavigation";
 import { listenAppMenuCommand } from "./lib/appMenuNavigation";
-import { requestNewConversationTab } from "./lib/conversationTabs";
+import {
+  closeConversationTab,
+  getConversationTabsSnapshot,
+  requestNewConversationTab,
+} from "./lib/conversationTabs";
 
 const AppContainer = styled.div`
   display: flex;
@@ -213,12 +222,55 @@ function AppContent() {
           requestNewConversationTab();
           return;
         }
-        handleNavigate(
-          "settings",
-          command === "about" ? { tab: SettingsTabs.About } : undefined,
-        );
+        if (command === "temporary-chat") {
+          void createAgentRuntimeSession(
+            undefined,
+            t("common.temporaryChat.name"),
+            undefined,
+            { ephemeral: true },
+          )
+            .then((sessionId) => {
+              handleNavigate(
+                "agent",
+                buildConversationParams({
+                  initialSessionId: sessionId,
+                  initialSessionName: t("common.temporaryChat.name"),
+                }),
+              );
+            })
+            .catch(() => {
+              toast.error(t("common.temporaryChat.failed"));
+            });
+          return;
+        }
+        if (command === "new-standalone-chat") {
+          window.dispatchEvent(new CustomEvent("lime:new-standalone-chat"));
+          return;
+        }
+        if (command === "new-project" || command === "open-folder") {
+          const dispatch = () =>
+            window.dispatchEvent(new CustomEvent(`lime:${command}`));
+          if ((requestedPage ?? currentPage) === "agent") {
+            dispatch();
+          } else {
+            handleNavigate("agent", buildHomeAgentParams());
+            globalThis.setTimeout(dispatch, 150);
+          }
+          return;
+        }
+        if (command === "keyboard-shortcuts") {
+          runCommand("showKeyboardShortcuts");
+          return;
+        }
+        if (command === "close") {
+          const active = getConversationTabsSnapshot().activeSessionId;
+          if (active) closeConversationTab(active);
+          else window.close();
+          return;
+        }
+        handleNavigate("settings");
       }),
-    [handleNavigate],
+    [currentPage, handleNavigate, requestedPage, t],
   );
 
   const [agentHasMessages, setAgentHasMessages] = useState(false);

@@ -1,15 +1,24 @@
 //! project_git domain handlers for the App Server processor.
 
 use super::{dispatch_result, parse_params, to_jsonrpc_error, RequestProcessor, RpcDispatch};
+use app_server_protocol::protocol::v2::{
+    ProjectGitBlameParams, ProjectGitBranchCreateParams as V2ProjectGitBranchCreateParams,
+    ProjectGitCommitParams, ProjectGitPullRequestCreateParams, ProjectGitPullRequestMergeParams,
+    ProjectGitPullRequestOpenParams, ProjectGitPullRequestStatusParams, METHOD_PROJECT_GIT_BLAME,
+    METHOD_PROJECT_GIT_BRANCH_CREATE, METHOD_PROJECT_GIT_COMMIT,
+    METHOD_PROJECT_GIT_PULL_REQUEST_CREATE, METHOD_PROJECT_GIT_PULL_REQUEST_MERGE,
+    METHOD_PROJECT_GIT_PULL_REQUEST_OPEN, METHOD_PROJECT_GIT_PULL_REQUEST_STATUS,
+};
 use app_server_protocol::{
-    JsonRpcError, ProjectGitBranchCheckoutParams, ProjectGitBranchCreateParams,
-    ProjectGitCommitListParams, ProjectGitDiffParams, ProjectGitStatusParams,
-    ProjectGitWorktreeCreateParams, ProjectGitWorktreeDeleteParams,
-    ProjectGitWorktreeEnvironmentSetParams, ProjectGitWorktreeListParams,
-    METHOD_PROJECT_GIT_BRANCH_CHECKOUT, METHOD_PROJECT_GIT_BRANCH_CREATE,
-    METHOD_PROJECT_GIT_COMMITS_LIST, METHOD_PROJECT_GIT_DIFF, METHOD_PROJECT_GIT_STATUS,
-    METHOD_PROJECT_GIT_WORKTREE_CREATE, METHOD_PROJECT_GIT_WORKTREE_DELETE,
-    METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET, METHOD_PROJECT_GIT_WORKTREE_LIST,
+    JsonRpcError, ProjectGitBranchCheckoutParams,
+    ProjectGitBranchCreateParams as V0ProjectGitBranchCreateParams, ProjectGitCommitListParams,
+    ProjectGitDiffParams, ProjectGitStatusParams, ProjectGitWorktreeCreateParams,
+    ProjectGitWorktreeDeleteParams, ProjectGitWorktreeEnvironmentSetParams,
+    ProjectGitWorktreeListParams, METHOD_PROJECT_GIT_BRANCH_CHECKOUT,
+    METHOD_PROJECT_GIT_BRANCH_CREATE_V0, METHOD_PROJECT_GIT_COMMITS_LIST, METHOD_PROJECT_GIT_DIFF,
+    METHOD_PROJECT_GIT_STATUS, METHOD_PROJECT_GIT_WORKTREE_CREATE,
+    METHOD_PROJECT_GIT_WORKTREE_DELETE, METHOD_PROJECT_GIT_WORKTREE_ENVIRONMENT_SET,
+    METHOD_PROJECT_GIT_WORKTREE_LIST,
 };
 use futures::{future::BoxFuture, FutureExt};
 use serde_json::Value;
@@ -28,14 +37,31 @@ impl RequestProcessor {
                 .boxed(),
             METHOD_PROJECT_GIT_STATUS => self.handle_project_git_status_impl(params.take()).boxed(),
             METHOD_PROJECT_GIT_DIFF => self.handle_project_git_diff_impl(params.take()).boxed(),
+            METHOD_PROJECT_GIT_BLAME => self.handle_project_git_blame_impl(params.take()).boxed(),
             METHOD_PROJECT_GIT_COMMITS_LIST => self
                 .handle_project_git_commits_list_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_COMMIT => self.handle_project_git_commit_impl(params.take()).boxed(),
+            METHOD_PROJECT_GIT_PULL_REQUEST_CREATE => self
+                .handle_project_git_pull_request_create_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_PULL_REQUEST_OPEN => self
+                .handle_project_git_pull_request_open_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_PULL_REQUEST_STATUS => self
+                .handle_project_git_pull_request_status_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_PULL_REQUEST_MERGE => self
+                .handle_project_git_pull_request_merge_impl(params.take())
                 .boxed(),
             METHOD_PROJECT_GIT_BRANCH_CHECKOUT => self
                 .handle_project_git_branch_checkout_impl(params.take())
                 .boxed(),
             METHOD_PROJECT_GIT_BRANCH_CREATE => self
                 .handle_project_git_branch_create_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_BRANCH_CREATE_V0 => self
+                .handle_project_git_branch_create_v0_impl(params.take())
                 .boxed(),
             METHOD_PROJECT_GIT_WORKTREE_CREATE => self
                 .handle_project_git_worktree_create_impl(params.take(), request_id, connection_id)
@@ -93,6 +119,20 @@ impl RequestProcessor {
         dispatch_result(response)
     }
 
+    pub(super) async fn handle_project_git_blame_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitBlameParams = parse_params(params)?;
+        let response = self
+            .runtime
+            .read_project_git_blame(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        dispatch_result(response)
+    }
+
     pub(super) async fn handle_project_git_commits_list_impl(
         &self,
         params: Option<Value>,
@@ -102,6 +142,20 @@ impl RequestProcessor {
         let response = self
             .runtime
             .list_project_git_commits(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        dispatch_result(response)
+    }
+
+    pub(super) async fn handle_project_git_commit_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitCommitParams = parse_params(params)?;
+        let response = self
+            .runtime
+            .commit_project_git_changes(params)
             .await
             .map_err(to_jsonrpc_error)?;
         dispatch_result(response)
@@ -121,15 +175,88 @@ impl RequestProcessor {
         dispatch_result(response)
     }
 
+    pub(super) async fn handle_project_git_pull_request_create_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitPullRequestCreateParams = parse_params(params)?;
+        let response = self
+            .runtime
+            .create_project_git_pull_request(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        dispatch_result(response)
+    }
+
+    pub(super) async fn handle_project_git_pull_request_open_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitPullRequestOpenParams = parse_params(params)?;
+        let response = self
+            .runtime
+            .open_project_git_pull_request(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        dispatch_result(response)
+    }
+
+    pub(super) async fn handle_project_git_pull_request_status_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitPullRequestStatusParams = parse_params(params)?;
+        let response = self
+            .runtime
+            .read_project_git_pull_request(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        dispatch_result(response)
+    }
+
+    pub(super) async fn handle_project_git_pull_request_merge_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitPullRequestMergeParams = parse_params(params)?;
+        let response = self
+            .runtime
+            .merge_project_git_pull_request(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        dispatch_result(response)
+    }
+
     pub(super) async fn handle_project_git_branch_create_impl(
         &self,
         params: Option<Value>,
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
-        let params: ProjectGitBranchCreateParams = parse_params(params)?;
+        let params: V2ProjectGitBranchCreateParams = parse_params(params)?;
         let response = self
             .runtime
             .create_project_git_branch(params)
+            .await
+            .map_err(to_jsonrpc_error)?;
+        dispatch_result(response)
+    }
+
+    pub(super) async fn handle_project_git_branch_create_v0_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: V0ProjectGitBranchCreateParams = parse_params(params)?;
+        let response = self
+            .runtime
+            .create_project_git_branch(V2ProjectGitBranchCreateParams {
+                root_path: params.root_path,
+                branch: params.branch,
+            })
             .await
             .map_err(to_jsonrpc_error)?;
         dispatch_result(response)

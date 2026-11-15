@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "ProjectGitBlameLine": {
+      "description": "文件中的一行及其最近一次提交信息。",
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "authorTime": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "lineNumber": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "shortSha": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "author",
+        "authorTime",
+        "content",
+        "lineNumber",
+        "sha",
+        "shortSha",
+        "summary"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "lines": {
+      "items": {
+        "$ref": "#/$defs/ProjectGitBlameLine"
+      },
+      "type": "array"
+    },
+    "repositoryRoot": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "lines",
+    "rootPath"
+  ],
+  "title": "ProjectGitBlameResponse",
+  "type": "object"
+}

@@ -1,4 +1,11 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
   listProjectGitCommits,
@@ -436,6 +443,31 @@ export function useCanvasWorkbenchReviewState({
     translateWorkbench,
     workspaceRoot,
   ]);
+
+  // 提交/建分支成功后由全局 Git 流程发出；只刷新同一工作区的审阅投影。
+  useEffect(() => {
+    const handleGitMutation = (event: Event) => {
+      const detail = (event as CustomEvent<{ rootPath?: unknown }>).detail;
+      const mutatedRoot =
+        typeof detail?.rootPath === "string" ? detail.rootPath.trim() : "";
+      if (!mutatedRoot || !workspaceRoot) return;
+      if (
+        mutatedRoot.replace(/[\\/]+$/u, "") !==
+        workspaceRoot.trim().replace(/[\\/]+$/u, "")
+      )
+        return;
+      void refreshChanges();
+    };
+    window.addEventListener("lime:git-commit-completed", handleGitMutation);
+    window.addEventListener("lime:git-branch-created", handleGitMutation);
+    return () => {
+      window.removeEventListener(
+        "lime:git-commit-completed",
+        handleGitMutation,
+      );
+      window.removeEventListener("lime:git-branch-created", handleGitMutation);
+    };
+  }, [refreshChanges, workspaceRoot]);
 
   const copyGitApply = useCallback(async () => {
     const patch = resolveBackendPatchForCopy(

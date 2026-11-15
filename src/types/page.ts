@@ -21,11 +21,9 @@ export interface AgentLocation {
 
 export type Page =
   | "agent"
-  | "experts"
   | "skills"
   | "plugins"
   | "scheduled-tasks"
-  | "channels"
   | "settings";
 
 export interface AgentPendingServiceSkillLaunchParams {
@@ -92,12 +90,6 @@ export interface AgentPageParams {
   newChatAt?: number;
   /** 专家入口身份，只作为当前 Thread 的 profile / metadata 来源 */
   expertAgentLaunch?: ExpertAgentLaunchParams;
-}
-
-export interface ExpertsPageParams {
-  /** 专家广场启动专家时优先使用的当前项目作用域 */
-  projectId?: string;
-  currentProjectId?: string;
 }
 
 export interface ExpertAgentLaunchParams {
@@ -230,7 +222,6 @@ export interface AgentProjectFileOpenTarget {
 export type PageParams =
   | AgentPageParams
   | ScheduledTasksPageParams
-  | ExpertsPageParams
   | SettingsPageParams
   | SkillsPageParams
   | PluginsPageParams

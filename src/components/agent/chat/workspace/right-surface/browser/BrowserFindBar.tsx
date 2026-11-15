@@ -37,6 +37,25 @@ export function BrowserFindBar({
       void run(() => stopFindInBrowserTab(tabId));
     }
   };
+  useEffect(() => {
+    const findNext = (forward: boolean) => {
+      if (value) {
+        void run(() =>
+          findInBrowserTab({ tabId, text: value, forward, findNext: true }),
+        );
+      } else {
+        void run(() => stopFindInBrowserTab(tabId));
+      }
+    };
+    const next = () => findNext(true);
+    const previous = () => findNext(false);
+    window.addEventListener("lime:browser-find-next", next);
+    window.addEventListener("lime:browser-find-previous", previous);
+    return () => {
+      window.removeEventListener("lime:browser-find-next", next);
+      window.removeEventListener("lime:browser-find-previous", previous);
+    };
+  }, [value, run, tabId]);
   const result = selected.find?.text === value ? selected.find : null;
 
   return (

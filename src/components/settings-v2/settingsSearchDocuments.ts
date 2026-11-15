@@ -305,7 +305,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: ["settings.desktop.defaultStandaloneChatDescription"],
   },
   {
-    section: SettingsTabs.General,
+    section: SettingsTabs.Notifications,
     targetId: "general-turn-notifications",
     labelKey: "settings.notifications.turnComplete",
     termKeys: [
@@ -316,19 +316,19 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.General,
+    section: SettingsTabs.Notifications,
     targetId: "general-permission-notifications",
     labelKey: "settings.notifications.permissions",
     termKeys: ["settings.notifications.permissionsDescription"],
   },
   {
-    section: SettingsTabs.General,
+    section: SettingsTabs.Notifications,
     targetId: "general-question-notifications",
     labelKey: "settings.notifications.questions",
     termKeys: ["settings.notifications.questionsDescription"],
   },
   {
-    section: SettingsTabs.General,
+    section: SettingsTabs.Notifications,
     targetId: "general-notification-sound",
     labelKey: "settings.notifications.sound",
     termKeys: [
@@ -342,7 +342,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.General,
+    section: SettingsTabs.Notifications,
     targetId: "general-system-notifications",
     labelKey: "settings.notifications.system",
     termKeys: [
@@ -419,12 +419,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   },
   {
     section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-screen-capture",
-    labelKey: "settings.appSnapshots.screenCapture",
-    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
-  },
-  {
-    section: SettingsTabs.AppSnapshots,
     targetId: "app-snapshots-shortcut",
     labelKey: "settings.appSnapshots.shortcutLabel",
     termKeys: [
@@ -448,12 +442,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: ["settings.appSnapshots.soundDescription"],
   },
   {
-    section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-accessibility",
-    labelKey: "settings.appSnapshots.accessibility",
-    termKeys: ["settings.appSnapshots.accessibilityDescription"],
-  },
-  {
     section: SettingsTabs.Browser,
     targetId: "browser-site-settings",
     labelKey: "browserSiteSettings.title",
@@ -464,18 +452,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
       "browserSiteSettings.geolocation",
       "browserSiteSettings.notifications",
     ],
-  },
-  {
-    section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-hotkey",
-    labelKey: "settings.appSnapshots.hotkey",
-    termKeys: ["settings.appSnapshots.hotkeyDescription"],
-  },
-  {
-    section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-screen-capture",
-    labelKey: "settings.appSnapshots.screenCapture",
-    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
   },
   {
     section: SettingsTabs.Browser,
@@ -496,7 +472,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.Browser,
+    section: SettingsTabs.BrowserExtension,
     targetId: "browser-extension-manager",
     labelKey: "settings.browser.extensionManager",
     termKeys: [
@@ -657,34 +633,10 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: [],
   })),
   {
-    section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-hotkey",
-    labelKey: "settings.appSnapshots.hotkey",
-    termKeys: ["settings.appSnapshots.hotkeyDescription"],
-  },
-  {
-    section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-screen-capture",
-    labelKey: "settings.appSnapshots.screenCapture",
-    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
-  },
-  {
     section: SettingsTabs.Browser,
     targetId: "browser-web-target",
     labelKey: "settings.browser.web",
     termKeys: ["settings.browser.inApp", "settings.browser.external"],
-  },
-  {
-    section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-hotkey",
-    labelKey: "settings.appSnapshots.hotkey",
-    termKeys: ["settings.appSnapshots.hotkeyDescription"],
-  },
-  {
-    section: SettingsTabs.AppSnapshots,
-    targetId: "app-snapshots-screen-capture",
-    labelKey: "settings.appSnapshots.screenCapture",
-    termKeys: ["settings.appSnapshots.screenCaptureDescription"],
   },
   {
     section: SettingsTabs.Browser,

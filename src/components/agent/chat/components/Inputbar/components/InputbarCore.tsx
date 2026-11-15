@@ -4,6 +4,7 @@ import type { ComposerEditorHandle } from "@/components/input-kit";
 import React, {
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -221,6 +222,14 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     sessionId,
     disabled: disabled || isLoading,
   });
+  useEffect(() => {
+    const toggle = () => {
+      if (!dictationEnabled || isDictationBusy) return;
+      void handleDictationToggle();
+    };
+    window.addEventListener("lime:toggle-dictation", toggle);
+    return () => window.removeEventListener("lime:toggle-dictation", toggle);
+  }, [dictationEnabled, handleDictationToggle, isDictationBusy]);
   const dictationShowTranscript = isDictationBusy
     ? Boolean(liveTranscript.trim())
     : undefined;

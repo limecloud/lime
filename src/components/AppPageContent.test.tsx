@@ -24,9 +24,6 @@ const latestSkillsWorkspaceProps = vi.hoisted(() => ({
 const latestPluginsProps = vi.hoisted(() => ({
   value: null as Record<string, unknown> | null,
 }));
-const latestExpertPlazaProps = vi.hoisted(() => ({
-  value: null as Record<string, unknown> | null,
-}));
 const latestSettingsPageProps = vi.hoisted(() => ({
   value: null as Record<string, unknown> | null,
 }));
@@ -45,10 +42,6 @@ vi.mock("./agent/chat", () => ({
 
     return <div data-testid="agent-chat-page" />;
   },
-}));
-
-vi.mock("./channels/ImConfigPage", () => ({
-  ImConfigPage: () => <div data-testid="im-config-page" />,
 }));
 
 vi.mock("./settings-v2", () => ({
@@ -77,13 +70,6 @@ vi.mock("@/features/plugin/ui/PluginCatalogPage", () => ({
     }, []);
 
     return <div data-testid="plugins-page" />;
-  },
-}));
-
-vi.mock("./experts", () => ({
-  ExpertPlazaPage: (props: Record<string, unknown>) => {
-    latestExpertPlazaProps.value = props;
-    return <div data-testid="expert-plaza-page" />;
   },
 }));
 
@@ -186,7 +172,6 @@ describe("AppPageContent", () => {
     agentChatLifecycle.mounts = 0;
     agentChatLifecycle.unmounts = 0;
     latestSkillsWorkspaceProps.value = null;
-    latestExpertPlazaProps.value = null;
     latestSettingsPageProps.value = null;
     pluginsLifecycle.mounts = 0;
   });
@@ -787,13 +772,6 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("channels 页面应渲染 IM 配置页", async () => {
-    const { container } = renderContent("channels");
-    await flushEffects();
-
-    expectTestId(container, "im-config-page");
-  });
-
   it("scheduled-tasks 页面应渲染已安排任务工作台", async () => {
     const { container } = renderContent("scheduled-tasks");
     await flushEffects();
@@ -898,20 +876,6 @@ describe("AppPageContent", () => {
 
     expect(memoryPage).toBeNull();
     expect(container.textContent ?? "").not.toContain("灵感库");
-  });
-
-  it("experts 页面应挂载专家广场并透传导航和当前项目作用域", async () => {
-    const { container } = renderContent("experts", {
-      currentProjectId: "project-1",
-      projectId: "project-1",
-    });
-    await flushEffects();
-
-    expectTestId(container, "expert-plaza-page");
-    expect(latestExpertPlazaProps.value).toMatchObject({
-      currentProjectId: "project-1",
-      onNavigate: expect.any(Function),
-    });
   });
 
   it("plugins 页面带筛选参数时仍应渲染正式 Plugins 管理入口", async () => {

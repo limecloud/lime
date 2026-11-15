@@ -53,6 +53,9 @@ import type { ThreadWorkspaceHeaderViewModel } from "./threadWorkspaceHeaderView
 import { QueuedMessageList } from "../components/QueuedMessageList";
 import { BottomTerminalPanel } from "./BottomTerminalPanel";
 import { WorkspaceShortcutRuntime } from "./WorkspaceShortcutRuntime";
+import { GitBranchCreateCommand } from "@/components/git/GitBranchCreateCommand";
+import { GitCommitCommand } from "@/components/git/GitCommitCommand";
+import { GitPullRequestCommands } from "@/components/git/GitPullRequestCommands";
 import { ThreadProjectSelector } from "../components/ThreadProjectSelector";
 import { ReviewThreadSidePanelProjectionContext } from "./ReviewThreadSidePanelProjection";
 
@@ -221,88 +224,99 @@ function renderWorkspaceChatContent({
         cwd={messageListProps.threadRead?.thread_settings?.cwd}
         messages={messageListProps.messages}
       />
+      <GitCommitCommand
+        cwd={messageListProps.threadRead?.thread_settings?.cwd}
+      />
+      <GitBranchCreateCommand
+        cwd={messageListProps.threadRead?.thread_settings?.cwd}
+      />
+      <GitPullRequestCommands
+        cwd={messageListProps.threadRead?.thread_settings?.cwd}
+      />
       <ChatContainer>
-      <ChatContainerInner $taskCenterSurface={taskCenterSurface}>
-        {landingSurface.entryBannerVisible &&
-        landingSurface.entryBannerMessage ? (
-          <EntryBanner data-testid="workspace-entry-banner">
-            <Info className="h-4 w-4 shrink-0" />
-            <span data-testid="workspace-entry-banner-text">
-              {landingSurface.entryBannerMessage}
-            </span>
-            <EntryBannerClose
-              type="button"
-              onClick={landingSurface.onDismissEntryBanner}
-              aria-label={copy.entryBannerCloseAria}
-            >
-              {copy.entryBannerClose}
-            </EntryBannerClose>
-          </EntryBanner>
-        ) : null}
+        <ChatContainerInner $taskCenterSurface={taskCenterSurface}>
+          {landingSurface.entryBannerVisible &&
+          landingSurface.entryBannerMessage ? (
+            <EntryBanner data-testid="workspace-entry-banner">
+              <Info className="h-4 w-4 shrink-0" />
+              <span data-testid="workspace-entry-banner-text">
+                {landingSurface.entryBannerMessage}
+              </span>
+              <EntryBannerClose
+                type="button"
+                onClick={landingSurface.onDismissEntryBanner}
+                aria-label={copy.entryBannerCloseAria}
+              >
+                {copy.entryBannerClose}
+              </EntryBannerClose>
+            </EntryBanner>
+          ) : null}
 
-        {showChatLayout && landingSurface.creationReplaySurface ? (
-          <CreationReplaySurfaceBanner
-            surface={landingSurface.creationReplaySurface}
-            className="mx-4 mb-2"
-          />
-        ) : null}
+          {showChatLayout && landingSurface.creationReplaySurface ? (
+            <CreationReplaySurfaceBanner
+              surface={landingSurface.creationReplaySurface}
+              className="mx-4 mb-2"
+            />
+          ) : null}
 
-        {showChatLayout ? (
-          <ChatContent $compact={compactChrome}>
+          {showChatLayout ? (
+            <ChatContent $compact={compactChrome}>
+              <>
+                {contextWorkspaceEnabled ? (
+                  <MessageViewport
+                    $bottomPadding={
+                      generalWorkbenchMessageViewportBottomPadding
+                    }
+                  >
+                    {messageListNode}
+                  </MessageViewport>
+                ) : (
+                  messageListNode
+                )}
+                {showWorkspaceAlert ? (
+                  <div className="mx-4 mb-2 flex items-center gap-2 rounded-[18px] border border-amber-200/90 bg-amber-50/86 px-3.5 py-2.5 text-sm text-amber-800 shadow-sm shadow-amber-950/5 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                    <span className="flex-1">{copy.workspaceMissing}</span>
+                    <button
+                      type="button"
+                      onClick={onSelectWorkspaceDirectory}
+                      className="shrink-0 rounded-xl border border-amber-200 bg-white/84 px-2.5 py-1 text-xs font-medium text-amber-900 transition hover:border-amber-300 hover:bg-white dark:bg-amber-800 dark:text-amber-100 dark:hover:bg-amber-700"
+                    >
+                      {copy.workspaceReselect}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onDismissWorkspaceAlert}
+                      className="shrink-0 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+                      aria-label={copy.workspaceDismissAria}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : null}
+                {queueStatusNode}
+                {showInlineInputbar ? (
+                  <ChatInputSlot
+                    data-testid="workspace-inline-input-slot"
+                    data-action-owner="composer"
+                  >
+                    {inputbarNode}
+                  </ChatInputSlot>
+                ) : null}
+                <BottomTerminalPanel
+                  threadId={messageListProps.threadRead?.thread_id}
+                  turns={messageListProps.turns}
+                  items={messageListProps.threadItems}
+                />
+              </>
+            </ChatContent>
+          ) : (
             <>
-              {contextWorkspaceEnabled ? (
-                <MessageViewport
-                  $bottomPadding={generalWorkbenchMessageViewportBottomPadding}
-                >
-                  {messageListNode}
-                </MessageViewport>
-              ) : (
-                messageListNode
-              )}
-              {showWorkspaceAlert ? (
-                <div className="mx-4 mb-2 flex items-center gap-2 rounded-[18px] border border-amber-200/90 bg-amber-50/86 px-3.5 py-2.5 text-sm text-amber-800 shadow-sm shadow-amber-950/5 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                  <span className="flex-1">{copy.workspaceMissing}</span>
-                  <button
-                    type="button"
-                    onClick={onSelectWorkspaceDirectory}
-                    className="shrink-0 rounded-xl border border-amber-200 bg-white/84 px-2.5 py-1 text-xs font-medium text-amber-900 transition hover:border-amber-300 hover:bg-white dark:bg-amber-800 dark:text-amber-100 dark:hover:bg-amber-700"
-                  >
-                    {copy.workspaceReselect}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onDismissWorkspaceAlert}
-                    className="shrink-0 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
-                    aria-label={copy.workspaceDismissAria}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : null}
-              {queueStatusNode}
-              {showInlineInputbar ? (
-                <ChatInputSlot
-                  data-testid="workspace-inline-input-slot"
-                  data-action-owner="composer"
-                >
-                  {inputbarNode}
-                </ChatInputSlot>
-              ) : null}
-              <BottomTerminalPanel
-                threadId={messageListProps.threadRead?.thread_id}
-                turns={messageListProps.turns}
-                items={messageListProps.threadItems}
-              />
+              <EmptyState {...landingSurface.emptyStateProps} />
+              {landingSurface.composerDraftStatusNode}
             </>
-          </ChatContent>
-        ) : (
-          <>
-            <EmptyState {...landingSurface.emptyStateProps} />
-            {landingSurface.composerDraftStatusNode}
-          </>
-        )}
-      </ChatContainerInner>
-    </ChatContainer>
+          )}
+        </ChatContainerInner>
+      </ChatContainer>
     </>
   );
 }
@@ -472,7 +486,7 @@ export function WorkspaceConversationScene({
   });
   const currentWorkspaceName =
     openedProjects?.find((project) => project.id === projectId)?.name ?? null;
-  const queueStatusNode = (
+  const queueStatusNode = messageListProps.threadRead?.ephemeral ? null : (
     <QueuedMessageList threadId={messageListProps.threadRead?.thread_id} />
   );
   const summary = useThreadSummaryPanel(
@@ -484,24 +498,24 @@ export function WorkspaceConversationScene({
       defaultMessage="摘要面板渲染失败"
       testId="summary-panel-render-error"
     >
-    <ThreadSummaryPanel
-      threadId={currentThreadId}
-      projectless={
-        !threadDirectory.loading &&
-        !threadDirectory.error &&
-        !threadDirectory.projectId
-      }
-      onOpenPluginDirectory={onOpenPluginDirectory}
-      turns={messageListProps.turns}
-      threadItems={messageListProps.threadItems}
-      onOpenBackgroundTerminal={onOpenBackgroundTerminal}
-      onRefresh={onRefreshThread}
-      canonicalChildren={messageListProps.canonicalChildren}
-      onOpenSubagentSession={messageListProps.onOpenSubagentSession}
-      onFileClick={messageListProps.onFileClick}
-      onOpenArtifactFromTimeline={messageListProps.onOpenArtifactFromTimeline}
-      persistenceError={summary.persistenceError}
-    />
+      <ThreadSummaryPanel
+        threadId={currentThreadId}
+        projectless={
+          !threadDirectory.loading &&
+          !threadDirectory.error &&
+          !threadDirectory.projectId
+        }
+        onOpenPluginDirectory={onOpenPluginDirectory}
+        turns={messageListProps.turns}
+        threadItems={messageListProps.threadItems}
+        onOpenBackgroundTerminal={onOpenBackgroundTerminal}
+        onRefresh={onRefreshThread}
+        canonicalChildren={messageListProps.canonicalChildren}
+        onOpenSubagentSession={messageListProps.onOpenSubagentSession}
+        onFileClick={messageListProps.onFileClick}
+        onOpenArtifactFromTimeline={messageListProps.onOpenArtifactFromTimeline}
+        persistenceError={summary.persistenceError}
+      />
     </PanelRenderErrorBoundary>
   );
   const chatContent = renderWorkspaceChatContent({
@@ -550,6 +564,7 @@ export function WorkspaceConversationScene({
     shouldRenderThreadHeader && threadHeader ? (
       <ThreadWorkspaceHeader
         {...threadHeader}
+        ephemeral={messageListProps.threadRead?.ephemeral ?? false}
         scheduledTaskThreadId={currentThreadId}
         summaryToggle={
           <ThreadSummaryToggle state={summary} panel={summaryPanel} />

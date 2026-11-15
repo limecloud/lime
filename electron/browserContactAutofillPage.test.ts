@@ -4,11 +4,10 @@ import {
   installBrowserContactAutofill,
 } from "./browserContactAutofillPage";
 
-const profile = {
-  fullName: "Alice",
-  email: "alice@example.com",
-  phone: "123456",
-  address: "1 Main St",
+const data = {
+  emails: ["alice@example.com"],
+  phones: ["123456"],
+  addresses: ["1 Main St"],
 };
 
 function input(attributes: Record<string, string>): HTMLInputElement {
@@ -38,13 +37,13 @@ describe("contactFieldKind", () => {
   it("按类型与属性识别字段", () => {
     expect(contactFieldKind(input({ type: "email" }))).toBe("email");
     expect(contactFieldKind(input({ type: "tel" }))).toBe("phone");
-    expect(contactFieldKind(input({ autocomplete: "name" }))).toBe("name");
+    expect(contactFieldKind(input({ autocomplete: "name" }))).toBeNull();
     expect(contactFieldKind(input({ name: "street-address" }))).toBe("address");
     expect(contactFieldKind(input({ name: "random" }))).toBeNull();
     expect(contactFieldKind(input({ name: "username" }))).toBeNull();
     expect(contactFieldKind(input({ name: "user_name" }))).toBeNull();
     expect(contactFieldKind(input({ name: "search" }))).toBeNull();
-    expect(contactFieldKind(input({ name: "fullName" }))).toBe("name");
+    expect(contactFieldKind(input({ name: "fullName" }))).toBeNull();
     expect(contactFieldKind(input({ name: "first-name" }))).toBeNull();
     expect(contactFieldKind(input({ autocomplete: "given-name" }))).toBeNull();
     expect(contactFieldKind(input({ name: "zip" }))).toBeNull();
@@ -57,7 +56,7 @@ describe("contactFieldKind", () => {
 
 describe("installBrowserContactAutofill", () => {
   it("按字段填充且不覆盖已有值", async () => {
-    const invoke = vi.fn().mockResolvedValue(profile);
+    const invoke = vi.fn().mockResolvedValue(data);
     cleanups.push(installBrowserContactAutofill({ invoke }));
     const email = input({ type: "email" });
     const phone = input({ type: "tel" });

@@ -1,4 +1,5 @@
 export interface AgentRuntimeCreateSessionOptions {
+  ephemeral?: boolean;
   runStartHooks?: boolean;
   workingDir?: string | null;
   metadata?: Record<string, unknown>;

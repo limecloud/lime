@@ -10,8 +10,10 @@ describe("appSnapshotPreferences", () => {
 
   it("默认播放音效、关闭快捷键并持久化音效关闭状态", () => {
     expect(getAppSnapshotPreferences()).toEqual({
+      enabled: false,
       soundEnabled: true,
       hotkeyEnabled: false,
+      destination: "automatic",
     });
     setAppSnapshotPreferences({ soundEnabled: false });
     expect(getAppSnapshotPreferences().soundEnabled).toBe(false);
@@ -26,13 +28,30 @@ describe("appSnapshotPreferences", () => {
     setAppSnapshotPreferences({ soundEnabled: false });
     setAppSnapshotPreferences({ hotkeyEnabled: true });
     expect(getAppSnapshotPreferences()).toEqual({
+      enabled: false,
       soundEnabled: false,
       hotkeyEnabled: true,
+      destination: "automatic",
     });
     expect(
       JSON.parse(
         localStorage.getItem("lime.app-snapshots.preferences.v1") ?? "{}",
       ),
-    ).toEqual({ soundEnabled: false, hotkeyEnabled: true });
+    ).toEqual({
+      enabled: false,
+      soundEnabled: false,
+      hotkeyEnabled: true,
+      destination: "automatic",
+    });
+  });
+
+  it("持久化快照目标位置", () => {
+    setAppSnapshotPreferences({ destination: "newChat" });
+    expect(getAppSnapshotPreferences().destination).toBe("newChat");
+    expect(
+      JSON.parse(
+        localStorage.getItem("lime.app-snapshots.preferences.v1") ?? "{}",
+      ),
+    ).toMatchObject({ destination: "newChat" });
   });
 });

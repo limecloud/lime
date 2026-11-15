@@ -61,3 +61,21 @@ export function listenBrowserHistoryChanged(
     },
   );
 }
+
+export async function importChromeBrowserHistory(): Promise<{
+  imported: number;
+  failed: number;
+}> {
+  const result = await safeInvoke<unknown>("browser_history_import_chrome");
+  if (!result || typeof result !== "object") {
+    throw new Error("browser history import returned an invalid result");
+  }
+  const record = result as { imported?: unknown; failed?: unknown };
+  if (
+    typeof record.imported !== "number" ||
+    typeof record.failed !== "number"
+  ) {
+    throw new Error("browser history import returned an invalid result");
+  }
+  return { imported: record.imported, failed: record.failed };
+}

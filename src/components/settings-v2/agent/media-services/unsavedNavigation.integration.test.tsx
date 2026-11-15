@@ -45,7 +45,7 @@ function Harness() {
   return (
     <>
       <button
-        onClick={() => handleNavigate("settings", { tab: SettingsTabs.About })}
+        onClick={() => handleNavigate("settings", { tab: SettingsTabs.General })}
       >
         Section
       </button>

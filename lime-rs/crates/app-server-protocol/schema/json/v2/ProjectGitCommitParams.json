@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "创建一次新的本地 Git 提交。\n\n`paths` 省略时先 `git add -A` 再提交全部暂存内容；指定时只暂存并提交这些仓库内相对路径。",
+  "properties": {
+    "message": {
+      "type": "string"
+    },
+    "paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "message",
+    "rootPath"
+  ],
+  "title": "ProjectGitCommitParams",
+  "type": "object"
+}

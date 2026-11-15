@@ -6,6 +6,7 @@ import {
   parseBrowserHistoryClear,
   type BrowserHistoryClear,
   type BrowserHistoryQuery,
+  type BrowserHistoryVisit,
 } from "../src/lib/api/browserHistoryTypes";
 import { parseBrowserHistoryVisitTargets } from "../src/lib/api/browserHistoryVisits";
 
@@ -126,6 +127,26 @@ export class BrowserHistoryHost {
 
   forget(viewId: string): void {
     this.#committedUrls.delete(viewId);
+  }
+
+  importVisits(
+    visits: readonly BrowserHistoryVisit[],
+  ): Promise<{ imported: number; failed: number }> {
+    return this.#run(async (store) => {
+      let imported = 0;
+      let failed = 0;
+      for (const visit of visits) {
+        try {
+          const entry = await store.recordVisit(visit);
+          if (entry) imported += 1;
+          else failed += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      this.#publish(await store.getRevision());
+      return { imported, failed };
+    });
   }
 
   summarizeData(

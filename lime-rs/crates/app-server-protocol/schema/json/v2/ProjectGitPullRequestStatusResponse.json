@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "ProjectGitPullRequestInfo": {
+      "properties": {
+        "baseRefName": {
+          "type": "string"
+        },
+        "headRefName": {
+          "type": "string"
+        },
+        "isDraft": {
+          "type": "boolean"
+        },
+        "number": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "baseRefName",
+        "headRefName",
+        "isDraft",
+        "number",
+        "state",
+        "title",
+        "url"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "pullRequest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProjectGitPullRequestInfo"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "rootPath"
+  ],
+  "title": "ProjectGitPullRequestStatusResponse",
+  "type": "object"
+}

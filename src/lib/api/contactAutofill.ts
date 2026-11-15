@@ -1,45 +1,46 @@
 import { safeInvoke } from "@/lib/dev-bridge";
 
-export interface ContactAutofillProfile {
-  fullName: string;
-  email: string;
-  phone: string;
-  address: string;
+export interface ContactAutofillData {
+  emails: string[];
+  phones: string[];
+  addresses: string[];
 }
 
-function isProfile(value: unknown): value is ContactAutofillProfile {
+function isData(value: unknown): value is ContactAutofillData {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
-  return ["fullName", "email", "phone", "address"].every(
-    (key) => typeof record[key] === "string",
+  return ["emails", "phones", "addresses"].every(
+    (key) =>
+      Array.isArray(record[key]) &&
+      record[key].every((item) => typeof item === "string"),
   );
 }
 
-export async function readContactAutofillProfile(): Promise<ContactAutofillProfile | null> {
+export async function readContactAutofillData(): Promise<ContactAutofillData | null> {
   const result = await safeInvoke<unknown>("browser_contact_profile_read");
   if (result === null) return null;
-  if (!isProfile(result)) {
-    throw new Error("contact profile returned an invalid result");
+  if (!isData(result)) {
+    throw new Error("contact info returned an invalid result");
   }
   return result;
 }
 
-export async function saveContactAutofillProfile(
-  input: Partial<ContactAutofillProfile>,
-): Promise<ContactAutofillProfile> {
+export async function saveContactAutofillData(
+  input: Partial<ContactAutofillData>,
+): Promise<ContactAutofillData> {
   const result = await safeInvoke<unknown>("browser_contact_profile_save", {
     ...input,
   });
-  if (!isProfile(result)) {
-    throw new Error("contact profile save returned an invalid result");
+  if (!isData(result)) {
+    throw new Error("contact info save returned an invalid result");
   }
   return result;
 }
 
-export async function clearContactAutofillProfile(): Promise<boolean> {
+export async function clearContactAutofillData(): Promise<boolean> {
   const result = await safeInvoke<unknown>("browser_contact_profile_clear");
   if (typeof result !== "boolean") {
-    throw new Error("contact profile clear returned an invalid result");
+    throw new Error("contact info clear returned an invalid result");
   }
   return result;
 }

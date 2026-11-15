@@ -66,18 +66,10 @@ impl RuntimeProviderProtocol {
     pub fn from_direct_route(provider_name: &str, protocol: &ProtocolKind) -> Option<Self> {
         let normalized = normalize_provider_type(provider_name);
         if matches!(normalized.as_str(), "azure" | "azure_openai") {
-            return matches!(
-                protocol,
-                ProtocolKind::OpenaiResponses
-            )
-            .then_some(Self::AzureResponses);
+            return matches!(protocol, ProtocolKind::OpenaiResponses)
+                .then_some(Self::AzureResponses);
         }
-        if normalized == "ollama"
-            && !matches!(
-                protocol,
-                ProtocolKind::OpenaiResponses
-            )
-        {
+        if normalized == "ollama" && !matches!(protocol, ProtocolKind::OpenaiResponses) {
             return None;
         }
         if matches!(protocol, ProtocolKind::GeminiGenerateContent)

@@ -1,10 +1,19 @@
 use super::service_projection::{
-    project_git_commit_list_from_service, project_git_diff_from_service,
+    project_git_blame_from_service, project_git_commit_list_from_service,
+    project_git_commit_result_from_service, project_git_diff_from_service,
+    project_git_pull_request_create_from_service, project_git_pull_request_merge_from_service,
+    project_git_pull_request_open_from_service, project_git_pull_request_status_from_service,
     project_git_status_from_service, project_git_worktree_from_service,
 };
 use super::{RuntimeCore, RuntimeCoreError};
 use app_server_protocol::protocol::v2::{
-    LocalEnvironmentResult, LocalEnvironmentsReadConfigParams,
+    LocalEnvironmentResult, LocalEnvironmentsReadConfigParams, ProjectGitBlameParams,
+    ProjectGitBlameResponse, ProjectGitBranchCreateParams, ProjectGitBranchCreateResponse,
+    ProjectGitCommitParams, ProjectGitCommitResponse, ProjectGitPullRequestCreateParams,
+    ProjectGitPullRequestCreateResponse, ProjectGitPullRequestMergeMethod,
+    ProjectGitPullRequestMergeParams, ProjectGitPullRequestMergeResponse,
+    ProjectGitPullRequestOpenParams, ProjectGitPullRequestOpenResponse,
+    ProjectGitPullRequestStatusParams, ProjectGitPullRequestStatusResponse,
 };
 use app_server_protocol::*;
 
@@ -85,6 +94,18 @@ impl RuntimeCore {
         Ok(project_git_diff_from_service(diff))
     }
 
+    pub async fn read_project_git_blame(
+        &self,
+        params: ProjectGitBlameParams,
+    ) -> Result<ProjectGitBlameResponse, RuntimeCoreError> {
+        let path = lime_services::project_git_service::validate_blame_path(&params.path)
+            .map_err(RuntimeCoreError::InvalidRequest)?;
+        let blame = lime_services::project_git_service::read_blame(&params.root_path, &path)
+            .await
+            .map_err(RuntimeCoreError::Backend)?;
+        Ok(project_git_blame_from_service(blame))
+    }
+
     pub async fn list_project_git_commits(
         &self,
         params: ProjectGitCommitListParams,
@@ -95,6 +116,33 @@ impl RuntimeCore {
             .await
             .map_err(RuntimeCoreError::Backend)?;
         Ok(project_git_commit_list_from_service(list))
+    }
+
+    pub async fn commit_project_git_changes(
+        &self,
+        params: ProjectGitCommitParams,
+    ) -> Result<ProjectGitCommitResponse, RuntimeCoreError> {
+        let message = params.message.trim();
+        if message.is_empty() {
+            return Err(RuntimeCoreError::InvalidRequest("提交信息不能为空".into()));
+        }
+        if message.chars().count() > lime_services::project_git_service::MAX_COMMIT_MESSAGE_CHARS {
+            return Err(RuntimeCoreError::InvalidRequest(format!(
+                "提交信息过长（最多 {} 个字符）",
+                lime_services::project_git_service::MAX_COMMIT_MESSAGE_CHARS
+            )));
+        }
+        if params.paths.as_ref().is_some_and(Vec::is_empty) {
+            return Err(RuntimeCoreError::InvalidRequest("提交路径不能为空".into()));
+        }
+        let result = lime_services::project_git_service::commit(
+            &params.root_path,
+            &params.message,
+            params.paths,
+        )
+        .await
+        .map_err(RuntimeCoreError::Backend)?;
+        Ok(project_git_commit_result_from_service(result))
     }
 
     pub async fn checkout_project_git_branch(
@@ -114,11 +162,75 @@ impl RuntimeCore {
         params: ProjectGitBranchCreateParams,
     ) -> Result<ProjectGitBranchCreateResponse, RuntimeCoreError> {
         let root_path = params.root_path;
-        let branch = params.branch;
+        let branch = lime_services::project_git_service::validate_branch_name(&params.branch)
+            .map_err(|error| RuntimeCoreError::InvalidRequest(error.to_string()))?
+            .to_string();
         let status = lime_services::project_git_service::create_branch(&root_path, &branch)
             .await
             .map_err(RuntimeCoreError::Backend)?;
         Ok(project_git_status_from_service(status))
+    }
+
+    pub async fn create_project_git_pull_request(
+        &self,
+        params: ProjectGitPullRequestCreateParams,
+    ) -> Result<ProjectGitPullRequestCreateResponse, RuntimeCoreError> {
+        let runner = lime_services::pull_request_service::LocalGhCommandRunner::default();
+        let result = lime_services::pull_request_service::create_pull_request(
+            &runner,
+            &params.root_path,
+            &params.title,
+            &params.body,
+            params.draft,
+            params.base.as_deref(),
+        )
+        .await
+        .map_err(pull_request_error_to_runtime)?;
+        Ok(project_git_pull_request_create_from_service(result))
+    }
+
+    pub async fn open_project_git_pull_request(
+        &self,
+        params: ProjectGitPullRequestOpenParams,
+    ) -> Result<ProjectGitPullRequestOpenResponse, RuntimeCoreError> {
+        let runner = lime_services::pull_request_service::LocalGhCommandRunner::default();
+        let result =
+            lime_services::pull_request_service::open_pull_request(&runner, &params.root_path)
+                .await
+                .map_err(pull_request_error_to_runtime)?;
+        Ok(project_git_pull_request_open_from_service(result))
+    }
+
+    pub async fn read_project_git_pull_request(
+        &self,
+        params: ProjectGitPullRequestStatusParams,
+    ) -> Result<ProjectGitPullRequestStatusResponse, RuntimeCoreError> {
+        let runner = lime_services::pull_request_service::LocalGhCommandRunner::default();
+        let result =
+            lime_services::pull_request_service::read_pull_request(&runner, &params.root_path)
+                .await
+                .map_err(pull_request_error_to_runtime)?;
+        Ok(project_git_pull_request_status_from_service(
+            params.root_path,
+            result,
+        ))
+    }
+
+    pub async fn merge_project_git_pull_request(
+        &self,
+        params: ProjectGitPullRequestMergeParams,
+    ) -> Result<ProjectGitPullRequestMergeResponse, RuntimeCoreError> {
+        let runner = lime_services::pull_request_service::LocalGhCommandRunner::default();
+        let result = lime_services::pull_request_service::merge_pull_request(
+            &runner,
+            &params.root_path,
+            merge_method_to_service(params.method),
+            params.delete_branch,
+            params.pr_number,
+        )
+        .await
+        .map_err(pull_request_error_to_runtime)?;
+        Ok(project_git_pull_request_merge_from_service(result))
     }
 
     pub async fn create_project_git_worktree(
@@ -167,6 +279,33 @@ impl RuntimeCore {
         response.setup_result = setup_result;
         response.setup_error = setup_error;
         Ok(response)
+    }
+}
+
+fn pull_request_error_to_runtime(
+    error: lime_services::pull_request_service::PullRequestError,
+) -> RuntimeCoreError {
+    match error {
+        lime_services::pull_request_service::PullRequestError::InvalidInput(message) => {
+            RuntimeCoreError::InvalidRequest(message)
+        }
+        other => RuntimeCoreError::Backend(other.to_string()),
+    }
+}
+
+fn merge_method_to_service(
+    method: ProjectGitPullRequestMergeMethod,
+) -> lime_services::pull_request_service::MergeMethod {
+    match method {
+        ProjectGitPullRequestMergeMethod::Merge => {
+            lime_services::pull_request_service::MergeMethod::Merge
+        }
+        ProjectGitPullRequestMergeMethod::Squash => {
+            lime_services::pull_request_service::MergeMethod::Squash
+        }
+        ProjectGitPullRequestMergeMethod::Rebase => {
+            lime_services::pull_request_service::MergeMethod::Rebase
+        }
     }
 }
 

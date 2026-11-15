@@ -52,10 +52,10 @@ pub fn platform_shell_argv(command: &str) -> Vec<String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let shell = std::env::var("SHELL")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(|| "sh".to_string());
+        let shell = crate::shell_detect::default_user_shell()
+            .shell_path
+            .to_string_lossy()
+            .into_owned();
         vec![shell, "-lc".to_string(), command.to_string()]
     }
 }

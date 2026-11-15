@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "读取当前分支关联 Pull Request 的状态。",
+  "properties": {
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "rootPath"
+  ],
+  "title": "ProjectGitPullRequestStatusParams",
+  "type": "object"
+}

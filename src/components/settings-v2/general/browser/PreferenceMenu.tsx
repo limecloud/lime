@@ -13,7 +13,7 @@ export function PreferenceMenu<T extends string>({
   description?: string;
   targetId: string;
   value: T;
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; description?: string }[];
   disabled: boolean;
   onChange: (value: T) => void;
 }) {

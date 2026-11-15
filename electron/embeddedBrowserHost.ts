@@ -589,7 +589,11 @@ export class ElectronEmbeddedBrowserHost {
   #reload(window: BrowserWindow, args?: HostArgs): EmbeddedBrowserViewState {
     const entry = this.#ensureEntry(window, readViewId(args));
     entry.loadProgress = 0.1;
-    entry.view.webContents.reload();
+    if (args?.ignoreCache === true) {
+      entry.view.webContents.reloadIgnoringCache();
+    } else {
+      entry.view.webContents.reload();
+    }
     return this.#emitState(entry);
   }
 

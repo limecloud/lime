@@ -8,6 +8,8 @@ use thiserror::Error;
 
 use crate::parse_patch;
 use crate::seek_sequence;
+use crate::text_file::Replacement;
+use crate::text_file::SourceFile;
 use crate::Hunk;
 use crate::ParseError;
 use crate::UpdateFileChunk;
@@ -206,21 +208,14 @@ fn derive_new_contents_from_chunks(
     chunks: &[UpdateFileChunk],
 ) -> Result<AppliedPatch, ApplyPatchError> {
     let original_contents = read_text(path, "read file to update")?;
-    let mut original_lines: Vec<String> = original_contents.split('\n').map(String::from).collect();
-
-    if original_lines.last().is_some_and(String::is_empty) {
-        original_lines.pop();
-    }
-
+    let mut source_file = SourceFile::parse(&original_contents);
+    let original_lines = source_file.line_texts();
     let replacements = compute_replacements(&original_lines, path, chunks)?;
-    let mut new_lines = apply_replacements(original_lines, &replacements);
-    if !new_lines.last().is_some_and(String::is_empty) {
-        new_lines.push(String::new());
-    }
+    source_file.apply_replacements(&replacements);
 
     Ok(AppliedPatch {
         original_contents,
-        new_contents: new_lines.join("\n"),
+        new_contents: source_file.into_contents(),
     })
 }
 
@@ -228,8 +223,8 @@ fn compute_replacements(
     original_lines: &[String],
     path: &Path,
     chunks: &[UpdateFileChunk],
-) -> Result<Vec<(usize, usize, Vec<String>)>, ApplyPatchError> {
-    let mut replacements: Vec<(usize, usize, Vec<String>)> = Vec::new();
+) -> Result<Vec<Replacement>, ApplyPatchError> {
+    let mut replacements: Vec<Replacement> = Vec::new();
     let mut line_index: usize = 0;
 
     for chunk in chunks {
@@ -268,7 +263,32 @@ fn compute_replacements(
         }
 
         if let Some(start_index) = found {
-            replacements.push((start_index, pattern.len(), new_slice.to_vec()));
+            // Context lines occur in both sides of a patch chunk. Keep those
+            // original lines in place so their exact contents and terminators
+            // survive, especially when the file has mixed line endings.
+            let mut old_start = 0;
+            let mut new_start = 0;
+            for &(old_context, new_context) in &chunk.context_line_indices {
+                if old_context >= pattern.len() || new_context >= new_slice.len() {
+                    break;
+                }
+                if old_start != old_context || new_start != new_context {
+                    replacements.push((
+                        start_index + old_start,
+                        old_context - old_start,
+                        new_slice[new_start..new_context].to_vec(),
+                    ));
+                }
+                old_start = old_context + 1;
+                new_start = new_context + 1;
+            }
+            if old_start != pattern.len() || new_start != new_slice.len() {
+                replacements.push((
+                    start_index + old_start,
+                    pattern.len() - old_start,
+                    new_slice[new_start..].to_vec(),
+                ));
+            }
             line_index = start_index + pattern.len();
         } else {
             return Err(ApplyPatchError::ComputeReplacements(format!(
@@ -281,25 +301,6 @@ fn compute_replacements(
 
     replacements.sort_by_key(|(index, _, _)| *index);
     Ok(replacements)
-}
-
-fn apply_replacements(
-    mut lines: Vec<String>,
-    replacements: &[(usize, usize, Vec<String>)],
-) -> Vec<String> {
-    for (start_index, old_len, new_segment) in replacements.iter().rev() {
-        for _ in 0..*old_len {
-            if *start_index < lines.len() {
-                lines.remove(*start_index);
-            }
-        }
-
-        for (offset, new_line) in new_segment.iter().enumerate() {
-            lines.insert(start_index + offset, new_line.clone());
-        }
-    }
-
-    lines
 }
 
 fn canonical_workdir(workdir: &Path) -> Result<PathBuf, ApplyPatchError> {
@@ -484,6 +485,40 @@ mod tests {
             "foo\nbaz\n"
         );
         assert_eq!(report.modified, vec![PathBuf::from("update.txt")]);
+    }
+
+    #[test]
+    fn update_file_preserves_context_line_endings_in_mixed_file() {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join("mixed.txt"),
+            "alpha\r\nbeta\r\ngamma\n",
+        )
+        .unwrap();
+        let patch = wrap_patch(
+            "*** Update File: mixed.txt\n@@\n alpha\n-beta\n+BETA\n gamma",
+        );
+
+        apply_patch_to_workdir(&patch, dir.path()).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(dir.path().join("mixed.txt")).unwrap(),
+            "alpha\r\nBETA\r\ngamma\n"
+        );
+    }
+
+    #[test]
+    fn update_file_preserves_crlf_line_endings() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("crlf.txt"), "foo\r\nbar\r\n").unwrap();
+        let patch = wrap_patch("*** Update File: crlf.txt\n@@\n foo\n-bar\n+baz");
+
+        apply_patch_to_workdir(&patch, dir.path()).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(dir.path().join("crlf.txt")).unwrap(),
+            "foo\r\nbaz\r\n"
+        );
     }
 
     #[test]

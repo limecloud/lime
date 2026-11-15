@@ -1,7 +1,3 @@
-// Adapted from OpenAI Codex shell-command at
-// 4aaee872e31abefe0d32e91faab23b09b6968824 (Apache-2.0).
-// See LICENSE and NOTICE.
-
 use std::path::PathBuf;
 
 use tree_sitter::Node;
@@ -9,15 +5,16 @@ use tree_sitter::Parser;
 use tree_sitter::Tree;
 use tree_sitter_bash::LANGUAGE as BASH;
 
-use super::shell_detect::detect_shell_type;
-use super::shell_detect::ShellType;
+use crate::shell_detect::ShellType;
+use crate::shell_detect::detect_shell_type;
 
 /// Parse the provided bash source using tree-sitter-bash, returning a Tree on
 /// success or None if parsing failed.
 pub fn try_parse_shell(shell_lc_arg: &str) -> Option<Tree> {
     let lang = BASH.into();
     let mut parser = Parser::new();
-    parser.set_language(&lang).ok()?;
+    #[expect(clippy::expect_used)]
+    parser.set_language(&lang).expect("load bash grammar");
     let old_tree: Option<&Tree> = None;
     parser.parse(shell_lc_arg, old_tree)
 }
@@ -91,11 +88,8 @@ pub fn try_parse_word_only_commands_sequence(tree: &Tree, src: &str) -> Option<V
 
     let mut commands = Vec::new();
     for node in command_nodes {
-        if let Some(words) = parse_plain_command_from_node(node, src) {
-            commands.push(words);
-        } else {
-            return None;
-        }
+        let words = parse_plain_command_from_node(node, src)?;
+        commands.push(words);
     }
     Some(commands)
 }
@@ -129,6 +123,39 @@ pub fn extract_bash_command(command: &[String]) -> Option<(&str, &str)> {
 pub fn parse_shell_lc_plain_commands(command: &[String]) -> Option<Vec<Vec<String>>> {
     let (_, script) = extract_bash_command(command)?;
     parse_shell_script_into_commands(script)
+}
+
+/// Extracts the literal portions of command invocations from a shell script.
+///
+/// Unlike [`parse_shell_lc_plain_commands`], this accepts complex shell syntax
+/// and returns the statically known words from every command node in a valid
+/// syntax tree. Dynamic words and redirections are omitted. This is suitable
+/// for identifying dangerous literal commands, but must not be used to prove
+/// that a command is safe.
+pub(crate) fn parse_shell_lc_literal_commands(command: &[String]) -> Option<Vec<Vec<String>>> {
+    let (_, script) = extract_bash_command(command)?;
+    let tree = try_parse_shell(script)?;
+    let root = tree.root_node();
+    if root.has_error() {
+        return None;
+    }
+
+    let mut commands = Vec::new();
+    let mut stack = vec![root];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "command"
+            && let Some(command) = parse_literal_command_from_node(node, script)
+        {
+            commands.push(command);
+        }
+
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            stack.push(child);
+        }
+    }
+
+    Some(commands)
 }
 
 fn parse_plain_command_from_node(cmd: tree_sitter::Node, src: &str) -> Option<Vec<String>> {
@@ -189,6 +216,46 @@ fn parse_plain_command_from_node(cmd: tree_sitter::Node, src: &str) -> Option<Ve
     Some(words)
 }
 
+fn parse_literal_command_from_node(cmd: Node<'_>, src: &str) -> Option<Vec<String>> {
+    if cmd.kind() != "command" {
+        return None;
+    }
+
+    let mut words = Vec::new();
+    let mut found_command_name = false;
+    let mut cursor = cmd.walk();
+    for child in cmd.named_children(&mut cursor) {
+        if child.kind() == "command_name" {
+            let command_name = parse_literal_shell_word(child.named_child(0)?, src)?;
+            words.push(command_name);
+            found_command_name = true;
+        } else if found_command_name && let Some(word) = parse_literal_shell_word(child, src) {
+            words.push(word);
+        }
+    }
+
+    found_command_name.then_some(words)
+}
+
+fn parse_literal_shell_word(node: Node<'_>, src: &str) -> Option<String> {
+    match node.kind() {
+        "word" | "number" if is_literal_word_or_number(node, src) => {
+            Some(node.utf8_text(src.as_bytes()).ok()?.to_owned())
+        }
+        "string" => parse_double_quoted_string(node, src),
+        "raw_string" => parse_raw_string(node, src),
+        "concatenation" => {
+            let mut concatenated = String::new();
+            let mut cursor = node.walk();
+            for part in node.named_children(&mut cursor) {
+                concatenated.push_str(&parse_literal_shell_word(part, src)?);
+            }
+            (!concatenated.is_empty()).then_some(concatenated)
+        }
+        _ => None,
+    }
+}
+
 fn is_literal_word_or_number(node: Node<'_>, src: &str) -> bool {
     if !matches!(node.kind(), "word" | "number") {
         return false;
@@ -247,6 +314,7 @@ fn parse_raw_string(node: Node, src: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     fn parse_seq(src: &str) -> Option<Vec<Vec<String>>> {
         parse_shell_script_into_commands(src)

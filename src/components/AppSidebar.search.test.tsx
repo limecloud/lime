@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getRegisteredCommands } from "@/lib/commands/registry";
 import {
   act,
   cleanupAppSidebarTest,
@@ -8,7 +9,7 @@ import {
   mockRecordAgentUiPerformanceMetric,
   mountSidebarContainer,
   resetAppSidebarTest,
-  setInputValue
+  setInputValue,
 } from "./AppSidebar.testFixtures";
 import type { AgentPageParams } from "./AppSidebar.testFixtures";
 
@@ -462,7 +463,7 @@ describe("AppSidebar search", () => {
     ).toBeNull();
   });
 
-  it("Meta/Ctrl + K 应打开搜索弹窗，Escape 应关闭弹窗", async () => {
+  it("Meta/Ctrl + K 由命令菜单占用，搜索对话保留为无键位动作", async () => {
     mockListRecentThreads.mockResolvedValue([]);
 
     mountSidebarContainer({
@@ -474,6 +475,10 @@ describe("AppSidebar search", () => {
     });
     await flushEffects(2);
 
+    expect(
+      getRegisteredCommands().find(({ id }) => id === "searchThreads")
+        ?.bindings,
+    ).toEqual([]);
     expect(
       document.body.querySelector('[data-testid="app-sidebar-search-dialog"]'),
     ).toBeNull();
@@ -491,8 +496,34 @@ describe("AppSidebar search", () => {
       );
       await Promise.resolve();
     });
+    await flushEffects(2);
+
+    expect(document.body.querySelector("[data-command-menu]")).not.toBeNull();
+    expect(
+      document.body.querySelector('[data-testid="app-sidebar-search-dialog"]'),
+    ).toBeNull();
+
+    const menuInput = document.body.querySelector<HTMLInputElement>(
+      "[data-command-menu-input]",
+    );
+    expect(menuInput).not.toBeNull();
+    await act(async () => {
+      setInputValue(menuInput as HTMLInputElement, "搜索对话");
+      await Promise.resolve();
+    });
     await flushEffects();
 
+    const searchAction = document.body.querySelector<HTMLElement>(
+      '[data-command-id="searchThreads"]',
+    );
+    expect(searchAction).not.toBeNull();
+    await act(async () => {
+      searchAction?.click();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(document.body.querySelector("[data-command-menu]")).toBeNull();
     expect(
       document.body.querySelector('[data-testid="app-sidebar-search-dialog"]'),
     ).not.toBeNull();
@@ -511,21 +542,5 @@ describe("AppSidebar search", () => {
     expect(
       document.body.querySelector('[data-testid="app-sidebar-search-dialog"]'),
     ).toBeNull();
-
-    await act(async () => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "k",
-          ctrlKey: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-      await Promise.resolve();
-    });
-
-    expect(
-      document.body.querySelector('[data-testid="app-sidebar-search-dialog"]'),
-    ).not.toBeNull();
   });
 });

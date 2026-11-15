@@ -329,8 +329,12 @@ export async function navigateBrowserTab(
 
 export async function reloadBrowserTab(
   tabId: string,
+  options?: { ignoreCache?: boolean },
 ): Promise<BrowserTabState> {
-  return await invokeBrowserTab("browser_tab_reload", { tabId });
+  return await invokeBrowserTab("browser_tab_reload", {
+    tabId,
+    ignoreCache: options?.ignoreCache === true,
+  });
 }
 
 export async function focusBrowserTabPage(

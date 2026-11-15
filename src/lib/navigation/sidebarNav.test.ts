@@ -15,7 +15,6 @@ describe("sidebarNav", () => {
 
     expect(FOOTER_SIDEBAR_NAV_ITEMS.map((item) => item.label)).toEqual([
       "设置",
-      "消息渠道",
     ]);
     expect(FOOTER_SIDEBAR_NAV_ITEMS.map((item) => item.id)).not.toContain(
       "memory",
@@ -25,14 +24,14 @@ describe("sidebarNav", () => {
     );
   });
 
-  it("插件入口应覆盖插件、Skills 与专家三个子页面", () => {
+  it("插件入口应覆盖插件与 Skills 子页面", () => {
     const pluginsEntry = MAIN_SIDEBAR_NAV_ITEMS.find(
       (item) => item.id === "plugins",
     );
 
     expect(pluginsEntry?.isActive?.("plugins")).toBe(true);
     expect(pluginsEntry?.isActive?.("skills")).toBe(true);
-    expect(pluginsEntry?.isActive?.("experts")).toBe(true);
+    expect(pluginsEntry?.isActive?.("experts")).toBe(false);
     expect(pluginsEntry?.isActive?.("scheduled-tasks")).toBe(false);
   });
 

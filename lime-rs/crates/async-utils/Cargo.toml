@@ -1,0 +1,21 @@
+[package]
+name = "async-utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Cancellation and backoff helpers for Lime async work."
+
+[lib]
+name = "async_utils"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+rand = "0.9"
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "time"] }
+tokio-util.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

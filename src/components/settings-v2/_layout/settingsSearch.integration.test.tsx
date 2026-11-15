@@ -39,7 +39,7 @@ vi.mock("../sections", async () => {
       ),
     },
     {
-      key: SettingsTabs.About,
+      key: SettingsTabs.General,
       group: SettingsGroupKey.Coding,
       labelKey: "settings.about.title",
       render: () => <p>About panel</p>,

@@ -219,6 +219,13 @@ export function useComposerAttachments({
       return false;
     }
   }, [addPickedFiles, captureGeneration, isCurrentGeneration, t]);
+  useEffect(() => {
+    const attach = () => {
+      void openFileDialog();
+    };
+    window.addEventListener("lime:attach-files", attach);
+    return () => window.removeEventListener("lime:attach-files", attach);
+  }, [openFileDialog]);
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
       const images = getClipboardImageCandidates(event.clipboardData);

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   ChevronDown,
   MessageSquare,
@@ -91,6 +92,34 @@ export function AppSidebarSearchDialog({
   onResultClick,
   onShowMore,
 }: AppSidebarSearchDialogProps) {
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [isOpen, query, sessions.length]);
+  useEffect(() => {
+    if (!isOpen) return;
+    const move = (offset: number) => {
+      if (sessions.length === 0) return;
+      setSelectedIndex((index) => {
+        const next = (index + offset + sessions.length) % sessions.length;
+        return next;
+      });
+    };
+    const previous = () => move(-1);
+    const next = () => move(1);
+    const openSelected = () => {
+      const session = sessions[selectedIndex];
+      if (session) onResultClick(session);
+    };
+    window.addEventListener("lime:search-chats-previous", previous);
+    window.addEventListener("lime:search-chats-next", next);
+    window.addEventListener("lime:search-chats-open", openSelected);
+    return () => {
+      window.removeEventListener("lime:search-chats-previous", previous);
+      window.removeEventListener("lime:search-chats-next", next);
+      window.removeEventListener("lime:search-chats-open", openSelected);
+    };
+  }, [isOpen, onResultClick, selectedIndex, sessions]);
   return (
     <Modal
       isOpen={isOpen}
@@ -159,19 +188,22 @@ export function AppSidebarSearchDialog({
             </SidebarSearchEmptyState>
           ) : sessions.length > 0 ? (
             <SidebarSearchResultList>
-              {sessions.map((session) => {
+              {sessions.map((session, index) => {
                 const title = resolveSessionTitle(session);
                 const isCurrentConversation = currentSessionId === session.id;
+                const selected = selectedIndex === index;
                 return (
                   <SidebarSearchResultButton
                     key={session.id}
                     type="button"
-                    $active={isCurrentConversation}
+                    $active={isCurrentConversation || selected}
+                    data-search-selected={selected || undefined}
                     disabled={loading}
                     aria-current={isCurrentConversation ? "page" : undefined}
                     title={title}
                     data-testid="app-sidebar-search-result"
                     onClick={() => onResultClick(session)}
+                    onMouseEnter={() => setSelectedIndex(index)}
                   >
                     <MessageSquare />
                     <SidebarSearchResultCopy>

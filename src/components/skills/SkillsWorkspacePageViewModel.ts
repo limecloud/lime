@@ -14,7 +14,7 @@ import {
   type InstalledSkillPresentationCopy,
 } from "./installedSkillPresentation";
 
-export type SkillsWorkspaceView = "store" | "builtin" | "installed";
+export type SkillsWorkspaceView = "store" | "builtin" | "installed" | "repo";
 
 export type SkillStoreItem =
   | {

@@ -126,4 +126,36 @@ describe("AppSidebarSearchDialog", () => {
     expect(document.body.textContent).toContain("只有标题");
     view.unmount();
   });
+
+  it("命令事件循环选择结果并打开当前项", () => {
+    const onResultClick = vi.fn();
+    const view = renderDialog({
+      sessions: [
+        { id: "s1", name: "One", created_at: 1, updated_at: 2 },
+        { id: "s2", name: "Two", created_at: 3, updated_at: 4 },
+      ],
+      onResultClick,
+    });
+    try {
+      act(() => {
+        window.dispatchEvent(new CustomEvent("lime:search-chats-next"));
+      });
+      expect(
+        document.querySelector('[data-search-selected="true"]')?.textContent,
+      ).toContain("One");
+      act(() => {
+        window.dispatchEvent(new CustomEvent("lime:search-chats-next"));
+      });
+      expect(
+        document.querySelector('[data-search-selected="true"]')?.textContent,
+      ).toContain("Two");
+      act(() => {
+        window.dispatchEvent(new CustomEvent("lime:search-chats-open"));
+      });
+      expect(onResultClick).toHaveBeenCalledWith(expect.objectContaining({ id: "s2" }));
+    } finally {
+      view.unmount();
+    }
+  });
+
 });

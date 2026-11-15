@@ -105,7 +105,7 @@ impl RuntimeCore {
                             match tokio::fs::metadata(path).await {
                                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                                 Err(error) => {
-                                    return Err(RuntimeCoreError::Backend(error.to_string()))
+                                    return Err(RuntimeCoreError::Backend(error.to_string()));
                                 }
                                 Ok(metadata) => {
                                     if let Ok(modified) = metadata.modified() {

@@ -129,6 +129,23 @@ describe("appServerSessionClient", () => {
     });
   });
 
+  it("ephemeral create 应透传 thread/start ephemeral", async () => {
+    const appServerClient = appServerClientMock();
+    const client = createAppServerSessionClient({ appServerClient });
+
+    await expect(
+      client.createAgentRuntimeSession(undefined, "临时聊天", undefined, {
+        ephemeral: true,
+      }),
+    ).resolves.toBe("session-1");
+    expect(appServerClient.startSession).toHaveBeenCalledWith({
+      cwd: undefined,
+      serviceName: "临时聊天",
+      threadSource: "appServer",
+      ephemeral: true,
+    });
+  });
+
   it("create 应把权限 profile provenance 透传到 thread/start", async () => {
     const appServerClient = appServerClientMock();
     const client = createAppServerSessionClient({ appServerClient });

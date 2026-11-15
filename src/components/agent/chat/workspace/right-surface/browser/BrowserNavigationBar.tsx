@@ -98,6 +98,17 @@ export function BrowserNavigationBar({
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    const focusAddress = () => {
+      const input = addressRef.current;
+      if (!input || input.disabled) return;
+      input.focus();
+      input.select();
+    };
+    window.addEventListener("lime:focus-browser-address", focusAddress);
+    return () =>
+      window.removeEventListener("lime:focus-browser-address", focusAddress);
+  }, []);
   useLayoutEffect(() => {
     const changedOwner = previous.current.identity !== identity;
     if (changedOwner) focusGeneration.current += 1;

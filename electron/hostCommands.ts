@@ -10,8 +10,18 @@ import {
   BrowserPasswordManagerStore,
   BROWSER_PASSWORD_MANAGER_PROVIDERS,
 } from "./browserPasswordManagerStore";
-import { AutofillPreferencesStore } from "./autofillPreferencesStore";
 import { ContactAutofillStore } from "./contactAutofillStore";
+import {
+  chromeProfileRoots,
+  copyChromeExtension,
+  discoverChromeExtensions,
+} from "./chromeExtensionImport";
+import { discoverChromeHistory } from "./chromeHistoryImport";
+import {
+  discoverChromeCookies,
+  readChromeSafeStoragePassword,
+} from "./chromeCookieImport";
+import type { BrowserHistoryVisit } from "../src/lib/api/browserHistoryTypes";
 import { openEmbeddedBrowserSession } from "./embeddedBrowserSession";
 
 import {
@@ -46,7 +56,6 @@ import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { importCodexSkills } from "./externalAgentImport";
 import { readCodexSettings } from "./codexSettingsImport";
 import { listCodexChats, readCodexChat } from "./codexChatImport";
-import { listAppSnapshotWindows } from "./appSnapshotHost";
 import { showDesktopNotification } from "./desktopNotificationHost";
 import { FileShellHost } from "./fileShellHost";
 import { LayeredDesignProjectHost } from "./layeredDesignProjectHost";
@@ -67,9 +76,15 @@ export class ElectronHostCommands {
   readonly #systemUtilityHost: SystemUtilityHost;
   readonly #voiceModelHost: VoiceModelHost;
   readonly #browserExtensionsStore: BrowserExtensionStore;
+  readonly #appDataRoot: string;
+  readonly #historyImport:
+    | ((visits: readonly BrowserHistoryVisit[]) => Promise<{
+        imported: number;
+        failed: number;
+      }>)
+    | null;
   readonly #browserPasswordManagerStore: BrowserPasswordManagerStore;
   readonly #contactAutofillStore: ContactAutofillStore;
-  readonly #autofillPreferencesStore: AutofillPreferencesStore;
   readonly #secureCredentialStore: SecureCredentialStore | null;
 
   constructor(
@@ -78,9 +93,14 @@ export class ElectronHostCommands {
     emit: HostEventEmitter = () => undefined,
     appDataRoot = resolveCurrentDesktopStorageRoots(userDataDir).appDataRoot,
     secureCredentialStore: SecureCredentialStore | null = null,
+    historyImport?: (
+      visits: readonly BrowserHistoryVisit[],
+    ) => Promise<{ imported: number; failed: number }>,
   ) {
     this.#appServerHost = appServerHost;
     this.#secureCredentialStore = secureCredentialStore;
+    this.#appDataRoot = appDataRoot;
+    this.#historyImport = historyImport ?? null;
     this.#systemUtilityHost = new SystemUtilityHost({
       appDataRoot,
       emit,
@@ -100,9 +120,6 @@ export class ElectronHostCommands {
     this.#contactAutofillStore = new ContactAutofillStore(
       path.join(appDataRoot, "contact-autofill.json"),
     );
-    this.#autofillPreferencesStore = new AutofillPreferencesStore(
-      path.join(appDataRoot, "browser-autofill.json"),
-    );
   }
 
   async invoke(command: string, args?: HostArgs): Promise<unknown> {
@@ -121,8 +138,6 @@ export class ElectronHostCommands {
         return await this.#systemUtilityHost.invokeWindowsNativeHost(args);
       case "show_desktop_notification":
         return showDesktopNotification(args);
-      case "list_app_snapshot_windows":
-        return listAppSnapshotWindows();
       case "read_codex_settings":
         return readCodexSettings();
       case "import_codex_skills":
@@ -191,6 +206,97 @@ export class ElectronHostCommands {
         });
         return extension;
       }
+      case "browser_extensions_import_chrome": {
+        const roots = chromeProfileRoots(app.getPath("home"), process.platform);
+        const candidates = await discoverChromeExtensions(roots);
+        const session = openEmbeddedBrowserSession();
+        const imported = [];
+        let skipped = 0;
+        const failed: Array<{ id: string; name: string }> = [];
+        for (const candidate of candidates) {
+          try {
+            const target = path.join(
+              this.#appDataRoot,
+              "chrome-extensions",
+              `${candidate.id}-${candidate.version}`,
+            );
+            const existing = await this.#browserExtensionsStore.find(
+              candidate.id,
+            );
+            if (existing?.path === target) {
+              skipped += 1;
+              continue;
+            }
+            await copyChromeExtension(
+              candidate.path,
+              path.join(this.#appDataRoot, "chrome-extensions"),
+              candidate.id,
+              candidate.version,
+            );
+            const extension = await loadBrowserExtension(session, target);
+            await this.#browserExtensionsStore.add({
+              id: extension.id,
+              path: extension.path,
+              name: extension.name,
+              version: extension.version,
+              enabled: true,
+            });
+            imported.push(extension);
+          } catch {
+            failed.push({ id: candidate.id, name: candidate.name });
+          }
+        }
+        return { imported, skipped, failed };
+      }
+      case "browser_history_import_chrome": {
+        if (!this.#historyImport) {
+          throw new Error("Browser history import is unavailable");
+        }
+        const visits = await discoverChromeHistory(
+          chromeProfileRoots(app.getPath("home"), process.platform),
+        );
+        return await this.#historyImport(visits);
+      }
+      case "browser_cookies_import_chrome": {
+        const password = await readChromeSafeStoragePassword();
+        if (!password) {
+          throw new Error(
+            "Chrome cookie decryption key is unavailable on this platform",
+          );
+        }
+        const cookies = await discoverChromeCookies(
+          chromeProfileRoots(app.getPath("home"), process.platform),
+          password,
+        );
+        const session = openEmbeddedBrowserSession();
+        let imported = 0;
+        let failed = 0;
+        for (const cookie of cookies) {
+          if (cookie.expiresAt !== null && cookie.expiresAt <= Date.now()) {
+            continue;
+          }
+          try {
+            const host = cookie.domain.replace(/^\./, "");
+            await session.cookies.set({
+              url: `${cookie.secure ? "https" : "http"}://${host}${cookie.path || "/"}`,
+              name: cookie.name,
+              value: cookie.value,
+              domain: cookie.domain,
+              path: cookie.path || "/",
+              secure: cookie.secure,
+              httpOnly: cookie.httpOnly,
+              ...(cookie.expiresAt !== null
+                ? { expirationDate: cookie.expiresAt / 1000 }
+                : {}),
+              sameSite: cookie.sameSite,
+            });
+            imported += 1;
+          } catch {
+            failed += 1;
+          }
+        }
+        return { imported, failed, total: cookies.length };
+      }
       case "browser_extensions_set_enabled": {
         const record = toRecord(args) ?? {};
         const id = readRequiredString(record, "id");
@@ -240,15 +346,6 @@ export class ElectronHostCommands {
       }
       case "get_home_dir":
         return this.#fileShellHost.getHomeDir();
-      case "browser_autofill_get":
-        return await this.#autofillPreferencesStore.read();
-      case "browser_autofill_set": {
-        const enabled = toRecord(args)?.enabled;
-        if (typeof enabled !== "boolean") {
-          throw new Error("Invalid autofill enabled flag");
-        }
-        return await this.#autofillPreferencesStore.set(enabled);
-      }
       case "browser_contact_profile_read":
         return await this.#contactAutofillStore.read();
       case "browser_contact_profile_clear":
@@ -256,11 +353,16 @@ export class ElectronHostCommands {
         return true;
       case "browser_contact_profile_save": {
         const record = toRecord(args) ?? {};
+        const list = (key: string) =>
+          Array.isArray(record[key])
+            ? (record[key] as unknown[]).filter(
+                (item): item is string => typeof item === "string",
+              )
+            : [];
         return await this.#contactAutofillStore.save({
-          fullName: readString(record, "fullName") ?? "",
-          email: readString(record, "email") ?? "",
-          phone: readString(record, "phone") ?? "",
-          address: readString(record, "address") ?? "",
+          emails: list("emails"),
+          phones: list("phones"),
+          addresses: list("addresses"),
         });
       }
       case "browser_password_manager_get":

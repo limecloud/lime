@@ -473,7 +473,7 @@ impl AppServerRequestMethod {
             Self::ProjectGitDiff => METHOD_PROJECT_GIT_DIFF,
             Self::ProjectGitCommitsList => METHOD_PROJECT_GIT_COMMITS_LIST,
             Self::ProjectGitBranchCheckout => METHOD_PROJECT_GIT_BRANCH_CHECKOUT,
-            Self::ProjectGitBranchCreate => METHOD_PROJECT_GIT_BRANCH_CREATE,
+            Self::ProjectGitBranchCreate => METHOD_PROJECT_GIT_BRANCH_CREATE_V0,
             Self::ProjectGitWorktreeCreate => METHOD_PROJECT_GIT_WORKTREE_CREATE,
             Self::ProjectGitWorktreeList => METHOD_PROJECT_GIT_WORKTREE_LIST,
             Self::StorageRead => METHOD_STORAGE_READ,
@@ -691,7 +691,7 @@ impl AppServerRequestMethod {
             METHOD_PROJECT_GIT_DIFF => Some(Self::ProjectGitDiff),
             METHOD_PROJECT_GIT_COMMITS_LIST => Some(Self::ProjectGitCommitsList),
             METHOD_PROJECT_GIT_BRANCH_CHECKOUT => Some(Self::ProjectGitBranchCheckout),
-            METHOD_PROJECT_GIT_BRANCH_CREATE => Some(Self::ProjectGitBranchCreate),
+            METHOD_PROJECT_GIT_BRANCH_CREATE_V0 => Some(Self::ProjectGitBranchCreate),
             METHOD_PROJECT_GIT_WORKTREE_CREATE => Some(Self::ProjectGitWorktreeCreate),
             METHOD_PROJECT_GIT_WORKTREE_LIST => Some(Self::ProjectGitWorktreeList),
             METHOD_STORAGE_READ => Some(Self::StorageRead),
@@ -984,7 +984,7 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {
-        method: METHOD_PROJECT_GIT_BRANCH_CREATE,
+        method: METHOD_PROJECT_GIT_BRANCH_CREATE_V0,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {

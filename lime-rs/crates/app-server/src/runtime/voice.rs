@@ -7,9 +7,8 @@ impl RuntimeCore {
     pub async fn realtime_voice_capability(
         &self,
     ) -> Result<crate::realtime::RealtimeVoiceCapability, RuntimeCoreError> {
-        let config = ConfigManager::load(&self.app_config_path).map_err(|error| {
-            RuntimeCoreError::Backend(format!("读取实时语音配置失败: {error}"))
-        })?;
+        let config = ConfigManager::load(&self.app_config_path)
+            .map_err(|error| RuntimeCoreError::Backend(format!("读取实时语音配置失败: {error}")))?;
         let provider_id = config.config().default_provider.trim().to_string();
         if provider_id.is_empty() {
             return Err(RuntimeCoreError::Backend(
@@ -42,7 +41,9 @@ impl RuntimeCore {
                 &provider.api_host,
             )
         });
-        let provider_key_available = snapshot.as_ref().is_some_and(|provider| provider.key_available);
+        let provider_key_available = snapshot
+            .as_ref()
+            .is_some_and(|provider| provider.key_available);
         let readiness = crate::realtime::RealtimeVoiceReadiness {
             provider_id: Some(
                 snapshot
@@ -78,7 +79,9 @@ impl RuntimeCore {
         }
         let readiness = capability.readiness;
         let provider_id = readiness.provider_id.clone().ok_or_else(|| {
-            RuntimeCoreError::Backend("realtime voice unavailable: providerRealtimeUnsupported".to_string())
+            RuntimeCoreError::Backend(
+                "realtime voice unavailable: providerRealtimeUnsupported".to_string(),
+            )
         })?;
         let model = readiness.model.clone().ok_or_else(|| {
             RuntimeCoreError::Backend(

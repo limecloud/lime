@@ -10,6 +10,13 @@ import {
 } from "@/lib/workspaceReviewTabEvents";
 import { NavigationShortcutCommands } from "./NavigationShortcutCommands";
 
+const sessionMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+}));
+vi.mock("@/lib/api/agentRuntime/sessionClient", () => ({
+  createAgentRuntimeSession: sessionMocks.create,
+}));
+
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -40,6 +47,7 @@ function key(options: ConstructorParameters<typeof KeyboardEvent>[1]) {
 
 beforeEach(() => {
   navigate.mockReset();
+  sessionMocks.create.mockReset();
   reviewActions = [];
   unsubscribeReview = subscribeWorkspaceReviewTabRequest((action) => {
     reviewActions.push(action);
@@ -99,6 +107,27 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       section: "skills",
       bindings: [],
     });
+  });
+
+  it("临时聊天使用 ephemeral 创建并导航到新会话", async () => {
+    sessionMocks.create.mockResolvedValue("temp-session-1");
+    await act(async () => {
+      expect(runCommand("navigation.temporaryChat")).toBe(true);
+      await Promise.resolve();
+    });
+    expect(sessionMocks.create).toHaveBeenCalledWith(
+      undefined,
+      expect.any(String),
+      undefined,
+      { ephemeral: true },
+    );
+    expect(navigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        initialSessionId: "temp-session-1",
+        initialSessionName: expect.any(String),
+      }),
+    );
   });
 
   it("Changes 打开、切换、关闭三个命令派发同一真实事件源", () => {

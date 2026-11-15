@@ -1,22 +1,21 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export interface ContactAutofillProfile {
-  fullName: string;
-  email: string;
-  phone: string;
-  address: string;
+export interface ContactAutofillData {
+  emails: string[];
+  phones: string[];
+  addresses: string[];
 }
 
-const EMPTY: ContactAutofillProfile = {
-  fullName: "",
-  email: "",
-  phone: "",
-  address: "",
-};
-
-function normalize(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
+function normalizeList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export class ContactAutofillStore {
@@ -26,18 +25,17 @@ export class ContactAutofillStore {
     this.#filePath = filePath;
   }
 
-  async read(): Promise<ContactAutofillProfile | null> {
+  async read(): Promise<ContactAutofillData | null> {
     try {
       const parsed = JSON.parse(await readFile(this.#filePath, "utf8"));
       if (!parsed || typeof parsed !== "object") return null;
       const record = parsed as Record<string, unknown>;
-      const profile = {
-        fullName: normalize(record.fullName),
-        email: normalize(record.email),
-        phone: normalize(record.phone),
-        address: normalize(record.address),
+      const data = {
+        emails: normalizeList(record.emails),
+        phones: normalizeList(record.phones),
+        addresses: normalizeList(record.addresses),
       };
-      return Object.values(profile).some(Boolean) ? profile : null;
+      return Object.values(data).some((list) => list.length > 0) ? data : null;
     } catch {
       return null;
     }
@@ -48,25 +46,25 @@ export class ContactAutofillStore {
   }
 
   async save(
-    input: Partial<ContactAutofillProfile>,
-  ): Promise<ContactAutofillProfile> {
-    const profile = {
-      ...EMPTY,
-      fullName: normalize(input.fullName),
-      email: normalize(input.email),
-      phone: normalize(input.phone),
-      address: normalize(input.address),
+    input: Partial<ContactAutofillData>,
+  ): Promise<ContactAutofillData> {
+    const data = {
+      emails: normalizeList(input.emails),
+      phones: normalizeList(input.phones),
+      addresses: normalizeList(input.addresses),
     };
-    if (!Object.values(profile).some(Boolean)) {
+    if (!Object.values(data).some((list) => list.length > 0)) {
       throw new Error("请至少填写一项联系信息");
     }
-    if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email)) {
+    if (
+      data.emails.some((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    ) {
       throw new Error("邮箱格式无效");
     }
     await mkdir(path.dirname(this.#filePath), { recursive: true });
-    await writeFile(this.#filePath, JSON.stringify(profile, null, 2) + "\n", {
+    await writeFile(this.#filePath, JSON.stringify(data, null, 2) + "\n", {
       mode: 0o600,
     });
-    return profile;
+    return data;
   }
 }

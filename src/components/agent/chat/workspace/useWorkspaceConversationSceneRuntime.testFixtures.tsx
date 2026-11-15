@@ -61,7 +61,6 @@ export function createBaseParams(overrides: Record<string, unknown> = {}) {
       handleProjectChange: noop,
       handleOpenAppearanceSettings: noop,
       handleOpenPluginDirectory: noop,
-      handleOpenChannels: noop,
       handleOpenChromeRelay: noop,
       handleCompactContext: noop,
       handleOpenRuntimeMemoryWorkbench: noop,

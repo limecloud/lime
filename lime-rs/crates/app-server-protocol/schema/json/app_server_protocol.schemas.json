@@ -15513,6 +15513,161 @@
           ],
           "type": "object"
         },
+        "ProjectGitBlameParams": {
+          "additionalProperties": false,
+          "description": "读取仓库内单个文件的逐行 blame。\n\n`path` 是相对 `rootPath` 的文件路径；拒绝绝对路径、`..`、`.git` 和控制字符。",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "rootPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "rootPath"
+          ],
+          "type": "object"
+        },
+        "ProjectGitBranchCreateParams": {
+          "additionalProperties": false,
+          "description": "在当前工作区创建并切换到一个新分支。\n\n分支名会 trim；拒绝空值、超过 200 个字符、空白/控制字符、`..` 和 `-` 开头。",
+          "properties": {
+            "branch": {
+              "type": "string"
+            },
+            "rootPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "branch",
+            "rootPath"
+          ],
+          "type": "object"
+        },
+        "ProjectGitCommitParams": {
+          "additionalProperties": false,
+          "description": "创建一次新的本地 Git 提交。\n\n`paths` 省略时先 `git add -A` 再提交全部暂存内容；指定时只暂存并提交这些仓库内相对路径。",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "paths": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "rootPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message",
+            "rootPath"
+          ],
+          "type": "object"
+        },
+        "ProjectGitPullRequestCreateParams": {
+          "additionalProperties": false,
+          "description": "通过已安装的 `gh` CLI 在当前工作区创建 Pull Request。\n\n`title` 会 trim；拒绝空值、超过 256 个字符、控制字符；`body` 最多 65536 字节；\n`base` 可选，空字符串等同省略。",
+          "properties": {
+            "base": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "body": {
+              "type": "string"
+            },
+            "draft": {
+              "default": false,
+              "type": "boolean"
+            },
+            "rootPath": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "body",
+            "rootPath",
+            "title"
+          ],
+          "type": "object"
+        },
+        "ProjectGitPullRequestMergeMethod": {
+          "description": "`gh pr merge` 支持的合并方式。",
+          "enum": [
+            "merge",
+            "rebase",
+            "squash"
+          ],
+          "type": "string"
+        },
+        "ProjectGitPullRequestMergeParams": {
+          "additionalProperties": false,
+          "description": "合并当前分支关联的 Pull Request，或按编号合并指定 PR。\n\n`method` 省略时使用 merge commit；`prNumber` 省略时由 `gh` 解析当前分支的 PR，\n`deleteBranch` 为 true 时同时删除远端与本地分支。",
+          "properties": {
+            "deleteBranch": {
+              "default": false,
+              "type": "boolean"
+            },
+            "method": {
+              "$ref": "#/$defs/ProjectGitPullRequestMergeMethod",
+              "default": "merge"
+            },
+            "prNumber": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "rootPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rootPath"
+          ],
+          "type": "object"
+        },
+        "ProjectGitPullRequestOpenParams": {
+          "additionalProperties": false,
+          "description": "用系统浏览器打开当前分支的 Pull Request。",
+          "properties": {
+            "rootPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rootPath"
+          ],
+          "type": "object"
+        },
+        "ProjectGitPullRequestStatusParams": {
+          "additionalProperties": false,
+          "description": "读取当前分支关联 Pull Request 的状态。",
+          "properties": {
+            "rootPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rootPath"
+          ],
+          "type": "object"
+        },
         "ProjectImportParams": {
           "properties": {
             "idempotencyKey": {
@@ -19120,6 +19275,146 @@
             },
             "params": {
               "$ref": "#/$defs/ProjectDeleteParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "project/git/branch/create",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ProjectGitBranchCreateParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "project/git/commit",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ProjectGitCommitParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "project/git/pull_request/create",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ProjectGitPullRequestCreateParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "project/git/pull_request/open",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ProjectGitPullRequestOpenParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "project/git/pull_request/status",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ProjectGitPullRequestStatusParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "project/git/pull_request/merge",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ProjectGitPullRequestMergeParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "project/git/blame",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ProjectGitBlameParams"
             }
           },
           "required": [
@@ -47807,6 +48102,13 @@
         "process/writeStdin",
         "project/create",
         "project/delete",
+        "project/git/blame",
+        "project/git/branch/create",
+        "project/git/commit",
+        "project/git/pull_request/create",
+        "project/git/pull_request/merge",
+        "project/git/pull_request/open",
+        "project/git/pull_request/status",
         "project/import",
         "project/list",
         "project/move",
@@ -59981,6 +60283,131 @@
       "title": "ProjectDeleteResponse",
       "type": "object"
     },
+    "ProjectGitBlameLine": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "文件中的一行及其最近一次提交信息。",
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "authorTime": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "lineNumber": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "shortSha": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "author",
+        "authorTime",
+        "content",
+        "lineNumber",
+        "sha",
+        "shortSha",
+        "summary"
+      ],
+      "title": "ProjectGitBlameLine",
+      "type": "object"
+    },
+    "ProjectGitBlameParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "读取仓库内单个文件的逐行 blame。\n\n`path` 是相对 `rootPath` 的文件路径；拒绝绝对路径、`..`、`.git` 和控制字符。",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "rootPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "rootPath"
+      ],
+      "title": "ProjectGitBlameParams",
+      "type": "object"
+    },
+    "ProjectGitBlameResponse": {
+      "$defs": {
+        "ProjectGitBlameLine": {
+          "description": "文件中的一行及其最近一次提交信息。",
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "authorTime": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "lineNumber": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sha": {
+              "type": "string"
+            },
+            "shortSha": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "author",
+            "authorTime",
+            "content",
+            "lineNumber",
+            "sha",
+            "shortSha",
+            "summary"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/ProjectGitBlameLine"
+          },
+          "type": "array"
+        },
+        "repositoryRoot": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "rootPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lines",
+        "rootPath"
+      ],
+      "title": "ProjectGitBlameResponse",
+      "type": "object"
+    },
     "ProjectGitBranchCheckoutParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -60000,6 +60427,8 @@
     },
     "ProjectGitBranchCreateParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "在当前工作区创建并切换到一个新分支。\n\n分支名会 trim；拒绝空值、超过 200 个字符、空白/控制字符、`..` 和 `-` 开头。",
       "properties": {
         "branch": {
           "type": "string"
@@ -60131,6 +60560,85 @@
       ],
       "title": "ProjectGitCommitListResponse",
       "type": "object"
+    },
+    "ProjectGitCommitParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "创建一次新的本地 Git 提交。\n\n`paths` 省略时先 `git add -A` 再提交全部暂存内容；指定时只暂存并提交这些仓库内相对路径。",
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "rootPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "rootPath"
+      ],
+      "title": "ProjectGitCommitParams",
+      "type": "object"
+    },
+    "ProjectGitCommitResponse": {
+      "$defs": {
+        "ProjectGitCommitStatus": {
+          "enum": [
+            "committed"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "repositoryRoot": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "rootPath": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "shortSha": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ProjectGitCommitStatus"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rootPath",
+        "sha",
+        "shortSha",
+        "status",
+        "subject"
+      ],
+      "title": "ProjectGitCommitResponse",
+      "type": "object"
+    },
+    "ProjectGitCommitStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "committed"
+      ],
+      "title": "ProjectGitCommitStatus",
+      "type": "string"
     },
     "ProjectGitDiffBase": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -60299,6 +60807,330 @@
         "worktreePath"
       ],
       "title": "ProjectGitManagedWorktree",
+      "type": "object"
+    },
+    "ProjectGitPullRequestCreateParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "通过已安装的 `gh` CLI 在当前工作区创建 Pull Request。\n\n`title` 会 trim；拒绝空值、超过 256 个字符、控制字符；`body` 最多 65536 字节；\n`base` 可选，空字符串等同省略。",
+      "properties": {
+        "base": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "body": {
+          "type": "string"
+        },
+        "draft": {
+          "default": false,
+          "type": "boolean"
+        },
+        "rootPath": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "body",
+        "rootPath",
+        "title"
+      ],
+      "title": "ProjectGitPullRequestCreateParams",
+      "type": "object"
+    },
+    "ProjectGitPullRequestCreateResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "创建成功后返回 `gh` 输出中可解析的 PR 元数据。",
+      "properties": {
+        "draft": {
+          "type": "boolean"
+        },
+        "number": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rootPath": {
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "url": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "draft",
+        "rootPath"
+      ],
+      "title": "ProjectGitPullRequestCreateResponse",
+      "type": "object"
+    },
+    "ProjectGitPullRequestInfo": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "baseRefName": {
+          "type": "string"
+        },
+        "headRefName": {
+          "type": "string"
+        },
+        "isDraft": {
+          "type": "boolean"
+        },
+        "number": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "baseRefName",
+        "headRefName",
+        "isDraft",
+        "number",
+        "state",
+        "title",
+        "url"
+      ],
+      "title": "ProjectGitPullRequestInfo",
+      "type": "object"
+    },
+    "ProjectGitPullRequestMergeMethod": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "`gh pr merge` 支持的合并方式。",
+      "enum": [
+        "merge",
+        "rebase",
+        "squash"
+      ],
+      "title": "ProjectGitPullRequestMergeMethod",
+      "type": "string"
+    },
+    "ProjectGitPullRequestMergeParams": {
+      "$defs": {
+        "ProjectGitPullRequestMergeMethod": {
+          "description": "`gh pr merge` 支持的合并方式。",
+          "enum": [
+            "merge",
+            "rebase",
+            "squash"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "合并当前分支关联的 Pull Request，或按编号合并指定 PR。\n\n`method` 省略时使用 merge commit；`prNumber` 省略时由 `gh` 解析当前分支的 PR，\n`deleteBranch` 为 true 时同时删除远端与本地分支。",
+      "properties": {
+        "deleteBranch": {
+          "default": false,
+          "type": "boolean"
+        },
+        "method": {
+          "$ref": "#/$defs/ProjectGitPullRequestMergeMethod",
+          "default": "merge"
+        },
+        "prNumber": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rootPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rootPath"
+      ],
+      "title": "ProjectGitPullRequestMergeParams",
+      "type": "object"
+    },
+    "ProjectGitPullRequestMergeResponse": {
+      "$defs": {
+        "ProjectGitPullRequestMergeMethod": {
+          "description": "`gh pr merge` 支持的合并方式。",
+          "enum": [
+            "merge",
+            "rebase",
+            "squash"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "deleteBranch": {
+          "type": "boolean"
+        },
+        "merged": {
+          "type": "boolean"
+        },
+        "method": {
+          "$ref": "#/$defs/ProjectGitPullRequestMergeMethod"
+        },
+        "number": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rootPath": {
+          "type": "string"
+        },
+        "url": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "deleteBranch",
+        "merged",
+        "method",
+        "rootPath"
+      ],
+      "title": "ProjectGitPullRequestMergeResponse",
+      "type": "object"
+    },
+    "ProjectGitPullRequestOpenParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "用系统浏览器打开当前分支的 Pull Request。",
+      "properties": {
+        "rootPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rootPath"
+      ],
+      "title": "ProjectGitPullRequestOpenParams",
+      "type": "object"
+    },
+    "ProjectGitPullRequestOpenResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "rootPath": {
+          "type": "string"
+        },
+        "url": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "rootPath"
+      ],
+      "title": "ProjectGitPullRequestOpenResponse",
+      "type": "object"
+    },
+    "ProjectGitPullRequestStatusParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "读取当前分支关联 Pull Request 的状态。",
+      "properties": {
+        "rootPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rootPath"
+      ],
+      "title": "ProjectGitPullRequestStatusParams",
+      "type": "object"
+    },
+    "ProjectGitPullRequestStatusResponse": {
+      "$defs": {
+        "ProjectGitPullRequestInfo": {
+          "properties": {
+            "baseRefName": {
+              "type": "string"
+            },
+            "headRefName": {
+              "type": "string"
+            },
+            "isDraft": {
+              "type": "boolean"
+            },
+            "number": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "state": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "baseRefName",
+            "headRefName",
+            "isDraft",
+            "number",
+            "state",
+            "title",
+            "url"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "pullRequest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectGitPullRequestInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rootPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rootPath"
+      ],
+      "title": "ProjectGitPullRequestStatusResponse",
       "type": "object"
     },
     "ProjectGitStatusParams": {
@@ -131184,6 +132016,13 @@
               "process/writeStdin",
               "project/create",
               "project/delete",
+              "project/git/blame",
+              "project/git/branch/create",
+              "project/git/commit",
+              "project/git/pull_request/create",
+              "project/git/pull_request/merge",
+              "project/git/pull_request/open",
+              "project/git/pull_request/status",
               "project/import",
               "project/list",
               "project/move",

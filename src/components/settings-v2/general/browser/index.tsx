@@ -19,7 +19,9 @@ import { BrowserDownloadsPage } from "./BrowserDownloadsPage";
 import { BrowserSiteSettingsPage } from "./BrowserSiteSettingsPage";
 import { useBrowserClearBrowsingData } from "./useBrowserClearBrowsingData";
 import { BrowserClearBrowsingDataDialog } from "./BrowserClearBrowsingDataDialog";
-import { BrowserExtensionsDialog } from "./BrowserExtensionsDialog";
+import { importChromeBrowserHistory } from "@/lib/api/browserHistory";
+import { importChromeBrowserCookies } from "@/lib/api/browserCookies";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { BrowserPasswordManagerDialog } from "./BrowserPasswordManagerDialog";
 import { ContactAutofillDialog } from "./ContactAutofillDialog";
 import {
@@ -92,11 +94,61 @@ function BrowserSettingsPage({
   const browser = useBrowserSettings();
   const browsingData = useBrowserClearBrowsingData();
   const [dialogError, setDialogError] = useState(false);
-  const [extensionsOpen, setExtensionsOpen] = useState(false);
   const [passwordsOpen, setPasswordsOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [historyImportOpen, setHistoryImportOpen] = useState(false);
+  const [historyImporting, setHistoryImporting] = useState(false);
+  const [historyImportResult, setHistoryImportResult] = useState<string | null>(
+    null,
+  );
+  const [historyImportError, setHistoryImportError] = useState(false);
+  const [cookieImportOpen, setCookieImportOpen] = useState(false);
+  const [cookieImporting, setCookieImporting] = useState(false);
+  const [cookieImportResult, setCookieImportResult] = useState<string | null>(
+    null,
+  );
+  const [cookieImportError, setCookieImportError] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const importCookies = async () => {
+    setCookieImportOpen(false);
+    setCookieImporting(true);
+    setCookieImportError(false);
+    setCookieImportResult(null);
+    try {
+      const result = await importChromeBrowserCookies();
+      setCookieImportResult(
+        t("settings.browser.importCookiesDone", {
+          imported: result.imported,
+          failed: result.failed,
+        }),
+      );
+    } catch {
+      setCookieImportError(true);
+    } finally {
+      setCookieImporting(false);
+    }
+  };
+
+  const importHistory = async () => {
+    setHistoryImportOpen(false);
+    setHistoryImporting(true);
+    setHistoryImportError(false);
+    setHistoryImportResult(null);
+    try {
+      const result = await importChromeBrowserHistory();
+      setHistoryImportResult(
+        t("settings.browser.importHistoryDone", {
+          imported: result.imported,
+          failed: result.failed,
+        }),
+      );
+    } catch {
+      setHistoryImportError(true);
+    } finally {
+      setHistoryImporting(false);
+    }
+  };
   useEffect(() => {
     if (restoreFocus)
       settingsRef.current
@@ -290,6 +342,58 @@ function BrowserSettingsPage({
           </p>
         ) : null}
         <BrowserSettingsRow
+          id="browser-history-import-chrome"
+          label={t("settings.browser.importHistory")}
+          description={t("settings.browser.importHistoryDescription")}
+        >
+          <button
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            disabled={historyImporting}
+            onClick={() => setHistoryImportOpen(true)}
+          >
+            {historyImporting
+              ? t("settings.browser.importHistoryRunning")
+              : t("settings.browser.importHistoryAction")}
+          </button>
+        </BrowserSettingsRow>
+        {historyImportResult ? (
+          <p className="py-2 text-xs text-muted-foreground">
+            {historyImportResult}
+          </p>
+        ) : null}
+        {historyImportError ? (
+          <p role="alert" className="py-2 text-xs text-destructive">
+            {t("settings.browser.importHistoryFailed")}
+          </p>
+        ) : null}
+        <BrowserSettingsRow
+          id="browser-cookies-import-chrome"
+          label={t("settings.browser.importCookies")}
+          description={t("settings.browser.importCookiesDescription")}
+        >
+          <button
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            disabled={cookieImporting}
+            onClick={() => setCookieImportOpen(true)}
+          >
+            {cookieImporting
+              ? t("settings.browser.importCookiesRunning")
+              : t("settings.browser.importCookiesAction")}
+          </button>
+        </BrowserSettingsRow>
+        {cookieImportResult ? (
+          <p className="py-2 text-xs text-muted-foreground">
+            {cookieImportResult}
+          </p>
+        ) : null}
+        {cookieImportError ? (
+          <p role="alert" className="py-2 text-xs text-destructive">
+            {t("settings.browser.importCookiesFailed")}
+          </p>
+        ) : null}
+        <BrowserSettingsRow
           id="browser-history"
           label={t("browserHistory.title")}
           description={t("browserHistory.description")}
@@ -368,28 +472,6 @@ function BrowserSettingsPage({
         onOpenChange={setPasswordsOpen}
       />
       <ContactAutofillDialog open={contactOpen} onOpenChange={setContactOpen} />
-      <BrowserSettingsSection
-        id="browser-extensions"
-        title={t("settings.browser.extensionsTitle")}
-      >
-        <BrowserSettingsRow
-          id="browser-extension-manager"
-          label={t("settings.browser.extensionManager")}
-          description={t("settings.browser.extensionManagerDescription")}
-        >
-          <button
-            type="button"
-            className={BROWSER_SETTINGS_BUTTON}
-            onClick={() => setExtensionsOpen(true)}
-          >
-            {t("settings.browser.extensionsManage")}
-          </button>
-        </BrowserSettingsRow>
-      </BrowserSettingsSection>
-      <BrowserExtensionsDialog
-        open={extensionsOpen}
-        onOpenChange={setExtensionsOpen}
-      />
       <BrowserSettingsSection
         id="browser-downloads"
         title={t("settings.browser.downloads")}
@@ -502,6 +584,24 @@ function BrowserSettingsPage({
           </div>
         </BrowserSettingsRow>
       </BrowserSettingsSection>
+      <ConfirmDialog
+        isOpen={cookieImportOpen}
+        title={t("settings.browser.importCookiesTitle")}
+        message={t("settings.browser.importCookiesMessage")}
+        confirmText={t("settings.browser.importCookiesAction")}
+        cancelText={t("settings.browser.importCookiesCancel")}
+        onCancel={() => setCookieImportOpen(false)}
+        onConfirm={() => void importCookies()}
+      />
+      <ConfirmDialog
+        isOpen={historyImportOpen}
+        title={t("settings.browser.importHistoryTitle")}
+        message={t("settings.browser.importHistoryMessage")}
+        confirmText={t("settings.browser.importHistoryAction")}
+        cancelText={t("settings.browser.importHistoryCancel")}
+        onCancel={() => setHistoryImportOpen(false)}
+        onConfirm={() => void importHistory()}
+      />
       <BrowserClearBrowsingDataDialog controller={browsingData} />
     </div>
   );

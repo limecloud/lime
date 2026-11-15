@@ -102,6 +102,33 @@ export type AppServerProjectGitCommitListParams =
   protocol.ProjectGitCommitListParams;
 export type AppServerProjectGitCommitListResponse =
   protocol.ProjectGitCommitListResponse;
+export type AppServerProjectGitBlameParams = protocol.ProjectGitBlameParams;
+export type AppServerProjectGitBlameLine = protocol.ProjectGitBlameLine;
+export type AppServerProjectGitBlameResponse = protocol.ProjectGitBlameResponse;
+export type AppServerProjectGitCommitParams = protocol.ProjectGitCommitParams;
+export type AppServerProjectGitCommitResponse =
+  protocol.ProjectGitCommitResponse;
+export type AppServerProjectGitCommitStatus = protocol.ProjectGitCommitStatus;
+export type AppServerProjectGitPullRequestCreateParams =
+  protocol.ProjectGitPullRequestCreateParams;
+export type AppServerProjectGitPullRequestCreateResponse =
+  protocol.ProjectGitPullRequestCreateResponse;
+export type AppServerProjectGitPullRequestOpenParams =
+  protocol.ProjectGitPullRequestOpenParams;
+export type AppServerProjectGitPullRequestOpenResponse =
+  protocol.ProjectGitPullRequestOpenResponse;
+export type AppServerProjectGitPullRequestStatusParams =
+  protocol.ProjectGitPullRequestStatusParams;
+export type AppServerProjectGitPullRequestStatusResponse =
+  protocol.ProjectGitPullRequestStatusResponse;
+export type AppServerProjectGitPullRequestInfo =
+  protocol.ProjectGitPullRequestInfo;
+export type AppServerProjectGitPullRequestMergeMethod =
+  protocol.ProjectGitPullRequestMergeMethod;
+export type AppServerProjectGitPullRequestMergeParams =
+  protocol.ProjectGitPullRequestMergeParams;
+export type AppServerProjectGitPullRequestMergeResponse =
+  protocol.ProjectGitPullRequestMergeResponse;
 export type AppServerProjectGitBranchCheckoutParams =
   protocol.ProjectGitBranchCheckoutParams;
 export type AppServerProjectGitBranchCheckoutResponse =
@@ -531,15 +558,22 @@ export type AppServerWorkspaceRightSurfacePendingChangedNotification =
 export type AppServerWindowsSandboxReadinessParams =
   protocol.WindowsSandboxReadinessParams;
 export type AppServerComputerUseStatusParams = protocol.ComputerUseStatusParams;
-export type AppServerComputerUseStatusResponse = protocol.ComputerUseStatusResponse;
+export type AppServerComputerUseStatusResponse =
+  protocol.ComputerUseStatusResponse;
 export type AppServerComputerUseSetupParams = protocol.ComputerUseSetupParams;
-export type AppServerComputerUseSetupResponse = protocol.ComputerUseSetupResponse;
+export type AppServerComputerUseSetupResponse =
+  protocol.ComputerUseSetupResponse;
 export type AppServerComputerUseRevokeParams = protocol.ComputerUseRevokeParams;
-export type AppServerComputerUseRevokeResponse = protocol.ComputerUseRevokeResponse;
-export type AppServerComputerUseLeaseAcquireParams = protocol.ComputerUseLeaseAcquireParams;
-export type AppServerComputerUseLeaseAcquireResponse = protocol.ComputerUseLeaseAcquireResponse;
-export type AppServerComputerUseLeaseReleaseParams = protocol.ComputerUseLeaseReleaseParams;
-export type AppServerComputerUseLeaseReleaseResponse = protocol.ComputerUseLeaseReleaseResponse;
+export type AppServerComputerUseRevokeResponse =
+  protocol.ComputerUseRevokeResponse;
+export type AppServerComputerUseLeaseAcquireParams =
+  protocol.ComputerUseLeaseAcquireParams;
+export type AppServerComputerUseLeaseAcquireResponse =
+  protocol.ComputerUseLeaseAcquireResponse;
+export type AppServerComputerUseLeaseReleaseParams =
+  protocol.ComputerUseLeaseReleaseParams;
+export type AppServerComputerUseLeaseReleaseResponse =
+  protocol.ComputerUseLeaseReleaseResponse;
 export type AppServerWindowsSandboxReadinessResponse =
   protocol.WindowsSandboxReadinessResponse;
 export type AppServerWindowsSandboxSetupStartParams =

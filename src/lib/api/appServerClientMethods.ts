@@ -14,22 +14,34 @@ declare module "./appServerClient" {
   interface AppServerClient {
     requestCloudDesktop(
       params: appServer.AppServerCloudDesktopParams,
-    ): Promise<appServer.AppServerRequestResult<appServer.AppServerCloudDesktopResponse>>;
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerCloudDesktopResponse>
+    >;
     readComputerUseStatus(
       params?: appServer.AppServerComputerUseStatusParams,
-    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseStatusResponse>>;
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerComputerUseStatusResponse>
+    >;
     setupComputerUse(
       params: appServer.AppServerComputerUseSetupParams,
-    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseSetupResponse>>;
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerComputerUseSetupResponse>
+    >;
     revokeComputerUse(
       params: appServer.AppServerComputerUseRevokeParams,
-    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseRevokeResponse>>;
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerComputerUseRevokeResponse>
+    >;
     acquireComputerUseLease(
       params: appServer.AppServerComputerUseLeaseAcquireParams,
-    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseLeaseAcquireResponse>>;
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerComputerUseLeaseAcquireResponse>
+    >;
     releaseComputerUseLease(
       params: appServer.AppServerComputerUseLeaseReleaseParams,
-    ): Promise<appServer.AppServerRequestResult<appServer.AppServerComputerUseLeaseReleaseResponse>>;
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerComputerUseLeaseReleaseResponse>
+    >;
     requestCloud(
       params: appServer.AppServerCloudRequestParams,
     ): Promise<
@@ -194,15 +206,43 @@ declare module "./appServerClient" {
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerMarketplaceUpgradeResponse>
     >;
-    listMarketResources(params: history.MarketListParams): Promise<appServer.AppServerRequestResult<history.MarketListResponse>>;
-    readMarketResource(params: history.MarketReadParams): Promise<appServer.AppServerRequestResult<history.MarketReadResponse>>;
-    installMarketResource(params: history.MarketInstallParams): Promise<appServer.AppServerRequestResult<history.MarketInstallResponse>>;
-    listInstalledMarketResources(params: history.MarketInstalledParams): Promise<appServer.AppServerRequestResult<history.MarketInstalledResponse>>;
-    setMarketResourceEnabled(params: history.MarketEnabledSetParams): Promise<appServer.AppServerRequestResult<history.MarketEnabledSetResponse>>;
-    uninstallMarketResource(params: history.MarketUninstallParams): Promise<appServer.AppServerRequestResult<history.MarketUninstallResponse>>;
-    listPendingMarketInstalls(params: history.MarketPendingParams): Promise<appServer.AppServerRequestResult<history.MarketPendingResponse>>;
-    cancelMarketInstall(params: history.MarketInstallCancelParams): Promise<appServer.AppServerRequestResult<history.MarketInstallCancelResponse>>;
-    reconcileMarketResources(params: history.MarketReconcileParams): Promise<appServer.AppServerRequestResult<history.MarketReconcileResponse>>;
+    listMarketResources(
+      params: history.MarketListParams,
+    ): Promise<appServer.AppServerRequestResult<history.MarketListResponse>>;
+    readMarketResource(
+      params: history.MarketReadParams,
+    ): Promise<appServer.AppServerRequestResult<history.MarketReadResponse>>;
+    installMarketResource(
+      params: history.MarketInstallParams,
+    ): Promise<appServer.AppServerRequestResult<history.MarketInstallResponse>>;
+    listInstalledMarketResources(
+      params: history.MarketInstalledParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.MarketInstalledResponse>
+    >;
+    setMarketResourceEnabled(
+      params: history.MarketEnabledSetParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.MarketEnabledSetResponse>
+    >;
+    uninstallMarketResource(
+      params: history.MarketUninstallParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.MarketUninstallResponse>
+    >;
+    listPendingMarketInstalls(
+      params: history.MarketPendingParams,
+    ): Promise<appServer.AppServerRequestResult<history.MarketPendingResponse>>;
+    cancelMarketInstall(
+      params: history.MarketInstallCancelParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.MarketInstallCancelResponse>
+    >;
+    reconcileMarketResources(
+      params: history.MarketReconcileParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.MarketReconcileResponse>
+    >;
     listPlugins(
       params?: appServer.AppServerPluginListParams,
     ): Promise<
@@ -308,6 +348,36 @@ declare module "./appServerClient" {
       params: appServer.AppServerProjectGitCommitListParams,
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerProjectGitCommitListResponse>
+    >;
+    readProjectGitBlame(
+      params: appServer.AppServerProjectGitBlameParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitBlameResponse>
+    >;
+    commitProjectGitChanges(
+      params: appServer.AppServerProjectGitCommitParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitCommitResponse>
+    >;
+    createProjectGitPullRequest(
+      params: appServer.AppServerProjectGitPullRequestCreateParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitPullRequestCreateResponse>
+    >;
+    openProjectGitPullRequest(
+      params: appServer.AppServerProjectGitPullRequestOpenParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitPullRequestOpenResponse>
+    >;
+    readProjectGitPullRequest(
+      params: appServer.AppServerProjectGitPullRequestStatusParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitPullRequestStatusResponse>
+    >;
+    mergeProjectGitPullRequest(
+      params: appServer.AppServerProjectGitPullRequestMergeParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitPullRequestMergeResponse>
     >;
     checkoutProjectGitBranch(
       params: appServer.AppServerProjectGitBranchCheckoutParams,

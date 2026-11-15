@@ -25,12 +25,25 @@ pub(crate) enum ShellKind {
 }
 
 pub(crate) fn shell_kind(executable: &str) -> Option<ShellKind> {
-    let basename = executable.rsplit(['/', '\\']).next()?.to_ascii_lowercase();
-    match basename.strip_suffix(".exe").unwrap_or(&basename) {
-        "sh" | "bash" | "zsh" | "dash" | "ksh" => Some(ShellKind::Posix),
-        "powershell" | "pwsh" => Some(ShellKind::PowerShell),
-        "cmd" => Some(ShellKind::Cmd),
-        _ => None,
+    let basename = executable
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(executable)
+        .to_ascii_lowercase();
+    match crate::shell_detect::detect_shell_type(&basename) {
+        Some(crate::shell_detect::ShellType::Bash)
+        | Some(crate::shell_detect::ShellType::Zsh)
+        | Some(crate::shell_detect::ShellType::Sh) => Some(ShellKind::Posix),
+        Some(crate::shell_detect::ShellType::PowerShell) => Some(ShellKind::PowerShell),
+        Some(crate::shell_detect::ShellType::Cmd) => Some(ShellKind::Cmd),
+        None => {
+            // Upstream shell detection only lists shells its runtime launches;
+            // Lime also accepts these POSIX-compatible shells.
+            match basename.strip_suffix(".exe").unwrap_or(&basename) {
+                "dash" | "ksh" => Some(ShellKind::Posix),
+                _ => None,
+            }
+        }
     }
 }
 
@@ -93,7 +106,7 @@ mod tests {
     }
 
     #[test]
-    fn only_codex_exec_command_is_a_current_shell_tool() {
+    fn only_exec_command_is_a_current_shell_tool() {
         assert!(is_shell_tool_name("exec_command"));
         assert!(!is_shell_tool_name("Bash"));
         assert!(!is_shell_tool_name("PowerShell"));

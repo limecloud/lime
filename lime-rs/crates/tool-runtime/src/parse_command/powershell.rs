@@ -1,11 +1,36 @@
-// Adapted from OpenAI Codex shell-command at
-// 4aaee872e31abefe0d32e91faab23b09b6968824 (Apache-2.0).
-// See LICENSE and NOTICE.
-
-use super::shell_detect::{detect_shell_type, ShellType};
 use std::path::PathBuf;
 
+use lime_utils_absolute_path::AbsolutePathBuf;
+
+use crate::command_safety::try_parse_powershell_commands;
+use crate::shell_detect::ShellType;
+use crate::shell_detect::detect_shell_type;
+
 const POWERSHELL_FLAGS: &[&str] = &["-nologo", "-noprofile", "-command", "-c"];
+
+/// Prefixed command for powershell shell calls to request UTF-8 console output.
+pub const UTF8_OUTPUT_PREFIX: &str =
+    "try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n";
+
+pub fn prefix_powershell_script_with_utf8(command: &[String]) -> Vec<String> {
+    let Some((_, script)) = extract_powershell_command(command) else {
+        return command.to_vec();
+    };
+
+    let trimmed = script.trim_start();
+    let script = if trimmed.starts_with(UTF8_OUTPUT_PREFIX) {
+        script.to_string()
+    } else {
+        format!("{UTF8_OUTPUT_PREFIX}{script}")
+    };
+
+    let mut command: Vec<String> = command[..(command.len() - 1)]
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+    command.push(script);
+    command
+}
 
 /// Extract the PowerShell script body from an invocation such as:
 ///
@@ -43,4 +68,224 @@ pub fn extract_powershell_command(command: &[String]) -> Option<(&str, &str)> {
         i += 1;
     }
     None
+}
+
+/// Parse the script body from a top-level PowerShell wrapper into argv-like commands.
+///
+/// This only unwraps the `-Command`/`-c` body from a PowerShell invocation we
+/// already recognize, then lowers the script in-process.
+pub fn parse_powershell_command_into_plain_commands(
+    command: &[String],
+) -> Option<Vec<Vec<String>>> {
+    let (_, script) = extract_powershell_command(command)?;
+    try_parse_powershell_commands(script)
+}
+
+/// Parse literal PowerShell commands without starting a PowerShell executable.
+///
+/// Unknown or dynamic syntax stays opaque so unfamiliar executables can be
+/// evaluated without running them before approval.
+pub fn parse_powershell_script_into_plain_commands(script: &str) -> Option<Vec<Vec<String>>> {
+    try_parse_powershell_commands(script)
+}
+
+/// This function attempts to find a powershell.exe executable on the system.
+pub fn try_find_powershell_executable_blocking() -> Option<AbsolutePathBuf> {
+    try_find_powershellish_executable_in_path(&["powershell.exe"])
+}
+
+/// This function attempts to find a pwsh.exe executable on the system.
+/// Note that pwsh.exe and powershell.exe are different executables:
+///
+/// - pwsh.exe is the cross-platform PowerShell Core (v6+) executable
+/// - powershell.exe is the Windows PowerShell (v5.1 and earlier) executable
+///
+/// Further, while powershell.exe is included by default on Windows systems,
+/// pwsh.exe must be installed separately by the user. And even when the user
+/// has installed pwsh.exe, it may not be available in the system PATH, in which
+/// case we attempt to locate it via other means.
+pub fn try_find_pwsh_executable_blocking() -> Option<AbsolutePathBuf> {
+    if let Some(ps_home) = std::process::Command::new("cmd")
+        .args(["/C", "pwsh", "-NoProfile", "-Command", "$PSHOME"])
+        .output()
+        .ok()
+        .and_then(|out| {
+            if !out.status.success() {
+                return None;
+            }
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let trimmed = stdout.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        })
+    {
+        let candidate = AbsolutePathBuf::resolve_path_against_base("pwsh.exe", &ps_home);
+
+        if is_powershellish_executable_available(candidate.as_path()) {
+            return Some(candidate);
+        }
+    }
+
+    try_find_powershellish_executable_in_path(&["pwsh.exe"])
+}
+
+fn try_find_powershellish_executable_in_path(candidates: &[&str]) -> Option<AbsolutePathBuf> {
+    for candidate in candidates {
+        let Ok(resolved_path) = which::which(candidate) else {
+            continue;
+        };
+
+        if !is_powershellish_executable_available(&resolved_path) {
+            continue;
+        }
+
+        let Ok(abs_path) = AbsolutePathBuf::from_absolute_path(resolved_path) else {
+            continue;
+        };
+
+        return Some(abs_path);
+    }
+
+    None
+}
+
+fn is_powershellish_executable_available(powershell_or_pwsh_exe: &std::path::Path) -> bool {
+    // This test works for both powershell.exe and pwsh.exe.
+    std::process::Command::new(powershell_or_pwsh_exe)
+        .args(["-NoLogo", "-NoProfile", "-Command", "Write-Output ok"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UTF8_OUTPUT_PREFIX;
+    use super::extract_powershell_command;
+    #[cfg(windows)]
+    use super::parse_powershell_command_into_plain_commands;
+    use super::parse_powershell_script_into_plain_commands;
+    use super::prefix_powershell_script_with_utf8;
+
+    #[test]
+    fn extracts_basic_powershell_command() {
+        let cmd = vec![
+            "powershell".to_string(),
+            "-Command".to_string(),
+            "Write-Host hi".to_string(),
+        ];
+        let (_shell, script) = extract_powershell_command(&cmd).expect("extract");
+        assert_eq!(script, "Write-Host hi");
+    }
+
+    #[test]
+    fn extracts_lowercase_flags() {
+        let cmd = vec![
+            "powershell".to_string(),
+            "-nologo".to_string(),
+            "-command".to_string(),
+            "Write-Host hi".to_string(),
+        ];
+        let (_shell, script) = extract_powershell_command(&cmd).expect("extract");
+        assert_eq!(script, "Write-Host hi");
+    }
+
+    #[test]
+    fn extracts_full_path_powershell_command() {
+        let command = if cfg!(windows) {
+            "C:\\windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe".to_string()
+        } else {
+            "/usr/local/bin/powershell.exe".to_string()
+        };
+        let cmd = vec![command, "-Command".to_string(), "Write-Host hi".to_string()];
+        let (_shell, script) = extract_powershell_command(&cmd).expect("extract");
+        assert_eq!(script, "Write-Host hi");
+    }
+
+    #[test]
+    fn extracts_with_noprofile_and_alias() {
+        let cmd = vec![
+            "pwsh".to_string(),
+            "-NoProfile".to_string(),
+            "-c".to_string(),
+            "Get-ChildItem | Select-String foo".to_string(),
+        ];
+        let (_shell, script) = extract_powershell_command(&cmd).expect("extract");
+        assert_eq!(script, "Get-ChildItem | Select-String foo");
+    }
+
+    #[test]
+    fn parses_powershell_command_chains_and_preserves_windows_paths() {
+        assert_eq!(
+            parse_powershell_script_into_plain_commands(r"echo safe && Remove-Item C:\important"),
+            Some(vec![
+                vec!["echo".to_string(), "safe".to_string()],
+                vec!["Remove-Item".to_string(), r"C:\important".to_string()],
+            ]),
+        );
+    }
+
+    #[test]
+    fn prefixes_powershell_command_with_best_effort_utf8() {
+        let cmd = vec![
+            "powershell".to_string(),
+            "-Command".to_string(),
+            "Write-Host hi".to_string(),
+        ];
+
+        let prefixed = prefix_powershell_script_with_utf8(&cmd);
+
+        assert_eq!(
+            prefixed,
+            vec![
+                "powershell".to_string(),
+                "-Command".to_string(),
+                format!("{UTF8_OUTPUT_PREFIX}Write-Host hi"),
+            ]
+        );
+    }
+
+    #[test]
+    fn does_not_duplicate_utf8_prefix() {
+        let cmd = vec![
+            "powershell".to_string(),
+            "-Command".to_string(),
+            format!("{UTF8_OUTPUT_PREFIX}Write-Host hi"),
+        ];
+
+        assert_eq!(prefix_powershell_script_with_utf8(&cmd), cmd);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn parses_plain_powershell_commands() {
+        let commands = parse_powershell_command_into_plain_commands(&[
+            "powershell.exe".to_string(),
+            "-NoProfile".to_string(),
+            "-Command".to_string(),
+            "echo hi".to_string(),
+        ])
+        .expect("parse");
+
+        assert_eq!(commands, vec![vec!["echo".to_string(), "hi".to_string()]]);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn parses_multiple_plain_powershell_commands() {
+        let commands = parse_powershell_command_into_plain_commands(&[
+            "powershell.exe".to_string(),
+            "-NoProfile".to_string(),
+            "-Command".to_string(),
+            "Write-Output foo | Measure-Object".to_string(),
+        ])
+        .expect("parse");
+
+        assert_eq!(
+            commands,
+            vec![
+                vec!["Write-Output".to_string(), "foo".to_string()],
+                vec!["Measure-Object".to_string()],
+            ]
+        );
+    }
 }

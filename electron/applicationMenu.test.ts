@@ -22,9 +22,17 @@ const handlers = {
   onOpenSystemStatus: vi.fn(),
   onOpenTaskManager: vi.fn(),
   onOpenTroubleshooting: vi.fn(),
+  onShowKeyboardShortcuts: vi.fn(),
+  onOpenWhatsNew: vi.fn(),
+  onSendFeedback: vi.fn(),
   onNewWindow: vi.fn(),
   onNewTab: vi.fn(),
   onNewChat: vi.fn(),
+  onNewStandaloneChat: vi.fn(),
+  onNewTemporaryChat: vi.fn(),
+  onCloseWindow: vi.fn(),
+  onNewProject: vi.fn(),
+  onOpenFolder: vi.fn(),
 };
 
 describe("applicationMenu", () => {
@@ -81,12 +89,39 @@ describe("applicationMenu", () => {
       label: "新聊天",
       accelerator: "CommandOrControl+N",
     });
+    expect(fileItems[3]).toMatchObject({
+      label: "新建临时聊天",
+      accelerator: "CommandOrControl+Shift+N",
+    });
+    expect(fileItems[4]).toMatchObject({ label: "新建项目…" });
+    expect(fileItems[5]).toMatchObject({
+      label: "新建独立聊天",
+      accelerator: "CommandOrControl+Alt+O",
+    });
+    expect(fileItems[7]).toMatchObject({
+      label: "打开文件夹…",
+      accelerator: "CommandOrControl+O",
+    });
+    expect(fileItems[9]).toMatchObject({
+      label: "关闭",
+      accelerator: "CommandOrControl+W",
+    });
     (fileItems[0].click as () => void)();
     (fileItems[1].click as () => void)();
     (fileItems[2].click as () => void)();
+    (fileItems[3].click as () => void)();
+    (fileItems[4].click as () => void)();
+    (fileItems[5].click as () => void)();
+    (fileItems[7].click as () => void)();
+    (fileItems[9].click as () => void)();
+    expect(handlers.onNewTemporaryChat).toHaveBeenCalledOnce();
+    expect(handlers.onNewProject).toHaveBeenCalledOnce();
+    expect(handlers.onOpenFolder).toHaveBeenCalledOnce();
+    expect(handlers.onCloseWindow).toHaveBeenCalledOnce();
     expect(handlers.onNewTab).toHaveBeenCalledOnce();
     expect(handlers.onNewWindow).toHaveBeenCalledOnce();
     expect(handlers.onNewChat).toHaveBeenCalledOnce();
+    expect(handlers.onNewStandaloneChat).toHaveBeenCalledOnce();
     const appItems = submenu(template[0]);
     expect(appItems[0]).toMatchObject({ label: "关于 Lime" });
     expect(appItems[1]).toMatchObject({
@@ -112,20 +147,29 @@ describe("applicationMenu", () => {
     const help = template.at(-1)!;
     expect(help).toMatchObject({ label: "帮助", role: "help" });
     const items = submenu(help);
-    expect(items[0]).toMatchObject({ label: "系统状态" });
-    expect(items[1]).toMatchObject({ label: "任务管理器" });
-    expect(items[2]).toMatchObject({ label: "故障排查" });
-    const documentation = items.find((item) => item.label === "帮助文档")!;
+    expect(items[0]).toMatchObject({ label: "帮助文档" });
+    expect(items[1]).toMatchObject({ label: "显示键盘快捷键" });
+    expect(items[2]).toMatchObject({ label: "新功能" });
+    expect(items[4]).toMatchObject({ label: "故障排查" });
+    expect(items[5]).toMatchObject({ label: "系统状态" });
+    expect(items[6]).toMatchObject({ label: "发送反馈" });
+    expect(items[8]).toMatchObject({ label: "任务管理器" });
     const logs = items.find((item) => item.label === "打开日志目录")!;
     (items[0].click as () => void)();
     (items[1].click as () => void)();
     (items[2].click as () => void)();
-    (documentation.click as () => void)();
+    (items[4].click as () => void)();
+    (items[5].click as () => void)();
+    (items[6].click as () => void)();
+    (items[8].click as () => void)();
     (logs.click as () => void)();
+    expect(handlers.onOpenDocumentation).toHaveBeenCalledOnce();
+    expect(handlers.onShowKeyboardShortcuts).toHaveBeenCalledOnce();
+    expect(handlers.onOpenWhatsNew).toHaveBeenCalledOnce();
+    expect(handlers.onSendFeedback).toHaveBeenCalledOnce();
+    expect(handlers.onOpenTroubleshooting).toHaveBeenCalledOnce();
     expect(handlers.onOpenSystemStatus).toHaveBeenCalledOnce();
     expect(handlers.onOpenTaskManager).toHaveBeenCalledOnce();
-    expect(handlers.onOpenTroubleshooting).toHaveBeenCalledOnce();
-    expect(handlers.onOpenDocumentation).toHaveBeenCalledOnce();
     expect(handlers.onOpenLogs).toHaveBeenCalledOnce();
   });
 
@@ -146,8 +190,25 @@ describe("applicationMenu", () => {
       label: "New Chat",
       accelerator: "CommandOrControl+N",
     });
-    expect(submenu(template[0])[4]).toMatchObject({ label: "Settings…" });
+    expect(submenu(template[0])[3]).toMatchObject({
+      label: "New Temporary Chat",
+      accelerator: "CommandOrControl+Shift+N",
+    });
+    expect(submenu(template[0])[4]).toMatchObject({ label: "New Project…" });
     expect(submenu(template[0])[5]).toMatchObject({
+      label: "New standalone chat",
+      accelerator: "CommandOrControl+Alt+O",
+    });
+    expect(submenu(template[0])[7]).toMatchObject({
+      label: "Open Folder…",
+      accelerator: "CommandOrControl+O",
+    });
+    expect(submenu(template[0])[9]).toMatchObject({
+      label: "Close",
+      accelerator: "CommandOrControl+W",
+    });
+    expect(submenu(template[0])[11]).toMatchObject({ label: "Settings…" });
+    expect(submenu(template[0])[12]).toMatchObject({
       label: "Check for Updates…",
     });
     expect(template.map((item) => item.role ?? item.label)).toEqual([

@@ -89,6 +89,7 @@ vi.mock("../coding/local-environments/LocalEnvironmentsSettings", () => ({
 vi.mock("../coding/connections", () => ({
   ConnectionsSettings: () => <div>connections</div>,
 }));
+
 vi.mock("../system/execution-policy", () => ({
   ExecutionPolicySettings: (props: unknown) => {
     mockExecutionPolicySettings(props);
@@ -501,7 +502,6 @@ describe("SettingsPage current sections", () => {
     [SettingsTabs.Connections, "connections"],
     [SettingsTabs.LocalEnvironments, "local-environments"],
     [SettingsTabs.ExecutionPolicy, "execution-policy"],
-    [SettingsTabs.About, "about"],
   ])("公开设置页应渲染 current %s 章节", async (tab, text) => {
     const container = renderComponent(tab);
     await flushEffects();

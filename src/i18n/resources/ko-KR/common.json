@@ -173,5 +173,7 @@
   "common.modelCapabilities.reasoning.inactive": "사고 없음",
   "common.modelCapabilities.vision.active": "멀티모달 지원",
   "common.modelCapabilities.vision.inactive": "멀티모달 없음",
-  "common.modelSelector.state.loginRequired": "로그인 필요"
+  "common.modelSelector.state.loginRequired": "로그인 필요",
+  "common.temporaryChat.name": "임시 채팅",
+  "common.temporaryChat.failed": "임시 채팅을 시작하지 못했습니다"
 }

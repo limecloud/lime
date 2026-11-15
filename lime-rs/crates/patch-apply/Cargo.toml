@@ -2,7 +2,7 @@
 name = "patch-apply"
 version.workspace = true
 license.workspace = true
-edition.workspace = true
+edition = "2024"
 authors.workspace = true
 repository.workspace = true
 
@@ -12,7 +12,12 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
+lime-utils-path-uri.workspace = true
+tree-sitter.workspace = true
+tree-sitter-bash.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+lime-utils-absolute-path.workspace = true
+pretty_assertions.workspace = true
 tempfile.workspace = true

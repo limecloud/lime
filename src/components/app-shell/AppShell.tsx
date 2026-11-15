@@ -25,7 +25,16 @@ import {
   UnifiedTabStripRenderer,
   type UnifiedTabStripEntry,
 } from "./UnifiedTabStripRenderer";
+import { CommandMenuHost } from "@/components/command-menu/CommandMenuHost";
+import { FileSearchHost } from "@/components/file-search/FileSearchDialog";
+import { SpotlightRuntime } from "@/components/command-menu/SpotlightRuntime";
+import { GlobalDictationRuntime } from "@/components/command-menu/GlobalDictationRuntime";
 import { KeyboardShortcutsDialogHost } from "@/components/keyboard-shortcuts/KeyboardShortcutsDialogHost";
+import { GitBlameDialogHost } from "@/components/git/GitBlameDialogHost";
+import { GitBranchCreateDialogHost } from "@/components/git/GitBranchCreateDialogHost";
+import { GitCommitDialogHost } from "@/components/git/GitCommitDialogHost";
+import { GitPullRequestDialogHost } from "@/components/git/GitPullRequestDialogHost";
+import { GitPullRequestMergeDialogHost } from "@/components/git/GitPullRequestMergeDialogHost";
 import { WindowCloseConfirmationDialogHost } from "@/components/window-close-confirmation/WindowCloseConfirmationDialogHost";
 
 const HeaderContext = createContext<ReturnType<
@@ -43,7 +52,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <HeaderContext.Provider value={registry}>
       {children}
+      <CommandMenuHost />
+      <FileSearchHost />
+      <SpotlightRuntime />
+      <GlobalDictationRuntime />
       <KeyboardShortcutsDialogHost />
+      <GitCommitDialogHost />
+      <GitBlameDialogHost />
+      <GitBranchCreateDialogHost />
+      <GitPullRequestDialogHost />
+      <GitPullRequestMergeDialogHost />
       <WindowCloseConfirmationDialogHost />
     </HeaderContext.Provider>
   );

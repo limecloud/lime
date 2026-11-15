@@ -12,28 +12,29 @@ async function createStore() {
 }
 
 describe("ContactAutofillStore", () => {
-  it("保存时裁剪空白并读取", async () => {
+  it("保存时裁剪空白、去重并读取", async () => {
     const store = await createStore();
     expect(await store.read()).toBeNull();
     await expect(
-      store.save({ fullName: " Alice ", email: " a@example.com " }),
+      store.save({
+        emails: [" a@example.com ", "a@example.com"],
+        phones: [" 123 "],
+      }),
     ).resolves.toEqual({
-      fullName: "Alice",
-      email: "a@example.com",
-      phone: "",
-      address: "",
+      emails: ["a@example.com"],
+      phones: ["123"],
+      addresses: [],
     });
     expect(await store.read()).toEqual({
-      fullName: "Alice",
-      email: "a@example.com",
-      phone: "",
-      address: "",
+      emails: ["a@example.com"],
+      phones: ["123"],
+      addresses: [],
     });
   });
 
   it("清除资料后读取为 null", async () => {
     const store = await createStore();
-    await store.save({ fullName: "Alice" });
+    await store.save({ emails: ["a@example.com"] });
     await store.clear();
     expect(await store.read()).toBeNull();
     await expect(store.clear()).resolves.toBeUndefined();
@@ -41,16 +42,16 @@ describe("ContactAutofillStore", () => {
 
   it("至少需要一项，空资料读取为 null", async () => {
     const store = await createStore();
-    await expect(store.save({ fullName: "  " })).rejects.toThrow("至少填写");
+    await expect(store.save({ emails: ["  "] })).rejects.toThrow("至少填写");
   });
 
   it("校验邮箱格式", async () => {
     const store = await createStore();
-    await expect(store.save({ email: "not-an-email" })).rejects.toThrow(
+    await expect(store.save({ emails: ["not-an-email"] })).rejects.toThrow(
       "邮箱格式",
     );
     await expect(
-      store.save({ email: "alice@example.com" }),
-    ).resolves.toMatchObject({ email: "alice@example.com" });
+      store.save({ emails: ["alice@example.com"] }),
+    ).resolves.toMatchObject({ emails: ["alice@example.com"] });
   });
 });

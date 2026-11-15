@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "创建成功后返回 `gh` 输出中可解析的 PR 元数据。",
+  "properties": {
+    "draft": {
+      "type": "boolean"
+    },
+    "number": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "rootPath": {
+      "type": "string"
+    },
+    "title": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "url": {
+      "type": [
+        "null",
+        "string"
+      ]
+    }
+  },
+  "required": [
+    "draft",
+    "rootPath"
+  ],
+  "title": "ProjectGitPullRequestCreateResponse",
+  "type": "object"
+}

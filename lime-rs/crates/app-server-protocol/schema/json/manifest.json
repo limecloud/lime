@@ -952,6 +952,34 @@
     },
     {
       "kind": "request",
+      "method": "project/git/blame"
+    },
+    {
+      "kind": "request",
+      "method": "project/git/branch/create"
+    },
+    {
+      "kind": "request",
+      "method": "project/git/commit"
+    },
+    {
+      "kind": "request",
+      "method": "project/git/pull_request/create"
+    },
+    {
+      "kind": "request",
+      "method": "project/git/pull_request/merge"
+    },
+    {
+      "kind": "request",
+      "method": "project/git/pull_request/open"
+    },
+    {
+      "kind": "request",
+      "method": "project/git/pull_request/status"
+    },
+    {
+      "kind": "request",
       "method": "project/import"
     },
     {
@@ -2704,6 +2732,23 @@
       "ProjectCreateResponse",
       "ProjectDeleteParams",
       "ProjectDeleteResponse",
+      "ProjectGitBlameLine",
+      "ProjectGitBlameParams",
+      "ProjectGitBlameResponse",
+      "ProjectGitBranchCreateParams",
+      "ProjectGitCommitParams",
+      "ProjectGitCommitResponse",
+      "ProjectGitCommitStatus",
+      "ProjectGitPullRequestCreateParams",
+      "ProjectGitPullRequestCreateResponse",
+      "ProjectGitPullRequestInfo",
+      "ProjectGitPullRequestMergeMethod",
+      "ProjectGitPullRequestMergeParams",
+      "ProjectGitPullRequestMergeResponse",
+      "ProjectGitPullRequestOpenParams",
+      "ProjectGitPullRequestOpenResponse",
+      "ProjectGitPullRequestStatusParams",
+      "ProjectGitPullRequestStatusResponse",
       "ProjectImportParams",
       "ProjectImportResponse",
       "ProjectListParams",

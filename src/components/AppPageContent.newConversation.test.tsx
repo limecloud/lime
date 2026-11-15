@@ -11,7 +11,6 @@ const page = vi.hoisted(() => ({
 vi.mock("./scheduled-tasks/ScheduledTasksPage", () => ({
   ScheduledTasksPage: () => null,
 }));
-vi.mock("./channels/ImConfigPage", () => ({ ImConfigPage: () => null }));
 vi.mock("./settings-v2", () => ({ SettingsPage: () => null }));
 vi.mock("./agent/chat", () => ({
   LocalConversationPage: (props: Record<string, unknown>) => {

@@ -28,6 +28,18 @@ describe("conversationTabs", () => {
     expect(getConversationTabsSnapshot().activeSessionId).toBe("session-b");
   });
 
+  it("does not persist ephemeral tabs", () => {
+    ensureConversationTab("session-normal", "Normal");
+    ensureConversationTab("session-temp", "Temp", { ephemeral: true });
+    expect(getConversationTabsSnapshot().tabs).toEqual([
+      { sessionId: "session-normal", title: "Normal" },
+      { sessionId: "session-temp", title: "Temp", ephemeral: true },
+    ]);
+    const stored = localStorage.getItem("lime.conversation.tabs.v1") ?? "";
+    expect(stored).toContain("session-normal");
+    expect(stored).not.toContain("session-temp");
+  });
+
   it("navigates to the neighbour when the active tab closes", () => {
     const requests = vi.fn();
     const stop = subscribeConversationTabRequests(requests);
@@ -53,9 +65,9 @@ describe("conversationTabs", () => {
 
     closeConversationTabsToTheRight("session-b");
 
-    expect(getConversationTabsSnapshot().tabs.map((tab) => tab.sessionId)).toEqual(
-      ["session-a", "session-b"],
-    );
+    expect(
+      getConversationTabsSnapshot().tabs.map((tab) => tab.sessionId),
+    ).toEqual(["session-a", "session-b"]);
   });
 
   it("keeps pinned tabs when closing all tabs", () => {
@@ -81,9 +93,9 @@ describe("conversationTabs", () => {
     requests.mockClear();
 
     expect(reopenLastClosedConversationTab()).toBe("session-b");
-    expect(getConversationTabsSnapshot().tabs.map((tab) => tab.sessionId)).toEqual(
-      ["session-b", "session-a"],
-    );
+    expect(
+      getConversationTabsSnapshot().tabs.map((tab) => tab.sessionId),
+    ).toEqual(["session-b", "session-a"]);
     expect(getConversationTabsSnapshot().activeSessionId).toBe("session-b");
     expect(requests).toHaveBeenCalledWith({
       type: "navigate",
@@ -111,9 +123,9 @@ describe("conversationTabs", () => {
 
     moveConversationTab("session-a", "session-c");
 
-    expect(getConversationTabsSnapshot().tabs.map((tab) => tab.sessionId)).toEqual(
-      ["session-b", "session-c", "session-a"],
-    );
+    expect(
+      getConversationTabsSnapshot().tabs.map((tab) => tab.sessionId),
+    ).toEqual(["session-b", "session-c", "session-a"]);
   });
 
   it("navigates on tab activation", () => {

@@ -4,13 +4,21 @@ export interface ConversationTab {
   sessionId: string;
   title: string;
   pinned?: boolean;
+  ephemeral?: boolean;
 }
 
 export type ConversationTabRequest =
   | { type: "navigate"; sessionId: string | null }
   | { type: "create" };
 
-const STORAGE_KEY = "lime.conversation.tabs.v1";
+const BASE_STORAGE_KEY = "lime.conversation.tabs.v1";
+const WINDOW_SCOPE =
+  typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("windowId");
+const STORAGE_KEY = WINDOW_SCOPE
+  ? `${BASE_STORAGE_KEY}:${WINDOW_SCOPE}`
+  : BASE_STORAGE_KEY;
 const MAX_TABS = 20;
 
 let tabs: ConversationTab[] = loadTabs();
@@ -46,7 +54,10 @@ function loadTabs(): ConversationTab[] {
 function persist() {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs));
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(tabs.filter((tab) => !tab.ephemeral)),
+    );
   } catch {
     // Tabs remain usable for the current session when storage is unavailable.
   }
@@ -90,21 +101,38 @@ export function moveConversationTab(
   publish();
 }
 
-export function ensureConversationTab(sessionId: string, title: string) {
+export function ensureConversationTab(
+  sessionId: string,
+  title: string,
+  options?: { ephemeral?: boolean },
+) {
   const normalizedId = sessionId.trim();
   if (!normalizedId) return;
   const normalizedTitle = title.trim() || "新聊天";
+  const ephemeral = options?.ephemeral === true;
   const existing = tabs.find((tab) => tab.sessionId === normalizedId);
   let changed = false;
   if (!existing) {
-    tabs = [...tabs, { sessionId: normalizedId, title: normalizedTitle }].slice(
-      -MAX_TABS,
-    );
+    tabs = [
+      ...tabs,
+      {
+        sessionId: normalizedId,
+        title: normalizedTitle,
+        ...(ephemeral ? { ephemeral: true } : {}),
+      },
+    ].slice(-MAX_TABS);
     changed = true;
-  } else if (existing.title !== normalizedTitle) {
+  } else if (
+    existing.title !== normalizedTitle ||
+    (ephemeral && existing.ephemeral !== true)
+  ) {
     tabs = tabs.map((tab) =>
       tab.sessionId === normalizedId
-        ? { ...tab, title: normalizedTitle }
+        ? {
+            ...tab,
+            title: normalizedTitle,
+            ephemeral: tab.ephemeral || ephemeral,
+          }
         : tab,
     );
     changed = true;
@@ -116,10 +144,7 @@ export function ensureConversationTab(sessionId: string, title: string) {
   if (changed) publish();
 }
 
-export function setConversationTabPinned(
-  sessionId: string,
-  pinned: boolean,
-) {
+export function setConversationTabPinned(sessionId: string, pinned: boolean) {
   const current = tabs.find((tab) => tab.sessionId === sessionId);
   if (!current || Boolean(current.pinned) === pinned) return;
   tabs = tabs.map((tab) =>
@@ -200,9 +225,7 @@ export function closeAllConversationTabs() {
     if (!tab.pinned) rememberClosedTab(tab);
   }
   tabs = pinnedTabs;
-  const nextActive = pinnedTabs.some(
-    (tab) => tab.sessionId === activeSessionId,
-  )
+  const nextActive = pinnedTabs.some((tab) => tab.sessionId === activeSessionId)
     ? activeSessionId
     : (pinnedTabs[0]?.sessionId ?? null);
   activeSessionId = nextActive;

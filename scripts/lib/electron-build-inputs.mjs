@@ -202,7 +202,7 @@ export function pickNewer(left, right) {
   return right.mtimeMs > left.mtimeMs ? right : left;
 }
 
-function inputFiles(rootDir, { sourceDirs, sourceFiles }) {
+export function inputFiles(rootDir, { sourceDirs, sourceFiles }) {
   const files = new Set();
   for (const name of sourceFiles) {
     if (statFile(path.join(rootDir, name))?.isFile()) files.add(name);

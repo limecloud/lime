@@ -182,6 +182,25 @@ pub(super) fn into_parts(
         ClientRequest::ProjectUpdate { id, params } => parts(id, Method::ProjectUpdate, params),
         ClientRequest::ProjectMove { id, params } => parts(id, Method::ProjectMove, params),
         ClientRequest::ProjectDelete { id, params } => parts(id, Method::ProjectDelete, params),
+        ClientRequest::ProjectGitBranchCreate { id, params } => {
+            parts(id, Method::ProjectGitBranchCreate, params)
+        }
+        ClientRequest::ProjectGitCommit { id, params } => {
+            parts(id, Method::ProjectGitCommit, params)
+        }
+        ClientRequest::ProjectGitPullRequestCreate { id, params } => {
+            parts(id, Method::ProjectGitPullRequestCreate, params)
+        }
+        ClientRequest::ProjectGitPullRequestOpen { id, params } => {
+            parts(id, Method::ProjectGitPullRequestOpen, params)
+        }
+        ClientRequest::ProjectGitPullRequestStatus { id, params } => {
+            parts(id, Method::ProjectGitPullRequestStatus, params)
+        }
+        ClientRequest::ProjectGitPullRequestMerge { id, params } => {
+            parts(id, Method::ProjectGitPullRequestMerge, params)
+        }
+        ClientRequest::ProjectGitBlame { id, params } => parts(id, Method::ProjectGitBlame, params),
         ClientRequest::ArtifactWrite { id, params } => parts(id, Method::ArtifactWrite, params),
         ClientRequest::MediaRead { id, params } => parts(id, Method::MediaRead, params),
         ClientRequest::McpServerResourceRead { id, params } => {

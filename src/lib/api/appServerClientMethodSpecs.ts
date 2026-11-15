@@ -12,16 +12,56 @@ export type AppServerClientMethodSpec = {
 };
 
 export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
-  { name: "listMarketResources", method: constants.APP_SERVER_METHOD_MARKET_LIST, params: "required" },
-  { name: "readMarketResource", method: constants.APP_SERVER_METHOD_MARKET_READ, params: "required" },
-  { name: "installMarketResource", method: constants.APP_SERVER_METHOD_MARKET_INSTALL, params: "required" },
-  { name: "listInstalledMarketResources", method: constants.APP_SERVER_METHOD_MARKET_INSTALLED, params: "required" },
-  { name: "setMarketResourceEnabled", method: constants.APP_SERVER_METHOD_MARKET_ENABLED_SET, params: "required" },
-  { name: "uninstallMarketResource", method: constants.APP_SERVER_METHOD_MARKET_UNINSTALL, params: "required" },
-  { name: "listPendingMarketInstalls", method: constants.APP_SERVER_METHOD_MARKET_PENDING, params: "required" },
-  { name: "cancelMarketInstall", method: constants.APP_SERVER_METHOD_MARKET_INSTALL_CANCEL, params: "required" },
-  { name: "reconcileMarketResources", method: constants.APP_SERVER_METHOD_MARKET_RECONCILE, params: "required" },
-  { name: "requestCloudDesktop", method: constants.APP_SERVER_METHOD_CLOUD_DESKTOP, params: "required" },
+  {
+    name: "listMarketResources",
+    method: constants.APP_SERVER_METHOD_MARKET_LIST,
+    params: "required",
+  },
+  {
+    name: "readMarketResource",
+    method: constants.APP_SERVER_METHOD_MARKET_READ,
+    params: "required",
+  },
+  {
+    name: "installMarketResource",
+    method: constants.APP_SERVER_METHOD_MARKET_INSTALL,
+    params: "required",
+  },
+  {
+    name: "listInstalledMarketResources",
+    method: constants.APP_SERVER_METHOD_MARKET_INSTALLED,
+    params: "required",
+  },
+  {
+    name: "setMarketResourceEnabled",
+    method: constants.APP_SERVER_METHOD_MARKET_ENABLED_SET,
+    params: "required",
+  },
+  {
+    name: "uninstallMarketResource",
+    method: constants.APP_SERVER_METHOD_MARKET_UNINSTALL,
+    params: "required",
+  },
+  {
+    name: "listPendingMarketInstalls",
+    method: constants.APP_SERVER_METHOD_MARKET_PENDING,
+    params: "required",
+  },
+  {
+    name: "cancelMarketInstall",
+    method: constants.APP_SERVER_METHOD_MARKET_INSTALL_CANCEL,
+    params: "required",
+  },
+  {
+    name: "reconcileMarketResources",
+    method: constants.APP_SERVER_METHOD_MARKET_RECONCILE,
+    params: "required",
+  },
+  {
+    name: "requestCloudDesktop",
+    method: constants.APP_SERVER_METHOD_CLOUD_DESKTOP,
+    params: "required",
+  },
   {
     name: "readComputerUseStatus",
     method: constants.APP_SERVER_METHOD_COMPUTER_USE_STATUS,
@@ -305,6 +345,36 @@ export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
   {
     name: "listProjectGitCommits",
     method: constants.APP_SERVER_METHOD_PROJECT_GIT_COMMITS_LIST,
+    params: "required",
+  },
+  {
+    name: "readProjectGitBlame",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_BLAME,
+    params: "required",
+  },
+  {
+    name: "commitProjectGitChanges",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_COMMIT,
+    params: "required",
+  },
+  {
+    name: "createProjectGitPullRequest",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_PULL_REQUEST_CREATE,
+    params: "required",
+  },
+  {
+    name: "openProjectGitPullRequest",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_PULL_REQUEST_OPEN,
+    params: "required",
+  },
+  {
+    name: "readProjectGitPullRequest",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_PULL_REQUEST_STATUS,
+    params: "required",
+  },
+  {
+    name: "mergeProjectGitPullRequest",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_PULL_REQUEST_MERGE,
     params: "required",
   },
   {

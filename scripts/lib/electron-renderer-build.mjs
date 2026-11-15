@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   fingerprintBuildInputs,
+  inputFiles,
   declaredBuildEntries,
   RENDERER_BUILD_ENTRIES,
   RENDERER_SOURCE_DIRS,
@@ -33,6 +34,14 @@ function entryDigests(rootDir) {
   );
 }
 
+function inputFileHashes(rootDir) {
+  const result = new Map();
+  for (const name of inputFiles(rootDir, inputs)) {
+    result.set(name, createHash("sha256").update(readFileSync(path.join(rootDir, name))).digest("hex"));
+  }
+  return result;
+}
+
 function writeReceipt(rootDir, receipt) {
   const filePath = receiptPath(rootDir);
   mkdirSync(path.dirname(filePath), { recursive: true });
@@ -43,6 +52,7 @@ export function beginRendererBuild(rootDir) {
   const build = {
     rootDir,
     input: fingerprintBuildInputs(rootDir, inputs),
+    inputHashes: inputFileHashes(rootDir),
     startedAt: new Date().toISOString(),
   };
   writeReceipt(rootDir, {
@@ -66,8 +76,15 @@ export function invalidateRendererBuild(build) {
 export function completeRendererBuild(build) {
   try {
     const input = fingerprintBuildInputs(build.rootDir, inputs);
-    if (input.sha256 !== build.input.sha256)
-      throw new Error("Renderer build inputs changed during compilation");
+    if (input.sha256 !== build.input.sha256) {
+      const next = inputFileHashes(build.rootDir);
+      const changed = [...next.keys()].filter(
+        (name) => next.get(name) !== build.inputHashes.get(name),
+      );
+      throw new Error(
+        `Renderer build inputs changed during compilation: ${changed.slice(0, 20).join(", ")}`,
+      );
+    }
     const receipt = {
       version: 2,
       status: "ready",

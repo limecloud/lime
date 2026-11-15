@@ -948,6 +948,7 @@ struct CompletionCommand {
 }
 
 fn main() -> ExitCode {
+    process_hardening::pre_main_hardening();
     let cli = MultitoolCli::parse();
     run_async(dispatch::run_cli(cli))
 }

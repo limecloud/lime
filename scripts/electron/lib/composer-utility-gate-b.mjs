@@ -27,7 +27,7 @@ import {
 const LOG_PREFIX = "[smoke:composer-utility-gate-b]";
 const REQUIRED_METHODS = [
   "projectGit/status",
-  "projectGit/branch/create",
+  "project/git/branch/create",
   "projectGit/branch/checkout",
 ];
 const BRANCH = "utility-gate-created";

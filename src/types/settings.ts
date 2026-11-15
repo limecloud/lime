@@ -19,6 +19,7 @@ export enum SettingsGroupKey {
  */
 export enum SettingsTabs {
   General = "general",
+  Notifications = "notifications",
   Import = "import",
   Voice = "voice",
   // 账号
@@ -27,6 +28,8 @@ export enum SettingsTabs {
   // 通用
   Appearance = "appearance",
   Browser = "browser-use",
+  BrowserExtension = "browser-extension",
+  CloudDesktops = "cloud-desktops",
   KeyboardShortcuts = "keyboard-shortcuts",
   Memory = "memory",
   ArchivedConversations = "archived-conversations",
@@ -39,7 +42,6 @@ export enum SettingsTabs {
   McpServers = "mcp-servers",
   ComputerUse = "computer-use",
   AppSnapshots = "app-snapshots",
-  CloudDesktops = "cloud-desktops",
   MediaServices = "media-services",
 
   // 系统
@@ -49,8 +51,6 @@ export enum SettingsTabs {
   Git = "git",
   Worktrees = "worktrees",
   ExecutionPolicy = "execution-policy",
-
-  About = "about",
 }
 
 /**

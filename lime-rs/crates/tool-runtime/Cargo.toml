@@ -2,7 +2,7 @@
 name = "tool-runtime"
 version.workspace = true
 license.workspace = true
-edition.workspace = true
+edition = "2024"
 authors.workspace = true
 repository.workspace = true
 
@@ -48,6 +48,7 @@ lime-skills.workspace = true
 patch-apply.workspace = true
 portable-pty.workspace = true
 rmcp.workspace = true
+once_cell.workspace = true
 regex.workspace = true
 regex-lite = "0.1.8"
 reqwest.workspace = true
@@ -73,6 +74,8 @@ zip.workspace = true
 which = "8.0.0"
 
 [dev-dependencies]
+anyhow.workspace = true
+pretty_assertions.workspace = true
 tempfile.workspace = true
 
 [target.'cfg(windows)'.dependencies]
@@ -96,3 +99,6 @@ windows-sys = { version = "0.52", features = [
     "Win32_System_StationsAndDesktops",
     "Win32_System_Threading",
 ] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

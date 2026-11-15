@@ -12,11 +12,12 @@ import {
   Image,
   Server,
   Puzzle,
+  Bell,
+  Blocks,
   MousePointer2,
   Cloud,
   ShieldCheck,
   Variable,
-  Info,
   GitBranch,
   Cable,
   SlidersHorizontal,
@@ -76,6 +77,12 @@ const WorktreesSettings = lazy(() =>
 const GitSettings = lazy(() =>
   loadGit().then((module) => ({ default: module.GitSettings })),
 );
+const loadNotifications = () => import("./general/notifications");
+const NotificationsSettings = lazy(() =>
+  loadNotifications().then((module) => ({
+    default: module.NotificationsSettings,
+  })),
+);
 const GeneralSettings = lazy(() =>
   loadGeneral().then((module) => ({ default: module.GeneralSettings })),
 );
@@ -102,6 +109,12 @@ const loadAppSnapshots = () => import("./integrations/app-snapshots");
 const BrowserUseSettings = lazy(() =>
   loadBrowser().then((module) => ({ default: module.BrowserUseSettings })),
 );
+const loadBrowserExtensions = () => import("./general/browser/extensions");
+const BrowserExtensionSettings = lazy(() =>
+  loadBrowserExtensions().then((module) => ({
+    default: module.BrowserExtensionSettings,
+  })),
+);
 const AppSnapshotsSettings = lazy(() =>
   loadAppSnapshots().then((module) => ({
     default: module.AppSnapshotsSettings,
@@ -120,11 +133,6 @@ const ArchivedConversationsSettings = lazy(() =>
   loadArchivedConversations().then((module) => ({
     default: module.ArchivedConversationsSettings,
   })),
-);
-
-const loadAbout = () => import("./system/about");
-const AboutSection = lazy(() =>
-  loadAbout().then((module) => ({ default: module.AboutSection })),
 );
 
 const loadMediaServices = () => import("./agent/media-services");
@@ -206,6 +214,15 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.layout.loading.general",
     preload: loadGeneral,
     render: () => <GeneralSettings />,
+  },
+  {
+    key: SettingsTabs.Notifications,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.notifications.title",
+    icon: Bell,
+    loadingKey: "settings.layout.loading.notifications",
+    preload: loadNotifications,
+    render: () => <NotificationsSettings />,
   },
   {
     key: SettingsTabs.Import,
@@ -357,6 +374,15 @@ export const settingsSections: readonly SettingsSection[] = [
     render: (context) => <BrowserUseSettings page={context.browserPage} />,
   },
   {
+    key: SettingsTabs.BrowserExtension,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.tab.browserExtension",
+    icon: Blocks,
+    loadingKey: "settings.layout.loading.browserExtensions",
+    preload: loadBrowserExtensions,
+    render: () => <BrowserExtensionSettings />,
+  },
+  {
     key: SettingsTabs.CloudDesktops,
     group: SettingsGroupKey.Integrations,
     labelKey: "settings.cloudDesktop.title",
@@ -419,15 +445,6 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: GitBranch,
     preload: loadWorktrees,
     render: (context) => <WorktreesSettings onNavigate={context.onNavigate} />,
-  },
-  {
-    key: SettingsTabs.About,
-    group: null,
-    labelKey: "settings.tab.about",
-    icon: Info,
-    loadingKey: "settings.layout.loading.about",
-    preload: loadAbout,
-    render: () => <AboutSection />,
   },
 ];
 

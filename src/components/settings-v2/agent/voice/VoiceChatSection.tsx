@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { createRealtimeVoiceClientSecret } from "@/lib/api/realtimeVoice";
 import {
   SettingsAction,
   SettingsGroup,
@@ -67,6 +69,8 @@ export function VoiceChatSection({
   const { t } = useTranslation("settings");
   const { state, reload } = useRealtimeVoiceCapability();
   const { snapshot, start, stop } = useRealtimeVoiceSession();
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<"ok" | "failed" | null>(null);
   const capability = state.status === "ready" ? state.capability : null;
   const blockers = capability?.blockers ?? [];
   const available = capability?.available === true;
@@ -206,6 +210,28 @@ export function VoiceChatSection({
               </>
             }
           >
+            {available && !sessionActive ? (
+              <SettingsAction
+                type="button"
+                disabled={testing || saving}
+                onClick={async () => {
+                  setTesting(true);
+                  setTestResult(null);
+                  try {
+                    await createRealtimeVoiceClientSecret();
+                    setTestResult("ok");
+                  } catch {
+                    setTestResult("failed");
+                  } finally {
+                    setTesting(false);
+                  }
+                }}
+              >
+                {testing
+                  ? t("settings.voice.chat.testing")
+                  : t("settings.voice.chat.test")}
+              </SettingsAction>
+            ) : null}
             {sessionActive ? (
               <SettingsAction type="button" onClick={stop}>
                 {t("settings.voice.chat.action.stop")}
@@ -253,6 +279,20 @@ export function VoiceChatSection({
           </p>
         ) : null}
       </SettingsGroup>
+      {testResult ? (
+        <p
+          role="status"
+          className={
+            testResult === "ok"
+              ? "text-[12px] text-muted-foreground"
+              : "text-[12px] text-destructive"
+          }
+        >
+          {testResult === "ok"
+            ? t("settings.voice.chat.testOk")
+            : t("settings.voice.chat.testFailed")}
+        </p>
+      ) : null}
     </SettingsSection>
   );
 }

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "在当前工作区创建并切换到一个新分支。\n\n分支名会 trim；拒绝空值、超过 200 个字符、空白/控制字符、`..` 和 `-` 开头。",
+  "properties": {
+    "branch": {
+      "type": "string"
+    },
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "branch",
+    "rootPath"
+  ],
+  "title": "ProjectGitBranchCreateParams",
+  "type": "object"
+}

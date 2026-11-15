@@ -60,18 +60,6 @@ afterEach(async () => {
 });
 
 describe("SettingsSidebar", () => {
-  it("关于始终位于全部设置菜单的最后且不归入编程分组", () => {
-    const container = renderSidebar(SettingsTabs.About);
-    const items = container.querySelectorAll<HTMLButtonElement>(
-      '[data-testid^="settings-sidebar-tab-"]',
-    );
-    const about = items[items.length - 1];
-    expect(about.dataset.testid).toBe("settings-sidebar-tab-about");
-    expect(about.getAttribute("aria-current")).toBe("page");
-    expect(about.parentElement?.parentElement?.textContent).toBe("About");
-    expect(container.textContent).not.toContain("settings.group.null");
-  });
-
   it("搜索键位与可用列表同源，导航在途和卸载时一并撤销", () => {
     const container = renderSidebar();
     const input = container.querySelector<HTMLInputElement>(

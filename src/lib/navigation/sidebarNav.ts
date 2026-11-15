@@ -1,7 +1,6 @@
 import {
   Boxes,
   CalendarClock,
-  MessageCircleMore,
   SquarePen,
   Settings,
   type LucideIcon,
@@ -62,9 +61,7 @@ const BASE_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: Boxes,
     page: "plugins",
     isActive: (currentPage) =>
-      currentPage === "plugins" ||
-      currentPage === "skills" ||
-      currentPage === "experts",
+      currentPage === "plugins" || currentPage === "skills",
     configurable: false,
   },
 ];
@@ -86,14 +83,6 @@ export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
       tab: SettingsTabs.General,
     },
     isActive: (currentPage) => currentPage === "settings",
-    configurable: false,
-  },
-  {
-    id: "channels",
-    label: "消息渠道",
-    icon: MessageCircleMore,
-    page: "channels",
-    isActive: (currentPage) => currentPage === "channels",
     configurable: false,
   },
 ];

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "通过已安装的 `gh` CLI 在当前工作区创建 Pull Request。\n\n`title` 会 trim；拒绝空值、超过 256 个字符、控制字符；`body` 最多 65536 字节；\n`base` 可选，空字符串等同省略。",
+  "properties": {
+    "base": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "body": {
+      "type": "string"
+    },
+    "draft": {
+      "default": false,
+      "type": "boolean"
+    },
+    "rootPath": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "body",
+    "rootPath",
+    "title"
+  ],
+  "title": "ProjectGitPullRequestCreateParams",
+  "type": "object"
+}

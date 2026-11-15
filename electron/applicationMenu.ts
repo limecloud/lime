@@ -19,9 +19,16 @@ const LABELS: Record<
     newTab: string;
     newWindow: string;
     newChat: string;
+    newStandaloneChat: string;
+    newProject: string;
+    openFolder: string;
     help: string;
     systemStatus: string;
     taskManager: string;
+    keyboardShortcuts: string;
+    whatsNew: string;
+    sendFeedback: string;
+    temporaryChat: string;
     troubleshooting: string;
     close: string;
     documentation: string;
@@ -36,9 +43,16 @@ const LABELS: Record<
     newTab: "新建标签页",
     newWindow: "新建窗口",
     newChat: "新聊天",
+    newStandaloneChat: "新建独立聊天",
+    newProject: "新建项目…",
+    openFolder: "打开文件夹…",
     help: "帮助",
     systemStatus: "系统状态",
     taskManager: "任务管理器",
+    keyboardShortcuts: "显示键盘快捷键",
+    whatsNew: "新功能",
+    temporaryChat: "新建临时聊天",
+    sendFeedback: "发送反馈",
     troubleshooting: "故障排查",
     close: "关闭",
     documentation: "帮助文档",
@@ -52,9 +66,16 @@ const LABELS: Record<
     newTab: "新增分頁",
     newWindow: "新增視窗",
     newChat: "新對話",
+    newStandaloneChat: "新增獨立對話",
+    newProject: "新增專案…",
+    openFolder: "開啟資料夾…",
     help: "說明",
     systemStatus: "系統狀態",
     taskManager: "工作管理員",
+    keyboardShortcuts: "顯示鍵盤快速鍵",
+    whatsNew: "新功能",
+    temporaryChat: "新增臨時對話",
+    sendFeedback: "傳送意見回饋",
     troubleshooting: "疑難排解",
     close: "關閉",
     documentation: "說明文件",
@@ -68,9 +89,16 @@ const LABELS: Record<
     newTab: "New Tab",
     newWindow: "New Window",
     newChat: "New Chat",
+    newStandaloneChat: "New standalone chat",
+    newProject: "New Project…",
+    openFolder: "Open Folder…",
     help: "Help",
     systemStatus: "System Status",
     taskManager: "Task Manager",
+    keyboardShortcuts: "Show Keyboard Shortcuts",
+    whatsNew: "What's New",
+    temporaryChat: "New Temporary Chat",
+    sendFeedback: "Send Feedback",
     troubleshooting: "Troubleshooting",
     close: "Close",
     documentation: "Documentation",
@@ -84,9 +112,16 @@ const LABELS: Record<
     newTab: "新しいタブ",
     newWindow: "新規ウインドウ",
     newChat: "新しいチャット",
+    newStandaloneChat: "新しいスタンドアロンチャット",
+    newProject: "新しいプロジェクト…",
+    openFolder: "フォルダーを開く…",
     help: "ヘルプ",
     systemStatus: "システムの状態",
     taskManager: "タスクマネージャー",
+    keyboardShortcuts: "キーボードショートカットを表示",
+    whatsNew: "新機能",
+    temporaryChat: "新しい一時チャット",
+    sendFeedback: "フィードバックを送信",
     troubleshooting: "トラブルシューティング",
     close: "閉じる",
     documentation: "ドキュメント",
@@ -100,9 +135,16 @@ const LABELS: Record<
     newTab: "새 탭",
     newWindow: "새 창",
     newChat: "새 채팅",
+    newStandaloneChat: "새 독립 채팅",
+    newProject: "새 프로젝트…",
+    openFolder: "폴더 열기…",
     help: "도움말",
     systemStatus: "시스템 상태",
     taskManager: "작업 관리자",
+    keyboardShortcuts: "키보드 단축키 표시",
+    whatsNew: "새로운 기능",
+    temporaryChat: "새 임시 채팅",
+    sendFeedback: "피드백 보내기",
     troubleshooting: "문제 해결",
     close: "닫기",
     documentation: "문서",
@@ -155,9 +197,17 @@ export function buildApplicationMenuTemplate({
   onOpenSystemStatus,
   onOpenTaskManager,
   onOpenTroubleshooting,
+  onShowKeyboardShortcuts,
+  onOpenWhatsNew,
+  onSendFeedback,
   onNewTab,
   onNewWindow,
   onNewChat,
+  onNewTemporaryChat,
+  onNewStandaloneChat,
+  onNewProject,
+  onOpenFolder,
+  onCloseWindow,
   isMac,
 }: {
   appName: string;
@@ -170,9 +220,17 @@ export function buildApplicationMenuTemplate({
   onOpenSystemStatus: () => void;
   onOpenTaskManager: () => void;
   onOpenTroubleshooting: () => void;
+  onShowKeyboardShortcuts: () => void;
+  onOpenWhatsNew: () => void;
+  onSendFeedback: () => void;
   onNewTab: () => void;
   onNewWindow: () => void;
   onNewChat: () => void;
+  onNewTemporaryChat: () => void;
+  onNewStandaloneChat: () => void;
+  onNewProject: () => void;
+  onOpenFolder: () => void;
+  onCloseWindow: () => void;
   isMac: boolean;
 }): MenuItemConstructorOptions[] {
   const labels = applicationMenuLabels(locale);
@@ -200,11 +258,19 @@ export function buildApplicationMenuTemplate({
     label: labels.help,
     role: "help",
     submenu: [
-      { label: labels.systemStatus, click: onOpenSystemStatus },
-      { label: labels.taskManager, click: onOpenTaskManager },
-      { label: labels.troubleshooting, click: onOpenTroubleshooting },
-      { type: "separator" },
       { label: labels.documentation, click: onOpenDocumentation },
+      {
+        label: labels.keyboardShortcuts,
+        click: onShowKeyboardShortcuts,
+      },
+      { label: labels.whatsNew, click: onOpenWhatsNew },
+      { type: "separator" },
+      { label: labels.troubleshooting, click: onOpenTroubleshooting },
+      { label: labels.systemStatus, click: onOpenSystemStatus },
+      { label: labels.sendFeedback, click: onSendFeedback },
+      { type: "separator" },
+      { label: labels.taskManager, click: onOpenTaskManager },
+      { type: "separator" },
       { label: labels.openLogs, click: onOpenLogs },
     ],
   };
@@ -224,6 +290,29 @@ export function buildApplicationMenuTemplate({
         label: labels.newChat,
         accelerator: "CommandOrControl+N",
         click: onNewChat,
+      },
+      {
+        label: labels.temporaryChat,
+        accelerator: "CommandOrControl+Shift+N",
+        click: onNewTemporaryChat,
+      },
+      { label: labels.newProject, click: onNewProject },
+      {
+        label: labels.newStandaloneChat,
+        accelerator: "CommandOrControl+Alt+O",
+        click: onNewStandaloneChat,
+      },
+      { type: "separator" },
+      {
+        label: labels.openFolder,
+        accelerator: "CommandOrControl+O",
+        click: onOpenFolder,
+      },
+      { type: "separator" },
+      {
+        label: labels.close,
+        accelerator: "CommandOrControl+W",
+        click: onCloseWindow,
       },
     ],
   };
@@ -251,6 +340,29 @@ export function buildApplicationMenuTemplate({
           label: labels.newChat,
           accelerator: "CommandOrControl+N",
           click: onNewChat,
+        },
+        {
+          label: labels.temporaryChat,
+          accelerator: "CommandOrControl+Shift+N",
+          click: onNewTemporaryChat,
+        },
+        { label: labels.newProject, click: onNewProject },
+        {
+          label: labels.newStandaloneChat,
+          accelerator: "CommandOrControl+Alt+O",
+          click: onNewStandaloneChat,
+        },
+        { type: "separator" },
+        {
+          label: labels.openFolder,
+          accelerator: "CommandOrControl+O",
+          click: onOpenFolder,
+        },
+        { type: "separator" },
+        {
+          label: labels.close,
+          accelerator: "CommandOrControl+W",
+          click: onCloseWindow,
         },
         { type: "separator" },
         { label: labels.settings, click: onOpenSettings },

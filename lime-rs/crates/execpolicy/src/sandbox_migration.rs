@@ -9,10 +9,10 @@ use tokio::io::AsyncWriteExt;
 
 const MIGRATION_MARKER_FILENAME: &str = ".sandbox_migration";
 
-/// removes legacy allow rules that newer lime versions no longer offer.
+/// removes legacy allow rules that newer Lime versions no longer offer.
 ///
 /// this migration is intentionally one-shot. once complete, a marker in `lime_home` prevents
-/// policies saved by newer lime versions from being removed on later startups.
+/// policies saved by newer Lime versions from being removed on later startups.
 pub async fn prefix_rule_migration(
     lime_home: &Path,
     policy_path: &Path,
@@ -28,7 +28,7 @@ pub async fn prefix_rule_migration(
     Ok(())
 }
 
-// atomically writes the marker after creating lime home when needed.
+// atomically writes the marker after creating Lime home when needed.
 async fn write_migration_marker(lime_home: &Path, marker_path: &Path) -> io::Result<()> {
     tokio::fs::create_dir_all(lime_home).await?;
     let lime_home = lime_home.to_owned();

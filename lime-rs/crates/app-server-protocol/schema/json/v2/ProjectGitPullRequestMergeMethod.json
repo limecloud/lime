@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "`gh pr merge` 支持的合并方式。",
+  "enum": [
+    "merge",
+    "rebase",
+    "squash"
+  ],
+  "title": "ProjectGitPullRequestMergeMethod",
+  "type": "string"
+}

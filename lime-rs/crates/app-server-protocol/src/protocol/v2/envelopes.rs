@@ -45,26 +45,33 @@ use super::{
     ProcessOutputDeltaNotification, ProcessResizePtyParams, ProcessResizePtyResponse,
     ProcessSpawnParams, ProcessSpawnResponse, ProcessWriteStdinParams, ProcessWriteStdinResponse,
     ProjectChangedNotification, ProjectCreateParams, ProjectCreateResponse, ProjectDeleteParams,
-    ProjectDeleteResponse, ProjectImportParams, ProjectImportResponse, ProjectListParams,
-    ProjectListResponse, ProjectMoveParams, ProjectMoveResponse, ProjectReadParams,
-    ProjectReadResponse, ProjectUpdateParams, ProjectUpdateResponse, PromptHistoryAppendParams,
-    PromptHistoryAppendResponse, PromptHistoryReadParams, PromptHistoryReadResponse,
-    ReasoningSummaryPartAddedNotification, ReasoningSummaryTextDeltaNotification,
-    ReasoningTextDeltaNotification, ReviewStartParams, ReviewStartResponse,
-    RolloutCompressResponse, ScheduledTaskChangedNotification, ScheduledTaskRunUpdatedNotification,
-    ServerRequestResolvedNotification, SkillsChangedNotification, SkillsConfigWriteParams,
-    SkillsConfigWriteResponse, SkillsExtraRootsSetParams, SkillsExtraRootsSetResponse,
-    SkillsListParams, SkillsListResponse, StrictReviewRequiredNotification,
-    ThreadApproveGuardianDeniedActionParams, ThreadApproveGuardianDeniedActionResponse,
-    ThreadArchiveParams, ThreadArchiveResponse, ThreadArchivedNotification,
-    ThreadBackgroundTerminalsCleanParams, ThreadBackgroundTerminalsCleanResponse,
-    ThreadBackgroundTerminalsListParams, ThreadBackgroundTerminalsListResponse,
-    ThreadBackgroundTerminalsTerminateParams, ThreadBackgroundTerminalsTerminateResponse,
-    ThreadClosedNotification, ThreadCompactStartParams, ThreadCompactStartResponse,
-    ThreadDecrementElicitationParams, ThreadDecrementElicitationResponse, ThreadDeleteParams,
-    ThreadDeleteResponse, ThreadDeletedNotification, ThreadForkParams, ThreadForkResponse,
-    ThreadGoalClearParams, ThreadGoalClearResponse, ThreadGoalClearedNotification,
-    ThreadGoalGetParams, ThreadGoalGetResponse, ThreadGoalSetParams, ThreadGoalSetResponse,
+    ProjectDeleteResponse, ProjectGitBlameParams, ProjectGitBlameResponse,
+    ProjectGitBranchCreateParams, ProjectGitBranchCreateResponse, ProjectGitCommitParams,
+    ProjectGitCommitResponse, ProjectGitPullRequestCreateParams,
+    ProjectGitPullRequestCreateResponse, ProjectGitPullRequestMergeParams,
+    ProjectGitPullRequestMergeResponse, ProjectGitPullRequestOpenParams,
+    ProjectGitPullRequestOpenResponse, ProjectGitPullRequestStatusParams,
+    ProjectGitPullRequestStatusResponse, ProjectImportParams, ProjectImportResponse,
+    ProjectListParams, ProjectListResponse, ProjectMoveParams, ProjectMoveResponse,
+    ProjectReadParams, ProjectReadResponse, ProjectUpdateParams, ProjectUpdateResponse,
+    PromptHistoryAppendParams, PromptHistoryAppendResponse, PromptHistoryReadParams,
+    PromptHistoryReadResponse, ReasoningSummaryPartAddedNotification,
+    ReasoningSummaryTextDeltaNotification, ReasoningTextDeltaNotification, ReviewStartParams,
+    ReviewStartResponse, RolloutCompressResponse, ScheduledTaskChangedNotification,
+    ScheduledTaskRunUpdatedNotification, ServerRequestResolvedNotification,
+    SkillsChangedNotification, SkillsConfigWriteParams, SkillsConfigWriteResponse,
+    SkillsExtraRootsSetParams, SkillsExtraRootsSetResponse, SkillsListParams, SkillsListResponse,
+    StrictReviewRequiredNotification, ThreadApproveGuardianDeniedActionParams,
+    ThreadApproveGuardianDeniedActionResponse, ThreadArchiveParams, ThreadArchiveResponse,
+    ThreadArchivedNotification, ThreadBackgroundTerminalsCleanParams,
+    ThreadBackgroundTerminalsCleanResponse, ThreadBackgroundTerminalsListParams,
+    ThreadBackgroundTerminalsListResponse, ThreadBackgroundTerminalsTerminateParams,
+    ThreadBackgroundTerminalsTerminateResponse, ThreadClosedNotification, ThreadCompactStartParams,
+    ThreadCompactStartResponse, ThreadDecrementElicitationParams,
+    ThreadDecrementElicitationResponse, ThreadDeleteParams, ThreadDeleteResponse,
+    ThreadDeletedNotification, ThreadForkParams, ThreadForkResponse, ThreadGoalClearParams,
+    ThreadGoalClearResponse, ThreadGoalClearedNotification, ThreadGoalGetParams,
+    ThreadGoalGetResponse, ThreadGoalSetParams, ThreadGoalSetResponse,
     ThreadGoalUpdatedNotification, ThreadImportParams, ThreadImportResponse,
     ThreadIncrementElicitationParams, ThreadIncrementElicitationResponse, ThreadInjectItemsParams,
     ThreadInjectItemsResponse, ThreadItemsListParams, ThreadItemsListResponse, ThreadListParams,
@@ -444,6 +451,41 @@ pub enum ClientRequest {
     ProjectDelete {
         id: RequestId,
         params: ProjectDeleteParams,
+    },
+    #[serde(rename = "project/git/branch/create")]
+    ProjectGitBranchCreate {
+        id: RequestId,
+        params: ProjectGitBranchCreateParams,
+    },
+    #[serde(rename = "project/git/commit")]
+    ProjectGitCommit {
+        id: RequestId,
+        params: ProjectGitCommitParams,
+    },
+    #[serde(rename = "project/git/pull_request/create")]
+    ProjectGitPullRequestCreate {
+        id: RequestId,
+        params: ProjectGitPullRequestCreateParams,
+    },
+    #[serde(rename = "project/git/pull_request/open")]
+    ProjectGitPullRequestOpen {
+        id: RequestId,
+        params: ProjectGitPullRequestOpenParams,
+    },
+    #[serde(rename = "project/git/pull_request/status")]
+    ProjectGitPullRequestStatus {
+        id: RequestId,
+        params: ProjectGitPullRequestStatusParams,
+    },
+    #[serde(rename = "project/git/pull_request/merge")]
+    ProjectGitPullRequestMerge {
+        id: RequestId,
+        params: ProjectGitPullRequestMergeParams,
+    },
+    #[serde(rename = "project/git/blame")]
+    ProjectGitBlame {
+        id: RequestId,
+        params: ProjectGitBlameParams,
     },
     #[serde(rename = "artifact/write")]
     ArtifactWrite {
@@ -919,6 +961,13 @@ impl ClientRequest {
             | Self::ProjectUpdate { id, .. }
             | Self::ProjectMove { id, .. }
             | Self::ProjectDelete { id, .. }
+            | Self::ProjectGitBranchCreate { id, .. }
+            | Self::ProjectGitCommit { id, .. }
+            | Self::ProjectGitPullRequestCreate { id, .. }
+            | Self::ProjectGitPullRequestOpen { id, .. }
+            | Self::ProjectGitPullRequestStatus { id, .. }
+            | Self::ProjectGitPullRequestMerge { id, .. }
+            | Self::ProjectGitBlame { id, .. }
             | Self::ArtifactWrite { id, .. }
             | Self::MediaRead { id, .. }
             | Self::McpServerResourceRead { id, .. }
@@ -1071,6 +1120,13 @@ impl ClientRequest {
             Self::ProjectUpdate { .. } => Method::ProjectUpdate,
             Self::ProjectMove { .. } => Method::ProjectMove,
             Self::ProjectDelete { .. } => Method::ProjectDelete,
+            Self::ProjectGitBranchCreate { .. } => Method::ProjectGitBranchCreate,
+            Self::ProjectGitCommit { .. } => Method::ProjectGitCommit,
+            Self::ProjectGitPullRequestCreate { .. } => Method::ProjectGitPullRequestCreate,
+            Self::ProjectGitPullRequestOpen { .. } => Method::ProjectGitPullRequestOpen,
+            Self::ProjectGitPullRequestStatus { .. } => Method::ProjectGitPullRequestStatus,
+            Self::ProjectGitPullRequestMerge { .. } => Method::ProjectGitPullRequestMerge,
+            Self::ProjectGitBlame { .. } => Method::ProjectGitBlame,
             Self::ArtifactWrite { .. } => Method::ArtifactWrite,
             Self::MediaRead { .. } => Method::MediaRead,
             Self::McpServerResourceRead { .. } => Method::McpServerResourceRead,
@@ -1235,6 +1291,13 @@ pub enum ClientResponsePayload {
     ProjectUpdate(ProjectUpdateResponse),
     ProjectMove(ProjectMoveResponse),
     ProjectDelete(ProjectDeleteResponse),
+    ProjectGitBranchCreate(ProjectGitBranchCreateResponse),
+    ProjectGitCommit(ProjectGitCommitResponse),
+    ProjectGitPullRequestCreate(ProjectGitPullRequestCreateResponse),
+    ProjectGitPullRequestOpen(ProjectGitPullRequestOpenResponse),
+    ProjectGitPullRequestStatus(ProjectGitPullRequestStatusResponse),
+    ProjectGitPullRequestMerge(ProjectGitPullRequestMergeResponse),
+    ProjectGitBlame(ProjectGitBlameResponse),
     ArtifactWrite(ArtifactWriteResponse),
     MediaRead(MediaReadResponse),
     McpServerResourceRead(McpServerResourceReadResponse),
@@ -1348,6 +1411,13 @@ impl ClientResponsePayload {
             Self::ProjectUpdate(_) => Method::ProjectUpdate,
             Self::ProjectMove(_) => Method::ProjectMove,
             Self::ProjectDelete(_) => Method::ProjectDelete,
+            Self::ProjectGitBranchCreate(_) => Method::ProjectGitBranchCreate,
+            Self::ProjectGitCommit(_) => Method::ProjectGitCommit,
+            Self::ProjectGitPullRequestCreate(_) => Method::ProjectGitPullRequestCreate,
+            Self::ProjectGitPullRequestOpen(_) => Method::ProjectGitPullRequestOpen,
+            Self::ProjectGitPullRequestStatus(_) => Method::ProjectGitPullRequestStatus,
+            Self::ProjectGitPullRequestMerge(_) => Method::ProjectGitPullRequestMerge,
+            Self::ProjectGitBlame(_) => Method::ProjectGitBlame,
             Self::ArtifactWrite(_) => Method::ArtifactWrite,
             Self::MediaRead(_) => Method::MediaRead,
             Self::McpServerResourceRead(_) => Method::McpServerResourceRead,
@@ -1461,6 +1531,13 @@ impl ClientResponsePayload {
             Self::ProjectUpdate(response) => serde_json::to_value(response)?,
             Self::ProjectMove(response) => serde_json::to_value(response)?,
             Self::ProjectDelete(response) => serde_json::to_value(response)?,
+            Self::ProjectGitBranchCreate(response) => serde_json::to_value(response)?,
+            Self::ProjectGitCommit(response) => serde_json::to_value(response)?,
+            Self::ProjectGitPullRequestCreate(response) => serde_json::to_value(response)?,
+            Self::ProjectGitPullRequestOpen(response) => serde_json::to_value(response)?,
+            Self::ProjectGitPullRequestStatus(response) => serde_json::to_value(response)?,
+            Self::ProjectGitPullRequestMerge(response) => serde_json::to_value(response)?,
+            Self::ProjectGitBlame(response) => serde_json::to_value(response)?,
             Self::ArtifactWrite(response) => serde_json::to_value(response)?,
             Self::MediaRead(response) => serde_json::to_value(response)?,
             Self::McpServerResourceRead(response) => serde_json::to_value(response)?,

@@ -6,7 +6,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.177.2"
+version = "1.178.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/limecloud/lime"
@@ -46,6 +46,8 @@ execpolicy = { path = "crates/execpolicy" }
 file-search = { path = "crates/file-search" }
 lime-utils-absolute-path = { path = "crates/utils-absolute-path" }
 lime-utils-path-uri = { path = "crates/utils-path-uri" }
+async-utils = { path = "crates/async-utils" }
+process-hardening = { path = "crates/process-hardening" }
 lime-permissions = { path = "crates/permissions" }
 code-mode-protocol = { path = "crates/code-mode-protocol" }
 code-mode-runtime = { path = "crates/code-mode-runtime" }

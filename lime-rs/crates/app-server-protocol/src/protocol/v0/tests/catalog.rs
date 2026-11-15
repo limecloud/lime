@@ -21,7 +21,7 @@ fn app_server_method_catalog_keeps_all_method_kinds_together() {
             METHOD_PROJECT_GIT_DIFF,
             METHOD_PROJECT_GIT_COMMITS_LIST,
             METHOD_PROJECT_GIT_BRANCH_CHECKOUT,
-            METHOD_PROJECT_GIT_BRANCH_CREATE,
+            METHOD_PROJECT_GIT_BRANCH_CREATE_V0,
             METHOD_PROJECT_GIT_WORKTREE_CREATE,
             METHOD_PROJECT_GIT_WORKTREE_LIST,
             METHOD_STORAGE_READ,

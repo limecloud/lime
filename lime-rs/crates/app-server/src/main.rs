@@ -41,6 +41,7 @@ struct InitializedDatabase {
 }
 
 fn main() -> anyhow::Result<()> {
+    process_hardening::pre_main_hardening();
     if std::env::args().nth(1).as_deref() == Some("--computer-use-document-host") {
         return tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -830,7 +831,7 @@ mod tests {
         let config = parse_args_from(
             [
                 "--data-dir=/tmp/platform-app-server",
-                "--model-control-source=/tmp/lime-legacy/app.db",
+                "--model-control-source=/tmp/model-control/app.db",
             ]
             .map(str::to_string),
         )
@@ -838,14 +839,14 @@ mod tests {
 
         assert_eq!(
             config.model_control_source,
-            Some(PathBuf::from("/tmp/lime-legacy/app.db"))
+            Some(PathBuf::from("/tmp/model-control/app.db"))
         );
     }
 
     #[test]
     fn parse_args_rejects_model_control_source_without_explicit_data_dir() {
         let error = parse_args_from_with_env(
-            ["--model-control-source", "/tmp/lime-legacy/app.db"].map(str::to_string),
+            ["--model-control-source", "/tmp/model-control/app.db"].map(str::to_string),
             Some(OsString::from("/tmp/env-app-server")),
             None,
         )

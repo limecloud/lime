@@ -1,54 +1,49 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  clearContactAutofillProfile,
-  readContactAutofillProfile,
-  saveContactAutofillProfile,
+  clearContactAutofillData,
+  readContactAutofillData,
+  saveContactAutofillData,
 } from "./contactAutofill";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/dev-bridge", () => ({ safeInvoke: invoke }));
 
-const profile = {
-  fullName: "Alice",
-  email: "alice@example.com",
-  phone: "123",
-  address: "1 Main St",
+const data = {
+  emails: ["alice@example.com"],
+  phones: ["123"],
+  addresses: ["1 Main St"],
 };
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("contactAutofill API", () => {
-  it("读取并校验资料", async () => {
-    invoke.mockResolvedValue(profile);
-    await expect(readContactAutofillProfile()).resolves.toEqual(profile);
+  it("读取并校验联系信息", async () => {
+    invoke.mockResolvedValue(data);
+    await expect(readContactAutofillData()).resolves.toEqual(data);
     invoke.mockResolvedValue(null);
-    await expect(readContactAutofillProfile()).resolves.toBeNull();
-    invoke.mockResolvedValue({ fullName: "x" });
-    await expect(readContactAutofillProfile()).rejects.toThrow(
-      "invalid result",
-    );
+    await expect(readContactAutofillData()).resolves.toBeNull();
+    invoke.mockResolvedValue({ emails: "x" });
+    await expect(readContactAutofillData()).rejects.toThrow("invalid result");
   });
 
-  it("保存资料并校验返回值", async () => {
-    invoke.mockResolvedValue(profile);
+  it("保存并校验返回值", async () => {
+    invoke.mockResolvedValue(data);
     await expect(
-      saveContactAutofillProfile({ fullName: "Alice" }),
-    ).resolves.toEqual(profile);
+      saveContactAutofillData({ emails: ["alice@example.com"] }),
+    ).resolves.toEqual(data);
     expect(invoke).toHaveBeenCalledWith("browser_contact_profile_save", {
-      fullName: "Alice",
+      emails: ["alice@example.com"],
     });
     invoke.mockResolvedValue("nope");
     await expect(
-      saveContactAutofillProfile({ fullName: "Alice" }),
+      saveContactAutofillData({ emails: ["a@example.com"] }),
     ).rejects.toThrow("invalid result");
   });
 
-  it("清除资料并校验返回值", async () => {
+  it("清除并校验返回值", async () => {
     invoke.mockResolvedValue(true);
-    await expect(clearContactAutofillProfile()).resolves.toBe(true);
+    await expect(clearContactAutofillData()).resolves.toBe(true);
     invoke.mockResolvedValue(undefined);
-    await expect(clearContactAutofillProfile()).rejects.toThrow(
-      "invalid result",
-    );
+    await expect(clearContactAutofillData()).rejects.toThrow("invalid result");
   });
 });

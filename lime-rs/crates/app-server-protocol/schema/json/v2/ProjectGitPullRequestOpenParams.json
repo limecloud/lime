@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "用系统浏览器打开当前分支的 Pull Request。",
+  "properties": {
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "rootPath"
+  ],
+  "title": "ProjectGitPullRequestOpenParams",
+  "type": "object"
+}

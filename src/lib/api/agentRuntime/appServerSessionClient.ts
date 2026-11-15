@@ -108,7 +108,9 @@ export function createAppServerSessionClient({
       ...(permissions ? { permissions } : {}),
       serviceName: normalizedName,
       threadSource: "appServer",
-      historyMode: "paginated",
+      ...(options?.ephemeral
+        ? { ephemeral: true }
+        : { historyMode: "paginated" }),
     });
     const thread = readCanonicalThreadFromResult(response.result);
     if (
@@ -122,6 +124,10 @@ export function createAppServerSessionClient({
     if (!sessionId) {
       throw new Error("thread/start returned an empty canonical sessionId");
     }
+    rememberSessionThreadId(
+      sessionId,
+      readStringField(thread, "id") ?? sessionId,
+    );
     return sessionId;
   }
 
@@ -201,13 +207,18 @@ export function createAppServerSessionClient({
         readStringField(canonicalThread, "id") || threadId,
       );
     }
-    const historyWindow = canonicalThread
-      ? await readCanonicalThreadHistoryWindow(
-          appServerClient,
-          canonicalThread,
-          options,
-        )
-      : null;
+    const ephemeral =
+      canonicalThread &&
+      readField(canonicalThread as Record<string, unknown>, "ephemeral") ===
+        true;
+    const historyWindow =
+      canonicalThread && !ephemeral
+        ? await readCanonicalThreadHistoryWindow(
+            appServerClient,
+            canonicalThread,
+            options,
+          )
+        : null;
     if (historyWindow) {
       readResult = { thread: historyWindow.thread };
     }

@@ -140,7 +140,6 @@ fn bash_permission_preserves_path_guards_and_mutation_warning() {
         );
     }
     for command in [
-        "rm -rf ./build",
         "mkdir output",
         "printf ok > output.txt",
         "sudo printf ok",
@@ -167,6 +166,13 @@ fn bash_permission_does_not_treat_unresolved_execution_as_safe() {
     ] {
         assert_ne!(bash(command), ShellPermissionDecision::Allow, "{command}");
     }
+}
+
+#[test]
+fn bash_permission_denies_forced_rm_commands() {
+    assert!(
+        matches!(bash("rm -rf ./build"), ShellPermissionDecision::Deny(reason) if reason.contains("rm -f style"))
+    );
 }
 
 #[test]

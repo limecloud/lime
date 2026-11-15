@@ -1,0 +1,19 @@
+[package]
+name = "process-hardening"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Process hardening for Lime runtime binaries."
+
+[lib]
+name = "process_hardening"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+pretty_assertions.workspace = true

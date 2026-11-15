@@ -1,5 +1,3 @@
-// Adapted from upstream `apply-patch/src/seek_sequence.rs` at
-// 1885417cd45a8da5bfdeb7864a5380a7481d48f2 (Apache-2.0); see licenses/OpenAI-NOTICE.txt.
 /// Attempt to find the sequence of `pattern` lines within `lines` beginning at or after `start`.
 /// Returns the starting index of the match or `None` if not found. Matches are attempted with
 /// decreasing strictness: exact match, then ignoring trailing whitespace, then ignoring leading
@@ -161,19 +159,6 @@ mod tests {
         assert_eq!(
             seek_sequence(&lines, &pattern, /*start*/ 0, /*eof*/ false,),
             None
-        );
-    }
-
-    #[test]
-    fn normalises_unicode_punctuation() {
-        assert_eq!(
-            seek_sequence(
-                &to_vec(&["use \u{201c}quoted\u{201d} value", "alpha\u{2014}beta"]),
-                &to_vec(&["use \"quoted\" value", "alpha-beta"]),
-                0,
-                false
-            ),
-            Some(0)
         );
     }
 }

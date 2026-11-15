@@ -151,8 +151,8 @@ async fn mint_client_secret_at_base(
             sanitized_error_detail(&body, api_key)
         );
     }
-    let payload: Value =
-        serde_json::from_str(&body).context("OpenAI Realtime returned invalid client secret JSON")?;
+    let payload: Value = serde_json::from_str(&body)
+        .context("OpenAI Realtime returned invalid client secret JSON")?;
     parse_client_secret_response(&payload, &calls_url)
 }
 
@@ -188,7 +188,11 @@ fn parse_client_secret_response(
     let expires_at = payload
         .get("expires_at")
         .and_then(Value::as_i64)
-        .or_else(|| payload.pointer("/client_secret/expires_at").and_then(Value::as_i64));
+        .or_else(|| {
+            payload
+                .pointer("/client_secret/expires_at")
+                .and_then(Value::as_i64)
+        });
     Ok(MintedRealtimeClientSecret {
         client_secret: client_secret.to_string(),
         expires_at,
@@ -295,16 +299,19 @@ mod tests {
         )
         .await;
 
-        let minted = mint_client_secret_at_base(&base_url, "sk-standard-key", "gpt-realtime-2.1", "marin")
-            .await
-            .expect("mint client secret");
+        let minted =
+            mint_client_secret_at_base(&base_url, "sk-standard-key", "gpt-realtime-2.1", "marin")
+                .await
+                .expect("mint client secret");
 
         assert_eq!(minted.client_secret, "ek_test_ephemeral");
         assert_eq!(minted.expires_at, Some(1_893_456_000));
         assert_eq!(minted.calls_url, format!("{base_url}/v1/realtime/calls"));
         let request = server.await.expect("join mock server");
         assert!(request.starts_with("POST /v1/realtime/client_secrets HTTP/1.1"));
-        assert!(request.to_ascii_lowercase().contains("authorization: bearer sk-standard-key"));
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer sk-standard-key"));
         assert!(request.contains("\"type\":\"realtime\""));
         assert!(request.contains("\"model\":\"gpt-realtime-2.1\""));
         assert!(request.contains("\"voice\":\"marin\""));
@@ -318,9 +325,10 @@ mod tests {
         )
         .await;
 
-        let error = mint_client_secret_at_base(&base_url, "sk-standard-key", "gpt-realtime-2.1", "marin")
-            .await
-            .expect_err("provider error must fail closed");
+        let error =
+            mint_client_secret_at_base(&base_url, "sk-standard-key", "gpt-realtime-2.1", "marin")
+                .await
+                .expect_err("provider error must fail closed");
         let message = error.to_string();
         assert!(message.contains("HTTP 401"));
         assert!(!message.contains("sk-standard-key"));
@@ -332,14 +340,10 @@ mod tests {
     async fn missing_ephemeral_secret_fails_closed() {
         let (base_url, server) =
             spawn_json_server("HTTP/1.1 200 OK", r#"{"session":{"id":"sess_1"}}"#).await;
-        let error = mint_client_secret_at_base(
-            &base_url,
-            "sk-standard-key",
-            "gpt-realtime-2.1",
-            "marin",
-        )
-        .await
-        .expect_err("missing secret must fail");
+        let error =
+            mint_client_secret_at_base(&base_url, "sk-standard-key", "gpt-realtime-2.1", "marin")
+                .await
+                .expect_err("missing secret must fail");
         assert!(error.to_string().contains("did not include"));
         server.await.expect("join mock server");
     }

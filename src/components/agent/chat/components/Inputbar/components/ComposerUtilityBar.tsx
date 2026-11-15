@@ -248,7 +248,7 @@ function ComposerUtilityBarWorkspace({
     retryGitStatus,
     selectProject: openEnsuredProject,
     createBlankProject: handleCreateBlankProject,
-    useExistingFolder: handleUseExistingFolder,
+    openExistingFolder: handleUseExistingFolder,
     checkoutBranch: handleCheckoutBranch,
     createBranch,
   } = useComposerUtilityActions({

@@ -25,6 +25,7 @@ import {
 } from "./right-surface";
 import { RightSurfaceTabStrip } from "./right-surface/RightSurfaceTabStrip";
 import { RightSurfaceBrowserPanel } from "./right-surface/browser/RightSurfaceBrowserPanel";
+import { BrowserShortcutRuntime } from "./right-surface/BrowserShortcutRuntime";
 
 type ArticleEditorRightSurfaceProps = ComponentProps<
   typeof WorkspaceArticleEditorRightSurface
@@ -306,15 +307,40 @@ export function renderWorkspaceRightSurfaceHostRuntime({
   return {
     open,
     content: (
-      <RightSurfaceHost
+      <>
+        <BrowserShortcutRuntime
+          enabled={activeSurface === "browser"}
+          tabId={activeTabId ?? null}
+          onNewTab={onNewSidePanelTab}
+          onCloseTab={onCloseSidePanelTab}
+          onCloseOtherTabs={() => {
+            for (const tab of sidePanelTabs.tabs) {
+              if (tab.tabId !== activeTabId) onCloseSidePanelTab(tab.tabId);
+            }
+          }}
+          onCloseAllTabs={() => {
+            for (const tab of sidePanelTabs.tabs) {
+              onCloseSidePanelTab(tab.tabId);
+            }
+          }}
+          onSelectRelativeTab={(offset) => {
+            const tabs = sidePanelTabs.tabs;
+            if (tabs.length < 2) return;
+            const index = tabs.findIndex((tab) => tab.tabId === activeTabId);
+            const next = tabs[(index + offset + tabs.length) % tabs.length];
+            if (next) onSelectSidePanelTab(next.tabId);
+          }}
+        />
+        <RightSurfaceHost
         activeSurface={activeSurface}
         definitions={rightSurfaceDefinitions}
         idPrefix={idPrefix}
         tabId={activeTabId ?? ""}
         tabs={sidePanelTabs.tabs}
         onPinTab={onPinSidePanelTab}
-        previewTabId={sidePanelTabs.previewTabId ?? null}
-      />
+          previewTabId={sidePanelTabs.previewTabId ?? null}
+        />
+      </>
     ),
     tabStrip: open ? (
       <RightSurfaceTabStrip

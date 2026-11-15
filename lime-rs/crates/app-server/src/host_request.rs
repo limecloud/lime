@@ -1,6 +1,7 @@
 use agent_protocol::ThreadId;
 use serde_json::Value;
 use tokio::sync::mpsc;
+use async_utils::OrCancelExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::server_request::{ServerRequestOwner, ServerRequestRouter};
@@ -162,6 +163,58 @@ impl HostConnection {
                 .await
                 .map_err(|_| AppServerError::ConnectionWriterClosed { connection_id })?;
         }
-        pending.wait().await.map_err(AppServerError::from)
+        let waiting = pending.wait();
+        let result = match &self.disconnect {
+            Some(token) => match waiting.or_cancel(token).await {
+                Ok(result) => result,
+                Err(_) => {
+                    return Err(AppServerError::ConnectionUnavailable { connection_id });
+                }
+            },
+            None => waiting.await,
+        };
+        result.map_err(AppServerError::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    #[tokio::test]
+    async fn request_returns_unavailable_when_disconnect_wins_the_wait() {
+        let (writer, mut receiver) = mpsc::channel(1);
+        let disconnect = CancellationToken::new();
+        let connection_id = app_server_transport::ConnectionId(7);
+        let transport_writers: TransportWriters =
+            Arc::new(Mutex::new(HashMap::from([(connection_id, writer.clone())])));
+        let connection = HostConnection {
+            connection_id,
+            writer,
+            disconnect: Some(disconnect.clone()),
+            server_requests: ServerRequestRouter::default(),
+            transport_writers,
+        };
+
+        let request = tokio::spawn(async move {
+            connection
+                .request("test/request", serde_json::json!({}))
+                .await
+        });
+        let _queued = receiver.recv().await.expect("request should be queued");
+        disconnect.cancel();
+
+        let result = tokio::time::timeout(std::time::Duration::from_secs(1), request)
+            .await
+            .expect("cancelled request should not hang")
+            .expect("request task should finish");
+        assert!(matches!(
+            result,
+            Err(AppServerError::ConnectionUnavailable { connection_id })
+                if connection_id == app_server_transport::ConnectionId(7)
+        ));
     }
 }

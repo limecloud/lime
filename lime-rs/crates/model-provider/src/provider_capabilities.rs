@@ -113,12 +113,7 @@ mod tests {
 
     #[test]
     fn chat_adapters_only_claim_realtime_on_official_api_key_routes() {
-        for provider_type in [
-            "openai",
-            "openai-response",
-            "openai_responses",
-            "responses",
-        ] {
+        for provider_type in ["openai", "openai-response", "openai_responses", "responses"] {
             let capabilities = ProviderCapabilities::from_provider_type(provider_type)
                 .expect("current chat adapter");
             assert!(

@@ -3,6 +3,8 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceFileThreadSidePanelTab } from "./WorkspaceFileThreadSidePanelTab";
+import { runCommand } from "@/lib/commands/registry";
+import { GIT_BLAME_TOGGLE_EVENT } from "@/components/git/GitBlameCommand";
 import zhCN from "@/i18n/resources/zh-CN/agent.json";
 import zhTW from "@/i18n/resources/zh-TW/agent.json";
 import enUS from "@/i18n/resources/en-US/agent.json";
@@ -338,6 +340,31 @@ describe("Workspace file tab", () => {
     const preview = container.querySelector('[data-testid="file-editor"]')!;
     expect(preview.getAttribute("data-path")).toBe("/work/two.ts");
     expect(container.textContent).not.toContain("stale-first");
+  });
+  it("文件打开后才注册 git.toggleBlame 并携带当前路径", async () => {
+    const requests: Array<{ rootPath: string; path: string }> = [];
+    const onRequest = (event: Event) =>
+      requests.push(
+        (event as CustomEvent<{ rootPath: string; path: string }>).detail,
+      );
+    window.addEventListener(GIT_BLAME_TOGGLE_EVENT, onRequest);
+    const container = render();
+    await flush();
+
+    let ran = false;
+    act(() => {
+      ran = runCommand("git.toggleBlame");
+    });
+    expect(ran).toBe(false);
+
+    act(() => fileButton(container, "one.ts").click());
+    await flush();
+    act(() => {
+      ran = runCommand("git.toggleBlame");
+    });
+    expect(ran).toBe(true);
+    expect(requests).toEqual([{ rootPath: "/work", path: "one.ts" }]);
+    window.removeEventListener(GIT_BLAME_TOGGLE_EVENT, onRequest);
   });
   it("搜索经current fuzzy网关，迟到搜索结果不会回流", async () => {
     const finish: Array<(value: unknown) => void> = [];

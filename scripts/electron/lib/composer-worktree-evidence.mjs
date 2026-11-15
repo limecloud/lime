@@ -11,7 +11,7 @@ const nonempty = (value) =>
 const mutationMethods = new Set([
   "projectGit/worktree/create",
   "projectGit/worktree/delete",
-  "projectGit/branch/create",
+  "project/git/branch/create",
   "projectGit/branch/checkout",
   "thread/start",
   "turn/start",

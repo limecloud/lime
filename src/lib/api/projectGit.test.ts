@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createProjectGitBranch,
+  createProjectGitPullRequest,
   createProjectGitWorktree,
+  openProjectGitPullRequest,
   ProjectGitWorktreeSetupError,
   listProjectGitCommits,
+  readProjectGitBlame,
   readProjectGitDiff,
+  readProjectGitPullRequest,
   readProjectGitStatus,
   setProjectGitWorktreeEnvironment,
   type ProjectGitAppServerClient,
@@ -24,9 +29,15 @@ const client: ProjectGitAppServerClient = {
   readProjectGitStatus: vi.fn(),
   readProjectGitDiff: vi.fn(),
   listProjectGitCommits: vi.fn(),
+  readProjectGitBlame: vi.fn(),
   checkoutProjectGitBranch: vi.fn(),
   createProjectGitBranch: vi.fn(),
+  commitProjectGitChanges: vi.fn(),
   createProjectGitWorktree: vi.fn(),
+  createProjectGitPullRequest: vi.fn(),
+  openProjectGitPullRequest: vi.fn(),
+  readProjectGitPullRequest: vi.fn(),
+  mergeProjectGitPullRequest: vi.fn(),
   setProjectGitWorktreeEnvironment: vi.fn(),
 };
 
@@ -213,6 +224,54 @@ describe("projectGit API", () => {
     });
   });
 
+  it("应通过 App Server current 主链读取 Git blame", async () => {
+    vi.mocked(client.readProjectGitBlame).mockResolvedValueOnce(
+      appServerResult({
+        rootPath: "/workspace",
+        repositoryRoot: "/workspace",
+        lines: [
+          {
+            lineNumber: 3,
+            sha: "0123456789abcdef0123456789abcdef01234567",
+            shortSha: "0123456",
+            author: "Fixture",
+            authorTime: "2020-01-02T03:04:05Z",
+            summary: "feat: blame",
+            content: "const value = 1;",
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      readProjectGitBlame("/workspace", "src/main.ts", client),
+    ).resolves.toMatchObject({
+      lines: [
+        expect.objectContaining({
+          lineNumber: 3,
+          author: "Fixture",
+          summary: "feat: blame",
+        }),
+      ],
+    });
+    expect(client.readProjectGitBlame).toHaveBeenCalledWith({
+      rootPath: "/workspace",
+      path: "src/main.ts",
+    });
+  });
+
+  it("拒绝缺少 blame lines 的响应", async () => {
+    vi.mocked(client.readProjectGitBlame).mockResolvedValueOnce(
+      appServerResult({
+        rootPath: "/workspace",
+        lines: "not-lines",
+      }) as never,
+    );
+    await expect(
+      readProjectGitBlame("/workspace", "src/main.ts", client),
+    ).rejects.toThrow("Git blame lines");
+  });
+
   it("应通过 App Server current 主链读取 Git diff", async () => {
     vi.mocked(client.readProjectGitDiff).mockResolvedValueOnce(
       appServerResult({
@@ -328,6 +387,28 @@ describe("projectGit API", () => {
     });
   });
 
+  it("trims branch names and returns the refreshed Git status", async () => {
+    const result = {
+      rootPath: "/repo",
+      repositoryRoot: "/repo",
+      hasGitRepository: true,
+      currentBranch: "feature/demo",
+      branches: ["feature/demo", "main"],
+      uncommittedFileCount: 0,
+    };
+    vi.mocked(client.createProjectGitBranch).mockResolvedValueOnce(
+      appServerResult(result),
+    );
+
+    await expect(
+      createProjectGitBranch("/repo", "  feature/demo  ", client),
+    ).resolves.toEqual(result);
+    expect(client.createProjectGitBranch).toHaveBeenCalledWith({
+      rootPath: "/repo",
+      branch: "feature/demo",
+    });
+  });
+
   it("Git diff 响应形状异常时应 fail closed", async () => {
     vi.mocked(client.readProjectGitDiff).mockResolvedValueOnce(
       appServerResult({
@@ -340,6 +421,102 @@ describe("projectGit API", () => {
 
     await expect(readProjectGitDiff("/workspace", 3, client)).rejects.toThrow(
       "projectGit/diff did not return project Git diff",
+    );
+  });
+
+  it("创建 Pull Request 时 trim 标题与目标分支并确认 rootPath", async () => {
+    vi.mocked(client.createProjectGitPullRequest).mockResolvedValueOnce(
+      appServerResult({
+        rootPath: "/repo",
+        url: "https://github.com/example/repo/pull/42",
+        number: 42,
+        title: "feat: demo",
+        draft: true,
+      }),
+    );
+
+    await expect(
+      createProjectGitPullRequest(
+        "/repo",
+        {
+          title: "  feat: demo  ",
+          body: "Body",
+          draft: true,
+          base: "  main  ",
+        },
+        client,
+      ),
+    ).resolves.toMatchObject({ number: 42, draft: true });
+    expect(client.createProjectGitPullRequest).toHaveBeenCalledWith({
+      rootPath: "/repo",
+      title: "feat: demo",
+      body: "Body",
+      draft: true,
+      base: "main",
+    });
+  });
+
+  it("创建 Pull Request 的空标题在调用 App Server 前失败", async () => {
+    await expect(
+      createProjectGitPullRequest("/repo", { title: "   ", body: "" }, client),
+    ).rejects.toThrow("Pull Request title is required");
+    expect(client.createProjectGitPullRequest).not.toHaveBeenCalled();
+  });
+
+  it("创建 Pull Request 响应形状异常时应 fail closed", async () => {
+    vi.mocked(client.createProjectGitPullRequest).mockResolvedValueOnce(
+      appServerResult({
+        rootPath: "/repo",
+        draft: "yes",
+      } as unknown as Awaited<
+        ReturnType<ProjectGitAppServerClient["createProjectGitPullRequest"]>
+      >["result"]),
+    );
+    await expect(
+      createProjectGitPullRequest(
+        "/repo",
+        { title: "title", body: "" },
+        client,
+      ),
+    ).rejects.toThrow("did not return a created pull request");
+  });
+
+  it("打开 Pull Request 使用当前工作区并返回 URL", async () => {
+    vi.mocked(client.openProjectGitPullRequest).mockResolvedValueOnce(
+      appServerResult({
+        rootPath: "/repo",
+        url: "https://github.com/example/repo/pull/7",
+      }),
+    );
+    await expect(openProjectGitPullRequest("/repo", client)).resolves.toEqual({
+      rootPath: "/repo",
+      url: "https://github.com/example/repo/pull/7",
+    });
+    expect(client.openProjectGitPullRequest).toHaveBeenCalledWith({
+      rootPath: "/repo",
+    });
+  });
+
+  it("读取当前分支 Pull Request 支持没有 PR", async () => {
+    vi.mocked(client.readProjectGitPullRequest).mockResolvedValueOnce(
+      appServerResult({ rootPath: "/repo" }),
+    );
+    await expect(readProjectGitPullRequest("/repo", client)).resolves.toEqual({
+      rootPath: "/repo",
+    });
+  });
+
+  it("读取 Pull Request 元数据形状异常时应 fail closed", async () => {
+    vi.mocked(client.readProjectGitPullRequest).mockResolvedValueOnce(
+      appServerResult({
+        rootPath: "/repo",
+        pullRequest: { number: "12" },
+      } as unknown as Awaited<
+        ReturnType<ProjectGitAppServerClient["readProjectGitPullRequest"]>
+      >["result"]),
+    );
+    await expect(readProjectGitPullRequest("/repo", client)).rejects.toThrow(
+      "did not return pull request metadata",
     );
   });
 

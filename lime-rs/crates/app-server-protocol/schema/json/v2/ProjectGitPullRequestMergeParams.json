@@ -1,0 +1,42 @@
+{
+  "$defs": {
+    "ProjectGitPullRequestMergeMethod": {
+      "description": "`gh pr merge` 支持的合并方式。",
+      "enum": [
+        "merge",
+        "rebase",
+        "squash"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "合并当前分支关联的 Pull Request，或按编号合并指定 PR。\n\n`method` 省略时使用 merge commit；`prNumber` 省略时由 `gh` 解析当前分支的 PR，\n`deleteBranch` 为 true 时同时删除远端与本地分支。",
+  "properties": {
+    "deleteBranch": {
+      "default": false,
+      "type": "boolean"
+    },
+    "method": {
+      "$ref": "#/$defs/ProjectGitPullRequestMergeMethod",
+      "default": "merge"
+    },
+    "prNumber": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "rootPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "rootPath"
+  ],
+  "title": "ProjectGitPullRequestMergeParams",
+  "type": "object"
+}

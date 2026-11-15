@@ -147,8 +147,8 @@ describe("current settings navigation translations", () => {
     });
     const items = groups.flatMap((group) => group.items);
     const availableSections = settingsSections;
-    expect(groups).toHaveLength(4);
-    expect(items.at(-1)?.key).toBe(SettingsTabs.About);
+    expect(groups).toHaveLength(3);
+    expect(items.at(-1)?.key).toBe(SettingsTabs.Worktrees);
     expect(
       items.find((item) => item.key === SettingsTabs.ArchivedConversations)
         ?.label,

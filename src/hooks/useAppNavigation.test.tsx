@@ -580,7 +580,7 @@ describe("useAppNavigation", () => {
       workspaceId: "workspace",
     });
     await act(async () => {
-      latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.About });
+      latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.General });
     });
     await act(async () => {
       latestNavigation!.returnFromSettings();
@@ -663,7 +663,7 @@ describe("useAppNavigation", () => {
   it("无会话来处返回首页，下一次从其它页面进入设置更新来处", async () => {
     await renderProbe();
     await act(async () => {
-      latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.About });
+      latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.General });
     });
     expect(latestNavigation!.settingsReturnLocation).toBeNull();
     await act(async () => {
@@ -712,7 +712,7 @@ describe("useAppNavigation", () => {
     });
     await act(async () => {
       latestNavigation!.handleNavigate("plugins");
-      latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.About });
+      latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.General });
     });
     await act(async () => {
       latestNavigation!.returnFromSettings();

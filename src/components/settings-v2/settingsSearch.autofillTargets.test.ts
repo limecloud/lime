@@ -7,7 +7,7 @@ const expected = [
   "app-snapshots-shortcut",
   "app-snapshots-target",
   "app-snapshots-sound",
-  "app-snapshots-accessibility",
+  "app-snapshots-hotkey",
   "browser-site-settings",
   "browser-extension-manager",
 ];

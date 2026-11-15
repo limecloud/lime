@@ -64,6 +64,13 @@ pub const METHOD_PROJECT_IMPORT: &str = "project/import";
 pub const METHOD_PROJECT_UPDATE: &str = "project/update";
 pub const METHOD_PROJECT_MOVE: &str = "project/move";
 pub const METHOD_PROJECT_DELETE: &str = "project/delete";
+pub const METHOD_PROJECT_GIT_BRANCH_CREATE: &str = "project/git/branch/create";
+pub const METHOD_PROJECT_GIT_COMMIT: &str = "project/git/commit";
+pub const METHOD_PROJECT_GIT_PULL_REQUEST_CREATE: &str = "project/git/pull_request/create";
+pub const METHOD_PROJECT_GIT_PULL_REQUEST_OPEN: &str = "project/git/pull_request/open";
+pub const METHOD_PROJECT_GIT_PULL_REQUEST_STATUS: &str = "project/git/pull_request/status";
+pub const METHOD_PROJECT_GIT_PULL_REQUEST_MERGE: &str = "project/git/pull_request/merge";
+pub const METHOD_PROJECT_GIT_BLAME: &str = "project/git/blame";
 pub const METHOD_ARTIFACT_WRITE: &str = "artifact/write";
 pub const METHOD_MEDIA_READ: &str = "media/read";
 pub const METHOD_MCP_SERVER_RESOURCE_READ: &str = "mcpServer/resource/read";
@@ -334,6 +341,20 @@ pub enum Method {
     ProjectMove,
     #[serde(rename = "project/delete")]
     ProjectDelete,
+    #[serde(rename = "project/git/branch/create")]
+    ProjectGitBranchCreate,
+    #[serde(rename = "project/git/commit")]
+    ProjectGitCommit,
+    #[serde(rename = "project/git/pull_request/create")]
+    ProjectGitPullRequestCreate,
+    #[serde(rename = "project/git/pull_request/open")]
+    ProjectGitPullRequestOpen,
+    #[serde(rename = "project/git/pull_request/status")]
+    ProjectGitPullRequestStatus,
+    #[serde(rename = "project/git/pull_request/merge")]
+    ProjectGitPullRequestMerge,
+    #[serde(rename = "project/git/blame")]
+    ProjectGitBlame,
     #[serde(rename = "artifact/write")]
     ArtifactWrite,
     #[serde(rename = "media/read")]
@@ -572,6 +593,13 @@ impl Method {
             Self::ProjectUpdate => METHOD_PROJECT_UPDATE,
             Self::ProjectMove => METHOD_PROJECT_MOVE,
             Self::ProjectDelete => METHOD_PROJECT_DELETE,
+            Self::ProjectGitBranchCreate => METHOD_PROJECT_GIT_BRANCH_CREATE,
+            Self::ProjectGitCommit => METHOD_PROJECT_GIT_COMMIT,
+            Self::ProjectGitPullRequestCreate => METHOD_PROJECT_GIT_PULL_REQUEST_CREATE,
+            Self::ProjectGitPullRequestOpen => METHOD_PROJECT_GIT_PULL_REQUEST_OPEN,
+            Self::ProjectGitPullRequestStatus => METHOD_PROJECT_GIT_PULL_REQUEST_STATUS,
+            Self::ProjectGitPullRequestMerge => METHOD_PROJECT_GIT_PULL_REQUEST_MERGE,
+            Self::ProjectGitBlame => METHOD_PROJECT_GIT_BLAME,
             Self::ArtifactWrite => METHOD_ARTIFACT_WRITE,
             Self::MediaRead => METHOD_MEDIA_READ,
             Self::McpServerResourceRead => METHOD_MCP_SERVER_RESOURCE_READ,
@@ -726,6 +754,13 @@ impl Method {
             METHOD_PROJECT_UPDATE => Some(Self::ProjectUpdate),
             METHOD_PROJECT_MOVE => Some(Self::ProjectMove),
             METHOD_PROJECT_DELETE => Some(Self::ProjectDelete),
+            METHOD_PROJECT_GIT_BRANCH_CREATE => Some(Self::ProjectGitBranchCreate),
+            METHOD_PROJECT_GIT_COMMIT => Some(Self::ProjectGitCommit),
+            METHOD_PROJECT_GIT_PULL_REQUEST_CREATE => Some(Self::ProjectGitPullRequestCreate),
+            METHOD_PROJECT_GIT_PULL_REQUEST_OPEN => Some(Self::ProjectGitPullRequestOpen),
+            METHOD_PROJECT_GIT_PULL_REQUEST_STATUS => Some(Self::ProjectGitPullRequestStatus),
+            METHOD_PROJECT_GIT_PULL_REQUEST_MERGE => Some(Self::ProjectGitPullRequestMerge),
+            METHOD_PROJECT_GIT_BLAME => Some(Self::ProjectGitBlame),
             METHOD_ARTIFACT_WRITE => Some(Self::ArtifactWrite),
             METHOD_MEDIA_READ => Some(Self::MediaRead),
             METHOD_MCP_SERVER_RESOURCE_READ => Some(Self::McpServerResourceRead),
@@ -881,6 +916,13 @@ pub const METHODS: &[&str] = &[
     METHOD_PROJECT_UPDATE,
     METHOD_PROJECT_MOVE,
     METHOD_PROJECT_DELETE,
+    METHOD_PROJECT_GIT_BRANCH_CREATE,
+    METHOD_PROJECT_GIT_COMMIT,
+    METHOD_PROJECT_GIT_PULL_REQUEST_CREATE,
+    METHOD_PROJECT_GIT_PULL_REQUEST_OPEN,
+    METHOD_PROJECT_GIT_PULL_REQUEST_STATUS,
+    METHOD_PROJECT_GIT_PULL_REQUEST_MERGE,
+    METHOD_PROJECT_GIT_BLAME,
     METHOD_ARTIFACT_WRITE,
     METHOD_MEDIA_READ,
     METHOD_MCP_SERVER_RESOURCE_READ,

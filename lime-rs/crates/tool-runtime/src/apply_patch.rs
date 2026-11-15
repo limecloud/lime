@@ -5,8 +5,8 @@ use crate::tool_executor::{
 };
 use app_server_protocol::protocol::v2::{FileSystemAccessMode, FileSystemPath};
 use patch_apply::{
-    apply_hunks_to_workdir, apply_patch_to_workdir, parse_patch, AppliedPatchFileChange,
-    ApplyPatchReport, Hunk,
+    apply_hunks_to_workdir, apply_patch_to_workdir, maybe_parse_apply_patch, parse_patch,
+    AppliedPatchFileChange, ApplyPatchReport, Hunk, MaybeApplyPatch,
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -64,7 +64,8 @@ impl RuntimeApplyPatchExecutor {
             )?,
         }
 
-        let patch = patch_text_from_params(request.params)?;
+        let patch =
+            patch_text_from_params(request.params, request.context.working_directory())?;
         if let Some(policy) = request
             .context
             .execution_attempt()
@@ -207,9 +208,18 @@ pub fn apply_patch_tool_definition() -> RuntimeToolDefinition {
                 "patch": {
                     "type": "string",
                     "description": "Patch text with *** Begin Patch and *** End Patch markers. Example: *** Begin Patch\n*** Update File: probe.txt\n@@\n-before\n+after\n*** End Patch"
+                },
+                "command": {
+                    "type": "string",
+                    "description": "Optional apply_patch shell command, including heredoc form."
+                },
+                "argv": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional apply_patch argv, e.g. [\"apply_patch\", \"*** Begin Patch...\"]."
                 }
             },
-            "required": ["patch"]
+            "anyOf": [{ "required": ["patch"] }, { "required": ["command"] }, { "required": ["argv"] }]
         }),
     )
 }
@@ -276,7 +286,7 @@ fn resolved_patch_write_paths(
     params: &Value,
     workdir: &Path,
 ) -> Result<Vec<PathBuf>, RuntimeToolExecutionError> {
-    let patch = patch_text_from_params(params)?;
+    let patch = patch_text_from_params(params, workdir)?;
     let parsed = parse_patch(&patch)
         .map_err(|error| runtime_apply_patch_permission_error(error.to_string()))?;
     let mut paths = Vec::new();
@@ -400,15 +410,56 @@ fn path_grants_candidate(root: &Path, candidate: &Path) -> bool {
     candidate == root || candidate.starts_with(root)
 }
 
-fn patch_text_from_params(params: &Value) -> Result<String, RuntimeToolExecutionError> {
-    params
+fn patch_text_from_params(
+    params: &Value,
+    workdir: &Path,
+) -> Result<String, RuntimeToolExecutionError> {
+    if let Some(patch) = params
         .get("patch")
         .or_else(|| params.get("input"))
         .or_else(|| params.get("stdin"))
         .and_then(Value::as_str)
         .map(str::to_string)
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| runtime_apply_patch_error("Missing required parameter: patch"))
+    {
+        return Ok(patch);
+    }
+
+    let argv = if let Some(command) = params.get("command").and_then(Value::as_str) {
+        vec![
+            "bash".to_string(),
+            "-lc".to_string(),
+            command.to_string(),
+        ]
+    } else if let Some(values) = params.get("argv").and_then(Value::as_array) {
+        values
+            .iter()
+            .map(|value| {
+                value.as_str().map(str::to_string).ok_or_else(|| {
+                    runtime_apply_patch_error("apply_patch argv entries must be strings")
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        return Err(runtime_apply_patch_error(
+            "Missing required parameter: patch",
+        ));
+    };
+
+    let cwd = lime_utils_path_uri::PathUri::from_host_native_path(workdir)
+        .map_err(|error| runtime_apply_patch_error(error.to_string()))?;
+    match maybe_parse_apply_patch(&argv, &cwd) {
+        MaybeApplyPatch::Body(parsed) => Ok(parsed.patch),
+        MaybeApplyPatch::NotApplyPatch => Err(runtime_apply_patch_error(
+            "command is not an apply_patch invocation",
+        )),
+        MaybeApplyPatch::ShellParseError(error) => {
+            Err(runtime_apply_patch_error(format!("{error:?}")))
+        }
+        MaybeApplyPatch::PatchParseError(error) => {
+            Err(runtime_apply_patch_error(error.to_string()))
+        }
+    }
 }
 
 fn hunk_write_paths(hunk: &Hunk) -> Vec<PathBuf> {
@@ -906,4 +957,23 @@ mod tests {
 
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn apply_patch_accepts_command_and_argv_forms() {
+        let patch = "*** Begin Patch\n*** Add File: foo\n+hi\n*** End Patch";
+        let command = format!("apply_patch <<'EOF'\n{patch}\nEOF");
+        assert_eq!(
+            patch_text_from_params(&json!({ "command": command }), Path::new("/tmp")).unwrap(),
+            patch
+        );
+        assert_eq!(
+            patch_text_from_params(
+                &json!({ "argv": ["apply_patch", patch] }),
+                Path::new("/tmp")
+            )
+            .unwrap(),
+            patch
+        );
+    }
+
 }

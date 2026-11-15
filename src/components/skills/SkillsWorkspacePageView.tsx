@@ -121,6 +121,19 @@ interface SkillsWorkspacePageViewProps {
 export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
   const { t } = useTranslation("agent");
   const [showAllInstalledSkills, setShowAllInstalledSkills] = useState(false);
+  const [storeCategory, setStoreCategory] = useState<string | null>(null);
+  const storeCategories = Array.from(
+    new Set(
+      props.visibleStoreItems
+        .map((item) => item.skill.category?.trim())
+        .filter((category): category is string => Boolean(category)),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+  const filteredStoreItems = storeCategory
+    ? props.visibleStoreItems.filter(
+        (item) => (item.skill.category?.trim() || "") === storeCategory,
+      )
+    : props.visibleStoreItems;
   const installedSkillPreviewLimit = 6;
   const installedSkillsOverflow =
     props.visibleUserInstalledSkills.length > installedSkillPreviewLimit;
@@ -425,8 +438,40 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
                   ) : null}
                   {props.visibleStoreItems.length > 0 ? (
                     <>
+                      {storeCategories.length > 1 ? (
+                        <div
+                          className="flex flex-wrap gap-1.5"
+                          data-testid="skills-store-categories"
+                        >
+                          <button
+                            type="button"
+                            className={`rounded-full border px-3 py-1 text-xs ${
+                              storeCategory === null
+                                ? "border-[color:var(--lime-accent)] text-[color:var(--lime-text-strong)]"
+                                : "border-[color:var(--lime-surface-border)] text-[color:var(--lime-text-muted)]"
+                            }`}
+                            onClick={() => setStoreCategory(null)}
+                          >
+                            {t("skills.workspace.store.allCategories")}
+                          </button>
+                          {storeCategories.map((category) => (
+                            <button
+                              key={category}
+                              type="button"
+                              className={`rounded-full border px-3 py-1 text-xs ${
+                                storeCategory === category
+                                  ? "border-[color:var(--lime-accent)] text-[color:var(--lime-text-strong)]"
+                                  : "border-[color:var(--lime-surface-border)] text-[color:var(--lime-text-muted)]"
+                              }`}
+                              onClick={() => setStoreCategory(category)}
+                            >
+                              {category}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                       <MarketplaceSkillSection
-                        items={props.visibleStoreItems}
+                        items={filteredStoreItems}
                         startIndex={0}
                         {...cardProps}
                       />
@@ -445,6 +490,24 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
               </div>
             ) : null}
 
+            {props.activeView === "repo" ? (
+              <section
+                id="skills-repo-view"
+                role="tabpanel"
+                className="space-y-3"
+                data-testid="skills-repo-view"
+              >
+                <WorkspaceRegisteredSkillsPanel
+                  workspaceRoot={props.currentProjectState.rootPath}
+                  workspaceId={props.currentProjectState.id}
+                  projectPending={props.currentProjectState.pending}
+                  projectError={props.currentProjectState.error}
+                  refreshSignal={props.registeredSkillsRefreshSignal}
+                  onEnableRuntime={props.onEnableRegisteredSkillRuntime}
+                  hideWhenEmpty
+                />
+              </section>
+            ) : null}
             {props.activeView === "builtin" ? (
               <section
                 id="skills-builtin-view"

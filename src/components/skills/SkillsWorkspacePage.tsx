@@ -405,6 +405,10 @@ export function SkillsWorkspacePage({
       count: visibleUserInstalledSkills.length,
     },
     {
+      key: "repo",
+      label: t("skills.workspace.view.repo"),
+    },
+    {
       key: "builtin",
       label: t("skills.workspace.view.builtin"),
       count: visibleBuiltinLocalSkills.length,

@@ -1,0 +1,50 @@
+{
+  "$defs": {
+    "ProjectGitPullRequestMergeMethod": {
+      "description": "`gh pr merge` 支持的合并方式。",
+      "enum": [
+        "merge",
+        "rebase",
+        "squash"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "deleteBranch": {
+      "type": "boolean"
+    },
+    "merged": {
+      "type": "boolean"
+    },
+    "method": {
+      "$ref": "#/$defs/ProjectGitPullRequestMergeMethod"
+    },
+    "number": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "rootPath": {
+      "type": "string"
+    },
+    "url": {
+      "type": [
+        "null",
+        "string"
+      ]
+    }
+  },
+  "required": [
+    "deleteBranch",
+    "merged",
+    "method",
+    "rootPath"
+  ],
+  "title": "ProjectGitPullRequestMergeResponse",
+  "type": "object"
+}

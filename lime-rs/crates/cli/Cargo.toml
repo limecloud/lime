@@ -11,6 +11,7 @@ name = "lime"
 path = "src/main.rs"
 
 [dependencies]
+process-hardening.workspace = true
 agent-protocol.workspace = true
 anyhow.workspace = true
 app-server-client.workspace = true

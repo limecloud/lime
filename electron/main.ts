@@ -73,7 +73,6 @@ import {
   BrowserExtensionStore,
   restoreBrowserExtensions,
 } from "./browserExtensionsHost";
-import { AutofillPreferencesStore } from "./autofillPreferencesStore";
 import { registerBrowserContactAutofill } from "./browserContactAutofillHost";
 import { ContactAutofillStore } from "./contactAutofillStore";
 import { openEmbeddedBrowserSession } from "./embeddedBrowserSession";
@@ -255,6 +254,7 @@ const hostCommands = new ElectronHostCommands(
     desktopStorageRoots.appDataRoot,
     credentialEncryption,
   ),
+  (visits) => browserTabHost.importHistoryVisits(visits),
 );
 const persistedAtomHost = new PersistedAtomHost(
   desktopStorageRoots.appDataRoot,
@@ -322,6 +322,10 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 app.setName(APP_NAME);
+app.setAboutPanelOptions({
+  applicationName: APP_NAME,
+  applicationVersion: app.getVersion(),
+});
 
 interface TrayQuickModelItem {
   provider_type: string;
@@ -355,7 +359,7 @@ function buildRendererWebPreferences(): Electron.WebPreferences {
   };
 }
 
-function buildAppWindow(): BrowserWindow {
+function buildAppWindow(options?: { isolateTabs?: boolean }): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -379,18 +383,21 @@ function buildAppWindow(): BrowserWindow {
         appVersion: app.getVersion(),
       })
     : null;
-  void loadMainWindowRenderer(window, devServerUrl).catch((error) => {
-    if (
-      isMainWindowRendererLoadInterruption(error, mainWindowLoadState(window))
-    ) {
-      return;
-    }
-    console.error(
-      `[electron-host] main window renderer load failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  });
+  const tabWindowId = options?.isolateTabs ? window.webContents.id : undefined;
+  void loadMainWindowRenderer(window, devServerUrl, tabWindowId).catch(
+    (error) => {
+      if (
+        isMainWindowRendererLoadInterruption(error, mainWindowLoadState(window))
+      ) {
+        return;
+      }
+      console.error(
+        `[electron-host] main window renderer load failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    },
+  );
 
   if (smokeRunner) {
     const runSmokeAfterRendererLoad = () => {
@@ -456,7 +463,7 @@ function createMainWindow(): BrowserWindow {
 }
 
 function createNewWindow(): BrowserWindow {
-  const window = buildAppWindow();
+  const window = buildAppWindow({ isolateTabs: true });
   installWindowCloseShortcut(window, process.platform);
   return window;
 }
@@ -502,6 +509,7 @@ function isElectronSmokeMode(): boolean {
 async function loadMainWindowRenderer(
   window: BrowserWindow,
   devServerUrl?: string,
+  tabWindowId?: number,
 ): Promise<void> {
   if (window.isDestroyed()) {
     return;
@@ -510,7 +518,10 @@ async function loadMainWindowRenderer(
   if (devServerUrl) {
     await clearDevRendererCache();
     if (!window.isDestroyed()) {
-      await loadMainWindowUrl(window, withNativeStartupFlag(devServerUrl));
+      await loadMainWindowUrl(
+        window,
+        withNativeStartupFlag(devServerUrl, tabWindowId),
+      );
     }
     if (
       !window.isDestroyed() &&
@@ -527,6 +538,7 @@ async function loadMainWindowRenderer(
       pathToFileURL(
         path.resolve(app.getAppPath(), "dist/index.html"),
       ).toString(),
+      tabWindowId,
     ),
   );
 }
@@ -558,9 +570,15 @@ function mainWindowLoadState(
   };
 }
 
-function withNativeStartupFlag(targetUrl: string): string {
+function withNativeStartupFlag(
+  targetUrl: string,
+  tabWindowId?: number,
+): string {
   const url = new URL(targetUrl);
   url.searchParams.set("nativeStartup", "1");
+  if (tabWindowId !== undefined) {
+    url.searchParams.set("windowId", String(tabWindowId));
+  }
   return url.toString();
 }
 
@@ -1552,6 +1570,14 @@ function recordSkillPackageOpenPaths(paths: string[]): void {
   }
 }
 
+function openFeedback(): void {
+  void shell.openExternal("https://github.com/limecloud/lime/issues/new");
+}
+
+function openReleases(): void {
+  void shell.openExternal("https://github.com/limecloud/lime/releases");
+}
+
 function openDocumentation(): void {
   void shell.openExternal("https://limecloud.github.io/lime/");
 }
@@ -1582,6 +1608,19 @@ function showTroubleshootingDialog(): void {
     });
 }
 
+function showSystemStatusDialog(): void {
+  const labels = applicationMenuLabels(app.getLocale());
+  void dialog.showMessageBox({
+    title: labels.systemStatus,
+    message: labels.systemStatus,
+    detail: [
+      `${app.name} ${app.getVersion()}`,
+      `${process.platform} ${process.arch}`,
+      app.isPackaged ? "packaged" : "development",
+    ].join("\n"),
+  });
+}
+
 function showTaskManagerDialog(): void {
   const labels = applicationMenuLabels(app.getLocale());
   void dialog.showMessageBox({
@@ -1596,7 +1635,7 @@ function installApplicationMenu(): void {
     appName: app.name,
     locale: app.getLocale(),
     isMac: process.platform === "darwin",
-    onOpenAbout: () => broadcast(APP_MENU_COMMAND_EVENT, { command: "about" }),
+    onOpenAbout: () => app.showAboutPanel(),
     onOpenSettings: () =>
       broadcast(APP_MENU_COMMAND_EVENT, { command: "settings" }),
     onCheckForUpdates: () => {
@@ -1604,15 +1643,28 @@ function installApplicationMenu(): void {
         console.error("[app-menu] 检查更新失败", error);
       });
     },
-    onOpenSystemStatus: () =>
-      broadcast(APP_MENU_COMMAND_EVENT, { command: "about" }),
+    onOpenSystemStatus: () => showSystemStatusDialog(),
     onOpenTaskManager: () => showTaskManagerDialog(),
     onOpenTroubleshooting: () => showTroubleshootingDialog(),
+    onShowKeyboardShortcuts: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "keyboard-shortcuts" }),
+    onOpenWhatsNew: () => openReleases(),
+    onSendFeedback: () => openFeedback(),
     onNewTab: () => broadcast(APP_MENU_COMMAND_EVENT, { command: "new-tab" }),
     onNewWindow: () => {
       createNewWindow();
     },
     onNewChat: () => broadcast(APP_MENU_COMMAND_EVENT, { command: "new-chat" }),
+    onNewTemporaryChat: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "temporary-chat" }),
+    onNewStandaloneChat: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "new-standalone-chat" }),
+    onNewProject: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "new-project" }),
+    onOpenFolder: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "open-folder" }),
+    onCloseWindow: () =>
+      broadcast(APP_MENU_COMMAND_EVENT, { command: "close" }),
     onOpenDocumentation: () => openDocumentation(),
     onOpenLogs: () => openLogsFolder(),
   });
@@ -1673,16 +1725,12 @@ if (isWindowsSquirrelStartup) {
     ).catch((error) => {
       console.error("[browser-extensions] restore failed", error);
     });
-    const autofillPreferences = new AutofillPreferencesStore(
-      path.join(desktopStorageRoots.appDataRoot, "browser-autofill.json"),
-    );
     registerBrowserContactAutofill({
       ipcMain,
       session: openEmbeddedBrowserSession(),
       store: new ContactAutofillStore(
         path.join(desktopStorageRoots.appDataRoot, "contact-autofill.json"),
       ),
-      isEnabled: () => autofillPreferences.read(),
     });
     createMainWindow();
     installApplicationMenu();
@@ -1828,6 +1876,10 @@ function resolveDesktopAsset(
 
 function configureApplicationIdentity(): void {
   app.setName(APP_NAME);
+  app.setAboutPanelOptions({
+    applicationName: APP_NAME,
+    applicationVersion: app.getVersion(),
+  });
   if (process.platform === "win32") {
     app.setAppUserModelId(APP_BUNDLE_IDENTIFIER);
   }

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "baseRefName": {
+      "type": "string"
+    },
+    "headRefName": {
+      "type": "string"
+    },
+    "isDraft": {
+      "type": "boolean"
+    },
+    "number": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "state": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "baseRefName",
+    "headRefName",
+    "isDraft",
+    "number",
+    "state",
+    "title",
+    "url"
+  ],
+  "title": "ProjectGitPullRequestInfo",
+  "type": "object"
+}

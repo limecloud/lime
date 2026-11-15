@@ -385,6 +385,27 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     onChange: setReasoningEffort,
     enabled: shouldLoadModels && !pendingProviderSelection,
   });
+  useEffect(() => {
+    const cycle = () => {
+      if (!setReasoningEffort || selectedReasoningEffortOptions.length < 2)
+        return;
+      const current = selectedReasoningEffortOptions.findIndex(
+        (option) => option.value === reasoningEffort,
+      );
+      const next =
+        selectedReasoningEffortOptions[
+          (current + 1) % selectedReasoningEffortOptions.length
+        ];
+      if (next) setReasoningEffort(next.value);
+    };
+    window.addEventListener("lime:cycle-reasoning-effort", cycle);
+    return () =>
+      window.removeEventListener("lime:cycle-reasoning-effort", cycle);
+  }, [
+    reasoningEffort,
+    selectedReasoningEffortOptions,
+    setReasoningEffort,
+  ]);
   const selectedReasoningEffort = selectedReasoningEffortOption?.value ?? "";
   const selectedReasoningEffortLabel = selectedReasoningEffortOption
     ? reasoningEffortLabel(selectedReasoningEffortOption)

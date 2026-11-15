@@ -9,7 +9,6 @@ import type {
   AgentLocation,
   AgentPageParams,
   PluginsPageParams,
-  ExpertsPageParams,
   Page,
   PageParams,
   ScheduledTasksPageParams,
@@ -18,7 +17,6 @@ import type {
 } from "@/types/page";
 import type { AgentBackgroundSessionRuntimeSnapshot } from "./agent/chat";
 import { ScheduledTasksPage } from "./scheduled-tasks/ScheduledTasksPage";
-import { ImConfigPage } from "./channels/ImConfigPage";
 import { SettingsPage } from "./settings-v2";
 import type { NavigationGuard } from "@/lib/navigationGuard";
 
@@ -38,10 +36,6 @@ const loadPluginsPage = () =>
     default: module.PluginCatalogPage,
   }));
 
-const loadExpertPlazaPage = () =>
-  import("./experts").then((module) => ({
-    default: module.ExpertPlazaPage,
-  }));
 const loadLocalConversationPage = () =>
   import("./agent/chat").then((module) => ({
     default: module.LocalConversationPage,
@@ -49,7 +43,6 @@ const loadLocalConversationPage = () =>
 
 const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
 const PluginsPage = lazy(loadPluginsPage);
-const ExpertPlazaPage = lazy(loadExpertPlazaPage);
 const LocalConversationPage = lazy(loadLocalConversationPage);
 
 interface AppPageContentProps {
@@ -102,18 +95,6 @@ export function AppPageContent({
           onNavigate={onNavigate}
           pageParams={activePageParams as ScheduledTasksPageParams}
         />
-      </div>
-    );
-  }
-
-  if (activePage === "channels") {
-    return (
-      <div style={columnPageStyle}>
-        <div className="flex-1 overflow-auto px-6 py-6">
-          <div className="mx-auto w-full max-w-[1440px]">
-            <ImConfigPage />
-          </div>
-        </div>
       </div>
     );
   }
@@ -194,18 +175,6 @@ export function AppPageContent({
 
   if (activePage === "plugins") {
     return <PluginsPage pageParams={activePageParams as PluginsPageParams} />;
-  }
-
-  if (activePage === "experts") {
-    const expertsPageParams = activePageParams as ExpertsPageParams;
-    return (
-      <ExpertPlazaPage
-        onNavigate={onNavigate}
-        currentProjectId={
-          expertsPageParams.currentProjectId ?? expertsPageParams.projectId
-        }
-      />
-    );
   }
 
   if (activePage === "settings") {

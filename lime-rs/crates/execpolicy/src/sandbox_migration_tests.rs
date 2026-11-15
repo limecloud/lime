@@ -10,7 +10,7 @@ async fn removes_banned_allow_rules_once() {
         &["pwsh", "-ec"],
         &["pwsh", "-f"],
     ];
-    let lime_home = tempdir().expect("create lime home");
+    let lime_home = tempdir().expect("create Lime home");
     let policy_path = lime_home.path().join("rules/default.rules");
     std::fs::create_dir_all(policy_path.parent().expect("rules directory"))
         .expect("create rules directory");

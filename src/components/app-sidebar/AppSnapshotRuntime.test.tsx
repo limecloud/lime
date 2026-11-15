@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSnapshotRuntime } from "./AppSnapshotRuntime";
 import { setAppSnapshotPreferences } from "@/lib/appSnapshotPreferences";
+import { changeLimeLocale } from "@/i18n/createI18n";
 
 const mocks = vi.hoisted(() => ({
   trigger: vi.fn(),
@@ -39,7 +40,8 @@ beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.clearAllMocks();
   vi.spyOn(window.navigator, "platform", "get").mockReturnValue("MacIntel");
-  setAppSnapshotPreferences({ hotkeyEnabled: true });
+  setAppSnapshotPreferences({ enabled: true, hotkeyEnabled: true });
+  await changeLimeLocale("zh-CN");
   mocks.trigger.mockResolvedValue(true);
   mocks.start.mockResolvedValue({ started: true });
   mocks.listen.mockImplementation((_event, handler) => {
@@ -78,6 +80,22 @@ describe("AppSnapshotRuntime", () => {
     await act(async () => {
       window.dispatchEvent(new CustomEvent("lime-app-snapshot-trigger"));
     });
+    await act(async () => Promise.resolve());
+    expect(mocks.trigger).toHaveBeenCalledOnce();
+  });
+
+  it("首次触发先显示启用应用快照", async () => {
+    setAppSnapshotPreferences({ enabled: false });
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("lime-app-snapshot-trigger"));
+    });
+    await act(async () => Promise.resolve());
+    expect(mocks.trigger).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("启用应用快照");
+    const enable = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "启用",
+    ) as HTMLButtonElement;
+    await act(async () => enable.click());
     await act(async () => Promise.resolve());
     expect(mocks.trigger).toHaveBeenCalledOnce();
   });

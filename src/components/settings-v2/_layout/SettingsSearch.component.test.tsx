@@ -28,7 +28,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     await act(async () =>
       root.render(
         <SettingsSidebar
-          activeTab={SettingsTabs.About}
+          activeTab={SettingsTabs.General}
           onTabChange={vi.fn()}
         />,
       ),
@@ -56,7 +56,7 @@ async function mountSidebar() {
   await act(async () =>
     root.render(
       <SettingsSidebar
-        activeTab={SettingsTabs.About}
+        activeTab={SettingsTabs.General}
         onTabChange={vi.fn()}
         onSearchSelect={select}
         onTabPrefetch={prefetch}
@@ -140,7 +140,7 @@ it("Escape and clear restore navigation; no-results cannot select", async () => 
   await key(input, "Escape");
   expect(input.value).toBe("");
   expect(
-    container.querySelector('[data-testid="settings-sidebar-tab-about"]'),
+    container.querySelector('[data-testid="settings-sidebar-tab-general"]'),
   ).not.toBeNull();
   await enter("instructions");
   const clear = container.querySelector<HTMLButtonElement>(
