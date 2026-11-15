@@ -1,7 +1,7 @@
 [package]
 name = "http-client"
 version.workspace = true
-edition = "2021"
+edition = "2024"
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
@@ -20,7 +20,7 @@ http-body = "1.0.1"
 httpdate = "1"
 native-tls = "0.2"
 opentelemetry.workspace = true
-reqwest = { workspace = true, features = ["gzip", "json", "rustls-tls", "rustls-tls-native-roots", "stream", "zstd"] }
+reqwest = { workspace = true, features = ["cookies", "gzip", "json", "rustls-tls", "rustls-tls-native-roots", "stream", "zstd"] }
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
 rustls-native-certs = "0.8"
 rustls-pki-types = "1"
@@ -37,11 +37,11 @@ utils-rustls-provider = { path = "../utils-rustls-provider" }
 zstd.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-system-configuration = "0.6"
+system-configuration = "0.7"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 curl = { version = "0.4.50", features = ["static-curl", "ntlm"] }
 rustls-platform-verifier = "0.7.0"
 socket2 = "0.6"
 tokio-rustls = "0.26"
-windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Networking_WinHttp"] }
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Networking_WinHttp"] }
