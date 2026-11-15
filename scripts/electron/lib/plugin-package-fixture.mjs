@@ -244,10 +244,11 @@ export async function installPluginPackageFromAppCenter({
   const installButton = page.locator(
     '[data-testid="plugin-catalog-install-' + plugin.id + '"]',
   );
-  if (!(await installButton.isVisible().catch(() => false))) {
-    await page
-      .locator(`[data-testid="plugin-catalog-actions-${plugin.id}"]`)
-      .click();
+  const actionsButton = page.locator(
+    `[data-testid="plugin-catalog-actions-${plugin.id}"]`,
+  );
+  if ((await actionsButton.count()) > 0) {
+    await actionsButton.click();
   }
   await installButton.click();
   const review = page.locator('[data-testid="plugin-catalog-install-review"]');
