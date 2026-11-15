@@ -249,6 +249,16 @@ export async function installPluginPackageFromAppCenter({
   );
   if ((await actionsButton.count()) > 0) {
     await actionsButton.click();
+    const uninstallButton = page.locator(
+      `[data-testid="plugin-catalog-uninstall-${plugin.id}"]`,
+    );
+    if ((await uninstallButton.count()) > 0) {
+      await uninstallButton.click();
+      await page
+        .locator('[data-testid="plugin-catalog-uninstall-confirm"]')
+        .click();
+      await page.waitForTimeout(1000);
+    }
   }
   await installButton.click();
   const review = page.locator('[data-testid="plugin-catalog-install-review"]');
