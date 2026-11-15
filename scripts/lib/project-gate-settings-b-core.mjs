@@ -9,6 +9,11 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     tab: "general",
     owner: "settings/desktop-host/app-server",
   },
+  {
+    id: "notifications-preferences-persistence",
+    tab: "notifications",
+    owner: "settings/desktop-host",
+  },
   { id: "appearance-persistence", tab: "appearance", owner: "settings" },
   {
     id: "account-session-lifecycle",
@@ -93,6 +98,11 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     owner: "settings/desktop-host/app-server",
   },
   {
+    id: "browser-extensions-lifecycle",
+    tab: "browser-extension",
+    owner: "settings/desktop-host",
+  },
+  {
     id: "cloud-desktops-lifecycle",
     tab: "cloud-desktops",
     owner: "settings/app-server",
@@ -123,11 +133,6 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
     owner: "settings/app-server",
   },
   { id: "worktrees-lifecycle", tab: "worktrees", owner: "settings/app-server" },
-  {
-    id: "about-version-truth",
-    tab: "about",
-    owner: "settings/desktop-host",
-  },
 ]);
 
 const SCENARIO_IDS = new Set(

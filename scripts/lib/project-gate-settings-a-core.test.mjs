@@ -147,7 +147,7 @@ describe("project Gate SETTINGS-01 Gate A evidence", () => {
         !(
           entry.viewport === "narrow" &&
           entry.locale === "zh-CN" &&
-          entry.tab === "about"
+          entry.tab === "browser-extension"
         ),
     );
     const evidence = build({ observations });
