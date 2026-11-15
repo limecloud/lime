@@ -949,8 +949,18 @@ struct CompletionCommand {
 
 fn main() -> ExitCode {
     process_hardening::pre_main_hardening();
-    let cli = MultitoolCli::parse();
-    run_async(dispatch::run_cli(cli))
+    // Policy parsing and large command trees recurse deeper than the Windows
+    // default 1 MiB main-thread stack. Run the CLI on a portable large stack.
+    std::thread::Builder::new()
+        .name("lime-main".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let cli = MultitoolCli::parse();
+            run_async(dispatch::run_cli(cli))
+        })
+        .expect("failed to spawn lime main thread")
+        .join()
+        .unwrap_or(ExitCode::FAILURE)
 }
 
 #[cfg(target_os = "macos")]
