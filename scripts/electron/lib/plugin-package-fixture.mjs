@@ -244,7 +244,7 @@ export async function installPluginPackageFromAppCenter({
   const installButton = page.locator(
     '[data-testid="plugin-catalog-install-' + plugin.id + '"]',
   );
-  if ((await installButton.count()) === 0) {
+  if (!(await installButton.isVisible().catch(() => false))) {
     await page
       .locator(`[data-testid="plugin-catalog-actions-${plugin.id}"]`)
       .click();
