@@ -660,7 +660,7 @@ describe("ComposerUtilityBar", () => {
     await act(async () => {
       void actions.createBlankProject();
       void actions.createBlankProject();
-      void actions.useExistingFolder();
+      void actions.openExistingFolder();
       void actions.checkoutBranch("feature");
       void actions.createBranch("new");
     });
