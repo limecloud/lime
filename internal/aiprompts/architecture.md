@@ -5758,6 +5758,11 @@ SHA-256 `75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af`；其
 不增加第二引擎、daemon 或 Agent runtime。源码/补丁固定、实际编译与 Forge archive 接入均尚未完成，
 现阶段没有替换 npm 引擎依赖。原生路线 N0–N6 与完整 G01–G12 以 Browser 执行计划为验收事实源。
 
+Chrome 扩展导入由 `ElectronHostCommands` 消费组合根注入的 AppDataRoot，复制的第三方扩展包唯一位于
+`AppDataRoot/chrome-extensions/<id>-<version>`；`BrowserExtensionStore` 在
+`AppDataRoot/browser-extensions.json` 保存安装路径与启用状态，Chromium session 负责加载。
+该目录不承载 Lime Native Messaging connector、AgentRoot 或第二 runtime。
+
 用户在同一个 native `WebContentsView` 中产生 `mouseDown`、`contextMenu`、`mouseWheel` 或 `keyDown` 时，
 `BrowserTabHost` 必须立即让用户优先：detach debugger、递增 page revision、清除 snapshot 与该 tab 的 pending
 approval token、清空 active turn，并把 `controlOwner` 投影为 `user`。随后到达的旧 `approvedExecute` 必须 fail closed，

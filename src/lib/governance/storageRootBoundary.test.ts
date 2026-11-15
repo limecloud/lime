@@ -118,6 +118,8 @@ const CURRENT_APP_DATA_ROOT_CHILDREN: UsageBaseline = {
   // Host-owned browser stores receive explicit AppDataRoot paths.
   "electron/hostCommands.ts": {
     "browser-extensions.json": 1,
+    // Imported user extension packages; not Lime Native Messaging connectors.
+    "chrome-extensions": 2,
     "browser-password-manager.json": 1,
     "contact-autofill.json": 1,
     "browser-autofill.json": 1,
