@@ -423,16 +423,37 @@ async fn project_git_pull_request_merge_rejects_invalid_input_before_gh() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
     let root = temp_dir.path().to_string_lossy().to_string();
     let cases = vec![
-        json!({"rootPath": root, "method": "octopus"}),
-        json!({"rootPath": root, "prNumber": 0}),
-        json!({"rootPath": root, "prNumber": -1}),
-        json!({"rootPath": root, "prNumber": 1.5}),
-        json!({"rootPath": root, "unknownField": true}),
-        json!({"rootPath": "", "method": "squash"}),
-        json!({"rootPath": "/definitely/not/a/real/lime/workspace"}),
+        (
+            json!({"rootPath": root, "method": "octopus"}),
+            error_codes::INVALID_PARAMS,
+        ),
+        (
+            json!({"rootPath": root, "prNumber": 0}),
+            error_codes::INVALID_REQUEST,
+        ),
+        (
+            json!({"rootPath": root, "prNumber": -1}),
+            error_codes::INVALID_PARAMS,
+        ),
+        (
+            json!({"rootPath": root, "prNumber": 1.5}),
+            error_codes::INVALID_PARAMS,
+        ),
+        (
+            json!({"rootPath": root, "unknownField": true}),
+            error_codes::INVALID_PARAMS,
+        ),
+        (
+            json!({"rootPath": "", "method": "squash"}),
+            error_codes::INVALID_REQUEST,
+        ),
+        (
+            json!({"rootPath": "/definitely/not/a/real/lime/workspace"}),
+            error_codes::INVALID_REQUEST,
+        ),
     ];
 
-    for (index, params) in cases.into_iter().enumerate() {
+    for (index, (params, expected_code)) in cases.into_iter().enumerate() {
         let messages = processor
             .handle_request(JsonRpcRequest::new(
                 RequestId::Integer(300 + index as i64),
@@ -444,9 +465,10 @@ async fn project_git_pull_request_merge_rejects_invalid_input_before_gh() {
         assert!(
             matches!(
                 &messages[0],
-                JsonRpcMessage::Error(error) if error.error.code == error_codes::INVALID_REQUEST
+                JsonRpcMessage::Error(error) if error.error.code == expected_code
             ),
-            "case {index} must be rejected before starting gh"
+            "case {index} must be rejected before starting gh: {:?}",
+            messages[0]
         );
     }
 }

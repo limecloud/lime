@@ -723,7 +723,7 @@ mod capability_route_tests {
                 custom_tools: true,
                 image_generation: true,
                 web_search: true,
-                realtime: false,
+                realtime: true,
             })
         );
     }
