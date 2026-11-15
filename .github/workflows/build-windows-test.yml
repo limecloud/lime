@@ -249,7 +249,7 @@ jobs:
       - name: Reset packaged app data before plugin gate
         shell: pwsh
         run: |
-          $root = Join-Path $env:LOCALAPPDATA "lime"
+          $root = Join-Path $env:APPDATA "lime"
           if (Test-Path $root) { Remove-Item -Recurse -Force $root }
           New-Item -ItemType Directory -Force -Path $root | Out-Null
 
