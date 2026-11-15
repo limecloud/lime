@@ -47,7 +47,7 @@ describe("AppSidebar preferences", () => {
     ).toBeNull();
   });
 
-  it.each(["plugins", "skills", "experts"] as const)(
+  it.each(["plugins", "skills"] as const)(
     "自定义侧栏在 %s 子页面应激活对应入口",
     async (currentPage) => {
       const container = mountSidebarContainer({ currentPage });
@@ -91,13 +91,13 @@ describe("AppSidebar preferences", () => {
   });
 
   it.each([
-    ["zh-CN", "专家"],
-    ["zh-TW", "專家"],
-    ["en-US", "Experts"],
-    ["ja-JP", "専門家"],
-    ["ko-KR", "전문가"],
+    ["zh-CN", "技能"],
+    ["zh-TW", "技能"],
+    ["en-US", "Skills"],
+    ["ja-JP", "スキル"],
+    ["ko-KR", "스킬"],
   ] as const)(
-    "%s 专家入口应只展示一次并携带当前项目导航",
+    "%s Skills 入口应只展示一次并携带当前项目导航",
     async (locale, label) => {
       await changeLimeLocale(locale);
       const onNavigate = vi.fn();
@@ -109,7 +109,7 @@ describe("AppSidebar preferences", () => {
       await flushEffects();
 
       const buttons = container.querySelectorAll<HTMLButtonElement>(
-        '[data-testid="app-sidebar-customization-experts"]',
+        '[data-testid="app-sidebar-customization-skills"]',
       );
       expect(buttons).toHaveLength(1);
       expect(buttons[0].textContent).toBe(label);
@@ -117,32 +117,8 @@ describe("AppSidebar preferences", () => {
 
       act(() => buttons[0].click());
 
-      expect(onNavigate).toHaveBeenCalledExactlyOnceWith("experts", {
-        currentProjectId: "project-1",
-        projectId: "project-1",
-      });
-    },
-  );
-
-  it.each(["currentProjectId", "projectId"] as const)(
-    "从专家页进入 Skills 应保留路由中的 %s 项目作用域",
-    async (projectKey) => {
-      const onNavigate = vi.fn();
-      const container = mountSidebarContainer({
-        currentPage: "experts",
-        currentPageParams: { [projectKey]: "expert-project" },
-        onNavigate,
-      });
-      await flushEffects();
-
-      const button = container.querySelector<HTMLButtonElement>(
-        '[data-testid="app-sidebar-customization-skills"]',
-      );
-      expect(button).not.toBeNull();
-      act(() => button?.click());
-
       expect(onNavigate).toHaveBeenCalledExactlyOnceWith("skills", {
-        creationProjectId: "expert-project",
+        creationProjectId: "project-1",
       });
     },
   );
@@ -174,7 +150,7 @@ describe("AppSidebar preferences", () => {
   it("旧的 enabled-items 本地缓存不应再复活历史导航", async () => {
     localStorage.setItem(
       APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
-      JSON.stringify(["plugins", "companion", "video"]),
+      JSON.stringify(["plugins", "companion", "video", "experts", "channels"]),
     );
     mockGetConfig.mockImplementation(() => new Promise(() => undefined));
 
@@ -187,6 +163,12 @@ describe("AppSidebar preferences", () => {
 
     expect(container.textContent).not.toContain("插件中心");
     expect(container.textContent).not.toContain("桌宠");
+    expect(
+      container.querySelector('[data-testid="app-sidebar-nav-experts"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="app-sidebar-nav-channels"]'),
+    ).toBeNull();
   });
 
   it("旧皮肤偏好不能恢复外观快捷面板，设置入口仍可导航", async () => {

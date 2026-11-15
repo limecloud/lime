@@ -40,7 +40,6 @@ const PROJECT_THREAD_IDENTITY_BOUNDARY_FILES = [
 
 const EXPERT_THREAD_FIRST_SURFACE_FILES = [
   "src/types/page.ts",
-  "src/components/experts/ExpertPlazaPage.tsx",
   "src/components/agent/chat/AgentChatWorkspace.tsx",
   "src/components/agent/chat/experts/ExpertInfoPanel.tsx",
   "src/components/agent/chat/workspace/workspaceExpertMetadata.ts",

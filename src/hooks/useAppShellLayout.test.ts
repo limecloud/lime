@@ -71,10 +71,10 @@ describe("getAppShellLayoutState", () => {
     });
   });
 
-  it("experts 页应显示 sidebar ", () => {
+  it("plugins 页应显示 sidebar ", () => {
     expect(
       getAppShellLayoutState({
-        currentPage: "experts",
+        currentPage: "plugins",
         pageParams: {},
         agentHasMessages: false,
       }),
