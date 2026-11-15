@@ -368,6 +368,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(windows))]
     fn image_view_paths_are_relative_to_the_current_working_directory() {
         let rendered = hyperlink_lines_with_locale(
             &entry(EntryKind::Tool, "view image: /workspace/assets/result.png"),

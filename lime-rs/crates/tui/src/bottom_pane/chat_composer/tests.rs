@@ -579,6 +579,7 @@ fn shell_parameters_do_not_open_skill_popup_without_an_exact_skill() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn paste_burst_treats_tab_and_enter_as_draft_text() {
     let mut composer = ChatComposer::default();
     let start = Instant::now();

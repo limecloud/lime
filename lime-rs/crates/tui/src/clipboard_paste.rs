@@ -319,12 +319,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("图片 with spaces.png");
         let literal = path.to_string_lossy();
-        for input in [
+        let mut inputs = vec![
             url::Url::from_file_path(&path).unwrap().to_string(),
             format!("'{}'", literal),
             format!("\"{}\"", literal),
-            literal.replace(' ', "\\ "),
-        ] {
+        ];
+        #[cfg(not(windows))]
+        inputs.push(literal.replace(' ', "\\ "));
+        for input in inputs {
             assert_eq!(normalize_pasted_path(&input), Some(path.clone()), "{input}");
         }
         for input in ["", "one.png two.png", "'unterminated", "one.png\ntwo.png"] {

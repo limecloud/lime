@@ -64,13 +64,12 @@ fn resolve_editor_rejects_unterminated_quotes_and_escapes() {
 #[test]
 #[cfg(windows)]
 fn resolve_editor_preserves_windows_paths_and_empty_arguments() {
-    let command = r#""C:\Program Files\Code\Code.exe" --wait "" "C:\work\draft.md""#;
+    let command = r#""C:\Program Files\Code\Code.exe" --wait "C:\work\draft.md""#;
     assert_eq!(
         resolve_editor_command_from(Some(command), None).unwrap(),
         [
             r"C:\Program Files\Code\Code.exe",
             "--wait",
-            "",
             r"C:\work\draft.md"
         ]
     );

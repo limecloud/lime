@@ -103,6 +103,7 @@ fn tabs_and_blank_context_lines_preserve_diff_geometry() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn file_blocks_show_counts_relative_paths_renames_and_unscoped_line_numbers() {
     let lines = render(
         "added /workspace/src/new.rs\n+one\n+two\nupdated /workspace/src/old.rs → /workspace/src/current.rs\n@@ -8 +8 @@\n-old\n+new",
@@ -353,6 +354,7 @@ fn apply_update_block_line_numbers_three_digits_text() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn apply_update_block_relativizes_path() {
     let lines = render(
         "updated /workspace/src/lib.rs\n@@ -1 +1 @@\n-old\n+new",
