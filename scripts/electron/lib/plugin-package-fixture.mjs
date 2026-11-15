@@ -241,12 +241,15 @@ export async function installPluginPackageFromAppCenter({
   observedMethods,
   screenshotPath,
 }) {
-  await page
-    .locator(`[data-testid="plugin-catalog-actions-${plugin.id}"]`)
-    .click();
-  await page
-    .locator('[data-testid="plugin-catalog-install-' + plugin.id + '"]')
-    .click();
+  const installButton = page.locator(
+    '[data-testid="plugin-catalog-install-' + plugin.id + '"]',
+  );
+  if ((await installButton.count()) === 0) {
+    await page
+      .locator(`[data-testid="plugin-catalog-actions-${plugin.id}"]`)
+      .click();
+  }
+  await installButton.click();
   const review = page.locator('[data-testid="plugin-catalog-install-review"]');
   await review.waitFor({ state: "visible", timeout: options.timeoutMs });
   assert((await review.textContent())?.includes(PLUGIN_PACKAGE_NAME),
