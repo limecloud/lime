@@ -129,6 +129,7 @@ export function createTempRuntimeEnv() {
     env: {
       ...process.env,
       HOME: home,
+      ...(process.platform === "win32" ? { USERPROFILE: home } : {}),
       LIME_HOME: path.join(home, ".lime"),
       LIME_CREDENTIALS_STORE: "file",
       XDG_DATA_HOME: xdgDataHome,
