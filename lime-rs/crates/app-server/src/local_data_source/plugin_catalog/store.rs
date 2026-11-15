@@ -59,7 +59,10 @@ impl PluginStore {
         Self {
             root,
             config_path,
-            home: dirs::home_dir(),
+            home: std::env::var_os("LIME_USER_HOME")
+                .map(PathBuf::from)
+                .filter(|path| !path.as_os_str().is_empty())
+                .or_else(dirs::home_dir),
             bundled_marketplace: discovery::bundled_marketplace_path_from_env(),
             account: None,
         }
