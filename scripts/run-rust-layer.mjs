@@ -68,12 +68,14 @@ export function withRustTestConfig(env, run) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lime-rust-config-"));
   try {
     const configPath = path.join(directory, "config.yaml");
+    const limeHome = path.join(directory, "lime");
+    fs.mkdirSync(limeHome, { mode: 0o700 });
     fs.writeFileSync(configPath, "{}\n", { flag: "wx", mode: 0o600 });
     return run({
       ...env,
       LIME_CONFIG_PATH: env.LIME_CONFIG_PATH?.trim() || configPath,
       LIME_CREDENTIALS_STORE: "file",
-      LIME_HOME: path.join(directory, "lime"),
+      LIME_HOME: limeHome,
     });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

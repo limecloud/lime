@@ -80,6 +80,8 @@ describe("run-rust-layer unit helpers", () => {
         expect(isolated.LIME_HOME).toBe(
           path.join(path.dirname(firstPath), "lime"),
         );
+        expect(fs.statSync(isolated.LIME_HOME).isDirectory()).toBe(true);
+        fs.writeFileSync(path.join(isolated.LIME_HOME, "sentinel"), "fixture\n");
         expect(fs.readFileSync(firstPath, "utf8")).toBe("{}\n");
         withRustTestConfig(env, (second) => {
           expect(second.LIME_CONFIG_PATH).not.toBe(firstPath);
