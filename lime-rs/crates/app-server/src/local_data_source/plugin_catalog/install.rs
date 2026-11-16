@@ -233,7 +233,10 @@ pub(super) fn mutation_lock(store: &PluginStore) -> Result<fs::File, String> {
     for _ in 0..100 {
         match fs2::FileExt::try_lock_exclusive(&file) {
             Ok(()) => return Ok(file),
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::WouldBlock
+                    || matches!(error.raw_os_error(), Some(32 | 33)) =>
+            {
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
             Err(error) => return Err(io_error("锁定 Plugin mutation 失败")(error)),
