@@ -97,6 +97,7 @@ pub(super) fn exercise_multiline_surface(
     exercise_persistent_history_search(writer, output_rx, output);
     #[cfg(not(windows))]
     exercise_editor_keymap(writer, output_rx, output);
+    #[cfg(not(windows))]
     exercise_vim_command_state(writer, output_rx, output);
     super::vim_keymap::exercise_modal_keymap(writer, output_rx, output);
     let ledger = std::fs::read_to_string(ledger_path).unwrap_or_default();
@@ -179,6 +180,7 @@ fn exercise_editor_keymap(
     );
 }
 
+#[cfg(not(windows))]
 fn exercise_vim_command_state(
     writer: &mut impl Write,
     output_rx: &mpsc::Receiver<Vec<u8>>,
