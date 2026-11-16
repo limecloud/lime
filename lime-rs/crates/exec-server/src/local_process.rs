@@ -194,7 +194,7 @@ impl LocalProcess {
         Self::with_discarded_notifications(/*runtime_paths*/ None)
     }
 
-    pub(crate) fn with_local_runtime_paths(runtime_paths: ExecServerRuntimeOptions) -> Self {
+    pub fn with_local_runtime_paths(runtime_paths: ExecServerRuntimeOptions) -> Self {
         Self::with_discarded_notifications(Some(runtime_paths))
     }
 

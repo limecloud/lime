@@ -345,6 +345,54 @@ fn restricted_token_sandbox_fails_closed_off_windows() {
     assert!(error.to_string().contains("only available on Windows"));
 }
 
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn local_seatbelt_process_allows_workspace_writes_and_denies_external_writes() {
+    let fixture = tempfile::tempdir().expect("sandbox fixture");
+    let root = fixture.path().canonicalize().expect("canonical fixture");
+    let workspace = root.join("workspace");
+    std::fs::create_dir(&workspace).expect("workspace directory");
+    let mut request = LocalExecutionRequest::new(
+        "process-local-seatbelt",
+        "tool-local-seatbelt",
+        "exec_command",
+        shell_command(
+            "printf allowed > inside.txt; if printf blocked > ../outside.txt; then exit 9; fi",
+        ),
+    );
+    request.cwd = Some(workspace.clone());
+    request.sandbox = Some(LocalExecutionSandbox {
+        backend: SandboxBackend::Seatbelt,
+        policy: app_server_protocol::protocol::v2::SandboxPolicy::WorkspaceWrite {
+            writable_roots: Vec::new(),
+            network_access: false,
+            exclude_tmpdir_env_var: true,
+            exclude_slash_tmp: true,
+        },
+        granted_permissions: None,
+        windows_mode: None,
+    });
+    let mut handle = start_local_execution_process(request).expect("seatbelt process should start");
+    let snapshot = tokio::time::timeout(Duration::from_secs(20), handle.wait())
+        .await
+        .expect("seatbelt process should finish")
+        .expect("seatbelt final snapshot");
+    assert_eq!(
+        snapshot.status,
+        ExecutionProcessStatus::Exited,
+        "{snapshot:#?}"
+    );
+    assert_eq!(snapshot.exit_code, Some(0), "{snapshot:#?}");
+    assert_eq!(
+        std::fs::read_to_string(workspace.join("inside.txt")).unwrap(),
+        "allowed"
+    );
+    assert!(
+        !root.join("outside.txt").exists(),
+        "external write must be denied"
+    );
+}
+
 #[test]
 fn windows_environment_inherits_and_applies_case_insensitive_overrides() {
     let inherited = [

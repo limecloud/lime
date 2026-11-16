@@ -7,6 +7,7 @@ use std::time::Instant;
 use exec_server::ExecBackend;
 use exec_server::ExecParams;
 use exec_server::ExecProcessEvent;
+use exec_server::ExecServerRuntimeOptions;
 use exec_server::LocalProcess;
 use exec_server::ProcessId;
 use lime_utils_path_uri::PathUri;
@@ -34,6 +35,7 @@ pub(super) fn start(request: LocalExecutionRequest) -> io::Result<LocalExecution
             "restricted token sandbox is only available on Windows",
         ));
     }
+    let runtime_paths = ExecServerRuntimeOptions::new(std::env::current_exe()?, None)?;
     let process_id = request.process_id.clone();
     let initial = snapshot(
         &request,
@@ -55,7 +57,14 @@ pub(super) fn start(request: LocalExecutionRequest) -> io::Result<LocalExecution
             else {
                 return;
             };
-            runtime.block_on(run(request, control_rx, output_tx, state_tx, final_tx));
+            runtime.block_on(run(
+                request,
+                runtime_paths,
+                control_rx,
+                output_tx,
+                state_tx,
+                final_tx,
+            ));
         })?;
 
     Ok(LocalExecutionProcessHandle {
@@ -70,6 +79,7 @@ pub(super) fn start(request: LocalExecutionRequest) -> io::Result<LocalExecution
 
 async fn run(
     request: LocalExecutionRequest,
+    runtime_paths: ExecServerRuntimeOptions,
     mut control_rx: mpsc::UnboundedReceiver<LocalExecutionControl>,
     output_tx: broadcast::Sender<ExecutionOutputDelta>,
     state_tx: watch::Sender<ExecutionProcessSnapshot>,
@@ -116,7 +126,7 @@ async fn run(
         managed_network: None,
         network_proxy: None,
     };
-    let backend = LocalProcess::local();
+    let backend = LocalProcess::with_local_runtime_paths(runtime_paths);
     let started = match backend.start(params).await {
         Ok(started) => started,
         Err(error) => {
