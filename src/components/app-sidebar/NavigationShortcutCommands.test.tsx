@@ -110,6 +110,10 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       section: "skills",
       bindings: [],
     });
+    expect(command("navigation.focusComposer").bindings).toEqual(["Alt+L"]);
+    expect(command("app.toggleSideChat").bindings).toEqual([
+      "CommandOrControl+Alt+S",
+    ]);
   });
 
   it("复制会话 Deep Link 使用 lime://session", async () => {
