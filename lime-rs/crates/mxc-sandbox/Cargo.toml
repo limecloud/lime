@@ -14,6 +14,7 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
+flatbuffers = "25"
 lime-utils-absolute-path.workspace = true
 lime-utils-path-uri.workspace = true
 mxc-sdk = { git = "https://github.com/microsoft/mxc", rev = "b21120168d70befe12356411423266bfef168446" }
@@ -25,7 +26,6 @@ thiserror.workspace = true
 windows-sandbox = { path = "../windows-sandbox" }
 
 [target.'cfg(windows)'.dependencies]
-flatbuffers = "25"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Storage_FileSystem",
