@@ -766,6 +766,12 @@ fn start_local_execution_process_with_inherited_environment(
     inherited_environment: impl IntoIterator<Item = (String, String)>,
 ) -> io::Result<LocalExecutionProcessHandle> {
     request.env = resolve_child_environment(request.env_clear, inherited_environment, &request.env);
+    #[cfg(target_os = "windows")]
+    if let Some(sandbox) = request.sandbox.clone()
+        && sandbox.backend == SandboxBackend::RestrictedToken
+    {
+        return windows::start_windows_restricted_execution_process(request, sandbox);
+    }
     exec_server_bridge::start(request)
 }
 
