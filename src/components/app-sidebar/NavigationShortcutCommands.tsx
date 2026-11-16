@@ -324,7 +324,7 @@ export function NavigationShortcutCommands({
         titleKey: "commands.toggleSideChat.title",
         descriptionKey: "commands.toggleSideChat.description",
         section: "panels",
-        bindings: [],
+        bindings: ["CommandOrControl+Alt+S"],
         handler: () =>
           window.dispatchEvent(new CustomEvent("lime:toggle-side-chat")),
       },
