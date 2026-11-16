@@ -32,6 +32,18 @@ fn powershell_script(script: &str) -> Vec<String> {
 }
 
 fn workspace_fixture() -> tempfile::TempDir {
+    static RUNNER: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    RUNNER.get_or_init(|| {
+        let runner = Path::new(env!("CARGO_BIN_EXE_windows-sandbox-runner"));
+        let sibling = std::env::current_exe()
+            .expect("test executable")
+            .with_file_name("windows-sandbox-runner.exe");
+        // Cargo's intermediate test directory need not be target/debug/deps.
+        // Exercise the same sibling-runner layout as the packaged App Server.
+        if runner != sibling {
+            std::fs::copy(runner, &sibling).expect("stage sandbox runner beside test executable");
+        }
+    });
     let repository = std::env::current_dir().expect("repository working directory");
     tempfile::Builder::new()
         .prefix(".windows-restricted-")
