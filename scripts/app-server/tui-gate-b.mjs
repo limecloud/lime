@@ -203,25 +203,37 @@ async function main() {
       "",
     ];
     await writeFile(permissionConfigPath, configLines.join("\n"));
+    const editorConfigLines = [
+      ...configLines.slice(0, -1),
+      "      delete_forward: []",
+      "    vim_normal:",
+      "      start_delete_operator: [d, 'z d']",
+      "      delete_char: f12",
+      "      undo: [u, 'z u']",
+      "      redo: [ctrl-r, 'z r']",
+      "      repeat_last_change: ['.', 'z .']",
+      "    vim_operator:",
+      "      motion_word_forward: [w, 'z w']",
+      "    vim_text_object:",
+      "      word: [w, f12]",
+      "    vim_search:",
+      "      forward: ['/', 'z /']",
+      "",
+    ];
+    await writeFile(editorConfigPath, editorConfigLines.join("\n"));
+    const windowsConfigPath = path.join(tempDir, "windows-editor-keymap.yaml");
     await writeFile(
-      editorConfigPath,
-      [
-        ...configLines.slice(0, -1),
-        "      delete_forward: []",
-        "    vim_normal:",
-        "      start_delete_operator: [d, 'z d']",
-        "      delete_char: f12",
-        "      undo: [u, 'z u']",
-        "      redo: [ctrl-r, 'z r']",
-        "      repeat_last_change: ['.', 'z .']",
-        "    vim_operator:",
-        "      motion_word_forward: [w, 'z w']",
-        "    vim_text_object:",
-        "      word: [w, f12]",
-        "    vim_search:",
-        "      forward: ['/', 'z /']",
-        "",
-      ].join("\n"),
+      windowsConfigPath,
+      editorConfigLines
+        .filter(
+          (line) =>
+            !line.startsWith("default_permissions:") &&
+            !line.startsWith("permissions:") &&
+            !line.startsWith("  named-fixture:") &&
+            !line.startsWith("    extends:") &&
+            !line.startsWith("    description:"),
+        )
+        .join("\n"),
     );
     const scenarioDirs = new Map();
     let typedInputEvidence = null;
@@ -345,10 +357,19 @@ async function main() {
           LIME_TEST_TERMINAL_REASONING_TEXT: reasoningText,
           LIME_TEST_TERMINAL_RAW_TEXT: rawText,
           LIME_CONFIG_PATH:
-            scenario === "complete" ? editorConfigPath : permissionConfigPath,
+            process.platform === "win32"
+              ? windowsConfigPath
+              : scenario === "complete"
+                ? editorConfigPath
+                : permissionConfigPath,
           LIME_TEST_PERMISSION_CONFIG:
-            scenario === "complete" ? editorConfigPath : permissionConfigPath,
-          LIME_TEST_PERMISSION_PROFILE: "named-fixture",
+            process.platform === "win32"
+              ? windowsConfigPath
+              : scenario === "complete"
+                ? editorConfigPath
+                : permissionConfigPath,
+          LIME_TEST_PERMISSION_PROFILE:
+            process.platform === "win32" ? "" : "named-fixture",
           LIME_TEST_REVIEW_COMMIT: reviewCommitSha ?? "",
         },
         maxBuffer: 2 * 1024 * 1024,
