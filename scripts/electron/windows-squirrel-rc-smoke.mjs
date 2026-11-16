@@ -334,6 +334,7 @@ async function main() {
     }
 
     failedStage = "candidate-installer-discovery";
+    console.log("[windows-squirrel-rc] stage=candidate-installer-discovery");
     const candidateInstaller = selectSquirrelInstaller({
       installerDir: args["installer-dir"] || "release-electron",
       version,
@@ -370,6 +371,7 @@ async function main() {
     };
 
     failedStage = "squirrel-install";
+    console.log("[windows-squirrel-rc] stage=squirrel-install");
     const installResult = await runProcess(installer, ["--silent"], {
       env: process.env,
       timeoutMs: 180_000,
@@ -383,6 +385,7 @@ async function main() {
     }
 
     failedStage = "installed-path";
+    console.log("[windows-squirrel-rc] stage=installed-path");
     const localAppData = requiredEnv("LOCALAPPDATA");
     const baselineInstalled = resolveInstalledSquirrelPaths({
       localAppData,
@@ -399,11 +402,13 @@ async function main() {
     }
 
     failedStage = "stop-installer-launched-app";
+    console.log("[windows-squirrel-rc] stage=stop-installer-launched-app");
     const baselineStop = await stopInstalledApp(baselineInstalled.executable);
 
     let installed = baselineInstalled;
     if (nMinusOneRequested) {
       failedStage = "n-minus-one-update";
+    console.log("[windows-squirrel-rc] stage=n-minus-one-update");
       const updateEvidence = await exerciseNMinusOneUpdate({
         candidateFeedDir:
           args["candidate-feed-dir"] ||
@@ -424,6 +429,7 @@ async function main() {
     }
 
     failedStage = "candidate-installed-path";
+    console.log("[windows-squirrel-rc] stage=candidate-installed-path");
     await waitFor(
       () =>
         existsSync(installed.executable) &&
@@ -445,6 +451,7 @@ async function main() {
     assertions.installRootWritable = true;
 
     failedStage = "squirrel-shortcut";
+    console.log("[windows-squirrel-rc] stage=squirrel-shortcut");
     const shortcutRoots = resolveShortcutRoots(process.env);
     const shortcuts = await waitFor(() => findProductShortcuts(shortcutRoots), {
       accept: (value) => value.length > 0,
@@ -461,11 +468,13 @@ async function main() {
     };
 
     failedStage = "stop-updater-restarted-app";
+    console.log("[windows-squirrel-rc] stage=stop-updater-restarted-app");
     evidence.installation.candidateStop = await stopInstalledApp(
       installed.executable,
     );
 
     failedStage = "installed-shell-01";
+    console.log("[windows-squirrel-rc] stage=installed-shell-01");
     const shellEvidenceDir = path.join(evidenceDir, "shell-01");
     const shellSummaryPath = path.join(shellEvidenceDir, "summary.json");
     const shellResult = await runProcess(

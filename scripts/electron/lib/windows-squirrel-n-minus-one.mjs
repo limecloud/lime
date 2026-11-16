@@ -233,6 +233,13 @@ export async function triggerNMinusOneUpdateMenu(electronApp) {
   });
 }
 
+function evaluateWithTimeout(page, callback, timeoutMs = 5_000) {
+  return Promise.race([
+    page.evaluate(callback).catch(() => null),
+    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+}
+
 export async function waitForNMinusOneUpdate(
   page,
   { triggerCheck, timeoutMs = 60_000 } = {},
@@ -240,9 +247,9 @@ export async function waitForNMinusOneUpdate(
   let triggered = false;
   return await waitFor(
     async () => {
-      const session = await page
-        .evaluate(() => window.electronAPI.invoke("get_update_install_session"))
-        .catch(() => null);
+      const session = await evaluateWithTimeout(page, () =>
+        window.electronAPI.invoke("get_update_install_session"),
+      );
       if (session?.stage === "idle" && !triggered) {
         triggered = true;
         await triggerCheck();
@@ -506,6 +513,7 @@ export async function exerciseNMinusOneUpdate({
   nMinusOneVersion,
   timeoutMs,
 }) {
+  console.log("[windows-squirrel-n-minus-one] stage=prepare-feed");
   const feed = resolveSquirrelFeed({
     feedDir: candidateFeedDir,
     version: candidateVersion,
@@ -534,6 +542,7 @@ export async function exerciseNMinusOneUpdate({
 
   let electronApp = null;
   try {
+    console.log("[windows-squirrel-n-minus-one] stage=launch-n-minus-one");
     const { _electron } = await import("playwright");
     electronApp = await _electron.launch({
       executablePath: installed.executable,
@@ -542,6 +551,7 @@ export async function exerciseNMinusOneUpdate({
       timeout: 60_000,
     });
     const child = electronApp.process();
+    console.log("[windows-squirrel-n-minus-one] stage=wait-updater-page");
     const page = await waitFor(
       async () => {
         const pages = electronApp.windows();
@@ -550,6 +560,7 @@ export async function exerciseNMinusOneUpdate({
       { label: "N-1 Electron updater bridge", timeoutMs: 60_000 },
     );
 
+    console.log("[windows-squirrel-n-minus-one] stage=trigger-update-check");
     let updateCheck = { source: "existing-session" };
     const initialSession = await waitForNMinusOneUpdate(page, {
       triggerCheck: async () => {
@@ -571,6 +582,7 @@ export async function exerciseNMinusOneUpdate({
       );
     }
 
+    console.log("[windows-squirrel-n-minus-one] stage=wait-update-download");
     const downloadedSession = await waitFor(
       () =>
         page
@@ -597,6 +609,7 @@ export async function exerciseNMinusOneUpdate({
       );
     }
 
+    console.log("[windows-squirrel-n-minus-one] stage=start-update-install");
     const installSession = await page.evaluate(() =>
       window.electronAPI.invoke("start_update_install_session"),
     );
@@ -605,6 +618,7 @@ export async function exerciseNMinusOneUpdate({
         `updater did not enter restarting stage: ${String(installSession?.stage)}`,
       );
     }
+    console.log("[windows-squirrel-n-minus-one] stage=wait-candidate-install");
     await waitFor(() => existsSync(candidateInstalled.executable), {
       label: "candidate app installed by updater",
       timeoutMs: 180_000,
