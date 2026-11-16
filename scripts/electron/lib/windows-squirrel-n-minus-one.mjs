@@ -8,7 +8,6 @@ import {
   statSync,
 } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
-import { createServer as createNetServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -207,49 +206,56 @@ export async function findReadyElectronUpdaterPage(pages) {
   return null;
 }
 
-export async function waitForNMinusOneAutomaticUpdate(
+export async function triggerNMinusOneUpdateMenu(electronApp) {
+  return await electronApp.evaluate(({ BrowserWindow, Menu }) => {
+    const labels = new Set([
+      "检查更新…",
+      "檢查更新…",
+      "Check for Updates…",
+      "アップデートを確認…",
+      "업데이트 확인…",
+    ]);
+    const find = (menu) => {
+      for (const item of menu?.items || []) {
+        if (labels.has(item.label)) return item;
+        const nested = find(item.submenu);
+        if (nested) return nested;
+      }
+      return null;
+    };
+    const item = find(Menu.getApplicationMenu());
+    if (!item || !item.enabled || typeof item.click !== "function") {
+      throw new Error("N-1 Check for Updates application menu is unavailable");
+    }
+    // Exercise the installed product menu callback, including its real updater.
+    item.click(item, BrowserWindow.getFocusedWindow(), {});
+    return { label: item.label, source: "application-menu" };
+  });
+}
+
+export async function waitForNMinusOneUpdate(
   page,
-  { timeoutMs = 60_000 } = {},
+  { triggerCheck, timeoutMs = 60_000 } = {},
 ) {
-  const readSession = () =>
-    page
-      .evaluate(() => window.electronAPI.invoke("get_update_install_session"))
-      .catch(() => null);
-  let navigationError;
-  try {
-    return await waitFor(
-      async () => {
-        const session = await readSession();
-        if (!session || session.stage !== "idle") return session;
-        try {
-          // A fresh N-1 profile opens permission setup. Dismiss through its
-          // normal UI without granting permissions or bypassing the updater.
-          const permissions = page.getByTestId("permissions-setup");
-          if (await permissions.isVisible()) {
-            await permissions.press("Escape", { timeout: 2_000 });
-            await permissions.waitFor({ state: "hidden", timeout: 2_000 });
-          }
-          const about = page.getByTestId("settings-sidebar-tab-about");
-          const target = (await about.isVisible())
-            ? about
-            : page.getByTestId("app-sidebar-nav-settings");
-          await target.click({ timeout: 2_000 });
-        } catch (error) {
-          navigationError = error.message;
-        }
-        return await readSession();
-      },
-      {
-        accept: (value) => Boolean(value && value.stage !== "idle"),
-        label: "N-1 automatic update check",
-        timeoutMs,
-        intervalMs: 250,
-      },
-    );
-  } catch (error) {
-    if (navigationError) error.message += `; navigation: ${navigationError}`;
-    throw error;
-  }
+  let triggered = false;
+  return await waitFor(
+    async () => {
+      const session = await page
+        .evaluate(() => window.electronAPI.invoke("get_update_install_session"))
+        .catch(() => null);
+      if (session?.stage === "idle" && !triggered) {
+        triggered = true;
+        await triggerCheck();
+      }
+      return session;
+    },
+    {
+      accept: (value) => Boolean(value && value.stage !== "idle"),
+      label: "N-1 update check",
+      timeoutMs,
+      intervalMs: 250,
+    },
+  );
 }
 
 export function buildStopInstalledAppScript() {
@@ -518,8 +524,6 @@ export async function exerciseNMinusOneUpdate({
     installed.updateExecutable,
   );
   const staticFeed = await startSquirrelFeed(feed);
-  const cdpPort = await reserveLocalPort();
-  const cdpUrl = `http://127.0.0.1:${cdpPort}`;
   const userDataDir = mkdtempSync(
     path.join(os.tmpdir(), "lime-windows-n-minus-one-updater-"),
   );
@@ -528,54 +532,37 @@ export async function exerciseNMinusOneUpdate({
     userDataDir,
   });
 
-  const child = spawn(
-    installed.executable,
-    [`--remote-debugging-port=${cdpPort}`, "--use-mock-keychain"],
-    {
-      env: launchEnv,
-      shell: false,
-      stdio: "inherit",
-      windowsHide: true,
-    },
-  );
-  let childError = null;
-  child.once("error", (error) => {
-    childError = error;
-  });
-  let browser = null;
+  let electronApp = null;
   try {
-    await waitFor(
-      async () => {
-        if (childError) {
-          throw childError;
-        }
-        try {
-          const response = await fetch(`${cdpUrl}/json/list`);
-          return response.ok;
-        } catch {
-          return false;
-        }
-      },
-      { label: "N-1 Electron CDP endpoint", timeoutMs: 60_000 },
-    );
-    const { chromium } = await import("playwright");
-    browser = await chromium.connectOverCDP(cdpUrl);
+    const { _electron } = await import("playwright");
+    electronApp = await _electron.launch({
+      executablePath: installed.executable,
+      args: ["--use-mock-keychain"],
+      env: launchEnv,
+      timeout: 60_000,
+    });
+    const child = electronApp.process();
     const page = await waitFor(
       async () => {
-        const pages = browser.contexts().flatMap((context) => context.pages());
+        const pages = electronApp.windows();
         return await findReadyElectronUpdaterPage(pages);
       },
       { label: "N-1 Electron updater bridge", timeoutMs: 60_000 },
     );
 
-    const initialSession = await waitForNMinusOneAutomaticUpdate(page);
+    let updateCheck = { source: "existing-session" };
+    const initialSession = await waitForNMinusOneUpdate(page, {
+      triggerCheck: async () => {
+        updateCheck = await triggerNMinusOneUpdateMenu(electronApp);
+      },
+    });
     if (
       !["checking", "downloading", "completed", "failed"].includes(
         initialSession.stage,
       )
     ) {
       throw new Error(
-        `N-1 automatic updater entered unexpected stage: ${String(initialSession.stage)}`,
+        `N-1 updater entered unexpected stage: ${String(initialSession.stage)}`,
       );
     }
     if (initialSession?.currentVersion !== nMinusOneVersion) {
@@ -648,7 +635,6 @@ export async function exerciseNMinusOneUpdate({
       candidateFeedServed,
       candidateInstalledByUpdater: existsSync(candidateInstalled.executable),
       candidateVersion,
-      cdpUrl,
       downloadedSession,
       feed: {
         entries: feed.entries.map(({ fileName, sha1, size }) => ({
@@ -662,15 +648,15 @@ export async function exerciseNMinusOneUpdate({
       initialSession,
       installSession,
       nMinusOneVersion,
+      updateCheck,
       updateDownloaded: downloadedSession.stage === "completed",
       updateInstallRequested: installSession.stage === "restarting",
       userDataDir,
     };
   } finally {
-    await browser?.close().catch(() => undefined);
-    if (child.exitCode === null) {
-      child.kill();
-    }
+    await electronApp?.close().catch(() => undefined);
+    const child = electronApp?.process();
+    if (child && child.exitCode === null) child.kill();
     await staticFeed.close();
   }
 }
@@ -724,24 +710,6 @@ async function startSquirrelFeed(feed) {
     requests,
     url: `http://127.0.0.1:${address.port}`,
   };
-}
-
-async function reserveLocalPort() {
-  const server = createNetServer();
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
-  if (!address || typeof address === "string") {
-    server.close();
-    throw new Error("failed to reserve a local CDP port");
-  }
-  const port = address.port;
-  await new Promise((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve())),
-  );
-  return port;
 }
 
 async function waitFor(

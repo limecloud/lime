@@ -22,7 +22,8 @@ import {
   selectSquirrelInstaller,
   stopInstalledApp,
   uninstallInstalledSquirrel,
-  waitForNMinusOneAutomaticUpdate,
+  triggerNMinusOneUpdateMenu,
+  waitForNMinusOneUpdate,
   waitForWindowsProcessExit,
 } from "./windows-squirrel-rc-smoke.mjs";
 
@@ -364,165 +365,94 @@ describe("Windows Squirrel RC smoke", () => {
     ).rejects.toThrow("Squirrel uninstall exited with 1");
   });
 
-  it("N-1 首页尚未检查时，从关于页面启动真实自动更新检查", async () => {
-    const checking = { stage: "checking", currentVersion: "1.149.0" };
-    const settingsClick = vi.fn().mockResolvedValue(undefined);
-    const aboutClick = vi.fn().mockResolvedValue(undefined);
+  it("N-1 原生菜单调用真实更新回调并保留窗口上下文", async () => {
+    const focusedWindow = {};
+    const item = {
+      label: "Check for Updates…",
+      enabled: true,
+      click: vi.fn(),
+    };
+    const electronApp = {
+      evaluate: (callback) =>
+        callback({
+          BrowserWindow: { getFocusedWindow: () => focusedWindow },
+          Menu: {
+            getApplicationMenu: () => ({
+              items: [{ label: "File", submenu: { items: [item] } }],
+            }),
+          },
+        }),
+    };
+
+    await expect(triggerNMinusOneUpdateMenu(electronApp)).resolves.toEqual({
+      label: item.label,
+      source: "application-menu",
+    });
+    expect(item.click).toHaveBeenCalledExactlyOnceWith(item, focusedWindow, {});
+  });
+
+  it.each([null, { items: [{ label: "Check for Updates…", enabled: false }] }])(
+    "N-1 原生更新入口缺失或禁用时失败关闭",
+    async (menu) => {
+      const electronApp = {
+        evaluate: async (callback) =>
+          callback({
+            BrowserWindow: { getFocusedWindow: vi.fn() },
+            Menu: { getApplicationMenu: () => menu },
+          }),
+      };
+      await expect(triggerNMinusOneUpdateMenu(electronApp)).rejects.toThrow(
+        "N-1 Check for Updates application menu is unavailable",
+      );
+    },
+  );
+
+  it("N-1 idle 会话只触发一次菜单检查，等待真实会话变化", async () => {
+    const checking = { stage: "checking", currentVersion: "1.178.0" };
     const page = {
       evaluate: vi
         .fn()
         .mockResolvedValueOnce({ stage: "idle" })
         .mockResolvedValueOnce({ stage: "idle" })
-        .mockResolvedValueOnce({ stage: "idle" })
         .mockResolvedValue(checking),
-      getByTestId: vi.fn((id) => ({
-        isVisible: vi
-          .fn()
-          .mockResolvedValue(
-            id !== "permissions-setup" && settingsClick.mock.calls.length > 0,
-          ),
-        click: id === "app-sidebar-nav-settings" ? settingsClick : aboutClick,
-      })),
     };
+    const triggerCheck = vi.fn().mockResolvedValue(undefined);
 
-    await expect(waitForNMinusOneAutomaticUpdate(page)).resolves.toEqual(
-      checking,
-    );
-    expect(page.getByTestId.mock.calls).toEqual([
-      ["permissions-setup"],
-      ["settings-sidebar-tab-about"],
-      ["app-sidebar-nav-settings"],
-      ["permissions-setup"],
-      ["settings-sidebar-tab-about"],
-    ]);
-    expect(settingsClick.mock.invocationCallOrder[0]).toBeLessThan(
-      aboutClick.mock.invocationCallOrder[0],
-    );
+    await expect(
+      waitForNMinusOneUpdate(page, { triggerCheck }),
+    ).resolves.toEqual(checking);
+    expect(triggerCheck).toHaveBeenCalledOnce();
   });
 
-  it("N-1 设置导航重挂载后重新定位，仍要求真实更新会话启动", async () => {
-    const checking = { stage: "checking", currentVersion: "1.162.0" };
-    const aboutClick = vi
+  it("N-1 已开始检查时只观察会话，不重复触发 native check", async () => {
+    const downloaded = { stage: "completed", latestVersion: "1.179.0" };
+    const page = { evaluate: vi.fn().mockResolvedValue(downloaded) };
+    const triggerCheck = vi.fn();
+
+    await expect(
+      waitForNMinusOneUpdate(page, { triggerCheck }),
+    ).resolves.toEqual(downloaded);
+    expect(triggerCheck).not.toHaveBeenCalled();
+  });
+
+  it("菜单检查失败时保留原始错误，不通过第二条入口重试", async () => {
+    const page = { evaluate: vi.fn().mockResolvedValue({ stage: "idle" }) };
+    const triggerCheck = vi
       .fn()
-      .mockRejectedValueOnce(new Error("element was detached from the DOM"))
-      .mockResolvedValue(undefined);
-    const page = {
-      evaluate: vi
-        .fn()
-        .mockResolvedValueOnce({ stage: "idle" })
-        .mockResolvedValueOnce({ stage: "idle" })
-        .mockResolvedValueOnce({ stage: "idle" })
-        .mockResolvedValue(checking),
-      getByTestId: vi.fn((id) => ({
-        isVisible: vi.fn().mockResolvedValue(id !== "permissions-setup"),
-        click: aboutClick,
-      })),
-    };
-    await expect(waitForNMinusOneAutomaticUpdate(page)).resolves.toEqual(
-      checking,
-    );
-    expect(aboutClick).toHaveBeenCalledTimes(2);
-    expect(aboutClick).toHaveBeenCalledWith({ timeout: 2_000 });
-  });
-
-  it("N-1 已开始检查时只观察会话，不重复打开入口", async () => {
-    const downloaded = { stage: "completed", latestVersion: "1.150.0" };
-    const page = {
-      evaluate: vi.fn().mockResolvedValue(downloaded),
-      getByTestId: vi.fn(),
-    };
-
-    await expect(waitForNMinusOneAutomaticUpdate(page)).resolves.toEqual(
-      downloaded,
-    );
-    expect(page.getByTestId).not.toHaveBeenCalled();
-  });
-
-  it("N-1 新配置先通过 Escape 关闭权限引导，再导航更新入口", async () => {
-    const checking = { stage: "checking", currentVersion: "1.172.0" };
-    const permissions = {
-      isVisible: vi.fn().mockResolvedValue(true),
-      press: vi.fn().mockResolvedValue(undefined),
-      waitFor: vi.fn().mockResolvedValue(undefined),
-    };
-    const settings = {
-      isVisible: vi.fn().mockResolvedValue(false),
-      click: vi.fn().mockResolvedValue(undefined),
-    };
-    const page = {
-      evaluate: vi
-        .fn()
-        .mockResolvedValueOnce({ stage: "idle" })
-        .mockResolvedValue(checking),
-      getByTestId: vi.fn((id) =>
-        id === "permissions-setup" ? permissions : settings,
-      ),
-    };
-
-    await expect(waitForNMinusOneAutomaticUpdate(page)).resolves.toEqual(
-      checking,
-    );
-    expect(permissions.press).toHaveBeenCalledWith("Escape", {
-      timeout: 2_000,
-    });
-    expect(permissions.waitFor).toHaveBeenCalledWith({
-      state: "hidden",
-      timeout: 2_000,
-    });
-    expect(permissions.waitFor.mock.invocationCallOrder[0]).toBeLessThan(
-      settings.click.mock.invocationCallOrder[0],
-    );
-    expect(settings.click).toHaveBeenCalledWith({ timeout: 2_000 });
-  });
-
-  it("权限引导无法关闭时不点击遮罩下的设置，也不伪造更新会话", async () => {
-    const failure = new Error("permissions setup stayed open");
-    const permissions = {
-      isVisible: vi.fn().mockResolvedValue(true),
-      press: vi.fn().mockResolvedValue(undefined),
-      waitFor: vi.fn().mockRejectedValue(failure),
-    };
-    const page = {
-      evaluate: vi.fn().mockResolvedValue({ stage: "idle" }),
-      getByTestId: vi.fn(() => permissions),
-    };
-
+      .mockRejectedValue(new Error("menu unavailable"));
     await expect(
-      waitForNMinusOneAutomaticUpdate(page, { timeoutMs: 1 }),
-    ).rejects.toThrow("navigation: permissions setup stayed open");
-    expect(
-      page.getByTestId.mock.calls.every(([id]) => id === "permissions-setup"),
-    ).toBe(true);
+      waitForNMinusOneUpdate(page, { triggerCheck }),
+    ).rejects.toThrow("menu unavailable");
+    expect(triggerCheck).toHaveBeenCalledOnce();
   });
 
-  it("关于页面未启动检查时仍失败，不伪造非 idle 会话", async () => {
-    const page = {
-      evaluate: vi.fn().mockResolvedValue({ stage: "idle" }),
-      getByTestId: vi.fn((id) => ({
-        isVisible: vi.fn().mockResolvedValue(id !== "permissions-setup"),
-        click: vi.fn().mockResolvedValue(undefined),
-      })),
-    };
-
+  it("菜单未启动检查时仍失败，不伪造非 idle 会话", async () => {
+    const page = { evaluate: vi.fn().mockResolvedValue({ stage: "idle" }) };
+    const triggerCheck = vi.fn().mockResolvedValue(undefined);
     await expect(
-      waitForNMinusOneAutomaticUpdate(page, { timeoutMs: 1 }),
-    ).rejects.toThrow("timed out waiting for N-1 automatic update check");
-  });
-
-  it("N-1 更新应观察应用自动检查且不得主动触发第二次 native check", () => {
-    const source = fs.readFileSync(
-      "scripts/electron/lib/windows-squirrel-n-minus-one.mjs",
-      "utf8",
-    );
-
-    expect(source).toContain('label: "N-1 automatic update check"');
-    expect(source).toContain('value.stage !== "idle"');
-    expect(source).not.toContain(
-      'window.electronAPI.invoke("check_for_updates")',
-    );
-    expect(source.indexOf('label: "N-1 automatic update check"')).toBeLessThan(
-      source.indexOf('label: "candidate update download terminal"'),
-    );
+      waitForNMinusOneUpdate(page, { triggerCheck, timeoutMs: 1 }),
+    ).rejects.toThrow("timed out waiting for N-1 update check");
+    expect(triggerCheck).toHaveBeenCalledOnce();
   });
 
   it("只选择当前候选版本的 Forge Squirrel installer", () => {

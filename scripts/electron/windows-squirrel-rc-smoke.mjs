@@ -31,7 +31,8 @@ import {
   selectNMinusOneVersion,
   stopInstalledApp,
   uninstallInstalledSquirrel,
-  waitForNMinusOneAutomaticUpdate,
+  triggerNMinusOneUpdateMenu,
+  waitForNMinusOneUpdate,
   waitForWindowsProcessExit,
 } from "./lib/windows-squirrel-n-minus-one.mjs";
 import {
@@ -53,7 +54,8 @@ export {
   selectNMinusOneVersion,
   stopInstalledApp,
   uninstallInstalledSquirrel,
-  waitForNMinusOneAutomaticUpdate,
+  triggerNMinusOneUpdateMenu,
+  waitForNMinusOneUpdate,
   waitForWindowsProcessExit,
 };
 
@@ -140,7 +142,7 @@ export function buildWindowsRcSummary({
     scenarioId: SCENARIO_ID,
     proofLevel: "L8 platform/packaged",
     claimBoundary: nMinusOneRequested
-      ? `Windows Squirrel N-1 Setup install, Electron autoUpdater download/install from an isolated candidate feed, candidate version path, shortcut/permissions, and installed candidate Lime.exe SHELL-01 Gate B. Uninstall cleanup is ${uninstallRequested ? "included" : "deferred until downstream packaged Gate B checks finish"}. Long-duration soak is not exercised.`
+      ? `Windows Squirrel N-1 Setup install, application-menu update check and Electron autoUpdater download/install from an isolated candidate feed, candidate version path, shortcut/permissions, and installed candidate Lime.exe SHELL-01 Gate B. Uninstall cleanup is ${uninstallRequested ? "included" : "deferred until downstream packaged Gate B checks finish"}. Long-duration soak is not exercised.`
       : `Windows Squirrel Setup.exe install, installed application path/permissions/shortcut, and installed Lime.exe SHELL-01 Gate B. Uninstall cleanup is ${uninstallRequested ? "included" : "deferred until downstream packaged Gate B checks finish"}. N-1 to candidate update and long-duration soak are not exercised.`,
     candidateRunId: normalizedRunId,
     candidateSha: normalizedCandidateSha,
