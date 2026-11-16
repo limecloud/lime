@@ -30,8 +30,8 @@ fn refresh_helper_has_no_console() -> Result<()> {
     let temporary = tempfile::tempdir()?;
     let executable = std::env::current_exe()?;
     let detached = temporary.path().join("detached.exe");
-    lime_utils_cargo_bin::copy_executable(&executable, &detached)?;
-    lime_utils_cargo_bin::copy_executable(
+    utils_cargo_bin::copy_executable(&executable, &detached)?;
+    utils_cargo_bin::copy_executable(
         &executable,
         &temporary.path().join("lime-windows-sandbox-setup.exe"),
     )?;

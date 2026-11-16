@@ -285,7 +285,7 @@ impl EnvironmentInfo {
     /// Returns information about the current local exec-server process.
     pub fn local() -> Self {
         #[cfg(windows)]
-        let windows_mxc = lime_mxc_sandbox::is_available();
+        let windows_mxc = mxc_sandbox::is_available();
         #[cfg(not(windows))]
         let windows_mxc = false;
         let cwd = std::env::current_dir().ok();

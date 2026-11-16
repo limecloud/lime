@@ -24,5 +24,8 @@ serde_json = { workspace = true, features = ["arbitrary_precision", "raw_value"]
 shell-command = { path = "../shell-command" }
 skills = { path = "../skills-upstream" }
 
+[target.'cfg(windows)'.dependencies]
+mxc-sandbox.workspace = true
+
 [dev-dependencies]
 pretty_assertions.workspace = true

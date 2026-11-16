@@ -20,6 +20,7 @@ lime-utils-absolute-path.workspace = true
 lime-utils-path-uri.workspace = true
 mxc-sandbox = { path = "../mxc-sandbox" }
 network-proxy = { path = "../network-proxy" }
+otel.workspace = true
 protocol = { path = "../protocol" }
 regex-lite = "0.1"
 serde_json.workspace = true
@@ -27,6 +28,7 @@ tokio = { workspace = true, features = ["rt", "sync"] }
 tracing.workspace = true
 uds = { path = "../uds" }
 url.workspace = true
+utils-home-dir.workspace = true
 utils-pty = { path = "../utils-pty" }
 which = "8"
 windows-sandbox = { path = "../windows-sandbox" }
@@ -34,4 +36,5 @@ windows-sandbox = { path = "../windows-sandbox" }
 [dev-dependencies]
 pretty_assertions.workspace = true
 tempfile.workspace = true
+utils-cargo-bin.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time"] }

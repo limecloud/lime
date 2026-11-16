@@ -617,7 +617,7 @@ impl SandboxManager {
                     return Err(SandboxTransformError::SandboxUnavailable);
                     #[cfg(windows)]
                     {
-                        let lime_home = lime_utils_home_dir::find_lime_home().map_err(|err| {
+                        let lime_home = utils_home_dir::find_lime_home().map_err(|err| {
                             SandboxTransformError::WindowsSandboxPreparation(err.to_string())
                         })?;
                         wrap_windows_file_system_helper(

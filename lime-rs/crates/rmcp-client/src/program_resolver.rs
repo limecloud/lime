@@ -201,7 +201,7 @@ mod tests {
             #[cfg(unix)]
             {
                 let file = dir.join(Self::TEST_PROGRAM);
-                lime_utils_cargo_bin::write_executable(&file, "#!/bin/sh\nexit 0")?;
+                utils_cargo_bin::write_executable(&file, "#!/bin/sh\nexit 0")?;
             }
 
             Ok(())

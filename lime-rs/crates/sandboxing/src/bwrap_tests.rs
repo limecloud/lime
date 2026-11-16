@@ -415,7 +415,7 @@ fn write_fake_bwrap_in(dir: &Path, contents: &str) -> tempfile::TempPath {
     // A sibling spawn may retain the temporary file's writable descriptor.
     // Remove that inode before the helper creates the executable in its child.
     std::fs::remove_file(&path).expect("remove empty temporary file");
-    lime_utils_cargo_bin::write_executable(&path, contents).expect("write fake bwrap");
+    utils_cargo_bin::write_executable(&path, contents).expect("write fake bwrap");
     path
 }
 
@@ -423,6 +423,6 @@ fn write_named_fake_bwrap_in(dir: &Path) -> PathBuf {
     use std::fs;
 
     let path = dir.join("bwrap");
-    lime_utils_cargo_bin::write_executable(&path, "#!/bin/sh\n").expect("write fake bwrap");
+    utils_cargo_bin::write_executable(&path, "#!/bin/sh\n").expect("write fake bwrap");
     fs::canonicalize(path).expect("canonicalize fake bwrap")
 }

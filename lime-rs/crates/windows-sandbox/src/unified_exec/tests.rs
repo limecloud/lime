@@ -90,7 +90,7 @@ fn sandbox_cwd() -> PathBuf {
         return PathBuf::from(workspace_root);
     }
 
-    lime_utils_cargo_bin::repo_root()
+    utils_cargo_bin::repo_root()
         .expect("resolve repository root")
         .join("lime-rs")
 }

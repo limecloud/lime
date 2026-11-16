@@ -58,7 +58,7 @@ pub async fn spawn_process(request: SpawnRequest<'_>) -> Result<SpawnedProcess> 
             let windows = request
                 .windows_sandbox
                 .context("missing Windows sandbox spawn request")?;
-            let lime_home = lime_utils_home_dir::find_lime_home()
+            let lime_home = utils_home_dir::find_lime_home()
                 .context("windows sandbox: failed to resolve lime_home")?;
             let empty_paths = &[];
             let overrides = windows.filesystem_overrides;

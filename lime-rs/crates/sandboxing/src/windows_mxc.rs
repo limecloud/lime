@@ -10,7 +10,7 @@ pub(super) fn record_availability_once() {
     // Probe actual PSEC create/close support; symbol presence alone also
     // succeeds on transitional Windows builds where MXC is not enabled.
     let available = mxc_sandbox::is_available();
-    if let Some(metrics) = lime_otel::global()
+    if let Some(metrics) = otel::global()
         && !AVAILABILITY_RECORDED.swap(true, Ordering::Relaxed)
     {
         let _ = metrics.counter(
