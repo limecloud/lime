@@ -673,14 +673,13 @@ export async function exerciseNMinusOneUpdate({
     };
   } finally {
     try {
-      if (electronApp) {
-        // During an updater restart Playwright's close() can throw an internal
-        // `_object` error or wait forever for the restarted app. Kill the
-        // launched process directly and let stopInstalledApp reap children.
-        electronApp.process()?.kill();
-      }
-      // Also clean up N-1 when launch failed before returning a client handle.
-      await stopInstalledApp(installed.executable);
+      // Playwright's ElectronApplication close() and process() are unreliable
+      // once the app hands off to Squirrel. Stop the installed executable via
+      // the Windows process table instead, which also reaps restarted children.
+      await stopInstalledApp(installed.executable).catch(() => undefined);
+      await stopInstalledApp(candidateInstalled.executable).catch(
+        () => undefined,
+      );
     } finally {
       await staticFeed.close();
     }
