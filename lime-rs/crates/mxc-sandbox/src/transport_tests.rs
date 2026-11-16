@@ -1,0 +1,56 @@
+//! Verify bounded transport, Unicode roundtrips, and child-environment cleanup.
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use anyhow::Result;
+use pretty_assertions::assert_eq;
+use protocol::models::PermissionProfile;
+use windows_sandbox::environment_transport;
+
+use crate::MxcCommand;
+
+use super::decode;
+use super::encode;
+
+fn command(args: Vec<String>) -> MxcCommand {
+    MxcCommand {
+        permissions: PermissionProfile::read_only(),
+        sandbox_policy_cwd: PathBuf::from("workspace"),
+        managed_network: None,
+        command: args,
+        default_child_env: false,
+    }
+}
+
+#[test]
+fn large_unicode_launch_roundtrips_and_never_reaches_child_environment() -> Result<()> {
+    let args = vec![
+        "lime-windows-mxc".to_owned(),
+        "🧊".repeat(20_000),
+        "a\"\\b".to_owned(),
+    ];
+    let expected_env = HashMap::from([("CUSTOM".to_owned(), "value".to_owned())]);
+    let mut env = expected_env.clone();
+    #[cfg(windows)]
+    env.extend(
+        ["systemdrive", "LocalAppData"].map(|key| (key.to_owned(), "caller-only".to_owned())),
+    );
+    environment_transport::encode("stale", &mut env)?;
+    let request = command(args);
+    encode(&request, &mut env)?;
+    assert!(
+        env.values()
+            .all(|value| value.encode_utf16().count() < 32_767)
+    );
+    assert_eq!(
+        serde_json::to_value(decode(&mut env)?)?,
+        serde_json::to_value(request)?
+    );
+    #[cfg(windows)]
+    for key in ["SystemDrive", "LOCALAPPDATA"] {
+        assert_eq!(env.remove(key), Some(std::env::var(key)?));
+    }
+    assert_eq!(env, expected_env);
+    Ok(())
+}

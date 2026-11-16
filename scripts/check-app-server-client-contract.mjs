@@ -7133,7 +7133,7 @@ const checks = [
     name: "Windows test workflow builds both App Server sidecars with pinned Rust and shared linker inputs",
     file: ".github/workflows/build-windows-test.yml",
     snippets: [
-      "dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0",
+      "dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100.0",
       "Configure Windows MSVC linker",
       "./scripts/lib/windows-msvc-linker.ps1 -Target x86_64-pc-windows-msvc",
       "Refresh sandboxed rusty_v8 artifacts",
@@ -7146,7 +7146,7 @@ const checks = [
     name: "Windows quality links both App Server sidecar binaries with pinned Rust and shared inputs",
     file: ".github/workflows/quality.yml",
     snippets: [
-      "dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0",
+      "dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100.0",
       "Configure Windows MSVC linker",
       "./scripts/lib/windows-msvc-linker.ps1 -Target x86_64-pc-windows-msvc",
       "Refresh sandboxed rusty_v8 artifacts",
@@ -7165,7 +7165,7 @@ const checks = [
     name: "Release workflow uses pinned Rust and shared Windows linker inputs",
     file: ".github/workflows/release.yml",
     snippets: [
-      "dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0",
+      "dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100.0",
       "Configure Windows MSVC linker",
       "./scripts/lib/windows-msvc-linker.ps1 -Target x86_64-pc-windows-msvc",
       "Refresh sandboxed rusty_v8 artifacts",
@@ -7212,7 +7212,7 @@ const checks = [
     name: "Repository Rust toolchain stays pinned to the Windows V8 release toolchain",
     file: "rust-toolchain.toml",
     snippets: [
-      'channel = "1.95.0"',
+      'channel = "1.100.0"',
       'components = ["clippy", "rustfmt", "rust-src"]',
     ],
   },
@@ -7256,6 +7256,12 @@ const checks = [
     file: "lime-rs/Cargo.lock",
     snippets: ['name = "app-server"'],
     absentSnippets: ['name = "app-server-agent-backend"'],
+  },
+  {
+    name: "Retired patch-apply crate stays deleted",
+    file: "lime-rs/Cargo.lock",
+    snippets: ['name = "apply-patch"'],
+    absentSnippets: ['name = "patch-apply"'],
   },
   {
     name: "Electron App Server host preserves external backend env for resources manifest",

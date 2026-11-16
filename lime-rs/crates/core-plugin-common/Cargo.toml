@@ -1,0 +1,20 @@
+[package]
+name = "core-plugin-common"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Shared plugin manifest types."
+
+[lib]
+name = "core_plugin_common"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+lime-utils-absolute-path.workspace = true
+semver = { version = "1", features = ["serde"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

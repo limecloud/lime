@@ -17,8 +17,7 @@ const LIME_HOME_ENV: &str = "LIME_HOME";
 const LIME_HOME_DIR_NAME: &str = ".lime";
 const WORKSPACE_RUNTIME_DIR_NAME: &str = ".lime";
 const SKILL_PROVIDER_DIRS: &[&str] = &[
-    ".agents", ".warp", ".claude", ".lime", ".cursor", ".gemini", ".copilot", ".factory",
-    ".github",
+    ".agents", ".warp", ".claude", ".lime", ".cursor", ".gemini", ".copilot", ".factory", ".github",
 ];
 
 pub fn preferred_data_dir() -> Result<PathBuf, String> {

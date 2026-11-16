@@ -2,7 +2,7 @@
 
 use super::types::{RequestLog, RequestStatus};
 use chrono::{Duration, SecondsFormat};
-use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -382,13 +382,17 @@ mod tests {
                 .expect("clear missing"),
             0
         );
-        assert!(store
-            .read_request_log("req-matching")
-            .expect("read cleared")
-            .is_none());
-        assert!(store
-            .read_request_log("req-retained")
-            .expect("read retained")
-            .is_some());
+        assert!(
+            store
+                .read_request_log("req-matching")
+                .expect("read cleared")
+                .is_none()
+        );
+        assert!(
+            store
+                .read_request_log("req-retained")
+                .expect("read retained")
+                .is_some()
+        );
     }
 }

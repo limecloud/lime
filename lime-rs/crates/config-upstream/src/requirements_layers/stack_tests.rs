@@ -1,0 +1,1916 @@
+use super::super::RequirementsLayerEntry;
+use super::super::hooks::HookDirectoryField;
+use super::RequirementsCompositionError;
+use super::compose_requirements_for_hostname;
+use super::compose_requirements_for_hostname_and_hook_directory;
+use super::compose_requirements_with_hostname_resolver;
+use crate::ConfigRequirementsToml;
+use crate::ConfigRequirementsWithSources;
+use crate::RequirementSource;
+use crate::Sourced;
+use lime_utils_absolute_path::AbsolutePathBuf;
+use pretty_assertions::assert_eq;
+use protocol::protocol::AskForApproval;
+use std::cell::Cell;
+use std::collections::BTreeMap;
+use tempfile::TempDir;
+use tempfile::tempdir;
+
+fn layer(id: &str, name: &str, contents: &str) -> RequirementsLayerEntry {
+    RequirementsLayerEntry::from_toml(
+        RequirementSource::EnterpriseManaged {
+            id: id.to_string(),
+            name: name.to_string(),
+        },
+        contents,
+    )
+}
+
+fn compose(
+    layers: Vec<RequirementsLayerEntry>,
+) -> Result<Option<ConfigRequirementsToml>, RequirementsCompositionError> {
+    Ok(
+        compose_requirements_for_hostname(layers, /*hostname*/ None)?
+            .map(ConfigRequirementsWithSources::into_toml),
+    )
+}
+
+fn compose_with_hook_directory_field(
+    layers: Vec<RequirementsLayerEntry>,
+    hook_directory_field: HookDirectoryField,
+) -> Result<Option<ConfigRequirementsToml>, RequirementsCompositionError> {
+    Ok(compose_requirements_for_hostname_and_hook_directory(
+        layers,
+        /*hostname*/ None,
+        hook_directory_field,
+    )?
+    .map(ConfigRequirementsWithSources::into_toml))
+}
+
+fn expected_requirements(contents: impl AsRef<str>) -> ConfigRequirementsToml {
+    toml::from_str(contents.as_ref()).expect("parse expected requirements TOML")
+}
+
+#[test]
+fn empty_layers_compose_to_none() {
+    let composed = compose(Vec::new()).expect("compose empty layers");
+    assert_eq!(composed, None);
+}
+
+#[test]
+fn cloud_auth_requirements_do_not_override_local_or_discard_other_policy() {
+    let local = RequirementsLayerEntry::from_toml(
+        RequirementSource::Unknown,
+        r#"allowed_login_methods = ["api"]
+cli_auth_credentials_store = "keyring"
+chatgpt_base_url = "https://managed.example/backend-api/""#,
+    );
+    for cloud_auth in [
+        r#"allowed_login_methods = ["api", "chatgpt"]
+allowed_chatgpt_workspaces = ["other"]"#,
+        r#"allowed_login_methods = ["saml"]
+allowed_chatgpt_workspaces = "invalid"
+cli_auth_credentials_store = "invalid"
+chatgpt_base_url = false"#,
+    ] {
+        let cloud = layer(
+            "req_cloud",
+            "Cloud policy",
+            &format!("{cloud_auth}\nallow_login_shell = false"),
+        );
+        assert_eq!(
+            compose(vec![local.clone(), cloud])
+                .expect("cloud auth cannot invalidate enterprise policy"),
+            Some(expected_requirements(
+                r#"allowed_login_methods = ["api"]
+cli_auth_credentials_store = "keyring"
+chatgpt_base_url = "https://managed.example/backend-api/"
+allow_login_shell = false"#
+            ))
+        );
+    }
+}
+
+#[test]
+fn top_level_values_use_toml_priority() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+allowed_approval_policies = ["on-request"]
+allowed_sandbox_modes = ["workspace-write"]
+default_permissions = ":workspace"
+allow_remote_control = true
+unsafe_enforce_sqlite_journal_mode = false
+additional_developer_instructions = "Lower-priority instructions."
+
+[allowed_permission_profiles]
+":read-only" = true
+":workspace" = true
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+allowed_approval_policies = ["never"]
+allowed_sandbox_modes = ["read-only"]
+default_permissions = ":read-only"
+allow_remote_control = false
+unsafe_enforce_sqlite_journal_mode = true
+additional_developer_instructions = ""
+
+[allowed_permission_profiles]
+":danger-full-access" = false
+":workspace" = false
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+allowed_approval_policies = ["never"]
+allowed_sandbox_modes = ["read-only"]
+default_permissions = ":read-only"
+allow_remote_control = false
+unsafe_enforce_sqlite_journal_mode = true
+additional_developer_instructions = ""
+
+[allowed_permission_profiles]
+":danger-full-access" = false
+":read-only" = true
+":workspace" = false
+"#
+        )
+    );
+}
+
+#[test]
+fn new_thread_model_defaults_use_toml_priority() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[models.new_thread]
+model = "low-priority-model"
+model_reasoning_effort = "low"
+service_tier = "flex"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[models.new_thread]
+model = "high-priority-model"
+model_reasoning_effort = "high"
+service_tier = "fast"
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[models.new_thread]
+model = "high-priority-model"
+model_reasoning_effort = "high"
+service_tier = "fast"
+"#
+        )
+    );
+}
+
+#[test]
+fn auto_review_required_models_are_unioned_without_overwriting_new_thread_defaults() {
+    let low = layer(
+        "req_low",
+        "Low",
+        r#"[auto_review]
+required_on_models = ["low-model", "shared-model"]
+[models.new_thread]
+model = "low-priority-model"
+model_reasoning_effort = "low""#,
+    );
+    let high = layer(
+        "req_high",
+        "High",
+        r#"[auto_review]
+required_on_models = ["high-model", "shared-model"]
+[models.new_thread]
+model = "high-priority-model""#,
+    );
+    let expected_source = RequirementSource::composite([high.source.clone(), low.source.clone()]);
+    let composed = compose_requirements_for_hostname(
+        vec![
+            low,
+            high,
+            layer(
+                "req_empty",
+                "Empty",
+                "[auto_review]\nrequired_on_models = []",
+            ),
+        ],
+        /*hostname*/ None,
+    )
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed.clone().into_toml(),
+        expected_requirements(
+            r#"[auto_review]
+required_on_models = ["high-model", "shared-model", "low-model"]
+[models.new_thread]
+model = "high-priority-model"
+model_reasoning_effort = "low""#
+        )
+    );
+    assert_eq!(
+        composed.auto_review.map(|auto_review| auto_review.source),
+        Some(expected_source)
+    );
+}
+
+#[test]
+fn relative_paths_resolve_against_their_own_layer_base() {
+    let low_dir = tempdir().expect("low-priority requirements directory");
+    let high_dir = tempdir().expect("high-priority requirements directory");
+    let low_base = AbsolutePathBuf::from_absolute_path(low_dir.path()).expect("absolute low base");
+    let high_base =
+        AbsolutePathBuf::from_absolute_path(high_dir.path()).expect("absolute high base");
+
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            "sqlite_home = \"state\"\nlog_dir = \"low-logs\"",
+        )
+        .with_base_dir(low_base),
+        layer(
+            "req_high",
+            "High",
+            "log_dir = \"high-logs\"\nmodel_catalog_json = \"models.json\"",
+        )
+        .with_base_dir(high_base),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed.sqlite_home.as_deref(),
+        Some(low_dir.path().join("state").as_path())
+    );
+    assert_eq!(
+        composed.log_dir.as_deref(),
+        Some(high_dir.path().join("high-logs").as_path())
+    );
+    assert_eq!(
+        composed.model_catalog_json.as_deref(),
+        Some(high_dir.path().join("models.json").as_path())
+    );
+}
+
+#[test]
+fn provider_auth_fragments_merge_without_losing_source_paths_or_explicit_values() {
+    let low_dir = tempdir().expect("low-priority requirements directory");
+    let high_dir = tempdir().expect("high-priority requirements directory");
+    let absolute_cwd = toml::Value::String(low_dir.path().display().to_string()).to_string();
+    for (cwd_override, expected_cwd) in [
+        (String::new(), low_dir.path().join("auth")),
+        (
+            "cwd = 'other-auth'".to_string(),
+            high_dir.path().join("other-auth"),
+        ),
+        (
+            format!("cwd = {absolute_cwd}"),
+            low_dir.path().to_path_buf(),
+        ),
+    ] {
+        let composed = compose(vec![
+            layer(
+                "low",
+                "Command",
+                r#"
+[model_providers.gateway]
+name = "Gateway"
+[model_providers.gateway.auth]
+command = "get-token"
+args = ["--token"]
+cwd = "auth"
+timeout_ms = 7000
+refresh_interval_ms = 12345
+"#,
+            )
+            .with_base_dir(AbsolutePathBuf::from_absolute_path(low_dir.path()).unwrap()),
+            layer(
+                "high",
+                "Timeout",
+                &format!("[model_providers.gateway.auth]\ntimeout_ms = 10000\n{cwd_override}"),
+            )
+            .with_base_dir(AbsolutePathBuf::from_absolute_path(high_dir.path()).unwrap()),
+        ])
+        .expect("merge partial auth before parsing")
+        .expect("requirements present");
+        let expected_cwd = toml::Value::String(expected_cwd.display().to_string());
+        assert_eq!(
+            composed,
+            expected_requirements(format!(
+                r#"
+[model_providers.gateway]
+name = "Gateway"
+[model_providers.gateway.auth]
+command = "get-token"
+args = ["--token"]
+cwd = {expected_cwd}
+timeout_ms = 10000
+refresh_interval_ms = 12345
+"#,
+            ))
+        );
+    }
+}
+
+#[test]
+fn otel_requirements_compose_exact_values_atomic_exporters_and_metadata() {
+    let low_dir = tempdir().expect("low-priority requirements directory");
+    let high_dir = tempdir().expect("high-priority requirements directory");
+    let low_base = AbsolutePathBuf::from_absolute_path(low_dir.path()).expect("absolute low base");
+    let high_base =
+        AbsolutePathBuf::from_absolute_path(high_dir.path()).expect("absolute high base");
+
+    let low = layer(
+        "req_low",
+        "Low",
+        r#"
+[otel]
+tool_result = { max_bytes = 1024 }
+log_user_prompt = true
+environment = "low"
+exporter = { otlp-http = { endpoint = "https://low.example", protocol = "json", headers = { stale = "low" }, tls = { ca-certificate = "low-ca.pem" } } }
+trace_exporter = { otlp-grpc = { endpoint = "https://low.example", tls = { client-certificate = "low-client.pem" } } }
+metrics_exporter = "statsig"
+span_attributes = { shared = "low", lower = "preserved" }
+tracestate = { shared = { tenant = "low", region = "us" }, lower = { tenant = "preserved" }, empty = {} }
+"#,
+    )
+    .with_base_dir(low_base);
+    let high = layer(
+        "req_high",
+        "High",
+        r#"
+[otel]
+tool_result = { max_bytes = 4096 }
+log_user_prompt = false
+environment = "high"
+exporter = { otlp-http = { endpoint = "https://high.example", protocol = "binary", tls = { ca-certificate = "high-ca.pem" } } }
+metrics_exporter = "none"
+span_attributes = { shared = "high", higher = "added" }
+tracestate = { shared = { tenant = "replacement" }, lower = {}, higher = { tenant = "added" } }
+"#,
+    )
+    .with_base_dir(high_base);
+    let expected_source = RequirementSource::composite([high.source.clone(), low.source.clone()]);
+    let composed = compose_requirements_for_hostname(
+        vec![
+            low,
+            high,
+            layer(
+                "empty",
+                "Empty",
+                "[otel]\nspan_attributes = {}\ntracestate = { lower = {} }",
+            ),
+        ],
+        /*hostname*/ None,
+    )
+    .expect("compose OTEL requirements")
+    .expect("requirements present")
+    .otel
+    .expect("OTEL requirements present");
+    assert_eq!(composed.source, expected_source);
+
+    let expected = r#"
+[otel]
+tool_result = { max_bytes = 4096 }
+log_user_prompt = false
+environment = "high"
+exporter = { otlp-http = { endpoint = "https://high.example", protocol = "binary", tls = { ca-certificate = '$HIGH_CA' } } }
+trace_exporter = { otlp-grpc = { endpoint = "https://low.example", tls = { client-certificate = '$LOW_CLIENT' } } }
+metrics_exporter = "none"
+span_attributes = { shared = "high", lower = "preserved", higher = "added" }
+tracestate = { shared = { tenant = "replacement", region = "us" }, lower = { tenant = "preserved" }, higher = { tenant = "added" } }
+"#
+    .replace(
+        "$HIGH_CA",
+        &high_dir.path().join("high-ca.pem").display().to_string(),
+    )
+    .replace(
+        "$LOW_CLIENT",
+        &low_dir.path().join("low-client.pem").display().to_string(),
+    );
+    assert_eq!(
+        composed.value,
+        *expected_requirements(expected).otel.unwrap()
+    );
+    assert_eq!(
+        compose(vec![layer(
+            "mixed",
+            "Mixed",
+            "[otel]\nexporter = 'none'\nspan_attributes = {}\ntracestate = { empty = {} }",
+        )]),
+        Ok(Some(expected_requirements("[otel]\nexporter = 'none'"))),
+    );
+
+    for empty in [
+        "[otel]",
+        "[otel.span_attributes]",
+        "[otel.tracestate.empty]",
+    ] {
+        assert_eq!(
+            compose(vec![layer("empty", "Empty", empty)]),
+            Ok(None),
+            "{empty}",
+        );
+    }
+}
+
+#[test]
+fn provider_auth_missing_command_is_rejected_after_composition() {
+    let err = compose(vec![
+        layer("low", "Name", "[model_providers.gateway]\nname = 'Gateway'"),
+        layer(
+            "high",
+            "Timeout",
+            "[model_providers.gateway.auth]\ntimeout_ms = 10000",
+        ),
+    ])
+    .expect_err("merged auth still needs a command");
+    assert!(matches!(
+        err,
+        RequirementsCompositionError::ComposedParse { message }
+            if message.contains("missing field `command`")
+    ));
+}
+
+#[test]
+fn composition_strategy_applies_to_non_cloud_layers() {
+    let mdm_source = RequirementSource::MdmManagedPreferences {
+        domain: "com.openai.lime".to_string(),
+        key: "requirements_toml_base64".to_string(),
+    };
+    let system_file = if cfg!(windows) {
+        "C:\\requirements.toml"
+    } else {
+        "/etc/lime/requirements.toml"
+    };
+    let system_source = RequirementSource::SystemRequirementsToml {
+        file: AbsolutePathBuf::from_absolute_path(system_file).expect("absolute path"),
+    };
+    let high_path = if cfg!(windows) {
+        "C:\\secret"
+    } else {
+        "/secret"
+    };
+    let low_path = if cfg!(windows) {
+        "C:\\other-secret"
+    } else {
+        "/other-secret"
+    };
+
+    let composed = compose_requirements_for_hostname(
+        vec![
+            RequirementsLayerEntry::from_toml(
+                system_source,
+                format!(
+                    r#"
+allowed_approval_policies = ["on-request"]
+allow_remote_control = true
+
+[features]
+shared = false
+system = true
+
+[[rules.prefix_rules]]
+pattern = [{{ token = "npm" }}]
+decision = "prompt"
+
+[permissions.filesystem]
+deny_read = [{low_path:?}]
+"#
+                ),
+            ),
+            RequirementsLayerEntry::from_toml(
+                mdm_source.clone(),
+                format!(
+                    r#"
+allowed_approval_policies = ["never"]
+allow_remote_control = false
+
+[features]
+shared = true
+
+[[rules.prefix_rules]]
+pattern = [{{ token = "git" }}]
+decision = "forbidden"
+
+[permissions.filesystem]
+deny_read = [{high_path:?}]
+"#
+                ),
+            ),
+        ],
+        /*hostname*/ None,
+    )
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed.clone().into_toml(),
+        expected_requirements(format!(
+            r#"
+allowed_approval_policies = ["never"]
+allow_remote_control = false
+
+[features]
+shared = true
+system = true
+
+[[rules.prefix_rules]]
+pattern = [{{ token = "git" }}]
+decision = "forbidden"
+
+[[rules.prefix_rules]]
+pattern = [{{ token = "npm" }}]
+decision = "prompt"
+
+[permissions.filesystem]
+deny_read = [{high_path:?}, {low_path:?}]
+"#
+        ))
+    );
+    assert_eq!(
+        composed.allowed_approval_policies,
+        Some(Sourced::new(
+            vec![AskForApproval::Never],
+            mdm_source.clone()
+        ))
+    );
+    assert_eq!(
+        composed.allow_remote_control,
+        Some(Sourced::new(/*value*/ false, mdm_source))
+    );
+}
+
+#[test]
+fn single_regular_layer_keeps_enterprise_managed_source() {
+    let composed = compose_requirements_for_hostname(
+        vec![layer(
+            "req_1",
+            "Security baseline",
+            r#"
+allow_managed_hooks_only = true
+"#,
+        )],
+        /*hostname*/ None,
+    )
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed.allow_managed_hooks_only,
+        Some(Sourced::new(
+            /*value*/ true,
+            RequirementSource::EnterpriseManaged {
+                id: "req_1".to_string(),
+                name: "Security baseline".to_string(),
+            },
+        ))
+    );
+}
+
+#[test]
+fn regular_toml_merge_recurses_into_tables() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[features]
+beta = false
+shared = false
+
+[apps.connector_1]
+enabled = false
+
+[apps.connector_1.tools.search]
+approval_mode = "prompt"
+
+[apps.connector_1.tools.list]
+approval_mode = "prompt"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[features]
+alpha = true
+shared = true
+
+[apps.connector_1]
+enabled = true
+
+[apps.connector_1.tools.search]
+approval_mode = "approve"
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[features]
+alpha = true
+beta = false
+shared = true
+
+[apps.connector_1]
+enabled = true
+
+[apps.connector_1.tools.list]
+approval_mode = "prompt"
+
+[apps.connector_1.tools.search]
+approval_mode = "approve"
+"#
+        )
+    );
+}
+
+#[test]
+fn feature_aliases_merge_with_layer_precedence() {
+    for (low_key, high_key) in [
+        ("features", "feature_requirements"),
+        ("feature_requirements", "features"),
+    ] {
+        let composed = compose(vec![
+            layer(
+                "req_low",
+                "Low",
+                &format!("[{low_key}]\nchronicle = true\nshell_snapshot = false"),
+            ),
+            layer(
+                "req_high",
+                "High",
+                &format!("[{high_key}]\nchronicle = false\napps = false"),
+            ),
+        ])
+        .expect("compose mixed feature aliases");
+
+        assert_eq!(
+            composed,
+            Some(expected_requirements(
+                "[features]\nchronicle = false\nshell_snapshot = false\napps = false"
+            ))
+        );
+    }
+}
+
+#[test]
+fn merged_table_source_is_composite_in_priority_order() {
+    let high_source = RequirementSource::EnterpriseManaged {
+        id: "req_high".to_string(),
+        name: "High".to_string(),
+    };
+    let low_source = RequirementSource::EnterpriseManaged {
+        id: "req_low".to_string(),
+        name: "Low".to_string(),
+    };
+    let composed = compose_requirements_for_hostname(
+        vec![
+            RequirementsLayerEntry::from_toml(
+                low_source.clone(),
+                r#"
+[features]
+beta = true
+"#,
+            ),
+            RequirementsLayerEntry::from_toml(
+                high_source.clone(),
+                r#"
+[features]
+alpha = true
+"#,
+            ),
+        ],
+        /*hostname*/ None,
+    )
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed.feature_requirements.expect("features"),
+        Sourced::new(
+            crate::FeatureRequirementsToml {
+                entries: BTreeMap::from([("alpha".to_string(), true), ("beta".to_string(), true),]),
+                ..Default::default()
+            },
+            RequirementSource::composite([high_source, low_source]),
+        )
+    );
+}
+
+#[test]
+fn mcp_requirements_use_regular_toml_merge() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[mcp_servers.shared.identity]
+command = "low-mcp"
+
+[mcp_servers.low.identity]
+url = "https://low.example.com/mcp"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[mcp_servers.shared.identity]
+command = "high-mcp"
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[mcp_servers.low.identity]
+url = "https://low.example.com/mcp"
+
+[mcp_servers.shared.identity]
+command = "high-mcp"
+"#
+        )
+    );
+}
+
+#[test]
+fn network_maps_use_regular_toml_merge() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[experimental_network.domains]
+"example.com" = "deny"
+"low.example.com" = "deny"
+"internal.example.com" = "allow"
+
+[experimental_network.unix_sockets]
+"/tmp/shared.sock" = "deny"
+"/tmp/low.sock" = "allow"
+"/tmp/admin.sock" = "allow"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[experimental_network.domains]
+"example.com" = "allow"
+"high.example.com" = "allow"
+"internal.example.com" = "deny"
+
+[experimental_network.unix_sockets]
+"/tmp/shared.sock" = "allow"
+"/tmp/high.sock" = "allow"
+"/tmp/admin.sock" = "deny"
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[experimental_network.domains]
+"example.com" = "allow"
+"high.example.com" = "allow"
+"internal.example.com" = "deny"
+"low.example.com" = "deny"
+
+[experimental_network.unix_sockets]
+"/tmp/admin.sock" = "deny"
+"/tmp/high.sock" = "allow"
+"/tmp/low.sock" = "allow"
+"/tmp/shared.sock" = "allow"
+"#
+        )
+    );
+}
+
+#[test]
+fn network_aliases_merge_with_layer_precedence_and_sources() {
+    for (low_key, high_key) in [
+        ("network_proxy", "experimental_network"),
+        ("experimental_network", "network_proxy"),
+    ] {
+        let low = layer(
+            "req_low",
+            "Low",
+            &format!(
+                "[{low_key}]\nenabled = true\nallow_local_binding = false\n\
+                 [{low_key}.domains]\n'low.example.com' = 'allow'\n'shared.example.com' = 'allow'"
+            ),
+        );
+        let high = layer(
+            "req_high",
+            "High",
+            &format!(
+                "[{high_key}]\nenabled = false\nallow_upstream_proxy = true\n\
+                 [{high_key}.domains]\n'high.example.com' = 'allow'\n'shared.example.com' = 'deny'"
+            ),
+        );
+        let expected_source =
+            RequirementSource::composite([high.source.clone(), low.source.clone()]);
+        let composed = compose_requirements_for_hostname(vec![low, high], /*hostname*/ None)
+            .expect("compose network aliases")
+            .expect("requirements present");
+        assert_eq!(
+            composed.network,
+            Some(Sourced::new(
+                expected_requirements(
+                    "[network_proxy]\nenabled = false\nallow_local_binding = false\nallow_upstream_proxy = true\n\
+                     [network_proxy.domains]\n'low.example.com' = 'allow'\n'high.example.com' = 'allow'\n'shared.example.com' = 'deny'"
+                )
+                .network
+                .expect("network requirements"),
+                expected_source,
+            ))
+        );
+    }
+}
+
+#[test]
+fn permissions_network_conflicts_with_top_level_network_across_layers() {
+    for table in ["network_proxy", "experimental_network"] {
+        for (root_first, root_values) in [(true, "enabled = true"), (false, "")] {
+            let root = layer("root", "Root", &format!("[{table}]\n{root_values}"));
+            let permissions = layer(
+                "permissions",
+                "Permissions",
+                "[permissions.network]\nenabled = true",
+            );
+            let root_source = root.source.clone();
+            let permissions_source = permissions.source.clone();
+            let layers = if root_first {
+                vec![root, permissions]
+            } else {
+                vec![permissions, root]
+            };
+            let err = compose_requirements_for_hostname(layers, /*hostname*/ None)
+                .expect_err("network requirement surfaces must not coexist")
+                .to_string();
+            assert!(err.contains(&root_source.to_string()), "{err}");
+            assert!(err.contains(&permissions_source.to_string()), "{err}");
+        }
+    }
+}
+
+#[test]
+fn browser_and_computer_use_requirements_use_regular_toml_merge() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+allow_browser_and_computer_use = true
+
+[browser_use]
+allow_history_access = true
+allow_global_persistent_approval = true
+
+[browser_use.default_origin_policy]
+access = "allow"
+access_approval_lifetime = "thread"
+
+[browser_use.origins."https://example.com"]
+access = "deny"
+downloads = "allow"
+
+[computer_use]
+allow_locked_computer_use = true
+default_app_access = "allow"
+
+[computer_use.macos.bundle_ids]
+"com.apple.Safari" = "deny"
+
+[computer_use.windows.aumids]
+"Microsoft.Paint_8wekyb3d8bbwe!App" = "allow"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+allow_browser_and_computer_use = false
+
+[browser_use]
+allow_history_access = false
+allow_global_persistent_approval = false
+
+[browser_use.default_origin_policy]
+persistent_approval = false
+access_approval_lifetime = "turn"
+
+[browser_use.origins."https://example.com"]
+downloads = "deny"
+uploads = "deny"
+
+[computer_use]
+allow_persistent_approval = false
+
+[computer_use.macos.bundle_ids]
+"com.apple.Safari" = "allow"
+
+[[computer_use.windows.exes]]
+publisher_name = "CN=Google LLC"
+product_name = "Google Chrome"
+binary_name = "chrome.exe"
+access = "deny"
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+allow_browser_and_computer_use = false
+
+[browser_use]
+allow_history_access = false
+allow_global_persistent_approval = false
+
+[browser_use.default_origin_policy]
+access = "allow"
+persistent_approval = false
+access_approval_lifetime = "turn"
+
+[browser_use.origins."https://example.com"]
+access = "deny"
+downloads = "deny"
+uploads = "deny"
+
+[computer_use]
+allow_locked_computer_use = true
+allow_persistent_approval = false
+default_app_access = "allow"
+
+[computer_use.macos.bundle_ids]
+"com.apple.Safari" = "allow"
+
+[computer_use.windows.aumids]
+"Microsoft.Paint_8wekyb3d8bbwe!App" = "allow"
+
+[[computer_use.windows.exes]]
+publisher_name = "CN=Google LLC"
+product_name = "Google Chrome"
+binary_name = "chrome.exe"
+access = "deny"
+"#
+        )
+    );
+}
+
+#[test]
+fn webmcp_requirements_preserve_managed_layer_precedence() {
+    for (lower, higher, expected) in [
+        ("true", "[browser_use]", true),
+        ("false", "[browser_use]", false),
+        ("true", "[browser_use]\nallow_webmcp = false", false),
+        ("false", "[browser_use]\nallow_webmcp = true", true),
+    ] {
+        let lower = format!("[browser_use]\nallow_webmcp = {lower}");
+        let composed = compose(vec![
+            layer("req_low", "Low", &lower),
+            layer("req_high", "High", higher),
+        ])
+        .expect("compose managed WebMCP policy");
+        assert_eq!(
+            composed,
+            Some(ConfigRequirementsToml {
+                browser_use: Some(crate::BrowserUseRequirementsToml {
+                    allow_webmcp: Some(expected),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+        );
+    }
+}
+
+#[test]
+fn windows_requirements_use_regular_toml_merge() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[windows]
+allowed_sandbox_implementations = ["unelevated"]
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[windows]
+allowed_sandbox_implementations = ["elevated"]
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[windows]
+allowed_sandbox_implementations = ["elevated"]
+"#
+        )
+    );
+}
+
+#[test]
+fn remote_sandbox_config_is_applied_per_layer() {
+    let composed = compose_requirements_for_hostname(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+allowed_sandbox_modes = ["read-only"]
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[[remote_sandbox_config]]
+hostname_patterns = ["build-*.example.com"]
+allowed_sandbox_modes = ["workspace-write"]
+"#,
+            ),
+        ],
+        Some("BUILD-01.EXAMPLE.COM."),
+    )
+    .expect("compose requirements")
+    .expect("requirements present")
+    .into_toml();
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+allowed_sandbox_modes = ["workspace-write"]
+"#
+        )
+    );
+}
+
+#[test]
+fn unmatched_remote_sandbox_config_does_not_shadow_lower_layers() {
+    let composed = compose_requirements_for_hostname(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+allowed_sandbox_modes = ["read-only"]
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[[remote_sandbox_config]]
+hostname_patterns = ["mac-*.example.com"]
+allowed_sandbox_modes = ["workspace-write"]
+"#,
+            ),
+        ],
+        Some("linux-01.example.com"),
+    )
+    .expect("compose requirements")
+    .expect("requirements present")
+    .into_toml();
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+allowed_sandbox_modes = ["read-only"]
+"#
+        )
+    );
+}
+
+#[test]
+fn hostname_resolver_is_not_called_without_remote_sandbox_config() {
+    let calls = Cell::<usize>::default();
+    let composed = compose_requirements_with_hostname_resolver(
+        vec![layer(
+            "req",
+            "No remote selector",
+            r#"
+allowed_sandbox_modes = ["read-only"]
+"#,
+        )],
+        || {
+            calls.set(calls.get() + 1);
+            Some("build-01.example.com".to_string())
+        },
+    )
+    .expect("compose requirements")
+    .expect("requirements present")
+    .into_toml();
+
+    assert_eq!(calls.get(), 0);
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+allowed_sandbox_modes = ["read-only"]
+"#
+        )
+    );
+}
+
+#[test]
+fn hostname_resolver_is_called_once_for_multiple_remote_sandbox_layers() {
+    let calls = Cell::<usize>::default();
+    let composed = compose_requirements_with_hostname_resolver(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+[[remote_sandbox_config]]
+hostname_patterns = ["build-*.example.com"]
+allowed_sandbox_modes = ["read-only"]
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[[remote_sandbox_config]]
+hostname_patterns = ["build-*.example.com"]
+allowed_sandbox_modes = ["workspace-write"]
+"#,
+            ),
+        ],
+        || {
+            calls.set(calls.get() + 1);
+            Some("build-01.example.com".to_string())
+        },
+    )
+    .expect("compose requirements")
+    .expect("requirements present")
+    .into_toml();
+
+    assert_eq!(calls.get(), 1);
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+allowed_sandbox_modes = ["workspace-write"]
+"#
+        )
+    );
+}
+
+#[test]
+fn rules_are_appended_in_priority_order() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[[rules.prefix_rules]]
+pattern = [{ token = "npm" }]
+decision = "prompt"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[[rules.prefix_rules]]
+pattern = [{ token = "git" }]
+decision = "forbidden"
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[[rules.prefix_rules]]
+pattern = [{ token = "git" }]
+decision = "forbidden"
+
+[[rules.prefix_rules]]
+pattern = [{ token = "npm" }]
+decision = "prompt"
+"#
+        )
+    );
+}
+
+#[test]
+fn hooks_append_groups_and_reject_conflicting_managed_dirs() {
+    let composed = compose_with_hook_directory_field(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+[hooks]
+managed_dir = "/managed/hooks"
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "low"
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[hooks]
+managed_dir = "/managed/hooks"
+
+[[hooks.PreToolUse]]
+matcher = "Edit"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "high"
+"#,
+            ),
+        ],
+        HookDirectoryField::ManagedDir,
+    )
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[hooks]
+managed_dir = "/managed/hooks"
+
+[[hooks.PreToolUse]]
+matcher = "Edit"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "high"
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "low"
+"#
+        )
+    );
+
+    let err = compose_with_hook_directory_field(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+[hooks]
+managed_dir = "/managed/low"
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[hooks]
+managed_dir = "/managed/high"
+"#,
+            ),
+        ],
+        HookDirectoryField::ManagedDir,
+    )
+    .expect_err("conflicting managed dirs should fail closed");
+    assert!(err.to_string().contains("hooks.managed_dir"));
+    assert!(err.to_string().contains("High (req_high)"));
+    assert!(err.to_string().contains("Low (req_low)"));
+}
+
+#[test]
+fn active_windows_managed_dir_conflicts_fail_closed() {
+    let err = compose_with_hook_directory_field(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+[hooks]
+windows_managed_dir = 'C:\managed\low'
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[hooks]
+windows_managed_dir = 'C:\managed\high'
+"#,
+            ),
+        ],
+        HookDirectoryField::WindowsManagedDir,
+    )
+    .expect_err("conflicting windows managed dirs should fail closed");
+
+    assert!(err.to_string().contains("hooks.windows_managed_dir"));
+    assert!(err.to_string().contains("High (req_high)"));
+    assert!(err.to_string().contains("Low (req_low)"));
+}
+
+#[test]
+fn inactive_hook_dir_conflicts_do_not_fail_composition() {
+    let composed = compose_with_hook_directory_field(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+[hooks]
+managed_dir = "/managed/hooks"
+windows_managed_dir = 'C:\managed\low'
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "low"
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[hooks]
+managed_dir = "/managed/hooks"
+windows_managed_dir = 'C:\managed\high'
+
+[[hooks.PreToolUse]]
+matcher = "Edit"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "high"
+"#,
+            ),
+        ],
+        HookDirectoryField::ManagedDir,
+    )
+    .expect("inactive windows managed dir conflict should not fail")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[hooks]
+managed_dir = "/managed/hooks"
+windows_managed_dir = 'C:\managed\high'
+
+[[hooks.PreToolUse]]
+matcher = "Edit"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "high"
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "low"
+"#
+        )
+    );
+
+    let composed = compose_with_hook_directory_field(
+        vec![
+            layer(
+                "req_low",
+                "Low",
+                r#"
+[hooks]
+managed_dir = "/managed/low"
+windows_managed_dir = 'C:\managed\hooks'
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "low"
+"#,
+            ),
+            layer(
+                "req_high",
+                "High",
+                r#"
+[hooks]
+managed_dir = "/managed/high"
+windows_managed_dir = 'C:\managed\hooks'
+
+[[hooks.PreToolUse]]
+matcher = "Edit"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "high"
+"#,
+            ),
+        ],
+        HookDirectoryField::WindowsManagedDir,
+    )
+    .expect("inactive managed dir conflict should not fail")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[hooks]
+managed_dir = "/managed/high"
+windows_managed_dir = 'C:\managed\hooks'
+
+[[hooks.PreToolUse]]
+matcher = "Edit"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "high"
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "low"
+"#
+        )
+    );
+}
+
+#[test]
+fn permissions_deny_read_unions_while_profiles_use_regular_toml_merge() {
+    let high_path = if cfg!(windows) {
+        "C:\\secret"
+    } else {
+        "/secret"
+    };
+    let low_path = if cfg!(windows) {
+        "C:\\other-secret"
+    } else {
+        "/other-secret"
+    };
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            &format!(
+                r#"
+[permissions.filesystem]
+deny_read = [{high_path:?}, {low_path:?}]
+
+[permissions.managed-standard]
+description = "Low profile"
+extends = ":workspace"
+"#
+            ),
+        ),
+        layer(
+            "req_high",
+            "High",
+            &format!(
+                r#"
+[permissions.filesystem]
+deny_read = [{high_path:?}]
+
+[permissions.managed-standard]
+description = "High profile"
+"#
+            ),
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(format!(
+            r#"
+[permissions.filesystem]
+deny_read = [{high_path:?}, {low_path:?}]
+
+[permissions.managed-standard]
+description = "High profile"
+extends = ":workspace"
+"#
+        ))
+    );
+}
+
+#[test]
+fn permissions_network_merges_with_higher_precedence_filesystem_requirements() {
+    let denied_path = if cfg!(windows) {
+        "C:\\secret"
+    } else {
+        "/secret"
+    };
+    let low = layer(
+        "req_low",
+        "Low",
+        "[permissions.network]\nenabled = true\n[permissions.managed]\nextends = ':workspace'",
+    );
+    let high = layer(
+        "req_high",
+        "High",
+        &format!(
+            r#"
+[permissions.filesystem]
+deny_read = [{denied_path:?}]
+
+[permissions.network.domains]
+'example.com' = 'allow'
+"#
+        ),
+    );
+    let network_source = RequirementSource::composite([high.source.clone(), low.source.clone()]);
+    let filesystem_source = high.source.clone();
+    let composed = compose_requirements_for_hostname(
+        [
+            low,
+            high,
+            layer(
+                "profile",
+                "Profile",
+                "[permissions.other]\nextends = ':workspace'",
+            ),
+        ],
+        /*hostname*/ None,
+    )
+    .expect("compose requirements")
+    .expect("requirements present");
+    let effective = crate::ConfigRequirements::try_from(composed.clone()).expect("requirements");
+    assert_eq!(effective.network.expect("network").source, network_source);
+    assert_eq!(
+        effective.filesystem.expect("filesystem").source,
+        filesystem_source
+    );
+    assert_eq!(
+        composed.into_toml(),
+        expected_requirements(format!(
+            r#"
+[permissions.filesystem]
+deny_read = [{denied_path:?}]
+
+[permissions.network]
+enabled = true
+[permissions.network.domains]
+'example.com' = 'allow'
+
+[permissions.other]
+extends = ":workspace"
+
+[permissions.managed]
+extends = ":workspace"
+"#
+        ))
+    );
+}
+
+#[test]
+fn deny_read_only_layers_do_not_leave_empty_permissions_tables() {
+    let path = if cfg!(windows) {
+        "C:\\secret"
+    } else {
+        "/secret"
+    };
+    let composed = compose(vec![layer(
+        "req_high",
+        "High",
+        &format!(
+            r#"
+[permissions.filesystem]
+deny_read = [{path:?}]
+"#
+        ),
+    )])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(format!(
+            r#"
+[permissions.filesystem]
+deny_read = [{path:?}]
+"#
+        ))
+    );
+}
+
+#[test]
+fn parse_error_names_layer() {
+    let err = compose(vec![layer(
+        "req_bad",
+        "Bad layer",
+        "allowed_approval_policies = [1]",
+    )])
+    .expect_err("invalid layer should fail");
+
+    assert!(err.to_string().contains("Bad layer (req_bad)"));
+    assert!(err.to_string().contains("allowed_approval_policies"));
+}
+
+#[test]
+fn marketplace_allowed_sources_use_default_toml_merge() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[marketplaces]
+restrict_to_allowed_sources = true
+
+[marketplaces.allowed_sources.shared]
+source = "git"
+url = "https://github.com/example/old.git"
+ref = "main"
+
+[marketplaces.allowed_sources.other]
+source = "git"
+url = "https://github.com/example/other.git"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[marketplaces.allowed_sources.shared]
+ref = "release"
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[marketplaces]
+restrict_to_allowed_sources = true
+
+[marketplaces.allowed_sources.shared]
+source = "git"
+url = "https://github.com/example/old.git"
+ref = "release"
+
+[marketplaces.allowed_sources.other]
+source = "git"
+url = "https://github.com/example/other.git"
+"#,
+        )
+    );
+}
+
+#[test]
+fn marketplace_source_switch_uses_default_toml_merge() {
+    let composed = compose(vec![
+        layer(
+            "req_low",
+            "Low",
+            r#"
+[marketplaces.allowed_sources.company]
+source = "git"
+url = "https://github.com/example/plugins.git"
+ref = "main"
+"#,
+        ),
+        layer(
+            "req_high",
+            "High",
+            r#"
+[marketplaces.allowed_sources.company]
+source = "host_pattern"
+host_pattern = '^github\.example\.com$'
+"#,
+        ),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[marketplaces.allowed_sources.company]
+source = "host_pattern"
+url = "https://github.com/example/plugins.git"
+ref = "main"
+host_pattern = '^github\.example\.com$'
+"#,
+        )
+    );
+}
+
+#[test]
+fn marketplace_allowed_source_rejects_unknown_fields() {
+    let err = compose(vec![layer(
+        "req_bad",
+        "Bad marketplace layer",
+        r#"
+[marketplaces]
+restrict_to_allowed_sources = true
+
+[marketplaces.allowed_sources.invalid]
+source = "git"
+url = "https://github.com/example/plugins.git"
+reff = "main"
+"#,
+    )])
+    .expect_err("invalid marketplace rule should fail");
+
+    assert!(err.to_string().contains("Bad marketplace layer (req_bad)"));
+    assert!(err.to_string().contains("unknown field `reff`"));
+}
+
+#[test]
+fn local_marketplace_path_is_not_resolved_during_requirements_merge() {
+    let base_dir = TempDir::new().expect("create requirements base directory");
+    let base_dir = AbsolutePathBuf::try_from(base_dir.path().to_path_buf())
+        .expect("absolute requirements base directory");
+    let composed = compose(vec![
+        layer(
+            "req_local",
+            "Local marketplace path",
+            r#"
+[marketplaces]
+restrict_to_allowed_sources = true
+
+[marketplaces.allowed_sources.local]
+source = "local"
+path = "../plugins"
+"#,
+        )
+        .with_base_dir(base_dir),
+    ])
+    .expect("compose requirements")
+    .expect("requirements present");
+
+    assert_eq!(
+        composed,
+        expected_requirements(
+            r#"
+[marketplaces]
+restrict_to_allowed_sources = true
+
+[marketplaces.allowed_sources.local]
+source = "local"
+path = "../plugins"
+"#,
+        )
+    );
+}
+
+#[test]
+fn extension_headers_replace_lower_priority_lists_including_explicit_empty() {
+    for higher in [
+        r#"[browser_use.extension]
+request_headers = []"#,
+        r#"[browser_use.extension]
+request_headers = [{ name = "x-managed", value = "{{session_id}}" }]"#,
+    ] {
+        let composed = compose(vec![
+            layer(
+                "low",
+                "Lower priority",
+                r#"[browser_use.extension]
+request_headers = [{ name = "x-old", value = "old" }]"#,
+            ),
+            layer("high", "Higher priority", higher),
+        ])
+        .expect("compose requirements")
+        .expect("requirements present");
+        assert_eq!(composed, expected_requirements(higher));
+    }
+}
+
+#[test]
+fn higher_priority_config_server_replaces_previous_oauth_settings() {
+    let actual = crate::compose_requirements([
+        RequirementsLayerEntry::from_toml(
+            RequirementSource::SystemRequirementsToml {
+                file: AbsolutePathBuf::from_absolute_path(
+                    std::env::temp_dir().join("requirements.toml"),
+                )
+                .unwrap(),
+            },
+            r#"
+[config_server]
+base_url = "https://old.example/settings"
+[config_server.oauth]
+authorization_url = "https://login.old.example/authorize"
+token_url = "https://login.old.example/token"
+client_id = "old-client"
+scopes = ["policy.read"]
+"#,
+        ),
+        RequirementsLayerEntry::from_toml(
+            RequirementSource::LegacyManagedConfigTomlFromMdm,
+            "[config_server]\nbase_url = 'https://new.example/settings'",
+        ),
+    ])
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        actual,
+        ConfigRequirementsWithSources {
+            config_server: Some(Sourced::new(
+                crate::ConfigServer {
+                    base_url: "https://new.example/settings".into(),
+                    oauth: None,
+                },
+                RequirementSource::LegacyManagedConfigTomlFromMdm,
+            )),
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn fetched_policy_cannot_change_config_server() {
+    let result = crate::compose_requirements([RequirementsLayerEntry::from_toml(
+        RequirementSource::EnterpriseManaged {
+            id: "remote".into(),
+            name: "Remote policy".into(),
+        },
+        "[config_server]\nbase_url = 'https://replacement.example/settings'",
+    )]);
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("only be configured in local managed requirements")
+    );
+}

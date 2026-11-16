@@ -1,0 +1,20 @@
+[package]
+name = "utils-stream-parser"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Streaming parser helpers."
+
+[lib]
+name = "utils_stream_parser"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

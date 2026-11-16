@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
-use utils_rustls_provider::ensure_rustls_crypto_provider;
 use rustls::ClientConfig;
 use rustls_platform_verifier::ConfigVerifierExt;
+use utils_rustls_provider::ensure_rustls_crypto_provider;
 
 /// Builds a TLS configuration that validates server certificates using Windows trust policy.
 ///

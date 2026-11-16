@@ -1,0 +1,24 @@
+[package]
+name = "memories-read"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Memory read helpers."
+
+[lib]
+name = "memories_read"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+agent-protocol.workspace = true
+lime-utils-absolute-path.workspace = true
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+shell-command = { path = "../shell-command" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

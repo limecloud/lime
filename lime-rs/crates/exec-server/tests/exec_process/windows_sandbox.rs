@@ -1,0 +1,300 @@
+//! Shared Windows sandbox behavior over the real exec-server RPC connection.
+
+use super::*;
+use exec_server::ExecEnvPolicy;
+use pretty_assertions::assert_eq;
+use protocol::config_types::ShellEnvironmentPolicyInherit;
+use protocol::models::PermissionProfile;
+use protocol::permissions::FileSystemAccessMode;
+use protocol::permissions::FileSystemPath;
+use protocol::permissions::FileSystemSandboxEntry;
+use protocol::permissions::FileSystemSandboxPolicy;
+use protocol::permissions::FileSystemSpecialPath;
+use protocol::permissions::NetworkSandboxPolicy;
+
+#[cfg(windows)]
+#[test_case::test_case(false; "invalid_disabled_proxy")]
+#[test_case::test_case(true; "valid_enabled_proxy")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial_test::serial(remote_exec_server)]
+async fn native_windows_skips_owned_proxy_before_brokering(proxy_enabled: bool) -> Result<()> {
+    use network_proxy::NetworkProxyConfig;
+    use network_proxy::RemoteNetworkProxyConfig;
+    use network_proxy::RemoteNetworkProxyLaunchConfig;
+
+    const API_KEY: &str = "sk-proj-executor-only-0000000000000000000000000000000000";
+    let context = create_process_context(/*use_remote*/ true).await?;
+    let mut proxy = RemoteNetworkProxyConfig::from_effective_config(&NetworkProxyConfig {
+        enabled: proxy_enabled,
+        ..NetworkProxyConfig::default()
+    })?;
+    proxy.enable_credential_masking(Default::default());
+    let started = context
+        .backend
+        .start(ExecParams {
+            metadata: None,
+            process_id: ProcessId::from("native-windows-owned-proxy"),
+            argv: vec![
+                std::env::var("ComSpec")?,
+                "/d".into(),
+                "/c".into(),
+                "if defined HTTP_PROXY (exit /b 1) else if defined LIME_NETWORK_PROXY_ACTIVE (exit /b 2) else (echo %CALLER_VALUE% %OPENAI_API_KEY%)".into(),
+            ],
+            cwd: PathUri::from_host_native_path(std::env::current_dir()?)?,
+            env: HashMap::from([
+                ("HTTP_PROXY".into(), "http://127.0.0.1:1".into()),
+                ("SystemRoot".into(), std::env::var("SystemRoot")?),
+                ("LIME_NETWORK_PROXY_ACTIVE".into(), "1".into()),
+                ("OPENAI_API_KEY".into(), API_KEY.into()),
+                ("CALLER_VALUE".into(), "preserved".into()),
+            ]),
+            env_policy: None,
+            shell_snapshot: None,
+            tty: false,
+            pipe_stdin: false,
+            arg0: None,
+            sandbox: None,
+            enforce_managed_network: false,
+            managed_network: None,
+            network_proxy: Some(RemoteNetworkProxyLaunchConfig::new(proxy)),
+        })
+        .await?;
+    let (stdout, stderr, code, exited) = collect_process_output_from_events_with_timeout(
+        started.process,
+        Duration::from_secs(/*secs*/ 30),
+    )
+    .await?;
+    assert_eq!(
+        (stdout.trim(), stderr, code, exited),
+        (
+            format!("preserved {API_KEY}").as_str(),
+            String::new(),
+            Some(0),
+            true
+        )
+    );
+    Ok(())
+}
+
+/// Windows alias casing must not prevent fallback when the primary runtime is absent from PATH.
+#[test_case::test_case("pwsh.exe"; "lowercase_pwsh")]
+#[test_case::test_case("PWSH.exe"; "uppercase_pwsh")]
+#[test_case::test_case("powershell.exe"; "lowercase_powershell")]
+#[test_case::test_case("PowerShell.exe"; "mixed_case_powershell")]
+#[cfg_attr(not(windows), ignore = "requires a native Windows sandbox")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial_test::serial(remote_exec_server)]
+async fn powershell_alias_falls_back_without_primary_runtime_over_rpc(
+    shell_name: &str,
+) -> Result<()> {
+    crate::skip_if_mxc_unavailable!(Ok(()));
+    let root = TempDir::new()?;
+    let system32 = std::path::PathBuf::from(std::env::var("SystemRoot")?).join("System32");
+    let server =
+        common::exec_server::exec_server_with_env([("PATH", system32.as_os_str())], &[]).await?;
+    let environment = Environment::create_for_tests(Some(server.websocket_url().to_owned()))?;
+    let cwd = PathUri::from_host_native_path(root.path())?;
+    let mut sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::read_only(),
+        cwd.clone(),
+    );
+    sandbox.windows_sandbox_selection = exec_server::WindowsSandboxSelection::Mxc;
+    let started = environment
+        .get_exec_backend()
+        .start(ExecParams {
+            process_id: ProcessId::from("windows-powershell-fallback"),
+            metadata: None,
+            argv: vec![
+                root.path()
+                    .join("WindowsApps")
+                    .join(shell_name)
+                    .to_string_lossy()
+                    .into_owned(),
+                "-NoProfile".to_owned(),
+                "-Command".to_owned(),
+                "if (!$env:SystemDrive -or !$env:LOCALAPPDATA -or !$env:USERPROFILE -or !$env:PATH) { throw 'missing Windows defaults' }; Write-Output 'fallback-ok'".to_owned(),
+            ],
+            cwd,
+            env_policy: None,
+            shell_snapshot: None,
+            env: HashMap::new(),
+            tty: false,
+            pipe_stdin: false,
+            arg0: None,
+            sandbox: Some(sandbox),
+            enforce_managed_network: false,
+            managed_network: None,
+            network_proxy: None,
+        })
+        .await?;
+    assert_eq!(
+        started.sandbox_type,
+        Some(sandboxing::SandboxType::WindowsMxc)
+    );
+    let (stdout, stderr, exit_code, exited) = collect_process_output_from_events_with_timeout(
+        started.process,
+        Duration::from_secs(/*secs*/ 30),
+    )
+    .await?;
+    assert_eq!(
+        (stdout.trim(), stderr, exit_code, exited),
+        ("fallback-ok", String::new(), Some(0), true)
+    );
+    Ok(())
+}
+
+#[test_case::test_case(WindowsSandboxSelection::Mxc, sandboxing::SandboxType::WindowsMxc; "mxc")]
+#[test_case::test_case(WindowsSandboxSelection::Elevated, sandboxing::SandboxType::WindowsRestrictedToken; "elevated")]
+#[cfg_attr(not(windows), ignore = "requires a native Windows sandbox")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial_test::serial(remote_exec_server)]
+async fn tmpdir_uses_command_environment_over_rpc(
+    selection: WindowsSandboxSelection,
+    expected_type: sandboxing::SandboxType,
+) -> Result<()> {
+    if selection == WindowsSandboxSelection::Mxc {
+        crate::skip_if_mxc_unavailable!(Ok(()));
+    }
+    #[cfg(windows)]
+    let _account_guard = if selection == WindowsSandboxSelection::Elevated {
+        let guard = lime_windows_sandbox_test_support::WindowsSandboxAccountTestGuard::acquire()?;
+        // The RPC server re-enters this test executable, as in file_system_windows.
+        let executable = std::env::current_exe()?;
+        let resources = executable
+            .parent()
+            .context("Windows test executable should have a parent directory")?
+            .join("lime-resources");
+        if let Err(error) = std::fs::create_dir_all(&resources)
+            && !(error.kind() == std::io::ErrorKind::PermissionDenied && resources.is_dir())
+        {
+            return Err(error).context("create Windows sandbox test resources");
+        }
+        for name in ["lime-windows-sandbox-setup", "lime-command-runner"] {
+            let source = lime_utils_cargo_bin::cargo_bin(name)?;
+            let destination = resources.join(std::path::Path::new(name).with_extension("exe"));
+            if let Err(error) = lime_utils_cargo_bin::copy_executable(&source, &destination)
+                && !(error.kind() == std::io::ErrorKind::PermissionDenied && destination.is_file())
+            {
+                return Err(error).with_context(|| format!("stage Windows sandbox helper {name}"));
+            }
+        }
+        Some(guard)
+    } else {
+        None
+    };
+    let root = TempDir::new()?;
+    let command_temp = root.path().join("command temp");
+    let server_temp = root.path().join("server temp");
+    std::fs::create_dir(&command_temp)?;
+    std::fs::create_dir(&server_temp)?;
+    let outside = server_temp.join("outside.txt");
+    std::fs::write(&outside, "original")?;
+    let server = common::exec_server::exec_server_with_env(
+        [
+            ("TEMP", server_temp.as_os_str()),
+            ("TMP", server_temp.as_os_str()),
+        ],
+        &[],
+    )
+    .await?;
+    let environment = Environment::create_for_tests(Some(server.websocket_url().to_owned()))?;
+    let cwd = PathUri::from_host_native_path(root.path())?;
+    let fs = FileSystemSandboxPolicy::restricted(vec![
+        FileSystemSandboxEntry::new(
+            FileSystemPath::Special {
+                value: FileSystemSpecialPath::Root,
+            },
+            FileSystemAccessMode::Read,
+        ),
+        FileSystemSandboxEntry::new(
+            FileSystemPath::Special {
+                value: FileSystemSpecialPath::Tmpdir,
+            },
+            FileSystemAccessMode::Write,
+        ),
+    ]);
+    let mut sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::from_runtime_permissions(&fs, NetworkSandboxPolicy::Restricted),
+        cwd.clone(),
+    );
+    sandbox.windows_sandbox_selection = selection;
+    let env = HashMap::from([
+        ("SystemRoot".to_owned(), std::env::var("SystemRoot")?),
+        (
+            "ALLOWED_FILE".to_owned(),
+            format!("\"{}\"", command_temp.join("allowed.txt").display()),
+        ),
+        (
+            "OUTSIDE_FILE".to_owned(),
+            format!("\"{}\"", outside.display()),
+        ),
+    ]);
+    // Raw params have no TEMP. The executor must finish the env policy before
+    // resolving permissions. No inheritance: omitted TMP must not grant server_temp.
+    let mut configured_temp = HashMap::from([(
+        "TEMP".to_owned(),
+        command_temp.to_string_lossy().into_owned(),
+    )]);
+    if selection == WindowsSandboxSelection::Mxc {
+        configured_temp.insert(
+            "TMP".to_owned(),
+            command_temp.to_string_lossy().into_owned(),
+        );
+    }
+    let started = environment
+        .get_exec_backend()
+        .start(ExecParams {
+            process_id: ProcessId::from("windows-sandbox-temp"),
+            metadata: None,
+            argv: vec![
+                r"C:\Windows\System32\cmd.exe".to_owned(),
+                "/D".to_owned(),
+                "/S".to_owned(),
+                "/C".to_owned(),
+                "echo CHILD-TEMP:%TEMP% & echo allowed>%ALLOWED_FILE% & echo modified>%OUTSIDE_FILE% & exit /b 0".to_owned(),
+            ],
+            cwd,
+            env_policy: Some(ExecEnvPolicy {
+                inherit: ShellEnvironmentPolicyInherit::None,
+                ignore_default_excludes: false,
+                exclude: Vec::new(),
+                r#set: configured_temp,
+                include_only: Vec::new(),
+            }),
+            shell_snapshot: None,
+            env,
+            tty: false,
+            pipe_stdin: false,
+            arg0: None,
+            sandbox: Some(sandbox),
+            enforce_managed_network: false,
+            managed_network: None,
+            network_proxy: None,
+        })
+        .await?;
+    assert_eq!(started.sandbox_type, Some(expected_type));
+    let (stdout, stderr, code, exited) = collect_process_output_from_events_with_timeout(
+        started.process,
+        Duration::from_secs(/*secs*/ 30),
+    )
+    .await?;
+    assert_eq!(
+        (stdout.trim(), code, exited),
+        (
+            format!("CHILD-TEMP:{}", command_temp.display()).as_str(),
+            Some(0),
+            true
+        ),
+        "unexpected launch result, stderr: {stderr}"
+    );
+    assert_eq!(
+        (
+            std::fs::read_to_string(command_temp.join("allowed.txt"))?
+                .trim_end()
+                .to_owned(),
+            std::fs::read_to_string(outside)?
+        ),
+        ("allowed".to_owned(), "original".to_owned())
+    );
+    Ok(())
+}

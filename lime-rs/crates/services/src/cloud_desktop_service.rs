@@ -581,7 +581,10 @@ impl CloudDesktopService {
         let receipt = self
             .read_receipt(operation_id)?
             .ok_or("Cloud desktop operation does not exist")?;
-        if matches!(receipt["request"]["action"].as_str(), Some("start" | "stop")) {
+        if matches!(
+            receipt["request"]["action"].as_str(),
+            Some("start" | "stop")
+        ) {
             return self.inspect_lifecycle_operation(operation_id).await;
         }
         if receipt["request"]["action"] == "hibernateEcs" {

@@ -5,12 +5,12 @@ use crate::tool_executor::{
     RuntimeToolPolicyErrorKind, RuntimeToolTurnContext,
 };
 use lime_skills::{
-    build_agent_skill_snapshot_from_workspace, search_agent_skills, AgentSkillMetadata,
-    AgentSkillSearchOptions, AgentSkillSearchResult, AgentSkillSnapshot,
+    AgentSkillMetadata, AgentSkillSearchOptions, AgentSkillSearchResult, AgentSkillSnapshot,
     DEFAULT_AGENT_SKILL_SEARCH_LIMIT, SKILL_SNAPSHOT_TURN_METADATA_KEY,
+    build_agent_skill_snapshot_from_workspace, search_agent_skills,
 };
 use serde::Deserialize;
-use serde_json::{json, Map as JsonMap, Value};
+use serde_json::{Map as JsonMap, Value, json};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -396,9 +396,11 @@ mod tests {
         );
         assert!(result.metadata.contains_key("tool_family"));
         assert!(!result.metadata.contains_key("skill_name"));
-        assert!(!result
-            .metadata
-            .contains_key("workspace_skill_runtime_enable"));
+        assert!(
+            !result
+                .metadata
+                .contains_key("workspace_skill_runtime_enable")
+        );
         assert!(!output.to_string().contains("SECRET BODY"));
     }
 
@@ -501,10 +503,12 @@ mod tests {
             output["results"][0]["locator"]["skillFilePath"],
             "skill://delivery/release-notes/SKILL.md"
         );
-        assert!(output["usage"]
-            .as_str()
-            .expect("usage")
-            .contains("read_mcp_resource"));
+        assert!(
+            output["usage"]
+                .as_str()
+                .expect("usage")
+                .contains("read_mcp_resource")
+        );
     }
 
     #[test]

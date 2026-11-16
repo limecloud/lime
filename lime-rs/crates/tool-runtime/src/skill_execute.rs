@@ -8,7 +8,7 @@ use crate::skill_result::{
 };
 use crate::skill_runtime_contract::build_skill_runtime_contract_metadata;
 use async_trait::async_trait;
-use lime_skills::{find_skill_by_name, LlmProvider, SkillError, SkillRunResult, SkillRunner};
+use lime_skills::{LlmProvider, SkillError, SkillRunResult, SkillRunner, find_skill_by_name};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -241,8 +241,8 @@ fn skill_run_metadata(result: SkillRunResult) -> HashMap<String, Value> {
 mod tests {
     use super::*;
     use crate::skill_gate::{
-        clear_skill_tool_session_access, set_skill_tool_session_access,
-        set_skill_tool_session_allowed_skill_sources, SkillToolSessionSkillSource,
+        SkillToolSessionSkillSource, clear_skill_tool_session_access,
+        set_skill_tool_session_access, set_skill_tool_session_allowed_skill_sources,
     };
     use crate::skill_runtime_contract::PDF_EXTRACT_CONTRACT_KEY;
     use serde_json::json;

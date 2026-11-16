@@ -1,0 +1,21 @@
+[package]
+name = "utils-sandbox-summary"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Sandbox summary rendering."
+
+[lib]
+name = "utils_sandbox_summary"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+protocol = { path = "../protocol" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

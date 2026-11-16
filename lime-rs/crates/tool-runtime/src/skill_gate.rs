@@ -3,7 +3,7 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::tool_definition::RuntimeToolDefinition;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const IMAGE_GENERATION_CONTRACT_KEY: &str = "image_generation";
 pub const IMAGE_GENERATE_SKILL_NAME: &str = "image_generate";
@@ -541,11 +541,13 @@ mod tests {
         assert!(disabled.message().contains("未启用技能自动调用"));
 
         set_skill_tool_session_allowed_skills(session_id, ["project:capability-report"]);
-        assert!(check_skill_tool_access(
-            session_id,
-            &serde_json::json!({ "skill": "capability-report" }),
-        )
-        .is_ok());
+        assert!(
+            check_skill_tool_access(
+                session_id,
+                &serde_json::json!({ "skill": "capability-report" }),
+            )
+            .is_ok()
+        );
         let denied =
             check_skill_tool_access(session_id, &serde_json::json!({ "skill": "other-skill" }))
                 .expect_err("unlisted skill should fail");
@@ -625,10 +627,12 @@ mod tests {
             }
         }));
 
-        assert!(params
-            .get("args")
-            .and_then(Value::as_str)
-            .is_some_and(|args| args.contains("project-1")));
+        assert!(
+            params
+                .get("args")
+                .and_then(Value::as_str)
+                .is_some_and(|args| args.contains("project-1"))
+        );
     }
 
     #[test]

@@ -1,0 +1,18 @@
+[package]
+name = "protocol-test-support"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Protocol test fixtures."
+
+[lib]
+name = "protocol_test_support"
+path = "lib.rs"
+test = false
+doctest = false
+
+[dependencies]
+protocol = { path = "../protocol" }
+uuid = { workspace = true, features = ["v7"] }

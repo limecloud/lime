@@ -1,0 +1,18 @@
+[package]
+name = "test-binary-support"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Test binary dispatch support."
+
+[lib]
+name = "test_binary_support"
+path = "lib.rs"
+test = false
+doctest = false
+
+[dependencies]
+arg0 = { path = "../arg0" }
+tempfile.workspace = true

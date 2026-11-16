@@ -1,12 +1,12 @@
 use crate::tool_definition::RuntimeToolDefinition;
 use crate::tool_result_projection::{
-    runtime_tool_result_to_call_tool_result, RuntimeToolResultParts,
+    RuntimeToolResultParts, runtime_tool_result_to_call_tool_result,
 };
 use glob::glob as glob_match;
 use regex::{Regex, RegexBuilder};
 use rmcp::model::{CallToolResult, ErrorCode, ErrorData};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fs;

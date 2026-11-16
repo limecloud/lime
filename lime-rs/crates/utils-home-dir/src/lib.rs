@@ -1,24 +1,24 @@
-use lime_utils_absolute_path::AbsolutePathBuf;
 use dirs::home_dir;
+use lime_utils_absolute_path::AbsolutePathBuf;
 use std::path::PathBuf;
 
 /// Returns the path to the Lime configuration directory, which can be
-/// specified by the `CODEX_HOME` environment variable. If not set, defaults to
+/// specified by the `LIME_HOME` environment variable. If not set, defaults to
 /// `~/.lime`.
 ///
-/// - If `CODEX_HOME` is set, the value must exist and be a directory. The
+/// - If `LIME_HOME` is set, the value must exist and be a directory. The
 ///   value will be canonicalized and this function will Err otherwise.
-/// - If `CODEX_HOME` is not set, this function does not verify that the
+/// - If `LIME_HOME` is not set, this function does not verify that the
 ///   directory exists.
 pub fn find_lime_home() -> std::io::Result<AbsolutePathBuf> {
-    let lime_home_env = std::env::var("CODEX_HOME")
+    let lime_home_env = std::env::var("LIME_HOME")
         .ok()
         .filter(|val| !val.is_empty());
     find_lime_home_from_env(lime_home_env.as_deref())
 }
 
 fn find_lime_home_from_env(lime_home_env: Option<&str>) -> std::io::Result<AbsolutePathBuf> {
-    // Honor the `CODEX_HOME` environment variable when it is set to allow users
+    // Honor the `LIME_HOME` environment variable when it is set to allow users
     // (and tests) to override the default location.
     match lime_home_env {
         Some(val) => {
@@ -26,24 +26,24 @@ fn find_lime_home_from_env(lime_home_env: Option<&str>) -> std::io::Result<Absol
             let metadata = std::fs::metadata(&path).map_err(|err| match err.kind() {
                 std::io::ErrorKind::NotFound => std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!("CODEX_HOME points to {val:?}, but that path does not exist"),
+                    format!("LIME_HOME points to {val:?}, but that path does not exist"),
                 ),
                 _ => std::io::Error::new(
                     err.kind(),
-                    format!("failed to read CODEX_HOME {val:?}: {err}"),
+                    format!("failed to read LIME_HOME {val:?}: {err}"),
                 ),
             })?;
 
             if !metadata.is_dir() {
                 Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("CODEX_HOME points to {val:?}, but that path is not a directory"),
+                    format!("LIME_HOME points to {val:?}, but that path is not a directory"),
                 ))
             } else {
                 let canonical = path.canonicalize().map_err(|err| {
                     std::io::Error::new(
                         err.kind(),
-                        format!("failed to canonicalize CODEX_HOME {val:?}: {err}"),
+                        format!("failed to canonicalize LIME_HOME {val:?}: {err}"),
                     )
                 })?;
                 AbsolutePathBuf::from_absolute_path(canonical)
@@ -65,8 +65,8 @@ fn find_lime_home_from_env(lime_home_env: Option<&str>) -> std::io::Result<Absol
 #[cfg(test)]
 mod tests {
     use super::find_lime_home_from_env;
-    use lime_utils_absolute_path::AbsolutePathBuf;
     use dirs::home_dir;
+    use lime_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
     use std::fs;
     use std::io::ErrorKind;
@@ -80,10 +80,10 @@ mod tests {
             .to_str()
             .expect("missing lime home path should be valid utf-8");
 
-        let err = find_lime_home_from_env(Some(missing_str)).expect_err("missing CODEX_HOME");
+        let err = find_lime_home_from_env(Some(missing_str)).expect_err("missing LIME_HOME");
         assert_eq!(err.kind(), ErrorKind::NotFound);
         assert!(
-            err.to_string().contains("CODEX_HOME"),
+            err.to_string().contains("LIME_HOME"),
             "unexpected error: {err}"
         );
     }
@@ -97,7 +97,7 @@ mod tests {
             .to_str()
             .expect("file lime home path should be valid utf-8");
 
-        let err = find_lime_home_from_env(Some(file_str)).expect_err("file CODEX_HOME");
+        let err = find_lime_home_from_env(Some(file_str)).expect_err("file LIME_HOME");
         assert_eq!(err.kind(), ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("not a directory"),
@@ -113,7 +113,7 @@ mod tests {
             .to_str()
             .expect("temp lime home path should be valid utf-8");
 
-        let resolved = find_lime_home_from_env(Some(temp_str)).expect("valid CODEX_HOME");
+        let resolved = find_lime_home_from_env(Some(temp_str)).expect("valid LIME_HOME");
         let expected = temp_home
             .path()
             .canonicalize()
@@ -124,8 +124,7 @@ mod tests {
 
     #[test]
     fn find_lime_home_without_env_uses_default_home_dir() {
-        let resolved =
-            find_lime_home_from_env(/*lime_home_env*/ None).expect("default CODEX_HOME");
+        let resolved = find_lime_home_from_env(/*lime_home_env*/ None).expect("default LIME_HOME");
         let mut expected = home_dir().expect("home dir");
         expected.push(".lime");
         let expected = AbsolutePathBuf::from_absolute_path(expected).expect("absolute home");

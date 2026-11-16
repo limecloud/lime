@@ -446,7 +446,7 @@ fn patch_destinations(payload: &Value) -> Vec<String> {
     else {
         return Vec::new();
     };
-    let Ok(parsed) = patch_apply::parse_patch(patch) else {
+    let Ok(parsed) = apply_patch::parse_patch(patch) else {
         return Vec::new();
     };
     let cwd = payload_string(payload, &["cwd"]).map(std::path::PathBuf::from);
@@ -461,7 +461,7 @@ fn patch_destinations(payload: &Value) -> Vec<String> {
     };
     let mut destinations = Vec::new();
     for hunk in &parsed.hunks {
-        if let patch_apply::Hunk::UpdateFile {
+        if let apply_patch::Hunk::UpdateFile {
             path, move_path, ..
         } = hunk
         {

@@ -129,7 +129,7 @@ Lime 的 coding 骨架已经不是缺“能不能改文件”的问题；P1-P4 c
 | 类型       | 路径 / 能力                                                                                                    | 说明                                                                |
 | ---------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | current    | App Server JSON-RPC + RuntimeCore + ExecutionBackend + AgentUI projection + Coding Workbench                   | 后续 coding 能力只向这里收敛。                                      |
-| current    | `patch-apply` crate、runtime output refs、file checkpoint refs、policy service、workspace sandbox backend plan | 已经是 Lime current owner，继续小步补强。                           |
+| current    | `apply-patch` crate、runtime output refs、file checkpoint refs、policy service、workspace sandbox backend plan | 已经是 Lime current owner，继续小步补强。                           |
 | compat     | 外部 CLI / harness adapter                                                                                     | 只能输出 RuntimeEvent / ReadModel adapter，不允许成为生产必需主链。 |
 | deprecated | 旧 thread item 推断 coding 状态、旧 `code_orchestrated` 入口                                                   | 只允许历史 hydrate / compat 归一，不允许新增状态逻辑。              |
 | dead       | `lime-rs/src/**`、旧 Tauri command wrapper、生产 mock fallback                                                 | 不得恢复。                                                          |

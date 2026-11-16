@@ -4,9 +4,9 @@ use crate::tool_executor::{
     RuntimeToolExecutionResult, RuntimeToolExecutor, RuntimeToolExecutorHandle,
     RuntimeToolPolicyErrorKind,
 };
-use reqwest::{redirect::Policy, Client};
+use reqwest::{Client, redirect::Policy};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
@@ -158,12 +158,12 @@ impl RuntimeWebFetchExecutor {
             agent_protocol::WebSearchMode::Disabled => {
                 return Err(runtime_web_fetch_error(
                     "web search is disabled by the current access policy",
-                ))
+                ));
             }
             agent_protocol::WebSearchMode::Indexed => {
                 return Err(runtime_web_fetch_error(
                     "indexed web fetch is unavailable in the local backend",
-                ))
+                ));
             }
             _ => {}
         }

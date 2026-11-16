@@ -3,9 +3,11 @@ use super::next_connection_id;
 use super::ConnectionOrigin;
 use super::TransportEvent;
 use crate::serialize_outgoing_message;
+use crate::websocket_auth::{
+    authorize_upgrade, is_unauthenticated_non_loopback_listener, WebsocketAuthPolicy,
+};
 use crate::QueuedOutgoingMessage;
 use crate::CHANNEL_CAPACITY;
-use crate::websocket_auth::{authorize_upgrade, is_unauthenticated_non_loopback_listener, WebsocketAuthPolicy};
 use axum::body::Body;
 use axum::extract::ws::Message as AxumWebSocketMessage;
 use axum::extract::ws::WebSocketUpgrade;
@@ -107,7 +109,10 @@ pub async fn start_websocket_acceptor(
         .route("/healthz", get(health_check_handler))
         .fallback(any(websocket_upgrade_handler))
         .layer(middleware::from_fn(reject_requests_with_origin_header))
-        .with_state(WebSocketListenerState { transport_event_tx, auth_policy });
+        .with_state(WebSocketListenerState {
+            transport_event_tx,
+            auth_policy,
+        });
     let server = axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
@@ -500,7 +505,9 @@ mod tests {
 
     #[tokio::test]
     async fn websocket_auth_rejects_before_opening_runtime_connection() {
-        use crate::websocket_auth::{policy_from_settings, WebsocketAuthArgs, WebsocketAuthCliMode};
+        use crate::websocket_auth::{
+            policy_from_settings, WebsocketAuthArgs, WebsocketAuthCliMode,
+        };
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         let directory = tempfile::tempdir().unwrap();
         let token_file = directory.path().join("token");
@@ -509,30 +516,58 @@ mod tests {
             ws_auth: Some(WebsocketAuthCliMode::CapabilityToken),
             ws_token_file: Some(token_file),
             ..Default::default()
-        }.try_into_settings().unwrap();
+        }
+        .try_into_settings()
+        .unwrap();
         let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
         let shutdown = CancellationToken::new();
         let (address, handle) = start_websocket_acceptor(
-            "127.0.0.1:0".parse().unwrap(), tx, shutdown.clone(), policy_from_settings(&settings).unwrap(),
-        ).await.unwrap();
-        for token in [None, Some("Bearer wrong"), Some("Basic test-session-credential")] {
+            "127.0.0.1:0".parse().unwrap(),
+            tx,
+            shutdown.clone(),
+            policy_from_settings(&settings).unwrap(),
+        )
+        .await
+        .unwrap();
+        for token in [
+            None,
+            Some("Bearer wrong"),
+            Some("Basic test-session-credential"),
+        ] {
             let mut request = format!("ws://{address}").into_client_request().unwrap();
             if let Some(token) = token {
-                request.headers_mut().insert("authorization", token.parse().unwrap());
+                request
+                    .headers_mut()
+                    .insert("authorization", token.parse().unwrap());
             }
             let error = connect_async(request).await.unwrap_err();
-            assert!(matches!(error, tokio_tungstenite::tungstenite::Error::Http(response) if response.status() == 401));
-            assert!(rx.try_recv().is_err(), "rejected upgrades must not enter the runtime");
+            assert!(
+                matches!(error, tokio_tungstenite::tungstenite::Error::Http(response) if response.status() == 401)
+            );
+            assert!(
+                rx.try_recv().is_err(),
+                "rejected upgrades must not enter the runtime"
+            );
         }
         let mut request = format!("ws://{address}").into_client_request().unwrap();
-        request.headers_mut().insert("authorization", "Bearer test-session-credential".parse().unwrap());
+        request.headers_mut().insert(
+            "authorization",
+            "Bearer test-session-credential".parse().unwrap(),
+        );
         // Authentication does not weaken the existing browser Origin boundary.
-        request.headers_mut().insert("origin", "https://attacker.test".parse().unwrap());
+        request
+            .headers_mut()
+            .insert("origin", "https://attacker.test".parse().unwrap());
         let error = connect_async(request.clone()).await.unwrap_err();
-        assert!(matches!(error, tokio_tungstenite::tungstenite::Error::Http(response) if response.status() == 403));
+        assert!(
+            matches!(error, tokio_tungstenite::tungstenite::Error::Http(response) if response.status() == 403)
+        );
         request.headers_mut().remove("origin");
         let (mut socket, _) = connect_async(request).await.unwrap();
-        assert!(matches!(timeout(Duration::from_secs(1), rx.recv()).await.unwrap(), Some(TransportEvent::ConnectionOpened { .. })));
+        assert!(matches!(
+            timeout(Duration::from_secs(1), rx.recv()).await.unwrap(),
+            Some(TransportEvent::ConnectionOpened { .. })
+        ));
         socket.close(None).await.unwrap();
         timeout(Duration::from_secs(1), rx.recv()).await.unwrap();
         shutdown.cancel();

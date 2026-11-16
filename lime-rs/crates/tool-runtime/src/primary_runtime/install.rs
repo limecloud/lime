@@ -1,7 +1,7 @@
 use super::{
-    bundle_archive,
+    PrimaryRuntimeService, bundle_archive,
     manifest::{Artifact, Platform},
-    probe, store, PrimaryRuntimeService,
+    probe, store,
 };
 use app_server_protocol::protocol::v2::PrimaryRuntimeInstallPhase;
 use sha2::{Digest, Sha256};

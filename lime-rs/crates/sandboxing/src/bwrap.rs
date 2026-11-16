@@ -1,0 +1,369 @@
+use crate::policy_transforms::should_require_platform_sandbox;
+use lime_utils_absolute_path::AbsolutePathBuf;
+use protocol::models::PermissionProfile;
+use protocol::permissions::FileSystemSandboxPolicy;
+use std::ffi::CString;
+use std::io::ErrorKind;
+use std::io::Read;
+use std::os::fd::AsRawFd;
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+use std::process::Output;
+use std::process::Stdio;
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
+
+const SYSTEM_BWRAP_PROGRAM: &str = "bwrap";
+const MISSING_BWRAP_WARNING: &str = concat!(
+    "Lime could not find bubblewrap on PATH. ",
+    "Install bubblewrap with your OS package manager. ",
+    "See the sandbox prerequisites: ",
+    "https://developers.openai.com/lime/concepts/sandboxing#prerequisites. ",
+    "Lime will use the bundled bubblewrap in the meantime.",
+);
+const USER_NAMESPACE_WARNING: &str =
+    "Lime's Linux sandbox uses bubblewrap and needs access to create user namespaces.";
+pub(crate) const WSL1_BWRAP_WARNING: &str = concat!(
+    "Lime's Linux sandbox uses bubblewrap, which is not supported on WSL1 ",
+    "because WSL1 cannot create the required user namespaces. ",
+    "Use WSL2 for sandboxed shell commands."
+);
+const USER_NAMESPACE_FAILURES: [&str; 4] = [
+    "loopback: Failed RTM_NEWADDR",
+    "loopback: Failed RTM_NEWLINK",
+    "setting up uid map: Permission denied",
+    "No permissions to create a new namespace",
+];
+const SYSTEM_BWRAP_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+const SYSTEM_BWRAP_PROBE_POLL_INTERVAL: Duration = Duration::from_millis(50);
+const SYSTEM_BWRAP_PROBE_STDERR_LIMIT_BYTES: u64 = 64 * 1024;
+
+pub fn system_bwrap_warning(
+    permission_profile: &PermissionProfile,
+    sandbox_policy_cwd: &Path,
+) -> Option<String> {
+    if !should_warn_about_system_bwrap(permission_profile) {
+        return None;
+    }
+
+    let system_bwrap_path = find_system_bwrap_in_path(
+        &permission_profile.file_system_sandbox_policy(),
+        sandbox_policy_cwd,
+    );
+    system_bwrap_warning_for_path(system_bwrap_path.as_deref())
+}
+
+fn should_warn_about_system_bwrap(permission_profile: &PermissionProfile) -> bool {
+    let (file_system_policy, network_policy) = permission_profile.to_runtime_permissions();
+    should_require_platform_sandbox(
+        &file_system_policy,
+        network_policy,
+        /*has_managed_network_requirements*/ false,
+    )
+}
+
+fn system_bwrap_warning_for_path(system_bwrap_path: Option<&Path>) -> Option<String> {
+    if is_wsl1() {
+        return Some(WSL1_BWRAP_WARNING.to_string());
+    }
+
+    let Some(system_bwrap_path) = system_bwrap_path else {
+        return Some(MISSING_BWRAP_WARNING.to_string());
+    };
+
+    if !system_bwrap_has_user_namespace_access(system_bwrap_path, SYSTEM_BWRAP_PROBE_TIMEOUT) {
+        return Some(USER_NAMESPACE_WARNING.to_string());
+    }
+
+    None
+}
+
+fn system_bwrap_has_user_namespace_access(system_bwrap_path: &Path, timeout: Duration) -> bool {
+    let mut child = match Command::new(system_bwrap_path)
+        .args([
+            "--unshare-user",
+            "--unshare-net",
+            "--ro-bind",
+            "/",
+            "/",
+            "/bin/true",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(_) => return true,
+    };
+
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stderr = child.stderr.take().map_or_else(Vec::new, |stderr| {
+                    let fd = stderr.as_raw_fd();
+                    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+                    if flags < 0
+                        || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0
+                    {
+                        return Vec::new();
+                    }
+
+                    let mut bytes = Vec::new();
+                    let mut stderr = stderr.take(SYSTEM_BWRAP_PROBE_STDERR_LIMIT_BYTES);
+                    if let Err(err) = stderr.read_to_end(&mut bytes)
+                        && err.kind() != ErrorKind::WouldBlock
+                    {
+                        return bytes;
+                    }
+                    bytes
+                });
+                let output = Output {
+                    status,
+                    stdout: Vec::new(),
+                    stderr,
+                };
+                return output.status.success() || !is_user_namespace_failure(&output);
+            }
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return true;
+                }
+                thread::sleep(SYSTEM_BWRAP_PROBE_POLL_INTERVAL);
+            }
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return true;
+            }
+        }
+    }
+}
+
+pub(crate) fn is_wsl1() -> bool {
+    std::fs::read_to_string("/proc/version")
+        .is_ok_and(|proc_version| proc_version_indicates_wsl1(&proc_version))
+}
+
+fn proc_version_indicates_wsl1(proc_version: &str) -> bool {
+    let proc_version = proc_version.to_ascii_lowercase();
+    let mut remaining = proc_version.as_str();
+    while let Some(marker) = remaining.find("wsl") {
+        let version_start = marker + "wsl".len();
+        let version_digits: String = remaining[version_start..]
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+        if let Ok(version) = version_digits.parse::<u32>() {
+            return version == 1;
+        }
+        remaining = &remaining[version_start..];
+    }
+
+    proc_version.contains("microsoft") && !proc_version.contains("microsoft-standard")
+}
+
+fn is_user_namespace_failure(output: &Output) -> bool {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    USER_NAMESPACE_FAILURES
+        .iter()
+        .any(|failure| stderr.contains(failure))
+}
+
+pub fn find_system_bwrap_in_path(
+    file_system_policy: &FileSystemSandboxPolicy,
+    sandbox_policy_cwd: &Path,
+) -> Option<PathBuf> {
+    find_pre_sandbox_executable_in_path(
+        SYSTEM_BWRAP_PROGRAM,
+        file_system_policy,
+        sandbox_policy_cwd,
+    )
+}
+
+/// Finds the first canonical PATH executable for use before sandbox construction.
+/// Skips candidates under a non-root process cwd and candidates the current user
+/// can modify or replace through writes allowed by the filesystem policy.
+pub fn find_pre_sandbox_executable_in_path(
+    program: &str,
+    file_system_policy: &FileSystemSandboxPolicy,
+    sandbox_policy_cwd: &Path,
+) -> Option<PathBuf> {
+    let search_path = std::env::var_os("PATH")?;
+    let cwd = std::env::current_dir().ok()?;
+    find_executable_in_search_paths(
+        program,
+        std::env::split_paths(&search_path),
+        &cwd,
+        file_system_policy,
+        sandbox_policy_cwd,
+    )
+}
+
+/// Apply the pre-sandbox executable selection rules to an explicit command context.
+pub fn find_executable_in_search_paths(
+    program: &str,
+    search_paths: impl IntoIterator<Item = PathBuf>,
+    cwd: &Path,
+    file_system_policy: &FileSystemSandboxPolicy,
+    sandbox_policy_cwd: &Path,
+) -> Option<PathBuf> {
+    let search_path = std::env::join_paths(search_paths).ok()?;
+    let cwd = std::fs::canonicalize(cwd).unwrap_or_else(|_| cwd.to_path_buf());
+    let cwd_is_root = cwd.parent().is_none();
+    // Full-disk policies intentionally have no enumerated writable roots.
+    let full_disk_write = file_system_policy.has_full_disk_write_access();
+    let writable_roots = file_system_policy
+        .get_writable_roots_with_cwd_inheriting_root_metadata(sandbox_policy_cwd)
+        .into_iter()
+        .map(|mut root| {
+            if let Ok(canonical) = std::fs::canonicalize(&root.root)
+                && let Ok(canonical) = AbsolutePathBuf::from_absolute_path_checked(canonical)
+            {
+                for subpath in &mut root.read_only_subpaths {
+                    if let Ok(relative) = subpath.as_path().strip_prefix(root.root.as_path()) {
+                        *subpath = canonical.join(relative);
+                    }
+                }
+                root.root = canonical;
+            }
+            root
+        })
+        .collect::<Vec<_>>();
+    let policy_can_write = |path: &Path| {
+        full_disk_write
+            || writable_roots
+                .iter()
+                .any(|root| root.is_path_writable(path))
+    };
+    let file_is_writable = |path: &Path| {
+        policy_can_write(path)
+            && std::fs::symlink_metadata(path)
+                .map_or(true, |metadata| !metadata.file_type().is_symlink())
+            && current_user_can_modify(path)
+    };
+    let path_is_replaceable = |path: &Path| {
+        path.ancestors().any(|component| {
+            let Some(parent) = component.parent() else {
+                return false;
+            };
+            let Some(file_name) = component.file_name() else {
+                return false;
+            };
+            let Ok(parent) = std::fs::canonicalize(parent) else {
+                return true;
+            };
+            // Match policy through parent aliases without resolving the child symlink.
+            let component = parent.join(file_name);
+            // Read-only carveouts are bind mounts and cannot themselves
+            // be renamed/unlinked. Continue checking above them, since a
+            // mutable ancestor could still redirect the installation path.
+            let is_read_only_mount = writable_roots.iter().any(|root| {
+                root.read_only_subpaths
+                    .iter()
+                    .any(|path| path.as_path() == component.as_path())
+            });
+            policy_can_write(&parent)
+                && !is_read_only_mount
+                && current_user_can_replace_child(&parent, &component)
+        })
+    };
+    std::env::split_paths(&search_path)
+        .filter_map(|path| {
+            // Let which resolve explicit program paths and expand ~/bin entries.
+            let binary = if Path::new(program).components().count() > 1 || path.starts_with("~") {
+                PathBuf::from(program)
+            } else {
+                cwd.join(&path).join(program)
+            };
+            which::which_in(binary, Some(path), &cwd).ok()
+        })
+        .find_map(|path| {
+            if !path.is_absolute() || path_is_replaceable(&path) {
+                return None;
+            }
+            let file_name = path.file_name()?;
+            let resolved_parent = std::fs::canonicalize(path.parent()?).ok()?;
+            let resolved_alias = resolved_parent.join(file_name);
+            if (!cwd_is_root && resolved_alias.starts_with(&cwd))
+                || file_is_writable(&resolved_alias)
+                || path_is_replaceable(&resolved_alias)
+            {
+                return None;
+            }
+            let path = std::fs::canonicalize(path).ok()?;
+            // Preserve read-only carveouts, but also check ancestors: a protected
+            // file can still be replaced by renaming a writable parent directory.
+            // Host-protected installations remain usable even with full-disk writes.
+            if (!cwd_is_root && path.starts_with(&cwd))
+                || file_is_writable(&path)
+                || path_is_replaceable(&path)
+            {
+                None
+            } else {
+                Some(path)
+            }
+        })
+}
+
+fn current_user_can_replace_child(parent: &Path, child: &Path) -> bool {
+    if !current_user_can_modify(parent) {
+        return false;
+    }
+    // SAFETY: geteuid has no preconditions.
+    let euid = unsafe { libc::geteuid() };
+    if euid == 0 {
+        return true;
+    }
+    let Ok(parent_metadata) = std::fs::metadata(parent) else {
+        return true;
+    };
+    if parent_metadata.mode() & libc::S_ISVTX == 0 || parent_metadata.uid() == euid {
+        return true;
+    }
+    std::fs::symlink_metadata(child).map_or(true, |metadata| metadata.uid() == euid)
+}
+
+fn current_user_can_modify(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return true;
+    };
+    // Owners can chmod a currently read-only file or directory before writing it.
+    // SAFETY: geteuid has no preconditions.
+    if metadata.uid() == unsafe { libc::geteuid() } {
+        return true;
+    }
+    let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
+        return true;
+    };
+    // Ask the kernel to check effective credentials, including POSIX ACLs. Older
+    // libc faccessat emulation ignores ACLs, which could misclassify a writable path.
+    // SAFETY: path is a live, NUL-terminated string, and no pointer is retained.
+    if unsafe {
+        libc::syscall(
+            libc::SYS_faccessat2,
+            libc::AT_FDCWD,
+            path.as_ptr(),
+            libc::W_OK,
+            libc::AT_EACCESS,
+        )
+    } == 0
+    {
+        return true;
+    }
+    // Unknown errors must not turn an unverified candidate into a trusted one.
+    !matches!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::EACCES | libc::EROFS)
+    )
+}
+
+#[cfg(test)]
+#[path = "bwrap_tests.rs"]
+mod tests;

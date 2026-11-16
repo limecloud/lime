@@ -5,7 +5,10 @@ use super::*;
 #[tokio::test]
 #[ignore = "requires LIME_OSS_RUNTIME_LIVE_INTENT with an explicitly authorized private intent"]
 async fn authorized_product_distribution_round_trip_and_cleanup() {
-    let path = PathBuf::from(std::env::var_os("LIME_OSS_RUNTIME_LIVE_INTENT").expect("explicit private intent path required"));
+    let path = PathBuf::from(
+        std::env::var_os("LIME_OSS_RUNTIME_LIVE_INTENT")
+            .expect("explicit private intent path required"),
+    );
     let mut intent: Value = serde_json::from_reader(private_open(&path, false).unwrap()).unwrap();
     let app_data = PathBuf::from(intent["appData"].as_str().unwrap());
     assert!(app_data.is_absolute());
@@ -51,11 +54,20 @@ async fn authorized_product_distribution_round_trip_and_cleanup() {
         Ok(json!({"result":"passed","preparedMs":prepared_ms,"archiveBytes":received,
             "archiveSha256":digest,"anonymousStatus":403,"sameOperationReused":true,"vmCreated":false}))
     }.await;
-    let cleanup = service.request(CloudDesktopParams::CleanupRuntimeDistribution {
-        profile, region_id:region, operation_id:operation,
-    }).await;
-    let cleaned = cleanup.as_ref().is_ok_and(|response| matches!(response.data["phase"].as_str(), Some("cleaned" | "absent")));
-    let report = match &outcome { Ok(report) => report.clone(), Err(code) => json!({"result":"failed","diagnostic":code,"vmCreated":false}) };
+    let cleanup = service
+        .request(CloudDesktopParams::CleanupRuntimeDistribution {
+            profile,
+            region_id: region,
+            operation_id: operation,
+        })
+        .await;
+    let cleaned = cleanup.as_ref().is_ok_and(|response| {
+        matches!(response.data["phase"].as_str(), Some("cleaned" | "absent"))
+    });
+    let report = match &outcome {
+        Ok(report) => report.clone(),
+        Err(code) => json!({"result":"failed","diagnostic":code,"vmCreated":false}),
+    };
     intent["verification"] = report;
     intent["preciseCleanupVerified"] = json!(cleaned);
     intent["elapsedMs"] = json!(started.elapsed().as_millis() as u64);
@@ -63,6 +75,12 @@ async fn authorized_product_distribution_round_trip_and_cleanup() {
     file.set_len(0).unwrap();
     serde_json::to_writer(&mut file, &intent).unwrap();
     file.sync_all().unwrap();
-    assert!(cleaned, "exact original distribution cleanup requires inspection");
-    assert!(outcome.is_ok(), "product distribution failed; sanitized result retained in the private intent");
+    assert!(
+        cleaned,
+        "exact original distribution cleanup requires inspection"
+    );
+    assert!(
+        outcome.is_ok(),
+        "product distribution failed; sanitized result retained in the private intent"
+    );
 }

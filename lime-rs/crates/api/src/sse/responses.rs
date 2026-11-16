@@ -1,0 +1,2137 @@
+use super::responses_error::parse_failed_response;
+use crate::common::ReasoningRemovalReason;
+use crate::common::ResponseEvent;
+use crate::common::ResponseStream;
+use crate::common::SafetyBuffering;
+use crate::common::SafetyBufferingTreatment;
+use crate::error::ApiError;
+use crate::error::parse_terminal_provider_error;
+use crate::guardian_assessment::parse_guardian_assessment;
+use crate::rate_limits::parse_all_rate_limits;
+use crate::safety_buffering::treatment_from_headers;
+use crate::telemetry::SseTelemetry;
+use client::ByteStream;
+use client::StreamResponse;
+use eventsource_stream::Eventsource;
+use futures::StreamExt;
+use protocol::ResponseUsageMetadata;
+use protocol::error::ResponseIncompleteError;
+use protocol::models::ResponseItem;
+use protocol::protocol::ModelVerification;
+use protocol::protocol::TokenUsage;
+use protocol::protocol::TurnModerationMetadataEvent;
+use serde::Deserialize;
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::sync::OnceLock;
+use std::time::Duration;
+use tokio::sync::mpsc;
+use tokio::time::Instant;
+use tokio::time::timeout;
+use tracing::debug;
+use tracing::trace;
+
+const X_REASONING_INCLUDED_HEADER: &str = "x-reasoning-included";
+const X_LIME_TURN_STATE_HEADER: &str = "x-lime-turn-state";
+const OPENAI_MODEL_HEADER: &str = "openai-model";
+const REQUEST_ID_HEADER: &str = "x-request-id";
+const TRUSTED_ACCESS_FOR_CYBER_VERIFICATION: &str = "trusted_access_for_cyber";
+
+pub fn spawn_response_stream(
+    stream_response: StreamResponse,
+    idle_timeout: Duration,
+    telemetry: Option<Arc<dyn SseTelemetry>>,
+    turn_state: Option<Arc<OnceLock<String>>>,
+) -> ResponseStream {
+    let rate_limit_snapshots = parse_all_rate_limits(&stream_response.headers);
+    let models_etag = stream_response
+        .headers
+        .get("X-Models-Etag")
+        .and_then(|v| v.to_str().ok())
+        .map(ToString::to_string);
+    let server_model = stream_response
+        .headers
+        .get(OPENAI_MODEL_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .map(ToString::to_string);
+    let reasoning_included = stream_response
+        .headers
+        .get(X_REASONING_INCLUDED_HEADER)
+        .is_some();
+    let upstream_request_id = stream_response
+        .headers
+        .get(REQUEST_ID_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let safety_buffering_treatment =
+        treatment_from_headers(&stream_response.headers).unwrap_or_default();
+    if let Some(turn_state) = turn_state.as_ref()
+        && let Some(header_value) = stream_response
+            .headers
+            .get(X_LIME_TURN_STATE_HEADER)
+            .and_then(|value| value.to_str().ok())
+    {
+        let _ = turn_state.set(header_value.to_string());
+    }
+    let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent, ApiError>>(1600);
+    tokio::spawn(async move {
+        if let Some(model) = server_model {
+            let _ = tx_event.send(Ok(ResponseEvent::ServerModel(model))).await;
+        }
+        for snapshot in rate_limit_snapshots {
+            let _ = tx_event.send(Ok(ResponseEvent::RateLimits(snapshot))).await;
+        }
+        if let Some(etag) = models_etag {
+            let _ = tx_event.send(Ok(ResponseEvent::ModelsEtag(etag))).await;
+        }
+        if reasoning_included {
+            let _ = tx_event
+                .send(Ok(ResponseEvent::ServerReasoningIncluded(true)))
+                .await;
+        }
+        process_sse_with_treatment(
+            stream_response.bytes,
+            tx_event,
+            idle_timeout,
+            telemetry,
+            safety_buffering_treatment,
+        )
+        .await;
+    });
+
+    ResponseStream {
+        routing_affinity: None,
+        rx_event,
+        upstream_request_id,
+        interrupt: None,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct ResponseCompleted {
+    id: String,
+    #[serde(default)]
+    usage: Option<ResponseCompletedUsage>,
+    usage_metadata: Option<ResponseUsageMetadata>,
+    #[serde(default)]
+    end_turn: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponseCompletedUsage {
+    input_tokens: i64,
+    input_tokens_details: Option<ResponseCompletedInputTokensDetails>,
+    output_tokens: i64,
+    output_tokens_details: Option<ResponseCompletedOutputTokensDetails>,
+    total_tokens: i64,
+    #[serde(default)]
+    lime_rollout_budget_units: Option<serde_json::Number>,
+}
+
+impl From<ResponseCompletedUsage> for TokenUsage {
+    fn from(val: ResponseCompletedUsage) -> Self {
+        let input_tokens_details = val.input_tokens_details.unwrap_or_default();
+        TokenUsage {
+            input_tokens: val.input_tokens,
+            cached_input_tokens: input_tokens_details.cached_tokens,
+            cache_write_input_tokens: input_tokens_details.cache_write_tokens,
+            output_tokens: val.output_tokens,
+            reasoning_output_tokens: val
+                .output_tokens_details
+                .map(|d| d.reasoning_tokens)
+                .unwrap_or(0),
+            total_tokens: val.total_tokens,
+            lime_rollout_budget_units: val.lime_rollout_budget_units,
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct ResponseCompletedInputTokensDetails {
+    cached_tokens: i64,
+    #[serde(default)]
+    cache_write_tokens: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponseCompletedOutputTokensDetails {
+    reasoning_tokens: i64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ResponsesStreamEvent {
+    #[serde(rename = "type")]
+    pub(crate) kind: String,
+    pub(crate) headers: Option<Value>,
+    metadata: Option<Value>,
+    response: Option<Value>,
+    response_id: Option<Value>,
+    error: Option<Value>,
+    item: Option<Value>,
+    item_id: Option<String>,
+    call_id: Option<String>,
+    delta: Option<String>,
+    text: Option<String>,
+    summary_index: Option<i64>,
+    content_index: Option<i64>,
+    #[serde(default, deserialize_with = "deserialize_present_value")]
+    safety_buffering: Option<Value>,
+}
+
+fn deserialize_present_value<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Value::deserialize(deserializer).map(Some)
+}
+
+impl ResponsesStreamEvent {
+    pub fn kind(&self) -> &str {
+        &self.kind
+    }
+
+    /// Returns the effective model reported by the server, if present.
+    ///
+    /// Precedence:
+    /// 1. `response.headers` for standard Responses stream events.
+    /// 2. top-level `headers` for websocket metadata events.
+    pub fn response_model(&self) -> Option<String> {
+        let response_headers_model = self
+            .response
+            .as_ref()
+            .and_then(|response| response.get("headers"))
+            .and_then(header_openai_model_value_from_json);
+
+        match response_headers_model {
+            Some(model) => Some(model),
+            None => self
+                .headers
+                .as_ref()
+                .and_then(header_openai_model_value_from_json),
+        }
+    }
+
+    pub(crate) fn turn_state(&self) -> Option<String> {
+        if self.kind() != "response.metadata" {
+            return None;
+        }
+
+        self.headers
+            .as_ref()
+            .and_then(header_turn_state_value_from_json)
+    }
+
+    /// Collects independent typed notifications in delivery order. The transport
+    /// supplies safety buffering after applying its response-header treatment.
+    pub(crate) fn metadata_events(
+        &self,
+        safety_buffering: Option<SafetyBuffering>,
+    ) -> Vec<ResponseEvent> {
+        let guardian = if self.kind() == "response.metadata" {
+            parse_guardian_assessment(
+                self.response_id.as_ref().and_then(Value::as_str),
+                self.metadata.as_ref(),
+            )
+        } else {
+            None
+        };
+        [
+            self.model_verifications()
+                .map(ResponseEvent::ModelVerifications),
+            self.turn_moderation_metadata()
+                .map(ResponseEvent::TurnModerationMetadata),
+            safety_buffering.map(ResponseEvent::SafetyBuffering),
+            guardian.map(ResponseEvent::GuardianAssessment),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
+    pub(crate) fn model_verifications(&self) -> Option<Vec<ModelVerification>> {
+        if self.kind() != "response.metadata" {
+            return None;
+        }
+
+        self.metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("openai_verification_recommendation"))
+            .and_then(model_verifications_from_json_value)
+    }
+
+    pub(crate) fn turn_moderation_metadata(&self) -> Option<TurnModerationMetadataEvent> {
+        if self.kind() != "response.metadata" {
+            return None;
+        }
+
+        self.metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("openai_chatgpt_moderation_metadata"))
+            .cloned()
+            .map(|metadata| TurnModerationMetadataEvent { metadata })
+    }
+
+    pub(crate) fn safety_buffering(
+        &self,
+        treatment: &SafetyBufferingTreatment,
+    ) -> Option<SafetyBuffering> {
+        let value = self.safety_buffering.as_ref().or_else(|| {
+            if self.kind() != "response.metadata" {
+                return None;
+            }
+
+            let metadata = self.metadata.as_ref()?;
+            if metadata.get("type").and_then(Value::as_str) != Some("safety_buffering") {
+                return None;
+            }
+            Some(metadata)
+        })?;
+        let retry_model_present = value.as_object()?.contains_key("retry_model");
+        let mut buffering: SafetyBuffering = serde_json::from_value(value.clone()).ok()?;
+        buffering.show_buffering_ui = true;
+        if !retry_model_present {
+            buffering.faster_model.clone_from(&treatment.faster_model);
+        }
+        Some(buffering)
+    }
+}
+
+fn header_openai_model_value_from_json(value: &Value) -> Option<String> {
+    let headers = value.as_object()?;
+    headers.iter().find_map(|(name, value)| {
+        if name.eq_ignore_ascii_case("openai-model") || name.eq_ignore_ascii_case("x-openai-model")
+        {
+            json_value_as_string(value)
+        } else {
+            None
+        }
+    })
+}
+
+fn header_turn_state_value_from_json(value: &Value) -> Option<String> {
+    let headers = value.as_object()?;
+    headers.iter().find_map(|(name, value)| {
+        if name.eq_ignore_ascii_case(X_LIME_TURN_STATE_HEADER) {
+            json_value_as_string(value)
+        } else {
+            None
+        }
+    })
+}
+
+fn model_verifications_from_json_value(value: &Value) -> Option<Vec<ModelVerification>> {
+    let verifications = value
+        .as_array()
+        .map(|items| {
+            let mut verifications = Vec::new();
+            for verification in items
+                .iter()
+                .filter_map(Value::as_str)
+                .filter_map(parse_model_verification)
+            {
+                if !verifications.contains(&verification) {
+                    verifications.push(verification);
+                }
+            }
+            verifications
+        })
+        .unwrap_or_default();
+
+    if verifications.is_empty() {
+        None
+    } else {
+        Some(verifications)
+    }
+}
+
+fn parse_model_verification(value: &str) -> Option<ModelVerification> {
+    match value {
+        TRUSTED_ACCESS_FOR_CYBER_VERIFICATION => Some(ModelVerification::TrustedAccessForCyber),
+        _ => None,
+    }
+}
+
+fn json_value_as_string(value: &Value) -> Option<String> {
+    match value {
+        Value::String(value) => Some(value.clone()),
+        Value::Array(items) => items.first().and_then(json_value_as_string),
+        _ => None,
+    }
+}
+
+#[derive(Debug)]
+pub enum ResponsesEventError {
+    Api(ApiError),
+}
+
+impl ResponsesEventError {
+    pub fn into_api_error(self) -> ApiError {
+        match self {
+            Self::Api(error) => error,
+        }
+    }
+}
+
+// Diagnostic fields are optional and must never make an otherwise valid response fail.
+fn reasoning_removals(response: &Value) -> Option<BTreeMap<ReasoningRemovalReason, i64>> {
+    let transformations = response.get("input_transformations")?.as_array()?;
+    let mut counts = BTreeMap::new();
+    for transformation in transformations {
+        if transformation.get("type").and_then(Value::as_str) != Some("reasoning")
+            || transformation.get("action").and_then(Value::as_str) != Some("removed")
+        {
+            continue;
+        }
+        let reason = match transformation.get("reason").and_then(Value::as_str) {
+            Some("organization_mismatch") => ReasoningRemovalReason::OrganizationMismatch,
+            Some("end_user_mismatch") => ReasoningRemovalReason::EndUserMismatch,
+            Some("model_mismatch") => ReasoningRemovalReason::ModelMismatch,
+            Some("prefix_mismatch") => ReasoningRemovalReason::PrefixMismatch,
+            Some("turn_boundary") => ReasoningRemovalReason::TurnBoundary,
+            _ => ReasoningRemovalReason::Other,
+        };
+        *counts.entry(reason).or_default() += 1;
+    }
+    Some(counts)
+}
+
+pub fn process_responses_event(
+    event: ResponsesStreamEvent,
+) -> std::result::Result<Option<ResponseEvent>, ResponsesEventError> {
+    match event.kind.as_str() {
+        "error" => {
+            if let Some(error) =
+                parse_terminal_provider_error(event.error.as_ref(), /*status*/ None)
+            {
+                return Err(ResponsesEventError::Api(error));
+            }
+        }
+        "response.output_item.done" => {
+            if let Some(item_val) = event.item {
+                if let Ok(item) = serde_json::from_value::<ResponseItem>(item_val) {
+                    return Ok(Some(ResponseEvent::OutputItemDone(item)));
+                }
+                debug!("failed to parse ResponseItem from output_item.done");
+            }
+        }
+        "response.output_text.delta" => {
+            if let Some(delta) = event.delta {
+                return Ok(Some(ResponseEvent::OutputTextDelta(delta)));
+            }
+        }
+        "response.custom_tool_call_input.delta" => {
+            if let (Some(delta), Some(item_id)) =
+                (event.delta, event.item_id.clone().or(event.call_id.clone()))
+            {
+                return Ok(Some(ResponseEvent::ToolCallInputDelta {
+                    item_id,
+                    call_id: event.call_id,
+                    delta,
+                }));
+            }
+        }
+        "response.reasoning_summary_text.delta" => {
+            if let (Some(delta), Some(summary_index)) = (event.delta, event.summary_index) {
+                return Ok(Some(ResponseEvent::ReasoningSummaryDelta {
+                    delta,
+                    summary_index,
+                }));
+            }
+        }
+        "response.reasoning_summary_text.done" => {
+            if let (Some(item_id), Some(text), Some(summary_index)) =
+                (event.item_id, event.text, event.summary_index)
+            {
+                return Ok(Some(ResponseEvent::ReasoningSummaryDone {
+                    item_id,
+                    text,
+                    summary_index,
+                }));
+            }
+        }
+        "response.reasoning_text.delta" => {
+            if let (Some(delta), Some(content_index)) = (event.delta, event.content_index) {
+                return Ok(Some(ResponseEvent::ReasoningContentDelta {
+                    delta,
+                    content_index,
+                }));
+            }
+        }
+        "response.created" => {
+            if let Some(response) = event.response {
+                let response_id = response
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+                return Ok(Some(ResponseEvent::Created { response_id }));
+            }
+        }
+        "response.failed" => {
+            return Err(ResponsesEventError::Api(parse_failed_response(
+                event.response,
+            )));
+        }
+        "response.completed" | "response.incomplete" => {
+            let interrupted = event.kind == "response.incomplete";
+            if interrupted {
+                let reason = event.response.as_ref().and_then(|response| {
+                    response
+                        .get("incomplete_details")
+                        .and_then(|details| details.get("reason"))
+                        .and_then(Value::as_str)
+                });
+                let reason = reason.unwrap_or("unknown");
+                if reason == "content_filter" {
+                    return Err(ResponsesEventError::Api(ApiError::ContentFilter));
+                }
+                if reason != "interrupted" {
+                    let response = event.response.as_ref();
+                    let response_id = response
+                        .and_then(|response| response.get("id"))
+                        .and_then(Value::as_str)
+                        .map(str::to_owned);
+                    let token_usage = response
+                        .and_then(|response| response.get("usage"))
+                        .and_then(|usage| {
+                            serde_json::from_value::<ResponseCompletedUsage>(usage.clone()).ok()
+                        })
+                        .map(Into::into);
+                    return Err(ResponsesEventError::Api(ApiError::ResponseIncomplete(
+                        Box::new(ResponseIncompleteError {
+                            partial_output: response
+                                .and_then(|r| r.get("output")?.as_array())
+                                .into_iter()
+                                .flatten()
+                                .filter(|item| {
+                                    item.get("status").and_then(Value::as_str) == Some("incomplete")
+                                })
+                                .cloned()
+                                .collect(),
+                            reason: reason.to_string(),
+                            response_id,
+                            token_usage,
+                        }),
+                    )));
+                }
+            }
+            if let Some(resp_val) = event.response {
+                let reasoning_removals = reasoning_removals(&resp_val);
+                let metadata = resp_val
+                    .get("usage")
+                    .filter(|usage| !usage.is_null())
+                    .cloned();
+                match serde_json::from_value::<ResponseCompleted>(resp_val) {
+                    Ok(mut resp) => {
+                        if let Some(metadata) = metadata {
+                            resp.usage_metadata.get_or_insert_default().metadata = Some(metadata);
+                        }
+                        return Ok(Some(ResponseEvent::Completed {
+                            response_id: resp.id,
+                            token_usage: resp.usage.map(Into::into),
+                            usage_metadata: resp.usage_metadata,
+                            reasoning_removals,
+                            end_turn: if interrupted {
+                                Some(false)
+                            } else {
+                                resp.end_turn
+                            },
+                        }));
+                    }
+                    Err(err) => {
+                        let error = format!("failed to parse ResponseCompleted: {err}");
+                        debug!("{error}");
+                        return Err(ResponsesEventError::Api(ApiError::Stream(error)));
+                    }
+                }
+            }
+        }
+        "response.output_item.added" => {
+            if let Some(item_val) = event.item {
+                if let Ok(item) = serde_json::from_value::<ResponseItem>(item_val) {
+                    return Ok(Some(ResponseEvent::OutputItemAdded(item)));
+                }
+                debug!("failed to parse ResponseItem from output_item.added");
+            }
+        }
+        "response.reasoning_summary_part.added" => {
+            if let Some(summary_index) = event.summary_index {
+                return Ok(Some(ResponseEvent::ReasoningSummaryPartAdded {
+                    summary_index,
+                }));
+            }
+        }
+        "lime.response.metadata"
+        | "response.content_part.added"
+        | "response.content_part.done"
+        | "response.custom_tool_call_input.done"
+        | "response.function_call_arguments.delta"
+        | "response.function_call_arguments.done"
+        | "response.in_progress"
+        | "response.metadata"
+        | "response.output_text.done"
+        | "response.reasoning_summary_part.done"
+        | "responsesapi.websocket_timing" => {
+            trace!("unhandled responses event: {}", event.kind);
+        }
+        kind if kind.ends_with(".delta") => {
+            trace!("unhandled responses event: {kind}");
+        }
+        _ => {
+            debug!(
+                "unhandled responses event: {:?}",
+                event.kind.chars().take(128).collect::<String>()
+            );
+        }
+    }
+
+    Ok(None)
+}
+
+#[cfg(test)]
+pub async fn process_sse(
+    stream: ByteStream,
+    tx_event: mpsc::Sender<Result<ResponseEvent, ApiError>>,
+    idle_timeout: Duration,
+    telemetry: Option<Arc<dyn SseTelemetry>>,
+) {
+    process_sse_with_treatment(
+        stream,
+        tx_event,
+        idle_timeout,
+        telemetry,
+        SafetyBufferingTreatment::default(),
+    )
+    .await;
+}
+
+async fn process_sse_with_treatment(
+    stream: ByteStream,
+    tx_event: mpsc::Sender<Result<ResponseEvent, ApiError>>,
+    idle_timeout: Duration,
+    telemetry: Option<Arc<dyn SseTelemetry>>,
+    safety_buffering_treatment: SafetyBufferingTreatment,
+) {
+    let mut stream = stream.eventsource();
+    let mut response_error: Option<ApiError> = None;
+    let mut last_server_model: Option<String> = None;
+
+    loop {
+        let start = Instant::now();
+        let response = tokio::select! {
+            biased;
+            _ = tx_event.closed() => return,
+            response = timeout(idle_timeout, stream.next()) => response,
+        };
+        if let Some(t) = telemetry.as_ref() {
+            t.on_sse_poll(&response, start.elapsed());
+        }
+        let sse = match response {
+            Ok(Some(Ok(sse))) => sse,
+            Ok(Some(Err(e))) => {
+                debug!("SSE Error: {e:#}");
+                let error = match e {
+                    eventsource_stream::EventStreamError::Transport(
+                        error @ client::TransportError::Policy(_),
+                    ) => ApiError::Transport(error),
+                    error => ApiError::Stream(error.to_string()),
+                };
+                let _ = tx_event.send(Err(error)).await;
+                return;
+            }
+            Ok(None) => {
+                let error = response_error.unwrap_or(ApiError::Stream(
+                    "stream closed before response.completed".into(),
+                ));
+                let _ = tx_event.send(Err(error)).await;
+                return;
+            }
+            Err(_) => {
+                let _ = tx_event
+                    .send(Err(ApiError::Stream("idle timeout waiting for SSE".into())))
+                    .await;
+                return;
+            }
+        };
+
+        trace!("SSE event: {}", &sse.data);
+
+        let event: ResponsesStreamEvent = match serde_json::from_str(&sse.data) {
+            Ok(event) => event,
+            Err(e) => {
+                debug!(
+                    error_category = ?e.classify(),
+                    error_line = e.line(),
+                    error_column = e.column(),
+                    payload_bytes = sse.data.len(),
+                    "Failed to parse SSE event"
+                );
+                continue;
+            }
+        };
+        let safety_buffering = event.safety_buffering(&safety_buffering_treatment);
+        let metadata_events = event.metadata_events(safety_buffering);
+
+        if let Some(model) = event.response_model()
+            && last_server_model.as_deref() != Some(model.as_str())
+        {
+            if tx_event
+                .send(Ok(ResponseEvent::ServerModel(model.clone())))
+                .await
+                .is_err()
+            {
+                return;
+            }
+            last_server_model = Some(model);
+        }
+        for metadata_event in metadata_events {
+            if tx_event.send(Ok(metadata_event)).await.is_err() {
+                return;
+            }
+        }
+
+        match process_responses_event(event) {
+            Ok(Some(event)) => {
+                let is_completed = matches!(event, ResponseEvent::Completed { .. });
+                if tx_event.send(Ok(event)).await.is_err() {
+                    return;
+                }
+                if is_completed {
+                    return;
+                }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                let error = error.into_api_error();
+                if matches!(
+                    error,
+                    ApiError::FlexUnavailable
+                        | ApiError::ContextWindowExceeded
+                        | ApiError::InvalidRequest { .. }
+                        | ApiError::SessionBudgetExceeded
+                        | ApiError::InferenceHookDenied { .. }
+                        | ApiError::AccessProgramNotEnabled { .. }
+                        | ApiError::ContentPolicyViolation { .. }
+                        | ApiError::ResponseIncomplete(_)
+                ) {
+                    let _ = tx_event.send(Err(error)).await;
+                    return;
+                }
+                response_error = Some(error);
+            }
+        };
+    }
+}
+
+#[cfg(test)]
+#[path = "responses_error_tests.rs"]
+mod error_tests;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert_matches::assert_matches;
+    use bytes::Bytes;
+    use client::StreamResponse;
+    use client::TransportError;
+    use futures::TryStreamExt;
+    use futures::stream;
+    use http::HeaderMap;
+    use http::HeaderValue;
+    use http::StatusCode;
+    use http_client::RetryAfter;
+    use pretty_assertions::assert_eq;
+    use protocol::models::MessagePhase;
+    use protocol::models::ResponseItem;
+    use protocol::protocol::MisalignmentErrorDetails;
+    use serde_json::json;
+    use tokio::sync::mpsc;
+    use tokio_test::io::Builder as IoBuilder;
+    use tokio_util::io::ReaderStream;
+
+    async fn collect_events(chunks: &[&[u8]]) -> Vec<Result<ResponseEvent, ApiError>> {
+        let mut builder = IoBuilder::new();
+        for chunk in chunks {
+            builder.read(chunk);
+        }
+
+        let reader = builder.build();
+        let stream =
+            ReaderStream::new(reader).map_err(|err| TransportError::Network(err.to_string()));
+        let (tx, mut rx) = mpsc::channel::<Result<ResponseEvent, ApiError>>(16);
+        tokio::spawn(process_sse(
+            Box::pin(stream),
+            tx,
+            idle_timeout(),
+            /*telemetry*/ None,
+        ));
+
+        let mut events = Vec::new();
+        while let Some(ev) = rx.recv().await {
+            events.push(ev);
+        }
+        events
+    }
+
+    async fn run_sse(events: Vec<serde_json::Value>) -> Vec<ResponseEvent> {
+        let mut body = String::new();
+        for e in events {
+            let kind = e
+                .get("type")
+                .and_then(|v| v.as_str())
+                .expect("fixture event missing type");
+            if e.as_object().map(|o| o.len() == 1).unwrap_or(false) {
+                body.push_str(&format!("event: {kind}\n\n"));
+            } else {
+                body.push_str(&format!("event: {kind}\ndata: {e}\n\n"));
+            }
+        }
+
+        let (tx, mut rx) = mpsc::channel::<Result<ResponseEvent, ApiError>>(8);
+        let stream = ReaderStream::new(std::io::Cursor::new(body))
+            .map_err(|err| TransportError::Network(err.to_string()));
+        tokio::spawn(process_sse(
+            Box::pin(stream),
+            tx,
+            idle_timeout(),
+            /*telemetry*/ None,
+        ));
+
+        let mut out = Vec::new();
+        while let Some(ev) = rx.recv().await {
+            out.push(ev.expect("channel closed"));
+        }
+        out
+    }
+
+    fn idle_timeout() -> Duration {
+        Duration::from_millis(1000)
+    }
+
+    #[tokio::test]
+    async fn partial_answer_phase_survives_item_start_and_completion() {
+        let item = json!({
+            "id": "msg_partial",
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+            "phase": "partial_answer"
+        });
+        let added = json!({"type": "response.output_item.added", "item": item});
+        let delta = json!({"type": "response.output_text.delta", "delta": "First result."});
+        let mut done_item = item;
+        done_item["content"] = json!([{"type": "output_text", "text": "First result."}]);
+        let done = json!({"type": "response.output_item.done", "item": done_item});
+        let completed = json!({
+            "type": "response.completed",
+            "response": {"id": "resp1", "end_turn": false}
+        });
+        let stream = [added, delta, done, completed]
+            .into_iter()
+            .map(|event| format!("data: {event}\n\n"))
+            .collect::<String>();
+
+        let events = collect_events(&[stream.as_bytes()]).await;
+        assert_matches!(events.as_slice(), [
+            Ok(ResponseEvent::OutputItemAdded(ResponseItem::Message {
+                phase: Some(MessagePhase::PartialAnswer), content: start_content, ..
+            })),
+            Ok(ResponseEvent::OutputTextDelta(text)),
+            Ok(ResponseEvent::OutputItemDone(ResponseItem::Message {
+                phase: Some(MessagePhase::PartialAnswer), content: done_content, ..
+            })),
+            Ok(ResponseEvent::Completed { end_turn: Some(false), .. }),
+        ] if start_content.is_empty()
+            && text == "First result."
+            && done_content == &vec![protocol::models::ContentItem::OutputText {
+                annotations: None,
+                logprobs: None,
+                text: "First result.".to_string()
+            }]);
+    }
+
+    #[tokio::test]
+    async fn parses_items_and_completed() {
+        let item1 = json!({
+            "type": "response.output_item.done",
+            "item": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "Hello"}],
+                "phase": "commentary"
+            }
+        })
+        .to_string();
+
+        let item2 = json!({
+            "type": "response.output_item.done",
+            "item": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "World"}]
+            }
+        })
+        .to_string();
+
+        let completed = json!({
+            "type": "response.completed",
+            "response": { "id": "resp1" }
+        })
+        .to_string();
+
+        let sse1 = format!("event: response.output_item.done\ndata: {item1}\n\n");
+        let sse2 = format!("event: response.output_item.done\ndata: {item2}\n\n");
+        let sse3 = format!("event: response.completed\ndata: {completed}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes(), sse2.as_bytes(), sse3.as_bytes()]).await;
+
+        assert_eq!(events.len(), 3);
+
+        assert_matches!(
+            &events[0],
+            Ok(ResponseEvent::OutputItemDone(ResponseItem::Message {
+                role,
+                phase: Some(MessagePhase::Commentary),
+                ..
+            })) if role == "assistant"
+        );
+
+        assert_matches!(
+            &events[1],
+            Ok(ResponseEvent::OutputItemDone(ResponseItem::Message { role, .. }))
+                if role == "assistant"
+        );
+
+        match &events[2] {
+            Ok(ResponseEvent::Completed {
+                response_id,
+                token_usage,
+                usage_metadata,
+                reasoning_removals: _,
+                end_turn,
+            }) => {
+                assert_eq!(response_id, "resp1");
+                assert!(token_usage.is_none());
+                assert!(usage_metadata.is_none());
+                assert!(end_turn.is_none());
+            }
+            other => panic!("unexpected third event: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_cache_write_token_usage() {
+        let usage: ResponseCompletedUsage = serde_json::from_value(json!({
+            "input_tokens": 100,
+            "input_tokens_details": {
+                "cached_tokens": 40,
+                "cache_write_tokens": 60
+            },
+            "output_tokens": 10,
+            "output_tokens_details": { "reasoning_tokens": 5 },
+            "total_tokens": 110,
+            "lime_rollout_budget_units": 2.5
+        }))
+        .expect("valid response usage");
+
+        assert_eq!(
+            TokenUsage::from(usage),
+            TokenUsage {
+                input_tokens: 100,
+                cached_input_tokens: 40,
+                cache_write_input_tokens: 60,
+                output_tokens: 10,
+                reasoning_output_tokens: 5,
+                total_tokens: 110,
+                lime_rollout_budget_units: serde_json::Number::from_f64(2.5),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn parses_reasoning_summary_done() {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.reasoning_summary_text.done",
+                "item_id": "reasoning-1",
+                "summary_index": 0,
+                "text": "Checking",
+            }),
+            json!({
+                "type": "response.completed",
+                "response": { "id": "resp1" },
+            }),
+        ])
+        .await;
+
+        assert_matches!(
+            &events[0],
+            ResponseEvent::ReasoningSummaryDone {
+                item_id,
+                text,
+                summary_index: 0,
+            } if item_id == "reasoning-1" && text == "Checking"
+        );
+    }
+
+    #[tokio::test]
+    async fn error_when_missing_completed() {
+        let item1 = json!({
+            "type": "response.output_item.done",
+            "item": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "Hello"}]
+            }
+        })
+        .to_string();
+
+        let sse1 = format!("event: response.output_item.done\ndata: {item1}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes()]).await;
+
+        assert_eq!(events.len(), 2);
+
+        assert_matches!(events[0], Ok(ResponseEvent::OutputItemDone(_)));
+
+        match &events[1] {
+            Err(ApiError::Stream(msg)) => {
+                assert_eq!(msg, "stream closed before response.completed")
+            }
+            other => panic!("unexpected second event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn parses_tool_search_call_items() {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "type": "tool_search_call",
+                    "call_id": "search-1",
+                    "execution": "client",
+                    "arguments": {
+                        "query": "calendar create",
+                        "limit": 1
+                    }
+                }
+            }),
+            json!({
+                "type": "response.completed",
+                "response": { "id": "resp1" }
+            }),
+        ])
+        .await;
+
+        assert_eq!(events.len(), 2);
+        assert_matches!(
+            &events[0],
+            ResponseEvent::OutputItemDone(ResponseItem::ToolSearchCall {
+                call_id,
+                execution,
+                arguments,
+                ..
+            }) if call_id.as_deref() == Some("search-1")
+                && execution == "client"
+                && arguments == &json!({"query": "calendar create", "limit": 1})
+        );
+    }
+
+    #[tokio::test]
+    async fn parses_tool_call_input_deltas() {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.custom_tool_call_input.delta",
+                "item_id": "ctc_1",
+                "call_id": "call_1",
+                "delta": "*** Begin",
+            }),
+            json!({
+                "type": "response.function_call_arguments.delta",
+                "item_id": "fc_1",
+                "delta": "{\"input\":\"",
+            }),
+            json!({
+                "type": "response.completed",
+                "response": { "id": "resp1" }
+            }),
+        ])
+        .await;
+
+        assert_matches!(
+            &events[0],
+            ResponseEvent::ToolCallInputDelta {
+                item_id,
+                call_id: Some(call_id),
+                delta,
+            } if item_id == "ctc_1" && call_id == "call_1" && delta == "*** Begin"
+        );
+        assert_matches!(&events[1], ResponseEvent::Completed { .. });
+    }
+
+    #[tokio::test]
+    async fn emits_completed_without_stream_end() {
+        let completed = json!({
+            "type": "response.completed",
+            "response": { "id": "resp1" }
+        })
+        .to_string();
+
+        let sse1 = format!("event: response.completed\ndata: {completed}\n\n");
+        let stream = stream::iter(vec![Ok(Bytes::from(sse1))]).chain(stream::pending());
+        let stream: ByteStream = Box::pin(stream);
+
+        let (tx, mut rx) = mpsc::channel::<Result<ResponseEvent, ApiError>>(8);
+        tokio::spawn(process_sse(
+            stream,
+            tx,
+            idle_timeout(),
+            /*telemetry*/ None,
+        ));
+
+        let events = tokio::time::timeout(Duration::from_millis(1000), async {
+            let mut events = Vec::new();
+            while let Some(ev) = rx.recv().await {
+                events.push(ev);
+            }
+            events
+        })
+        .await
+        .expect("timed out collecting events");
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Ok(ResponseEvent::Completed {
+                response_id,
+                token_usage,
+                usage_metadata,
+                reasoning_removals: _,
+                end_turn,
+            }) => {
+                assert_eq!(response_id, "resp1");
+                assert!(token_usage.is_none());
+                assert!(usage_metadata.is_none());
+                assert!(end_turn.is_none());
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn rate_limit_error_preserves_retry_delay() {
+        let raw_error = r#"{"type":"response.failed","sequence_number":3,"response":{"id":"resp_689bcf18d7f08194bf3440ba62fe05d803fee0cdac429894","object":"response","created_at":1755041560,"status":"failed","background":false,"error":{"code":"rate_limit_exceeded","message":"Rate limit reached for gpt-5.1 in organization org-AAA on tokens per min (TPM): Limit 30000, Used 22999, Requested 12528. Please try again in 11.054s. Visit https://platform.openai.com/account/rate-limits to learn more."}, "usage":null,"user":null,"metadata":{}}}"#;
+
+        let sse1 = format!("event: response.failed\ndata: {raw_error}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+
+        match &events[0] {
+            Err(ApiError::RateLimitExceeded {
+                message,
+                retry_after,
+            }) => {
+                assert_eq!(
+                    message,
+                    "Rate limit reached for gpt-5.1 in organization org-AAA on tokens per min (TPM): Limit 30000, Used 22999, Requested 12528. Please try again in 11.054s. Visit https://platform.openai.com/account/rate-limits to learn more."
+                );
+                assert_eq!(
+                    retry_after.map(RetryAfter::remaining_delay),
+                    Some(Duration::from_secs_f64(11.054))
+                );
+            }
+            other => panic!("unexpected rate-limit event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_response_classification_uses_error_code() {
+        for (code, message) in [
+            ("rate_limit_exceeded", "Temporary limit."),
+            ("slow_down", "Temporary limit."),
+            (
+                "unknown_error",
+                "Rate limit reached. Please try again in 1s.",
+            ),
+        ] {
+            let event = json!({
+                "type": "response.failed",
+                "response": { "error": { "code": code, "message": message } },
+            });
+            let sse = format!("event: response.failed\ndata: {event}\n\n");
+            let events = collect_events(&[sse.as_bytes()]).await;
+            match (code, events.as_slice()) {
+                (
+                    "rate_limit_exceeded" | "slow_down",
+                    [
+                        Err(ApiError::RateLimitExceeded {
+                            message: actual,
+                            retry_after,
+                        }),
+                    ],
+                )
+                | (
+                    "unknown_error",
+                    [
+                        Err(ApiError::Retryable {
+                            message: actual,
+                            retry_after,
+                        }),
+                    ],
+                ) => {
+                    assert_eq!((actual.as_str(), *retry_after), (message, None));
+                }
+                _ => panic!("unexpected events for {code}: {events:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn malformed_failed_responses_use_stream_error() {
+        for event in [
+            json!({"type": "response.failed"}),
+            json!({"type": "response.failed", "response": null}),
+            json!({"type": "response.failed", "response": []}),
+            json!({"type": "response.failed", "response": {}}),
+            json!({"type": "response.failed", "response": {"error": null}}),
+            json!({"type": "response.failed", "response": {"error": {"code": 42}}}),
+            json!({"type": "response.failed", "response": {"error": {"code": "server_is_overloaded", "plan_type": 42}}}),
+        ] {
+            let sse = format!("event: response.failed\ndata: {event}\n\n");
+            let events = collect_events(&[sse.as_bytes()]).await;
+            match events.as_slice() {
+                [Err(ApiError::Stream(message))] => {
+                    assert_eq!(message, "response.failed event received");
+                }
+                _ => panic!("unexpected events: {events:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn context_window_error_is_fatal() {
+        let raw_error = r#"{"type":"response.failed","sequence_number":3,"response":{"id":"resp_5c66275b97b9baef1ed95550adb3b7ec13b17aafd1d2f11b","object":"response","created_at":1759510079,"status":"failed","background":false,"error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again."},"usage":null,"user":null,"metadata":{}}}"#;
+
+        let sse1 = format!("event: response.failed\ndata: {raw_error}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+
+        assert_matches!(events[0], Err(ApiError::ContextWindowExceeded));
+    }
+
+    #[tokio::test]
+    async fn context_window_error_with_newline_is_fatal() {
+        let raw_error = r#"{"type":"response.failed","sequence_number":4,"response":{"id":"resp_fatal_newline","object":"response","created_at":1759510080,"status":"failed","background":false,"error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try\nagain."},"usage":null,"user":null,"metadata":{}}}"#;
+
+        let sse1 = format!("event: response.failed\ndata: {raw_error}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+
+        assert_matches!(events[0], Err(ApiError::ContextWindowExceeded));
+    }
+
+    #[tokio::test]
+    async fn quota_exceeded_error_is_fatal() {
+        let raw_error = r#"{"type":"response.failed","sequence_number":3,"response":{"id":"resp_fatal_quota","object":"response","created_at":1759771626,"status":"failed","background":false,"error":{"code":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors."},"incomplete_details":null}}"#;
+
+        let sse1 = format!("event: response.failed\ndata: {raw_error}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+
+        assert_matches!(events[0], Err(ApiError::QuotaExceeded));
+    }
+
+    #[tokio::test]
+    async fn cyber_policy_error_is_fatal() {
+        let raw_error = r#"{"type":"response.failed","sequence_number":3,"response":{"id":"resp_fatal_cyber","object":"response","created_at":1759771626,"status":"failed","background":false,"error":{"code":"cyber_policy","message":"This request was flagged for cyber policy."},"incomplete_details":null}}"#;
+
+        let sse1 = format!("event: response.failed\ndata: {raw_error}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+
+        match &events[0] {
+            Err(ApiError::CyberPolicy { message }) => {
+                assert_eq!(message, "This request was flagged for cyber policy.");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn cyber_policy_error_uses_fallback_for_empty_message() {
+        let raw_error = r#"{"type":"response.failed","sequence_number":3,"response":{"id":"resp_fatal_cyber","object":"response","created_at":1759771626,"status":"failed","background":false,"error":{"code":"cyber_policy","message":"   "},"incomplete_details":null}}"#;
+
+        let sse1 = format!("event: response.failed\ndata: {raw_error}\n\n");
+
+        let events = collect_events(&[sse1.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+
+        match &events[0] {
+            Err(ApiError::CyberPolicy { message }) => {
+                assert_eq!(
+                    message,
+                    "This request has been flagged for possible cybersecurity risk."
+                );
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn misalignment_policy_violation_error_is_fatal() {
+        let raw_error = r#"{"type":"response.failed","sequence_number":3,"response":{"id":"resp_fatal_misalignment","object":"response","status":"failed","error":{"type":"invalid_request_error","code":"misalignment_policy_violation","message":"This request violated the misalignment policy."}}}"#;
+
+        let sse = format!("event: response.failed\ndata: {raw_error}\n\n");
+        let events = collect_events(&[sse.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Err(ApiError::MisalignmentPolicyViolation {
+                message,
+                misalignment,
+            }) => {
+                assert_eq!(message, "This request violated the misalignment policy.");
+                assert_eq!(misalignment, &None);
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn misalignment_policy_violation_uses_fallback_for_blank_message() {
+        for message in ["", "   "] {
+            let raw_error = serde_json::json!({
+                "type": "response.failed",
+                "response": {
+                    "id": "resp_fatal_misalignment",
+                    "status": "failed",
+                    "error": {
+                        "type": "invalid_request_error",
+                        "code": "misalignment_policy_violation",
+                        "message": message,
+                    },
+                },
+            });
+            let sse = format!("event: response.failed\ndata: {raw_error}\n\n");
+            let events = collect_events(&[sse.as_bytes()]).await;
+
+            assert_eq!(events.len(), 1);
+            match &events[0] {
+                Err(ApiError::MisalignmentPolicyViolation { message, .. }) => assert_eq!(
+                    message,
+                    "This request was blocked due to a misalignment policy violation."
+                ),
+                other => panic!("unexpected event: {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn misalignment_policy_violation_preserves_public_continuation_details() {
+        let raw_error = json!({
+            "type": "response.failed",
+            "response": {
+                "id": "resp_fatal_misalignment",
+                "status": "failed",
+                "error": {
+                    "code": "misalignment_policy_violation",
+                    "message": "This request violated the misalignment policy.",
+                    "misalignment": {
+                        "error_type": "future_safety_category",
+                        "detailed_explanation": "The agent attempted an external transfer.",
+                        "steer": { "message": "Do not transfer the user's files." }
+                    }
+                }
+            }
+        });
+        let sse = format!("event: response.failed\ndata: {raw_error}\n\n");
+        let events = collect_events(&[sse.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Err(ApiError::MisalignmentPolicyViolation {
+                message,
+                misalignment,
+            }) => {
+                assert_eq!(message, "This request violated the misalignment policy.");
+                assert_eq!(
+                    misalignment,
+                    &Some(MisalignmentErrorDetails {
+                        error_type: Some("future_safety_category".to_string()),
+                        review_target: None,
+                        detailed_explanation: Some(
+                            "The agent attempted an external transfer.".to_string()
+                        ),
+                        steer: Some(protocol::protocol::MisalignmentSteer {
+                            message: "Do not transfer the user's files.".to_string(),
+                        }),
+                    })
+                );
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn malformed_misalignment_details_preserve_the_fatal_policy_error() {
+        let raw_error = json!({
+            "type": "response.failed",
+            "response": {
+                "id": "resp_fatal_misalignment",
+                "status": "failed",
+                "error": {
+                    "code": "misalignment_policy_violation",
+                    "message": "This request violated the misalignment policy.",
+                    "misalignment": { "steer": { "message": 42 } }
+                }
+            }
+        });
+        let sse = format!("event: response.failed\ndata: {raw_error}\n\n");
+        let events = collect_events(&[sse.as_bytes()]).await;
+
+        assert_eq!(events.len(), 1);
+        assert_matches!(
+            &events[0],
+            Err(ApiError::MisalignmentPolicyViolation {
+                misalignment: None,
+                ..
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn content_policy_errors_without_type_preserve_their_classification() {
+        for (code, expected_message) in [
+            (
+                "invalid_prompt",
+                "Invalid prompt: we've limited access to this content for safety reasons.",
+            ),
+            (
+                "bio_policy",
+                "This content was flagged for possible biological risk.",
+            ),
+        ] {
+            let raw_error = json!({
+                "type": "response.failed",
+                "sequence_number": 3,
+                "response": {
+                    "id": "resp_content_policy_no_type",
+                    "object": "response",
+                    "created_at": 1759771628,
+                    "status": "failed",
+                    "background": false,
+                    "error": { "code": code, "message": expected_message },
+                    "incomplete_details": null,
+                },
+            })
+            .to_string();
+            let sse1 = format!("event: response.failed\ndata: {raw_error}\n\n");
+
+            let events = collect_events(&[sse1.as_bytes()]).await;
+
+            assert_eq!(events.len(), 1);
+            match (code, &events[0]) {
+                ("invalid_prompt", Err(ApiError::InvalidPrompt { message }))
+                | ("bio_policy", Err(ApiError::BioPolicy { message })) => {
+                    assert_eq!(message, expected_message);
+                }
+                other => panic!("unexpected event for {code}: {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn incomplete_response_retains_partial_output_on_the_error() {
+        let call = json!({
+            "type": "function_call", "status": "incomplete", "id": "fc_attempt",
+            "call_id": "attempt", "name": "unknown", "arguments": "{}",
+        });
+        let terminal = json!({
+            "type": "response.incomplete",
+            "response": {
+                "id": "resp_1", "incomplete_details": {"reason": "invalid_recipient"},
+                "output": [{"type": "message", "status": "completed"}, call],
+            }
+        });
+        let sse = format!("event: response.incomplete\ndata: {terminal}\n\n");
+        let events = collect_events(&[sse.as_bytes()]).await;
+        assert_matches!(events.as_slice(), [Err(ApiError::ResponseIncomplete(error))]
+            if error.reason == "invalid_recipient" && error.partial_output == [call]);
+    }
+
+    #[tokio::test]
+    async fn typed_errors_handle_missing_or_blank_message() {
+        for (code, fallback) in [
+            (
+                "bio_policy",
+                "This content was flagged for possible biological risk.",
+            ),
+            ("invalid_prompt", "Invalid request."),
+        ] {
+            for message in [None, Some(""), Some("  ")] {
+                let mut event = json!({
+                    "type": "response.failed",
+                    "response": { "error": { "code": code } },
+                });
+                if let Some(message) = message {
+                    event["response"]["error"]["message"] = json!(message);
+                }
+                let expected = match (code, message) {
+                    ("invalid_prompt", Some(message)) => message,
+                    _ => fallback,
+                };
+                let sse = format!("event: response.failed\ndata: {event}\n\n");
+                let events = collect_events(&[sse.as_bytes()]).await;
+                match (code, events.as_slice()) {
+                    ("bio_policy", [Err(ApiError::BioPolicy { message })])
+                    | ("invalid_prompt", [Err(ApiError::InvalidPrompt { message })]) => {
+                        assert_eq!(message, expected);
+                    }
+                    other => panic!("unexpected events: {other:?}"),
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn table_driven_event_kinds() {
+        struct TestCase {
+            name: &'static str,
+            event: serde_json::Value,
+            expect_first: fn(&ResponseEvent) -> bool,
+            expected_len: usize,
+        }
+
+        fn is_created(ev: &ResponseEvent) -> bool {
+            matches!(ev, ResponseEvent::Created { .. })
+        }
+        fn is_output(ev: &ResponseEvent) -> bool {
+            matches!(ev, ResponseEvent::OutputItemDone(_))
+        }
+        fn is_completed(ev: &ResponseEvent) -> bool {
+            matches!(ev, ResponseEvent::Completed { .. })
+        }
+
+        let completed = json!({
+            "type": "response.completed",
+            "response": {
+                "id": "c",
+                "usage": {
+                    "input_tokens": 0,
+                    "input_tokens_details": null,
+                    "output_tokens": 0,
+                    "output_tokens_details": null,
+                    "total_tokens": 0
+                },
+                "output": []
+            }
+        });
+
+        let cases = vec![
+            TestCase {
+                name: "created",
+                event: json!({"type": "response.created", "response": {}}),
+                expect_first: is_created,
+                expected_len: 2,
+            },
+            TestCase {
+                name: "output_item.done",
+                event: json!({
+                    "type": "response.output_item.done",
+                    "item": {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {"type": "output_text", "text": "hi"}
+                        ]
+                    }
+                }),
+                expect_first: is_output,
+                expected_len: 2,
+            },
+            TestCase {
+                name: "unknown",
+                event: json!({"type": "response.new_tool_event", "sequence_number": 1}),
+                expect_first: is_completed,
+                expected_len: 1,
+            },
+            TestCase {
+                name: "refusal_delta",
+                event: json!({
+                    "type": "response.refusal.delta",
+                    "delta": "no",
+                    "sequence_number": 1
+                }),
+                expect_first: is_completed,
+                expected_len: 1,
+            },
+            TestCase {
+                name: "mcp_call_arguments_delta",
+                event: json!({
+                    "type": "response.mcp_call_arguments.delta",
+                    "delta": "chunk",
+                    "sequence_number": 1
+                }),
+                expect_first: is_completed,
+                expected_len: 1,
+            },
+        ];
+
+        for case in cases {
+            let mut evs = vec![case.event];
+            evs.push(completed.clone());
+
+            let out = run_sse(evs).await;
+            assert_eq!(out.len(), case.expected_len, "case {}", case.name);
+            assert!(
+                (case.expect_first)(&out[0]),
+                "first event mismatch in case {}",
+                case.name
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn spawn_response_stream_emits_header_events() {
+        let mut headers = HeaderMap::new();
+        headers.insert(REQUEST_ID_HEADER, HeaderValue::from_static("req-1"));
+        headers.insert(
+            OPENAI_MODEL_HEADER,
+            HeaderValue::from_static(CYBER_RESTRICTED_MODEL_FOR_TESTS),
+        );
+        let bytes = stream::iter(Vec::<Result<Bytes, TransportError>>::new());
+        let stream_response = StreamResponse {
+            status: StatusCode::OK,
+            headers,
+            bytes: Box::pin(bytes),
+        };
+
+        let mut stream = spawn_response_stream(
+            stream_response,
+            idle_timeout(),
+            /*telemetry*/ None,
+            /*turn_state*/ None,
+        );
+        assert_eq!(stream.upstream_request_id.as_deref(), Some("req-1"));
+        let event = stream
+            .rx_event
+            .recv()
+            .await
+            .expect("expected server model event")
+            .expect("expected ok event");
+        match event {
+            ResponseEvent::ServerModel(model) => {
+                assert_eq!(model, CYBER_RESTRICTED_MODEL_FOR_TESTS);
+            }
+            other => panic!("expected server model event, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn spawn_response_stream_ignores_model_verification_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "openai-verification-recommendation",
+            HeaderValue::from_static(TRUSTED_ACCESS_FOR_CYBER_VERIFICATION),
+        );
+        let completed = json!({
+            "type": "response.completed",
+            "response": { "id": "resp-1" }
+        });
+        let sse = format!("event: response.completed\ndata: {completed}\n\n");
+        let bytes = stream::iter(vec![Ok(Bytes::from(sse))]);
+        let stream_response = StreamResponse {
+            status: StatusCode::OK,
+            headers,
+            bytes: Box::pin(bytes),
+        };
+
+        let mut stream = spawn_response_stream(
+            stream_response,
+            idle_timeout(),
+            /*telemetry*/ None,
+            /*turn_state*/ None,
+        );
+        let mut events = Vec::new();
+        while let Some(event) = stream.rx_event.recv().await {
+            events.push(event.expect("expected ok event"));
+        }
+
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, ResponseEvent::ModelVerifications(_)))
+        );
+    }
+
+    #[tokio::test]
+    async fn process_sse_ignores_response_model_field_in_payload() {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.created",
+                "response": {
+                    "id": "resp-1",
+                    "model": CYBER_RESTRICTED_MODEL_FOR_TESTS
+                }
+            }),
+            json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp-1",
+                    "model": CYBER_RESTRICTED_MODEL_FOR_TESTS
+                }
+            }),
+        ])
+        .await;
+
+        assert_eq!(events.len(), 2);
+        assert_matches!(&events[0], ResponseEvent::Created { .. });
+        assert_matches!(
+            &events[1],
+            ResponseEvent::Completed {
+                response_id,
+                token_usage: None,
+                usage_metadata: None,
+                reasoning_removals: None,
+                end_turn: None,
+            } if response_id == "resp-1"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_sse_emits_server_model_from_response_headers_payload() {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.created",
+                "response": {
+                    "id": "resp-1",
+                    "headers": {
+                        "OpenAI-Model": CYBER_RESTRICTED_MODEL_FOR_TESTS
+                    }
+                }
+            }),
+            json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp-1"
+                }
+            }),
+        ])
+        .await;
+
+        assert_eq!(events.len(), 3);
+        assert_matches!(
+            &events[0],
+            ResponseEvent::ServerModel(model) if model == CYBER_RESTRICTED_MODEL_FOR_TESTS
+        );
+        assert_matches!(
+            &events[1],
+            ResponseEvent::Created { response_id: Some(id) } if id == "resp-1"
+        );
+        assert_matches!(
+            &events[2],
+            ResponseEvent::Completed {
+                response_id,
+                token_usage: None,
+                usage_metadata: None,
+                reasoning_removals: None,
+                end_turn: None,
+            } if response_id == "resp-1"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_sse_emits_model_verification_field() {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.metadata",
+                "sequence_number": 1,
+                "response_id": "resp-1",
+                "metadata": {
+                    "openai_verification_recommendation": [TRUSTED_ACCESS_FOR_CYBER_VERIFICATION]
+                }
+            }),
+            json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp-1"
+                }
+            }),
+        ])
+        .await;
+
+        assert_matches!(
+            &events[0],
+            ResponseEvent::ModelVerifications(verifications)
+                if verifications == &vec![ModelVerification::TrustedAccessForCyber]
+        );
+        assert_matches!(
+            &events[1],
+            ResponseEvent::Completed {
+                response_id,
+                token_usage: None,
+                usage_metadata: None,
+                reasoning_removals: None,
+                end_turn: None,
+            } if response_id == "resp-1"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_sse_emits_turn_moderation_metadata_field() {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.metadata",
+                "metadata": {
+                    "openai_chatgpt_moderation_metadata": {
+                        "presentation": "inline"
+                    }
+                }
+            }),
+            json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp-1"
+                }
+            }),
+        ])
+        .await;
+
+        assert_matches!(
+            &events[0],
+            ResponseEvent::TurnModerationMetadata(result)
+                if result.metadata == json!({"presentation": "inline"})
+        );
+        assert_matches!(
+            &events[1],
+            ResponseEvent::Completed {
+                response_id,
+                token_usage: None,
+                usage_metadata: None,
+                reasoning_removals: None,
+                end_turn: None,
+            } if response_id == "resp-1"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_sse_emits_all_safety_buffering_notifications_without_dropping_response_events()
+    {
+        let events = run_sse(vec![
+            json!({
+                "type": "response.created",
+                "response": { "id": "resp-1" },
+                "safety_buffering": false
+            }),
+            json!({
+                "type": "response.output_text.delta",
+                "delta": "hello",
+                "safety_buffering": {
+                    "use_cases": ["cyber"],
+                    "reasons": ["user_risk"],
+                    "retry_model": "gpt-fast-wire"
+                }
+            }),
+            json!({
+                "type": "response.output_text.delta",
+                "delta": " world",
+                "safety_buffering": {
+                    "use_cases": ["cyber"],
+                    "reasons": ["user_risk"]
+                }
+            }),
+            json!({
+                "type": "response.completed",
+                "response": { "id": "resp-1" },
+                "safety_buffering": {
+                    "use_cases": ["cyber"],
+                    "reasons": ["user_risk"]
+                }
+            }),
+        ])
+        .await;
+
+        assert_eq!(events.len(), 7);
+        assert_matches!(&events[0], ResponseEvent::Created { .. });
+        assert_matches!(
+            &events[1],
+            ResponseEvent::SafetyBuffering(buffering)
+                if buffering.use_cases == ["cyber"]
+                    && buffering.reasons == ["user_risk"]
+                    && buffering.show_buffering_ui
+                    && buffering.faster_model.as_deref() == Some("gpt-fast-wire")
+        );
+        assert_matches!(&events[2], ResponseEvent::OutputTextDelta(delta) if delta == "hello");
+        assert_matches!(
+            &events[3],
+            ResponseEvent::SafetyBuffering(buffering)
+                if buffering.use_cases == ["cyber"] && buffering.reasons == ["user_risk"]
+        );
+        assert_matches!(&events[4], ResponseEvent::OutputTextDelta(delta) if delta == " world");
+        assert_matches!(
+            &events[5],
+            ResponseEvent::SafetyBuffering(buffering)
+                if buffering.use_cases == ["cyber"] && buffering.reasons == ["user_risk"]
+        );
+        assert_matches!(&events[6], ResponseEvent::Completed { response_id, .. } if response_id == "resp-1");
+    }
+
+    #[test]
+    fn safety_buffering_prefers_wire_retry_model_and_only_falls_back_when_omitted() {
+        let treatment = SafetyBufferingTreatment {
+            faster_model: Some("gpt-fast-header".to_string()),
+        };
+
+        for (retry_model, expected_faster_model) in [
+            (None, Some("gpt-fast-header")),
+            (Some(Value::Null), None),
+            (Some(json!("gpt-fast-wire")), Some("gpt-fast-wire")),
+        ] {
+            let mut event = json!({
+                "type": "response.output_text.delta",
+                "safety_buffering": {
+                    "use_cases": ["cyber"],
+                    "reasons": ["user_risk"]
+                }
+            });
+            if let Some(retry_model) = retry_model {
+                event["safety_buffering"]["retry_model"] = retry_model;
+            }
+            let event: ResponsesStreamEvent =
+                serde_json::from_value(event).expect("deserialize safety buffering event");
+
+            let buffering = event
+                .safety_buffering(&treatment)
+                .expect("expected safety buffering payload");
+
+            assert_eq!(
+                buffering,
+                SafetyBuffering {
+                    use_cases: vec!["cyber".to_string()],
+                    reasons: vec!["user_risk".to_string()],
+                    show_buffering_ui: true,
+                    faster_model: expected_faster_model.map(str::to_string),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn safety_buffering_falls_back_to_response_metadata() {
+        let treatment = SafetyBufferingTreatment {
+            faster_model: Some("gpt-fast-header".to_string()),
+        };
+        let event: ResponsesStreamEvent = serde_json::from_value(json!({
+            "type": "response.metadata",
+            "metadata": {
+                "type": "safety_buffering",
+                "use_cases": ["cyber"],
+                "reasons": ["user_risk"]
+            }
+        }))
+        .expect("deserialize safety buffering metadata event");
+
+        assert_eq!(
+            event.safety_buffering(&treatment),
+            Some(SafetyBuffering {
+                use_cases: vec!["cyber".to_string()],
+                reasons: vec!["user_risk".to_string()],
+                show_buffering_ui: true,
+                faster_model: Some("gpt-fast-header".to_string()),
+            })
+        );
+    }
+
+    #[test]
+    fn safety_buffering_top_level_presence_wins_over_response_metadata() {
+        let treatment = SafetyBufferingTreatment::default();
+        let event: ResponsesStreamEvent = serde_json::from_value(json!({
+            "type": "response.metadata",
+            "safety_buffering": {
+                "use_cases": ["top_level"],
+                "reasons": ["top_level_reason"]
+            },
+            "metadata": {
+                "type": "safety_buffering",
+                "use_cases": ["nested"],
+                "reasons": ["nested_reason"]
+            }
+        }))
+        .expect("deserialize safety buffering metadata event");
+
+        assert_eq!(
+            event.safety_buffering(&treatment),
+            Some(SafetyBuffering {
+                use_cases: vec!["top_level".to_string()],
+                reasons: vec!["top_level_reason".to_string()],
+                show_buffering_ui: true,
+                faster_model: None,
+            })
+        );
+
+        for top_level in [json!(false), json!({"use_cases": ["cyber"]}), Value::Null] {
+            let event: ResponsesStreamEvent = serde_json::from_value(json!({
+                "type": "response.metadata",
+                "safety_buffering": top_level,
+                "metadata": {
+                    "type": "safety_buffering",
+                    "use_cases": ["nested"],
+                    "reasons": ["nested_reason"]
+                }
+            }))
+            .expect("deserialize safety buffering metadata event");
+
+            assert_eq!(event.safety_buffering(&treatment), None);
+        }
+    }
+
+    #[test]
+    fn safety_buffering_ignores_metadata_field_for_other_event_kinds() {
+        let event: ResponsesStreamEvent = serde_json::from_value(json!({
+            "type": "lime.response.metadata",
+            "metadata": {
+                "type": "safety_buffering",
+                "use_cases": ["cyber"],
+                "reasons": ["user_risk"]
+            }
+        }))
+        .expect("deserialize safety buffering metadata event");
+
+        assert_eq!(
+            event.safety_buffering(&SafetyBufferingTreatment::default()),
+            None
+        );
+    }
+
+    #[test]
+    fn safety_buffering_ignores_response_metadata_without_safety_buffering_type() {
+        for metadata in [
+            json!({
+                "use_cases": ["cyber"],
+                "reasons": ["user_risk"]
+            }),
+            json!({
+                "type": "other_metadata",
+                "use_cases": ["cyber"],
+                "reasons": ["user_risk"]
+            }),
+            json!({
+                "type": "safety_buffering",
+                "safety_buffering": {
+                    "use_cases": ["cyber"],
+                    "reasons": ["user_risk"]
+                }
+            }),
+        ] {
+            let event: ResponsesStreamEvent = serde_json::from_value(json!({
+                "type": "response.metadata",
+                "metadata": metadata
+            }))
+            .expect("deserialize response metadata event");
+
+            assert_eq!(
+                event.safety_buffering(&SafetyBufferingTreatment::default()),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn responses_stream_event_response_model_reads_top_level_headers() {
+        let ev: ResponsesStreamEvent = serde_json::from_value(json!({
+            "type": "response.metadata",
+            "headers": {
+                "openai-model": CYBER_RESTRICTED_MODEL_FOR_TESTS,
+            }
+        }))
+        .expect("expected event to deserialize");
+
+        assert_eq!(
+            ev.response_model().as_deref(),
+            Some(CYBER_RESTRICTED_MODEL_FOR_TESTS)
+        );
+    }
+
+    #[test]
+    fn responses_stream_event_response_model_prefers_response_headers() {
+        let ev: ResponsesStreamEvent = serde_json::from_value(json!({
+            "type": "response.created",
+            "headers": {
+                "openai-model": "top-level-model"
+            },
+            "response": {
+                "id": "resp-1",
+                "headers": {
+                    "openai-model": CYBER_RESTRICTED_MODEL_FOR_TESTS
+                }
+            }
+        }))
+        .expect("expected event to deserialize");
+
+        assert_eq!(
+            ev.response_model().as_deref(),
+            Some(CYBER_RESTRICTED_MODEL_FOR_TESTS)
+        );
+    }
+
+    #[test]
+    fn responses_stream_event_model_verification_reads_metadata_field() {
+        let event = json!({
+            "type": "response.metadata",
+            "sequence_number": 1,
+            "response_id": "resp-1",
+            "metadata": {
+                "openai_verification_recommendation": [TRUSTED_ACCESS_FOR_CYBER_VERIFICATION]
+            }
+        });
+        let event: ResponsesStreamEvent =
+            serde_json::from_value(event).expect("expected event to deserialize");
+
+        assert_eq!(
+            event.model_verifications(),
+            Some(vec![ModelVerification::TrustedAccessForCyber])
+        );
+    }
+
+    #[test]
+    fn responses_stream_event_model_verification_ignores_unknown_field() {
+        let event = json!({
+            "type": "response.metadata",
+            "metadata": {
+                "openai_verification_recommendation": ["unknown"]
+            }
+        });
+        let event: ResponsesStreamEvent =
+            serde_json::from_value(event).expect("expected event to deserialize");
+
+        assert_eq!(event.model_verifications(), None);
+    }
+
+    #[test]
+    fn responses_stream_event_model_verification_ignores_non_array_field() {
+        let event = json!({
+            "type": "response.metadata",
+            "metadata": {
+                "openai_verification_recommendation": TRUSTED_ACCESS_FOR_CYBER_VERIFICATION
+            }
+        });
+        let event: ResponsesStreamEvent =
+            serde_json::from_value(event).expect("expected event to deserialize");
+
+        assert_eq!(event.model_verifications(), None);
+    }
+
+    const CYBER_RESTRICTED_MODEL_FOR_TESTS: &str = "gpt-5.3-lime";
+}

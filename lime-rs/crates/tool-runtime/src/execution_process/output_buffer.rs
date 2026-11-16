@@ -246,9 +246,11 @@ mod tests {
     fn frames_multibyte_characters_across_chunks() {
         let mut framers = ProcessOutputFramers::default();
 
-        assert!(framers
-            .push(ExecutionOutputKind::Stdout, &[0xf0, 0x9f])
-            .is_empty());
+        assert!(
+            framers
+                .push(ExecutionOutputKind::Stdout, &[0xf0, 0x9f])
+                .is_empty()
+        );
         assert_eq!(
             framers.push(ExecutionOutputKind::Stdout, &[0x98, 0x80]),
             "\u{1f600}".as_bytes()
@@ -259,9 +261,11 @@ mod tests {
     fn frames_streams_independently_and_flushes_incomplete_suffixes() {
         let mut framers = ProcessOutputFramers::default();
 
-        assert!(framers
-            .push(ExecutionOutputKind::Stdout, &[0xc3])
-            .is_empty());
+        assert!(
+            framers
+                .push(ExecutionOutputKind::Stdout, &[0xc3])
+                .is_empty()
+        );
         assert_eq!(
             framers.push(ExecutionOutputKind::Stderr, b"error"),
             b"error"

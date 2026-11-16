@@ -1,0 +1,27 @@
+[package]
+name = "worktree"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Git worktree management."
+
+[lib]
+name = "worktree"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+dunce = "1"
+git-utils = { path = "../git-utils" }
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+utils-cargo-bin = { path = "../utils-cargo-bin" }

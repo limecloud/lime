@@ -1,0 +1,177 @@
+//! Composes Guardian prompts and rejection feedback from selected text and runtime inputs.
+//! Callers select policy overrides, output contracts, calibration, and truncation limits.
+
+use context_fragments::ContextualUserFragment;
+use guardian_context::TRANSCRIPT_JSON_INSTRUCTIONS;
+use guardian_context::TranscriptFormat;
+use guardian_context::truncate_text;
+use protocol::models::ContentItem;
+use protocol::models::ContentItemKind;
+use protocol::models::input_text;
+
+const TENANT_POLICY_CONFIG_PLACEHOLDER: &str = "{{ tenant_policy_config }}";
+const EXTRA_POLICY_PLACEHOLDER: &str = "{{ extra_policy }}";
+
+/// Reviewer base instructions composed from the effective policy and caller-owned output contract.
+#[derive(Debug, Clone, Copy)]
+pub struct GuardianPolicyInstructions<'a> {
+    transcript_format: TranscriptFormat,
+    tenant_policy_config: &'a str,
+    extra_policy: &'a str,
+    policy_template: &'a str,
+    output_contract: &'a str,
+}
+
+impl<'a> GuardianPolicyInstructions<'a> {
+    pub fn new(
+        transcript_format: TranscriptFormat,
+        tenant_policy_config: &'a str,
+        extra_policy: &'a str,
+        policy_template: &'a str,
+        output_contract: &'a str,
+    ) -> Self {
+        Self {
+            transcript_format,
+            tenant_policy_config,
+            extra_policy,
+            policy_template,
+            output_contract,
+        }
+    }
+}
+
+impl ContextualUserFragment for GuardianPolicyInstructions<'_> {
+    fn role(&self) -> &'static str {
+        "developer"
+    }
+
+    fn content_kind(&self) -> ContentItemKind {
+        ContentItemKind("guardian.policy_instructions".to_owned())
+    }
+
+    fn markers(&self) -> (&'static str, &'static str) {
+        Self::type_markers()
+    }
+
+    fn type_markers() -> (&'static str, &'static str) {
+        ("", "")
+    }
+
+    fn body(&self) -> ContentItem {
+        let Self {
+            transcript_format,
+            tenant_policy_config,
+            extra_policy,
+            policy_template,
+            output_contract,
+        } = *self;
+        // Substitute only template text, leaving placeholder-like text in either policy literal.
+        let prompt = policy_template
+            .trim_end()
+            .split(TENANT_POLICY_CONFIG_PLACEHOLDER)
+            .map(|part| part.replace(EXTRA_POLICY_PLACEHOLDER, extra_policy.trim()))
+            .collect::<Vec<_>>()
+            .join(tenant_policy_config.trim());
+        let instructions = format!("{prompt}\n\n{output_contract}\n");
+        input_text(match transcript_format {
+            TranscriptFormat::Line => instructions,
+            TranscriptFormat::Json => {
+                format!("{TRANSCRIPT_JSON_INSTRUCTIONS}\n\n{instructions}")
+            }
+        })
+    }
+}
+
+/// Classifier instructions composed from selected text, policy, and the caller-owned output contract.
+/// A supplied token limit applies before the fixed transcript provenance instructions.
+#[derive(Debug, Clone, Copy)]
+pub struct GuardianClassifierInstructions<'a> {
+    transcript_format: TranscriptFormat,
+    classifier_instructions: &'a str,
+    policy: &'a str,
+    output_contract: &'a str,
+    max_tokens: Option<usize>,
+}
+
+impl<'a> GuardianClassifierInstructions<'a> {
+    pub fn new(
+        transcript_format: TranscriptFormat,
+        classifier_instructions: &'a str,
+        policy: &'a str,
+        output_contract: &'a str,
+        max_tokens: Option<usize>,
+    ) -> Self {
+        Self {
+            transcript_format,
+            classifier_instructions,
+            policy,
+            output_contract,
+            max_tokens,
+        }
+    }
+}
+
+impl ContextualUserFragment for GuardianClassifierInstructions<'_> {
+    fn role(&self) -> &'static str {
+        "developer"
+    }
+
+    fn content_kind(&self) -> ContentItemKind {
+        ContentItemKind("guardian.classifier_instructions".to_owned())
+    }
+
+    fn markers(&self) -> (&'static str, &'static str) {
+        Self::type_markers()
+    }
+
+    fn type_markers() -> (&'static str, &'static str) {
+        ("", "")
+    }
+
+    fn body(&self) -> ContentItem {
+        let Self {
+            transcript_format,
+            classifier_instructions,
+            policy,
+            output_contract,
+            max_tokens,
+        } = *self;
+        let instructions = if classifier_instructions.contains(TENANT_POLICY_CONFIG_PLACEHOLDER) {
+            classifier_instructions.replace(TENANT_POLICY_CONFIG_PLACEHOLDER, policy)
+        } else {
+            format!("{classifier_instructions}\n\n# Security Policy\n{policy}")
+        };
+        let instructions = if instructions.trim_end().ends_with(output_contract) {
+            instructions
+        } else {
+            format!("{instructions}\n\n{output_contract}")
+        };
+        let instructions = match max_tokens {
+            Some(max_tokens) => truncate_text(&instructions, max_tokens),
+            None => instructions,
+        };
+        // Fixed host provenance must survive even the smallest configured prompt cap.
+        input_text(match transcript_format {
+            TranscriptFormat::Line => instructions,
+            TranscriptFormat::Json => {
+                format!("{TRANSCRIPT_JSON_INSTRUCTIONS}\n\n{instructions}")
+            }
+        })
+    }
+}
+
+/// Renders feedback for an action the caller has already decided to reject.
+pub fn render_guardian_rejection(rationale: &str, rejection_instructions: &str) -> String {
+    let rationale = if rationale.trim().is_empty() {
+        "Auto-reviewer denied the action without a specific rationale."
+    } else {
+        rationale.trim()
+    };
+    format!(
+        "This action was rejected due to unacceptable risk.\nReason: {rationale}\n{rejection_instructions}"
+    )
+}
+
+#[cfg(test)]
+#[path = "guardian_instructions_tests.rs"]
+mod tests;

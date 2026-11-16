@@ -3,15 +3,13 @@ use serde::Serialize;
 use serde_json::Map as JsonMap;
 use serde_json::Value as JsonValue;
 
-mod command;
+pub(crate) use domain::domain_file_system_policy;
+mod domain;
 
-pub(crate) use command::domain_file_system_policy;
 mod enforcement;
 pub(crate) mod policy;
 #[cfg(target_os = "macos")]
-pub mod seatbelt;
-
-pub use command::{prepare_sandbox_command, SandboxCommandError, SandboxCommandRequest};
+pub use domain::SandboxCommandError;
 pub use policy::{sandbox_policy_from_label, sandbox_policy_label};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

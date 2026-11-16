@@ -4,10 +4,12 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
-use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use utils_cache::BlockingLruCache;
-use utils_cache::sha1_digest;
+use base64::Engine;
+use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::PngEncoder;
+use image::codecs::webp::WebPEncoder;
+use image::imageops::FilterType;
 use image::ColorType;
 use image::DynamicImage;
 use image::GenericImageView;
@@ -15,10 +17,8 @@ use image::ImageDecoder;
 use image::ImageEncoder;
 use image::ImageFormat;
 use image::ImageReader;
-use image::codecs::jpeg::JpegEncoder;
-use image::codecs::png::PngEncoder;
-use image::codecs::webp::WebPEncoder;
-use image::imageops::FilterType;
+use utils_cache::sha1_digest;
+use utils_cache::BlockingLruCache;
 
 const DATA_URL_PREFIX: &str = "data:";
 pub const PROMPT_IMAGE_PATCH_SIZE: u32 = 32;

@@ -30,12 +30,12 @@ pub(crate) fn shell_kind(executable: &str) -> Option<ShellKind> {
         .next()
         .unwrap_or(executable)
         .to_ascii_lowercase();
-    match crate::shell_detect::detect_shell_type(&basename) {
-        Some(crate::shell_detect::ShellType::Bash)
-        | Some(crate::shell_detect::ShellType::Zsh)
-        | Some(crate::shell_detect::ShellType::Sh) => Some(ShellKind::Posix),
-        Some(crate::shell_detect::ShellType::PowerShell) => Some(ShellKind::PowerShell),
-        Some(crate::shell_detect::ShellType::Cmd) => Some(ShellKind::Cmd),
+    match shell_command::shell_detect::detect_shell_type(&basename) {
+        Some(shell_command::shell_detect::ShellType::Bash)
+        | Some(shell_command::shell_detect::ShellType::Zsh)
+        | Some(shell_command::shell_detect::ShellType::Sh) => Some(ShellKind::Posix),
+        Some(shell_command::shell_detect::ShellType::PowerShell) => Some(ShellKind::PowerShell),
+        Some(shell_command::shell_detect::ShellType::Cmd) => Some(ShellKind::Cmd),
         None => {
             // Upstream shell detection only lists shells its runtime launches;
             // Lime also accepts these POSIX-compatible shells.

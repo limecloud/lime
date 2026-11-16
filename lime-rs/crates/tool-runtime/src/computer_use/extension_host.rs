@@ -2,7 +2,7 @@
 
 use super::mailbox::{self, Session};
 use super::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;

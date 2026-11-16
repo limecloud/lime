@@ -1,0 +1,35 @@
+[package]
+name = "shell-command"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Shell detection, command parsing and safety shared by Lime runtime."
+
+[lib]
+name = "shell_command"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+agent-protocol.workspace = true
+base64.workspace = true
+libc = "0.2"
+lime-utils-absolute-path.workspace = true
+once_cell = "1"
+protocol = { path = "../protocol" }
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+shlex.workspace = true
+tree-sitter.workspace = true
+tree-sitter-bash.workspace = true
+tree-sitter-powershell.workspace = true
+url.workspace = true
+which = "8"
+
+[dev-dependencies]
+anyhow.workspace = true
+pretty_assertions.workspace = true
+tempfile.workspace = true

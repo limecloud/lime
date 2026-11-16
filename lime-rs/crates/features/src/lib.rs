@@ -1,0 +1,2509 @@
+//! Centralized feature flags and metadata.
+//!
+//! This crate defines the feature registry plus the logic used to resolve an
+//! effective feature set from config-like inputs.
+
+use protocol::openai_models::ReasoningEffort;
+use protocol::protocol::Event;
+use protocol::protocol::EventMsg;
+use protocol::protocol::WarningEvent;
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde::Serialize;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use toml::Table;
+
+mod feature_configs;
+mod legacy;
+mod runtime_auth;
+pub use feature_configs::AsyncCompactionConfigToml;
+pub use feature_configs::CodeModeConfigToml;
+pub use feature_configs::CodeModeHostConfigToml;
+pub use feature_configs::ContextManagementConfigToml;
+pub use feature_configs::CurrentTimeReminderConfigToml;
+pub use feature_configs::CurrentTimeReminderDeliveryMode;
+pub use feature_configs::CurrentTimeSource;
+pub use feature_configs::GuardianElasticSectionConfigToml;
+pub use feature_configs::GuardianV2ConfigToml;
+pub use feature_configs::GuardianV2ReviewScopeConfigToml;
+pub use feature_configs::GuardianV2TranscriptConfigToml;
+pub use feature_configs::GuardianV2TranscriptSource;
+pub use feature_configs::GuardianV3ConfigToml;
+pub use feature_configs::MultiAgentV2ConfigToml;
+pub use feature_configs::NetworkProxyConfigToml;
+pub use feature_configs::NetworkProxyDomainPermissionToml;
+pub use feature_configs::NetworkProxyModeToml;
+pub use feature_configs::NetworkProxyUnixSocketPermissionToml;
+pub use feature_configs::NonPrefixedMcpToolNamesConfigToml;
+pub use feature_configs::RemoteMessageBoardConfigToml;
+use feature_configs::RemovedAppsMcpPathOverrideConfigToml;
+pub use feature_configs::RolloutBudgetConfigToml;
+pub use feature_configs::SleepToolConfigToml;
+pub use feature_configs::SleepToolMode;
+pub use feature_configs::TokenBudgetConfigToml;
+pub use feature_configs::ToolRegistryConfigToml;
+use legacy::LegacyFeatureToggles;
+pub use legacy::legacy_feature_keys;
+pub use runtime_auth::RuntimeAgentInstancesConfigToml;
+pub use runtime_auth::RuntimeAuthMode;
+
+/// High-level lifecycle stage for a feature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    /// Features that are still under development, not ready for external use
+    UnderDevelopment,
+    /// Experimental features made available to users through the `/experimental` menu
+    Experimental {
+        name: &'static str,
+        menu_description: &'static str,
+        announcement: &'static str,
+    },
+    /// Stable features. The feature flag is kept for ad-hoc enabling/disabling
+    Stable,
+    /// Deprecated feature that should not be used anymore.
+    Deprecated,
+    /// The feature flag is useless but kept for backward compatibility reason.
+    Removed,
+}
+
+impl Stage {
+    pub fn experimental_menu_name(self) -> Option<&'static str> {
+        match self {
+            Stage::Experimental { name, .. } => Some(name),
+            Stage::UnderDevelopment | Stage::Stable | Stage::Deprecated | Stage::Removed => None,
+        }
+    }
+
+    pub fn experimental_menu_description(self) -> Option<&'static str> {
+        match self {
+            Stage::Experimental {
+                menu_description, ..
+            } => Some(menu_description),
+            Stage::UnderDevelopment | Stage::Stable | Stage::Deprecated | Stage::Removed => None,
+        }
+    }
+
+    pub fn experimental_announcement(self) -> Option<&'static str> {
+        match self {
+            Stage::Experimental {
+                announcement: "", ..
+            } => None,
+            Stage::Experimental { announcement, .. } => Some(announcement),
+            Stage::UnderDevelopment | Stage::Stable | Stage::Deprecated | Stage::Removed => None,
+        }
+    }
+}
+
+/// Unique features toggled via configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Feature {
+    /// Preview consumer five-hour and weekly allowance history.
+    AnalyticsPlanHistory,
+    /// Discover model catalogs for OpenAI API-key authentication.
+    ApiKeyModelDiscovery,
+    /// Forward explicit programs with builtin OpenAI API keys.
+    ApiKeyCyberAccessPrograms,
+    /// Enable Daybreak controls and automatic access-program selection in CLI clients.
+    CliDaybreak,
+    /// Capture the saved Daybreak choice for a native helper and its turns.
+    DaybreakProgramPropagation,
+    /// Restrict CLI resume of attributed local threads to their creator.
+    CliResumeAccountCheck,
+    /// Removed no-op; use `tui.fullscreen_transcript` instead.
+    TranscriptV2,
+    // Stable.
+    /// Enable the default shell tool.
+    ShellTool,
+    /// Enable the built-in local image viewer.
+    ViewImage,
+    /// Allow registration of the built-in sleep tool.
+    SleepTool,
+    /// Enable Claude-style lifecycle hooks loaded from hooks.json files.
+    LimeHooks,
+    /// Store CLI auth in the encrypted local secrets backend when keyring storage is selected.
+    SecretAuthStorage,
+
+    /// Automatically start the shared local daemon for eligible interactive launches.
+    DaemonAutoStart,
+    /// Allow the TUI to discover and select among multiple conversation backends.
+    TuiMultiBackend,
+    /// Enable workspace behavior for side conversations in the owned TUI.
+    TuiWorkspace,
+    /// Enable experimental MCP status line providers.
+    TuiExtensionsStatusLine,
+    /// Enable negotiated zstd compression for app-server WebSocket and UDS connections.
+    AppServerWebSocketCompression,
+
+    // Experimental
+    /// Advertise enabled environment-backed tools and their shell parameters before the
+    /// executor is ready. Actual execution still requires a usable environment and its policy.
+    StableEnvironmentTools,
+    /// Copy files between explicitly selected execution environments.
+    MultiEnvCopyFile,
+    /// Send per-content-entry classifications in internal Responses metadata.
+    ContentItemKinds,
+    /// Render client-supplied untrusted context as standalone named tool outputs.
+    UntrustedAsToolOutput,
+    /// Record model-attempted tool calls in internal Responses metadata.
+    ExecutedToolCallMetadata,
+    /// Enable JavaScript code mode backed by the standalone host process.
+    CodeMode,
+    /// Expose ranked tool discovery inside JavaScript code mode.
+    CodeModeToolSearch,
+    /// Removed compatibility flag for the configurable code-mode exec yield timeout.
+    CodeModeBufferedExec,
+    /// Run JavaScript code mode in the standalone host process.
+    CodeModeHost,
+    /// Use gRPC over stdio for the process-owned code-mode host.
+    CodeModeHostGrpc,
+    /// Truncate output in the process-owned code-mode host before sending it to Core.
+    CodeModeHostOutputTruncation,
+    /// Establish the code-mode host connection during session startup.
+    CodeModePrewarm,
+    /// Terminate active code mode cells when their turn is interrupted.
+    CodeModeInterrupt,
+    /// Removed compatibility flag for Code Mode tool description ordering.
+    CodeModeToolDescriptionFirst,
+    /// Restrict model-visible tools to code mode entrypoints (`exec`, `wait`).
+    CodeModeOnly,
+    /// Keep eligible MCP/app and dynamic tools deferred in exec, only in Code Mode Only.
+    /// Ignores deferLoading, omit_tools_from, and namespace skip settings.
+    CodeModeOnlyStrictThirdPartyTools,
+    /// Use the single unified PTY-backed exec tool.
+    UnifiedExec,
+    /// Allow unified exec commands to allocate an interactive terminal.
+    UnifiedExecTty,
+    /// Removed compatibility flag for the retired patched zsh backend.
+    ShellZshFork,
+    /// Removed compatibility flag for the retired patched zsh backend.
+    UnifiedExecZshFork,
+    /// Removed compatibility flag. Transcript scrollback reflow on terminal resize is always on.
+    TerminalResizeReflow,
+    /// Add terminal-specific visualization guidance to TUI developer instructions.
+    TerminalVisualizationInstructions,
+    /// Stream structured progress while apply_patch input is being generated.
+    ApplyPatchStreamingEvents,
+    /// Removed compatibility flag. Patches always preserve existing line endings.
+    ApplyPatchPreserveLineEndings,
+    /// Allow exec tools to request additional permissions while staying sandboxed.
+    ExecPermissionApprovals,
+    /// Require approval before writing input to escalated unified-exec terminals.
+    WriteStdinApproval,
+    /// Expose the built-in request_permissions tool.
+    RequestPermissionsTool,
+    /// Allow the model to request web searches that fetch live content.
+    WebSearchRequest,
+    /// Allow the model to request web searches that fetch cached content.
+    /// Takes precedence over `WebSearchRequest`.
+    WebSearchCached,
+    /// Expose the extension-backed standalone web search tool.
+    StandaloneWebSearch,
+    /// Let the host authorize MCP search independently of native search through per-turn policy.
+    HostedSearchPolicy,
+    /// Use the legacy Landlock Linux sandbox fallback instead of the default
+    /// bubblewrap pipeline.
+    UseLegacyLandlock,
+    /// Experimental shell snapshotting.
+    ShellSnapshot,
+    /// Restore bundled tools to PATH after Lime's login shell starts.
+    LoginShellPackagePath,
+    /// Expose the selected PowerShell execution host's bounded major/minor version.
+    PowerShellShellVersion,
+    /// Keep policy-filtered shell snapshots entirely in executor memory.
+    ShellSnapshotV2,
+    /// Allow turns to start while selected executors are still starting.
+    DeferredExecutor,
+    /// Use the current working directory for turn diff display paths.
+    CwdRelativeTurnDiffs,
+    /// Enable runtime metrics snapshots via a manual reader.
+    RuntimeMetrics,
+    /// Capture internal direct-tool dependency paths for turn attribution.
+    CriticalPathTiming,
+    /// Enable startup memory extraction and file-backed memory consolidation.
+    MemoryTool,
+    /// Enable importing project-scoped memory from external agents.
+    ExternalAgentMemoryImport,
+    /// Compress cold local thread-store rollout files, including shared histories.
+    /// Requires every reader of the Lime home to support compressed shared histories.
+    LocalThreadStoreCompression,
+    /// Removed compatibility flag; local_thread_store_compression controls all rollout files.
+    LocalThreadStoreSharedCompression,
+    /// Migrate legacy local rollout files to paginated history in the background.
+    BackgroundPaginatedRolloutMigration,
+    /// Enable the Chronicle sidecar for passive screen-context memories.
+    Chronicle,
+    /// Compress request bodies (zstd) when sending streaming requests to lime-backend.
+    EnableRequestCompression,
+    /// Keep active sampling turns alive until a failed network connection recovers.
+    UnboundedConnectionRetries,
+    /// Start the managed network proxy for sandboxed sessions.
+    NetworkProxy,
+    /// Mask credentials and inject them through an already enabled network proxy.
+    CredentialMasking,
+    /// Removed compatibility flag. Managed worktrees and repository-aware sessions are always available.
+    Worktrees,
+    /// Respect host system proxy settings for Lime-owned network clients.
+    RespectSystemProxy,
+    /// Retry eligible bootstrap requests through the system proxy after normal routing fails.
+    SystemProxyFallback,
+    /// Enable collab tools.
+    Collab,
+    /// Enable task-path-based multi-agent routing.
+    MultiAgentV2,
+    /// Keep spawn model choices in append-only context instead of tool descriptions.
+    ModelCatalogInContext,
+    /// Inherit client-defined dynamic tools in fresh V2 subagents.
+    MultiAgentV2DynamicTools,
+    /// Inherit configured thread environments instead of temporary turn selections.
+    SubagentThreadEnvironments,
+    /// Use each subagent model's default context window and auto-compaction threshold.
+    SubagentDefaultContextLimits,
+    /// Keep sampling through reasoning and commentary boundaries when agent mail arrives.
+    /// Pending mail is delivered at the next normal input boundary instead.
+    DeferMailboxPreemption,
+    /// Allow agent messages to wake idle root sessions after a completed turn.
+    WakeOnAgentMessages,
+    /// Preempt responses and yield foreground code-mode observations on new user input.
+    InstantInterrupt,
+    /// Interrupt upstream inference when a turn is cancelled.
+    InterruptOnCancel,
+    /// Enable shared discussion tools for an agent tree.
+    AgentMessageBoard,
+    /// Expose a tree-scoped in-memory message board through HTTP MCP.
+    AgentMessageBoardMcp,
+    /// Removed compatibility flag retained as a no-op.
+    MultiAgentMode,
+    /// Removed compatibility flag for the deleted agent-job tools.
+    SpawnCsv,
+    /// Enable apps.
+    Apps,
+    /// Use Apps usage instructions from the selected model's catalog entry.
+    CatalogAppsInstructions,
+    /// Route first-party ChatGPT requests through PSP.
+    Psp,
+    /// Enable MCP apps.
+    EnableMcpApps,
+    /// Enable MCP protocol version 2026-07-28 support.
+    Mcp20260728,
+    /// Honor ordinary MCP server tool-list notifications within a turn.
+    McpToolListChanged,
+    /// Discover and share eligible local stdio connections across chats.
+    McpConnectionSharing,
+    /// Defer optional stdio server startup in regular chats with a warm tool catalog.
+    McpLazyStdioStartup,
+    /// Keep same-named HTTP servers discovered on different executors separate.
+    MultiEnvironmentMcp,
+    /// Enable MCP protocol version 2026-07-28 for the host-owned Lime Apps server.
+    LimeAppsMcp20260728,
+    /// Let host-owned Apps catalog reads overlap the initial tool inventory.
+    AppsEarlyResourceDiscovery,
+    /// Let RMCP coordinate OAuth refresh through the configured credential store.
+    McpOAuthRefreshCoordination,
+    /// Enable enterprise refresh-token authorization for configured MCP resources.
+    UseXaa,
+    /// Removed compatibility flag for the legacy Apps MCP path override.
+    AppsMcpPathOverride,
+    /// Removed compatibility flag retained as a no-op now that tool_search is always enabled.
+    ToolSearch,
+    /// Removed compatibility flag. MCP tools are always deferred when tool_search is available.
+    ToolSearchAlwaysDeferMcpTools,
+    /// Describe deferred tool namespaces in the model-visible world state.
+    DeferredToolWorldState,
+    /// Publish retained command sessions through incremental world state.
+    CommandSessionsWorldState,
+    /// Track top-level tool definitions in world state and emit incremental context updates.
+    IncrementalTools,
+    /// Publish incremental tool declarations on regular Amazon Bedrock Responses.
+    IncrementalToolsLegacy,
+    /// Publish incremental tool declarations on regular GCP Responses.
+    IncrementalToolsLegacyGcp,
+    /// Suppress the model ID announcement in incremental context after a model switch.
+    SuppressModelChangeAnnouncements,
+    /// Preserve inherited tool declarations in MCP-disabled prediction forks.
+    PredictionPreserveParentTools,
+    /// Diff CodeModeOnly exec definitions within the incremental tool catalog.
+    IncrementalExecTools,
+    /// Expose MCP model-visible namespaces without the legacy `mcp__` prefix.
+    NonPrefixedMcpToolNames,
+    /// Enable discoverable tool suggestions for apps.
+    ToolSuggest,
+    /// Include recommended plugins in model-visible context.
+    RecommendedPlugins,
+    /// Enable plugins.
+    Plugins,
+    /// Use concise developer hints for explicitly selected plugins.
+    SimplifiedSelectionHints,
+    /// Discover selected-root plugin and skill manifests through one high-level exec-server RPC.
+    ExecutorCapabilityDiscovery,
+    /// Acquire V2 executor inventories without publishing or activating their capabilities.
+    ExecutorCapabilityDiscoveryV2,
+    /// Skip host skill snapshots when no registered contributor requires them.
+    SkipHostSkillDiscovery,
+    /// Removed compatibility flag for plugin-bundled lifecycle hooks.
+    PluginHooks,
+    /// Allow the in-app browser pane in desktop apps.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    InAppBrowser,
+    /// Allow websites to open and customize annotation tools in desktop apps.
+    /// Ordinary user-driven annotation is independent of this gate.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    BrowserAnnotationApi,
+    /// Allow the in-app chat pane in desktop apps.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    InAppChat,
+    /// Allow in-app dictation in desktop apps.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    InAppDictation,
+    /// Allow in-app Voice in desktop apps.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    /// Permission does not establish Voice availability or provider support.
+    InAppVoice,
+    /// Allow desktop apps to run local automations.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    InAppLocalAutomation,
+    /// Allow desktop apps to perform in-app updates.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    InAppUpdates,
+    /// Allow Browser Use agent integration in desktop apps.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    BrowserUse,
+    /// Allow Browser Use integration to access the full Chrome DevTools Protocol surface.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    BrowserUseFullCdpAccess,
+    /// Allow Browser Use integration with external browsers.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    BrowserUseExternal,
+    /// Allow Lime Computer Use.
+    ///
+    /// Requirements-only gate: this should be set from requirements, not user config.
+    ComputerUse,
+    /// Enable the PS-backed remote plugin catalog.
+    RemotePlugin,
+    /// Removed compatibility flag for plugin discovery prefetch.
+    PluginDiscoveryPrefetch,
+    /// Enable remote plugin sharing flows.
+    PluginSharing,
+    /// Removed compatibility flag retained as a no-op.
+    ExternalMigration,
+    /// Enable extension-backed image generation.
+    ImageGeneration,
+    /// Allow the image-generation tool to request a backend-assembled GIF.
+    ImageGenerationAnimation,
+    /// Omit inline image and audio content from app-server item notifications.
+    OmitAppServerNotificationMedia,
+    /// Tell the model when a prompt image was resized and include its dimensions.
+    ImageResizeNotice,
+    /// Apply one shared pixel and token budget to every image, regardless of legacy detail hints.
+    UnifiedImageBudget,
+    /// Removed compatibility flag for always-on centralized image preparation.
+    ResizeAllImages,
+    /// Removed compatibility flag for always-on response item IDs.
+    ItemIds,
+    /// Request sequential cutoff reasoning summary delivery.
+    ConcurrentReasoningSummaries,
+    /// Request encrypted sampled output for token-preserving replay.
+    OutputTokenReplay,
+    /// Allow prompting and installing missing MCP dependencies.
+    SkillMcpDependencyInstall,
+    /// Omit descriptions from the model-visible available-skills catalog.
+    OmitSkillDescriptions,
+    /// Run cheap skill-search methods in shadow mode and emit experiment metrics.
+    SkillSearch,
+    /// Append skill additions and edits within a cumulative context budget.
+    SkillCatalogDeltas,
+    /// Removed compatibility flag for deleted skill env var dependency prompting.
+    SkillEnvVarDependencyPrompt,
+    /// Enable the unified mention popup used by default in the TUI.
+    MentionsV2,
+    /// Allow request_user_input in Default collaboration mode.
+    DefaultModeRequestUserInput,
+    /// Removed compatibility flag for model-enabled async user messaging.
+    SendAsyncMessage,
+    /// Allow root agents to send async user messages without model catalog support.
+    SendMessageToUserAsync,
+    /// Enable automatic review for approval prompts.
+    GuardianApproval,
+    /// Include standalone additional-context tool outputs in Guardian review history.
+    GuardianIncludeAdditionalContext,
+    /// Forward private reviewer items and interruptions to raw-event observers.
+    GuardianRecordedItems,
+    /// Removed compatibility flag for always-on thread-owned Guardian context.
+    GuardianThreadContext,
+    /// Reuse encrypted parent compaction when restarting Guardian review sessions.
+    /// When disabled, retain an independent review transcript across parent compaction.
+    GuardianReuseParentCompaction,
+    /// Limit worker Guardian root evidence to preceding root communication windows.
+    GuardianRootHandoffContext,
+    /// Review state-changing MAv2 calls and preserve native calls in Guardian history.
+    GuardianNativeMultiAgentHistory,
+    /// Include completed node_repl or cua_repl Code Mode responses in Guardian reviews.
+    GuardianEnhancedNodeReplTranscripts,
+    /// Include completed node_repl or cua_repl Code Mode response images in Guardian reviews.
+    GuardianNodeReplTranscriptImages,
+    /// Trust connector identities from the plugin service orchestrator in Guardian V2.
+    GuardianTrustOrchestratorConnectors,
+    /// Give Guardian access to the root conversation's message history tools.
+    GuardianConversationHistoryTools,
+    /// Resample a synchronous Guardian denial once before publishing it.
+    GuardianDenialReconsideration,
+    /// Enable Guardian V2 automatic approval reviews.
+    GuardianV2,
+    /// Run Decisions alongside Guardian V2 for measurement without changing approvals.
+    GuardianV2DecisionsComparison,
+    /// Enable Guardian V3 integrations.
+    GuardianV3,
+    /// Removed compatibility flag for the unused Guardian extension prototype.
+    GuardianExt,
+    /// Enable persisted thread goals and automatic goal continuation.
+    Goals,
+    /// Add current context-window metadata to model-visible context.
+    TokenBudget,
+    /// Enables experimental context management.
+    ContextManagement,
+    /// Track and report a shared token budget across a session's agent threads.
+    RolloutBudget,
+    /// Append trusted response configuration items when the selected reasoning effort changes.
+    ReasoningEffortOverride,
+    /// Add current-time reminders to model-visible context.
+    CurrentTimeReminder,
+    /// Report failed clock reads to the model without failing the turn.
+    NonfatalClockReadErrors,
+    /// Route MCP tool approval prompts through the MCP elicitation request path.
+    ToolCallMcpElicitation,
+    /// Prompt Lime Apps connector auth failures through MCP URL elicitations.
+    AuthElicitation,
+    /// Offer Amazon Bedrock setup during TUI sign-in onboarding.
+    BedrockSetupWizard,
+    /// Offer Google Cloud Vertex AI setup during TUI sign-in onboarding.
+    GcpSetupWizard,
+    /// Offer custom gateway setup during TUI sign-in onboarding.
+    GatewaySetupWizard,
+    /// Removed compatibility flag retained as a no-op.
+    Personality,
+    /// Enable native artifact tools.
+    Artifact,
+    /// Enable Fast mode selection in the TUI and request layer.
+    FastMode,
+    /// Enable Ultra Fast mode independently of Fast mode.
+    UltrafastMode,
+    /// Enable explicitly requested model changes for later step captures.
+    StepModelSwitching,
+    /// Removed compatibility flag. TUI voice availability follows platform support.
+    RealtimeConversation,
+    /// Prevent idle system sleep while a turn is actively running.
+    PreventIdleSleep,
+    /// Removed compatibility key, still advertised to the Responses API.
+    RemoteCompactionV2,
+    /// Prepare remote compaction in the background before the foreground limit is reached.
+    AsyncCompaction,
+    /// Restrict background compaction to the root session.
+    AsyncCompactionRootOnly,
+    /// Include retained images in the remote compaction context budget.
+    CompactionImageBudget,
+    /// Retain client-authored developer messages across compacted context windows.
+    RetainClientDeveloperMessages,
+    /// Honor client-requested tool-output retention across context windows.
+    RetainClientToolOutputs,
+    /// Use Agent Identity for ChatGPT-authenticated sessions.
+    UseAgentIdentity,
+    /// Register an ephemeral runtime for OpenAI request authentication.
+    RuntimeAgentInstances,
+    /// Enable workspace dependency support.
+    WorkspaceDependencies,
+
+    // Removed
+    /// Removed compatibility flag retained as a no-op so old configs can
+    /// still parse `undo`.
+    GhostCommit,
+    /// Removed compatibility flag for the deleted JavaScript REPL feature.
+    JsRepl,
+    /// Removed compatibility flag for the deleted JavaScript REPL tool-only mode.
+    JsReplToolsOnly,
+    /// Legacy search-tool feature flag kept for backward compatibility.
+    SearchTool,
+    /// Removed legacy Linux bubblewrap opt-in flag retained as a no-op so old
+    /// wrappers and config can still parse it.
+    UseLinuxSandboxBwrap,
+    /// Allow the model to request approval and propose exec rules.
+    RequestRule,
+    /// Enable Windows sandbox (restricted token) on Windows.
+    WindowsSandbox,
+    /// Use the elevated Windows sandbox pipeline (setup + runner).
+    WindowsSandboxElevated,
+    /// Attempt elevated Windows sandbox provisioning through the installed service.
+    WindowsSandboxService,
+    /// Prefer the local native Windows sandbox when available, retaining legacy fallback.
+    PreferMxc,
+    /// Legacy remote models flag kept for backward compatibility.
+    RemoteModels,
+    /// Removed legacy git commit attribution guidance flag.
+    LimeGitCommit,
+    /// Persist rollout metadata to a local SQLite database.
+    Sqlite,
+    /// Removed compatibility flag for the deleted apply_patch fallback feature.
+    ApplyPatchFreeform,
+    /// Removed compatibility flag for the deleted unavailable-tool placeholder backfill.
+    UnavailableDummyTools,
+    /// Steer feature flag - when enabled, Enter submits immediately instead of queuing.
+    /// Kept for config backward compatibility; behavior is always steer-enabled.
+    Steer,
+    /// Enable collaboration modes (Plan, Default).
+    /// Kept for config backward compatibility; behavior is always collaboration-modes-enabled.
+    CollaborationModes,
+    /// Removed compatibility flag for the deleted remote control feature.
+    RemoteControl,
+    /// Removed compatibility flag retained as a no-op so old wrappers can
+    /// still pass `--enable image_detail_original`.
+    ImageDetailOriginal,
+    /// Removed compatibility flag. The TUI now always uses the app-server implementation.
+    TuiAppServer,
+    /// Removed compatibility flag retained as a no-op now that workspace owner
+    /// usage nudges are always enabled.
+    WorkspaceOwnerUsageNudge,
+    /// Legacy rollout flag for Responses API WebSocket transport experiments.
+    ResponsesWebsockets,
+    /// Legacy rollout flag for Responses API WebSocket transport v2 experiments.
+    ResponsesWebsocketsV2,
+}
+
+impl Feature {
+    pub fn key(self) -> &'static str {
+        self.info().key
+    }
+
+    pub fn stage(self) -> Stage {
+        self.info().stage
+    }
+
+    pub fn default_enabled(self) -> bool {
+        self.info().default_enabled
+    }
+
+    fn info(self) -> &'static FeatureSpec {
+        FEATURES
+            .iter()
+            .find(|spec| spec.id == self)
+            .unwrap_or_else(|| unreachable!("missing FeatureSpec for {self:?}"))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LegacyFeatureUsage {
+    pub alias: String,
+    pub feature: Feature,
+    pub summary: String,
+    pub details: Option<String>,
+}
+
+/// Holds the effective set of enabled features.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Features {
+    enabled: BTreeSet<Feature>,
+    legacy_usages: BTreeSet<LegacyFeatureUsage>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FeatureOverrides {
+    pub web_search_request: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FeatureConfigSource<'a> {
+    pub features: Option<&'a FeaturesToml>,
+    pub experimental_use_unified_exec_tool: Option<bool>,
+}
+
+impl FeatureOverrides {
+    fn apply(self, features: &mut Features) {
+        if let Some(enabled) = self.web_search_request {
+            if enabled {
+                features.enable(Feature::WebSearchRequest);
+            } else {
+                features.disable(Feature::WebSearchRequest);
+            }
+            features.record_legacy_usage("web_search_request", Feature::WebSearchRequest);
+        }
+    }
+}
+
+impl Features {
+    /// Starts with built-in defaults.
+    pub fn with_defaults() -> Self {
+        let mut set = BTreeSet::new();
+        for spec in FEATURES {
+            if spec.default_enabled {
+                set.insert(spec.id);
+            }
+        }
+        Self {
+            enabled: set,
+            legacy_usages: BTreeSet::new(),
+        }
+    }
+
+    pub fn enabled(&self, f: Feature) -> bool {
+        self.enabled.contains(&f)
+    }
+
+    /// Whether to advertise GIF output in the image-generation tool.
+    pub fn image_generation_animation_enabled(&self) -> bool {
+        self.enabled(Feature::ImageGenerationAnimation)
+    }
+
+    /// Whether a routing tier is enabled, independently of model catalog support.
+    pub fn service_tier_enabled(&self, service_tier: &str) -> bool {
+        match service_tier {
+            "flex" => true,
+            "ultrafast" => self.enabled(Feature::UltrafastMode),
+            _ => self.enabled(Feature::FastMode),
+        }
+    }
+
+    /// Returns whether persistent execution is enabled for the selected effort.
+    pub fn persistent_execution_enabled(&self, reasoning_effort: Option<&ReasoningEffort>) -> bool {
+        reasoning_effort == Some(&ReasoningEffort::Persistent)
+    }
+
+    pub fn apps_enabled_for_auth(&self, has_chatgpt_auth: bool) -> bool {
+        self.enabled(Feature::Apps) && has_chatgpt_auth
+    }
+
+    pub fn plugin_recommendations_enabled(&self) -> bool {
+        self.enabled(Feature::Apps)
+            && self.enabled(Feature::Plugins)
+            && (self.enabled(Feature::ToolSuggest) || self.enabled(Feature::RecommendedPlugins))
+    }
+
+    pub fn use_legacy_landlock(&self) -> bool {
+        self.enabled(Feature::UseLegacyLandlock)
+    }
+
+    pub fn enable(&mut self, f: Feature) -> &mut Self {
+        self.enabled.insert(f);
+        self
+    }
+
+    pub fn disable(&mut self, f: Feature) -> &mut Self {
+        self.enabled.remove(&f);
+        self
+    }
+
+    pub fn set_enabled(&mut self, f: Feature, enabled: bool) -> &mut Self {
+        if enabled {
+            self.enable(f)
+        } else {
+            self.disable(f)
+        }
+    }
+
+    pub fn record_legacy_usage_force(&mut self, alias: &str, feature: Feature) {
+        let (summary, details) = legacy_usage_notice(alias, feature);
+        self.legacy_usages.insert(LegacyFeatureUsage {
+            alias: alias.to_string(),
+            feature,
+            summary,
+            details,
+        });
+    }
+
+    pub fn record_legacy_usage(&mut self, alias: &str, feature: Feature) {
+        if alias == feature.key() {
+            return;
+        }
+        self.record_legacy_usage_force(alias, feature);
+    }
+
+    pub fn legacy_feature_usages(&self) -> impl Iterator<Item = &LegacyFeatureUsage> + '_ {
+        self.legacy_usages.iter()
+    }
+
+    /// Apply a table of key -> bool toggles (e.g. from TOML).
+    pub fn apply_map(&mut self, m: &BTreeMap<String, bool>) {
+        for (k, v) in m {
+            match k.as_str() {
+                "web_search_request" => {
+                    self.record_legacy_usage_force(
+                        "features.web_search_request",
+                        Feature::WebSearchRequest,
+                    );
+                }
+                "web_search_cached" => {
+                    self.record_legacy_usage_force(
+                        "features.web_search_cached",
+                        Feature::WebSearchCached,
+                    );
+                }
+                "shell_zsh_fork" => {
+                    self.record_legacy_usage_force("shell_zsh_fork", Feature::ShellZshFork);
+                    continue;
+                }
+                "unified_exec_zsh_fork" => {
+                    self.record_legacy_usage_force(
+                        "unified_exec_zsh_fork",
+                        Feature::UnifiedExecZshFork,
+                    );
+                    continue;
+                }
+                "transcript_v2" => {
+                    self.record_legacy_usage_force("features.transcript_v2", Feature::TranscriptV2);
+                    continue;
+                }
+                "tui_app_server" | "worktrees" | "realtime_conversation" => {
+                    continue;
+                }
+                "undo" => {
+                    continue;
+                }
+                "js_repl" => {
+                    continue;
+                }
+                "js_repl_tools_only" => {
+                    continue;
+                }
+                "remote_control" | "remote_compaction_v2" => {
+                    continue;
+                }
+                "apply_patch_freeform" => {
+                    continue;
+                }
+                "tool_search" | "tool_search_always_defer_mcp_tools" | "apps_mcp_path_override" => {
+                    continue;
+                }
+                "image_detail_original" | "resize_all_images" | "item_ids" => {
+                    continue;
+                }
+                "personality" | "plugin_discovery_prefetch" | "plugin_hooks" => {
+                    continue;
+                }
+                "skill_env_var_dependency_prompt" => {
+                    continue;
+                }
+                "terminal_resize_reflow" => {
+                    continue;
+                }
+                "use_legacy_landlock" => {
+                    self.record_legacy_usage_force(
+                        "features.use_legacy_landlock",
+                        Feature::UseLegacyLandlock,
+                    );
+                }
+                "guardianv2.thread_context" => {
+                    self.record_legacy_usage_force(
+                        "features.guardianv2.thread_context",
+                        Feature::GuardianThreadContext,
+                    );
+                    continue;
+                }
+                _ => {}
+            }
+            if k == "imagegenext" && m.contains_key(Feature::ImageGeneration.key()) {
+                self.record_legacy_usage(k, Feature::ImageGeneration);
+                continue;
+            }
+            match feature_for_key(k) {
+                Some(feat) => {
+                    if matches!(feat, Feature::TuiAppServer) {
+                        continue;
+                    }
+                    if k != feat.key() {
+                        self.record_legacy_usage(k.as_str(), feat);
+                    }
+                    if *v {
+                        self.enable(feat);
+                    } else {
+                        self.disable(feat);
+                    }
+                }
+                None => {
+                    tracing::warn!("unknown feature key in config: {k}");
+                }
+            }
+        }
+    }
+
+    pub fn from_sources(
+        base: FeatureConfigSource<'_>,
+        profile: FeatureConfigSource<'_>,
+        overrides: FeatureOverrides,
+    ) -> Self {
+        let mut features = Features::with_defaults();
+
+        for source in [base, profile] {
+            LegacyFeatureToggles {
+                experimental_use_unified_exec_tool: source.experimental_use_unified_exec_tool,
+            }
+            .apply(&mut features);
+
+            if let Some(feature_entries) = source.features {
+                features.apply_toml(feature_entries);
+            }
+        }
+
+        overrides.apply(&mut features);
+        features.normalize_dependencies();
+
+        features
+    }
+
+    pub fn enabled_features(&self) -> Vec<Feature> {
+        self.enabled.iter().copied().collect()
+    }
+
+    pub fn normalize_dependencies(&mut self) {
+        if self.enabled(Feature::CodeModeOnly) && !self.enabled(Feature::CodeMode) {
+            self.enable(Feature::CodeMode);
+        }
+    }
+}
+
+fn legacy_usage_notice(alias: &str, feature: Feature) -> (String, Option<String>) {
+    let canonical = feature.key();
+    match feature {
+        Feature::ShellZshFork | Feature::UnifiedExecZshFork => (
+            format!("`[features].{canonical}` is deprecated and ignored."),
+            Some(format!("The patched zsh backend has been removed. Shell commands now use the standard shell executor. Remove `{canonical}` from [features] in config.toml or profile configuration files.")),
+        ),
+        Feature::GuardianThreadContext => (
+            "`[features.guardianv2].thread_context` is deprecated and ignored.".to_string(),
+            Some("Thread-owned Guardian context is always enabled. Remove `thread_context` from [features.guardianv2] in config.toml, including profile overrides.".to_string()),
+        ),
+        Feature::TranscriptV2 => (
+            "`[features].transcript_v2` is deprecated and ignored.".to_string(),
+            Some("Use `[tui].fullscreen_transcript` in config.toml instead.".to_string()),
+        ),
+        Feature::WebSearchRequest | Feature::WebSearchCached => {
+            let label = match alias {
+                "web_search" => "[features].web_search",
+                "features.web_search_request" | "web_search_request" => {
+                    "[features].web_search_request"
+                }
+                "features.web_search_cached" | "web_search_cached" => {
+                    "[features].web_search_cached"
+                }
+                _ => alias,
+            };
+            let summary =
+                format!("`{label}` is deprecated because web search is enabled by default.");
+            (summary, Some(web_search_details().to_string()))
+        }
+        Feature::UseLegacyLandlock => {
+            let label = match alias {
+                "features.use_legacy_landlock" | "use_legacy_landlock" => {
+                    "[features].use_legacy_landlock"
+                }
+                _ => alias,
+            };
+            let summary = format!("`{label}` is deprecated and will be removed soon.");
+            let details =
+                "Remove this setting to stop opting into the legacy Linux sandbox behavior."
+                    .to_string();
+            (summary, Some(details))
+        }
+        _ => {
+            let label = if alias.contains('.') || alias.starts_with('[') {
+                alias.to_string()
+            } else {
+                format!("[features].{alias}")
+            };
+            let summary = format!("`{label}` is deprecated. Use `[features].{canonical}` instead.");
+            let details = if alias == canonical {
+                None
+            } else {
+                Some(format!(
+                    "Enable it with `--enable {canonical}` or `[features].{canonical}` in config.toml. See https://developers.openai.com/lime/config-basic#feature-flags for details."
+                ))
+            };
+            (summary, details)
+        }
+    }
+}
+
+fn web_search_details() -> &'static str {
+    "Set `web_search` to `\"live\"`, `\"indexed\"`, `\"cached\"`, or `\"disabled\"` at the top level (or under a profile) in config.toml if you want to override it."
+}
+
+/// Keys accepted in `[features]` tables.
+pub fn feature_for_key(key: &str) -> Option<Feature> {
+    for spec in FEATURES {
+        if spec.key == key {
+            return Some(spec.id);
+        }
+    }
+    legacy::feature_for_key(key)
+}
+
+pub fn canonical_feature_for_key(key: &str) -> Option<Feature> {
+    FEATURES
+        .iter()
+        .find(|spec| spec.key == key)
+        .map(|spec| spec.id)
+}
+
+/// Returns `true` if the provided string matches a known `[features]` key.
+pub fn is_known_feature_key(key: &str) -> bool {
+    key == "tool_registry" || feature_for_key(key).is_some()
+}
+
+/// Deserializable features table for TOML.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, JsonSchema)]
+pub struct FeaturesToml {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_registry: Option<ToolRegistryConfigToml>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_mode: Option<FeatureToml<CodeModeConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_mode_host: Option<FeatureToml<CodeModeHostConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub non_prefixed_mcp_tool_names: Option<FeatureToml<NonPrefixedMcpToolNamesConfigToml>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "feature_configs::deserialize_guardian_v2_feature"
+    )]
+    pub guardianv2: Option<FeatureToml<GuardianV2ConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guardianv3: Option<FeatureToml<GuardianV3ConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multi_agent_v2: Option<FeatureToml<MultiAgentV2ConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_budget: Option<FeatureToml<TokenBudgetConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub async_compaction: Option<FeatureToml<AsyncCompactionConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_management: Option<FeatureToml<ContextManagementConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rollout_budget: Option<FeatureToml<RolloutBudgetConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_time_reminder: Option<FeatureToml<CurrentTimeReminderConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sleep_tool: Option<FeatureToml<SleepToolConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_agent_instances: Option<FeatureToml<RuntimeAgentInstancesConfigToml>>,
+    #[serde(default, rename = "apps_mcp_path_override", skip_serializing)]
+    #[schemars(skip)]
+    removed_apps_mcp_path_override: Option<FeatureToml<RemovedAppsMcpPathOverrideConfigToml>>,
+    pub network_proxy: Option<FeatureToml<NetworkProxyConfigToml>>,
+    /// Boolean feature toggles keyed by canonical or legacy feature name.
+    #[serde(flatten)]
+    entries: BTreeMap<String, bool>,
+}
+
+impl Features {
+    fn apply_toml(&mut self, features: &FeaturesToml) {
+        let entries = features.entries();
+        self.apply_map(&entries);
+    }
+}
+
+impl FeaturesToml {
+    pub fn entries(&self) -> BTreeMap<String, bool> {
+        let mut entries = self.entries.clone();
+        if let Some(enabled) = self
+            .async_compaction
+            .as_ref()
+            .and_then(FeatureToml::enabled)
+        {
+            entries.insert(Feature::AsyncCompaction.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.code_mode.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::CodeMode.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.code_mode_host.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::CodeModeHost.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self
+            .non_prefixed_mcp_tool_names
+            .as_ref()
+            .and_then(FeatureToml::enabled)
+        {
+            entries.insert(Feature::NonPrefixedMcpToolNames.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.guardianv2.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::GuardianV2.key().to_string(), enabled);
+        }
+        if let Some(FeatureToml::Config(config)) = &self.guardianv2
+            && let Some(enabled) = config.thread_context
+        {
+            entries.insert(Feature::GuardianThreadContext.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.guardianv3.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::GuardianV3.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.multi_agent_v2.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::MultiAgentV2.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.token_budget.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::TokenBudget.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self
+            .context_management
+            .as_ref()
+            .and_then(FeatureToml::enabled)
+        {
+            entries.insert(Feature::ContextManagement.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.rollout_budget.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::RolloutBudget.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self
+            .current_time_reminder
+            .as_ref()
+            .and_then(FeatureToml::enabled)
+        {
+            entries.insert(Feature::CurrentTimeReminder.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.network_proxy.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::NetworkProxy.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self.sleep_tool.as_ref().and_then(FeatureToml::enabled) {
+            entries.insert(Feature::SleepTool.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self
+            .runtime_agent_instances
+            .as_ref()
+            .and_then(FeatureToml::enabled)
+        {
+            entries.insert(Feature::RuntimeAgentInstances.key().to_string(), enabled);
+        }
+        entries
+    }
+}
+
+impl From<BTreeMap<String, bool>> for FeaturesToml {
+    fn from(entries: BTreeMap<String, bool>) -> Self {
+        Self {
+            entries,
+            ..Default::default()
+        }
+    }
+}
+
+// To be used for features that need more configuration than just enabled/disabled and
+// require a custom config struct under `[features]`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(untagged)]
+pub enum FeatureToml<T> {
+    Enabled(bool),
+    Config(T),
+}
+
+impl<T: FeatureConfig> FeatureToml<T> {
+    pub fn enabled(&self) -> Option<bool> {
+        match self {
+            Self::Enabled(enabled) => Some(*enabled),
+            Self::Config(config) => config.enabled(),
+        }
+    }
+}
+
+// A trait to be implemented by custom feature config structs when defining a feature that needs more configuration than
+// just enabled/disabled.
+pub trait FeatureConfig {
+    fn enabled(&self) -> Option<bool>;
+}
+
+/// Single, easy-to-read registry of all feature definitions.
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureSpec {
+    pub id: Feature,
+    pub key: &'static str,
+    pub stage: Stage,
+    pub default_enabled: bool,
+}
+
+pub const FEATURES: &[FeatureSpec] = &[
+    FeatureSpec {
+        id: Feature::AnalyticsPlanHistory,
+        key: "analytics_plan_history",
+        stage: Stage::Experimental {
+            name: "Analytics plan history",
+            menu_description: "Preview five-hour and weekly allowance history for consumer accounts in /analytics.",
+            announcement: "",
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CliResumeAccountCheck,
+        key: "cli_resume_account_check",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::DaemonAutoStart,
+        key: "daemon_auto_start",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::TuiWorkspace,
+        key: "tui_workspace",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TuiMultiBackend,
+        key: "tui_multi_backend",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TuiExtensionsStatusLine,
+        key: "tui_extensions_statusline",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::AppServerWebSocketCompression,
+        key: "app_server_websocket_compression",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TranscriptV2,
+        key: "transcript_v2",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    // Stable features.
+    FeatureSpec {
+        id: Feature::GhostCommit,
+        key: "undo",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ShellTool,
+        key: "shell_tool",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ViewImage,
+        key: "view_image",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::MultiEnvCopyFile,
+        key: "multi_env_copy_file",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SleepTool,
+        key: "sleep_tool",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::SecretAuthStorage,
+        key: "secret_auth_storage",
+        stage: Stage::Stable,
+        default_enabled: cfg!(windows),
+    },
+    FeatureSpec {
+        id: Feature::UnifiedExec,
+        key: "unified_exec",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::UnifiedExecTty,
+        key: "unified_exec_tty",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ShellZshFork,
+        key: "shell_zsh_fork",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::UnifiedExecZshFork,
+        key: "unified_exec_zsh_fork",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ShellSnapshot,
+        key: "shell_snapshot",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::LoginShellPackagePath,
+        key: "login_shell_package_path",
+        stage: Stage::Experimental {
+            name: "Bundled tools in login shells",
+            menu_description: "Keep bundled tools such as ripgrep available when login shell startup resets PATH.",
+            announcement: "",
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::PowerShellShellVersion,
+        key: "powershell_shell_version",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ShellSnapshotV2,
+        key: "shell_snapshot_v2",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::DeferredExecutor,
+        key: "deferred_executor",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CwdRelativeTurnDiffs,
+        key: "cwd_relative_turn_diffs",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::JsRepl,
+        key: "js_repl",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ContentItemKinds,
+        key: "content_item_kinds",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::UntrustedAsToolOutput,
+        key: "untrusted_as_tool_output",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ExecutedToolCallMetadata,
+        key: "executed_tool_call_metadata",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::StableEnvironmentTools,
+        key: "stable_environment_tools",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CodeMode,
+        key: "code_mode",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeToolSearch,
+        key: "code_mode_tool_search",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeBufferedExec,
+        key: "code_mode_buffered_exec",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeHost,
+        key: "code_mode_host",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeHostGrpc,
+        key: "code_mode_host_grpc",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeHostOutputTruncation,
+        key: "code_mode_host_output_truncation",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CodeModePrewarm,
+        key: "code_mode_prewarm",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeInterrupt,
+        key: "code_mode_interrupt",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeToolDescriptionFirst,
+        key: "code_mode_tool_description_first",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::InstantInterrupt,
+        key: "instant_interrupt",
+        stage: Stage::UnderDevelopment,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::InterruptOnCancel,
+        key: "interrupt_on_cancel",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeOnly,
+        key: "code_mode_only",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CodeModeOnlyStrictThirdPartyTools,
+        key: "code_mode_only_strict_3p_tools",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::JsReplToolsOnly,
+        key: "js_repl_tools_only",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TerminalResizeReflow,
+        key: "terminal_resize_reflow",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::WebSearchRequest,
+        key: "web_search_request",
+        stage: Stage::Deprecated,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WebSearchCached,
+        key: "web_search_cached",
+        stage: Stage::Deprecated,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::StandaloneWebSearch,
+        key: "standalone_web_search",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::HostedSearchPolicy,
+        key: "hosted_search_policy",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SearchTool,
+        key: "search_tool",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::LimeGitCommit,
+        key: "lime_git_commit",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RuntimeMetrics,
+        key: "runtime_metrics",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CriticalPathTiming,
+        key: "critical_path_timing",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Sqlite,
+        key: "sqlite",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::MemoryTool,
+        key: "memories",
+        stage: Stage::Stable,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ExternalAgentMemoryImport,
+        key: "external_agent_memory_import",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::LocalThreadStoreCompression,
+        key: "local_thread_store_compression",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::LocalThreadStoreSharedCompression,
+        key: "local_thread_store_shared_compression",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::BackgroundPaginatedRolloutMigration,
+        key: "background_paginated_rollout_migration",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Chronicle,
+        key: "chronicle",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ApplyPatchFreeform,
+        key: "apply_patch_freeform",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ApplyPatchStreamingEvents,
+        key: "apply_patch_streaming_events",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ApplyPatchPreserveLineEndings,
+        key: "apply_patch_preserve_line_endings",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ExecPermissionApprovals,
+        key: "exec_permission_approvals",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WriteStdinApproval,
+        key: "write_stdin_approval",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::LimeHooks,
+        key: "hooks",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::RequestPermissionsTool,
+        key: "request_permissions_tool",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::UseLinuxSandboxBwrap,
+        key: "use_linux_sandbox_bwrap",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::UseLegacyLandlock,
+        key: "use_legacy_landlock",
+        stage: Stage::Deprecated,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RequestRule,
+        key: "request_rule",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WindowsSandbox,
+        key: "experimental_windows_sandbox",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WindowsSandboxElevated,
+        key: "elevated_windows_sandbox",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WindowsSandboxService,
+        key: "windows_sandbox_service",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::PreferMxc,
+        key: "prefer_mxc",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RemoteModels,
+        key: "remote_models",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ApiKeyModelDiscovery,
+        key: "api_key_model_discovery",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CliDaybreak,
+        key: "cli_daybreak",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ApiKeyCyberAccessPrograms,
+        key: "api_key_cyber_access_programs",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::DaybreakProgramPropagation,
+        key: "daybreak_program_propagation",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::EnableRequestCompression,
+        key: "enable_request_compression",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::UnboundedConnectionRetries,
+        key: "unbounded_connection_retries",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::NetworkProxy,
+        key: "network_proxy",
+        stage: Stage::Experimental {
+            name: "Network proxy",
+            menu_description: "Apply network proxy restrictions to sandboxed sessions that already have network access.",
+            announcement: "NEW: Network proxy can now be enabled from /experimental. Restart Lime after enabling it.",
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CredentialMasking,
+        key: "credential_masking",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Worktrees,
+        key: "worktrees",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::RespectSystemProxy,
+        key: "respect_system_proxy",
+        stage: Stage::Experimental {
+            name: "System proxy",
+            menu_description: "Use macOS or Windows system proxy settings for Lime requests.",
+            announcement: "",
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SystemProxyFallback,
+        key: "system_proxy_fallback",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::Collab,
+        key: "multi_agent",
+        stage: Stage::Deprecated,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::MultiAgentV2,
+        key: "multi_agent_v2",
+        stage: Stage::Stable,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ModelCatalogInContext,
+        key: "model_catalog_in_context",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::MultiAgentV2DynamicTools,
+        key: "multi_agent_v2_dynamic_tools",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SubagentThreadEnvironments,
+        key: "subagent_thread_environments",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SubagentDefaultContextLimits,
+        key: "subagent_default_context_limits",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::DeferMailboxPreemption,
+        key: "defer_mailbox_preemption",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WakeOnAgentMessages,
+        key: "wake_on_agent_messages",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::AgentMessageBoard,
+        key: "agent_message_board",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::AgentMessageBoardMcp,
+        key: "agent_message_board_mcp",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::MultiAgentMode,
+        key: "multi_agent_mode",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SpawnCsv,
+        key: "enable_fanout",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Apps,
+        key: "apps",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CatalogAppsInstructions,
+        key: "catalog_apps_instructions",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Psp,
+        key: "psp",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::EnableMcpApps,
+        key: "enable_mcp_apps",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Mcp20260728,
+        key: "mcp_2026_07_28",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::McpToolListChanged,
+        key: "mcp_tool_list_changed",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::McpConnectionSharing,
+        key: "mcp_connection_sharing",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::McpLazyStdioStartup,
+        key: "mcp_lazy_stdio_startup",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::MultiEnvironmentMcp,
+        key: "multi_environment_mcp",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::AppsEarlyResourceDiscovery,
+        key: "apps_early_resource_discovery",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::LimeAppsMcp20260728,
+        key: "lime_apps_mcp_2026_07_28",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::McpOAuthRefreshCoordination,
+        key: "mcp_oauth_refresh_coordination",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::UseXaa,
+        key: "use_xaa",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::AppsMcpPathOverride,
+        key: "apps_mcp_path_override",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ToolSearch,
+        key: "tool_search",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ToolSearchAlwaysDeferMcpTools,
+        key: "tool_search_always_defer_mcp_tools",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::DeferredToolWorldState,
+        key: "deferred_tool_world_state",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CommandSessionsWorldState,
+        key: "command_sessions_world_state",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::IncrementalTools,
+        key: "incremental_tools",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::IncrementalToolsLegacy,
+        key: "incremental_tools_legacy",
+        stage: Stage::Stable,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::IncrementalToolsLegacyGcp,
+        key: "incremental_tools_legacy_gcp",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::SuppressModelChangeAnnouncements,
+        key: "suppress_model_change_announcements",
+        stage: Stage::Stable,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::PredictionPreserveParentTools,
+        key: "prediction_preserve_parent_tools",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::IncrementalExecTools,
+        key: "incremental_exec_tools",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::NonPrefixedMcpToolNames,
+        key: "non_prefixed_mcp_tool_names",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::UnavailableDummyTools,
+        key: "unavailable_dummy_tools",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ToolSuggest,
+        key: "tool_suggest",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::RecommendedPlugins,
+        key: "recommended_plugins",
+        stage: Stage::Stable,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Plugins,
+        key: "plugins",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::SimplifiedSelectionHints,
+        key: "simplified_selection_hints",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ExecutorCapabilityDiscovery,
+        key: "executor_capability_discovery",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ExecutorCapabilityDiscoveryV2,
+        key: "executor_capability_discovery_v2",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SkipHostSkillDiscovery,
+        key: "skip_host_skill_discovery",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::PluginHooks,
+        key: "plugin_hooks",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::InAppBrowser,
+        key: "in_app_browser",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::BrowserAnnotationApi,
+        key: "browser_annotation_api",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::InAppChat,
+        key: "in_app_chat",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::InAppDictation,
+        key: "in_app_dictation",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::InAppVoice,
+        key: "in_app_voice",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::InAppLocalAutomation,
+        key: "in_app_local_automation",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::InAppUpdates,
+        key: "in_app_updates",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::BrowserUse,
+        key: "browser_use",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::BrowserUseFullCdpAccess,
+        key: "browser_use_full_cdp_access",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::BrowserUseExternal,
+        key: "browser_use_external",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ComputerUse,
+        key: "computer_use",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::RemotePlugin,
+        key: "remote_plugin",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::PluginDiscoveryPrefetch,
+        key: "plugin_discovery_prefetch",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::PluginSharing,
+        key: "plugin_sharing",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ExternalMigration,
+        key: "external_migration",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ImageGeneration,
+        key: "image_generation",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ImageGenerationAnimation,
+        key: "image_generation_animation",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::OmitAppServerNotificationMedia,
+        key: "omit_app_server_notification_media",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ImageResizeNotice,
+        key: "image_resize_notice",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::UnifiedImageBudget,
+        key: "unified_image_budget",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ResizeAllImages,
+        key: "resize_all_images",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ItemIds,
+        key: "item_ids",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ConcurrentReasoningSummaries,
+        key: "concurrent_reasoning_summaries",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::OutputTokenReplay,
+        key: "output_token_replay",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SkillMcpDependencyInstall,
+        key: "skill_mcp_dependency_install",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::OmitSkillDescriptions,
+        key: "omit_skill_descriptions",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SkillSearch,
+        key: "skill_search",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::SkillCatalogDeltas,
+        key: "skill_catalog_deltas",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SkillEnvVarDependencyPrompt,
+        key: "skill_env_var_dependency_prompt",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::MentionsV2,
+        key: "mentions_v2",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::Steer,
+        key: "steer",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::DefaultModeRequestUserInput,
+        key: "default_mode_request_user_input",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SendAsyncMessage,
+        key: "send_async_message",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::SendMessageToUserAsync,
+        key: "send_message_to_user_async",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TerminalVisualizationInstructions,
+        key: "terminal_visualization_instructions",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianApproval,
+        key: "guardian_approval",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::GuardianIncludeAdditionalContext,
+        key: "guardian_include_additional_context",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::GuardianRecordedItems,
+        key: "guardian_recorded_items",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianThreadContext,
+        key: "guardianv2.thread_context",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianReuseParentCompaction,
+        key: "guardian_reuse_parent_compaction",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::GuardianRootHandoffContext,
+        key: "guardian_root_handoff_context",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianNativeMultiAgentHistory,
+        key: "guardian_native_multi_agent_history",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianEnhancedNodeReplTranscripts,
+        key: "guardian_enhanced_node_repl_transcripts",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianNodeReplTranscriptImages,
+        key: "guardian_node_repl_transcript_images",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianTrustOrchestratorConnectors,
+        key: "guardian_trust_orchestrator_connectors",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianConversationHistoryTools,
+        key: "guardian_conversation_history_tools",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianDenialReconsideration,
+        key: "guardian_denial_reconsideration",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianV2,
+        key: "guardianv2",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianV2DecisionsComparison,
+        key: "guardianv2_decisions_comparison",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianV3,
+        key: "guardianv3",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GuardianExt,
+        key: "guardian_ext",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Goals,
+        key: "goals",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::TokenBudget,
+        key: "token_budget",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ContextManagement,
+        key: "context_management",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RolloutBudget,
+        key: "rollout_budget",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ReasoningEffortOverride,
+        key: "reasoning_effort_override",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CurrentTimeReminder,
+        key: "current_time_reminder",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::NonfatalClockReadErrors,
+        key: "nonfatal_clock_read_errors",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CollaborationModes,
+        key: "collaboration_modes",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ToolCallMcpElicitation,
+        key: "tool_call_mcp_elicitation",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::AuthElicitation,
+        key: "auth_elicitation",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::BedrockSetupWizard,
+        key: "bedrock_setup_wizard",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::GcpSetupWizard,
+        key: "gcp_setup_wizard",
+        stage: Stage::Stable,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::GatewaySetupWizard,
+        key: "gateway_setup_wizard",
+        stage: Stage::Stable,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Personality,
+        key: "personality",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Artifact,
+        key: "artifact",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::FastMode,
+        key: "fast_mode",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::UltrafastMode,
+        key: "ultrafast_mode",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::StepModelSwitching,
+        key: "step_model_switching",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RealtimeConversation,
+        key: "realtime_conversation",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::RemoteControl,
+        key: "remote_control",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ImageDetailOriginal,
+        key: "image_detail_original",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TuiAppServer,
+        key: "tui_app_server",
+        stage: Stage::Removed,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::PreventIdleSleep,
+        key: "prevent_idle_sleep",
+        stage: if cfg!(any(
+            target_os = "macos",
+            target_os = "linux",
+            target_os = "windows"
+        )) {
+            Stage::Experimental {
+                name: "Prevent sleep while running",
+                menu_description: "Keep your computer awake while Lime is running a thread.",
+                announcement: "NEW: Prevent sleep while running is now available in /experimental.",
+            }
+        } else {
+            Stage::UnderDevelopment
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WorkspaceOwnerUsageNudge,
+        key: "workspace_owner_usage_nudge",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ResponsesWebsockets,
+        key: "responses_websockets",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ResponsesWebsocketsV2,
+        key: "responses_websockets_v2",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RemoteCompactionV2,
+        key: "remote_compaction_v2",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::AsyncCompaction,
+        key: "async_compaction",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::AsyncCompactionRootOnly,
+        key: "async_compaction_root_only",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::CompactionImageBudget,
+        key: "compaction_image_budget",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::RetainClientDeveloperMessages,
+        key: "retain_client_developer_messages",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RetainClientToolOutputs,
+        key: "retain_client_tool_outputs",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::UseAgentIdentity,
+        key: "use_agent_identity",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::RuntimeAgentInstances,
+        key: "runtime_agent_instances",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::WorkspaceDependencies,
+        key: "workspace_dependencies",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+];
+
+pub fn unstable_features_warning_event(
+    effective_features: Option<&Table>,
+    suppress_unstable_features_warning: bool,
+    features: &Features,
+    config_path: &str,
+) -> Option<Event> {
+    if suppress_unstable_features_warning {
+        return None;
+    }
+
+    let mut under_development_feature_keys = Vec::new();
+    if let Some(table) = effective_features {
+        for (key, value) in table {
+            let is_enabled = value.as_bool() == Some(true)
+                || value
+                    .as_table()
+                    .and_then(|table| table.get("enabled"))
+                    .and_then(toml::Value::as_bool)
+                    == Some(true);
+            if !is_enabled {
+                continue;
+            }
+            let Some(spec) = FEATURES.iter().find(|spec| spec.key == key.as_str()) else {
+                continue;
+            };
+            if !features.enabled(spec.id) {
+                continue;
+            }
+            if matches!(spec.stage, Stage::UnderDevelopment) {
+                under_development_feature_keys.push(spec.key.to_string());
+            }
+        }
+    }
+
+    if under_development_feature_keys.is_empty() {
+        return None;
+    }
+
+    under_development_feature_keys.sort();
+    let under_development_feature_keys = under_development_feature_keys.join(", ");
+    let message = format!(
+        "Under-development features enabled: {under_development_feature_keys}. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in {config_path}."
+    );
+    Some(Event {
+        id: String::new(),
+        msg: EventMsg::Warning(WarningEvent { message }),
+    })
+}
+
+#[cfg(test)]
+mod tests;

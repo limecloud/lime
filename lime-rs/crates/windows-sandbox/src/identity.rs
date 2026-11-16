@@ -1,0 +1,613 @@
+use crate::SandboxRuntimeAccount;
+use crate::WindowsSandboxProvisioningOutcome;
+use crate::WindowsSandboxProvisioningSettings;
+use crate::WindowsSandboxProxyListeners;
+use crate::dpapi;
+use crate::logging::debug_log;
+use crate::resolved_permissions::ResolvedWindowsSandboxPermissions;
+use crate::setup::OFFLINE_USERNAME;
+use crate::setup::ONLINE_USERNAME;
+use crate::setup::OfflineProxySettings;
+use crate::setup::SandboxNetworkIdentity;
+use crate::setup::SandboxSetupRequest;
+use crate::setup::SandboxUserRecord;
+use crate::setup::SandboxUsersFile;
+use crate::setup::SetupMarker;
+use crate::setup::gather_read_roots;
+use crate::setup::gather_write_roots_for_permissions;
+use crate::setup::offline_proxy_settings_from_env;
+use crate::setup::run_elevated_setup_with_proxy_settings;
+use crate::setup::run_setup_refresh_with_overrides_and_proxy_settings;
+use crate::setup::sandbox_users_path;
+use crate::setup::setup_marker_path;
+use crate::winutil::local_user_flags;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::ensure;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use std::collections::HashMap;
+use std::fs;
+use std::io;
+use std::os::windows::io::FromRawHandle;
+use std::os::windows::io::OwnedHandle;
+use std::path::Path;
+use std::path::PathBuf;
+use windows_sys::Win32::Foundation::ERROR_LOGON_FAILURE;
+use windows_sys::Win32::Foundation::ERROR_PASSWORD_EXPIRED;
+use windows_sys::Win32::Foundation::ERROR_PASSWORD_MUST_CHANGE;
+use windows_sys::Win32::NetworkManagement::NetManagement::UF_ACCOUNTDISABLE;
+use windows_sys::Win32::NetworkManagement::NetManagement::UF_PASSWORD_EXPIRED;
+use windows_sys::Win32::Security::LOGON32_LOGON_INTERACTIVE;
+use windows_sys::Win32::Security::LOGON32_PROVIDER_DEFAULT;
+use windows_sys::Win32::Security::LogonUserW;
+
+#[cfg(test)]
+#[path = "identity_integration_tests.rs"]
+mod integration_tests;
+
+#[derive(Debug, Clone)]
+struct SandboxIdentity {
+    username: String,
+    password: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SandboxCreds {
+    pub username: String,
+    pub password: String,
+}
+
+/// Windows rejected the stored sandbox password; credential-file and policy errors are distinct.
+#[derive(Debug)]
+pub struct SandboxAccountCredentialMismatch;
+
+impl std::fmt::Display for SandboxAccountCredentialMismatch {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Windows rejected the stored sandbox account password")
+    }
+}
+
+impl std::error::Error for SandboxAccountCredentialMismatch {}
+
+/// Returns true when the on-disk setup artifacts exist and match the current
+/// setup version.
+///
+/// This is a coarse readiness check; `require_logon_sandbox_creds` performs the
+/// additional runtime validation for offline firewall settings.
+pub fn sandbox_setup_is_complete(lime_home: &Path) -> bool {
+    let marker_ok = matches!(load_marker(lime_home), Ok(Some(marker)) if marker.version_matches());
+    if !marker_ok {
+        return false;
+    }
+    if crate::registered_core_requested()
+        && !crate::app_package::registered_setup_is_ready(lime_home).unwrap_or(false)
+    {
+        return false;
+    }
+    matches!(load_users(lime_home), Ok(Some(users)) if users.version_matches())
+}
+
+/// Returns true when setup artifacts and provisioned network settings match.
+pub fn sandbox_setup_is_complete_with_settings(
+    lime_home: &Path,
+    settings: &crate::WindowsSandboxProvisioningSettings,
+) -> bool {
+    let Ok(Some(mut marker)) = load_marker(lime_home) else {
+        return false;
+    };
+
+    marker.proxy_ports.sort_unstable();
+    let mut proxy_ports = settings.proxy_ports.clone();
+    proxy_ports.sort_unstable();
+    marker.version_matches()
+        && marker.proxy_ports == proxy_ports
+        && marker.allow_local_binding == settings.allow_local_binding
+        && matches!(load_users(lime_home), Ok(Some(users)) if users.version_matches())
+}
+
+fn load_marker(lime_home: &Path) -> Result<Option<SetupMarker>> {
+    let path = setup_marker_path(lime_home);
+    let marker = match fs::read_to_string(&path) {
+        Ok(contents) => match serde_json::from_str::<SetupMarker>(&contents) {
+            Ok(m) => Some(m),
+            Err(err) => {
+                debug_log(
+                    &format!("sandbox setup marker parse failed: {err}"),
+                    Some(lime_home),
+                );
+                None
+            }
+        },
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+        Err(err) => {
+            debug_log(
+                &format!("sandbox setup marker read failed: {err}"),
+                Some(lime_home),
+            );
+            None
+        }
+    };
+    Ok(marker)
+}
+
+fn load_users(lime_home: &Path) -> Result<Option<SandboxUsersFile>> {
+    let path = sandbox_users_path(lime_home);
+    let file = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            debug_log(
+                &format!("sandbox users read failed: {err}"),
+                Some(lime_home),
+            );
+            return Ok(None);
+        }
+    };
+    match serde_json::from_str::<SandboxUsersFile>(&file) {
+        Ok(users) => Ok(Some(users)),
+        Err(err) => {
+            debug_log(
+                &format!("sandbox users parse failed: {err}"),
+                Some(lime_home),
+            );
+            Ok(None)
+        }
+    }
+}
+
+fn remove_sandbox_users_file(lime_home: &Path, reason: &str) -> Result<()> {
+    let path = sandbox_users_path(lime_home);
+    debug_log(
+        &format!("{reason}; deleting {}", path.display()),
+        Some(lime_home),
+    );
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err).with_context(|| format!("delete {}", path.display())),
+    }
+}
+
+fn decode_password(record: &SandboxUserRecord) -> Result<String> {
+    let blob = BASE64_STANDARD
+        .decode(record.password.as_bytes())
+        .context("base64 decode password")?;
+    let decrypted = dpapi::unprotect(&blob)?;
+    let pwd = String::from_utf8(decrypted).context("sandbox password not utf-8")?;
+    Ok(pwd)
+}
+
+/// Opens a token for one existing managed account without provisioning or changing it.
+/// The caller must keep the authenticated credential directory pinned and verify
+/// the token's recorded SID, group membership, and non-administrator status.
+pub fn logon_existing_sandbox_account(
+    lime_home: &Path,
+    account: SandboxRuntimeAccount,
+) -> Result<OwnedHandle> {
+    // Unlike the ordinary app-side readers, this service recovery path must
+    // never create diagnostic files beneath an owner-controlled directory.
+    let marker: SetupMarker = serde_json::from_slice(
+        &fs::read(setup_marker_path(lime_home)).context("read sandbox setup marker")?,
+    )
+    .context("parse sandbox setup marker")?;
+    ensure!(
+        marker.version_matches(),
+        "sandbox setup marker is missing or incompatible"
+    );
+    let users: SandboxUsersFile = serde_json::from_slice(
+        &fs::read(sandbox_users_path(lime_home)).context("read sandbox accounts")?,
+    )
+    .context("parse sandbox accounts")?;
+    ensure!(users.version_matches(), "sandbox accounts are incompatible");
+    let record = match account {
+        SandboxRuntimeAccount::Offline => users.offline,
+        SandboxRuntimeAccount::Online => users.online,
+    };
+    ensure!(
+        record.username.eq_ignore_ascii_case(account.username()),
+        "sandbox account record does not match the managed account"
+    );
+    let password = crate::to_wide(decode_password(&record)?);
+    let mut token = std::ptr::null_mut();
+    if unsafe {
+        LogonUserW(
+            crate::to_wide(account.username()).as_ptr(),
+            crate::to_wide(".").as_ptr(),
+            password.as_ptr(),
+            LOGON32_LOGON_INTERACTIVE,
+            LOGON32_PROVIDER_DEFAULT,
+            &mut token,
+        )
+    } == 0
+    {
+        return Err(account_logon_error(io::Error::last_os_error()));
+    }
+    Ok(unsafe { OwnedHandle::from_raw_handle(token as _) })
+}
+
+fn account_logon_error(error: io::Error) -> anyhow::Error {
+    let bad_password = matches!(
+        error.raw_os_error().map(|code| code as u32),
+        Some(ERROR_LOGON_FAILURE | ERROR_PASSWORD_EXPIRED | ERROR_PASSWORD_MUST_CHANGE)
+    );
+    let error = anyhow::Error::new(error);
+    if bad_password {
+        error.context(SandboxAccountCredentialMismatch)
+    } else {
+        error.context("log on existing sandbox account")
+    }
+}
+
+fn select_identity(
+    network_identity: SandboxNetworkIdentity,
+    lime_home: &Path,
+) -> Result<Option<SandboxIdentity>> {
+    let _marker = match load_marker(lime_home)? {
+        Some(m) if m.version_matches() => m,
+        _ => return Ok(None),
+    };
+    let users = match load_users(lime_home)? {
+        Some(u) if u.version_matches() => u,
+        _ => return Ok(None),
+    };
+    let chosen = match network_identity {
+        SandboxNetworkIdentity::Offline => users.offline,
+        SandboxNetworkIdentity::Online => users.online,
+    };
+    let password = decode_password(&chosen)?;
+    Ok(Some(SandboxIdentity {
+        username: chosen.username,
+        password,
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn require_logon_sandbox_creds(
+    permissions: &ResolvedWindowsSandboxPermissions,
+    command_cwd: &Path,
+    env_map: &HashMap<String, String>,
+    lime_home: &Path,
+    read_roots_override: Option<&[PathBuf]>,
+    read_roots_include_platform_defaults: bool,
+    write_roots_override: Option<&[PathBuf]>,
+    deny_read_paths_override: &[PathBuf],
+    deny_write_paths_override: &[PathBuf],
+    proxy_enforced: bool,
+    proxy_settings_mode: crate::WindowsSandboxProxySettingsMode,
+) -> Result<SandboxCreds> {
+    let runtime = crate::setup::current_setup_runtime();
+    let needed_read = read_roots_override
+        .map(<[PathBuf]>::to_vec)
+        .unwrap_or_else(|| {
+            gather_read_roots(command_cwd, permissions, env_map, lime_home, runtime)
+        });
+    let needed_write = write_roots_override
+        .map(<[PathBuf]>::to_vec)
+        .unwrap_or_else(|| gather_write_roots_for_permissions(permissions, command_cwd, env_map));
+    // Do not grant the capability token write access to LIME_HOME/.sandbox; the setup helper
+    // grants the sandbox group access separately through lock_sandbox_dir.
+    let request = SandboxSetupRequest {
+        permissions,
+        command_cwd,
+        env_map,
+        lime_home,
+        proxy_enforced,
+    };
+    let (creds, offline_proxy_settings) = require_sandbox_account(&request, proxy_settings_mode)?;
+    run_setup_refresh_with_overrides_and_proxy_settings(
+        request,
+        crate::setup::SetupRootOverrides {
+            read_roots: Some(needed_read),
+            read_roots_include_platform_defaults,
+            write_roots: Some(needed_write),
+            deny_read_paths: Some(deny_read_paths_override.to_vec()),
+            deny_write_paths: Some(deny_write_paths_override.to_vec()),
+        },
+        &offline_proxy_settings,
+    )?;
+    Ok(creds)
+}
+
+/// Ensures the selected account is ready; launchers must refresh filesystem ACLs separately.
+pub(crate) fn require_sandbox_account(
+    request: &SandboxSetupRequest<'_>,
+    proxy_settings_mode: crate::WindowsSandboxProxySettingsMode,
+) -> Result<(SandboxCreds, OfflineProxySettings)> {
+    require_sandbox_account_with_setup(
+        request,
+        proxy_settings_mode,
+        run_automatic_setup,
+        local_user_flags,
+    )
+}
+
+fn require_sandbox_account_with_setup(
+    request: &SandboxSetupRequest<'_>,
+    proxy_settings_mode: crate::WindowsSandboxProxySettingsMode,
+    run_full_setup: impl FnOnce(SandboxSetupRequest<'_>, &OfflineProxySettings) -> Result<()>,
+    read_local_user_flags: impl Fn(&str) -> Result<Option<u32>>,
+) -> Result<(SandboxCreds, OfflineProxySettings)> {
+    let &SandboxSetupRequest {
+        permissions,
+        command_cwd,
+        env_map,
+        lime_home,
+        proxy_enforced,
+    } = request;
+    let sandbox_dir = crate::setup::sandbox_dir(lime_home);
+    let network_identity = SandboxNetworkIdentity::from_permissions(permissions, proxy_enforced);
+    let marker = load_marker(lime_home)?;
+    let desired_offline_proxy_settings = desired_offline_proxy_settings(
+        marker.as_ref(),
+        proxy_settings_mode,
+        env_map,
+        network_identity,
+    );
+    let mut setup_reason: Option<String> = None;
+
+    let mut identity = match marker {
+        Some(marker) if marker.version_matches() => {
+            if let Some(reason) =
+                marker.request_mismatch_reason(network_identity, &desired_offline_proxy_settings)
+            {
+                setup_reason = Some(reason);
+                None
+            } else {
+                let selected = select_identity(network_identity, lime_home)?;
+                if selected.is_none() {
+                    setup_reason = Some(
+                        "sandbox users missing or incompatible with marker version".to_string(),
+                    );
+                }
+                selected
+            }
+        }
+        _ => {
+            setup_reason = Some("sandbox setup marker missing or incompatible".to_string());
+            None
+        }
+    };
+
+    if identity.is_some() {
+        // Cleanup may also have removed the group, so repair missing or disabled accounts before ACL
+        // refresh can fail. Expired passwords also require full setup, since an ACL refresh
+        // cannot rotate the account passwords and update the stored DPAPI credentials.
+        for username in [OFFLINE_USERNAME, ONLINE_USERNAME] {
+            let needs_repair = match read_local_user_flags(username) {
+                Ok(Some(flags)) => flags & (UF_ACCOUNTDISABLE | UF_PASSWORD_EXPIRED) != 0,
+                Ok(None) => true,
+                Err(_) => false,
+            };
+            if needs_repair {
+                let reason = "sandbox account is missing, disabled, or password expired";
+                // Older services trust these credentials as proof of completed setup.
+                remove_sandbox_users_file(lime_home, reason)?;
+                setup_reason = Some(reason.to_string());
+                identity = None;
+                break;
+            }
+        }
+    }
+
+    if identity.is_none() {
+        if let Some(reason) = &setup_reason {
+            crate::logging::log_note(
+                &format!("sandbox setup required: {reason}"),
+                Some(&sandbox_dir),
+            );
+        } else {
+            crate::logging::log_note("sandbox setup required", Some(&sandbox_dir));
+        }
+        run_full_setup(
+            crate::setup::SandboxSetupRequest {
+                permissions,
+                command_cwd,
+                env_map,
+                lime_home,
+                proxy_enforced,
+            },
+            &desired_offline_proxy_settings,
+        )?;
+        for username in [OFFLINE_USERNAME, ONLINE_USERNAME] {
+            if let Ok(Some(flags)) = read_local_user_flags(username) {
+                anyhow::ensure!(
+                    flags & UF_PASSWORD_EXPIRED == 0,
+                    "Windows sandbox account password is still expired after setup"
+                );
+            }
+        }
+        identity = select_identity(network_identity, lime_home)?;
+    }
+    let identity = identity.ok_or_else(|| {
+        anyhow!(
+            "Windows sandbox setup is missing or out of date; rerun the sandbox setup with elevation"
+        )
+    })?;
+    Ok((
+        SandboxCreds {
+            username: identity.username,
+            password: identity.password,
+        },
+        desired_offline_proxy_settings,
+    ))
+}
+
+// Automatic setup prefers an installed service regardless of the onboarding feature gate.
+// Only an unavailable service may fall back to the UAC helper; service errors propagate.
+fn run_automatic_setup(
+    request: SandboxSetupRequest<'_>,
+    settings: &OfflineProxySettings,
+) -> Result<()> {
+    let mut listeners = WindowsSandboxProxyListeners::from_proxy_environment(request.env_map);
+    // Preserve-mode setup can use saved ports that differ from the current environment.
+    listeners
+        .http_ports
+        .retain(|port| settings.proxy_ports.contains(port));
+    listeners
+        .socks_ports
+        .retain(|port| settings.proxy_ports.contains(port));
+    match crate::provision_windows_sandbox_via_service(
+        request.lime_home,
+        WindowsSandboxProvisioningSettings {
+            proxy_ports: settings.proxy_ports.clone(),
+            allow_local_binding: settings.allow_local_binding,
+        },
+        listeners,
+    )? {
+        WindowsSandboxProvisioningOutcome::Provisioned => Ok(()),
+        WindowsSandboxProvisioningOutcome::Unavailable => {
+            run_elevated_setup_with_proxy_settings(request, settings)
+        }
+    }
+}
+
+fn desired_offline_proxy_settings(
+    marker: Option<&SetupMarker>,
+    proxy_settings_mode: crate::WindowsSandboxProxySettingsMode,
+    env_map: &HashMap<String, String>,
+    network_identity: SandboxNetworkIdentity,
+) -> crate::setup::OfflineProxySettings {
+    match (marker, proxy_settings_mode) {
+        (Some(marker), crate::WindowsSandboxProxySettingsMode::Preserve)
+            if marker.version_matches() =>
+        {
+            marker.offline_proxy_settings()
+        }
+        _ => offline_proxy_settings_from_env(env_map, network_identity),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn refresh_logon_sandbox_creds(
+    permissions: &ResolvedWindowsSandboxPermissions,
+    command_cwd: &Path,
+    env_map: &HashMap<String, String>,
+    lime_home: &Path,
+    read_roots_override: Option<&[PathBuf]>,
+    read_roots_include_platform_defaults: bool,
+    write_roots_override: Option<&[PathBuf]>,
+    deny_read_paths_override: &[PathBuf],
+    deny_write_paths_override: &[PathBuf],
+    proxy_enforced: bool,
+    proxy_settings_mode: crate::WindowsSandboxProxySettingsMode,
+) -> Result<SandboxCreds> {
+    remove_sandbox_users_file(lime_home, "sandbox user login failed")?;
+    require_logon_sandbox_creds(
+        permissions,
+        command_cwd,
+        env_map,
+        lime_home,
+        read_roots_override,
+        read_roots_include_platform_defaults,
+        write_roots_override,
+        deny_read_paths_override,
+        deny_write_paths_override,
+        proxy_enforced,
+        proxy_settings_mode,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desired_offline_proxy_settings;
+    use super::remove_sandbox_users_file;
+    use crate::WindowsSandboxProxySettingsMode;
+    use crate::setup::SandboxNetworkIdentity;
+    use crate::setup::SetupMarker;
+    use crate::setup::sandbox_users_path;
+    use pretty_assertions::assert_eq;
+    use std::collections::HashMap;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn remove_sandbox_users_file_deletes_existing_file() {
+        let lime_home = TempDir::new().expect("tempdir");
+        let users_path = sandbox_users_path(lime_home.path());
+        fs::create_dir_all(users_path.parent().expect("sandbox secrets dir"))
+            .expect("create sandbox secrets dir");
+        fs::write(&users_path, "users").expect("write users");
+
+        remove_sandbox_users_file(lime_home.path(), "stale creds").expect("remove users");
+        assert!(!users_path.exists());
+    }
+
+    #[test]
+    fn remove_sandbox_users_file_ignores_missing_file() {
+        let lime_home = TempDir::new().expect("tempdir");
+        let users_path = sandbox_users_path(lime_home.path());
+
+        remove_sandbox_users_file(lime_home.path(), "stale creds").expect("remove users");
+        assert!(!users_path.exists());
+    }
+
+    #[test]
+    fn preserving_proxy_settings_uses_the_existing_marker() {
+        let marker = SetupMarker {
+            version: crate::setup::SETUP_VERSION,
+            offline_username: "offline".to_string(),
+            online_username: "online".to_string(),
+            created_at: None,
+            proxy_ports: vec![7890],
+            allow_local_binding: true,
+        };
+        let env_map = HashMap::from([(
+            "HTTP_PROXY".to_string(),
+            "http://127.0.0.1:8080".to_string(),
+        )]);
+
+        assert_eq!(
+            desired_offline_proxy_settings(
+                Some(&marker),
+                WindowsSandboxProxySettingsMode::Preserve,
+                &env_map,
+                SandboxNetworkIdentity::Offline,
+            ),
+            marker.offline_proxy_settings()
+        );
+        assert_eq!(
+            desired_offline_proxy_settings(
+                Some(&marker),
+                WindowsSandboxProxySettingsMode::Reconcile,
+                &env_map,
+                SandboxNetworkIdentity::Offline,
+            )
+            .proxy_ports,
+            vec![8080]
+        );
+    }
+
+    #[test]
+    fn guardian_preserve_mode_does_not_churn_marker_with_empty_proxy_ports() {
+        let marker = SetupMarker {
+            version: crate::setup::SETUP_VERSION,
+            offline_username: "offline".to_string(),
+            online_username: "online".to_string(),
+            created_at: None,
+            proxy_ports: vec![3128, 8081],
+            allow_local_binding: true,
+        };
+        let env_map = HashMap::new();
+        let reconciled = desired_offline_proxy_settings(
+            Some(&marker),
+            WindowsSandboxProxySettingsMode::Reconcile,
+            &env_map,
+            SandboxNetworkIdentity::Offline,
+        );
+        assert_eq!(reconciled.proxy_ports, Vec::<u16>::new());
+
+        let desired = desired_offline_proxy_settings(
+            Some(&marker),
+            WindowsSandboxProxySettingsMode::Preserve,
+            &env_map,
+            SandboxNetworkIdentity::Offline,
+        );
+        assert_eq!(desired, marker.offline_proxy_settings());
+        assert_eq!(
+            marker.request_mismatch_reason(SandboxNetworkIdentity::Offline, &desired),
+            None
+        );
+    }
+}

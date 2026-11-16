@@ -1,0 +1,47 @@
+[package]
+name = "api"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Codex-aligned API client library."
+
+[lib]
+name = "api"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+async-channel = "2"
+base64.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+client = { path = "../client" }
+eventsource-stream = "0.2.3"
+futures.workspace = true
+http = "1"
+http-client = { path = "../http-client" }
+protocol = { path = "../protocol" }
+regex-lite = "0.1"
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
+schemars = "0.8"
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+thiserror.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["fs", "macros", "net", "rt", "sync", "time"] }
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "7447c427513cfe685f236e1ac0513c4ea3dd9c0b", features = ["proxy", "rustls-tls-native-roots"] }
+tokio-util = { workspace = true, features = ["codec", "io"] }
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "bc589d684755a8c02da0fc7e58d0861cbfc306f1", features = ["deflate", "proxy"] }
+url.workspace = true
+utils-rustls-provider = { path = "../utils-rustls-provider" }
+utils-string = { path = "../utils-string" }
+uuid = { workspace = true }
+websocket-client = { path = "../websocket-client" }
+
+[dev-dependencies]
+anyhow.workspace = true
+pretty_assertions.workspace = true
+rcgen = { version = "0.14.7", default-features = false, features = ["aws_lc_rs", "pem"] }
+tempfile.workspace = true

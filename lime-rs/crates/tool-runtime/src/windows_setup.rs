@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -293,9 +293,9 @@ fn protect_setup_directory(path: &Path, owner: &str) -> io::Result<()> {
 
 #[cfg(windows)]
 fn dpapi_protect(plaintext: &[u8]) -> io::Result<Vec<u8>> {
-    use windows_sys::Win32::Foundation::{GetLastError, LocalFree, HLOCAL};
+    use windows_sys::Win32::Foundation::{GetLastError, HLOCAL, LocalFree};
     use windows_sys::Win32::Security::Cryptography::{
-        CryptProtectData, CRYPTPROTECT_LOCAL_MACHINE, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
+        CRYPT_INTEGER_BLOB, CRYPTPROTECT_LOCAL_MACHINE, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData,
     };
 
     let mut input = CRYPT_INTEGER_BLOB {
@@ -336,7 +336,7 @@ fn dpapi_protect(plaintext: &[u8]) -> io::Result<Vec<u8>> {
 #[cfg(windows)]
 fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     use windows_sys::Win32::Storage::FileSystem::{
-        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
     };
 
     let temporary = path.with_extension(format!("tmp-{}", Uuid::new_v4().simple()));
@@ -598,7 +598,7 @@ fn validate_windows_sandbox_user(
 fn validate_windows_account_logon(account: &str, password: &str) -> io::Result<()> {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::Security::{
-        LogonUserW, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT,
+        LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, LogonUserW,
     };
 
     let account = to_wide(account);
@@ -626,10 +626,10 @@ fn validate_windows_account_logon(account: &str, password: &str) -> io::Result<(
 
 #[cfg(windows)]
 fn dpapi_unprotect(blob: &[u8]) -> Result<Vec<u8>, String> {
-    use windows_sys::Win32::Foundation::{GetLastError, LocalFree, HLOCAL};
+    use windows_sys::Win32::Foundation::{GetLastError, HLOCAL, LocalFree};
     use windows_sys::Win32::Security::Cryptography::{
-        CryptUnprotectData, CRYPTPROTECT_LOCAL_MACHINE, CRYPTPROTECT_UI_FORBIDDEN,
-        CRYPT_INTEGER_BLOB,
+        CRYPT_INTEGER_BLOB, CRYPTPROTECT_LOCAL_MACHINE, CRYPTPROTECT_UI_FORBIDDEN,
+        CryptUnprotectData,
     };
 
     let mut input = CRYPT_INTEGER_BLOB {

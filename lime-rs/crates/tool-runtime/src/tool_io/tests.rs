@@ -87,10 +87,12 @@ fn build_tool_io_payload_envelope_should_include_kind_timestamp_and_payload() {
     let envelope = build_tool_io_payload_envelope("tool_result", json!({"ok": true}));
 
     assert_eq!(envelope["kind"], json!("tool_result"));
-    assert!(envelope["generated_at"]
-        .as_str()
-        .unwrap_or_default()
-        .contains('T'));
+    assert!(
+        envelope["generated_at"]
+            .as_str()
+            .unwrap_or_default()
+            .contains('T')
+    );
     assert_eq!(envelope["payload"], json!({"ok": true}));
 }
 

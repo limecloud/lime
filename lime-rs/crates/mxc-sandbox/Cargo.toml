@@ -1,0 +1,25 @@
+[package]
+name = "mxc-sandbox"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Windows MXC sandbox integration."
+
+[lib]
+name = "mxc_sandbox"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+mxc-sdk = { git = "https://github.com/microsoft/mxc", rev = "b21120168d70befe12356411423266bfef168446" }
+network-proxy = { path = "../network-proxy" }
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+windows-sandbox = { path = "../windows-sandbox" }

@@ -1,0 +1,14 @@
+[package]
+name = "collaboration-mode-templates"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Collaboration mode templates."
+
+[lib]
+name = "collaboration_mode_templates"
+path = "src/lib.rs"
+doctest = false
+test = false

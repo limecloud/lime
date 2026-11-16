@@ -4,7 +4,7 @@
 //! changes approval, or decides whether a command is safe to execute.
 
 use agent_protocol::parse_command::ParsedCommand;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Classify memory artifacts referenced by a shell command.
 ///

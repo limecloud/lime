@@ -1,7 +1,7 @@
 use agent_protocol::ThreadId;
+use async_utils::OrCancelExt;
 use serde_json::Value;
 use tokio::sync::mpsc;
-use async_utils::OrCancelExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::server_request::{ServerRequestOwner, ServerRequestRouter};

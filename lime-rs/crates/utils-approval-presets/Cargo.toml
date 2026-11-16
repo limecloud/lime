@@ -1,0 +1,16 @@
+[package]
+name = "utils-approval-presets"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Approval preset helpers."
+
+[lib]
+name = "utils_approval_presets"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+protocol = { path = "../protocol" }

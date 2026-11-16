@@ -1,0 +1,20 @@
+[package]
+name = "bwrap"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+build = "build.rs"
+description = "Bubblewrap sandbox launcher."
+
+[[bin]]
+name = "lime-bwrap"
+path = "src/main.rs"
+
+[build-dependencies]
+cc = "1"
+pkg-config = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

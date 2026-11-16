@@ -1,6 +1,6 @@
 use super::lifecycle::{observe_output, publish_snapshot};
 use super::session::{
-    remove_session, session_facts, sessions_for_thread, sessions_for_turn, UnifiedExecSession,
+    UnifiedExecSession, remove_session, session_facts, sessions_for_thread, sessions_for_turn,
 };
 use crate::execution_process::live::RuntimeLiveExecutionGateway;
 use crate::tool_executor::RuntimeToolExecutionError;

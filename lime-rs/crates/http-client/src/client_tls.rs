@@ -8,8 +8,6 @@ use std::io;
 use std::sync::Arc;
 
 #[cfg(windows)]
-use utils_rustls_provider::ensure_rustls_crypto_provider;
-#[cfg(windows)]
 use rustls::ClientConfig;
 #[cfg(windows)]
 use rustls::RootCertStore;
@@ -19,6 +17,8 @@ use rustls_pki_types::CertificateDer;
 use rustls_pki_types::PrivateKeyDer;
 #[cfg(windows)]
 use rustls_pki_types::pem::PemObject;
+#[cfg(windows)]
+use utils_rustls_provider::ensure_rustls_crypto_provider;
 
 use crate::HttpError;
 #[cfg(windows)]

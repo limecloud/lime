@@ -1,0 +1,6 @@
+interface:
+  display_name: "OpenAI Docs"
+  short_description: "Lime and ChatGPT Work Q&A, plus first-time API setup"
+  icon_small: "./assets/openai-small.svg"
+  icon_large: "./assets/openai.png"
+  default_prompt: "Use $openai-docs to explain a Lime or ChatGPT Work feature, help with my first OpenAI API integration, or migrate a request to my chosen model."

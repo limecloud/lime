@@ -1,5 +1,5 @@
 use crate::native_overlay::{
-    check_runtime_gateway_tool_permissions, RuntimeNativePermissionDecision,
+    RuntimeNativePermissionDecision, check_runtime_gateway_tool_permissions,
 };
 use crate::tool_definition::RuntimeToolDefinition;
 use crate::tool_executor::{
@@ -7,8 +7,8 @@ use crate::tool_executor::{
     RuntimeToolExecutorHandle, RuntimeToolTurnContext,
 };
 use crate::tool_result_projection::{
-    runtime_tool_result_to_call_tool_result, RuntimeToolResultParts,
-    TOOL_HANDLER_EXECUTED_METADATA_KEY,
+    RuntimeToolResultParts, TOOL_HANDLER_EXECUTED_METADATA_KEY,
+    runtime_tool_result_to_call_tool_result,
 };
 use rmcp::model::{CallToolResult, ErrorCode, ErrorData};
 use serde_json::Value;

@@ -25,11 +25,11 @@ use app_server_protocol::protocol::v2::*;
 use async_trait::async_trait;
 pub use document_host::run_document_host;
 pub use executor::{
-    computer_use_tool_definition, runtime_computer_use_executor_handle, ComputerUseGateway,
-    ComputerUseToolInput, ComputerUseToolScope, COMPUTER_USE_TOOL_NAME,
+    COMPUTER_USE_TOOL_NAME, ComputerUseGateway, ComputerUseToolInput, ComputerUseToolScope,
+    computer_use_tool_definition, runtime_computer_use_executor_handle,
 };
 pub use extension::ExtensionAdapter;
-pub use extension_host::{run_native_messaging_host, CHROME_EXTENSION_ORIGIN};
+pub use extension_host::{CHROME_EXTENSION_ORIGIN, run_native_messaging_host};
 pub use installation::NATIVE_HOST;
 pub use native::NativeAdapter;
 pub use office::OfficeAdapter;

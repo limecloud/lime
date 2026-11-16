@@ -1,0 +1,335 @@
+use std::path::Path;
+
+use lime_utils_path_uri::PathUri;
+use protocol::protocol::HookCompletedEvent;
+use protocol::protocol::HookEventName;
+use protocol::protocol::HookOutputEntry;
+use protocol::protocol::HookOutputEntryKind;
+use protocol::protocol::HookRunStatus;
+use protocol::protocol::HookRunSummary;
+
+use crate::engine::ConfiguredHandler;
+use crate::engine::HandlerSourcePath;
+use crate::engine::dispatcher;
+use crate::output_spill::AdditionalContext;
+use protocol::models::ContentItemMetadata;
+
+/// Identifies a thread-spawned subagent when a normal hook runs inside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubagentHookContext {
+    pub agent_id: String,
+    pub agent_type: String,
+}
+
+pub(crate) fn command_input_cwd(cwd: &Path, tool_cwd: Option<&PathUri>) -> String {
+    tool_cwd.map_or_else(
+        || cwd.display().to_string(),
+        PathUri::inferred_native_path_string,
+    )
+}
+
+pub(crate) fn join_text_chunks(chunks: Vec<String>) -> Option<String> {
+    if chunks.is_empty() {
+        None
+    } else {
+        Some(chunks.join("\n\n"))
+    }
+}
+
+pub(crate) fn trimmed_non_empty(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+pub(crate) fn append_additional_context(
+    entries: &mut Vec<HookOutputEntry>,
+    additional_contexts_for_model: &mut Vec<AdditionalContext>,
+    handler: &ConfiguredHandler,
+    additional_context: String,
+    metadata: &ContentItemMetadata,
+) {
+    entries.push(HookOutputEntry {
+        kind: HookOutputEntryKind::Context,
+        text: additional_context.clone(),
+    });
+    additional_contexts_for_model.push(AdditionalContext {
+        context: crate::HookContext {
+            text: additional_context,
+            metadata: metadata.clone(),
+        },
+        limit: handler.additional_context_limit,
+    });
+}
+
+pub(crate) fn flatten_additional_contexts<'a>(
+    additional_contexts: impl IntoIterator<Item = &'a [AdditionalContext]>,
+) -> Vec<AdditionalContext> {
+    additional_contexts.into_iter().flatten().cloned().collect()
+}
+
+pub(crate) fn serialization_failure_hook_events(
+    handlers: Vec<ConfiguredHandler>,
+    turn_id: Option<String>,
+    error_message: String,
+) -> Vec<HookCompletedEvent> {
+    handlers
+        .into_iter()
+        .filter(|handler| {
+            !matches!(
+                handler.source_path,
+                HandlerSourcePath::ExecutorScoped { .. }
+            )
+        })
+        .map(|handler| {
+            let mut run = dispatcher::running_summary(&handler);
+            run.status = HookRunStatus::Failed;
+            run.completed_at = Some(run.started_at);
+            run.duration_ms = Some(0);
+            run.entries = vec![HookOutputEntry {
+                kind: HookOutputEntryKind::Error,
+                text: error_message.clone(),
+            }];
+            HookCompletedEvent {
+                turn_id: turn_id.clone(),
+                run,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn serialization_failure_hook_events_for_tool_use(
+    handlers: Vec<ConfiguredHandler>,
+    turn_id: Option<String>,
+    error_message: String,
+    tool_use_id: &str,
+) -> Vec<HookCompletedEvent> {
+    serialization_failure_hook_events(handlers, turn_id, error_message)
+        .into_iter()
+        .map(|event| hook_completed_for_tool_use(event, tool_use_id))
+        .collect()
+}
+
+pub(crate) fn hook_completed_for_tool_use(
+    mut event: HookCompletedEvent,
+    tool_use_id: &str,
+) -> HookCompletedEvent {
+    event.run = hook_run_for_tool_use(event.run, tool_use_id);
+    event
+}
+
+pub(crate) fn hook_run_for_tool_use(mut run: HookRunSummary, tool_use_id: &str) -> HookRunSummary {
+    run.id = format!("{}:{tool_use_id}", run.id);
+    run
+}
+
+pub(crate) fn matcher_pattern_for_event(
+    event_name: HookEventName,
+    matcher: Option<&str>,
+) -> Option<&str> {
+    match event_name {
+        HookEventName::PreToolUse
+        | HookEventName::PermissionRequest
+        | HookEventName::PostToolUse
+        | HookEventName::SessionStart
+        | HookEventName::SessionEnd
+        | HookEventName::SubagentStart
+        | HookEventName::SubagentStop
+        | HookEventName::PreCompact
+        | HookEventName::PostCompact => matcher,
+        HookEventName::PreModelRequest
+        | HookEventName::PostModelRequest
+        | HookEventName::UserPromptSubmit
+        | HookEventName::Stop
+        | HookEventName::Interrupt => None,
+    }
+}
+
+pub(crate) fn matches_matcher(
+    matcher: Option<&crate::engine::HookMatcher>,
+    input: Option<&str>,
+) -> bool {
+    matcher.is_none_or(|matcher| matcher.matches(input))
+}
+
+pub(crate) fn matcher_inputs<'a>(
+    tool_name: &'a str,
+    matcher_aliases: &'a [String],
+) -> Vec<&'a str> {
+    // Keep the canonical name first so matcher previews and execution preserve
+    // the same primary identity that hook stdin will serialize.
+    std::iter::once(tool_name)
+        .chain(matcher_aliases.iter().map(String::as_str))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use protocol::protocol::HookEventName;
+
+    use super::matcher_pattern_for_event;
+    use super::matches_matcher;
+    use crate::engine::HookMatcher;
+
+    #[test]
+    fn matcher_omitted_matches_all_occurrences() {
+        assert!(matches_matcher(/*matcher*/ None, Some("Bash")));
+        assert!(matches_matcher(/*matcher*/ None, Some("Write")));
+    }
+
+    #[test]
+    fn matcher_star_matches_all_occurrences() {
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("*").expect("valid matcher")),
+            Some("Bash")
+        ));
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("*").expect("valid matcher")),
+            Some("Edit")
+        ));
+        assert_eq!(HookMatcher::new("*").map(|_| ()), Ok(()));
+    }
+
+    #[test]
+    fn matcher_empty_string_matches_all_occurrences() {
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("").expect("valid matcher")),
+            Some("Bash")
+        ));
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("").expect("valid matcher")),
+            Some("SessionStart")
+        ));
+        assert_eq!(HookMatcher::new("").map(|_| ()), Ok(()));
+    }
+
+    #[test]
+    fn exact_matcher_supports_pipe_alternatives() {
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("Edit|Write").expect("valid matcher")),
+            Some("Edit")
+        ));
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("Edit|Write").expect("valid matcher")),
+            Some("Write")
+        ));
+        assert!(!matches_matcher(
+            Some(&HookMatcher::new("Edit|Write").expect("valid matcher")),
+            Some("Bash")
+        ));
+        assert_eq!(HookMatcher::new("Edit|Write").map(|_| ()), Ok(()));
+    }
+
+    #[test]
+    fn literal_matcher_uses_exact_matching() {
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("Bash").expect("valid matcher")),
+            Some("Bash")
+        ));
+        assert!(!matches_matcher(
+            Some(&HookMatcher::new("Bash").expect("valid matcher")),
+            Some("BashOutput")
+        ));
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("mcp__memory__create_entities").expect("valid matcher")),
+            Some("mcp__memory__create_entities")
+        ));
+        assert!(!matches_matcher(
+            Some(&HookMatcher::new("mcp__memory").expect("valid matcher")),
+            Some("mcp__memory__create_entities")
+        ));
+        assert_eq!(HookMatcher::new("mcp__memory").map(|_| ()), Ok(()));
+    }
+
+    #[test]
+    fn matcher_uses_regex_when_it_contains_regex_characters() {
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("^Bash").expect("valid matcher")),
+            Some("BashOutput")
+        ));
+        assert_eq!(HookMatcher::new("^Bash").map(|_| ()), Ok(()));
+    }
+
+    #[test]
+    fn mcp_matchers_support_regex_wildcards() {
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("mcp__memory__.*").expect("valid matcher")),
+            Some("mcp__memory__create_entities")
+        ));
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("mcp__.*__write.*").expect("valid matcher")),
+            Some("mcp__filesystem__write_file")
+        ));
+        assert!(!matches_matcher(
+            Some(&HookMatcher::new("mcp__.*__write.*").expect("valid matcher")),
+            Some("mcp__filesystem__read_file")
+        ));
+        assert_eq!(HookMatcher::new("mcp__memory__.*").map(|_| ()), Ok(()));
+    }
+
+    #[test]
+    fn matcher_supports_anchored_regexes() {
+        assert!(matches_matcher(
+            Some(&HookMatcher::new("^Bash$").expect("valid matcher")),
+            Some("Bash")
+        ));
+        assert!(!matches_matcher(
+            Some(&HookMatcher::new("^Bash$").expect("valid matcher")),
+            Some("BashOutput")
+        ));
+        assert_eq!(HookMatcher::new("^Bash$").map(|_| ()), Ok(()));
+    }
+
+    #[test]
+    fn invalid_regex_is_rejected() {
+        assert!(HookMatcher::new("[").is_err());
+    }
+
+    #[test]
+    fn unsupported_events_ignore_matchers() {
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::UserPromptSubmit, Some("^hello")),
+            None
+        );
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::Stop, Some("^done$")),
+            None
+        );
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::Interrupt, Some("^interrupted$")),
+            None
+        );
+    }
+
+    #[test]
+    fn supported_events_keep_matchers() {
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::PreToolUse, Some("Bash")),
+            Some("Bash")
+        );
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::PostToolUse, Some("Edit|Write")),
+            Some("Edit|Write")
+        );
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::SessionStart, Some("startup|resume")),
+            Some("startup|resume")
+        );
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::SessionEnd, Some("clear|other")),
+            Some("clear|other")
+        );
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::PreCompact, Some("^auto$")),
+            Some("^auto$")
+        );
+        assert_eq!(
+            matcher_pattern_for_event(HookEventName::PostCompact, Some("manual|auto")),
+            Some("manual|auto")
+        );
+    }
+}

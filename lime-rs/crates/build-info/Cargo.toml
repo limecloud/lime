@@ -1,0 +1,25 @@
+[package]
+name = "build-info"
+build = "build.rs"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Build provenance for Lime runtime binaries."
+
+[lib]
+name = "build_info"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+install-context = { path = "../install-context" }
+semver = { version = "1", features = ["serde"] }
+serde.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true

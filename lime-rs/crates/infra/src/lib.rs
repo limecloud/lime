@@ -9,11 +9,11 @@
 pub mod injection;
 #[path = "keyring-store/lib.rs"]
 pub mod keyring_store;
-#[path = "secrets/lib.rs"]
-pub mod secrets;
 pub mod process;
 pub mod proxy;
 pub mod resilience;
+#[path = "secrets/lib.rs"]
+pub mod secrets;
 pub mod telemetry;
 
 // 重新导出常用类型

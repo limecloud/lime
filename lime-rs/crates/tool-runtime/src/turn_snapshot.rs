@@ -291,12 +291,16 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["deferred", "deferred_model_only"]
         );
-        assert!(snapshot
-            .tool(&RuntimeToolIdentity::plain("hidden"))
-            .is_some());
-        assert!(snapshot
-            .tool(&RuntimeToolIdentity::plain("Hidden"))
-            .is_none());
+        assert!(
+            snapshot
+                .tool(&RuntimeToolIdentity::plain("hidden"))
+                .is_some()
+        );
+        assert!(
+            snapshot
+                .tool(&RuntimeToolIdentity::plain("Hidden"))
+                .is_none()
+        );
     }
 
     #[test]

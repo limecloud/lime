@@ -2,19 +2,19 @@ use super::windows_acl::AclLease;
 use super::windows_null::NullDeviceLease;
 use super::windows_runner_host::RunnerTransport;
 use super::windows_runner_protocol::{
-    decode_bytes, encode_bytes, read_frame, write_frame, RunnerMessage,
+    RunnerMessage, decode_bytes, encode_bytes, read_frame, write_frame,
 };
 use super::{
-    ExecutionOutputDelta, ExecutionProcess, ExecutionProcessSnapshot, ExecutionProcessStatus,
-    LocalExecutionControl, OwnedHandle, CONTROL_POLL_MILLIS,
+    CONTROL_POLL_MILLIS, ExecutionOutputDelta, ExecutionProcess, ExecutionProcessSnapshot,
+    ExecutionProcessStatus, LocalExecutionControl, OwnedHandle,
 };
 use std::fs::File;
 use std::io;
-use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
 use std::time::Duration;
-use tokio::sync::{broadcast, oneshot, watch, Mutex};
+use tokio::sync::{Mutex, broadcast, oneshot, watch};
 use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
 use windows_sys::Win32::System::Threading::{TerminateProcess, WaitForSingleObject};
 
@@ -35,17 +35,19 @@ pub(super) fn supervise(
         process: runner_process,
     } = transport;
     let (event_tx, event_rx) = mpsc::channel();
-    thread::spawn(move || loop {
-        let event = read_frame(&mut pipe_read);
-        let terminal = matches!(
-            event,
-            Ok(Some(
-                RunnerMessage::Exit { .. } | RunnerMessage::Error { .. }
-            )) | Ok(None)
-                | Err(_)
-        );
-        if event_tx.send(event).is_err() || terminal {
-            break;
+    thread::spawn(move || {
+        loop {
+            let event = read_frame(&mut pipe_read);
+            let terminal = matches!(
+                event,
+                Ok(Some(
+                    RunnerMessage::Exit { .. } | RunnerMessage::Error { .. }
+                )) | Ok(None)
+                    | Err(_)
+            );
+            if event_tx.send(event).is_err() || terminal {
+                break;
+            }
         }
     });
 

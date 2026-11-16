@@ -85,16 +85,20 @@ async fn explicit_approval_survives_service_restart_and_removal_invalidates_cont
         .await
         .unwrap();
     assert!(lease.cancellation.is_cancelled());
-    assert!(restarted
-        .acquire(owner(), acquire(&grant), || (&store).load())
-        .await
-        .is_err());
-    assert!(restarted
-        .setup("local-1", setup(), &store)
-        .await
-        .unwrap()
-        .grant
-        .is_none());
+    assert!(
+        restarted
+            .acquire(owner(), acquire(&grant), || (&store).load())
+            .await
+            .is_err()
+    );
+    assert!(
+        restarted
+            .setup("local-1", setup(), &store)
+            .await
+            .unwrap()
+            .grant
+            .is_none()
+    );
     assert_eq!(adapter.setup_count.load(Ordering::SeqCst), 1);
 }
 
@@ -215,10 +219,14 @@ fn windows_rules_are_exact_and_wps_uses_its_independent_switch() {
         .with_persistent_approval(ComputerUseAdapterKind::Office, &app)
         .unwrap();
     assert_eq!(saved.native_enabled, Some(false));
-    assert!(saved
-        .check_office_native(&app, ComputerUseGrantScope::Persistent, false)
-        .is_ok());
-    assert!(policy
-        .with_persistent_approval(ComputerUseAdapterKind::Chrome, &app)
-        .is_err());
+    assert!(
+        saved
+            .check_office_native(&app, ComputerUseGrantScope::Persistent, false)
+            .is_ok()
+    );
+    assert!(
+        policy
+            .with_persistent_approval(ComputerUseAdapterKind::Chrome, &app)
+            .is_err()
+    );
 }

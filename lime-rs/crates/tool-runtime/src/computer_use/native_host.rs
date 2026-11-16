@@ -1,8 +1,8 @@
 //! Bounded JSON-lines client for the existing platform helper, independent of Electron.
 
 use super::native_resources::NativeResource;
-use super::{denied, ComputerUseError, ComputerUseOwner, ComputerUseResult};
-use serde_json::{json, Value};
+use super::{ComputerUseError, ComputerUseOwner, ComputerUseResult, denied};
+use serde_json::{Value, json};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;

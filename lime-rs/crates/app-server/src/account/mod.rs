@@ -6,6 +6,7 @@ mod credentials;
 mod oauth;
 mod operations;
 mod product;
+mod provider;
 mod recovery;
 mod request;
 mod store;

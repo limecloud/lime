@@ -3,9 +3,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
 use crate::keyring_store::DefaultKeyringStore;
 use crate::keyring_store::KeyringStore;
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
@@ -186,8 +186,8 @@ pub(crate) fn keyring_service() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::secrets::local::SECRETS_CACHE_TEST_LOCK;
     use crate::keyring_store::tests::MockKeyringStore;
+    use crate::secrets::local::SECRETS_CACHE_TEST_LOCK;
     use pretty_assertions::assert_eq;
     use std::sync::PoisonError;
 

@@ -1,0 +1,19 @@
+[package]
+name = "utils-cargo-bin"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Locate Cargo test binaries."
+
+[lib]
+name = "utils_cargo_bin"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies]
+assert_cmd = "2"
+runfiles = { git = "https://github.com/dzbarsky/rules_rust", rev = "b56cbaa8465e74127f1ea216f813cd377295ad81" }
+thiserror.workspace = true

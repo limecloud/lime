@@ -1,0 +1,384 @@
+use std::fs;
+use std::io::ErrorKind;
+use std::path::Path;
+
+use toml_edit::DocumentMut;
+use toml_edit::Item as TomlItem;
+use toml_edit::Table as TomlTable;
+use toml_edit::Value as TomlValue;
+use toml_edit::value;
+use utils_path::paths_match_after_normalization;
+
+use crate::CONFIG_TOML_FILE;
+
+pub struct MarketplaceConfigUpdate<'a> {
+    pub source_type: &'a str,
+    pub source: &'a str,
+    pub ref_name: Option<&'a str>,
+    pub sparse_paths: &'a [String],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RemoveMarketplaceConfigOutcome {
+    Removed,
+    NotFound,
+    NameCaseMismatch { configured_name: String },
+}
+
+pub fn record_user_marketplace(
+    lime_home: &Path,
+    marketplace_name: &str,
+    update: &MarketplaceConfigUpdate<'_>,
+) -> std::io::Result<()> {
+    let config_path = lime_home.join(CONFIG_TOML_FILE);
+    let mut doc = read_or_create_document(&config_path)?;
+    upsert_marketplace(&mut doc, marketplace_name, update);
+    fs::create_dir_all(lime_home)?;
+    fs::write(config_path, doc.to_string())
+}
+
+pub fn remove_user_marketplace(lime_home: &Path, marketplace_name: &str) -> std::io::Result<bool> {
+    let outcome = remove_user_marketplace_config(lime_home, marketplace_name)?;
+    Ok(outcome == RemoveMarketplaceConfigOutcome::Removed)
+}
+
+pub fn remove_user_marketplace_config(
+    lime_home: &Path,
+    marketplace_name: &str,
+) -> std::io::Result<RemoveMarketplaceConfigOutcome> {
+    let config_path = lime_home.join(CONFIG_TOML_FILE);
+    let mut doc = match fs::read_to_string(&config_path) {
+        Ok(raw) => raw
+            .parse::<DocumentMut>()
+            .map_err(|err| std::io::Error::new(ErrorKind::InvalidData, err))?,
+        Err(err) if err.kind() == ErrorKind::NotFound => {
+            return Ok(RemoveMarketplaceConfigOutcome::NotFound);
+        }
+        Err(err) => return Err(err),
+    };
+
+    let outcome = remove_marketplace(&mut doc, marketplace_name);
+    if outcome != RemoveMarketplaceConfigOutcome::Removed {
+        return Ok(outcome);
+    }
+
+    fs::create_dir_all(lime_home)?;
+    fs::write(config_path, doc.to_string())?;
+    Ok(RemoveMarketplaceConfigOutcome::Removed)
+}
+
+fn read_or_create_document(config_path: &Path) -> std::io::Result<DocumentMut> {
+    match fs::read_to_string(config_path) {
+        Ok(raw) => raw
+            .parse::<DocumentMut>()
+            .map_err(|err| std::io::Error::new(ErrorKind::InvalidData, err)),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(DocumentMut::new()),
+        Err(err) => Err(err),
+    }
+}
+
+fn upsert_marketplace(
+    doc: &mut DocumentMut,
+    marketplace_name: &str,
+    update: &MarketplaceConfigUpdate<'_>,
+) {
+    let root = doc.as_table_mut();
+    if !root.contains_key("marketplaces") {
+        root.insert("marketplaces", TomlItem::Table(new_implicit_table()));
+    }
+
+    let Some(marketplaces_item) = root.get_mut("marketplaces") else {
+        return;
+    };
+    if let Some(inline) = marketplaces_item.as_inline_table() {
+        *marketplaces_item = TomlItem::Table(inline.clone().into_table());
+    } else if !marketplaces_item.is_table() {
+        *marketplaces_item = TomlItem::Table(new_implicit_table());
+    }
+
+    let Some(marketplaces) = marketplaces_item.as_table_mut() else {
+        return;
+    };
+    let mut entry = TomlTable::new();
+    entry.set_implicit(false);
+    if let Some(existing) = marketplaces.get(marketplace_name)
+        && existing.get("source_type").and_then(TomlItem::as_str) == Some(update.source_type)
+        && existing
+            .get("source")
+            .and_then(TomlItem::as_str)
+            .is_some_and(|source| match update.source_type {
+                "local" => paths_match_after_normalization(source, update.source),
+                _ => source == update.source,
+            })
+        && let Some(auto_update) = existing.get("auto_update")
+    {
+        entry["auto_update"] = auto_update.clone();
+    }
+    entry["source_type"] = value(update.source_type.to_string());
+    entry["source"] = value(update.source.to_string());
+    if let Some(ref_name) = update.ref_name {
+        entry["ref"] = value(ref_name.to_string());
+    }
+    if !update.sparse_paths.is_empty() {
+        entry["sparse_paths"] = TomlItem::Value(TomlValue::Array(
+            update.sparse_paths.iter().map(String::as_str).collect(),
+        ));
+    }
+    marketplaces.insert(marketplace_name, TomlItem::Table(entry));
+}
+
+fn remove_marketplace(
+    doc: &mut DocumentMut,
+    marketplace_name: &str,
+) -> RemoveMarketplaceConfigOutcome {
+    let root = doc.as_table_mut();
+    let Some(marketplaces_item) = root.get_mut("marketplaces") else {
+        return RemoveMarketplaceConfigOutcome::NotFound;
+    };
+
+    let mut remove_marketplaces = false;
+    let outcome = match marketplaces_item {
+        TomlItem::Table(marketplaces) => {
+            let outcome = if marketplaces.remove(marketplace_name).is_some() {
+                RemoveMarketplaceConfigOutcome::Removed
+            } else if let Some(configured_name) =
+                case_mismatched_key(marketplaces.iter().map(|(key, _)| key), marketplace_name)
+            {
+                RemoveMarketplaceConfigOutcome::NameCaseMismatch { configured_name }
+            } else {
+                RemoveMarketplaceConfigOutcome::NotFound
+            };
+            remove_marketplaces = marketplaces.is_empty();
+            outcome
+        }
+        TomlItem::Value(value) => {
+            let Some(marketplaces) = value.as_inline_table_mut() else {
+                return RemoveMarketplaceConfigOutcome::NotFound;
+            };
+            let outcome = if marketplaces.remove(marketplace_name).is_some() {
+                RemoveMarketplaceConfigOutcome::Removed
+            } else if let Some(configured_name) =
+                case_mismatched_key(marketplaces.iter().map(|(key, _)| key), marketplace_name)
+            {
+                RemoveMarketplaceConfigOutcome::NameCaseMismatch { configured_name }
+            } else {
+                RemoveMarketplaceConfigOutcome::NotFound
+            };
+            remove_marketplaces = marketplaces.is_empty();
+            outcome
+        }
+        _ => RemoveMarketplaceConfigOutcome::NotFound,
+    };
+
+    if outcome == RemoveMarketplaceConfigOutcome::Removed && remove_marketplaces {
+        root.remove("marketplaces");
+    }
+    outcome
+}
+
+fn case_mismatched_key<'a>(
+    mut keys: impl Iterator<Item = &'a str>,
+    requested_name: &str,
+) -> Option<String> {
+    keys.find(|key| *key != requested_name && key.eq_ignore_ascii_case(requested_name))
+        .map(str::to_string)
+}
+
+fn new_implicit_table() -> TomlTable {
+    let mut table = TomlTable::new();
+    table.set_implicit(true);
+    table
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+    use tempfile::TempDir;
+
+    #[test]
+    fn record_user_marketplace_omits_runtime_update_metadata() {
+        let lime_home = TempDir::new().unwrap();
+        let update = MarketplaceConfigUpdate {
+            source_type: "git",
+            source: "https://github.com/owner/repo.git",
+            ref_name: Some("main"),
+            sparse_paths: &[],
+        };
+
+        record_user_marketplace(lime_home.path(), "debug", &update).unwrap();
+
+        let config: toml::Value =
+            toml::from_str(&fs::read_to_string(lime_home.path().join(CONFIG_TOML_FILE)).unwrap())
+                .unwrap();
+        let marketplace = config
+            .get("marketplaces")
+            .and_then(|marketplaces| marketplaces.get("debug"))
+            .expect("marketplace declaration");
+        assert_eq!(
+            marketplace.get("source_type").and_then(toml::Value::as_str),
+            Some("git")
+        );
+        assert_eq!(
+            marketplace.get("source").and_then(toml::Value::as_str),
+            Some("https://github.com/owner/repo.git")
+        );
+        assert_eq!(
+            marketplace.get("ref").and_then(toml::Value::as_str),
+            Some("main")
+        );
+        assert!(marketplace.get("last_updated").is_none());
+        assert!(marketplace.get("last_revision").is_none());
+    }
+
+    #[test]
+    fn readding_a_marketplace_keeps_auto_update_only_for_the_same_source() {
+        let lime_home = TempDir::new().unwrap();
+        let path = lime_home.path().join(CONFIG_TOML_FILE);
+        let original = "https://example.com/team.git";
+        let replacement = "https://example.com/other.git";
+        let existing = format!(
+            r#"marketplaces = {{ team = {{ source_type = "git", source = "{original}", auto_update = true }} }}"#
+        );
+        for (source, expected) in [(original, Some(true)), (replacement, None)] {
+            fs::write(&path, &existing).unwrap();
+            record_user_marketplace(
+                lime_home.path(),
+                "team",
+                &MarketplaceConfigUpdate {
+                    source_type: "git",
+                    source,
+                    ref_name: None,
+                    sparse_paths: &[],
+                },
+            )
+            .unwrap();
+
+            let config: toml::Value = toml::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+            assert_eq!(
+                config["marketplaces"]["team"]
+                    .get("auto_update")
+                    .and_then(toml::Value::as_bool),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn readding_a_local_marketplace_keeps_auto_update_for_an_equivalent_path() {
+        let lime_home = TempDir::new().unwrap();
+        let catalog = lime_home.path().join("catalog");
+        fs::create_dir_all(&catalog).unwrap();
+        let alias = catalog.join("..").join("catalog");
+        let config_path = lime_home.path().join(CONFIG_TOML_FILE);
+        let source = toml::Value::String(alias.to_string_lossy().into_owned());
+        fs::write(
+            &config_path,
+            format!("[marketplaces.team]\nsource_type = 'local'\nsource = {source}\nauto_update = true\n"),
+        )
+        .unwrap();
+
+        record_user_marketplace(
+            lime_home.path(),
+            "team",
+            &MarketplaceConfigUpdate {
+                source_type: "local",
+                source: catalog.to_str().unwrap(),
+                ref_name: None,
+                sparse_paths: &[],
+            },
+        )
+        .unwrap();
+
+        let config: toml::Value =
+            toml::from_str(&fs::read_to_string(config_path).unwrap()).unwrap();
+        assert_eq!(
+            config["marketplaces"]["team"]["auto_update"].as_bool(),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn remove_user_marketplace_removes_requested_entry() {
+        let lime_home = TempDir::new().unwrap();
+        let update = MarketplaceConfigUpdate {
+            source_type: "git",
+            source: "https://github.com/owner/repo.git",
+            ref_name: Some("main"),
+            sparse_paths: &[],
+        };
+        record_user_marketplace(lime_home.path(), "debug", &update).unwrap();
+        record_user_marketplace(lime_home.path(), "other", &update).unwrap();
+
+        let removed = remove_user_marketplace(lime_home.path(), "debug").unwrap();
+
+        assert!(removed);
+        let config: toml::Value =
+            toml::from_str(&fs::read_to_string(lime_home.path().join(CONFIG_TOML_FILE)).unwrap())
+                .unwrap();
+        let marketplaces = config
+            .get("marketplaces")
+            .and_then(toml::Value::as_table)
+            .unwrap();
+        assert_eq!(marketplaces.len(), 1);
+        assert!(marketplaces.contains_key("other"));
+    }
+
+    #[test]
+    fn remove_user_marketplace_returns_false_when_missing() {
+        let lime_home = TempDir::new().unwrap();
+
+        let removed = remove_user_marketplace(lime_home.path(), "debug").unwrap();
+
+        assert!(!removed);
+    }
+
+    #[test]
+    fn remove_user_marketplace_config_reports_case_mismatch() {
+        let lime_home = TempDir::new().unwrap();
+        let update = MarketplaceConfigUpdate {
+            source_type: "git",
+            source: "https://github.com/owner/repo.git",
+            ref_name: Some("main"),
+            sparse_paths: &[],
+        };
+        record_user_marketplace(lime_home.path(), "debug", &update).unwrap();
+
+        let outcome = remove_user_marketplace_config(lime_home.path(), "Debug").unwrap();
+
+        assert_eq!(
+            outcome,
+            RemoveMarketplaceConfigOutcome::NameCaseMismatch {
+                configured_name: "debug".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn remove_user_marketplace_config_removes_inline_table_entry() {
+        let lime_home = TempDir::new().unwrap();
+        fs::write(
+            lime_home.path().join(CONFIG_TOML_FILE),
+            r#"
+marketplaces = {
+  debug = { source_type = "git", source = "https://github.com/owner/repo.git" },
+  other = { source_type = "local", source = "/tmp/marketplace" },
+}
+"#,
+        )
+        .unwrap();
+
+        let outcome = remove_user_marketplace_config(lime_home.path(), "debug").unwrap();
+
+        assert_eq!(outcome, RemoveMarketplaceConfigOutcome::Removed);
+        let config: toml::Value =
+            toml::from_str(&fs::read_to_string(lime_home.path().join(CONFIG_TOML_FILE)).unwrap())
+                .unwrap();
+        let marketplaces = config
+            .get("marketplaces")
+            .and_then(toml::Value::as_table)
+            .unwrap();
+        assert_eq!(marketplaces.len(), 1);
+        assert!(marketplaces.contains_key("other"));
+    }
+}

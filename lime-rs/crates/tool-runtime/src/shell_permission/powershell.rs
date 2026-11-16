@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 
 use crate::path_guard::PathMutationKind;
 use crate::shell_analysis::{
@@ -9,8 +9,8 @@ use crate::shell_analysis::{
 };
 
 use super::{
-    powershell_literal::try_parse_powershell_commands, validate_command_paths,
-    ShellPermissionDecision,
+    ShellPermissionDecision, powershell_literal::try_parse_powershell_commands,
+    validate_command_paths,
 };
 
 const MAX_WRAPPER_DEPTH: usize = 8;

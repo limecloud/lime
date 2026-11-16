@@ -1,0 +1,13 @@
+[package]
+name = "utils-elapsed"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Elapsed time helpers."
+
+[lib]
+name = "utils_elapsed"
+path = "src/lib.rs"
+doctest = false

@@ -22,6 +22,8 @@ path = "src/bin/windows-sandbox-runner.rs"
 [dependencies]
 agent-protocol.workspace = true
 app-server-protocol.workspace = true
+file-system = { path = "../file-system" }
+protocol = { path = "../protocol" }
 async-trait.workspace = true
 axum.workspace = true
 axum-server.workspace = true
@@ -45,7 +47,9 @@ lime-permissions.workspace = true
 lime-utils-absolute-path.workspace = true
 lime-utils-path-uri.workspace = true
 lime-skills.workspace = true
-patch-apply.workspace = true
+shell-command = { path = "../shell-command" }
+apply-patch = { path = "../apply-patch" }
+exec-server = { path = "../exec-server" }
 portable-pty.workspace = true
 rmcp.workspace = true
 once_cell.workspace = true

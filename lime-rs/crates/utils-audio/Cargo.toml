@@ -1,0 +1,25 @@
+[package]
+name = "utils-audio"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Audio helpers."
+
+[lib]
+name = "utils_audio"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+base64.workspace = true
+symphonia = { version = "0.6.0", default-features = false, features = ["isomp4", "mkv", "mp3", "ogg", "wav"] }
+thiserror.workspace = true
+tracing.workspace = true
+protocol = { path = "../protocol" }
+utils-cache = { path = "../utils-cache" }
+utils-string = { path = "../utils-string" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

@@ -96,14 +96,17 @@ async fn polls_and_write_stdin_keep_original_invocation_and_publish_one_executio
     }
     assert_eq!(gateway.starts.lock().unwrap().len(), 1);
     assert_eq!(sink.command_starts.lock().unwrap().len(), 1);
-    assert!(sink
-        .events()
-        .iter()
-        .all(|event| event.turn_id == "turn-1" && event.call_id == "call-original"));
+    assert!(
+        sink.events()
+            .iter()
+            .all(|event| event.turn_id == "turn-1" && event.call_id == "call-original")
+    );
     let results = sink.command_results.lock().unwrap();
-    assert!(results
-        .iter()
-        .all(|event| event.turn_id == "turn-1" && event.call_id == "call-original"));
+    assert!(
+        results
+            .iter()
+            .all(|event| event.turn_id == "turn-1" && event.call_id == "call-original")
+    );
     let terminal = results
         .iter()
         .filter(|event| event.output.as_ref().unwrap().metadata["session_id"].is_null())

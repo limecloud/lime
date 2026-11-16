@@ -1,5 +1,5 @@
 use crate::skill_gate::{IMAGE_GENERATE_SKILL_NAME, IMAGE_GENERATION_CONTRACT_KEY};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::sync::OnceLock;
 
 const MODALITY_RUNTIME_CONTRACTS_JSON: &str =

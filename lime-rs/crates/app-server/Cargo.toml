@@ -31,6 +31,7 @@ fs2.workspace = true
 futures.workspace = true
 agent-protocol.workspace = true
 agent-runtime.workspace = true
+account-provider = { path = "../account-provider" }
 app-server-protocol.workspace = true
 app-server-transport.workspace = true
 code-mode.workspace = true
@@ -66,7 +67,7 @@ caseless.workspace = true
 unicode-normalization.workspace = true
 sha2.workspace = true
 portable-pty.workspace = true
-patch-apply.workspace = true
+apply-patch = { path = "../apply-patch" }
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

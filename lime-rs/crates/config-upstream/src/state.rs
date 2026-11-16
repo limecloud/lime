@@ -1,0 +1,839 @@
+use crate::CONFIG_TOML_FILE;
+use crate::config_requirements::ConfigRequirements;
+use crate::config_requirements::ConfigRequirementsToml;
+use crate::format_config_layer_source;
+
+use super::fingerprint::record_origins;
+use super::fingerprint::version_for_toml;
+use super::key_aliases::normalize_key_aliases;
+use super::merge::merge_toml_values;
+use crate::CloudConfigBundleLoader;
+use crate::ConfigLayer;
+use crate::ConfigLayerMetadata;
+use crate::ConfigLayerSource;
+use crate::ProfileV2Name;
+use crate::shell_environment_policy::validate_shell_environment_policy_filter_config;
+use crate::types::AppsConfigToml;
+use lime_utils_absolute_path::AbsolutePathBuf;
+use serde_json::Value as JsonValue;
+use std::collections::HashMap;
+use std::path::Path;
+use std::path::PathBuf;
+use toml::Value as TomlValue;
+
+/// User-facing config loading behavior that is not part of the config document.
+#[derive(Debug, Default, Clone)]
+pub struct ConfigLoadOptions {
+    pub loader_overrides: LoaderOverrides,
+    pub strict_config: bool,
+    pub cloud_config_bundle: CloudConfigBundleLoader,
+}
+
+impl From<LoaderOverrides> for ConfigLoadOptions {
+    fn from(loader_overrides: LoaderOverrides) -> Self {
+        Self {
+            loader_overrides,
+            strict_config: false,
+            cloud_config_bundle: CloudConfigBundleLoader::default(),
+        }
+    }
+}
+
+/// LoaderOverrides overrides managed configuration inputs (primarily for tests).
+#[derive(Debug, Default, Clone)]
+pub struct LoaderOverrides {
+    /// Optional configuration file supplied with the installed Lime package.
+    pub packaged_defaults_path: Option<AbsolutePathBuf>,
+    /// Working directory to use when a client request supplies none.
+    pub default_cwd: Option<AbsolutePathBuf>,
+    pub user_config_path: Option<AbsolutePathBuf>,
+    pub user_config_profile: Option<ProfileV2Name>,
+    pub managed_config_path: Option<PathBuf>,
+    pub system_config_path: Option<PathBuf>,
+    pub system_requirements_path: Option<PathBuf>,
+    pub ignore_managed_requirements: bool,
+    /// Remote app servers own their authentication policy independently.
+    pub ignore_login_requirements: bool,
+    pub ignore_user_config: bool,
+    /// Skip project-root discovery and all project configuration layers.
+    pub ignore_project_config: bool,
+    pub ignore_user_and_project_exec_policy_rules: bool,
+    //TODO(gt): Add a macos_ prefix to this field and remove the target_os check.
+    #[cfg(target_os = "macos")]
+    pub managed_preferences_base64: Option<String>,
+    pub macos_managed_config_requirements_base64: Option<String>,
+}
+
+impl LoaderOverrides {
+    /// Returns overrides that ignore host-managed configuration.
+    ///
+    /// This is intended for tests that should load only repo-controlled config fixtures.
+    pub fn without_managed_config_for_tests() -> Self {
+        let base = std::env::temp_dir().join("lime-config-tests");
+        Self {
+            packaged_defaults_path: None,
+            default_cwd: None,
+            user_config_path: None,
+            user_config_profile: None,
+            managed_config_path: Some(base.join("managed_config.toml")),
+            system_config_path: Some(base.join("config.toml")),
+            system_requirements_path: Some(base.join("requirements.toml")),
+            ignore_managed_requirements: false,
+            ignore_login_requirements: false,
+            ignore_user_config: false,
+            ignore_project_config: false,
+            ignore_user_and_project_exec_policy_rules: false,
+            #[cfg(target_os = "macos")]
+            managed_preferences_base64: Some(String::new()),
+            macos_managed_config_requirements_base64: Some(String::new()),
+        }
+    }
+
+    /// Returns overrides with host MDM disabled and managed config loaded from
+    /// `managed_config_path`. System requirements are loaded from a sibling
+    /// `requirements.toml` fixture.
+    ///
+    /// This is intended for tests that supply an explicit managed config fixture.
+    pub fn with_managed_config_path_for_tests(managed_config_path: PathBuf) -> Self {
+        let system_requirements_path = managed_config_path.with_file_name("requirements.toml");
+        Self {
+            user_config_path: None,
+            user_config_profile: None,
+            managed_config_path: Some(managed_config_path),
+            system_requirements_path: Some(system_requirements_path),
+            ..Self::without_managed_config_for_tests()
+        }
+    }
+
+    pub fn user_config_path(&self, lime_home: &Path) -> std::io::Result<AbsolutePathBuf> {
+        match self.user_config_path.as_ref() {
+            Some(path) => Ok(path.clone()),
+            None => Ok(AbsolutePathBuf::resolve_path_against_base(
+                crate::CONFIG_TOML_FILE,
+                lime_home,
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConfigLayerEntry {
+    pub name: ConfigLayerSource,
+    pub config: TomlValue,
+    pub version: String,
+    pub disabled_reason: Option<String>,
+    raw_toml: Option<RawTomlLayer>,
+    hooks_config_folder_override: Option<AbsolutePathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RawTomlLayer {
+    contents: String,
+    base_dir: AbsolutePathBuf,
+}
+
+impl ConfigLayerEntry {
+    pub fn new(name: ConfigLayerSource, config: TomlValue) -> Self {
+        let version = version_for_toml(&config);
+        Self {
+            name,
+            config,
+            version,
+            disabled_reason: None,
+            raw_toml: None,
+            hooks_config_folder_override: None,
+        }
+    }
+
+    pub fn new_with_raw_toml(
+        name: ConfigLayerSource,
+        config: TomlValue,
+        raw_toml: String,
+        raw_toml_base_dir: AbsolutePathBuf,
+    ) -> Self {
+        let version = version_for_toml(&config);
+        Self {
+            name,
+            config,
+            version,
+            disabled_reason: None,
+            raw_toml: Some(RawTomlLayer {
+                contents: raw_toml,
+                base_dir: raw_toml_base_dir,
+            }),
+            hooks_config_folder_override: None,
+        }
+    }
+
+    pub fn new_disabled(
+        name: ConfigLayerSource,
+        config: TomlValue,
+        disabled_reason: impl Into<String>,
+    ) -> Self {
+        let version = version_for_toml(&config);
+        Self {
+            name,
+            config,
+            version,
+            disabled_reason: Some(disabled_reason.into()),
+            raw_toml: None,
+            hooks_config_folder_override: None,
+        }
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        self.disabled_reason.is_some()
+    }
+
+    pub fn raw_toml(&self) -> Option<&str> {
+        self.raw_toml
+            .as_ref()
+            .map(|raw_toml| raw_toml.contents.as_str())
+    }
+
+    pub fn raw_toml_base_dir(&self) -> Option<&AbsolutePathBuf> {
+        self.raw_toml.as_ref().map(|raw_toml| &raw_toml.base_dir)
+    }
+
+    pub(crate) fn with_hooks_config_folder_override(
+        mut self,
+        hooks_config_folder_override: Option<AbsolutePathBuf>,
+    ) -> Self {
+        self.hooks_config_folder_override = hooks_config_folder_override;
+        self
+    }
+
+    pub fn metadata(&self) -> ConfigLayerMetadata {
+        ConfigLayerMetadata {
+            name: self.name.clone(),
+            version: self.version.clone(),
+        }
+    }
+
+    pub fn as_layer(&self) -> ConfigLayer {
+        ConfigLayer {
+            name: self.name.clone(),
+            version: self.version.clone(),
+            config: serde_json::to_value(&self.config).unwrap_or(JsonValue::Null),
+            disabled_reason: self.disabled_reason.clone(),
+        }
+    }
+
+    // Get the `.lime/` folder associated with this config layer, if any.
+    pub fn config_folder(&self) -> Option<AbsolutePathBuf> {
+        match &self.name {
+            ConfigLayerSource::PackagedDefaults { .. } => None,
+            ConfigLayerSource::Mdm { .. } => None,
+            ConfigLayerSource::System { file } => file.parent(),
+            ConfigLayerSource::EnterpriseManaged { .. } => None,
+            ConfigLayerSource::User { file, .. } => file.parent(),
+            ConfigLayerSource::Project { dot_lime_folder } => Some(dot_lime_folder.clone()),
+            ConfigLayerSource::SessionFlags => None,
+            ConfigLayerSource::LegacyManagedConfigTomlFromFile { .. } => None,
+            ConfigLayerSource::LegacyManagedConfigTomlFromMdm => None,
+        }
+    }
+
+    /// Returns the `.lime/` folder that should be used for hook declarations.
+    ///
+    /// Project layers normally use their own config folder. Linked Git worktrees
+    /// can instead point hook discovery at the matching folder from the root
+    /// checkout while the rest of the project config still comes from the
+    /// worktree.
+    pub fn hooks_config_folder(&self) -> Option<AbsolutePathBuf> {
+        self.hooks_config_folder_override
+            .clone()
+            .or_else(|| self.config_folder())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ConfigLayerStack {
+    /// Runtime-only EMA authority; it does not change the configuration's contents.
+    cloud_config_binding: Option<crate::CloudConfigBundleBinding>,
+    /// Runtime-only cancellation inherited by config snapshots and pending EMA startups.
+    mcp_ema_cancellation: crate::McpEmaCancellation,
+    /// Identifies the service that supplied the loaded configuration, for comparison with the configured service.
+    applied_config_server: Option<std::sync::Arc<crate::ConfigServer>>,
+    /// Cached TOML projection derived only from `requirements_toml`.
+    /// Construction validates provider definitions and reports serialization errors,
+    /// so `effective_config()` can replace complete entries without a fallible conversion.
+    model_provider_requirements: Option<TomlValue>,
+    /// Layers are listed from lowest precedence (base) to highest (top), so
+    /// later entries in the Vec override earlier ones.
+    layers: Vec<ConfigLayerEntry>,
+
+    /// Constraints that must be enforced when deriving a [Config] from the
+    /// layers.
+    requirements: ConfigRequirements,
+
+    /// Raw requirements data as loaded from requirements.toml/MDM/legacy
+    /// sources. This preserves the original allow-lists so they can be
+    /// surfaced via APIs. Keep it off the stack of futures that carry a config.
+    requirements_toml: Box<ConfigRequirementsToml>,
+
+    /// Whether execpolicy should skip `.rules` files from user and project config-layer folders.
+    ignore_user_and_project_exec_policy_rules: bool,
+
+    /// Startup warnings discovered while building this stack.
+    ///
+    /// `None` means the loader did not check for stack-level warnings, while
+    /// `Some(vec![])` means it checked and found nothing to report.
+    startup_warnings: Option<Vec<String>>,
+    pub(crate) is_projectless: bool,
+    /// Effective decision and config key selected during project discovery.
+    pub project_trust: Option<crate::loader::ProjectTrustDecision>,
+}
+
+impl PartialEq for ConfigLayerStack {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            cloud_config_binding: _,
+            mcp_ema_cancellation: _,
+            applied_config_server,
+            model_provider_requirements,
+            layers,
+            requirements,
+            requirements_toml,
+            ignore_user_and_project_exec_policy_rules,
+            startup_warnings,
+            is_projectless,
+            project_trust,
+        } = self;
+        applied_config_server == &other.applied_config_server
+            && model_provider_requirements == &other.model_provider_requirements
+            && layers == &other.layers
+            && requirements == &other.requirements
+            && requirements_toml == &other.requirements_toml
+            && *ignore_user_and_project_exec_policy_rules
+                == other.ignore_user_and_project_exec_policy_rules
+            && startup_warnings == &other.startup_warnings
+            && is_projectless == &other.is_projectless
+            && project_trust == &other.project_trust
+    }
+}
+
+impl ConfigLayerStack {
+    pub fn new(
+        layers: Vec<ConfigLayerEntry>,
+        requirements: ConfigRequirements,
+        requirements_toml: ConfigRequirementsToml,
+    ) -> std::io::Result<Self> {
+        validate_enabled_config_layers(&layers)?;
+        verify_layer_ordering(&layers)?;
+        let model_provider_requirements = Some(crate::model_provider_requirements::to_config(
+            &requirements_toml,
+        )?);
+        let stack = Self {
+            cloud_config_binding: None,
+            mcp_ema_cancellation: crate::McpEmaCancellation::default(),
+            applied_config_server: None,
+            model_provider_requirements,
+            layers,
+            requirements,
+            requirements_toml: Box::new(requirements_toml),
+            ignore_user_and_project_exec_policy_rules: false,
+            startup_warnings: None,
+            is_projectless: false,
+            project_trust: None,
+        };
+        stack.validate_project_mitm_profiles()?;
+        Ok(stack)
+    }
+
+    /// Recheck project provenance after combining layer snapshots as well as on initial load.
+    pub fn validate_project_mitm_profiles(&self) -> std::io::Result<()> {
+        crate::loader::validate_project_mitm_profiles(
+            self.layers_low_to_high()
+                .map(|layer| (&layer.name, &layer.config)),
+            self.requirements_toml
+                .permissions
+                .iter()
+                .flat_map(|permissions| permissions.profiles.iter())
+                .map(|(name, profile)| {
+                    (
+                        name.clone(),
+                        profile.extends.clone(),
+                        profile
+                            .network
+                            .as_ref()
+                            .is_some_and(|network| network.mitm.is_some()),
+                    )
+                }),
+        )
+    }
+
+    pub fn with_user_and_project_exec_policy_rules_ignored(
+        mut self,
+        ignore_user_and_project_exec_policy_rules: bool,
+    ) -> Self {
+        self.ignore_user_and_project_exec_policy_rules = ignore_user_and_project_exec_policy_rules;
+        self
+    }
+
+    pub fn ignore_user_and_project_exec_policy_rules(&self) -> bool {
+        self.ignore_user_and_project_exec_policy_rules
+    }
+
+    pub fn with_cloud_config_binding(
+        mut self,
+        binding: Option<crate::CloudConfigBundleBinding>,
+    ) -> Self {
+        self.cloud_config_binding = binding;
+        self
+    }
+
+    pub fn cloud_config_binding(&self) -> Option<&crate::CloudConfigBundleBinding> {
+        self.cloud_config_binding.as_ref()
+    }
+
+    pub fn with_mcp_ema_cancellation(mut self, cancellation: crate::McpEmaCancellation) -> Self {
+        self.mcp_ema_cancellation = cancellation;
+        self
+    }
+
+    pub fn mcp_ema_cancellation(&self) -> &crate::McpEmaCancellation {
+        &self.mcp_ema_cancellation
+    }
+
+    pub fn with_applied_config_server(
+        mut self,
+        service_config: Option<crate::ConfigServer>,
+    ) -> Self {
+        self.applied_config_server = service_config.map(std::sync::Arc::new);
+        self
+    }
+
+    pub fn applied_config_server(&self) -> Option<&crate::ConfigServer> {
+        self.applied_config_server.as_deref()
+    }
+
+    /// Require configuration from the configured service before starting a session.
+    pub fn ensure_config_server_applied(&self) -> std::io::Result<()> {
+        if self.requirements_toml.config_server.as_ref() != self.applied_config_server() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "Required managed configuration has not been loaded; authenticate and reload configuration before starting a session",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Retains session layers while adopting current MCP, plugin, and feature restrictions.
+    /// Rejected refreshes must not restore an earlier policy on the next user reload.
+    pub fn with_mcp_requirements_from(&self, incoming: &Self) -> Self {
+        let mut stack = self.clone();
+        stack.requirements.mcp_servers = incoming.requirements.mcp_servers.clone();
+        stack.requirements.plugins = incoming.requirements.plugins.clone();
+        stack.requirements.feature_requirements =
+            incoming.requirements.feature_requirements.clone();
+        stack.requirements_toml.mcp_servers = incoming.requirements_toml.mcp_servers.clone();
+        stack.requirements_toml.plugins = incoming.requirements_toml.plugins.clone();
+        stack.requirements_toml.feature_requirements =
+            incoming.requirements_toml.feature_requirements.clone();
+        stack
+    }
+
+    pub(crate) fn with_startup_warnings(mut self, startup_warnings: Vec<String>) -> Self {
+        self.startup_warnings = Some(startup_warnings);
+        self
+    }
+
+    pub fn startup_warnings(&self) -> Option<&[String]> {
+        self.startup_warnings.as_deref()
+    }
+
+    /// Whether discovery found no project markers or project-local configuration.
+    /// Returns false when project discovery was skipped.
+    pub fn is_projectless(&self) -> bool {
+        self.is_projectless
+    }
+
+    /// Returns the active raw user config layer, if any.
+    ///
+    /// This does not merge other config layers or apply any requirements. When
+    /// a profile-v2 layer is active, this returns that profile layer rather than
+    /// the base `$LIME_HOME/config.toml` layer because the active layer is the
+    /// writable target for profile-aware edits.
+    pub fn get_active_user_layer(&self) -> Option<&ConfigLayerEntry> {
+        self.layers
+            .iter()
+            .rev()
+            .find(|layer| matches!(layer.name, ConfigLayerSource::User { .. }))
+    }
+
+    pub fn get_user_config_file(&self) -> Option<&AbsolutePathBuf> {
+        let layer = self.get_active_user_layer()?;
+        let ConfigLayerSource::User { file, .. } = &layer.name else {
+            return None;
+        };
+        Some(file)
+    }
+
+    /// Returns the merged config from enabled user layers only.
+    ///
+    /// When profile config is active, this includes the base user config followed
+    /// by the profile override config.
+    pub fn effective_user_config(&self) -> Option<TomlValue> {
+        let mut user_layers = self
+            .layers_low_to_high()
+            .filter(|layer| matches!(layer.name, ConfigLayerSource::User { .. }))
+            .peekable();
+        user_layers.peek()?;
+
+        let mut merged = TomlValue::Table(toml::map::Map::new());
+        for layer in user_layers {
+            merge_toml_values(&mut merged, &layer.config);
+        }
+        Some(merged)
+    }
+
+    pub fn requirements(&self) -> &ConfigRequirements {
+        &self.requirements
+    }
+
+    pub fn requirements_toml(&self) -> &ConfigRequirementsToml {
+        &self.requirements_toml
+    }
+
+    /// Creates a new [ConfigLayerStack] using the specified values to inject one
+    /// user layer into the stack. If such a layer already exists, it is replaced;
+    /// otherwise, it is inserted into the stack at the appropriate position
+    /// based on precedence rules. When the stack has both base and profile-v2
+    /// user layers, this updates only the layer whose file matches
+    /// `config_toml`.
+    pub fn with_user_config(
+        &self,
+        config_toml: &AbsolutePathBuf,
+        user_config: TomlValue,
+    ) -> std::io::Result<Self> {
+        let profile = self.layers.iter().find_map(|layer| match &layer.name {
+            ConfigLayerSource::User { file, profile } if file == config_toml => profile
+                .as_deref()
+                .and_then(|profile| profile.parse::<ProfileV2Name>().ok()),
+            _ => None,
+        });
+        self.with_user_config_profile(config_toml, profile.as_ref(), user_config)
+    }
+
+    pub fn with_user_config_profile(
+        &self,
+        config_toml: &AbsolutePathBuf,
+        profile: Option<&ProfileV2Name>,
+        user_config: TomlValue,
+    ) -> std::io::Result<Self> {
+        let user_layer = ConfigLayerEntry::new(
+            ConfigLayerSource::User {
+                file: config_toml.clone(),
+                profile: profile.map(ToString::to_string),
+            },
+            user_config,
+        );
+        validate_enabled_config_layers(std::slice::from_ref(&user_layer))?;
+
+        let mut layers = self.layers.clone();
+        if let Some(index) = layers.iter().position(|layer| {
+            matches!(
+                &layer.name,
+                ConfigLayerSource::User { file, .. } if file == config_toml
+            )
+        }) {
+            layers.remove(index);
+        }
+        match layers
+            .iter()
+            .position(|layer| layer.name.precedence() > user_layer.name.precedence())
+        {
+            Some(index) => layers.insert(index, user_layer),
+            None => layers.push(user_layer),
+        }
+        Ok(Self {
+            layers,
+            cloud_config_binding: self.cloud_config_binding.clone(),
+            mcp_ema_cancellation: self.mcp_ema_cancellation.clone(),
+            applied_config_server: self.applied_config_server.clone(),
+            model_provider_requirements: self.model_provider_requirements.clone(),
+            requirements: self.requirements.clone(),
+            requirements_toml: self.requirements_toml.clone(),
+            ignore_user_and_project_exec_policy_rules: self
+                .ignore_user_and_project_exec_policy_rules,
+            startup_warnings: self.startup_warnings.clone(),
+            is_projectless: self.is_projectless,
+            project_trust: self.project_trust.clone(),
+        })
+    }
+
+    /// Adds local session configuration while retaining independently owned runtime snapshots.
+    pub fn with_session_config(mut self, config: TomlValue) -> std::io::Result<Self> {
+        let index = self.layers.partition_point(|layer| {
+            layer.name.precedence() <= ConfigLayerSource::SessionFlags.precedence()
+        });
+        self.layers.insert(
+            index,
+            ConfigLayerEntry::new(ConfigLayerSource::SessionFlags, config),
+        );
+        validate_enabled_config_layers(&self.layers)?;
+        self.validate_project_mitm_profiles()?;
+        Ok(self)
+    }
+
+    pub fn with_session_plugins(self, plugins: TomlValue) -> std::io::Result<Self> {
+        self.with_session_section("plugins", plugins)
+    }
+
+    /// Replaces the session's connector settings. An empty table restores inheritance.
+    pub fn with_session_apps(self, apps: TomlValue) -> std::io::Result<Self> {
+        // Validate the override but keep its original TOML so omitted fields inherit.
+        apps.clone()
+            .try_into::<AppsConfigToml>()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+        self.with_session_section("apps", apps)
+    }
+
+    fn with_session_section(mut self, key: &str, value: TomlValue) -> std::io::Result<Self> {
+        let session_index = self.layers.iter().rposition(|layer| {
+            layer.name == ConfigLayerSource::SessionFlags && !layer.is_disabled()
+        });
+        if let Some(session_index) = session_index {
+            for (index, layer) in self.layers.iter_mut().enumerate() {
+                if layer.name != ConfigLayerSource::SessionFlags || layer.is_disabled() {
+                    continue;
+                }
+                let mut config = layer.config.clone();
+                let table = config.as_table_mut().ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "session config must be a table",
+                    )
+                })?;
+                if index == session_index {
+                    table.insert(key.to_owned(), value.clone());
+                } else if table.remove(key).is_none() {
+                    continue;
+                }
+                *layer = ConfigLayerEntry::new(ConfigLayerSource::SessionFlags, config);
+            }
+        } else {
+            return self.with_session_config(TomlValue::Table(
+                [(key.to_owned(), value)].into_iter().collect(),
+            ));
+        }
+        Ok(self)
+    }
+
+    /// Returns a new stack with the user layer copied from `other`, preserving
+    /// every non-user layer already present in this stack.
+    pub fn with_user_layer_from(&self, other: &Self) -> Self {
+        let user_layers = other
+            .layers
+            .iter()
+            .filter(|layer| matches!(layer.name, ConfigLayerSource::User { .. }))
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut layers = self
+            .layers
+            .iter()
+            .filter(|layer| !matches!(layer.name, ConfigLayerSource::User { .. }))
+            .cloned()
+            .collect::<Vec<_>>();
+        for user_layer in user_layers {
+            match layers
+                .iter()
+                .position(|layer| layer.name.precedence() > user_layer.name.precedence())
+            {
+                Some(index) => layers.insert(index, user_layer),
+                None => layers.push(user_layer),
+            }
+        }
+        Self {
+            layers,
+            cloud_config_binding: self.cloud_config_binding.clone(),
+            mcp_ema_cancellation: self.mcp_ema_cancellation.clone(),
+            applied_config_server: self.applied_config_server.clone(),
+            model_provider_requirements: self.model_provider_requirements.clone(),
+            requirements: self.requirements.clone(),
+            requirements_toml: self.requirements_toml.clone(),
+            ignore_user_and_project_exec_policy_rules: self
+                .ignore_user_and_project_exec_policy_rules,
+            startup_warnings: self.startup_warnings.clone(),
+            is_projectless: self.is_projectless,
+            project_trust: self.project_trust.clone(),
+        }
+    }
+
+    /// Returns the merged config-layer view.
+    ///
+    /// Required provider definitions replace local entries before deserialization.
+    /// Selection and other requirements are applied when constructing the final config.
+    pub fn effective_config(&self) -> TomlValue {
+        let mut merged = TomlValue::Table(toml::map::Map::new());
+        for layer in self.layers_low_to_high() {
+            merge_toml_values(&mut merged, &layer.name.effective_values(&layer.config));
+        }
+        if let Some(requirements) = &self.model_provider_requirements {
+            crate::model_provider_requirements::apply(&mut merged, requirements);
+        }
+        merged
+    }
+
+    /// Required provider selection used when building the effective configuration.
+    pub fn required_model_provider(&self) -> Option<&str> {
+        self.requirements_toml.model_provider.as_deref()
+    }
+
+    /// Returns field origins for the merged config-layer view.
+    ///
+    /// Requirement sources are tracked separately and are not included here.
+    pub fn origins(&self) -> HashMap<String, ConfigLayerMetadata> {
+        self.origins_with_path_filter(|_| true)
+    }
+
+    /// Filters origins using their original TOML key segments before formatting
+    /// them for the public API, where dots in quoted keys are ambiguous.
+    pub fn origins_with_path_filter(
+        &self,
+        include: impl Fn(&[String]) -> bool,
+    ) -> HashMap<String, ConfigLayerMetadata> {
+        let mut origins = HashMap::new();
+        let mut path = Vec::new();
+        let mut provider_paths = vec!["features.network_proxy.credentials.".to_string()];
+
+        for layer in self.layers_low_to_high() {
+            let config = normalize_key_aliases(&layer.name.effective_values(&layer.config));
+            if let Some(profiles) = config.get("profiles").and_then(TomlValue::as_table) {
+                provider_paths.extend(
+                    profiles
+                        .keys()
+                        .map(|name| format!("profiles.{name}.features.network_proxy.credentials.")),
+                );
+            }
+            record_origins(
+                &config,
+                &layer.metadata(),
+                &mut path,
+                &mut origins,
+                &include,
+            );
+        }
+
+        let needs_effective_origin = |path: &str| {
+            path == "tui.status_line_provider"
+                || path.starts_with("tui.status_line_provider.")
+                || provider_paths.iter().any(|prefix| path.starts_with(prefix))
+        };
+        if origins.keys().any(|path| needs_effective_origin(path))
+            && let Some(layer) = self.layers_low_to_high().next_back()
+        {
+            let effective = self.effective_config();
+            let mut effective_origins = HashMap::new();
+            record_origins(
+                &effective,
+                &layer.metadata(),
+                &mut path,
+                &mut effective_origins,
+                &include,
+            );
+            origins.retain(|path, _| {
+                !needs_effective_origin(path) || effective_origins.contains_key(path)
+            });
+        }
+
+        origins
+    }
+
+    /// Returns enabled config layers from lowest precedence to highest.
+    ///
+    /// Requirement sources are tracked separately and are not included here.
+    pub fn layers_low_to_high(&self) -> impl DoubleEndedIterator<Item = &ConfigLayerEntry> {
+        self.all_layers_low_to_high()
+            .filter(|layer| !layer.is_disabled())
+    }
+
+    /// Returns enabled config layers from highest precedence to lowest.
+    ///
+    /// Requirement sources are tracked separately and are not included here.
+    pub fn layers_high_to_low(&self) -> impl DoubleEndedIterator<Item = &ConfigLayerEntry> {
+        self.layers_low_to_high().rev()
+    }
+
+    /// Returns all config layers, including disabled layers, from lowest
+    /// precedence to highest.
+    ///
+    /// Requirement sources are tracked separately and are not included here.
+    pub fn all_layers_low_to_high(&self) -> impl DoubleEndedIterator<Item = &ConfigLayerEntry> {
+        self.layers.iter()
+    }
+
+    /// Returns all config layers, including disabled layers, from highest
+    /// precedence to lowest.
+    ///
+    /// Requirement sources are tracked separately and are not included here.
+    pub fn all_layers_high_to_low(&self) -> impl DoubleEndedIterator<Item = &ConfigLayerEntry> {
+        self.all_layers_low_to_high().rev()
+    }
+}
+
+/// Validates before merging so mixed forms and malformed filter entries cannot be normalized away.
+pub(crate) fn validate_enabled_config_layers(layers: &[ConfigLayerEntry]) -> std::io::Result<()> {
+    for layer in layers.iter().filter(|layer| !layer.is_disabled()) {
+        validate_shell_environment_policy_filter_config(&layer.config).map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "invalid shell environment policy in {}: {error}",
+                    format_config_layer_source(&layer.name, CONFIG_TOML_FILE)
+                ),
+            )
+        })?;
+    }
+    Ok(())
+}
+
+/// Ensures precedence ordering of config layers is correct.
+fn verify_layer_ordering(layers: &[ConfigLayerEntry]) -> std::io::Result<()> {
+    if !layers.iter().map(|layer| &layer.name).is_sorted() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "config layers are not in correct precedence order",
+        ));
+    }
+
+    // The previous check ensured `layers` is sorted by precedence, so now we
+    // further verify that project layers are ordered from root to cwd. Multiple
+    // user layers are allowed so a profile override can layer on top of the base
+    // user config.
+    let mut previous_project_dot_lime_folder: Option<&AbsolutePathBuf> = None;
+    for layer in layers {
+        if let ConfigLayerSource::Project {
+            dot_lime_folder: current_project_dot_lime_folder,
+        } = &layer.name
+        {
+            if let Some(previous) = previous_project_dot_lime_folder {
+                let Some(parent) = previous.as_path().parent() else {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "project layer has no parent directory",
+                    ));
+                };
+                if previous == current_project_dot_lime_folder
+                    || !current_project_dot_lime_folder
+                        .as_path()
+                        .ancestors()
+                        .any(|ancestor| ancestor == parent)
+                {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "project layers are not ordered from root to cwd",
+                    ));
+                }
+            }
+            previous_project_dot_lime_folder = Some(current_project_dot_lime_folder);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "state_tests.rs"]
+mod tests;

@@ -1,0 +1,19 @@
+[package]
+name = "terminal-detection"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Terminal detection."
+
+[lib]
+name = "terminal_detection"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

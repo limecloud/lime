@@ -1,7 +1,7 @@
 use super::*;
 use crate::execution_process::{
-    live::{LiveExecutionOutputBatch, LiveExecutionOutputQuery, LiveExecutionRequest},
     ExecutionOutputDelta, ExecutionOutputKind, ExecutionProcessSnapshot, ExecutionProcessStatus,
+    live::{LiveExecutionOutputBatch, LiveExecutionOutputQuery, LiveExecutionRequest},
 };
 use crate::tool_executor::{RuntimeToolExecutionError, RuntimeToolPolicyErrorKind};
 use crate::tool_lifecycle::{
@@ -378,11 +378,13 @@ async fn exec_command_returns_terminal_output_for_short_process() {
         result.metadata.get("exec_command_call_id"),
         Some(&json!("call-short"))
     );
-    assert!(result
-        .metadata
-        .get("processId")
-        .and_then(Value::as_str)
-        .is_some_and(|value| value.starts_with("unified-exec-")));
+    assert!(
+        result
+            .metadata
+            .get("processId")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.starts_with("unified-exec-"))
+    );
     assert_eq!(
         result.metadata.get("executionProcessStatus"),
         Some(&json!("exited"))
@@ -582,9 +584,11 @@ async fn write_stdin_rejects_a_session_owned_by_another_thread() {
     let error = execute_runtime_unified_exec_tool(gateway.clone(), wrong_thread)
         .await
         .expect_err("cross-thread write must fail closed");
-    assert!(error
-        .message()
-        .contains("does not belong to thread thread-2"));
+    assert!(
+        error
+            .message()
+            .contains("does not belong to thread thread-2")
+    );
 
     execute_runtime_unified_exec_tool(
         gateway,

@@ -2,8 +2,8 @@
 //! Native identity is supplied by a trusted adapter, never by model/RPC JSON.
 
 use app_server_protocol::protocol::v2::ComputerUseGrantScope;
-use lime_core::config::{ComputerUseConfigToml, ComputerUseRequirementsToml};
 use lime_core::AllowDenyRequirementToml::{self, Allow, Deny};
+use lime_core::config::{ComputerUseConfigToml, ComputerUseRequirementsToml};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(
@@ -13,7 +13,9 @@ use lime_core::AllowDenyRequirementToml::{self, Allow, Deny};
     deny_unknown_fields
 )]
 pub enum NativeAppIdentity {
-    Linux { executable: String },
+    Linux {
+        executable: String,
+    },
     Macos {
         bundle_id: String,
     },
@@ -260,7 +262,9 @@ impl ComputerUsePolicy {
             return Err("Computer Use is disabled in settings");
         }
         let identity_verified = match identity {
-            NativeAppIdentity::Linux { executable } => std::path::Path::new(executable).is_absolute() && !executable.contains('\0'),
+            NativeAppIdentity::Linux { executable } => {
+                std::path::Path::new(executable).is_absolute() && !executable.contains('\0')
+            }
             NativeAppIdentity::Macos { bundle_id } => !bundle_id.trim().is_empty(),
             NativeAppIdentity::Windows {
                 aumid,

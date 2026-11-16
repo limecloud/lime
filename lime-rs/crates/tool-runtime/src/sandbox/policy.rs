@@ -1,4 +1,4 @@
-use super::{parse_requested_sandbox_policy, RequestedSandboxPolicy, SandboxCommandError};
+use super::{RequestedSandboxPolicy, SandboxCommandError, parse_requested_sandbox_policy};
 use app_server_protocol::protocol::v2::{
     AdditionalNetworkPermissions, GrantedPermissionProfile, NetworkAccess, SandboxPolicy,
 };
@@ -128,14 +128,16 @@ mod tests {
             writable_roots_with_tmpdir(&policy, &cwd, Some(tmp)),
             expected
         );
-        assert!(writable_roots_with_tmpdir(
-            &SandboxPolicy::ReadOnly {
-                network_access: false
-            },
-            &cwd,
-            Some(root.path().to_path_buf())
-        )
-        .is_empty());
+        assert!(
+            writable_roots_with_tmpdir(
+                &SandboxPolicy::ReadOnly {
+                    network_access: false
+                },
+                &cwd,
+                Some(root.path().to_path_buf())
+            )
+            .is_empty()
+        );
     }
 
     #[test]

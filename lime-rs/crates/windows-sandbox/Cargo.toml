@@ -1,0 +1,36 @@
+[package]
+name = "windows-sandbox"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Windows sandbox helpers."
+
+[lib]
+name = "windows_sandbox"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
+dirs-next = "2.0"
+dunce = "1"
+glob = "0.3"
+http-client = { path = "../http-client" }
+ignore = "0.4"
+lime-utils-absolute-path.workspace = true
+protocol = { path = "../protocol" }
+rand = { version = "0.8", default-features = false, features = ["std", "small_rng"] }
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["sync", "rt", "macros", "signal", "time"] }
+tracing.workspace = true
+tracing-appender = "0.2"
+utils-process = { path = "../utils-process" }
+utils-pty = { path = "../utils-pty" }
+utils-string = { path = "../utils-string" }
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_NetworkManagement_WindowsFirewall", "Win32_System_Com", "Win32_System_Variant"] }

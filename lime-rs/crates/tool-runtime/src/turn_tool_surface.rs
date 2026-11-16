@@ -367,14 +367,18 @@ mod tests {
         assert!(!runtime_turn_tool_surface_should_load_workspace_hints(
             Some(&RuntimeTurnToolSurfaceMode::DirectAnswer)
         ));
-        assert!(runtime_turn_tool_surface_prompt_guidance(Some(
-            &RuntimeTurnToolSurfaceMode::DirectAnswer
-        ))
-        .is_some());
-        assert!(runtime_turn_tool_surface_prompt_guidance(Some(
-            &RuntimeTurnToolSurfaceMode::CompactTools
-        ))
-        .is_none());
+        assert!(
+            runtime_turn_tool_surface_prompt_guidance(Some(
+                &RuntimeTurnToolSurfaceMode::DirectAnswer
+            ))
+            .is_some()
+        );
+        assert!(
+            runtime_turn_tool_surface_prompt_guidance(Some(
+                &RuntimeTurnToolSurfaceMode::CompactTools
+            ))
+            .is_none()
+        );
     }
 
     #[test]

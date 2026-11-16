@@ -420,14 +420,21 @@ mod tests {
     fn parses_canonical_app_server_turn_identity_without_model_supplied_ids() {
         let workspace = TempDir::new().expect("workspace");
         let context = RuntimeToolTurnContext {
-            metadata: HashMap::from([("app_server_runtime_backend".into(), json!({
-                "sessionId": "session-current", "threadId": "thread-current", "turnId": "turn-current"
-            }))]),
+            metadata: HashMap::from([(
+                "app_server_runtime_backend".into(),
+                json!({
+                    "sessionId": "session-current", "threadId": "thread-current", "turnId": "turn-current"
+                }),
+            )]),
             ..RuntimeToolTurnContext::default()
         };
         let input = parse_image_task_input(
-            &json!({ "prompt": "封面" }), workspace.path(), "session-current", Some(&context),
-        ).expect("canonical identity");
+            &json!({ "prompt": "封面" }),
+            workspace.path(),
+            "session-current",
+            Some(&context),
+        )
+        .expect("canonical identity");
         assert_eq!(input.thread_id, "thread-current");
         assert_eq!(input.turn_id, "turn-current");
         assert_eq!(input.session_id, "session-current");

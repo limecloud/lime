@@ -1,0 +1,36 @@
+[package]
+name = "arg0"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Arg0 dispatch helpers."
+
+[lib]
+name = "arg0"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+apply-patch = { path = "../apply-patch" }
+async-utils = { path = "../async-utils" }
+dotenvy = "0.15"
+exec-server = { path = "../exec-server" }
+install-context = { path = "../install-context" }
+lime-utils-absolute-path.workspace = true
+linux-sandbox = { path = "../linux-sandbox" }
+sandboxing = { path = "../sandboxing" }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+utils-home-dir = { path = "../utils-home-dir" }
+utils-pty = { path = "../utils-pty" }
+
+[target.'cfg(windows)'.dependencies]
+pathdiff = "0.2"
+windows-sandbox = { path = "../windows-sandbox" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+utils-cargo-bin = { path = "../utils-cargo-bin" }

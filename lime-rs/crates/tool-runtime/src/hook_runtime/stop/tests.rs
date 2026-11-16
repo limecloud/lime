@@ -1,11 +1,11 @@
 use super::*;
 use crate::hook_lifecycle::{
-    evaluate_hook_event_async, RuntimeHookOutcome, RuntimeHookReporter, RuntimeHookSkipReason,
-    RuntimeStopHookContext,
+    RuntimeHookOutcome, RuntimeHookReporter, RuntimeHookSkipReason, RuntimeStopHookContext,
+    evaluate_hook_event_async,
 };
 use crate::hook_runtime::{
-    resolve_command_shell, run_command_hook, shell_command_flag, status_for_report,
     CommandHookReporter, HookLifecycleEmitter, HookLifecycleEvent, HookLifecyclePhase,
+    resolve_command_shell, run_command_hook, shell_command_flag, status_for_report,
 };
 use crate::turn_snapshot::{
     RuntimeHookHandlerType, RuntimeHookSnapshot, RuntimeHookSource, RuntimeHookTrustStatus,
@@ -154,10 +154,12 @@ fn stop_output_requires_feedback_and_stop_takes_precedence() {
                     assert_eq!(reason, None);
                     assert!(parsed.entries.is_empty(), "no synthetic stop reason");
                 }
-                RuntimeHookHandlerReport::Failed { .. } => assert!(parsed
-                    .entries
-                    .iter()
-                    .all(|entry| entry.kind == HookOutputEntryKind::Error)),
+                RuntimeHookHandlerReport::Failed { .. } => assert!(
+                    parsed
+                        .entries
+                        .iter()
+                        .all(|entry| entry.kind == HookOutputEntryKind::Error)
+                ),
                 _ => {}
             }
         }
@@ -183,10 +185,12 @@ fn stop_rejects_tool_output_fields_and_wrong_json_types() {
             matches!(parsed.report, RuntimeHookHandlerReport::Failed { .. }),
             "{stdout}"
         );
-        assert!(parsed
-            .entries
-            .iter()
-            .all(|entry| entry.kind == HookOutputEntryKind::Error));
+        assert!(
+            parsed
+                .entries
+                .iter()
+                .all(|entry| entry.kind == HookOutputEntryKind::Error)
+        );
     }
 }
 
@@ -383,9 +387,11 @@ async fn real_reporter_pairs_repeat_invocations_with_evaluation_ids() {
         );
     }
     assert_ne!(events[0].run.id, events[2].run.id);
-    assert!(events
-        .iter()
-        .all(|event| event.turn_id.as_deref() == Some("turn-1")));
+    assert!(
+        events
+            .iter()
+            .all(|event| event.turn_id.as_deref() == Some("turn-1"))
+    );
 }
 
 #[tokio::test]

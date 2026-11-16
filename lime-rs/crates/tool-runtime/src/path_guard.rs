@@ -224,8 +224,8 @@ fn is_protected_path(path: &Path, protected_git_root: &Path, home_dir: Option<&P
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate_path_mutations, resolve_static_path_candidate, PathGuardFinding,
-        PathMutationCandidate, PathMutationKind,
+        PathGuardFinding, PathMutationCandidate, PathMutationKind, evaluate_path_mutations,
+        resolve_static_path_candidate,
     };
     use std::path::Path;
 

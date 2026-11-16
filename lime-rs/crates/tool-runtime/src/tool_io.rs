@@ -7,7 +7,7 @@ use agent_protocol::model_context::resolve_model_context_window_or;
 use agent_protocol::truncation::TruncationPolicy;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::OnceLock;
 
 const TOKEN_ENCODER_INIT_STACK_SIZE: usize = 16 * 1024 * 1024;

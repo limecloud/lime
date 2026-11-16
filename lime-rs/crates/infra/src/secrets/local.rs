@@ -11,6 +11,7 @@ use std::sync::atomic::compiler_fence;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
+use crate::keyring_store::KeyringStore;
 use age::decrypt;
 use age::encrypt;
 use age::scrypt::Identity as ScryptIdentity;
@@ -21,7 +22,6 @@ use anyhow::Context;
 use anyhow::Result;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use crate::keyring_store::KeyringStore;
 use rand::TryRngCore;
 use rand::rngs::OsRng;
 use serde::Deserialize;
@@ -600,12 +600,7 @@ mod tests {
                 .exists()
         );
         assert!(!lime_home.path().join("secrets").join("local.age").exists());
-        assert!(
-            lime_home
-                .path()
-                .join("secrets/gateway_oauth.age")
-                .is_file()
-        );
+        assert!(lime_home.path().join("secrets/gateway_oauth.age").is_file());
         // Primary-auth key removal must not make the independent gateway file unreadable.
         keyring
             .delete(

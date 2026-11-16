@@ -1,0 +1,338 @@
+use super::*;
+use crate::ConfigLayerEntry;
+use crate::ConfigLayerSource;
+use crate::ConfigRequirements;
+use crate::config_toml::ConfigToml;
+use crate::diagnostics::TextPosition;
+use crate::diagnostics::TextRange;
+use pretty_assertions::assert_eq;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+#[test]
+fn ignored_toml_field_errors_accept_non_file_source_names() {
+    let source_name = "com.openai.lime:config_toml_base64";
+    let contents = r#"
+model = "gpt-5"
+unknown_key = true"#;
+
+    let value = toml::from_str::<TomlValue>(contents).expect("valid TOML");
+    let error = config_error_from_ignored_toml_value_fields_for_source_name::<ConfigToml>(
+        source_name,
+        contents,
+        value,
+    )
+    .expect("unknown field error");
+
+    assert_eq!(
+        error,
+        ConfigError::new(
+            PathBuf::from(source_name),
+            TextRange {
+                start: TextPosition { line: 3, column: 1 },
+                end: TextPosition {
+                    line: 3,
+                    column: 11,
+                },
+            },
+            "unknown configuration field `unknown_key`",
+        )
+    );
+}
+
+#[test]
+fn type_errors_take_precedence_over_ignored_fields() {
+    let path = Path::new("/tmp/config.toml");
+    let contents = r#"
+model_context_window = "wide"
+unknown_key = true"#;
+
+    let error =
+        config_error_from_ignored_toml_fields::<ConfigToml>(path, contents).expect("type error");
+
+    assert_eq!(
+        error,
+        ConfigError::new(
+            path.to_path_buf(),
+            TextRange {
+                start: TextPosition {
+                    line: 2,
+                    column: 24,
+                },
+                end: TextPosition {
+                    line: 2,
+                    column: 29,
+                },
+            },
+            "invalid type: string \"wide\", expected i64",
+        )
+    );
+}
+
+#[test]
+fn strict_config_rejects_unknown_feature_key() {
+    let path = Path::new("/tmp/config.toml");
+    let contents = r#"
+[features]
+foo = true"#;
+
+    let error = config_error_from_ignored_toml_fields::<ConfigToml>(path, contents)
+        .expect("unknown feature error");
+
+    assert_eq!(
+        error,
+        ConfigError::new(
+            path.to_path_buf(),
+            TextRange {
+                start: TextPosition { line: 3, column: 1 },
+                end: TextPosition { line: 3, column: 3 },
+            },
+            "unknown configuration field `features.foo`",
+        )
+    );
+}
+
+#[test]
+fn strict_config_rejects_unknown_tui_key() {
+    let path = Path::new("/tmp/config.toml");
+    let contents = r#"
+[tui]
+bogus_key_xyz = 1"#;
+
+    let error = config_error_from_ignored_toml_fields::<ConfigToml>(path, contents)
+        .expect("unknown TUI key error");
+
+    assert_eq!(
+        error,
+        ConfigError::new(
+            path.to_path_buf(),
+            TextRange {
+                start: TextPosition { line: 3, column: 1 },
+                end: TextPosition {
+                    line: 3,
+                    column: 13,
+                },
+            },
+            "unknown configuration field `tui.bogus_key_xyz`",
+        )
+    );
+}
+
+#[test]
+fn strict_config_accepts_tui_notification_settings() {
+    let path = Path::new("/tmp/config.toml");
+
+    for contents in [
+        "[tui]\nnotifications = false\n",
+        "[tui]\nnotification_method = \"bel\"\n",
+        "[tui]\nnotification_condition = \"always\"\n",
+    ] {
+        assert_eq!(
+            config_error_from_ignored_toml_fields::<ConfigToml>(path, contents),
+            None
+        );
+    }
+}
+
+#[test]
+fn generic_validation_does_not_apply_config_toml_tui_fields() {
+    let path = Path::new("/tmp/config.toml");
+    let contents = "[tui]\nplugin_key = 1\n";
+
+    assert_eq!(
+        config_error_from_ignored_toml_fields::<BTreeMap<String, BTreeMap<String, i32>>>(
+            path, contents,
+        ),
+        None
+    );
+}
+
+#[test]
+fn wrapped_config_toml_still_rejects_unknown_feature_key() {
+    let path = Path::new("/tmp/config.toml");
+    let contents = "[features]\nfoo = true\n";
+
+    let error = config_error_from_ignored_toml_fields::<Box<ConfigToml>>(path, contents)
+        .expect("unknown feature error");
+
+    assert_eq!(
+        error,
+        ConfigError::new(
+            path.to_path_buf(),
+            TextRange {
+                start: TextPosition { line: 2, column: 1 },
+                end: TextPosition { line: 2, column: 3 },
+            },
+            "unknown configuration field `features.foo`",
+        )
+    );
+}
+
+#[test]
+fn strict_config_accepts_tool_registry_config() {
+    let path = Path::new("/tmp/config.toml");
+
+    for contents in [
+        "[features.tool_registry]\nerror_on_tool_collisions = true\n",
+        "[profiles.work.features.tool_registry]\nerror_on_tool_collisions = true\n",
+        "[features.tool_registry]\nturn_metadata_includes_tool_info = true\n",
+        "[profiles.work.features.tool_registry]\nturn_metadata_includes_tool_info = true\n",
+    ] {
+        assert_eq!(
+            config_error_from_ignored_toml_fields::<ConfigToml>(path, contents),
+            None
+        );
+    }
+
+    assert!(
+        config_error_from_ignored_toml_fields::<ConfigToml>(
+            path,
+            "[features.tool_registry]\nunknown = true\n",
+        )
+        .is_some()
+    );
+}
+
+#[test]
+fn strict_config_rejects_unknown_profile_feature_key() {
+    let path = Path::new("/tmp/config.toml");
+    let contents = r#"
+[profiles.work.features]
+foo = true"#;
+
+    let error = config_error_from_ignored_toml_fields::<ConfigToml>(path, contents)
+        .expect("unknown feature error");
+
+    assert_eq!(
+        error,
+        ConfigError::new(
+            path.to_path_buf(),
+            TextRange {
+                start: TextPosition { line: 3, column: 1 },
+                end: TextPosition { line: 3, column: 3 },
+            },
+            "unknown configuration field `profiles.work.features.foo`",
+        )
+    );
+}
+
+#[test]
+fn strict_config_accepts_opaque_desktop_keys() {
+    let path = Path::new("/tmp/config.toml");
+    let contents = r#"
+[desktop]
+appearanceTheme = "dark"
+
+[desktop.workspace]
+collapsed = true"#;
+
+    let error = config_error_from_ignored_toml_fields::<ConfigToml>(path, contents);
+
+    assert_eq!(error, None);
+}
+
+fn layer(source: ConfigLayerSource, contents: &str) -> ConfigLayerEntry {
+    ConfigLayerEntry::new(source, toml::from_str(contents).unwrap())
+}
+
+#[test]
+fn checks_merged_config_and_ignores_disabled_layers() {
+    let layers = vec![
+        layer(
+            ConfigLayerSource::EnterpriseManaged {
+                id: "cfg".into(),
+                name: "Defaults".into(),
+            },
+            r#"
+[model_providers.custom]
+name = "Custom"
+wire_api = "responses"
+unknown_timeout = 1
+[model_providers.custom.http_headers]
+custom_header = "accepted"
+"#,
+        ),
+        ConfigLayerEntry::new_disabled(
+            ConfigLayerSource::SessionFlags,
+            toml::from_str("disabled_unknown = true").unwrap(),
+            "not trusted",
+        ),
+        layer(
+            ConfigLayerSource::SessionFlags,
+            r#"
+[model_providers.custom]
+unknown_timeout = 42
+[profiles.work.features]
+include_view_image_tool = false
+"#,
+        ),
+    ];
+    let config = ConfigLayerStack::new(
+        layers,
+        ConfigRequirements::default(),
+        ConfigRequirementsToml::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        ignored_config_warning(&config, &[]).unwrap(),
+        "Lime is ignoring 3 unrecognized configuration settings. Check for typos or deprecated settings.\n  enterprise-managed (Defaults, cfg): `model_providers.custom.unknown_timeout` is ignored.\n  session-flags: `model_providers.custom.unknown_timeout` is ignored.\n  session-flags: `profiles.work.features.include_view_image_tool` is ignored. Use [features].view_image to configure the image tool."
+    );
+}
+
+#[test_case::test_case(
+    "[windows]\nsandbox_private_desktop = false",
+    "Lime is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.\n  session-flags: `windows.sandbox_private_desktop` is ignored. Remove windows.sandbox_private_desktop; legacy Windows sandboxes always use a private desktop.";
+    "private_desktop"
+)]
+#[test_case::test_case(
+    "[auto_review]\nextra_policy = 'Additional rules.'\nexperimental_policy_template = 'Custom template.'",
+    concat!(
+        "Lime is ignoring 2 unrecognized configuration settings. Check for typos or deprecated settings.",
+        "\n  session-flags: `auto_review.experimental_policy_template` is ignored. Remove auto_review.experimental_policy_template from config.toml.",
+        "\n  session-flags: `auto_review.extra_policy` is ignored. To enforce additional Guardian rules, set guardian_extra_policy in managed requirements.toml.",
+    );
+    "guardian_policy"
+)]
+fn removed_settings_have_migration_hints(contents: &str, expected: &str) {
+    let config = ConfigLayerStack::new(
+        vec![layer(ConfigLayerSource::SessionFlags, contents)],
+        ConfigRequirements::default(),
+        ConfigRequirementsToml::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        ignored_config_warning(&config, &[]).as_deref(),
+        Some(expected)
+    );
+}
+
+#[test]
+fn managed_network_unknown_fields_are_reported_for_each_spelling() {
+    let config = ConfigLayerStack::new(
+        Vec::new(),
+        ConfigRequirements::default(),
+        ConfigRequirementsToml::default(),
+    )
+    .unwrap();
+    for table in [
+        "network_proxy",
+        "experimental_network",
+        "permissions.network",
+    ] {
+        let requirements = RequirementsLayerEntry::from_toml(
+            crate::RequirementSource::Unknown,
+            format!(
+                "[{table}]\nenabld = true\n[{table}.domains]\n'example.com' = 'allow'\n\
+                 [[{table}.header_injections]]\nhost = 'example.com'\nmethods = ['GET']\n\
+                 path_prefixes = ['/']\nheaders = {{}}\nunknown = true\n"
+            ),
+        );
+        assert_eq!(
+            ignored_config_warning(&config, &[requirements]),
+            Some(format!(
+                "Lime is ignoring 2 unrecognized configuration settings. Check for typos or deprecated settings.\n  requirements (<unspecified>): `{table}.enabld` is ignored.\n  requirements (<unspecified>): `{table}.header_injections.0.unknown` is ignored."
+            )),
+            "{table}"
+        );
+    }
+}

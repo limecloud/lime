@@ -1,0 +1,1035 @@
+#![allow(clippy::expect_used)]
+
+use ::http_client::OutboundProxyPolicy;
+use ::protocol::models::PermissionProfile;
+use ::protocol::permissions::FileSystemAccessMode;
+use ::protocol::permissions::FileSystemPath;
+use ::protocol::permissions::FileSystemSandboxEntry;
+use ::protocol::permissions::FileSystemSandboxPolicy;
+use ::protocol::permissions::FileSystemSpecialPath;
+use ::protocol::permissions::NetworkSandboxPolicy;
+use exec_server_protocol::JSONRPCError;
+use exec_server_protocol::JSONRPCErrorError;
+use exec_server_protocol::JSONRPCMessage;
+use exec_server_protocol::JSONRPCResponse;
+use futures::SinkExt;
+use futures::StreamExt;
+use http_client::HttpClientFactory;
+use lime_utils_path_uri::PathUri;
+use pretty_assertions::assert_eq;
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
+use tokio::sync::oneshot;
+use tokio::time::Duration;
+use tokio::time::timeout;
+use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::Message;
+
+use super::*;
+use crate::client_api::DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT;
+use crate::client_api::ExecServerTransportParams;
+use crate::protocol::FS_COPY_METHOD;
+use crate::protocol::FS_CREATE_DIRECTORY_METHOD;
+use crate::protocol::FS_GET_METADATA_METHOD;
+use crate::protocol::FS_READ_FILE_METHOD;
+use crate::protocol::FS_REMOVE_METHOD;
+use crate::protocol::FS_WRITE_FILE_METHOD;
+use crate::protocol::FsGetMetadataParams;
+use crate::protocol::FsGetMetadataResponse;
+use crate::protocol::FsReadFileParams;
+use crate::protocol::FsReadFileResponse;
+use crate::protocol::INITIALIZE_METHOD;
+use crate::protocol::INITIALIZED_METHOD;
+use crate::protocol::InitializeResponse;
+use crate::protocol::WireFsGetMetadataParams;
+use crate::protocol::WireFsReadFileParams;
+
+/// Foreign paths retain read restrictions; unrestricted reads stay compatible with old executors.
+#[tokio::test]
+async fn remote_file_system_sends_path_and_sandbox_cwd_uris_without_native_conversion() {
+    let (websocket_url, captured_params, server) =
+        record_read_file_params(/*expected_requests*/ 4).await;
+    let file_system = RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+        ExecServerTransportParams::websocket_url(
+            websocket_url,
+            DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+        ),
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    ));
+    let paths = vec![
+        PathUri::parse("file:///C:/Users/Alice/src/main.rs").expect("valid drive URI"),
+        PathUri::parse("file://server/share/src/main.rs").expect("valid UNC URI"),
+    ];
+    let sandbox_cwd = non_native_cwd();
+    let workspace_root = paths[0].parent().expect("workspace root URI");
+    let policy = FileSystemSandboxPolicy::restricted(
+        paths
+            .iter()
+            .map(|path| {
+                FileSystemSandboxEntry::new(path.clone().into(), FileSystemAccessMode::Read)
+            })
+            .collect(),
+    );
+    let mut sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
+        sandbox_cwd,
+    );
+    sandbox.workspace_roots = vec![workspace_root];
+
+    for path in &paths {
+        assert_eq!(
+            file_system
+                .read_file(path, Default::default(), Some(&sandbox))
+                .await
+                .expect("remote read should succeed"),
+            Vec::<u8>::new()
+        );
+    }
+
+    for permission_profile in [
+        PermissionProfile::read_only(),
+        PermissionProfile::workspace_write(),
+    ] {
+        let read_access = FileSystemSandboxContext::from_permission_profile(
+            permission_profile,
+            sandbox.cwd.clone(),
+        );
+        file_system
+            .read_file(&paths[0], Default::default(), Some(&read_access))
+            .await
+            .expect("unrestricted reads should succeed");
+    }
+
+    let captured_params = captured_params.await.expect("captured params");
+    let mut expected_params = paths
+        .iter()
+        .cloned()
+        .map(|path| FsReadFileParams {
+            path,
+            follow_symlinks: None,
+            sandbox: Some(sandbox.clone()),
+        })
+        .collect::<Vec<_>>();
+    expected_params.extend(vec![
+        FsReadFileParams {
+            path: paths[0].clone(),
+            follow_symlinks: None,
+            sandbox: None,
+        };
+        2
+    ]);
+    assert_eq!(
+        captured_params
+            .iter()
+            .map(|(params, _)| params.clone())
+            .collect::<Vec<_>>(),
+        expected_params
+    );
+    let policy_context = serde_json::json!({
+        "cwd": sandbox.cwd,
+        "workspaceRoots": sandbox.workspace_roots,
+    });
+    for (_, raw_sandbox) in &captured_params[..2] {
+        assert_eq!(
+            (
+                raw_sandbox.get("cwd"),
+                raw_sandbox.get("workspaceRoots"),
+                raw_sandbox.get("policyContext"),
+            ),
+            (None, None, Some(&policy_context)),
+        );
+    }
+    server.await.expect("recording server should succeed");
+}
+
+#[tokio::test]
+async fn remote_full_disk_reads_preserve_executor_permission_path_validation() {
+    let cases = [
+        ("file:///workspace", "file:///allowed", false),
+        ("file:///workspace", "file:///C:/allowed", true),
+        ("file:///C:/workspace", "file:///C:/allowed", false),
+        ("file:///C:/workspace", "file://server/share/allowed", false),
+        ("file:///C:/workspace", "file:///allowed", true),
+        ("file:///C:/workspace", "file:///C:/allowed%5Csecret", true),
+        ("file:///workspace", "file:///%00/bad/path/YQ", true),
+    ];
+    let (websocket_url, captured_params, server) = record_read_file_params(cases.len()).await;
+    let file_system = RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+        ExecServerTransportParams::websocket_url(
+            websocket_url,
+            DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+        ),
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    ));
+    let mut expected_params = Vec::new();
+    for (cwd, permission_path, retain_sandbox) in cases {
+        let cwd = PathUri::parse(cwd).expect("executor cwd");
+        let path = cwd.join("readable.txt").expect("executor file");
+        let policy = FileSystemSandboxPolicy::restricted(vec![
+            FileSystemSandboxEntry::new(
+                FileSystemPath::Special {
+                    value: FileSystemSpecialPath::Root,
+                },
+                FileSystemAccessMode::Read,
+            ),
+            FileSystemSandboxEntry::new(
+                PathUri::parse(permission_path)
+                    .expect("permission path")
+                    .into(),
+                FileSystemAccessMode::Write,
+            ),
+        ]);
+        let sandbox = FileSystemSandboxContext::from_permission_profile(
+            PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
+            // Policy cwd is caller-supplied; only the operation path must be native to succeed.
+            PathUri::parse(permission_path).expect("deliberately mismatched policy cwd"),
+        );
+        file_system
+            .read_file(&path, Default::default(), Some(&sandbox))
+            .await
+            .expect("remote read");
+        expected_params.push(FsReadFileParams {
+            path,
+            follow_symlinks: None,
+            sandbox: retain_sandbox.then_some(sandbox),
+        });
+    }
+    assert_eq!(
+        captured_params
+            .await
+            .expect("captured params")
+            .into_iter()
+            .map(|(params, _)| params)
+            .collect::<Vec<_>>(),
+        expected_params,
+    );
+    server.await.expect("recording server");
+}
+
+/// Only dynamic policies retain legacy selection fields; all policies preserve the new context.
+#[tokio::test]
+async fn remote_file_system_preserves_only_cwd_dependent_policy_directories() {
+    let cases = [
+        (
+            "file:///workspace/checkout",
+            Some("/elsewhere/*.secret"),
+            None,
+            Some("selected-root"),
+        ),
+        (
+            "file:///D:/checkout",
+            Some(r"D:\elsewhere\*.secret"),
+            None,
+            Some("selected-root"),
+        ),
+        (
+            "file://server/share/checkout",
+            Some(r"\\server\share\elsewhere\*.secret"),
+            None,
+            Some("selected-root"),
+        ),
+        (
+            "file:///workspace/checkout",
+            Some("*.secret"),
+            Some("file:///workspace/checkout"),
+            Some("selected-root"),
+        ),
+        (
+            "file:///D:/checkout",
+            Some(r"private\*.secret"),
+            Some("file:///D:/checkout"),
+            Some("selected-root"),
+        ),
+        (
+            "file:///workspace/checkout",
+            None,
+            Some("file:///workspace/checkout"),
+            Some("selected-root"),
+        ),
+        (
+            "file:///D:/checkout",
+            None,
+            Some("file:///D:/checkout"),
+            None,
+        ),
+    ];
+    let (websocket_url, captured_params, server) = record_read_file_params(cases.len()).await;
+    let file_system = RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+        ExecServerTransportParams::websocket_url(
+            websocket_url,
+            DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+        ),
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    ));
+    let mut expected_params = Vec::new();
+    let mut expected_contexts = Vec::new();
+    for (cwd, pattern, legacy_cwd, selected_root) in cases {
+        let cwd = PathUri::parse(cwd).expect("policy cwd");
+        let path = cwd.join("public.txt").expect("operation path");
+        let permission_path = match pattern {
+            Some(pattern) => FileSystemPath::GlobPattern {
+                pattern: pattern.to_string(),
+            },
+            None => FileSystemPath::Special {
+                value: FileSystemSpecialPath::project_roots(/*subpath*/ None),
+            },
+        };
+        let policy = FileSystemSandboxPolicy::restricted(vec![FileSystemSandboxEntry::new(
+            permission_path,
+            FileSystemAccessMode::Deny,
+        )]);
+        let mut sandbox = FileSystemSandboxContext::from_permission_profile(
+            PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
+            cwd.clone(),
+        );
+        sandbox.workspace_roots = selected_root
+            .map(|root| cwd.join(root).expect("selected workspace root"))
+            .into_iter()
+            .collect();
+        file_system
+            .read_file(&path, Default::default(), Some(&sandbox))
+            .await
+            .expect("remote read");
+        let legacy_cwd = legacy_cwd
+            .map(|cwd| serde_json::json!(PathUri::parse(cwd).expect("legacy policy cwd")));
+        let legacy_roots = if legacy_cwd.is_some() && !sandbox.workspace_roots.is_empty() {
+            Some(serde_json::json!(sandbox.workspace_roots))
+        } else {
+            None
+        };
+        expected_contexts.push((
+            legacy_cwd,
+            legacy_roots,
+            Some(serde_json::json!({
+                "cwd": cwd,
+                "workspaceRoots": sandbox.workspace_roots,
+            })),
+        ));
+        expected_params.push(FsReadFileParams {
+            path,
+            follow_symlinks: None,
+            sandbox: Some(sandbox),
+        });
+    }
+    let captured_params = captured_params.await.expect("captured params");
+    assert_eq!(
+        captured_params
+            .iter()
+            .map(|(params, _)| params.clone())
+            .collect::<Vec<_>>(),
+        expected_params
+    );
+    assert_eq!(
+        captured_params
+            .iter()
+            .map(|(_, sandbox)| {
+                (
+                    sandbox.get("cwd").cloned(),
+                    sandbox.get("workspaceRoots").cloned(),
+                    sandbox.get("policyContext").cloned(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        expected_contexts,
+    );
+    server.await.expect("recording server should succeed");
+}
+
+/// Older executors can launch with their own cwd while newer executors retain the removed cwd.
+#[tokio::test]
+async fn remote_file_system_can_read_after_checkout_removal_with_legacy_helper_launch() {
+    let temp = tempfile::TempDir::new().expect("test directory");
+    let checkout = temp.path().join("checkout");
+    std::fs::create_dir(&checkout).expect("checkout should exist");
+    let path = temp.path().join("allowed.txt");
+    std::fs::write(&path, "allowed").expect("fixture should be writable");
+    let path = PathUri::from_host_native_path(path).expect("absolute file path");
+    let cwd = PathUri::from_host_native_path(&checkout).expect("absolute checkout");
+    std::fs::remove_dir(checkout).expect("checkout should be removed");
+    let policy = FileSystemSandboxPolicy::restricted(vec![FileSystemSandboxEntry::new(
+        path.clone().into(),
+        FileSystemAccessMode::Read,
+    )]);
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
+        cwd.clone(),
+    );
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let websocket_url = format!("ws://{}", listener.local_addr().expect("listener address"));
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.expect("listener should accept");
+        let mut websocket = accept_async(stream)
+            .await
+            .expect("websocket handshake should succeed");
+        complete_websocket_initialize(&mut websocket).await;
+        let JSONRPCMessage::Request(request) = read_jsonrpc_websocket(&mut websocket).await else {
+            panic!("expected fs/readFile request");
+        };
+        assert_eq!(request.method, FS_READ_FILE_METHOD);
+        let raw_params = request.params.expect("read params");
+        let raw_sandbox = raw_params
+            .get("sandbox")
+            .expect("raw sandbox should be sent");
+        let policy_context = serde_json::json!({
+            "cwd": cwd,
+            "workspaceRoots": [cwd],
+        });
+        assert_eq!(
+            (
+                raw_sandbox.get("cwd"),
+                raw_sandbox.get("workspaceRoots"),
+                raw_sandbox.get("policyContext"),
+            ),
+            (None, None, Some(&policy_context)),
+        );
+        let legacy_cwd = raw_sandbox
+            .get("cwd")
+            .cloned()
+            .map(serde_json::from_value::<PathUri>)
+            .transpose()
+            .expect("legacy sandbox cwd");
+        let params = serde_json::from_value::<WireFsReadFileParams>(raw_params)
+            .expect("wire read params")
+            .try_into_request(|wire| {
+                let cwd = wire.cwd().expect("explicit client policy cwd").clone();
+                Ok(wire.into_context(cwd))
+            })
+            .expect("typed read params");
+        let selected_sandbox = params.sandbox.expect("sandbox should be sent");
+        assert_eq!(
+            (selected_sandbox.cwd, selected_sandbox.workspace_roots),
+            (cwd.clone(), vec![cwd]),
+        );
+        // An old executor falls back to its own cwd when it spawns the helper for this policy.
+        let helper_cwd = match legacy_cwd {
+            Some(cwd) => cwd.to_abs_path().expect("native legacy cwd").to_path_buf(),
+            None => std::env::current_dir().expect("legacy executor cwd"),
+        };
+        #[cfg(unix)]
+        let mut command = tokio::process::Command::new("cat");
+        #[cfg(windows)]
+        let mut command = {
+            let mut command = tokio::process::Command::new("cmd.exe");
+            command.args(["/C", "type"]);
+            command
+        };
+        let output = command
+            .current_dir(helper_cwd)
+            .arg(params.path.to_abs_path().expect("native file").as_path())
+            .output()
+            .await
+            .expect("legacy helper should launch");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        write_jsonrpc_websocket(
+            &mut websocket,
+            JSONRPCMessage::Response(JSONRPCResponse {
+                id: request.id,
+                result: serde_json::to_value(FsReadFileResponse {
+                    data_base64: STANDARD.encode(output.stdout),
+                })
+                .expect("read response"),
+            }),
+        )
+        .await;
+    });
+    let file_system = RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+        ExecServerTransportParams::websocket_url(
+            websocket_url,
+            DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+        ),
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    ));
+    assert_eq!(
+        file_system
+            .read_file(&path, Default::default(), Some(&sandbox))
+            .await
+            .expect("remote read"),
+        b"allowed"
+    );
+    server.await.expect("legacy server should succeed");
+}
+
+#[tokio::test]
+async fn concurrent_remote_metadata_requests_share_only_in_flight_results() {
+    let (abandoned_request_tx, abandoned_request_rx) = oneshot::channel();
+    let (websocket_url, captured_params, server) = record_metadata_params(vec![
+        MetadataResponse::Immediate(Ok(metadata_response(/*size*/ 42))),
+        MetadataResponse::Abandoned(abandoned_request_tx),
+        MetadataResponse::Immediate(Ok(metadata_response(/*size*/ 43))),
+    ])
+    .await;
+    let file_system = std::sync::Arc::new(RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+        ExecServerTransportParams::websocket_url(
+            websocket_url,
+            DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+        ),
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    )));
+    let path = PathUri::parse("file:///workspace/project/AGENTS.md").expect("valid path URI");
+
+    let (first, second) = tokio::join!(
+        file_system.get_metadata(&path, Default::default(), /*sandbox*/ None),
+        file_system.get_metadata(&path, Default::default(), /*sandbox*/ None),
+    );
+    let expected = FileMetadata {
+        is_directory: false,
+        is_file: true,
+        is_symlink: false,
+        size: 42,
+        created_at_ms: 10,
+        modified_at_ms: 20,
+    };
+    assert_eq!(first.expect("first metadata request"), expected);
+    assert_eq!(second.expect("second metadata request"), expected);
+    assert!(file_system.lock_metadata_requests().is_empty());
+
+    let initializing_file_system = std::sync::Arc::clone(&file_system);
+    let initializing_path = path.clone();
+    let initializer = tokio::spawn(async move {
+        initializing_file_system
+            .get_metadata(
+                &initializing_path,
+                Default::default(),
+                /*sandbox*/ None,
+            )
+            .await
+    });
+    abandoned_request_rx
+        .await
+        .expect("server should receive the abandoned metadata request");
+
+    let follower = file_system.get_metadata(&path, Default::default(), /*sandbox*/ None);
+    tokio::pin!(follower);
+    assert!(futures::poll!(follower.as_mut()).is_pending());
+    assert_eq!(
+        file_system
+            .lock_metadata_requests()
+            .get(&path)
+            .map(std::sync::Arc::strong_count),
+        Some(3)
+    );
+
+    initializer.abort();
+    assert!(
+        initializer
+            .await
+            .expect_err("metadata initializer should be aborted")
+            .is_cancelled()
+    );
+
+    let mut refreshed = expected;
+    refreshed.size = 43;
+    assert_eq!(
+        follower
+            .await
+            .expect("waiting metadata request should retry the abandoned initializer"),
+        refreshed
+    );
+    assert!(file_system.lock_metadata_requests().is_empty());
+    assert_eq!(
+        captured_params.await.expect("captured metadata requests"),
+        vec![
+            FsGetMetadataParams {
+                path: path.clone(),
+                follow_symlinks: None,
+                sandbox: None,
+            };
+            3
+        ]
+    );
+    server.await.expect("metadata server should succeed");
+}
+
+#[tokio::test]
+async fn concurrent_remote_metadata_errors_are_shared_but_retried() {
+    let (websocket_url, captured_params, server) = record_metadata_params(vec![
+        MetadataResponse::Immediate(Err(JSONRPCErrorError {
+            code: NOT_FOUND_ERROR_CODE,
+            data: None,
+            message: "metadata not found".to_string(),
+        })),
+        MetadataResponse::Immediate(Ok(metadata_response(/*size*/ 42))),
+    ])
+    .await;
+    let file_system = RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+        ExecServerTransportParams::websocket_url(
+            websocket_url,
+            DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+        ),
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    ));
+    let path = PathUri::parse("file:///workspace/project/AGENTS.md").expect("valid path URI");
+
+    let (first, second) = tokio::join!(
+        file_system.get_metadata(&path, Default::default(), /*sandbox*/ None),
+        file_system.get_metadata(&path, Default::default(), /*sandbox*/ None),
+    );
+    assert_eq!(
+        first.expect_err("first metadata error").kind(),
+        std::io::ErrorKind::NotFound
+    );
+    assert_eq!(
+        second.expect_err("shared metadata error").kind(),
+        std::io::ErrorKind::NotFound
+    );
+    assert_eq!(
+        file_system
+            .get_metadata(&path, Default::default(), /*sandbox*/ None)
+            .await
+            .expect("failed metadata request should be retried")
+            .size,
+        42
+    );
+    assert_eq!(
+        captured_params.await.expect("captured metadata requests"),
+        vec![
+            FsGetMetadataParams {
+                path: path.clone(),
+                follow_symlinks: None,
+                sandbox: None,
+            },
+            FsGetMetadataParams {
+                path,
+                follow_symlinks: None,
+                sandbox: None,
+            },
+        ]
+    );
+    server.await.expect("metadata server should succeed");
+}
+
+#[tokio::test]
+async fn remote_metadata_starts_fresh_after_intervening_filesystem_mutation() {
+    let path = PathUri::parse("file:///workspace/project/AGENTS.md").expect("valid path URI");
+    let source_path =
+        PathUri::parse("file:///workspace/project/source.md").expect("valid source path URI");
+
+    for (mutation, mutation_response) in [
+        (MetadataMutation::Write, Ok(())),
+        (MetadataMutation::CreateDirectory, Ok(())),
+        (MetadataMutation::Remove, Ok(())),
+        (MetadataMutation::Copy, Ok(())),
+        (
+            MetadataMutation::Copy,
+            Err(JSONRPCErrorError {
+                code: INVALID_REQUEST_ERROR_CODE,
+                data: None,
+                message: "mutation partially failed".to_string(),
+            }),
+        ),
+    ] {
+        let mutation_fails = mutation_response.is_err();
+        let (websocket_url, captured_params, server) = record_metadata_params(vec![
+            MetadataResponse::Immediate(Ok(metadata_response(/*size*/ 42))),
+            MetadataResponse::Mutation(mutation_response),
+            MetadataResponse::Immediate(Ok(metadata_response(/*size*/ 43))),
+        ])
+        .await;
+        let file_system = RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+            ExecServerTransportParams::websocket_url(
+                websocket_url,
+                DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+            ),
+            HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+        ));
+        file_system
+            .client
+            .get()
+            .await
+            .expect("remote filesystem client should connect");
+
+        let stale_request =
+            file_system.get_metadata(&path, Default::default(), /*sandbox*/ None);
+        tokio::pin!(stale_request);
+        assert!(futures::poll!(stale_request.as_mut()).is_pending());
+
+        let result = match mutation {
+            MetadataMutation::Write => {
+                file_system
+                    .write_file(
+                        &path,
+                        b"updated".to_vec(),
+                        Default::default(),
+                        /*sandbox*/ None,
+                    )
+                    .await
+            }
+            MetadataMutation::CreateDirectory => {
+                file_system
+                    .create_directory(
+                        &path,
+                        CreateDirectoryOptions {
+                            recursive: true,
+                            follow_symlinks: true,
+                        },
+                        /*sandbox*/ None,
+                    )
+                    .await
+            }
+            MetadataMutation::Remove => {
+                file_system
+                    .remove(
+                        &path,
+                        RemoveOptions {
+                            recursive: true,
+                            force: true,
+                            follow_symlinks: true,
+                        },
+                        /*sandbox*/ None,
+                    )
+                    .await
+            }
+            MetadataMutation::Copy => {
+                file_system
+                    .copy(
+                        &source_path,
+                        &path,
+                        CopyOptions { recursive: true },
+                        /*sandbox*/ None,
+                    )
+                    .await
+            }
+        };
+        if mutation_fails {
+            assert_eq!(
+                result
+                    .expect_err("remote filesystem mutation should fail")
+                    .kind(),
+                std::io::ErrorKind::InvalidInput
+            );
+        } else {
+            result.expect("remote filesystem mutation should succeed");
+        }
+
+        let (refreshed, stale) = tokio::join!(
+            file_system.get_metadata(&path, Default::default(), /*sandbox*/ None),
+            stale_request.as_mut(),
+        );
+        assert_eq!(stale.expect("original metadata request").size, 42);
+        assert_eq!(refreshed.expect("post-mutation metadata request").size, 43);
+        assert_eq!(
+            captured_params.await.expect("captured metadata requests"),
+            vec![
+                FsGetMetadataParams {
+                    path: path.clone(),
+                    follow_symlinks: None,
+                    sandbox: None,
+                };
+                2
+            ]
+        );
+        server.await.expect("metadata server should succeed");
+    }
+}
+
+#[tokio::test]
+async fn remote_metadata_requests_do_not_cross_path_or_sandbox_boundaries() {
+    let metadata = metadata_response(/*size*/ 42);
+    let (websocket_url, captured_params, server) = record_metadata_params(vec![
+        MetadataResponse::Immediate(Ok(metadata.clone())),
+        MetadataResponse::Immediate(Ok(metadata.clone())),
+        MetadataResponse::Immediate(Ok(metadata.clone())),
+        MetadataResponse::Immediate(Ok(metadata)),
+    ])
+    .await;
+    let file_system = RemoteFileSystem::new(LazyRemoteExecServerClient::new(
+        ExecServerTransportParams::websocket_url(
+            websocket_url,
+            DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
+        ),
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    ));
+    let first_path = PathUri::parse("file:///workspace/project/AGENTS.md").expect("valid path URI");
+    let second_path = PathUri::parse("file:///workspace/project/SKILL.md").expect("valid path URI");
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::from_runtime_permissions(
+            &FileSystemSandboxPolicy::restricted(vec![FileSystemSandboxEntry {
+                path: FileSystemPath::Special {
+                    value: FileSystemSpecialPath::project_roots(/*subpath*/ None),
+                },
+                access: FileSystemAccessMode::Write,
+                missing_path_behavior: None,
+            }]),
+            NetworkSandboxPolicy::Restricted,
+        ),
+        non_native_cwd(),
+    );
+
+    let (first, second) = tokio::join!(
+        file_system.get_metadata(&first_path, Default::default(), /*sandbox*/ None),
+        file_system.get_metadata(&second_path, Default::default(), /*sandbox*/ None),
+    );
+    first.expect("metadata for first path");
+    second.expect("metadata for second path");
+
+    let (first, second) = tokio::join!(
+        file_system.get_metadata(&first_path, Default::default(), Some(&sandbox)),
+        file_system.get_metadata(&first_path, Default::default(), Some(&sandbox)),
+    );
+    first.expect("first sandboxed metadata request");
+    second.expect("second sandboxed metadata request");
+
+    let captured_params = captured_params.await.expect("captured metadata requests");
+    assert_eq!(
+        captured_params
+            .iter()
+            .filter(|params| params.path == first_path && params.sandbox.is_none())
+            .count(),
+        1
+    );
+    assert_eq!(
+        captured_params
+            .iter()
+            .filter(|params| params.path == second_path && params.sandbox.is_none())
+            .count(),
+        1
+    );
+    assert_eq!(
+        captured_params
+            .iter()
+            .filter(|params| params.path == first_path && params.sandbox.as_ref() == Some(&sandbox))
+            .count(),
+        2
+    );
+    server.await.expect("metadata server should succeed");
+}
+
+async fn record_read_file_params(
+    expected_requests: usize,
+) -> (
+    String,
+    oneshot::Receiver<Vec<(FsReadFileParams, serde_json::Value)>>,
+    tokio::task::JoinHandle<()>,
+) {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let websocket_url = format!("ws://{}", listener.local_addr().expect("listener address"));
+    let (captured_params_tx, captured_params_rx) = oneshot::channel();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.expect("listener should accept");
+        let mut websocket = accept_async(stream)
+            .await
+            .expect("websocket handshake should succeed");
+        complete_websocket_initialize(&mut websocket).await;
+
+        let mut captured_params = Vec::with_capacity(expected_requests);
+        for _ in 0..expected_requests {
+            let request = match read_jsonrpc_websocket(&mut websocket).await {
+                JSONRPCMessage::Request(request) if request.method == FS_READ_FILE_METHOD => {
+                    request
+                }
+                other => panic!("expected fs/readFile request, got {other:?}"),
+            };
+            let raw_params = request.params.expect("fs/readFile params should exist");
+            let raw_sandbox = raw_params
+                .get("sandbox")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            let params = serde_json::from_value::<WireFsReadFileParams>(raw_params)
+                .expect("fs/readFile wire params should deserialize")
+                .try_into_request(|wire| {
+                    let cwd = wire.cwd().expect("explicit client policy cwd").clone();
+                    Ok(wire.into_context(cwd))
+                })
+                .expect("fs/readFile params should convert");
+            captured_params.push((params, raw_sandbox));
+            write_jsonrpc_websocket(
+                &mut websocket,
+                JSONRPCMessage::Response(JSONRPCResponse {
+                    id: request.id,
+                    result: serde_json::to_value(FsReadFileResponse {
+                        data_base64: String::new(),
+                    })
+                    .expect("fs/readFile response should serialize"),
+                }),
+            )
+            .await;
+        }
+        captured_params_tx
+            .send(captured_params)
+            .expect("captured params receiver should stay open");
+    });
+
+    (websocket_url, captured_params_rx, server)
+}
+
+enum MetadataResponse {
+    Immediate(Result<FsGetMetadataResponse, JSONRPCErrorError>),
+    Abandoned(oneshot::Sender<()>),
+    Mutation(Result<(), JSONRPCErrorError>),
+}
+
+fn metadata_response(size: u64) -> FsGetMetadataResponse {
+    FsGetMetadataResponse {
+        is_directory: false,
+        is_file: true,
+        is_symlink: false,
+        size,
+        created_at_ms: 10,
+        modified_at_ms: 20,
+    }
+}
+
+#[derive(Clone, Copy)]
+enum MetadataMutation {
+    Write,
+    CreateDirectory,
+    Remove,
+    Copy,
+}
+
+async fn record_metadata_params(
+    responses: Vec<MetadataResponse>,
+) -> (
+    String,
+    oneshot::Receiver<Vec<FsGetMetadataParams>>,
+    tokio::task::JoinHandle<()>,
+) {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let websocket_url = format!("ws://{}", listener.local_addr().expect("listener address"));
+    let (captured_params_tx, captured_params_rx) = oneshot::channel();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.expect("listener should accept");
+        let mut websocket = accept_async(stream)
+            .await
+            .expect("websocket handshake should succeed");
+        complete_websocket_initialize(&mut websocket).await;
+
+        let mut captured_params = Vec::with_capacity(responses.len());
+        for response in responses {
+            let request = match read_jsonrpc_websocket(&mut websocket).await {
+                JSONRPCMessage::Request(request) => request,
+                other => panic!("expected filesystem request, got {other:?}"),
+            };
+            if matches!(response, MetadataResponse::Mutation(_)) {
+                assert!(matches!(
+                    request.method.as_str(),
+                    FS_WRITE_FILE_METHOD
+                        | FS_CREATE_DIRECTORY_METHOD
+                        | FS_REMOVE_METHOD
+                        | FS_COPY_METHOD
+                ));
+            } else {
+                assert_eq!(request.method, FS_GET_METADATA_METHOD);
+                let params = serde_json::from_value::<WireFsGetMetadataParams>(
+                    request.params.expect("fs/getMetadata params should exist"),
+                )
+                .expect("fs/getMetadata wire params should deserialize")
+                .try_into_request(|wire| {
+                    let cwd = wire.cwd().expect("explicit client policy cwd").clone();
+                    Ok(wire.into_context(cwd))
+                })
+                .expect("fs/getMetadata params should convert");
+                captured_params.push(params);
+            }
+            let response = match response {
+                MetadataResponse::Immediate(Ok(metadata)) => {
+                    JSONRPCMessage::Response(JSONRPCResponse {
+                        id: request.id,
+                        result: serde_json::to_value(metadata)
+                            .expect("fs/getMetadata response should serialize"),
+                    })
+                }
+                MetadataResponse::Immediate(Err(error))
+                | MetadataResponse::Mutation(Err(error)) => JSONRPCMessage::Error(JSONRPCError {
+                    error,
+                    id: request.id,
+                }),
+                MetadataResponse::Mutation(Ok(())) => JSONRPCMessage::Response(JSONRPCResponse {
+                    id: request.id,
+                    result: serde_json::json!({}),
+                }),
+                MetadataResponse::Abandoned(received_tx) => {
+                    received_tx
+                        .send(())
+                        .expect("abandoned request observer should stay open");
+                    continue;
+                }
+            };
+            write_jsonrpc_websocket(&mut websocket, response).await;
+        }
+        captured_params_tx
+            .send(captured_params)
+            .expect("captured params receiver should stay open");
+    });
+
+    (websocket_url, captured_params_rx, server)
+}
+
+fn non_native_cwd() -> PathUri {
+    #[cfg(unix)]
+    let uri = "file://server/share/checkout";
+    #[cfg(windows)]
+    let uri = "file:///usr/local/checkout";
+
+    PathUri::parse(uri).expect("non-native cwd URI")
+}
+
+async fn complete_websocket_initialize(websocket: &mut WebSocketStream<TcpStream>) {
+    let request = match read_jsonrpc_websocket(websocket).await {
+        JSONRPCMessage::Request(request) if request.method == INITIALIZE_METHOD => request,
+        other => panic!("expected initialize request, got {other:?}"),
+    };
+    write_jsonrpc_websocket(
+        websocket,
+        JSONRPCMessage::Response(JSONRPCResponse {
+            id: request.id,
+            result: serde_json::to_value(InitializeResponse {
+                session_id: "session-1".to_string(),
+                environment_info: None,
+            })
+            .expect("initialize response should serialize"),
+        }),
+    )
+    .await;
+
+    match read_jsonrpc_websocket(websocket).await {
+        JSONRPCMessage::Notification(notification) if notification.method == INITIALIZED_METHOD => {
+        }
+        other => panic!("expected initialized notification, got {other:?}"),
+    }
+}
+
+async fn read_jsonrpc_websocket(websocket: &mut WebSocketStream<TcpStream>) -> JSONRPCMessage {
+    loop {
+        match timeout(Duration::from_secs(1), websocket.next())
+            .await
+            .expect("json-rpc websocket read should not time out")
+            .expect("websocket should stay open")
+            .expect("websocket frame should read")
+        {
+            Message::Text(text) => {
+                return serde_json::from_str(text.as_ref())
+                    .expect("json-rpc text frame should parse");
+            }
+            Message::Binary(bytes) => {
+                return serde_json::from_slice(bytes.as_ref())
+                    .expect("json-rpc binary frame should parse");
+            }
+            Message::Ping(_) | Message::Pong(_) => {}
+            other => panic!("expected json-rpc websocket frame, got {other:?}"),
+        }
+    }
+}
+
+async fn write_jsonrpc_websocket(
+    websocket: &mut WebSocketStream<TcpStream>,
+    message: JSONRPCMessage,
+) {
+    let encoded = serde_json::to_string(&message).expect("json-rpc should serialize");
+    websocket
+        .send(Message::Text(encoded.into()))
+        .await
+        .expect("json-rpc websocket frame should write");
+}

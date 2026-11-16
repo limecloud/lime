@@ -5,7 +5,7 @@ use crate::tool_executor::{
 use app_server_protocol::protocol::v2::{
     AdditionalNetworkPermissions, FileSystemAccessMode, GrantedPermissionProfile,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::future::Future;
 use std::pin::Pin;
 use tokio_util::sync::CancellationToken;

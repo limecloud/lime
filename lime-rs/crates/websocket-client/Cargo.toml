@@ -1,0 +1,28 @@
+[package]
+name = "websocket-client"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Websocket client for Lime transport."
+
+[lib]
+name = "websocket_client"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+futures.workspace = true
+http-client = { path = "../http-client" }
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
+tokio = { workspace = true, features = ["net", "rt", "time"] }
+tokio-rustls = "0.26"
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "7447c427513cfe685f236e1ac0513c4ea3dd9c0b", features = ["proxy", "rustls-tls-native-roots"] }
+url.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+rcgen = { version = "0.14.7", default-features = false, features = ["aws_lc_rs", "pem"] }
+tokio = { workspace = true, features = ["macros", "test-util"] }
+utils-rustls-provider = { path = "../utils-rustls-provider" }

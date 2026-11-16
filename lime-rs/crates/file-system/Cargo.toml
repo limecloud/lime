@@ -1,0 +1,26 @@
+[package]
+name = "file-system"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Abstract filesystem access shared by Lime executors."
+
+[lib]
+name = "file_system"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies]
+bytes.workspace = true
+futures.workspace = true
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+protocol = { path = "../protocol" }
+serde.workspace = true
+tokio = { workspace = true, features = ["rt", "sync"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }

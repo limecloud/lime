@@ -83,26 +83,34 @@ fn windows_wps_uses_office_switch_and_exact_persistent_native_rules() {
         office_enabled: Some(true),
         ..Default::default()
     };
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Session, false)
-        .is_err());
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Session, true)
-        .is_ok());
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Session, false)
+            .is_err()
+    );
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Session, true)
+            .is_ok()
+    );
     let persistent = policy
         .with_persistent_approval(ComputerUseAdapterKind::Office, &target)
         .unwrap();
     assert_eq!(persistent.native_enabled, Some(false));
-    assert!(persistent
-        .check_office_native(&target, ComputerUseGrantScope::Persistent, false)
-        .is_ok());
+    assert!(
+        persistent
+            .check_office_native(&target, ComputerUseGrantScope::Persistent, false)
+            .is_ok()
+    );
     let mut other = target.clone();
     if let Some(NativeAppIdentity::Windows { publisher_name, .. }) = &mut other.native_app {
         *publisher_name = "CN=Other Publisher".into();
     }
-    assert!(persistent
-        .check_office_native(&other, ComputerUseGrantScope::Persistent, false)
-        .is_err());
+    assert!(
+        persistent
+            .check_office_native(&other, ComputerUseGrantScope::Persistent, false)
+            .is_err()
+    );
     let rules = json!({"windows":{"exes":[{
         "publisher_name":"CN=Fixture Publisher", "product_name":"WPS Office", "binary_name":"et.exe", "access":"deny"
     }]}});
@@ -119,9 +127,11 @@ fn windows_wps_uses_office_switch_and_exact_persistent_native_rules() {
                 .is_err(),
             "{field}"
         );
-        assert!(denied
-            .with_persistent_approval(ComputerUseAdapterKind::Office, &target)
-            .is_err());
+        assert!(
+            denied
+                .with_persistent_approval(ComputerUseAdapterKind::Office, &target)
+                .is_err()
+        );
     }
 }
 
@@ -151,19 +161,27 @@ fn wps_switch_is_independent_and_app_denials_lock_and_consent_still_apply() {
         office_enabled: Some(true),
         ..Default::default()
     };
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Session, true)
-        .is_ok());
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Session, false)
-        .is_err());
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Persistent, true)
-        .is_err());
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Session, true)
+            .is_ok()
+    );
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Session, false)
+            .is_err()
+    );
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Persistent, true)
+            .is_err()
+    );
     target.locked = true;
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
     target.locked = false;
     policy.user = Some(
         serde_json::from_value(
@@ -171,18 +189,24 @@ fn wps_switch_is_independent_and_app_denials_lock_and_consent_still_apply() {
         )
         .unwrap(),
     );
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
     policy.user = None;
     policy.office_enabled = Some(false);
-    assert!(policy
-        .check_office_native(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        policy
+            .check_office_native(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
     // A connected add-in cannot invent a verified OS identity.
-    assert!(policy
-        .check_extension(&target.identity, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        policy
+            .check_extension(&target.identity, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
 }
 
 #[test]

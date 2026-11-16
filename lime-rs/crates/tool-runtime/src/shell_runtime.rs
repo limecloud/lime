@@ -52,7 +52,7 @@ pub fn platform_shell_argv(command: &str) -> Vec<String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let shell = crate::shell_detect::default_user_shell()
+        let shell = shell_command::shell_detect::default_user_shell()
             .shell_path
             .to_string_lossy()
             .into_owned();
@@ -290,19 +290,23 @@ mod tests {
             _ => None,
         });
 
-        assert!(candidates.contains(
-            &PathBuf::from(r"C:\Program Files")
-                .join("PowerShell")
-                .join("7")
-                .join("pwsh.exe")
-        ));
-        assert!(candidates.contains(
-            &PathBuf::from(r"C:\Windows")
-                .join("System32")
-                .join("WindowsPowerShell")
-                .join("v1.0")
-                .join("powershell.exe")
-        ));
+        assert!(
+            candidates.contains(
+                &PathBuf::from(r"C:\Program Files")
+                    .join("PowerShell")
+                    .join("7")
+                    .join("pwsh.exe")
+            )
+        );
+        assert!(
+            candidates.contains(
+                &PathBuf::from(r"C:\Windows")
+                    .join("System32")
+                    .join("WindowsPowerShell")
+                    .join("v1.0")
+                    .join("powershell.exe")
+            )
+        );
     }
 
     #[test]

@@ -1,0 +1,1267 @@
+mod standalone;
+
+pub use standalone::StaticNetworkProxyConfig;
+
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::bail;
+use lime_utils_absolute_path::AbsolutePathBuf;
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
+use serde::Serializer;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::net::SocketAddr;
+use std::path::Path;
+use tracing::warn;
+use url::Url;
+
+use crate::Platform;
+use crate::mitm_hook::MitmHookConfig;
+use crate::policy::normalize_host;
+
+/// Variant order encodes effective precedence for duplicate patterns:
+/// `None < Allow < Deny`, so deny wins over allow when entries conflict.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkDomainPermission {
+    None,
+    Allow,
+    Deny,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkDomainPermissionEntry {
+    pub pattern: String,
+    pub permission: NetworkDomainPermission,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NetworkDomainPermissions {
+    pub entries: Vec<NetworkDomainPermissionEntry>,
+}
+
+impl Serialize for NetworkDomainPermissions {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.effective_entries()
+            .into_iter()
+            .map(|entry| (entry.pattern, entry.permission))
+            .collect::<BTreeMap<_, _>>()
+            .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for NetworkDomainPermissions {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let entries = BTreeMap::<String, NetworkDomainPermission>::deserialize(deserializer)?
+            .into_iter()
+            .map(|(pattern, permission)| NetworkDomainPermissionEntry {
+                pattern,
+                permission,
+            })
+            .collect();
+        Ok(Self { entries })
+    }
+}
+
+impl NetworkDomainPermissions {
+    fn effective_entries(&self) -> Vec<NetworkDomainPermissionEntry> {
+        let mut order = Vec::new();
+        let mut effective_permissions = BTreeMap::new();
+
+        for entry in &self.entries {
+            if !effective_permissions.contains_key(&entry.pattern) {
+                order.push(entry.pattern.clone());
+            }
+
+            let permission = effective_permissions
+                .entry(entry.pattern.clone())
+                .or_insert(entry.permission);
+            if entry.permission > *permission {
+                *permission = entry.permission;
+            }
+        }
+
+        order
+            .into_iter()
+            .filter_map(|pattern| {
+                effective_permissions.remove(&pattern).map(|permission| {
+                    NetworkDomainPermissionEntry {
+                        pattern,
+                        permission,
+                    }
+                })
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkUnixSocketPermission {
+    Allow,
+    Deny,
+}
+
+/// Socket policy keys are preserved across controller and executor hosts.
+/// Allow entries must be NUL-free and absolute according to the executor OS;
+/// Deny entries are retained without path validation or expansion.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct NetworkUnixSocketPermissions {
+    #[serde(flatten)]
+    pub entries: BTreeMap<String, NetworkUnixSocketPermission>,
+}
+
+/// A caller-provided MITM CA for trusted proxy configuration, not sandbox `config.toml`.
+/// The private key file is readable only by the proxy process.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct NetworkMitmCaConfig {
+    pub certificate_file: String,
+    pub private_key_file: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct NetworkProxyConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_proxy_url")]
+    pub proxy_url: String,
+    pub enable_socks5: bool,
+    #[serde(default = "default_socks_url")]
+    pub socks_url: String,
+    pub enable_socks5_udp: bool,
+    pub allow_upstream_proxy: bool,
+    #[serde(default)]
+    pub dangerously_allow_non_loopback_proxy: bool,
+    /// When no socket map is set, omission defers to attachment policy; execution defaults to false.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dangerously_allow_all_unix_sockets: Option<bool>,
+    #[serde(default)]
+    pub mode: NetworkMode,
+    #[serde(default)]
+    pub domains: Option<NetworkDomainPermissions>,
+    /// Managed host selectors routed through the existing approval flow before ordinary allows.
+    /// Direct proxy configuration cannot change these requirements-only selectors.
+    #[serde(skip)]
+    pub review_domains: Vec<String>,
+    #[serde(default)]
+    pub unix_sockets: Option<NetworkUnixSocketPermissions>,
+    /// Omission is resolved for the selected sandbox; ordinary proxy execution defaults to false.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_local_binding: Option<bool>,
+    #[serde(default)]
+    pub mitm: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mitm_ca: Option<NetworkMitmCaConfig>,
+    #[serde(default)]
+    pub credential_broker: bool,
+    /// Whether brokerage enabled MITM rather than inheriting an explicit setting.
+    #[serde(skip)]
+    pub credential_broker_enabled_mitm: bool,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub credential_providers: BTreeMap<String, crate::CredentialProviderConfig>,
+    /// Trusted OpenAI endpoint derived from local configuration, never sent to remote executors.
+    #[serde(skip)]
+    pub credential_broker_openai_host: Option<String>,
+    /// Trusted local destination context, never sent to remote executors or child environments.
+    #[serde(skip)]
+    pub credential_broker_context: crate::CredentialBrokerContext,
+    #[serde(default)]
+    pub dangerously_allow_plaintext_credential_injection: bool,
+    #[serde(default)]
+    pub mitm_hooks: Vec<MitmHookConfig>,
+}
+
+impl Default for NetworkProxyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            proxy_url: default_proxy_url(),
+            enable_socks5: true,
+            socks_url: default_socks_url(),
+            enable_socks5_udp: true,
+            allow_upstream_proxy: true,
+            dangerously_allow_non_loopback_proxy: false,
+            dangerously_allow_all_unix_sockets: None,
+            mode: NetworkMode::default(),
+            domains: None,
+            review_domains: Vec::new(),
+            unix_sockets: None,
+            allow_local_binding: None,
+            mitm: false,
+            mitm_ca: None,
+            credential_broker: false,
+            credential_broker_enabled_mitm: false,
+            credential_providers: BTreeMap::new(),
+            credential_broker_openai_host: None,
+            credential_broker_context: crate::CredentialBrokerContext::default(),
+            dangerously_allow_plaintext_credential_injection: false,
+            mitm_hooks: Vec::new(),
+        }
+    }
+}
+
+impl NetworkProxyConfig {
+    pub fn allow_local_binding(&self) -> bool {
+        self.allow_local_binding.unwrap_or(false)
+    }
+
+    pub fn set_credential_broker_enabled(&mut self, enabled: bool) {
+        self.credential_broker = enabled;
+        if enabled {
+            self.credential_broker_enabled_mitm |= !self.mitm;
+            self.mitm = true;
+        } else if self.credential_broker_enabled_mitm {
+            self.mitm = !self.mitm_hooks.is_empty() || self.mitm_ca.is_some();
+            self.credential_broker_enabled_mitm = false;
+        }
+    }
+
+    pub fn set_credential_broker_openai_base_url(&mut self, base_url: Option<&str>) {
+        self.credential_broker_openai_host = base_url.and_then(trusted_credential_broker_host);
+    }
+
+    /// Retains trusted destination context without changing child environment policy. Conflicting
+    /// case-insensitive provider overrides disable brokerage on Windows.
+    pub fn configure_credential_broker_environment(
+        &mut self,
+        environment: &HashMap<String, String>,
+    ) {
+        if cfg!(windows)
+            && self.credential_broker
+            && self.has_ambiguous_windows_credential_environment(environment)
+        {
+            warn!(
+                "credential brokerage disabled because shell environment overrides contain \
+                 conflicting case-insensitive provider keys"
+            );
+            self.set_credential_broker_enabled(/*enabled*/ false);
+        }
+        self.credential_broker_context = if self.credential_broker {
+            crate::CredentialBrokerContext::capture(self, environment)
+        } else {
+            crate::CredentialBrokerContext::default()
+        };
+    }
+
+    fn has_ambiguous_windows_credential_environment(
+        &self,
+        environment: &HashMap<String, String>,
+    ) -> bool {
+        environment.iter().any(|(key, value)| {
+            let is_provider_key =
+                crate::credential_broker::is_credential_broker_provider_env_key(key)
+                    || self.credential_providers.values().any(|provider| {
+                        provider
+                            .env
+                            .iter()
+                            .chain(provider.url_prefix_from_env.iter())
+                            .any(|candidate| key.eq_ignore_ascii_case(candidate))
+                    });
+            is_provider_key
+                && environment.iter().any(|(candidate, candidate_value)| {
+                    key != candidate
+                        && key.eq_ignore_ascii_case(candidate)
+                        && value != candidate_value
+                })
+        })
+    }
+
+    pub fn allowed_domains(&self) -> Option<Vec<String>> {
+        self.domain_entries(NetworkDomainPermission::Allow)
+    }
+
+    pub fn denied_domains(&self) -> Option<Vec<String>> {
+        self.domain_entries(NetworkDomainPermission::Deny)
+    }
+
+    fn domain_entries(&self, permission: NetworkDomainPermission) -> Option<Vec<String>> {
+        self.domains
+            .as_ref()
+            .map(|domains| {
+                domains
+                    .effective_entries()
+                    .iter()
+                    .filter(|entry| entry.permission == permission)
+                    .map(|entry| entry.pattern.clone())
+                    .collect()
+            })
+            .filter(|entries: &Vec<String>| !entries.is_empty())
+    }
+
+    pub fn allow_unix_sockets(&self) -> Vec<String> {
+        self.unix_sockets
+            .as_ref()
+            .map(|unix_sockets| {
+                unix_sockets
+                    .entries
+                    .iter()
+                    .filter(|(_, permission)| {
+                        matches!(permission, NetworkUnixSocketPermission::Allow)
+                    })
+                    .map(|(path, _)| path.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn set_allowed_domains(&mut self, allowed_domains: Vec<String>) {
+        self.set_domain_entries(allowed_domains, NetworkDomainPermission::Allow);
+    }
+
+    pub fn set_denied_domains(&mut self, denied_domains: Vec<String>) {
+        self.set_domain_entries(denied_domains, NetworkDomainPermission::Deny);
+    }
+
+    /// Applies valid saved denials even when a malformed batch invalidates its grants.
+    pub fn apply_saved_domain_rules(&mut self, allowed: Vec<String>, denied: &[String]) {
+        let valid_denials = crate::policy::compile_denylist(denied).is_ok();
+        if valid_denials && crate::policy::compile_allowlist(&allowed).is_ok() {
+            for host in allowed {
+                self.upsert_domain_permission(host, NetworkDomainPermission::Allow, normalize_host);
+            }
+        }
+        for host in denied {
+            if !valid_denials
+                && crate::policy::compile_denylist(std::slice::from_ref(host)).is_err()
+            {
+                continue;
+            }
+            // Managed constraints compare raw selectors case-insensitively. Preserve other aliases;
+            // the native and MCP domain matchers give this denial precedence over all of them.
+            self.upsert_domain_permission(
+                host.clone(),
+                NetworkDomainPermission::Deny,
+                str::to_ascii_lowercase,
+            );
+        }
+    }
+
+    pub fn upsert_domain_permission(
+        &mut self,
+        host: String,
+        permission: NetworkDomainPermission,
+        normalize: impl Fn(&str) -> String,
+    ) {
+        let mut domains = self.domains.take().unwrap_or_default();
+        let normalized_host = normalize(&host);
+        domains
+            .entries
+            .retain(|entry| normalize(&entry.pattern) != normalized_host);
+        domains.entries.push(NetworkDomainPermissionEntry {
+            pattern: host,
+            permission,
+        });
+        self.domains = (!domains.entries.is_empty()).then_some(domains);
+    }
+
+    pub fn set_allow_unix_sockets(&mut self, allow_unix_sockets: Vec<String>) {
+        self.set_unix_socket_entries(allow_unix_sockets, NetworkUnixSocketPermission::Allow);
+    }
+
+    fn set_domain_entries(&mut self, entries: Vec<String>, permission: NetworkDomainPermission) {
+        let mut domains = self.domains.take().unwrap_or_default();
+        domains
+            .entries
+            .retain(|entry| entry.permission != permission);
+        for entry in entries {
+            if !domains
+                .entries
+                .iter()
+                .any(|existing| existing.pattern == entry && existing.permission == permission)
+            {
+                domains.entries.push(NetworkDomainPermissionEntry {
+                    pattern: entry,
+                    permission,
+                });
+            }
+        }
+        self.domains = (!domains.entries.is_empty()).then_some(domains);
+    }
+
+    fn set_unix_socket_entries(
+        &mut self,
+        entries: Vec<String>,
+        permission: NetworkUnixSocketPermission,
+    ) {
+        let mut unix_sockets = self.unix_sockets.take().unwrap_or_default();
+        unix_sockets
+            .entries
+            .retain(|_, existing| *existing != permission);
+        for entry in entries {
+            unix_sockets.entries.insert(entry, permission);
+        }
+        self.unix_sockets = Some(unix_sockets);
+    }
+}
+
+pub(crate) fn trusted_credential_broker_host(base_url: &str) -> Option<String> {
+    Url::parse(base_url)
+        .ok()
+        .filter(|url| {
+            url.scheme() == "https" && url.username().is_empty() && url.password().is_none()
+        })
+        .and_then(|url| url.host_str().map(normalize_host))
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkMode {
+    /// Limited (read-only) access: only GET/HEAD/OPTIONS are allowed for HTTP. HTTPS CONNECT is
+    /// blocked unless MITM is enabled so the proxy can enforce method policy on inner requests.
+    /// SOCKS5 UDP and non-HTTPS SOCKS5 TCP remain blocked in limited mode.
+    Limited,
+    /// Full network access: all HTTP methods are allowed. HTTPS CONNECTs are tunneled directly.
+    /// MITM hooks do not currently make full mode enter MITM.
+    #[default]
+    Full,
+}
+
+impl NetworkMode {
+    pub fn allows_method(self, method: &str) -> bool {
+        match self {
+            Self::Full => true,
+            Self::Limited => matches!(method, "GET" | "HEAD" | "OPTIONS"),
+        }
+    }
+}
+
+fn default_proxy_url() -> String {
+    "http://127.0.0.1:3128".to_string()
+}
+
+fn default_socks_url() -> String {
+    "http://127.0.0.1:8081".to_string()
+}
+
+/// Clamp non-loopback bind addresses to loopback unless explicitly allowed.
+fn clamp_non_loopback(
+    addr: SocketAddr,
+    allow_non_loopback: bool,
+    name: &str,
+    override_setting_name: &str,
+) -> SocketAddr {
+    if addr.ip().is_loopback() {
+        return addr;
+    }
+
+    if allow_non_loopback {
+        warn!("DANGEROUS: {name} listening on non-loopback address {addr}");
+        return addr;
+    }
+
+    warn!(
+        "{name} requested non-loopback bind ({addr}); clamping to 127.0.0.1:{port} (set {override_setting_name} to override)",
+        port = addr.port()
+    );
+    SocketAddr::from(([127, 0, 0, 1], addr.port()))
+}
+
+pub(crate) fn clamp_bind_addrs(
+    http_addr: SocketAddr,
+    socks_addr: SocketAddr,
+    cfg: &NetworkProxyConfig,
+) -> (SocketAddr, SocketAddr) {
+    let http_addr = clamp_non_loopback(
+        http_addr,
+        cfg.dangerously_allow_non_loopback_proxy,
+        "HTTP proxy",
+        "dangerously_allow_non_loopback_proxy",
+    );
+    let socks_addr = clamp_non_loopback(
+        socks_addr,
+        cfg.dangerously_allow_non_loopback_proxy,
+        "SOCKS5 proxy",
+        "dangerously_allow_non_loopback_proxy",
+    );
+    if cfg.allow_unix_sockets().is_empty()
+        && !cfg.dangerously_allow_all_unix_sockets.unwrap_or(false)
+    {
+        return (http_addr, socks_addr);
+    }
+
+    // `x-unix-socket` is intentionally a local escape hatch. If the proxy is reachable from
+    // outside the machine, it can become a remote bridge into local daemons
+    // (e.g. docker.sock). To avoid footguns, enforce loopback binding whenever unix sockets
+    // are enabled.
+    if cfg.dangerously_allow_non_loopback_proxy && !http_addr.ip().is_loopback() {
+        warn!(
+            "unix socket proxying is enabled; ignoring dangerously_allow_non_loopback_proxy and clamping HTTP proxy to loopback"
+        );
+    }
+    if cfg.dangerously_allow_non_loopback_proxy && !socks_addr.ip().is_loopback() {
+        warn!(
+            "unix socket proxying is enabled; ignoring dangerously_allow_non_loopback_proxy and clamping SOCKS5 proxy to loopback"
+        );
+    }
+    (
+        SocketAddr::from(([127, 0, 0, 1], http_addr.port())),
+        SocketAddr::from(([127, 0, 0, 1], socks_addr.port())),
+    )
+}
+
+pub struct RuntimeConfig {
+    pub http_addr: SocketAddr,
+    pub socks_addr: SocketAddr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UnixStyleAbsolutePath(String);
+
+impl UnixStyleAbsolutePath {
+    fn parse(value: &str) -> Option<Self> {
+        value.starts_with('/').then(|| Self(value.to_string()))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ValidatedUnixSocketPath {
+    Native(AbsolutePathBuf),
+    UnixStyleAbsolute(UnixStyleAbsolutePath),
+}
+
+impl ValidatedUnixSocketPath {
+    pub(crate) fn parse(socket_path: &str) -> Result<Self> {
+        let path = Path::new(socket_path);
+        if path.is_absolute() {
+            let path = AbsolutePathBuf::from_absolute_path(path)
+                .with_context(|| format!("failed to normalize unix socket path {socket_path:?}"))?;
+            return Ok(Self::Native(path));
+        }
+
+        if let Some(path) = UnixStyleAbsolutePath::parse(socket_path) {
+            return Ok(Self::UnixStyleAbsolute(path));
+        }
+        bail!("expected an absolute path, got {socket_path:?}");
+    }
+}
+
+pub(crate) fn validate_unix_socket_allowlist_paths(
+    cfg: &NetworkProxyConfig,
+    executor_os: Platform,
+) -> Result<()> {
+    for (index, socket_path) in cfg.allow_unix_sockets().iter().enumerate() {
+        anyhow::ensure!(
+            crate::socket_path::socket_path_is_absolute(executor_os, socket_path)
+                && !socket_path.contains('\0'),
+            "invalid network.allow_unix_sockets[{index}]: expected a NUL-free absolute path for {executor_os:?}, got {socket_path:?}"
+        );
+    }
+    Ok(())
+}
+
+pub fn resolve_runtime(cfg: &NetworkProxyConfig, executor_os: Platform) -> Result<RuntimeConfig> {
+    validate_unix_socket_allowlist_paths(cfg, executor_os)?;
+
+    let http_addr = resolve_addr(&cfg.proxy_url, /*default_port*/ 3128)
+        .with_context(|| format!("invalid network.proxy_url: {}", cfg.proxy_url))?;
+    let socks_addr = resolve_addr(&cfg.socks_url, /*default_port*/ 8081)
+        .with_context(|| format!("invalid network.socks_url: {}", cfg.socks_url))?;
+    let (http_addr, socks_addr) = clamp_bind_addrs(http_addr, socks_addr, cfg);
+
+    Ok(RuntimeConfig {
+        http_addr,
+        socks_addr,
+    })
+}
+
+/// Returns the sorted loopback ports used by the configured managed proxy listeners.
+pub fn managed_proxy_ports(cfg: &NetworkProxyConfig) -> Result<Vec<u16>> {
+    let runtime = resolve_runtime(cfg, Platform::native())?;
+    if runtime.http_addr.port() == 0 {
+        bail!("network.proxy_url must use a fixed non-zero port for managed proxy provisioning");
+    }
+    let mut ports = vec![runtime.http_addr.port()];
+    if cfg.enable_socks5 {
+        if runtime.socks_addr.port() == 0 {
+            bail!(
+                "network.socks_url must use a fixed non-zero port for managed proxy provisioning"
+            );
+        }
+        ports.push(runtime.socks_addr.port());
+    }
+    ports.sort_unstable();
+    ports.dedup();
+    Ok(ports)
+}
+
+fn resolve_addr(url: &str, default_port: u16) -> Result<SocketAddr> {
+    let addr_parts = parse_host_port(url, default_port)?;
+    let host = if addr_parts.host.eq_ignore_ascii_case("localhost") {
+        "127.0.0.1".to_string()
+    } else {
+        addr_parts.host
+    };
+    match host.parse::<IpAddr>() {
+        Ok(ip) => Ok(SocketAddr::new(ip, addr_parts.port)),
+        Err(_) => Ok(SocketAddr::from(([127, 0, 0, 1], addr_parts.port))),
+    }
+}
+
+pub fn host_and_port_from_network_addr(value: &str, default_port: u16) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return "<missing>".to_string();
+    }
+
+    let parts = match parse_host_port(trimmed, default_port) {
+        Ok(parts) => parts,
+        Err(_) => {
+            return format_host_and_port(trimmed, default_port);
+        }
+    };
+
+    format_host_and_port(&parts.host, parts.port)
+}
+
+fn format_host_and_port(host: &str, port: u16) -> String {
+    if host.contains(':') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SocketAddressParts {
+    host: String,
+    port: u16,
+}
+
+fn parse_host_port(url: &str, default_port: u16) -> Result<SocketAddressParts> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        bail!("missing host in network proxy address: {url}");
+    }
+
+    // Avoid treating unbracketed IPv6 literals like "2001:db8::1" as scheme-prefixed URLs.
+    if matches!(trimmed.parse::<IpAddr>(), Ok(IpAddr::V6(_))) && !trimmed.starts_with('[') {
+        return Ok(SocketAddressParts {
+            host: trimmed.to_string(),
+            port: default_port,
+        });
+    }
+
+    // Prefer the standard URL parser when the input is URL-like. Prefix a scheme when absent so
+    // we still accept loose host:port inputs.
+    let candidate = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("http://{trimmed}")
+    };
+    if let Ok(parsed) = Url::parse(&candidate)
+        && let Some(host) = parsed.host_str()
+    {
+        let host = host.trim_matches(|c| c == '[' || c == ']');
+        if host.is_empty() {
+            bail!("missing host in network proxy address: {url}");
+        }
+        return Ok(SocketAddressParts {
+            host: host.to_string(),
+            port: parsed.port().unwrap_or(default_port),
+        });
+    }
+
+    parse_host_port_fallback(trimmed, default_port)
+}
+
+fn parse_host_port_fallback(input: &str, default_port: u16) -> Result<SocketAddressParts> {
+    let without_scheme = input
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(input);
+    let host_port = without_scheme.split('/').next().unwrap_or(without_scheme);
+    let host_port = host_port
+        .rsplit_once('@')
+        .map(|(_, rest)| rest)
+        .unwrap_or(host_port);
+
+    if host_port.starts_with('[')
+        && let Some(end) = host_port.find(']')
+    {
+        let host = &host_port[1..end];
+        let port = host_port[end + 1..]
+            .strip_prefix(':')
+            .and_then(|port| port.parse::<u16>().ok())
+            .unwrap_or(default_port);
+        if host.is_empty() {
+            bail!("missing host in network proxy address: {input}");
+        }
+        return Ok(SocketAddressParts {
+            host: host.to_string(),
+            port,
+        });
+    }
+
+    // Only treat `host:port` as such when there's a single `:`. This avoids
+    // accidentally interpreting unbracketed IPv6 addresses as `host:port`.
+    if host_port.bytes().filter(|b| *b == b':').count() == 1
+        && let Some((host, port)) = host_port.rsplit_once(':')
+    {
+        if host.is_empty() {
+            bail!("missing host in network proxy address: {input}");
+        }
+        return Ok(SocketAddressParts {
+            host: host.to_string(),
+            port: port.parse::<u16>().ok().unwrap_or(default_port),
+        });
+    }
+
+    if host_port.is_empty() {
+        bail!("missing host in network proxy address: {input}");
+    }
+    Ok(SocketAddressParts {
+        host: host_port.to_string(),
+        port: default_port,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use pretty_assertions::assert_eq;
+
+    fn settings_with_unix_sockets(unix_sockets: &[&str]) -> NetworkProxyConfig {
+        let mut settings = NetworkProxyConfig::default();
+        if !unix_sockets.is_empty() {
+            settings.set_allow_unix_sockets(
+                unix_sockets
+                    .iter()
+                    .map(|path| (*path).to_string())
+                    .collect(),
+            );
+        }
+        settings
+    }
+
+    #[test]
+    fn network_proxy_settings_default_matches_local_use_baseline() {
+        assert_eq!(
+            NetworkProxyConfig::default(),
+            NetworkProxyConfig {
+                enabled: false,
+                proxy_url: "http://127.0.0.1:3128".to_string(),
+                enable_socks5: true,
+                socks_url: "http://127.0.0.1:8081".to_string(),
+                enable_socks5_udp: true,
+                allow_upstream_proxy: true,
+                dangerously_allow_non_loopback_proxy: false,
+                dangerously_allow_all_unix_sockets: None,
+                mode: NetworkMode::Full,
+                domains: None,
+                review_domains: Vec::new(),
+                unix_sockets: None,
+                allow_local_binding: None,
+                mitm: false,
+                mitm_ca: None,
+                credential_broker: false,
+                credential_broker_enabled_mitm: false,
+                credential_providers: BTreeMap::new(),
+                credential_broker_openai_host: None,
+                credential_broker_context: crate::CredentialBrokerContext::default(),
+                dangerously_allow_plaintext_credential_injection: false,
+                mitm_hooks: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn disabling_credential_broker_restores_independent_mitm_setting() {
+        for (mitm, add_hook) in [(false, false), (true, false), (false, true)] {
+            let mut original = NetworkProxyConfig {
+                enabled: true,
+                mitm,
+                ..Default::default()
+            };
+            let mut config = original.clone();
+            for _ in 0..2 {
+                config.set_credential_broker_enabled(/*enabled*/ true);
+            }
+            if add_hook {
+                config.mitm_hooks.push(MitmHookConfig {
+                    host: "api.example".to_string(),
+                    ..Default::default()
+                });
+                original.mitm_hooks.clone_from(&config.mitm_hooks);
+                original.mitm = true;
+            }
+            for _ in 0..2 {
+                config.set_credential_broker_enabled(/*enabled*/ false);
+            }
+            assert_eq!(config, original);
+            assert_eq!(
+                crate::RemoteNetworkProxyConfig::from_effective_config(&config).is_err(),
+                original.mitm
+            );
+        }
+    }
+
+    #[test]
+    fn disabling_credential_broker_preserves_external_ca_added_while_enabled() {
+        let mut config = NetworkProxyConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        config.set_credential_broker_enabled(/*enabled*/ true);
+        let ca = NetworkMitmCaConfig {
+            certificate_file: "/run/proxy/ca.pem".to_string(),
+            private_key_file: "/run/proxy/key.pem".to_string(),
+        };
+        config.mitm_ca = Some(ca.clone());
+
+        config.set_credential_broker_enabled(/*enabled*/ false);
+
+        assert_eq!(
+            config,
+            NetworkProxyConfig {
+                enabled: true,
+                mitm: true,
+                mitm_ca: Some(ca),
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn ambiguous_credential_environment_preserves_remote_proxy_support() {
+        let mut config = NetworkProxyConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        let expected = crate::RemoteNetworkProxyConfig::from_effective_config(&config).unwrap();
+        config.set_credential_broker_enabled(/*enabled*/ true);
+        config.configure_credential_broker_environment(&HashMap::from([
+            ("GH_HOST".to_string(), "first.example".to_string()),
+            ("gh_host".to_string(), "second.example".to_string()),
+        ]));
+        assert_eq!(
+            crate::RemoteNetworkProxyConfig::from_effective_config(&config).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn credential_broker_context_accepts_non_unicode_environment() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+        use std::process::Command;
+
+        const CHILD_ENV: &str = "LIME_TEST_NON_UNICODE_BROKER_CONTEXT";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let output = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "config::tests::credential_broker_context_accepts_non_unicode_environment",
+                    "--nocapture",
+                ])
+                .env(CHILD_ENV, OsString::from_vec(vec![0xff]))
+                .env(OsString::from_vec(vec![0xfe]), "unrelated")
+                .env("GH_HOST", OsString::from_vec(vec![0xff]))
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            return;
+        }
+
+        let mut config = NetworkProxyConfig::default();
+        config.set_credential_broker_enabled(/*enabled*/ true);
+        config.configure_credential_broker_environment(&HashMap::new());
+        assert!(config.credential_broker);
+    }
+
+    #[test]
+    fn credential_broker_only_accepts_trusted_https_openai_endpoints() {
+        let mut config = NetworkProxyConfig::default();
+
+        for (base_url, expected_host) in [
+            (
+                Some("https://gateway.example.com/v1"),
+                Some("gateway.example.com"),
+            ),
+            (
+                Some("https://gateway.example.com./v1"),
+                Some("gateway.example.com"),
+            ),
+            (Some("https://[2001:db8::1]/v1"), Some("2001:db8::1")),
+            (Some("http://gateway.example.com/v1"), None),
+            (Some("https://user@gateway.example.com/v1"), None),
+            (Some("not-a-url"), None),
+            (None, None),
+        ] {
+            config.set_credential_broker_openai_base_url(base_url);
+            assert_eq!(
+                config.credential_broker_openai_host.as_deref(),
+                expected_host
+            );
+        }
+    }
+
+    #[test]
+    fn managed_proxy_ports_reject_ephemeral_ports() {
+        let mut config = NetworkProxyConfig {
+            proxy_url: "http://127.0.0.1:0".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            managed_proxy_ports(&config).unwrap_err().to_string(),
+            "network.proxy_url must use a fixed non-zero port for managed proxy provisioning"
+        );
+
+        config.proxy_url = "http://127.0.0.1:3128".to_string();
+        config.socks_url = "socks5h://127.0.0.1:48081".to_string();
+        assert_eq!(managed_proxy_ports(&config).unwrap(), vec![3128, 48081]);
+
+        config.socks_url = "socks5h://127.0.0.1:0".to_string();
+        assert_eq!(
+            managed_proxy_ports(&config).unwrap_err().to_string(),
+            "network.socks_url must use a fixed non-zero port for managed proxy provisioning"
+        );
+
+        config.enable_socks5 = false;
+        assert_eq!(managed_proxy_ports(&config).unwrap(), vec![3128]);
+    }
+
+    #[test]
+    fn network_proxy_config_uses_struct_defaults_for_missing_fields() {
+        let config: NetworkProxyConfig = serde_json::from_str(r#"{ "enabled": true }"#).unwrap();
+        let expected = NetworkProxyConfig {
+            enabled: true,
+            ..NetworkProxyConfig::default()
+        };
+
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn network_proxy_config_supports_external_mitm_ca() {
+        let config: NetworkProxyConfig = serde_json::from_str(
+            r#"{
+                "mitm": true,
+                "mitm_ca": {
+                    "certificate_file": "/run/proxy/ca.pem",
+                    "private_key_file": "/run/proxy/key.pem"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            config,
+            NetworkProxyConfig {
+                mitm: true,
+                mitm_ca: Some(NetworkMitmCaConfig {
+                    certificate_file: "/run/proxy/ca.pem".to_string(),
+                    private_key_file: "/run/proxy/key.pem".to_string(),
+                }),
+                ..NetworkProxyConfig::default()
+            }
+        );
+    }
+
+    #[test]
+    fn set_allowed_domains_preserves_existing_deny_for_same_pattern() {
+        let mut settings = NetworkProxyConfig::default();
+        settings.set_denied_domains(vec!["example.com".to_string()]);
+
+        settings.set_allowed_domains(vec!["example.com".to_string()]);
+
+        assert_eq!(settings.allowed_domains(), None);
+        assert_eq!(
+            settings.denied_domains(),
+            Some(vec!["example.com".to_string()])
+        );
+    }
+
+    #[test]
+    fn network_domain_permissions_serialize_to_effective_map_shape() {
+        let mut settings = NetworkProxyConfig::default();
+        settings.set_denied_domains(vec!["example.com".to_string()]);
+        settings.set_allowed_domains(vec!["example.com".to_string()]);
+        let config = settings;
+
+        let value = serde_json::to_value(&config).unwrap();
+
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "enabled": false,
+                "proxy_url": "http://127.0.0.1:3128",
+                "enable_socks5": true,
+                "socks_url": "http://127.0.0.1:8081",
+                "enable_socks5_udp": true,
+                "allow_upstream_proxy": true,
+                "dangerously_allow_non_loopback_proxy": false,
+                "mode": "full",
+                "domains": {
+                    "example.com": "deny",
+                },
+                "unix_sockets": null,
+                "mitm": false,
+                "credential_broker": false,
+                "dangerously_allow_plaintext_credential_injection": false,
+                "mitm_hooks": [],
+            })
+        );
+    }
+
+    #[test]
+    fn parse_host_port_defaults_for_empty_string() {
+        assert!(parse_host_port("", /*default_port*/ 1234).is_err());
+    }
+
+    #[test]
+    fn parse_host_port_defaults_for_whitespace() {
+        assert!(parse_host_port("   ", /*default_port*/ 5555).is_err());
+    }
+
+    #[test]
+    fn parse_host_port_parses_host_port_without_scheme() {
+        assert_eq!(
+            parse_host_port("127.0.0.1:8080", /*default_port*/ 3128).unwrap(),
+            SocketAddressParts {
+                host: "127.0.0.1".to_string(),
+                port: 8080,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_host_port_parses_host_port_with_scheme_and_path() {
+        assert_eq!(
+            parse_host_port(
+                "http://example.com:8080/some/path",
+                /*default_port*/ 3128
+            )
+            .unwrap(),
+            SocketAddressParts {
+                host: "example.com".to_string(),
+                port: 8080,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_host_port_strips_userinfo() {
+        assert_eq!(
+            parse_host_port(
+                "http://user:pass@host.example:5555",
+                /*default_port*/ 3128
+            )
+            .unwrap(),
+            SocketAddressParts {
+                host: "host.example".to_string(),
+                port: 5555,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_host_port_parses_ipv6_with_brackets() {
+        assert_eq!(
+            parse_host_port("http://[::1]:9999", /*default_port*/ 3128).unwrap(),
+            SocketAddressParts {
+                host: "::1".to_string(),
+                port: 9999,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_host_port_does_not_treat_unbracketed_ipv6_as_host_port() {
+        assert_eq!(
+            parse_host_port("2001:db8::1", /*default_port*/ 3128).unwrap(),
+            SocketAddressParts {
+                host: "2001:db8::1".to_string(),
+                port: 3128,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_host_port_falls_back_to_default_port_when_port_is_invalid() {
+        assert_eq!(
+            parse_host_port("example.com:notaport", /*default_port*/ 3128).unwrap(),
+            SocketAddressParts {
+                host: "example.com".to_string(),
+                port: 3128,
+            }
+        );
+    }
+
+    #[test]
+    fn host_and_port_from_network_addr_defaults_for_empty_string() {
+        assert_eq!(
+            host_and_port_from_network_addr("", /*default_port*/ 1234),
+            "<missing>"
+        );
+    }
+
+    #[test]
+    fn host_and_port_from_network_addr_formats_ipv6() {
+        assert_eq!(
+            host_and_port_from_network_addr("http://[::1]:8080", /*default_port*/ 3128),
+            "[::1]:8080"
+        );
+    }
+
+    #[test]
+    fn resolve_addr_maps_localhost_to_loopback() {
+        assert_eq!(
+            resolve_addr("localhost", /*default_port*/ 3128).unwrap(),
+            "127.0.0.1:3128".parse::<SocketAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn resolve_addr_parses_ip_literals() {
+        assert_eq!(
+            resolve_addr("1.2.3.4", /*default_port*/ 80).unwrap(),
+            "1.2.3.4:80".parse::<SocketAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn resolve_addr_parses_ipv6_literals() {
+        assert_eq!(
+            resolve_addr("http://[::1]:8080", /*default_port*/ 3128).unwrap(),
+            "[::1]:8080".parse::<SocketAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn resolve_addr_falls_back_to_loopback_for_hostnames() {
+        assert_eq!(
+            resolve_addr("http://example.com:5555", /*default_port*/ 3128).unwrap(),
+            "127.0.0.1:5555".parse::<SocketAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn clamp_bind_addrs_allows_non_loopback_when_enabled() {
+        let cfg = NetworkProxyConfig {
+            dangerously_allow_non_loopback_proxy: true,
+            ..Default::default()
+        };
+        let http_addr = "0.0.0.0:3128".parse::<SocketAddr>().unwrap();
+        let socks_addr = "0.0.0.0:8081".parse::<SocketAddr>().unwrap();
+
+        let (http_addr, socks_addr) = clamp_bind_addrs(http_addr, socks_addr, &cfg);
+
+        assert_eq!(http_addr, "0.0.0.0:3128".parse::<SocketAddr>().unwrap());
+        assert_eq!(socks_addr, "0.0.0.0:8081".parse::<SocketAddr>().unwrap());
+    }
+
+    #[test]
+    fn clamp_bind_addrs_forces_loopback_when_unix_sockets_enabled() {
+        let cfg = {
+            let mut settings = settings_with_unix_sockets(&["/tmp/docker.sock"]);
+            settings.dangerously_allow_non_loopback_proxy = true;
+            settings
+        };
+        let http_addr = "0.0.0.0:3128".parse::<SocketAddr>().unwrap();
+        let socks_addr = "0.0.0.0:8081".parse::<SocketAddr>().unwrap();
+
+        let (http_addr, socks_addr) = clamp_bind_addrs(http_addr, socks_addr, &cfg);
+
+        assert_eq!(http_addr, "127.0.0.1:3128".parse::<SocketAddr>().unwrap());
+        assert_eq!(socks_addr, "127.0.0.1:8081".parse::<SocketAddr>().unwrap());
+    }
+
+    #[test]
+    fn clamp_bind_addrs_forces_loopback_when_all_unix_sockets_enabled() {
+        let cfg = NetworkProxyConfig {
+            dangerously_allow_non_loopback_proxy: true,
+            dangerously_allow_all_unix_sockets: Some(true),
+            ..Default::default()
+        };
+        let http_addr = "0.0.0.0:3128".parse::<SocketAddr>().unwrap();
+        let socks_addr = "0.0.0.0:8081".parse::<SocketAddr>().unwrap();
+
+        let (http_addr, socks_addr) = clamp_bind_addrs(http_addr, socks_addr, &cfg);
+
+        assert_eq!(http_addr, "127.0.0.1:3128".parse::<SocketAddr>().unwrap());
+        assert_eq!(socks_addr, "127.0.0.1:8081".parse::<SocketAddr>().unwrap());
+    }
+
+    #[test]
+    fn resolve_runtime_validates_allow_unix_sockets_for_executor_os() {
+        for (path, unix_absolute, windows_absolute) in [
+            ("relative.sock", false, false),
+            ("~/example.sock", false, false),
+            ("/tmp/example.sock", true, true),
+            (r"C:\example.sock", false, true),
+            ("C:/example.sock", false, true),
+            (r"\\server\share\example.sock", false, true),
+            (r"\\?\C:\example.sock", false, true),
+            (r"\\.\pipe\example", false, true),
+            (r"C:example.sock", false, false),
+            (r"\example.sock", false, false),
+            (r"\\server", false, false),
+            ("/tmp/\0example.sock", false, false),
+            ("C:\\example\0.sock", false, false),
+        ] {
+            let cfg = settings_with_unix_sockets(&[path]);
+            for (executor_os, accepted) in [
+                (Platform::Linux, unix_absolute),
+                (Platform::Macos, unix_absolute),
+                (Platform::Windows, windows_absolute),
+                (Platform::Unknown, unix_absolute || windows_absolute),
+            ] {
+                assert_eq!(
+                    resolve_runtime(&cfg, executor_os).is_ok(),
+                    accepted,
+                    "{executor_os:?}: {path:?}"
+                );
+            }
+            // Each platform's CI compares the portable implementation to native
+            // Core acceptance, with the deliberate shared NUL rejection.
+            assert_eq!(
+                resolve_runtime(&cfg, Platform::native()).is_ok(),
+                (Path::new(path).is_absolute() || path.starts_with('/')) && !path.contains('\0'),
+                "native parity: {path:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_runtime_accepts_unix_style_absolute_allow_unix_sockets_entries() {
+        let mut cfg = settings_with_unix_sockets(&[
+            "/private/tmp/example.sock",
+            "/tmp/../example.sock",
+            r"/tmp/name\part.sock",
+        ]);
+        for path in ["relative.sock", "~/example.sock", r"C:\example.sock", "\0"] {
+            cfg.unix_sockets
+                .as_mut()
+                .unwrap()
+                .entries
+                .insert(path.to_string(), NetworkUnixSocketPermission::Deny);
+        }
+
+        for executor_os in [
+            Platform::Linux,
+            Platform::Macos,
+            Platform::Windows,
+            Platform::Unknown,
+        ] {
+            assert!(
+                resolve_runtime(&cfg, executor_os).is_ok(),
+                "unix-style absolute allow_unix_sockets entry should be accepted"
+            );
+        }
+    }
+}

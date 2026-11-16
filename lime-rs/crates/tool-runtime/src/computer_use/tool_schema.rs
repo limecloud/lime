@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub(super) fn input_schema() -> Value {
     let point = json!({"type":"number","exclusiveMinimum":-100000,"exclusiveMaximum":100000});

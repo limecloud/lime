@@ -368,7 +368,7 @@ async fn streams_request_bodies_without_exposing_reqwest_body() {
 
 #[tokio::test]
 async fn legacy_custom_ca_fallback_is_limited_to_reqwest_default() {
-    const CHILD_POLICY_ENV: &str = "CODEX_HTTP_CLIENT_POOL_INVALID_CA_TEST_POLICY";
+    const CHILD_POLICY_ENV: &str = "LIME_HTTP_CLIENT_POOL_INVALID_CA_TEST_POLICY";
 
     let Ok(policy_name) = std::env::var(CHILD_POLICY_ENV) else {
         let temp_dir = tempfile::tempdir().expect("temporary directory should be created");
@@ -376,7 +376,7 @@ async fn legacy_custom_ca_fallback_is_limited_to_reqwest_default() {
         std::fs::write(&invalid_ca_path, "not a PEM certificate")
             .expect("invalid CA fixture should be written");
 
-        for ca_env in ["CODEX_CA_CERTIFICATE", "SSL_CERT_FILE"] {
+        for ca_env in ["LIME_CA_CERTIFICATE", "SSL_CERT_FILE"] {
             for policy_name in [
                 "reqwest-default",
                 "respect-system-proxy",
@@ -389,7 +389,7 @@ async fn legacy_custom_ca_fallback_is_limited_to_reqwest_default() {
                 .arg("--exact")
                 .arg("route_aware_client_pool::tests::legacy_custom_ca_fallback_is_limited_to_reqwest_default")
                 .arg("--nocapture")
-                .env_remove("CODEX_CA_CERTIFICATE")
+                .env_remove("LIME_CA_CERTIFICATE")
                 .env_remove("SSL_CERT_FILE")
                 .env(ca_env, &invalid_ca_path)
                 .env(CHILD_POLICY_ENV, policy_name)

@@ -1,0 +1,21 @@
+[package]
+name = "utils-critical-path"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Critical path helpers."
+
+[lib]
+name = "utils_critical_path"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

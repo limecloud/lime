@@ -241,9 +241,13 @@ impl CloudDesktopService {
             let client = self.distribution_client(&state).await?;
             client.verify_expiry().await?;
             let verified = if state.phase == "uploading" {
-                client.verify_object(&state.key(), state.archive_bytes, &state.archive_sha256).await?
+                client
+                    .verify_object(&state.key(), state.archive_bytes, &state.archive_sha256)
+                    .await?
             } else {
-                client.object_matches(&state.key(), state.archive_bytes, &state.archive_sha256).await?
+                client
+                    .object_matches(&state.key(), state.archive_bytes, &state.archive_sha256)
+                    .await?
             };
             if verified {
                 self.save_distribution(&mut state, "ready")?;

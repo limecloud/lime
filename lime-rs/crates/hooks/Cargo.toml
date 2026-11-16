@@ -1,0 +1,41 @@
+[package]
+name = "hooks"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Lifecycle hooks."
+
+[lib]
+name = "hooks"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+async-channel = "2"
+chrono = { workspace = true, features = ["serde"] }
+config = { path = "../config-upstream" }
+futures.workspace = true
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+plugin = { path = "../plugin" }
+protocol = { path = "../protocol" }
+regex = "1.12.3"
+schemars = "0.8"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "process", "sync", "time"] }
+tracing.workspace = true
+utils-output-truncation = { path = "../utils-output-truncation" }
+utils-process = { path = "../utils-process" }
+utils-pty = { path = "../utils-pty" }
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+libc = "0.2"
+pretty_assertions.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

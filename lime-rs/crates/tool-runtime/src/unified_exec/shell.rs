@@ -35,7 +35,7 @@ fn default_shell() -> String {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        crate::shell_detect::default_user_shell()
+        shell_command::shell_detect::default_user_shell()
             .shell_path
             .to_string_lossy()
             .into_owned()

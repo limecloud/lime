@@ -1,6 +1,6 @@
 use super::{
-    parse_requested_sandbox_policy, RequestedSandboxPolicy, SandboxBackendConfigSource,
-    ToolExecutionSandboxProfile, WorkspaceSandboxRuntimeConfig,
+    RequestedSandboxPolicy, SandboxBackendConfigSource, ToolExecutionSandboxProfile,
+    WorkspaceSandboxRuntimeConfig, parse_requested_sandbox_policy,
 };
 
 pub(super) fn require_requested_sandbox(

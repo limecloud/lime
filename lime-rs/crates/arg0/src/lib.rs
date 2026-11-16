@@ -1,0 +1,847 @@
+use std::ffi::OsString;
+use std::fs::File;
+use std::future::Future;
+use std::path::Path;
+use std::path::PathBuf;
+
+use apply_patch::LIME_CORE_APPLY_PATCH_ARG1;
+use async_utils::THREAD_STACK_SIZE_BYTES;
+#[cfg(unix)]
+use exec_server::LIME_ARG0_EXEC_HELPER_ARG1;
+use exec_server::LIME_FS_HELPER_ARG1;
+use install_context::InstallContext;
+use sandboxing::landlock::LIME_LINUX_SANDBOX_ARG0;
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
+use tempfile::TempDir;
+use utils_home_dir::find_lime_home;
+#[cfg(target_os = "windows")]
+use windows_sandbox::LIME_WINDOWS_SANDBOX_ARG1;
+
+const APPLY_PATCH_ARG0: &str = "apply_patch";
+const MISSPELLED_APPLY_PATCH_ARG0: &str = "applypatch";
+const LOCK_FILENAME: &str = ".lock";
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Arg0DispatchPaths {
+    /// Stable path to the current Lime executable for child re-execs.
+    ///
+    /// Prefer this over [`std::env::current_exe()`] in code that may run under
+    /// a test harness, where `current_exe()` can point at the harness binary
+    /// instead of the real Lime CLI.
+    pub lime_self_exe: Option<PathBuf>,
+    pub linux_sandbox_exe: Option<PathBuf>,
+    /// Always absent; retained for clients that still pass the retired wrapper path.
+    pub main_execve_wrapper_exe: Option<PathBuf>,
+}
+
+/// Keeps the per-session PATH entry alive and locked for the process lifetime.
+pub struct Arg0PathEntryGuard {
+    // Fields drop in declaration order. Close the lock before removing its
+    // directory so NFS does not retain the open file as a `.nfs*` entry.
+    _lock_file: File,
+    _temp_dir: TempDir,
+    paths: Arg0DispatchPaths,
+}
+
+impl Arg0PathEntryGuard {
+    fn new(temp_dir: TempDir, lock_file: File, paths: Arg0DispatchPaths) -> Self {
+        Self {
+            _temp_dir: temp_dir,
+            _lock_file: lock_file,
+            paths,
+        }
+    }
+
+    pub fn paths(&self) -> &Arg0DispatchPaths {
+        &self.paths
+    }
+}
+
+pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
+    #[cfg(target_os = "linux")]
+    utils_pty::init_spawn_helper(std::env::args_os());
+    // Determine if we were invoked via the special alias.
+    let mut args = std::env::args_os();
+    let argv0 = args.next().unwrap_or_default();
+    let exe_name = Path::new(&argv0)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+
+    if exe_name == LIME_LINUX_SANDBOX_ARG0 {
+        // Safety: [`run_main`] never returns.
+        linux_sandbox::run_main();
+    } else if exe_name == APPLY_PATCH_ARG0 || exe_name == MISSPELLED_APPLY_PATCH_ARG0 {
+        apply_patch::main();
+    }
+
+    let argv1 = args.next().unwrap_or_default();
+    if argv1 == sandboxing::LIME_WINDOWS_MXC_ARG1 {
+        sandboxing::run_windows_mxc_main();
+    }
+    #[cfg(unix)]
+    if argv1 == LIME_ARG0_EXEC_HELPER_ARG1 {
+        exec_server::run_arg0_exec_helper_main();
+    }
+    if argv1 == LIME_FS_HELPER_ARG1 {
+        exec_server::run_fs_helper_main();
+    }
+    #[cfg(target_os = "windows")]
+    if argv1 == LIME_WINDOWS_SANDBOX_ARG1 {
+        windows_sandbox::run_windows_sandbox_wrapper_main();
+    }
+    if argv1 == LIME_CORE_APPLY_PATCH_ARG1 {
+        let patch_arg = args.next().and_then(|s| s.to_str().map(str::to_owned));
+        let exit_code = match patch_arg {
+            Some(patch_arg) => {
+                let mut stdout = std::io::stdout();
+                let mut stderr = std::io::stderr();
+                let cwd = match lime_utils_absolute_path::AbsolutePathBuf::current_dir() {
+                    Ok(cwd) => cwd,
+                    Err(_) => std::process::exit(1),
+                };
+                let runtime = match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(runtime) => runtime,
+                    Err(_) => std::process::exit(1),
+                };
+                let cwd = cwd.into();
+                match runtime.block_on(apply_patch::apply_patch(
+                    &patch_arg,
+                    &cwd,
+                    &mut stdout,
+                    &mut stderr,
+                    exec_server::LOCAL_FS.as_ref(),
+                    /*sandbox*/ None,
+                )) {
+                    Ok(_) => 0,
+                    Err(_) => 1,
+                }
+            }
+            None => {
+                eprintln!("Error: {LIME_CORE_APPLY_PATCH_ARG1} requires a UTF-8 PATCH argument.");
+                1
+            }
+        };
+        std::process::exit(exit_code);
+    }
+
+    // This modifies the environment, which is not thread-safe, so do this
+    // before creating any threads/the Tokio runtime.
+    load_dotenv();
+
+    let (path_entry_guard, updated_path_env_var) = prepare_path_env_var_with_aliases(
+        InstallContext::current(),
+        std::env::var_os("PATH"),
+        prepare_path_entry_for_lime_aliases,
+    );
+    if let Some(updated_path_env_var) = updated_path_env_var {
+        // It is safe to call set_var() because our process is single-threaded at
+        // this point in its execution.
+        unsafe {
+            std::env::set_var("PATH", updated_path_env_var);
+        }
+    }
+    path_entry_guard
+}
+
+fn prepare_path_env_var_with_aliases(
+    install_context: &InstallContext,
+    existing_path: Option<OsString>,
+    prepare_aliases: impl FnOnce(Option<OsString>) -> std::io::Result<(Arg0PathEntryGuard, OsString)>,
+) -> (Option<Arg0PathEntryGuard>, Option<OsString>) {
+    let package_path = path_env_with_package_path_dir(install_context, existing_path.clone());
+    let path_for_aliases = package_path.clone().or(existing_path);
+
+    match prepare_aliases(path_for_aliases) {
+        Ok((path_entry, updated_path_env_var)) => (Some(path_entry), Some(updated_path_env_var)),
+        Err(err) => {
+            // It is possible that Lime will proceed successfully even if
+            // creating helper aliases fails, so warn the user and move on.
+            eprintln!("WARNING: proceeding, even though we could not create PATH aliases: {err}");
+            (None, package_path)
+        }
+    }
+}
+
+/// While we want to deploy the Lime CLI as a single executable for simplicity,
+/// we also want to expose some of its functionality as distinct CLIs, so we use
+/// the "arg0 trick" to determine which CLI to dispatch. This effectively allows
+/// us to simulate deploying multiple executables as a single binary on Mac and
+/// Linux (but not Windows).
+///
+/// When the current executable is invoked through the hard-link or alias named
+/// `lime-linux-sandbox` we *directly* execute
+/// [`linux_sandbox::run_main`] (which never returns). Otherwise we:
+///
+/// 1.  Load `.env` values from `~/.lime/.env` before creating any threads.
+/// 2.  Spawn a main runtime thread with a controlled stack size.
+/// 3.  Construct a Tokio multi-thread runtime.
+/// 4.  Capture the current executable path and derive the
+///     `lime-linux-sandbox` helper path (falling back to the current
+///     executable if needed) so children can re-invoke the sandbox when running
+///     on Linux.
+/// 5.  Execute the provided async `main_fn` inside that runtime, forwarding any
+///     error. Note that `main_fn` receives [`Arg0DispatchPaths`], which
+///     contains the helper executable paths needed to construct
+///     [`lime_core::config::Config`].
+///
+/// This function should be used to wrap any `main()` function in binary crates
+/// in this workspace that depends on these helper CLIs.
+pub fn arg0_dispatch_or_else<F, Fut>(main_fn: F) -> anyhow::Result<()>
+where
+    F: FnOnce(Arg0DispatchPaths) -> Fut + Send + 'static,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    // Retain the TempDir so it exists for the lifetime of the invocation of
+    // this executable. Admittedly, we could invoke `keep()` on it, but it
+    // would be nice to avoid leaving temporary directories behind, if possible.
+    let path_entry_guard = arg0_dispatch();
+    let current_exe = std::env::current_exe().ok();
+
+    // Regular invocation. Run the async entry point on a thread with the same
+    // stack budget as Tokio workers; `Runtime::block_on` otherwise runs the
+    // top-level future on the caller's OS stack.
+    let handle = std::thread::Builder::new()
+        .name("lime-main".to_string())
+        .stack_size(THREAD_STACK_SIZE_BYTES)
+        .spawn(move || {
+            let runtime = build_runtime()?;
+            runtime.block_on(run_main_with_arg0_guard(
+                path_entry_guard,
+                current_exe,
+                main_fn,
+            ))
+        })?;
+    match handle.join() {
+        Ok(result) => result,
+        Err(payload) => std::panic::resume_unwind(payload),
+    }
+}
+
+async fn run_main_with_arg0_guard<F, Fut>(
+    path_entry_guard: Option<Arg0PathEntryGuard>,
+    current_exe: Option<PathBuf>,
+    main_fn: F,
+) -> anyhow::Result<()>
+where
+    F: FnOnce(Arg0DispatchPaths) -> Fut,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    let paths = Arg0DispatchPaths {
+        main_execve_wrapper_exe: None,
+        lime_self_exe: current_exe.clone(),
+        linux_sandbox_exe: if cfg!(target_os = "linux") {
+            linux_sandbox_exe_path(path_entry_guard.as_ref(), current_exe)
+        } else {
+            None
+        },
+    };
+
+    let result = main_fn(paths).await;
+    // Keep the arg0 tempdir guard alive until the async entry point finishes;
+    // runtime paths above can point at aliases inside that directory.
+    drop(path_entry_guard);
+    result
+}
+
+fn linux_sandbox_exe_path(
+    path_entry_guard: Option<&Arg0PathEntryGuard>,
+    current_exe: Option<PathBuf>,
+) -> Option<PathBuf> {
+    // Prefer the `lime-linux-sandbox` alias when available so callers can
+    // re-exec through a path whose basename still triggers arg0 dispatch on
+    // bubblewrap builds that do not support `--argv0`.
+    path_entry_guard
+        .and_then(|path_entry| path_entry.paths().linux_sandbox_exe.clone())
+        .or(current_exe)
+}
+
+fn build_runtime() -> anyhow::Result<tokio::runtime::Runtime> {
+    let mut builder = tokio::runtime::Builder::new_multi_thread();
+    builder.enable_all();
+    builder.thread_stack_size(THREAD_STACK_SIZE_BYTES);
+    Ok(builder.build()?)
+}
+
+const ILLEGAL_ENV_VAR_PREFIX: &str = "LIME_";
+
+/// Load env vars from ~/.lime/.env.
+///
+/// Security: Do not allow `.env` files to create or modify any variables
+/// with names starting with `LIME_`.
+fn load_dotenv() {
+    if let Ok(lime_home) = find_lime_home()
+        && let dotenv_path = lime_home.join(".env")
+        && dotenv_path.is_file()
+        && let Ok(iter) = dotenvy::from_path_iter(dotenv_path)
+    {
+        set_filtered(iter);
+    }
+}
+
+/// Helper to set vars from a dotenvy iterator while filtering out `LIME_` keys.
+fn set_filtered<I>(iter: I)
+where
+    I: IntoIterator<Item = Result<(String, String), dotenvy::Error>>,
+{
+    for result in iter {
+        let (key, value) = match result {
+            Ok(entry) => entry,
+            // read_line consumes invalid UTF-8 lines. Other read errors may repeat.
+            Err(dotenvy::Error::Io(err)) if err.kind() != std::io::ErrorKind::InvalidData => break,
+            Err(_) => continue,
+        };
+        if !key.to_ascii_uppercase().starts_with(ILLEGAL_ENV_VAR_PREFIX) {
+            // It is safe to call set_var() because our process is
+            // single-threaded at this point in its execution.
+            unsafe { std::env::set_var(&key, &value) };
+        }
+    }
+}
+
+/// Creates a temporary directory with either:
+///
+/// - UNIX: `apply_patch` symlink to the current executable
+/// - WINDOWS: `apply_patch.bat` batch script to invoke the current executable
+///   with the hidden `--lime-run-as-apply-patch` flag.
+///
+/// Returns the temporary directory guard and the PATH value that prepends the
+/// temporary directory so `apply_patch` can be on the PATH without requiring the
+/// user to install a separate executable, simplifying the deployment of Lime
+/// CLI.
+/// Note: In debug builds the temp-dir guard is disabled to ease local testing.
+///
+/// IMPORTANT: Callers must update PATH before multiple threads are spawned.
+fn prepare_path_entry_for_lime_aliases(
+    existing_path: Option<OsString>,
+) -> std::io::Result<(Arg0PathEntryGuard, OsString)> {
+    let lime_home = find_lime_home()?;
+    #[cfg(not(debug_assertions))]
+    {
+        // Guard against placing helpers in system temp directories outside debug builds.
+        let temp_root = std::env::temp_dir();
+        if lime_home.starts_with(&temp_root) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "Refusing to create helper binaries under temporary dir {temp_root:?} (lime_home: {lime_home:?})"
+                ),
+            ));
+        }
+    }
+
+    prepare_aliases_in_home(&lime_home, existing_path)
+}
+
+// The production entry point validates the home before reaching this filesystem seam.
+fn prepare_aliases_in_home(
+    lime_home: &Path,
+    existing_path: Option<OsString>,
+) -> std::io::Result<(Arg0PathEntryGuard, OsString)> {
+    std::fs::create_dir_all(lime_home)?;
+    // Windows and WSL can share LIME_HOME without sharing a lock namespace.
+    // Keep each OS outside the legacy `tmp/arg0` root so older clients cannot
+    // delete these helpers while their owning process is still running.
+    let temp_root = lime_home
+        .join("tmp")
+        .join(format!("arg0-{}", std::env::consts::OS));
+    std::fs::create_dir_all(&temp_root)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Ensure only the current user can access the temp directory.
+        std::fs::set_permissions(&temp_root, std::fs::Permissions::from_mode(0o700))?;
+    }
+
+    // Best-effort cleanup of stale per-session dirs. Ignore failures so startup proceeds.
+    if let Err(err) = janitor_cleanup(&temp_root) {
+        eprintln!("WARNING: failed to clean up stale arg0 temp dirs: {err}");
+    }
+
+    let temp_dir = tempfile::Builder::new()
+        .prefix("lime-arg0")
+        .tempdir_in(&temp_root)?;
+    let path = temp_dir.path();
+
+    let lock_path = path.join(LOCK_FILENAME);
+    let lock_file = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)?;
+    lock_file.try_lock()?;
+
+    for filename in &[
+        APPLY_PATCH_ARG0,
+        MISSPELLED_APPLY_PATCH_ARG0,
+        #[cfg(target_os = "linux")]
+        LIME_LINUX_SANDBOX_ARG0,
+    ] {
+        let exe = std::env::current_exe()?;
+
+        #[cfg(unix)]
+        {
+            let link = path.join(filename);
+            symlink(&exe, &link)?;
+        }
+
+        #[cfg(windows)]
+        {
+            let batch_script = path.join(format!("{filename}.bat"));
+            let exe = windows_batch_executable_path(&exe, path);
+            std::fs::write(
+                &batch_script,
+                format!(
+                    r#"@echo off
+"{exe}" {LIME_CORE_APPLY_PATCH_ARG1} %*
+"#,
+                ),
+            )?;
+        }
+    }
+
+    let updated_path_env_var = path_env_with_entry(path, existing_path);
+
+    let paths = Arg0DispatchPaths {
+        main_execve_wrapper_exe: None,
+        lime_self_exe: std::env::current_exe().ok(),
+        linux_sandbox_exe: {
+            #[cfg(target_os = "linux")]
+            {
+                Some(path.join(LIME_LINUX_SANDBOX_ARG0))
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                None
+            }
+        },
+    };
+
+    Ok((
+        Arg0PathEntryGuard::new(temp_dir, lock_file, paths),
+        updated_path_env_var,
+    ))
+}
+
+#[cfg(windows)]
+fn windows_batch_executable_path(executable: &Path, alias_directory: &Path) -> String {
+    pathdiff::diff_paths(executable, alias_directory)
+        .filter(|relative_path| relative_path.is_relative())
+        .map(|relative_path| format!("%~dp0{}", relative_path.display()))
+        .unwrap_or_else(|| executable.display().to_string())
+}
+
+fn path_env_with_package_path_dir(
+    install_context: &InstallContext,
+    existing_path: Option<OsString>,
+) -> Option<OsString> {
+    let path_dir = install_context
+        .package_layout
+        .as_ref()
+        .and_then(|package_layout| package_layout.path_dir.as_ref())?;
+    Some(path_env_with_entry(path_dir.as_path(), existing_path))
+}
+
+fn path_env_with_entry(path_entry: &Path, existing_path: Option<OsString>) -> OsString {
+    #[cfg(unix)]
+    const PATH_SEPARATOR: &str = ":";
+
+    #[cfg(windows)]
+    const PATH_SEPARATOR: &str = ";";
+
+    let capacity = path_entry.as_os_str().len()
+        + existing_path
+            .as_ref()
+            .map_or(0, |existing_path| 1 + existing_path.len());
+    let mut path_env_var = OsString::with_capacity(capacity);
+    path_env_var.push(path_entry);
+    if let Some(existing_path) = existing_path {
+        path_env_var.push(PATH_SEPARATOR);
+        path_env_var.push(existing_path);
+    }
+    path_env_var
+}
+
+fn janitor_cleanup(temp_root: &Path) -> std::io::Result<()> {
+    let entries = match std::fs::read_dir(temp_root) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err),
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        // Skip the directory if locking fails or the lock is currently held.
+        let Some(_lock_file) = try_lock_dir(&path)? else {
+            continue;
+        };
+
+        #[cfg(unix)]
+        let removal = {
+            // Rename while locked so initializers cannot publish at the old path,
+            // then close the lock before deletion to avoid NFS silly rename.
+            let retired_dir = TempDir::new_in(temp_root)?;
+            match std::fs::rename(&path, retired_dir.path()) {
+                Ok(()) => {
+                    drop(_lock_file);
+                    retired_dir.close()
+                }
+                Err(err) => Err(err),
+            }
+        };
+        #[cfg(not(unix))]
+        let removal = std::fs::remove_dir_all(&path);
+
+        match removal {
+            Ok(()) => {}
+            // Expected TOCTOU race: directory can disappear after read_dir/lock checks.
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(err) => return Err(err),
+        }
+    }
+
+    Ok(())
+}
+
+fn try_lock_dir(dir: &Path) -> std::io::Result<Option<File>> {
+    let lock_path = dir.join(LOCK_FILENAME);
+    let lock_file = match File::options().read(true).write(true).open(&lock_path) {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err),
+    };
+
+    match lock_file.try_lock() {
+        Ok(()) => Ok(Some(lock_file)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(err) => Err(err.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Arg0DispatchPaths;
+    use super::Arg0PathEntryGuard;
+    use super::LOCK_FILENAME;
+    use super::janitor_cleanup;
+    use super::linux_sandbox_exe_path;
+    use super::run_main_with_arg0_guard;
+    use anyhow::ensure;
+    use install_context::InstallContext;
+    use install_context::InstallMethod;
+    use install_context::LimePackageLayout;
+    use lime_utils_absolute_path::AbsolutePathBuf;
+    use pretty_assertions::assert_eq;
+    use std::fs;
+    use std::fs::File;
+    #[cfg(windows)]
+    use std::os::windows::process::CommandExt;
+    use std::path::Path;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    struct PackagePathTestFixture {
+        _temp_dir: TempDir,
+        arg0_dir: PathBuf,
+        existing_dir: PathBuf,
+        install_context: InstallContext,
+        path_dir: AbsolutePathBuf,
+    }
+
+    fn create_lock(dir: &Path) -> std::io::Result<File> {
+        let lock_path = dir.join(LOCK_FILENAME);
+        File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)
+    }
+
+    fn package_path_test_fixture() -> anyhow::Result<PackagePathTestFixture> {
+        let temp_dir = TempDir::new()?;
+        let arg0_dir = temp_dir.path().join("arg0");
+        let package_dir = temp_dir.path().join("package");
+        let bin_dir = package_dir.join("bin");
+        let path_dir = package_dir.join("lime-path");
+        let existing_dir = temp_dir.path().join("existing-bin");
+        fs::create_dir_all(&arg0_dir)?;
+        fs::create_dir_all(&bin_dir)?;
+        fs::create_dir_all(&path_dir)?;
+        fs::create_dir_all(&existing_dir)?;
+        let path_dir = AbsolutePathBuf::from_absolute_path(path_dir.canonicalize()?)?;
+        let install_context = InstallContext {
+            method: InstallMethod::Other,
+            package_layout: Some(LimePackageLayout {
+                package_dir: AbsolutePathBuf::from_absolute_path(package_dir.canonicalize()?)?,
+                bin_dir: AbsolutePathBuf::from_absolute_path(bin_dir.canonicalize()?)?,
+                resources_dir: None,
+                path_dir: Some(path_dir.clone()),
+            }),
+        };
+
+        Ok(PackagePathTestFixture {
+            _temp_dir: temp_dir,
+            arg0_dir,
+            existing_dir,
+            install_context,
+            path_dir,
+        })
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_batch_alias_preserves_unicode_executable_paths() -> anyhow::Result<()> {
+        let root = TempDir::new()?;
+        let profile = root.path().join("用户");
+        let alias_directory = profile.join(".lime").join("tmp").join("arg0");
+        let executable_directory = profile.join("bin");
+        fs::create_dir_all(&alias_directory)?;
+        fs::create_dir_all(&executable_directory)?;
+
+        let system_root = std::env::var_os("SystemRoot")
+            .ok_or_else(|| anyhow::anyhow!("missing Windows system root"))?;
+        let command_shell = PathBuf::from(system_root).join("System32").join("cmd.exe");
+        let executable = executable_directory.join("cmd.exe");
+        lime_utils_cargo_bin::copy_executable(&command_shell, &executable)?;
+
+        let batch_path = alias_directory.join("apply_patch.bat");
+        let executable_path = super::windows_batch_executable_path(&executable, &alias_directory);
+        fs::write(
+            &batch_path,
+            format!("@echo off\r\n\"{executable_path}\" /d /c exit 37\r\n"),
+        )?;
+
+        let output = std::process::Command::new(command_shell)
+            .args(["/d", "/c"])
+            .raw_arg(format!("chcp 437>nul & call \"{}\"", batch_path.display()))
+            .output()?;
+
+        assert_eq!(output.status.code(), Some(37));
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_batch_alias_preserves_cross_volume_executable_paths() {
+        assert_eq!(
+            super::windows_batch_executable_path(
+                Path::new(r"D:\Tools\lime.exe"),
+                Path::new(r"C:\Users\person\.lime\tmp\arg0"),
+            ),
+            r"D:\Tools\lime.exe",
+        );
+    }
+
+    #[test]
+    fn linux_sandbox_exe_path_prefers_linux_sandbox_alias() -> std::io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let lock_file = create_lock(temp_dir.path())?;
+        let alias_path = temp_dir.path().join("lime-linux-sandbox");
+        let path_entry = Arg0PathEntryGuard::new(
+            temp_dir,
+            lock_file,
+            Arg0DispatchPaths {
+                main_execve_wrapper_exe: None,
+                lime_self_exe: Some(PathBuf::from("/usr/bin/lime")),
+                linux_sandbox_exe: Some(alias_path.clone()),
+            },
+        );
+
+        assert_eq!(
+            linux_sandbox_exe_path(Some(&path_entry), Some(PathBuf::from("/usr/bin/lime"))),
+            Some(alias_path),
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn path_env_can_prepend_package_path_before_arg0_alias_dir() -> anyhow::Result<()> {
+        let fixture = package_path_test_fixture()?;
+
+        let package_path = super::path_env_with_package_path_dir(
+            &fixture.install_context,
+            Some(fixture.existing_dir.as_os_str().to_owned()),
+        )
+        .expect("package path dir should update PATH");
+        let updated_path = super::path_env_with_entry(&fixture.arg0_dir, Some(package_path));
+
+        assert_eq!(
+            std::env::split_paths(&updated_path).collect::<Vec<_>>(),
+            vec![
+                fixture.arg0_dir,
+                fixture.path_dir.as_path().to_path_buf(),
+                fixture.existing_dir
+            ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn package_path_survives_arg0_alias_setup_failure() -> anyhow::Result<()> {
+        let fixture = package_path_test_fixture()?;
+
+        let (path_entry_guard, updated_path_env_var) = super::prepare_path_env_var_with_aliases(
+            &fixture.install_context,
+            Some(fixture.existing_dir.as_os_str().to_owned()),
+            |path_for_aliases| {
+                assert_eq!(
+                    std::env::split_paths(
+                        &path_for_aliases.expect("package PATH should be passed to alias setup")
+                    )
+                    .collect::<Vec<_>>(),
+                    vec![
+                        fixture.path_dir.as_path().to_path_buf(),
+                        fixture.existing_dir.clone()
+                    ],
+                );
+                Err(std::io::Error::other("alias setup failed"))
+            },
+        );
+
+        assert!(path_entry_guard.is_none());
+        let updated_path_env_var =
+            updated_path_env_var.expect("package PATH should survive alias setup failure");
+        assert_eq!(
+            std::env::split_paths(&updated_path_env_var).collect::<Vec<_>>(),
+            vec![
+                fixture.path_dir.as_path().to_path_buf(),
+                fixture.existing_dir
+            ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn run_main_with_arg0_guard_keeps_aliases_alive_until_main_returns() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let temp_path = temp_dir.path().to_path_buf();
+        let alias_path = temp_dir.path().join("lime-helper-alias");
+        fs::write(&alias_path, b"")?;
+        let lock_file = create_lock(temp_dir.path())?;
+        let path_entry = Arg0PathEntryGuard::new(
+            temp_dir,
+            lock_file,
+            Arg0DispatchPaths {
+                main_execve_wrapper_exe: None,
+                lime_self_exe: Some(PathBuf::from("/usr/bin/lime")),
+                linux_sandbox_exe: Some(alias_path.clone()),
+            },
+        );
+
+        super::build_runtime()?.block_on(run_main_with_arg0_guard(
+            /*path_entry_guard*/ Some(path_entry),
+            Some(PathBuf::from("/usr/bin/lime")),
+            |_paths| async move {
+                ensure!(
+                    alias_path.exists(),
+                    "alias path disappeared before main future was polled: {}",
+                    alias_path.display()
+                );
+
+                tokio::task::yield_now().await;
+
+                ensure!(
+                    alias_path.exists(),
+                    "alias path disappeared while main future was running: {}",
+                    alias_path.display()
+                );
+                Ok(())
+            },
+        ))?;
+        assert!(!temp_path.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn helper_cleanup_is_isolated_from_other_platforms_and_legacy_clients() -> std::io::Result<()> {
+        let home = tempfile::tempdir()?;
+        let temporary = home.path().join("tmp");
+        let own_root = temporary.join(format!("arg0-{}", std::env::consts::OS));
+        let foreign_os = if cfg!(windows) { "linux" } else { "windows" };
+        let foreign_root = temporary.join(format!("arg0-{foreign_os}"));
+        let legacy_root = temporary.join("arg0");
+        // Unlocked foreign directories model a live peer whose lock is invisible
+        // to this kernel. Only stale directories in our own namespace may go.
+        for root in [&own_root, &foreign_root, &legacy_root] {
+            let stale = root.join("lime-arg0-existing");
+            fs::create_dir_all(&stale)?;
+            create_lock(&stale)?;
+            fs::write(stale.join("helper"), b"keep foreign helpers")?;
+        }
+
+        let (guard, _) = super::prepare_aliases_in_home(home.path(), /*existing_path*/ None)?;
+        assert!(!own_root.join("lime-arg0-existing").exists());
+        assert_eq!(
+            [&foreign_root, &legacy_root]
+                .map(|root| fs::read(root.join("lime-arg0-existing/helper")))
+                .into_iter()
+                .collect::<std::io::Result<Vec<_>>>()?,
+            vec![b"keep foreign helpers".to_vec(); 2],
+        );
+
+        // Older versions clean only this root. Run that cleanup while a new
+        // helper is live, then confirm the advertised helper remains usable.
+        janitor_cleanup(&legacy_root)?;
+        let helper = guard._temp_dir.path().join(if cfg!(windows) {
+            "apply_patch.bat"
+        } else {
+            "apply_patch"
+        });
+        assert!(helper.is_file());
+        assert_eq!(
+            fs::read(foreign_root.join("lime-arg0-existing/helper"))?,
+            b"keep foreign helpers",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn janitor_skips_dirs_without_lock_file() -> std::io::Result<()> {
+        let root = tempfile::tempdir()?;
+        let dir = root.path().join("no-lock");
+        fs::create_dir(&dir)?;
+
+        janitor_cleanup(root.path())?;
+
+        assert!(dir.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn janitor_skips_dirs_with_held_lock() -> std::io::Result<()> {
+        let root = tempfile::tempdir()?;
+        let dir = root.path().join("locked");
+        fs::create_dir(&dir)?;
+        let lock_file = create_lock(&dir)?;
+        lock_file.try_lock()?;
+
+        janitor_cleanup(root.path())?;
+
+        assert!(dir.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn janitor_removes_dirs_with_unlocked_lock() -> std::io::Result<()> {
+        let root = tempfile::tempdir()?;
+        let dir = root.path().join("stale");
+        fs::create_dir(&dir)?;
+        create_lock(&dir)?;
+
+        janitor_cleanup(root.path())?;
+
+        assert_eq!(fs::read_dir(root.path())?.count(), 0);
+        Ok(())
+    }
+}

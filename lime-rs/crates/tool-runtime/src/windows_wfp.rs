@@ -20,27 +20,26 @@ pub fn verify_filters(_account: &str) -> io::Result<()> {
 mod platform {
     use super::io;
     use sha2::{Digest, Sha256};
-    use std::ffi::{c_void, OsStr};
+    use std::ffi::{OsStr, c_void};
     use std::mem::zeroed;
     use std::os::windows::ffi::OsStrExt;
     use std::ptr::{null, null_mut};
-    use windows_sys::core::GUID;
     use windows_sys::Win32::Foundation::{
-        LocalFree, FWP_E_ALREADY_EXISTS, FWP_E_FILTER_NOT_FOUND, FWP_E_NOT_FOUND, HANDLE, HLOCAL,
+        FWP_E_ALREADY_EXISTS, FWP_E_FILTER_NOT_FOUND, FWP_E_NOT_FOUND, HANDLE, HLOCAL, LocalFree,
     };
     use windows_sys::Win32::NetworkManagement::WindowsFilteringPlatform::{
-        FwpmEngineClose0, FwpmEngineOpen0, FwpmFilterAdd0, FwpmFilterDeleteByKey0,
-        FwpmFilterGetByKey0, FwpmFreeMemory0, FwpmProviderAdd0, FwpmSubLayerAdd0,
-        FwpmTransactionAbort0, FwpmTransactionBegin0, FwpmTransactionCommit0, FWPM_ACTION0,
-        FWPM_ACTION0_0, FWPM_CONDITION_ALE_USER_ID, FWPM_CONDITION_IP_PROTOCOL,
-        FWPM_CONDITION_IP_REMOTE_PORT, FWPM_DISPLAY_DATA0, FWPM_FILTER0, FWPM_FILTER0_0,
-        FWPM_FILTER_CONDITION0, FWPM_FILTER_FLAG_PERSISTENT, FWPM_LAYER_ALE_AUTH_CONNECT_V4,
-        FWPM_LAYER_ALE_AUTH_CONNECT_V6, FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4,
-        FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6, FWPM_PROVIDER0, FWPM_PROVIDER_FLAG_PERSISTENT,
-        FWPM_SESSION0, FWPM_SUBLAYER0, FWPM_SUBLAYER_FLAG_PERSISTENT, FWP_ACTION_BLOCK,
-        FWP_ACTRL_MATCH_FILTER, FWP_BYTE_BLOB, FWP_CONDITION_VALUE0, FWP_CONDITION_VALUE0_0,
-        FWP_EMPTY, FWP_MATCH_EQUAL, FWP_SECURITY_DESCRIPTOR_TYPE, FWP_UINT16, FWP_UINT8,
-        FWP_VALUE0,
+        FWP_ACTION_BLOCK, FWP_ACTRL_MATCH_FILTER, FWP_BYTE_BLOB, FWP_CONDITION_VALUE0,
+        FWP_CONDITION_VALUE0_0, FWP_EMPTY, FWP_MATCH_EQUAL, FWP_SECURITY_DESCRIPTOR_TYPE,
+        FWP_UINT8, FWP_UINT16, FWP_VALUE0, FWPM_ACTION0, FWPM_ACTION0_0,
+        FWPM_CONDITION_ALE_USER_ID, FWPM_CONDITION_IP_PROTOCOL, FWPM_CONDITION_IP_REMOTE_PORT,
+        FWPM_DISPLAY_DATA0, FWPM_FILTER_CONDITION0, FWPM_FILTER_FLAG_PERSISTENT, FWPM_FILTER0,
+        FWPM_FILTER0_0, FWPM_LAYER_ALE_AUTH_CONNECT_V4, FWPM_LAYER_ALE_AUTH_CONNECT_V6,
+        FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4, FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6,
+        FWPM_PROVIDER_FLAG_PERSISTENT, FWPM_PROVIDER0, FWPM_SESSION0,
+        FWPM_SUBLAYER_FLAG_PERSISTENT, FWPM_SUBLAYER0, FwpmEngineClose0, FwpmEngineOpen0,
+        FwpmFilterAdd0, FwpmFilterDeleteByKey0, FwpmFilterGetByKey0, FwpmFreeMemory0,
+        FwpmProviderAdd0, FwpmSubLayerAdd0, FwpmTransactionAbort0, FwpmTransactionBegin0,
+        FwpmTransactionCommit0,
     };
     use windows_sys::Win32::Security::Authorization::{
         BuildExplicitAccessWithNameW, BuildSecurityDescriptorW, EXPLICIT_ACCESS_W, GRANT_ACCESS,
@@ -48,6 +47,7 @@ mod platform {
     use windows_sys::Win32::Security::PSECURITY_DESCRIPTOR;
     use windows_sys::Win32::System::Rpc::RPC_C_AUTHN_DEFAULT;
     use windows_sys::Win32::System::Threading::INFINITE;
+    use windows_sys::core::GUID;
 
     const SESSION_NAME: &str = "Lime Windows Sandbox WFP";
     const PROVIDER_NAME: &str = "Lime Windows Sandbox WFP";

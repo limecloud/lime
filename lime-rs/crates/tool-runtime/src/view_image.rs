@@ -4,9 +4,9 @@ use crate::tool_executor::{
     RuntimeToolExecutionResult, RuntimeToolExecutor, RuntimeToolExecutorHandle,
     RuntimeToolPolicyErrorKind,
 };
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -529,10 +529,12 @@ mod tests {
         );
         assert_eq!(result.metadata.get("mime_type"), Some(&json!("image/png")));
         assert_eq!(result.metadata.get("detail"), Some(&json!("original")));
-        assert!(result
-            .metadata
-            .get("image_url")
-            .and_then(Value::as_str)
-            .is_some_and(|value| value.starts_with("data:image/png;base64,")));
+        assert!(
+            result
+                .metadata
+                .get("image_url")
+                .and_then(Value::as_str)
+                .is_some_and(|value| value.starts_with("data:image/png;base64,"))
+        );
     }
 }

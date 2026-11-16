@@ -221,7 +221,7 @@ async fn route_aware_pool_retains_credentials_for_same_origin_and_route() {
 
 #[tokio::test]
 async fn route_aware_pool_sanitizes_redirected_failure_logs() {
-    const SUBPROCESS_ENV_VAR: &str = "CODEX_HTTP_CLIENT_REDIRECT_FAILURE_LOG_TEST";
+    const SUBPROCESS_ENV_VAR: &str = "LIME_HTTP_CLIENT_REDIRECT_FAILURE_LOG_TEST";
     if std::env::var_os(SUBPROCESS_ENV_VAR).is_none() {
         // Bazel runs unit tests in one process. Isolate the tracing subscriber and callsite
         // cache from other tests that install different subscribers while requests are in flight.

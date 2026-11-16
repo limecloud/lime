@@ -16,7 +16,7 @@ use app_server_protocol::{
     MemoryStoreSearchParams, MemoryStoreSearchResponse,
 };
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 

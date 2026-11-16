@@ -5,12 +5,12 @@ use crate::tool_executor::{
     RuntimeToolPolicyErrorKind,
 };
 use app_server_protocol::{
-    protocol::v2::{McpServerResourceReadParams, McpServerResourceReadResponse},
     McpResourceListResponse,
+    protocol::v2::{McpServerResourceReadParams, McpServerResourceReadResponse},
 };
 use async_trait::async_trait;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -616,14 +616,16 @@ mod tests {
             "server": lime_skills::APPS_MCP_SERVER_NAME,
             "uri": "skill://delivery/other/SKILL.md"
         });
-        assert!(handle
-            .execute(RuntimeToolExecutionRequest {
-                tool_name: READ_MCP_RESOURCE_TOOL_NAME,
-                params: &other_uri,
-                context: &context(),
-                turn_context: Some(&orchestrator_disabled_turn_context(Some(uri))),
-            })
-            .await
-            .is_err());
+        assert!(
+            handle
+                .execute(RuntimeToolExecutionRequest {
+                    tool_name: READ_MCP_RESOURCE_TOOL_NAME,
+                    params: &other_uri,
+                    context: &context(),
+                    turn_context: Some(&orchestrator_disabled_turn_context(Some(uri))),
+                })
+                .await
+                .is_err()
+        );
     }
 }

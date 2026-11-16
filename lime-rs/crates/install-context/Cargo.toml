@@ -1,0 +1,20 @@
+[package]
+name = "install-context"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Detect the current Lime runtime install layout."
+
+[lib]
+name = "install_context"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+lime-utils-absolute-path.workspace = true
+utils-home-dir = { path = "../utils-home-dir" }
+semver = { version = "1", features = ["serde"] }
+serde.workspace = true
+serde_json.workspace = true

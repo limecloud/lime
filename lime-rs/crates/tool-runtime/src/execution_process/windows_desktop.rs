@@ -1,17 +1,17 @@
-use super::{last_os_error, logon_sid, to_wide, OwnedHandle};
+use super::{OwnedHandle, last_os_error, logon_sid, to_wide};
 use std::io;
 use std::ptr;
-use windows_sys::Win32::Foundation::{LocalFree, ERROR_SUCCESS, HLOCAL};
+use windows_sys::Win32::Foundation::{ERROR_SUCCESS, HLOCAL, LocalFree};
 use windows_sys::Win32::Security::Authorization::{
-    SetEntriesInAclW, SetSecurityInfo, EXPLICIT_ACCESS_W, GRANT_ACCESS, SE_WINDOW_OBJECT,
+    EXPLICIT_ACCESS_W, GRANT_ACCESS, SE_WINDOW_OBJECT, SetEntriesInAclW, SetSecurityInfo,
     TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
 };
 use windows_sys::Win32::Security::{DACL_SECURITY_INFORMATION, TOKEN_QUERY};
 use windows_sys::Win32::System::StationsAndDesktops::{
     CloseDesktop, CreateDesktopW, DESKTOP_CREATEMENU, DESKTOP_CREATEWINDOW, DESKTOP_DELETE,
     DESKTOP_ENUMERATE, DESKTOP_HOOKCONTROL, DESKTOP_JOURNALPLAYBACK, DESKTOP_JOURNALRECORD,
-    DESKTOP_READOBJECTS, DESKTOP_READ_CONTROL, DESKTOP_SWITCHDESKTOP, DESKTOP_WRITEOBJECTS,
-    DESKTOP_WRITE_DAC, DESKTOP_WRITE_OWNER, HDESK,
+    DESKTOP_READ_CONTROL, DESKTOP_READOBJECTS, DESKTOP_SWITCHDESKTOP, DESKTOP_WRITE_DAC,
+    DESKTOP_WRITE_OWNER, DESKTOP_WRITEOBJECTS, HDESK,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 

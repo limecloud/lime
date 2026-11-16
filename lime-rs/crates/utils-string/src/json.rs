@@ -95,10 +95,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use pretty_assertions::assert_eq;
-    use serde::Serialize;
     use serde::ser::SerializeStruct;
-    use serde_json::Value;
+    use serde::Serialize;
     use serde_json::json;
+    use serde_json::Value;
 
     use super::to_ascii_json_string;
     use super::to_json_string_bounded;

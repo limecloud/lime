@@ -608,7 +608,7 @@ fn file_uri_spelling_aliases_have_one_canonical_form() {
 #[test]
 fn unsupported_schemes_are_rejected_at_construction() {
     for (input, expected_scheme) in [
-        ("codex-env:///devbox/workspace", "codex-env"),
+        ("lime-env:///devbox/workspace", "lime-env"),
         ("artifact://store/object-1", "artifact"),
         ("http://example.com/file", "http"),
         ("https://example.com/file", "https"),

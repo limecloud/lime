@@ -2,13 +2,13 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 use ts_rs::TS;
 
-use super::ExtensionItem;
 use super::image_generation::GeneratedImageRef;
 use super::image_generation::ImageGenerationInputImage;
 use super::image_generation::ImageGenerationItem;
 use super::sleep::SleepItem;
 use super::web_search::WebSearchAction;
 use super::web_search::WebSearchItem;
+use super::ExtensionItem;
 use lime_utils_absolute_path::AbsolutePathBuf;
 
 fn completed_image_generation_item() -> ExtensionItem {

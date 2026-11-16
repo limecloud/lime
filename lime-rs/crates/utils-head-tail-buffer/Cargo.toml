@@ -1,0 +1,16 @@
+[package]
+name = "utils-head-tail-buffer"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Head/tail output buffer."
+
+[lib]
+name = "utils_head_tail_buffer"
+path = "src/lib.rs"
+doctest = false
+
+[dev-dependencies]
+pretty_assertions.workspace = true

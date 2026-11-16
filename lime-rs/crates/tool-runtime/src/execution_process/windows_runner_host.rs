@@ -1,5 +1,5 @@
-use super::windows_runner_protocol::{read_frame, write_frame, RunnerMessage, RunnerSpawnRequest};
-use super::{argv_to_command_line, last_os_error, to_wide, LocalExecutionRequest, OwnedHandle};
+use super::windows_runner_protocol::{RunnerMessage, RunnerSpawnRequest, read_frame, write_frame};
+use super::{LocalExecutionRequest, OwnedHandle, argv_to_command_line, last_os_error, to_wide};
 use crate::windows_setup::{read_windows_sandbox_password, resolve_windows_account_sid};
 use std::ffi::c_void;
 use std::fs::File;
@@ -10,7 +10,7 @@ use std::ptr;
 use std::thread;
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{
-    GetLastError, LocalFree, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, HANDLE, HLOCAL,
+    ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GetLastError, HANDLE, HLOCAL, LocalFree,
     WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Security::Authorization::{
@@ -19,13 +19,13 @@ use windows_sys::Win32::Security::Authorization::{
 use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 use windows_sys::Win32::System::Diagnostics::Debug::SetErrorMode;
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, PeekNamedPipe,
-    SetNamedPipeHandleState, PIPE_NOWAIT, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
-    PIPE_TYPE_BYTE, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, PIPE_NOWAIT,
+    PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT, PeekNamedPipe,
+    SetNamedPipeHandleState,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateProcessW, CreateProcessWithLogonW, TerminateProcess, WaitForSingleObject,
-    CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, PROCESS_INFORMATION, STARTUPINFOW,
+    CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessW, CreateProcessWithLogonW,
+    PROCESS_INFORMATION, STARTUPINFOW, TerminateProcess, WaitForSingleObject,
 };
 
 const PIPE_ACCESS_OUTBOUND: u32 = 0x0000_0002;

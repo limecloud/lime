@@ -3,7 +3,7 @@
 use crate::tool_definition::RuntimeToolDefinition;
 use agent_protocol::AsyncUserInputQuestion;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const REQUEST_USER_INPUT_ASYNC_TOOL_NAME: &str = "request_user_input_async";
 pub const REQUEST_USER_INPUT_ASYNC_ACCEPTED: &str = r#"{"accepted":true}"#;

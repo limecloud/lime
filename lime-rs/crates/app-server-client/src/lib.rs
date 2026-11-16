@@ -364,8 +364,8 @@ use app_server_transport::encode_message;
 use serde::Serialize;
 use thiserror::Error;
 
-mod remote;
 pub mod computer_use;
+mod remote;
 mod session;
 mod transport;
 

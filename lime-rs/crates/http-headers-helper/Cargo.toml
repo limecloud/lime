@@ -1,0 +1,25 @@
+[package]
+name = "http-headers-helper"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "HTTP header helpers."
+
+[lib]
+name = "http_headers_helper"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+http = "1"
+serde_json.workspace = true
+serde.workspace = true
+tokio.workspace = true
+utils-pty = { path = "../utils-pty" }
+utils-process = { path = "../utils-process" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

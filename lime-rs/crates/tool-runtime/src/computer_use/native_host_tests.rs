@@ -100,12 +100,14 @@ async fn cancelled_io_drops_child_and_never_reuses_late_response() {
     let (_temp, _executable, resource) = fixture(HELPER);
     let host = NativeHost::with_resource(resource);
     let (first, _) = host.invoke("snapshot", json!({})).await.unwrap().unwrap();
-    assert!(tokio::time::timeout(
-        Duration::from_millis(80),
-        host.invoke("waitForever", json!({}))
-    )
-    .await
-    .is_err());
+    assert!(
+        tokio::time::timeout(
+            Duration::from_millis(80),
+            host.invoke("waitForever", json!({}))
+        )
+        .await
+        .is_err()
+    );
     let (second, _) = host.invoke("snapshot", json!({})).await.unwrap().unwrap();
     assert!(second > first);
 }
@@ -116,12 +118,13 @@ async fn helper_digest_is_rechecked_when_starting_a_process() {
     let path = resource.path.clone();
     let host = NativeHost::with_resource(resource);
     std::fs::write(path, b"modified after discovery").unwrap();
-    assert!(host
-        .invoke("snapshot", json!({}))
-        .await
-        .unwrap_err()
-        .0
-        .contains("integrity"));
+    assert!(
+        host.invoke("snapshot", json!({}))
+            .await
+            .unwrap_err()
+            .0
+            .contains("integrity")
+    );
 }
 
 #[tokio::test]
@@ -130,15 +133,16 @@ async fn action_never_spawns_a_new_helper_with_a_stale_expected_session() {
     let host = NativeHost::with_resource(resource);
     let (first, _) = host.invoke("snapshot", json!({})).await.unwrap().unwrap();
     assert!(host.invoke("wrongIdentity", json!({})).await.is_err());
-    assert!(host
-        .invoke_cancel(
+    assert!(
+        host.invoke_cancel(
             "computerUse.execute",
             json!({}),
             CancellationToken::new(),
             Some(first)
         )
         .await
-        .is_err());
+        .is_err()
+    );
     let (second, _) = host.invoke("snapshot", json!({})).await.unwrap().unwrap();
     assert_eq!(second, first + 1);
 }

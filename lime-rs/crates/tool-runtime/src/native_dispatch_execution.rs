@@ -1,16 +1,16 @@
 use crate::native_dispatch::{runtime_native_dispatch, runtime_native_dispatch_handle};
 use crate::native_overlay::{
-    check_runtime_native_tool_permissions, runtime_native_tool_overlay_for_dispatch_name,
-    RuntimeNativePermissionDecision,
+    RuntimeNativePermissionDecision, check_runtime_native_tool_permissions,
+    runtime_native_tool_overlay_for_dispatch_name,
 };
 use crate::tool_executor::{
-    turn_context_has_tool_approval, RuntimeToolExecutionContext, RuntimeToolExecutionContextInput,
-    RuntimeToolExecutionError, RuntimeToolExecutionRequest, RuntimeToolExecutionResult,
-    RuntimeToolPolicyErrorKind, RuntimeToolTurnContext,
+    RuntimeToolExecutionContext, RuntimeToolExecutionContextInput, RuntimeToolExecutionError,
+    RuntimeToolExecutionRequest, RuntimeToolExecutionResult, RuntimeToolPolicyErrorKind,
+    RuntimeToolTurnContext, turn_context_has_tool_approval,
 };
 use crate::tool_result_projection::{
-    runtime_tool_result_to_call_tool_result, RuntimeToolResultParts,
-    TOOL_HANDLER_EXECUTED_METADATA_KEY,
+    RuntimeToolResultParts, TOOL_HANDLER_EXECUTED_METADATA_KEY,
+    runtime_tool_result_to_call_tool_result,
 };
 use rmcp::model::{CallToolResult, ErrorCode, ErrorData};
 use serde_json::Value;
@@ -191,9 +191,11 @@ mod tests {
         .expect("workspace tool execution");
 
         assert_eq!(result.is_error, Some(false));
-        assert!(serde_json::to_string(&result)
-            .expect("serialize result")
-            .contains("current-dispatch"));
+        assert!(
+            serde_json::to_string(&result)
+                .expect("serialize result")
+                .contains("current-dispatch")
+        );
     }
 
     #[tokio::test]

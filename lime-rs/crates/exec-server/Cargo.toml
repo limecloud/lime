@@ -1,0 +1,90 @@
+[package]
+name = "exec-server"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Lime execution server."
+
+[lib]
+name = "exec_server"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+api = { path = "../api" }
+arc-swap = "1"
+axum = { workspace = true, features = ["http1", "tokio", "ws"] }
+base64.workspace = true
+build-info = { path = "../build-info" }
+bytes.workspace = true
+clatter = { version = "2.2", default-features = false, features = ["alloc", "getrandom", "use-25519", "use-aes-gcm", "use-rust-crypto-ml-kem", "use-sha"] }
+config = { path = "../config-upstream" }
+core-plugin-common = { path = "../core-plugin-common" }
+dirs = "6"
+exec-server-protocol = { path = "../exec-server-protocol" }
+file-system = { path = "../file-system" }
+file-watcher = { path = "../file-watcher" }
+futures.workspace = true
+http = "1"
+http-client = { path = "../http-client" }
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+network-proxy = { path = "../network-proxy" }
+notify = "8"
+opentelemetry = "0.31"
+otel = { path = "../otel" }
+protocol = { path = "../protocol" }
+prost = "0.14.3"
+sandboxing = { path = "../sandboxing" }
+serde.workspace = true
+serde_json.workspace = true
+shell-command = { path = "../shell-command" }
+skills = { path = "../skills-upstream" }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
+tokio-util = { workspace = true, features = ["io", "rt"] }
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "7447c427513cfe685f236e1ac0513c4ea3dd9c0b", features = ["proxy", "rustls-tls-native-roots"] }
+toml = "0.9"
+tracing.workspace = true
+url.workspace = true
+utils-home-dir = { path = "../utils-home-dir" }
+utils-pty = { path = "../utils-pty" }
+utils-process = { path = "../utils-process" }
+utils-redacted-string = { path = "../utils-redacted-string" }
+utils-rustls-provider = { path = "../utils-rustls-provider" }
+uuid = { workspace = true, features = ["v4"] }
+websocket-auth = { path = "../websocket-auth" }
+websocket-client = { path = "../websocket-client" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+rustix = { version = "1", features = ["fs", "net", "process"] }
+tempfile.workspace = true
+uds = { path = "../uds" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+linux-sandbox = { path = "../linux-sandbox" }
+
+[target.'cfg(windows)'.dependencies]
+mxc-sandbox = { path = "../mxc-sandbox" }
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Security"] }
+
+[dev-dependencies]
+anyhow.workspace = true
+ctor = "0.4"
+http = "1"
+opentelemetry_sdk = "0.31"
+pretty_assertions.workspace = true
+rcgen = { version = "0.14.7", default-features = false, features = ["aws_lc_rs", "pem"] }
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
+serial_test = "3"
+tempfile.workspace = true
+test-case = "3.3"
+tokio = { workspace = true, features = ["test-util"] }
+tracing-opentelemetry = "0.32"
+tracing-subscriber = "0.3"
+utils-cargo-bin = { path = "../utils-cargo-bin" }
+wiremock = "0.6"

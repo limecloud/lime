@@ -81,12 +81,14 @@ async fn background_terminal_waits_for_final_supervisor_output() {
     tokio::time::timeout(Duration::from_secs(3), barrier.started.notified())
         .await
         .expect("watcher waits for supervisor completion");
-    assert!(!sink
-        .command_results
-        .lock()
-        .unwrap()
-        .iter()
-        .any(|event| event.output.as_ref().unwrap().metadata["session_id"].is_null()));
+    assert!(
+        !sink
+            .command_results
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|event| event.output.as_ref().unwrap().metadata["session_id"].is_null())
+    );
     gateway.append_output_to_only_process("final-partial");
     barrier.release.notify_one();
     tokio::time::timeout(Duration::from_secs(3), async {

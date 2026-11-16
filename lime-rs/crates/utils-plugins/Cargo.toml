@@ -1,0 +1,27 @@
+[package]
+name = "utils-plugins"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Plugin discovery helpers."
+
+[lib]
+name = "utils_plugins"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+exec-server = { path = "../exec-server" }
+exec-server-protocol = { path = "../exec-server-protocol" }
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+tempfile.workspace = true

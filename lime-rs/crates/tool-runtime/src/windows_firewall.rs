@@ -20,19 +20,19 @@ pub fn verify_offline_rules(_account: &str) -> io::Result<()> {
 mod platform {
     use super::io;
     use std::ffi::c_void;
-    use windows::core::{Interface, BSTR};
     use windows::Win32::Foundation::{RPC_E_CHANGED_MODE, S_OK, VARIANT_TRUE};
     use windows::Win32::NetworkManagement::WindowsFirewall::{
-        INetFwPolicy2, INetFwRule3, INetFwRules, NetFwPolicy2, NetFwRule, NET_FW_ACTION_BLOCK,
-        NET_FW_IP_PROTOCOL_ANY, NET_FW_IP_PROTOCOL_TCP, NET_FW_IP_PROTOCOL_UDP,
-        NET_FW_MODIFY_STATE_OK, NET_FW_PROFILE2_ALL, NET_FW_PROFILE2_DOMAIN,
-        NET_FW_PROFILE2_PRIVATE, NET_FW_PROFILE2_PUBLIC, NET_FW_RULE_DIR_OUT,
+        INetFwPolicy2, INetFwRule3, INetFwRules, NET_FW_ACTION_BLOCK, NET_FW_IP_PROTOCOL_ANY,
+        NET_FW_IP_PROTOCOL_TCP, NET_FW_IP_PROTOCOL_UDP, NET_FW_MODIFY_STATE_OK,
+        NET_FW_PROFILE2_ALL, NET_FW_PROFILE2_DOMAIN, NET_FW_PROFILE2_PRIVATE,
+        NET_FW_PROFILE2_PUBLIC, NET_FW_RULE_DIR_OUT, NetFwPolicy2, NetFwRule,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
-        COINIT_APARTMENTTHREADED,
+        CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
+        CoUninitialize,
     };
-    use windows_sys::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::core::{BSTR, Interface};
+    use windows_sys::Win32::Foundation::{HLOCAL, LocalFree};
     use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 
     const RULE_GROUP: &str = "Lime Windows Sandbox";

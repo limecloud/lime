@@ -2,7 +2,7 @@
 
 use super::mailbox::{self, Session};
 use super::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -128,7 +128,9 @@ impl ExtensionAdapter {
                     canceled = true;
                 }
                 if mailbox::now() >= deadline + mailbox::SESSION_TTL_MS {
-                    return Err(denied("Adapter operation canceled or timed out; outcome_unknown; observe before retrying"));
+                    return Err(denied(
+                        "Adapter operation canceled or timed out; outcome_unknown; observe before retrying",
+                    ));
                 }
             }
             if let Ok(response) = mailbox::read(&reply) {

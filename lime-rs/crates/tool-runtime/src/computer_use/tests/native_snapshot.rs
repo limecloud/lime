@@ -76,12 +76,14 @@ async fn native_consent_survives_only_unrelated_snapshot_changes() {
         );
         if let Some(granted) = granted {
             assert_eq!(granted.target, target());
-            assert!(service
-                .acquire(owner(), acquire(&granted), || Ok(
-                    ComputerUsePolicy::default()
-                ))
-                .await
-                .is_ok());
+            assert!(
+                service
+                    .acquire(owner(), acquire(&granted), || Ok(
+                        ComputerUsePolicy::default()
+                    ))
+                    .await
+                    .is_ok()
+            );
         }
     }
 }
@@ -171,10 +173,12 @@ async fn unrelated_windows_do_not_revoke_a_continuous_approved_target() {
         snapshot.generation += 1;
         snapshot.targets.pop();
     }
-    assert!(service
-        .validate_lease(&owner(), &acquired.lease_id, acquired.epoch, || Ok(allow()))
-        .await
-        .is_ok());
+    assert!(
+        service
+            .validate_lease(&owner(), &acquired.lease_id, acquired.epoch, || Ok(allow()))
+            .await
+            .is_ok()
+    );
     assert!(!lease.cancellation.is_cancelled());
 }
 
@@ -270,14 +274,18 @@ async fn a_disappeared_target_cannot_recover_its_old_grant_when_it_returns() {
         snapshot.generation += 1;
         snapshot.targets.push(original);
     }
-    assert!(service
-        .acquire(owner(), acquire(&granted), || Ok(allow()))
-        .await
-        .is_err());
-    assert!(service
-        .validate_lease(&owner(), &acquired.lease_id, acquired.epoch, || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .acquire(owner(), acquire(&granted), || Ok(allow()))
+            .await
+            .is_err()
+    );
+    assert!(
+        service
+            .validate_lease(&owner(), &acquired.lease_id, acquired.epoch, || Ok(allow()))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -313,16 +321,18 @@ async fn only_the_changed_windows_grants_are_removed() {
     );
     service.release("local-1", &acquired.lease_id).unwrap();
     drop(retained);
-    assert!(service
-        .acquire(
-            owner(),
-            ComputerUseLeaseAcquireParams {
-                target: other.identity,
-                grant_id: Some(second_grant.id.clone()),
-                ..acquire(&second_grant)
-            },
-            || Ok(allow())
-        )
-        .await
-        .is_err());
+    assert!(
+        service
+            .acquire(
+                owner(),
+                ComputerUseLeaseAcquireParams {
+                    target: other.identity,
+                    grant_id: Some(second_grant.id.clone()),
+                    ..acquire(&second_grant)
+                },
+                || Ok(allow())
+            )
+            .await
+            .is_err()
+    );
 }

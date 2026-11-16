@@ -1,0 +1,640 @@
+#![allow(warnings, clippy::all)]
+
+use super::*;
+use crate::CompactedItem;
+use crate::RolloutItem;
+use crate::RolloutLine;
+use chrono::DateTime;
+use chrono::NaiveDateTime;
+use chrono::Timelike;
+use chrono::Utc;
+use lime_utils_absolute_path::test_support::PathExt;
+use pretty_assertions::assert_eq;
+use protocol::SanitizedGitUrl;
+use protocol::ThreadId;
+use protocol::protocol::GitInfo;
+use protocol::protocol::HistoryPosition;
+use protocol::protocol::SessionMeta;
+use protocol::protocol::SessionMetaLine;
+use protocol::protocol::SessionSource;
+use protocol::protocol::ThreadHistoryMode;
+use state::BackfillStatus;
+use state::ThreadMetadataBuilder;
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use std::path::PathBuf;
+use tempfile::tempdir;
+use uuid::Uuid;
+
+#[test]
+fn fork_cutoff_distinguishes_logical_parent_from_reverted_rollout() {
+    let parent_id = ThreadId::new();
+    let thread_id = ThreadId::new();
+    let physical_id = ThreadId::new();
+    let replacement_id = ThreadId::new();
+    let original_path = PathBuf::from(format!("rollout-2026-01-27T12-34-56-{thread_id}.jsonl"));
+    let reverted_path = PathBuf::from(format!(
+        "rollout-2026-01-27T12-34-56-{thread_id}_{replacement_id}.jsonl"
+    ));
+
+    for (name, parent, cutoff, base_id, path, expected) in [
+        (
+            "persisted revert",
+            Some(parent_id),
+            Some(20),
+            thread_id,
+            Some(reverted_path.as_path()),
+            Some(20),
+        ),
+        (
+            "legacy direct fork",
+            Some(parent_id),
+            None,
+            parent_id,
+            None,
+            Some(40),
+        ),
+        (
+            "legacy fork of reverted parent",
+            Some(parent_id),
+            None,
+            physical_id,
+            Some(original_path.as_path()),
+            Some(40),
+        ),
+        (
+            "legacy child revert",
+            Some(parent_id),
+            None,
+            thread_id,
+            Some(reverted_path.as_path()),
+            None,
+        ),
+        (
+            "legacy repeated revert",
+            Some(parent_id),
+            None,
+            physical_id,
+            Some(reverted_path.as_path()),
+            None,
+        ),
+        (
+            "missing parent",
+            None,
+            Some(20),
+            parent_id,
+            Some(original_path.as_path()),
+            None,
+        ),
+    ] {
+        let meta = SessionMeta {
+            id: thread_id,
+            forked_from_id: parent,
+            forked_from_ordinal_exclusive: cutoff,
+            history_base: Some(HistoryPosition {
+                thread_id: base_id,
+                end_ordinal_exclusive: 40,
+                end_byte_offset: 100,
+            }),
+            ..SessionMeta::default()
+        };
+        assert_eq!(
+            forked_from_ordinal_exclusive(&meta, path),
+            expected,
+            "{name}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn extract_metadata_from_rollout_uses_session_meta() {
+    let dir = tempdir().expect("tempdir");
+    let uuid = Uuid::new_v4();
+    let id = ThreadId::from_string(&uuid.to_string()).expect("thread id");
+    let path = dir
+        .path()
+        .join(format!("rollout-2026-01-27T12-34-56-{uuid}.jsonl"));
+
+    let session_meta = SessionMeta {
+        account_scoped: false,
+        creator_user_id: Some("creator-user".to_string()),
+        attached_thread: false,
+        creator_account_id: Some("creator-account".to_string()),
+        session_id: id.into(),
+        id,
+        forked_from_id: None,
+        forked_from_ordinal_exclusive: None,
+        parent_thread_id: None,
+        timestamp: "2026-01-27T12:34:56Z".to_string(),
+        cwd: dir.path().to_path_buf(),
+        runtime_workspace_roots: None,
+        originator: "cli".to_string(),
+        cli_version: "0.0.0".to_string(),
+        source: SessionSource::default(),
+        thread_source: None,
+        agent_path: None,
+        agent_nickname: None,
+        agent_role: None,
+        model_provider: Some("openai".to_string()),
+        base_instructions: None,
+        dynamic_tools: None,
+        selected_capability_roots: Vec::new(),
+        memory_mode: None,
+        history_mode: ThreadHistoryMode::Paginated,
+        history_base: None,
+        subagent_history_start_ordinal: None,
+        multi_agent_version: None,
+        context_window: None,
+    };
+    let session_meta_line = SessionMetaLine {
+        meta: session_meta,
+        git: None,
+    };
+    let rollout_line = RolloutLine {
+        timestamp: "2026-01-27T12:34:56Z".to_string(),
+        ordinal: Some(0),
+        item: RolloutItem::SessionMeta(Box::new(session_meta_line.clone())),
+    };
+    let json = serde_json::to_string(&rollout_line).expect("rollout json");
+    let mut file = File::create(&path).expect("create rollout");
+    writeln!(file, "{json}").expect("write rollout");
+    let mut parent = session_meta_line.clone();
+    parent.meta.id = ThreadId::new();
+    parent.meta.creator_user_id = Some("parent-user".to_string());
+    parent.meta.creator_account_id = Some("parent-account".to_string());
+    let parent_line = RolloutLine {
+        timestamp: rollout_line.timestamp.clone(),
+        ordinal: Some(1),
+        item: RolloutItem::SessionMeta(Box::new(parent)),
+    };
+    writeln!(
+        file,
+        "{}",
+        serde_json::to_string(&parent_line).expect("parent json")
+    )
+    .expect("write inherited metadata");
+
+    let outcome = extract_metadata_from_rollout(&path, "openai")
+        .await
+        .expect("extract");
+
+    let builder = builder_from_session_meta(&session_meta_line, path.as_path()).expect("builder");
+    let mut expected = builder.build("openai");
+    apply_rollout_item(&mut expected, &rollout_line.item, "openai");
+    expected.updated_at = file_modified_time_utc(&path).await.expect("mtime");
+    expected.recency_at = expected.updated_at;
+
+    assert_eq!(outcome.metadata, expected);
+    assert_eq!(
+        (
+            outcome.metadata.creator_user_id.as_deref(),
+            outcome.metadata.creator_account_id.as_deref()
+        ),
+        (Some("creator-user"), Some("creator-account")),
+    );
+    assert_eq!(outcome.memory_mode, None);
+    assert_eq!(outcome.parse_errors, 0);
+}
+
+#[tokio::test]
+async fn extract_metadata_from_rollout_rejects_unknown_history_mode() {
+    let dir = tempdir().expect("tempdir");
+    let uuid = Uuid::new_v4();
+    let id = ThreadId::from_string(&uuid.to_string()).expect("thread id");
+    let path = dir
+        .path()
+        .join(format!("rollout-2026-01-27T12-34-56-{uuid}.jsonl"));
+    let mut rollout_line = serde_json::to_value(RolloutLine {
+        timestamp: "2026-01-27T12:34:56Z".to_string(),
+        ordinal: None,
+        item: RolloutItem::SessionMeta(Box::new(SessionMetaLine {
+            meta: SessionMeta {
+                session_id: id.into(),
+                id,
+                timestamp: "2026-01-27T12:34:56Z".to_string(),
+                cwd: dir.path().to_path_buf(),
+                originator: "cli".to_string(),
+                cli_version: "0.0.0".to_string(),
+                ..SessionMeta::default()
+            },
+            git: None,
+        })),
+    })
+    .expect("serialize rollout line");
+    rollout_line["payload"]["history_mode"] = serde_json::json!("future");
+    let mut file = File::create(&path).expect("create rollout");
+    writeln!(file, "{rollout_line}").expect("write rollout");
+
+    assert!(
+        extract_metadata_from_rollout(&path, "openai")
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn extract_metadata_from_rollout_returns_latest_memory_mode() {
+    let dir = tempdir().expect("tempdir");
+    let uuid = Uuid::new_v4();
+    let id = ThreadId::from_string(&uuid.to_string()).expect("thread id");
+    let path = dir
+        .path()
+        .join(format!("rollout-2026-01-27T12-34-56-{uuid}.jsonl"));
+
+    let session_meta = SessionMeta {
+        account_scoped: false,
+        creator_user_id: None,
+        attached_thread: false,
+        creator_account_id: None,
+        session_id: id.into(),
+        id,
+        forked_from_id: None,
+        forked_from_ordinal_exclusive: None,
+        parent_thread_id: None,
+        timestamp: "2026-01-27T12:34:56Z".to_string(),
+        cwd: dir.path().to_path_buf(),
+        runtime_workspace_roots: None,
+        originator: "cli".to_string(),
+        cli_version: "0.0.0".to_string(),
+        source: SessionSource::default(),
+        thread_source: None,
+        agent_path: None,
+        agent_nickname: None,
+        agent_role: None,
+        model_provider: Some("openai".to_string()),
+        base_instructions: None,
+        dynamic_tools: None,
+        selected_capability_roots: Vec::new(),
+        memory_mode: None,
+        history_mode: Default::default(),
+        history_base: None,
+        subagent_history_start_ordinal: None,
+        multi_agent_version: None,
+        context_window: None,
+    };
+    let polluted_meta = SessionMeta {
+        memory_mode: Some("polluted".to_string()),
+        multi_agent_version: None,
+        ..session_meta.clone()
+    };
+    let lines = vec![
+        RolloutLine {
+            timestamp: "2026-01-27T12:34:56Z".to_string(),
+            ordinal: None,
+            item: RolloutItem::SessionMeta(Box::new(SessionMetaLine {
+                meta: session_meta,
+                git: None,
+            })),
+        },
+        RolloutLine {
+            timestamp: "2026-01-27T12:35:00Z".to_string(),
+            ordinal: None,
+            item: RolloutItem::SessionMeta(Box::new(SessionMetaLine {
+                meta: polluted_meta,
+                git: None,
+            })),
+        },
+    ];
+    let mut file = File::create(&path).expect("create rollout");
+    for line in lines {
+        writeln!(
+            file,
+            "{}",
+            serde_json::to_string(&line).expect("serialize rollout line")
+        )
+        .expect("write rollout line");
+    }
+
+    let outcome = extract_metadata_from_rollout(&path, "openai")
+        .await
+        .expect("extract");
+
+    assert_eq!(outcome.memory_mode.as_deref(), Some("polluted"));
+}
+
+#[test]
+fn builder_from_items_falls_back_to_filename() {
+    let dir = tempdir().expect("tempdir");
+    let uuid = Uuid::new_v4();
+    let path = dir
+        .path()
+        .join(format!("rollout-2026-01-27T12-34-56-{uuid}.jsonl"));
+    let items = vec![RolloutItem::Compacted(Box::new(CompactedItem {
+        message: "noop".to_string(),
+        replacement_history: None,
+        retained_context: None,
+        guardian_history: None,
+        mcp_resource_origins: None,
+        window_number: None,
+        first_window_id: None,
+        previous_window_id: None,
+        window_id: None,
+        compaction_response_id: None,
+        latest_token_usage_record: None,
+        resume_metadata: None,
+    }))];
+
+    let builder = builder_from_items(items.as_slice(), path.as_path()).expect("builder");
+    let naive = NaiveDateTime::parse_from_str("2026-01-27T12-34-56", "%Y-%m-%dT%H-%M-%S")
+        .expect("timestamp");
+    let created_at = DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)
+        .with_nanosecond(0)
+        .expect("nanosecond");
+    let expected = ThreadMetadataBuilder::new(
+        ThreadId::from_string(&uuid.to_string()).expect("thread id"),
+        path,
+        created_at,
+        SessionSource::default(),
+    );
+
+    assert_eq!(builder, expected);
+}
+
+#[tokio::test]
+async fn backfill_sessions_resumes_from_watermark_and_marks_complete() {
+    let dir = tempdir().expect("tempdir");
+    let lime_home = dir.path().to_path_buf();
+    let first_uuid = Uuid::new_v4();
+    let second_uuid = Uuid::new_v4();
+    let first_path = write_rollout_in_sessions(
+        lime_home.as_path(),
+        "2026-01-27T12-34-56",
+        "2026-01-27T12:34:56Z",
+        first_uuid,
+        /*git*/ None,
+    );
+    let second_path = write_rollout_in_sessions(
+        lime_home.as_path(),
+        "2026-01-27T12-35-56",
+        "2026-01-27T12:35:56Z",
+        second_uuid,
+        /*git*/ None,
+    );
+
+    let runtime = state::StateRuntime::init(
+        state::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+        "test-provider".to_string(),
+    )
+    .await
+    .expect("initialize runtime");
+    let first_watermark = backfill_watermark_for_path(lime_home.as_path(), first_path.as_path());
+    runtime.mark_backfill_running().await.expect("mark running");
+    runtime
+        .checkpoint_backfill(first_watermark.as_str())
+        .await
+        .expect("checkpoint first watermark");
+    tokio::time::sleep(std::time::Duration::from_secs(
+        (BACKFILL_LEASE_SECONDS + 1) as u64,
+    ))
+    .await;
+
+    backfill_sessions(runtime.as_ref(), lime_home.as_path(), "test-provider").await;
+
+    let first_id = ThreadId::from_string(&first_uuid.to_string()).expect("first thread id");
+    let second_id = ThreadId::from_string(&second_uuid.to_string()).expect("second thread id");
+    assert_eq!(
+        runtime
+            .get_thread(first_id)
+            .await
+            .expect("get first thread"),
+        None
+    );
+    assert!(
+        runtime
+            .get_thread(second_id)
+            .await
+            .expect("get second thread")
+            .is_some()
+    );
+
+    let state = runtime
+        .get_backfill_state()
+        .await
+        .expect("get backfill state");
+    assert_eq!(state.status, BackfillStatus::Complete);
+    assert_eq!(
+        state.last_watermark,
+        Some(backfill_watermark_for_path(
+            lime_home.as_path(),
+            second_path.as_path()
+        ))
+    );
+    assert!(state.last_success_at.is_some());
+}
+
+#[tokio::test]
+async fn backfill_sessions_preserves_existing_git_branch_and_fills_missing_git_fields() {
+    let dir = tempdir().expect("tempdir");
+    let lime_home = dir.path().to_path_buf();
+    let thread_uuid = Uuid::new_v4();
+    let rollout_path = write_rollout_in_sessions(
+        lime_home.as_path(),
+        "2026-01-27T12-34-56",
+        "2026-01-27T12:34:56Z",
+        thread_uuid,
+        Some(GitInfo {
+            commit_hash: Some(git_utils::GitSha::new("rollout-sha")),
+            branch: Some("rollout-branch".to_string()),
+            repository_url: Some(
+                SanitizedGitUrl::try_from("git@example.com:openai/lime.git")
+                    .expect("valid git remote URL"),
+            ),
+        }),
+    );
+
+    let runtime = state::StateRuntime::init(
+        state::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+        "test-provider".to_string(),
+    )
+    .await
+    .expect("initialize runtime");
+    let thread_id = ThreadId::from_string(&thread_uuid.to_string()).expect("thread id");
+    let mut existing = extract_metadata_from_rollout(&rollout_path, "test-provider")
+        .await
+        .expect("extract")
+        .metadata;
+    existing.git_sha = None;
+    existing.git_branch = Some("sqlite-branch".to_string());
+    existing.git_origin_url = None;
+    runtime
+        .upsert_thread(&existing)
+        .await
+        .expect("existing metadata upsert");
+
+    backfill_sessions(runtime.as_ref(), lime_home.as_path(), "test-provider").await;
+
+    let persisted = runtime
+        .get_thread(thread_id)
+        .await
+        .expect("get thread")
+        .expect("thread exists");
+    assert_eq!(persisted.git_sha.as_deref(), Some("rollout-sha"));
+    assert_eq!(persisted.git_branch.as_deref(), Some("sqlite-branch"));
+    assert_eq!(
+        persisted.git_origin_url.as_deref(),
+        Some("git@example.com:openai/lime.git")
+    );
+}
+
+#[tokio::test]
+async fn backfill_sessions_preserves_existing_paginated_memory_mode() {
+    let dir = tempdir().expect("tempdir");
+    let lime_home = dir.path().to_path_buf();
+    let thread_uuid = Uuid::new_v4();
+    let rollout_path = write_rollout_in_sessions_with_cwd(
+        lime_home.as_path(),
+        "2026-01-27T12-34-56",
+        "2026-01-27T12:34:56Z",
+        thread_uuid,
+        lime_home.clone(),
+        /*git*/ None,
+        ThreadHistoryMode::Paginated,
+    );
+
+    let runtime = state::StateRuntime::init(
+        state::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+        "test-provider".to_string(),
+    )
+    .await
+    .expect("initialize runtime");
+    let thread_id = ThreadId::from_string(&thread_uuid.to_string()).expect("thread id");
+    let existing = extract_metadata_from_rollout(&rollout_path, "test-provider")
+        .await
+        .expect("extract")
+        .metadata;
+    runtime
+        .upsert_thread(&existing)
+        .await
+        .expect("existing metadata upsert");
+    assert!(
+        runtime
+            .set_thread_memory_mode(thread_id, "disabled")
+            .await
+            .expect("disable memory mode")
+    );
+
+    backfill_sessions(runtime.as_ref(), lime_home.as_path(), "test-provider").await;
+
+    assert_eq!(
+        runtime
+            .get_thread_memory_mode(thread_id)
+            .await
+            .expect("get memory mode")
+            .as_deref(),
+        Some("disabled")
+    );
+}
+
+#[tokio::test]
+async fn backfill_sessions_normalizes_cwd_before_upsert() {
+    let dir = tempdir().expect("tempdir");
+    let lime_home = dir.path().to_path_buf();
+    let thread_uuid = Uuid::new_v4();
+    let session_cwd = lime_home.join(".");
+    let rollout_path = write_rollout_in_sessions_with_cwd(
+        lime_home.as_path(),
+        "2026-01-27T12-34-56",
+        "2026-01-27T12:34:56Z",
+        thread_uuid,
+        session_cwd.clone(),
+        /*git*/ None,
+        ThreadHistoryMode::Legacy,
+    );
+
+    let runtime = state::StateRuntime::init(
+        state::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+        "test-provider".to_string(),
+    )
+    .await
+    .expect("initialize runtime");
+
+    backfill_sessions(runtime.as_ref(), lime_home.as_path(), "test-provider").await;
+
+    let thread_id = ThreadId::from_string(&thread_uuid.to_string()).expect("thread id");
+    let stored = runtime
+        .get_thread(thread_id)
+        .await
+        .expect("get thread")
+        .expect("thread should be backfilled");
+
+    assert_eq!(stored.rollout_path, rollout_path);
+    assert_eq!(stored.cwd, normalize_cwd_for_state_db(&session_cwd));
+}
+
+fn write_rollout_in_sessions(
+    lime_home: &Path,
+    filename_ts: &str,
+    event_ts: &str,
+    thread_uuid: Uuid,
+    git: Option<GitInfo>,
+) -> PathBuf {
+    write_rollout_in_sessions_with_cwd(
+        lime_home,
+        filename_ts,
+        event_ts,
+        thread_uuid,
+        lime_home.to_path_buf(),
+        git,
+        ThreadHistoryMode::Legacy,
+    )
+}
+
+fn write_rollout_in_sessions_with_cwd(
+    lime_home: &Path,
+    filename_ts: &str,
+    event_ts: &str,
+    thread_uuid: Uuid,
+    cwd: PathBuf,
+    git: Option<GitInfo>,
+    history_mode: ThreadHistoryMode,
+) -> PathBuf {
+    let id = ThreadId::from_string(&thread_uuid.to_string()).expect("thread id");
+    let sessions_dir = lime_home.join("sessions");
+    std::fs::create_dir_all(sessions_dir.as_path()).expect("create sessions dir");
+    let path = sessions_dir.join(format!("rollout-{filename_ts}-{thread_uuid}.jsonl"));
+    let session_meta = SessionMeta {
+        account_scoped: false,
+        creator_user_id: None,
+        attached_thread: false,
+        creator_account_id: None,
+        session_id: id.into(),
+        id,
+        forked_from_id: None,
+        forked_from_ordinal_exclusive: None,
+        parent_thread_id: None,
+        timestamp: event_ts.to_string(),
+        cwd,
+        runtime_workspace_roots: None,
+        originator: "cli".to_string(),
+        cli_version: "0.0.0".to_string(),
+        source: SessionSource::default(),
+        thread_source: None,
+        agent_path: None,
+        agent_nickname: None,
+        agent_role: None,
+        model_provider: Some("test-provider".to_string()),
+        base_instructions: None,
+        dynamic_tools: None,
+        selected_capability_roots: Vec::new(),
+        memory_mode: None,
+        history_mode,
+        history_base: None,
+        subagent_history_start_ordinal: None,
+        multi_agent_version: None,
+        context_window: None,
+    };
+    let session_meta_line = SessionMetaLine {
+        meta: session_meta,
+        git,
+    };
+    let rollout_line = RolloutLine {
+        timestamp: event_ts.to_string(),
+        ordinal: None,
+        item: RolloutItem::SessionMeta(Box::new(session_meta_line)),
+    };
+    let json = serde_json::to_string(&rollout_line).expect("serialize rollout");
+    let mut file = File::create(&path).expect("create rollout");
+    writeln!(file, "{json}").expect("write rollout");
+    path
+}

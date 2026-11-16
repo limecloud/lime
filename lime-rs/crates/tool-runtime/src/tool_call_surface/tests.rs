@@ -1,5 +1,5 @@
 use super::*;
-use serde_json::{json, Map};
+use serde_json::{Map, json};
 
 fn tool_definitions(names: &[&str]) -> Vec<RuntimeToolDefinition> {
     names
@@ -176,10 +176,12 @@ fn repair_preserves_existing_target_arguments() {
     assert!(!repair.arguments.contains_key("filePath"));
     assert!(!repair.arguments.contains_key("head"));
     assert_eq!(repair.argument_changes.len(), 2);
-    assert!(repair
-        .argument_changes
-        .iter()
-        .all(|change| change.after.is_none()));
+    assert!(
+        repair
+            .argument_changes
+            .iter()
+            .all(|change| change.after.is_none())
+    );
 }
 
 #[test]
@@ -374,10 +376,12 @@ fn repair_rejects_schema_mismatch_without_exposing_argument_values() {
     assert_eq!(failure.kind, ToolCallRepairFailureKind::SchemaMismatch);
     assert!(!failure.schema_errors.is_empty());
     assert!(!failure.message().contains("private-not-a-number"));
-    assert!(!failure
-        .model_arguments()
-        .values()
-        .any(|value| value.to_string().contains("private-not-a-number")));
+    assert!(
+        !failure
+            .model_arguments()
+            .values()
+            .any(|value| value.to_string().contains("private-not-a-number"))
+    );
 }
 
 #[test]

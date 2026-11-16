@@ -31,8 +31,8 @@ pub use definitions::{
 use invocation::Invocation;
 use output::{project_output, terminal_interaction_summary};
 use session::{
-    find_session, next_session_id, register_session, remove_session, session_facts,
-    UnifiedExecSession,
+    UnifiedExecSession, find_session, next_session_id, register_session, remove_session,
+    session_facts,
 };
 use shell::{build_shell_command, resolve_working_directory};
 

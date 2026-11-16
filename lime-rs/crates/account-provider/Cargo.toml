@@ -1,0 +1,17 @@
+[package]
+name = "account-provider"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Lime Core/Cloud account boundary."
+
+[lib]
+name = "account_provider"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+app-server-protocol.workspace = true
+async-trait.workspace = true

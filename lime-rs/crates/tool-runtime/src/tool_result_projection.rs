@@ -339,11 +339,13 @@ mod tests {
             result.structured_content.as_ref().unwrap().get("path"),
             Some(&serde_json::json!("sample.png"))
         );
-        assert!(result
-            .structured_content
-            .as_ref()
-            .unwrap()
-            .get("image_url")
-            .is_none());
+        assert!(
+            result
+                .structured_content
+                .as_ref()
+                .unwrap()
+                .get("image_url")
+                .is_none()
+        );
     }
 }

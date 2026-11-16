@@ -1,0 +1,750 @@
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
+#[cfg(windows)]
+use ::protocol::config_types::WindowsSandboxLevel;
+#[cfg(any(unix, windows))]
+use ::protocol::models::PermissionProfile;
+use exec_server_protocol::JSONRPCErrorError;
+#[cfg(unix)]
+use file_system::WindowsSandboxSelection;
+use lime_utils_absolute_path::AbsolutePathBuf;
+use lime_utils_path_uri::PathUri;
+#[cfg(target_os = "macos")]
+use network_proxy::ManagedNetworkSandboxContext;
+use network_proxy::NetworkPolicyAuditObserver;
+use network_proxy::NetworkPolicyDecider;
+use network_proxy::NetworkProxyConfig;
+#[cfg(target_os = "macos")]
+use network_proxy::NetworkUnixSocketPermission;
+#[cfg(target_os = "macos")]
+use network_proxy::NetworkUnixSocketPermissions;
+use network_proxy::PROXY_ATTRIBUTION_TOKEN_ENV_KEY;
+use network_proxy::RemoteNetworkProxyConfig;
+use network_proxy::RemoteNetworkProxyLaunchConfig;
+use pretty_assertions::assert_eq;
+#[cfg(target_os = "linux")]
+use sandboxing::landlock::LIME_LINUX_SANDBOX_ARG0;
+#[cfg(unix)]
+use tempfile::tempdir;
+use test_case::test_case;
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::time::timeout;
+
+use super::PreparedExecRequest;
+use super::prepare_exec_request_with_telemetry;
+use crate::ExecParams;
+use crate::ExecServerRuntimeOptions;
+#[cfg(any(unix, windows))]
+use crate::FileSystemSandboxContext;
+#[cfg(unix)]
+use crate::LIME_ARG0_EXEC_HELPER_ARG1;
+use crate::ProcessId;
+use crate::process_telemetry::ProcessTelemetry;
+
+async fn prepare_exec_request(
+    params: &ExecParams,
+    env: HashMap<String, String>,
+    runtime_paths: Option<&ExecServerRuntimeOptions>,
+    network_policy_decider: Option<Arc<dyn NetworkPolicyDecider>>,
+    network_policy_audit_observer: Option<NetworkPolicyAuditObserver>,
+) -> Result<PreparedExecRequest, JSONRPCErrorError> {
+    prepare_exec_request_with_telemetry(
+        params,
+        env,
+        runtime_paths,
+        network_policy_decider,
+        network_policy_audit_observer,
+        &network_proxy::RemoteCredentialBrokerCache::default(),
+        &ProcessTelemetry::default(),
+    )
+    .await
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn sandbox_request_wraps_native_argv_on_executor() {
+    let command_directory = tempdir().expect("command directory");
+    let cwd = AbsolutePathBuf::from_absolute_path(command_directory.path()).expect("absolute cwd");
+    let cwd_uri = PathUri::from_abs_path(&cwd);
+    let self_exe = std::env::current_exe().expect("current executable");
+    let runtime_paths =
+        ExecServerRuntimeOptions::new(self_exe.clone(), Some(self_exe)).expect("runtime paths");
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::workspace_write(),
+        cwd_uri.clone(),
+    );
+    let params = ExecParams {
+        metadata: Default::default(),
+        process_id: ProcessId::from("process-1"),
+        argv: vec![
+            "/bin/bash".to_string(),
+            "-lc".to_string(),
+            "pwd".to_string(),
+        ],
+        cwd: cwd_uri,
+        shell_snapshot: None,
+        env_policy: None,
+        env: HashMap::new(),
+        tty: false,
+        pipe_stdin: false,
+        arg0: None,
+        sandbox: Some(sandbox),
+        enforce_managed_network: false,
+        managed_network: None,
+        network_proxy: None,
+    };
+
+    let prepared = prepare_exec_request(
+        &params,
+        HashMap::new(),
+        Some(&runtime_paths),
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .expect("prepare sandboxed request");
+
+    assert_ne!(prepared.command, params.argv);
+    assert_eq!(prepared.cwd, cwd);
+    #[cfg(target_os = "linux")]
+    {
+        assert_eq!(
+            prepared.command.first(),
+            Some(&runtime_paths.lime_self_exe.to_string_lossy().into_owned())
+        );
+        let permission_profile_json = prepared
+            .command
+            .iter()
+            .position(|arg| arg == "--permission-profile")
+            .and_then(|index| prepared.command.get(index + 1))
+            .expect("sandbox wrapper permission profile");
+        let permission_profile: PermissionProfile =
+            serde_json::from_str(permission_profile_json).expect("permission profile JSON");
+        assert_eq!(
+            permission_profile,
+            PermissionProfile::workspace_write()
+                .materialize_project_roots_with_workspace_roots(std::slice::from_ref(&cwd))
+        );
+
+        let policy_directory = tempdir().expect("policy directory");
+        let explicit_cwd =
+            AbsolutePathBuf::from_absolute_path(policy_directory.path()).expect("policy cwd");
+        let mut params = params.clone();
+        for policy_cwd in [&cwd, &explicit_cwd] {
+            params.sandbox.as_mut().expect("sandbox").cwd = PathUri::from_abs_path(policy_cwd);
+            let prepared = prepare_exec_request(
+                &params,
+                HashMap::new(),
+                Some(&runtime_paths),
+                /*network_policy_decider*/ None,
+                /*network_policy_audit_observer*/ None,
+            )
+            .await
+            .expect("prepare sandboxed request");
+            let actual_cwds = prepared
+                .command
+                .windows(4)
+                .find(|args| args[0] == "--sandbox-policy-cwd")
+                .expect("sandbox wrapper cwd arguments");
+            assert_eq!(
+                actual_cwds,
+                [
+                    "--sandbox-policy-cwd",
+                    policy_cwd.to_string_lossy().as_ref(),
+                    "--command-cwd",
+                    cwd.to_string_lossy().as_ref(),
+                ]
+            );
+        }
+    }
+    #[cfg(target_os = "macos")]
+    assert_eq!(
+        prepared.command.first().map(String::as_str),
+        Some("/usr/bin/sandbox-exec")
+    );
+
+    let mut params = params;
+    params.sandbox.as_mut().unwrap().windows_sandbox_selection = WindowsSandboxSelection::Mxc;
+    let error = prepare_exec_request(
+        &params,
+        HashMap::new(),
+        Some(&runtime_paths),
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .err()
+    .expect("unsupported MXC must fail closed");
+    assert_eq!(error.message, "native MXC is unavailable on this executor");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn sandbox_request_routes_custom_arg0_to_inner_helper() {
+    let cwd: AbsolutePathBuf = std::env::current_dir()
+        .expect("current directory")
+        .try_into()
+        .expect("absolute cwd");
+    let cwd_uri = PathUri::from_abs_path(&cwd);
+    let self_exe = std::env::current_exe().expect("current executable");
+    let runtime_paths =
+        ExecServerRuntimeOptions::new(self_exe.clone(), Some(self_exe)).expect("runtime paths");
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::workspace_write(),
+        cwd_uri.clone(),
+    );
+    let params = ExecParams {
+        metadata: Default::default(),
+        process_id: ProcessId::from("process-custom-arg0"),
+        argv: vec!["/bin/sh".to_string(), "-c".to_string(), "true".to_string()],
+        cwd: cwd_uri,
+        shell_snapshot: None,
+        env_policy: None,
+        env: HashMap::new(),
+        tty: false,
+        pipe_stdin: false,
+        arg0: Some("custom-arg0".to_string()),
+        sandbox: Some(sandbox),
+        enforce_managed_network: false,
+        managed_network: None,
+        network_proxy: None,
+    };
+
+    let prepared = prepare_exec_request(
+        &params,
+        HashMap::new(),
+        Some(&runtime_paths),
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .expect("prepare sandboxed request");
+    let helper_mode = prepared
+        .command
+        .iter()
+        .position(|arg| arg == LIME_ARG0_EXEC_HELPER_ARG1)
+        .expect("sandboxed command should invoke arg0 helper");
+
+    assert_eq!(
+        prepared.command[helper_mode..],
+        [
+            LIME_ARG0_EXEC_HELPER_ARG1,
+            "custom-arg0",
+            "/bin/sh",
+            "-c",
+            "true",
+        ]
+    );
+    #[cfg(target_os = "linux")]
+    assert_eq!(prepared.arg0, Some(LIME_LINUX_SANDBOX_ARG0.to_string()));
+    #[cfg(target_os = "macos")]
+    assert_eq!(prepared.arg0, None);
+}
+
+#[cfg(target_os = "macos")]
+fn managed_network_sandbox_request() -> (ExecParams, ExecServerRuntimeOptions) {
+    let cwd: AbsolutePathBuf = std::env::current_dir()
+        .expect("current directory")
+        .try_into()
+        .expect("absolute cwd");
+    let cwd_uri = PathUri::from_abs_path(&cwd);
+    let self_exe = std::env::current_exe().expect("current executable");
+    let runtime_paths =
+        ExecServerRuntimeOptions::new(self_exe.clone(), Some(self_exe)).expect("runtime paths");
+    let sandbox = FileSystemSandboxContext::from_permission_profile(
+        PermissionProfile::workspace_write(),
+        cwd_uri.clone(),
+    );
+    let params = ExecParams {
+        metadata: Default::default(),
+        process_id: ProcessId::from("process-managed-network"),
+        argv: vec!["/usr/bin/true".to_string()],
+        cwd: cwd_uri,
+        shell_snapshot: None,
+        env_policy: None,
+        env: HashMap::new(),
+        tty: false,
+        pipe_stdin: false,
+        arg0: None,
+        sandbox: Some(sandbox),
+        enforce_managed_network: true,
+        managed_network: None,
+        network_proxy: None,
+    };
+    (params, runtime_paths)
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_policy_arg(command: &[String]) -> &str {
+    command
+        .windows(2)
+        .find_map(|args| (args[0] == "-p").then_some(args[1].as_str()))
+        .expect("Seatbelt policy argument")
+}
+
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn sandbox_request_preserves_prepared_managed_network_policy() {
+    let (mut params, runtime_paths) = managed_network_sandbox_request();
+    let socket_dir = tempfile::tempdir().expect("temporary socket directory");
+    let allowed_socket = socket_dir
+        .path()
+        .canonicalize()
+        .expect("canonical socket directory")
+        .join("allowed.sock")
+        .to_string_lossy()
+        .into_owned();
+    params.managed_network = Some(ManagedNetworkSandboxContext {
+        loopback_ports: vec![43123],
+        allow_local_binding: false,
+        allow_unix_sockets: vec![allowed_socket.clone()],
+        dangerously_allow_all_unix_sockets: false,
+    });
+
+    let prepared = prepare_exec_request(
+        &params,
+        HashMap::new(),
+        Some(&runtime_paths),
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .expect("prepare managed-network sandbox request");
+    let policy = seatbelt_policy_arg(&prepared.command);
+    let unix_socket_definitions = prepared
+        .command
+        .iter()
+        .filter(|arg| arg.starts_with("-DUNIX_SOCKET_PATH_"))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    assert!(policy.contains("(allow network-outbound (remote ip \"localhost:43123\"))"));
+    assert!(policy.contains("(allow system-socket (socket-domain AF_UNIX))"));
+    assert!(policy.contains(
+        "(allow network-outbound (remote unix-socket (subpath (param \"UNIX_SOCKET_PATH_0\"))))"
+    ));
+    assert_eq!(
+        unix_socket_definitions,
+        vec![format!("-DUNIX_SOCKET_PATH_0={allowed_socket}")]
+    );
+    assert!(!policy.contains("(allow network-outbound (remote unix-socket))"));
+    assert!(!policy.contains("(allow network-outbound)\n"));
+}
+
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn sandbox_request_only_allows_all_unix_sockets_when_configured() {
+    let (mut params, runtime_paths) = managed_network_sandbox_request();
+    params.managed_network = Some(ManagedNetworkSandboxContext {
+        loopback_ports: vec![43123],
+        ..ManagedNetworkSandboxContext::default()
+    });
+
+    for allow_all in [false, true] {
+        params
+            .managed_network
+            .as_mut()
+            .expect("managed network context")
+            .dangerously_allow_all_unix_sockets = allow_all;
+        let prepared = prepare_exec_request(
+            &params,
+            HashMap::new(),
+            Some(&runtime_paths),
+            /*network_policy_decider*/ None,
+            /*network_policy_audit_observer*/ None,
+        )
+        .await
+        .expect("prepare managed-network sandbox request");
+        let policy = seatbelt_policy_arg(&prepared.command);
+
+        assert_eq!(
+            (
+                policy.contains("(allow system-socket (socket-domain AF_UNIX))"),
+                policy.contains("(allow network-bind (local unix-socket))"),
+                policy.contains("(allow network-outbound (remote unix-socket))"),
+            ),
+            (allow_all, allow_all, allow_all)
+        );
+        assert!(!policy.contains("(allow network-outbound)\n"));
+        assert!(
+            !prepared
+                .command
+                .iter()
+                .any(|arg| arg.starts_with("-DUNIX_SOCKET_PATH_"))
+        );
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn sandbox_request_preserves_executor_local_proxy_unix_socket_policy() {
+    let (mut params, runtime_paths) = managed_network_sandbox_request();
+    let socket_dir = tempfile::tempdir().expect("temporary socket directory");
+    let socket_root = socket_dir
+        .path()
+        .canonicalize()
+        .expect("canonical socket directory");
+    let allowed_socket = socket_root
+        .join("allowed.sock")
+        .to_string_lossy()
+        .into_owned();
+    let denied_socket = socket_root
+        .join("denied.sock")
+        .to_string_lossy()
+        .into_owned();
+    let config = NetworkProxyConfig {
+        enabled: true,
+        enable_socks5: false,
+        unix_sockets: Some(NetworkUnixSocketPermissions {
+            entries: [
+                (allowed_socket.clone(), NetworkUnixSocketPermission::Allow),
+                (denied_socket, NetworkUnixSocketPermission::Deny),
+            ]
+            .into_iter()
+            .collect(),
+        }),
+        ..NetworkProxyConfig::default()
+    };
+    params.network_proxy = Some(RemoteNetworkProxyLaunchConfig::new(
+        RemoteNetworkProxyConfig::from_effective_config(&config)
+            .expect("supported remote proxy config"),
+    ));
+
+    let prepared = prepare_exec_request(
+        &params,
+        HashMap::new(),
+        Some(&runtime_paths),
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .expect("prepare sandbox request with executor-local proxy");
+    let policy = seatbelt_policy_arg(&prepared.command);
+    let proxy_addr: SocketAddr = prepared
+        .env
+        .get("HTTP_PROXY")
+        .expect("HTTP proxy env")
+        .strip_prefix("http://")
+        .expect("HTTP proxy scheme")
+        .parse()
+        .expect("HTTP proxy address");
+    let proxy_port = proxy_addr.port();
+    let unix_socket_definitions = prepared
+        .command
+        .iter()
+        .filter(|arg| arg.starts_with("-DUNIX_SOCKET_PATH_"))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    assert!(policy.contains(&format!(
+        "(allow network-outbound (remote ip \"localhost:{proxy_port}\"))"
+    )));
+    assert!(policy.contains(
+        "(allow network-outbound (remote unix-socket (subpath (param \"UNIX_SOCKET_PATH_0\"))))"
+    ));
+    assert_eq!(
+        unix_socket_definitions,
+        vec![format!("-DUNIX_SOCKET_PATH_0={allowed_socket}")]
+    );
+    assert!(!policy.contains("(allow network-outbound (remote unix-socket))"));
+    assert!(!policy.contains("(allow network-outbound)\n"));
+
+    prepared
+        .network_proxy_handle
+        .expect("running executor proxy")
+        .shutdown()
+        .await
+        .expect("shut down executor proxy");
+}
+
+#[tokio::test]
+async fn native_request_preserves_native_launch_fields() {
+    let cwd: AbsolutePathBuf = std::env::current_dir()
+        .expect("current directory")
+        .try_into()
+        .expect("absolute cwd");
+    let cwd_uri = PathUri::from_abs_path(&cwd);
+    let env = HashMap::from([("TEST_ENV".to_string(), "value".to_string())]);
+    let params = ExecParams {
+        metadata: Default::default(),
+        process_id: ProcessId::from("process-1"),
+        argv: vec!["echo".to_string(), "hello".to_string()],
+        cwd: cwd_uri,
+        shell_snapshot: None,
+        env_policy: None,
+        env: HashMap::new(),
+        tty: false,
+        pipe_stdin: false,
+        arg0: Some("custom-arg0".to_string()),
+        sandbox: None,
+        enforce_managed_network: false,
+        managed_network: None,
+        network_proxy: None,
+    };
+
+    let prepared = prepare_exec_request(
+        &params,
+        env.clone(),
+        /*runtime_paths*/ None,
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .expect("prepare native request");
+
+    assert_eq!(prepared.command, params.argv);
+    assert_eq!(prepared.cwd, cwd);
+    assert_eq!(prepared.env, env);
+    assert_eq!(prepared.arg0, params.arg0);
+}
+
+#[test_case(false, None, &["-c", "true"]; "unmasked")]
+#[test_case(true, Some("BASH_ENV"), &["-c", "true"]; "masking_with_startup_hook")]
+#[test_case(true, Some("SSH_CLIENT"), &["-c", "true"]; "masking_with_remote_shell_startup")]
+#[test_case(true, None, &["-c", "-l", "true"]; "masking_with_extra_login_option")]
+#[tokio::test]
+async fn native_request_handles_remote_proxy_config_for_platform(
+    credential_masking: bool,
+    startup_env: Option<&str>,
+    shell_args: &[&str],
+) {
+    let cwd: AbsolutePathBuf = std::env::current_dir()
+        .expect("current directory")
+        .try_into()
+        .expect("absolute cwd");
+    let mut config = NetworkProxyConfig {
+        enabled: true,
+        ..NetworkProxyConfig::default()
+    };
+    config.set_allowed_domains(vec!["allowed.example".to_string()]);
+    let mut proxy_config = RemoteNetworkProxyConfig::from_effective_config(&config)
+        .expect("supported remote proxy config");
+    if credential_masking {
+        proxy_config.enable_credential_masking(Default::default());
+    }
+    let params = ExecParams {
+        metadata: Default::default(),
+        process_id: ProcessId::from("process-remote-proxy"),
+        argv: std::iter::once("/bin/bash")
+            .chain(shell_args.iter().copied())
+            .map(str::to_string)
+            .collect(),
+        cwd: PathUri::from_abs_path(&cwd),
+        shell_snapshot: None,
+        env_policy: None,
+        env: HashMap::new(),
+        tty: false,
+        pipe_stdin: false,
+        arg0: None,
+        sandbox: None,
+        enforce_managed_network: false,
+        managed_network: None,
+        network_proxy: Some(
+            RemoteNetworkProxyLaunchConfig::new(proxy_config)
+                .for_execution("remote".to_string(), "execution-1".to_string()),
+        ),
+    };
+    let stale_proxy = "http://127.0.0.1:9".to_string();
+    let mut env = HashMap::from([
+        ("HTTP_PROXY".to_string(), stale_proxy.clone()),
+        ("TEST_ENV".to_string(), "value".to_string()),
+        ("PATH".to_string(), "/devbox/bin:/usr/bin:/bin".to_string()),
+        (
+            "OPENAI_API_KEY".to_string(),
+            "sk-proj-executor-only-0000000000000000000000000000000000".to_string(),
+        ),
+        (
+            PROXY_ATTRIBUTION_TOKEN_ENV_KEY.to_string(),
+            "foreign-token".to_string(),
+        ),
+    ]);
+    if let Some(key) = startup_env {
+        env.insert(key.to_string(), "startup-hook".to_string());
+    }
+
+    let prepared = prepare_exec_request(
+        &params,
+        env.clone(),
+        /*runtime_paths*/ None,
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .expect("prepare request with executor-local proxy");
+
+    assert_eq!(prepared.command, params.argv);
+    for key in ["PATH", "OPENAI_API_KEY"].into_iter().chain(startup_env) {
+        assert_eq!(prepared.env.get(key), env.get(key), "{key}");
+    }
+
+    if cfg!(target_os = "windows") {
+        assert_eq!(prepared.env.get("HTTP_PROXY"), None);
+        assert_eq!(prepared.env.get("TEST_ENV"), Some(&"value".to_string()));
+        assert!(prepared.network_proxy_handle.is_none());
+        return;
+    }
+
+    let http_proxy = prepared.env.get("HTTP_PROXY").expect("HTTP proxy env");
+    assert_ne!(http_proxy, &stale_proxy);
+    assert!(http_proxy.starts_with("http://127.0.0.1:"));
+    assert!(!prepared.env.contains_key(PROXY_ATTRIBUTION_TOKEN_ENV_KEY));
+    let proxy_addr: SocketAddr = http_proxy
+        .strip_prefix("http://")
+        .expect("HTTP proxy scheme")
+        .parse()
+        .expect("HTTP proxy address");
+    let mut stream = tokio::net::TcpStream::connect(proxy_addr)
+        .await
+        .expect("connect to executor proxy");
+    stream
+        .write_all(b"CONNECT blocked.example:443 HTTP/1.1\r\nHost: blocked.example:443\r\n\r\n")
+        .await
+        .expect("write CONNECT request");
+    let mut response = [0_u8; 256];
+    let response_len = timeout(Duration::from_secs(2), stream.read(&mut response))
+        .await
+        .expect("proxy response timeout")
+        .expect("read proxy response");
+    assert!(String::from_utf8_lossy(&response[..response_len]).starts_with("HTTP/1.1 403"));
+
+    prepared
+        .network_proxy_handle
+        .expect("running executor proxy")
+        .shutdown()
+        .await
+        .expect("shut down executor proxy");
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tokio::test]
+async fn disabled_remote_proxy_config_is_rejected_before_exporting_ports() {
+    let cwd: AbsolutePathBuf = std::env::current_dir()
+        .expect("current directory")
+        .try_into()
+        .expect("absolute cwd");
+    let mut proxy_config =
+        RemoteNetworkProxyConfig::from_effective_config(&NetworkProxyConfig::default())
+            .expect("serializable disabled proxy config");
+    proxy_config.enable_credential_masking(Default::default());
+    let params = ExecParams {
+        metadata: Default::default(),
+        process_id: ProcessId::from("process-disabled-remote-proxy"),
+        argv: vec![
+            "/bin/bash".to_string(),
+            "-lc".to_string(),
+            "true".to_string(),
+        ],
+        cwd: PathUri::from_abs_path(&cwd),
+        shell_snapshot: None,
+        env_policy: None,
+        env: HashMap::new(),
+        tty: false,
+        pipe_stdin: false,
+        arg0: None,
+        sandbox: None,
+        enforce_managed_network: false,
+        managed_network: None,
+        network_proxy: Some(RemoteNetworkProxyLaunchConfig::new(proxy_config)),
+    };
+
+    let error = prepare_exec_request(
+        &params,
+        HashMap::new(),
+        /*runtime_paths*/ None,
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await
+    .err()
+    .expect("disabled executor proxy launch must fail closed");
+
+    assert_eq!(error.code, -32602);
+    assert!(
+        error
+            .message
+            .contains("executor-local network proxy launch requires an enabled proxy")
+    );
+}
+
+#[cfg(windows)]
+#[test_case(WindowsSandboxLevel::RestrictedToken ; "unelevated is rejected")]
+#[test_case(WindowsSandboxLevel::Elevated ; "elevated is accepted")]
+#[tokio::test]
+async fn managed_network_honors_windows_sandbox_level(windows_sandbox_level: WindowsSandboxLevel) {
+    let cwd: AbsolutePathBuf = std::env::current_dir()
+        .expect("current directory")
+        .try_into()
+        .expect("absolute cwd");
+    let cwd_uri = PathUri::from_abs_path(&cwd);
+    let self_exe = std::env::current_exe().expect("current executable");
+    let runtime_paths = ExecServerRuntimeOptions::new(self_exe, None).expect("runtime paths");
+    let permissions = PermissionProfile::read_only();
+    let mut sandbox =
+        FileSystemSandboxContext::from_permission_profile(permissions.clone(), cwd_uri.clone());
+    sandbox.windows_sandbox_selection = windows_sandbox_level.into();
+    sandbox.windows_sandbox_proxy_settings_mode =
+        Some(sandboxing::WindowsSandboxProxySettingsMode::Preserve);
+    let proxy_config = RemoteNetworkProxyConfig::from_effective_config(&NetworkProxyConfig {
+        enabled: true,
+        enable_socks5: false,
+        ..NetworkProxyConfig::default()
+    })
+    .expect("supported remote proxy config");
+    let params = ExecParams {
+        metadata: Default::default(),
+        process_id: ProcessId::from("process-managed-network"),
+        argv: vec!["cmd.exe".to_string(), "/c".to_string(), "exit".to_string()],
+        cwd: cwd_uri,
+        shell_snapshot: None,
+        env_policy: None,
+        env: HashMap::new(),
+        tty: false,
+        pipe_stdin: false,
+        arg0: None,
+        sandbox: Some(sandbox),
+        enforce_managed_network: true,
+        managed_network: None,
+        network_proxy: Some(RemoteNetworkProxyLaunchConfig::new(proxy_config)),
+    };
+
+    let prepared = prepare_exec_request(
+        &params,
+        HashMap::new(),
+        Some(&runtime_paths),
+        /*network_policy_decider*/ None,
+        /*network_policy_audit_observer*/ None,
+    )
+    .await;
+
+    if windows_sandbox_level == WindowsSandboxLevel::RestrictedToken {
+        let error = prepared
+            .err()
+            .expect("managed networking must reject an unelevated Windows sandbox");
+        assert_eq!(error.code, -32602);
+        assert!(
+            error
+                .message
+                .contains("managed networking requires the elevated Windows sandbox backend")
+        );
+        return;
+    }
+
+    let mut prepared = prepared.expect("managed networking accepts an elevated Windows sandbox");
+    let spawn = prepared
+        .windows_sandbox_spawn_request()
+        .expect("Windows sandbox spawn request");
+    assert_eq!(spawn.windows_sandbox_level, WindowsSandboxLevel::Elevated);
+    assert!(spawn.proxy_enforced);
+    assert!(spawn.network_proxy_restricting_sid.is_some());
+    prepared
+        .network_proxy_handle
+        .take()
+        .expect("running executor proxy")
+        .shutdown()
+        .await
+        .expect("shut down executor proxy");
+}

@@ -1,0 +1,17 @@
+[package]
+name = "utils-process"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Process helpers for Lime runtime."
+
+[lib]
+name = "utils_process"
+path = "src/lib.rs"
+doctest = false
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tokio = { workspace = true, features = ["macros", "process", "rt-multi-thread"] }

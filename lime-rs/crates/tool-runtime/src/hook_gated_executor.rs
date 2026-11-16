@@ -10,8 +10,8 @@
 //! - Hook 决策失败（fail closed）与显式 block 走同一条阻断路径，不静默放行。
 
 use crate::hook_lifecycle::{
-    evaluate_hook_event_async, RuntimeHookEvaluation, RuntimeHookEventContext,
-    RuntimeHookHandlerReport, RuntimeHookReportFuture, RuntimeHookReporter,
+    RuntimeHookEvaluation, RuntimeHookEventContext, RuntimeHookHandlerReport,
+    RuntimeHookReportFuture, RuntimeHookReporter, evaluate_hook_event_async,
 };
 use crate::tool_executor::{
     RuntimeToolExecutionError, RuntimeToolExecutionFuture, RuntimeToolExecutionRequest,

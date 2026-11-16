@@ -1,7 +1,7 @@
 //! Private per-user IPC shared by native-messaging and document hosts.
 //! This carries adapter messages only; all business authority stays in the runtime.
 
-use super::{denied, ComputerUseResult, ComputerUseSnapshot};
+use super::{ComputerUseResult, ComputerUseSnapshot, denied};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::{self, OpenOptions};

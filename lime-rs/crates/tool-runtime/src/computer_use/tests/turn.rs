@@ -106,26 +106,32 @@ async fn takeover_revokes_turn_admission_and_releases_control_for_explicit_new_t
     grant(&service).await;
     service.bind_turn(owner()).unwrap();
     adapter.interrupted.store(true, Ordering::SeqCst);
-    assert!(service
-        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
-        .await
-        .unwrap_err()
-        .is_interrupted());
-    assert!(service
-        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+            .await
+            .unwrap_err()
+            .is_interrupted()
+    );
+    assert!(
+        service
+            .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+            .await
+            .is_err()
+    );
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 1);
     let mut next = owner();
     next.turn_id = "explicit-resume".into();
     service.bind_turn(next).unwrap();
     adapter.interrupted.store(false, Ordering::SeqCst);
-    assert!(service
-        .execute_for_turn("thread-1", "explicit-resume", target(), observe(), || Ok(
-            allow()
-        ))
-        .await
-        .is_ok());
+    assert!(
+        service
+            .execute_for_turn("thread-1", "explicit-resume", target(), observe(), || Ok(
+                allow()
+            ))
+            .await
+            .is_ok()
+    );
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 2);
 }
 
@@ -133,10 +139,12 @@ async fn takeover_revokes_turn_admission_and_releases_control_for_explicit_new_t
 async fn automatic_lease_requires_the_bound_connections_existing_grant() {
     let (_directory, service, adapter) = fixture();
     grant(&service).await;
-    assert!(service
-        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+            .await
+            .is_err()
+    );
     let mut other = owner();
     other.connection = "another-connection".into();
     service.bind_turn(other).unwrap();
@@ -144,10 +152,12 @@ async fn automatic_lease_requires_the_bound_connections_existing_grant() {
         service.bind_turn(owner()).is_err(),
         "turn authority must not be rebound"
     );
-    assert!(service
-        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+            .await
+            .is_err()
+    );
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 0);
 }
 
@@ -183,10 +193,12 @@ async fn automatic_lease_releases_each_action_and_revocation_prevents_more_input
     }
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 3);
     service.revoke("local-1", &grant.id).unwrap();
-    assert!(service
-        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+            .await
+            .is_err()
+    );
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 3);
 }
 
@@ -196,18 +208,22 @@ async fn terminal_turn_and_disconnect_remove_automatic_action_authority() {
     grant(&service).await;
     service.bind_turn(owner()).unwrap();
     service.cancel_turn("thread-1", "turn-1");
-    assert!(service
-        .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .execute_for_turn("thread-1", "turn-1", target(), observe(), || Ok(allow()))
+            .await
+            .is_err()
+    );
     let mut next = owner();
     next.turn_id = "turn-2".into();
     service.bind_turn(next).unwrap();
     service.disconnect("local-1");
-    assert!(service
-        .execute_for_turn("thread-1", "turn-2", target(), observe(), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .execute_for_turn("thread-1", "turn-2", target(), observe(), || Ok(allow()))
+            .await
+            .is_err()
+    );
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 0);
     let mut next = owner();
     next.turn_id = "turn-2".into();

@@ -1,10 +1,10 @@
 mod response;
 
 pub use response::{
-    approval_request_failed, ExecutionApprovalResponse, APPROVAL_REQUEST_FAILED_METADATA_KEY,
+    APPROVAL_REQUEST_FAILED_METADATA_KEY, ExecutionApprovalResponse, approval_request_failed,
 };
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 pub const TOOL_EXECUTION_ACTION_KIND: &str = "tool_execution_policy";
@@ -303,14 +303,18 @@ mod tests {
             Some(&json!("https"))
         );
         assert!(projection.approval_scope.get("cwd").is_none());
-        assert!(!projection
-            .approval_scope
-            .to_string()
-            .contains("/Users/coso/project"));
-        assert!(!projection
-            .approval_scope
-            .to_string()
-            .contains("token=secret"));
+        assert!(
+            !projection
+                .approval_scope
+                .to_string()
+                .contains("/Users/coso/project")
+        );
+        assert!(
+            !projection
+                .approval_scope
+                .to_string()
+                .contains("token=secret")
+        );
     }
 
     #[test]

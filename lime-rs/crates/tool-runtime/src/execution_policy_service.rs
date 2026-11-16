@@ -3,9 +3,9 @@ use crate::execution_policy::{
     ToolExecutionRestrictionProfile, ToolExecutionSandboxProfile, ToolExecutionWarningPolicy,
 };
 use crate::execution_rules::{
-    classify_network_access, classify_shell_command_with_rules, NetworkRule, NetworkRuleMatch,
-    NetworkRuleTarget, ShellCommandRiskLevel, ShellCommandRule, ShellCommandRuleMatch,
-    ShellCommandRuleMatchType, ShellCommandRuleSource,
+    NetworkRule, NetworkRuleMatch, NetworkRuleTarget, ShellCommandRiskLevel, ShellCommandRule,
+    ShellCommandRuleMatch, ShellCommandRuleMatchType, ShellCommandRuleSource,
+    classify_network_access, classify_shell_command_with_rules,
 };
 use lime_core::config::{
     ToolExecutionCommandRiskLevelConfig as ConfigToolExecutionCommandRiskLevelConfig,
@@ -19,7 +19,7 @@ use lime_core::config::{
     ToolExecutionSandboxProfileConfig as ConfigToolExecutionSandboxProfileConfig,
     ToolExecutionWarningPolicyConfig as ConfigToolExecutionWarningPolicyConfig,
 };
-use serde_json::{json, Map as JsonMap, Value as JsonValue};
+use serde_json::{Map as JsonMap, Value as JsonValue, json};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, Default)]

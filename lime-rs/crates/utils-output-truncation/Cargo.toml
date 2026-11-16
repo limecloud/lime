@@ -1,0 +1,21 @@
+[package]
+name = "utils-output-truncation"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Output truncation helpers."
+
+[lib]
+name = "utils_output_truncation"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+protocol = { path = "../protocol" }
+serde_json.workspace = true
+utils-string = { path = "../utils-string" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

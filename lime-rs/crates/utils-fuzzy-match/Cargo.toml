@@ -1,0 +1,13 @@
+[package]
+name = "utils-fuzzy-match"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Fuzzy matching helpers."
+
+[lib]
+name = "utils_fuzzy_match"
+path = "src/lib.rs"
+doctest = false

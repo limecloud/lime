@@ -126,26 +126,34 @@ async fn without_server_filters_tool_definitions_and_dispatch_routes() {
 
     let filtered = captured.without_server("lime_apps");
 
-    assert!(filtered
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "docs__search"));
-    assert!(!filtered
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "lime_apps__search"));
-    assert!(filtered
-        .dispatch(
-            call("lime_apps__search"),
-            scope(),
-            CancellationToken::default(),
-        )
-        .await
-        .is_err());
-    assert!(filtered
-        .dispatch(call("docs__search"), scope(), CancellationToken::default(),)
-        .await
-        .is_ok());
+    assert!(
+        filtered
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "docs__search")
+    );
+    assert!(
+        !filtered
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "lime_apps__search")
+    );
+    assert!(
+        filtered
+            .dispatch(
+                call("lime_apps__search"),
+                scope(),
+                CancellationToken::default(),
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        filtered
+            .dispatch(call("docs__search"), scope(), CancellationToken::default(),)
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -389,30 +397,38 @@ async fn tools_added_after_capture_are_visible_only_to_next_step() {
     register(&registry, vec!["search", "new_tool"], "new").await;
     let fresh = snapshot(&registry, HashSet::new(), Duration::from_secs(1)).await;
 
-    assert!(!captured
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "docs__new_tool"));
-    assert!(captured
-        .dispatch(
-            call("docs__new_tool"),
-            scope(),
-            CancellationToken::default(),
-        )
-        .await
-        .is_err());
-    assert!(fresh
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "docs__new_tool"));
-    assert!(fresh
-        .dispatch(
-            call("docs__new_tool"),
-            scope(),
-            CancellationToken::default(),
-        )
-        .await
-        .is_ok());
+    assert!(
+        !captured
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "docs__new_tool")
+    );
+    assert!(
+        captured
+            .dispatch(
+                call("docs__new_tool"),
+                scope(),
+                CancellationToken::default(),
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        fresh
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "docs__new_tool")
+    );
+    assert!(
+        fresh
+            .dispatch(
+                call("docs__new_tool"),
+                scope(),
+                CancellationToken::default(),
+            )
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -441,20 +457,26 @@ async fn deferred_selection_changes_only_the_next_snapshot() {
     let selected = HashSet::from(["docs__query".to_string()]);
     let after = snapshot(&registry, selected, Duration::from_secs(1)).await;
 
-    assert!(before
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "docs__search"));
+    assert!(
+        before
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "docs__search")
+    );
     assert!(!before.tools().iter().any(|tool| tool.name == "docs__query"));
-    assert!(before
-        .dispatch(call("docs__query"), scope(), CancellationToken::default())
-        .await
-        .is_err());
+    assert!(
+        before
+            .dispatch(call("docs__query"), scope(), CancellationToken::default())
+            .await
+            .is_err()
+    );
     assert!(after.tools().iter().any(|tool| tool.name == "docs__query"));
-    assert!(after
-        .dispatch(call("docs__query"), scope(), CancellationToken::default())
-        .await
-        .is_ok());
+    assert!(
+        after
+            .dispatch(call("docs__query"), scope(), CancellationToken::default())
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -495,14 +517,16 @@ async fn assistant_snapshot_filters_and_rechecks_per_tool_caller_policy() {
         .map(|tool| tool.name.as_ref())
         .collect::<Vec<_>>();
     assert_eq!(names, vec!["mixed__public", "mixed__review"]);
-    assert!(captured
-        .dispatch(
-            call("mixed__execute"),
-            scope(),
-            CancellationToken::default(),
-        )
-        .await
-        .is_err());
+    assert!(
+        captured
+            .dispatch(
+                call("mixed__execute"),
+                scope(),
+                CancellationToken::default(),
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(call_count.load(Ordering::SeqCst), 0);
 
     let denied_route = McpStepRoute {
@@ -524,14 +548,16 @@ async fn assistant_snapshot_filters_and_rechecks_per_tool_caller_policy() {
             denied_route,
         )])),
     };
-    assert!(forged_snapshot
-        .dispatch(
-            call("mixed__execute"),
-            scope(),
-            CancellationToken::default(),
-        )
-        .await
-        .is_err());
+    assert!(
+        forged_snapshot
+            .dispatch(
+                call("mixed__execute"),
+                scope(),
+                CancellationToken::default(),
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(call_count.load(Ordering::SeqCst), 0);
 
     let code_execution = snapshot_for_caller(
@@ -616,10 +642,12 @@ async fn per_tool_caller_schema_precedes_extension_fallback() {
     .await;
 
     let assistant = snapshot(&registry, HashSet::new(), Duration::from_secs(1)).await;
-    assert!(assistant
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "precedence__review"));
+    assert!(
+        assistant
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "precedence__review")
+    );
 
     let code_execution = snapshot_for_caller(
         &registry,
@@ -639,18 +667,24 @@ async fn discovery_error_keeps_healthy_server_tools() {
 
     let captured = snapshot(&registry, HashSet::new(), Duration::from_millis(50)).await;
 
-    assert!(captured
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "fast__search"));
-    assert!(!captured
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "broken__search"));
-    assert!(captured
-        .dispatch(call("fast__search"), scope(), CancellationToken::default())
-        .await
-        .is_ok());
+    assert!(
+        captured
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "fast__search")
+    );
+    assert!(
+        !captured
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "broken__search")
+    );
+    assert!(
+        captured
+            .dispatch(call("fast__search"), scope(), CancellationToken::default())
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -666,13 +700,17 @@ async fn discovery_timeout_keeps_concurrent_healthy_server_tools() {
     .await
     .expect("per-server timeout should keep snapshot capture bounded");
 
-    assert!(captured
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "fast__search"));
-    assert!(!captured
-        .tools()
-        .iter()
-        .any(|tool| tool.name == "slow__search"));
+    assert!(
+        captured
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "fast__search")
+    );
+    assert!(
+        !captured
+            .tools()
+            .iter()
+            .any(|tool| tool.name == "slow__search")
+    );
     assert_eq!(registry.names().await, vec!["fast", "slow"]);
 }

@@ -1,7 +1,7 @@
-use super::{create_pipe_pair, io, OwnedHandle};
+use super::{OwnedHandle, create_pipe_pair, io};
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::System::Console::{
-    ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
+    COORD, ClosePseudoConsole, CreatePseudoConsole, HPCON, ResizePseudoConsole,
 };
 
 const PSEUDOCONSOLE_RESIZE_QUIRK: u32 = 0x2;

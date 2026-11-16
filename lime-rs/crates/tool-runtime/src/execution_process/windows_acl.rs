@@ -1,7 +1,7 @@
+use super::windows_acl_plan::AclPlan;
 use super::windows_acl_plan::build_acl_plan;
 #[cfg(test)]
 use super::windows_acl_plan::reject_reparse_components;
-use super::windows_acl_plan::AclPlan;
 use super::*;
 #[cfg(test)]
 use app_server_protocol::protocol::v2::{
@@ -13,12 +13,13 @@ use std::sync::{Mutex, OnceLock};
 use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 use windows_sys::Win32::Security::Authorization::{
-    GetNamedSecurityInfoW, SetEntriesInAclW, SetNamedSecurityInfoW, DENY_ACCESS, EXPLICIT_ACCESS_W,
-    SET_ACCESS, TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
+    DENY_ACCESS, EXPLICIT_ACCESS_W, GetNamedSecurityInfoW, SET_ACCESS, SetEntriesInAclW,
+    SetNamedSecurityInfoW, TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
 };
 use windows_sys::Win32::Security::{
-    GetFileSecurityW, GetSecurityDescriptorControl, SetFileSecurityW, DACL_SECURITY_INFORMATION,
-    PROTECTED_DACL_SECURITY_INFORMATION, SE_DACL_PROTECTED, UNPROTECTED_DACL_SECURITY_INFORMATION,
+    DACL_SECURITY_INFORMATION, GetFileSecurityW, GetSecurityDescriptorControl,
+    PROTECTED_DACL_SECURITY_INFORMATION, SE_DACL_PROTECTED, SetFileSecurityW,
+    UNPROTECTED_DACL_SECURITY_INFORMATION,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     DELETE, FILE_ALL_ACCESS, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ,
@@ -482,15 +483,18 @@ mod tests {
         )
         .expect("ACL plan");
 
-        assert!(plan
-            .read_grants
-            .contains(&std::fs::canonicalize(&read_only).unwrap()));
-        assert!(plan
-            .write_denies
-            .contains(&std::fs::canonicalize(&read_only).unwrap()));
-        assert!(plan
-            .access_denies
-            .contains(&std::fs::canonicalize(&denied).unwrap()));
+        assert!(
+            plan.read_grants
+                .contains(&std::fs::canonicalize(&read_only).unwrap())
+        );
+        assert!(
+            plan.write_denies
+                .contains(&std::fs::canonicalize(&read_only).unwrap())
+        );
+        assert!(
+            plan.access_denies
+                .contains(&std::fs::canonicalize(&denied).unwrap())
+        );
     }
 
     #[test]

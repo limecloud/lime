@@ -1,0 +1,24 @@
+[package]
+name = "uds"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Cross-platform Unix domain socket helpers."
+
+[lib]
+name = "uds"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+tokio = { workspace = true, features = ["fs", "net", "rt"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "rt-multi-thread"] }

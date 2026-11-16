@@ -375,8 +375,7 @@ fn provider_diagnostics_never_include_messages_or_credential_material() {
     for forbidden in ["private-value", "signed.invalid", "secret=value"] {
         assert!(!error.contains(forbidden));
     }
-    let error =
-        diagnostic(br#"{"Code":"Denied","RequestId":"request-1","Message":"secret"}"#);
+    let error = diagnostic(br#"{"Code":"Denied","RequestId":"request-1","Message":"secret"}"#);
     assert!(error.contains("ErrorCode=Denied"));
     assert!(!error.contains("secret"));
     assert!(!diagnostic(b"RequestId: token=secret").contains("secret"));

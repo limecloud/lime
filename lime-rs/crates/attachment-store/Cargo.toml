@@ -1,0 +1,21 @@
+[package]
+name = "attachment-store"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Attachment storage."
+
+[lib]
+name = "attachment_store"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync"] }

@@ -1,0 +1,17 @@
+[package]
+name = "config-schema"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Config schema writer."
+
+[[bin]]
+name = "lime-write-config-schema"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+config = { path = "../config-upstream" }

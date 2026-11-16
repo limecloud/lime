@@ -1,0 +1,46 @@
+[package]
+name = "rollout"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rollout persistence."
+
+[lib]
+name = "rollout"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+extension-items = { path = "../extension-items" }
+file-search = { path = "../file-search" }
+futures.workspace = true
+git-utils = { path = "../git-utils" }
+history = { path = "../history" }
+lime-utils-absolute-path.workspace = true
+memchr = "2"
+otel = { path = "../otel" }
+protocol = { path = "../protocol" }
+regex = "1.12.3"
+serde.workspace = true
+serde_json.workspace = true
+state = { path = "../state" }
+tempfile.workspace = true
+time = { version = "0.3.47", features = ["formatting", "local-offset", "macros", "parsing"] }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "process", "rt", "sync", "time"] }
+tracing.workspace = true
+utils-output-truncation = { path = "../utils-output-truncation" }
+utils-path = { path = "../utils-path" }
+utils-process = { path = "../utils-process" }
+utils-string = { path = "../utils-string" }
+uuid.workspace = true
+zstd = "0.13"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+pretty_assertions.workspace = true

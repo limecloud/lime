@@ -1,13 +1,13 @@
-use super::{last_os_error, to_wide, LocalSid};
+use super::{LocalSid, last_os_error, to_wide};
 use std::io;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, LocalFree, ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE, WAIT_ABANDONED,
+    CloseHandle, ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE, LocalFree, WAIT_ABANDONED,
     WAIT_OBJECT_0,
 };
 use windows_sys::Win32::Security::Authorization::{
-    GetSecurityInfo, SetEntriesInAclW, SetSecurityInfo, EXPLICIT_ACCESS_W, REVOKE_ACCESS,
-    SET_ACCESS, SE_KERNEL_OBJECT, TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
+    EXPLICIT_ACCESS_W, GetSecurityInfo, REVOKE_ACCESS, SE_KERNEL_OBJECT, SET_ACCESS,
+    SetEntriesInAclW, SetSecurityInfo, TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
 };
 use windows_sys::Win32::Security::{ACL, DACL_SECURITY_INFORMATION};
 use windows_sys::Win32::Storage::FileSystem::{
@@ -15,7 +15,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateMutexW, ReleaseMutex, WaitForSingleObject, INFINITE,
+    CreateMutexW, INFINITE, ReleaseMutex, WaitForSingleObject,
 };
 
 const READ_CONTROL: u32 = 0x0002_0000;

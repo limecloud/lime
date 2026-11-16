@@ -1,0 +1,28 @@
+[package]
+name = "stdio-to-uds"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "stdio to UDS bridge."
+
+[[bin]]
+name = "lime-stdio-to-uds"
+path = "src/main.rs"
+
+[lib]
+name = "stdio_to_uds"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+tokio = { workspace = true, features = ["io-std", "io-util", "macros", "rt-multi-thread"] }
+uds = { path = "../uds" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true
+utils-cargo-bin = { path = "../utils-cargo-bin" }

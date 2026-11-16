@@ -1,0 +1,26 @@
+[package]
+name = "features"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Runtime feature flags."
+
+[lib]
+name = "features"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+network-proxy = { path = "../network-proxy" }
+protocol = { path = "../protocol" }
+schemars = "0.8"
+serde.workspace = true
+toml = "0.9"
+tracing.workspace = true
+thiserror.workspace = true
+utils-redacted-string = { path = "../utils-redacted-string" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

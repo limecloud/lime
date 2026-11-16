@@ -45,3 +45,11 @@ rustls-platform-verifier = "0.7.0"
 socket2 = "0.6"
 tokio-rustls = "0.26"
 windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Networking_WinHttp"] }
+
+[dev-dependencies]
+opentelemetry_sdk.workspace = true
+pretty_assertions.workspace = true
+rcgen = { version = "0.14.7", default-features = false, features = ["aws_lc_rs", "pem"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "test-util", "time"] }
+tracing-subscriber = "0.3"

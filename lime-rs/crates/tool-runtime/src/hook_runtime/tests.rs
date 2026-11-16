@@ -38,9 +38,15 @@ fn discovered(command: &str, timeout_sec: u64) -> DiscoveredHook {
 #[tokio::test]
 async fn plugin_environment_is_scoped_to_the_hook_process() {
     let command = match shell_command_flag(&resolve_command_shell()) {
-        "/C" => "echo %PLUGIN_ROOT%& echo %PLUGIN_DATA%& echo %CLAUDE_PLUGIN_ROOT%& echo %CLAUDE_PLUGIN_DATA%",
-        "-Command" => "$env:PLUGIN_ROOT; $env:PLUGIN_DATA; $env:CLAUDE_PLUGIN_ROOT; $env:CLAUDE_PLUGIN_DATA",
-        _ => "printf '%s\\n' \"$PLUGIN_ROOT\" \"$PLUGIN_DATA\" \"$CLAUDE_PLUGIN_ROOT\" \"$CLAUDE_PLUGIN_DATA\"",
+        "/C" => {
+            "echo %PLUGIN_ROOT%& echo %PLUGIN_DATA%& echo %CLAUDE_PLUGIN_ROOT%& echo %CLAUDE_PLUGIN_DATA%"
+        }
+        "-Command" => {
+            "$env:PLUGIN_ROOT; $env:PLUGIN_DATA; $env:CLAUDE_PLUGIN_ROOT; $env:CLAUDE_PLUGIN_DATA"
+        }
+        _ => {
+            "printf '%s\\n' \"$PLUGIN_ROOT\" \"$PLUGIN_DATA\" \"$CLAUDE_PLUGIN_ROOT\" \"$CLAUDE_PLUGIN_DATA\""
+        }
     };
     let mut hook = discovered(command, 5);
     hook.env = std::collections::BTreeMap::from([

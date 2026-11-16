@@ -304,7 +304,8 @@ async fn selected_setup_uses_platform_and_subdirectory_cleanup_survives_restart_
     let marker = std::fs::canonicalize(fixture.temp.path())
         .unwrap()
         .join("cleanup-done");
-    let setup = "printf '%s\\n%s\\n' \"$LIME_SOURCE_TREE_PATH\" \"$LIME_WORKTREE_PATH\" > setup-paths.txt";
+    let setup =
+        "printf '%s\\n%s\\n' \"$LIME_SOURCE_TREE_PATH\" \"$LIME_WORKTREE_PATH\" > setup-paths.txt";
     let raw = format!("name='API'\n[setup]\nscript='exit 41'\n[setup.darwin]\nscript='''{setup}'''\n[setup.linux]\nscript='''{setup}'''\n[cleanup]\nscript='exit 23'\n");
     fixture.save(&fixture.environment, &raw).await;
     let created = fixture.create("selected", json!({})).await;

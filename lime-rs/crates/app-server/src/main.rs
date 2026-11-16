@@ -16,9 +16,11 @@ use app_server::SidecarStore;
 use app_server::StorageRoots;
 use app_server::TraceEventWriter;
 use app_server::DEFAULT_EXTERNAL_BACKEND_TIMEOUT_MS;
+use app_server_transport::websocket_auth::{
+    policy_from_settings, WebsocketAuthArgs, WebsocketAuthSettings,
+};
 use app_server_transport::AppServerTransport;
 use app_server_transport::DEFAULT_LISTEN_URL;
-use app_server_transport::websocket_auth::{policy_from_settings, WebsocketAuthArgs, WebsocketAuthSettings};
 use clap::Parser;
 use lime_core::app_paths;
 use lime_core::database;
@@ -552,7 +554,10 @@ fn parse_args_from_with_env(
             let inline_value = arg.contains('=');
             websocket_auth_args.push(arg.clone());
             if !inline_value {
-                websocket_auth_args.push(args.next().ok_or_else(|| anyhow::anyhow!("{arg} requires a value"))?);
+                websocket_auth_args.push(
+                    args.next()
+                        .ok_or_else(|| anyhow::anyhow!("{arg} requires a value"))?,
+                );
             }
             continue;
         }
@@ -656,7 +661,9 @@ fn parse_args_from_with_env(
         anyhow::bail!("--model-control-source requires an explicit --data-dir");
     }
 
-    let websocket_auth = WebsocketAuthCli::try_parse_from(websocket_auth_args)?.auth.try_into_settings()?;
+    let websocket_auth = WebsocketAuthCli::try_parse_from(websocket_auth_args)?
+        .auth
+        .try_into_settings()?;
     if websocket_auth.config.is_some() && !listen.starts_with("ws://") {
         anyhow::bail!("--ws-auth requires a WebSocket --listen URL");
     }

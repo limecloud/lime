@@ -1,0 +1,37 @@
+[package]
+name = "sandboxing"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Platform sandbox construction and launch."
+
+[lib]
+name = "sandboxing"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+dunce = "1"
+libc = "0.2"
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+mxc-sandbox = { path = "../mxc-sandbox" }
+network-proxy = { path = "../network-proxy" }
+protocol = { path = "../protocol" }
+regex-lite = "0.1"
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "sync"] }
+tracing.workspace = true
+uds = { path = "../uds" }
+url.workspace = true
+utils-pty = { path = "../utils-pty" }
+which = "8"
+windows-sandbox = { path = "../windows-sandbox" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "time"] }

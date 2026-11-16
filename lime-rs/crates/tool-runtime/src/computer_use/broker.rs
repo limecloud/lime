@@ -3,7 +3,7 @@
 //! Codex revision 1885417cd45a8da5bfdeb7864a5380a7481d48f2,
 //! codex-rs/app-server-daemon/src/backend/pid.rs::EmptyPidProbeLock (Apache-2.0).
 
-use super::{denied, ComputerUseResult};
+use super::{ComputerUseResult, denied};
 use fs2::FileExt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};

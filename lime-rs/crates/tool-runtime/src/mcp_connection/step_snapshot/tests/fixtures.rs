@@ -6,8 +6,8 @@ use crate::mcp_connection::{
 use crate::tool_extension::{RuntimeExtensionConfig, RuntimeToolCaller};
 use rmcp::model::{CallToolRequestParams, CallToolResult, JsonObject, Tool};
 use std::collections::HashSet;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 use tokio::sync::Mutex;
 

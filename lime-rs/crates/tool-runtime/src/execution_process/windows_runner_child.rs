@@ -1,28 +1,28 @@
 use super::windows_job::write_pipe;
 use super::windows_job::{active_job_processes, preserve_job_descendants};
 use super::windows_runner_protocol::{
-    decode_bytes, encode_bytes, read_frame, write_frame, RunnerMessage, RunnerSpawnRequest,
+    RunnerMessage, RunnerSpawnRequest, decode_bytes, encode_bytes, read_frame, write_frame,
 };
 use super::{
-    create_restricted_token, last_os_error, spawn_restricted_process, to_wide,
-    LocalExecutionRequest, LocalSid, OwnedHandle, RestrictedConpty,
+    LocalExecutionRequest, LocalSid, OwnedHandle, RestrictedConpty, create_restricted_token,
+    last_os_error, spawn_restricted_process, to_wide,
 };
 use std::fs::File;
 use std::io;
 use std::os::windows::io::FromRawHandle;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::Duration;
 use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
 use windows_sys::Win32::Security::EqualSid;
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, ReadFile, FILE_GENERIC_READ, FILE_GENERIC_WRITE, OPEN_EXISTING,
+    CreateFileW, FILE_GENERIC_READ, FILE_GENERIC_WRITE, OPEN_EXISTING, ReadFile,
 };
 use windows_sys::Win32::System::JobObjects::TerminateJobObject;
 use windows_sys::Win32::System::Threading::{
-    GetExitCodeProcess, GetProcessId, WaitForSingleObject, INFINITE,
+    GetExitCodeProcess, GetProcessId, INFINITE, WaitForSingleObject,
 };
 
 const OUTPUT_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
@@ -229,41 +229,43 @@ fn spawn_control_reader(
     pseudoconsole: Option<Arc<RestrictedConpty>>,
     terminated: Arc<AtomicBool>,
 ) {
-    thread::spawn(move || loop {
-        match read_frame(&mut pipe_read) {
-            Ok(Some(RunnerMessage::Stdin { data_base64 })) => {
-                let Ok(bytes) = decode_bytes(&data_base64) else {
-                    continue;
-                };
-                if let Ok(guard) = stdin.lock() {
-                    if let Some(handle) = guard.as_ref() {
-                        let _ = write_pipe(handle.raw(), &bytes);
+    thread::spawn(move || {
+        loop {
+            match read_frame(&mut pipe_read) {
+                Ok(Some(RunnerMessage::Stdin { data_base64 })) => {
+                    let Ok(bytes) = decode_bytes(&data_base64) else {
+                        continue;
+                    };
+                    if let Ok(guard) = stdin.lock() {
+                        if let Some(handle) = guard.as_ref() {
+                            let _ = write_pipe(handle.raw(), &bytes);
+                        }
                     }
                 }
-            }
-            Ok(Some(RunnerMessage::CloseStdin)) => {
-                if let Ok(mut guard) = stdin.lock() {
-                    guard.take();
+                Ok(Some(RunnerMessage::CloseStdin)) => {
+                    if let Ok(mut guard) = stdin.lock() {
+                        guard.take();
+                    }
                 }
-            }
-            Ok(Some(RunnerMessage::Resize { rows, cols })) => {
-                if let Some(pseudoconsole) = pseudoconsole.as_ref() {
-                    let _ = pseudoconsole.resize(rows, cols);
+                Ok(Some(RunnerMessage::Resize { rows, cols })) => {
+                    if let Some(pseudoconsole) = pseudoconsole.as_ref() {
+                        let _ = pseudoconsole.resize(rows, cols);
+                    }
                 }
-            }
-            Ok(Some(RunnerMessage::Terminate)) => {
-                terminated.store(true, Ordering::Release);
-                unsafe {
-                    TerminateJobObject(job.raw(), 1);
+                Ok(Some(RunnerMessage::Terminate)) => {
+                    terminated.store(true, Ordering::Release);
+                    unsafe {
+                        TerminateJobObject(job.raw(), 1);
+                    }
                 }
-            }
-            Ok(Some(_)) => {}
-            Ok(None) | Err(_) => {
-                terminated.store(true, Ordering::Release);
-                unsafe {
-                    TerminateJobObject(job.raw(), 1);
+                Ok(Some(_)) => {}
+                Ok(None) | Err(_) => {
+                    terminated.store(true, Ordering::Release);
+                    unsafe {
+                        TerminateJobObject(job.raw(), 1);
+                    }
+                    break;
                 }
-                break;
             }
         }
     });

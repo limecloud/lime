@@ -1,0 +1,26 @@
+[package]
+name = "history"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Thread history persistence."
+
+[lib]
+name = "history"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+lime-utils-absolute-path.workspace = true
+protocol = { path = "../protocol" }
+schemars = "0.8"
+serde.workspace = true
+serde_json.workspace = true
+utils-model-facing-id = { path = "../utils-model-facing-id" }
+
+[dev-dependencies]
+anyhow.workspace = true
+pretty_assertions.workspace = true
+protocol-test-support = { path = "../protocol-test-support" }

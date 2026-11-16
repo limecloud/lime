@@ -1,0 +1,235 @@
+use super::DELETE;
+use super::DirectoryAcl;
+use super::FILE_GENERIC_EXECUTE;
+use super::FILE_GENERIC_READ;
+use super::FILE_GENERIC_WRITE;
+use super::GRANT_ACCESS;
+use super::Payload;
+use super::SETUP_VERSION;
+use super::SetupMode;
+use super::SetupRuntime;
+use super::WRITE_DAC;
+use super::convert_string_sid_to_sid;
+use super::lock_sandbox_bin_dir;
+use super::lock_sandbox_dir;
+use super::resolve_sid;
+use super::sid_bytes_to_psid;
+use crate::ensure_allow_write_aces;
+use crate::extract_setup_failure;
+use crate::path_mask_allows;
+use crate::read_setup_error_report;
+use crate::workspace_write_cap_sid_for_root;
+use crate::write_setup_error_report;
+use pretty_assertions::assert_eq;
+use std::fs;
+use windows_sys::Win32::Foundation::ERROR_PATH_NOT_FOUND;
+use windows_sys::Win32::Foundation::HLOCAL;
+use windows_sys::Win32::Foundation::LocalFree;
+
+#[test]
+fn bin_lock_report_retains_native_open_error() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let mut payload: Payload =
+        serde_json::from_value(super::tests::payload_json()).expect("fixture payload");
+    // The no-reparse open cannot create a bin whose parent does not exist.
+    // It fails before resolving account SIDs or changing any permissions.
+    payload.lime_home = temp.path().join("missing-home");
+    payload.mode = SetupMode::ProvisionOnly;
+    let bin = super::sandbox_bin_dir(&payload.lime_home);
+    let error = lock_sandbox_bin_dir(&payload, &[]).expect_err("missing bin parent");
+    let failure = extract_setup_failure(&error).expect("structured lock failure");
+    let expected = crate::SetupFailure::new(
+        crate::SetupErrorCode::HelperSandboxLockFailed,
+        format!(
+            "lock sandbox bin dir {0} failed: open directory {0}: NtCreateFile: {1}",
+            bin.display(),
+            std::io::Error::from_raw_os_error(ERROR_PATH_NOT_FOUND as i32),
+        ),
+    );
+    assert_eq!(failure, &expected);
+
+    write_setup_error_report(
+        temp.path(),
+        &crate::SetupErrorReport {
+            code: failure.code,
+            message: failure.message.clone(),
+        },
+    )
+    .expect("write structured failure");
+    let report = read_setup_error_report(temp.path())
+        .expect("read structured failure")
+        .expect("failure report");
+    assert_eq!(crate::SetupFailure::from_report(report), expected);
+    assert!(!payload.lime_home.exists());
+}
+
+#[test]
+fn provision_only_locks_plain_directory_via_handle() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let sandbox_bin = temp.path().join(".sandbox-bin");
+    let real_user = std::env::var("USERNAME").unwrap_or_else(|_| "Administrators".to_string());
+    let real_sid = resolve_sid(&real_user).expect("resolve real user SID");
+
+    lock_sandbox_dir(
+        &sandbox_bin,
+        &real_user,
+        &real_sid,
+        GRANT_ACCESS,
+        FILE_GENERIC_READ | FILE_GENERIC_EXECUTE,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE,
+        DirectoryAcl::ApplyProtected,
+        SetupMode::ProvisionOnly,
+    )
+    .expect("lock sandbox bin via no-reparse handle");
+
+    assert!(sandbox_bin.is_dir());
+}
+
+#[test]
+fn repeated_registered_setup_keeps_existing_file_permissions() -> anyhow::Result<()> {
+    let home = tempfile::tempdir()?;
+    let mut payload: Payload = serde_json::from_value(super::tests::payload_json())?;
+    payload.lime_home = home.path().to_owned();
+    payload.real_user = crate::runtime_ownership::current_setup_user()?;
+    payload.mode = SetupMode::ProvisionOnly;
+    payload.runtime = super::SetupRuntime::Registered;
+    let group = crate::winutil::sid_bytes_from_string("S-1-5-21-42-43-44-1000")?;
+    let configure = || super::lock_persistent_sandbox_dirs(&payload, &group);
+    configure()?;
+
+    let existing = home.path().join("existing");
+    fs::write(&existing, b"test")?;
+    let moved = home.path().join(".sandbox").join("existing");
+    fs::rename(existing, &moved)?;
+    let can_write = |file: &std::path::Path| {
+        path_mask_allows(
+            file,
+            &[group.as_ptr().cast_mut().cast()],
+            windows_sys::Win32::Storage::FileSystem::FILE_WRITE_DATA,
+            /*require_all_bits*/ true,
+        )
+    };
+    assert!(!can_write(&moved)?);
+    configure()?;
+    assert!(!can_write(&moved)?);
+    let new_file = home.path().join(".sandbox").join("new");
+    fs::write(&new_file, b"test")?;
+    assert!(can_write(&new_file)?);
+    Ok(())
+}
+
+#[test]
+fn lock_sandbox_dir_blocks_inherited_write_for_runner_files() {
+    for setup_mode in [SetupMode::Full, SetupMode::ProvisionOnly] {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace = temp.path().join("workspace");
+        let sandbox_bin = workspace.join(".sandbox-bin");
+        fs::create_dir(&workspace).expect("create workspace");
+
+        let workspace_sid = workspace_write_cap_sid_for_root(temp.path(), temp.path(), temp.path())
+            .expect("workspace SID");
+        let workspace_psid =
+            unsafe { convert_string_sid_to_sid(&workspace_sid).expect("convert workspace SID") };
+        let sandbox_group_sid =
+            resolve_sid("Authenticated Users").expect("resolve sandbox group SID");
+        let sandbox_group_psid =
+            sid_bytes_to_psid(&sandbox_group_sid).expect("convert sandbox group SID");
+        unsafe { ensure_allow_write_aces(&workspace, &[workspace_psid]) }
+            .expect("grant inherited workspace write access");
+
+        fs::create_dir(&sandbox_bin).expect("create sandbox bin");
+        let existing_runner = sandbox_bin.join("existing-runner.exe");
+        fs::write(&existing_runner, b"existing").expect("create existing runner");
+        assert!(
+            path_mask_allows(
+                &existing_runner,
+                &[workspace_psid],
+                FILE_GENERIC_WRITE | DELETE,
+                /*require_all_bits*/ true,
+            )
+            .expect("check inherited runner write and delete access")
+        );
+
+        let real_user = std::env::var("USERNAME").unwrap_or_else(|_| "Administrators".to_string());
+        let payload = Payload {
+            version: SETUP_VERSION,
+            offline_username: String::new(),
+            online_username: String::new(),
+            lime_home: workspace.clone(),
+            command_cwd: workspace.clone(),
+            read_roots: Vec::new(),
+            write_roots: Vec::new(),
+            deny_read_paths: Vec::new(),
+            deny_write_paths: Vec::new(),
+            proxy_ports: Vec::new(),
+            allow_local_binding: false,
+            otel: None,
+            real_user,
+            user_profile: None,
+            mode: setup_mode,
+            runtime: SetupRuntime::Legacy,
+            refresh_only: false,
+        };
+        lock_sandbox_bin_dir(&payload, &sandbox_group_sid).expect("lock sandbox bin");
+        let real_sid = resolve_sid(&payload.real_user).expect("resolve real owner SID");
+        let real_psid = sid_bytes_to_psid(&real_sid).expect("convert real owner SID");
+        assert!(
+            path_mask_allows(
+                &sandbox_bin,
+                &[real_psid],
+                WRITE_DAC,
+                /*require_all_bits*/ true
+            )
+            .expect("owner ACE permits refreshing the bin DACL")
+        );
+        assert!(
+            !path_mask_allows(
+                &sandbox_bin,
+                &[sandbox_group_psid],
+                WRITE_DAC,
+                /*require_all_bits*/ true,
+            )
+            .expect("sandbox cannot change the bin DACL")
+        );
+        let system_sid = resolve_sid("SYSTEM").expect("resolve SYSTEM SID");
+        let system_psid = sid_bytes_to_psid(&system_sid).expect("convert SYSTEM SID");
+        let new_runner = sandbox_bin.join("new-runner.exe");
+        fs::write(&new_runner, b"new").expect("create new runner");
+
+        for path in [&sandbox_bin, &existing_runner, &new_runner] {
+            assert!(
+                path_mask_allows(
+                    path,
+                    &[system_psid],
+                    WRITE_DAC,
+                    /*require_all_bits*/ true
+                )
+                .expect("SYSTEM can reapply the bin policy")
+            );
+            assert!(
+                !path_mask_allows(
+                    path,
+                    &[workspace_psid],
+                    FILE_GENERIC_WRITE | DELETE,
+                    /*require_all_bits*/ false,
+                )
+                .expect("check protected path write and delete access")
+            );
+            assert!(
+                path_mask_allows(
+                    path,
+                    &[sandbox_group_psid],
+                    FILE_GENERIC_READ | FILE_GENERIC_EXECUTE,
+                    /*require_all_bits*/ true,
+                )
+                .expect("check protected path read and execute access")
+            );
+        }
+
+        unsafe {
+            LocalFree(real_psid as HLOCAL);
+            LocalFree(workspace_psid as HLOCAL);
+            LocalFree(sandbox_group_psid as HLOCAL);
+        }
+    }
+}

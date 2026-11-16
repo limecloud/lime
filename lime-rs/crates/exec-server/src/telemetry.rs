@@ -1,0 +1,462 @@
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Duration;
+use std::time::Instant;
+
+use otel::MetricsClient;
+use tracing::warn;
+
+/// Registry-issued identity captured from the executor's authenticated relay connection.
+pub(crate) struct ExecutorRegistration {
+    pub(crate) environment_id: String,
+    pub(crate) executor_registration_id: String,
+}
+
+impl ExecutorRegistration {
+    pub(crate) fn new(environment_id: String, executor_registration_id: String) -> Option<Self> {
+        if [&environment_id, &executor_registration_id]
+            .iter()
+            .any(|id| id.trim().is_empty() || id.len() > 256 || id.chars().any(char::is_control))
+        {
+            return None;
+        }
+        Some(Self {
+            environment_id,
+            executor_registration_id,
+        })
+    }
+}
+
+const CONNECTIONS_ACTIVE_METRIC: &str = "exec_server_connections_active";
+const CONNECTIONS_ACTIVE_DESCRIPTION: &str = "Number of active exec-server connections.";
+const CONNECTIONS_TOTAL_METRIC: &str = "exec_server_connections_total";
+const CONNECTIONS_TOTAL_DESCRIPTION: &str = "Total number of accepted exec-server connections.";
+const REQUESTS_TOTAL_METRIC: &str = "exec_server_requests_total";
+const REQUESTS_TOTAL_DESCRIPTION: &str = "Total number of exec-server requests.";
+const REQUEST_DURATION_METRIC: &str = "exec_server_request_duration_seconds";
+const REQUEST_DURATION_DESCRIPTION: &str = "Duration of exec-server requests in seconds.";
+const REQUEST_TOTAL_DURATION_METRIC: &str = "exec_server_request_total_duration_seconds";
+const REQUEST_TOTAL_DURATION_DESCRIPTION: &str = "Total exec-server request duration in seconds, including queueing, from decoded receipt until response enqueue or disconnection.";
+const REQUEST_QUEUE_DURATION_METRIC: &str = "exec_server_request_queue_duration_seconds";
+const REQUEST_QUEUE_DURATION_DESCRIPTION: &str =
+    "Time exec-server requests spend queued before execution in seconds.";
+const PROCESSES_ACTIVE_METRIC: &str = "exec_server_processes_active";
+const PROCESSES_ACTIVE_DESCRIPTION: &str = "Number of active exec-server processes.";
+const PROCESSES_FINISHED_TOTAL_METRIC: &str = "exec_server_processes_finished_total";
+const PROCESSES_FINISHED_TOTAL_DESCRIPTION: &str =
+    "Total number of finished exec-server processes.";
+const PROCESS_DURATION_METRIC: &str = "exec_server_process_duration_seconds";
+const PROCESS_DURATION_DESCRIPTION: &str = "Duration of exec-server processes in seconds.";
+const REMOTE_REGISTRATION_METRICS: OperationMetrics = OperationMetrics {
+    total_name: "exec_server_remote_registration_total",
+    total_description: "Total number of remote exec-server registration attempts.",
+    duration_name: "exec_server_remote_registration_duration_seconds",
+    duration_description: "Duration of remote exec-server registration attempts in seconds.",
+};
+const REMOTE_RENDEZVOUS_METRICS: OperationMetrics = OperationMetrics {
+    total_name: "exec_server_remote_rendezvous_connect_total",
+    total_description: "Total number of remote exec-server rendezvous connection attempts.",
+    duration_name: "exec_server_remote_rendezvous_connect_duration_seconds",
+    duration_description: "Duration of remote exec-server rendezvous connection attempts in seconds.",
+};
+const REMOTE_RECONNECTS_TOTAL_METRIC: &str = "exec_server_remote_reconnects_total";
+const REMOTE_RECONNECTS_TOTAL_DESCRIPTION: &str = "Total number of remote exec-server reconnects.";
+
+#[derive(Clone, Copy)]
+struct OperationMetrics {
+    total_name: &'static str,
+    total_description: &'static str,
+    duration_name: &'static str,
+    duration_description: &'static str,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ConnectionTransport {
+    Relay,
+    Stdio,
+    WebSocket,
+}
+
+impl ConnectionTransport {
+    fn metric_tag(self) -> &'static str {
+        match self {
+            Self::Relay => "relay",
+            Self::Stdio => "stdio",
+            Self::WebSocket => "websocket",
+        }
+    }
+}
+
+pub(crate) fn record_recovery_retention_expired(reason: &str, retention: Duration) {
+    tracing::event!(
+        target: "otel.log_only",
+        parent: None,
+        tracing::Level::INFO,
+        event.name = "lime.exec_server.recovery_retention_expired",
+        reason,
+        retention_limit_ms = retention.as_millis() as u64,
+    );
+}
+
+#[derive(Clone, Default)]
+pub struct ExecServerTelemetry {
+    inner: Option<Arc<ExecServerTelemetryInner>>,
+}
+
+struct ExecServerTelemetryInner {
+    metrics: MetricsClient,
+    active: Arc<Mutex<ActiveCounts>>,
+}
+
+#[derive(Default)]
+struct ActiveCounts {
+    relay_connections: i64,
+    stdio_connections: i64,
+    websocket_connections: i64,
+    processes: i64,
+}
+
+impl ActiveCounts {
+    fn connections(&self, transport: ConnectionTransport) -> i64 {
+        match transport {
+            ConnectionTransport::Relay => self.relay_connections,
+            ConnectionTransport::Stdio => self.stdio_connections,
+            ConnectionTransport::WebSocket => self.websocket_connections,
+        }
+    }
+}
+
+pub(crate) struct ConnectionMetricGuard {
+    telemetry: ExecServerTelemetry,
+    transport: ConnectionTransport,
+}
+
+pub(crate) struct ProcessMetricGuard {
+    telemetry: ExecServerTelemetry,
+    span: tracing::Span,
+    started_at: Instant,
+    result: &'static str,
+}
+
+impl ExecServerTelemetry {
+    pub fn new(metrics: MetricsClient) -> Self {
+        let active = Arc::new(Mutex::new(ActiveCounts::default()));
+        register_active_gauges(&metrics, &active);
+        Self {
+            inner: Some(Arc::new(ExecServerTelemetryInner { metrics, active })),
+        }
+    }
+
+    pub(crate) fn connection_started(
+        &self,
+        transport: ConnectionTransport,
+    ) -> ConnectionMetricGuard {
+        self.with_inner(|inner| {
+            inner.adjust_connection_count(transport, /*delta*/ 1);
+            inner.counter(
+                CONNECTIONS_TOTAL_METRIC,
+                CONNECTIONS_TOTAL_DESCRIPTION,
+                &[("transport", transport.metric_tag())],
+            );
+        });
+        ConnectionMetricGuard {
+            telemetry: self.clone(),
+            transport,
+        }
+    }
+
+    pub(crate) fn request_completed(
+        &self,
+        method: &'static str,
+        result: &'static str,
+        duration: Duration,
+        total_duration: Duration,
+    ) {
+        self.with_inner(|inner| {
+            let tags = [("method", method), ("result", result)];
+            inner.counter(REQUESTS_TOTAL_METRIC, REQUESTS_TOTAL_DESCRIPTION, &tags);
+            inner.duration(
+                REQUEST_DURATION_METRIC,
+                REQUEST_DURATION_DESCRIPTION,
+                duration,
+                &tags,
+            );
+            inner.duration(
+                REQUEST_TOTAL_DURATION_METRIC,
+                REQUEST_TOTAL_DURATION_DESCRIPTION,
+                total_duration,
+                &tags,
+            );
+        });
+    }
+
+    pub(crate) fn request_queue_completed(&self, method: &'static str, duration: Duration) {
+        self.with_inner(|inner| {
+            inner.duration(
+                REQUEST_QUEUE_DURATION_METRIC,
+                REQUEST_QUEUE_DURATION_DESCRIPTION,
+                duration,
+                &[("method", method)],
+            );
+        });
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn shell_snapshot_captured(
+        &self,
+        duration: Duration,
+        result: Result<(), &'static str>,
+        capture_tags: &[(&str, &str)],
+    ) {
+        // Local execution has no exec-server telemetry owner. Use the host's
+        // configured metrics client while preserving an explicit server client.
+        let Some(metrics) = self
+            .inner
+            .as_ref()
+            .map(|inner| inner.metrics.clone())
+            .or_else(otel::global)
+        else {
+            return;
+        };
+        let success = if result.is_ok() { "true" } else { "false" };
+        let mut tags = vec![("version", "v2"), ("success", success)];
+        tags.extend_from_slice(capture_tags);
+        if let Err(failure_reason) = result {
+            tags.push(("failure_reason", failure_reason));
+        }
+        let _ = metrics.record_duration("lime.shell_snapshot.duration_ms", duration, &tags);
+        let _ = metrics.counter("lime.shell_snapshot", /*inc*/ 1, &tags);
+    }
+
+    /// One observation per eligible execution preparation, excluding prewarm.
+    /// `used` means selected for replay, not that restoration or execution succeeded.
+    #[cfg(unix)]
+    pub(crate) fn shell_snapshot_command(
+        &self,
+        wait: Duration,
+        state: &'static str,
+        outcome: &'static str,
+    ) {
+        let Some(metrics) = self
+            .inner
+            .as_ref()
+            .map(|inner| inner.metrics.clone())
+            .or_else(otel::global)
+        else {
+            return;
+        };
+        let tags = [("version", "v2"), ("state", state), ("outcome", outcome)];
+        let _ = metrics.counter("lime.shell_snapshot.command", /*inc*/ 1, &tags);
+        let _ = metrics.record_duration("lime.shell_snapshot.wait_ms", wait, &tags);
+    }
+
+    pub(crate) fn remote_registration_completed(&self, result: &'static str, duration: Duration) {
+        self.record_operation(REMOTE_REGISTRATION_METRICS, result, duration);
+    }
+
+    pub(crate) fn remote_rendezvous_completed(&self, result: &'static str, duration: Duration) {
+        self.record_operation(REMOTE_RENDEZVOUS_METRICS, result, duration);
+    }
+
+    pub(crate) fn remote_reconnect(&self, reason: &'static str) {
+        self.with_inner(|inner| {
+            inner.counter(
+                REMOTE_RECONNECTS_TOTAL_METRIC,
+                REMOTE_RECONNECTS_TOTAL_DESCRIPTION,
+                &[("reason", reason)],
+            );
+        });
+    }
+
+    pub(crate) fn process_started(&self, process_id: &str) -> ProcessMetricGuard {
+        self.with_inner(|inner| {
+            inner.adjust_process_count(/*delta*/ 1);
+        });
+        let parent = otel::current_span_w3c_trace_context();
+        // `parent:` accepts a local tracing span/ID, not a W3C context. A local
+        // parent would keep the request span alive until process exit and delay
+        // its export. Use `parent: None`, then set the W3C parent below to link
+        // the spans without retaining the request span.
+        let span = tracing::info_span!(
+            parent: None,
+            "lime.exec_server.process",
+            otel.kind = "internal",
+            process.id = process_id,
+            result = tracing::field::Empty,
+        );
+        if let Some(parent) = parent {
+            otel::set_parent_from_w3c_trace_context(&span, &parent);
+        }
+        ProcessMetricGuard {
+            telemetry: self.clone(),
+            span,
+            started_at: Instant::now(),
+            result: "unknown",
+        }
+    }
+
+    fn process_finished(&self, result: &'static str, duration: Duration) {
+        self.with_inner(|inner| {
+            inner.adjust_process_count(/*delta*/ -1);
+            inner.counter(
+                PROCESSES_FINISHED_TOTAL_METRIC,
+                PROCESSES_FINISHED_TOTAL_DESCRIPTION,
+                &[("result", result)],
+            );
+            inner.duration(
+                PROCESS_DURATION_METRIC,
+                PROCESS_DURATION_DESCRIPTION,
+                duration,
+                &[("result", result)],
+            );
+        });
+    }
+
+    fn connection_finished(&self, transport: ConnectionTransport) {
+        self.with_inner(|inner| {
+            inner.adjust_connection_count(transport, /*delta*/ -1);
+        });
+    }
+
+    fn with_inner(&self, emit: impl FnOnce(&ExecServerTelemetryInner)) {
+        if let Some(inner) = &self.inner {
+            emit(inner);
+        }
+    }
+
+    fn record_operation(
+        &self,
+        metrics: OperationMetrics,
+        result: &'static str,
+        duration: Duration,
+    ) {
+        self.with_inner(|inner| {
+            let tags = [("result", result)];
+            inner.counter(metrics.total_name, metrics.total_description, &tags);
+            inner.duration(
+                metrics.duration_name,
+                metrics.duration_description,
+                duration,
+                &tags,
+            );
+        });
+    }
+}
+
+impl Drop for ConnectionMetricGuard {
+    fn drop(&mut self) {
+        self.telemetry.connection_finished(self.transport);
+    }
+}
+
+impl ProcessMetricGuard {
+    pub(crate) fn finish(mut self, result: &'static str) {
+        self.result = result;
+    }
+}
+
+impl Drop for ProcessMetricGuard {
+    fn drop(&mut self) {
+        self.span.record("result", self.result);
+        self.telemetry
+            .process_finished(self.result, self.started_at.elapsed());
+    }
+}
+
+impl ExecServerTelemetryInner {
+    fn active_counts(&self) -> std::sync::MutexGuard<'_, ActiveCounts> {
+        // These are independent integer counts, so a panic cannot leave a cross-field invariant
+        // half-updated. Recovering a poisoned lock preserves the last completed count update.
+        self.active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn adjust_connection_count(&self, transport: ConnectionTransport, delta: i64) {
+        let mut active = self.active_counts();
+        let count = match transport {
+            ConnectionTransport::Relay => &mut active.relay_connections,
+            ConnectionTransport::Stdio => &mut active.stdio_connections,
+            ConnectionTransport::WebSocket => &mut active.websocket_connections,
+        };
+        *count += delta;
+    }
+
+    fn adjust_process_count(&self, delta: i64) {
+        let mut active = self.active_counts();
+        active.processes += delta;
+    }
+
+    fn counter(&self, name: &str, description: &str, tags: &[(&str, &str)]) {
+        if self
+            .metrics
+            .counter_with_description(name, description, /*inc*/ 1, tags)
+            .is_err()
+        {
+            warn!(metric = name, "failed to emit exec-server counter");
+        }
+    }
+
+    fn duration(&self, name: &str, description: &str, duration: Duration, tags: &[(&str, &str)]) {
+        if self
+            .metrics
+            .record_duration_seconds_with_description(name, description, duration, tags)
+            .is_err()
+        {
+            warn!(metric = name, "failed to emit exec-server duration");
+        }
+    }
+}
+
+fn register_active_gauges(metrics: &MetricsClient, active: &Arc<Mutex<ActiveCounts>>) {
+    for transport in [
+        ConnectionTransport::Relay,
+        ConnectionTransport::Stdio,
+        ConnectionTransport::WebSocket,
+    ] {
+        register_active_gauge(
+            metrics,
+            active,
+            CONNECTIONS_ACTIVE_METRIC,
+            CONNECTIONS_ACTIVE_DESCRIPTION,
+            &[("transport", transport.metric_tag())],
+            move |active| active.connections(transport),
+        );
+    }
+
+    register_active_gauge(
+        metrics,
+        active,
+        PROCESSES_ACTIVE_METRIC,
+        PROCESSES_ACTIVE_DESCRIPTION,
+        &[],
+        |active| active.processes,
+    );
+}
+
+fn register_active_gauge(
+    metrics: &MetricsClient,
+    active: &Arc<Mutex<ActiveCounts>>,
+    name: &str,
+    description: &str,
+    tags: &[(&str, &str)],
+    read: impl Fn(&ActiveCounts) -> i64 + Send + Sync + 'static,
+) {
+    let active = Arc::clone(active);
+    if metrics
+        .register_observable_gauge_with_description(
+            name,
+            description,
+            move || {
+                let active = active
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                read(&active)
+            },
+            tags,
+        )
+        .is_err()
+    {
+        warn!(metric = name, "failed to register exec-server gauge");
+    }
+}

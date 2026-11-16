@@ -1,8 +1,8 @@
 use super::{
-    requested_schema_field_key, RequestUserInputAnnotation, RequestUserInputQuestion,
-    RequestUserInputRequest, RequestUserInputResult, RequestUserInputSurfaceError,
+    RequestUserInputAnnotation, RequestUserInputQuestion, RequestUserInputRequest,
+    RequestUserInputResult, RequestUserInputSurfaceError, requested_schema_field_key,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
 fn elicitation_field_key(

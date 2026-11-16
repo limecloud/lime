@@ -1,0 +1,24 @@
+[package]
+name = "keyring-store"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Keyring storage helpers."
+
+[lib]
+name = "keyring_store"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+keyring = { version = "3.6", default-features = false, features = ["crypto-rust", "apple-native"] }
+thiserror.workspace = true
+tracing.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+
+[dev-dependencies]
+pretty_assertions.workspace = true

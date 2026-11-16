@@ -7,8 +7,8 @@ mod retry;
 mod timeout;
 
 pub use failover::{
-    Failover, FailoverConfig, FailoverManager, FailoverResult, FailureType, SwitchEvent,
-    QUOTA_EXCEEDED_KEYWORDS, QUOTA_EXCEEDED_STATUS_CODES,
+    Failover, FailoverConfig, FailoverManager, FailoverResult, FailureType,
+    QUOTA_EXCEEDED_KEYWORDS, QUOTA_EXCEEDED_STATUS_CODES, SwitchEvent,
 };
 pub use retry::{Retrier, RetryConfig, RetryError};
 pub use timeout::{

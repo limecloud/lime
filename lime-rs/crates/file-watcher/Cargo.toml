@@ -1,0 +1,22 @@
+[package]
+name = "file-watcher"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Filesystem watch helpers."
+
+[lib]
+name = "file_watcher"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+notify = "8"
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true

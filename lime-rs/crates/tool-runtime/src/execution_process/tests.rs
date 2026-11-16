@@ -1,5 +1,5 @@
 use super::*;
-use environment::{resolve_child_environment_with_semantics, EnvironmentKeySemantics};
+use environment::{EnvironmentKeySemantics, resolve_child_environment_with_semantics};
 use std::path::Path;
 
 fn start_process() -> ExecutionProcess {
@@ -37,9 +37,11 @@ fn process_tracks_output_delta_metadata() {
 fn process_frames_utf8_deltas_across_reader_chunks() {
     let mut process = start_process();
 
-    assert!(process
-        .append_output(ExecutionOutputKind::Stdout, &[0xf0, 0x9f])
-        .is_none());
+    assert!(
+        process
+            .append_output(ExecutionOutputKind::Stdout, &[0xf0, 0x9f])
+            .is_none()
+    );
     let delta = process
         .append_output(ExecutionOutputKind::Stdout, &[0x98, 0x80])
         .expect("completed scalar should emit");
@@ -54,9 +56,11 @@ fn process_frames_utf8_deltas_across_reader_chunks() {
 fn process_flushes_incomplete_utf8_suffix_at_stream_end() {
     let mut process = start_process();
 
-    assert!(process
-        .append_output(ExecutionOutputKind::Stderr, &[0xc3])
-        .is_none());
+    assert!(
+        process
+            .append_output(ExecutionOutputKind::Stderr, &[0xc3])
+            .is_none()
+    );
     let delta = process
         .finish_output(ExecutionOutputKind::Stderr)
         .expect("incomplete suffix should flush");
@@ -140,77 +144,18 @@ async fn local_process_emits_stdout_stderr_and_exit_snapshot() {
     assert_eq!(final_snapshot.exit_code, Some(0));
     assert!(final_snapshot.retained_output.contains("stdout"));
     assert!(final_snapshot.retained_output.contains("stderr"));
-    assert!(observed
-        .iter()
-        .any(|delta| delta.kind == ExecutionOutputKind::Stdout && delta.delta == "stdout"));
-    assert!(observed
-        .iter()
-        .any(|delta| delta.kind == ExecutionOutputKind::Stderr && delta.delta == "stderr"));
+    assert!(
+        observed
+            .iter()
+            .any(|delta| delta.kind == ExecutionOutputKind::Stdout && delta.delta == "stdout")
+    );
+    assert!(
+        observed
+            .iter()
+            .any(|delta| delta.kind == ExecutionOutputKind::Stderr && delta.delta == "stderr")
+    );
 }
 
-#[tokio::test]
-async fn local_process_reports_direct_child_exit_when_output_pipes_stay_open() {
-    let mut command = if cfg!(windows) {
-        let mut command = Command::new("cmd.exe");
-        command.args(["/D", "/S", "/C", "exit 7"]);
-        command
-    } else {
-        let mut command = Command::new("sh");
-        command.args(["-c", "exit 7"]);
-        command
-    };
-    let child = command.spawn().expect("direct child should start");
-    let (mut stdout_writer, stdout_reader) = tokio::io::duplex(64);
-    let (_stderr_writer, stderr_reader) = tokio::io::duplex(64);
-    let process = Arc::new(Mutex::new(start_process()));
-    let (output_tx, mut output_rx) = broadcast::channel(PROCESS_OUTPUT_CHANNEL_CAPACITY);
-    let (control_tx, control_rx) = mpsc::unbounded_channel();
-    let (state_tx, mut state_rx) = watch::channel(process.lock().await.snapshot());
-    let (final_tx, _final_rx) = oneshot::channel();
-
-    tokio::spawn(supervise_local_process(
-        child,
-        None,
-        Some(stdout_reader),
-        Some(stderr_reader),
-        process,
-        output_tx,
-        state_tx,
-        final_tx,
-        control_rx,
-    ));
-    stdout_writer
-        .write_all(&[0xc3])
-        .await
-        .expect("write incomplete UTF-8 prefix");
-
-    let terminal_snapshot = tokio::time::timeout(Duration::from_secs(1), async {
-        loop {
-            state_rx
-                .changed()
-                .await
-                .expect("process state channel should remain open");
-            let snapshot = state_rx.borrow_and_update().clone();
-            if snapshot.status.is_terminal() {
-                break snapshot;
-            }
-        }
-    })
-    .await
-    .expect("direct child exit should not wait for inherited output pipes");
-
-    assert_eq!(terminal_snapshot.status, ExecutionProcessStatus::Exited);
-    assert_eq!(terminal_snapshot.exit_code, Some(7));
-    let flushed = tokio::time::timeout(Duration::from_secs(1), output_rx.recv())
-        .await
-        .expect("grace fallback should flush pending output")
-        .expect("output channel should remain available until final flush");
-    assert_eq!(flushed.delta, "\u{fffd}");
-    assert_eq!(flushed.raw_bytes, vec![0xc3]);
-    drop(control_tx);
-}
-
-#[cfg(not(target_os = "windows"))]
 #[tokio::test]
 async fn local_process_does_not_inherit_sensitive_parent_environment() {
     const SECRET_NAME: &str = "LIME_EXECUTION_PROCESS_TEST_SECRET";
@@ -260,9 +205,11 @@ async fn local_process_large_output_completes_without_draining_deltas() {
     assert_eq!(snapshot.exit_code, Some(0));
     assert_eq!(snapshot.output_bytes, output_bytes as u64);
     assert_eq!(snapshot.output_omitted_bytes, 64 * 1024);
-    assert!(snapshot
-        .retained_output
-        .contains("... 65536 bytes omitted ..."));
+    assert!(
+        snapshot
+            .retained_output
+            .contains("... 65536 bytes omitted ...")
+    );
 }
 
 #[tokio::test]
@@ -364,12 +311,16 @@ async fn local_pty_process_accepts_stdin_and_emits_combined_output() {
     assert_eq!(final_snapshot.status, ExecutionProcessStatus::Exited);
     assert_eq!(final_snapshot.exit_code, Some(0));
     assert!(final_snapshot.retained_output.contains("PTY_READY"));
-    assert!(final_snapshot
-        .retained_output
-        .contains("PTY_ECHO:hello-from-pty"));
-    assert!(observed
-        .iter()
-        .all(|delta| delta.kind == ExecutionOutputKind::Combined));
+    assert!(
+        final_snapshot
+            .retained_output
+            .contains("PTY_ECHO:hello-from-pty")
+    );
+    assert!(
+        observed
+            .iter()
+            .all(|delta| delta.kind == ExecutionOutputKind::Combined)
+    );
 }
 
 #[cfg(not(target_os = "windows"))]

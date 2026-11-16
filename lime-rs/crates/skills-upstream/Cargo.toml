@@ -1,0 +1,30 @@
+[package]
+name = "skills"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+build = "build.rs"
+description = "Skill loading, parsing and selection."
+
+[lib]
+name = "skills"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+agent-protocol.workspace = true
+include_dir = "0.7.4"
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_yaml = "0.9"
+shell-command = { path = "../shell-command" }
+shlex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

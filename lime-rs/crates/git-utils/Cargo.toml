@@ -1,0 +1,39 @@
+[package]
+name = "git-utils"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Git helpers for Lime runtime."
+
+[lib]
+name = "git_utils"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+file-system = { path = "../file-system" }
+futures.workspace = true
+gix = { version = "0.89", default-features = false, features = ["sha1"] }
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+once_cell = "1"
+protocol = { path = "../protocol" }
+regex = "1"
+schemars = "0.8"
+serde.workspace = true
+similar = "2.7"
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "process", "rt", "time"] }
+ts-rs = "11"
+utils-process = { path = "../utils-process" }
+utils-pty = { path = "../utils-pty" }
+walkdir = "2.5"
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+utils-cargo-bin = { path = "../utils-cargo-bin" }

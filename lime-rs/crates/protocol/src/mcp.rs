@@ -1,0 +1,652 @@
+//! Types used when representing Model Context Protocol (MCP) values inside the
+//! Lime protocol.
+//!
+//! We intentionally keep these types TS/JSON-schema friendly (via `ts-rs` and
+//! `schemars`) so they can be embedded in Lime's own protocol structures.
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
+use std::collections::HashMap;
+use ts_rs::TS;
+
+/// Observed state of an MCP connection in a published thread runtime.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum McpServerConnectionStatus {
+    NotStarted,
+    Starting,
+    Connected,
+    AuthenticationRequired,
+    Failed,
+    Cancelled,
+    Disabled,
+}
+
+/// Extension ID for OpenAI elicitation modes.
+pub const OPENAI_ELICITATION_EXTENSION_ID: &str = "openai/elicitation";
+/// Extension ID for legacy OpenAI form elicitation.
+pub const OPENAI_FORM_EXTENSION_ID: &str = "openai/form";
+/// Extension ID for standard MCP form elicitations that require user-entered input.
+pub const OPENAI_STANDARD_FORM_INPUT_EXTENSION_ID: &str = "openai/standard-form-input";
+/// Extension ID for MCP App UI rendering.
+pub const MCP_APP_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
+/// Host-supplied confirmation-policy documents for Node REPL-backed actor calls.
+pub const CONFIRMATION_POLICIES_META_KEY: &str = "openai/confirmation_policies";
+/// Extension ID for enterprise-managed MCP authorization via ID-JAG.
+pub const ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID: &str =
+    "io.modelcontextprotocol/enterprise-managed-authorization";
+
+/// Returns whether a raw MCP server name identifies a Node REPL-backed server.
+pub fn is_node_repl_backed_server(server: &str) -> bool {
+    matches!(server, "node_repl" | "cua_repl")
+}
+
+/// Returns whether an MCP server or registered connector is Node REPL-backed.
+/// Callers must supply connector identity from registered tool metadata, never
+/// from tool arguments or provider-supplied elicitation metadata.
+pub fn is_node_repl_backed_connector(server: &str, connector_id: Option<&str>) -> bool {
+    is_node_repl_backed_server(server)
+        || server == "lime_apps" && connector_id == Some("connector_openai_browser")
+}
+
+/// Recognizes Node REPL-backed tools in model-visible MCP namespaces or legacy
+/// flat tool names. An explicit namespace takes precedence over the tool name.
+pub fn is_node_repl_backed_tool(name: &str, namespace: Option<&str>) -> bool {
+    if let Some(namespace) = namespace {
+        let namespace = namespace.strip_prefix("mcp__").unwrap_or(namespace);
+        return is_node_repl_backed_server(namespace.strip_suffix("__").unwrap_or(namespace));
+    }
+
+    let name = name.strip_prefix("mcp__").unwrap_or(name);
+    name.split_once("__")
+        .is_some_and(|(server, _)| is_node_repl_backed_server(server))
+}
+
+/// Producer-reported completeness of the thread's MCP tools/call attribution.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum McpAttributionStatus {
+    #[default]
+    None,
+    Complete,
+    AttributionError,
+}
+
+/// Bounded diagnostics for an attribution error, never a policy decision.
+///
+/// Recorder reasons identify the first observed error and survive checkpoints.
+/// Payload reasons describe a request-serialization fallback and are not checkpointed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum McpAttributionErrorReason {
+    HistoryMissingCheckpoint,
+    CheckpointInvalid,
+    CheckpointSourceConflict,
+    SourceInvalid,
+    RecorderPoisoned,
+    /// An earlier error checkpoint did not retain its cause.
+    RestoredErrorUnknown,
+    PayloadTooLarge,
+    SerializationFailed,
+    #[serde(other)]
+    Unknown,
+}
+
+/// One source and the first runtime turn in which Lime recorded it.
+///
+/// Server and tool names are retained when no stable identifier is available;
+/// they are not guaranteed to be globally unique or independently authenticated.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct McpAttributionSource {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connector_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
+    pub server_name: String,
+    pub tool_name: String,
+    pub first_turn_id: String,
+}
+
+/// Cumulative, model-invisible attribution reported on Responses API requests.
+/// This is provenance data, not a training-eligibility decision or attestation.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct McpAttribution {
+    pub status: McpAttributionStatus,
+    /// First observed attribution error, absent for non-error states.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_mcp_attribution_error_reason"
+    )]
+    pub error_reason: Option<McpAttributionErrorReason>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<McpAttributionSource>,
+}
+
+fn deserialize_mcp_attribution_error_reason<'de, D>(
+    deserializer: D,
+) -> Result<Option<McpAttributionErrorReason>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
+}
+
+/// Bounded app-resource provenance retained across a compaction checkpoint.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct McpResourceOriginCheckpoint {
+    pub origins: Vec<McpResourceOrigin>,
+    pub turns: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_turn_id: Option<String>,
+}
+
+/// The original app, account, tool, and URI that authorize one widget read.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct McpResourceOrigin {
+    pub call_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    pub tool: String,
+    pub connector_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_id: Option<String>,
+    pub uri: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ambiguous_account: bool,
+}
+
+/// Client extensions that must not be advertised to MCP servers.
+const MCP_CLIENT_ONLY_EXTENSION_IDS: [&str; 1] = [OPENAI_STANDARD_FORM_INPUT_EXTENSION_ID];
+
+/// MCP extensions supplied by the client that created a Lime session.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ClientMcpExtensions {
+    extensions: HashMap<String, serde_json::Value>,
+}
+
+impl ClientMcpExtensions {
+    /// Creates a session extension set from trusted client declarations.
+    pub fn new(extensions: impl IntoIterator<Item = (String, serde_json::Value)>) -> Self {
+        Self {
+            extensions: extensions.into_iter().collect(),
+        }
+    }
+
+    /// Returns whether the client declared the given extension.
+    pub fn contains(&self, extension_id: &str) -> bool {
+        self.extensions.contains_key(extension_id)
+    }
+
+    /// Returns the client's settings for the given extension.
+    pub fn get(&self, extension_id: &str) -> Option<&serde_json::Value> {
+        self.extensions.get(extension_id)
+    }
+
+    /// Returns only client extensions that should be advertised to MCP servers.
+    pub fn for_mcp_servers(&self) -> Self {
+        Self::new(
+            self.extensions
+                .iter()
+                .filter(|(id, _)| !MCP_CLIENT_ONLY_EXTENSION_IDS.contains(&id.as_str()))
+                .map(|(id, settings)| (id.clone(), settings.clone())),
+        )
+    }
+
+    /// Iterates over the extensions and their settings.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &serde_json::Value)> {
+        self.extensions
+            .iter()
+            .map(|(id, settings)| (id.as_str(), settings))
+    }
+}
+
+/// ID of a request, which can be either a string or an integer.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(untagged)]
+pub enum RequestId {
+    String(String),
+    #[ts(type = "number")]
+    Integer(i64),
+}
+
+impl std::fmt::Display for RequestId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RequestId::String(s) => f.write_str(s),
+            RequestId::Integer(i) => i.fmt(f),
+        }
+    }
+}
+
+/// Presentation metadata advertised by an initialized MCP server.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerInfo {
+    pub name: String,
+    pub title: Option<String>,
+    pub version: String,
+    pub description: Option<String>,
+    pub icons: Option<Vec<serde_json::Value>>,
+    pub website_url: Option<String>,
+}
+
+/// Definition for a tool the client can call.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct Tool {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub description: Option<String>,
+    pub input_schema: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub output_schema: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub annotations: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub icons: Option<Vec<serde_json::Value>>,
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub meta: Option<serde_json::Value>,
+}
+
+/// A known resource that the server is capable of reading.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct Resource {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub annotations: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mime_type: Option<String>,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    #[ts(type = "number")]
+    pub size: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub title: Option<String>,
+    pub uri: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub icons: Option<Vec<serde_json::Value>>,
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub meta: Option<serde_json::Value>,
+}
+
+/// Contents returned when reading a resource from an MCP server.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(untagged)]
+pub enum ResourceContent {
+    #[serde(rename_all = "camelCase")]
+    #[ts(rename_all = "camelCase")]
+    Text {
+        /// The URI of this resource.
+        uri: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        mime_type: Option<String>,
+        text: String,
+        #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        meta: Option<serde_json::Value>,
+    },
+    #[serde(rename_all = "camelCase")]
+    #[ts(rename_all = "camelCase")]
+    Blob {
+        /// The URI of this resource.
+        uri: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        mime_type: Option<String>,
+        blob: String,
+        #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        meta: Option<serde_json::Value>,
+    },
+}
+
+/// A template description for resources available on the server.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceTemplate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub annotations: Option<serde_json::Value>,
+    pub uri_template: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mime_type: Option<String>,
+}
+
+/// The server's response to a tool call.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct CallToolResult {
+    pub content: Vec<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub structured_content: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub is_error: Option<bool>,
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub meta: Option<serde_json::Value>,
+}
+
+/// Returns display text from an unannotated MCP text block. Some tools encode
+/// sources and UI data as JSON or fenced text, which history must keep inline.
+pub fn plain_output_text(block: &serde_json::Value) -> Option<&str> {
+    let fields = block.as_object()?;
+    if fields.len() != 2 || fields.get("type")?.as_str()? != "text" {
+        return None;
+    }
+    let text = fields.get("text")?.as_str()?;
+    let trimmed = text.trim_start_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}');
+    if trimmed.starts_with(['{', '[']) || trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+        return None;
+    }
+    Some(text)
+}
+
+// === Adapter helpers ===
+//
+// These types and conversions intentionally live in `lime-protocol` so other crates can convert
+// “wire-shaped” MCP JSON (typically coming from rmcp model structs serialized with serde) into our
+// TS/JsonSchema-friendly protocol types without depending on `mcp-types`.
+
+fn deserialize_lossy_opt_i64<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match Option::<serde_json::Number>::deserialize(deserializer)? {
+        Some(number) => {
+            if let Some(v) = number.as_i64() {
+                Ok(Some(v))
+            } else if let Some(v) = number.as_u64() {
+                Ok(i64::try_from(v).ok())
+            } else {
+                Ok(None)
+            }
+        }
+        None => Ok(None),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolSerde {
+    name: String,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default, rename = "inputSchema", alias = "input_schema")]
+    input_schema: serde_json::Value,
+    #[serde(default, rename = "outputSchema", alias = "output_schema")]
+    output_schema: Option<serde_json::Value>,
+    #[serde(default)]
+    annotations: Option<serde_json::Value>,
+    #[serde(default)]
+    icons: Option<Vec<serde_json::Value>>,
+    #[serde(rename = "_meta", default)]
+    meta: Option<serde_json::Value>,
+}
+
+impl From<ToolSerde> for Tool {
+    fn from(value: ToolSerde) -> Self {
+        let ToolSerde {
+            name,
+            title,
+            description,
+            input_schema,
+            output_schema,
+            annotations,
+            icons,
+            meta,
+        } = value;
+        Self {
+            name,
+            title,
+            description,
+            input_schema,
+            output_schema,
+            annotations,
+            icons,
+            meta,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResourceSerde {
+    #[serde(default)]
+    annotations: Option<serde_json::Value>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(rename = "mimeType", alias = "mime_type", default)]
+    mime_type: Option<String>,
+    name: String,
+    #[serde(default, deserialize_with = "deserialize_lossy_opt_i64")]
+    size: Option<i64>,
+    #[serde(default)]
+    title: Option<String>,
+    uri: String,
+    #[serde(default)]
+    icons: Option<Vec<serde_json::Value>>,
+    #[serde(rename = "_meta", default)]
+    meta: Option<serde_json::Value>,
+}
+
+impl From<ResourceSerde> for Resource {
+    fn from(value: ResourceSerde) -> Self {
+        let ResourceSerde {
+            annotations,
+            description,
+            mime_type,
+            name,
+            size,
+            title,
+            uri,
+            icons,
+            meta,
+        } = value;
+        Self {
+            annotations,
+            description,
+            mime_type,
+            name,
+            size,
+            title,
+            uri,
+            icons,
+            meta,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResourceTemplateSerde {
+    #[serde(default)]
+    annotations: Option<serde_json::Value>,
+    #[serde(rename = "uriTemplate", alias = "uri_template")]
+    uri_template: String,
+    name: String,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(rename = "mimeType", alias = "mime_type", default)]
+    mime_type: Option<String>,
+}
+
+impl From<ResourceTemplateSerde> for ResourceTemplate {
+    fn from(value: ResourceTemplateSerde) -> Self {
+        let ResourceTemplateSerde {
+            annotations,
+            uri_template,
+            name,
+            title,
+            description,
+            mime_type,
+        } = value;
+        Self {
+            annotations,
+            uri_template,
+            name,
+            title,
+            description,
+            mime_type,
+        }
+    }
+}
+
+impl Tool {
+    pub fn from_mcp_value(value: serde_json::Value) -> Result<Self, serde_json::Error> {
+        Ok(serde_json::from_value::<ToolSerde>(value)?.into())
+    }
+}
+
+impl Resource {
+    pub fn from_mcp_value(value: serde_json::Value) -> Result<Self, serde_json::Error> {
+        Ok(serde_json::from_value::<ResourceSerde>(value)?.into())
+    }
+}
+
+impl ResourceTemplate {
+    pub fn from_mcp_value(value: serde_json::Value) -> Result<Self, serde_json::Error> {
+        Ok(serde_json::from_value::<ResourceTemplateSerde>(value)?.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn node_repl_backed_tool_recognizes_namespaces_and_legacy_names() {
+        for (name, namespace, expected) in [
+            ("read_file", Some("mcp__node_repl"), true),
+            ("read_file", Some("mcp__node_repl__"), true),
+            ("read_file", Some("node_repl"), true),
+            ("read_file", Some("node_repl__"), true),
+            ("read_file", Some("mcp__cua_repl"), true),
+            ("read_file", Some("mcp__cua_repl__"), true),
+            ("read_file", Some("cua_repl"), true),
+            ("read_file", Some("cua_repl__"), true),
+            ("read_file", Some("node_repl_"), false),
+            ("read_file", Some("cua_repl_"), false),
+            ("read_file", Some("mcp__node_repl____"), false),
+            ("read_file", Some("mcp__cua_repl____"), false),
+            ("mcp__node_repl__js", None, true),
+            ("node_repl__js", None, true),
+            ("mcp__cua_repl__js", None, true),
+            ("cua_repl__js", None, true),
+            ("mcp__node_repl__js", Some("other"), false),
+            ("mcp__cua_repl__js", Some("other"), false),
+            ("mcp__node_repl_other__js", None, false),
+            ("mcp__cua_repl_other__js", None, false),
+        ] {
+            assert_eq!(
+                is_node_repl_backed_tool(name, namespace),
+                expected,
+                "tool {name} in namespace {namespace:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn client_mcp_extensions_for_mcp_servers_excludes_client_only_extensions() {
+        let openai_form_settings = serde_json::json!({ "version": 1 });
+        let app_ui_settings = serde_json::json!({ "mimeTypes": ["text/html"] });
+        let future_server_extension_settings = serde_json::json!({ "version": 2 });
+        let extensions = ClientMcpExtensions::new([
+            (
+                OPENAI_FORM_EXTENSION_ID.to_string(),
+                openai_form_settings.clone(),
+            ),
+            (MCP_APP_UI_EXTENSION_ID.to_string(), app_ui_settings.clone()),
+            (
+                OPENAI_STANDARD_FORM_INPUT_EXTENSION_ID.to_string(),
+                serde_json::json!({}),
+            ),
+            (
+                "example/future-server-extension".to_string(),
+                future_server_extension_settings.clone(),
+            ),
+        ]);
+
+        assert_eq!(
+            extensions.for_mcp_servers(),
+            ClientMcpExtensions::new([
+                (OPENAI_FORM_EXTENSION_ID.to_string(), openai_form_settings),
+                (MCP_APP_UI_EXTENSION_ID.to_string(), app_ui_settings),
+                (
+                    "example/future-server-extension".to_string(),
+                    future_server_extension_settings,
+                ),
+            ])
+        );
+    }
+
+    #[test]
+    fn resource_size_deserializes_without_narrowing() {
+        let resource = serde_json::json!({
+            "name": "big",
+            "uri": "file:///tmp/big",
+            "size": 5_000_000_000u64,
+        });
+
+        let parsed = Resource::from_mcp_value(resource).expect("should deserialize");
+        assert_eq!(parsed.size, Some(5_000_000_000));
+
+        let resource = serde_json::json!({
+            "name": "negative",
+            "uri": "file:///tmp/negative",
+            "size": -1,
+        });
+
+        let parsed = Resource::from_mcp_value(resource).expect("should deserialize");
+        assert_eq!(parsed.size, Some(-1));
+
+        let resource = serde_json::json!({
+            "name": "too_big_for_i64",
+            "uri": "file:///tmp/too_big_for_i64",
+            "size": 18446744073709551615u64,
+        });
+
+        let parsed = Resource::from_mcp_value(resource).expect("should deserialize");
+        assert_eq!(parsed.size, None);
+    }
+}

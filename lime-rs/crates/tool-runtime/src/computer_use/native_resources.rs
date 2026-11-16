@@ -1,6 +1,6 @@
 //! Resolve only a helper shipped with this App Server. No PATH/env/renderer override.
 
-use super::{denied, ComputerUseResult};
+use super::{ComputerUseResult, denied};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -36,7 +36,11 @@ struct Resource {
 
 impl NativeResource {
     pub(super) fn discover() -> ComputerUseResult<Option<Self>> {
-        if !cfg!(any(target_os = "macos", target_os = "windows", target_os = "linux")) {
+        if !cfg!(any(
+            target_os = "macos",
+            target_os = "windows",
+            target_os = "linux"
+        )) {
             return Ok(None);
         }
         let executable = std::env::current_exe().map_err(|e| denied(e.to_string()))?;

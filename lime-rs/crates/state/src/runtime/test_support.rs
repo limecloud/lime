@@ -1,0 +1,85 @@
+#[cfg(test)]
+use chrono::DateTime;
+#[cfg(test)]
+use chrono::Utc;
+#[cfg(test)]
+use protocol::ThreadId;
+#[cfg(test)]
+use protocol::models::PermissionProfile;
+#[cfg(test)]
+use protocol::openai_models::ReasoningEffort;
+#[cfg(test)]
+use protocol::protocol::AskForApproval;
+#[cfg(test)]
+use protocol::protocol::ThreadHistoryMode;
+#[cfg(test)]
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
+#[cfg(test)]
+use std::time::SystemTime;
+#[cfg(test)]
+use std::time::UNIX_EPOCH;
+#[cfg(test)]
+use uuid::Uuid;
+
+#[cfg(test)]
+use crate::ThreadMetadata;
+
+#[cfg(test)]
+pub(crate) fn unique_temp_dir() -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    std::env::temp_dir().join(format!(
+        "lime-state-runtime-test-{nanos}-{}",
+        Uuid::new_v4()
+    ))
+}
+
+#[cfg(test)]
+pub(super) fn test_thread_metadata(
+    lime_home: &Path,
+    thread_id: ThreadId,
+    cwd: PathBuf,
+) -> ThreadMetadata {
+    let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
+    ThreadMetadata {
+        creator_user_id: None,
+        attached_thread_parent_id: None,
+        creator_account_id: None,
+        originator: None,
+        id: thread_id,
+        rollout_path: lime_home.join(format!("rollout-{thread_id}.jsonl")),
+        created_at: now,
+        updated_at: now,
+        recency_at: now,
+        source: "cli".to_string(),
+        history_mode: ThreadHistoryMode::Legacy,
+        thread_source: None,
+        agent_nickname: None,
+        agent_role: None,
+        agent_path: None,
+        model_provider: "test-provider".to_string(),
+        model: Some("gpt-5".to_string()),
+        reasoning_effort: Some(ReasoningEffort::Medium),
+        cwd,
+        cli_version: "0.0.0".to_string(),
+        title: String::new(),
+        name: None,
+        preview: Some("hello".to_string()),
+        sandbox_policy: serde_json::to_string(&PermissionProfile::read_only()).unwrap_or_default(),
+        approval_mode: crate::extract::enum_to_string(&AskForApproval::OnRequest),
+        tokens_used: 0,
+        first_user_message: Some("hello".to_string()),
+        archived_at: None,
+        section: None,
+        section_position: None,
+        section_entered_at: None,
+        project_id: None,
+        daybreak_enabled: None,
+        git_sha: None,
+        git_branch: None,
+        git_origin_url: None,
+    }
+}

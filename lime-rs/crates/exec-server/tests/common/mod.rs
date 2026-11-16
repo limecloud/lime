@@ -1,0 +1,313 @@
+use std::env;
+use std::io::Write;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+use std::process::Stdio;
+use std::time::Duration;
+
+use ctor::ctor;
+use exec_server::ExecServerRuntimeOptions;
+use exec_server::ExecServerTelemetry;
+use exec_server::LIME_ARG0_EXEC_HELPER_ARG1;
+use exec_server::LIME_FS_HELPER_ARG1;
+use exec_server::RequestDispatchMode;
+use http_client::HttpClientFactory;
+use http_client::OutboundProxyPolicy;
+use lime_test_binary_support::TestBinaryDispatchGuard;
+use lime_test_binary_support::TestBinaryDispatchMode;
+use lime_test_binary_support::configure_test_binary_dispatch;
+use sandboxing::landlock::LIME_LINUX_SANDBOX_ARG0;
+
+pub(crate) mod exec_server;
+
+pub(crate) const TEST_BUILD_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
+
+pub(crate) const DELAYED_OUTPUT_AFTER_EXIT_PARENT_ARG: &str =
+    "--lime-test-delayed-output-after-exit-parent";
+pub(crate) const SYSTEM_PROXY_REQUEST_URL_ENV: &str =
+    "LIME_EXEC_SERVER_TEST_SYSTEM_PROXY_REQUEST_URL";
+pub(crate) const SYSTEM_PROXY_URL_ENV: &str = "LIME_EXEC_SERVER_TEST_SYSTEM_PROXY_URL";
+
+const LIME_WINDOWS_SANDBOX_ARG1: &str = "--run-as-windows-sandbox";
+const DELAYED_OUTPUT_AFTER_EXIT_CHILD_ARG: &str = "--lime-test-delayed-output-after-exit-child";
+
+#[macro_export]
+macro_rules! skip_if_mxc_unavailable {
+    ($return_value:expr $(,)?) => {{
+        if !sandboxing::windows_mxc_available() {
+            eprintln!("skipping test: native MXC is unavailable on this host");
+            return $return_value;
+        }
+    }};
+}
+
+#[ctor]
+pub static TEST_BINARY_DISPATCH_GUARD: Option<TestBinaryDispatchGuard> = {
+    let guard = configure_test_binary_dispatch("lime-exec-server-tests", |exe_name, argv1| {
+        if argv1 == Some(LIME_ARG0_EXEC_HELPER_ARG1) {
+            return TestBinaryDispatchMode::DispatchArg0Only;
+        }
+        if argv1 == Some(LIME_FS_HELPER_ARG1) {
+            return TestBinaryDispatchMode::DispatchArg0Only;
+        }
+        if argv1 == Some(LIME_WINDOWS_SANDBOX_ARG1) {
+            return TestBinaryDispatchMode::DispatchArg0Only;
+        }
+        if argv1 == Some(sandboxing::LIME_WINDOWS_MXC_ARG1) {
+            return TestBinaryDispatchMode::DispatchArg0Only;
+        }
+        if exe_name == LIME_LINUX_SANDBOX_ARG0 {
+            return TestBinaryDispatchMode::DispatchArg0Only;
+        }
+        TestBinaryDispatchMode::InstallAliases
+    });
+    maybe_run_delayed_output_after_exit_from_test_binary();
+    maybe_run_exec_server_from_test_binary(guard.as_ref());
+    guard
+};
+
+pub(crate) fn current_test_binary_helper_paths() -> anyhow::Result<(PathBuf, Option<PathBuf>)> {
+    let current_exe = env::current_exe()?;
+    let linux_sandbox_exe = if cfg!(target_os = "linux") {
+        TEST_BINARY_DISPATCH_GUARD
+            .as_ref()
+            .and_then(|guard| guard.paths().linux_sandbox_exe.clone())
+            .or_else(|| Some(current_exe.clone()))
+    } else {
+        None
+    };
+    Ok((current_exe, linux_sandbox_exe))
+}
+
+fn maybe_run_delayed_output_after_exit_from_test_binary() {
+    let mut args = env::args();
+    let _program = args.next();
+    let Some(command) = args.next() else {
+        return;
+    };
+    match command.as_str() {
+        DELAYED_OUTPUT_AFTER_EXIT_PARENT_ARG => {
+            let release_path = next_release_path_arg(args);
+            run_delayed_output_after_exit_parent(&release_path);
+        }
+        DELAYED_OUTPUT_AFTER_EXIT_CHILD_ARG => {
+            let release_path = next_release_path_arg(args);
+            run_delayed_output_after_exit_child(&release_path);
+        }
+        _ => {}
+    }
+}
+
+fn next_release_path_arg(mut args: impl Iterator<Item = String>) -> PathBuf {
+    let Some(release_path) = args.next() else {
+        eprintln!("expected release path");
+        std::process::exit(1);
+    };
+    if args.next().is_some() {
+        eprintln!("unexpected extra arguments");
+        std::process::exit(1);
+    }
+    PathBuf::from(release_path)
+}
+
+fn run_delayed_output_after_exit_parent(release_path: &Path) {
+    let current_exe = match env::current_exe() {
+        Ok(current_exe) => current_exe,
+        Err(error) => {
+            eprintln!("failed to resolve current test binary: {error}");
+            std::process::exit(1);
+        }
+    };
+    match Command::new(current_exe)
+        .arg(DELAYED_OUTPUT_AFTER_EXIT_CHILD_ARG)
+        .arg(release_path)
+        .stdin(Stdio::null())
+        .spawn()
+    {
+        Ok(_) => std::process::exit(0),
+        Err(error) => {
+            eprintln!("failed to spawn delayed output child: {error}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn run_delayed_output_after_exit_child(release_path: &Path) {
+    for _ in 0..1_000 {
+        if release_path.exists() {
+            let mut stdout = std::io::stdout().lock();
+            if let Err(error) = writeln!(stdout, "late output after exit") {
+                eprintln!("failed to write delayed output: {error}");
+                std::process::exit(1);
+            }
+            if let Err(error) = stdout.flush() {
+                eprintln!("failed to flush delayed output: {error}");
+                std::process::exit(1);
+            }
+            std::process::exit(0);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    eprintln!(
+        "timed out waiting for release path {}",
+        release_path.display()
+    );
+    std::process::exit(1);
+}
+
+fn maybe_run_exec_server_from_test_binary(guard: Option<&TestBinaryDispatchGuard>) {
+    let mut args = env::args();
+    let _program = args.next();
+    let Some(command) = args.next() else {
+        return;
+    };
+    if command != "exec-server" {
+        return;
+    }
+    // Enable requested child diagnostics so integration tests can observe background failures.
+    if env::var_os("RUST_LOG").is_some()
+        && let Err(error) = tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .try_init()
+    {
+        eprintln!("failed to initialize executor test logging: {error}");
+        std::process::exit(1);
+    }
+    // Initialize in the executor child, just as the real CLI does at startup.
+    build_info::BuildInfo::initialize(TEST_BUILD_COMMIT);
+
+    let Some(flag) = args.next() else {
+        eprintln!("expected --listen");
+        std::process::exit(1);
+    };
+    if flag != "--listen" {
+        eprintln!("expected --listen, got `{flag}`");
+        std::process::exit(1);
+    }
+    let Some(listen_url) = args.next() else {
+        eprintln!("expected listen URL");
+        std::process::exit(1);
+    };
+    let remaining_args = args.collect::<Vec<_>>();
+    let request_dispatch_mode = match remaining_args.as_slice() {
+        [] => RequestDispatchMode::Inline,
+        [flag, value] if flag == "--concurrent-requests" => match value.parse() {
+            Ok(mode) => mode,
+            Err(error) => {
+                eprintln!("invalid concurrent request count: {error}");
+                std::process::exit(1);
+            }
+        },
+        args => {
+            eprintln!("unexpected exec-server arguments: {args:?}");
+            std::process::exit(1);
+        }
+    };
+
+    let current_exe = match env::current_exe() {
+        Ok(current_exe) => current_exe,
+        Err(error) => {
+            eprintln!("failed to resolve current test binary: {error}");
+            std::process::exit(1);
+        }
+    };
+    let mut runtime_paths = match ExecServerRuntimeOptions::new(
+        current_exe.clone(),
+        linux_sandbox_exe(guard, &current_exe),
+    ) {
+        Ok(runtime_paths) => runtime_paths,
+        Err(error) => {
+            eprintln!("failed to configure exec-server runtime paths: {error}");
+            std::process::exit(1);
+        }
+    };
+    runtime_paths.prefer_mxc = env::var("LIME_EXEC_SERVER_TEST_PREFER_MXC")
+        .ok()
+        .map(|value| {
+            value.parse().unwrap_or_else(|error| {
+                eprintln!("invalid test MXC preference: {error}");
+                std::process::exit(1);
+            })
+        });
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("failed to build Tokio runtime: {error}");
+            std::process::exit(1);
+        }
+    };
+    let http_client_factory = match (
+        env::var(SYSTEM_PROXY_REQUEST_URL_ENV),
+        env::var(SYSTEM_PROXY_URL_ENV),
+    ) {
+        (Ok(request_url), Ok(proxy_url)) => {
+            http_client::cache_system_proxy_route_for_test(&request_url, proxy_url);
+            HttpClientFactory::new(OutboundProxyPolicy::RespectSystemProxy)
+        }
+        (Err(env::VarError::NotPresent), Err(env::VarError::NotPresent)) => {
+            HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault)
+        }
+        _ => {
+            eprintln!("system proxy test configuration requires both request and proxy URLs");
+            std::process::exit(1);
+        }
+    };
+    let exit_code = match runtime.block_on(async {
+        #[cfg(target_os = "macos")]
+        let runtime_paths = {
+            let home = utils_home_dir::find_lime_home()?;
+            let config = config::loader::load_config_layers_state(
+                &exec_server::LocalFileSystem::unsandboxed(),
+                home.as_path(),
+                /*cwd*/ None,
+                &[],
+                config::LoaderOverrides::default(),
+                &config::NoopThreadConfigLoader,
+            )
+            .await?;
+            runtime_paths.with_allowed_symlinked_lime_home(config::allowed_symlinked_lime_home(
+                &config, &home,
+            ))
+        };
+        exec_server::run_main_with_telemetry(
+            &listen_url,
+            runtime_paths,
+            ExecServerTelemetry::default(),
+            http_client_factory,
+            request_dispatch_mode,
+            websocket_auth::WebsocketAuthSettings::default(),
+        )
+        .await
+    }) {
+        Ok(()) => 0,
+        Err(error) => {
+            eprintln!("exec-server failed: {error}");
+            1
+        }
+    };
+    std::process::exit(exit_code);
+}
+
+fn linux_sandbox_exe(
+    guard: Option<&TestBinaryDispatchGuard>,
+    current_exe: &std::path::Path,
+) -> Option<PathBuf> {
+    #[cfg(target_os = "linux")]
+    {
+        guard
+            .and_then(|guard| guard.paths().linux_sandbox_exe.clone())
+            .or_else(|| Some(current_exe.to_path_buf()))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = guard;
+        let _ = current_exe;
+        None
+    }
+}

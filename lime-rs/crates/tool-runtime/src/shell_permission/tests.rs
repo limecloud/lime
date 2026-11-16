@@ -324,7 +324,7 @@ fn bash_permission_checks_nested_powershell() {
 
 #[test]
 fn powershell_permission_checks_encoded_script_and_nesting_limit() {
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::{Engine, engine::general_purpose::STANDARD};
     for (script, denied) in [
         ("Restart-Computer", true),
         ("Write-Output 'Restart-Computer'", false),

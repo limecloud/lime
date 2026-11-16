@@ -420,10 +420,12 @@ mod tests {
 
         assert_eq!(child.to_string(), "file:///C:/plugins/demo/servers/docs");
         assert!(child.starts_with(&root));
-        assert!(!root
-            .join(r"..\outside")
-            .expect("bounded URI")
-            .starts_with(&root));
+        assert!(
+            !root
+                .join(r"..\outside")
+                .expect("bounded URI")
+                .starts_with(&root)
+        );
     }
 
     #[test]

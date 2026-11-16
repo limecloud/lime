@@ -680,7 +680,7 @@ impl RuntimeFileSystemGateway for EnvironmentRegistry {
         patch: &str,
         sandbox_policy: Option<&str>,
     ) -> Result<RuntimeFilePatchResult, String> {
-        let parsed = patch_apply::parse_patch(patch).map_err(|error| error.to_string())?;
+        let parsed = apply_patch::parse_patch(patch).map_err(|error| error.to_string())?;
         if let Some(patch_environment_id) = parsed.environment_id.as_deref() {
             if patch_environment_id != environment_id {
                 return Err(format!(
@@ -692,7 +692,7 @@ impl RuntimeFileSystemGateway for EnvironmentRegistry {
         let mut modified_paths = Vec::with_capacity(parsed.hunks.len());
         for hunk in parsed.hunks {
             match hunk {
-                patch_apply::Hunk::AddFile { path, contents } => {
+                apply_patch::Hunk::AddFile { path, contents } => {
                     let remote_path = join_remote_path(working_directory, &path)?;
                     let uri = remote_path_uri(&remote_path)?;
                     if let Some(parent) = remote_path.parent() {
@@ -721,7 +721,7 @@ impl RuntimeFileSystemGateway for EnvironmentRegistry {
                         .await?;
                     modified_paths.push(remote_path);
                 }
-                patch_apply::Hunk::DeleteFile { path } => {
+                apply_patch::Hunk::DeleteFile { path } => {
                     let remote_path = join_remote_path(working_directory, &path)?;
                     let uri = remote_path_uri(&remote_path)?;
                     client
@@ -736,7 +736,7 @@ impl RuntimeFileSystemGateway for EnvironmentRegistry {
                         .await?;
                     modified_paths.push(remote_path);
                 }
-                patch_apply::Hunk::UpdateFile {
+                apply_patch::Hunk::UpdateFile {
                     path,
                     move_path,
                     chunks,
@@ -833,21 +833,10 @@ fn join_remote_path(working_directory: &Path, path: &Path) -> Result<PathBuf, St
 
 fn apply_remote_chunks(
     original: &str,
-    chunks: &[patch_apply::UpdateFileChunk],
+    chunks: &[apply_patch::UpdateFileChunk],
 ) -> Result<String, String> {
-    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let file = temp.path().join("remote-target.txt");
-    std::fs::write(&file, original).map_err(|error| error.to_string())?;
-    patch_apply::apply_hunks_to_workdir(
-        &[patch_apply::Hunk::UpdateFile {
-            path: PathBuf::from("remote-target.txt"),
-            move_path: None,
-            chunks: chunks.to_vec(),
-        }],
-        temp.path(),
-    )
-    .map_err(|error| error.to_string())?;
-    std::fs::read_to_string(file).map_err(|error| error.to_string())
+    apply_patch::apply_chunks_to_contents(original, "remote-target.txt", chunks)
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

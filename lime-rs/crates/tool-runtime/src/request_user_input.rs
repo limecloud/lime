@@ -1,6 +1,6 @@
 use crate::tool_definition::RuntimeToolDefinition;
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -9,7 +9,7 @@ mod execution;
 #[path = "request_user_input/response.rs"]
 mod response;
 
-pub use execution::{execute_request_user_input, RequestUserInputCallback};
+pub use execution::{RequestUserInputCallback, execute_request_user_input};
 pub use response::{
     build_elicitation_message, build_elicitation_schema, extract_response,
     normalize_request_user_input_result,
@@ -19,8 +19,7 @@ pub const DEFAULT_REQUEST_USER_INPUT_TIMEOUT_SECS: u64 = 300;
 pub const REQUEST_USER_INPUT_TOOL_NAME: &str = "request_user_input";
 pub const REQUEST_USER_INPUT_HEADER_WIDTH: usize = 12;
 pub const REQUEST_USER_INPUT_QUESTIONS_SCHEMA_KEY: &str = "x-lime-ask-user-questions";
-const REQUEST_USER_INPUT_TOOL_DESCRIPTION: &str =
-    "Request user input for one to three short questions and wait for the response. \
+const REQUEST_USER_INPUT_TOOL_DESCRIPTION: &str = "Request user input for one to three short questions and wait for the response. \
 Set autoResolutionMs, from 60000 to 240000 milliseconds, only when the question is useful \
 but non-blocking and continuing with best judgment is acceptable if the user does not answer; \
 omit it when explicit user input is required.";

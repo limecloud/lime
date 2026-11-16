@@ -1,6 +1,6 @@
 use super::*;
-use lime_core::config::{ComputerUseConfigToml, ComputerUseRequirementsToml};
 use lime_core::AllowDenyRequirementToml::{Allow, Deny};
+use lime_core::config::{ComputerUseConfigToml, ComputerUseRequirementsToml};
 use std::sync::{Arc, Mutex};
 
 mod chrome;
@@ -136,10 +136,12 @@ async fn missing_driver_is_not_ready_and_never_grants() {
     let (_directory, service) = isolated_service();
     let statuses = service.status(status(), || Ok(allow())).await.unwrap();
     assert_eq!(statuses.adapters.len(), 3);
-    assert!(statuses
-        .adapters
-        .iter()
-        .all(|s| s.readiness == ComputerUseReadiness::NotInstalled));
+    assert!(
+        statuses
+            .adapters
+            .iter()
+            .all(|s| s.readiness == ComputerUseReadiness::NotInstalled)
+    );
     let result = service
         .setup("local-1", setup(), || Ok(allow()))
         .await
@@ -178,10 +180,12 @@ async fn admin_disabled_prevents_setup_side_effects() {
         })
         .await
         .unwrap();
-    assert!(status
-        .adapters
-        .iter()
-        .all(|s| s.targets.is_empty() && s.capabilities.is_empty()));
+    assert!(
+        status
+            .adapters
+            .iter()
+            .all(|s| s.targets.is_empty() && s.capabilities.is_empty())
+    );
     assert_eq!(
         adapter
             .snapshot_count
@@ -194,20 +198,24 @@ async fn admin_disabled_prevents_setup_side_effects() {
 async fn consent_is_required_and_cannot_override_admin_or_user_denials() {
     let (_directory, service) = isolated_service();
     let service = service.with_adapter(Arc::new(TestAdapter::new(false)));
-    assert!(service
-        .setup("local-1", setup(), || Ok(Default::default()))
-        .await
-        .unwrap()
-        .grant
-        .is_none());
+    assert!(
+        service
+            .setup("local-1", setup(), || Ok(Default::default()))
+            .await
+            .unwrap()
+            .grant
+            .is_none()
+    );
     let (_directory, service) = isolated_service();
     let service = service.with_adapter(Arc::new(TestAdapter::new(true)));
-    assert!(service
-        .setup("local-1", setup(), || Ok(Default::default()))
-        .await
-        .unwrap()
-        .grant
-        .is_some());
+    assert!(
+        service
+            .setup("local-1", setup(), || Ok(Default::default()))
+            .await
+            .unwrap()
+            .grant
+            .is_some()
+    );
     for policy in [
         ComputerUsePolicy {
             admin: Some(ComputerUseRequirementsToml {
@@ -224,21 +232,25 @@ async fn consent_is_required_and_cannot_override_admin_or_user_denials() {
             ..Default::default()
         },
     ] {
-        assert!(service
-            .setup("local-1", setup(), || Ok(policy.clone()))
-            .await
-            .unwrap()
-            .grant
-            .is_none());
+        assert!(
+            service
+                .setup("local-1", setup(), || Ok(policy.clone()))
+                .await
+                .unwrap()
+                .grant
+                .is_none()
+        );
     }
     let persistent = ComputerUseSetupParams {
         grant_scope: ComputerUseGrantScope::Persistent,
         ..setup()
     };
-    assert!(service
-        .setup("local-1", persistent, || Ok(Default::default()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .setup("local-1", persistent, || Ok(Default::default()))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -254,24 +266,30 @@ async fn lease_is_exclusive_owner_bound_and_revocation_cancels_inflight_work() {
         .validate_lease(&owner(), &acquired.lease_id, acquired.epoch, || Ok(allow()))
         .await
         .unwrap();
-    assert!(service
-        .acquire(owner(), acquire(&grant), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .acquire(owner(), acquire(&grant), || Ok(allow()))
+            .await
+            .is_err()
+    );
     assert!(service.release("other-client", &acquired.lease_id).is_err());
     assert!(service.revoke("other-client", &grant.id).is_err());
     assert!(!lease.cancellation.is_cancelled());
     let revoked = service.revoke("local-1", &grant.id).unwrap();
     assert!(revoked.revoked && revoked.epoch > acquired.epoch);
     assert!(lease.cancellation.is_cancelled());
-    assert!(service
-        .validate_lease(&owner(), &acquired.lease_id, acquired.epoch, || Ok(allow()))
-        .await
-        .is_err());
-    assert!(service
-        .acquire(owner(), acquire(&grant), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .validate_lease(&owner(), &acquired.lease_id, acquired.epoch, || Ok(allow()))
+            .await
+            .is_err()
+    );
+    assert!(
+        service
+            .acquire(owner(), acquire(&grant), || Ok(allow()))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -323,18 +341,22 @@ async fn target_changes_and_disconnect_fence_old_consent_and_leases() {
     service.status(status(), || Ok(allow())).await.unwrap();
     assert!(lease.cancellation.is_cancelled());
     // The consent outcome belongs to generation 1, so generation 2 requires fresh consent.
-    assert!(service
-        .setup("local-1", setup(), || Ok(Default::default()))
-        .await
-        .unwrap()
-        .grant
-        .is_none());
+    assert!(
+        service
+            .setup("local-1", setup(), || Ok(Default::default()))
+            .await
+            .unwrap()
+            .grant
+            .is_none()
+    );
     let granted = grant(&service).await;
     service.disconnect("local-1");
-    assert!(service
-        .acquire(owner(), acquire(&granted), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        service
+            .acquire(owner(), acquire(&granted), || Ok(allow()))
+            .await
+            .is_err()
+    );
     adapter.snapshot.lock().unwrap().generation = 1;
     assert!(service.status(status(), || Ok(allow())).await.is_err());
 }
@@ -360,20 +382,24 @@ async fn separate_app_servers_wait_for_cancelled_inflight_action_to_finish() {
         .await
         .unwrap();
     let old_fence = inflight.control_fence();
-    assert!(second
-        .acquire(owner(), acquire(&second_grant), || Ok(allow()))
-        .await
-        .unwrap_err()
-        .0
-        .contains("busy"));
+    assert!(
+        second
+            .acquire(owner(), acquire(&second_grant), || Ok(allow()))
+            .await
+            .unwrap_err()
+            .0
+            .contains("busy")
+    );
     first.revoke("local-1", &first_grant.id).unwrap();
     assert!(inflight.cancellation.is_cancelled());
     // Revoke fences new work immediately, but cannot claim an OS action has
     // stopped until the action drops its validated lease reference.
-    assert!(second
-        .acquire(owner(), acquire(&second_grant), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        second
+            .acquire(owner(), acquire(&second_grant), || Ok(allow()))
+            .await
+            .is_err()
+    );
     drop(inflight);
     let acquired = second
         .acquire(owner(), acquire(&second_grant), || Ok(allow()))
@@ -473,16 +499,18 @@ async fn dropped_action_future_keeps_control_until_adapter_confirms_stop() {
         .acquire(owner(), acquire(&granted), || Ok(allow()))
         .await
         .unwrap();
-    assert!(first
-        .execute(
-            &owner(),
-            &acquired.lease_id,
-            acquired.epoch,
-            ComputerUseAction::Screenshot {},
-            || Ok(allow())
-        )
-        .await
-        .is_err());
+    assert!(
+        first
+            .execute(
+                &owner(),
+                &acquired.lease_id,
+                acquired.epoch,
+                ComputerUseAction::Screenshot {},
+                || Ok(allow())
+            )
+            .await
+            .is_err()
+    );
     let action_owner = first.clone();
     let task = tokio::spawn(async move {
         action_owner
@@ -505,10 +533,12 @@ async fn dropped_action_future_keeps_control_until_adapter_confirms_stop() {
     let _ = task.await;
     adapter.cancel_seen.notified().await;
     first.revoke("local-1", &granted.id).unwrap();
-    assert!(second
-        .acquire(owner(), acquire(&second_grant), || Ok(allow()))
-        .await
-        .is_err());
+    assert!(
+        second
+            .acquire(owner(), acquire(&second_grant), || Ok(allow()))
+            .await
+            .is_err()
+    );
     adapter.allow_stop.notify_one();
     tokio::time::timeout(std::time::Duration::from_secs(2), async {
         loop {
@@ -553,30 +583,40 @@ fn windows_identity_matching_and_admin_persistence_constraints() {
         }),
         ..allow()
     };
-    assert!(policy
-        .check(&identity, false, ComputerUseGrantScope::Session, true)
-        .is_err());
-    assert!(policy
-        .check(&identity, false, ComputerUseGrantScope::Persistent, true)
-        .is_err());
-    assert!(allow()
-        .check(&identity, true, ComputerUseGrantScope::Session, true)
-        .is_err());
-    assert!(allow()
-        .check(&identity, false, ComputerUseGrantScope::Session, false)
-        .is_ok());
+    assert!(
+        policy
+            .check(&identity, false, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
+    assert!(
+        policy
+            .check(&identity, false, ComputerUseGrantScope::Persistent, true)
+            .is_err()
+    );
+    assert!(
+        allow()
+            .check(&identity, true, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
+    assert!(
+        allow()
+            .check(&identity, false, ComputerUseGrantScope::Session, false)
+            .is_ok()
+    );
     let unknown_publisher = NativeAppIdentity::Windows {
         aumid: None,
         publisher_name: String::new(),
         product_name: "Editor".into(),
         binary_name: "editor.exe".into(),
     };
-    assert!(allow()
-        .check(
-            &unknown_publisher,
-            false,
-            ComputerUseGrantScope::Session,
-            true
-        )
-        .is_err());
+    assert!(
+        allow()
+            .check(
+                &unknown_publisher,
+                false,
+                ComputerUseGrantScope::Session,
+                true
+            )
+            .is_err()
+    );
 }

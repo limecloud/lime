@@ -8,7 +8,7 @@ use crate::shell_analysis::{
     detect_mutating_bash_invocation_warning,
 };
 
-use super::{validate_command_paths, ShellPermissionDecision};
+use super::{ShellPermissionDecision, validate_command_paths};
 
 const MAX_WRAPPER_DEPTH: usize = 8;
 

@@ -1,0 +1,949 @@
+//! Registry of model providers supported by Lime.
+//!
+//! Providers can be defined in two places:
+//!   1. Built-in defaults compiled into the binary so Lime works out-of-the-box.
+//!   2. User-defined entries inside `~/.lime/config.toml` under the `model_providers`
+//!      key. These override or extend the defaults at runtime.
+//!
+//! API provider construction applies the process-wide managed residency policy also
+//! used by default HTTP headers.
+
+use client::OPENAI_ORGANIZATION_HEADER;
+use client::OPENAI_PROJECT_HEADER;
+use client::Provider as ApiProvider;
+use client::RetryConfig as ApiRetryConfig;
+use http::HeaderMap;
+use http::header::HeaderName;
+use http::header::HeaderValue;
+use protocol::auth::AuthMode;
+use protocol::config_types::ModelProviderAuthInfo;
+use protocol::error::EnvVarError;
+use protocol::error::LimeErr;
+use protocol::error::Result as LimeResult;
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde::Serialize;
+use std::collections::HashMap;
+use std::fmt;
+use std::num::NonZeroU64;
+use std::path::Component;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::PoisonError;
+use std::sync::RwLock;
+use std::time::Duration;
+use utils_redacted_string::RedactedString;
+
+mod capabilities;
+mod gateway_oauth;
+mod oauth_session;
+pub use capabilities::ModelProviderCapabilities;
+pub use capabilities::RemoteCompactionSupport;
+pub use gateway_oauth::GatewayOAuthConfig;
+pub use gateway_oauth::GatewayOAuthDelivery;
+pub use gateway_oauth::GatewayOAuthSettings;
+pub use oauth_session::OAuthCredentialsStore;
+pub use oauth_session::OAuthSessionConfig;
+
+pub const RESIDENCY_HEADER_NAME: &str = "x-openai-internal-lime-residency";
+
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ResidencyRequirement {
+    Us,
+}
+
+static REQUIREMENTS_RESIDENCY: RwLock<Option<ResidencyRequirement>> = RwLock::new(None);
+
+/// Sets the process-wide residency requirement loaded from managed configuration.
+pub fn set_managed_residency_requirement(enforce_residency: Option<ResidencyRequirement>) {
+    // Recover the stored policy if the lock is poisoned rather than silently disabling it.
+    *REQUIREMENTS_RESIDENCY
+        .write()
+        .unwrap_or_else(PoisonError::into_inner) = enforce_residency;
+}
+
+/// Returns the current process-wide managed residency requirement.
+pub fn read_managed_residency_requirement() -> Option<ResidencyRequirement> {
+    *REQUIREMENTS_RESIDENCY
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+}
+
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS: u64 = 300_000;
+const DEFAULT_STREAM_MAX_RETRIES: u64 = 5;
+const DEFAULT_REQUEST_MAX_RETRIES: u64 = 4;
+const DEFAULT_CREDENTIAL_EXPORT_TIMEOUT_MS: u64 = 30_000;
+const DEFAULT_AWS_AUTH_REFRESH_TIMEOUT_MS: u64 = 300_000;
+pub const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS: u64 = 15_000;
+/// Hard cap for user-configured `stream_max_retries`.
+const MAX_STREAM_MAX_RETRIES: u64 = 100;
+/// Hard cap for user-configured `request_max_retries`.
+const MAX_REQUEST_MAX_RETRIES: u64 = 100;
+
+pub const OPENAI_PROVIDER_NAME: &str = "OpenAI";
+const OPENAI_ACTOR_AUTHORIZATION_HEADER: &str = "x-openai-actor-authorization";
+pub const OPENAI_PROVIDER_ID: &str = "openai";
+pub const CHATGPT_LIME_BASE_URL: &str = "https://chatgpt.com/backend-api/lime";
+pub const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
+pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
+pub const AMAZON_BEDROCK_RUNTIME_PROVIDER_NAME: &str = "Amazon Bedrock Runtime";
+pub const AMAZON_BEDROCK_RUNTIME_PROVIDER_ID: &str = "amazon-bedrock-runtime";
+pub const GCP_PROVIDER_NAME: &str = "Google Cloud Vertex AI";
+pub const GCP_PROVIDER_ID: &str = "gcp";
+pub const AMAZON_BEDROCK_GPT_5_5_MODEL_ID: &str = "openai.gpt-5.5";
+pub const AMAZON_BEDROCK_GPT_5_6_SOL_MODEL_ID: &str = "openai.gpt-5.6-sol";
+pub const AMAZON_BEDROCK_GPT_6_1_SOL_MODEL_ID: &str = "openai.gpt-6.1-sol";
+pub const AMAZON_BEDROCK_GPT_6_1_TERRA_MODEL_ID: &str = "openai.gpt-6.1-terra";
+pub const AMAZON_BEDROCK_GPT_6_SOL_MODEL_ID: &str = "openai.gpt-6-sol";
+pub const AMAZON_BEDROCK_GPT_6_LUNA_MODEL_ID: &str = "openai.gpt-6-luna";
+pub const AMAZON_BEDROCK_GPT_6_ASTRA_MODEL_ID: &str = "openai.gpt-6-astra";
+pub const AMAZON_BEDROCK_GPT_5_6_TERRA_MODEL_ID: &str = "openai.gpt-5.6-terra";
+pub const AMAZON_BEDROCK_GPT_5_6_LUNA_MODEL_ID: &str = "openai.gpt-5.6-luna";
+pub const AMAZON_BEDROCK_RUNTIME_GLOBAL_GPT_5_6_TERRA_MODEL_ID: &str =
+    "global.openai.gpt-5.6-terra";
+pub const AMAZON_BEDROCK_RUNTIME_GLOBAL_GPT_5_6_LUNA_MODEL_ID: &str = "global.openai.gpt-5.6-luna";
+pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
+    "https://bedrock-mantle.us-east-1.api.aws/openai/v1";
+const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_HEADER: &str = "x-amzn-mantle-client-agent";
+const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE: &str = "lime";
+const CHAT_WIRE_API_REMOVED_ERROR: &str = "`wire_api = \"chat\"` is no longer supported.\nHow to fix: set `wire_api = \"responses\"` in your provider config.\nMore info: https://github.com/openai/lime/discussions/7782";
+pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
+pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/lime/discussions/7782";
+
+/// Wire protocol that the provider speaks.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum WireApi {
+    /// The Responses API exposed by OpenAI at `/v1/responses`.
+    #[default]
+    Responses,
+}
+
+impl fmt::Display for WireApi {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            Self::Responses => "responses",
+        };
+        f.write_str(value)
+    }
+}
+
+impl<'de> Deserialize<'de> for WireApi {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "responses" => Ok(Self::Responses),
+            "chat" => Err(serde::de::Error::custom(CHAT_WIRE_API_REMOVED_ERROR)),
+            _ => Err(serde::de::Error::unknown_variant(&value, &["responses"])),
+        }
+    }
+}
+
+/// Serializable representation of a provider definition.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct ModelProviderInfo {
+    /// Friendly display name.
+    #[serde(default)]
+    pub name: String,
+    /// Base URL for the provider's OpenAI-compatible API.
+    pub base_url: Option<String>,
+    /// Optional full URL for a Lime-native model catalog. When unset, OpenAI discovery
+    /// uses the Lime backend unless `base_url` overrides the inference endpoint.
+    /// The endpoint must serve the Lime catalog format, not the public `/v1/models` API.
+    ///
+    /// For built-in OpenAI, set this under `[model_providers.openai]`; other non-default
+    /// provider overrides are rejected. The URL must use HTTPS and an allowed ChatGPT
+    /// host. Other hosts require a custom provider. Inference still uses `openai_base_url`.
+    ///
+    /// Catalog requests use the provider's credentials, including an API key or ChatGPT
+    /// access token. Only configure an endpoint you trust with those credentials.
+    /// Setting this URL does not grant catalog access or guarantee that the endpoint
+    /// accepts a regional API key. Existing discovery gates and entitlement checks apply.
+    pub model_catalog_url: Option<RedactedString>,
+    /// Environment variable that stores the user's API key for this provider.
+    pub env_key: Option<String>,
+
+    /// Optional instructions to help the user get a valid value for the
+    /// variable and set it.
+    pub env_key_instructions: Option<String>,
+    /// Value to use with `Authorization: Bearer <token>` header. Use of this
+    /// config is discouraged in favor of `env_key` for security reasons, but
+    /// this may be necessary when using this programmatically.
+    pub experimental_bearer_token: Option<RedactedString>,
+    /// Command-backed bearer-token configuration for this provider.
+    pub auth: Option<ModelProviderAuthInfo>,
+    /// Gateway access token from OAuth or a credential export command.
+    pub gateway_oauth: Option<GatewayOAuthConfig>,
+    /// AWS SigV4 auth configuration for this provider.
+    pub aws: Option<ModelProviderAwsAuthInfo>,
+    /// Google Cloud project ID for the built-in GCP provider. Takes precedence
+    /// over `GOOGLE_CLOUD_PROJECT` when deriving the Vertex AI endpoint.
+    pub project_id: Option<String>,
+    /// Google Cloud location for the built-in GCP provider. Takes precedence
+    /// over `GOOGLE_CLOUD_LOCATION`; defaults to `global` when neither is set.
+    pub location: Option<String>,
+    /// Absolute path to a Google ADC credential file. For GCP, overrides
+    /// GOOGLE_APPLICATION_CREDENTIALS in the auth command's environment only.
+    pub credential_file: Option<PathBuf>,
+    /// Which wire protocol this provider expects.
+    #[serde(default)]
+    pub wire_api: WireApi,
+    /// Optional API capability overrides for a custom Responses-compatible provider.
+    /// Unspecified capabilities retain their existing provider defaults.
+    pub capabilities: Option<ModelProviderCapabilities>,
+    /// Optional query parameters to append to the base URL.
+    pub query_params: Option<HashMap<String, RedactedString>>,
+    /// Additional HTTP headers to include in requests to this provider where
+    /// the (key, value) pairs are the header name and value.
+    pub http_headers: Option<HashMap<String, RedactedString>>,
+    /// Optional HTTP headers to include in requests to this provider where the
+    /// (key, value) pairs are the header name and _environment variable_ whose
+    /// value should be used. If the environment variable is not set, or the
+    /// value is empty, the header will not be included in the request.
+    pub env_http_headers: Option<HashMap<String, String>>,
+    /// Maximum number of times to retry a failed HTTP request to this provider.
+    pub request_max_retries: Option<u64>,
+    /// Number of times to retry reconnecting a dropped streaming response before failing.
+    pub stream_max_retries: Option<u64>,
+    /// Idle timeout (in milliseconds) to wait for activity on a streaming response before treating
+    /// the connection as lost.
+    pub stream_idle_timeout_ms: Option<u64>,
+    /// Maximum time (in milliseconds) to wait for a websocket connection attempt before treating
+    /// it as failed.
+    pub websocket_connect_timeout_ms: Option<u64>,
+    /// Does this provider require an OpenAI API key or ChatGPT login token? If true,
+    /// the user is presented with a login screen on first run, and credentials are
+    /// stored using the backend selected by `cli_auth_credentials_store`.
+    /// If false (the default), the login screen is skipped, and the API key
+    /// (if needed) comes from the environment variable specified by `env_key`.
+    #[serde(default)]
+    pub requires_openai_auth: bool,
+    /// Whether this provider supports the Responses API WebSocket transport.
+    #[serde(default)]
+    pub supports_websockets: bool,
+    /// Whether this provider supports the standalone web-search endpoint.
+    #[serde(default)]
+    pub supports_standalone_web_search: bool,
+    /// Runtime-only opt-in for internal metadata, independent of the destination check.
+    /// This cannot be loaded from or written to serialized provider configuration.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub include_internal_metadata: bool,
+}
+
+/// AWS SigV4 auth configuration for a model provider.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct ModelProviderAwsAuthInfo {
+    /// AWS profile name to use. When unset, the AWS SDK default chain decides.
+    pub profile: Option<String>,
+    /// AWS region to use for provider-specific endpoints.
+    pub region: Option<String>,
+    /// Optional command whose exported credentials replace the AWS SDK credential chain.
+    pub credential_export: Option<AwsCredentialExportConfig>,
+    /// Optional command used to reauthenticate after a refreshable AWS auth failure.
+    pub auth_refresh: Option<AwsAuthRefreshConfig>,
+}
+
+/// Command used to export credentials for a model provider.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct CredentialExportConfig {
+    /// Executable to invoke directly, without a shell.
+    pub command: String,
+    /// Arguments passed to the credential export command.
+    #[serde(default)]
+    pub args: Vec<RedactedString>,
+    /// Maximum time to wait for the credential export command to complete.
+    #[serde(default = "default_credential_export_timeout_ms")]
+    pub timeout_ms: NonZeroU64,
+}
+
+pub type AwsCredentialExportConfig = CredentialExportConfig;
+
+impl CredentialExportConfig {
+    pub fn validate(&self, field: &str) -> Result<(), String> {
+        if self.command.trim().is_empty() {
+            return Err(format!("provider {field}.command must not be empty"));
+        }
+        let path = Path::new(&self.command);
+        let mut components = path.components();
+        let bare = matches!((components.next(), components.next()),
+            (Some(Component::Normal(name)), None) if name == path.as_os_str());
+        if !path.is_absolute() && !bare {
+            return Err(format!(
+                "provider {field}.command must be an absolute path or a bare executable name"
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout_ms.get())
+    }
+}
+
+fn default_credential_export_timeout_ms() -> NonZeroU64 {
+    match NonZeroU64::new(DEFAULT_CREDENTIAL_EXPORT_TIMEOUT_MS) {
+        Some(timeout_ms) => timeout_ms,
+        None => panic!("credential export timeout must be non-zero"),
+    }
+}
+
+/// Command used to refresh AWS credentials for a model provider.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct AwsAuthRefreshConfig {
+    /// Executable to invoke directly, without a shell.
+    pub command: String,
+    /// Arguments passed to the refresh command.
+    #[serde(default)]
+    pub args: Vec<RedactedString>,
+    /// Maximum time to wait for the refresh command to complete.
+    #[serde(default = "default_aws_auth_refresh_timeout_ms")]
+    pub timeout_ms: NonZeroU64,
+}
+
+impl AwsAuthRefreshConfig {
+    pub fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout_ms.get())
+    }
+}
+
+fn default_aws_auth_refresh_timeout_ms() -> NonZeroU64 {
+    match NonZeroU64::new(DEFAULT_AWS_AUTH_REFRESH_TIMEOUT_MS) {
+        Some(timeout_ms) => timeout_ms,
+        None => panic!("AWS auth refresh timeout must be non-zero"),
+    }
+}
+
+impl ModelProviderInfo {
+    /// Checks that a configured Bedrock entry only customizes supported fields.
+    /// Call this on the override before merging it with the built-in provider.
+    pub fn validate_bedrock_override(&self) -> Result<(), String> {
+        let unsupported_fields = Self {
+            base_url: None,
+            auth: None,
+            aws: None,
+            http_headers: None,
+            ..self.clone()
+        };
+        if unsupported_fields != Self::default() {
+            return Err("only supports changing \
+`base_url`, `auth`, `http_headers`, `aws.profile`, `aws.region`, `aws.credential_export`, \
+and `aws.auth_refresh`; \
+other non-default provider fields are not supported"
+                .to_string());
+        }
+        Ok(())
+    }
+
+    /// Checks the credential-file path for a GCP provider or built-in GCP override.
+    pub fn validate_gcp_credential_file(&self) -> Result<(), String> {
+        if let Some(credential_file) = &self.credential_file
+            && !credential_file.is_absolute()
+        {
+            return Err("provider credential_file must be an absolute path".to_string());
+        }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> std::result::Result<(), String> {
+        if self.is_gcp() {
+            self.validate_gcp_credential_file()?;
+        }
+        if let Some(gateway) = &self.gateway_oauth {
+            gateway.validate(self)?;
+        }
+        if let Some(aws) = self.aws.as_ref() {
+            if self.supports_websockets {
+                // TODO(celia-oai): Support AWS SigV4 signing for WebSocket
+                // upgrade requests before allowing AWS-authenticated providers
+                // to enable Responses-over-WebSocket.
+                return Err("provider aws cannot be combined with supports_websockets".to_string());
+            }
+
+            let mut conflicts = Vec::new();
+            if self.env_key.is_some() {
+                conflicts.push("env_key");
+            }
+            if self.experimental_bearer_token.is_some() {
+                conflicts.push("experimental_bearer_token");
+            }
+            if self.auth.is_some() {
+                conflicts.push("auth");
+            }
+            if self.requires_openai_auth {
+                conflicts.push("requires_openai_auth");
+            }
+
+            if !conflicts.is_empty() {
+                return Err(format!(
+                    "provider aws cannot be combined with {}",
+                    conflicts.join(", ")
+                ));
+            }
+
+            if let Some(credential_export) = aws.credential_export.as_ref() {
+                if aws.profile.is_some() {
+                    return Err(
+                        "provider aws.credential_export cannot be combined with aws.profile"
+                            .to_string(),
+                    );
+                }
+                credential_export.validate("aws.credential_export")?;
+            }
+
+            if let Some(auth_refresh) = aws.auth_refresh.as_ref() {
+                if auth_refresh.command.trim().is_empty() {
+                    return Err("provider aws.auth_refresh.command must not be empty".to_string());
+                }
+                if auth_refresh.command != "aws" {
+                    return Err("provider aws.auth_refresh.command must be `aws`".to_string());
+                }
+            }
+        }
+
+        let Some(auth) = self.auth.as_ref() else {
+            return Ok(());
+        };
+
+        if auth.command.trim().is_empty() {
+            return Err("provider auth.command must not be empty".to_string());
+        }
+
+        let mut conflicts = Vec::new();
+        if self.env_key.is_some() {
+            conflicts.push("env_key");
+        }
+        if self.experimental_bearer_token.is_some() {
+            conflicts.push("experimental_bearer_token");
+        }
+        if self.requires_openai_auth {
+            conflicts.push("requires_openai_auth");
+        }
+
+        if conflicts.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "provider auth cannot be combined with {}",
+                conflicts.join(", ")
+            ))
+        }
+    }
+
+    /// Resolve configured request headers before choosing credentials or a runtime.
+    pub fn build_header_map(&self) -> LimeResult<HeaderMap> {
+        let capacity = self.http_headers.as_ref().map_or(0, HashMap::len)
+            + self.env_http_headers.as_ref().map_or(0, HashMap::len);
+        let mut headers = HeaderMap::with_capacity(capacity);
+        if let Some(extra) = &self.http_headers {
+            for (k, v) in extra {
+                if let (Ok(name), Ok(value)) =
+                    (HeaderName::try_from(k), HeaderValue::try_from(v.as_str()))
+                {
+                    headers.insert(name, value);
+                }
+            }
+        }
+
+        if let Some(env_headers) = &self.env_http_headers {
+            for (header, env_var) in env_headers {
+                if let Ok(val) = std::env::var(env_var)
+                    && !val.trim().is_empty()
+                    && let (Ok(name), Ok(value)) =
+                        (HeaderName::try_from(header), HeaderValue::try_from(val))
+                {
+                    headers.insert(name, value);
+                }
+            }
+        }
+
+        Ok(headers)
+    }
+
+    /// Builds an API provider with managed residency taking precedence over configured headers.
+    pub fn to_api_provider(&self, auth_mode: Option<AuthMode>) -> LimeResult<ApiProvider> {
+        let default_base_url = if matches!(
+            auth_mode,
+            Some(
+                AuthMode::Chatgpt
+                    | AuthMode::ChatgptAuthTokens
+                    | AuthMode::Headers
+                    | AuthMode::AgentIdentity
+                    | AuthMode::PersonalAccessToken
+            )
+        ) {
+            CHATGPT_LIME_BASE_URL
+        } else {
+            "https://api.openai.com/v1"
+        };
+        let base_url = self
+            .base_url
+            .clone()
+            .unwrap_or_else(|| default_base_url.to_string());
+
+        let mut headers = self.build_header_map()?;
+        if let Some(requirement) = read_managed_residency_requirement() {
+            let value = match requirement {
+                ResidencyRequirement::Us => HeaderValue::from_static("us"),
+            };
+            headers.insert(RESIDENCY_HEADER_NAME, value);
+        }
+        let retry = ApiRetryConfig {
+            max_attempts: self.request_max_retries(),
+            base_delay: Duration::from_millis(200),
+            retry_429: false,
+            retry_5xx: true,
+            retry_transport: true,
+        };
+
+        Ok(ApiProvider {
+            name: self.name.clone(),
+            base_url,
+            query_params: self.query_params.clone().map(|params| {
+                params
+                    .into_iter()
+                    .map(|(name, value)| (name, value.into_inner()))
+                    .collect()
+            }),
+            headers,
+            retry,
+            stream_idle_timeout: self.stream_idle_timeout(),
+        })
+    }
+
+    /// If `env_key` is Some, returns the API key for this provider if present
+    /// (and non-empty) in the environment. If `env_key` is required but
+    /// cannot be found, returns an error.
+    pub fn api_key(&self) -> LimeResult<Option<String>> {
+        match &self.env_key {
+            Some(env_key) => {
+                let api_key = std::env::var(env_key)
+                    .ok()
+                    .filter(|v| !v.trim().is_empty())
+                    .ok_or_else(|| {
+                        LimeErr::EnvVar(EnvVarError {
+                            var: env_key.clone(),
+                            instructions: self.env_key_instructions.clone(),
+                        })
+                    })?;
+                Ok(Some(api_key))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Effective maximum number of request retries for this provider.
+    pub fn request_max_retries(&self) -> u64 {
+        self.request_max_retries
+            .unwrap_or(DEFAULT_REQUEST_MAX_RETRIES)
+            .min(MAX_REQUEST_MAX_RETRIES)
+    }
+
+    /// Effective maximum number of stream reconnection attempts for this provider.
+    pub fn stream_max_retries(&self) -> u64 {
+        self.stream_max_retries
+            .unwrap_or(DEFAULT_STREAM_MAX_RETRIES)
+            .min(MAX_STREAM_MAX_RETRIES)
+    }
+
+    /// Effective idle timeout for streaming responses.
+    pub fn stream_idle_timeout(&self) -> Duration {
+        self.stream_idle_timeout_ms
+            .map(Duration::from_millis)
+            .unwrap_or(Duration::from_millis(DEFAULT_STREAM_IDLE_TIMEOUT_MS))
+    }
+
+    /// Effective timeout for websocket connect attempts.
+    pub fn websocket_connect_timeout(&self) -> Duration {
+        self.websocket_connect_timeout_ms
+            .map(Duration::from_millis)
+            .unwrap_or(Duration::from_millis(DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS))
+    }
+
+    pub fn create_openai_provider(base_url: Option<String>) -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: OPENAI_PROVIDER_NAME.into(),
+            base_url,
+            model_catalog_url: None,
+            env_key: None,
+            env_key_instructions: None,
+            experimental_bearer_token: None,
+            auth: None,
+            gateway_oauth: None,
+            aws: None,
+            wire_api: WireApi::Responses,
+            query_params: None,
+            http_headers: Some(
+                [("version".to_string(), env!("CARGO_PKG_VERSION").into())]
+                    .into_iter()
+                    .collect(),
+            ),
+            env_http_headers: Some(
+                [
+                    (
+                        OPENAI_ORGANIZATION_HEADER.to_string(),
+                        "OPENAI_ORGANIZATION".to_string(),
+                    ),
+                    (
+                        OPENAI_PROJECT_HEADER.to_string(),
+                        "OPENAI_PROJECT".to_string(),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+            // Use global defaults for retry/timeout unless overridden in config.toml.
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: true,
+            supports_websockets: true,
+            supports_standalone_web_search: true,
+            capabilities: None,
+            project_id: None,
+            location: None,
+            credential_file: None,
+            include_internal_metadata: true,
+        }
+    }
+
+    pub fn create_amazon_bedrock_provider(
+        aws: Option<ModelProviderAwsAuthInfo>,
+    ) -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: AMAZON_BEDROCK_PROVIDER_NAME.into(),
+            // The runtime provider derives the regional Mantle endpoint when
+            // this is unset. A configured value is therefore unambiguously an
+            // endpoint override.
+            base_url: None,
+            model_catalog_url: None,
+            env_key: None,
+            env_key_instructions: None,
+            experimental_bearer_token: None,
+            auth: None,
+            gateway_oauth: None,
+            aws: Some(aws.unwrap_or(ModelProviderAwsAuthInfo {
+                profile: None,
+                region: None,
+                credential_export: None,
+                auth_refresh: None,
+            })),
+            wire_api: WireApi::Responses,
+            query_params: None,
+            http_headers: Some(HashMap::from([(
+                AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_HEADER.to_string(),
+                AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE.into(),
+            )])),
+            env_http_headers: None,
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: false,
+            supports_websockets: false,
+            supports_standalone_web_search: false,
+            capabilities: None,
+            project_id: None,
+            location: None,
+            credential_file: None,
+            include_internal_metadata: false,
+        }
+    }
+
+    pub fn create_amazon_bedrock_runtime_provider(
+        aws: Option<ModelProviderAwsAuthInfo>,
+    ) -> ModelProviderInfo {
+        let mut provider = Self::create_amazon_bedrock_provider(aws);
+        provider.name = AMAZON_BEDROCK_RUNTIME_PROVIDER_NAME.into();
+        provider
+    }
+
+    pub fn create_gcp_provider() -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: GCP_PROVIDER_NAME.into(),
+            base_url: None,
+            model_catalog_url: None,
+            env_key: None,
+            env_key_instructions: None,
+            experimental_bearer_token: None,
+            // Config loading supplies default command auth after resolving its working directory.
+            auth: None,
+            gateway_oauth: None,
+            aws: None,
+            capabilities: None,
+            wire_api: WireApi::Responses,
+            query_params: None,
+            http_headers: None,
+            env_http_headers: None,
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: false,
+            supports_websockets: false,
+            supports_standalone_web_search: false,
+            project_id: None,
+            location: None,
+            credential_file: None,
+            include_internal_metadata: false,
+        }
+    }
+
+    /// Whether explicit Cyber programs may be selected and forwarded to this provider.
+    /// Use the configured provider ID, never its user-controlled display name, for defaults.
+    pub fn supports_cyber_access_programs(&self, provider_id: &str) -> bool {
+        self.capabilities
+            .and_then(|capabilities| capabilities.cyber_access_programs)
+            .unwrap_or(provider_id == OPENAI_PROVIDER_ID)
+    }
+
+    pub fn is_openai(&self) -> bool {
+        self.name == OPENAI_PROVIDER_NAME
+    }
+
+    pub fn supports_lime_backend_routes(&self) -> bool {
+        self.is_openai()
+            && self.base_url.as_deref().is_none_or(|base_url| {
+                base_url
+                    .trim_end_matches('/')
+                    .ends_with("/backend-api/lime")
+            })
+    }
+
+    pub fn uses_openai_actor_authorization(&self) -> bool {
+        !self.requires_openai_auth
+            && self.http_headers.as_ref().is_some_and(|headers| {
+                headers.iter().any(|(name, value)| {
+                    name.eq_ignore_ascii_case(OPENAI_ACTOR_AUTHORIZATION_HEADER)
+                        && !value.trim().is_empty()
+                })
+            })
+    }
+
+    pub fn is_amazon_bedrock(&self) -> bool {
+        self.name == AMAZON_BEDROCK_PROVIDER_NAME
+            || self.name == AMAZON_BEDROCK_RUNTIME_PROVIDER_NAME
+    }
+
+    pub fn is_amazon_bedrock_runtime(&self) -> bool {
+        self.name == AMAZON_BEDROCK_RUNTIME_PROVIDER_NAME
+    }
+
+    pub fn is_gcp(&self) -> bool {
+        self.name == GCP_PROVIDER_NAME
+    }
+
+    pub fn has_command_auth(&self) -> bool {
+        self.auth.is_some()
+    }
+}
+
+pub const DEFAULT_LMSTUDIO_PORT: u16 = 1234;
+pub const DEFAULT_OLLAMA_PORT: u16 = 11434;
+
+pub const LMSTUDIO_OSS_PROVIDER_ID: &str = "lmstudio";
+pub const OLLAMA_OSS_PROVIDER_ID: &str = "ollama";
+
+/// Built-in default provider list.
+pub fn built_in_model_providers(
+    openai_base_url: Option<String>,
+) -> HashMap<String, ModelProviderInfo> {
+    use ModelProviderInfo as P;
+    let openai_provider = P::create_openai_provider(openai_base_url);
+    let amazon_bedrock_provider = P::create_amazon_bedrock_provider(/*aws*/ None);
+    let amazon_bedrock_runtime_provider =
+        P::create_amazon_bedrock_runtime_provider(/*aws*/ None);
+    let gcp_provider = P::create_gcp_provider();
+
+    // Bundle OpenAI, supported cloud-hosted OpenAI backends, and local OSS providers.
+    // Other compatible providers can be added through `model_providers` in config.toml.
+    [
+        (OPENAI_PROVIDER_ID, openai_provider),
+        (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
+        (GCP_PROVIDER_ID, gcp_provider),
+        (
+            AMAZON_BEDROCK_RUNTIME_PROVIDER_ID,
+            amazon_bedrock_runtime_provider,
+        ),
+        (
+            OLLAMA_OSS_PROVIDER_ID,
+            create_oss_provider(DEFAULT_OLLAMA_PORT, WireApi::Responses),
+        ),
+        (
+            LMSTUDIO_OSS_PROVIDER_ID,
+            create_oss_provider(DEFAULT_LMSTUDIO_PORT, WireApi::Responses),
+        ),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), v))
+    .collect()
+}
+
+/// Merge configured providers into the built-in provider catalog.
+///
+/// Configured providers extend the built-in set. Built-in providers are not
+/// generally overridable. OpenAI allows a catalog URL override, while the
+/// cloud-hosted OpenAI providers allow a limited
+/// set of endpoint, authentication, header, and cloud-specific overrides.
+pub fn merge_configured_model_providers(
+    mut model_providers: HashMap<String, ModelProviderInfo>,
+    configured_model_providers: HashMap<String, ModelProviderInfo>,
+) -> Result<HashMap<String, ModelProviderInfo>, String> {
+    for (key, mut provider) in configured_model_providers {
+        if key == "openai" {
+            // Keep the built-in identity, inference routing, and authentication.
+            // Only catalog routing is configurable through this provider entry.
+            if let Some(catalog_url) = provider.model_catalog_url.take()
+                && let Some(built_in_provider) = model_providers.get_mut(&key)
+            {
+                let allowed = catalog_url.parse::<http::Uri>().ok().is_some_and(|uri| {
+                    uri.scheme_str() == Some("https")
+                        && uri.host().is_some_and(|host| {
+                            http_client::is_allowed_chatgpt_host(&host.to_ascii_lowercase())
+                        })
+                        && uri
+                            .authority()
+                            .is_some_and(|authority| !authority.as_str().contains('@'))
+                });
+                if !allowed {
+                    return Err("model_providers.openai.model_catalog_url must use an allowed ChatGPT host. If you need to use a 3rd party host, configure a custom model_provider".to_string());
+                }
+                built_in_provider.model_catalog_url = Some(catalog_url);
+            }
+        } else if matches!(
+            key.as_str(),
+            AMAZON_BEDROCK_PROVIDER_ID | AMAZON_BEDROCK_RUNTIME_PROVIDER_ID
+        ) {
+            provider
+                .validate_bedrock_override()
+                .map_err(|message| format!("model_providers.{key} {message}"))?;
+            let base_url_override = provider.base_url.take();
+            let auth_override = provider.auth.take();
+            let aws_override = provider.aws.take();
+            let http_headers_override = provider.http_headers.take();
+            if let Some(built_in_provider) = model_providers.get_mut(&key) {
+                built_in_provider.base_url = base_url_override;
+                built_in_provider.auth = auth_override;
+                if let Some(aws_override) = aws_override {
+                    built_in_provider.aws = Some(aws_override);
+                }
+                if let Some(http_headers_override) = http_headers_override {
+                    built_in_provider
+                        .http_headers
+                        .get_or_insert_default()
+                        .extend(http_headers_override);
+                }
+            }
+        } else if key == GCP_PROVIDER_ID {
+            merge_gcp_provider_overrides(model_providers.get_mut(&key), provider)?;
+        } else {
+            model_providers.entry(key).or_insert(provider);
+        }
+    }
+
+    Ok(model_providers)
+}
+
+/// Validates GCP overrides and applies them when the built-in provider is present.
+pub fn merge_gcp_provider_overrides(
+    built_in: Option<&mut ModelProviderInfo>,
+    mut overrides: ModelProviderInfo,
+) -> Result<(), String> {
+    overrides
+        .validate_gcp_credential_file()
+        .and_then(|()| overrides.validate())
+        .map_err(|message| format!("model_providers.{GCP_PROVIDER_ID} {message}"))?;
+    let base_url = overrides.base_url.take();
+    let auth = overrides.auth.take();
+    let credential_file = overrides.credential_file.take();
+    let http_headers = overrides.http_headers.take();
+    let project_id = overrides.project_id.take();
+    let location = overrides.location.take();
+    if overrides != ModelProviderInfo::default() {
+        return Err(format!(
+            "model_providers.{GCP_PROVIDER_ID} only supports changing \
+`base_url`, `auth`, `http_headers`, `project_id`, `location`, and `credential_file`; other non-default provider fields are not supported"
+        ));
+    }
+
+    if let Some(provider) = built_in {
+        provider.project_id = project_id;
+        provider.location = location;
+        provider.credential_file = credential_file;
+        if let Some(base_url) = base_url {
+            provider.base_url = Some(base_url);
+        }
+        if let Some(auth) = auth {
+            provider.auth = Some(auth);
+        }
+        if let Some(http_headers) = http_headers {
+            provider
+                .http_headers
+                .get_or_insert_default()
+                .extend(http_headers);
+        }
+    }
+    Ok(())
+}
+
+pub fn create_oss_provider(default_provider_port: u16, wire_api: WireApi) -> ModelProviderInfo {
+    // These LIME_OSS_ environment variables are experimental: we may
+    // switch to reading values from config.toml instead.
+    let default_lime_oss_base_url = format!(
+        "http://localhost:{lime_oss_port}/v1",
+        lime_oss_port = std::env::var("LIME_OSS_PORT")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .and_then(|value| value.parse::<u16>().ok())
+            .unwrap_or(default_provider_port)
+    );
+
+    let lime_oss_base_url = std::env::var("LIME_OSS_BASE_URL")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or(default_lime_oss_base_url);
+    create_oss_provider_with_base_url(&lime_oss_base_url, wire_api)
+}
+
+pub fn create_oss_provider_with_base_url(base_url: &str, wire_api: WireApi) -> ModelProviderInfo {
+    ModelProviderInfo {
+        name: "gpt-oss".into(),
+        base_url: Some(base_url.into()),
+        model_catalog_url: None,
+        env_key: None,
+        env_key_instructions: None,
+        experimental_bearer_token: None,
+        auth: None,
+        gateway_oauth: None,
+        aws: None,
+        wire_api,
+        query_params: None,
+        http_headers: None,
+        env_http_headers: None,
+        request_max_retries: None,
+        stream_max_retries: None,
+        stream_idle_timeout_ms: None,
+        websocket_connect_timeout_ms: None,
+        requires_openai_auth: false,
+        supports_websockets: false,
+        supports_standalone_web_search: false,
+        capabilities: None,
+        project_id: None,
+        location: None,
+        credential_file: None,
+        include_internal_metadata: false,
+    }
+}
+
+#[cfg(test)]
+#[path = "model_provider_info_tests.rs"]
+mod tests;

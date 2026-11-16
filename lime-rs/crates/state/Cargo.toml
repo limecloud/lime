@@ -1,0 +1,35 @@
+[package]
+name = "state"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Local state store."
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+file-id = "0.2.3"
+file-system = { path = "../file-system" }
+history = { path = "../history" }
+libsqlite3-sys = { version = "0.39.1", default-features = false }
+log = "0.4"
+lime-utils-absolute-path.workspace = true
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { version = "=0.9.0", default-features = false, features = ["chrono", "json", "migrate", "runtime-tokio", "tls-rustls", "sqlite-bundled", "time", "uuid"] }
+sqlx-macros = { version = "=0.9.0", default-features = false, features = ["derive", "migrate"] }
+sqlx-sqlite = { version = "=0.9.0", default-features = false, features = ["offline"] }
+strum = { version = "0.27.2", features = ["derive"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt-multi-thread", "sync", "time"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid = { workspace = true }
+
+[dev-dependencies]
+git-utils = { path = "../git-utils" }
+pretty_assertions.workspace = true
+scopeguard = "1.2.0"

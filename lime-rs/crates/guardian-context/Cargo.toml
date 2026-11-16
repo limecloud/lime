@@ -1,0 +1,25 @@
+[package]
+name = "guardian-context"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Guardian context assembly."
+
+[lib]
+name = "guardian_context"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+context-fragments = { path = "../context-fragments" }
+history = { path = "../history" }
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+utils-output-truncation = { path = "../utils-output-truncation" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+protocol-test-support = { path = "../protocol-test-support" }

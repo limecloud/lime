@@ -1,0 +1,27 @@
+[package]
+name = "plugin"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Plugin manifest and installation."
+
+[lib]
+name = "plugin"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+config = { path = "../config-upstream" }
+core-plugin-common = { path = "../core-plugin-common" }
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+utils-plugins = { path = "../utils-plugins" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

@@ -1,0 +1,4089 @@
+use super::*;
+use crate::SortDirection;
+use crate::sqlite::SqlitePoolWriteExt;
+use crate::sqlite::SqliteWriteQueryExt;
+use protocol::SanitizedGitUrl;
+use protocol::protocol::SessionSource;
+use std::sync::atomic::AtomicI64;
+use std::sync::atomic::Ordering;
+
+const EXCLUDE_ATTACHED_THREADS: &str = " AND threads.attached_thread_parent_id IS NULL";
+
+impl StateRuntime {
+    pub async fn get_thread(&self, id: ThreadId) -> anyhow::Result<Option<crate::ThreadMetadata>> {
+        let row = sqlx::query(
+            r#"
+SELECT
+    threads.id,
+    threads.attached_thread_parent_id,
+    threads.rollout_path,
+    threads.created_at_ms AS created_at,
+    threads.updated_at_ms AS updated_at,
+    threads.recency_at_ms AS recency_at,
+    threads.source,
+    threads.originator,
+    threads.creator_user_id,
+    threads.creator_account_id,
+    threads.history_mode,
+    threads.thread_source,
+    threads.agent_nickname,
+    threads.agent_role,
+    threads.agent_path,
+    threads.model_provider,
+    threads.model,
+    threads.reasoning_effort,
+    threads.cwd,
+    threads.cli_version,
+    threads.title,
+    threads.name,
+    threads.preview,
+    threads.sandbox_policy,
+    threads.approval_mode,
+    threads.tokens_used,
+    threads.first_user_message,
+    threads.archived_at,
+    threads.thread_section_id AS section,
+    (
+        SELECT thread_sections.name
+        FROM thread_sections
+        WHERE thread_sections.id = threads.thread_section_id
+    ) AS section_name,
+    (
+        SELECT thread_sections.appearance
+        FROM thread_sections
+        WHERE thread_sections.id = threads.thread_section_id
+    ) AS section_appearance,
+    threads.section_position,
+    threads.section_entered_at_ms,
+    threads.project_id,
+    threads.daybreak_enabled,
+    threads.git_sha,
+    threads.git_branch,
+    threads.git_origin_url
+FROM threads
+WHERE threads.id = ?
+            "#,
+        )
+        .bind(id.to_string())
+        .fetch_optional(self.pool.as_ref())
+        .await?;
+        row.map(|row| ThreadRow::try_from_row(&row).and_then(ThreadMetadata::try_from))
+            .transpose()
+    }
+
+    /// Permanently promote a thread, preserving its canonical name or a legacy-visible fallback.
+    pub async fn mark_thread_paginated(
+        &self,
+        thread_id: ThreadId,
+        legacy_name: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        // Legacy threads display `title`, then fall back to the name index. Paginated threads
+        // display `name`; `title` remains derived metadata used for search. Preserve an existing
+        // `name`, unless it is the Guardian default seeded by metadata cleanup.
+        let result = sqlx::query(
+            r#"
+UPDATE threads
+SET
+    history_mode = 'paginated',
+    name = CASE
+        WHEN name IS NULL OR trim(name) = '' THEN ?
+        WHEN history_mode = 'legacy'
+            AND source = '{"subagent":{"other":"guardian"}}'
+            AND name = ? THEN COALESCE(?, name)
+        ELSE name
+    END
+WHERE id = ?
+            "#,
+        )
+        .bind(legacy_name)
+        .bind(crate::GUARDIAN_THREAD_TITLE)
+        .bind(legacy_name)
+        .bind(thread_id.to_string())
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+    pub async fn get_thread_memory_mode(&self, id: ThreadId) -> anyhow::Result<Option<String>> {
+        let row = sqlx::query("SELECT memory_mode FROM threads WHERE id = ?")
+            .bind(id.to_string())
+            .fetch_optional(self.pool.as_ref())
+            .await?;
+        Ok(row.and_then(|row| row.try_get("memory_mode").ok()))
+    }
+
+    pub async fn set_thread_preview_if_empty(
+        &self,
+        thread_id: ThreadId,
+        preview: &str,
+    ) -> anyhow::Result<bool> {
+        let preview = preview.trim();
+        if preview.is_empty() {
+            return Ok(false);
+        }
+        let result = sqlx::query(
+            r#"
+UPDATE threads
+SET preview = ?
+WHERE id = ? AND preview = ''
+            "#,
+        )
+        .bind(preview)
+        .bind(thread_id.to_string())
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// List saved threads attached directly to the given parent, including archived threads.
+    pub async fn list_attached_thread_ids(
+        &self,
+        parent: ThreadId,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        let ids = sqlx::query_scalar::<_, String>(
+            "SELECT id FROM threads WHERE attached_thread_parent_id = ?",
+        )
+        .bind(parent.to_string())
+        .fetch_all(self.pool.as_ref())
+        .await?;
+        ids.into_iter()
+            .map(|id| ThreadId::try_from(id).map_err(Into::into))
+            .collect()
+    }
+
+    /// Persist or replace the directional parent-child edge for a spawned thread.
+    pub async fn upsert_thread_spawn_edge(
+        &self,
+        parent_thread_id: ThreadId,
+        child_thread_id: ThreadId,
+        status: crate::DirectionalThreadSpawnEdgeStatus,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+INSERT INTO thread_spawn_edges (
+    parent_thread_id,
+    child_thread_id,
+    status
+) VALUES (?, ?, ?)
+ON CONFLICT(child_thread_id) DO UPDATE SET
+    parent_thread_id = excluded.parent_thread_id,
+    status = excluded.status
+            "#,
+        )
+        .bind(parent_thread_id.to_string())
+        .bind(child_thread_id.to_string())
+        .bind(status.as_ref())
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+
+    /// Update the persisted lifecycle status of a spawned thread's incoming edge.
+    pub async fn set_thread_spawn_edge_status(
+        &self,
+        child_thread_id: ThreadId,
+        status: crate::DirectionalThreadSpawnEdgeStatus,
+    ) -> anyhow::Result<()> {
+        sqlx::query("UPDATE thread_spawn_edges SET status = ? WHERE child_thread_id = ?")
+            .bind(status.as_ref())
+            .bind(child_thread_id.to_string())
+            .execute_with_busy_retry(self.pool.as_ref())
+            .await?;
+        Ok(())
+    }
+
+    /// List direct spawned children of `parent_thread_id` whose edge matches `status`.
+    pub async fn list_thread_spawn_children_with_status(
+        &self,
+        parent_thread_id: ThreadId,
+        status: crate::DirectionalThreadSpawnEdgeStatus,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        self.list_thread_spawn_children_matching(parent_thread_id, Some(status))
+            .await
+    }
+
+    /// List all direct spawned children of `parent_thread_id`.
+    pub async fn list_thread_spawn_children(
+        &self,
+        parent_thread_id: ThreadId,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        self.list_thread_spawn_children_matching(parent_thread_id, /*status*/ None)
+            .await
+    }
+
+    /// List spawned descendants of `root_thread_id` whose edges match `status`.
+    ///
+    /// Descendants are returned breadth-first by depth, then by thread id for stable ordering.
+    pub async fn list_thread_spawn_descendants_with_status(
+        &self,
+        root_thread_id: ThreadId,
+        status: crate::DirectionalThreadSpawnEdgeStatus,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        self.list_thread_spawn_descendants_matching(root_thread_id, Some(status))
+            .await
+    }
+
+    /// List all spawned descendants of `root_thread_id`.
+    ///
+    /// Descendants are returned breadth-first by depth, then by thread id for stable ordering.
+    pub async fn list_thread_spawn_descendants(
+        &self,
+        root_thread_id: ThreadId,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        self.list_thread_spawn_descendants_matching(root_thread_id, /*status*/ None)
+            .await
+    }
+
+    /// Find a direct spawned child of `parent_thread_id` by canonical agent path.
+    pub async fn find_thread_spawn_child_by_path(
+        &self,
+        parent_thread_id: ThreadId,
+        agent_path: &str,
+    ) -> anyhow::Result<Option<ThreadId>> {
+        let rows = sqlx::query(
+            r#"
+SELECT threads.id
+FROM thread_spawn_edges
+JOIN threads ON threads.id = thread_spawn_edges.child_thread_id
+WHERE thread_spawn_edges.parent_thread_id = ?
+  AND threads.agent_path = ?
+ORDER BY threads.id
+LIMIT 2
+            "#,
+        )
+        .bind(parent_thread_id.to_string())
+        .bind(agent_path)
+        .fetch_all(self.pool.as_ref())
+        .await?;
+        one_thread_id_from_rows(rows, agent_path)
+    }
+
+    /// Find a spawned descendant of `root_thread_id` by canonical agent path.
+    pub async fn find_thread_spawn_descendant_by_path(
+        &self,
+        root_thread_id: ThreadId,
+        agent_path: &str,
+    ) -> anyhow::Result<Option<ThreadId>> {
+        let rows = sqlx::query(
+            r#"
+WITH RECURSIVE subtree(child_thread_id) AS (
+    SELECT child_thread_id
+    FROM thread_spawn_edges
+    WHERE parent_thread_id = ?
+    UNION ALL
+    SELECT edge.child_thread_id
+    FROM thread_spawn_edges AS edge
+    JOIN subtree ON edge.parent_thread_id = subtree.child_thread_id
+)
+SELECT threads.id
+FROM subtree
+JOIN threads ON threads.id = subtree.child_thread_id
+WHERE threads.agent_path = ?
+ORDER BY threads.id
+LIMIT 2
+            "#,
+        )
+        .bind(root_thread_id.to_string())
+        .bind(agent_path)
+        .fetch_all(self.pool.as_ref())
+        .await?;
+        one_thread_id_from_rows(rows, agent_path)
+    }
+
+    async fn list_thread_spawn_children_matching(
+        &self,
+        parent_thread_id: ThreadId,
+        status: Option<crate::DirectionalThreadSpawnEdgeStatus>,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        let mut builder = QueryBuilder::<Sqlite>::new(
+            "SELECT child_thread_id FROM thread_spawn_edges WHERE parent_thread_id = ",
+        );
+        builder.push_bind(parent_thread_id.to_string());
+        if let Some(status) = status {
+            builder.push(" AND status = ").push_bind(status.to_string());
+        }
+        builder.push(" ORDER BY child_thread_id");
+
+        let rows = builder.build().fetch_all(self.pool.as_ref()).await?;
+        rows.into_iter()
+            .map(|row| {
+                ThreadId::try_from(row.try_get::<String, _>("child_thread_id")?).map_err(Into::into)
+            })
+            .collect()
+    }
+
+    async fn list_thread_spawn_descendants_matching(
+        &self,
+        root_thread_id: ThreadId,
+        status: Option<crate::DirectionalThreadSpawnEdgeStatus>,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        let mut builder = QueryBuilder::<Sqlite>::new(
+            r#"
+WITH RECURSIVE subtree(child_thread_id, depth) AS (
+    SELECT child_thread_id, 1
+    FROM thread_spawn_edges
+    WHERE parent_thread_id =
+            "#,
+        );
+        builder.push_bind(root_thread_id.to_string());
+        if let Some(status) = status {
+            let status = status.to_string();
+            builder.push(" AND status = ").push_bind(status.clone());
+            builder.push(
+                r#"
+    UNION ALL
+    SELECT edge.child_thread_id, subtree.depth + 1
+    FROM thread_spawn_edges AS edge
+    JOIN subtree ON edge.parent_thread_id = subtree.child_thread_id
+    WHERE status =
+                "#,
+            );
+            builder.push_bind(status);
+        } else {
+            builder.push(
+                r#"
+    UNION ALL
+    SELECT edge.child_thread_id, subtree.depth + 1
+    FROM thread_spawn_edges AS edge
+    JOIN subtree ON edge.parent_thread_id = subtree.child_thread_id
+                "#,
+            );
+        }
+        builder.push(
+            r#"
+)
+SELECT child_thread_id
+FROM subtree
+ORDER BY depth ASC, child_thread_id ASC
+            "#,
+        );
+
+        let rows = builder.build().fetch_all(self.pool.as_ref()).await?;
+        rows.into_iter()
+            .map(|row| {
+                ThreadId::try_from(row.try_get::<String, _>("child_thread_id")?).map_err(Into::into)
+            })
+            .collect()
+    }
+
+    async fn insert_thread_spawn_edge_if_absent(
+        &self,
+        parent_thread_id: ThreadId,
+        child_thread_id: ThreadId,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+INSERT INTO thread_spawn_edges (
+    parent_thread_id,
+    child_thread_id,
+    status
+) VALUES (?, ?, ?)
+ON CONFLICT(child_thread_id) DO NOTHING
+            "#,
+        )
+        .bind(parent_thread_id.to_string())
+        .bind(child_thread_id.to_string())
+        .bind(crate::DirectionalThreadSpawnEdgeStatus::Open.as_ref())
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+
+    async fn insert_thread_spawn_edge_from_source_if_absent(
+        &self,
+        child_thread_id: ThreadId,
+        source: &str,
+    ) -> anyhow::Result<()> {
+        let Some(parent_thread_id) = thread_spawn_parent_thread_id_from_source_str(source) else {
+            return Ok(());
+        };
+        self.insert_thread_spawn_edge_if_absent(parent_thread_id, child_thread_id)
+            .await
+    }
+
+    /// Find a rollout path by thread id using the underlying database.
+    pub async fn find_rollout_path_by_id(
+        &self,
+        id: ThreadId,
+        archived_only: Option<bool>,
+    ) -> anyhow::Result<Option<PathBuf>> {
+        let mut builder =
+            QueryBuilder::<Sqlite>::new("SELECT rollout_path FROM threads WHERE id = ");
+        builder.push_bind(id.to_string());
+        match archived_only {
+            Some(true) => {
+                builder.push(" AND archived = 1");
+            }
+            Some(false) => {
+                builder.push(" AND archived = 0");
+            }
+            None => {}
+        }
+        let row = builder.build().fetch_optional(self.pool.as_ref()).await?;
+        Ok(row
+            .and_then(|r| r.try_get::<String, _>("rollout_path").ok())
+            .map(PathBuf::from))
+    }
+
+    /// Swap one thread's rollout path only when it still matches the expected path.
+    ///
+    /// This intentionally updates only the physical path. The logical thread metadata remains
+    /// attached to the stable thread id.
+    pub async fn replace_rollout_path_if_current(
+        &self,
+        id: ThreadId,
+        expected: &Path,
+        replacement: &Path,
+    ) -> anyhow::Result<bool> {
+        let result =
+            sqlx::query("UPDATE threads SET rollout_path = ? WHERE id = ? AND rollout_path = ?")
+                .bind(replacement.display().to_string())
+                .bind(id.to_string())
+                .bind(expected.display().to_string())
+                .execute_with_busy_retry(self.pool.as_ref())
+                .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// Find the newest thread whose user-facing title exactly matches `title`.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn find_thread_by_exact_title(
+        &self,
+        title: &str,
+        allowed_sources: &[String],
+        model_providers: Option<&[String]>,
+        archived_only: bool,
+        cwd: Option<&Path>,
+    ) -> anyhow::Result<Option<crate::ThreadMetadata>> {
+        let mut builder = QueryBuilder::<Sqlite>::new("");
+        push_thread_select_columns(&mut builder);
+        builder.push(" FROM threads");
+        push_thread_filters(
+            &mut builder,
+            ThreadFilterOptions {
+                archived_only,
+                allowed_sources,
+                model_providers,
+                cwd_filters: None,
+                section: None,
+                project_id: None,
+                anchor: None,
+                sort_key: crate::SortKey::UpdatedAt,
+                sort_direction: SortDirection::Desc,
+                search_term: None,
+            },
+            /*include_thread_id_tiebreaker*/ false,
+        );
+        builder.push(EXCLUDE_ATTACHED_THREADS);
+        builder.push(" AND threads.title = ");
+        builder.push_bind(title);
+        if let Some(cwd) = cwd {
+            builder.push(" AND threads.cwd = ");
+            builder.push_bind(cwd.display().to_string());
+        }
+        push_thread_order_and_limit(
+            &mut builder,
+            crate::SortKey::UpdatedAt,
+            SortDirection::Desc,
+            OrderByIndex::Enabled,
+            /*include_thread_id_tiebreaker*/ false,
+            /*limit*/ 1,
+        );
+
+        let row = builder.build().fetch_optional(self.pool.as_ref()).await?;
+        row.map(|row| ThreadRow::try_from_row(&row).and_then(crate::ThreadMetadata::try_from))
+            .transpose()
+    }
+
+    /// List threads using the underlying database.
+    pub async fn list_threads(
+        &self,
+        page_size: usize,
+        filters: ThreadFilterOptions<'_>,
+    ) -> anyhow::Result<crate::ThreadsPage> {
+        self.list_threads_matching(page_size, filters, /*relation_filter*/ None)
+            .await
+    }
+
+    /// List direct children of `parent_thread_id` using persisted spawn edges.
+    pub async fn list_threads_by_parent(
+        &self,
+        page_size: usize,
+        parent_thread_id: ThreadId,
+        filters: ThreadFilterOptions<'_>,
+    ) -> anyhow::Result<crate::ThreadsPage> {
+        self.list_threads_by_relation(
+            page_size,
+            crate::ThreadRelationFilter::DirectChildrenOf(parent_thread_id),
+            filters,
+        )
+        .await
+    }
+
+    /// List threads matching a persisted spawn-graph relationship.
+    pub async fn list_threads_by_relation(
+        &self,
+        page_size: usize,
+        relation_filter: crate::ThreadRelationFilter,
+        filters: ThreadFilterOptions<'_>,
+    ) -> anyhow::Result<crate::ThreadsPage> {
+        self.list_threads_matching(page_size, filters, Some(relation_filter))
+            .await
+    }
+
+    async fn list_threads_matching(
+        &self,
+        page_size: usize,
+        filters: ThreadFilterOptions<'_>,
+        relation_filter: Option<crate::ThreadRelationFilter>,
+    ) -> anyhow::Result<crate::ThreadsPage> {
+        let limit = page_size.saturating_add(1);
+
+        let mut builder = QueryBuilder::<Sqlite>::new("");
+        push_list_threads_query(&mut builder, filters, relation_filter, limit);
+
+        let rows = builder.build().fetch_all(self.pool.as_ref()).await?;
+        let mut items = Vec::with_capacity(rows.len());
+        let mut parent_thread_ids = std::collections::HashMap::new();
+        for row in rows {
+            let item = ThreadRow::try_from_row(&row).and_then(ThreadMetadata::try_from)?;
+            if relation_filter.is_some()
+                && let Some(parent_thread_id) =
+                    row.try_get::<Option<String>, _>("parent_thread_id")?
+            {
+                parent_thread_ids.insert(item.id, ThreadId::try_from(parent_thread_id)?);
+            }
+            items.push(item);
+        }
+        let num_scanned_rows = items.len();
+        let next_anchor = if items.len() > page_size {
+            if let Some(overflow_item) = items.pop() {
+                parent_thread_ids.remove(&overflow_item.id);
+            }
+            items
+                .last()
+                .and_then(|item| anchor_from_item(item, filters.sort_key))
+        } else {
+            None
+        };
+        Ok(ThreadsPage {
+            items,
+            parent_thread_ids,
+            next_anchor,
+            num_scanned_rows,
+        })
+    }
+
+    /// List thread ids using the underlying database (no rollout scanning).
+    pub async fn list_thread_ids(
+        &self,
+        limit: usize,
+        anchor: Option<&crate::Anchor>,
+        sort_key: crate::SortKey,
+        allowed_sources: &[String],
+        model_providers: Option<&[String]>,
+        archived_only: bool,
+    ) -> anyhow::Result<Vec<ThreadId>> {
+        let mut builder = QueryBuilder::<Sqlite>::new("SELECT threads.id FROM threads");
+        push_thread_filters(
+            &mut builder,
+            ThreadFilterOptions {
+                archived_only,
+                allowed_sources,
+                model_providers,
+                cwd_filters: None,
+                section: None,
+                project_id: None,
+                anchor,
+                sort_key,
+                sort_direction: SortDirection::Desc,
+                search_term: None,
+            },
+            matches!(
+                sort_key,
+                crate::SortKey::CreatedAt
+                    | crate::SortKey::RecencyAt
+                    | crate::SortKey::SectionPosition
+            ),
+        );
+        builder.push(EXCLUDE_ATTACHED_THREADS);
+        push_thread_order_and_limit(
+            &mut builder,
+            sort_key,
+            SortDirection::Desc,
+            OrderByIndex::Enabled,
+            matches!(
+                sort_key,
+                crate::SortKey::CreatedAt
+                    | crate::SortKey::RecencyAt
+                    | crate::SortKey::SectionPosition
+            ),
+            limit,
+        );
+
+        let rows = builder.build().fetch_all(self.pool.as_ref()).await?;
+        rows.into_iter()
+            .map(|row| {
+                let id: String = row.try_get("id")?;
+                Ok(ThreadId::try_from(id)?)
+            })
+            .collect()
+    }
+
+    /// Insert or replace thread metadata directly.
+    pub async fn upsert_thread(&self, metadata: &crate::ThreadMetadata) -> anyhow::Result<()> {
+        self.upsert_thread_with_creation_memory_mode(metadata, /*creation_memory_mode*/ None)
+            .await
+    }
+
+    pub async fn insert_thread_if_absent(
+        &self,
+        metadata: &crate::ThreadMetadata,
+    ) -> anyhow::Result<bool> {
+        let updated_at = self.allocate_thread_updated_at(metadata.updated_at)?;
+        let recency_at = self.allocate_thread_recency_at(metadata.recency_at)?;
+        let preview = metadata_preview(metadata);
+        let result = sqlx::query(
+            r#"
+INSERT INTO threads (
+    id,
+    rollout_path,
+    created_at,
+    updated_at,
+    recency_at,
+    created_at_ms,
+    updated_at_ms,
+    recency_at_ms,
+    source,
+    originator,
+    creator_user_id,
+    creator_account_id,
+    history_mode,
+    thread_source,
+    agent_nickname,
+    agent_role,
+    agent_path,
+    model_provider,
+    model,
+    reasoning_effort,
+    cwd,
+    cli_version,
+    title,
+    name,
+    preview,
+    sandbox_policy,
+    approval_mode,
+    tokens_used,
+    first_user_message,
+    archived,
+    archived_at,
+    thread_section_id,
+    section_position,
+    section_entered_at_ms,
+    git_sha,
+    git_branch,
+    git_origin_url,
+    memory_mode,
+    project_id,
+    daybreak_enabled,
+    attached_thread_parent_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO NOTHING
+            "#,
+        )
+        .bind(metadata.id.to_string())
+        .bind(metadata.rollout_path.display().to_string())
+        .bind(datetime_to_epoch_seconds(metadata.created_at))
+        .bind(datetime_to_epoch_seconds(updated_at))
+        .bind(datetime_to_epoch_seconds(recency_at))
+        .bind(datetime_to_epoch_millis(metadata.created_at))
+        .bind(datetime_to_epoch_millis(updated_at))
+        .bind(datetime_to_epoch_millis(recency_at))
+        .bind(metadata.source.as_str())
+        .bind(metadata.originator.as_deref())
+        .bind(metadata.creator_user_id.as_deref())
+        .bind(metadata.creator_account_id.as_deref())
+        .bind(metadata.history_mode.as_str())
+        .bind(
+            metadata
+                .thread_source
+                .as_ref()
+                .map(protocol::protocol::ThreadSource::as_str),
+        )
+        .bind(metadata.agent_nickname.as_deref())
+        .bind(metadata.agent_role.as_deref())
+        .bind(metadata.agent_path.as_deref())
+        .bind(metadata.model_provider.as_str())
+        .bind(metadata.model.as_deref())
+        .bind(
+            metadata
+                .reasoning_effort
+                .as_ref()
+                .map(crate::extract::enum_to_string),
+        )
+        .bind(metadata.cwd.display().to_string())
+        .bind(metadata.cli_version.as_str())
+        .bind(metadata.title.as_str())
+        .bind(metadata.name.as_deref())
+        .bind(preview)
+        .bind(metadata.sandbox_policy.as_str())
+        .bind(metadata.approval_mode.as_str())
+        .bind(metadata.tokens_used)
+        .bind(metadata.first_user_message.as_deref().unwrap_or_default())
+        .bind(metadata.archived_at.is_some())
+        .bind(metadata.archived_at.map(datetime_to_epoch_seconds))
+        .bind(metadata.section.as_ref().map(|section| section.id.as_str()))
+        .bind(metadata.section_position)
+        .bind(metadata.section_entered_at.map(datetime_to_epoch_millis))
+        .bind(metadata.git_sha.as_deref())
+        .bind(metadata.git_branch.as_deref())
+        .bind(metadata.git_origin_url.as_deref())
+        .bind("enabled")
+        .bind(metadata.project_id.as_deref())
+        .bind(metadata.daybreak_enabled)
+        .bind(metadata.attached_thread_parent_id.map(|id| id.to_string()))
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        self.insert_thread_spawn_edge_from_source_if_absent(metadata.id, metadata.source.as_str())
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Set the user preference without changing rollout-derived thread metadata.
+    pub async fn set_thread_daybreak_enabled(
+        &self,
+        thread_id: ThreadId,
+        daybreak_enabled: bool,
+    ) -> anyhow::Result<bool> {
+        let result = sqlx::query("UPDATE threads SET daybreak_enabled = ? WHERE id = ?")
+            .bind(daybreak_enabled)
+            .bind(thread_id.to_string())
+            .execute_with_busy_retry(self.pool.as_ref())
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn set_thread_memory_mode(
+        &self,
+        thread_id: ThreadId,
+        memory_mode: &str,
+    ) -> anyhow::Result<bool> {
+        let result = sqlx::query("UPDATE threads SET memory_mode = ? WHERE id = ?")
+            .bind(memory_mode)
+            .bind(thread_id.to_string())
+            .execute_with_busy_retry(self.pool.as_ref())
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn update_thread_title(
+        &self,
+        thread_id: ThreadId,
+        title: &str,
+    ) -> anyhow::Result<bool> {
+        let result = sqlx::query("UPDATE threads SET title = ? WHERE id = ?")
+            .bind(title)
+            .bind(thread_id.to_string())
+            .execute_with_busy_retry(self.pool.as_ref())
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn update_thread_name(
+        &self,
+        thread_id: ThreadId,
+        name: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        let result = sqlx::query("UPDATE threads SET name = ? WHERE id = ?")
+            .bind(name)
+            .bind(thread_id.to_string())
+            .execute_with_busy_retry(self.pool.as_ref())
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn touch_thread_updated_at(
+        &self,
+        thread_id: ThreadId,
+        updated_at: DateTime<Utc>,
+    ) -> anyhow::Result<bool> {
+        let updated_at = self.allocate_thread_updated_at(updated_at)?;
+        let result =
+            sqlx::query("UPDATE threads SET updated_at = ?, updated_at_ms = ? WHERE id = ?")
+                .bind(datetime_to_epoch_seconds(updated_at))
+                .bind(datetime_to_epoch_millis(updated_at))
+                .bind(thread_id.to_string())
+                .execute_with_busy_retry(self.pool.as_ref())
+                .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Record a token count when the thread still matches its observed source and any
+    /// required spawn edge exists. Otherwise the caller must use normal metadata repair.
+    pub async fn update_thread_token_usage(
+        &self,
+        metadata: &crate::ThreadMetadata,
+        updated_at: DateTime<Utc>,
+        total_tokens: i64,
+    ) -> anyhow::Result<bool> {
+        let updated_at = self.allocate_thread_updated_at(updated_at)?;
+        let result = sqlx::query(
+            "UPDATE threads SET updated_at = ?, updated_at_ms = ?, tokens_used = ?
+             WHERE id = ? AND source = ?
+               AND (? OR EXISTS (SELECT 1 FROM thread_spawn_edges WHERE child_thread_id = threads.id))",
+        )
+        .bind(datetime_to_epoch_seconds(updated_at))
+        .bind(datetime_to_epoch_millis(updated_at))
+        .bind(total_tokens.max(0))
+        .bind(metadata.id.to_string())
+        .bind(metadata.source.as_str())
+        .bind(thread_spawn_parent_thread_id_from_source_str(&metadata.source).is_none())
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn touch_thread_recency_at(
+        &self,
+        thread_id: ThreadId,
+        recency_at: DateTime<Utc>,
+    ) -> anyhow::Result<bool> {
+        let recency_at = self.allocate_thread_recency_at(recency_at)?;
+        let recency_at_seconds = datetime_to_epoch_seconds(recency_at);
+        let recency_at_millis = datetime_to_epoch_millis(recency_at);
+        let result = sqlx::query(
+            r#"
+UPDATE threads
+SET
+    recency_at = MAX(?, MAX(?, recency_at_ms + 1) / 1000),
+    recency_at_ms = MAX(?, recency_at_ms + 1)
+WHERE id = ?
+            "#,
+        )
+        .bind(recency_at_seconds)
+        .bind(recency_at_millis)
+        .bind(recency_at_millis)
+        .bind(thread_id.to_string())
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Allocate a persisted `updated_at` value for thread-list cursor ordering.
+    ///
+    /// We keep a process-local high-water mark so hot rollout writes can get unique,
+    /// monotonic millisecond timestamps without querying SQLite on every update. Older
+    /// backfill/repair timestamps are allowed through unchanged so historical ordering
+    /// remains tied to the rollout file mtimes.
+    fn allocate_thread_updated_at(
+        &self,
+        updated_at: DateTime<Utc>,
+    ) -> anyhow::Result<DateTime<Utc>> {
+        allocate_thread_timestamp(self.thread_updated_at_millis.as_ref(), updated_at)
+    }
+
+    fn allocate_thread_recency_at(
+        &self,
+        recency_at: DateTime<Utc>,
+    ) -> anyhow::Result<DateTime<Utc>> {
+        allocate_thread_timestamp(self.thread_recency_at_millis.as_ref(), recency_at)
+    }
+}
+
+fn allocate_thread_timestamp(
+    high_water_mark: &AtomicI64,
+    timestamp: DateTime<Utc>,
+) -> anyhow::Result<DateTime<Utc>> {
+    let candidate = datetime_to_epoch_millis(timestamp);
+    let allocated = loop {
+        let current = high_water_mark.load(Ordering::Relaxed);
+
+        // New wall-clock time: advance the process-local high-water mark and use it as-is.
+        if candidate > current {
+            if high_water_mark
+                .compare_exchange(current, candidate, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
+                break candidate;
+            }
+            continue;
+        }
+
+        // Older timestamps come from backfill/repair paths that preserve rollout mtimes.
+        // Do not drag historical rows forward just because this process has seen newer writes.
+        if candidate.saturating_add(1000) <= current {
+            break candidate;
+        }
+
+        // Same hot one-second bucket as the current high-water mark. Allocate the next
+        // millisecond so the timestamp remains unique and cursor-orderable inside the process.
+        let bumped = current.saturating_add(1);
+        if high_water_mark
+            .compare_exchange(current, bumped, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            break bumped;
+        }
+    };
+    epoch_millis_to_datetime(allocated)
+}
+
+impl StateRuntime {
+    pub async fn update_thread_git_info(
+        &self,
+        thread_id: ThreadId,
+        git_sha: Option<Option<&str>>,
+        git_branch: Option<Option<&str>>,
+        git_origin_url: Option<Option<&SanitizedGitUrl>>,
+    ) -> anyhow::Result<bool> {
+        let result = sqlx::query(
+            r#"
+UPDATE threads
+SET
+    git_sha = CASE WHEN ? THEN ? ELSE git_sha END,
+    git_branch = CASE WHEN ? THEN ? ELSE git_branch END,
+    git_origin_url = CASE WHEN ? THEN ? ELSE git_origin_url END
+WHERE id = ?
+            "#,
+        )
+        .bind(git_sha.is_some())
+        .bind(git_sha.flatten())
+        .bind(git_branch.is_some())
+        .bind(git_branch.flatten())
+        .bind(git_origin_url.is_some())
+        .bind(git_origin_url.flatten().map(SanitizedGitUrl::as_str))
+        .bind(thread_id.to_string())
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Apply observed metadata, memory preference, and recency in one commit.
+    pub async fn upsert_thread_with_observed_metadata(
+        &self,
+        metadata: &crate::ThreadMetadata,
+        memory_mode: Option<&str>,
+        recency_at: Option<DateTime<Utc>>,
+    ) -> anyhow::Result<()> {
+        self.upsert_thread_metadata(metadata, memory_mode, memory_mode, recency_at)
+            .await
+    }
+
+    async fn upsert_thread_with_creation_memory_mode(
+        &self,
+        metadata: &crate::ThreadMetadata,
+        creation_memory_mode: Option<&str>,
+    ) -> anyhow::Result<()> {
+        self.upsert_thread_metadata(
+            metadata,
+            creation_memory_mode,
+            /*memory_mode*/ None,
+            /*recency_at*/ None,
+        )
+        .await
+    }
+
+    async fn upsert_thread_metadata(
+        &self,
+        metadata: &crate::ThreadMetadata,
+        creation_memory_mode: Option<&str>,
+        memory_mode: Option<&str>,
+        recency_at: Option<DateTime<Utc>>,
+    ) -> anyhow::Result<()> {
+        let recency_at = recency_at
+            .map(|at| self.allocate_thread_recency_at(at))
+            .transpose()?;
+        let updated_at = self.allocate_thread_updated_at(metadata.updated_at)?;
+        let insert_recency_at = self.allocate_thread_recency_at(metadata.recency_at)?;
+        let preview = metadata_preview(metadata);
+        // Backfill/reconcile callers merge existing git info before upserting, but that
+        // read/modify/write is not atomic. Preserve non-null SQLite git fields here so
+        // an explicit metadata update cannot be lost if a stale rollout upsert lands later.
+        // Daybreak and project choices are insert-only here; explicit changes use their setters.
+        sqlx::query(
+            r#"
+INSERT INTO threads (
+    id,
+    rollout_path,
+    created_at,
+    updated_at,
+    recency_at,
+    created_at_ms,
+    updated_at_ms,
+    recency_at_ms,
+    source,
+    originator,
+    creator_user_id,
+    creator_account_id,
+    history_mode,
+    thread_source,
+    agent_nickname,
+    agent_role,
+    agent_path,
+    model_provider,
+    model,
+    reasoning_effort,
+    cwd,
+    cli_version,
+    title,
+    name,
+    preview,
+    sandbox_policy,
+    approval_mode,
+    tokens_used,
+    first_user_message,
+    archived,
+    archived_at,
+    thread_section_id,
+    section_position,
+    section_entered_at_ms,
+    git_sha,
+    git_branch,
+    git_origin_url,
+    memory_mode,
+    project_id,
+    daybreak_enabled,
+    attached_thread_parent_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    attached_thread_parent_id = COALESCE(excluded.attached_thread_parent_id, threads.attached_thread_parent_id),
+    rollout_path = excluded.rollout_path,
+    created_at = excluded.created_at,
+    updated_at = excluded.updated_at,
+    recency_at = CASE WHEN ? IS NULL THEN threads.recency_at
+        ELSE MAX(?, MAX(?, threads.recency_at_ms + 1) / 1000) END,
+    created_at_ms = excluded.created_at_ms,
+    updated_at_ms = excluded.updated_at_ms,
+    recency_at_ms = CASE WHEN ? IS NULL THEN threads.recency_at_ms
+        ELSE MAX(?, threads.recency_at_ms + 1) END,
+    source = excluded.source,
+    originator = COALESCE(threads.originator, excluded.originator),
+    creator_user_id = COALESCE(threads.creator_user_id, excluded.creator_user_id),
+    creator_account_id = COALESCE(threads.creator_account_id, excluded.creator_account_id),
+    -- Paginated history is a one-way promotion; stale legacy metadata must not downgrade it.
+    history_mode = CASE
+        WHEN threads.history_mode = 'paginated' THEN threads.history_mode
+        ELSE excluded.history_mode
+    END,
+    thread_source = excluded.thread_source,
+    agent_nickname = excluded.agent_nickname,
+    agent_role = excluded.agent_role,
+    agent_path = excluded.agent_path,
+    model_provider = excluded.model_provider,
+    model = excluded.model,
+    reasoning_effort = excluded.reasoning_effort,
+    cwd = excluded.cwd,
+    cli_version = excluded.cli_version,
+    title = excluded.title,
+    preview = COALESCE(NULLIF(excluded.preview, ''), threads.preview),
+    sandbox_policy = excluded.sandbox_policy,
+    approval_mode = excluded.approval_mode,
+    tokens_used = excluded.tokens_used,
+    first_user_message = excluded.first_user_message,
+    archived = excluded.archived,
+    archived_at = excluded.archived_at,
+    git_sha = COALESCE(threads.git_sha, excluded.git_sha),
+    git_branch = COALESCE(threads.git_branch, excluded.git_branch),
+    git_origin_url = COALESCE(threads.git_origin_url, excluded.git_origin_url),
+    memory_mode = COALESCE(?, threads.memory_mode)
+            "#,
+        )
+        .bind(metadata.id.to_string())
+        .bind(metadata.rollout_path.display().to_string())
+        .bind(datetime_to_epoch_seconds(metadata.created_at))
+        .bind(datetime_to_epoch_seconds(updated_at))
+        .bind(datetime_to_epoch_seconds(insert_recency_at))
+        .bind(datetime_to_epoch_millis(metadata.created_at))
+        .bind(datetime_to_epoch_millis(updated_at))
+        .bind(datetime_to_epoch_millis(insert_recency_at))
+        .bind(metadata.source.as_str())
+        .bind(metadata.originator.as_deref())
+        .bind(metadata.creator_user_id.as_deref())
+        .bind(metadata.creator_account_id.as_deref())
+        .bind(metadata.history_mode.as_str())
+        .bind(
+            metadata
+                .thread_source
+                .as_ref()
+                .map(protocol::protocol::ThreadSource::as_str),
+        )
+        .bind(metadata.agent_nickname.as_deref())
+        .bind(metadata.agent_role.as_deref())
+        .bind(metadata.agent_path.as_deref())
+        .bind(metadata.model_provider.as_str())
+        .bind(metadata.model.as_deref())
+        .bind(
+            metadata
+                .reasoning_effort
+                .as_ref()
+                .map(crate::extract::enum_to_string),
+        )
+        .bind(metadata.cwd.display().to_string())
+        .bind(metadata.cli_version.as_str())
+        .bind(metadata.title.as_str())
+        .bind(metadata.name.as_deref())
+        .bind(preview)
+        .bind(metadata.sandbox_policy.as_str())
+        .bind(metadata.approval_mode.as_str())
+        .bind(metadata.tokens_used)
+        .bind(metadata.first_user_message.as_deref().unwrap_or_default())
+        .bind(metadata.archived_at.is_some())
+        .bind(metadata.archived_at.map(datetime_to_epoch_seconds))
+        .bind(metadata.section.as_ref().map(|section| section.id.as_str()))
+        .bind(metadata.section_position)
+        .bind(metadata.section_entered_at.map(datetime_to_epoch_millis))
+        .bind(metadata.git_sha.as_deref())
+        .bind(metadata.git_branch.as_deref())
+        .bind(metadata.git_origin_url.as_deref())
+        .bind(creation_memory_mode.unwrap_or("enabled"))
+        .bind(metadata.project_id.as_deref())
+        .bind(metadata.daybreak_enabled)
+        .bind(metadata.attached_thread_parent_id.map(|id| id.to_string()))
+        .bind(recency_at.map(datetime_to_epoch_seconds))
+        .bind(recency_at.map(datetime_to_epoch_seconds))
+        .bind(recency_at.map(datetime_to_epoch_millis))
+        .bind(recency_at.map(datetime_to_epoch_millis))
+        .bind(recency_at.map(datetime_to_epoch_millis))
+        .bind(memory_mode)
+        .execute_with_busy_retry(self.pool.as_ref())
+        .await?;
+        self.insert_thread_spawn_edge_from_source_if_absent(metadata.id, metadata.source.as_str())
+            .await?;
+        Ok(())
+    }
+
+    /// Build metadata using the provider configured for this state runtime.
+    pub fn build_thread_metadata(&self, builder: &ThreadMetadataBuilder) -> crate::ThreadMetadata {
+        builder.build(&self.default_provider)
+    }
+
+    /// Apply rollout items incrementally, keeping existing fields except the seed rollout path.
+    /// The seed stays boxed to keep callers' async frames small.
+    pub async fn apply_rollout_items(
+        &self,
+        mut metadata: Box<crate::ThreadMetadata>,
+        items: &[RolloutItem],
+        new_thread_memory_mode: Option<&str>,
+        updated_at_override: Option<DateTime<Utc>>,
+    ) -> anyhow::Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        let thread_id = metadata.id;
+        let existing_metadata = self.get_thread(thread_id).await?;
+        if let Some(existing) = existing_metadata.as_ref() {
+            let rollout_path = std::mem::take(&mut metadata.rollout_path);
+            *metadata = existing.clone();
+            metadata.rollout_path = rollout_path;
+        }
+        for item in items {
+            apply_rollout_item(&mut metadata, item, &self.default_provider);
+        }
+        if let Some(existing_metadata) = existing_metadata.as_ref() {
+            metadata.prefer_existing_git_info(existing_metadata);
+        }
+        let updated_at = match updated_at_override {
+            Some(updated_at) => Some(updated_at),
+            None => file_modified_time_utc(metadata.rollout_path.as_path()).await,
+        };
+        if let Some(updated_at) = updated_at {
+            metadata.updated_at = updated_at;
+        }
+        let upsert_result = if existing_metadata.is_none() {
+            self.upsert_thread_with_creation_memory_mode(&metadata, new_thread_memory_mode)
+                .await
+        } else {
+            self.upsert_thread(&metadata).await
+        };
+        upsert_result?;
+        if let Some(memory_mode) = extract_memory_mode(items)
+            && let Err(err) = self
+                .set_thread_memory_mode(thread_id, memory_mode.as_str())
+                .await
+        {
+            return Err(err);
+        }
+        Ok(())
+    }
+
+    /// Mark a thread as archived using the underlying database.
+    pub async fn mark_archived(
+        &self,
+        thread_id: ThreadId,
+        rollout_path: &Path,
+        archived_at: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        let Some(mut metadata) = self.get_thread(thread_id).await? else {
+            return Ok(());
+        };
+        metadata.archived_at = Some(archived_at);
+        metadata.rollout_path = rollout_path.to_path_buf();
+        if let Some(updated_at) = file_modified_time_utc(rollout_path).await {
+            metadata.updated_at = updated_at;
+        }
+        if metadata.id != thread_id {
+            warn!(
+                "thread id mismatch during archive: expected {thread_id}, got {}",
+                metadata.id
+            );
+        }
+        self.upsert_thread(&metadata).await
+    }
+
+    /// Mark a thread as unarchived using the underlying database.
+    pub async fn mark_unarchived(
+        &self,
+        thread_id: ThreadId,
+        rollout_path: &Path,
+    ) -> anyhow::Result<()> {
+        let Some(mut metadata) = self.get_thread(thread_id).await? else {
+            return Ok(());
+        };
+        metadata.archived_at = None;
+        metadata.rollout_path = rollout_path.to_path_buf();
+        if let Some(updated_at) = file_modified_time_utc(rollout_path).await {
+            metadata.updated_at = updated_at;
+        }
+        if metadata.id != thread_id {
+            warn!(
+                "thread id mismatch during unarchive: expected {thread_id}, got {}",
+                metadata.id
+            );
+        }
+        self.upsert_thread(&metadata).await
+    }
+
+    /// Delete a thread and all associated state by id.
+    pub async fn delete_thread(&self, thread_id: ThreadId) -> anyhow::Result<u64> {
+        self.delete_threads_strict(&[thread_id]).await
+    }
+
+    /// Delete a set of threads and all associated state.
+    ///
+    /// Spawn edges and thread rows are deleted last so a failed delete can be retried with enough
+    /// state left to rediscover the same spawned subtree.
+    pub async fn delete_threads_strict(&self, thread_ids: &[ThreadId]) -> anyhow::Result<u64> {
+        if thread_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let thread_id_strings = thread_ids
+            .iter()
+            .map(ThreadId::to_string)
+            .collect::<Vec<_>>();
+        for (thread_id, thread_id_string) in thread_ids.iter().zip(&thread_id_strings) {
+            sqlx::query("DELETE FROM logs WHERE thread_id = ?")
+                .bind(thread_id_string)
+                .execute_with_busy_retry(self.diagnostic_logs_pool()?)
+                .await?;
+            self.thread_queue.delete_thread_queue(*thread_id).await?;
+            self.delete_versioned_thread_memory(*thread_id).await?;
+            self.thread_goals.delete_thread_goal(*thread_id).await?;
+        }
+
+        let mut tx = self.pool.begin_immediate().await?;
+        for thread_id_string in &thread_id_strings {
+            sqlx::query("DELETE FROM thread_dynamic_tools WHERE thread_id = ?")
+                .bind(thread_id_string)
+                .execute(&mut *tx)
+                .await?;
+        }
+        for thread_id_string in &thread_id_strings {
+            sqlx::query(
+                "DELETE FROM thread_spawn_edges WHERE parent_thread_id = ? OR child_thread_id = ?",
+            )
+            .bind(thread_id_string)
+            .bind(thread_id_string)
+            .execute(&mut *tx)
+            .await?;
+        }
+        let mut rows_affected = 0;
+        for thread_id_string in &thread_id_strings {
+            sqlx::query("DELETE FROM thread_read_receipts WHERE thread_id = ?")
+                .bind(thread_id_string)
+                .execute(&mut *tx)
+                .await?;
+            rows_affected += sqlx::query("DELETE FROM threads WHERE id = ?")
+                .bind(thread_id_string)
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
+        }
+        tx.commit().await?;
+
+        Ok(rows_affected)
+    }
+}
+
+fn one_thread_id_from_rows(
+    rows: Vec<sqlx::sqlite::SqliteRow>,
+    agent_path: &str,
+) -> anyhow::Result<Option<ThreadId>> {
+    let mut ids = rows
+        .into_iter()
+        .map(|row| {
+            let id: String = row.try_get("id")?;
+            ThreadId::try_from(id).map_err(anyhow::Error::from)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    match ids.len() {
+        0 => Ok(None),
+        1 => Ok(ids.pop()),
+        _ => Err(anyhow::anyhow!(
+            "multiple agents found for canonical path `{agent_path}`"
+        )),
+    }
+}
+
+fn push_list_threads_query(
+    builder: &mut QueryBuilder<Sqlite>,
+    filters: ThreadFilterOptions<'_>,
+    relation_filter: Option<crate::ThreadRelationFilter>,
+    limit: usize,
+) {
+    if let Some(crate::ThreadRelationFilter::DescendantsOf(ancestor_thread_id)) = relation_filter {
+        builder.push(
+            r#"
+WITH RECURSIVE subtree(child_thread_id, parent_thread_id) AS (
+    SELECT child_thread_id, parent_thread_id
+    FROM thread_spawn_edges
+    WHERE parent_thread_id =
+"#,
+        );
+        builder.push_bind(ancestor_thread_id.to_string());
+        builder.push(
+            r#"
+    UNION
+    SELECT edge.child_thread_id, edge.parent_thread_id
+    FROM thread_spawn_edges AS edge
+    JOIN subtree ON edge.parent_thread_id = subtree.child_thread_id
+)
+"#,
+        );
+    }
+    push_thread_select_columns(builder);
+    // SQLite may otherwise reorder these joins and scan the global timestamp index before
+    // checking the relationship. CROSS JOIN keeps the selective edge/subtree traversal first.
+    match relation_filter {
+        Some(crate::ThreadRelationFilter::DirectChildrenOf(_)) => builder.push(
+            ", listed_edge.parent_thread_id AS parent_thread_id\nFROM thread_spawn_edges AS listed_edge\nCROSS JOIN threads ON threads.id = listed_edge.child_thread_id",
+        ),
+        Some(crate::ThreadRelationFilter::DescendantsOf(_)) => builder.push(
+            ", subtree.parent_thread_id AS parent_thread_id\nFROM subtree\nCROSS JOIN threads ON threads.id = subtree.child_thread_id",
+        ),
+        Some(crate::ThreadRelationFilter::AttachedThreadsOf(_) | crate::ThreadRelationFilter::IncludeAttached) => {
+            builder.push(", NULL AS parent_thread_id\nFROM threads")
+        }
+        None => builder.push(" FROM threads"),
+    };
+    push_thread_filters_with_preview(
+        builder,
+        filters,
+        /*include_thread_id_tiebreaker*/ true,
+        relation_filter,
+    );
+    if !matches!(
+        relation_filter,
+        Some(
+            crate::ThreadRelationFilter::AttachedThreadsOf(_)
+                | crate::ThreadRelationFilter::IncludeAttached
+        )
+    ) {
+        builder.push(EXCLUDE_ATTACHED_THREADS);
+    }
+    match relation_filter {
+        Some(crate::ThreadRelationFilter::DirectChildrenOf(parent_thread_id)) => {
+            builder.push(" AND listed_edge.parent_thread_id = ");
+            builder.push_bind(parent_thread_id.to_string());
+        }
+        Some(crate::ThreadRelationFilter::DescendantsOf(ancestor_thread_id)) => {
+            builder.push(" AND subtree.child_thread_id != ");
+            builder.push_bind(ancestor_thread_id.to_string());
+        }
+        Some(crate::ThreadRelationFilter::AttachedThreadsOf(parent)) => {
+            builder.push(" AND threads.attached_thread_parent_id = ");
+            builder.push_bind(parent.to_string());
+        }
+        Some(crate::ThreadRelationFilter::IncludeAttached) | None => {}
+    }
+    let order_by_index = match (relation_filter, filters.cwd_filters) {
+        // Relationship listings are expected to be much smaller than the global thread table.
+        // Prefer the relationship index and sort the matches instead of scanning the
+        // timestamp index until enough related threads happen to be found.
+        (Some(relation), _) if relation != crate::ThreadRelationFilter::IncludeAttached => {
+            OrderByIndex::Disabled
+        }
+        // Multi-cwd listing is supported but at the time of writing has no current use in production.
+        // Preserve its query plan so the global timestamp index does not regress cwd filtering into a scan.
+        (_, Some(cwd_filters)) if cwd_filters.len() > 1 => OrderByIndex::Disabled,
+        (_, Some(_) | None) => OrderByIndex::Enabled,
+    };
+    push_thread_order_and_limit(
+        builder,
+        filters.sort_key,
+        filters.sort_direction,
+        order_by_index,
+        /*include_thread_id_tiebreaker*/ true,
+        limit,
+    );
+}
+
+pub(super) fn push_thread_select_columns(builder: &mut QueryBuilder<Sqlite>) {
+    builder.push(
+        r#"
+SELECT
+    threads.id,
+    threads.attached_thread_parent_id,
+    threads.rollout_path,
+    threads.created_at_ms AS created_at,
+    threads.updated_at_ms AS updated_at,
+    threads.recency_at_ms AS recency_at,
+    threads.source,
+    threads.originator,
+    threads.creator_user_id,
+    threads.creator_account_id,
+    threads.history_mode,
+    threads.thread_source,
+    threads.agent_nickname,
+    threads.agent_role,
+    threads.agent_path,
+    threads.model_provider,
+    threads.model,
+    threads.reasoning_effort,
+    threads.cwd,
+    threads.cli_version,
+    threads.title,
+    threads.name,
+    threads.preview,
+    threads.sandbox_policy,
+    threads.approval_mode,
+    threads.tokens_used,
+    threads.first_user_message,
+    threads.archived_at,
+    threads.thread_section_id AS section,
+    (
+        SELECT thread_sections.name
+        FROM thread_sections
+        WHERE thread_sections.id = threads.thread_section_id
+    ) AS section_name,
+    (
+        SELECT thread_sections.appearance
+        FROM thread_sections
+        WHERE thread_sections.id = threads.thread_section_id
+    ) AS section_appearance,
+    threads.section_position,
+    threads.section_entered_at_ms,
+    threads.project_id,
+    threads.daybreak_enabled,
+    threads.git_sha,
+    threads.git_branch,
+    threads.git_origin_url
+"#,
+    );
+}
+
+pub(super) fn extract_memory_mode(items: &[RolloutItem]) -> Option<String> {
+    items.iter().rev().find_map(|item| match item {
+        RolloutItem::SessionMeta(meta_line) => meta_line.meta.memory_mode.clone(),
+        RolloutItem::ResponseItem(_)
+        | RolloutItem::InterAgentCommunication(_)
+        | RolloutItem::InterAgentCommunicationMetadata { .. }
+        | RolloutItem::Compacted(_)
+        | RolloutItem::TurnContext(_)
+        | RolloutItem::WorldState(_)
+        | RolloutItem::RealtimeItem(_)
+        | RolloutItem::RetainedContext(_)
+        | RolloutItem::DynamicToolsUpdated { .. }
+        | RolloutItem::SecurityRiskScore(_)
+        | RolloutItem::TokenUsageRecord(_)
+        | RolloutItem::EventMsg(_) => None,
+    })
+}
+
+fn thread_spawn_parent_thread_id_from_source_str(source: &str) -> Option<ThreadId> {
+    let parsed_source = serde_json::from_str(source)
+        .or_else(|_| serde_json::from_value::<SessionSource>(Value::String(source.to_string())));
+    parsed_source.ok()?.parent_thread_id()
+}
+
+#[derive(Clone, Copy)]
+pub struct ThreadFilterOptions<'a> {
+    pub archived_only: bool,
+    pub allowed_sources: &'a [String],
+    pub model_providers: Option<&'a [String]>,
+    pub cwd_filters: Option<&'a [PathBuf]>,
+    pub section: Option<Option<&'a str>>,
+    pub project_id: Option<Option<&'a str>>,
+    pub anchor: Option<&'a crate::Anchor>,
+    pub sort_key: SortKey,
+    pub sort_direction: SortDirection,
+    pub search_term: Option<&'a str>,
+}
+
+pub(super) fn push_thread_filters<'a>(
+    builder: &mut QueryBuilder<Sqlite>,
+    options: ThreadFilterOptions<'a>,
+    include_thread_id_tiebreaker: bool,
+) {
+    push_thread_filters_with_preview(
+        builder,
+        options,
+        include_thread_id_tiebreaker,
+        /*relation_filter*/ None,
+    );
+}
+
+fn push_thread_filters_with_preview<'a>(
+    builder: &mut QueryBuilder<Sqlite>,
+    options: ThreadFilterOptions<'a>,
+    include_thread_id_tiebreaker: bool,
+    relation_filter: Option<crate::ThreadRelationFilter>,
+) {
+    let ThreadFilterOptions {
+        archived_only,
+        allowed_sources,
+        model_providers,
+        cwd_filters,
+        section,
+        project_id,
+        anchor,
+        sort_key,
+        sort_direction,
+        search_term,
+    } = options;
+    builder.push(" WHERE 1 = 1");
+    if archived_only {
+        builder.push(" AND threads.archived = 1");
+    } else {
+        builder.push(" AND threads.archived = 0");
+    }
+    if !archived_only && !matches!(section, Some(Some(_))) {
+        match relation_filter {
+            None => {
+                builder.push(" AND threads.preview <> ''");
+            }
+            Some(crate::ThreadRelationFilter::IncludeAttached) => {
+                builder.push(
+                    " AND (threads.preview <> '' OR threads.attached_thread_parent_id IS NOT NULL)",
+                );
+            }
+            Some(_) => {}
+        }
+    }
+    match section {
+        Some(Some(section)) => {
+            builder.push(" AND threads.thread_section_id = ");
+            builder.push_bind(section);
+        }
+        Some(None) => {
+            builder.push(" AND threads.thread_section_id IS NULL");
+        }
+        None => {}
+    }
+    match project_id {
+        Some(Some(project_id)) => {
+            builder.push(" AND threads.project_id = ");
+            builder.push_bind(project_id);
+        }
+        Some(None) => {
+            builder.push(" AND threads.project_id IS NULL");
+        }
+        None => {}
+    }
+    if !allowed_sources.is_empty() {
+        builder.push(" AND threads.source IN (");
+        let mut separated = builder.separated(", ");
+        for source in allowed_sources {
+            separated.push_bind(source);
+        }
+        separated.push_unseparated(")");
+    }
+    if let Some(model_providers) = model_providers
+        && !model_providers.is_empty()
+    {
+        builder.push(" AND threads.model_provider IN (");
+        let mut separated = builder.separated(", ");
+        for provider in model_providers {
+            separated.push_bind(provider);
+        }
+        separated.push_unseparated(")");
+    }
+    match cwd_filters {
+        Some([]) => {
+            builder.push(" AND 1 = 0");
+        }
+        Some(cwd_filters) => {
+            builder.push(" AND threads.cwd IN (");
+            let mut separated = builder.separated(", ");
+            for cwd in cwd_filters {
+                separated.push_bind(cwd.display().to_string());
+            }
+            separated.push_unseparated(")");
+        }
+        None => {}
+    }
+    if let Some(search_term) = search_term {
+        builder.push(" AND (instr(COALESCE(threads.name, ''), ");
+        builder.push_bind(search_term);
+        builder.push(") > 0 OR instr(threads.title, ");
+        builder.push_bind(search_term);
+        builder.push(") > 0 OR instr(threads.preview, ");
+        builder.push_bind(search_term);
+        builder.push(") > 0)");
+    }
+    if let Some(anchor) = anchor {
+        let anchor_ts = datetime_to_epoch_millis(anchor.ts);
+        let column = match sort_key {
+            SortKey::CreatedAt => "threads.created_at_ms",
+            SortKey::UpdatedAt => "threads.updated_at_ms",
+            SortKey::RecencyAt => "threads.recency_at_ms",
+            SortKey::SectionPosition => "threads.section_position",
+        };
+        let operator = match sort_direction {
+            SortDirection::Asc => ">",
+            SortDirection::Desc => "<",
+        };
+        if include_thread_id_tiebreaker && anchor.id.is_some() {
+            // Keep the timestamp index range despite the UUID tie-breaker's OR predicate.
+            builder.push(format!(" AND {column} {operator}= "));
+            builder.push_bind(anchor_ts);
+        }
+        builder.push(" AND (");
+        builder.push(column);
+        builder.push(" ");
+        builder.push(operator);
+        builder.push(" ");
+        builder.push_bind(anchor_ts);
+        if include_thread_id_tiebreaker && let Some(anchor_id) = anchor.id {
+            builder.push(" OR (");
+            builder.push(column);
+            builder.push(" = ");
+            builder.push_bind(anchor_ts);
+            builder.push(" AND threads.id ");
+            builder.push(operator);
+            builder.push(" ");
+            builder.push_bind(anchor_id.to_string());
+            builder.push(")");
+        }
+        builder.push(")");
+    }
+}
+
+/// Controls whether SQLite may use the ordered column to satisfy `ORDER BY` from an index.
+///
+/// Disabling it adds a unary `+` to the ordered column. This preserves the sort semantics while
+/// preventing a timestamp-only index from winning over a more selective filtering index.
+#[derive(Clone, Copy)]
+pub(super) enum OrderByIndex {
+    Enabled,
+    Disabled,
+}
+
+pub(super) fn push_thread_order_and_limit(
+    builder: &mut QueryBuilder<Sqlite>,
+    sort_key: SortKey,
+    sort_direction: SortDirection,
+    order_by_index: OrderByIndex,
+    include_thread_id_tiebreaker: bool,
+    limit: usize,
+) {
+    let order_column = match sort_key {
+        SortKey::CreatedAt => "threads.created_at_ms",
+        SortKey::UpdatedAt => "threads.updated_at_ms",
+        SortKey::RecencyAt => "threads.recency_at_ms",
+        SortKey::SectionPosition => "threads.section_position",
+    };
+    let order_direction = match sort_direction {
+        SortDirection::Asc => "ASC",
+        SortDirection::Desc => "DESC",
+    };
+    builder.push(" ORDER BY ");
+    match order_by_index {
+        OrderByIndex::Enabled => {}
+        OrderByIndex::Disabled => {
+            builder.push("+");
+        }
+    }
+    builder.push(order_column);
+    builder.push(" ");
+    builder.push(order_direction);
+    if include_thread_id_tiebreaker {
+        builder.push(", threads.id ");
+        builder.push(order_direction);
+    }
+    builder.push(" LIMIT ");
+    builder.push_bind(limit as i64);
+}
+
+fn metadata_preview(metadata: &crate::ThreadMetadata) -> &str {
+    metadata
+        .preview
+        .as_deref()
+        .or(metadata.first_user_message.as_deref())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Anchor;
+    use crate::DirectionalThreadSpawnEdgeStatus;
+    use crate::runtime::test_support::test_thread_metadata;
+    use crate::runtime::test_support::unique_temp_dir;
+    use anyhow::Result;
+    use lime_utils_absolute_path::test_support::PathExt;
+    use pretty_assertions::assert_eq;
+    use protocol::protocol::EventMsg;
+    use protocol::protocol::GitInfo;
+    use protocol::protocol::SessionMeta;
+    use protocol::protocol::SessionMetaLine;
+    use protocol::protocol::SessionSource;
+    use protocol::protocol::ThreadHistoryMode;
+    use std::path::PathBuf;
+
+    const CUSTOM_THREAD_SECTION_ID: &str = "01984de2-8f74-7c91-a3b2-5c5e937cf317";
+    #[tokio::test]
+    async fn upsert_thread_keeps_creation_memory_mode_for_existing_rows() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000123").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+
+        runtime
+            .upsert_thread_with_creation_memory_mode(&metadata, Some("disabled"))
+            .await
+            .expect("initial insert should succeed");
+
+        let memory_mode: String =
+            sqlx::query_scalar("SELECT memory_mode FROM threads WHERE id = ?")
+                .bind(thread_id.to_string())
+                .fetch_one(runtime.pool.as_ref())
+                .await
+                .expect("memory mode should be readable");
+        assert_eq!(memory_mode, "disabled");
+
+        metadata.title = "updated title".to_string();
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("upsert should succeed");
+
+        let memory_mode: String =
+            sqlx::query_scalar("SELECT memory_mode FROM threads WHERE id = ?")
+                .bind(thread_id.to_string())
+                .fetch_one(runtime.pool.as_ref())
+                .await
+                .expect("memory mode should remain readable");
+        assert_eq!(memory_mode, "disabled");
+    }
+
+    #[tokio::test]
+    async fn thread_metadata_history_mode_does_not_downgrade() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000124").expect("valid thread id");
+        let metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("upsert should succeed");
+
+        assert!(
+            runtime
+                .mark_thread_paginated(thread_id, /*legacy_name*/ None)
+                .await
+                .expect("mark paginated history")
+        );
+
+        let metadata = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(metadata.history_mode, ThreadHistoryMode::Paginated);
+
+        let mut stale_metadata = metadata;
+        stale_metadata.history_mode = ThreadHistoryMode::Legacy;
+        runtime
+            .upsert_thread(&stale_metadata)
+            .await
+            .expect("upsert stale legacy metadata");
+        assert_eq!(
+            runtime
+                .get_thread(thread_id)
+                .await
+                .expect("read migrated thread")
+                .expect("thread should exist")
+                .history_mode,
+            ThreadHistoryMode::Paginated
+        );
+    }
+
+    #[tokio::test]
+    async fn attached_thread_discovery_preserves_parent_lifecycle_and_cwd() -> anyhow::Result<()> {
+        let home = unique_temp_dir();
+        let config = crate::SqliteConfig::new_for_testing(home.as_path().abs());
+        let runtime = StateRuntime::init(config, "test-provider".to_string()).await?;
+        let parent = ThreadId::new();
+        let child = ThreadId::new();
+        let mut parent_metadata = test_thread_metadata(&home, parent, home.clone());
+        parent_metadata.preview = Some("parent".into());
+        parent_metadata.title = "shared title".into();
+        let mut child_metadata = test_thread_metadata(&home, child, home.join("original"));
+        child_metadata.attached_thread_parent_id = Some(parent);
+        child_metadata.preview = Some("saved child".into());
+        child_metadata.created_at = Utc::now() + chrono::Duration::seconds(5);
+        child_metadata.updated_at = child_metadata.created_at;
+        child_metadata.title = parent_metadata.title.clone();
+        runtime.upsert_thread(&parent_metadata).await?;
+        assert!(runtime.insert_thread_if_absent(&child_metadata).await?);
+        let filters = ThreadFilterOptions {
+            archived_only: false,
+            allowed_sources: &[],
+            model_providers: None,
+            cwd_filters: None,
+            section: None,
+            project_id: None,
+            anchor: None,
+            sort_key: SortKey::CreatedAt,
+            sort_direction: SortDirection::Desc,
+            search_term: None,
+        };
+        let named = runtime
+            .find_thread_by_exact_title(
+                "shared title",
+                &[],
+                /*model_providers*/ None,
+                /*archived_only*/ false,
+                /*cwd*/ None,
+            )
+            .await?;
+        assert_eq!(named.map(|thread| thread.id), Some(parent));
+        let ids = runtime
+            .list_thread_ids(
+                /*limit*/ 1,
+                /*anchor*/ None,
+                SortKey::UpdatedAt,
+                &[],
+                /*model_providers*/ None,
+                /*archived_only*/ false,
+            )
+            .await?;
+        assert_eq!(ids.len(), 1);
+        assert_ne!(ids[0], child);
+        parent_metadata.cwd = home.join("moved");
+        runtime.upsert_thread(&parent_metadata).await?;
+        runtime
+            .mark_archived(parent, &parent_metadata.rollout_path, Utc::now())
+            .await?;
+        let saved = runtime
+            .list_threads_by_relation(
+                /*page_size*/ 10,
+                crate::ThreadRelationFilter::AttachedThreadsOf(parent),
+                filters,
+            )
+            .await?;
+        assert_eq!(
+            saved
+                .items
+                .iter()
+                .map(|t| (t.id, t.cwd.clone()))
+                .collect::<Vec<_>>(),
+            vec![(child, child_metadata.cwd)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn archived_threads_without_previews_remain_listed() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .unwrap();
+        let thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000045").unwrap();
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        metadata.preview = Some(String::new());
+        metadata.first_user_message = None;
+        runtime.upsert_thread(&metadata).await.unwrap();
+        let filters = |archived_only| ThreadFilterOptions {
+            archived_only,
+            allowed_sources: &[],
+            model_providers: None,
+            cwd_filters: None,
+            section: None,
+            project_id: None,
+            anchor: None,
+            sort_key: SortKey::CreatedAt,
+            sort_direction: SortDirection::Desc,
+            search_term: None,
+        };
+        let active = runtime
+            .list_threads(/*page_size*/ 10, filters(/*archived_only*/ false))
+            .await
+            .unwrap();
+        assert!(active.items.is_empty());
+
+        runtime
+            .mark_archived(thread_id, &metadata.rollout_path, Utc::now())
+            .await
+            .unwrap();
+        let archived = runtime
+            .list_threads(/*page_size*/ 10, filters(/*archived_only*/ true))
+            .await
+            .unwrap();
+        assert_eq!(
+            archived
+                .items
+                .iter()
+                .map(|thread| thread.id)
+                .collect::<Vec<_>>(),
+            vec![thread_id]
+        );
+        assert_eq!(archived.next_anchor, None);
+        let active = runtime
+            .list_threads(/*page_size*/ 10, filters(/*archived_only*/ false))
+            .await
+            .unwrap();
+        assert!(active.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_threads_filters_sections_before_recency_pagination_and_uses_index() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let oldest_pinned = ThreadId::from_string("00000000-0000-0000-0000-000000000041").unwrap();
+        let newest_unpinned =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000042").unwrap();
+        let newest_pinned = ThreadId::from_string("00000000-0000-0000-0000-000000000043").unwrap();
+        let oldest_unpinned =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000044").unwrap();
+
+        for (thread_id, recency_at, section) in [
+            (
+                oldest_pinned,
+                1_700_000_001,
+                Some(crate::PINNED_THREAD_SECTION_ID),
+            ),
+            (newest_unpinned, 1_700_000_003, None),
+            (
+                newest_pinned,
+                1_700_000_002,
+                Some(crate::PINNED_THREAD_SECTION_ID),
+            ),
+            (oldest_unpinned, 1_700_000_000, None),
+        ] {
+            let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+            metadata.recency_at = DateTime::<Utc>::from_timestamp(recency_at, 0).unwrap();
+            if thread_id == oldest_pinned {
+                metadata.preview = Some(String::new());
+                metadata.first_user_message = None;
+            }
+            metadata.section = section.map(|id| crate::ThreadSection {
+                id: id.to_string(),
+                name: crate::PINNED_THREAD_SECTION_NAME.to_string(),
+                appearance: None,
+            });
+            runtime.upsert_thread(&metadata).await.unwrap();
+        }
+
+        let filters = |anchor, section| ThreadFilterOptions {
+            archived_only: false,
+            allowed_sources: &[],
+            model_providers: None,
+            cwd_filters: None,
+            section,
+            project_id: None,
+            anchor,
+            sort_key: SortKey::RecencyAt,
+            sort_direction: SortDirection::Desc,
+            search_term: None,
+        };
+        let first_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                filters(None, Some(Some(crate::PINNED_THREAD_SECTION_ID))),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first_page.items.len(), 1);
+        assert_eq!(first_page.items[0].id, newest_pinned);
+        assert_eq!(
+            first_page.items[0].section,
+            Some(crate::ThreadSection {
+                id: crate::PINNED_THREAD_SECTION_ID.to_string(),
+                name: crate::PINNED_THREAD_SECTION_NAME.to_string(),
+                appearance: None,
+            })
+        );
+        let second_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                filters(
+                    first_page.next_anchor.as_ref(),
+                    Some(Some(crate::PINNED_THREAD_SECTION_ID)),
+                ),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second_page.items.len(), 1);
+        assert_eq!(second_page.items[0].id, oldest_pinned);
+        assert_eq!(second_page.next_anchor, None);
+
+        let unsectioned_page = runtime
+            .list_threads(/*page_size*/ 10, filters(None, Some(None)))
+            .await
+            .unwrap();
+        assert_eq!(
+            unsectioned_page
+                .items
+                .iter()
+                .map(|thread| thread.id)
+                .collect::<Vec<_>>(),
+            vec![newest_unpinned, oldest_unpinned]
+        );
+
+        let all_sections_page = runtime
+            .list_threads(/*page_size*/ 10, filters(None, None))
+            .await
+            .unwrap();
+        assert_eq!(
+            all_sections_page
+                .items
+                .iter()
+                .map(|thread| thread.id)
+                .collect::<Vec<_>>(),
+            vec![newest_unpinned, newest_pinned, oldest_unpinned,]
+        );
+
+        let mut builder = QueryBuilder::<Sqlite>::new("EXPLAIN QUERY PLAN ");
+        push_list_threads_query(
+            &mut builder,
+            filters(None, Some(Some(crate::PINNED_THREAD_SECTION_ID))),
+            /*relation_filter*/ None,
+            /*limit*/ 2,
+        );
+        let plan_details = builder
+            .build()
+            .fetch_all(runtime.pool.as_ref())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.get::<String, _>("detail"))
+            .collect::<Vec<_>>();
+        assert!(
+            plan_details
+                .iter()
+                .any(|detail| detail.contains("idx_threads_section_recency_at_ms")),
+            "section listing did not use its selective recency index: {plan_details:?}"
+        );
+        assert!(
+            !plan_details
+                .iter()
+                .any(|detail| detail.contains("TEMP B-TREE")),
+            "section listing unexpectedly sorted outside its index: {plan_details:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn section_position_listing_uses_stable_indexed_keyset_pagination() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        sqlx::query("INSERT INTO thread_sections (id, name) VALUES (?, ?)")
+            .bind(CUSTOM_THREAD_SECTION_ID)
+            .bind("Custom section")
+            .execute(runtime.pool.as_ref())
+            .await
+            .expect("custom test section should be explicitly registered");
+        let first = ThreadId::from_string("00000000-0000-0000-0000-000000000061").unwrap();
+        let tied = ThreadId::from_string("00000000-0000-0000-0000-000000000062").unwrap();
+        let last = ThreadId::from_string("00000000-0000-0000-0000-000000000063").unwrap();
+
+        for (thread_id, position) in [(first, 1_000_000), (tied, 1_000_000), (last, 2_000_000)] {
+            let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+            if thread_id == tied {
+                metadata.preview = Some(String::new());
+                metadata.first_user_message = None;
+            }
+            metadata.section = Some(crate::ThreadSection {
+                id: CUSTOM_THREAD_SECTION_ID.to_string(),
+                name: "Custom section".to_string(),
+                appearance: None,
+            });
+            metadata.section_position = Some(position);
+            metadata.section_entered_at = Some(metadata.updated_at);
+            runtime.upsert_thread(&metadata).await.unwrap();
+        }
+
+        let filters = |anchor| ThreadFilterOptions {
+            archived_only: false,
+            allowed_sources: &[],
+            model_providers: None,
+            cwd_filters: None,
+            section: Some(Some(CUSTOM_THREAD_SECTION_ID)),
+            project_id: None,
+            anchor,
+            sort_key: SortKey::SectionPosition,
+            sort_direction: SortDirection::Asc,
+            search_term: None,
+        };
+        let first_page = runtime
+            .list_threads(/*page_size*/ 1, filters(None))
+            .await
+            .unwrap();
+        let second_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                filters(first_page.next_anchor.as_ref()),
+            )
+            .await
+            .unwrap();
+        let third_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                filters(second_page.next_anchor.as_ref()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            [
+                first_page.items[0].id,
+                second_page.items[0].id,
+                third_page.items[0].id
+            ],
+            [first, tied, last]
+        );
+        assert_eq!(third_page.next_anchor, None);
+
+        let mut builder = QueryBuilder::<Sqlite>::new("EXPLAIN QUERY PLAN ");
+        push_list_threads_query(
+            &mut builder,
+            filters(/*anchor*/ None),
+            /*relation_filter*/ None,
+            /*limit*/ 2,
+        );
+        let plan_details = builder
+            .build()
+            .fetch_all(runtime.pool.as_ref())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.get::<String, _>("detail"))
+            .collect::<Vec<_>>();
+        assert!(
+            plan_details
+                .iter()
+                .any(|detail| detail.contains("idx_threads_section_position")),
+            "section-position listing did not use its selective index: {plan_details:?}"
+        );
+        assert!(
+            !plan_details
+                .iter()
+                .any(|detail| detail.contains("TEMP B-TREE")),
+            "section-position listing unexpectedly sorted outside its index: {plan_details:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_thread_cleans_associated_state() -> Result<()> {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await?;
+        let thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000401")?;
+        let child_thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000402")?;
+        runtime
+            .upsert_thread(&test_thread_metadata(
+                &lime_home,
+                thread_id,
+                lime_home.clone(),
+            ))
+            .await?;
+        seed_thread_cleanup_state(&runtime, thread_id, child_thread_id).await?;
+        sqlx::query("INSERT INTO thread_dynamic_tools (thread_id, position, name, description, input_schema) VALUES (?, ?, ?, ?, ?)")
+        .bind(thread_id.to_string())
+        .bind(0_i64)
+        .bind("test_tool")
+        .bind("test dynamic tool")
+        .bind("{}")
+        .execute(runtime.pool.as_ref())
+        .await?;
+        let rows = runtime
+            .delete_threads_strict(&[thread_id, child_thread_id])
+            .await?;
+
+        assert_eq!(rows, 1);
+        assert!(runtime.get_thread(thread_id).await?.is_none());
+        let dynamic_tool_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM thread_dynamic_tools WHERE thread_id = ?")
+                .bind(thread_id.to_string())
+                .fetch_one(runtime.pool.as_ref())
+                .await?;
+        assert_eq!(dynamic_tool_count, 0);
+        assert_thread_cleanup_state(&runtime, thread_id).await?;
+
+        let missing_thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000403")?;
+        let missing_child_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000404")?;
+        seed_thread_cleanup_state(&runtime, missing_thread_id, missing_child_thread_id).await?;
+
+        assert_eq!(runtime.delete_thread(missing_thread_id).await?, 0);
+        assert_thread_cleanup_state(&runtime, missing_thread_id).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn delete_thread_keeps_retry_graph_on_cleanup_failure() -> Result<()> {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await?;
+        let thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000405")?;
+        let child_thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000406")?;
+        runtime
+            .upsert_thread(&test_thread_metadata(
+                &lime_home,
+                thread_id,
+                lime_home.clone(),
+            ))
+            .await?;
+        seed_thread_cleanup_state(&runtime, thread_id, child_thread_id).await?;
+
+        runtime.diagnostic_logs_pool().unwrap().close().await;
+        runtime
+            .delete_thread(thread_id)
+            .await
+            .expect_err("closed log db should fail deletion");
+
+        assert!(runtime.get_thread(thread_id).await?.is_some());
+        assert_eq!(
+            runtime.list_thread_spawn_descendants(thread_id).await?,
+            vec![child_thread_id]
+        );
+        Ok(())
+    }
+
+    async fn seed_thread_cleanup_state(
+        runtime: &StateRuntime,
+        thread_id: ThreadId,
+        child_thread_id: ThreadId,
+    ) -> Result<()> {
+        runtime
+            .upsert_thread_spawn_edge(
+                thread_id,
+                child_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Closed,
+            )
+            .await?;
+        runtime
+            .thread_goals()
+            .replace_thread_goal(
+                thread_id,
+                "test goal",
+                crate::ThreadGoalStatus::Active,
+                /*token_budget*/ None,
+            )
+            .await?;
+        sqlx::query("INSERT INTO logs (ts, ts_nanos, level, target, feedback_log_body, thread_id) VALUES (1, 0, 'INFO', 'test', 'feedback log', ?)")
+            .bind(thread_id.to_string())
+            .execute(runtime.diagnostic_logs_pool().unwrap())
+            .await?;
+        Ok(())
+    }
+
+    async fn assert_thread_cleanup_state(
+        runtime: &StateRuntime,
+        thread_id: ThreadId,
+    ) -> Result<()> {
+        let spawn_edge_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM thread_spawn_edges WHERE parent_thread_id = ? OR child_thread_id = ?",
+        )
+        .bind(thread_id.to_string())
+        .bind(thread_id.to_string())
+        .fetch_one(runtime.pool.as_ref())
+        .await?;
+        assert_eq!(spawn_edge_count, 0);
+        assert_eq!(
+            runtime.thread_goals().get_thread_goal(thread_id).await?,
+            None
+        );
+        let logs = runtime
+            .query_logs(&LogQuery {
+                thread_ids: vec![thread_id.to_string()],
+                ..Default::default()
+            })
+            .await?;
+        assert!(logs.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_threads_updated_after_returns_oldest_changes_first() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let older_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000001").expect("valid thread id");
+        let middle_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000002").expect("valid thread id");
+        let newer_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000003").expect("valid thread id");
+        let older_updated_at =
+            DateTime::<Utc>::from_timestamp(1_700_000_100, 0).expect("valid older timestamp");
+        let newer_updated_at =
+            DateTime::<Utc>::from_timestamp(1_700_000_200, 0).expect("valid newer timestamp");
+
+        for (thread_id, updated_at) in [
+            (older_id, older_updated_at),
+            (newer_id, newer_updated_at),
+            (middle_id, newer_updated_at),
+        ] {
+            let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+            metadata.updated_at = updated_at;
+            metadata.first_user_message = Some("hello".to_string());
+            runtime
+                .upsert_thread(&metadata)
+                .await
+                .expect("thread insert should succeed");
+        }
+
+        let anchor = Anchor {
+            ts: older_updated_at,
+            id: None,
+        };
+        let model_providers = ["test-provider".to_string()];
+        let page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: Some(&model_providers),
+                    cwd_filters: None,
+                    section: None,
+                    project_id: None,
+                    anchor: Some(&anchor),
+                    sort_key: SortKey::UpdatedAt,
+                    sort_direction: SortDirection::Asc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("list should succeed");
+
+        let ids = page.items.iter().map(|item| item.id).collect::<Vec<_>>();
+        assert_eq!(ids, vec![newer_id]);
+        assert_eq!(
+            page.next_anchor,
+            Some(Anchor {
+                ts: DateTime::<Utc>::from_timestamp_millis(1_700_000_200_000)
+                    .expect("valid timestamp"),
+                id: Some(newer_id),
+            })
+        );
+
+        let page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: Some(&model_providers),
+                    cwd_filters: None,
+                    section: None,
+                    project_id: None,
+                    anchor: page.next_anchor.as_ref(),
+                    sort_key: SortKey::UpdatedAt,
+                    sort_direction: SortDirection::Asc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("second page should succeed");
+
+        let ids = page.items.iter().map(|item| item.id).collect::<Vec<_>>();
+        assert_eq!(ids, vec![middle_id]);
+        assert_eq!(page.next_anchor, None);
+    }
+
+    #[tokio::test]
+    async fn list_threads_filters_by_cwd() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let first_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000101").expect("valid thread id");
+        let second_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000102").expect("valid thread id");
+        let other_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000103").expect("valid thread id");
+        let first_cwd = lime_home.join("first");
+        let second_cwd = lime_home.join("second");
+        let other_cwd = lime_home.join("other");
+
+        for (thread_id, cwd, updated_at) in [
+            (first_id, first_cwd.clone(), 1_700_000_100),
+            (second_id, second_cwd.clone(), 1_700_000_300),
+            (other_id, other_cwd, 1_700_000_500),
+        ] {
+            let mut metadata = test_thread_metadata(&lime_home, thread_id, cwd);
+            metadata.created_at =
+                DateTime::<Utc>::from_timestamp(1_700_000_300, 0).expect("valid timestamp");
+            metadata.updated_at =
+                DateTime::<Utc>::from_timestamp(updated_at, 0).expect("valid timestamp");
+            runtime
+                .upsert_thread(&metadata)
+                .await
+                .expect("thread insert should succeed");
+        }
+
+        let cwd_filters = vec![first_cwd, second_cwd];
+        let first_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: None,
+                    cwd_filters: Some(cwd_filters.as_slice()),
+                    section: None,
+                    project_id: None,
+                    anchor: None,
+                    sort_key: SortKey::UpdatedAt,
+                    sort_direction: SortDirection::Desc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("list should succeed");
+
+        let ids = first_page
+            .items
+            .iter()
+            .map(|item| item.id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec![second_id]);
+        assert_eq!(
+            first_page.next_anchor,
+            Some(Anchor {
+                ts: DateTime::<Utc>::from_timestamp_millis(1_700_000_300_000)
+                    .expect("valid timestamp"),
+                id: Some(second_id),
+            })
+        );
+
+        let second_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: None,
+                    cwd_filters: Some(cwd_filters.as_slice()),
+                    section: None,
+                    project_id: None,
+                    anchor: first_page.next_anchor.as_ref(),
+                    sort_key: SortKey::UpdatedAt,
+                    sort_direction: SortDirection::Desc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("second page should succeed");
+
+        let ids = second_page
+            .items
+            .iter()
+            .map(|item| item.id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec![first_id]);
+        assert_eq!(second_page.next_anchor, None);
+
+        let page = runtime
+            .list_threads(
+                /*page_size*/ 10,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: None,
+                    cwd_filters: Some(&[]),
+                    section: None,
+                    project_id: None,
+                    anchor: None,
+                    sort_key: SortKey::UpdatedAt,
+                    sort_direction: SortDirection::Desc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("list with empty cwd filters should succeed");
+
+        assert_eq!(page.items, Vec::new());
+
+        let anchor = Anchor {
+            ts: DateTime::<Utc>::from_timestamp(1_700_000_300, 0).expect("valid timestamp"),
+            id: Some(second_id),
+        };
+        // Activity must not move the unread thread ahead of the creation cursor.
+        runtime
+            .touch_thread_updated_at(first_id, Utc::now())
+            .await
+            .unwrap();
+        runtime
+            .touch_thread_recency_at(first_id, Utc::now())
+            .await
+            .unwrap();
+        let page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: None,
+                    cwd_filters: Some(cwd_filters.as_slice()),
+                    section: None,
+                    project_id: None,
+                    anchor: Some(&anchor),
+                    sort_key: SortKey::CreatedAt,
+                    sort_direction: SortDirection::Desc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("creation-time continuation should succeed");
+        assert_eq!(
+            page.items.iter().map(|item| item.id).collect::<Vec<_>>(),
+            vec![first_id]
+        );
+        assert_eq!(page.next_anchor, None);
+    }
+
+    #[tokio::test]
+    async fn list_threads_uses_indexes_matching_cwd_filters() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+
+        let model_providers = ["test-provider".to_string()];
+        let cwd_filters = [
+            PathBuf::from("/workspace/one"),
+            PathBuf::from("/workspace/two"),
+        ];
+        let anchor = Anchor {
+            ts: DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("valid timestamp"),
+            id: Some(ThreadId::new()),
+        };
+        for (sort_key, visible_index, cwd_index) in [
+            (
+                SortKey::CreatedAt,
+                "idx_threads_visible_created_at_ms",
+                "idx_threads_archived_cwd_created_at_ms",
+            ),
+            (
+                SortKey::UpdatedAt,
+                "idx_threads_visible_updated_at_ms",
+                "idx_threads_archived_cwd_updated_at_ms",
+            ),
+            (
+                SortKey::RecencyAt,
+                "idx_threads_visible_recency_at_ms",
+                "idx_threads_archived_cwd_recency_at_ms",
+            ),
+        ] {
+            for (cwd_filters, anchor, expected_index, expect_temp_sort) in [
+                (None, None, visible_index, false),
+                (None, Some(&anchor), visible_index, false),
+                (Some(&cwd_filters[..1]), None, cwd_index, false),
+                (
+                    Some(&cwd_filters[..]),
+                    None,
+                    "idx_threads_archived_cwd_",
+                    true,
+                ),
+                (Some(&cwd_filters[..]), Some(&anchor), cwd_index, true),
+            ] {
+                let mut builder = QueryBuilder::<Sqlite>::new("EXPLAIN QUERY PLAN ");
+                push_list_threads_query(
+                    &mut builder,
+                    ThreadFilterOptions {
+                        archived_only: false,
+                        allowed_sources: &[],
+                        model_providers: Some(&model_providers),
+                        cwd_filters,
+                        section: None,
+                        project_id: None,
+                        anchor,
+                        sort_key,
+                        sort_direction: SortDirection::Desc,
+                        search_term: None,
+                    },
+                    /*relation_filter*/ None,
+                    /*limit*/ 201,
+                );
+                let plan_details = builder
+                    .build()
+                    .fetch_all(runtime.pool.as_ref())
+                    .await
+                    .expect("query plan should load")
+                    .into_iter()
+                    .map(|row| row.get::<String, _>("detail"))
+                    .collect::<Vec<_>>();
+
+                assert!(
+                    plan_details
+                        .iter()
+                        .any(|detail| detail.contains(expected_index)),
+                    "query plan did not use {expected_index}: {plan_details:?}"
+                );
+                if anchor.is_some() && cwd_filters.is_none() {
+                    let timestamp_column = match sort_key {
+                        SortKey::CreatedAt => "created_at_ms",
+                        SortKey::UpdatedAt => "updated_at_ms",
+                        SortKey::RecencyAt => "recency_at_ms",
+                        SortKey::SectionPosition => unreachable!(),
+                    };
+                    assert!(
+                        plan_details
+                            .iter()
+                            .any(|detail| { detail.contains(&format!("{timestamp_column}<?")) }),
+                        "cursor query lost its timestamp index range: {plan_details:?}"
+                    );
+                }
+                // The visible creation/update indexes cover timestamps, so only ties need sorting.
+                let expect_tie_sort = matches!(sort_key, SortKey::CreatedAt | SortKey::UpdatedAt)
+                    && cwd_filters.is_none();
+                if expect_tie_sort {
+                    assert!(
+                        plan_details.iter().any(|detail| {
+                            detail.contains("TEMP B-TREE FOR LAST TERM OF ORDER BY")
+                        }),
+                        "unexpected tie sorting plan: {plan_details:?}"
+                    );
+                }
+                assert_eq!(
+                    plan_details
+                        .iter()
+                        .any(|detail| detail.contains("TEMP B-TREE")),
+                    expect_temp_sort || expect_tie_sort,
+                    "unexpected sorting plan: {plan_details:?}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn archived_thread_pages_use_ordered_indexes_without_sorting() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let anchor = Anchor {
+            ts: DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("valid timestamp"),
+            id: Some(ThreadId::new()),
+        };
+        for (sort_key, expected_index) in [
+            (SortKey::CreatedAt, "idx_threads_archive_created_at_ms"),
+            (SortKey::UpdatedAt, "idx_threads_archive_updated_at_ms"),
+            (SortKey::RecencyAt, "idx_threads_archive_recency_at_ms"),
+        ] {
+            for sort_direction in [SortDirection::Asc, SortDirection::Desc] {
+                for anchor in [None, Some(&anchor)] {
+                    let mut builder = QueryBuilder::<Sqlite>::new("EXPLAIN QUERY PLAN ");
+                    push_list_threads_query(
+                        &mut builder,
+                        ThreadFilterOptions {
+                            archived_only: true,
+                            allowed_sources: &[],
+                            model_providers: None,
+                            cwd_filters: None,
+                            section: None,
+                            project_id: None,
+                            anchor,
+                            sort_key,
+                            sort_direction,
+                            search_term: None,
+                        },
+                        /*relation_filter*/ None,
+                        /*limit*/ 2,
+                    );
+                    let details = builder
+                        .build()
+                        .fetch_all(runtime.pool.as_ref())
+                        .await
+                        .expect("load archive query plan")
+                        .into_iter()
+                        .map(|row| row.get::<String, _>("detail"))
+                        .collect::<Vec<_>>();
+                    assert!(
+                        details.iter().any(|detail| detail.contains(expected_index)),
+                        "archive page did not use {expected_index}: {details:?}"
+                    );
+                    assert!(
+                        !details.iter().any(|detail| detail.contains("TEMP B-TREE")),
+                        "archive page needed a temporary sort: {details:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn list_threads_by_relation_filters_spawn_graph_with_keyset_pagination() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let parent_id = ThreadId::new();
+        let first_child_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000001").expect("valid thread id");
+        let second_child_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000002").expect("valid thread id");
+        let grandchild_id = ThreadId::new();
+
+        for (thread_id, created_at) in [
+            (parent_id, 1_700_000_000),
+            (first_child_id, 1_700_000_200),
+            (second_child_id, 1_700_000_200),
+            (grandchild_id, 1_700_000_300),
+        ] {
+            let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+            metadata.created_at =
+                DateTime::<Utc>::from_timestamp(created_at, 0).expect("valid timestamp");
+            metadata.updated_at = metadata.created_at;
+            if thread_id == first_child_id {
+                metadata.preview = None;
+                metadata.first_user_message = None;
+            }
+            runtime
+                .upsert_thread(&metadata)
+                .await
+                .expect("thread insert should succeed");
+        }
+        for (parent_thread_id, child_thread_id, status) in [
+            (
+                parent_id,
+                first_child_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            ),
+            (
+                parent_id,
+                second_child_id,
+                DirectionalThreadSpawnEdgeStatus::Closed,
+            ),
+            (
+                first_child_id,
+                grandchild_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            ),
+        ] {
+            runtime
+                .upsert_thread_spawn_edge(parent_thread_id, child_thread_id, status)
+                .await
+                .expect("spawn edge insert should succeed");
+        }
+
+        let mut builder = QueryBuilder::<Sqlite>::new("EXPLAIN QUERY PLAN ");
+        push_list_threads_query(
+            &mut builder,
+            ThreadFilterOptions {
+                archived_only: false,
+                allowed_sources: &[],
+                model_providers: None,
+                cwd_filters: None,
+                section: None,
+                project_id: None,
+                anchor: None,
+                sort_key: SortKey::CreatedAt,
+                sort_direction: SortDirection::Desc,
+                search_term: None,
+            },
+            Some(crate::ThreadRelationFilter::DescendantsOf(parent_id)),
+            /*limit*/ 10,
+        );
+        let plan_details = builder
+            .build()
+            .fetch_all(runtime.pool.as_ref())
+            .await
+            .expect("relationship query plan should load")
+            .into_iter()
+            .map(|row| row.get::<String, _>("detail"))
+            .collect::<Vec<_>>();
+        assert!(
+            plan_details
+                .iter()
+                .any(|detail| detail.contains("idx_thread_spawn_edges_parent_status")),
+            "spawn relationship query did not use the parent index: {plan_details:?}"
+        );
+
+        let filters = |anchor| ThreadFilterOptions {
+            archived_only: false,
+            allowed_sources: &[],
+            model_providers: None,
+            cwd_filters: None,
+            section: None,
+            project_id: None,
+            anchor,
+            sort_key: SortKey::CreatedAt,
+            sort_direction: SortDirection::Desc,
+            search_term: None,
+        };
+        let global_page = runtime
+            .list_threads(/*page_size*/ 10, filters(None))
+            .await
+            .expect("global thread list should succeed");
+        let mut global_ids = global_page.items.iter().map(|item| item.id);
+        assert!(!global_ids.any(|id| id == first_child_id));
+        let first_page = runtime
+            .list_threads_by_parent(/*page_size*/ 1, parent_id, filters(None))
+            .await
+            .expect("first page should succeed");
+        let second_page = runtime
+            .list_threads_by_parent(
+                /*page_size*/ 1,
+                parent_id,
+                filters(first_page.next_anchor.as_ref()),
+            )
+            .await
+            .expect("second page should succeed");
+
+        assert_eq!(
+            first_page
+                .items
+                .iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![second_child_id]
+        );
+        assert_eq!(
+            second_page
+                .items
+                .iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![first_child_id]
+        );
+        assert_eq!(second_page.next_anchor, None);
+
+        let first_descendant_page = runtime
+            .list_threads_by_relation(
+                /*page_size*/ 2,
+                crate::ThreadRelationFilter::DescendantsOf(parent_id),
+                filters(None),
+            )
+            .await
+            .expect("first descendant page should succeed");
+        let second_descendant_page = runtime
+            .list_threads_by_relation(
+                /*page_size*/ 2,
+                crate::ThreadRelationFilter::DescendantsOf(parent_id),
+                filters(first_descendant_page.next_anchor.as_ref()),
+            )
+            .await
+            .expect("second descendant page should succeed");
+        assert_eq!(
+            (
+                first_descendant_page
+                    .items
+                    .iter()
+                    .map(|item| item.id)
+                    .collect::<Vec<_>>(),
+                second_descendant_page
+                    .items
+                    .iter()
+                    .map(|item| item.id)
+                    .collect::<Vec<_>>(),
+                first_descendant_page.parent_thread_ids,
+                second_descendant_page.parent_thread_ids,
+                second_descendant_page.next_anchor,
+            ),
+            (
+                vec![grandchild_id, second_child_id],
+                vec![first_child_id],
+                [
+                    (grandchild_id, first_child_id),
+                    (second_child_id, parent_id)
+                ]
+                .into(),
+                [(first_child_id, parent_id)].into(),
+                None,
+            )
+        );
+
+        runtime
+            .upsert_thread_spawn_edge(
+                grandchild_id,
+                parent_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("cycle-closing spawn edge insert should succeed");
+        let cyclic_descendants = runtime
+            .list_threads_by_relation(
+                /*page_size*/ 10,
+                crate::ThreadRelationFilter::DescendantsOf(parent_id),
+                filters(None),
+            )
+            .await
+            .expect("cyclic descendant graph should terminate");
+        assert_eq!(
+            cyclic_descendants
+                .items
+                .iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![grandchild_id, second_child_id, first_child_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn apply_rollout_items_restores_memory_mode_from_session_meta() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000456").expect("valid thread id");
+        let metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let builder = ThreadMetadataBuilder::new(
+            thread_id,
+            metadata.rollout_path.clone(),
+            metadata.created_at,
+            SessionSource::Cli,
+        );
+        let items = vec![RolloutItem::SessionMeta(Box::new(SessionMetaLine {
+            meta: SessionMeta {
+                account_scoped: false,
+                attached_thread: false,
+                creator_user_id: None,
+                creator_account_id: None,
+                session_id: thread_id.into(),
+                id: thread_id,
+                forked_from_id: None,
+                forked_from_ordinal_exclusive: None,
+                parent_thread_id: None,
+                timestamp: metadata.created_at.to_rfc3339(),
+                cwd: PathBuf::new(),
+                runtime_workspace_roots: None,
+                originator: String::new(),
+                cli_version: String::new(),
+                source: SessionSource::Cli,
+                thread_source: None,
+                agent_path: None,
+                agent_nickname: None,
+                agent_role: None,
+                model_provider: None,
+                base_instructions: None,
+                dynamic_tools: None,
+                selected_capability_roots: Vec::new(),
+                memory_mode: Some("polluted".to_string()),
+                history_mode: Default::default(),
+                history_base: None,
+                subagent_history_start_ordinal: None,
+                multi_agent_version: None,
+                context_window: None,
+            },
+            git: None,
+        }))];
+
+        runtime
+            .apply_rollout_items(
+                Box::new(runtime.build_thread_metadata(&builder)),
+                &items,
+                /*new_thread_memory_mode*/ None,
+                /*updated_at_override*/ None,
+            )
+            .await
+            .expect("apply_rollout_items should succeed");
+
+        let memory_mode = runtime
+            .get_thread_memory_mode(thread_id)
+            .await
+            .expect("memory mode should load");
+        assert_eq!(memory_mode.as_deref(), Some("polluted"));
+    }
+
+    #[tokio::test]
+    async fn apply_rollout_items_preserves_existing_git_branch_and_fills_missing_git_fields() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000457").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        metadata.git_branch = Some("sqlite-branch".to_string());
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let created_at = metadata.created_at.to_rfc3339();
+        let builder = ThreadMetadataBuilder::new(
+            thread_id,
+            metadata.rollout_path.clone(),
+            metadata.created_at,
+            SessionSource::Cli,
+        );
+        let items = vec![RolloutItem::SessionMeta(Box::new(SessionMetaLine {
+            meta: SessionMeta {
+                account_scoped: false,
+                attached_thread: false,
+                creator_user_id: None,
+                creator_account_id: None,
+                session_id: thread_id.into(),
+                id: thread_id,
+                forked_from_id: None,
+                forked_from_ordinal_exclusive: None,
+                parent_thread_id: None,
+                timestamp: created_at,
+                cwd: PathBuf::new(),
+                runtime_workspace_roots: None,
+                originator: String::new(),
+                cli_version: String::new(),
+                source: SessionSource::Cli,
+                thread_source: None,
+                agent_path: None,
+                agent_nickname: None,
+                agent_role: None,
+                model_provider: None,
+                base_instructions: None,
+                dynamic_tools: None,
+                selected_capability_roots: Vec::new(),
+                memory_mode: None,
+                history_mode: Default::default(),
+                history_base: None,
+                subagent_history_start_ordinal: None,
+                multi_agent_version: None,
+                context_window: None,
+            },
+            git: Some(GitInfo {
+                commit_hash: Some(git_utils::GitSha::new("rollout-sha")),
+                branch: Some("rollout-branch".to_string()),
+                repository_url: Some(
+                    SanitizedGitUrl::try_from("git@example.com:openai/lime.git")
+                        .expect("valid git remote URL"),
+                ),
+            }),
+        }))];
+
+        runtime
+            .apply_rollout_items(
+                Box::new(runtime.build_thread_metadata(&builder)),
+                &items,
+                /*new_thread_memory_mode*/ None,
+                /*updated_at_override*/ None,
+            )
+            .await
+            .expect("apply_rollout_items should succeed");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.git_sha.as_deref(), Some("rollout-sha"));
+        assert_eq!(persisted.git_branch.as_deref(), Some("sqlite-branch"));
+        assert_eq!(
+            persisted.git_origin_url.as_deref(),
+            Some("git@example.com:openai/lime.git")
+        );
+    }
+
+    #[tokio::test]
+    async fn upsert_thread_preserves_existing_git_and_originator_atomically() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000458").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        metadata.git_sha = Some("sqlite-sha".to_string());
+        metadata.git_branch = Some("sqlite-branch".to_string());
+        metadata.git_origin_url = Some(
+            SanitizedGitUrl::try_from("git@example.com:openai/lime.git")
+                .expect("valid git remote URL"),
+        );
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let mut rollout_metadata = metadata.clone();
+        rollout_metadata.originator = Some("recorded_client".to_string());
+        rollout_metadata.creator_user_id = Some("creator-user".to_string());
+        rollout_metadata.creator_account_id = Some("creator-account".to_string());
+        rollout_metadata.git_sha = Some("rollout-sha".to_string());
+        rollout_metadata.git_branch = Some("rollout-branch".to_string());
+        rollout_metadata.git_origin_url = Some(
+            SanitizedGitUrl::try_from("https://example.com/repo.git")
+                .expect("valid git remote URL"),
+        );
+
+        runtime
+            .upsert_thread(&rollout_metadata)
+            .await
+            .expect("rollout upsert should succeed");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.originator.as_deref(), Some("recorded_client"));
+        assert_eq!(persisted.git_sha.as_deref(), Some("sqlite-sha"));
+        assert_eq!(persisted.git_branch.as_deref(), Some("sqlite-branch"));
+        assert_eq!(
+            persisted.git_origin_url.as_deref(),
+            Some("git@example.com:openai/lime.git")
+        );
+
+        for incoming_originator in [None, Some("resume_client")] {
+            rollout_metadata.originator = incoming_originator.map(str::to_owned);
+            rollout_metadata.creator_user_id = incoming_originator.map(str::to_owned);
+            rollout_metadata.creator_account_id = incoming_originator.map(str::to_owned);
+            runtime
+                .upsert_thread(&rollout_metadata)
+                .await
+                .expect("later upsert should succeed");
+            let persisted = runtime
+                .get_thread(thread_id)
+                .await
+                .expect("thread should load")
+                .expect("thread should exist");
+            assert_eq!(persisted.originator.as_deref(), Some("recorded_client"));
+            assert_eq!(
+                (
+                    persisted.creator_user_id.as_deref(),
+                    persisted.creator_account_id.as_deref()
+                ),
+                (Some("creator-user"), Some("creator-account")),
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn upsert_thread_preserves_existing_preview_when_incoming_preview_is_empty() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000459").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        metadata.first_user_message = None;
+        metadata.preview = Some("migrated goal preview".to_string());
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let mut rollout_metadata = metadata.clone();
+        rollout_metadata.preview = None;
+
+        runtime
+            .upsert_thread(&rollout_metadata)
+            .await
+            .expect("rollout upsert should succeed");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.preview.as_deref(), Some("migrated goal preview"));
+    }
+
+    #[tokio::test]
+    async fn set_thread_preview_if_empty_only_fills_blank_preview() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000460").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        metadata.first_user_message = None;
+        metadata.preview = None;
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let empty_updated = runtime
+            .set_thread_preview_if_empty(thread_id, "  ")
+            .await
+            .expect("empty preview update should succeed");
+        assert!(!empty_updated);
+        let goal_updated = runtime
+            .set_thread_preview_if_empty(thread_id, "  goal preview  ")
+            .await
+            .expect("goal preview update should succeed");
+        assert!(goal_updated);
+        let overwrite_updated = runtime
+            .set_thread_preview_if_empty(thread_id, "new preview")
+            .await
+            .expect("overwrite preview update should succeed");
+        assert!(!overwrite_updated);
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.preview.as_deref(), Some("goal preview"));
+    }
+
+    #[tokio::test]
+    async fn update_thread_git_info_preserves_newer_non_git_metadata() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000789").expect("valid thread id");
+        let metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let updated_at = datetime_to_epoch_millis(
+            DateTime::<Utc>::from_timestamp(1_700_000_100, 0).expect("timestamp"),
+        );
+        sqlx::query(
+            "UPDATE threads SET updated_at = ?, updated_at_ms = ?, tokens_used = ?, first_user_message = ?, preview = ? WHERE id = ?",
+        )
+        .bind(updated_at / 1000)
+        .bind(updated_at)
+        .bind(123_i64)
+        .bind("newer preview")
+        .bind("newer preview")
+        .bind(thread_id.to_string())
+        .execute(runtime.pool.as_ref())
+        .await
+        .expect("concurrent metadata write should succeed");
+
+        let updated = runtime
+            .update_thread_git_info(
+                thread_id,
+                Some(Some("abc123")),
+                Some(Some("feature/branch")),
+                Some(Some(
+                    &SanitizedGitUrl::try_from("git@example.com:openai/lime.git")
+                        .expect("valid git remote URL"),
+                )),
+            )
+            .await
+            .expect("git info update should succeed");
+        assert!(updated, "git info update should touch the thread row");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.tokens_used, 123);
+        assert_eq!(
+            persisted.first_user_message.as_deref(),
+            Some("newer preview")
+        );
+        assert_eq!(persisted.preview.as_deref(), Some("newer preview"));
+        assert_eq!(datetime_to_epoch_millis(persisted.updated_at), updated_at);
+        assert_eq!(persisted.git_sha.as_deref(), Some("abc123"));
+        assert_eq!(persisted.git_branch.as_deref(), Some("feature/branch"));
+        assert_eq!(
+            persisted.git_origin_url.as_deref(),
+            Some("git@example.com:openai/lime.git")
+        );
+    }
+
+    #[tokio::test]
+    async fn insert_thread_if_absent_preserves_existing_metadata() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000791").expect("valid thread id");
+
+        let mut existing = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        existing.tokens_used = 123;
+        existing.first_user_message = Some("newer preview".to_string());
+        existing.preview = Some("newer preview".to_string());
+        existing.updated_at = DateTime::<Utc>::from_timestamp(1_700_000_100, 0).expect("timestamp");
+        runtime
+            .upsert_thread(&existing)
+            .await
+            .expect("initial upsert should succeed");
+
+        let mut fallback = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        fallback.tokens_used = 0;
+        fallback.first_user_message = None;
+        fallback.preview = None;
+        fallback.updated_at = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
+
+        let inserted = runtime
+            .insert_thread_if_absent(&fallback)
+            .await
+            .expect("insert should succeed");
+        assert!(!inserted, "existing rows should not be overwritten");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.tokens_used, 123);
+        assert_eq!(
+            persisted.first_user_message.as_deref(),
+            Some("newer preview")
+        );
+        assert_eq!(persisted.preview.as_deref(), Some("newer preview"));
+        assert_eq!(
+            datetime_to_epoch_millis(persisted.updated_at),
+            datetime_to_epoch_millis(existing.updated_at)
+        );
+    }
+
+    #[tokio::test]
+    async fn update_thread_git_info_can_clear_fields() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000790").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        metadata.git_sha = Some("abc123".to_string());
+        metadata.git_branch = Some("feature/branch".to_string());
+        metadata.git_origin_url = Some(
+            SanitizedGitUrl::try_from("git@example.com:openai/lime.git")
+                .expect("valid git remote URL"),
+        );
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let updated = runtime
+            .update_thread_git_info(thread_id, Some(None), Some(None), Some(None))
+            .await
+            .expect("git info clear should succeed");
+        assert!(updated, "git info clear should touch the thread row");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.git_sha, None);
+        assert_eq!(persisted.git_branch, None);
+        assert_eq!(persisted.git_origin_url, None);
+    }
+
+    #[tokio::test]
+    async fn touch_thread_updated_at_updates_only_updated_at() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000791").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        metadata.title = "original title".to_string();
+        metadata.first_user_message = Some("first-user-message".to_string());
+        metadata.preview = None;
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let touched_at = DateTime::<Utc>::from_timestamp(1_700_001_111, 0).expect("timestamp");
+        let touched = runtime
+            .touch_thread_updated_at(thread_id, touched_at)
+            .await
+            .expect("touch should succeed");
+        assert!(touched);
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.updated_at, touched_at);
+        assert_eq!(persisted.title, "original title");
+        assert_eq!(
+            persisted.first_user_message.as_deref(),
+            Some("first-user-message")
+        );
+        assert_eq!(persisted.preview.as_deref(), Some("first-user-message"));
+    }
+
+    #[tokio::test]
+    async fn token_usage_preserves_concurrent_edits_and_requires_current_spawn_metadata()
+    -> Result<()> {
+        let home = tempfile::tempdir()?;
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(home.path().abs()),
+            "test-provider".to_string(),
+        )
+        .await?;
+        let thread_id = ThreadId::new();
+        let parent = ThreadId::new();
+        let mut metadata = test_thread_metadata(home.path(), thread_id, home.path().to_path_buf());
+        metadata.tokens_used = 42;
+        metadata.source = serde_json::json!({
+            "subagent": { "thread_spawn": { "parent_thread_id": parent, "depth": 1 } }
+        })
+        .to_string();
+        runtime.upsert_thread(&metadata).await?;
+        runtime.update_thread_title(thread_id, "new title").await?;
+        let mut expected = runtime.get_thread(thread_id).await?.expect("thread");
+        let updated_at = expected.updated_at + chrono::Duration::seconds(2);
+        assert!(
+            runtime
+                .update_thread_token_usage(&metadata, updated_at, /*total_tokens*/ -1)
+                .await?
+        );
+        expected.updated_at = updated_at;
+        expected.tokens_used = 0;
+        assert_eq!(runtime.get_thread(thread_id).await?, Some(expected.clone()));
+
+        sqlx::query("DELETE FROM thread_spawn_edges WHERE child_thread_id = ?")
+            .bind(thread_id.to_string())
+            .execute(runtime.pool.as_ref())
+            .await?;
+        assert!(
+            !runtime
+                .update_thread_token_usage(&metadata, updated_at, /*total_tokens*/ 123)
+                .await?
+        );
+        metadata.source = "cli".to_string();
+        assert!(
+            !runtime
+                .update_thread_token_usage(&metadata, updated_at, /*total_tokens*/ 123)
+                .await?
+        );
+        assert_eq!(runtime.get_thread(thread_id).await?, Some(expected));
+        assert!(runtime.list_thread_spawn_children(parent).await?.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn touch_thread_recency_at_is_monotonic_and_survives_stale_upsert() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000792").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+        let original_recency_at = metadata.recency_at;
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let touched_at =
+            DateTime::<Utc>::from_timestamp_millis(1_700_001_111_123).expect("timestamp");
+        assert!(
+            runtime
+                .touch_thread_recency_at(thread_id, touched_at)
+                .await
+                .expect("touch should succeed")
+        );
+
+        metadata.updated_at =
+            DateTime::<Utc>::from_timestamp_millis(1_700_001_222_456).expect("timestamp");
+        metadata.title = "updated metadata".to_string();
+        assert_eq!(metadata.recency_at, original_recency_at);
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("stale metadata upsert should succeed");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.recency_at, touched_at);
+        assert_eq!(persisted.updated_at, metadata.updated_at);
+        assert_eq!(persisted.title, "updated metadata");
+
+        assert!(
+            runtime
+                .touch_thread_recency_at(thread_id, original_recency_at)
+                .await
+                .expect("older touch should succeed")
+        );
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(
+            datetime_to_epoch_millis(persisted.recency_at),
+            datetime_to_epoch_millis(touched_at) + 1
+        );
+    }
+
+    #[tokio::test]
+    async fn list_threads_orders_and_pages_by_recency_at() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let first_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000793").expect("valid thread id");
+        let second_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000794").expect("valid thread id");
+        let third_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000795").expect("valid thread id");
+        let recency_at =
+            DateTime::<Utc>::from_timestamp_millis(1_700_002_000_456).expect("timestamp");
+
+        for thread_id in [first_id, second_id, third_id] {
+            let mut metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+            metadata.recency_at = recency_at;
+            runtime
+                .upsert_thread(&metadata)
+                .await
+                .expect("thread insert should succeed");
+        }
+        sqlx::query("UPDATE threads SET recency_at = ?, recency_at_ms = ?")
+            .bind(datetime_to_epoch_seconds(recency_at))
+            .bind(datetime_to_epoch_millis(recency_at))
+            .execute(runtime.pool.as_ref())
+            .await
+            .expect("recency timestamps should match");
+
+        let first_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: None,
+                    cwd_filters: None,
+                    section: None,
+                    project_id: None,
+                    anchor: None,
+                    sort_key: SortKey::RecencyAt,
+                    sort_direction: SortDirection::Desc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("list should succeed");
+        assert_eq!(
+            first_page
+                .items
+                .iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![third_id]
+        );
+        assert_eq!(
+            first_page.next_anchor,
+            Some(Anchor {
+                ts: recency_at,
+                id: Some(third_id),
+            })
+        );
+
+        let second_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: None,
+                    cwd_filters: None,
+                    section: None,
+                    project_id: None,
+                    anchor: first_page.next_anchor.as_ref(),
+                    sort_key: SortKey::RecencyAt,
+                    sort_direction: SortDirection::Desc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("second list should succeed");
+        assert_eq!(
+            second_page
+                .items
+                .iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![second_id]
+        );
+        assert_eq!(
+            second_page.next_anchor,
+            Some(Anchor {
+                ts: recency_at,
+                id: Some(second_id),
+            })
+        );
+
+        let third_page = runtime
+            .list_threads(
+                /*page_size*/ 1,
+                ThreadFilterOptions {
+                    archived_only: false,
+                    allowed_sources: &[],
+                    model_providers: None,
+                    cwd_filters: None,
+                    section: None,
+                    project_id: None,
+                    anchor: second_page.next_anchor.as_ref(),
+                    sort_key: SortKey::RecencyAt,
+                    sort_direction: SortDirection::Desc,
+                    search_term: None,
+                },
+            )
+            .await
+            .expect("third list should succeed");
+        assert_eq!(
+            third_page
+                .items
+                .iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![first_id]
+        );
+        assert_eq!(third_page.next_anchor, None);
+    }
+
+    #[tokio::test]
+    async fn thread_updated_at_uses_unique_epoch_millis_and_reads_legacy_seconds() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let first_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000901").expect("valid thread id");
+        let second_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000902").expect("valid thread id");
+        let older_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000903").expect("valid thread id");
+        let updated_at =
+            DateTime::<Utc>::from_timestamp_millis(1_700_001_111_123).expect("timestamp millis");
+        let mut first = test_thread_metadata(&lime_home, first_id, lime_home.clone());
+        first.updated_at = updated_at;
+        first.recency_at = updated_at;
+        let mut second = test_thread_metadata(&lime_home, second_id, lime_home.clone());
+        second.updated_at = updated_at;
+        second.recency_at = updated_at;
+
+        runtime
+            .upsert_thread(&first)
+            .await
+            .expect("first upsert should succeed");
+        runtime
+            .upsert_thread(&second)
+            .await
+            .expect("second upsert should succeed");
+
+        let first = runtime
+            .get_thread(first_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        let second = runtime
+            .get_thread(second_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(
+            datetime_to_epoch_millis(first.updated_at),
+            1_700_001_111_123
+        );
+        assert_eq!(
+            datetime_to_epoch_millis(second.updated_at),
+            1_700_001_111_124
+        );
+        assert_eq!(
+            datetime_to_epoch_millis(first.recency_at),
+            1_700_001_111_123
+        );
+        assert_eq!(
+            datetime_to_epoch_millis(second.recency_at),
+            1_700_001_111_124
+        );
+        let second_row: (i64, i64, Option<i64>, Option<i64>) = sqlx::query_as(
+            "SELECT created_at, updated_at, created_at_ms, updated_at_ms FROM threads WHERE id = ?",
+        )
+        .bind(second_id.to_string())
+        .fetch_one(runtime.pool.as_ref())
+        .await
+        .expect("thread timestamp row should load");
+        assert_eq!(
+            second_row,
+            (
+                datetime_to_epoch_seconds(second.created_at),
+                1_700_001_111,
+                Some(datetime_to_epoch_millis(second.created_at)),
+                Some(1_700_001_111_124)
+            )
+        );
+
+        let older_updated_at =
+            DateTime::<Utc>::from_timestamp_millis(1_700_001_100_123).expect("timestamp millis");
+        let mut older = test_thread_metadata(&lime_home, older_id, lime_home.clone());
+        older.updated_at = older_updated_at;
+        runtime
+            .upsert_thread(&older)
+            .await
+            .expect("older upsert should succeed");
+        let older = runtime
+            .get_thread(older_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(
+            datetime_to_epoch_millis(older.updated_at),
+            1_700_001_100_123
+        );
+
+        sqlx::query("UPDATE threads SET updated_at = ? WHERE id = ?")
+            .bind(1_700_001_112_i64)
+            .bind(first_id.to_string())
+            .execute(runtime.pool.as_ref())
+            .await
+            .expect("legacy timestamp write should succeed");
+        let legacy = runtime
+            .get_thread(first_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(
+            datetime_to_epoch_millis(legacy.updated_at),
+            1_700_001_112_000
+        );
+    }
+
+    #[tokio::test]
+    async fn apply_rollout_items_uses_override_updated_at_when_provided() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000792").expect("valid thread id");
+        let metadata = test_thread_metadata(&lime_home, thread_id, lime_home.clone());
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("initial upsert should succeed");
+
+        let builder = ThreadMetadataBuilder::new(
+            thread_id,
+            metadata.rollout_path.clone(),
+            metadata.created_at,
+            SessionSource::Cli,
+        );
+        let items = vec![RolloutItem::EventMsg(EventMsg::TokenCount(
+            protocol::protocol::TokenCountEvent {
+                info: Some(protocol::protocol::TokenUsageInfo {
+                    total_token_usage: protocol::protocol::TokenUsage {
+                        input_tokens: 0,
+                        cached_input_tokens: 0,
+                        cache_write_input_tokens: 0,
+                        output_tokens: 0,
+                        reasoning_output_tokens: 0,
+                        total_tokens: 321,
+                        lime_rollout_budget_units: None,
+                    },
+                    last_usage_includes_reasoning: None,
+                    last_token_usage: protocol::protocol::TokenUsage::default(),
+                    model_context_window: None,
+                }),
+                rate_limits: None,
+            },
+        ))];
+        let override_updated_at =
+            DateTime::<Utc>::from_timestamp(1_700_001_234, 0).expect("timestamp");
+
+        runtime
+            .apply_rollout_items(
+                Box::new(runtime.build_thread_metadata(&builder)),
+                &items,
+                /*new_thread_memory_mode*/ None,
+                Some(override_updated_at),
+            )
+            .await
+            .expect("apply_rollout_items should succeed");
+
+        let persisted = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(persisted.tokens_used, 321);
+        assert_eq!(persisted.updated_at, override_updated_at);
+    }
+
+    #[tokio::test]
+    async fn thread_spawn_edges_track_directional_status() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let parent_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000900").expect("valid thread id");
+        let child_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000901").expect("valid thread id");
+        let grandchild_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000902").expect("valid thread id");
+
+        runtime
+            .upsert_thread_spawn_edge(
+                parent_thread_id,
+                child_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("child edge insert should succeed");
+        runtime
+            .upsert_thread_spawn_edge(
+                child_thread_id,
+                grandchild_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("grandchild edge insert should succeed");
+
+        let children = runtime
+            .list_thread_spawn_children_with_status(
+                parent_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("open child list should load");
+        assert_eq!(children, vec![child_thread_id]);
+
+        let descendants = runtime
+            .list_thread_spawn_descendants_with_status(
+                parent_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("open descendants should load");
+        assert_eq!(descendants, vec![child_thread_id, grandchild_thread_id]);
+
+        runtime
+            .set_thread_spawn_edge_status(child_thread_id, DirectionalThreadSpawnEdgeStatus::Closed)
+            .await
+            .expect("edge close should succeed");
+
+        let open_children = runtime
+            .list_thread_spawn_children_with_status(
+                parent_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("open child list should load");
+        assert_eq!(open_children, Vec::<ThreadId>::new());
+
+        let closed_children = runtime
+            .list_thread_spawn_children_with_status(
+                parent_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Closed,
+            )
+            .await
+            .expect("closed child list should load");
+        assert_eq!(closed_children, vec![child_thread_id]);
+
+        let closed_descendants = runtime
+            .list_thread_spawn_descendants_with_status(
+                parent_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Closed,
+            )
+            .await
+            .expect("closed descendants should load");
+        assert_eq!(closed_descendants, vec![child_thread_id]);
+
+        let open_descendants_from_child = runtime
+            .list_thread_spawn_descendants_with_status(
+                child_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("open descendants from child should load");
+        assert_eq!(open_descendants_from_child, vec![grandchild_thread_id]);
+
+        let all_descendants = runtime
+            .list_thread_spawn_descendants(parent_thread_id)
+            .await
+            .expect("all descendants should load");
+        assert_eq!(all_descendants, vec![child_thread_id, grandchild_thread_id]);
+    }
+
+    #[tokio::test]
+    async fn thread_spawn_children_without_status_filter_lists_all_statuses() {
+        let lime_home = unique_temp_dir();
+        let runtime = StateRuntime::init(
+            crate::SqliteConfig::new_for_testing(lime_home.as_path().abs()),
+            "test-provider".to_string(),
+        )
+        .await
+        .expect("state db should initialize");
+        let parent_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000910").expect("valid thread id");
+        let open_child_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000911").expect("valid thread id");
+        let closed_child_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000912").expect("valid thread id");
+        let future_child_thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000913").expect("valid thread id");
+
+        runtime
+            .upsert_thread_spawn_edge(
+                parent_thread_id,
+                open_child_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Open,
+            )
+            .await
+            .expect("open child edge insert should succeed");
+        runtime
+            .upsert_thread_spawn_edge(
+                parent_thread_id,
+                closed_child_thread_id,
+                DirectionalThreadSpawnEdgeStatus::Closed,
+            )
+            .await
+            .expect("closed child edge insert should succeed");
+        sqlx::query(
+            r#"
+INSERT INTO thread_spawn_edges (
+    parent_thread_id,
+    child_thread_id,
+    status
+) VALUES (?, ?, ?)
+            "#,
+        )
+        .bind(parent_thread_id.to_string())
+        .bind(future_child_thread_id.to_string())
+        .bind("future")
+        .execute(runtime.pool.as_ref())
+        .await
+        .expect("future-status child edge insert should succeed");
+
+        let children = runtime
+            .list_thread_spawn_children(parent_thread_id)
+            .await
+            .expect("all children should load");
+        assert_eq!(
+            children,
+            vec![
+                open_child_thread_id,
+                closed_child_thread_id,
+                future_child_thread_id,
+            ]
+        );
+    }
+}

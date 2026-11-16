@@ -1,6 +1,6 @@
 use super::{
-    to_wide, WINDOWS_SANDBOX_OFFLINE_USERNAME, WINDOWS_SANDBOX_ONLINE_USERNAME,
-    WINDOWS_SANDBOX_USERS_GROUP,
+    WINDOWS_SANDBOX_OFFLINE_USERNAME, WINDOWS_SANDBOX_ONLINE_USERNAME, WINDOWS_SANDBOX_USERS_GROUP,
+    to_wide,
 };
 use std::io;
 
@@ -8,9 +8,9 @@ const READ_CONTROL: u32 = 0x0002_0000;
 const WRITE_DAC: u32 = 0x0004_0000;
 
 pub(super) fn ensure_sandbox_accounts_null_device_access() -> io::Result<()> {
-    use windows_sys::Win32::Foundation::{LocalFree, ERROR_SUCCESS, HLOCAL};
+    use windows_sys::Win32::Foundation::{ERROR_SUCCESS, HLOCAL, LocalFree};
     use windows_sys::Win32::Security::Authorization::{
-        SetEntriesInAclW, SetSecurityInfo, EXPLICIT_ACCESS_W, SET_ACCESS, SE_KERNEL_OBJECT,
+        EXPLICIT_ACCESS_W, SE_KERNEL_OBJECT, SET_ACCESS, SetEntriesInAclW, SetSecurityInfo,
         TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
     };
     use windows_sys::Win32::Storage::FileSystem::{
@@ -150,7 +150,7 @@ fn with_null_device_dacl<T>(
     ) -> io::Result<T>,
 ) -> io::Result<T> {
     use windows_sys::Win32::Foundation::{
-        CloseHandle, LocalFree, ERROR_SUCCESS, HLOCAL, INVALID_HANDLE_VALUE,
+        CloseHandle, ERROR_SUCCESS, HLOCAL, INVALID_HANDLE_VALUE, LocalFree,
     };
     use windows_sys::Win32::Security::Authorization::{GetSecurityInfo, SE_KERNEL_OBJECT};
     use windows_sys::Win32::Storage::FileSystem::{
@@ -275,8 +275,8 @@ pub(super) fn ensure_local_account(username: &str, password: &str) -> io::Result
 pub(super) fn ensure_local_group(name: &str, comment: &str) -> io::Result<()> {
     use windows_sys::Win32::Foundation::ERROR_ALIAS_EXISTS;
     use windows_sys::Win32::NetworkManagement::NetManagement::{
-        NERR_GroupExists as NERR_GROUP_EXISTS, NERR_Success as NERR_SUCCESS, NetLocalGroupAdd,
-        LOCALGROUP_INFO_1,
+        LOCALGROUP_INFO_1, NERR_GroupExists as NERR_GROUP_EXISTS, NERR_Success as NERR_SUCCESS,
+        NetLocalGroupAdd,
     };
 
     let mut name_w = to_wide(name);
@@ -309,7 +309,7 @@ pub(super) fn ensure_local_group(name: &str, comment: &str) -> io::Result<()> {
 pub(super) fn ensure_local_group_member(group: &str, account: &str) -> io::Result<()> {
     use windows_sys::Win32::Foundation::ERROR_MEMBER_IN_ALIAS;
     use windows_sys::Win32::NetworkManagement::NetManagement::{
-        NERR_Success as NERR_SUCCESS, NetLocalGroupAddMembers, LOCALGROUP_MEMBERS_INFO_3,
+        LOCALGROUP_MEMBERS_INFO_3, NERR_Success as NERR_SUCCESS, NetLocalGroupAddMembers,
     };
 
     let group_w = to_wide(group);
@@ -375,9 +375,9 @@ pub(super) fn validate_windows_sandbox_group_membership(account: &str) -> Result
 
 fn builtin_users_group_name() -> io::Result<String> {
     use std::ffi::c_void;
-    use windows_sys::Win32::Foundation::{GetLastError, ERROR_INSUFFICIENT_BUFFER};
+    use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, GetLastError};
     use windows_sys::Win32::Security::{
-        CreateWellKnownSid, LookupAccountSidW, WinBuiltinUsersSid, SID_NAME_USE,
+        CreateWellKnownSid, LookupAccountSidW, SID_NAME_USE, WinBuiltinUsersSid,
     };
 
     let mut sid_size = 0;
@@ -448,7 +448,7 @@ fn builtin_users_group_name() -> io::Result<String> {
 
 pub(crate) fn windows_sandbox_users_group_sid() -> io::Result<String> {
     use std::ffi::c_void;
-    use windows_sys::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows_sys::Win32::Foundation::{HLOCAL, LocalFree};
     use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 
     let sid = resolve_windows_account_sid(WINDOWS_SANDBOX_USERS_GROUP).map_err(io::Error::other)?;
@@ -479,8 +479,8 @@ pub(crate) fn windows_sandbox_users_group_sid() -> io::Result<String> {
 fn local_group_contains_sid(group: &str, account_sid: &[u8]) -> Result<bool, String> {
     use std::ffi::c_void;
     use windows_sys::Win32::NetworkManagement::NetManagement::{
-        NERR_Success, NetApiBufferFree, NetLocalGroupGetMembers, LOCALGROUP_MEMBERS_INFO_0,
-        MAX_PREFERRED_LENGTH,
+        LOCALGROUP_MEMBERS_INFO_0, MAX_PREFERRED_LENGTH, NERR_Success, NetApiBufferFree,
+        NetLocalGroupGetMembers,
     };
     use windows_sys::Win32::Security::EqualSid;
 
@@ -541,9 +541,9 @@ fn local_group_contains_sid(group: &str, account_sid: &[u8]) -> Result<bool, Str
 }
 
 pub(crate) fn resolve_windows_account_sid(account: &str) -> Result<Vec<u8>, String> {
-    use std::ffi::{c_void, OsStr};
+    use std::ffi::{OsStr, c_void};
     use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Foundation::{GetLastError, ERROR_INSUFFICIENT_BUFFER};
+    use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, GetLastError};
     use windows_sys::Win32::Security::{LookupAccountNameW, SID_NAME_USE};
 
     let account: Vec<u16> = OsStr::new(account)

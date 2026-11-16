@@ -1,6 +1,6 @@
 use super::{
-    entries_for_report, event_config_label, failure_reason, non_empty, CommandHookReport,
-    DiscoveredHook, HookCommandOutput,
+    CommandHookReport, DiscoveredHook, HookCommandOutput, entries_for_report, event_config_label,
+    failure_reason, non_empty,
 };
 use crate::hook_lifecycle::{
     RuntimeHookEventContext, RuntimeHookHandlerReport, RuntimeStopHookTarget,
@@ -8,7 +8,7 @@ use crate::hook_lifecycle::{
 use crate::turn_snapshot::{RuntimeHookEventName, RuntimeHookExecutionMode};
 use agent_protocol::hook::{HookOutputEntry, HookOutputEntryKind};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub(super) fn is_stop(event: RuntimeHookEventName) -> bool {
     matches!(
@@ -65,9 +65,11 @@ pub(super) fn command_input(
         ) if !agent_id.trim().is_empty() && !agent_type.trim().is_empty() => {
             input["agent_id"] = json!(agent_id);
             input["agent_type"] = json!(agent_type);
-            input["agent_transcript_path"] = json!(agent_transcript_path
-                .as_ref()
-                .map(|path| path.display().to_string()));
+            input["agent_transcript_path"] = json!(
+                agent_transcript_path
+                    .as_ref()
+                    .map(|path| path.display().to_string())
+            );
         }
         _ => return Err("Stop hook target does not match the invoked event".to_string()),
     }

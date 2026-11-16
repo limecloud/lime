@@ -103,28 +103,38 @@ fn browser_denials_and_independent_switches_cannot_be_overridden_by_consent() {
         chrome_enabled: Some(true),
         ..Default::default()
     };
-    assert!(policy
-        .check_extension(&target, ComputerUseGrantScope::Session, true)
-        .is_ok());
-    assert!(policy
-        .check_extension(&target, ComputerUseGrantScope::Session, false)
-        .is_err());
-    assert!(policy
-        .check_extension(&target, ComputerUseGrantScope::Persistent, true)
-        .is_err());
+    assert!(
+        policy
+            .check_extension(&target, ComputerUseGrantScope::Session, true)
+            .is_ok()
+    );
+    assert!(
+        policy
+            .check_extension(&target, ComputerUseGrantScope::Session, false)
+            .is_err()
+    );
+    assert!(
+        policy
+            .check_extension(&target, ComputerUseGrantScope::Persistent, true)
+            .is_err()
+    );
     let mut denied = policy;
     denied.browser = Some(
         serde_json::from_value(json!({"origins":{"https://example.test":{"access":"deny"}}}))
             .unwrap(),
     );
-    assert!(denied
-        .check_extension(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        denied
+            .check_extension(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
     denied.browser = None;
     denied.chrome_enabled = Some(false);
-    assert!(denied
-        .check_extension(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        denied
+            .check_extension(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
 }
 
 #[test]
@@ -159,27 +169,35 @@ fn browser_patterns_honor_scheme_port_wildcards_and_specific_overrides() {
         ),
         ..Default::default()
     };
-    assert!(policy
-        .check_extension(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        policy
+            .check_extension(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
     policy.browser = Some(serde_json::from_value(json!({"default_origin_policy":{"access":"deny"},"origins":{"example.test":{"access":"allow"}}})).unwrap());
-    assert!(policy
-        .check_extension(&target, ComputerUseGrantScope::Session, true)
-        .is_ok());
+    assert!(
+        policy
+            .check_extension(&target, ComputerUseGrantScope::Session, true)
+            .is_ok()
+    );
     if let ComputerUseTargetIdentity::Chrome { origin, .. } = &mut target {
         *origin = "https://sub.example.test".into();
     }
-    assert!(policy
-        .check_extension(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        policy
+            .check_extension(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
     policy.browser_admin = Some(
         serde_json::from_value(json!({"origins":{"https://*.example.test":{"access":"deny"}}}))
             .unwrap(),
     );
     policy.browser = None;
-    assert!(policy
-        .check_extension(&target, ComputerUseGrantScope::Session, true)
-        .is_err());
+    assert!(
+        policy
+            .check_extension(&target, ComputerUseGrantScope::Session, true)
+            .is_err()
+    );
 }
 
 #[tokio::test]

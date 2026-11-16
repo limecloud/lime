@@ -104,17 +104,15 @@ mod tests {
         );
         // The recovery identity is still excluded even with credentials enabled.
         fs::copy(&key, source.join("renamed-key.txt")).unwrap();
-        assert!(
-            export(
-                &source,
-                &["renamed-key.txt".into()],
-                &root.path().join("unsafe.age"),
-                result["recipient"].as_str().unwrap(),
-                true,
-                true
-            )
-            .is_err()
-        );
+        assert!(export(
+            &source,
+            &["renamed-key.txt".into()],
+            &root.path().join("unsafe.age"),
+            result["recipient"].as_str().unwrap(),
+            true,
+            true
+        )
+        .is_err());
         assert!(!root.path().join("unsafe.age").exists());
     }
 

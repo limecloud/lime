@@ -4,17 +4,49 @@ use crate::tool_executor::{
     RuntimeToolExecutor, RuntimeToolExecutorHandle, RuntimeToolPolicyErrorKind,
 };
 use app_server_protocol::protocol::v2::{FileSystemAccessMode, FileSystemPath};
-use patch_apply::{
-    apply_hunks_to_workdir, apply_patch_to_workdir, maybe_parse_apply_patch, parse_patch,
-    AppliedPatchFileChange, ApplyPatchReport, Hunk, MaybeApplyPatch,
+use apply_patch::{
+    AppliedPatchFileChange as UpstreamPatchFileChange, Hunk, MaybeApplyPatch,
+    maybe_parse_apply_patch, parse_patch,
 };
-use serde_json::{json, Value};
+use lime_utils_path_uri::PathUri;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 pub const APPLY_PATCH_TOOL_NAME: &str = "apply_patch";
 pub const TURN_DIFF_DELTA_METADATA_KEY: &str = "turnDiffDelta";
+
+#[derive(Debug, Default)]
+struct ApplyPatchReport {
+    added: Vec<PathBuf>,
+    modified: Vec<PathBuf>,
+    deleted: Vec<PathBuf>,
+    changes: Vec<PatchChange>,
+}
+
+#[derive(Debug, Clone)]
+struct PatchChange {
+    path: PathBuf,
+    change: PatchFileChange,
+}
+
+#[derive(Debug, Clone)]
+enum PatchFileChange {
+    Add {
+        content: String,
+        overwritten_content: Option<String>,
+    },
+    Delete {
+        content: String,
+    },
+    Update {
+        move_path: Option<PathBuf>,
+        old_content: String,
+        overwritten_move_content: Option<String>,
+        new_content: String,
+    },
+}
 
 #[derive(Debug, Default)]
 pub struct RuntimeApplyPatchExecutor;
@@ -64,8 +96,7 @@ impl RuntimeApplyPatchExecutor {
             )?,
         }
 
-        let patch =
-            patch_text_from_params(request.params, request.context.working_directory())?;
+        let patch = patch_text_from_params(request.params, request.context.working_directory())?;
         if let Some(policy) = request
             .context
             .execution_attempt()
@@ -115,42 +146,20 @@ impl RuntimeApplyPatchExecutor {
                     ("environment_id".to_string(), json!(environment_id)),
                     (
                         "modified_paths".to_string(),
-                        json!(result
-                            .modified_paths
-                            .iter()
-                            .map(|path| path.display().to_string())
-                            .collect::<Vec<_>>()),
+                        json!(
+                            result
+                                .modified_paths
+                                .iter()
+                                .map(|path| path.display().to_string())
+                                .collect::<Vec<_>>()
+                        ),
                     ),
                 ]),
             ));
         }
         let workdir = request.context.working_directory().clone();
         let canonical_workdir = workdir.canonicalize().unwrap_or_else(|_| workdir.clone());
-        let apply_root = request
-            .context
-            .execution_attempt()
-            .filter(|attempt| {
-                attempt.effective_sandbox_policy()
-                    == crate::execution_orchestrator::RuntimeToolSandboxPolicy::DangerFullAccess
-            })
-            .map(|_| filesystem_root(&canonical_workdir))
-            .transpose()?
-            .unwrap_or_else(|| canonical_workdir.clone());
-        let parsed =
-            parse_patch(&patch).map_err(|error| runtime_apply_patch_error(error.to_string()))?;
-        let hunks = if apply_root == canonical_workdir {
-            None
-        } else {
-            Some(resolve_hunks_for_apply(&parsed.hunks, &canonical_workdir)?)
-        };
-        let patch_for_apply = patch.clone();
-        let report = tokio::task::spawn_blocking(move || match hunks {
-            Some(hunks) => apply_hunks_to_workdir(&hunks, apply_root),
-            None => apply_patch_to_workdir(&patch_for_apply, apply_root),
-        })
-        .await
-        .map_err(|error| runtime_apply_patch_error(format!("apply_patch task failed: {error}")))?
-        .map_err(|error| runtime_apply_patch_error(error.to_string()))?;
+        let report = apply_patch_via_executor(&patch, &canonical_workdir).await?;
 
         Ok(RuntimeToolExecutionResult::new(
             true,
@@ -161,25 +170,96 @@ impl RuntimeApplyPatchExecutor {
     }
 }
 
+async fn apply_patch_via_executor(
+    patch: &str,
+    workdir: &Path,
+) -> Result<ApplyPatchReport, RuntimeToolExecutionError> {
+    let cwd = PathUri::from_host_native_path(workdir)
+        .map_err(|error| runtime_apply_patch_error(error.to_string()))?;
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let delta = apply_patch::apply_patch(
+        patch,
+        &cwd,
+        &mut stdout,
+        &mut stderr,
+        exec_server::LOCAL_FS.as_ref(),
+        None,
+    )
+    .await
+    .map_err(|failure| runtime_apply_patch_error(stderr_to_text(&failure)))?;
+
+    let mut report = ApplyPatchReport {
+        added: Vec::new(),
+        modified: Vec::new(),
+        deleted: Vec::new(),
+        changes: Vec::new(),
+    };
+    for change in delta.changes() {
+        let path = change.path.to_path_buf();
+        match &change.change {
+            UpstreamPatchFileChange::Add { content, .. } => {
+                report.added.push(path.clone());
+                report.changes.push(PatchChange {
+                    path,
+                    change: PatchFileChange::Add {
+                        content: content.clone(),
+                        overwritten_content: None,
+                    },
+                });
+            }
+            UpstreamPatchFileChange::Delete { content } => {
+                report.deleted.push(path.clone());
+                report.changes.push(PatchChange {
+                    path,
+                    change: PatchFileChange::Delete {
+                        content: content.clone(),
+                    },
+                });
+            }
+            UpstreamPatchFileChange::Update {
+                move_path,
+                old_content,
+                new_content,
+                ..
+            } => {
+                report.modified.push(path.clone());
+                report.changes.push(PatchChange {
+                    path,
+                    change: PatchFileChange::Update {
+                        move_path: move_path.as_ref().map(PathUri::to_path_buf),
+                        old_content: old_content.clone(),
+                        overwritten_move_content: None,
+                        new_content: new_content.clone(),
+                    },
+                });
+            }
+        }
+    }
+    Ok(report)
+}
+
+fn stderr_to_text(failure: &apply_patch::ApplyPatchFailure) -> String {
+    failure.to_string()
+}
+
 pub(crate) fn apply_in_helper(
     patch: &str,
     cwd: &Path,
-    unrestricted: bool,
+    _unrestricted: bool,
 ) -> Result<Value, String> {
     let cwd = cwd.canonicalize().map_err(|e| e.to_string())?;
-    let report = if unrestricted {
-        let parsed = parse_patch(patch).map_err(|e| e.to_string())?;
-        let hunks =
-            resolve_hunks_for_apply(&parsed.hunks, &cwd).map_err(|e| e.message().to_string())?;
-        apply_hunks_to_workdir(
-            &hunks,
-            filesystem_root(&cwd).map_err(|e| e.message().to_string())?,
-        )
-    } else {
-        apply_patch_to_workdir(patch, &cwd)
-    }
-    .map_err(|e| e.to_string())?;
-    Ok(json!({ "output": summary_text(&report), "metadata": build_metadata(patch, &cwd, &report) }))
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| format!("filesystem helper runtime failed: {error}"))?;
+    let report = runtime
+        .block_on(apply_patch_via_executor(patch, &cwd))
+        .map_err(|error| error.message().to_owned())?;
+    Ok(json!({
+        "output": summary_text(&report),
+        "metadata": build_metadata(patch, &cwd, &report),
+    }))
 }
 
 impl RuntimeToolExecutor for RuntimeApplyPatchExecutor {
@@ -298,60 +378,6 @@ fn resolved_patch_write_paths(
     Ok(paths)
 }
 
-fn resolve_hunks_for_apply(
-    hunks: &[Hunk],
-    workdir: &Path,
-) -> Result<Vec<Hunk>, RuntimeToolExecutionError> {
-    hunks
-        .iter()
-        .map(|hunk| match hunk {
-            Hunk::AddFile { path, contents } => Ok(Hunk::AddFile {
-                path: resolve_patch_path_for_permission(workdir, path)
-                    .map_err(runtime_apply_patch_error)?,
-                contents: contents.clone(),
-            }),
-            Hunk::DeleteFile { path } => Ok(Hunk::DeleteFile {
-                path: resolve_patch_path_for_permission(workdir, path)
-                    .map_err(runtime_apply_patch_error)?,
-            }),
-            Hunk::UpdateFile {
-                path,
-                move_path,
-                chunks,
-            } => Ok(Hunk::UpdateFile {
-                path: resolve_patch_path_for_permission(workdir, path)
-                    .map_err(runtime_apply_patch_error)?,
-                move_path: move_path
-                    .as_ref()
-                    .map(|path| {
-                        resolve_patch_path_for_permission(workdir, path)
-                            .map_err(runtime_apply_patch_error)
-                    })
-                    .transpose()?,
-                chunks: chunks.clone(),
-            }),
-        })
-        .collect()
-}
-
-fn filesystem_root(path: &Path) -> Result<PathBuf, RuntimeToolExecutionError> {
-    let mut root = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Prefix(prefix) => root.push(prefix.as_os_str()),
-            Component::RootDir => {
-                root.push(component.as_os_str());
-                return Ok(root);
-            }
-            Component::CurDir | Component::ParentDir | Component::Normal(_) => break,
-        }
-    }
-    Err(runtime_apply_patch_error(format!(
-        "cannot resolve filesystem root for '{}'",
-        path.display()
-    )))
-}
-
 fn granted_write_path(
     permissions: &app_server_protocol::protocol::v2::GrantedPermissionProfile,
     candidate: &Path,
@@ -426,11 +452,7 @@ fn patch_text_from_params(
     }
 
     let argv = if let Some(command) = params.get("command").and_then(Value::as_str) {
-        vec![
-            "bash".to_string(),
-            "-lc".to_string(),
-            command.to_string(),
-        ]
+        vec!["bash".to_string(), "-lc".to_string(), command.to_string()]
     } else if let Some(values) = params.get("argv").and_then(Value::as_array) {
         values
             .iter()
@@ -575,10 +597,10 @@ fn turn_diff_delta_to_value(workdir: &Path, report: &ApplyPatchReport) -> Value 
     })
 }
 
-fn turn_diff_change_to_value(workdir: &Path, change: &patch_apply::AppliedPatchChange) -> Value {
+fn turn_diff_change_to_value(workdir: &Path, change: &PatchChange) -> Value {
     let path = display_path(workdir, &change.path);
     match &change.change {
-        AppliedPatchFileChange::Add {
+        PatchFileChange::Add {
             content,
             overwritten_content,
         } => compact_object(json!({
@@ -587,12 +609,12 @@ fn turn_diff_change_to_value(workdir: &Path, change: &patch_apply::AppliedPatchC
             "content": content,
             "overwrittenContent": overwritten_content,
         })),
-        AppliedPatchFileChange::Delete { content } => json!({
+        PatchFileChange::Delete { content } => json!({
             "type": "delete",
             "path": path,
             "content": content,
         }),
-        AppliedPatchFileChange::Update {
+        PatchFileChange::Update {
             move_path,
             old_content,
             overwritten_move_content,
@@ -617,10 +639,10 @@ fn report_to_value(workdir: &Path, report: &ApplyPatchReport) -> Value {
     })
 }
 
-fn change_to_value(workdir: &Path, change: &patch_apply::AppliedPatchChange) -> Value {
+fn change_to_value(workdir: &Path, change: &PatchChange) -> Value {
     let path = display_path(workdir, &change.path);
     match &change.change {
-        AppliedPatchFileChange::Add {
+        PatchFileChange::Add {
             content,
             overwritten_content,
         } => {
@@ -642,7 +664,7 @@ fn change_to_value(workdir: &Path, change: &patch_apply::AppliedPatchChange) -> 
                 "diffRef": refs.diff_ref,
             }))
         }
-        AppliedPatchFileChange::Delete { content } => {
+        PatchFileChange::Delete { content } => {
             let refs = file_refs(&path, content, "");
             json!({
                 "kind": "delete",
@@ -655,7 +677,7 @@ fn change_to_value(workdir: &Path, change: &patch_apply::AppliedPatchChange) -> 
                 "diffRef": refs.diff_ref,
             })
         }
-        AppliedPatchFileChange::Update {
+        PatchFileChange::Update {
             move_path,
             old_content,
             overwritten_move_content,
@@ -908,9 +930,11 @@ mod tests {
             .expect("file_change metadata");
         assert_eq!(file_change["path"].as_str(), Some("notes/live.md"));
         assert_eq!(file_change["kind"].as_str(), Some("add"));
-        assert!(file_change["checkpointRef"]
-            .as_str()
-            .is_some_and(|value| value.starts_with("checkpoint:file:")));
+        assert!(
+            file_change["checkpointRef"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("checkpoint:file:"))
+        );
         assert_eq!(
             result.metadata[TURN_DIFF_DELTA_METADATA_KEY]["changes"][0],
             json!({
@@ -976,18 +1000,14 @@ mod tests {
         );
     }
 
-
     #[test]
     fn apply_patch_command_form_still_enforces_workspace_paths() {
         let dir = tempfile::tempdir().unwrap();
         let patch = "*** Begin Patch\n*** Add File: ../outside.txt\n+hi\n*** End Patch";
         let command = format!("apply_patch <<'EOF'\n{patch}\nEOF");
-        let error = check_runtime_apply_patch_permissions(
-            &json!({ "command": command }),
-            dir.path(),
-        )
-        .expect_err("outside path must be rejected");
+        let error =
+            check_runtime_apply_patch_permissions(&json!({ "command": command }), dir.path())
+                .expect_err("outside path must be rejected");
         assert!(error.message().contains("must stay inside workspace"));
     }
-
 }

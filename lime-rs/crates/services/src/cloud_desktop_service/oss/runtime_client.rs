@@ -78,8 +78,12 @@ impl Client {
         let headers: HeaderMap = headers
             .iter()
             .map(|(name, value)| {
-                let mut header_value = value.parse::<reqwest::header::HeaderValue>().map_err(|_| FAILED)?;
-                if matches!(name.as_str(), "authorization" | "x-oss-security-token") { header_value.set_sensitive(true); }
+                let mut header_value = value
+                    .parse::<reqwest::header::HeaderValue>()
+                    .map_err(|_| FAILED)?;
+                if matches!(name.as_str(), "authorization" | "x-oss-security-token") {
+                    header_value.set_sensitive(true);
+                }
                 Ok((
                     name.parse::<reqwest::header::HeaderName>()
                         .map_err(|_| FAILED)?,
@@ -275,7 +279,12 @@ impl Client {
             return Ok(false);
         }
         let response = success(response)?;
-        Ok(response.headers().get("content-length").and_then(|value| value.to_str().ok()).and_then(|value| value.parse::<u64>().ok()) == Some(bytes)
+        Ok(response
+            .headers()
+            .get("content-length")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            == Some(bytes)
             && response
                 .headers()
                 .get("x-oss-meta-lime-sha256")

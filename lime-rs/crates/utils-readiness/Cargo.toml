@@ -1,0 +1,22 @@
+[package]
+name = "utils-readiness"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Readiness flags."
+
+[lib]
+name = "utils_readiness"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+
+[dev-dependencies]
+assert_matches = "1"
+pretty_assertions.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "time"] }

@@ -1,0 +1,279 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
+use std::time::Duration;
+
+use exec_server_protocol::JSONRPCErrorError;
+use tokio::sync::Mutex;
+use uuid::Uuid;
+
+use crate::ExecServerRuntimeOptions;
+use crate::rpc::RpcNotificationSender;
+use crate::rpc::invalid_request;
+use crate::rpc::session_already_attached;
+use crate::server::process_handler::ProcessHandler;
+use crate::telemetry::ExecServerTelemetry;
+use crate::telemetry::record_recovery_retention_expired;
+
+// Allow the 50s client window, up to 25s of disconnect detection skew, and 5s of margin.
+#[cfg(not(test))]
+const RECOVERY_RETENTION: Duration = Duration::from_secs(80);
+#[cfg(test)]
+const DETACHED_SESSION_TTL: Duration = Duration::from_millis(200);
+#[cfg(not(test))]
+const DETACHED_SESSION_TTL: Duration = RECOVERY_RETENTION;
+#[cfg(test)]
+const RPC_OUTPUT_RETENTION: Duration = Duration::from_millis(25);
+#[cfg(not(test))]
+const RPC_OUTPUT_RETENTION: Duration = RECOVERY_RETENTION;
+
+pub(crate) struct SessionRegistry {
+    sessions: Mutex<HashMap<String, Arc<SessionEntry>>>,
+    telemetry: ExecServerTelemetry,
+}
+
+struct SessionEntry {
+    session_id: String,
+    process: ProcessHandler,
+    attachment: StdMutex<AttachmentState>,
+}
+
+enum AttachmentState {
+    Attached {
+        connection_id: ConnectionId,
+    },
+    Detached {
+        connection_id: ConnectionId,
+        expires_at: tokio::time::Instant,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ConnectionId(Uuid);
+
+impl std::fmt::Display for ConnectionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct SessionHandle {
+    registry: Arc<SessionRegistry>,
+    entry: Arc<SessionEntry>,
+    connection_id: ConnectionId,
+}
+
+impl SessionRegistry {
+    pub(crate) fn new(telemetry: ExecServerTelemetry) -> Arc<Self> {
+        Arc::new(Self {
+            sessions: Mutex::new(HashMap::new()),
+            telemetry,
+        })
+    }
+
+    pub(crate) async fn attach(
+        self: &Arc<Self>,
+        resume_session_id: Option<String>,
+        notifications: RpcNotificationSender,
+        runtime_paths: ExecServerRuntimeOptions,
+    ) -> Result<SessionHandle, JSONRPCErrorError> {
+        enum AttachOutcome {
+            Attached(Arc<SessionEntry>),
+            Expired {
+                session_id: String,
+                entry: Arc<SessionEntry>,
+            },
+        }
+
+        let connection_id = ConnectionId(Uuid::new_v4());
+        let outcome = {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session_id) = resume_session_id {
+                let entry = sessions
+                    .get(&session_id)
+                    .cloned()
+                    .ok_or_else(|| invalid_request(format!("unknown session id {session_id}")))?;
+                if entry.is_expired(tokio::time::Instant::now()) {
+                    let entry = sessions.remove(&session_id).ok_or_else(|| {
+                        invalid_request(format!("unknown session id {session_id}"))
+                    })?;
+                    Ok(AttachOutcome::Expired { session_id, entry })
+                } else if entry.has_active_connection() {
+                    Err(session_already_attached(format!(
+                        "session {session_id} is already attached to another connection"
+                    )))
+                } else {
+                    entry.process.set_notification_sender(Some(notifications));
+                    entry.attach(connection_id);
+                    Ok(AttachOutcome::Attached(entry))
+                }
+            } else {
+                let session_id = Uuid::new_v4().to_string();
+                let entry = Arc::new(SessionEntry::new(
+                    session_id.clone(),
+                    ProcessHandler::new(
+                        notifications,
+                        self.telemetry.clone(),
+                        runtime_paths,
+                        RPC_OUTPUT_RETENTION,
+                    ),
+                    connection_id,
+                ));
+                sessions.insert(session_id, Arc::clone(&entry));
+                Ok(AttachOutcome::Attached(entry))
+            }
+        };
+        let entry = match outcome? {
+            AttachOutcome::Attached(entry) => entry,
+            AttachOutcome::Expired { session_id, entry } => {
+                record_recovery_retention_expired("detached_session_resume", DETACHED_SESSION_TTL);
+                entry.process.shutdown().await;
+                return Err(invalid_request(format!("unknown session id {session_id}")));
+            }
+        };
+
+        Ok(SessionHandle {
+            registry: Arc::clone(self),
+            entry,
+            connection_id,
+        })
+    }
+
+    pub(crate) async fn shutdown(&self) {
+        let sessions = std::mem::take(&mut *self.sessions.lock().await);
+        for entry in sessions.into_values() {
+            entry.process.shutdown().await;
+        }
+    }
+
+    async fn expire_if_detached(&self, session_id: String, connection_id: ConnectionId) {
+        tokio::time::sleep(DETACHED_SESSION_TTL).await;
+
+        let removed = {
+            let mut sessions = self.sessions.lock().await;
+            let Some(entry) = sessions.get(&session_id) else {
+                return;
+            };
+            if !entry.is_detached_connection_expired(connection_id, tokio::time::Instant::now()) {
+                return;
+            }
+            sessions.remove(&session_id)
+        };
+
+        if let Some(entry) = removed {
+            record_recovery_retention_expired("detached_session_timer", DETACHED_SESSION_TTL);
+            entry.process.shutdown().await;
+        }
+    }
+}
+
+impl Default for SessionRegistry {
+    fn default() -> Self {
+        Self {
+            sessions: Mutex::new(HashMap::new()),
+            telemetry: ExecServerTelemetry::default(),
+        }
+    }
+}
+
+impl SessionEntry {
+    fn new(session_id: String, process: ProcessHandler, connection_id: ConnectionId) -> Self {
+        Self {
+            session_id,
+            process,
+            attachment: StdMutex::new(AttachmentState::Attached { connection_id }),
+        }
+    }
+
+    fn attach(&self, connection_id: ConnectionId) {
+        let mut attachment = self
+            .attachment
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *attachment = AttachmentState::Attached { connection_id };
+    }
+
+    fn detach(&self, connection_id: ConnectionId) -> bool {
+        let mut attachment = self
+            .attachment
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !matches!(*attachment, AttachmentState::Attached { connection_id: current } if current == connection_id)
+        {
+            return false;
+        }
+
+        self.process.set_notification_sender(/*notifications*/ None);
+        *attachment = AttachmentState::Detached {
+            connection_id,
+            expires_at: tokio::time::Instant::now() + DETACHED_SESSION_TTL,
+        };
+        true
+    }
+
+    fn has_active_connection(&self) -> bool {
+        matches!(
+            *self
+                .attachment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            AttachmentState::Attached { .. }
+        )
+    }
+
+    fn is_attached_to(&self, connection_id: ConnectionId) -> bool {
+        matches!(*self.attachment
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner), AttachmentState::Attached { connection_id: current } if current == connection_id)
+    }
+
+    fn is_expired(&self, now: tokio::time::Instant) -> bool {
+        matches!(*self.attachment
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner), AttachmentState::Detached { expires_at, .. } if now >= expires_at)
+    }
+
+    fn is_detached_connection_expired(
+        &self,
+        connection_id: ConnectionId,
+        now: tokio::time::Instant,
+    ) -> bool {
+        let attachment = self
+            .attachment
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        matches!(*attachment, AttachmentState::Detached { connection_id: detached, expires_at } if detached == connection_id && now >= expires_at)
+    }
+}
+
+impl SessionHandle {
+    pub(crate) fn session_id(&self) -> &str {
+        &self.entry.session_id
+    }
+
+    pub(crate) fn connection_id(&self) -> String {
+        self.connection_id.to_string()
+    }
+
+    pub(crate) fn is_session_attached(&self) -> bool {
+        self.entry.is_attached_to(self.connection_id)
+    }
+
+    pub(crate) fn process(&self) -> &ProcessHandler {
+        &self.entry.process
+    }
+
+    pub(crate) async fn detach(&self) {
+        if !self.entry.detach(self.connection_id) {
+            return;
+        }
+
+        let registry = Arc::clone(&self.registry);
+        let session_id = self.entry.session_id.clone();
+        let connection_id = self.connection_id;
+        tokio::spawn(async move {
+            registry.expire_if_detached(session_id, connection_id).await;
+        });
+    }
+}

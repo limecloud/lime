@@ -1,0 +1,75 @@
+[package]
+name = "network-proxy"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Network sandbox proxy for Lime runtime."
+
+[lib]
+name = "network_proxy"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "lime-network-proxy"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+aws-credential-types = "1"
+aws-sigv4 = "1"
+base64.workspace = true
+clap.workspace = true
+chrono.workspace = true
+globset = "0.4"
+lime-utils-absolute-path.workspace = true
+lime-utils-path-uri.workspace = true
+opentelemetry = "0.31"
+rand = "0.9"
+rand_regex = "0.18.1"
+regex.workspace = true
+regex-automata = { version = "0.4.13", default-features = false, features = ["std", "syntax", "unicode", "nfa-pikevm"] }
+regex-syntax = "0.8.8"
+schemars = "0.8"
+serde.workspace = true
+serde_ignored = "0.1.14"
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+time = "0.3.47"
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url.workspace = true
+utils-home-dir = { path = "../utils-home-dir" }
+utils-rustls-provider = { path = "../utils-rustls-provider" }
+rustls-native-certs = "0.8"
+rama-core = { version = "=0.3.0-alpha.4" }
+rama-macros = { version = "=0.3.0-alpha.4" }
+rama-utils = { version = "=0.3.0-alpha.4" }
+rama-error = { version = "=0.3.0-alpha.4" }
+rama-http = { version = "=0.3.0-alpha.4" }
+rama-http-backend = { version = "=0.3.0-alpha.4", features = ["tls"] }
+rama-net = { version = "=0.3.0-alpha.4", features = ["http", "tls"] }
+rama-socks5 = { version = "=0.3.0-alpha.4" }
+rama-tcp = { version = "=0.3.0-alpha.4", features = ["http"] }
+rama-tls-rustls = { version = "=0.3.0-alpha.4", features = ["http"] }
+
+[target.'cfg(target_family = "unix")'.dependencies]
+libc = "0.2"
+rama-unix = { version = "=0.3.0-alpha.4" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rama-dns = { version = "=0.3.0-alpha.4" }
+security-framework = "3"
+
+[target.'cfg(windows)'.dependencies]
+schannel = "0.1"
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading"] }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }

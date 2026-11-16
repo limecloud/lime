@@ -1,0 +1,20 @@
+[package]
+name = "mermaid"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Mermaid rendering."
+
+[lib]
+name = "mermaid"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+unicode-width = "0.2.1"
+
+[dev-dependencies]
+insta = "1"
+pretty_assertions.workspace = true

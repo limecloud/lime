@@ -1,0 +1,31 @@
+[package]
+name = "agent-identity"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Agent identity keys."
+
+[lib]
+name = "agent_identity"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
+crypto_box = { version = "0.9.1", features = ["seal"] }
+ed25519-dalek = { version = "2", features = ["rand_core", "pkcs8"] }
+http = "1"
+http-client = { path = "../http-client" }
+jsonwebtoken = "9"
+protocol = { path = "../protocol" }
+rand = "0.9"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

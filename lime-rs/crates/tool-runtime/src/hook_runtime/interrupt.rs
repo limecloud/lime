@@ -1,8 +1,8 @@
-use super::{entries_for_report, failure_reason, non_empty, CommandHookReport, HookCommandOutput};
+use super::{CommandHookReport, HookCommandOutput, entries_for_report, failure_reason, non_empty};
 use crate::hook_lifecycle::{RuntimeHookEventContext, RuntimeHookHandlerReport};
 use agent_protocol::hook::{HookOutputEntry, HookOutputEntryKind};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Build the exact Codex Interrupt command input. Interrupt hooks observe the
 /// cancelled turn and never receive Stop's `stop_hook_active` or decision fields.

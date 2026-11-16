@@ -1,0 +1,964 @@
+use super::*;
+use base64::Engine;
+use http_client::RetryAfter;
+use pretty_assertions::assert_eq;
+use protocol::protocol::LimeErrorInfo;
+use protocol::protocol::RateLimitReachedType;
+
+#[test]
+fn map_api_error_maps_server_overloaded() {
+    let err = map_api_error(ApiError::ServerOverloaded { retry_after: None });
+    assert!(matches!(err.details(), LimeErrorDetails::ServerOverloaded));
+}
+
+#[tokio::test(start_paused = true)]
+async fn http_policy_capacity_preserves_retry_advice_and_terminal_behavior() {
+    use std::time::Duration;
+    for (code, expected) in [
+        (
+            "policy_capacity_unavailable",
+            LimeErrorInfo::PolicyCapacityUnavailable,
+        ),
+        ("server_is_overloaded", LimeErrorInfo::ServerOverloaded),
+    ] {
+        for advice in [RetryAfter::from_delay(Duration::from_secs(3)), None] {
+            let error = map_api_error(ApiError::Transport(TransportError::Http {
+                status: http::StatusCode::SERVICE_UNAVAILABLE,
+                url: None,
+                headers: None,
+                body: Some(
+                    serde_json::json!({"error": {
+                        "code": code, "type": "service_unavailable_error",
+                    }})
+                    .to_string(),
+                ),
+                retry_after: advice,
+            }));
+            assert_eq!(
+                (
+                    error.to_protocol_error(),
+                    error.retry_after(),
+                    error.retry_delay(/*retry_count*/ 1)
+                ),
+                (
+                    expected.clone(),
+                    advice,
+                    advice.map(|_| Duration::from_secs(3))
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn map_api_error_preserves_content_filter_retry_and_public_error() {
+    let err = map_api_error(ApiError::ContentFilter);
+    assert!(matches!(err.details(), LimeErrorDetails::ContentFilter));
+    assert_eq!(
+        (
+            err.retry_delay(/*retry_count*/ 1).is_some(),
+            err.to_protocol_error(),
+            err.to_string(),
+        ),
+        (
+            true,
+            LimeErrorInfo::Other,
+            "stream disconnected before completion: Incomplete response returned, reason: content_filter"
+                .to_string(),
+        )
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn map_api_error_preserves_retry_delay() {
+    let retry_delay = std::time::Duration::from_secs(17);
+    let retry_after = RetryAfter::from_delay(retry_delay).expect("retry advice");
+    for (error, expected_code, expected_message) in [
+        (
+            ApiError::Retryable {
+                message: "retry later".to_string(),
+                retry_after: Some(retry_after),
+            },
+            LimeErrorInfo::Other,
+            "stream disconnected before completion: retry later",
+        ),
+        (
+            ApiError::RateLimitExceeded {
+                message: "retry later".to_string(),
+                retry_after: Some(retry_after),
+            },
+            LimeErrorInfo::RateLimitExceeded,
+            "rate limit exceeded: retry later",
+        ),
+    ] {
+        let err = map_api_error(error);
+        assert_eq!(
+            (
+                err.to_protocol_error(),
+                err.retry_delay(/*retry_count*/ 1),
+                err.retry_after(),
+                err.server_retry_delay(),
+                err.http_status_code_value(),
+                err.to_string(),
+            ),
+            (
+                expected_code,
+                Some(retry_delay),
+                Some(retry_after),
+                Some(retry_delay),
+                None,
+                expected_message.to_string(),
+            )
+        );
+    }
+}
+
+/// Mapping a new error category preserves elapsed advice without making hard failures retryable.
+#[tokio::test(start_paused = true)]
+async fn http_retry_deadline_survives_mapping_and_respects_terminal_errors() {
+    use std::time::Duration;
+
+    let advice = RetryAfter::from_delay(Duration::from_secs(10)).expect("retry advice");
+    tokio::time::advance(Duration::from_secs(4)).await;
+    for (status, code, retryable) in [
+        (503, "server_is_overloaded", true),
+        (429, "rate_limit_exceeded", true),
+        (429, "insufficient_quota", false),
+        (429, "usage_limit_reached", false),
+        (400, "cyber_policy", false),
+    ] {
+        let error = map_api_error(ApiError::Transport(TransportError::Http {
+            status: http::StatusCode::from_u16(status).unwrap(),
+            url: None,
+            headers: None,
+            body: Some(serde_json::json!({"error": {"type": code, "code": code, "message": "sensitive upstream detail"}}).to_string()),
+            retry_after: Some(advice),
+        }));
+        assert_eq!(
+            (error.retry_after(), error.server_retry_delay()),
+            (Some(advice), Some(Duration::from_secs(6))),
+            "{code}",
+        );
+        assert_eq!(
+            error.retry_delay(/*retry_count*/ 1),
+            retryable.then_some(Duration::from_secs(6)),
+            "{code}",
+        );
+        if status == 429 && retryable {
+            assert_eq!(
+                (
+                    error.to_protocol_error(),
+                    error.http_status_code_value(),
+                    error.to_string()
+                ),
+                (
+                    LimeErrorInfo::ResponseTooManyFailedAttempts {
+                        http_status_code: Some(429),
+                    },
+                    Some(429),
+                    "exceeded retry limit, last status: 429 Too Many Requests".to_string(),
+                ),
+            );
+        }
+    }
+}
+
+#[test]
+fn map_http_error_classifies_provider_codes() {
+    use LimeErrorInfo::ModelNotFound;
+
+    for (status, code, expected, retryable) in [
+        (
+            503,
+            "server_is_overloaded",
+            LimeErrorInfo::ServerOverloaded,
+            false,
+        ),
+        (503, "slow_down", LimeErrorInfo::RateLimitExceeded, true),
+        (
+            503,
+            "unknown_error",
+            LimeErrorInfo::HttpConnectionFailed {
+                http_status_code: Some(503),
+            },
+            true,
+        ),
+        (400, "model_not_found", ModelNotFound, false),
+        (
+            400,
+            "budget_reached",
+            LimeErrorInfo::SessionBudgetExceeded,
+            false,
+        ),
+        (403, "model_not_found", ModelNotFound, false),
+        (404, "model_not_found", ModelNotFound, false),
+        (
+            404,
+            "resource_not_found",
+            LimeErrorInfo::HttpConnectionFailed {
+                http_status_code: Some(404),
+            },
+            true,
+        ),
+    ] {
+        let err = map_api_error(ApiError::Transport(TransportError::Http {
+            retry_after: None,
+            status: http::StatusCode::from_u16(status).unwrap(),
+            url: None,
+            headers: None,
+            body: Some(
+                serde_json::json!({"error": {"code": code, "message": "retry later"}}).to_string(),
+            ),
+        }));
+        if expected == ModelNotFound {
+            assert_eq!(err.http_status_code_value(), Some(status));
+        }
+        assert_eq!(
+            (
+                err.to_protocol_error(),
+                err.retry_delay(/*retry_count*/ 1).is_some()
+            ),
+            (expected, retryable)
+        );
+    }
+}
+
+#[test]
+fn map_api_error_maps_cloudflare_blocked_response_to_user_message() {
+    let mut headers = HeaderMap::new();
+    headers.insert(CF_RAY_HEADER, http::HeaderValue::from_static("ray-id"));
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::FORBIDDEN,
+        url: Some("http://example.com/blocked".to_string()),
+        headers: Some(headers),
+        body: Some(
+            "<html><body>Cloudflare error: Sorry, you have been blocked</body></html>".to_string(),
+        ),
+    }));
+
+    let LimeErrorDetails::UnexpectedStatus(err) = err.details() else {
+        panic!("expected LimeErrorDetails::UnexpectedStatus, got {err:?}");
+    };
+    assert_eq!(
+        err.user_message.as_deref(),
+        Some(
+            "Access blocked by Cloudflare. This usually happens when connecting from a restricted region (status 403 Forbidden)"
+        )
+    );
+    assert_eq!(
+        err.to_string(),
+        "Access blocked by Cloudflare. This usually happens when connecting from a restricted region (status 403 Forbidden), url: http://example.com/blocked, cf-ray: ray-id"
+    );
+}
+
+#[test]
+fn map_api_error_maps_cyber_policy_from_400_body() {
+    let body = serde_json::json!({
+        "error": {
+            "message": "This request has been flagged for potentially high-risk cyber activity.",
+            "type": "invalid_request",
+            "param": null,
+            "code": "cyber_policy"
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::BAD_REQUEST,
+        url: Some("http://example.com/v1/responses".to_string()),
+        headers: None,
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::CyberPolicy { message } = err.details() else {
+        panic!("expected LimeErrorDetails::CyberPolicy, got {err:?}");
+    };
+    assert_eq!(
+        message,
+        "This request has been flagged for potentially high-risk cyber activity."
+    );
+}
+
+#[test]
+fn map_api_error_maps_wrapped_websocket_cyber_policy_from_400_body() {
+    let body = serde_json::json!({
+        "type": "error",
+        "status": 400,
+        "error": {
+            "message": "This websocket request was flagged.",
+            "type": "invalid_request",
+            "code": "cyber_policy"
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::BAD_REQUEST,
+        url: Some("ws://example.com/v1/responses".to_string()),
+        headers: None,
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::CyberPolicy { message } = err.details() else {
+        panic!("expected LimeErrorDetails::CyberPolicy, got {err:?}");
+    };
+    assert_eq!(message, "This websocket request was flagged.");
+}
+
+#[test]
+fn map_api_error_uses_cyber_policy_fallback_for_missing_message() {
+    let body = serde_json::json!({
+        "error": {
+            "code": "cyber_policy"
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::BAD_REQUEST,
+        url: Some("http://example.com/v1/responses".to_string()),
+        headers: None,
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::CyberPolicy { message } = err.details() else {
+        panic!("expected LimeErrorDetails::CyberPolicy, got {err:?}");
+    };
+    assert_eq!(
+        message,
+        "This request has been flagged for possible cybersecurity risk."
+    );
+}
+
+#[test]
+fn map_api_error_preserves_typed_errors() {
+    let message = "This request was rejected.";
+    for (error, expected_info) in [
+        (
+            ApiError::InferenceHookDenied {
+                message: message.to_string(),
+            },
+            LimeErrorInfo::InferenceHookDenied,
+        ),
+        (
+            ApiError::BioPolicy {
+                message: message.to_string(),
+            },
+            LimeErrorInfo::BioPolicy,
+        ),
+        (
+            ApiError::InvalidPrompt {
+                message: message.to_string(),
+            },
+            LimeErrorInfo::InvalidPrompt,
+        ),
+    ] {
+        let err = map_api_error(error);
+        assert_eq!(err.to_protocol_error(), expected_info);
+        assert_eq!(err.to_string(), message);
+        assert_eq!(err.retry_delay(/*retry_count*/ 1), None);
+    }
+}
+
+#[test]
+fn map_api_error_maps_http_and_wrapped_websocket_typed_errors() {
+    for (status, code, expected_info, fallback) in [
+        (
+            http::StatusCode::BAD_REQUEST,
+            "content_policy_violation",
+            LimeErrorInfo::InvalidPrompt,
+            "The input was rejected by the content policy.",
+        ),
+        (
+            http::StatusCode::BAD_REQUEST,
+            "bio_policy",
+            LimeErrorInfo::BioPolicy,
+            "This content was flagged for possible biological risk.",
+        ),
+        (
+            http::StatusCode::BAD_REQUEST,
+            "invalid_prompt",
+            LimeErrorInfo::InvalidPrompt,
+            "Invalid request.",
+        ),
+        (
+            http::StatusCode::FORBIDDEN,
+            "inference_hook_denied",
+            LimeErrorInfo::InferenceHookDenied,
+            "Your workspace inference hook blocked this request.",
+        ),
+    ] {
+        for wrapped in [false, true] {
+            for (message, expected) in [
+                (
+                    Some("This request was rejected."),
+                    "This request was rejected.",
+                ),
+                (None, fallback),
+                (Some(""), fallback),
+                (Some("  "), fallback),
+            ] {
+                let mut body = serde_json::json!({"error": {"code": code}});
+                if let Some(message) = message {
+                    body["error"]["message"] = serde_json::json!(message);
+                }
+                if wrapped {
+                    body["type"] = serde_json::json!("error");
+                    body["status"] = serde_json::json!(status.as_u16());
+                }
+                let err = map_api_error(ApiError::Transport(TransportError::Http {
+                    retry_after: None,
+                    status,
+                    url: None,
+                    headers: None,
+                    body: Some(body.to_string()),
+                }));
+
+                assert_eq!(err.to_string(), expected);
+                assert_eq!(err.to_protocol_error(), expected_info);
+                assert_eq!(err.retry_delay(/*retry_count*/ 1), None);
+            }
+        }
+    }
+}
+
+#[test]
+fn map_api_error_maps_misalignment_policy_violation_from_400_body() {
+    assert_misalignment_policy_violation_from_http_body(http::StatusCode::BAD_REQUEST);
+}
+
+#[test]
+fn map_api_error_maps_misalignment_policy_violation_from_403_body() {
+    assert_misalignment_policy_violation_from_http_body(http::StatusCode::FORBIDDEN);
+}
+
+fn assert_misalignment_policy_violation_from_http_body(status: http::StatusCode) {
+    let body = serde_json::json!({
+        "error": {
+            "message": "This request violated the misalignment policy.",
+            "type": "invalid_request_error",
+            "code": "misalignment_policy_violation"
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status,
+        url: Some("http://example.com/v1/responses".to_string()),
+        headers: None,
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::MisalignmentPolicyViolation {
+        message,
+        misalignment,
+    } = err.details()
+    else {
+        panic!("expected LimeErrorDetails::MisalignmentPolicyViolation, got {err:?}");
+    };
+    assert_eq!(message, "This request violated the misalignment policy.");
+    assert_eq!(misalignment, &None);
+    assert_eq!(err.retry_delay(/*retry_count*/ 1), None);
+}
+
+#[test]
+fn map_api_error_preserves_misalignment_details_from_403_body() {
+    let body = serde_json::json!({
+        "error": {
+            "message": "This request violated the misalignment policy.",
+            "code": "misalignment_policy_violation",
+            "misalignment": {
+                "error_type": "unauthorized_data_transfer",
+                "review_target": " RB/opaque== ",
+                "detailed_explanation": "The agent attempted an external transfer.",
+                "steer": { "message": "Do not transfer the user's files." }
+            }
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::FORBIDDEN,
+        url: Some("http://example.com/v1/responses".to_string()),
+        headers: None,
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::MisalignmentPolicyViolation {
+        message,
+        misalignment,
+    } = err.details()
+    else {
+        panic!("expected LimeErrorDetails::MisalignmentPolicyViolation, got {err:?}");
+    };
+    assert_eq!(message, "This request violated the misalignment policy.");
+    assert_eq!(
+        misalignment,
+        &Some(MisalignmentErrorDetails {
+            error_type: Some("unauthorized_data_transfer".to_string()),
+            review_target: Some(" RB/opaque== ".to_string()),
+            detailed_explanation: Some("The agent attempted an external transfer.".to_string()),
+            steer: Some(protocol::protocol::MisalignmentSteer {
+                message: "Do not transfer the user's files.".to_string(),
+            }),
+        })
+    );
+    assert_eq!(err.retry_delay(/*retry_count*/ 1), None);
+}
+
+#[test]
+fn map_api_error_preserves_misalignment_details_from_wrapped_websocket_error() {
+    let body = serde_json::json!({
+        "type": "error",
+        "status": 403,
+        "error": {
+            "message": "This websocket request violated the misalignment policy.",
+            "code": "misalignment_policy_violation",
+            "misalignment": {
+                "error_type": "future_safety_category",
+                "review_target": " RB/opaque== ",
+                "detailed_explanation": "The agent attempted an external transfer.",
+                "steer": { "message": "Do not transfer the user's files." }
+            }
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::FORBIDDEN,
+        url: Some("ws://example.com/v1/responses".to_string()),
+        headers: None,
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::MisalignmentPolicyViolation {
+        message,
+        misalignment,
+    } = err.details()
+    else {
+        panic!("expected LimeErrorDetails::MisalignmentPolicyViolation, got {err:?}");
+    };
+    assert_eq!(
+        message,
+        "This websocket request violated the misalignment policy."
+    );
+    assert_eq!(
+        misalignment,
+        &Some(MisalignmentErrorDetails {
+            error_type: Some("future_safety_category".to_string()),
+            review_target: Some(" RB/opaque== ".to_string()),
+            detailed_explanation: Some("The agent attempted an external transfer.".to_string()),
+            steer: Some(protocol::protocol::MisalignmentSteer {
+                message: "Do not transfer the user's files.".to_string(),
+            }),
+        })
+    );
+    assert_eq!(err.retry_delay(/*retry_count*/ 1), None);
+}
+
+#[test]
+fn map_api_error_keeps_other_400_errors_generic() {
+    for code in ["invalid_request", "some_other_policy"] {
+        let body = serde_json::json!({
+            "error": {
+                "message": "Some other bad request.",
+                "code": code
+            }
+        })
+        .to_string();
+        let err = map_api_error(ApiError::Transport(TransportError::Http {
+            retry_after: None,
+            status: http::StatusCode::BAD_REQUEST,
+            url: Some("http://example.com/v1/responses".to_string()),
+            headers: None,
+            body: Some(body.clone()),
+        }));
+
+        let LimeErrorDetails::InvalidRequest(message) = err.details() else {
+            panic!("expected LimeErrorDetails::InvalidRequest, got {err:?}");
+        };
+        assert_eq!(message, &body);
+    }
+}
+
+#[test]
+fn map_api_error_distinguishes_http_quota_errors_from_rate_limits() {
+    for error in [
+        serde_json::json!({"type": "insufficient_quota"}),
+        serde_json::json!({"code": "insufficient_quota"}),
+        serde_json::json!({"code": "credit_balance_exhausted"}),
+        serde_json::json!({"code": "organization_spend_limit_exceeded"}),
+        serde_json::json!({"code": "project_spend_limit_exceeded"}),
+        serde_json::json!({"code": "organization_usage_limit_exceeded"}),
+        serde_json::json!({"type": "rate_limit_error", "code": "rate_limit_exceeded"}),
+        serde_json::json!({"type": "rate_limit_error", "code": "slow_down"}),
+    ] {
+        let expected = if error["type"] == "rate_limit_error" {
+            LimeErrorInfo::ResponseTooManyFailedAttempts {
+                http_status_code: Some(429),
+            }
+        } else {
+            LimeErrorInfo::UsageLimitExceeded
+        };
+        let err = map_api_error(ApiError::Transport(TransportError::Http {
+            retry_after: None,
+            status: http::StatusCode::TOO_MANY_REQUESTS,
+            url: None,
+            headers: None,
+            body: Some(serde_json::json!({"error": error}).to_string()),
+        }));
+
+        assert_eq!(err.to_protocol_error(), expected, "{error}");
+    }
+}
+
+#[test]
+fn map_api_error_preserves_optional_usage_limit_window() {
+    let cases = [
+        (None, None),
+        (Some(serde_json::json!(null)), None),
+        (Some(serde_json::json!(300)), Some(300)),
+        (Some(serde_json::json!(10080)), Some(10080)),
+        (Some(serde_json::json!(-1)), None),
+        (Some(serde_json::json!(65536)), None),
+        (Some(serde_json::json!("300")), None),
+        (Some(serde_json::json!({"minutes": 300})), None),
+    ];
+
+    for (window, expected) in cases {
+        let mut body = serde_json::json!({
+            "error": {
+                "type": "usage_limit_reached",
+                "plan_type": "pro",
+            }
+        });
+        if let Some(window) = window.as_ref() {
+            body["error"]["limit_window_minutes"] = window.clone();
+        }
+        let err = map_api_error(ApiError::Transport(TransportError::Http {
+            retry_after: None,
+            status: http::StatusCode::TOO_MANY_REQUESTS,
+            url: None,
+            headers: None,
+            body: Some(body.to_string()),
+        }));
+
+        let LimeErrorDetails::UsageLimitReached(usage_limit) = err.details() else {
+            panic!("expected usage-limit error for {window:?}, got {err:?}");
+        };
+        assert_eq!(usage_limit.limit_window_minutes, expected, "{window:?}");
+        assert_eq!(err.to_protocol_error(), LimeErrorInfo::UsageLimitExceeded);
+    }
+}
+
+#[test]
+fn map_api_error_maps_usage_limit_limit_name_header() {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        ACTIVE_LIMIT_HEADER,
+        http::HeaderValue::from_static("lime_other"),
+    );
+    headers.insert(
+        "x-lime-other-limit-name",
+        http::HeaderValue::from_static("lime_other"),
+    );
+    let body = serde_json::json!({
+        "error": {
+            "type": "usage_limit_reached",
+            "plan_type": "pro",
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::TOO_MANY_REQUESTS,
+        url: Some("http://example.com/v1/responses".to_string()),
+        headers: Some(headers),
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::UsageLimitReached(usage_limit) = err.details() else {
+        panic!("expected LimeErrorDetails::UsageLimitReached, got {err:?}");
+    };
+    assert_eq!(
+        usage_limit
+            .rate_limits
+            .as_ref()
+            .and_then(|snapshot| snapshot.limit_name.as_deref()),
+        Some("lime_other")
+    );
+}
+
+#[test]
+fn map_api_error_does_not_fallback_limit_name_to_limit_id() {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        ACTIVE_LIMIT_HEADER,
+        http::HeaderValue::from_static("lime_other"),
+    );
+    let body = serde_json::json!({
+        "error": {
+            "type": "usage_limit_reached",
+            "plan_type": "pro",
+        }
+    })
+    .to_string();
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::TOO_MANY_REQUESTS,
+        url: Some("http://example.com/v1/responses".to_string()),
+        headers: Some(headers),
+        body: Some(body),
+    }));
+
+    let LimeErrorDetails::UsageLimitReached(usage_limit) = err.details() else {
+        panic!("expected LimeErrorDetails::UsageLimitReached, got {err:?}");
+    };
+    assert_eq!(
+        usage_limit
+            .rate_limits
+            .as_ref()
+            .and_then(|snapshot| snapshot.limit_name.as_deref()),
+        None
+    );
+}
+
+#[test]
+fn map_api_error_copies_rate_limit_reached_type_to_usage_limit_snapshot() {
+    for (active_limit, expected_limit_id) in [(None, "lime"), (Some("lime_other"), "lime_other")] {
+        let mut headers = HeaderMap::new();
+        if let Some(active_limit) = active_limit {
+            headers.insert(
+                ACTIVE_LIMIT_HEADER,
+                http::HeaderValue::from_static(active_limit),
+            );
+        }
+        for (name, value) in [
+            ("x-lime-credits-has-credits", "true"),
+            ("x-lime-credits-unlimited", "false"),
+            ("x-lime-credits-balance", ""),
+            (
+                "x-lime-rate-limit-reached-type",
+                "workspace_member_usage_limit_reached",
+            ),
+        ] {
+            headers.insert(name, http::HeaderValue::from_static(value));
+        }
+        let body = serde_json::json!({
+            "error": {
+                "type": "usage_limit_reached",
+                "plan_type": "pro",
+            }
+        })
+        .to_string();
+
+        let err = map_api_error(ApiError::Transport(TransportError::Http {
+            retry_after: None,
+            status: http::StatusCode::TOO_MANY_REQUESTS,
+            url: Some("http://example.com/v1/responses".to_string()),
+            headers: Some(headers),
+            body: Some(body),
+        }));
+
+        let LimeErrorDetails::UsageLimitReached(usage_limit) = err.details() else {
+            panic!("expected LimeErrorDetails::UsageLimitReached, got {err:?}");
+        };
+        assert_eq!(
+            usage_limit.rate_limit_reached_type,
+            Some(RateLimitReachedType::WorkspaceMemberUsageLimitReached)
+        );
+        let snapshot = usage_limit
+            .rate_limits
+            .as_ref()
+            .expect("usage limit snapshot");
+        assert_eq!(snapshot.limit_id.as_deref(), Some(expected_limit_id));
+        assert_eq!(
+            snapshot.rate_limit_reached_type,
+            Some(RateLimitReachedType::WorkspaceMemberUsageLimitReached)
+        );
+        assert_eq!(
+            snapshot.credits.as_ref().map(|credits| (
+                credits.has_credits,
+                credits.unlimited,
+                credits.balance.as_deref()
+            )),
+            Some((true, false, None))
+        );
+    }
+}
+
+#[test]
+fn map_api_error_ignores_unparseable_rate_limit_reached_type_headers() {
+    let values = [
+        http::HeaderValue::from_static("future_rate_limit_reached_type"),
+        http::HeaderValue::from_bytes(&[0xff]).expect("valid opaque header value"),
+    ];
+
+    for value in values {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-lime-rate-limit-reached-type", value);
+        let body = serde_json::json!({
+            "error": {
+                "type": "usage_limit_reached",
+                "plan_type": "pro",
+            }
+        })
+        .to_string();
+        let err = map_api_error(ApiError::Transport(TransportError::Http {
+            retry_after: None,
+            status: http::StatusCode::TOO_MANY_REQUESTS,
+            url: Some("http://example.com/v1/responses".to_string()),
+            headers: Some(headers),
+            body: Some(body),
+        }));
+
+        let LimeErrorDetails::UsageLimitReached(usage_limit) = err.details() else {
+            panic!("expected LimeErrorDetails::UsageLimitReached, got {err:?}");
+        };
+        assert_eq!(usage_limit.rate_limit_reached_type, None);
+    }
+}
+
+#[test]
+fn only_an_explicit_workspace_403_stops_retries() {
+    use http::StatusCode;
+    let provider = r#"{"error":{"code":"invalid_workspace_selected"}}"#;
+    let detail = r#"{"detail":{"code":"invalid_workspace_selected"}}"#;
+    let access_denied = r#"{"detail":{"code":"lime_workspace_access_denied"}}"#;
+    let other = r#"{"detail":{"code":"route_rate_limited"}}"#;
+    let workspace_header =
+        http::HeaderValue::from_str(&base64::engine::general_purpose::STANDARD.encode(provider))
+            .unwrap();
+    for (status, body, with_header, terminal) in [
+        (StatusCode::FORBIDDEN, detail, false, true),
+        (StatusCode::FORBIDDEN, access_denied, false, true),
+        (StatusCode::SERVICE_UNAVAILABLE, access_denied, false, false),
+        (StatusCode::FORBIDDEN, provider, false, true),
+        (StatusCode::FORBIDDEN, "", true, true),
+        (StatusCode::FORBIDDEN, "", false, false),
+        (
+            StatusCode::FORBIDDEN,
+            "invalid_workspace_selected",
+            false,
+            false,
+        ),
+        (StatusCode::FORBIDDEN, other, true, false),
+        (StatusCode::UNAUTHORIZED, detail, true, false),
+    ] {
+        let mut headers = HeaderMap::new();
+        headers.insert(REQUEST_ID_HEADER, http::HeaderValue::from_static("req-403"));
+        if with_header {
+            headers.insert(X_ERROR_JSON_HEADER, workspace_header.clone());
+        }
+        let err = map_api_error(ApiError::Transport(TransportError::Http {
+            status,
+            headers: Some(headers),
+            body: Some(body.to_owned()),
+            url: None,
+            retry_after: None,
+        }));
+        assert_eq!(
+            matches!(err.details(), LimeErrorDetails::WorkspaceAccessDenied(_)),
+            terminal,
+            "{err}"
+        );
+        assert_eq!(
+            err.retry_delay(/*retry_count*/ 1).is_none(),
+            terminal,
+            "{err}"
+        );
+        assert_eq!(err.http_status_code_value(), Some(status.as_u16()));
+        assert!(err.to_string().contains("req-403"));
+    }
+}
+
+#[test]
+fn map_api_error_extracts_identity_auth_details_from_headers() {
+    let mut headers = HeaderMap::new();
+    headers.insert(REQUEST_ID_HEADER, http::HeaderValue::from_static("req-401"));
+    headers.insert(CF_RAY_HEADER, http::HeaderValue::from_static("ray-401"));
+    headers.insert(
+        X_OPENAI_AUTHORIZATION_ERROR_HEADER,
+        http::HeaderValue::from_static("missing_authorization_header"),
+    );
+    let x_error_json =
+        base64::engine::general_purpose::STANDARD.encode(r#"{"error":{"code":"token_expired"}}"#);
+    headers.insert(
+        X_ERROR_JSON_HEADER,
+        http::HeaderValue::from_str(&x_error_json).expect("valid x-error-json header"),
+    );
+
+    let err = map_api_error(ApiError::Transport(TransportError::Http {
+        retry_after: None,
+        status: http::StatusCode::UNAUTHORIZED,
+        url: Some("https://chatgpt.com/backend-api/lime/models".to_string()),
+        headers: Some(headers),
+        body: Some(r#"{"detail":"Unauthorized"}"#.to_string()),
+    }));
+
+    let LimeErrorDetails::UnexpectedStatus(err) = err.details() else {
+        panic!("expected LimeErrorDetails::UnexpectedStatus, got {err:?}");
+    };
+    assert_eq!(err.request_id.as_deref(), Some("req-401"));
+    assert_eq!(err.cf_ray.as_deref(), Some("ray-401"));
+    assert_eq!(
+        err.identity_authorization_error.as_deref(),
+        Some("missing_authorization_header")
+    );
+    assert_eq!(err.identity_error_code.as_deref(), Some("token_expired"));
+}
+
+#[test]
+fn runtime_auth_denials_stop_retries_without_losing_http_diagnostics() {
+    for (status, code, retryable) in [
+        (403, "runtime_assertion_invalid", false),
+        (403, "runtime_instance_paused", false),
+        (403, "runtime_instance_revoked", false),
+        (401, "invalid_agent_instance_assertion", false),
+        (503, "runtime_verification_unavailable", true),
+        (503, "agent_instance_authentication_unavailable", true),
+        (401, "token_expired", true),
+        (403, "ordinary_policy_denial", true),
+    ] {
+        for in_header in [false, true] {
+            let status = http::StatusCode::from_u16(status).unwrap();
+            let details = serde_json::json!({"error": {"code": code}}).to_string();
+            let mut headers = http::HeaderMap::from_iter([(
+                "x-request-id".parse().unwrap(),
+                "request-runtime".parse().unwrap(),
+            )]);
+            let body = if in_header {
+                headers.insert(
+                    X_ERROR_JSON_HEADER,
+                    base64::engine::general_purpose::STANDARD
+                        .encode(details)
+                        .parse()
+                        .unwrap(),
+                );
+                r#"{"detail":"Unauthorized"}"#.to_owned()
+            } else {
+                details
+            };
+            let error = map_api_error(ApiError::Transport(TransportError::Http {
+                status,
+                retry_after: None,
+                url: Some("https://api.openai.com/v1/responses".into()),
+                headers: Some(headers),
+                body: Some(body.clone()),
+            }));
+            assert_eq!(
+                error.retry_delay(/*retry_count*/ 1).is_some(),
+                retryable,
+                "{code}, in_header={in_header}"
+            );
+            let LimeErrorDetails::UnexpectedStatus(details) = error.details() else {
+                panic!("missing HTTP diagnostics: {error:?}");
+            };
+            assert_eq!(
+                (&details.body, details.status, details.request_id.as_deref()),
+                (&body, status, Some("request-runtime"))
+            );
+        }
+    }
+}

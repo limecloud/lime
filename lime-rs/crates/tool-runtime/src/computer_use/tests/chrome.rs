@@ -105,19 +105,21 @@ async fn added_tabs_keep_source_authority_without_inheriting_the_source_grant() 
         )
         .await;
     assert!(result.is_ok(), "{result:?}");
-    assert!(service
-        .execute_for_turn(
-            "thread-1",
-            "turn-1",
-            chrome_target("2").identity,
-            ComputerUseAction::Observe {
-                max_depth: 2,
-                max_nodes: 16
-            },
-            || Ok(allow())
-        )
-        .await
-        .is_err());
+    assert!(
+        service
+            .execute_for_turn(
+                "thread-1",
+                "turn-1",
+                chrome_target("2").identity,
+                ComputerUseAction::Observe {
+                    max_depth: 2,
+                    max_nodes: 16
+                },
+                || Ok(allow())
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(
         service.grants_for_connection("local-1").unwrap(),
         vec![grant]

@@ -1,17 +1,19 @@
 use crate::tool_definition::RuntimeToolDefinition;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const READ_CONNECTED_FILE_TOOL_NAME: &str = "ReadConnectedFile";
 
 pub fn connected_file_tool_definition() -> RuntimeToolDefinition {
-    RuntimeToolDefinition::new(READ_CONNECTED_FILE_TOOL_NAME,
+    RuntimeToolDefinition::new(
+        READ_CONNECTED_FILE_TOOL_NAME,
         "Read a Google document through the user's connected account. Use the document URL supplied by the user. A priced read requires the quoted price_version and an explicitly accepted max_credits budget; never choose a budget for the user. The user selects and approves the file in their browser; opening the browser does not grant access. Continue the original call after approval. Never retry a denied or unknown operation under a new key unless the user requests a new task.",
         json!({"type":"object","additionalProperties":false,"properties":{
             "url":{"type":"string","description":"The Google document URL supplied by the user."},
             "max_characters":{"type":"integer","minimum":1,"maximum":50000,"default":20000},
             "operation_key":{"type":"string","pattern":"^tool_[a-f0-9]{64}$","description":"Resume the original operation with unchanged arguments; never create another file request."}
-        },"required":["url"]}))
+        },"required":["url"]}),
+    )
 }
 
 #[derive(Deserialize)]

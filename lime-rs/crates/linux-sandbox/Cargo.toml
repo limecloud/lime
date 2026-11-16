@@ -1,0 +1,37 @@
+[package]
+name = "linux-sandbox"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Linux sandbox executable."
+
+[lib]
+name = "linux_sandbox"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "lime-linux-sandbox"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+clap.workspace = true
+indexmap = "2"
+install-context = { path = "../install-context" }
+landlock = "0.4.4"
+libc = "0.2"
+lime-utils-absolute-path.workspace = true
+network-proxy = { path = "../network-proxy" }
+process-hardening = { path = "../process-hardening" }
+protocol = { path = "../protocol" }
+rustix = { version = "1", features = ["fs", "process"] }
+sandboxing = { path = "../sandboxing" }
+seccompiler = "0.5"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+uds = { path = "../uds" }
+url.workspace = true

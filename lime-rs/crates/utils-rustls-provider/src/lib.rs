@@ -17,7 +17,7 @@ pub fn ensure_rustls_crypto_provider() {
             .is_err()
         {
             // Preserve the previous best-effort behavior for embedded hosts that
-            // install a process-global provider before Codex can install one.
+            // install a process-global provider before Lime can install one.
             return;
         }
 

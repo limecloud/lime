@@ -1,0 +1,28 @@
+[package]
+name = "exec-server-protocol"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Wire protocol for Lime execution server."
+
+[lib]
+name = "exec_server_protocol"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+base64.workspace = true
+file-system = { path = "../file-system" }
+install-context = { path = "../install-context" }
+lime-utils-path-uri.workspace = true
+network-proxy = { path = "../network-proxy" }
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json = { workspace = true, features = ["arbitrary_precision", "raw_value"] }
+shell-command = { path = "../shell-command" }
+skills = { path = "../skills-upstream" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

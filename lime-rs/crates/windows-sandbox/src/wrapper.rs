@@ -1,0 +1,486 @@
+//! Internal `lime.exe --run-as-windows-sandbox` wrapper.
+//!
+//! This gives direct-spawn callers an argv-shaped Windows sandbox launcher,
+//! analogous to the macOS seatbelt and Linux sandbox wrapper paths. The wrapper
+//! parses sandbox metadata from argv or a launch environment, launches the inner command in a
+//! Windows sandbox session, and forwards stdio to that inner command.
+
+use std::collections::HashMap;
+use std::path::Path;
+use std::path::PathBuf;
+
+use crate::cap::load_or_create_cap_sids;
+use crate::desktop::DesktopPolicy;
+use crate::desktop::LaunchDesktop;
+use crate::desktop::shared_private_desktop_for_user;
+use crate::identity::require_sandbox_account;
+use crate::setup::effective_write_roots_for_permissions;
+use crate::spawn_prep::SpawnPrepOptions;
+use crate::spawn_prep::legacy_session_capability_roots;
+use crate::spawn_prep::prepare_legacy_session_security;
+use crate::spawn_prep::prepare_legacy_spawn_context;
+use crate::spawn_prep::prepare_spawn_context_common;
+use crate::spawn_prep::root_capability_sids;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
+use lime_utils_absolute_path::AbsolutePathBuf;
+use protocol::config_types::WindowsSandboxLevel;
+use protocol::models::PermissionProfile;
+use windows_sys::Win32::Foundation::CloseHandle;
+
+pub const LIME_WINDOWS_SANDBOX_ARG1: &str = "--run-as-windows-sandbox";
+
+const COMMAND_CWD_FLAG: &str = "--command-cwd";
+const LIME_HOME_FLAG: &str = "--lime-home";
+const DENY_READ_PATHS_JSON_FLAG: &str = "--deny-read-paths-json";
+const DENY_WRITE_PATHS_JSON_FLAG: &str = "--deny-write-paths-json";
+const ENV_JSON_FLAG: &str = "--env-json";
+const NETWORK_PROXY_RESTRICTING_SID_FLAG: &str = "--network-proxy-restricting-sid";
+const PERMISSION_PROFILE_FLAG: &str = "--permission-profile";
+const PRIVATE_DESKTOP_NAME_FLAG: &str = "--windows-sandbox-private-desktop-name";
+const PRESERVE_PROXY_SETTINGS_FLAG: &str = "--preserve-proxy-settings";
+const PROXY_ENFORCED_FLAG: &str = "--proxy-enforced";
+const READ_ROOTS_INCLUDE_PLATFORM_DEFAULTS_FLAG: &str = "--read-roots-include-platform-defaults";
+const READ_ROOTS_JSON_FLAG: &str = "--read-roots-json";
+const SANDBOX_LEVEL_FLAG: &str = "--windows-sandbox-level";
+const WRITE_ROOTS_JSON_FLAG: &str = "--write-roots-json";
+const WORKSPACE_ROOT_FLAG: &str = "--workspace-root";
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_windows_sandbox_command_args_for_permission_profile(
+    command: Vec<String>,
+    command_cwd: &AbsolutePathBuf,
+    workspace_roots: &[AbsolutePathBuf],
+    env_map: &mut HashMap<String, String>,
+    permission_profile: &PermissionProfile,
+    windows_sandbox_level: WindowsSandboxLevel,
+    proxy_enforced: bool,
+    network_proxy_restricting_sid: Option<&str>,
+    proxy_settings_mode: crate::WindowsSandboxProxySettingsMode,
+    read_roots_override: Option<&[PathBuf]>,
+    read_roots_include_platform_defaults: bool,
+    write_roots_override: Option<&[PathBuf]>,
+    deny_read_paths_override: &[AbsolutePathBuf],
+    deny_write_paths_override: &[AbsolutePathBuf],
+    lime_home: &Path,
+) -> Result<Vec<String>> {
+    // Launcher-only variables must not enter the serialized workload environment.
+    env_map.retain(|key, _| !crate::environment_transport::is_key(key.as_ref()));
+    let permission_profile_json = serde_json::to_string(permission_profile)
+        .unwrap_or_else(|err| panic!("failed to serialize permission profile: {err}"));
+    let env_json = serde_json::to_string(env_map)
+        .unwrap_or_else(|err| panic!("failed to serialize env: {err}"));
+    let mut args = vec![
+        LIME_WINDOWS_SANDBOX_ARG1.to_string(),
+        LIME_HOME_FLAG.to_string(),
+        lime_home.to_string_lossy().into_owned(),
+        COMMAND_CWD_FLAG.to_string(),
+        command_cwd.as_path().to_string_lossy().into_owned(),
+        PERMISSION_PROFILE_FLAG.to_string(),
+        permission_profile_json,
+        ENV_JSON_FLAG.to_string(),
+        env_json,
+        SANDBOX_LEVEL_FLAG.to_string(),
+        windows_sandbox_level.to_string(),
+    ];
+    let workspace_roots = if workspace_roots.is_empty() {
+        std::slice::from_ref(command_cwd)
+    } else {
+        workspace_roots
+    };
+    for root in workspace_roots {
+        args.push(WORKSPACE_ROOT_FLAG.to_string());
+        args.push(root.as_path().to_string_lossy().into_owned());
+    }
+    let desktop_name = {
+        // The caller owns the cache so the desktop survives this short-lived wrapper.
+        let mut desktop_env = env_map.clone();
+        let deny_write_paths = deny_write_paths_override
+            .iter()
+            .map(AbsolutePathBuf::to_path_buf)
+            .collect::<Vec<_>>();
+        if windows_sandbox_level == WindowsSandboxLevel::Elevated {
+            let common = prepare_spawn_context_common(
+                permission_profile,
+                workspace_roots,
+                lime_home,
+                command_cwd.as_path(),
+                &mut desktop_env,
+                &command,
+                SpawnPrepOptions {
+                    inherit_path: true,
+                    add_git_safe_directory: true,
+                },
+            )?;
+            let request = crate::setup::SandboxSetupRequest {
+                permissions: &common.permissions,
+                command_cwd: command_cwd.as_path(),
+                env_map: &desktop_env,
+                lime_home,
+                proxy_enforced,
+            };
+            // Desktop selection needs the account and capabilities, not the wrapper's ACL refresh.
+            let (sandbox_creds, _) = require_sandbox_account(&request, proxy_settings_mode)?;
+            let caps = load_or_create_cap_sids(lime_home)?;
+            let cap_sids = if common.uses_write_capabilities {
+                root_capability_sids(
+                    lime_home,
+                    command_cwd.as_path(),
+                    effective_write_roots_for_permissions(
+                        &common.permissions,
+                        command_cwd.as_path(),
+                        &desktop_env,
+                        lime_home,
+                        write_roots_override,
+                    ),
+                )?
+                .into_iter()
+                .map(|root| root.sid_str)
+                .collect::<Vec<_>>()
+            } else {
+                vec![caps.readonly]
+            };
+            if cap_sids.is_empty() {
+                bail!("workspace-write sandbox has no writable root capability SIDs");
+            }
+            let policy = DesktopPolicy::elevated(
+                request,
+                crate::setup::SetupRootOverrides {
+                    read_roots: read_roots_override.map(<[PathBuf]>::to_vec),
+                    read_roots_include_platform_defaults,
+                    write_roots: write_roots_override.map(<[PathBuf]>::to_vec),
+                    deny_read_paths: Some(
+                        deny_read_paths_override
+                            .iter()
+                            .map(AbsolutePathBuf::to_path_buf)
+                            .collect(),
+                    ),
+                    deny_write_paths: Some(deny_write_paths),
+                },
+                &cap_sids,
+                network_proxy_restricting_sid,
+            )?;
+            shared_private_desktop_for_user(
+                &sandbox_creds.username,
+                &policy,
+                common.logs_base_dir.as_deref(),
+            )?
+        } else {
+            let common = prepare_legacy_spawn_context(
+                permission_profile,
+                workspace_roots,
+                lime_home,
+                command_cwd.as_path(),
+                &mut desktop_env,
+                &command,
+                SpawnPrepOptions {
+                    inherit_path: false,
+                    add_git_safe_directory: false,
+                },
+            )?;
+            let capability_roots = legacy_session_capability_roots(
+                &common.permissions,
+                &common.current_dir,
+                &desktop_env,
+                lime_home,
+            );
+            let security = prepare_legacy_session_security(
+                common.uses_write_capabilities,
+                lime_home,
+                command_cwd.as_path(),
+                capability_roots,
+            )?;
+            let desktop_name = LaunchDesktop::shared_legacy_name(
+                &common.permissions,
+                &common.current_dir,
+                &desktop_env,
+                &security,
+                &deny_write_paths,
+                common.logs_base_dir.as_deref(),
+            );
+            unsafe {
+                CloseHandle(security.h_token);
+            }
+            desktop_name?
+        }
+    };
+    args.push(PRIVATE_DESKTOP_NAME_FLAG.to_string());
+    args.push(desktop_name);
+    if proxy_enforced {
+        args.push(PROXY_ENFORCED_FLAG.to_string());
+    }
+    if let Some(network_proxy_restricting_sid) = network_proxy_restricting_sid {
+        args.push(NETWORK_PROXY_RESTRICTING_SID_FLAG.to_string());
+        args.push(network_proxy_restricting_sid.to_string());
+    }
+    if proxy_settings_mode == crate::WindowsSandboxProxySettingsMode::Preserve {
+        args.push(PRESERVE_PROXY_SETTINGS_FLAG.to_string());
+    }
+    if let Some(read_roots_override) = read_roots_override {
+        push_json_arg(&mut args, READ_ROOTS_JSON_FLAG, &read_roots_override);
+    }
+    if read_roots_include_platform_defaults {
+        args.push(READ_ROOTS_INCLUDE_PLATFORM_DEFAULTS_FLAG.to_string());
+    }
+    if let Some(write_roots_override) = write_roots_override {
+        push_json_arg(&mut args, WRITE_ROOTS_JSON_FLAG, &write_roots_override);
+    }
+    if !deny_read_paths_override.is_empty() {
+        push_json_arg(
+            &mut args,
+            DENY_READ_PATHS_JSON_FLAG,
+            &deny_read_paths_override,
+        );
+    }
+    if !deny_write_paths_override.is_empty() {
+        push_json_arg(
+            &mut args,
+            DENY_WRITE_PATHS_JSON_FLAG,
+            &deny_write_paths_override,
+        );
+    }
+    args.push("--".to_string());
+    args.extend(command);
+    let payload = serde_json::to_string(&args[1..])?;
+    if crate::launch_environment::needs_environment(&payload) {
+        crate::environment_transport::encode(&payload, env_map)?;
+        return Ok(vec![
+            LIME_WINDOWS_SANDBOX_ARG1.to_string(),
+            crate::launch_environment::ARG.to_string(),
+        ]);
+    }
+    Ok(args)
+}
+
+fn push_json_arg<T: serde::Serialize>(args: &mut Vec<String>, flag: &str, value: &T) {
+    args.push(flag.to_string());
+    args.push(
+        serde_json::to_string(value)
+            .unwrap_or_else(|err| panic!("failed to serialize {flag}: {err}")),
+    );
+}
+
+pub fn run_windows_sandbox_wrapper_main() -> ! {
+    let args = std::env::args().skip(2).collect::<Vec<_>>();
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(err) => {
+            eprintln!("windows sandbox failed to build runtime: {err}");
+            std::process::exit(1);
+        }
+    };
+    let exit_code = match runtime.block_on(run_windows_sandbox_wrapper_args(args)) {
+        Ok(exit_code) => exit_code,
+        Err(err) => {
+            eprintln!("windows sandbox failed: {err:#}");
+            1
+        }
+    };
+    std::process::exit(exit_code);
+}
+
+async fn run_windows_sandbox_wrapper_args(args: Vec<String>) -> Result<i32> {
+    let args = if args == [crate::launch_environment::ARG] {
+        serde_json::from_str(&crate::environment_transport::decode(std::env::vars_os())?)
+            .context("failed to parse Windows sandbox launch arguments")?
+    } else {
+        args
+    };
+    let request = parse_windows_sandbox_wrapper_args(args)?;
+    run_windows_sandbox_wrapper_request(request).await
+}
+
+struct WindowsSandboxWrapperRequest {
+    lime_home: PathBuf,
+    command_cwd: AbsolutePathBuf,
+    workspace_roots: Vec<AbsolutePathBuf>,
+    env_map: HashMap<String, String>,
+    permission_profile: PermissionProfile,
+    windows_sandbox_level: WindowsSandboxLevel,
+    private_desktop_name: String,
+    proxy_enforced: bool,
+    network_proxy_restricting_sid: Option<String>,
+    proxy_settings_mode: crate::WindowsSandboxProxySettingsMode,
+    read_roots_override: Option<Vec<PathBuf>>,
+    read_roots_include_platform_defaults: bool,
+    write_roots_override: Option<Vec<PathBuf>>,
+    deny_read_paths_override: Vec<AbsolutePathBuf>,
+    deny_write_paths_override: Vec<AbsolutePathBuf>,
+    command: Vec<String>,
+}
+
+async fn run_windows_sandbox_wrapper_request(request: WindowsSandboxWrapperRequest) -> Result<i32> {
+    if request.command.is_empty() {
+        bail!("missing sandboxed command in windows sandbox wrapper request");
+    }
+    let spawned = crate::unified_exec::spawn_windows_sandbox_session_with_desktop(
+        crate::WindowsSandboxSessionRequest {
+            permission_profile: &request.permission_profile,
+            workspace_roots: request.workspace_roots.as_slice(),
+            lime_home: request.lime_home.as_path(),
+            command: request.command,
+            cwd: request.command_cwd.as_path(),
+            env_map: request.env_map,
+            windows_sandbox_level: request.windows_sandbox_level,
+            proxy_enforced: request.proxy_enforced,
+            network_proxy_restricting_sid: request.network_proxy_restricting_sid,
+            proxy_settings_mode: request.proxy_settings_mode,
+            timeout_ms: None,
+            read_roots_override: request.read_roots_override.as_deref(),
+            read_roots_include_platform_defaults: request.read_roots_include_platform_defaults,
+            write_roots_override: request.write_roots_override.as_deref(),
+            deny_read_paths_override: request.deny_read_paths_override.as_slice(),
+            deny_write_paths_override: request.deny_write_paths_override.as_slice(),
+            tty: false,
+            stdin_open: true,
+        },
+        Some(request.private_desktop_name),
+    )
+    .await?;
+
+    Ok(crate::forward_sandbox_session_stdio(spawned).await)
+}
+
+fn parse_windows_sandbox_wrapper_args(args: Vec<String>) -> Result<WindowsSandboxWrapperRequest> {
+    let mut args = args.into_iter();
+    let mut lime_home = None;
+    let mut command_cwd = None;
+    let mut workspace_roots = Vec::new();
+    let mut env_map = None;
+    let mut permission_profile = None;
+    let mut windows_sandbox_level = None;
+    let mut private_desktop_name = None;
+    let mut proxy_enforced = false;
+    let mut network_proxy_restricting_sid = None;
+    let mut proxy_settings_mode = crate::WindowsSandboxProxySettingsMode::Reconcile;
+    let mut read_roots_override = None;
+    let mut read_roots_include_platform_defaults = false;
+    let mut write_roots_override = None;
+    let mut deny_read_paths_override = Vec::new();
+    let mut deny_write_paths_override = Vec::new();
+    let mut command = None;
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            LIME_HOME_FLAG => lime_home = Some(PathBuf::from(next_flag_value(&mut args, &arg)?)),
+            COMMAND_CWD_FLAG => {
+                command_cwd = Some(absolute_path_arg(next_flag_value(&mut args, &arg)?, &arg)?);
+            }
+            WORKSPACE_ROOT_FLAG => {
+                workspace_roots.push(absolute_path_arg(next_flag_value(&mut args, &arg)?, &arg)?);
+            }
+            ENV_JSON_FLAG => {
+                let value = next_flag_value(&mut args, &arg)?;
+                env_map = Some(serde_json::from_str(&value).context("failed to parse env json")?);
+            }
+            DENY_READ_PATHS_JSON_FLAG => {
+                deny_read_paths_override =
+                    json_flag_value(next_flag_value(&mut args, &arg)?, &arg)?;
+            }
+            DENY_WRITE_PATHS_JSON_FLAG => {
+                deny_write_paths_override =
+                    json_flag_value(next_flag_value(&mut args, &arg)?, &arg)?;
+            }
+            PERMISSION_PROFILE_FLAG => {
+                let value = next_flag_value(&mut args, &arg)?;
+                permission_profile = Some(
+                    serde_json::from_str(&value).context("failed to parse permission profile")?,
+                );
+            }
+            SANDBOX_LEVEL_FLAG => {
+                let value = next_flag_value(&mut args, &arg)?;
+                windows_sandbox_level = Some(parse_windows_sandbox_level(&value)?);
+            }
+            PRIVATE_DESKTOP_NAME_FLAG => {
+                private_desktop_name = Some(next_flag_value(&mut args, &arg)?);
+            }
+            PRESERVE_PROXY_SETTINGS_FLAG => {
+                proxy_settings_mode = crate::WindowsSandboxProxySettingsMode::Preserve;
+            }
+            PROXY_ENFORCED_FLAG => proxy_enforced = true,
+            NETWORK_PROXY_RESTRICTING_SID_FLAG => {
+                network_proxy_restricting_sid = Some(next_flag_value(&mut args, &arg)?);
+            }
+            READ_ROOTS_INCLUDE_PLATFORM_DEFAULTS_FLAG => {
+                read_roots_include_platform_defaults = true;
+            }
+            READ_ROOTS_JSON_FLAG => {
+                read_roots_override =
+                    Some(json_flag_value(next_flag_value(&mut args, &arg)?, &arg)?);
+            }
+            WRITE_ROOTS_JSON_FLAG => {
+                write_roots_override =
+                    Some(json_flag_value(next_flag_value(&mut args, &arg)?, &arg)?);
+            }
+            "--" => {
+                command = Some(args.collect::<Vec<_>>());
+                break;
+            }
+            _ => bail!("unexpected windows sandbox wrapper argument: {arg}"),
+        }
+    }
+
+    let lime_home = lime_home.ok_or_else(|| anyhow!("missing required {LIME_HOME_FLAG}"))?;
+    if !lime_home.is_absolute() {
+        bail!("{LIME_HOME_FLAG} must be absolute: {}", lime_home.display());
+    }
+    let command_cwd = command_cwd.ok_or_else(|| anyhow!("missing required {COMMAND_CWD_FLAG}"))?;
+    let private_desktop_name = private_desktop_name
+        .ok_or_else(|| anyhow!("missing required {PRIVATE_DESKTOP_NAME_FLAG}"))?;
+    if workspace_roots.is_empty() {
+        workspace_roots.push(command_cwd.clone());
+    }
+    Ok(WindowsSandboxWrapperRequest {
+        lime_home,
+        command_cwd,
+        workspace_roots,
+        env_map: env_map.ok_or_else(|| anyhow!("missing required {ENV_JSON_FLAG}"))?,
+        permission_profile: permission_profile
+            .ok_or_else(|| anyhow!("missing required {PERMISSION_PROFILE_FLAG}"))?,
+        windows_sandbox_level: windows_sandbox_level
+            .ok_or_else(|| anyhow!("missing required {SANDBOX_LEVEL_FLAG}"))?,
+        private_desktop_name,
+        proxy_enforced,
+        network_proxy_restricting_sid,
+        proxy_settings_mode,
+        read_roots_override,
+        read_roots_include_platform_defaults,
+        write_roots_override,
+        deny_read_paths_override,
+        deny_write_paths_override,
+        command: command.ok_or_else(|| anyhow!("missing sandboxed command separator --"))?,
+    })
+}
+
+fn next_flag_value(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<String> {
+    args.next()
+        .ok_or_else(|| anyhow!("missing value for {flag}"))
+}
+
+fn absolute_path_arg(value: String, flag: &str) -> Result<AbsolutePathBuf> {
+    let path = PathBuf::from(value);
+    AbsolutePathBuf::from_absolute_path(path.as_path())
+        .with_context(|| format!("{flag} must be absolute: {}", path.display()))
+}
+
+fn json_flag_value<T: serde::de::DeserializeOwned>(value: String, flag: &str) -> Result<T> {
+    serde_json::from_str(&value).with_context(|| format!("failed to parse {flag}"))
+}
+
+fn parse_windows_sandbox_level(value: &str) -> Result<WindowsSandboxLevel> {
+    match value {
+        "disabled" => Ok(WindowsSandboxLevel::Disabled),
+        "restricted-token" => Ok(WindowsSandboxLevel::RestrictedToken),
+        "elevated" => Ok(WindowsSandboxLevel::Elevated),
+        _ => bail!("invalid windows sandbox level: {value}"),
+    }
+}
+
+#[cfg(test)]
+#[path = "wrapper_tests.rs"]
+mod tests;

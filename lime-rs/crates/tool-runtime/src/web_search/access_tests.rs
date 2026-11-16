@@ -100,15 +100,17 @@ async fn cached_search_reuses_results_but_disabled_search_cannot_read_them() {
         web_search_mode: Some(WebSearchMode::Disabled),
         ..Default::default()
     };
-    assert!(executor
-        .execute_web_search(RuntimeToolExecutionRequest {
-            tool_name: "WebSearch",
-            params: &params,
-            context: &context,
-            turn_context: Some(&disabled),
-        })
-        .await
-        .unwrap_err()
-        .message()
-        .contains("disabled"));
+    assert!(
+        executor
+            .execute_web_search(RuntimeToolExecutionRequest {
+                tool_name: "WebSearch",
+                params: &params,
+                context: &context,
+                turn_context: Some(&disabled),
+            })
+            .await
+            .unwrap_err()
+            .message()
+            .contains("disabled")
+    );
 }

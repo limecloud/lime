@@ -119,7 +119,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: EmbarkStudios/cargo-deny-action@9c67a826e39827395bfa619cd85cb2aaeb43cfaa # verified cargo-deny action revision
         with:
-          rust-version: 1.95.0
+          rust-version: 1.100.0
           manifest-path: ./lime-rs/Cargo.toml
           arguments: --config ./lime-rs/deny.toml
 
@@ -246,7 +246,7 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100.0
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -304,7 +304,7 @@ jobs:
           node-version: "22"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100.0
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -335,7 +335,7 @@ jobs:
           node-version: "22"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100.0
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -387,7 +387,7 @@ jobs:
           node-version: "22"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100.0
 
       - name: Configure Windows MSVC linker
         shell: pwsh

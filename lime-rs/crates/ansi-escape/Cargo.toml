@@ -1,10 +1,11 @@
 [package]
 name = "ansi-escape"
 version.workspace = true
+edition = "2024"
 license.workspace = true
-edition.workspace = true
 authors.workspace = true
 repository.workspace = true
+description = "ANSI escape conversion."
 
 [lib]
 name = "ansi_escape"
@@ -12,6 +13,10 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
-ansi-to-tui.workspace = true
-ratatui.workspace = true
+ansi-to-tui = "8.0.1"
+ratatui = { version = "0.30.2", default-features = false }
 tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tracing-subscriber.workspace = true

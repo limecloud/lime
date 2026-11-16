@@ -1,0 +1,22 @@
+[package]
+name = "utils-path"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Path normalization helpers."
+
+[lib]
+name = "utils_path"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+dunce = "1"
+lime-utils-absolute-path.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true

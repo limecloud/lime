@@ -1,4 +1,4 @@
-use super::{denied, ComputerUsePaths, ComputerUseResult};
+use super::{ComputerUsePaths, ComputerUseResult, denied};
 
 pub const NATIVE_HOST: &str = "com.limecloud.lime.computer_use";
 

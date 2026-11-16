@@ -4,7 +4,7 @@ use app_server_protocol::protocol::v2::{
     RequestPermissionProfile,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::{Component, Path, PathBuf};
 
 pub const REQUEST_PERMISSIONS_TOOL_NAME: &str = "request_permissions";
@@ -252,17 +252,21 @@ mod tests {
 
     #[test]
     fn request_permissions_rejects_empty_or_escaping_profiles() {
-        assert!(parse_request_permissions_args(
-            &json!({ "permissions": { "network": { "enabled": false } } }),
-            Path::new("/tmp/workspace"),
-        )
-        .is_err());
-        assert!(parse_request_permissions_args(
-            &json!({
-                "permissions": { "file_system": { "write": ["../../../../../../escape"] } }
-            }),
-            Path::new("/tmp/workspace"),
-        )
-        .is_err());
+        assert!(
+            parse_request_permissions_args(
+                &json!({ "permissions": { "network": { "enabled": false } } }),
+                Path::new("/tmp/workspace"),
+            )
+            .is_err()
+        );
+        assert!(
+            parse_request_permissions_args(
+                &json!({
+                    "permissions": { "file_system": { "write": ["../../../../../../escape"] } }
+                }),
+                Path::new("/tmp/workspace"),
+            )
+            .is_err()
+        );
     }
 }

@@ -1,0 +1,1514 @@
+use crate::TelemetryAuthMode;
+use crate::ToolDecisionSource;
+use crate::events::shared::log_and_trace_event;
+use crate::events::shared::log_event;
+use crate::events::shared::trace_event;
+use crate::metrics::API_CALL_COUNT_METRIC;
+use crate::metrics::API_CALL_DURATION_METRIC;
+use crate::metrics::MULTI_AGENT_SPAWN_FAILURE_METRIC;
+use crate::metrics::MULTI_AGENT_SPAWN_PHASE_DURATION_METRIC;
+use crate::metrics::MetricsClient;
+use crate::metrics::MetricsConfig;
+use crate::metrics::MetricsError;
+use crate::metrics::PLUGIN_INSTALL_ELICITATION_SENT_METRIC;
+use crate::metrics::PLUGIN_INSTALL_SUGGESTION_METRIC;
+use crate::metrics::REASONING_ITEMS_REMOVED_METRIC;
+use crate::metrics::REASONING_REPLAY_COUNT_METRIC;
+use crate::metrics::RESPONSES_API_ENGINE_IAPI_TBT_DURATION_METRIC;
+use crate::metrics::RESPONSES_API_ENGINE_IAPI_TTFT_DURATION_METRIC;
+use crate::metrics::RESPONSES_API_ENGINE_SERVICE_TBT_DURATION_METRIC;
+use crate::metrics::RESPONSES_API_ENGINE_SERVICE_TTFT_DURATION_METRIC;
+use crate::metrics::RESPONSES_API_INFERENCE_TIME_DURATION_METRIC;
+use crate::metrics::RESPONSES_API_OVERHEAD_DURATION_METRIC;
+use crate::metrics::Result as MetricsResult;
+use crate::metrics::SSE_EVENT_COUNT_METRIC;
+use crate::metrics::SSE_EVENT_DURATION_METRIC;
+use crate::metrics::STARTUP_PHASE_DURATION_METRIC;
+use crate::metrics::SessionMetricTagValues;
+use crate::metrics::TOOL_CALL_COUNT_METRIC;
+use crate::metrics::TOOL_CALL_DURATION_METRIC;
+use crate::metrics::TURN_COST_MICROUSD_METRIC;
+use crate::metrics::TURN_TTFT_DURATION_METRIC;
+use crate::metrics::WEBSOCKET_CONNECT_COUNT_METRIC;
+use crate::metrics::WEBSOCKET_CONNECT_DURATION_METRIC;
+use crate::metrics::WEBSOCKET_EVENT_COUNT_METRIC;
+use crate::metrics::WEBSOCKET_EVENT_DURATION_METRIC;
+use crate::metrics::WEBSOCKET_REQUEST_COUNT_METRIC;
+use crate::metrics::WEBSOCKET_REQUEST_DURATION_METRIC;
+use crate::metrics::runtime_metrics::RuntimeMetricsSummary;
+use crate::metrics::timer::Timer;
+use crate::provider::OtelProvider;
+use crate::sanitize_metric_tag_value;
+use crate::tool_result::ToolResultEvent;
+use crate::tool_result::emit_tool_result;
+use api::AgentIdentityTelemetry;
+use api::ReasoningRemovalReason;
+use api::ResponseEvent;
+use eventsource_stream::Event as StreamEvent;
+use eventsource_stream::EventStreamError as StreamError;
+use opentelemetry_sdk::metrics::data::ResourceMetrics;
+use protocol::AgentPath;
+use protocol::ThreadId;
+use protocol::ToolName;
+use protocol::config_types::ReasoningSummary;
+use protocol::config_types::ToolResultLogConfig;
+use protocol::error::LimeErr;
+use protocol::error::LimeErrKind;
+use protocol::models::PermissionProfile;
+use protocol::models::ResponseItem;
+use protocol::openai_models::ReasoningEffort;
+use protocol::protocol::AskForApproval;
+use protocol::protocol::ReviewDecision;
+use protocol::protocol::SessionSource;
+use protocol::protocol::TokenUsage;
+use protocol::user_input::UserInput;
+use reqwest::Error;
+use reqwest::Response;
+use std::future::Future;
+use std::path::Path;
+use std::time::Duration;
+use std::time::Instant;
+use tokio::time::error::Elapsed;
+use tracing::Span;
+
+const SSE_UNKNOWN_KIND: &str = "unknown";
+const WEBSOCKET_UNKNOWN_KIND: &str = "unknown";
+const RESPONSES_WEBSOCKET_TIMING_KIND: &str = "responsesapi.websocket_timing";
+const RESPONSES_WEBSOCKET_TIMING_METRICS_FIELD: &str = "timing_metrics";
+const RESPONSES_API_OVERHEAD_FIELD: &str = "responses_duration_excl_engine_and_client_tool_time_ms";
+const RESPONSES_API_INFERENCE_FIELD: &str = "engine_service_total_ms";
+const RESPONSES_API_ENGINE_IAPI_TTFT_FIELD: &str = "engine_iapi_ttft_total_ms";
+const RESPONSES_API_ENGINE_SERVICE_TTFT_FIELD: &str = "engine_service_ttft_total_ms";
+const RESPONSES_API_ENGINE_IAPI_TBT_FIELD: &str = "engine_iapi_tbt_across_engine_calls_ms";
+const RESPONSES_API_ENGINE_SERVICE_TBT_FIELD: &str = "engine_service_tbt_across_engine_calls_ms";
+
+fn trace_field_value<'a>(fields: &'a [(&str, &str)], key: &str) -> Option<&'a str> {
+    fields
+        .iter()
+        .find_map(|(field_key, value)| (*field_key == key).then_some(*value))
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AuthEnvTelemetryMetadata {
+    pub openai_api_key_env_present: bool,
+    pub api_key_env_present: bool,
+    pub api_key_env_enabled: bool,
+    pub provider_env_key_name: Option<String>,
+    pub provider_env_key_present: Option<bool>,
+    pub refresh_token_url_override_present: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SessionTelemetryMetadata {
+    pub(crate) conversation_id: ThreadId,
+    // Full canonical path when available; legacy nickname or thread ID otherwise.
+    // Keep this potentially user-chosen label on detailed logs, not trace-safe events.
+    pub(crate) agent_name: String,
+    pub(crate) auth_mode: Option<String>,
+    pub(crate) auth_env: AuthEnvTelemetryMetadata,
+    pub(crate) account_id: Option<String>,
+    pub(crate) user_id: Option<String>,
+    pub(crate) account_email: Option<String>,
+    pub(crate) originator: String,
+    pub(crate) product_sku: Option<&'static str>,
+    pub(crate) service_name: Option<String>,
+    pub(crate) session_source: String,
+    pub(crate) model: String,
+    pub(crate) slug: String,
+    pub(crate) service_tier: Option<String>,
+    pub(crate) model_reasoning_effort: Option<String>,
+    pub(crate) log_user_prompts: bool,
+    pub(crate) app_version: &'static str,
+    pub(crate) terminal_type: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SessionTelemetry {
+    tool_result_log_config: ToolResultLogConfig,
+    log_sse_deltas: bool,
+    pub(crate) metadata: SessionTelemetryMetadata,
+    pub(crate) metrics: Option<MetricsClient>,
+    pub(crate) metrics_use_metadata_tags: bool,
+}
+
+/// Bounds product SKU attribution before it is used in telemetry dimensions.
+pub fn bounded_product_sku(product_sku: Option<&str>) -> Option<&'static str> {
+    const KNOWN_PRODUCT_SKUS: &[&str] = &["lime"];
+
+    match product_sku {
+        None | Some("") => None,
+        Some(sku) => Some(
+            KNOWN_PRODUCT_SKUS
+                .iter()
+                .copied()
+                .find(|known| *known == sku)
+                .unwrap_or("other"),
+        ),
+    }
+}
+
+impl SessionTelemetry {
+    /// Suppress successful SSE delta logs while retaining errors and all metrics.
+    pub fn without_sse_delta_logs(mut self) -> Self {
+        self.log_sse_deltas = false;
+        self
+    }
+
+    pub fn with_tool_result_log_config(mut self, config: ToolResultLogConfig) -> Self {
+        self.tool_result_log_config = config;
+        self
+    }
+
+    pub fn with_auth_env(mut self, auth_env: AuthEnvTelemetryMetadata) -> Self {
+        self.metadata.auth_env = auth_env;
+        self
+    }
+
+    pub fn with_model(mut self, model: &str, slug: &str) -> Self {
+        self.metadata.model = model.to_owned();
+        self.metadata.slug = slug.to_owned();
+        self
+    }
+
+    pub fn with_inference_request(
+        mut self,
+        service_tier: Option<&str>,
+        model_reasoning_effort: Option<&ReasoningEffort>,
+    ) -> Self {
+        self.metadata.service_tier = service_tier.map(str::to_owned);
+        self.metadata.model_reasoning_effort = model_reasoning_effort.map(ToString::to_string);
+        self
+    }
+
+    pub fn with_metrics_service_name(mut self, service_name: &str) -> Self {
+        self.metadata.service_name = Some(sanitize_metric_tag_value(service_name));
+        self
+    }
+
+    /// Attributes bounded telemetry without turning arbitrary configuration into metric labels.
+    pub fn with_product_sku(mut self, product_sku: Option<&str>) -> Self {
+        self.metadata.product_sku = bounded_product_sku(product_sku);
+        self
+    }
+
+    pub fn with_metrics(mut self, metrics: MetricsClient) -> Self {
+        self.metrics = Some(metrics);
+        self.metrics_use_metadata_tags = true;
+        self
+    }
+
+    pub fn with_metrics_without_metadata_tags(mut self, metrics: MetricsClient) -> Self {
+        self.metrics = Some(metrics);
+        self.metrics_use_metadata_tags = false;
+        self
+    }
+
+    pub fn with_metrics_config(self, config: MetricsConfig) -> MetricsResult<Self> {
+        let metrics = MetricsClient::new(config)?;
+        Ok(self.with_metrics(metrics))
+    }
+
+    pub fn with_provider_metrics(self, provider: &OtelProvider) -> Self {
+        match provider.metrics() {
+            Some(metrics) => self.with_metrics(metrics.clone()),
+            None => self,
+        }
+    }
+
+    pub fn counter(&self, name: &str, inc: i64, tags: &[(&str, &str)]) {
+        let res: MetricsResult<()> = (|| {
+            let Some(metrics) = &self.metrics else {
+                return Ok(());
+            };
+
+            let tags = self.tags_with_metadata(tags)?;
+            metrics.counter(name, inc, &tags)
+        })();
+
+        if let Err(e) = res {
+            tracing::warn!("metrics counter [{name}] failed: {e}");
+        }
+    }
+
+    pub fn histogram(&self, name: &str, value: i64, tags: &[(&str, &str)]) {
+        let res: MetricsResult<()> = (|| {
+            let Some(metrics) = &self.metrics else {
+                return Ok(());
+            };
+
+            let tags = self.tags_with_metadata(tags)?;
+            metrics.histogram(name, value, &tags)
+        })();
+
+        if let Err(e) = res {
+            tracing::warn!("metrics histogram [{name}] failed: {e}");
+        }
+    }
+
+    /// Records a histogram with explicit buckets and the usual session attribution.
+    /// All callers of the same metric name must use the same boundaries.
+    pub fn histogram_with_boundaries(
+        &self,
+        name: &str,
+        value: i64,
+        boundaries: &[f64],
+        tags: &[(&str, &str)],
+    ) {
+        let res: MetricsResult<()> = (|| {
+            let Some(metrics) = &self.metrics else {
+                return Ok(());
+            };
+
+            let tags = self.tags_with_metadata(tags)?;
+            metrics.histogram_with_boundaries(name, value, boundaries, &tags)
+        })();
+
+        if let Err(e) = res {
+            tracing::warn!("metrics histogram [{name}] failed: {e}");
+        }
+    }
+
+    pub fn record_duration(&self, name: &str, duration: Duration, tags: &[(&str, &str)]) {
+        let res: MetricsResult<()> = (|| {
+            let Some(metrics) = &self.metrics else {
+                return Ok(());
+            };
+
+            let tags = self.tags_with_metadata(tags)?;
+            metrics.record_duration(name, duration, &tags)
+        })();
+
+        if let Err(e) = res {
+            tracing::warn!("metrics duration [{name}] failed: {e}");
+        }
+    }
+
+    /// Records one successful multi-agent spawn phase with bounded spawn dimensions.
+    pub fn record_multi_agent_spawn_phase(
+        &self,
+        phase: &'static str,
+        duration: Duration,
+        fork_mode: &'static str,
+        history_mode: &'static str,
+        multi_agent_version: &'static str,
+    ) {
+        let Some(metrics) = &self.metrics else {
+            return;
+        };
+        let mut tags = self.multi_agent_spawn_tags(fork_mode, multi_agent_version);
+        tags.push(("history_mode", history_mode));
+        tags.push(("phase", phase));
+        let _ = metrics.record_duration(MULTI_AGENT_SPAWN_PHASE_DURATION_METRIC, duration, &tags);
+    }
+
+    /// Records one failed multi-agent spawn after request validation has completed.
+    pub fn record_multi_agent_spawn_failure(
+        &self,
+        reason: &'static str,
+        err: &LimeErr,
+        call_id: &str,
+        turn_id: &str,
+        fork_mode: &'static str,
+        multi_agent_version: &'static str,
+    ) {
+        let detail = err.agent_context().map_or("unknown", <&str>::from);
+        let error_kind: &'static str = LimeErrKind::from(err).into();
+        // Only bounded classifications and correlation IDs belong in trace-safe diagnostics.
+        trace_event!(
+            self,
+            event.name = MULTI_AGENT_SPAWN_FAILURE_METRIC,
+            reason,
+            detail,
+            error_kind,
+            call_id,
+            turn_id,
+            fork_mode,
+            multi_agent_version,
+            product_sku = self.metadata.product_sku,
+        );
+        let Some(metrics) = &self.metrics else {
+            return;
+        };
+        let mut tags = self.multi_agent_spawn_tags(fork_mode, multi_agent_version);
+        tags.push(("reason", reason));
+        tags.push(("detail", detail));
+        tags.push(("error_kind", error_kind));
+        let _ = metrics.counter(MULTI_AGENT_SPAWN_FAILURE_METRIC, /*inc*/ 1, &tags);
+    }
+
+    fn multi_agent_spawn_tags(
+        &self,
+        fork_mode: &'static str,
+        multi_agent_version: &'static str,
+    ) -> Vec<(&'static str, &'static str)> {
+        let mut tags = Vec::with_capacity(5);
+        tags.push(("fork_mode", fork_mode));
+        tags.push(("multi_agent_version", multi_agent_version));
+        if let Some(product_sku) = self.metadata.product_sku {
+            tags.push(("product_sku", product_sku));
+        }
+        tags
+    }
+
+    fn record_duration_ms_f64(&self, name: &str, duration_ms: f64, tags: &[(&str, &str)]) {
+        let res: MetricsResult<()> = (|| {
+            let Some(metrics) = &self.metrics else {
+                return Ok(());
+            };
+
+            let tags = self.tags_with_metadata(tags)?;
+            metrics.record_duration_ms_f64(name, duration_ms, &tags)
+        })();
+
+        if let Err(e) = res {
+            tracing::warn!("metrics duration [{name}] failed: {e}");
+        }
+    }
+
+    /// Records a coarse startup phase for production latency breakdowns.
+    pub fn record_startup_phase(
+        &self,
+        phase: &'static str,
+        duration: Duration,
+        status: Option<&'static str>,
+    ) {
+        let tags = match status {
+            Some(status) => vec![("phase", phase), ("status", status)],
+            None => vec![("phase", phase)],
+        };
+        self.record_duration(STARTUP_PHASE_DURATION_METRIC, duration, &tags);
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.startup_phase",
+                startup.phase = phase,
+                startup.status = status,
+                duration_ms = %duration.as_millis(),
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    /// Records time to first token as both a metric and a production telemetry event.
+    pub fn record_turn_ttft(&self, duration: Duration) {
+        self.record_duration(TURN_TTFT_DURATION_METRIC, duration, &[]);
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.turn_ttft",
+                duration_ms = %duration.as_millis(),
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    pub fn record_turn_cost(
+        &self,
+        turn_id: &str,
+        estimated_usd: &str,
+        interrupted: bool,
+        speed: Option<&str>,
+        reasoning_effort: Option<&str>,
+    ) {
+        let (dollars, fractional) = estimated_usd.split_once('.').unwrap_or((estimated_usd, ""));
+        let fractional = fractional.as_bytes();
+        let fractional_precision = 6_usize;
+        let estimated_microusd = dollars.parse::<u64>().ok().and_then(|dollars| {
+            if !fractional.iter().all(u8::is_ascii_digit) {
+                return None;
+            }
+            let fractional_microusd = fractional
+                .iter()
+                .take(fractional_precision)
+                .fold(0_u64, |value, digit| value * 10 + u64::from(digit - b'0'))
+                * 10_u64.pow(fractional_precision.saturating_sub(fractional.len()) as u32);
+            let round_up = fractional
+                .get(fractional_precision)
+                .is_some_and(|digit| *digit >= b'5');
+            let estimated_microusd = dollars
+                .checked_mul(1_000_000)?
+                .checked_add(fractional_microusd)?
+                .checked_add(u64::from(round_up))?;
+            i64::try_from(estimated_microusd).ok()
+        });
+        if let Some(estimated_microusd) = estimated_microusd {
+            let conversation_id = self.metadata.conversation_id.to_string();
+            let mut tags = vec![
+                ("turn.id", turn_id),
+                ("conversation.id", conversation_id.as_str()),
+                (
+                    "turn.interrupted",
+                    if interrupted { "true" } else { "false" },
+                ),
+            ];
+            if let Some(speed) = speed {
+                tags.push(("speed", speed));
+            }
+            if let Some(reasoning_effort) = reasoning_effort {
+                tags.push(("reasoning_effort", reasoning_effort));
+            }
+            self.counter(TURN_COST_MICROUSD_METRIC, estimated_microusd, &tags);
+        }
+        log_event!(
+            self,
+            event.name = "lime.turn_cost",
+            turn.id = turn_id,
+            usage.estimated_usd = estimated_usd,
+            turn.interrupted = interrupted,
+            speed = speed,
+            reasoning_effort = reasoning_effort,
+        );
+    }
+
+    /// Records the moment a plugin or connector install elicitation is dispatched.
+    pub fn record_plugin_install_elicitation_sent(
+        &self,
+        tool_type: &str,
+        tool_id: &str,
+        tool_name: &str,
+    ) {
+        self.counter(
+            PLUGIN_INSTALL_ELICITATION_SENT_METRIC,
+            /*inc*/ 1,
+            &[("tool_type", tool_type)],
+        );
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.plugin_install_elicitation_sent",
+                plugin_install.tool_type = tool_type,
+                plugin_install.tool_id = tool_id,
+                plugin_install.tool_name = tool_name,
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    /// Records the outcome of a surfaced plugin or connector install suggestion.
+    pub fn record_plugin_install_suggestion(
+        &self,
+        tool_type: &str,
+        tool_id: &str,
+        tool_name: &str,
+        response_action: &str,
+        user_confirmed: bool,
+        completed: bool,
+    ) {
+        let completed_tag = if completed { "true" } else { "false" };
+        self.counter(
+            PLUGIN_INSTALL_SUGGESTION_METRIC,
+            /*inc*/ 1,
+            &[
+                ("tool_type", tool_type),
+                ("response_action", response_action),
+                ("completed", completed_tag),
+            ],
+        );
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.plugin_install_suggestion",
+                plugin_install.tool_type = tool_type,
+                plugin_install.tool_id = tool_id,
+                plugin_install.tool_name = tool_name,
+                plugin_install.response_action = response_action,
+                plugin_install.user_confirmed = user_confirmed,
+                plugin_install.completed = completed,
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    pub fn start_timer(&self, name: &str, tags: &[(&str, &str)]) -> Result<Timer, MetricsError> {
+        let Some(metrics) = &self.metrics else {
+            return Err(MetricsError::ExporterDisabled);
+        };
+        let tags = self.tags_with_metadata(tags)?;
+        metrics.start_timer(name, &tags)
+    }
+
+    pub fn shutdown_metrics(&self) -> MetricsResult<()> {
+        let Some(metrics) = &self.metrics else {
+            return Ok(());
+        };
+        metrics.shutdown()
+    }
+
+    pub fn snapshot_metrics(&self) -> MetricsResult<ResourceMetrics> {
+        let Some(metrics) = &self.metrics else {
+            return Err(MetricsError::ExporterDisabled);
+        };
+        metrics.snapshot()
+    }
+
+    /// Collect and discard a runtime metrics snapshot to reset delta accumulators.
+    pub fn reset_runtime_metrics(&self) {
+        if self.metrics.is_none() {
+            return;
+        }
+        if let Err(err) = self.snapshot_metrics() {
+            tracing::debug!("runtime metrics reset skipped: {err}");
+        }
+    }
+
+    /// Collect a runtime metrics summary if debug snapshots are available.
+    pub fn runtime_metrics_summary(&self) -> Option<RuntimeMetricsSummary> {
+        let snapshot = match self.snapshot_metrics() {
+            Ok(snapshot) => snapshot,
+            Err(_) => {
+                return None;
+            }
+        };
+        let summary = RuntimeMetricsSummary::from_snapshot(&snapshot);
+        if summary.is_empty() {
+            None
+        } else {
+            Some(summary)
+        }
+    }
+
+    fn tags_with_metadata<'a>(
+        &'a self,
+        tags: &'a [(&'a str, &'a str)],
+    ) -> MetricsResult<Vec<(&'a str, &'a str)>> {
+        let mut merged = tags.to_vec();
+        merged.extend(self.metadata_tag_refs()?);
+        Ok(merged)
+    }
+
+    fn metadata_tag_refs(&self) -> MetricsResult<Vec<(&str, &str)>> {
+        if !self.metrics_use_metadata_tags {
+            return Ok(Vec::new());
+        }
+        SessionMetricTagValues {
+            auth_mode: self.metadata.auth_mode.as_deref(),
+            session_source: self.metadata.session_source.as_str(),
+            originator: self.metadata.originator.as_str(),
+            service_name: self.metadata.service_name.as_deref(),
+            model: self.metadata.model.as_str(),
+            app_version: self.metadata.app_version,
+        }
+        .into_tags()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        conversation_id: ThreadId,
+        model: &str,
+        slug: &str,
+        account_id: Option<String>,
+        account_email: Option<String>,
+        auth_mode: Option<TelemetryAuthMode>,
+        originator: String,
+        log_user_prompts: bool,
+        terminal_type: String,
+        session_source: SessionSource,
+    ) -> SessionTelemetry {
+        let agent_name = session_source
+            .get_agent_path()
+            .map(|path| path.to_string())
+            .or_else(|| session_source.get_nickname())
+            .unwrap_or_else(|| {
+                if session_source.is_non_root_agent() {
+                    conversation_id.to_string()
+                } else {
+                    AgentPath::ROOT.to_string()
+                }
+            });
+        Self {
+            tool_result_log_config: ToolResultLogConfig::default(),
+            log_sse_deltas: true,
+            metadata: SessionTelemetryMetadata {
+                conversation_id,
+                agent_name,
+                auth_mode: auth_mode.map(|m| m.to_string()),
+                auth_env: AuthEnvTelemetryMetadata::default(),
+                account_id,
+                user_id: None,
+                account_email,
+                originator: sanitize_metric_tag_value(originator.as_str()),
+                product_sku: None,
+                service_name: None,
+                session_source: session_source.to_string(),
+                model: model.to_owned(),
+                slug: slug.to_owned(),
+                service_tier: None,
+                model_reasoning_effort: None,
+                log_user_prompts,
+                app_version: env!("CARGO_PKG_VERSION"),
+                terminal_type,
+            },
+            metrics: crate::metrics::global(),
+            metrics_use_metadata_tags: true,
+        }
+    }
+
+    pub fn record_responses(&self, handle_responses_span: &Span, event: &ResponseEvent) {
+        handle_responses_span.record("otel.name", SessionTelemetry::responses_type(event));
+
+        if let ResponseEvent::Completed {
+            reasoning_removals, ..
+        } = event
+        {
+            let report = match reasoning_removals {
+                None => "unavailable",
+                Some(counts) if counts.is_empty() => "no_removals_reported",
+                Some(counts) if counts.contains_key(&ReasoningRemovalReason::PrefixMismatch) => {
+                    "prefix_mismatch_reported"
+                }
+                Some(_) => "removals_reported",
+            };
+            let mut tags = vec![("report", report)];
+            if let Some(product_sku) = self.metadata.product_sku {
+                tags.push(("product_sku", product_sku));
+            }
+            self.counter(REASONING_REPLAY_COUNT_METRIC, /*inc*/ 1, &tags);
+            if let Some(counts) = reasoning_removals {
+                for reason in ReasoningRemovalReason::ALL {
+                    let count = counts.get(&reason).copied().unwrap_or_default();
+                    tags[0] = ("reason", reason.as_str());
+                    self.histogram_with_boundaries(
+                        REASONING_ITEMS_REMOVED_METRIC,
+                        count,
+                        &[0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0],
+                        &tags,
+                    );
+                }
+            }
+        }
+
+        match event {
+            ResponseEvent::OutputItemDone(item) => {
+                handle_responses_span.record("from", "output_item_done");
+                if let ResponseItem::FunctionCall { name, .. } = item {
+                    handle_responses_span.record("tool_name", name.as_str());
+                }
+            }
+            ResponseEvent::OutputItemAdded(item) => {
+                handle_responses_span.record("from", "output_item_added");
+                if let ResponseItem::FunctionCall { name, .. } = item {
+                    handle_responses_span.record("tool_name", name.as_str());
+                }
+            }
+            ResponseEvent::Completed {
+                token_usage: Some(token_usage),
+                ..
+            } => {
+                handle_responses_span.record("gen_ai.usage.input_tokens", token_usage.input_tokens);
+                handle_responses_span.record(
+                    "gen_ai.usage.cache_read.input_tokens",
+                    token_usage.cached_input(),
+                );
+                handle_responses_span.record(
+                    "gen_ai.usage.cache_write.input_tokens",
+                    token_usage.cache_write_input_tokens,
+                );
+                handle_responses_span
+                    .record("gen_ai.usage.output_tokens", token_usage.output_tokens);
+                handle_responses_span.record(
+                    "lime.usage.reasoning_output_tokens",
+                    token_usage.reasoning_output_tokens,
+                );
+                handle_responses_span.record("lime.usage.total_tokens", token_usage.total_tokens);
+            }
+            _ => {}
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn conversation_starts(
+        &self,
+        provider_name: &str,
+        reasoning_effort: Option<ReasoningEffort>,
+        reasoning_summary: ReasoningSummary,
+        context_window: Option<i64>,
+        auto_compact_token_limit: Option<i64>,
+        approval_policy: AskForApproval,
+        permission_profile: &PermissionProfile,
+        cwd: &Path,
+        mcp_servers: Vec<&str>,
+        legacy_multi_agent_disabled_sources: &[&str],
+    ) {
+        let sandbox_policy = permission_profile.legacy_sandbox_policy_label(cwd);
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.conversation_starts",
+                config.legacy_multi_agent_disabled_sources = if legacy_multi_agent_disabled_sources.is_empty() {
+                    "none".to_string()
+                } else {
+                    legacy_multi_agent_disabled_sources.join(",")
+                },
+                provider_name = %provider_name,
+                auth.env_openai_api_key_present = self.metadata.auth_env.openai_api_key_env_present,
+                auth.env_api_key_present = self.metadata.auth_env.api_key_env_present,
+                auth.env_api_key_enabled = self.metadata.auth_env.api_key_env_enabled,
+                auth.env_provider_key_name = self.metadata.auth_env.provider_env_key_name.as_deref(),
+                auth.env_provider_key_present = self.metadata.auth_env.provider_env_key_present,
+                auth.env_refresh_token_url_override_present = self.metadata.auth_env.refresh_token_url_override_present,
+                reasoning_effort = reasoning_effort.as_ref().map(ToString::to_string),
+                reasoning_summary = %reasoning_summary,
+                context_window = context_window,
+                auto_compact_token_limit = auto_compact_token_limit,
+                approval_policy = %approval_policy,
+                sandbox_policy = %sandbox_policy,
+            },
+            log: {
+                mcp_servers = mcp_servers.join(", "),
+            },
+            trace: {
+                mcp_server_count = mcp_servers.len() as i64,
+            },
+        );
+    }
+
+    pub async fn log_request<F, Fut>(&self, attempt: u64, f: F) -> Result<Response, Error>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<Response, Error>>,
+    {
+        let start = Instant::now();
+        let response = f().await;
+        let duration = start.elapsed();
+
+        let (status, error) = match &response {
+            Ok(response) => (Some(response.status().as_u16()), None),
+            Err(error) => (error.status().map(|s| s.as_u16()), Some(error.to_string())),
+        };
+        self.record_api_request(
+            attempt,
+            status,
+            error.as_deref(),
+            duration,
+            /*auth_header_attached*/ false,
+            /*auth_header_name*/ None,
+            /*retry_after_unauthorized*/ false,
+            /*recovery_mode*/ None,
+            /*recovery_phase*/ None,
+            "unknown",
+            /*request_id*/ None,
+            /*cf_ray*/ None,
+            /*auth_error*/ None,
+            /*auth_error_code*/ None,
+            /*agent_identity_telemetry*/ None,
+        );
+
+        response
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn record_api_request(
+        &self,
+        attempt: u64,
+        status: Option<u16>,
+        error: Option<&str>,
+        duration: Duration,
+        auth_header_attached: bool,
+        auth_header_name: Option<&str>,
+        retry_after_unauthorized: bool,
+        recovery_mode: Option<&str>,
+        recovery_phase: Option<&str>,
+        endpoint: &str,
+        request_id: Option<&str>,
+        cf_ray: Option<&str>,
+        auth_error: Option<&str>,
+        auth_error_code: Option<&str>,
+        agent_identity_telemetry: Option<&AgentIdentityTelemetry>,
+    ) {
+        let success = status.is_some_and(|code| (200..=299).contains(&code)) && error.is_none();
+        let success_str = if success { "true" } else { "false" };
+        let status_str = status
+            .map(|code| code.to_string())
+            .unwrap_or_else(|| "none".to_string());
+        self.counter(
+            API_CALL_COUNT_METRIC,
+            /*inc*/ 1,
+            &[("status", status_str.as_str()), ("success", success_str)],
+        );
+        self.record_duration(
+            API_CALL_DURATION_METRIC,
+            duration,
+            &[("status", status_str.as_str()), ("success", success_str)],
+        );
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.api_request",
+                duration_ms = %duration.as_millis(),
+                http.response.status_code = status,
+                error.message = error,
+                attempt = attempt,
+                auth.header_attached = auth_header_attached,
+                auth.header_name = auth_header_name,
+                auth.retry_after_unauthorized = retry_after_unauthorized,
+                auth.recovery_mode = recovery_mode,
+                auth.recovery_phase = recovery_phase,
+                endpoint = endpoint,
+                auth.env_openai_api_key_present = self.metadata.auth_env.openai_api_key_env_present,
+                auth.env_api_key_present = self.metadata.auth_env.api_key_env_present,
+                auth.env_api_key_enabled = self.metadata.auth_env.api_key_env_enabled,
+                auth.env_provider_key_name = self.metadata.auth_env.provider_env_key_name.as_deref(),
+                auth.env_provider_key_present = self.metadata.auth_env.provider_env_key_present,
+                auth.env_refresh_token_url_override_present = self.metadata.auth_env.refresh_token_url_override_present,
+                auth.request_id = request_id,
+                auth.cf_ray = cf_ray,
+                auth.error = auth_error,
+                auth.error_code = auth_error_code,
+                auth.agent_id = agent_identity_telemetry.map(|metadata| metadata.agent_id.as_str()),
+                auth.task_id = agent_identity_telemetry.map(|metadata| metadata.task_id.as_str()),
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn record_websocket_connect(
+        &self,
+        duration: Duration,
+        status: Option<u16>,
+        error: Option<&str>,
+        auth_header_attached: bool,
+        auth_header_name: Option<&str>,
+        retry_after_unauthorized: bool,
+        recovery_mode: Option<&str>,
+        recovery_phase: Option<&str>,
+        endpoint: &str,
+        reauth: bool,
+        request_id: Option<&str>,
+        cf_ray: Option<&str>,
+        auth_error: Option<&str>,
+        auth_error_code: Option<&str>,
+        agent_identity_telemetry: Option<&AgentIdentityTelemetry>,
+    ) {
+        let success = error.is_none()
+            && status
+                .map(|code| (200..=299).contains(&code))
+                .unwrap_or(true);
+        let success_str = if success { "true" } else { "false" };
+        let mut tags = vec![
+            ("success", success_str),
+            ("reauth", if reauth { "true" } else { "false" }),
+        ];
+        if let Some(product_sku) = self.metadata.product_sku {
+            tags.push(("product_sku", product_sku));
+        }
+        self.counter(WEBSOCKET_CONNECT_COUNT_METRIC, /*inc*/ 1, &tags);
+        self.record_duration(WEBSOCKET_CONNECT_DURATION_METRIC, duration, &tags);
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.websocket_connect",
+                duration_ms = %duration.as_millis(),
+                http.response.status_code = status,
+                success = success_str,
+                error.message = error,
+                auth.header_attached = auth_header_attached,
+                auth.header_name = auth_header_name,
+                auth.retry_after_unauthorized = retry_after_unauthorized,
+                auth.recovery_mode = recovery_mode,
+                auth.recovery_phase = recovery_phase,
+                endpoint = endpoint,
+                auth.env_openai_api_key_present = self.metadata.auth_env.openai_api_key_env_present,
+                auth.env_api_key_present = self.metadata.auth_env.api_key_env_present,
+                auth.env_api_key_enabled = self.metadata.auth_env.api_key_env_enabled,
+                auth.env_provider_key_name = self.metadata.auth_env.provider_env_key_name.as_deref(),
+                auth.env_provider_key_present = self.metadata.auth_env.provider_env_key_present,
+                auth.env_refresh_token_url_override_present = self.metadata.auth_env.refresh_token_url_override_present,
+                auth.connection_reused = false,
+                auth.reauth = reauth,
+                auth.request_id = request_id,
+                auth.cf_ray = cf_ray,
+                auth.error = auth_error,
+                auth.error_code = auth_error_code,
+                auth.agent_id = agent_identity_telemetry.map(|metadata| metadata.agent_id.as_str()),
+                auth.task_id = agent_identity_telemetry.map(|metadata| metadata.task_id.as_str()),
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    pub fn record_websocket_request(
+        &self,
+        duration: Duration,
+        error: Option<&str>,
+        connection_reused: bool,
+        agent_identity_telemetry: Option<&AgentIdentityTelemetry>,
+    ) {
+        let success_str = if error.is_none() { "true" } else { "false" };
+        self.counter(
+            WEBSOCKET_REQUEST_COUNT_METRIC,
+            /*inc*/ 1,
+            &[("success", success_str)],
+        );
+        self.record_duration(
+            WEBSOCKET_REQUEST_DURATION_METRIC,
+            duration,
+            &[("success", success_str)],
+        );
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.websocket_request",
+                duration_ms = %duration.as_millis(),
+                success = success_str,
+                error.message = error,
+                auth.env_openai_api_key_present = self.metadata.auth_env.openai_api_key_env_present,
+                auth.env_api_key_present = self.metadata.auth_env.api_key_env_present,
+                auth.env_api_key_enabled = self.metadata.auth_env.api_key_env_enabled,
+                auth.env_provider_key_name = self.metadata.auth_env.provider_env_key_name.as_deref(),
+                auth.env_provider_key_present = self.metadata.auth_env.provider_env_key_present,
+                auth.env_refresh_token_url_override_present = self.metadata.auth_env.refresh_token_url_override_present,
+                auth.connection_reused = connection_reused,
+                auth.agent_id = agent_identity_telemetry.map(|metadata| metadata.agent_id.as_str()),
+                auth.task_id = agent_identity_telemetry.map(|metadata| metadata.task_id.as_str()),
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn record_auth_recovery(
+        &self,
+        mode: &str,
+        step: &str,
+        outcome: &str,
+        request_id: Option<&str>,
+        cf_ray: Option<&str>,
+        auth_error: Option<&str>,
+        auth_error_code: Option<&str>,
+        recovery_reason: Option<&str>,
+        auth_state_changed: Option<bool>,
+    ) {
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.auth_recovery",
+                auth.mode = mode,
+                auth.step = step,
+                auth.outcome = outcome,
+                auth.request_id = request_id,
+                auth.cf_ray = cf_ray,
+                auth.error = auth_error,
+                auth.error_code = auth_error_code,
+                auth.recovery_reason = recovery_reason,
+                auth.state_changed = auth_state_changed,
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    pub fn record_websocket_receive_failure(&self, duration: Duration) {
+        self.record_websocket_event_metrics(
+            WEBSOCKET_UNKNOWN_KIND,
+            /*success*/ false,
+            duration,
+        );
+    }
+
+    /// Records the transport's decoded event kind. Timing events also carry metric values.
+    pub fn record_websocket_text_event(
+        &self,
+        text: &str,
+        parsed_kind: Option<&str>,
+        duration: Duration,
+    ) {
+        let value;
+        let kind = match parsed_kind {
+            Some(kind) if kind != RESPONSES_WEBSOCKET_TIMING_KIND => kind,
+            _ => {
+                // Valid JSON with an unknown or malformed stream shape still contributes its kind.
+                value = match serde_json::from_str::<serde_json::Value>(text) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        return self.record_websocket_event_metrics(
+                            "parse_error",
+                            /*success*/ false,
+                            duration,
+                        );
+                    }
+                };
+                let kind = value
+                    .get("type")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(WEBSOCKET_UNKNOWN_KIND);
+                if kind == RESPONSES_WEBSOCKET_TIMING_KIND {
+                    self.record_responses_websocket_timing_metrics(&value);
+                }
+                kind
+            }
+        };
+        self.record_websocket_event_metrics(kind, kind != "response.failed", duration);
+    }
+
+    fn record_websocket_event_metrics(&self, kind: &str, success: bool, duration: Duration) {
+        let success_str = if success { "true" } else { "false" };
+        let tags = [("kind", kind), ("success", success_str)];
+        self.counter(WEBSOCKET_EVENT_COUNT_METRIC, /*inc*/ 1, &tags);
+        self.record_duration(WEBSOCKET_EVENT_DURATION_METRIC, duration, &tags);
+    }
+
+    pub fn log_sse_event<E>(
+        &self,
+        response: &Result<Option<Result<StreamEvent, StreamError<E>>>, Elapsed>,
+        duration: Duration,
+    ) where
+        E: std::fmt::Display,
+    {
+        match response {
+            Ok(Some(Ok(sse))) => {
+                if sse.data.trim() == "[DONE]" {
+                    self.sse_event(&sse.event, duration);
+                } else {
+                    match serde_json::from_str::<serde_json::Value>(&sse.data) {
+                        Ok(error) if sse.event == "response.failed" => {
+                            self.sse_event_failed(Some(&sse.event), duration, &error);
+                        }
+                        Ok(content) if sse.event == "response.output_item.done" => {
+                            match serde_json::from_value::<ResponseItem>(content) {
+                                Ok(_) => self.sse_event(&sse.event, duration),
+                                Err(_) => {
+                                    self.sse_event_failed(
+                                        Some(&sse.event),
+                                        duration,
+                                        &"failed to parse response.output_item.done",
+                                    );
+                                }
+                            };
+                        }
+                        Ok(_) => {
+                            self.sse_event(&sse.event, duration);
+                        }
+                        Err(error) => {
+                            self.sse_event_failed(Some(&sse.event), duration, &error);
+                        }
+                    }
+                }
+            }
+            Ok(Some(Err(error))) => {
+                self.sse_event_failed(/*kind*/ None, duration, error);
+            }
+            Ok(None) => {}
+            Err(_) => {
+                self.sse_event_failed(
+                    /*kind*/ None,
+                    duration,
+                    &"idle timeout waiting for SSE",
+                );
+            }
+        }
+    }
+
+    fn sse_event(&self, kind: &str, duration: Duration) {
+        self.counter(
+            SSE_EVENT_COUNT_METRIC,
+            /*inc*/ 1,
+            &[("kind", kind), ("success", "true")],
+        );
+        self.record_duration(
+            SSE_EVENT_DURATION_METRIC,
+            duration,
+            &[("kind", kind), ("success", "true")],
+        );
+        if !self.log_sse_deltas && kind.ends_with(".delta") {
+            return;
+        }
+        log_event!(
+            self,
+            event.name = "lime.sse_event",
+            event.kind = %kind,
+            duration_ms = %duration.as_millis(),
+        );
+    }
+
+    pub fn sse_event_failed<T>(&self, kind: Option<&String>, duration: Duration, error: &T)
+    where
+        T: std::fmt::Display,
+    {
+        let kind_str = kind.map_or(SSE_UNKNOWN_KIND, String::as_str);
+        self.counter(
+            SSE_EVENT_COUNT_METRIC,
+            /*inc*/ 1,
+            &[("kind", kind_str), ("success", "false")],
+        );
+        self.record_duration(
+            SSE_EVENT_DURATION_METRIC,
+            duration,
+            &[("kind", kind_str), ("success", "false")],
+        );
+        match kind {
+            Some(kind) => log_event!(
+                self,
+                event.name = "lime.sse_event",
+                event.kind = %kind,
+                duration_ms = %duration.as_millis(),
+                error.message = %error,
+            ),
+            None => log_event!(
+                self,
+                event.name = "lime.sse_event",
+                duration_ms = %duration.as_millis(),
+                error.message = %error,
+            ),
+        }
+        trace_event!(
+            self,
+            event.name = "lime.sse_event",
+            event.kind = %kind_str,
+            duration_ms = %duration.as_millis(),
+            error.message = %error,
+        );
+    }
+
+    pub fn see_event_completed_failed<T>(&self, error: &T)
+    where
+        T: std::fmt::Display,
+    {
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.sse_event",
+                event.kind = %"response.completed",
+                error.message = %error,
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    pub fn sse_event_completed(&self, usage: &TokenUsage, ttft_ms: Option<i64>) {
+        log_and_trace_event!(
+            self,
+            common: {
+                event.name = "lime.sse_event",
+                event.kind = %"response.completed",
+                input_token_count = %usage.input_tokens,
+                output_token_count = %usage.output_tokens,
+                cached_token_count = usage.cached_input_tokens,
+                cache_write_token_count = usage.cache_write_input_tokens,
+                reasoning_token_count = usage.reasoning_output_tokens,
+                tool_token_count = %usage.total_tokens,
+                ttft_ms = ttft_ms,
+                service_tier = self.metadata.service_tier.as_deref(),
+                model_reasoning_effort = self.metadata.model_reasoning_effort.as_deref(),
+            },
+            log: {},
+            trace: {},
+        );
+    }
+
+    pub fn user_prompt(&self, items: &[UserInput]) {
+        let prompt = items
+            .iter()
+            .flat_map(|item| match item {
+                UserInput::Text { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<String>();
+        let text_input_count = items
+            .iter()
+            .filter(|item| matches!(item, UserInput::Text { .. }))
+            .count();
+        let image_input_count = items
+            .iter()
+            .filter(|item| matches!(item, UserInput::Image { .. }))
+            .count();
+        let local_image_input_count = items
+            .iter()
+            .filter(|item| matches!(item, UserInput::LocalImage { .. }))
+            .count();
+
+        let prompt_to_log = if self.metadata.log_user_prompts {
+            prompt.as_str()
+        } else {
+            "[REDACTED]"
+        };
+
+        log_event!(
+            self,
+            event.name = "lime.user_prompt",
+            prompt_length = %prompt.chars().count(),
+            prompt = %prompt_to_log,
+        );
+        trace_event!(
+            self,
+            event.name = "lime.user_prompt",
+            prompt_length = %prompt.chars().count(),
+            text_input_count = text_input_count as i64,
+            image_input_count = image_input_count as i64,
+            local_image_input_count = local_image_input_count as i64,
+        );
+    }
+
+    pub fn tool_decision(
+        &self,
+        tool_name: &ToolName,
+        call_id: &str,
+        decision: &ReviewDecision,
+        source: Option<ToolDecisionSource>,
+    ) {
+        let tool_namespace = crate::events::shared::tool_namespace(tool_name);
+        match source {
+            Some(source) => log_event!(
+                self,
+                event.name = "lime.tool_decision",
+                tool_name = %tool_name.name,
+                tool_namespace = %tool_namespace,
+                call_id = %call_id,
+                decision = %decision.to_opaque_string(),
+                source = %source.to_string(),
+            ),
+            None => log_event!(
+                self,
+                event.name = "lime.tool_decision",
+                tool_name = %tool_name.name,
+                tool_namespace = %tool_namespace,
+                call_id = %call_id,
+                decision = %decision.to_opaque_string(),
+            ),
+        }
+    }
+
+    pub fn sandbox_outcome(
+        &self,
+        tool_name: &str,
+        call_id: &str,
+        outcome: &str,
+        initial_duration: Duration,
+        escalated_duration: Option<Duration>,
+    ) {
+        let initial_duration_ms = initial_duration.as_millis().min(i64::MAX as u128) as i64;
+        let escalated_duration_ms =
+            escalated_duration.map(|duration| duration.as_millis().min(i64::MAX as u128) as i64);
+        log_event!(
+            self,
+            event.name = "lime.sandbox_outcome",
+            tool_name = %tool_name,
+            call_id = %call_id,
+            outcome = %outcome,
+            initial_duration_ms = initial_duration_ms,
+            escalated_duration_ms = escalated_duration_ms,
+        );
+        trace_event!(
+            self,
+            event.name = "lime.sandbox_outcome",
+            tool_name = %tool_name,
+            call_id = %call_id,
+            outcome = %outcome,
+            initial_duration_ms = initial_duration_ms,
+            escalated_duration_ms = escalated_duration_ms,
+        );
+    }
+
+    /// Records a diagnostic representation and returns the original result. The temporary
+    /// output string is truncated and released before the caller resumes async work.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn log_tool_result_with_tags<T, F, Fut, E>(
+        &self,
+        tool_name: &ToolName,
+        call_id: &str,
+        arguments: &str,
+        extra_tags: &[(&str, &str)],
+        extra_trace_fields: &[(&str, &str)],
+        f: F,
+        log_output: impl FnOnce(&T) -> (String, bool),
+    ) -> Result<T, E>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<T, E>>,
+        E: std::fmt::Display,
+    {
+        let start = Instant::now();
+        let result = f().await;
+        let duration = start.elapsed();
+
+        let (output, success) = match &result {
+            Ok(result) => log_output(result),
+            Err(error) => (error.to_string(), false),
+        };
+
+        self.tool_result_with_tags(
+            tool_name,
+            call_id,
+            arguments,
+            duration,
+            success,
+            &output,
+            extra_tags,
+            extra_trace_fields,
+        );
+
+        result
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn tool_result_with_tags(
+        &self,
+        tool_name: &ToolName,
+        call_id: &str,
+        arguments: &str,
+        duration: Duration,
+        success: bool,
+        output: &str,
+        extra_tags: &[(&str, &str)],
+        extra_trace_fields: &[(&str, &str)],
+    ) {
+        let flat_tool_name = tool_name.to_string();
+        let success_str = if success { "true" } else { "false" };
+        let mut tags = Vec::with_capacity(3 + extra_tags.len());
+        tags.push(("tool", flat_tool_name.as_str()));
+        tags.push(("success", success_str));
+        tags.extend_from_slice(extra_tags);
+        if let Some(product_sku) = self.metadata.product_sku {
+            tags.push(("product_sku", product_sku));
+        }
+        self.counter(TOOL_CALL_COUNT_METRIC, /*inc*/ 1, &tags);
+        self.record_duration(TOOL_CALL_DURATION_METRIC, duration, &tags);
+        let mcp_server = trace_field_value(extra_trace_fields, "mcp_server").unwrap_or("");
+        let mcp_server_origin =
+            trace_field_value(extra_trace_fields, "mcp_server_origin").unwrap_or("");
+        emit_tool_result(
+            self,
+            self.tool_result_log_config,
+            ToolResultEvent {
+                tool_name,
+                call_id,
+                arguments,
+                mcp_server,
+                mcp_server_origin,
+                duration,
+                success,
+                output,
+            },
+        );
+    }
+
+    fn record_responses_websocket_timing_metrics(&self, value: &serde_json::Value) {
+        let timing_metrics = value.get(RESPONSES_WEBSOCKET_TIMING_METRICS_FIELD);
+
+        let overhead_value =
+            timing_metrics.and_then(|value| value.get(RESPONSES_API_OVERHEAD_FIELD));
+        if let Some(duration) = duration_from_ms_value(overhead_value) {
+            self.record_duration(RESPONSES_API_OVERHEAD_DURATION_METRIC, duration, &[]);
+        }
+
+        let inference_value =
+            timing_metrics.and_then(|value| value.get(RESPONSES_API_INFERENCE_FIELD));
+        if let Some(duration) = duration_from_ms_value(inference_value) {
+            self.record_duration(RESPONSES_API_INFERENCE_TIME_DURATION_METRIC, duration, &[]);
+        }
+
+        let engine_iapi_ttft_value =
+            timing_metrics.and_then(|value| value.get(RESPONSES_API_ENGINE_IAPI_TTFT_FIELD));
+        if let Some(duration) = duration_from_ms_value(engine_iapi_ttft_value) {
+            self.record_duration(
+                RESPONSES_API_ENGINE_IAPI_TTFT_DURATION_METRIC,
+                duration,
+                &[],
+            );
+        }
+
+        let engine_service_ttft_value =
+            timing_metrics.and_then(|value| value.get(RESPONSES_API_ENGINE_SERVICE_TTFT_FIELD));
+        if let Some(duration) = duration_from_ms_value(engine_service_ttft_value) {
+            self.record_duration(
+                RESPONSES_API_ENGINE_SERVICE_TTFT_DURATION_METRIC,
+                duration,
+                &[],
+            );
+        }
+
+        let engine_iapi_tbt_value =
+            timing_metrics.and_then(|value| value.get(RESPONSES_API_ENGINE_IAPI_TBT_FIELD));
+        if let Some(duration_ms) = f64_ms_value(engine_iapi_tbt_value) {
+            self.record_duration_ms_f64(
+                RESPONSES_API_ENGINE_IAPI_TBT_DURATION_METRIC,
+                duration_ms,
+                &[],
+            );
+        }
+
+        let engine_service_tbt_value =
+            timing_metrics.and_then(|value| value.get(RESPONSES_API_ENGINE_SERVICE_TBT_FIELD));
+        if let Some(duration_ms) = f64_ms_value(engine_service_tbt_value) {
+            self.record_duration_ms_f64(
+                RESPONSES_API_ENGINE_SERVICE_TBT_DURATION_METRIC,
+                duration_ms,
+                &[],
+            );
+        }
+    }
+
+    fn responses_type(event: &ResponseEvent) -> String {
+        match event {
+            ResponseEvent::Created { .. } => "created".into(),
+            ResponseEvent::OutputItemDone(item) | ResponseEvent::OutputItemAdded(item) => {
+                SessionTelemetry::responses_item_type(item)
+            }
+            ResponseEvent::Completed { .. } => "completed".into(),
+            ResponseEvent::OutputTextDelta(_) => "text_delta".into(),
+            ResponseEvent::ToolCallInputDelta { .. } => "tool_input_delta".into(),
+            ResponseEvent::ReasoningSummaryDelta { .. } => "reasoning_summary_delta".into(),
+            ResponseEvent::ReasoningSummaryDone { .. } => "reasoning_summary_done".into(),
+            ResponseEvent::ReasoningContentDelta { .. } => "reasoning_content_delta".into(),
+            ResponseEvent::ReasoningSummaryPartAdded { .. } => {
+                "reasoning_summary_part_added".into()
+            }
+            ResponseEvent::ServerModel(_) => "server_model".into(),
+            ResponseEvent::ModelVerifications(_) => "model_verifications".into(),
+            ResponseEvent::TurnModerationMetadata(_) => "turn_moderation_metadata".into(),
+            ResponseEvent::GuardianAssessment(_) => "guardian_assessment".into(),
+            ResponseEvent::SafetyBuffering(_) => "safety_buffering".into(),
+            ResponseEvent::ServerReasoningIncluded(_) => "server_reasoning_included".into(),
+            ResponseEvent::RateLimits(_) => "rate_limits".into(),
+            ResponseEvent::ModelsEtag(_) => "models_etag".into(),
+        }
+    }
+
+    fn responses_item_type(item: &ResponseItem) -> String {
+        match item {
+            ResponseItem::AdditionalTools { .. } => "additional_tools".into(),
+            ResponseItem::Message { role, .. } => format!("message_from_{role}"),
+            ResponseItem::AgentMessage { .. } => "agent_message".into(),
+            ResponseItem::Reasoning { .. } => "reasoning".into(),
+            ResponseItem::LocalShellCall { .. } => "local_shell_call".into(),
+            ResponseItem::FunctionCall { .. } => "function_call".into(),
+            ResponseItem::ToolSearchCall { .. } => "tool_search_call".into(),
+            ResponseItem::FunctionCallOutput { .. } => "function_call_output".into(),
+            ResponseItem::ToolSearchOutput { .. } => "tool_search_output".into(),
+            ResponseItem::CustomToolCall { .. } => "custom_tool_call".into(),
+            ResponseItem::CustomToolCallOutput { .. } => "custom_tool_call_output".into(),
+            ResponseItem::WebSearchCall { .. } => "web_search_call".into(),
+            ResponseItem::ImageGenerationCall { .. } => "image_generation_call".into(),
+            ResponseItem::Compaction { .. } => "compaction".into(),
+            ResponseItem::ConfigurationUpdate { .. } => "configuration_update".into(),
+            ResponseItem::CompactionTrigger { .. } => "compaction_trigger".into(),
+            ResponseItem::ContextCompaction { .. } => "context_compaction".into(),
+            ResponseItem::Other => "other".into(),
+        }
+    }
+}
+
+fn duration_from_ms_value(value: Option<&serde_json::Value>) -> Option<Duration> {
+    let ms = f64_ms_value(value)?;
+    Some(Duration::from_millis(ms.round() as u64))
+}
+
+fn f64_ms_value(value: Option<&serde_json::Value>) -> Option<f64> {
+    let value = value?;
+    let ms = value
+        .as_f64()
+        .or_else(|| value.as_i64().map(|v| v as f64))
+        .or_else(|| value.as_u64().map(|v| v as f64))?;
+    if !ms.is_finite() || ms < 0.0 {
+        return None;
+    }
+    Some(ms.min(u64::MAX as f64))
+}

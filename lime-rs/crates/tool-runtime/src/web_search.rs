@@ -7,7 +7,7 @@ use crate::tool_executor::{
 use reqwest::Client;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
@@ -65,12 +65,12 @@ impl RuntimeWebSearchExecutor {
             agent_protocol::WebSearchMode::Disabled => {
                 return Err(runtime_web_search_error(
                     "web search is disabled by the current access policy",
-                ))
+                ));
             }
             agent_protocol::WebSearchMode::Indexed => {
                 return Err(runtime_web_search_error(
                     "indexed web search is unavailable in the local search backend",
-                ))
+                ));
             }
             _ => {}
         }
@@ -98,7 +98,9 @@ impl RuntimeWebSearchExecutor {
             return runtime_result_from_cached_search(&query, cached, started_at);
         }
         if mode == agent_protocol::WebSearchMode::Cached {
-            return Err(runtime_web_search_error("no cached web search result is available; cached mode does not permit a network request"));
+            return Err(runtime_web_search_error(
+                "no cached web search result is available; cached mode does not permit a network request",
+            ));
         }
 
         let execution = self
@@ -673,9 +675,11 @@ mod tests {
 
         assert_eq!(config.priority[0], SearchProviderKind::GoogleCustomSearch);
         assert_eq!(config.priority[1], SearchProviderKind::Tavily);
-        assert!(config
-            .priority
-            .contains(&SearchProviderKind::DuckduckgoInstant));
+        assert!(
+            config
+                .priority
+                .contains(&SearchProviderKind::DuckduckgoInstant)
+        );
     }
 
     #[test]
@@ -711,12 +715,14 @@ mod tests {
         )
         .expect_err("non http endpoint should fail");
         assert!(error.contains(BING_SEARCH_ENDPOINT_ENV));
-        assert!(resolve_search_endpoint(
-            Some("not a url"),
-            GOOGLE_SEARCH_ENDPOINT_ENV,
-            DEFAULT_GOOGLE_SEARCH_ENDPOINT
-        )
-        .is_err());
+        assert!(
+            resolve_search_endpoint(
+                Some("not a url"),
+                GOOGLE_SEARCH_ENDPOINT_ENV,
+                DEFAULT_GOOGLE_SEARCH_ENDPOINT
+            )
+            .is_err()
+        );
     }
 
     async fn serve_once(body: &'static str) -> (String, tokio::task::JoinHandle<String>) {
@@ -775,9 +781,11 @@ mod tests {
         let request = server.await.expect("server");
 
         assert!(request.starts_with("GET /v7.0/search?"));
-        assert!(request
-            .to_ascii_lowercase()
-            .contains("ocp-apim-subscription-key: key"));
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .contains("ocp-apim-subscription-key: key")
+        );
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "Lime");
     }

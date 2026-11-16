@@ -111,7 +111,7 @@ fn corrupt_and_exhausted_fence_never_reset_to_a_new_generation() {
 #[cfg(unix)]
 #[test]
 fn symlink_or_shared_lock_path_is_rejected_without_modifying_target() {
-    use std::os::unix::fs::{symlink, PermissionsExt};
+    use std::os::unix::fs::{PermissionsExt, symlink};
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("computer-use");
     fs::create_dir(&path).unwrap();

@@ -2,7 +2,7 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use crate::path_guard::{resolve_static_path_candidate, PathMutationCandidate, PathMutationKind};
+use crate::path_guard::{PathMutationCandidate, PathMutationKind, resolve_static_path_candidate};
 
 use super::common::{
     detect_high_risk_git_command, is_mutating_git_subcommand, normalize_shell_word, split_segments,

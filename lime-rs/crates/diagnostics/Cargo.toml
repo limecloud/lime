@@ -1,0 +1,19 @@
+[package]
+name = "diagnostics"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Runtime diagnostics helpers."
+
+[lib]
+name = "diagnostics"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+pretty_assertions.workspace = true

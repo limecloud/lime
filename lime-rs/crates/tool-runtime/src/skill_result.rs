@@ -2,7 +2,7 @@ use crate::skill_gate::SkillToolSessionSkillSource;
 use crate::skill_runtime_contract::{
     SkillRuntimeContractMetadata, SkillRuntimeContractPreflightError,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -133,7 +133,7 @@ pub fn workspace_skill_source_metadata_map(
 mod tests {
     use super::*;
     use crate::skill_runtime_contract::{
-        build_skill_runtime_contract_metadata, PDF_EXTRACT_CONTRACT_KEY, WEB_RESEARCH_CONTRACT_KEY,
+        PDF_EXTRACT_CONTRACT_KEY, WEB_RESEARCH_CONTRACT_KEY, build_skill_runtime_contract_metadata,
     };
 
     #[test]

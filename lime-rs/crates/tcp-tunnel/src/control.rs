@@ -1,0 +1,110 @@
+//! Bounded parsing of HTTP/3 CONNECT metadata and bearer input.
+//! Extension values remain sensitive and may never replace authorization or forwarding headers.
+use std::io::BufRead;
+
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::ensure;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use http::HeaderMap;
+use http::HeaderValue;
+use http::header;
+
+pub(super) const MAX_TOKEN_BYTES: usize = 64 * 1024;
+pub(super) const MAX_CONNECT_METADATA_BYTES: usize = 16 * 1024;
+pub(super) const MAX_CONNECT_HEADERS: usize = 16;
+pub(super) const MAX_CONNECT_HEADER_VALUE_BYTES: usize = 4 * 1024;
+
+pub(super) fn read_connect_headers(reader: &mut impl BufRead) -> Result<HeaderMap> {
+    let mut line = Vec::new();
+    std::io::Read::take(&mut *reader, (MAX_CONNECT_METADATA_BYTES + 1) as u64)
+        .read_until(b'\n', &mut line)
+        .context("reading CONNECT metadata")?;
+    ensure!(
+        !line.is_empty() && line.len() <= MAX_CONNECT_METADATA_BYTES && line.ends_with(b"\n"),
+        "invalid or oversized CONNECT metadata"
+    );
+    let pairs: Vec<(String, String)> =
+        serde_json::from_slice(&line).map_err(|_| anyhow!("invalid CONNECT metadata"))?;
+    ensure!(
+        pairs.len() <= MAX_CONNECT_HEADERS,
+        "too many CONNECT metadata headers"
+    );
+    let mut headers = HeaderMap::new();
+    for (name, value) in pairs {
+        let name = header::HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| anyhow!("invalid CONNECT metadata header name"))?;
+        ensure!(
+            !headers.contains_key(&name),
+            "duplicate CONNECT metadata header"
+        );
+        let extension = name.as_str();
+        ensure!(
+            extension.starts_with("x-")
+                && !extension.starts_with("x-forwarded-")
+                && extension != "x-real-ip",
+            "CONNECT metadata must use non-forwarding extension headers"
+        );
+        let mut value = HeaderValue::from_str(&value)
+            .map_err(|_| anyhow!("invalid CONNECT metadata header value"))?;
+        ensure!(
+            value.as_bytes().len() <= MAX_CONNECT_HEADER_VALUE_BYTES,
+            "CONNECT metadata header value is too long"
+        );
+        value.set_sensitive(true);
+        headers.insert(name, value);
+    }
+    Ok(headers)
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum TunnelCredential {
+    Bearer,
+    ErsTunnelJwt,
+}
+
+impl TunnelCredential {
+    pub(super) fn read(self, reader: &mut impl BufRead) -> Result<Option<HeaderValue>> {
+        let mut line = Vec::new();
+        std::io::Read::take(&mut *reader, (MAX_TOKEN_BYTES + 1) as u64)
+            .read_until(b'\n', &mut line)
+            .context("reading MASQUE token")?;
+        if line.is_empty() {
+            return Ok(None);
+        }
+        ensure!(line.len() <= MAX_TOKEN_BYTES, "MASQUE token is too long");
+        let token = std::str::from_utf8(&line)
+            .context("invalid MASQUE token encoding")?
+            .trim();
+        Ok(Some(self.header(token)?))
+    }
+
+    pub(super) fn header(self, token: &str) -> Result<HeaderValue> {
+        ensure!(!token.is_empty(), "empty MASQUE token");
+        let mut parts = token.split('.');
+        let ers = parts
+            .next()
+            .and_then(json_segment)
+            .is_some_and(|header| header["typ"] == "cca-tunnel+jwt");
+        if ers || matches!(self, Self::ErsTunnelJwt) {
+            // Check the wire version locally. The gateway verifies the signature.
+            let claims = parts.next().and_then(json_segment);
+            ensure!(
+                ers && claims.is_some_and(|claims| matches!(claims["ver"].as_u64(), Some(1 | 2)))
+                    && parts.next().is_some_and(|signature| !signature.is_empty())
+                    && parts.next().is_none(),
+                "Portals requires an ERS-issued v1 or v2 tunnel JWT"
+            );
+        }
+        let mut auth = HeaderValue::from_str(&format!("Bearer {token}"))
+            .context("invalid MASQUE token header")?;
+        auth.set_sensitive(true);
+        Ok(auth)
+    }
+}
+
+fn json_segment(segment: &str) -> Option<serde_json::Value> {
+    serde_json::from_slice(&URL_SAFE_NO_PAD.decode(segment).ok()?).ok()
+}

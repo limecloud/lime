@@ -1,0 +1,27 @@
+[package]
+name = "utils-pty"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "PTY helpers and process groups."
+
+[lib]
+name = "utils_pty"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+portable-pty.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+ctor = "0.4"
+utils-cargo-bin = { path = "../utils-cargo-bin" }
+pretty_assertions.workspace = true
+tempfile.workspace = true

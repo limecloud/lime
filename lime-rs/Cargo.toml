@@ -6,7 +6,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.178.0"
+version = "1.179.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/limecloud/lime"
@@ -46,16 +46,90 @@ execpolicy = { path = "crates/execpolicy" }
 file-search = { path = "crates/file-search" }
 lime-utils-absolute-path = { path = "crates/utils-absolute-path" }
 lime-utils-path-uri = { path = "crates/utils-path-uri" }
+bwrap = { path = "crates/bwrap" }
+build-info = { path = "crates/build-info" }
+client = { path = "crates/client" }
+core-plugin-common = { path = "crates/core-plugin-common" }
+exec-server-protocol = { path = "crates/exec-server-protocol" }
+exec-server = { path = "crates/exec-server" }
+file-system = { path = "crates/file-system" }
+file-watcher = { path = "crates/file-watcher" }
+guardian-context = { path = "crates/guardian-context" }
+hooks = { path = "crates/hooks" }
+git-utils = { path = "crates/git-utils" }
+install-context = { path = "crates/install-context" }
+linux-sandbox = { path = "crates/linux-sandbox" }
+model-provider-info = { path = "crates/model-provider-info" }
+memories-read = { path = "crates/memories-read" }
+mermaid = { path = "crates/mermaid" }
+message-history = { path = "crates/message-history" }
+mxc-sandbox = { path = "crates/mxc-sandbox" }
+network-proxy = { path = "crates/network-proxy" }
+otel = { path = "crates/otel" }
+protocol = { path = "crates/protocol" }
+rollout = { path = "crates/rollout" }
+sandboxing = { path = "crates/sandboxing" }
+shell-command = { path = "crates/shell-command" }
+skills = { path = "crates/skills" }
+uds = { path = "crates/uds" }
+utils-cargo-bin = { path = "crates/utils-cargo-bin" }
+utils-path = { path = "crates/utils-path" }
+utils-process = { path = "crates/utils-process" }
+utils-pty = { path = "crates/utils-pty" }
+websocket-auth = { path = "crates/websocket-auth" }
+websocket-client = { path = "crates/websocket-client" }
+windows-sandbox = { path = "crates/windows-sandbox" }
+api = { path = "crates/api" }
+agent-roles = { path = "crates/agent-roles" }
+account-provider = { path = "crates/account-provider" }
+agent-graph-store = { path = "crates/agent-graph-store" }
+agent-identity = { path = "crates/agent-identity" }
+apply-patch = { path = "crates/apply-patch" }
 async-utils = { path = "crates/async-utils" }
+collaboration-mode-templates = { path = "crates/collaboration-mode-templates" }
+attachment-store = { path = "crates/attachment-store" }
+direct-tool-timing = { path = "crates/direct-tool-timing" }
+diagnostics = { path = "crates/diagnostics" }
+arg0 = { path = "crates/arg0" }
+utils-audio = { path = "crates/utils-audio" }
 extension-items = { path = "crates/extension-items" }
 http-client = { path = "crates/http-client" }
 process-hardening = { path = "crates/process-hardening" }
+prompts = { path = "crates/prompts" }
 utils-model-facing-id = { path = "crates/utils-model-facing-id" }
 utils-cache = { path = "crates/utils-cache" }
+utils-cli = { path = "crates/utils-cli" }
 utils-image = { path = "crates/utils-image" }
 utils-rustls-provider = { path = "crates/utils-rustls-provider" }
 utils-home-dir = { path = "crates/utils-home-dir" }
 utils-string = { path = "crates/utils-string" }
+tcp-tunnel = { path = "crates/tcp-tunnel" }
+test-binary-support = { path = "crates/test-binary-support" }
+state = { path = "crates/state" }
+stdio-to-uds = { path = "crates/stdio-to-uds" }
+terminal-detection = { path = "crates/terminal-detection" }
+worktree = { path = "crates/worktree" }
+plugin-host = { path = "crates/plugin-host" }
+plugin = { path = "crates/plugin" }
+protocol-test-support = { path = "crates/protocol-test-support" }
+history = { path = "crates/history" }
+secrets = { path = "crates/secrets" }
+keyring-store = { path = "crates/keyring-store" }
+utils-critical-path = { path = "crates/utils-critical-path" }
+utils-git-discovery = { path = "crates/utils-git-discovery" }
+utils-template = { path = "crates/utils-template" }
+utils-sleep-inhibitor = { path = "crates/utils-sleep-inhibitor" }
+utils-json-to-toml = { path = "crates/utils-json-to-toml" }
+utils-plugins = { path = "crates/utils-plugins" }
+utils-sandbox-summary = { path = "crates/utils-sandbox-summary" }
+utils-fuzzy-match = { path = "crates/utils-fuzzy-match" }
+utils-readiness = { path = "crates/utils-readiness" }
+utils-approval-presets = { path = "crates/utils-approval-presets" }
+utils-output-truncation = { path = "crates/utils-output-truncation" }
+utils-head-tail-buffer = { path = "crates/utils-head-tail-buffer" }
+utils-elapsed = { path = "crates/utils-elapsed" }
+http-headers-helper = { path = "crates/http-headers-helper" }
+utils-stream-parser = { path = "crates/utils-stream-parser" }
 utils-redacted-string = { path = "crates/utils-redacted-string" }
 lime-permissions = { path = "crates/permissions" }
 code-mode-protocol = { path = "crates/code-mode-protocol" }
@@ -63,7 +137,6 @@ code-mode-runtime = { path = "crates/code-mode-runtime" }
 code-mode-host = { path = "crates/code-mode-host" }
 code-mode = { path = "crates/code-mode" }
 tui = { path = "crates/tui" }
-patch-apply = { path = "crates/patch-apply" }
 voice-core = { path = "crates/voice-core" }
 document-preview = { path = "crates/document-preview" }
 # 序列化
@@ -261,6 +334,8 @@ string_slice = "warn"
 
 [patch.crates-io]
 crossterm = { git = "https://github.com/openai-oss-forks/crossterm", rev = "45fecb9508105988f42fe6ff0441783ed3717f92" }
+sqlx-core = { git = "https://github.com/transact-rs/sqlx", rev = "10462fa4414c6c7f1ed1d39bb31678e3b726878c" }
+sqlx-sqlite = { git = "https://github.com/transact-rs/sqlx", rev = "10462fa4414c6c7f1ed1d39bb31678e3b726878c" }
 
 # 原生资源启动时校验完整 App Server；避免 debug 的软件 SHA 阻塞真实宿主发现。
 [profile.dev.package.sha2]

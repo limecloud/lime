@@ -1,0 +1,30 @@
+[package]
+name = "websocket-auth"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "JWT auth helpers for Lime websocket endpoints."
+
+[lib]
+name = "websocket_auth"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+constant_time_eq = "0.4"
+http = "1"
+jsonwebtoken = "9"
+lime-utils-absolute-path.workspace = true
+serde.workspace = true
+sha2.workspace = true
+time = "0.3.47"
+
+[dev-dependencies]
+base64.workspace = true
+hmac = "0.12"
+pretty_assertions.workspace = true
+serde_json.workspace = true

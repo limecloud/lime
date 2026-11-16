@@ -1,9 +1,9 @@
 use crate::RuntimeEvent;
-use lime_agent::AgentToolResult;
-use patch_apply::{
+use apply_patch::{
     parse_patch, Hunk, ADD_FILE_MARKER, BEGIN_PATCH_MARKER, DELETE_FILE_MARKER, END_PATCH_MARKER,
     UPDATE_FILE_MARKER,
 };
+use lime_agent::AgentToolResult;
 use serde_json::{json, Map, Value};
 
 use super::{
@@ -206,7 +206,7 @@ fn normalize_result_change(change: &Value) -> Option<Value> {
     }))
 }
 
-fn format_update_diff(chunks: &[patch_apply::UpdateFileChunk]) -> String {
+fn format_update_diff(chunks: &[apply_patch::UpdateFileChunk]) -> String {
     let mut lines = Vec::new();
     for chunk in chunks {
         if let Some(context) = &chunk.change_context {

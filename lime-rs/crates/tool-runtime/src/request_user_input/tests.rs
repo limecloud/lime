@@ -1,10 +1,10 @@
 use super::{
-    build_requested_schema, execute_request_user_input, extract_response,
+    REQUEST_USER_INPUT_QUESTIONS_SCHEMA_KEY, REQUEST_USER_INPUT_TOOL_NAME,
+    RequestUserInputCallback, RequestUserInputOption, RequestUserInputQuestion,
+    RequestUserInputRequest, build_requested_schema, execute_request_user_input, extract_response,
     normalize_request_user_input_result, parse_request_user_input_tool_input,
     project_request_user_input_result, request_user_input_canonical_tool_name,
-    request_user_input_tool_definition, RequestUserInputCallback, RequestUserInputOption,
-    RequestUserInputQuestion, RequestUserInputRequest, REQUEST_USER_INPUT_QUESTIONS_SCHEMA_KEY,
-    REQUEST_USER_INPUT_TOOL_NAME,
+    request_user_input_tool_definition,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -95,9 +95,11 @@ async fn execute_request_user_input_uses_callback_and_projects_result() {
     .await
     .expect("request_user_input should execute");
 
-    assert!(projection
-        .output
-        .contains("\"请选择执行模式\"=\"确认后执行\""));
+    assert!(
+        projection
+            .output
+            .contains("\"请选择执行模式\"=\"确认后执行\"")
+    );
     assert_eq!(
         projection.metadata.get("answers"),
         Some(&serde_json::json!({
@@ -336,9 +338,11 @@ fn project_request_user_input_result_builds_output_and_metadata() {
     let projection = project_request_user_input_result(&request, &result);
 
     assert!(projection.output.contains("\"请选择执行模式\"=\"confirm\""));
-    assert!(projection
-        .output
-        .contains("selected preview:\ndiff preview"));
+    assert!(
+        projection
+            .output
+            .contains("selected preview:\ndiff preview")
+    );
     assert_eq!(
         projection.metadata.get("answers"),
         Some(&serde_json::json!({

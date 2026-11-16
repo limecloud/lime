@@ -1,12 +1,12 @@
 use super::*;
 use crate::gateway_dispatch_execution::{
-    execute_runtime_gateway_dispatch_tool, RuntimeGatewayDispatchToolRequest,
-    RuntimeGatewayToolExecutionRegistration, RuntimeGatewayToolExecutionRegistry,
+    RuntimeGatewayDispatchToolRequest, RuntimeGatewayToolExecutionRegistration,
+    RuntimeGatewayToolExecutionRegistry, execute_runtime_gateway_dispatch_tool,
 };
 use crate::native_dispatch::NativeDispatch;
 use crate::tool_executor::RuntimeToolExecutionIdentity;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Default)]
 struct Gateway {
@@ -153,10 +153,12 @@ async fn native_gateway_preserves_trusted_identity_and_model_visible_screenshot(
             "canonical-call".into()
         ))
     );
-    assert!(result
-        .content
-        .iter()
-        .any(|content| content.as_image().is_some()));
+    assert!(
+        result
+            .content
+            .iter()
+            .any(|content| content.as_image().is_some())
+    );
     let text = result
         .content
         .iter()
@@ -197,13 +199,15 @@ async fn model_authority_and_missing_identity_are_rejected_before_gateway() {
     let mut spoofed = input();
     spoofed["operation"]["consent"] = json!(true);
     assert!(call(&registry, &spoofed, true).await.is_err());
-    assert!(call(
-        &registry,
-        &json!({"operation":{"action":"status","consent":true}}),
-        true
-    )
-    .await
-    .is_err());
+    assert!(
+        call(
+            &registry,
+            &json!({"operation":{"action":"status","consent":true}}),
+            true
+        )
+        .await
+        .is_err()
+    );
     assert_eq!(gateway.calls.load(Ordering::SeqCst), 0);
 }
 

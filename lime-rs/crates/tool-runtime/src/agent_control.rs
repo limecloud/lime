@@ -11,7 +11,7 @@ use crate::tool_executor::{
 use agent_protocol::{CollabAgentState, ThreadId};
 use async_trait::async_trait;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -731,9 +731,11 @@ mod tests {
             "Available model overrides (optional; inherited parent model is preferred):"
         ));
         assert!(spawn.description.contains("`gpt-5.6-sol`"));
-        assert!(spawn
-            .description
-            .contains("Reasoning efforts: low (default), high."));
+        assert!(
+            spawn
+                .description
+                .contains("Reasoning efforts: low (default), high.")
+        );
         assert!(spawn.description.contains("Service tiers: priority."));
     }
 
@@ -784,13 +786,15 @@ mod tests {
             }
         );
         assert!(requests[0].cancel_token.is_none());
-        assert!(execute_agent_control_tool(
-            &gateway,
-            "thread-root",
-            request("TeamCreate", &params, &context),
-        )
-        .await
-        .is_none());
+        assert!(
+            execute_agent_control_tool(
+                &gateway,
+                "thread-root",
+                request("TeamCreate", &params, &context),
+            )
+            .await
+            .is_none()
+        );
     }
 
     #[tokio::test]
@@ -850,9 +854,11 @@ mod tests {
             .await
             .expect("current tool")
             .expect_err("invalid fork_turns");
-            assert!(error
-                .message()
-                .contains("fork_turns must be `none`, `all`, or a positive integer string"));
+            assert!(
+                error
+                    .message()
+                    .contains("fork_turns must be `none`, `all`, or a positive integer string")
+            );
         }
 
         let legacy = json!({
@@ -860,14 +866,16 @@ mod tests {
             "message": "inspect the plan",
             "fork_context": true,
         });
-        assert!(execute_agent_control_tool(
-            &gateway,
-            "thread-root",
-            request(SPAWN_AGENT_TOOL_NAME, &legacy, &context),
-        )
-        .await
-        .expect("current tool")
-        .is_err());
+        assert!(
+            execute_agent_control_tool(
+                &gateway,
+                "thread-root",
+                request(SPAWN_AGENT_TOOL_NAME, &legacy, &context),
+            )
+            .await
+            .expect("current tool")
+            .is_err()
+        );
     }
 
     #[tokio::test]
@@ -893,14 +901,16 @@ mod tests {
         }
 
         let unknown = json!({ "target": "child", "message": "continue", "legacy": true });
-        assert!(execute_agent_control_tool(
-            &gateway,
-            "thread-root",
-            request(SEND_MESSAGE_TOOL_NAME, &unknown, &context),
-        )
-        .await
-        .expect("current tool")
-        .is_err());
+        assert!(
+            execute_agent_control_tool(
+                &gateway,
+                "thread-root",
+                request(SEND_MESSAGE_TOOL_NAME, &unknown, &context),
+            )
+            .await
+            .expect("current tool")
+            .is_err()
+        );
     }
 
     #[test]

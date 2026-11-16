@@ -1,0 +1,22 @@
+[package]
+name = "context-fragments"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Context fragment projection."
+
+[lib]
+name = "context_fragments"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+protocol = { path = "../protocol" }
+serde_json.workspace = true
+utils-string = { path = "../utils-string" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+protocol-test-support = { path = "../protocol-test-support" }

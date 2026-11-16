@@ -165,7 +165,7 @@ fn extract_base_command(segment: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        interpret_bash_command_result, interpret_powershell_command_result, CommandInterpretation,
+        CommandInterpretation, interpret_bash_command_result, interpret_powershell_command_result,
     };
 
     #[test]

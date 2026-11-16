@@ -253,18 +253,23 @@ mod tests {
         let plan =
             build_acl_plan(&workspace, &workspace_policy(), None, &environment).expect("acl plan");
 
-        assert!(plan
-            .write_grants
-            .contains(&std::fs::canonicalize(&workspace).unwrap()));
-        assert!(plan
-            .write_denies
-            .contains(&std::fs::canonicalize(workspace.join(".git")).unwrap()));
-        assert!(plan
-            .write_denies
-            .contains(&std::fs::canonicalize(workspace.join(".lime")).unwrap()));
-        assert!(!plan
-            .write_denies
-            .contains(&std::fs::canonicalize(workspace.join("file.txt")).unwrap()));
+        assert!(
+            plan.write_grants
+                .contains(&std::fs::canonicalize(&workspace).unwrap())
+        );
+        assert!(
+            plan.write_denies
+                .contains(&std::fs::canonicalize(workspace.join(".git")).unwrap())
+        );
+        assert!(
+            plan.write_denies
+                .contains(&std::fs::canonicalize(workspace.join(".lime")).unwrap())
+        );
+        assert!(
+            !plan
+                .write_denies
+                .contains(&std::fs::canonicalize(workspace.join("file.txt")).unwrap())
+        );
     }
 
     #[test]
@@ -280,9 +285,10 @@ mod tests {
         let plan = build_acl_plan(&workspace, &policy, None, &HashMap::new()).expect("acl plan");
 
         assert!(plan.write_grants.is_empty());
-        assert!(plan
-            .read_grants
-            .contains(&std::fs::canonicalize(&workspace).unwrap()));
+        assert!(
+            plan.read_grants
+                .contains(&std::fs::canonicalize(&workspace).unwrap())
+        );
     }
 
     #[test]
@@ -297,10 +303,8 @@ mod tests {
         std::fs::create_dir_all(workspace.join(".agents")).expect("create .agents");
         std::fs::create_dir_all(&env_temp).expect("create env temp");
 
-        let environment = HashMap::from([(
-            "TEMP".to_string(),
-            env_temp.to_string_lossy().into_owned(),
-        )]);
+        let environment =
+            HashMap::from([("TEMP".to_string(), env_temp.to_string_lossy().into_owned())]);
         let included = build_acl_plan(
             &workspace,
             &SandboxPolicy::WorkspaceWrite {
@@ -313,20 +317,19 @@ mod tests {
             &environment,
         )
         .expect("acl plan");
-        assert!(included
-            .write_grants
-            .contains(&std::fs::canonicalize(&env_temp).unwrap()));
+        assert!(
+            included
+                .write_grants
+                .contains(&std::fs::canonicalize(&env_temp).unwrap())
+        );
 
-        let excluded = build_acl_plan(
-            &workspace,
-            &workspace_policy(),
-            None,
-            &environment,
-        )
-        .expect("acl plan");
-        assert!(!excluded
-            .write_grants
-            .contains(&std::fs::canonicalize(&env_temp).unwrap()));
+        let excluded =
+            build_acl_plan(&workspace, &workspace_policy(), None, &environment).expect("acl plan");
+        assert!(
+            !excluded
+                .write_grants
+                .contains(&std::fs::canonicalize(&env_temp).unwrap())
+        );
     }
 
     #[test]
@@ -361,8 +364,9 @@ mod tests {
         )
         .expect("acl plan");
 
-        assert!(plan
-            .access_denies
-            .contains(&std::fs::canonicalize(&denied).unwrap()));
+        assert!(
+            plan.access_denies
+                .contains(&std::fs::canonicalize(&denied).unwrap())
+        );
     }
 }
