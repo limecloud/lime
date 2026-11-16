@@ -674,10 +674,9 @@ export async function exerciseNMinusOneUpdate({
   } finally {
     try {
       if (electronApp) {
-        await Promise.race([
-          electronApp.close().catch(() => undefined),
-          new Promise((resolve) => setTimeout(resolve, 10_000)),
-        ]);
+        // During an updater restart Playwright's close() can throw an internal
+        // `_object` error or wait forever for the restarted app. Kill the
+        // launched process directly and let stopInstalledApp reap children.
         electronApp.process()?.kill();
       }
       // Also clean up N-1 when launch failed before returning a client handle.
