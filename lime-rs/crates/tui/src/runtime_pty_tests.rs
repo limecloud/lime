@@ -230,8 +230,9 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             &output_rx,
             &mut output,
             "Ask Lime to do anything",
-            // Under heavy parallel load a cold TUI start can exceed the old 10s budget.
-            Duration::from_secs(30),
+            // Windows CI cold starts can spend much longer in app-server
+            // initialization before the composer is first painted.
+            Duration::from_secs(120),
         );
         terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
     }
