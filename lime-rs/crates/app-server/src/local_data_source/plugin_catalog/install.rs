@@ -189,7 +189,7 @@ pub(super) fn remove(
             .prefix(".plugin-remove-")
             .tempdir_in(base.parent().expect("plugin base parent"))
             .map_err(io_error("创建 Plugin uninstall staging 失败"))?;
-        fs::rename(&base, staging.path().join("backup"))
+        rename_with_retry(&base, &staging.path().join("backup"))
             .map_err(io_error("暂存 Plugin cache 失败"))?;
         Some(staging)
     } else {
@@ -216,6 +216,28 @@ pub(super) fn mutation_lock(store: &PluginStore) -> Result<fs::File, String> {
         .write(true)
         .open(store.root.join(".mutation.lock"))
         .map_err(io_error("打开 Plugin mutation lock 失败"))?;
-    fs2::FileExt::lock_exclusive(&file).map_err(io_error("锁定 Plugin mutation 失败"))?;
-    Ok(file)
+    for _ in 0..100 {
+        match fs2::FileExt::try_lock_exclusive(&file) {
+            Ok(()) => return Ok(file),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            Err(error) => return Err(io_error("锁定 Plugin mutation 失败")(error)),
+        }
+    }
+    Err("Plugin mutation lock 超时；另一个 Plugin 操作仍在进行。".into())
+}
+
+fn rename_with_retry(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    let mut last_error = None;
+    for _ in 0..20 {
+        match fs::rename(from, to) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                last_error = Some(error);
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+    }
+    Err(last_error.unwrap_or_else(|| std::io::Error::other("rename failed")))
 }
