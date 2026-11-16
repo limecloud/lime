@@ -244,7 +244,7 @@ pub(super) fn mutation_lock(store: &PluginStore) -> Result<fs::File, String> {
 
 fn rename_with_retry(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
     let mut last_error = None;
-    for _ in 0..20 {
+    for _ in 0..100 {
         match fs::rename(from, to) {
             Ok(()) => return Ok(()),
             Err(error) => {
