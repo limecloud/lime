@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
 #[path = "runtime_pty_tests/agent_picker.rs"]
 mod agent_picker;
@@ -215,6 +215,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
 
     if !agents_command {
         wait_for_marker(
+            &mut writer,
             &output_rx,
             &mut output,
             "Ask Lime to do anything",
@@ -236,6 +237,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         thread_input::prepare_root(&mut writer, &output_rx, &mut output, &ledger_path);
         terminal_title::wait_for_named_thread(&output_rx, &mut output, "Gate B root draft");
         wait_for_marker(
+            &mut writer,
             &output_rx,
             &mut output,
             "Agent command center",
@@ -273,6 +275,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.write_all(b"n").expect("start new task with n");
         writer.flush().expect("flush n");
         wait_for_marker(
+            &mut writer,
             &output_rx,
             &mut output,
             "New task ›",
@@ -485,7 +488,13 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         );
         writer.write_all(b"\r").unwrap();
         writer.flush().unwrap();
-        wait_for_marker(&output_rx, &mut output, "/ STATUS", Duration::from_secs(10));
+        wait_for_marker(
+            &mut writer,
+            &output_rx,
+            &mut output,
+            "/ STATUS",
+            Duration::from_secs(10),
+        );
         let return_to_composer_at = output.len();
         writer.write_all(b"q").expect("close status pager");
         writer.flush().expect("flush status pager close");
@@ -507,6 +516,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             "before external edit",
         );
         wait_for_marker(
+            &mut writer,
             &output_rx,
             &mut output,
             "EDITOR_JOB_CONTROL_OK",
@@ -2151,7 +2161,13 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             "failure" => "fixture backend failure",
             _ => &completed_text,
         };
-        wait_for_marker(&output_rx, &mut output, marker, Duration::from_secs(10));
+        wait_for_marker(
+            &mut writer,
+            &output_rx,
+            &mut output,
+            marker,
+            Duration::from_secs(10),
+        );
         match scenario.as_str() {
             "approval" | "file-change-approval" | "permissions-approval" | "user-input" => {
                 terminal_title::wait_for_action_required(&output_rx, &mut output)
@@ -2172,6 +2188,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 .expect("approve command with configured F9");
             writer.flush().expect("flush approval");
             wait_for_marker(
+                &mut writer,
                 &output_rx,
                 &mut output,
                 &completed_text,
@@ -2194,6 +2211,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 "TUI_FILE_CHANGE_APPROVAL_OK title=localized description=ok destinations=add,move"
             );
             wait_for_marker(
+                &mut writer,
                 &output_rx,
                 &mut output,
                 &completed_text,
@@ -2258,6 +2276,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             writer.write_all(b"\r").expect("answer user input");
             writer.flush().expect("flush user input");
             wait_for_marker(
+                &mut writer,
                 &output_rx,
                 &mut output,
                 &completed_text,
@@ -2824,6 +2843,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         }
         if matches!(scenario.as_str(), "interrupt" | "queue-edit") {
             wait_for_marker(
+                &mut writer,
                 &output_rx,
                 &mut output,
                 "esc to interrupt",
@@ -3080,6 +3100,7 @@ fn wait_for_compact_marker(
 }
 
 fn wait_for_marker(
+    writer: &mut impl Write,
     output_rx: &mpsc::Receiver<Vec<u8>>,
     output: &mut String,
     marker: &str,
@@ -3095,6 +3116,15 @@ fn wait_for_marker(
             .recv_timeout(remaining)
             .unwrap_or_else(|_| panic!("PTY closed before {marker:?}; output: {output}"));
         output.push_str(&String::from_utf8_lossy(&chunk));
+        if output.as_bytes().ends_with(b"\x1b[6n")
+            || output.as_bytes().ends_with(b"[6n")
+        {
+            // ConPTY asks the attached terminal for a cursor position at
+            // startup. The PTY harness is the terminal here, so answer DSR;
+            // otherwise the child waits and the gate times out.
+            writer.write_all(b"\x1b[1;1R").expect("answer ConPTY DSR");
+            writer.flush().expect("flush ConPTY DSR response");
+        }
     }
 }
 
