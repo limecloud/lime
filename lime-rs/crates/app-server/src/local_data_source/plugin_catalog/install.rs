@@ -189,9 +189,23 @@ pub(super) fn remove(
             .prefix(".plugin-remove-")
             .tempdir_in(base.parent().expect("plugin base parent"))
             .map_err(io_error("创建 Plugin uninstall staging 失败"))?;
-        rename_with_retry(&base, &staging.path().join("backup"))
-            .map_err(io_error("暂存 Plugin cache 失败"))?;
-        Some(staging)
+        match rename_with_retry(&base, &staging.path().join("backup")) {
+            Ok(()) => Some(staging),
+            Err(error)
+                if cfg!(windows)
+                    && matches!(error.kind(), std::io::ErrorKind::PermissionDenied) =>
+            {
+                // A running stdio MCP server keeps its plugin root as cwd on
+                // Windows, so the cache directory cannot be renamed. Remove
+                // the installation config first and retry; if the process is
+                // still holding the directory, leave the orphan cache behind
+                // instead of leaving the plugin half-installed.
+                store.clear_config(id)?;
+                let _ = rename_with_retry(&base, &staging.path().join("backup"));
+                return Ok(PluginUninstallResponse {});
+            }
+            Err(error) => return Err(io_error("暂存 Plugin cache 失败")(error)),
+        }
     } else {
         None
     };
