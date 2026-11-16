@@ -92,6 +92,7 @@ fn real_pty_remote_workspace_uses_server_directory_and_restores_terminal() {
     writer.write_all(b"\r").unwrap();
     writer.flush().unwrap();
     wait_for_marker(
+        &mut writer,
         &receiver,
         &mut output,
         text("completedText"),

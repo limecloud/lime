@@ -69,6 +69,7 @@ fn real_pty_shared_raw_visibility_live_transcript_and_terminal_restore() {
     let reader_thread = thread::spawn(move || output::read_output(reader, tx));
     let mut output = String::new();
     wait_for_marker(
+        &mut writer,
         &rx,
         &mut output,
         "Ask Lime to do anything",
@@ -153,7 +154,9 @@ fn real_pty_shared_raw_visibility_live_transcript_and_terminal_restore() {
     }
     assert!(status.success());
     assert!(output.contains("\x1b[?1049h") && output.contains("\x1b[?1049l"));
-    println!("PTY_RAW_REASONING_OK visible={show_raw} config=ok live=ok transcript=ok once=ok alternate-screen=restored exit=ok");
+    println!(
+        "PTY_RAW_REASONING_OK visible={show_raw} config=ok live=ok transcript=ok once=ok alternate-screen=restored exit=ok"
+    );
 }
 
 pub(super) fn assert_summary_body(
@@ -212,5 +215,7 @@ pub(super) fn assert_summary_body(
             .any(|row| row.trim().is_empty()),
         "summary parts have no blank row: {screen}"
     );
-    eprintln!("TUI_REASONING_PARTS_OK body=ok paragraphs=ok placeholders=hidden literal-comment=preserved");
+    eprintln!(
+        "TUI_REASONING_PARTS_OK body=ok paragraphs=ok placeholders=hidden literal-comment=preserved"
+    );
 }
