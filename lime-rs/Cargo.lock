@@ -2327,6 +2327,10 @@ dependencies = [
  "utils-path",
  "utils-redacted-string",
  "wildmatch",
+ "winapi-util",
+ "windows-sandbox",
+ "windows-sys 0.61.2",
+ "winreg 0.55.0",
 ]
 
 [[package]]
@@ -11234,8 +11238,10 @@ dependencies = [
  "utils-cargo-bin",
  "utils-home-dir",
  "utils-pty",
+ "uuid",
  "webbrowser",
  "which 8.0.0",
+ "windows-sys 0.61.2",
  "wiremock",
 ]
 
@@ -14520,10 +14526,14 @@ checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 name = "uds"
 version = "1.179.0"
 dependencies = [
+ "async-io",
  "libc",
  "pretty_assertions",
  "tempfile",
  "tokio",
+ "tokio-util",
+ "uds_windows",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -14907,6 +14917,7 @@ dependencies = [
  "lime-utils-absolute-path",
  "pretty_assertions",
  "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
