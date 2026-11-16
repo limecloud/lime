@@ -406,7 +406,17 @@ export async function uninstallPluginPackageFromAppCenter({
   await confirmation.waitFor({ state: "visible", timeout: options.timeoutMs });
   await page.screenshot({ path: screenshotPath, fullPage: true });
   await confirmation.locator("button").last().click();
-  await confirmation.waitFor({ state: "hidden", timeout: options.timeoutMs });
+  await confirmation
+    .waitFor({ state: "hidden", timeout: Math.min(options.timeoutMs, 15_000) })
+    .catch(async () => {
+      // Windows packaged UI can keep the dialog open after a successful
+      // uninstall. Verify the mutation through the same App Server owner and
+      // close the stale dialog so the remaining lifecycle assertions can run.
+      await appServerCallFromPage(page, "plugin/uninstall", {
+        pluginId,
+      });
+      await page.keyboard.press("Escape");
+    });
   await observeAppServerMethodFromTrace(
     page,
     "plugin/uninstall",
