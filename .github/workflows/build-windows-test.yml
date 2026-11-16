@@ -23,6 +23,10 @@ on:
         description: "跳过已安装 Windows Agent Plugin Gate B（仅用于隔离已知插件市场问题）"
         required: false
         default: "false"
+      run_windows_tui_gate:
+        description: "在 Windows 上运行 ConPTY TUI Gate B"
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -163,13 +167,14 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
           SCCACHE_DISABLE: "1"
           RUSTC_WRAPPER: ""
+          RUN_WINDOWS_TUI_GATE: ${{ github.event.inputs.run_windows_tui_gate }}
         run: |
           set -euo pipefail
           {
             cargo test --manifest-path lime-rs/Cargo.toml -p cli -p tui
             cargo build --manifest-path lime-rs/Cargo.toml -p cli -p app-server
             npm run smoke:cli-gate-b
-            if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+            if [[ "${RUNNER_OS:-}" == "Windows" && "${RUN_WINDOWS_TUI_GATE:-false}" != "true" ]]; then
               echo "TUI_GATE_SKIPPED reason=windows-conpty-pty-restoration"
             else
               npm run smoke:tui-gate-b
