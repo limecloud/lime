@@ -8,7 +8,6 @@ mod domain;
 
 mod enforcement;
 pub(crate) mod policy;
-#[cfg(target_os = "macos")]
 pub use domain::SandboxCommandError;
 pub use policy::{sandbox_policy_from_label, sandbox_policy_label};
 
