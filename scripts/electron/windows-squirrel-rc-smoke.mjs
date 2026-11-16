@@ -264,7 +264,6 @@ export async function cleanupFromSummary(summaryPath) {
   console.log(
     `[windows-squirrel-rc-cleanup] result=${summary.result} stage=${summary.failedStage || "complete"} summary=${absoluteSummaryPath}`,
   );
-  clearTimeout(watchdog);
   if (summary.result !== "pass") {
     logWindowsRcFailure(summary);
     process.exitCode = 1;
