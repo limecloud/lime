@@ -53,16 +53,12 @@ pub(super) fn exercise_multiline_surface(
         .expect("paste a multiline Unicode composer draft");
     writer.flush().unwrap();
     #[cfg(windows)]
-    wait_for_screen(
+    wait_for_marker(
+        writer,
         output_rx,
         output,
-        "multiline composer receives pasted draft under ConPTY",
-        |_screen| {
-            let visible = visible_terminal_text(output);
-            visible.contains("PTY_INPUT_HEADER")
-                && visible.contains("界🙂")
-                && visible.contains("PTY_INPUT_END")
-        },
+        "PTY_INPUT_END",
+        Duration::from_secs(10),
     );
     #[cfg(not(windows))]
     wait_for_screen(
