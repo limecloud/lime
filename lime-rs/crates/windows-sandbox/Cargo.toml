@@ -20,6 +20,7 @@ dirs-next = "2.0"
 dunce = "1"
 glob = "0.3"
 http-client = { path = "../http-client" }
+otel = { path = "../otel" }
 ignore = "0.4"
 lime-utils-absolute-path.workspace = true
 protocol = { path = "../protocol" }
