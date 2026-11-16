@@ -50,6 +50,7 @@ interface HarnessProps {
   hasAdditionalContent?: boolean;
   deferSendOnEnter?: boolean;
   sendOnPointerDown?: boolean;
+  allowEmptySend?: boolean;
   controller?: ComposerController;
   onSend: (metadata?: BaseComposerSendMetadata) => void;
   onStop: () => void;
@@ -62,6 +63,7 @@ const Harness: React.FC<HarnessProps> = ({
   hasAdditionalContent = false,
   deferSendOnEnter = false,
   sendOnPointerDown = false,
+  allowEmptySend = false,
   controller,
   onSend,
   onStop,
@@ -79,6 +81,7 @@ const Harness: React.FC<HarnessProps> = ({
       hasAdditionalContent={hasAdditionalContent}
       deferSendOnEnter={deferSendOnEnter}
       sendOnPointerDown={sendOnPointerDown}
+      allowEmptySend={allowEmptySend}
       controller={controller}
       placeholder="输入内容"
     >
@@ -121,6 +124,7 @@ const renderHarness = (props: Partial<HarnessProps> = {}): RenderResult => {
         hasAdditionalContent={props.hasAdditionalContent}
         deferSendOnEnter={props.deferSendOnEnter}
         sendOnPointerDown={props.sendOnPointerDown}
+        allowEmptySend={props.allowEmptySend}
         controller={props.controller}
         onSend={onSend}
         onStop={onStop}
@@ -451,7 +455,8 @@ describe("BaseComposer", () => {
     Object.defineProperty(pasteEvent, "clipboardData", {
       configurable: true,
       value: {
-        getData: (format: string) => (format === "text/plain" ? pastedText : ""),
+        getData: (format: string) =>
+          format === "text/plain" ? pastedText : "",
       },
     });
 
@@ -488,7 +493,9 @@ describe("BaseComposer", () => {
 
     expect(getComposerEditorText(editor)).toMatch(/^\[Pasted text 1:/);
     let receipt: ReturnType<ComposerController["submit"]>;
-    act(() => { receipt = controller.submit("start"); });
+    act(() => {
+      receipt = controller.submit("start");
+    });
     expect(receipt!.kind).toBe("accepted");
     if (receipt!.kind === "accepted") {
       expect(receipt!.draft.text).toMatch(/^\[Pasted text 1:/);
@@ -563,4 +570,14 @@ describe("BaseComposer", () => {
     });
     expect(getComposerEditorText(editor)).toBe("");
   });
+});
+
+it("允许空草稿时主操作保持可用但空发送由上层拒绝", () => {
+  const { container, onSend } = renderHarness({ allowEmptySend: true });
+  const button = getPrimaryButton(container);
+  expect(button.disabled).toBe(false);
+  act(() => {
+    button.click();
+  });
+  expect(onSend).toHaveBeenCalledTimes(1);
 });
