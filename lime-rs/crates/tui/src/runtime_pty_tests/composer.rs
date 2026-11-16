@@ -99,6 +99,7 @@ pub(super) fn exercise_multiline_surface(
     exercise_editor_keymap(writer, output_rx, output);
     #[cfg(not(windows))]
     exercise_vim_command_state(writer, output_rx, output);
+    #[cfg(not(windows))]
     super::vim_keymap::exercise_modal_keymap(writer, output_rx, output);
     let ledger = std::fs::read_to_string(ledger_path).unwrap_or_default();
     assert!(
