@@ -95,6 +95,7 @@ pub(super) fn exercise_multiline_surface(
     exercise_slow_history_search(writer, output_rx, output, data_dir);
     exercise_history_search(writer, output_rx, output, data_dir);
     exercise_persistent_history_search(writer, output_rx, output);
+    #[cfg(not(windows))]
     exercise_editor_keymap(writer, output_rx, output);
     exercise_vim_command_state(writer, output_rx, output);
     super::vim_keymap::exercise_modal_keymap(writer, output_rx, output);
@@ -108,6 +109,7 @@ pub(super) fn exercise_multiline_surface(
     );
 }
 
+#[cfg(not(windows))]
 fn exercise_editor_keymap(
     writer: &mut impl Write,
     output_rx: &mpsc::Receiver<Vec<u8>>,
