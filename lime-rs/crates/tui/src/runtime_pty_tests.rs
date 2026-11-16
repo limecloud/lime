@@ -236,6 +236,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         );
         terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
     }
+    #[cfg(not(windows))]
     if scenario == "complete" {
         composer::exercise_multiline_surface(
             &mut writer,
