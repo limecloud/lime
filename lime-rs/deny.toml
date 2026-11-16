@@ -52,5 +52,16 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
     "https://github.com/openai-oss-forks/crossterm",
     "https://github.com/helix-editor/nucleo.git",
+    # tcp-tunnel: h3/h3-quinn，固定 e07e69412876f7e26f026bd75a48b2704d8c8283。
+    "https://github.com/hyperium/h3",
+    # Windows mxc-sandbox SDK，固定 b21120168d70befe12356411423266bfef168446。
+    "https://github.com/microsoft/mxc",
+    # utils-cargo-bin 测试 runfiles，固定 b56cbaa8465e74127f1ea216f813cd377295ad81。
+    "https://github.com/dzbarsky/rules_rust",
+    # state SQLx patch，固定 10462fa4414c6c7f1ed1d39bb31678e3b726878c。
+    "https://github.com/transact-rs/sqlx",
+    # API WebSocket transport；均由 manifest/lock 固定 revision。
+    "https://github.com/openai-oss-forks/tokio-tungstenite",
+    "https://github.com/openai-oss-forks/tungstenite-rs",
 ]
 required-git-spec = "rev"

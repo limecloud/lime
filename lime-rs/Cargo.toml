@@ -2,6 +2,7 @@
 members = ["crates/*"]
 exclude = [
   "crates/credential",
+  "crates/network-proxy/vendor/rama-dns",
 ]
 resolver = "2"
 
@@ -67,6 +68,8 @@ mxc-sandbox = { path = "crates/mxc-sandbox" }
 network-proxy = { path = "crates/network-proxy" }
 otel = { path = "crates/otel" }
 protocol = { path = "crates/protocol" }
+response-debug-context = { path = "crates/response-debug-context" }
+rmcp-client = { path = "crates/rmcp-client" }
 rollout = { path = "crates/rollout" }
 sandboxing = { path = "crates/sandboxing" }
 shell-command = { path = "crates/shell-command" }
@@ -103,7 +106,9 @@ utils-image = { path = "crates/utils-image" }
 utils-rustls-provider = { path = "crates/utils-rustls-provider" }
 utils-home-dir = { path = "crates/utils-home-dir" }
 utils-string = { path = "crates/utils-string" }
+user-verification = { path = "crates/user-verification" }
 tcp-tunnel = { path = "crates/tcp-tunnel" }
+tools = { path = "crates/tools" }
 test-binary-support = { path = "crates/test-binary-support" }
 state = { path = "crates/state" }
 stdio-to-uds = { path = "crates/stdio-to-uds" }
@@ -333,6 +338,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [patch.crates-io]
+rama-dns = { path = "crates/network-proxy/vendor/rama-dns" }
 crossterm = { git = "https://github.com/openai-oss-forks/crossterm", rev = "45fecb9508105988f42fe6ff0441783ed3717f92" }
 sqlx-core = { git = "https://github.com/transact-rs/sqlx", rev = "10462fa4414c6c7f1ed1d39bb31678e3b726878c" }
 sqlx-sqlite = { git = "https://github.com/transact-rs/sqlx", rev = "10462fa4414c6c7f1ed1d39bb31678e3b726878c" }

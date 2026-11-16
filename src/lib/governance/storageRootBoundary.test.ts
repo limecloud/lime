@@ -88,7 +88,7 @@ const STORAGE_ROOT_OWNER = "lime-rs/crates/core/src/app_paths.rs";
 const ELECTRON_STORAGE_ROOT_OWNER = "electron/appDataPaths.ts";
 
 const STORAGE_ROOT_BYPASS_PATTERN =
-  /\b(?:[A-Za-z_][A-Za-z0-9_]*::)*(preferred_data_dir|resolve_sessions_dir|resolve_request_logs_dir|best_effort_[A-Za-z0-9_]+)\s*\(/gu;
+  /\b(?:[A-Za-z_][A-Za-z0-9_]*::)*(preferred_data_dir|resolve_sessions_dir|resolve_request_logs_dir|best_effort_(?:runtime_subdir|data_dir|app_data_file))\s*\(/gu;
 
 // 叶子 writer 基线必须保持为空：任何 durable writer / 诊断 / 产品资产 owner
 // 都只能接收组合根注入的 root，不得自行解析平台默认目录。
@@ -333,6 +333,22 @@ function findBaselineIncreases(
 }
 
 describe("storage root boundary", () => {
+  it("只识别存储 root API，不误报无关的 best_effort 通知测试", () => {
+    const source = `
+      app_paths::best_effort_runtime_subdir("cache");
+      best_effort_data_dir();
+      app_paths::best_effort_app_data_file("config");
+      async fn best_effort_notifications_preserve_outbound_control_capacity() {}
+    `;
+    expect(
+      Array.from(source.matchAll(STORAGE_ROOT_BYPASS_PATTERN), (match) => match[1]),
+    ).toEqual([
+      "best_effort_runtime_subdir",
+      "best_effort_data_dir",
+      "best_effort_app_data_file",
+    ]);
+  });
+
   it("Rust production storage 不应新增绕过显式 StorageRoots 的平台 root 解析", () => {
     const increases = findBaselineIncreases(
       collectRustStorageRootBypasses(),

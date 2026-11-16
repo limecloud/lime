@@ -4,7 +4,7 @@ use std::path::PathBuf;
 pub(crate) fn write_fake_bwrap(bin_dir: &Path) -> anyhow::Result<PathBuf> {
     std::fs::create_dir_all(bin_dir)?;
     let fake_bwrap = bin_dir.join("bwrap");
-    lime_utils_cargo_bin::write_executable(
+    utils_cargo_bin::write_executable(
         &fake_bwrap,
         r#"#!/bin/bash
 set -euo pipefail

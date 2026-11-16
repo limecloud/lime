@@ -7258,6 +7258,15 @@ const checks = [
     absentSnippets: ['name = "app-server-agent-backend"'],
   },
   {
+    name: "Lime account boundary replaces upstream auth crates",
+    file: "lime-rs/Cargo.lock",
+    snippets: ['name = "account-provider"'],
+    absentSnippets: [
+      'name = "codex-login"',
+      'name = "connectors"',
+    ],
+  },
+  {
     name: "Retired patch-apply crate stays deleted",
     file: "lime-rs/Cargo.lock",
     snippets: ['name = "apply-patch"'],

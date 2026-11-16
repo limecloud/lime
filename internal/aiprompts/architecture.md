@@ -2077,6 +2077,7 @@ action-required/approval 与 ask-user 的 live continuation 归 `agent-runtime` 
 | `skills`                                         | skill discovery、读取与运行时集成。                                                                                                      |
 | `apply-patch`                                    | patch 语法、streaming parser、seek 与受控落盘执行；唯一 patch owner。                                                                     |
 | `exec-server`                                    | 本地 filesystem/process executor 与 exec-server JSON-RPC；远端 transport 与本地 process 接线仍按迁移进度接入。                            |
+| `account-provider` | Lime Core/Cloud 账号边界 trait；不承载上游账号实现。 |
 | `state`                                          | SQLite runtime state、migration 与回收。                                                                                                  |
 | `history`                                        | retained history 与来源顺序。                                                                                                            |
 | `rollout`                                        | rollout 文件、索引、压缩与搜索。                                                                                                          |

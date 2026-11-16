@@ -1207,11 +1207,11 @@ async fn sandboxed_file_operations_cannot_read_or_write_helper_siblings() -> Res
 
     let helper = runtime_dir.join("lime-test-helper");
     std::fs::hard_link(&helper_paths.lime_exe, &helper)
-        .or_else(|_| lime_utils_cargo_bin::copy_executable(&helper_paths.lime_exe, &helper))?;
+        .or_else(|_| utils_cargo_bin::copy_executable(&helper_paths.lime_exe, &helper))?;
     let linux_sandbox = if helper_paths.linux_sandbox_exe.is_some() {
         let alias = runtime_dir.join("lime-linux-sandbox");
         std::fs::hard_link(&helper, &alias)
-            .or_else(|_| lime_utils_cargo_bin::copy_executable(&helper, &alias))?;
+            .or_else(|_| utils_cargo_bin::copy_executable(&helper, &alias))?;
         Some(alias)
     } else {
         None

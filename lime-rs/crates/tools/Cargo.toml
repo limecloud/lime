@@ -1,0 +1,31 @@
+[package]
+name = "tools"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Shared tool definitions."
+
+[dependencies]
+anyhow.workspace = true
+attachment-store = { path = "../attachment-store" }
+bitflags = "2"
+extension-items = { path = "../extension-items" }
+features = { path = "../features" }
+file-system = { path = "../file-system" }
+jsonptr = "0.7"
+lime-utils-path-uri.workspace = true
+protocol = { path = "../protocol" }
+rmcp = { version = "3.9", default-features = false, features = ["base64", "macros", "schemars", "server"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+thiserror.workspace = true
+tracing.workspace = true
+urlencoding = "2"
+utils-output-truncation = { path = "../utils-output-truncation" }
+utils-string = { path = "../utils-string" }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+utils-cargo-bin = { path = "../utils-cargo-bin" }

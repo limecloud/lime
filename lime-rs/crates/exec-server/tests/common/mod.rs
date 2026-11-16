@@ -7,16 +7,16 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use ctor::ctor;
-use exec_server::ExecServerRuntimeOptions;
-use exec_server::ExecServerTelemetry;
-use exec_server::LIME_ARG0_EXEC_HELPER_ARG1;
-use exec_server::LIME_FS_HELPER_ARG1;
-use exec_server::RequestDispatchMode;
+use ::exec_server::ExecServerRuntimeOptions;
+use ::exec_server::ExecServerTelemetry;
+use ::exec_server::LIME_ARG0_EXEC_HELPER_ARG1;
+use ::exec_server::LIME_FS_HELPER_ARG1;
+use ::exec_server::RequestDispatchMode;
 use http_client::HttpClientFactory;
 use http_client::OutboundProxyPolicy;
-use lime_test_binary_support::TestBinaryDispatchGuard;
-use lime_test_binary_support::TestBinaryDispatchMode;
-use lime_test_binary_support::configure_test_binary_dispatch;
+use test_binary_support::TestBinaryDispatchGuard;
+use test_binary_support::TestBinaryDispatchMode;
+use test_binary_support::configure_test_binary_dispatch;
 use sandboxing::landlock::LIME_LINUX_SANDBOX_ARG0;
 
 pub(crate) mod exec_server;
@@ -263,7 +263,7 @@ fn maybe_run_exec_server_from_test_binary(guard: Option<&TestBinaryDispatchGuard
         let runtime_paths = {
             let home = utils_home_dir::find_lime_home()?;
             let config = config::loader::load_config_layers_state(
-                &exec_server::LocalFileSystem::unsandboxed(),
+                &::exec_server::LocalFileSystem::unsandboxed(),
                 home.as_path(),
                 /*cwd*/ None,
                 &[],
@@ -275,7 +275,7 @@ fn maybe_run_exec_server_from_test_binary(guard: Option<&TestBinaryDispatchGuard
                 &config, &home,
             ))
         };
-        exec_server::run_main_with_telemetry(
+        ::exec_server::run_main_with_telemetry(
             &listen_url,
             runtime_paths,
             ExecServerTelemetry::default(),

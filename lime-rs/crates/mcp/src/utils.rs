@@ -1,5 +1,5 @@
 //! 本地 MCP 子进程环境。
-//! 复制并适配自 Codex 970111f6cb62cc02fe36a82ea7d71b37a2889c97，Apache-2.0。
+//! 复制并适配自上游 MCP 970111f6cb62cc02fe36a82ea7d71b37a2889c97，Apache-2.0。
 //! 本机 env_vars 使用 Desktop 同版本的字符串列表；远程来源由配置边界拒绝。
 use agent_protocol::shell_environment::is_non_inheritable_env_var;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::env;
 use std::ffi::OsString;
 
 const CUSTOM_CA_ENV_KEYS: [&str; 11] = [
-    "CODEX_CA_CERTIFICATE",
+    "LIME_CA_CERTIFICATE",
     "SSL_CERT_FILE",
     "REQUESTS_CA_BUNDLE",
     "CURL_CA_BUNDLE",

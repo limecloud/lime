@@ -1,0 +1,64 @@
+[package]
+name = "rmcp-client"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "MCP transport client library."
+
+[lib]
+name = "rmcp_client"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+api = { path = "../api" }
+axum = { workspace = true, default-features = false, features = ["http1", "json", "tokio"] }
+base64.workspace = true
+bytes.workspace = true
+config = { path = "../config-upstream" }
+exec-server = { path = "../exec-server" }
+futures.workspace = true
+http = "1"
+http-client = { path = "../http-client" }
+http-headers-helper = { path = "../http-headers-helper" }
+keyring = { version = "3.6", default-features = false, features = ["crypto-rust"] }
+keyring-store = { path = "../keyring-store" }
+lime-utils-path-uri.workspace = true
+memchr = "2"
+network-proxy = { path = "../network-proxy" }
+oauth2 = "5"
+otel = { path = "../otel" }
+protocol = { path = "../protocol" }
+rmcp = { version = "3.9", default-features = false, features = ["auth-enterprise-managed", "base64", "client", "macros", "schemars", "server", "transport-async-rw", "transport-child-process", "transport-streamable-http-client", "transport-streamable-http-server"] }
+secrets = { path = "../secrets" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sse-stream = "0.2.5"
+tempfile.workspace = true
+thiserror.workspace = true
+tiny_http = "0.12"
+tokio = { workspace = true, features = ["io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { workspace = true, features = ["rt"] }
+tracing.workspace = true
+url.workspace = true
+urlencoding = "2"
+utils-home-dir = { path = "../utils-home-dir" }
+utils-pty = { path = "../utils-pty" }
+webbrowser = "1"
+which = "8"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+opentelemetry_sdk = "0.31"
+pretty_assertions.workspace = true
+serial_test = "3"
+tracing-subscriber = "0.3"
+tracing-test = "0.2"
+utils-cargo-bin = { path = "../utils-cargo-bin" }
+wiremock = "0.6"

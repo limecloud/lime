@@ -9,6 +9,8 @@
 
 ### Fixes
 
+- Resolve dependency security findings across credential encryption, caching, DNS, and local user verification.
+
 - Fix Windows plugin cache renames and mutation lock handling, and improve installation state and user directory isolation.
 - Correct Windows CLI execution policy test stack sizes, platform dependencies and terminal paths.
 - Improve patch application, remote file updates and execution permission boundaries with a shared patch implementation.

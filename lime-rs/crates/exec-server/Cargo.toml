@@ -81,6 +81,7 @@ pretty_assertions.workspace = true
 rcgen = { version = "0.14.7", default-features = false, features = ["aws_lc_rs", "pem"] }
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
 serial_test = "3"
+test-binary-support.workspace = true
 tempfile.workspace = true
 test-case = "3.3"
 tokio = { workspace = true, features = ["test-util"] }

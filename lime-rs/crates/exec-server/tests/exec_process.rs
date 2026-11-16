@@ -241,7 +241,7 @@ async fn shell_snapshot_v2_filters_profile_exports_and_stays_in_memory(
     let runtime_path_entry = home.path().join("runtime-bin");
     std::fs::create_dir(&profile_path_entry)?;
     let wc = profile_path_entry.join("wc");
-    lime_utils_cargo_bin::write_executable(
+    utils_cargo_bin::write_executable(
         &wc,
         "#!/bin/sh\nprintf x >> \"$HOME/tool-captures\"\nexec /usr/bin/wc \"$@\"\n",
     )?;
@@ -607,14 +607,14 @@ async fn shell_snapshot_v2_remote_managed_proxy_uses_prepared_execution_context(
     let cwd = PathUri::from_host_native_path(home.path())?;
     let profile_bin = home.path().join("profile-bin");
     std::fs::create_dir(&profile_bin)?;
-    lime_utils_cargo_bin::write_executable(
+    utils_cargo_bin::write_executable(
         &profile_bin.join("profile_command"),
         "#!/bin/sh\nprintf helper\n",
     )?;
     let shell_path = if shell_name == "zsh" {
         // Observe the launcher's proxy before replay and simulate a global zshenv export.
         let path = home.path().join("zsh");
-        lime_utils_cargo_bin::write_executable(
+        utils_cargo_bin::write_executable(
             &path,
             "#!/bin/sh\nexport GITHUB_TOKEN=global-test-token\nexport TEST_LIVE_HTTP_PROXY=\"$HTTP_PROXY\"\nexec /bin/zsh \"$@\"\n",
         )?;
@@ -1363,7 +1363,7 @@ async fn remote_tty_process_uses_configured_sandbox_helper_with_hostile_path() -
     let file = workspace.path().join("allowed.txt");
     std::fs::write(&file, b"allowed")?;
     let hostile_helper = workspace.path().join("lime-linux-sandbox");
-    lime_utils_cargo_bin::write_executable(&hostile_helper, "#!/bin/sh\nprintf hostile")?;
+    utils_cargo_bin::write_executable(&hostile_helper, "#!/bin/sh\nprintf hostile")?;
     let path = std::env::var_os("PATH").context("PATH is not set")?;
     let hostile_path = std::env::join_paths(
         std::iter::once(workspace.path().to_path_buf()).chain(std::env::split_paths(&path)),

@@ -13,7 +13,7 @@ const retiredOrchestratorRoot = path.join(
 );
 
 const retiredOrchestratorReference =
-  /\b(?:lime_core::orchestrator|crate::orchestrator|ModelOrchestrator|FallbackHandler|FallbackPolicy|DynamicPoolBuilder|ModelSelector|ServiceTier|TierPool|AvailableModel)\b/;
+  /\b(?:lime_core::(?:orchestrator|FallbackPolicy|ServiceTier)|crate::orchestrator|ModelOrchestrator|FallbackHandler|DynamicPoolBuilder|ModelSelector|TierPool|AvailableModel)\b/;
 
 function listRustFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

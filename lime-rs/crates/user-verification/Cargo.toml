@@ -1,0 +1,35 @@
+[package]
+name = "user-verification"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Local user verification."
+
+[lib]
+name = "user_verification"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+base64.workspace = true
+p256 = { version = "0.14", default-features = false, features = ["arithmetic", "pkcs8", "std"] }
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6.2"
+core-foundation = "0.10"
+dirs = "6"
+objc2 = "0.6.3"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString"] }
+objc2-local-authentication = { version = "0.3.2", default-features = false, features = ["std", "LAContext", "LABiometryType", "block2", "objc2-security"] }
+security-framework = { version = "3.5", features = ["OSX_10_15"] }
+security-framework-sys = "2.15"
+
+[dev-dependencies]
+p256 = { version = "0.14", features = ["ecdsa"] }
+pretty_assertions.workspace = true
+tempfile.workspace = true

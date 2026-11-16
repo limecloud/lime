@@ -29,7 +29,7 @@ async fn exec_server_accepts_initialize(version: Option<&str>) -> anyhow::Result
     let bin_dir = package.path().join("bin");
     std::fs::create_dir(&bin_dir)?;
     let executable = bin_dir.join(format!("lime{}", std::env::consts::EXE_SUFFIX));
-    lime_utils_cargo_bin::copy_executable(&std::env::current_exe()?, &executable)?;
+    utils_cargo_bin::copy_executable(&std::env::current_exe()?, &executable)?;
     let manifest = package.path().join("lime-package.json");
     if let Some(version) = version {
         std::fs::write(

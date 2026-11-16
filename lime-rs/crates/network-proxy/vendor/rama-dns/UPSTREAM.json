@@ -1,0 +1,33 @@
+{
+  "repository": "https://github.com/plabayo/rama",
+  "revision": "4733273a10a791762e2b7727850032b0c9b8536d",
+  "source_path": "rama-dns",
+  "registry_package": "rama-dns 0.3.0-alpha.4",
+  "license": "MIT OR Apache-2.0",
+  "consumer": "network-proxy through rama-tcp, plus the macOS SystemDnsResolver trait",
+  "reason": "Upgrade vulnerable Hickory 0.25 to maintained 0.26 while retaining the current Rama public API. Cargo patch replaces the registry package; only one DNS implementation is compiled.",
+  "adaptations": [
+    "hickory-resolver >=0.26.2",
+    "Hickory 0.26 imports, resolver configuration/build errors, and answer record iteration"
+  ],
+  "api_reference": {
+    "repository": "https://github.com/plabayo/rama",
+    "revision": "4ba2015fce25609d1cf54722059f330fdfafc62c",
+    "source_path": "rama-dns/src/client/hickory.rs"
+  },
+  "original_sha256": {
+    "src/boxed.rs": "793fbc845e0bb1f1fac9b6b699cd999157734dcd43aba397f4290fbab771fa5d",
+    "src/chain.rs": "449f819bad72afeef1e08a8d616b37801167ce9c980cadb598722c05537877cb",
+    "src/deny_all.rs": "83e0788c8f4a8b79384a7d78ca734f488f4bd60d1517a5e01dc5ad8e5ccaf4ab",
+    "src/global.rs": "653d1167173649b83546aed6794eaa0065d7b0d30f51454227c7456462109d09",
+    "src/hickory.rs": "78c03b179aa11462c3f0dc233b60800dba313da96610404d5498cf9b76bc2c0f",
+    "src/in_memory.rs": "6ef8298bab1af9b9d04e4f2c36fe7ea869c81f11fbb028975872fe8c4548029c",
+    "src/lib.rs": "1c68a79a4324df5ae3090ad17472c21caf680fde62404ab4f9681f75ba10682b",
+    "src/tuple.rs": "1a3f0815b12a3f909b37c6aae8cf189c2ddbebbcccfeff71c3389c957d637319",
+    "src/variant.rs": "d3643e1412a3f3adecc346939ec79a69dbcf8dce935b03de52c3fcef19da3734"
+  },
+  "license_sha256": {
+    "LICENSE-MIT": "1fa7e078de3f9165a1c6742359307711e91652f035dc37a32376ca0023483e63",
+    "LICENSE-APACHE": "95bd3988beee069fa2848f648dab43cc6e0b2add2ad6bcb17360caf749802bcc"
+  }
+}

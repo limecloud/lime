@@ -13,7 +13,7 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
-lru = "0.16"
+lru = "0.18.5"
 sha1 = "0.10"
 tokio = { workspace = true, features = ["sync", "rt", "rt-multi-thread"] }
 

@@ -1,0 +1,22 @@
+[package]
+name = "response-debug-context"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Response debug context."
+
+[lib]
+name = "response_debug_context"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+api = { path = "../api" }
+base64.workspace = true
+http = "1"
+serde_json.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

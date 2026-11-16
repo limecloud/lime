@@ -56,6 +56,8 @@ Agent / GUI 主链实现前，在执行计划填写 [Agent Verification Contract
 
 本地加密凭据采用 age 的 scrypt 接口和安全维护分支，不启用 HPKE/P-256。TUI 从 `two-face` 加载内置语法和主题，不启用 `syntect/yaml-load` 或加载外部 bincode。配置与技能 frontmatter 使用 YAML 官方组织维护的 `yaml_serde`，通过 Cargo package rename 保留现有 `serde_yaml` 调用名；没有第二套解析器。
 
+`network-proxy/vendor/rama-dns` 通过 Cargo patch 替换同版本注册表依赖，保留 current Rama 接口并升级到 Hickory 0.26 安全分支；来源、源码摘要、许可证和必要 API 适配登记在该目录的 `UPSTREAM.json`。不得重新引入 Hickory 0.25 或并行编译第二份 DNS 实现。
+
 Linux 密钥库仍通过 `infra` 的 keyring/Secret Service owner；zbus 类型合并的停维通知不等于原生凭据迁移完成。更换该依赖链必须验证 Linux 的密钥库不可用/锁定、类型化错误、加解密与权限合同，并补 macOS/Windows 原生回归。
 
 ## Codex 对齐与旧资产迁移

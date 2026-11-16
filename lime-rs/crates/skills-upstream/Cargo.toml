@@ -20,7 +20,7 @@ lime-utils-absolute-path.workspace = true
 lime-utils-path-uri.workspace = true
 protocol = { path = "../protocol" }
 serde.workspace = true
-serde_yaml = "0.9"
+serde_yaml.workspace = true
 shell-command = { path = "../shell-command" }
 shlex.workspace = true
 thiserror.workspace = true

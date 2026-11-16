@@ -170,9 +170,9 @@ async fn tmpdir_uses_command_environment_over_rpc(
             return Err(error).context("create Windows sandbox test resources");
         }
         for name in ["lime-windows-sandbox-setup", "lime-command-runner"] {
-            let source = lime_utils_cargo_bin::cargo_bin(name)?;
+            let source = utils_cargo_bin::cargo_bin(name)?;
             let destination = resources.join(std::path::Path::new(name).with_extension("exe"));
-            if let Err(error) = lime_utils_cargo_bin::copy_executable(&source, &destination)
+            if let Err(error) = utils_cargo_bin::copy_executable(&source, &destination)
                 && !(error.kind() == std::io::ErrorKind::PermissionDenied && destination.is_file())
             {
                 return Err(error).with_context(|| format!("stage Windows sandbox helper {name}"));
