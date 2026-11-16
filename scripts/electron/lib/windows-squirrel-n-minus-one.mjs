@@ -11,6 +11,7 @@ import { createServer as createHttpServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { launchInstalledElectron } from "./installed-electron-updater.mjs";
 
 const PRODUCT_NAME = "Lime";
 const SQUIRREL_PACKAGE_NAME = "lime";
@@ -190,15 +191,14 @@ export async function findReadyElectronUpdaterPage(pages) {
     if (!isFinalElectronRendererUrl(candidate.url())) {
       continue;
     }
-    const ready = await candidate
-      .evaluate(
-        () =>
-          window.__LIME_ELECTRON__ === true &&
-          typeof window.electronAPI?.invoke === "function" &&
-          window.electronAPI.supportsCommand("check_for_updates") &&
-          window.electronAPI.supportsCommand("start_update_install_session"),
-      )
-      .catch(() => false);
+    const ready = await evaluateWithTimeout(
+      candidate,
+      () =>
+        window.__LIME_ELECTRON__ === true &&
+        typeof window.electronAPI?.invoke === "function" &&
+        window.electronAPI.supportsCommand("check_for_updates") &&
+        window.electronAPI.supportsCommand("start_update_install_session"),
+    );
     if (ready) {
       return candidate;
     }
@@ -233,11 +233,18 @@ export async function triggerNMinusOneUpdateMenu(electronApp) {
   });
 }
 
-function evaluateWithTimeout(page, callback, timeoutMs = 5_000) {
-  return Promise.race([
-    page.evaluate(callback).catch(() => null),
-    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-  ]);
+async function evaluateWithTimeout(page, callback, timeoutMs = 5_000) {
+  let timer;
+  try {
+    return await Promise.race([
+      page.evaluate(callback).catch(() => null),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function waitForNMinusOneUpdate(
@@ -543,18 +550,17 @@ export async function exerciseNMinusOneUpdate({
   let electronApp = null;
   try {
     console.log("[windows-squirrel-n-minus-one] stage=launch-n-minus-one");
-    const { _electron } = await import("playwright");
-    electronApp = await _electron.launch({
+    electronApp = await launchInstalledElectron({
       executablePath: installed.executable,
       args: ["--use-mock-keychain"],
       env: launchEnv,
-      timeout: 60_000,
+      timeoutMs: 60_000,
     });
-    const child = electronApp.process();
+    const child = electronApp.child;
     console.log("[windows-squirrel-n-minus-one] stage=wait-updater-page");
     const page = await waitFor(
       async () => {
-        const pages = electronApp.windows();
+        const pages = electronApp.pages();
         return await findReadyElectronUpdaterPage(pages);
       },
       { label: "N-1 Electron updater bridge", timeoutMs: 60_000 },
@@ -585,11 +591,9 @@ export async function exerciseNMinusOneUpdate({
     console.log("[windows-squirrel-n-minus-one] stage=wait-update-download");
     const downloadedSession = await waitFor(
       () =>
-        page
-          .evaluate(() =>
-            window.electronAPI.invoke("get_update_install_session"),
-          )
-          .catch(() => null),
+        evaluateWithTimeout(page, () =>
+          window.electronAPI.invoke("get_update_install_session"),
+        ),
       {
         accept: (session) =>
           session?.stage === "completed" || session?.stage === "failed",
@@ -610,7 +614,7 @@ export async function exerciseNMinusOneUpdate({
     }
 
     console.log("[windows-squirrel-n-minus-one] stage=start-update-install");
-    const installSession = await page.evaluate(() =>
+    const installSession = await evaluateWithTimeout(page, () =>
       window.electronAPI.invoke("start_update_install_session"),
     );
     if (installSession?.stage !== "restarting") {
@@ -668,10 +672,13 @@ export async function exerciseNMinusOneUpdate({
       userDataDir,
     };
   } finally {
-    await electronApp?.close().catch(() => undefined);
-    const child = electronApp?.process();
-    if (child && child.exitCode === null) child.kill();
-    await staticFeed.close();
+    try {
+      await electronApp?.close();
+      // Also clean up N-1 when launch failed before returning a client handle.
+      await stopInstalledApp(installed.executable);
+    } finally {
+      await staticFeed.close();
+    }
   }
 }
 
@@ -718,7 +725,7 @@ async function startSquirrelFeed(feed) {
   return {
     close: () =>
       new Promise((resolve, reject) => {
-        server.closeIdleConnections?.();
+        server.closeAllConnections();
         server.close((error) => (error ? reject(error) : resolve()));
       }),
     requests,

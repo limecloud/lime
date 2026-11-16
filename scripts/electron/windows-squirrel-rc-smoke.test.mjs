@@ -74,6 +74,26 @@ describe("Windows Squirrel RC smoke", () => {
     expect(rendererPage.evaluate).toHaveBeenCalledTimes(1);
   });
 
+  it("renderer evaluate 挂起时有界退出，并继续检查其他页面", async () => {
+    vi.useFakeTimers();
+    try {
+      const hung = {
+        url: () => "file:///C:/lime/index.html?nativeStartup=1",
+        evaluate: vi.fn(() => new Promise(() => {})),
+      };
+      const ready = {
+        url: hung.url,
+        evaluate: vi.fn().mockResolvedValue(true),
+      };
+      const result = findReadyElectronUpdaterPage([hung, ready]);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(result).resolves.toBe(ready);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("packaged N-1 启动环境移除 Electron 不支持的 NODE_OPTIONS", () => {
     const env = buildNMinusOneLaunchEnv({
       baseEnv: {

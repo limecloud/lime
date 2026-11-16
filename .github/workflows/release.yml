@@ -488,6 +488,7 @@ jobs:
 
       - name: Smoke installed Windows Squirrel candidate
         if: matrix.host_platform == 'win32'
+        timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail

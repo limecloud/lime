@@ -408,7 +408,7 @@ async function main() {
     let installed = baselineInstalled;
     if (nMinusOneRequested) {
       failedStage = "n-minus-one-update";
-    console.log("[windows-squirrel-rc] stage=n-minus-one-update");
+      console.log("[windows-squirrel-rc] stage=n-minus-one-update");
       const updateEvidence = await exerciseNMinusOneUpdate({
         candidateFeedDir:
           args["candidate-feed-dir"] ||
@@ -515,6 +515,7 @@ async function main() {
     }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(error instanceof Error ? error.stack : errorMessage);
   }
 
   if (installedForCleanup && errorMessage) {
