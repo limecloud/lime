@@ -189,6 +189,17 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     let reader = pair.master.try_clone_reader().expect("clone PTY reader");
     let mut writer = pair.master.take_writer().expect("take PTY writer");
     let mut child = pair.slave.spawn_command(command).expect("spawn lime TUI");
+    // ConPTY can start the child before propagating the initial window size.
+    // Send an explicit size so the alternate-screen frame includes the
+    // composer instead of stopping after the header.
+    pair.master
+        .resize(PtySize {
+            rows: 24,
+            cols: 100,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .expect("resize PTY");
     drop(pair.slave);
     let master = pair.master;
     let (output_tx, output_rx) = mpsc::channel();
