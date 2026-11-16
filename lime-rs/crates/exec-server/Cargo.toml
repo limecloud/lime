@@ -74,6 +74,7 @@ windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Securit
 
 [dev-dependencies]
 anyhow.workspace = true
+exec-server-test-support = { path = "tests/support" }
 ctor = "0.4"
 http = "1"
 opentelemetry_sdk = "0.31"

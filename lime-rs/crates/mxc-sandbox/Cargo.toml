@@ -25,6 +25,7 @@ thiserror.workspace = true
 windows-sandbox = { path = "../windows-sandbox" }
 
 [target.'cfg(windows)'.dependencies]
+flatbuffers = "25"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Storage_FileSystem",

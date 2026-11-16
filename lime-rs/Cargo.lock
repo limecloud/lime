@@ -3872,6 +3872,7 @@ dependencies = [
  "ctor 0.4.3",
  "dirs 6.0.0",
  "exec-server-protocol",
+ "exec-server-test-support",
  "file-system",
  "file-watcher",
  "futures",
@@ -3940,6 +3941,21 @@ dependencies = [
  "serde_json",
  "shell-command",
  "skills",
+]
+
+[[package]]
+name = "exec-server-test-support"
+version = "1.179.0"
+dependencies = [
+ "anyhow",
+ "exec-server",
+ "futures",
+ "http-client",
+ "prost 0.14.6",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.28.0",
+ "wiremock",
 ]
 
 [[package]]
@@ -8017,6 +8033,7 @@ name = "mxc-sandbox"
 version = "1.179.0"
 dependencies = [
  "anyhow",
+ "flatbuffers",
  "lime-utils-absolute-path",
  "lime-utils-path-uri",
  "mxc-sdk",
@@ -8026,6 +8043,7 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "windows-sandbox",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

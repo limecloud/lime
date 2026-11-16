@@ -14,7 +14,7 @@ fn exported_spki_verifies_the_exact_challenge_signature() {
     let key = SigningKey::from_bytes((&[7_u8; 32]).into()).expect("valid signing key");
     let info = UserVerificationKeyInfo::from_sec1_public_key(
         key.verifying_key()
-            .to_encoded_point(/*compress*/ false)
+            .to_sec1_point(/*compress*/ false)
             .as_bytes(),
     )
     .expect("encode public key");

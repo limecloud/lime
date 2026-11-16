@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "crates/exec-server/tests/support"]
 exclude = [
   "crates/credential",
   "crates/network-proxy/vendor/rama-dns",

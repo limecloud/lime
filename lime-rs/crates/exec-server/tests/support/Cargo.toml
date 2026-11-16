@@ -1,5 +1,5 @@
 [package]
-name = "codex-exec-server-test-support"
+name = "exec-server-test-support"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,11 +14,11 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-codex-exec-server = { workspace = true }
-codex-http-client = { workspace = true }
+exec-server = { workspace = true }
+http-client = { workspace = true }
 futures = { workspace = true }
 prost = "0.14.3"
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "net", "time"] }
-tokio-tungstenite = { workspace = true }
-wiremock = { workspace = true }
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "7447c427513cfe685f236e1ac0513c4ea3dd9c0b", features = ["proxy", "rustls-tls-native-roots"] }
+wiremock = "0.6"
