@@ -157,6 +157,9 @@ jobs:
             --target "x86_64-pc-windows-msvc"
 
       - name: Run Windows CLI and TUI current-path gates
+        env:
+          RUSTC_WRAPPER: ""
+          SCCACHE_DISABLE: "1"
         shell: bash
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/lime-rs/target
