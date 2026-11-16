@@ -405,6 +405,11 @@ jobs:
           node scripts/lib/rusty-v8-artifacts.mjs --github-env
           cargo clean --manifest-path lime-rs/Cargo.toml -p v8
 
+      - name: Build Windows restricted execution helpers and tests
+        run: |
+          cargo build --manifest-path lime-rs/Cargo.toml -p tool-runtime --bin windows-sandbox-setup --bin windows-sandbox-runner
+          cargo test --manifest-path lime-rs/Cargo.toml -p tool-runtime --test windows_restricted_execution --no-run
+
       - name: Test Windows restricted execution security matrix
         run: node scripts/lib/windows-restricted-execution-evidence.mjs --provision --output "${{ runner.temp }}/windows-restricted-execution/summary.json"
 
