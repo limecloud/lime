@@ -23,6 +23,14 @@ pub(super) fn exercise_multiline_surface(
     ledger_path: &Path,
     data_dir: &Path,
 ) {
+    #[cfg(windows)]
+    wait_for_screen(
+        output_rx,
+        output,
+        "composer placeholder is visible under ConPTY",
+        |screen| screen.contains("› Ask Lime to do anything"),
+    );
+    #[cfg(not(windows))]
     wait_for_screen(
         output_rx,
         output,
