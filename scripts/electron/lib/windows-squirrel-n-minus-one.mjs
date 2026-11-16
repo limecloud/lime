@@ -673,7 +673,13 @@ export async function exerciseNMinusOneUpdate({
     };
   } finally {
     try {
-      await electronApp?.close();
+      if (electronApp) {
+        await Promise.race([
+          electronApp.close().catch(() => undefined),
+          new Promise((resolve) => setTimeout(resolve, 10_000)),
+        ]);
+        electronApp.process()?.kill();
+      }
       // Also clean up N-1 when launch failed before returning a client handle.
       await stopInstalledApp(installed.executable);
     } finally {
