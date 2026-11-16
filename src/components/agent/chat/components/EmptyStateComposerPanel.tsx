@@ -77,6 +77,7 @@ interface EmptyStateComposerPanelProps {
   ) => Promise<RuntimeSubmissionResult>;
   onStop?: () => void;
   sendOnPointerDown?: boolean;
+  allowEmptySend?: boolean;
   isLoading?: boolean;
   disabled?: boolean;
   activeTheme: string;
@@ -129,6 +130,8 @@ export function EmptyStateComposerPanel({
   onSend,
   onHistoryRecall,
   onStop,
+  sendOnPointerDown = false,
+  allowEmptySend = false,
   isLoading = false,
   disabled = false,
   activeTheme,
@@ -359,7 +362,8 @@ export function EmptyStateComposerPanel({
           showDragHandle={false}
           visualVariant="default"
           deferSendOnEnter
-          sendOnPointerDown
+          sendOnPointerDown={sendOnPointerDown}
+          allowEmptySend={allowEmptySend}
           leftExtra={leftExtra}
           trailingMeta={trailingMeta}
           pathReferences={pathReferences}

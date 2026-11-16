@@ -586,6 +586,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         onSend={handleSend}
         onStop={handleStop}
         sendOnPointerDown={sendOnPointerDown}
+        allowEmptySend
         activeTheme={activeTheme}
         providerType={providerType}
         setProviderType={setProviderType}

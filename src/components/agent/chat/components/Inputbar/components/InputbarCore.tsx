@@ -143,6 +143,7 @@ interface InputbarCoreProps {
   deferSendOnEnter?: boolean;
   /** 首页首发按钮在 pointerdown 阶段预提交，避免 click 前后出现空首页帧。 */
   sendOnPointerDown?: boolean;
+  allowEmptySend?: boolean;
   /** 当前输入所属会话，用于隔离异步听写与编辑器运行态。 */
   sessionId?: string | null;
   commandPriority?: "normal" | "fallback";
@@ -182,6 +183,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   connectedContextBar = false,
   deferSendOnEnter = false,
   sendOnPointerDown = false,
+  allowEmptySend = false,
   sessionId = null,
   commandPriority,
   showEditorExpandButton = true,
@@ -339,6 +341,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       editorRef={resolvedEditorRef}
       onEscape={() => onToolClick("fullscreen")}
       allowSendWhileLoading
+      allowEmptySend={allowEmptySend}
       deferSendOnEnter={deferSendOnEnter}
       sendOnPointerDown={sendOnPointerDown}
       placeholder={
