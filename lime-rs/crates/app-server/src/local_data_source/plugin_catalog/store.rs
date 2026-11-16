@@ -116,6 +116,12 @@ impl PluginStore {
                     &plugin.file_name().to_string_lossy(),
                     &marketplace.file_name().to_string_lossy(),
                 )?;
+                if !config.config().plugins.plugins.contains_key(&id.key()) {
+                    // A Windows stdio MCP server can hold its cache root after
+                    // uninstall. The cache is then an orphan, not an installed
+                    // plugin; installation state is the config record.
+                    continue;
+                }
                 let remote = remote::metadata(&plugin.path())?;
                 if remote::is_marketplace(&id.marketplace)
                     && !remote
