@@ -264,6 +264,7 @@ export async function cleanupFromSummary(summaryPath) {
   console.log(
     `[windows-squirrel-rc-cleanup] result=${summary.result} stage=${summary.failedStage || "complete"} summary=${absoluteSummaryPath}`,
   );
+  clearTimeout(watchdog);
   if (summary.result !== "pass") {
     logWindowsRcFailure(summary);
     process.exitCode = 1;
@@ -271,6 +272,11 @@ export async function cleanupFromSummary(summaryPath) {
 }
 
 async function main() {
+  const watchdog = setTimeout(() => {
+    console.error("[windows-squirrel-rc] watchdog timeout");
+    process.exit(2);
+  }, 30 * 60_000);
+  watchdog.unref();
   const args = parseArgs(process.argv.slice(2));
   if (args["cleanup-summary"]) {
     await cleanupFromSummary(args["cleanup-summary"]);
@@ -554,6 +560,7 @@ async function main() {
   console.log(
     `[windows-squirrel-rc] result=${summary.result} stage=${summary.failedStage || "complete"} summary=${summaryPath}`,
   );
+  clearTimeout(watchdog);
   if (summary.result !== "pass") {
     logWindowsRcFailure(summary);
     process.exitCode = 1;
