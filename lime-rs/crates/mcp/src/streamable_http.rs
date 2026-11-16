@@ -201,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_env_header_is_skipped_like_codex() {
+    fn missing_env_header_is_skipped_like_host() {
         let env = HashMap::from([("X-Trace".to_string(), "MISSING_TRACE".to_string())]);
 
         let headers = build_default_headers(None, None, Some(&env), resolve_env)
@@ -211,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_env_header_is_skipped_like_codex() {
+    fn empty_env_header_is_skipped_like_host() {
         let env = HashMap::from([("X-Trace".to_string(), "EMPTY_TRACE".to_string())]);
 
         let headers = build_default_headers(None, None, Some(&env), resolve_env)

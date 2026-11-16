@@ -330,7 +330,8 @@ jobs:
           CARGO_INCREMENTAL: 0
           CARGO_TARGET_DIR: ${{ github.workspace }}/lime-rs/target
           SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: sccache
+          # sccache expands rustc arguments beyond Windows' command-line limit.
+          RUSTC_WRAPPER: ${{ runner.os != 'Windows' && 'sccache' || '' }}
           LIME_ELECTRON_SIGN: ${{ (startsWith(matrix.platform, 'macos') || matrix.host_platform == 'win32') && '1' || '' }}
           APPLE_SIGNING_IDENTITY: ${{ startsWith(matrix.platform, 'macos') && secrets.APPLE_SIGNING_IDENTITY || '' }}
           APPLE_ID: ${{ startsWith(matrix.platform, 'macos') && secrets.APPLE_ID || '' }}
@@ -871,7 +872,8 @@ jobs:
           CARGO_INCREMENTAL: 0
           CARGO_TARGET_DIR: ${{ github.workspace }}/lime-rs/target
           SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: sccache
+          # Let Cargo pass long Windows rustc commands through response files.
+          RUSTC_WRAPPER: ${{ runner.os != 'Windows' && 'sccache' || '' }}
         run: |
           set -euxo pipefail
           cargo build --manifest-path lime-rs/Cargo.toml \

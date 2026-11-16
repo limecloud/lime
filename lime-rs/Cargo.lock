@@ -3922,7 +3922,7 @@ dependencies = [
  "uuid",
  "websocket-auth",
  "websocket-client",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
  "wiremock",
 ]
 

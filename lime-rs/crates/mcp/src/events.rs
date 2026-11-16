@@ -29,7 +29,7 @@ pub struct McpResourceUpdatedPayload {
 /// Server-originated notification received by a session-owned MCP client.
 ///
 /// The raw method and params are preserved so App Server can apply the
-/// Codex event-stream envelope without making assumptions about a hosted app's
+/// Lime event-stream envelope without making assumptions about a hosted app's
 /// notification schema.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct McpServerNotification {

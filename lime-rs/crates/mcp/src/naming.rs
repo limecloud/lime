@@ -1,6 +1,6 @@
 const MCP_RUNTIME_TOOL_PREFIX: &str = "mcp__";
 
-/// Codex-compatible MCP server name grammar.
+/// Lime MCP server name grammar.
 ///
 /// Package-style names such as `npm:@modelcontextprotocol/server-sequential.thinking`
 /// are valid, while whitespace and path separators outside the package grammar are not.

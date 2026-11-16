@@ -1,5 +1,5 @@
 //! MCP 服务器配置类型。
-//! 配置 owner 按 Codex config/src/mcp_types.rs 的职责拆分。
+//! 配置 owner 的职责拆分。
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
