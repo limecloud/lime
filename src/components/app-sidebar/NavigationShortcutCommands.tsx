@@ -497,7 +497,7 @@ export function NavigationShortcutCommands({
         titleKey: "commands.focusComposer.title",
         descriptionKey: "commands.focusComposer.description",
         section: "navigation",
-        bindings: [],
+        bindings: ["Alt+L"],
         handler: () => {
           const target = document.querySelector<HTMLElement>(
             '[data-testid="inputbar-core-container"] [contenteditable="true"]',
