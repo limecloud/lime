@@ -668,4 +668,41 @@ describe("ThreadWorkspaceHeader", () => {
     expect(onRename).toHaveBeenCalledExactlyOnceWith("新标题");
     act(() => root.unmount());
   });
+
+  it("标题下拉箭头打开会话菜单", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onRename = vi.fn().mockResolvedValue(undefined);
+    const onArchive = vi.fn().mockResolvedValue(undefined);
+    const onFork = vi.fn().mockResolvedValue(undefined);
+    act(() => {
+      root.render(
+        <AppShell>
+          <AppShellHeader />
+          <ThreadWorkspaceHeader
+            sessionId="thread-1"
+            title="会话标题"
+            onRename={onRename}
+            onArchive={onArchive}
+            onFork={onFork}
+          />
+        </AppShell>,
+      );
+    });
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="thread-workspace-header-title-menu"]',
+    );
+    expect(trigger).not.toBeNull();
+    act(() => trigger?.click());
+    expect(
+      document.querySelector('[data-testid="thread-workspace-header-fork"]'),
+    ).not.toBeNull();
+    expect(
+      document.querySelector(
+        '[data-testid="thread-workspace-header-archive"]',
+      ),
+    ).not.toBeNull();
+    act(() => root.unmount());
+  });
 });
