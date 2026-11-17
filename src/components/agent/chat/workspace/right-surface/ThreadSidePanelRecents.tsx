@@ -47,6 +47,7 @@ export function ThreadSidePanelRecents({
   const [size, setSize] = useState({ height: 336, row: 56 });
   const [scroll, setScroll] = useState({ previous: false, next: false });
   const [interacted, setInteracted] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     const list = listRef.current;
     const section = sectionRef.current;
@@ -150,7 +151,7 @@ export function ThreadSidePanelRecents({
         onKeyDown={() => setInteracted(true)}
         style={
           {
-            maxHeight: size.height,
+            maxHeight: expanded ? undefined : size.height,
             "--recent-row-height": `${size.row}px`,
           } as CSSProperties
         }
@@ -232,6 +233,18 @@ export function ThreadSidePanelRecents({
           );
         })}
       </ul>
+      <button
+        type="button"
+        className="self-start rounded-md px-1 py-1 text-xs font-medium text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-text-strong)]"
+        onClick={() => setExpanded((value) => !value)}
+        data-testid="thread-side-panel-recents-toggle"
+      >
+        {t(
+          expanded
+            ? "agentChat.rightSurface.newTab.showLess"
+            : "agentChat.rightSurface.newTab.viewAll",
+        )}
+      </button>
     </section>
   );
 }

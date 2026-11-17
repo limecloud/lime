@@ -1773,5 +1773,9 @@
   "threadFind.count": "{{current}} / {{total}}",
   "threadFind.previous": "上一個相符項",
   "threadFind.next": "下一個相符項",
-  "threadFind.close": "關閉尋找"
+  "threadFind.close": "關閉尋找",
+  "agentChat.rightSurface.newTab.viewAll": "查看全部",
+  "agentChat.rightSurface.newTab.showLess": "收合",
+  "agentChat.rightSurface.close": "關閉面板",
+  "agentChat.rightSurface.more": "更多"
 }

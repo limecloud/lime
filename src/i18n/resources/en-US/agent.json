@@ -1773,5 +1773,9 @@
   "threadFind.count": "{{current}} / {{total}}",
   "threadFind.previous": "Previous match",
   "threadFind.next": "Next match",
-  "threadFind.close": "Close find"
+  "threadFind.close": "Close find",
+  "agentChat.rightSurface.newTab.viewAll": "View all",
+  "agentChat.rightSurface.newTab.showLess": "Show less",
+  "agentChat.rightSurface.close": "Close panel",
+  "agentChat.rightSurface.more": "More"
 }

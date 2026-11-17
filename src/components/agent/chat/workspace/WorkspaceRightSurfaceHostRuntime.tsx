@@ -1,4 +1,5 @@
-import { X } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { TerminalTab } from "../components/TerminalTab";
 import { LocalConversationBackgroundTerminalTab } from "./LocalConversationBackgroundTerminalTab";
@@ -87,6 +88,8 @@ export interface RenderWorkspaceRightSurfaceHostRuntimeParams {
   preferredServiceSkillResultFileTarget: FilesSurfaceProps["target"];
   rightSurfaceBrowserTitle: string | null;
   rightSurfaceHarnessEnabled: boolean;
+  rightSurfaceCloseLabel?: string;
+  rightSurfaceMoreLabel?: string;
   rightSurfaceState: WorkspaceRightSurfaceState;
   sceneSessionId?: string | null;
   sceneThreadId?: string | null;
@@ -136,6 +139,8 @@ export function renderWorkspaceRightSurfaceHostRuntime({
   preferredServiceSkillResultFileTarget,
   rightSurfaceBrowserTitle,
   rightSurfaceHarnessEnabled,
+  rightSurfaceCloseLabel = "Close panel",
+  rightSurfaceMoreLabel = "More",
   rightSurfaceState,
   sceneSessionId,
   sceneThreadId,
@@ -322,16 +327,33 @@ export function renderWorkspaceRightSurfaceHostRuntime({
             <span className="truncate text-xs font-medium text-[color:var(--lime-text-strong)]">
               {projectLabel}
             </span>
-            <button
-              type="button"
-              className="inline-flex h-6 w-6 items-center justify-center rounded text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)]"
-              aria-label={String("Close")}
-              onClick={() => {
-                if (activeTabId) onCloseSidePanelTab(activeTabId);
-              }}
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)]"
+                  aria-label={rightSurfaceMoreLabel}
+                  data-testid="right-surface-more"
+                >
+                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  className="z-[100] min-w-40 rounded-lg border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-1 shadow-lg"
+                >
+                  <DropdownMenu.Item
+                    className="cursor-pointer rounded-md px-2 py-1.5 text-xs outline-none hover:bg-[color:var(--lime-surface-hover)]"
+                    onSelect={() => {
+                      if (activeTabId) onCloseSidePanelTab(activeTabId);
+                    }}
+                  >
+                    {rightSurfaceCloseLabel}
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           </div>
         ) : null}
         <div className="min-h-0 flex-1">

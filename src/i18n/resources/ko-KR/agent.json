@@ -1773,5 +1773,9 @@
   "threadFind.count": "{{current}} / {{total}}",
   "threadFind.previous": "이전 일치",
   "threadFind.next": "다음 일치",
-  "threadFind.close": "찾기 닫기"
+  "threadFind.close": "찾기 닫기",
+  "agentChat.rightSurface.newTab.viewAll": "전체 보기",
+  "agentChat.rightSurface.newTab.showLess": "접기",
+  "agentChat.rightSurface.close": "패널 닫기",
+  "agentChat.rightSurface.more": "더 보기"
 }

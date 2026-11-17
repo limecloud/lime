@@ -1773,5 +1773,9 @@
   "threadFind.count": "{{current}} / {{total}}",
   "threadFind.previous": "前の一致",
   "threadFind.next": "次の一致",
-  "threadFind.close": "検索を閉じる"
+  "threadFind.close": "検索を閉じる",
+  "agentChat.rightSurface.newTab.viewAll": "すべて表示",
+  "agentChat.rightSurface.newTab.showLess": "折りたたむ",
+  "agentChat.rightSurface.close": "パネルを閉じる",
+  "agentChat.rightSurface.more": "その他"
 }
