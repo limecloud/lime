@@ -180,7 +180,7 @@ export function createAppServerSessionClient({
     try {
       readResult = (
         await appServerClient.readThread(
-          appServerThreadReadParams(threadId, false),
+          appServerThreadReadParams(threadId, true),
         )
       ).result;
     } catch (directReadError) {
@@ -194,7 +194,7 @@ export function createAppServerSessionClient({
       threadId = matchingThreadId;
       readResult = (
         await appServerClient.readThread(
-          appServerThreadReadParams(threadId, false),
+          appServerThreadReadParams(threadId, true),
         )
       ).result;
     }

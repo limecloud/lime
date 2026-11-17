@@ -1,7 +1,7 @@
 use super::session_lifecycle::stored_session_hidden_from_user_recents;
 use super::status::{agent_turn_blocks_queue_resume, agent_turn_is_active};
 use super::{ProjectionStore, RuntimeCore, RuntimeCoreError};
-use agent_protocol::{PageCursor, TurnQueueState};
+use agent_protocol::{PageCursor, SortDirection, TurnQueueState};
 use app_server_protocol::protocol::v2::{
     ThreadLoadedListParams, ThreadLoadedListResponse, ThreadMetadataGitInfoUpdateParams,
     ThreadMetadataUpdateParams, ThreadSearchOccurrence, ThreadSearchOccurrencesParams,
@@ -17,7 +17,7 @@ use app_server_protocol::{
 };
 use thread_store::{
     ArchiveThreadParams, CreateThreadSectionParams as StoreCreateThreadSectionParams,
-    DeleteThreadSectionParams as StoreDeleteThreadSectionParams,
+    DeleteThreadSectionParams as StoreDeleteThreadSectionParams, ListItemsParams,
     ListThreadSectionsParams as StoreListThreadSectionsParams, ListThreadsParams,
     MoveThreadToSectionParams as StoreMoveThreadToSectionParams, PageRequest, ReadThreadParams,
     RenameThreadSectionParams as StoreRenameThreadSectionParams,
@@ -374,15 +374,51 @@ impl RuntimeCore {
         let store = self.canonical_thread_store()?;
         let thread_id = params.thread_id.clone();
         let turns_view = params.turns_view;
+        // Full hydration materializes every item in one store pass and can
+        // stall on very large historical turns. Read the summary envelope and
+        // page each turn's items separately through the indexed item query.
+        let store_turns_view = if turns_view == agent_protocol::ThreadTurnsView::Full {
+            agent_protocol::ThreadTurnsView::Summary
+        } else {
+            turns_view
+        };
         let mut thread = store
             .read_thread(ReadThreadParams {
                 thread_id: params.thread_id,
                 include_archived: true,
-                turns_view,
+                turns_view: store_turns_view,
             })
             .await
             .map_err(store_error)?
             .ok_or_else(|| RuntimeCoreError::Backend(format!("thread not found: {thread_id}")))?;
+        if turns_view == agent_protocol::ThreadTurnsView::Full {
+            for turn in &mut thread.turns {
+                let mut items = Vec::new();
+                let mut cursor: Option<StoreCursor> = None;
+                loop {
+                    let page = store
+                        .list_items(ListItemsParams {
+                            thread_id: thread_id.clone(),
+                            turn_id: Some(turn.turn_id.clone()),
+                            include_archived: true,
+                            page: PageRequest {
+                                cursor: cursor.clone(),
+                                limit: 500,
+                                sort_direction: SortDirection::Asc,
+                            },
+                        })
+                        .await
+                        .map_err(store_error)?;
+                    items.extend(page.data);
+                    cursor = page.next_cursor;
+                    if cursor.is_none() {
+                        break;
+                    }
+                }
+                turn.items = items;
+                turn.items_view = agent_protocol::TurnItemsView::Full;
+            }
+        }
         if let Some(product) = self
             .projection_store
             .as_deref()

@@ -550,10 +550,7 @@ export function WorkspaceConversationScene({
     },
   });
   const shouldRenderThreadHeader = Boolean(threadHeader && showChatLayout);
-  const shouldUseTaskCenterUtilityToolbar =
-    navbarContextVariant === "task-center" &&
-    showChatLayout &&
-    !shouldRenderThreadHeader;
+  const shouldUseTaskCenterUtilityToolbar = false;
   const taskCenterUtilityToolbarNode = shouldUseTaskCenterUtilityToolbar ? (
     <TaskCenterUtilityToolbar
       workspaceId={projectId}

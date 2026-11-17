@@ -509,26 +509,15 @@ describe("WorkspaceConversationScene", () => {
     ).toBeUndefined();
   });
 
-  it("场景把唯一侧边面板入口交给共享页头，旧底部Shell不再占位", () => {
-    const toggle = vi.fn();
-    const launcher = (
-      <button data-testid="side-panel-launcher" onClick={toggle}>
-        Open side panel
-      </button>
-    );
+  it("任务中心不再渲染旧侧边面板与任务工具条入口", () => {
     const container = renderScene({
       navbarContextVariant: "task-center",
-      rightSurfaceLauncher: launcher,
+      rightSurfaceLauncher: <button data-testid="side-panel-launcher">Open</button>,
     });
+    expect(mockTaskCenterUtilityToolbar).not.toHaveBeenCalled();
     expect(
-      mockTaskCenterUtilityToolbar.mock.calls.at(-1)?.[0]?.sidePanelLauncher,
-    ).toBe(launcher);
-    act(() =>
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="side-panel-launcher"]')
-        ?.click(),
-    );
-    expect(toggle).toHaveBeenCalledTimes(1);
+      container.querySelector('[data-testid="side-panel-launcher"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="task-center-shell-panel-stub"]'),
     ).toBeNull();

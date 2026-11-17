@@ -2011,12 +2011,18 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
       // Opening a persisted Thread must recreate the App Server subscription
       // on the current Electron connection. Keep read-only refreshes separate.
-      const resumed = await runtime.resumeThread(threadId);
-      if (resumed === false) {
-        throw new Error("thread/resume did not restore the canonical thread");
-      }
-      logAgentDebug("useAgentSession", "switchTopic.threadResumed", {
+      // Persisted history must render even when an old failed turn cannot be
+      // resumed by the worker. Resume is a streaming enhancement, not a gate
+      // for displaying the canonical transcript.
+      const resumed = await Promise.race([
+        runtime.resumeThread(threadId).catch(() => false),
+        new Promise<boolean>((resolve) =>
+          window.setTimeout(() => resolve(false), 3_000),
+        ),
+      ]);
+      logAgentDebug("useAgentSession", "switchTopic.threadResumeSettled", {
         mode: params.mode,
+        resumed,
         sessionId: params.topicId,
         threadId,
         workspaceId,
