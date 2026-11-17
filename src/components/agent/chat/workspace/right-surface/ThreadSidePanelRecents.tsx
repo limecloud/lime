@@ -192,14 +192,14 @@ export function ThreadSidePanelRecents({
                 }}
                 title={target}
                 aria-label={name}
-                className="flex min-h-14 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[color:var(--lime-text)] outline-none hover:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                className="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-[color:var(--lime-text)] outline-none hover:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[color:var(--lime-chrome-tab-hover)] text-[color:var(--lime-text-muted)]">
-                  <Icon size={16} aria-hidden="true" />
+                <span className="flex size-5 shrink-0 items-center justify-center text-[color:var(--lime-text-muted)]">
+                  <Icon size={15} aria-hidden="true" />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate">{name}</span>
-                  <span className="truncate text-xs text-[color:var(--lime-text-muted)]">
+                  <span className="sr-only">
                     {t(
                       `agentChat.rightSurface.newTab.fileType.${file.type === "website" ? "website" : Icon === FileImage ? "image" : Icon === FileSpreadsheet ? "spreadsheet" : Icon === Presentation ? "presentation" : file.path.toLowerCase().endsWith(".pdf") ? "pdf" : Icon === FileText ? "document" : "other"}`,
                     )}
