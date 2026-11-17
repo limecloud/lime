@@ -60,4 +60,18 @@ describe("SideChatPanel", () => {
     );
     expect(document.body.textContent).toContain("side-chat-workspace");
   });
+
+  it("focus 事件打开并聚焦 Side Chat", async () => {
+    await act(async () => {
+      root.render(<SideChatPanel />);
+    });
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("lime:focus-side-chat"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(
+      document.querySelector('[data-testid="side-chat-panel"]'),
+    ).not.toBeNull();
+  });
 });
