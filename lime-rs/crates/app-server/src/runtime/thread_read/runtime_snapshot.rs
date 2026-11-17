@@ -89,25 +89,21 @@ impl RuntimeCore {
         let mut orphaned = turns
             .iter()
             .filter(|turn| turn_is_orphaned(turn, execution));
-        let Some(first) = orphaned.next() else {
+        if orphaned.next().is_none() {
             return Ok(());
-        };
-        let needs_items = first.items_view == TurnItemsView::Full
-            || orphaned.any(|turn| turn.items_view == TurnItemsView::Full);
-
+        }
         // History was read before the actor/driver snapshot. A turn may have
         // completed while that snapshot was pending; absence of a live owner
         // must not turn an older InProgress snapshot into a fabricated interrupt.
+        // Only terminal status is needed here. Reading Full again can replay a
+        // very large rollout and stall the whole read; retain the already-loaded
+        // items and update the turn envelope from the summary projection.
         let current = self
             .canonical_thread_store()?
             .read_thread(ReadThreadParams {
                 thread_id: thread_id.clone(),
                 include_archived: true,
-                turns_view: if needs_items {
-                    ThreadTurnsView::Full
-                } else {
-                    ThreadTurnsView::Summary
-                },
+                turns_view: ThreadTurnsView::Summary,
             })
             .await
             .map_err(store_error)?
@@ -124,7 +120,9 @@ impl RuntimeCore {
                 continue;
             };
             let items_view = turn.items_view;
+            let items = std::mem::take(&mut turn.items);
             *turn = latest.clone();
+            turn.items = items;
             turn.items_view = items_view;
             if items_view != TurnItemsView::Full {
                 turn.items.clear();
