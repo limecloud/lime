@@ -113,7 +113,12 @@ export function ThreadSidePanelRecents({
   return (
     <section
       ref={sectionRef}
-      className="flex min-w-0 flex-col gap-3"
+      className={
+        expanded
+          ? "fixed inset-3 z-[80] flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-4 shadow-2xl"
+          : "flex min-w-0 flex-col gap-3"
+      }
+      data-expanded={expanded ? "true" : "false"}
       data-testid="thread-side-panel-recents"
     >
       <div className="flex items-center justify-between gap-2">
@@ -143,7 +148,7 @@ export function ThreadSidePanelRecents({
       <ul
         ref={listRef}
         aria-label={t("agentChat.rightSurface.newTab.recentWork")}
-        className={`${styles.list} min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain`}
+        className={`${styles.list} min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain ${expanded ? "flex-1" : ""}`}
         data-at-bottom={!scroll.next}
         data-interacted={interacted}
         onWheel={() => setInteracted(true)}

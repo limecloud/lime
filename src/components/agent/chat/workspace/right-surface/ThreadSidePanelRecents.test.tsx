@@ -188,10 +188,16 @@ describe("New tab Recents", () => {
     const toggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="thread-side-panel-recents-toggle"]',
     )!;
+    const section = container.querySelector<HTMLElement>(
+      '[data-testid="thread-side-panel-recents"]',
+    )!;
+    expect(section.dataset.expanded).toBe("false");
     expect(list.style.maxHeight).not.toBe("");
     act(() => toggle.click());
+    expect(section.dataset.expanded).toBe("true");
     expect(list.style.maxHeight).toBe("");
     act(() => toggle.click());
+    expect(section.dataset.expanded).toBe("false");
     expect(list.style.maxHeight).not.toBe("");
   });
 });
