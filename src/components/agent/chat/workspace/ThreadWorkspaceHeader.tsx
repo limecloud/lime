@@ -9,7 +9,6 @@ import { createPortal } from "react-dom";
 import {
   Archive,
   CalendarClock,
-  ChevronDown,
   Copy,
   GitFork,
   MoreHorizontal,
@@ -56,6 +55,23 @@ function useHeaderToolbarActionContainer(children: ReactNode) {
     return element;
   });
   return { container, content: createPortal(children, container) };
+}
+
+function TitleChevronIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M8.71677 4.71677C8.87298 4.56056 9.12696 4.56056 9.28317 4.71677C9.43938 4.87298 9.43938 5.12696 9.28317 5.28317L6.45993 8.10642C6.20609 8.36023 5.79384 8.36023 5.54001 8.10642L2.71677 5.28317C2.56056 5.12696 2.56056 4.87298 2.71677 4.71677C2.87298 4.56056 3.12696 4.56056 3.28317 4.71677L5.99997 7.43356L8.71677 4.71677Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 export function ThreadWorkspaceHeader({
@@ -207,7 +223,7 @@ export function ThreadWorkspaceHeader({
   );
 
   const threadMenu = (
-                  <DropdownMenuContent align="start" className="w-48 p-1">
+                  <DropdownMenuContent align="start" className="w-[220px] p-1">
                     {onRename ? (
                       <DropdownMenuItem
                         className="whitespace-nowrap"
@@ -253,6 +269,16 @@ export function ThreadWorkspaceHeader({
                         )}
                       </DropdownMenuItem>
                     ) : null}
+                    <DropdownMenuItem
+                      className="whitespace-nowrap"
+                      data-testid="thread-workspace-header-copy"
+                      onClick={requestCopyConversation}
+                    >
+                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      {String(
+                        tNavigation("navigation.sidebar.conversations.menu.copy"),
+                      )}
+                    </DropdownMenuItem>
                     {scheduledTaskThreadId ? (
                       <DropdownMenuItem
                         className="whitespace-nowrap"
@@ -272,16 +298,6 @@ export function ThreadWorkspaceHeader({
                         )}
                       </DropdownMenuItem>
                     ) : null}
-                    <DropdownMenuItem
-                      className="whitespace-nowrap"
-                      data-testid="thread-workspace-header-copy"
-                      onClick={requestCopyConversation}
-                    >
-                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                      {String(
-                        tNavigation("navigation.sidebar.conversations.menu.copy"),
-                      )}
-                    </DropdownMenuItem>
                     {onArchive ? (
                       <DropdownMenuItem
                         className="whitespace-nowrap"
@@ -357,7 +373,7 @@ export function ThreadWorkspaceHeader({
           ) : (
             <div className="flex min-w-0 items-center gap-1">
               <h1
-                className="[[data-mode=full]_&]:hidden min-w-0 max-w-[320px] truncate text-[13px] font-medium leading-5 text-[color:var(--lime-text-strong)]"
+                className="[[data-mode=full]_&]:hidden min-w-0 max-w-[320px] truncate text-[13px] font-[510] leading-5 text-[color:var(--lime-text-strong)]"
                 data-testid="thread-workspace-header-title"
                 title={title}
               >
@@ -382,7 +398,7 @@ export function ThreadWorkspaceHeader({
                       )}
                       data-testid="thread-workspace-header-title-menu"
                     >
-                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                      <TitleChevronIcon />
                     </button>
                   </DropdownMenuTrigger>
                   {threadMenu}
