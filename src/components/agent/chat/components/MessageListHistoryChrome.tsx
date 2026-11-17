@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 
@@ -51,21 +51,30 @@ export function RestoringSessionEmptyState() {
 
   return (
     <div
-      className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground"
+      className="w-full px-6 pb-10 pt-8"
       data-testid="message-list-restoring-session"
       role="status"
       aria-live="polite"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border/70 bg-background/80 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
-      <div className="space-y-1 text-center">
-        <p className="text-lg font-medium text-foreground">
+      <div className="mx-auto flex w-full max-w-[672px] flex-col gap-8">
+        <span className="sr-only">
           {t("agentChat.messageList.restoring.title")}
-        </p>
-        <p className="text-sm text-muted-foreground">
+        </span>
+        <span className="sr-only">
           {t("agentChat.messageList.restoring.description")}
-        </p>
+        </span>
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="animate-pulse space-y-3">
+            <div className="h-3 w-28 rounded-full bg-[color:var(--lime-surface-border)]/60" />
+            <div className="space-y-2">
+              <div className="h-3 w-full rounded-full bg-[color:var(--lime-surface-border)]/40" />
+              <div className="h-3 w-[88%] rounded-full bg-[color:var(--lime-surface-border)]/40" />
+              {row !== 1 ? (
+                <div className="h-3 w-[64%] rounded-full bg-[color:var(--lime-surface-border)]/40" />
+              ) : null}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

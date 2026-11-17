@@ -69,8 +69,10 @@ export const HeaderArea = styled.div<{ $collapsed?: boolean }>`
 export const HeaderTopRow = styled.div<{ $collapsed?: boolean }>`
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 2px;
-  min-height: 52px;
+  min-height: 36px;
+  padding: 0 4px;
   ${({ $collapsed }) =>
     $collapsed
       ? `

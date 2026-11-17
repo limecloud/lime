@@ -48,14 +48,14 @@ function mount() {
 
 describe("draft save feedback", () => {
   it.each([
-    ["zh-CN", "草稿已保存", "正在恢复草稿…"],
-    ["zh-TW", "草稿已儲存", "正在還原草稿…"],
-    ["en-US", "Draft saved", "Restoring draft…"],
-    ["ja-JP", "下書きを保存しました", "下書きを復元中…"],
-    ["ko-KR", "초안 저장됨", "초안 복원 중…"],
+    ["zh-CN", "草稿已保存"],
+    ["zh-TW", "草稿已儲存"],
+    ["en-US", "Draft saved"],
+    ["ja-JP", "下書きを保存しました"],
+    ["ko-KR", "초안 저장됨"],
   ] as const)(
-    "%s uses actual locale resources for saved/restoring states",
-    async (locale, saved, restoring) => {
+    "%s uses actual locale resources for saved state and hides restoring chrome",
+    async (locale, saved) => {
       await changeLimeLocale(locale);
       const view = mount();
       view.render(status);
@@ -63,9 +63,7 @@ describe("draft save feedback", () => {
         saved,
       );
       view.render(null, true);
-      expect(view.element.querySelector('[role="status"]')?.textContent).toBe(
-        restoring,
-      );
+      expect(view.element.querySelector('[role="status"]')).toBeNull();
     },
   );
   it("memory application and an old saved revision cannot claim durable saving", () => {

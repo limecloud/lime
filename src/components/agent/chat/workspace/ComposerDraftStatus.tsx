@@ -42,7 +42,7 @@ export function ComposerDraftStatus({
     status.persistence.savedRevision >= status.storeRevision
   )
     state = "saved";
-  if (!state) return null;
+  if (!state || state === "restoring") return null;
   return (
     <p
       role="status"

@@ -40,7 +40,6 @@ import {
   type SidebarNavItemDefinition,
 } from "@/lib/navigation/sidebarNav";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LIME_BRAND_NAME } from "@/lib/branding";
 import { useCommand } from "@/lib/commands/useCommand";
 import { AppSidebarCustomization } from "@/components/app-sidebar/AppSidebarCustomization";
 import { ContextualSidebarOutlet } from "@/components/app-shell/ContextualSidebarOutlet";
@@ -99,8 +98,6 @@ import {
   SidebarSurface,
   HeaderArea,
   HeaderTopRow,
-  UserButton,
-  UserName,
   SearchButton,
   MenuScroll,
   MainNavList,
@@ -805,7 +802,6 @@ export function AppSidebar({
   });
 
   const homeLabel = t("navigation.sidebar.home.label");
-  const homeAriaLabel = t("navigation.sidebar.home.ariaLabel");
   const collapseNavigationLabel = t("navigation.sidebar.actions.collapse");
   const expandNavigationLabel = t("navigation.sidebar.actions.expand");
   const navigationToggleLabel = collapsed
@@ -1026,23 +1022,6 @@ export function AppSidebar({
                 data-testid="app-sidebar-header"
               >
                 <HeaderTopRow $collapsed={collapsed}>
-                  <UserButton
-                    $collapsed={collapsed}
-                    onClick={() =>
-                      onStartNewConversation?.({
-                        projectId: newChatProjectId,
-                        freshDraft: false,
-                      })
-                    }
-                    aria-label={homeAriaLabel}
-                    title={homeAriaLabel}
-                    data-testid="app-sidebar-home-button"
-                  >
-                    <UserName $collapsed={collapsed}>
-                      {LIME_BRAND_NAME}
-                    </UserName>
-                  </UserButton>
-
                   <SearchButton
                     $inline
                     style={{ position: "relative" }}
