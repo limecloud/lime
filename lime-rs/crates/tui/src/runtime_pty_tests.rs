@@ -1763,7 +1763,10 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         {
             // ConPTY does not map Ctrl-E to end-of-line here; Ctrl-C is the
             // equivalent user path that must still restore the terminal.
-            writer.write_all(b"\x03").expect("quit with Ctrl-C");
+            writer.write_all(b"\x03").expect("first Ctrl-C clears draft");
+            writer.flush().expect("flush first Ctrl-C");
+            std::thread::sleep(Duration::from_millis(200));
+            writer.write_all(b"\x03").expect("second Ctrl-C quits");
         }
         #[cfg(not(windows))]
         {
