@@ -3180,7 +3180,7 @@ fn wait_for_marker(
     }
 }
 
-fn tui_has_restored(child: &mut dyn portable_pty::Child, output: &str) -> bool {
+fn tui_has_restored<C: portable_pty::Child + ?Sized>(child: &mut C, output: &str) -> bool {
     #[cfg(windows)]
     {
         // ConPTY restores its console when the attached process exits and
