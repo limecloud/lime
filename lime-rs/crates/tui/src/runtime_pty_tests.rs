@@ -1791,19 +1791,17 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             // ConPTY restores the console when the attached process exits; it
             // does not forward xterm's 1049 leave sequence to the PTY master.
             loop {
-                match output_rx.recv_timeout(Duration::from_millis(200)) {
-                    Ok(chunk) => output.push_str(&String::from_utf8_lossy(&chunk)),
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => assert!(
-                        Instant::now() < deadline,
-                        "TUI did not exit after quit"
-                    ),
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                if matches!(child.try_wait(), Ok(Some(_))) {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "TUI did not exit after quit"
+                );
+                if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                    output.push_str(&String::from_utf8_lossy(&chunk));
                 }
             }
-            assert!(
-                matches!(child.try_wait(), Ok(Some(_))),
-                "TUI did not exit after quit"
-            );
         }
         println!("TUI_QUIT_COMMAND_OK exit=clean terminal=restored");
         return;
