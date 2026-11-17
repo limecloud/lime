@@ -90,6 +90,7 @@ export interface RenderWorkspaceRightSurfaceHostRuntimeParams {
   rightSurfaceHarnessEnabled: boolean;
   rightSurfaceCloseLabel?: string;
   rightSurfaceMoreLabel?: string;
+  rightSurfaceProjectName?: string | null;
   rightSurfaceState: WorkspaceRightSurfaceState;
   sceneSessionId?: string | null;
   sceneThreadId?: string | null;
@@ -141,6 +142,7 @@ export function renderWorkspaceRightSurfaceHostRuntime({
   rightSurfaceHarnessEnabled,
   rightSurfaceCloseLabel = "Close panel",
   rightSurfaceMoreLabel = "More",
+  rightSurfaceProjectName = null,
   rightSurfaceState,
   sceneSessionId,
   sceneThreadId,
@@ -312,10 +314,12 @@ export function renderWorkspaceRightSurfaceHostRuntime({
     return { content: null, tabStrip: null, open: false };
   const open = Boolean(activeSurface && hasActiveRightSurfaceDefinition);
   const projectLabel =
+    rightSurfaceProjectName?.trim() ||
     canvasWorkbenchRootPath
       ?.replace(/[\\/]+$/, "")
       .split(/[\\/]/)
-      .pop() ?? null;
+      .pop() ||
+    null;
   return {
     open,
     content: (

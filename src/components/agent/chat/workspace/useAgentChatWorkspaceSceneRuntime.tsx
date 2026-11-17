@@ -431,6 +431,7 @@ export function useAgentChatWorkspaceSceneRuntime({
         harnessState,
         preferredServiceSkillResultFileTarget,
         runtimeWorkspaceId,
+        rightSurfaceProjectName: project?.name ?? null,
         sceneSessionId,
         sceneThreadId: sceneThreadRead?.thread_id ?? null,
         onOpenArticlePreviewArtifact: openWorkspaceArtifactInWorkbench,
