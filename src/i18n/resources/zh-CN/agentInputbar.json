@@ -13,7 +13,7 @@
   "agentChat.inputbar.core.dictation.interruptedByComposition": "语音输入已取消，请完成文字输入后重试",
   "agentChat.inputbar.core.dictation.disabled": "语音输入未启用",
   "agentChat.inputbar.core.placeholder.fullscreen": "全屏编辑模式，按 ESC 退出，Enter 发送",
-  "agentChat.inputbar.core.placeholder.default": "和 Lime 一起工作",
+  "agentChat.inputbar.core.placeholder.default": "与 Lime 一起工作",
   "agentChat.inputbar.parentOwned.placeholder": "此子线程由父线程管理，无法直接输入",
   "agentChat.inputbar.core.image.previewAlt": "预览 {{index}}",
   "agentChat.inputbar.core.image.remove": "移除图片 {{index}}",
