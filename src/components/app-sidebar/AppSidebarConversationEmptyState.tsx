@@ -39,7 +39,7 @@ export function AppSidebarConversationLoading({ label }: { label: string }) {
         <div
           key={row}
           aria-hidden="true"
-          className="h-6 animate-pulse rounded-lg bg-[color:var(--sidebar-hover)]/60"
+          className="h-6 animate-pulse rounded-lg bg-[var(--sidebar-hover)] opacity-60"
           style={{ width: `${88 - row * 10}%` }}
         />
       ))}

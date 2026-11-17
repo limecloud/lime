@@ -488,7 +488,7 @@ function AppContent() {
       </span>
       <div
         aria-hidden="true"
-        className="h-3 w-44 animate-pulse rounded-full bg-[color:var(--lime-surface-border)]/50"
+        className="h-3 w-44 animate-pulse rounded-full bg-[var(--lime-surface-border)] opacity-50"
       />
     </div>
   );

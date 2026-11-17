@@ -65,12 +65,12 @@ export function RestoringSessionEmptyState() {
         </span>
         {[0, 1, 2].map((row) => (
           <div key={row} className="animate-pulse space-y-3">
-            <div className="h-3 w-28 rounded-full bg-[color:var(--lime-surface-border)]/60" />
+            <div className="h-3 w-28 rounded-full bg-[var(--lime-surface-border)] opacity-60" />
             <div className="space-y-2">
-              <div className="h-3 w-full rounded-full bg-[color:var(--lime-surface-border)]/40" />
-              <div className="h-3 w-[88%] rounded-full bg-[color:var(--lime-surface-border)]/40" />
+              <div className="h-3 w-full rounded-full bg-[var(--lime-surface-border)] opacity-40" />
+              <div className="h-3 w-[88%] rounded-full bg-[var(--lime-surface-border)] opacity-40" />
               {row !== 1 ? (
-                <div className="h-3 w-[64%] rounded-full bg-[color:var(--lime-surface-border)]/40" />
+                <div className="h-3 w-[64%] rounded-full bg-[var(--lime-surface-border)] opacity-40" />
               ) : null}
             </div>
           </div>
