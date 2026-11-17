@@ -14,10 +14,10 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
+  Bell,
   ChevronDown,
-  LayoutGrid,
+  Home,
   Search,
-  SquarePen,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -41,6 +41,7 @@ import {
 } from "@/lib/navigation/sidebarNav";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LIME_BRAND_NAME } from "@/lib/branding";
+import { selectPrioritySessions } from "@/components/app-sidebar/sidebarPrioritySessions";
 import { useCommand } from "@/lib/commands/useCommand";
 import { AppSidebarCustomization } from "@/components/app-sidebar/AppSidebarCustomization";
 import { ContextualSidebarOutlet } from "@/components/app-shell/ContextualSidebarOutlet";
@@ -800,7 +801,6 @@ export function AppSidebar({
   const navigationToggleLabel = collapsed
     ? expandNavigationLabel
     : collapseNavigationLabel;
-  const newChatLabel = t("navigation.sidebar.items.newChat");
   const searchTaskLabel = t("navigation.sidebar.search.label");
   const searchConversationTitleLabel = t(
     "navigation.sidebar.search.inputLabel",
@@ -903,6 +903,16 @@ export function AppSidebar({
     };
   }, [onStartNewConversation]);
 
+  const unreadSessionCount = selectPrioritySessions(
+    visibleRecentSidebarSessions,
+  ).filter((session) => session.hasUnread).length;
+  const activityViewLabel =
+    unreadSessionCount > 0
+      ? t("navigation.sidebar.activity.unread", {
+          count: unreadSessionCount,
+        })
+      : t("navigation.sidebar.activity.label");
+
   return (
     <TooltipProvider>
       <NavigationShortcutCommands onNavigate={onNavigate} />
@@ -930,24 +940,6 @@ export function AppSidebar({
             onClick={toggleSidebarCollapsed}
           >
             {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-          </IconActionButton>
-        </HeaderAction>
-      ) : null}
-      {activePage !== "settings" ? (
-        <HeaderAction actionId="new-chat" slotPosition="left" order={2}>
-          <IconActionButton
-            type="button"
-            title={newChatLabel}
-            aria-label={newChatLabel}
-            data-testid="app-sidebar-new-chat"
-            onClick={() =>
-              onStartNewConversation?.({
-                projectId: newChatProjectId,
-                freshDraft: false,
-              })
-            }
-          >
-            <SquarePen />
           </IconActionButton>
         </HeaderAction>
       ) : null}
@@ -988,7 +980,7 @@ export function AppSidebar({
                 });
               }}
             >
-              <LayoutGrid />
+              <Home fill="currentColor" />
             </NavigationRailButton>
           </NavigationRailTooltip>
           {filteredMainNavItems
@@ -1052,25 +1044,23 @@ export function AppSidebar({
                   </SearchButton>
                   <SearchButton
                     $inline
-                    onClick={() =>
-                      onStartNewConversation?.({
-                        projectId: newChatProjectId,
-                        freshDraft: false,
-                      })
-                    }
-                    title={String(
-                      t("navigation.sidebar.newChat.ariaLabel", {
-                        defaultValue: "新聊天",
-                      }),
-                    )}
-                    aria-label={String(
-                      t("navigation.sidebar.newChat.ariaLabel", {
-                        defaultValue: "新聊天",
-                      }),
-                    )}
-                    data-testid="app-sidebar-compose-button"
+                    style={{ position: "relative" }}
+                    onClick={() => setActivityViewOpen((open) => !open)}
+                    title={activityViewLabel}
+                    aria-label={activityViewLabel}
+                    aria-pressed={activityViewOpen}
+                    data-testid="app-sidebar-activity-button"
                   >
-                    <SquarePen size={15} />
+                    <Bell size={14} />
+                    {unreadSessionCount > 0 ? (
+                      <span
+                        style={{ display: "inline-flex" }}
+                        className="absolute -right-0.5 -top-0.5 h-3.5 min-w-3.5 items-center justify-center rounded-full bg-sky-500 px-0.5 text-[9px] font-bold leading-none text-white"
+                        data-testid="app-sidebar-activity-badge"
+                      >
+                        {unreadSessionCount > 9 ? "9+" : unreadSessionCount}
+                      </span>
+                    ) : null}
                   </SearchButton>
                 </HeaderTopRow>
               </HeaderArea>

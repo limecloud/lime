@@ -74,14 +74,16 @@ describe("AppSidebar navigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("scheduled-tasks", undefined);
   });
 
-  it("标题栏提供新聊天按钮并复用新会话动作", async () => {
+  it("标题栏不重复新聊天，侧栏入口复用新会话动作", async () => {
     const container = mountSidebarContainer();
     await flushEffects(2);
+    expect(
+      container.querySelector('[data-testid="app-sidebar-new-chat"]'),
+    ).toBeNull();
     const button = container.querySelector<HTMLButtonElement>(
-      '[data-testid="app-sidebar-new-chat"]',
+      '[data-testid="app-sidebar-nav-new-chat"]',
     );
     expect(button).not.toBeNull();
-    expect(button!.getAttribute("aria-label")).toBe("新聊天");
     act(() => button!.click());
     expect(mockStartNewConversation).toHaveBeenCalledWith(
       expect.objectContaining({ freshDraft: false }),
