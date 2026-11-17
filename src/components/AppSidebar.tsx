@@ -15,7 +15,7 @@ import {
 } from "react";
 import {
   ChevronDown,
-  Home,
+  LayoutGrid,
   Search,
   SquarePen,
   PanelLeftClose,
@@ -988,7 +988,7 @@ export function AppSidebar({
                 });
               }}
             >
-              <Home />
+              <LayoutGrid />
             </NavigationRailButton>
           </NavigationRailTooltip>
           {filteredMainNavItems
