@@ -218,4 +218,15 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       window.removeEventListener("lime:open-folder", listener);
     }
   });
+
+  it("新建项目命令派发 lime:new-project", () => {
+    const listener = vi.fn();
+    window.addEventListener("lime:new-project", listener);
+    try {
+      expect(runCommand("app.newProject")).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("lime:new-project", listener);
+    }
+  });
 });

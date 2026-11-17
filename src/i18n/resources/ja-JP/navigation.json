@@ -461,5 +461,7 @@
   "commands.toggleWorkRunLocation.title": "実行場所を変更",
   "commands.toggleWorkRunLocation.description": "クラウド実行場所の設定を開く",
   "commands.openFolder.title": "フォルダーを開く",
-  "commands.openFolder.description": "Lime でローカルフォルダーを開く"
+  "commands.openFolder.description": "Lime でローカルフォルダーを開く",
+  "commands.newProject.title": "新しいプロジェクト",
+  "commands.newProject.description": "Lime で新しいプロジェクトを作成"
 }

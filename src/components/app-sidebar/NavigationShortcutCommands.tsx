@@ -60,6 +60,15 @@ export function NavigationShortcutCommands({
     };
     return [
       {
+        id: "app.newProject",
+        titleKey: "commands.newProject.title",
+        descriptionKey: "commands.newProject.description",
+        section: "app",
+        bindings: [],
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:new-project")),
+      },
+      {
         id: "app.openFolder",
         titleKey: "commands.openFolder.title",
         descriptionKey: "commands.openFolder.description",

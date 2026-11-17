@@ -461,5 +461,7 @@
   "commands.toggleWorkRunLocation.title": "切换运行位置",
   "commands.toggleWorkRunLocation.description": "打开云运行位置设置",
   "commands.openFolder.title": "打开文件夹",
-  "commands.openFolder.description": "在 Lime 中打开本地文件夹"
+  "commands.openFolder.description": "在 Lime 中打开本地文件夹",
+  "commands.newProject.title": "新建项目",
+  "commands.newProject.description": "在 Lime 中创建新项目"
 }

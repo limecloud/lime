@@ -461,5 +461,7 @@
   "commands.toggleWorkRunLocation.title": "切換執行位置",
   "commands.toggleWorkRunLocation.description": "開啟雲端執行位置設定",
   "commands.openFolder.title": "開啟資料夾",
-  "commands.openFolder.description": "在 Lime 中開啟本機資料夾"
+  "commands.openFolder.description": "在 Lime 中開啟本機資料夾",
+  "commands.newProject.title": "新增專案",
+  "commands.newProject.description": "在 Lime 中建立新專案"
 }

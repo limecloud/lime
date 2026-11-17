@@ -461,5 +461,7 @@
   "commands.toggleWorkRunLocation.title": "실행 위치 변경",
   "commands.toggleWorkRunLocation.description": "클라우드 실행 위치 설정 열기",
   "commands.openFolder.title": "폴더 열기",
-  "commands.openFolder.description": "Lime에서 로컬 폴더 열기"
+  "commands.openFolder.description": "Lime에서 로컬 폴더 열기",
+  "commands.newProject.title": "새 프로젝트",
+  "commands.newProject.description": "Lime에서 새 프로젝트 만들기"
 }

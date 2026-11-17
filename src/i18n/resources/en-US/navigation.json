@@ -461,5 +461,7 @@
   "commands.toggleWorkRunLocation.title": "Change run location",
   "commands.toggleWorkRunLocation.description": "Open cloud run location setup",
   "commands.openFolder.title": "Open folder",
-  "commands.openFolder.description": "Open a local folder in Lime"
+  "commands.openFolder.description": "Open a local folder in Lime",
+  "commands.newProject.title": "New project",
+  "commands.newProject.description": "Create a new project in Lime"
 }
