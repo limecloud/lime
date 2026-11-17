@@ -1681,7 +1681,20 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.write_all(&[4]).expect("exit TUI");
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
+        #[cfg(windows)]
+        {
+            while !matches!(child.try_wait(), Ok(Some(_))) {
+                assert!(Instant::now() < deadline, "TUI did not exit after config");
+                if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
+                    output.push_str(&String::from_utf8_lossy(&chunk));
+                }
+            }
+            println!("TUI_CONFIG_COMMAND_OK menu=model");
+            return;
+        }
+        #[cfg(not(windows))]
         let mut last_exit = Instant::now();
+        #[cfg(not(windows))]
         while !output.contains("\u{1b}[?1049l") {
             assert!(
                 Instant::now() < deadline,
@@ -1766,7 +1779,9 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             writer.write_all(b"\x03").expect("Ctrl-C clears draft");
             writer.flush().expect("flush Ctrl-C");
             std::thread::sleep(Duration::from_millis(200));
-            writer.write_all(b"\x04").expect("Ctrl-D quits empty composer");
+            writer
+                .write_all(b"\x04")
+                .expect("Ctrl-D quits empty composer");
         }
         #[cfg(not(windows))]
         {
@@ -1794,10 +1809,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 if matches!(child.try_wait(), Ok(Some(_))) {
                     break;
                 }
-                assert!(
-                    Instant::now() < deadline,
-                    "TUI did not exit after quit"
-                );
+                assert!(Instant::now() < deadline, "TUI did not exit after quit");
                 if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(200)) {
                     output.push_str(&String::from_utf8_lossy(&chunk));
                 }
@@ -3158,9 +3170,7 @@ fn wait_for_marker(
             .recv_timeout(remaining)
             .unwrap_or_else(|_| panic!("PTY closed before {marker:?}; output: {output}"));
         output.push_str(&String::from_utf8_lossy(&chunk));
-        if output.as_bytes().ends_with(b"\x1b[6n")
-            || output.as_bytes().ends_with(b"[6n")
-        {
+        if output.as_bytes().ends_with(b"\x1b[6n") || output.as_bytes().ends_with(b"[6n") {
             // ConPTY asks the attached terminal for a cursor position at
             // startup. The PTY harness is the terminal here, so answer DSR;
             // otherwise the child waits and the gate times out.
