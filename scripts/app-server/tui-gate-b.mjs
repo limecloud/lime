@@ -983,6 +983,15 @@ async function main() {
       }
     }
 
+    if (process.env.LIME_TUI_GATE_WINDOWS_RESTORE_ONLY === "1") {
+      console.log(
+        "TUI_GATE_B_WINDOWS_RESTORE_OK scenarios=" +
+          scenarios.join(",") +
+          " terminal=restored",
+      );
+      return;
+    }
+
     const focusScenarioDir = path.join(tempDir, "focus-palette");
     await mkdir(focusScenarioDir, { recursive: true });
     const focusBackendPath = path.join(tempDir, "focus-palette-backend.mjs");

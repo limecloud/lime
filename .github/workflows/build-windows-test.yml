@@ -179,6 +179,7 @@ jobs:
             else
               if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
                 export LIME_TUI_GATE_B_SCENARIOS="${LIME_WINDOWS_TUI_SCENARIOS:-quit-command}"
+                export LIME_TUI_GATE_WINDOWS_RESTORE_ONLY=1
               fi
               npm run smoke:tui-gate-b
             fi
