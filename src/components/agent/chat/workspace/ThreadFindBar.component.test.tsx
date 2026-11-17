@@ -67,5 +67,21 @@ describe("ThreadFindBar", () => {
     ).toBe("1 / 2");
     expect(registry.get("lime-thread-find")?.ranges).toHaveLength(2);
     expect(registry.get("lime-thread-find-active")?.ranges).toHaveLength(1);
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('button[aria-label="Next match"]')
+        ?.click();
+    });
+    expect(
+      document.querySelector('[data-testid="thread-find-count"]')?.textContent,
+    ).toBe("2 / 2");
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('button[aria-label="Previous match"]')
+        ?.click();
+    });
+    expect(
+      document.querySelector('[data-testid="thread-find-count"]')?.textContent,
+    ).toBe("1 / 2");
   });
 });
