@@ -459,5 +459,7 @@
   "commands.toggleWorktreeMode.title": "Toggle worktree mode",
   "commands.toggleWorktreeMode.description": "Toggle local/worktree execution in the current chat",
   "commands.toggleWorkRunLocation.title": "Change run location",
-  "commands.toggleWorkRunLocation.description": "Open cloud run location setup"
+  "commands.toggleWorkRunLocation.description": "Open cloud run location setup",
+  "commands.openFolder.title": "Open folder",
+  "commands.openFolder.description": "Open a local folder in Lime"
 }

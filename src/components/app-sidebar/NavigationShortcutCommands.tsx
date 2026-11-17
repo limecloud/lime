@@ -60,6 +60,14 @@ export function NavigationShortcutCommands({
     };
     return [
       {
+        id: "app.openFolder",
+        titleKey: "commands.openFolder.title",
+        descriptionKey: "commands.openFolder.description",
+        section: "app",
+        bindings: ["CommandOrControl+O"],
+        handler: () => window.dispatchEvent(new CustomEvent("lime:open-folder")),
+      },
+      {
         id: "navigation.newChat",
         titleKey: "commands.newChat.title",
         descriptionKey: "commands.newChat.description",

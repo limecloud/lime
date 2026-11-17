@@ -459,5 +459,7 @@
   "commands.toggleWorktreeMode.title": "切換工作樹模式",
   "commands.toggleWorktreeMode.description": "在目前聊天中切換本機/工作樹執行模式",
   "commands.toggleWorkRunLocation.title": "切換執行位置",
-  "commands.toggleWorkRunLocation.description": "開啟雲端執行位置設定"
+  "commands.toggleWorkRunLocation.description": "開啟雲端執行位置設定",
+  "commands.openFolder.title": "開啟資料夾",
+  "commands.openFolder.description": "在 Lime 中開啟本機資料夾"
 }

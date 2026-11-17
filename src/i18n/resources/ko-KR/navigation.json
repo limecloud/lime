@@ -459,5 +459,7 @@
   "commands.toggleWorktreeMode.title": "워크트리 모드 전환",
   "commands.toggleWorktreeMode.description": "현재 채팅에서 로컬/워크트리 실행 전환",
   "commands.toggleWorkRunLocation.title": "실행 위치 변경",
-  "commands.toggleWorkRunLocation.description": "클라우드 실행 위치 설정 열기"
+  "commands.toggleWorkRunLocation.description": "클라우드 실행 위치 설정 열기",
+  "commands.openFolder.title": "폴더 열기",
+  "commands.openFolder.description": "Lime에서 로컬 폴더 열기"
 }

@@ -459,5 +459,7 @@
   "commands.toggleWorktreeMode.title": "ワークツリーモードを切り替え",
   "commands.toggleWorktreeMode.description": "現在のチャットでローカル/ワークツリー実行を切り替え",
   "commands.toggleWorkRunLocation.title": "実行場所を変更",
-  "commands.toggleWorkRunLocation.description": "クラウド実行場所の設定を開く"
+  "commands.toggleWorkRunLocation.description": "クラウド実行場所の設定を開く",
+  "commands.openFolder.title": "フォルダーを開く",
+  "commands.openFolder.description": "Lime でローカルフォルダーを開く"
 }

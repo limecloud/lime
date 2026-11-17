@@ -115,6 +115,7 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       "CommandOrControl+Shift+S",
       "CommandOrControl+B",
     ]);
+    expect(command("app.openFolder").bindings).toEqual(["CommandOrControl+O"]);
     expect(command("app.toggleSideChat").bindings).toEqual([]);
     expect(command("app.focusSideChat").bindings).toEqual([
       "CommandOrControl+Alt+S",

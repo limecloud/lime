@@ -459,5 +459,7 @@
   "commands.toggleWorktreeMode.title": "切换工作树模式",
   "commands.toggleWorktreeMode.description": "在当前聊天中切换本地/工作树执行模式",
   "commands.toggleWorkRunLocation.title": "切换运行位置",
-  "commands.toggleWorkRunLocation.description": "打开云运行位置设置"
+  "commands.toggleWorkRunLocation.description": "打开云运行位置设置",
+  "commands.openFolder.title": "打开文件夹",
+  "commands.openFolder.description": "在 Lime 中打开本地文件夹"
 }
