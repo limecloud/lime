@@ -24,6 +24,7 @@ import type {
 import {
   PersistedHistoryWindow,
   RestoringSessionEmptyState,
+  SessionDraftWelcome,
   TaskCenterEmptyState,
 } from "./MessageListHistoryChrome";
 import { MessageListDateDivider } from "./MessageListDateDivider";
@@ -604,6 +605,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   <RestoringSessionEmptyState />
                 ) : isTaskCenterEmptyState ? (
                   <TaskCenterEmptyState />
+                ) : sessionId ? (
+                  <SessionDraftWelcome />
                 ) : null)}
 
               <MessageListDateDivider

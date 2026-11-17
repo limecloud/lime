@@ -507,5 +507,7 @@
   "agentChat.messageList.actions.retry": "重試",
   "agentChat.messageList.turnDuration": "耗時 {{duration}}",
   "agentChat.messageList.turnRenderError": "此回合渲染失敗",
-  "agentChat.messageList.summaryRenderError": "摘要面板渲染失敗"
+  "agentChat.messageList.summaryRenderError": "摘要面板渲染失敗",
+  "agentChat.messageList.sessionEmpty.title": "與 Lime 一起工作",
+  "agentChat.messageList.sessionEmpty.description": "在下方輸入訊息，開始新的對話。"
 }

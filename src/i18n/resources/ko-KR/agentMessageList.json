@@ -507,5 +507,7 @@
   "agentChat.messageList.actions.retry": "다시 시도",
   "agentChat.messageList.turnDuration": "소요 시간 {{duration}}",
   "agentChat.messageList.turnRenderError": "이 턴을 렌더링하지 못했습니다",
-  "agentChat.messageList.summaryRenderError": "요약 패널을 렌더링하지 못했습니다"
+  "agentChat.messageList.summaryRenderError": "요약 패널을 렌더링하지 못했습니다",
+  "agentChat.messageList.sessionEmpty.title": "Lime와 작업하기",
+  "agentChat.messageList.sessionEmpty.description": "아래에 메시지를 입력하여 새 대화를 시작하세요."
 }

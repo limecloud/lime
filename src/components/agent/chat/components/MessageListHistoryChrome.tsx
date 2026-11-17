@@ -80,6 +80,29 @@ export function RestoringSessionEmptyState() {
   );
 }
 
+export function SessionDraftWelcome() {
+  const { t } = useTranslation("agent");
+
+  return (
+    <div
+      className="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-4 px-6 py-10 text-center"
+      data-testid="message-list-empty-session"
+    >
+      <img
+        src={LIME_BRAND_LOGO_SRC}
+        alt={LIME_BRAND_NAME}
+        className="h-10 w-10 object-contain"
+      />
+      <h2 className="text-xl font-normal text-[color:var(--lime-text-strong)]">
+        {t("agentChat.messageList.sessionEmpty.title")}
+      </h2>
+      <p className="max-w-[30rem] text-sm leading-6 text-[color:var(--lime-text-muted)]">
+        {t("agentChat.messageList.sessionEmpty.description")}
+      </p>
+    </div>
+  );
+}
+
 export function TaskCenterEmptyState() {
   const { t } = useTranslation("agent");
 

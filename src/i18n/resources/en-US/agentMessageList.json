@@ -507,5 +507,7 @@
   "agentChat.messageList.actions.retry": "Retry",
   "agentChat.messageList.turnDuration": "Took {{duration}}",
   "agentChat.messageList.turnRenderError": "This turn failed to render",
-  "agentChat.messageList.summaryRenderError": "Summary panel failed to render"
+  "agentChat.messageList.summaryRenderError": "Summary panel failed to render",
+  "agentChat.messageList.sessionEmpty.title": "Work with Lime",
+  "agentChat.messageList.sessionEmpty.description": "Type a message below to start a new conversation."
 }

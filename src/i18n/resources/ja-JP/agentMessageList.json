@@ -507,5 +507,7 @@
   "agentChat.messageList.actions.retry": "再試行",
   "agentChat.messageList.turnDuration": "所要時間 {{duration}}",
   "agentChat.messageList.turnRenderError": "このターンの表示に失敗しました",
-  "agentChat.messageList.summaryRenderError": "サマリーパネルの表示に失敗しました"
+  "agentChat.messageList.summaryRenderError": "サマリーパネルの表示に失敗しました",
+  "agentChat.messageList.sessionEmpty.title": "Lime と作業する",
+  "agentChat.messageList.sessionEmpty.description": "下の入力欄にメッセージを入力して新しい会話を始めましょう。"
 }

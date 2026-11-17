@@ -890,6 +890,13 @@ describe("MessageList layout and scrolling", () => {
     expect(container.textContent).not.toContain("The composer is ready");
   });
 
+  it("空白会话应展示会话欢迎态", () => {
+    const container = render([], { sessionId: "session-empty-draft" });
+    expect(
+      container.querySelector('[data-testid="message-list-empty-session"]'),
+    ).not.toBeNull();
+  });
+
   it("任务中心空消息列表仍应显式展示最近对话空态", () => {
     const container = render([], { emptyStateVariant: "task-center" });
 
