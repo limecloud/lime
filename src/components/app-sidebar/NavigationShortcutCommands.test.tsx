@@ -257,4 +257,15 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       container.remove();
     }
   });
+
+  it("Cmd+F 打开会话内查找", () => {
+    const listener = vi.fn();
+    window.addEventListener("lime:open-thread-find", listener);
+    try {
+      expect(runCommand("thread.find")).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("lime:open-thread-find", listener);
+    }
+  });
 });
