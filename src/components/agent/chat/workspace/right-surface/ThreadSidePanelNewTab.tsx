@@ -19,6 +19,7 @@ export interface ThreadSidePanelNewTabProps {
   onChatSelect?: () => void;
   outputs?: readonly ThreadOutput[];
   onOpenOutput?: Parameters<typeof ThreadSidePanelRecents>[0]["onOpen"];
+  showBrowserAddress?: boolean;
 }
 
 const rowClass =
@@ -32,6 +33,7 @@ export function ThreadSidePanelNewTab({
   onChatSelect,
   outputs = [],
   onOpenOutput,
+  showBrowserAddress = true,
 }: ThreadSidePanelNewTabProps) {
   const { t } = useTranslation("agent");
   const pending = useRef<ThreadSidePanelAction | null>(null);
@@ -40,6 +42,26 @@ export function ThreadSidePanelNewTab({
   const { primary, overflow, extensions } = projectNewTabTools(
     actions,
     Boolean(onChatSelect),
+  );
+  const reviewAction = primary.find((action) => action.kind === "changes");
+  const otherPrimary = primary.filter((action) => action !== reviewAction);
+  const renderPrimaryAction = (action: ThreadSidePanelAction) => (
+    <button
+      key={action.id}
+      className={rowClass}
+      onClick={() => onActionSelect(action)}
+      data-testid={`side-panel-new-tab-${action.id}`}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+        {action.icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{action.title}</span>
+      {action.keyboardShortcut ? (
+        <kbd className="text-xs text-[color:var(--lime-text-muted)]">
+          {action.keyboardShortcut}
+        </kbd>
+      ) : null}
+    </button>
   );
   const item = (action: ThreadSidePanelAction) => (
     <DropdownMenu.Item
@@ -68,7 +90,7 @@ export function ThreadSidePanelNewTab({
       data-testid="thread-side-panel-new-tab"
     >
       <div className="flex w-full min-w-0 flex-col gap-3">
-        {browserNavigation && presentation ? (
+        {showBrowserAddress && browserNavigation && presentation ? (
           <BrowserNewTabAddress
             key={presentation.tab.tabId}
             sourceTabId={presentation.tab.tabId}
@@ -91,6 +113,7 @@ export function ThreadSidePanelNewTab({
               {t("agentChat.rightSurface.newTab.tools")}
             </h3>
             <div className={`${styles.tools} grid gap-x-2 gap-y-0.5`}>
+              {reviewAction ? renderPrimaryAction(reviewAction) : null}
               {onChatSelect ? (
                 <button
                   className={rowClass}
@@ -101,26 +124,7 @@ export function ThreadSidePanelNewTab({
                   {t("agentChat.rightSurface.newTab.chat")}
                 </button>
               ) : null}
-              {primary.map((action) => (
-                <button
-                  key={action.id}
-                  className={rowClass}
-                  onClick={() => onActionSelect(action)}
-                  data-testid={`side-panel-new-tab-${action.id}`}
-                >
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                    {action.icon}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {action.title}
-                  </span>
-                  {action.keyboardShortcut ? (
-                    <kbd className="text-xs text-[color:var(--lime-text-muted)]">
-                      {action.keyboardShortcut}
-                    </kbd>
-                  ) : null}
-                </button>
-              ))}
+              {otherPrimary.map(renderPrimaryAction)}
               {overflow.length || extensions.length ? (
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger className={rowClass}>

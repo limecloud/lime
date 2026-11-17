@@ -1496,7 +1496,7 @@
   "agentChat.rightSurface.openPanel": "打开侧边面板",
   "agentChat.rightSurface.closePanel": "关闭侧边面板",
   "agentChat.rightSurface.newTab.tools": "工具",
-  "agentChat.rightSurface.newTab.chat": "聊天",
+  "agentChat.rightSurface.newTab.chat": "新聊天",
   "agentChat.rightSurface.newTab.moreTools": "更多工具…",
   "agentChat.rightSurface.newTab.moreToolsHeading": "更多工具",
   "agentChat.rightSurface.newTab.plugins": "插件和 MCP",
@@ -1777,5 +1777,6 @@
   "agentChat.rightSurface.newTab.viewAll": "查看全部",
   "agentChat.rightSurface.newTab.showLess": "收起",
   "agentChat.rightSurface.close": "关闭面板",
-  "agentChat.rightSurface.more": "更多"
+  "agentChat.rightSurface.more": "更多",
+  "agentChat.rightSurface.showTabs": "显示标签页"
 }

@@ -162,6 +162,7 @@ export function renderWorkspaceRightSurfaceHostRuntime({
     "workspace-new-tab": ({ tab }) => (
       <ThreadSidePanelNewTab
         actions={sidePanelActions}
+        showBrowserAddress={false}
         onActionSelect={(action) =>
           onSelectSidePanelAction(action.kind, tab.tabId)
         }

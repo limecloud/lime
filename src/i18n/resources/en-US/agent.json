@@ -1496,7 +1496,7 @@
   "agentChat.rightSurface.openPanel": "Open side panel",
   "agentChat.rightSurface.closePanel": "Close side panel",
   "agentChat.rightSurface.newTab.tools": "Tools",
-  "agentChat.rightSurface.newTab.chat": "Chat",
+  "agentChat.rightSurface.newTab.chat": "New chat",
   "agentChat.rightSurface.newTab.moreTools": "More tools…",
   "agentChat.rightSurface.newTab.moreToolsHeading": "More tools",
   "agentChat.rightSurface.newTab.plugins": "Plugins and MCPs",
@@ -1777,5 +1777,6 @@
   "agentChat.rightSurface.newTab.viewAll": "View all",
   "agentChat.rightSurface.newTab.showLess": "Show less",
   "agentChat.rightSurface.close": "Close panel",
-  "agentChat.rightSurface.more": "More"
+  "agentChat.rightSurface.more": "More",
+  "agentChat.rightSurface.showTabs": "Show tabs"
 }

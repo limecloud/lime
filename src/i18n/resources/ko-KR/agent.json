@@ -1496,7 +1496,7 @@
   "agentChat.rightSurface.openPanel": "측면 패널 열기",
   "agentChat.rightSurface.closePanel": "측면 패널 닫기",
   "agentChat.rightSurface.newTab.tools": "도구",
-  "agentChat.rightSurface.newTab.chat": "채팅",
+  "agentChat.rightSurface.newTab.chat": "새 채팅",
   "agentChat.rightSurface.newTab.moreTools": "더 많은 도구…",
   "agentChat.rightSurface.newTab.moreToolsHeading": "더 많은 도구",
   "agentChat.rightSurface.newTab.plugins": "플러그인 및 MCP",
@@ -1777,5 +1777,6 @@
   "agentChat.rightSurface.newTab.viewAll": "전체 보기",
   "agentChat.rightSurface.newTab.showLess": "접기",
   "agentChat.rightSurface.close": "패널 닫기",
-  "agentChat.rightSurface.more": "더 보기"
+  "agentChat.rightSurface.more": "더 보기",
+  "agentChat.rightSurface.showTabs": "탭 표시"
 }

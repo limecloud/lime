@@ -1496,7 +1496,7 @@
   "agentChat.rightSurface.openPanel": "サイドパネルを開く",
   "agentChat.rightSurface.closePanel": "サイドパネルを閉じる",
   "agentChat.rightSurface.newTab.tools": "ツール",
-  "agentChat.rightSurface.newTab.chat": "チャット",
+  "agentChat.rightSurface.newTab.chat": "新しいチャット",
   "agentChat.rightSurface.newTab.moreTools": "その他のツール…",
   "agentChat.rightSurface.newTab.moreToolsHeading": "その他のツール",
   "agentChat.rightSurface.newTab.plugins": "プラグインと MCP",
@@ -1777,5 +1777,6 @@
   "agentChat.rightSurface.newTab.viewAll": "すべて表示",
   "agentChat.rightSurface.newTab.showLess": "折りたたむ",
   "agentChat.rightSurface.close": "パネルを閉じる",
-  "agentChat.rightSurface.more": "その他"
+  "agentChat.rightSurface.more": "その他",
+  "agentChat.rightSurface.showTabs": "タブを表示"
 }
