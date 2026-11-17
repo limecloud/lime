@@ -69,7 +69,6 @@ export function ThreadWorkspaceHeader({
   actions,
   summaryToggle,
   leading,
-  trailingTabs,
 }: ThreadWorkspaceHeaderProps) {
   const { t: tNavigation } = useTranslation("navigation");
   const [editingTitle, setEditingTitle] = useState(false);
@@ -393,14 +392,7 @@ export function ThreadWorkspaceHeader({
 
             </div>
           )}
-          {trailingTabs ? (
-            <div
-              className="flex min-w-[140px] max-w-[45%] flex-1 items-center gap-1 overflow-x-auto"
-              data-inline-side-panel-tabs
-            >
-              {trailingTabs}
-            </div>
-          ) : null}
+
         </div>
         {actionDestination === "chat" ? (
           <HeaderToolbar.Actions className="min-w-0 max-w-full shrink">

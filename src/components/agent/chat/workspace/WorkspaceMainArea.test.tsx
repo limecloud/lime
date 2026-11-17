@@ -248,7 +248,7 @@ describe("WorkspaceMainArea", () => {
     expect(
       container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.dataset.chatPanelWidth,
-    ).toBe("500px");
+    ).toBe("880px");
     expect(
       container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.dataset.chatPanelMinWidth,

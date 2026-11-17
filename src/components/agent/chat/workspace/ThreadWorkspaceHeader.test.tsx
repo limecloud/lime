@@ -26,11 +26,11 @@ afterEach(async () => {
 
 describe("ThreadWorkspaceHeader", () => {
   it.each([
-    ["zh-CN", "打开侧边面板", "关闭侧边面板"],
-    ["zh-TW", "開啟側邊面板", "關閉側邊面板"],
-    ["en-US", "Open side panel", "Close side panel"],
-    ["ja-JP", "サイドパネルを開く", "サイドパネルを閉じる"],
-    ["ko-KR", "측면 패널 열기", "측면 패널 닫기"],
+    ["zh-CN", "显示标签页", "显示标签页"],
+    ["zh-TW", "顯示標籤頁", "顯示標籤頁"],
+    ["en-US", "Show tabs", "Show tabs"],
+    ["ja-JP", "タブを表示", "タブを表示"],
+    ["ko-KR", "탭 표시", "탭 표시"],
   ] as const)(
     "%s 的窗口侧栏开关保持可访问名称和展开状态",
     async (locale, openLabel, closeLabel) => {

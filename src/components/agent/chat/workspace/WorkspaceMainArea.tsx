@@ -99,7 +99,7 @@ export function WorkspaceMainArea({
           chatContent={chatContent}
           canvasContent={effectiveCanvasContent}
           chatPanelWidth={chatPanelWidth}
-          contentPaneDefaultWidth={useRightSurfaceWidth ? 600 : undefined}
+          contentPaneDefaultWidth={useRightSurfaceWidth ? 320 : undefined}
           forceOpenChatPanel={hasPendingA2UIForm}
         />
       </GeneralWorkbenchLayoutShell>
