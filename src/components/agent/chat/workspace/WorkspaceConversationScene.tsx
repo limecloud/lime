@@ -9,6 +9,7 @@ import type {
   A2UIFormData,
   A2UIResponse,
 } from "@/components/workspace/a2ui/types";
+import { ThreadFindBar } from "./ThreadFindBar";
 import { CanvasWorkbenchLayout } from "../components/CanvasWorkbenchLayout";
 import { ChatNavbar } from "../components/ChatNavbar";
 
@@ -317,6 +318,7 @@ function renderWorkspaceChatContent({
           )}
         </ChatContainerInner>
       </ChatContainer>
+      <ThreadFindBar />
     </>
   );
 }

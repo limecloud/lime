@@ -1767,5 +1767,11 @@
   "browserExtensions.hide": "從工具列中隱藏",
   "browserExtensions.manage": "管理擴充功能",
   "browserExtensions.webStore": "前往線上應用程式商店",
-  "skills.workspace.store.allCategories": "全部"
+  "skills.workspace.store.allCategories": "全部",
+  "threadFind.placeholder": "在工作階段中尋找",
+  "threadFind.noResults": "沒有結果",
+  "threadFind.count": "{{current}} / {{total}}",
+  "threadFind.previous": "上一個相符項",
+  "threadFind.next": "下一個相符項",
+  "threadFind.close": "關閉尋找"
 }

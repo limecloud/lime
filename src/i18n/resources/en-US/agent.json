@@ -1767,5 +1767,11 @@
   "browserExtensions.hide": "Hide from toolbar",
   "browserExtensions.manage": "Manage extensions",
   "browserExtensions.webStore": "Visit the web store",
-  "skills.workspace.store.allCategories": "All categories"
+  "skills.workspace.store.allCategories": "All categories",
+  "threadFind.placeholder": "Find in chat",
+  "threadFind.noResults": "No results",
+  "threadFind.count": "{{current}} / {{total}}",
+  "threadFind.previous": "Previous match",
+  "threadFind.next": "Next match",
+  "threadFind.close": "Close find"
 }

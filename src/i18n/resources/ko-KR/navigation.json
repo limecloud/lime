@@ -463,5 +463,7 @@
   "commands.openFolder.title": "폴더 열기",
   "commands.openFolder.description": "Lime에서 로컬 폴더 열기",
   "commands.newProject.title": "새 프로젝트",
-  "commands.newProject.description": "Lime에서 새 프로젝트 만들기"
+  "commands.newProject.description": "Lime에서 새 프로젝트 만들기",
+  "commands.findInThread.title": "채팅에서 찾기",
+  "commands.findInThread.description": "현재 채팅에서 텍스트 찾기"
 }

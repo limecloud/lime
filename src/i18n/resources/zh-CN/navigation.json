@@ -463,5 +463,7 @@
   "commands.openFolder.title": "打开文件夹",
   "commands.openFolder.description": "在 Lime 中打开本地文件夹",
   "commands.newProject.title": "新建项目",
-  "commands.newProject.description": "在 Lime 中创建新项目"
+  "commands.newProject.description": "在 Lime 中创建新项目",
+  "commands.findInThread.title": "在会话中查找",
+  "commands.findInThread.description": "在当前会话中查找文本"
 }

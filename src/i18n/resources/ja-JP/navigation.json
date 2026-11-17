@@ -463,5 +463,7 @@
   "commands.openFolder.title": "フォルダーを開く",
   "commands.openFolder.description": "Lime でローカルフォルダーを開く",
   "commands.newProject.title": "新しいプロジェクト",
-  "commands.newProject.description": "Lime で新しいプロジェクトを作成"
+  "commands.newProject.description": "Lime で新しいプロジェクトを作成",
+  "commands.findInThread.title": "チャット内を検索",
+  "commands.findInThread.description": "現在のチャット内のテキストを検索"
 }

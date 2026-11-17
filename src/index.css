@@ -892,3 +892,12 @@ code.font-mono,
 [data-diff-line-type] {
   font-size: var(--lime-code-font-size, 12px);
 }
+
+::highlight(lime-thread-find) {
+  background-color: color-mix(in srgb, var(--lime-brand) 30%, transparent);
+}
+
+::highlight(lime-thread-find-active) {
+  background-color: color-mix(in srgb, var(--lime-brand) 65%, transparent);
+  color: var(--lime-text-strong);
+}

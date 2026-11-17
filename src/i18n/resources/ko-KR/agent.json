@@ -1767,5 +1767,11 @@
   "browserExtensions.hide": "도구 모음에서 숨기기",
   "browserExtensions.manage": "확장 프로그램 관리",
   "browserExtensions.webStore": "웹 스토어 방문",
-  "skills.workspace.store.allCategories": "전체"
+  "skills.workspace.store.allCategories": "전체",
+  "threadFind.placeholder": "채팅에서 찾기",
+  "threadFind.noResults": "결과 없음",
+  "threadFind.count": "{{current}} / {{total}}",
+  "threadFind.previous": "이전 일치",
+  "threadFind.next": "다음 일치",
+  "threadFind.close": "찾기 닫기"
 }

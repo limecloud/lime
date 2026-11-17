@@ -603,6 +603,16 @@ export function NavigationShortcutCommands({
         handler: requestWorkspaceReviewTabClose,
       },
       {
+        id: "thread.find",
+        titleKey: "commands.findInThread.title",
+        descriptionKey: "commands.findInThread.description",
+        section: "thread",
+        bindings: ["CommandOrControl+F"],
+        allowInInput: true,
+        handler: () =>
+          window.dispatchEvent(new CustomEvent("lime:open-thread-find")),
+      },
+      {
         id: "thread.archiveChat",
         titleKey: "commands.archiveChat.title",
         descriptionKey: "commands.archiveChat.description",

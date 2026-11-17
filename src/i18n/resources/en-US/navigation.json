@@ -463,5 +463,7 @@
   "commands.openFolder.title": "Open folder",
   "commands.openFolder.description": "Open a local folder in Lime",
   "commands.newProject.title": "New project",
-  "commands.newProject.description": "Create a new project in Lime"
+  "commands.newProject.description": "Create a new project in Lime",
+  "commands.findInThread.title": "Find in chat",
+  "commands.findInThread.description": "Find text in the current chat"
 }

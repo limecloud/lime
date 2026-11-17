@@ -1767,5 +1767,11 @@
   "browserExtensions.hide": "ツールバーから隠す",
   "browserExtensions.manage": "拡張機能を管理",
   "browserExtensions.webStore": "ウェブストアにアクセス",
-  "skills.workspace.store.allCategories": "すべて"
+  "skills.workspace.store.allCategories": "すべて",
+  "threadFind.placeholder": "チャット内を検索",
+  "threadFind.noResults": "結果なし",
+  "threadFind.count": "{{current}} / {{total}}",
+  "threadFind.previous": "前の一致",
+  "threadFind.next": "次の一致",
+  "threadFind.close": "検索を閉じる"
 }

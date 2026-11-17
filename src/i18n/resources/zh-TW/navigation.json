@@ -463,5 +463,7 @@
   "commands.openFolder.title": "開啟資料夾",
   "commands.openFolder.description": "在 Lime 中開啟本機資料夾",
   "commands.newProject.title": "新增專案",
-  "commands.newProject.description": "在 Lime 中建立新專案"
+  "commands.newProject.description": "在 Lime 中建立新專案",
+  "commands.findInThread.title": "在工作階段中尋找",
+  "commands.findInThread.description": "在目前工作階段中尋找文字"
 }
