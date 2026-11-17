@@ -484,4 +484,43 @@ describe("Recents production Host routing", () => {
       ).toEqual([pending]);
     },
   );
+
+  it("Right Surface 显示项目头和更多菜单", () => {
+    const source: ThreadSidePanelTab = {
+      tabId: "new-tab:header",
+      kind: "workspace-new-tab",
+    };
+    const params = {
+      idPrefix: "header-host",
+      outputs: [],
+      onOpenWebsite: vi.fn(),
+      onOpenWorkspaceFile: vi.fn(),
+      canvasWorkbenchRootPath: "/project/hetu",
+      sidePanelActions: [],
+      sidePanelTabs: {
+        open: true,
+        activeTabId: source.tabId,
+        tabs: [source],
+      },
+      rightSurfaceState: {
+        activeSurface: "workspace-new-tab",
+        previousSurface: null,
+        openSurfaces: ["workspace-new-tab"],
+        source: "user",
+        layoutVariant: "docked",
+      },
+      rightSurfaceCloseLabel: "关闭面板",
+      rightSurfaceMoreLabel: "更多",
+    } as RenderWorkspaceRightSurfaceHostRuntimeParams;
+    act(() =>
+      root.render(renderWorkspaceRightSurfaceHostRuntime(params).content),
+    );
+    const header = container.querySelector<HTMLElement>(
+      '[data-testid="right-surface-header"]',
+    );
+    expect(header?.textContent).toContain("hetu");
+    expect(
+      container.querySelector('[data-testid="right-surface-more"]'),
+    ).not.toBeNull();
+  });
 });
