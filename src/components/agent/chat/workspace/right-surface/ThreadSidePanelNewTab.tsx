@@ -22,7 +22,7 @@ export interface ThreadSidePanelNewTabProps {
 }
 
 const rowClass =
-  "flex min-h-10 w-full min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-[color:var(--lime-text)] outline-none hover:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:bg-[color:var(--lime-chrome-tab-hover)]";
+  "flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-[color:var(--lime-text)] outline-none hover:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:bg-[color:var(--lime-chrome-tab-hover)]";
 const menuClass =
   "z-50 min-w-56 rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-1 shadow-lg";
 
@@ -63,11 +63,11 @@ export function ThreadSidePanelNewTab({
   );
   return (
     <div
-      className={`${styles.root} flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto bg-[color:var(--lime-surface)] px-4 py-8 select-none`}
+      className={`${styles.root} flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto bg-[color:var(--lime-surface)] px-2 py-2 select-none`}
       data-new-tab-scroll-root
       data-testid="thread-side-panel-new-tab"
     >
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-10">
+      <div className="flex w-full min-w-0 flex-col gap-3">
         {browserNavigation && presentation ? (
           <BrowserNewTabAddress
             key={presentation.tab.tabId}
@@ -86,11 +86,11 @@ export function ThreadSidePanelNewTab({
             {t("agentChat.rightSurface.newTab.empty")}
           </p>
         ) : (
-          <section className="flex flex-col gap-4">
-            <h3 className="text-sm font-medium text-[color:var(--lime-text)]">
+          <section className="flex flex-col gap-0.5">
+            <h3 className="sr-only">
               {t("agentChat.rightSurface.newTab.tools")}
             </h3>
-            <div className={`${styles.tools} grid gap-x-4 gap-y-1`}>
+            <div className={`${styles.tools} grid gap-x-2 gap-y-0.5`}>
               {onChatSelect ? (
                 <button
                   className={rowClass}
