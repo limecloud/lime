@@ -487,7 +487,7 @@ export function NavigationShortcutCommands({
         titleKey: "commands.toggleSidebar.title",
         descriptionKey: "commands.toggleSidebar.description",
         section: "navigation",
-        bindings: ["CommandOrControl+Shift+S"],
+        bindings: ["CommandOrControl+Shift+S", "CommandOrControl+B"],
         allowInInput: true,
         handler: () =>
           window.dispatchEvent(new CustomEvent("lime:toggle-sidebar")),
