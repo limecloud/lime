@@ -25,8 +25,8 @@ import { getDefaultContentPaneWidth } from "./contentPaneWidth";
 
 const COMPACT_CHAT_CANVAS_CONTAINER_WIDTH = 900;
 const COMPACT_CHAT_CANVAS_BREAKPOINT_HEIGHT = 620;
-const CHAT_CANVAS_RESIZE_MIN_CHAT_WIDTH = 320;
-const CHAT_CANVAS_RESIZE_MIN_CANVAS_WIDTH = 320;
+const CHAT_CANVAS_RESIZE_MIN_CHAT_WIDTH = 280;
+const CHAT_CANVAS_RESIZE_MIN_CANVAS_WIDTH = 280;
 
 function shouldUseCompactChatCanvasLayout(
   mode: LayoutMode,
@@ -254,7 +254,7 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
         resizedChatPanelWidth !== null && effectiveMode === "chat-canvas"
           ? `${resizedChatPanelWidth}px`
           : contentPaneDefaultWidth !== undefined && paneBounds?.totalWidth
-            ? `${Math.max(320, paneBounds.totalWidth - paneBounds.gap - getDefaultContentPaneWidth(paneBounds.totalWidth, paneBounds.shellHeight, contentPaneDefaultWidth))}px`
+            ? `${Math.max(280, paneBounds.totalWidth - paneBounds.gap - getDefaultContentPaneWidth(paneBounds.totalWidth, paneBounds.shellHeight, contentPaneDefaultWidth))}px`
             : chatPanelWidth,
       [
         chatPanelWidth,

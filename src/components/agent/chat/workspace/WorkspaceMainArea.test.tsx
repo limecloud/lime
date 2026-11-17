@@ -248,17 +248,17 @@ describe("WorkspaceMainArea", () => {
     expect(
       container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.dataset.chatPanelWidth,
-    ).toBe("880px");
+    ).toBe("920px");
     expect(
       container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.dataset.chatPanelMinWidth,
-    ).toBe("320px");
+    ).toBe("280px");
     expect(
       container.querySelector('[data-testid="workspace-right-surface"]'),
     ).not.toBeNull();
   });
 
-  it("Right Surface 显式默认宽度仍服从统一 320px 下限", () => {
+  it("Right Surface 显式默认宽度服从统一 280px 下限", () => {
     const { container } = mountHarness(
       WorkspaceMainAreaHarness,
       {
@@ -277,7 +277,7 @@ describe("WorkspaceMainArea", () => {
     );
 
     expect(chatPanel?.dataset.chatPanelWidth).toBe("min(100%, 720px)");
-    expect(chatPanel?.dataset.chatPanelMinWidth).toBe("320px");
+    expect(chatPanel?.dataset.chatPanelMinWidth).toBe("280px");
   });
 
   it("待处理 A2UI 存在时应屏蔽主题工作台的强制画布态", () => {

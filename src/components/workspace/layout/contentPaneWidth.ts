@@ -11,5 +11,5 @@ export function getDefaultContentPaneWidth(
         Math.min(640, mainContentWidth - 352),
       )
     : defaultWidth;
-  return Math.max(320, Math.min(preferred, Math.max(320, mainContentWidth - 320)));
+  return Math.max(280, Math.min(preferred, Math.max(280, mainContentWidth - 280)));
 }
