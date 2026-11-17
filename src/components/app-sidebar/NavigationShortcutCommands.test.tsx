@@ -240,4 +240,20 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       window.removeEventListener("lime:toggle-sidebar", listener);
     }
   });
+
+  it("Alt+L 聚焦主 Composer", () => {
+    const container = document.createElement("div");
+    container.dataset.testid = "inputbar-core-container";
+    const editor = document.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    editor.dataset.testid = "composer-editor";
+    container.append(editor);
+    document.body.append(container);
+    try {
+      expect(runCommand("navigation.focusComposer")).toBe(true);
+      expect(document.activeElement).toBe(editor);
+    } finally {
+      container.remove();
+    }
+  });
 });
