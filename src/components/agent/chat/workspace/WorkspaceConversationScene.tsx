@@ -549,9 +549,11 @@ export function WorkspaceConversationScene({
       forkedFrom: String(t("agentChat.forkedFromConversation")),
     },
   });
-  const shouldUseTaskCenterUtilityToolbar =
-    navbarContextVariant === "task-center" && showChatLayout;
   const shouldRenderThreadHeader = Boolean(threadHeader && showChatLayout);
+  const shouldUseTaskCenterUtilityToolbar =
+    navbarContextVariant === "task-center" &&
+    showChatLayout &&
+    !shouldRenderThreadHeader;
   const taskCenterUtilityToolbarNode = shouldUseTaskCenterUtilityToolbar ? (
     <TaskCenterUtilityToolbar
       workspaceId={projectId}
