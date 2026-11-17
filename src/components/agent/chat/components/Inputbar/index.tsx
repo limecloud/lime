@@ -171,6 +171,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
 }) => {
   const { t } = useTranslation("agent");
   const browserDrafts = useBrowserAnnotationDrafts(sessionId, threadId);
+  const [fullAccessNoticeDismissed, setFullAccessNoticeDismissed] =
+    React.useState(false);
   const hasAdditionalContent =
     browserDrafts.hasContent && !browserDrafts.pending;
   const inputbarCopy = React.useMemo(
@@ -304,6 +306,23 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onCancel={goalComposer.handleCloseGoalReplacement}
         onConfirm={() => void goalComposer.handleConfirmGoalReplacement()}
       />
+      {accessMode === "full-access" && !fullAccessNoticeDismissed ? (
+        <div
+          data-testid="composer-full-access-notice"
+          className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-muted)] px-3 py-2 text-xs leading-5 text-[color:var(--lime-text-muted)]"
+        >
+          <span className="min-w-0 flex-1">
+            {t("agentChat.inputbar.fullAccessNotice")}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 rounded px-1.5 py-0.5 text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text)]"
+            onClick={() => setFullAccessNoticeDismissed(true)}
+          >
+            {t("agentChat.inputbar.fullAccessNoticeDismiss")}
+          </button>
+        </div>
+      ) : null}
       <InputbarComposerSection
         renderWorkflowGeneratingPanel={renderWorkflowGeneratingPanel}
         workflowGate={workflowGate}

@@ -191,5 +191,7 @@
   "agentChat.inputbar.core.projectContext.worktreeSubmitUnknown": "工作樹提交結果尚未確認，請檢查對話後再重試。",
   "agentChat.inputbar.attachments.failed": "無法加入檔案或資料夾",
   "agentChat.inputbar.suggestions.planMode": "計劃模式",
-  "agentChat.inputbar.suggestions.goal": "追求目標"
+  "agentChat.inputbar.suggestions.goal": "追求目標",
+  "agentChat.inputbar.fullAccessNotice": "完整存取權限已開啟。Lime 可以在未經批准的情況下編輯檔案並執行聯網命令。",
+  "agentChat.inputbar.fullAccessNoticeDismiss": "不再提示"
 }

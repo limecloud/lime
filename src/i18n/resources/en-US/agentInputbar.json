@@ -191,5 +191,7 @@
   "agentChat.inputbar.core.projectContext.worktreeSubmitUnknown": "The worktree submission is unconfirmed. Check the conversation before retrying.",
   "agentChat.inputbar.attachments.failed": "Unable to attach files or folders",
   "agentChat.inputbar.suggestions.planMode": "Plan mode",
-  "agentChat.inputbar.suggestions.goal": "Goal"
+  "agentChat.inputbar.suggestions.goal": "Goal",
+  "agentChat.inputbar.fullAccessNotice": "Full access is on. Lime can edit files and run networked commands without approval.",
+  "agentChat.inputbar.fullAccessNoticeDismiss": "Don’t show again"
 }

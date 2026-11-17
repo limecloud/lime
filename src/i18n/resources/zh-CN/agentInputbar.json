@@ -191,5 +191,7 @@
   "agentChat.inputbar.core.projectContext.worktreeSubmitUnknown": "工作树提交结果尚未确认，请检查会话后再重试。",
   "agentChat.inputbar.attachments.failed": "无法添加文件或文件夹",
   "agentChat.inputbar.suggestions.planMode": "计划模式",
-  "agentChat.inputbar.suggestions.goal": "追求目标"
+  "agentChat.inputbar.suggestions.goal": "追求目标",
+  "agentChat.inputbar.fullAccessNotice": "完整访问权限已开启。Lime 可以在未经批准的情况下编辑文件并运行联网命令。",
+  "agentChat.inputbar.fullAccessNoticeDismiss": "不再提示"
 }

@@ -191,5 +191,7 @@
   "agentChat.inputbar.core.projectContext.worktreeSubmitUnknown": "ワークツリーへの送信結果を確認できません。会話を確認してから再試行してください。",
   "agentChat.inputbar.attachments.failed": "ファイルまたはフォルダーを添付できません",
   "agentChat.inputbar.suggestions.planMode": "計画モード",
-  "agentChat.inputbar.suggestions.goal": "目標を追跡"
+  "agentChat.inputbar.suggestions.goal": "目標を追跡",
+  "agentChat.inputbar.fullAccessNotice": "完全アクセスが有効です。Lime は承認なしでファイルを編集し、ネットワークコマンドを実行できます。",
+  "agentChat.inputbar.fullAccessNoticeDismiss": "今後表示しない"
 }
