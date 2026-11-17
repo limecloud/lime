@@ -320,7 +320,7 @@ describe("AppSidebar navigation", () => {
     });
   });
 
-  it("侧栏顶部不重复产品品牌，仍保留 macOS 安全区", async () => {
+  it("侧栏顶部显示品牌入口并保留 macOS 安全区", async () => {
     vi.stubGlobal("navigator", {
       platform: "MacIntel",
       userAgent: "Mac OS X",
@@ -347,9 +347,12 @@ describe("AppSidebar navigation", () => {
         .paddingInlineStart,
     ).toBe("92px");
     expect(header).not.toBeNull();
-    expect(
-      container.querySelector('button[aria-label="返回 Lime 首页"]'),
-    ).toBeNull();
+    const homeButton = container.querySelector<HTMLButtonElement>(
+      'button[data-testid="app-sidebar-home-button"]',
+    );
+    expect(homeButton).not.toBeNull();
+    expect(homeButton?.textContent).toContain("Lime");
+    expect(header?.contains(homeButton)).toBe(true);
     expect(
       Boolean(
         header &&

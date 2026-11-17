@@ -9,13 +9,12 @@ import { createPortal } from "react-dom";
 import {
   Archive,
   CalendarClock,
+  ChevronDown,
   Copy,
   GitFork,
   MoreHorizontal,
   Pencil,
   Pin,
-  Plus,
-  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -30,13 +29,6 @@ import {
   HeaderToolbarActionMount,
 } from "@/components/app-shell/HeaderToolbar";
 import { useUnifiedToolbar } from "@/components/app-shell/unifiedTabStripContext";
-import {
-  closeConversationTab,
-  ensureConversationTab,
-  requestNewConversationTab,
-  useConversationTabs,
-} from "@/lib/conversationTabs";
-import { ConversationTabBar } from "./ConversationTabBar";
 import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
 import { requestSessionPinToggle } from "@/lib/sessionPinEvents";
 import { requestScheduledTaskForThread } from "@/lib/scheduledTaskEvents";
@@ -67,7 +59,6 @@ function useHeaderToolbarActionContainer(children: ReactNode) {
 
 export function ThreadWorkspaceHeader({
   sessionId,
-  ephemeral = false,
   scheduledTaskThreadId,
   title,
   onRename,
@@ -135,12 +126,6 @@ export function ThreadWorkspaceHeader({
 
   const shortcutPlatform = resolveHotkeyPlatform(navigator);
   const isMacShortcut = shortcutPlatform === "mac";
-  const { tabs: conversationTabs } = useConversationTabs();
-  useEffect(() => {
-    if (sessionId) ensureConversationTab(sessionId, title, { ephemeral });
-  }, [ephemeral, sessionId, title]);
-  const showConversationTabBar =
-    Boolean(sessionId) && conversationTabs.length > 0;
   const renameShortcut = isMacShortcut ? "⌥⌘R" : "Ctrl+Alt+R";
   const pinShortcut = isMacShortcut ? "⌥⌘P" : "Ctrl+Alt+P";
   const archiveShortcut = isMacShortcut ? "⇧⌘A" : "Ctrl+Shift+A";
@@ -234,33 +219,7 @@ export function ThreadWorkspaceHeader({
               {leading}
             </span>
           ) : null}
-          {showConversationTabBar && sessionId ? (
-            <ConversationTabBar
-              currentSessionId={sessionId}
-              onRename={onRename ? startRename : undefined}
-              editingTitle={
-                activeTitleEdit
-                  ? {
-                      sessionId: activeTitleEdit.sessionId,
-                      draft: titleDraft,
-                      prompt: renamePrompt,
-                      inputRef: titleInputRef,
-                      onChange: (value) => {
-                        if (
-                          titleEdit.current === activeTitleEdit &&
-                          currentSessionId.current === activeTitleEdit.sessionId
-                        ) {
-                          activeTitleEdit.draft = value;
-                          setTitleDraft(value);
-                        }
-                      },
-                      onCommit: () => commitRename(activeTitleEdit),
-                      onCancel: () => cancelRename(activeTitleEdit),
-                    }
-                  : undefined
-              }
-            />
-          ) : activeTitleEdit ? (
+          {activeTitleEdit ? (
             <input
               ref={titleInputRef}
               className="h-7 min-w-[8ch] max-w-[320px] flex-1 rounded-md border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-stage-surface,var(--lime-app-bg,#f4f7f1))] px-2 text-[13px] font-medium text-[color:var(--lime-text-strong)] outline-none"
@@ -306,35 +265,13 @@ export function ThreadWorkspaceHeader({
                 ) : (
                   title
                 )}
+                <ChevronDown
+                  className="ml-1 inline h-3.5 w-3.5 align-[-2px] text-[color:var(--lime-text-muted)]"
+                  aria-hidden="true"
+                />
               </h1>
-              {sessionId ? (
-                <button
-                  type="button"
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-text-strong)]"
-                  aria-label={String(
-                    tNavigation("navigation.sidebar.conversations.tabs.close", {
-                      defaultValue: "关闭标签页",
-                    }),
-                  )}
-                  data-testid="conversation-tab-close-single"
-                  onClick={() => closeConversationTab(sessionId)}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-text-strong)]"
-                aria-label={String(
-                  tNavigation("navigation.sidebar.conversations.tabs.new", {
-                    defaultValue: "新聊天",
-                  }),
-                )}
-                data-testid="conversation-tab-new"
-                onClick={requestNewConversationTab}
-              >
-                <Plus className="h-4 w-4" />
-              </button>
+
+
             </div>
           )}
           {trailingTabs ? (

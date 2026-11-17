@@ -14,7 +14,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
-  Bell,
+  ChevronDown,
   Home,
   Search,
   SquarePen,
@@ -40,6 +40,7 @@ import {
   type SidebarNavItemDefinition,
 } from "@/lib/navigation/sidebarNav";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LIME_BRAND_NAME } from "@/lib/branding";
 import { useCommand } from "@/lib/commands/useCommand";
 import { AppSidebarCustomization } from "@/components/app-sidebar/AppSidebarCustomization";
 import { ContextualSidebarOutlet } from "@/components/app-shell/ContextualSidebarOutlet";
@@ -57,7 +58,6 @@ import type { AgentBackgroundSessionRuntimeSnapshot } from "@/components/agent/c
 import { useOpenedProjectSummaries } from "@/components/agent/chat/hooks/useOpenedProjectSummaries";
 import { useAppSidebarConversationActions } from "@/components/app-sidebar/useAppSidebarConversationActions";
 import { subscribeScheduledTaskRequest } from "@/lib/scheduledTaskEvents";
-import { selectPrioritySessions } from "@/components/app-sidebar/sidebarPrioritySessions";
 import {
   activateConversationTab,
   getConversationTabsSnapshot,
@@ -98,6 +98,8 @@ import {
   SidebarSurface,
   HeaderArea,
   HeaderTopRow,
+  UserButton,
+  UserName,
   SearchButton,
   MenuScroll,
   MainNavList,
@@ -544,15 +546,6 @@ export function AppSidebar({
     [onNavigate],
   );
 
-  const unreadSessionCount = selectPrioritySessions(
-    visibleRecentSidebarSessions,
-  ).length;
-  const activityViewLabel =
-    unreadSessionCount > 0
-      ? t("navigation.sidebar.activity.withUnread", {
-          count: unreadSessionCount,
-        })
-      : t("navigation.sidebar.activity.label");
   const threadSearch = useSidebarThreadSearch(
     sidebarSearchQuery,
     sidebarSearchOpen,
@@ -1022,26 +1015,30 @@ export function AppSidebar({
                 data-testid="app-sidebar-header"
               >
                 <HeaderTopRow $collapsed={collapsed}>
-                  <SearchButton
-                    $inline
-                    style={{ position: "relative" }}
-                    onClick={() => setActivityViewOpen((open) => !open)}
-                    title={activityViewLabel}
-                    aria-label={activityViewLabel}
-                    aria-pressed={activityViewOpen}
-                    data-testid="app-sidebar-activity-button"
+                  <UserButton
+                    $collapsed={collapsed}
+                    onClick={() =>
+                      onStartNewConversation?.({
+                        projectId: newChatProjectId,
+                        freshDraft: false,
+                      })
+                    }
+                    aria-label={LIME_BRAND_NAME}
+                    title={LIME_BRAND_NAME}
+                    data-testid="app-sidebar-home-button"
                   >
-                    <Bell size={14} />
-                    {unreadSessionCount > 0 ? (
-                      <span
-                        style={{ display: "inline-flex" }}
-                        className="absolute -right-0.5 -top-0.5 h-3.5 min-w-3.5 items-center justify-center rounded-full bg-sky-500 px-0.5 text-[9px] font-bold leading-none text-white"
-                        data-testid="app-sidebar-activity-badge"
-                      >
-                        {unreadSessionCount > 9 ? "9+" : unreadSessionCount}
-                      </span>
+                    <UserName $collapsed={collapsed}>
+                      {LIME_BRAND_NAME}
+                    </UserName>
+                    {!collapsed ? (
+                      <ChevronDown
+                        size={13}
+                        className="shrink-0 opacity-60"
+                        aria-hidden="true"
+                      />
                     ) : null}
-                  </SearchButton>
+                  </UserButton>
+
                   <SearchButton
                     $inline
                     onClick={openSidebarSearchDialog}
@@ -1052,6 +1049,28 @@ export function AppSidebar({
                     data-testid="app-sidebar-search-button"
                   >
                     <Search size={14} />
+                  </SearchButton>
+                  <SearchButton
+                    $inline
+                    onClick={() =>
+                      onStartNewConversation?.({
+                        projectId: newChatProjectId,
+                        freshDraft: false,
+                      })
+                    }
+                    title={String(
+                      t("navigation.sidebar.newChat.ariaLabel", {
+                        defaultValue: "新聊天",
+                      }),
+                    )}
+                    aria-label={String(
+                      t("navigation.sidebar.newChat.ariaLabel", {
+                        defaultValue: "新聊天",
+                      }),
+                    )}
+                    data-testid="app-sidebar-compose-button"
+                  >
+                    <SquarePen size={15} />
                   </SearchButton>
                 </HeaderTopRow>
               </HeaderArea>

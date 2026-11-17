@@ -38,6 +38,7 @@ import {
 } from "@/components/app-sidebar/sidebarSessionFormatting";
 import { AppSidebarConversationRow } from "@/components/app-sidebar/AppSidebarConversationRow";
 import { AppSidebarConversationEmptyState } from "@/components/app-sidebar/AppSidebarConversationEmptyState";
+import { AppSidebarConversationLoading } from "@/components/app-sidebar/AppSidebarConversationEmptyState";
 import { AppSidebarLoadMore } from "./AppSidebarLoadMore";
 import { AppSidebarProjectConversationGroups } from "@/components/app-sidebar/AppSidebarProjectConversationGroups";
 import {
@@ -629,7 +630,7 @@ export function AppSidebarConversationShelf({
     <AppSidebarSection {...sectionProps("threads")} title={projectsTitleLabel}>
       <ConversationList data-testid="app-sidebar-project-conversations">
         {recentLoading ? (
-          <AppSidebarConversationEmptyState text={loadingRecentLabel} />
+          <AppSidebarConversationLoading label={loadingRecentLabel} />
         ) : (
           <AppSidebarProjectConversationGroups
             projectSections={activeConversationGroups.projectSections}
@@ -794,7 +795,7 @@ export function AppSidebarConversationShelf({
     >
       <ConversationList data-testid="app-sidebar-recent-conversations">
         {recentLoading ? (
-          <AppSidebarConversationEmptyState text={loadingRecentLabel} />
+          <AppSidebarConversationLoading label={loadingRecentLabel} />
         ) : visibleStandaloneSessions.length > 0 ? (
           visibleStandaloneSessions.map((session) =>
             renderConversationRow(session),
