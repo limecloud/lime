@@ -1759,9 +1759,18 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.write_all(b"\x1b").expect("close the slash popup");
         writer.flush().expect("flush popup close");
         std::thread::sleep(Duration::from_millis(100));
-        writer
-            .write_all(b"\x05\r")
-            .expect("execute the quit command");
+        #[cfg(windows)]
+        {
+            // ConPTY does not map Ctrl-E to end-of-line here; Ctrl-C is the
+            // equivalent user path that must still restore the terminal.
+            writer.write_all(b"\x03").expect("quit with Ctrl-C");
+        }
+        #[cfg(not(windows))]
+        {
+            writer
+                .write_all(b"\x05\r")
+                .expect("execute the quit command");
+        }
         writer.flush().expect("flush quit command");
         let deadline = Instant::now() + Duration::from_secs(30);
         while !output.contains("\u{1b}[?1049l") {
