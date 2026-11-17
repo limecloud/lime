@@ -145,7 +145,9 @@ export function ThreadWorkspaceHeader({
       }
     };
     window.addEventListener("lime:thread-shortcut", handleThreadShortcut);
-    return () =>
+
+
+  return () =>
       window.removeEventListener("lime:thread-shortcut", handleThreadShortcut);
   }, [onArchive, onFork, onRename, startRename, sessionId]);
 
@@ -196,6 +198,104 @@ export function ThreadWorkspaceHeader({
       {summaryToggle}
     </div>,
   );
+
+  const threadMenu = (
+                  <DropdownMenuContent align="start" className="w-48 p-1">
+                    {onRename ? (
+                      <DropdownMenuItem
+                        className="whitespace-nowrap"
+                        onClick={startRename}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        {String(
+                          tNavigation(
+                            "navigation.sidebar.conversations.menu.rename",
+                          ),
+                        )}
+                        <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
+                          {renameShortcut}
+                        </span>
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuItem
+                      className="whitespace-nowrap"
+                      data-testid="thread-workspace-header-pin"
+                      onClick={() => requestSessionPinToggle(sessionId)}
+                    >
+                      <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+                      {String(
+                        tNavigation("navigation.sidebar.conversations.menu.pin"),
+                      )}
+                      <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
+                        {pinShortcut}
+                      </span>
+                    </DropdownMenuItem>
+                    {onFork ? (
+                      <DropdownMenuItem
+                        className="whitespace-nowrap"
+                        data-testid="thread-workspace-header-fork"
+                        onClick={() => {
+                          void onFork();
+                        }}
+                      >
+                        <GitFork className="h-3.5 w-3.5" aria-hidden="true" />
+                        {String(
+                          tNavigation(
+                            "navigation.sidebar.conversations.menu.fork",
+                          ),
+                        )}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {scheduledTaskThreadId ? (
+                      <DropdownMenuItem
+                        className="whitespace-nowrap"
+                        data-testid="thread-workspace-header-schedule-task"
+                        onClick={() =>
+                          requestScheduledTaskForThread(scheduledTaskThreadId)
+                        }
+                      >
+                        <CalendarClock
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                        />
+                        {String(
+                          tNavigation(
+                            "navigation.sidebar.conversations.menu.addScheduledTask",
+                          ),
+                        )}
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuItem
+                      className="whitespace-nowrap"
+                      data-testid="thread-workspace-header-copy"
+                      onClick={requestCopyConversation}
+                    >
+                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      {String(
+                        tNavigation("navigation.sidebar.conversations.menu.copy"),
+                      )}
+                    </DropdownMenuItem>
+                    {onArchive ? (
+                      <DropdownMenuItem
+                        className="whitespace-nowrap"
+                        data-testid="thread-workspace-header-archive"
+                        onClick={() => {
+                          void onArchive();
+                        }}
+                      >
+                        <Archive className="h-3.5 w-3.5" aria-hidden="true" />
+                        {String(
+                          tNavigation(
+                            "navigation.sidebar.conversations.menu.archive",
+                          ),
+                        )}
+                        <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
+                          {archiveShortcut}
+                        </span>
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuContent>
+);
 
   return (
     <>
@@ -265,10 +365,21 @@ export function ThreadWorkspaceHeader({
                 ) : (
                   title
                 )}
-                <ChevronDown
-                  className="ml-1 inline h-3.5 w-3.5 align-[-2px] text-[color:var(--lime-text-muted)]"
-                  aria-hidden="true"
-                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-chrome-tab-hover)]"
+                      aria-label={String(
+                        tNavigation("navigation.sidebar.conversations.moreActions"),
+                      )}
+                      data-testid="thread-workspace-header-title-menu"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  {threadMenu}
+                </DropdownMenu>
               </h1>
 
 
@@ -315,7 +426,7 @@ export function ThreadWorkspaceHeader({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--lime-chrome-muted)] transition hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-chrome-text)]"
+                    className="sr-only"
                     aria-label={String(
                       tNavigation(
                         "navigation.sidebar.conversations.openActionMenu",
@@ -334,101 +445,7 @@ export function ThreadWorkspaceHeader({
                     <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 p-1">
-                  {onRename ? (
-                    <DropdownMenuItem
-                      className="whitespace-nowrap"
-                      onClick={startRename}
-                    >
-                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                      {String(
-                        tNavigation(
-                          "navigation.sidebar.conversations.menu.rename",
-                        ),
-                      )}
-                      <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
-                        {renameShortcut}
-                      </span>
-                    </DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuItem
-                    className="whitespace-nowrap"
-                    data-testid="thread-workspace-header-pin"
-                    onClick={() => requestSessionPinToggle(sessionId)}
-                  >
-                    <Pin className="h-3.5 w-3.5" aria-hidden="true" />
-                    {String(
-                      tNavigation("navigation.sidebar.conversations.menu.pin"),
-                    )}
-                    <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
-                      {pinShortcut}
-                    </span>
-                  </DropdownMenuItem>
-                  {onFork ? (
-                    <DropdownMenuItem
-                      className="whitespace-nowrap"
-                      data-testid="thread-workspace-header-fork"
-                      onClick={() => {
-                        void onFork();
-                      }}
-                    >
-                      <GitFork className="h-3.5 w-3.5" aria-hidden="true" />
-                      {String(
-                        tNavigation(
-                          "navigation.sidebar.conversations.menu.fork",
-                        ),
-                      )}
-                    </DropdownMenuItem>
-                  ) : null}
-                  {scheduledTaskThreadId ? (
-                    <DropdownMenuItem
-                      className="whitespace-nowrap"
-                      data-testid="thread-workspace-header-schedule-task"
-                      onClick={() =>
-                        requestScheduledTaskForThread(scheduledTaskThreadId)
-                      }
-                    >
-                      <CalendarClock
-                        className="h-3.5 w-3.5"
-                        aria-hidden="true"
-                      />
-                      {String(
-                        tNavigation(
-                          "navigation.sidebar.conversations.menu.addScheduledTask",
-                        ),
-                      )}
-                    </DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuItem
-                    className="whitespace-nowrap"
-                    data-testid="thread-workspace-header-copy"
-                    onClick={requestCopyConversation}
-                  >
-                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                    {String(
-                      tNavigation("navigation.sidebar.conversations.menu.copy"),
-                    )}
-                  </DropdownMenuItem>
-                  {onArchive ? (
-                    <DropdownMenuItem
-                      className="whitespace-nowrap"
-                      data-testid="thread-workspace-header-archive"
-                      onClick={() => {
-                        void onArchive();
-                      }}
-                    >
-                      <Archive className="h-3.5 w-3.5" aria-hidden="true" />
-                      {String(
-                        tNavigation(
-                          "navigation.sidebar.conversations.menu.archive",
-                        ),
-                      )}
-                      <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
-                        {archiveShortcut}
-                      </span>
-                    </DropdownMenuItem>
-                  ) : null}
-                </DropdownMenuContent>
+                {threadMenu}
               </DropdownMenu>
             ) : null}
             {actionDestination === "window" ? (
