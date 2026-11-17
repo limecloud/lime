@@ -229,4 +229,15 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       window.removeEventListener("lime:new-project", listener);
     }
   });
+
+  it("侧栏快捷键派发 lime:toggle-sidebar", () => {
+    const listener = vi.fn();
+    window.addEventListener("lime:toggle-sidebar", listener);
+    try {
+      expect(runCommand("navigation.toggleSidebar")).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("lime:toggle-sidebar", listener);
+    }
+  });
 });
