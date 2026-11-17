@@ -34,7 +34,7 @@ export function RightSurfaceHost({
     tabs.find((tab) => tab.kind === "browser");
   return (
     <div
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden"
+      className="m-2 flex h-[calc(100%-1rem)] w-[calc(100%-1rem)] min-h-0 flex-col overflow-hidden rounded-2xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] shadow-sm"
       data-testid="workspace-right-surface-host"
       data-surface={activeSurface}
     >
