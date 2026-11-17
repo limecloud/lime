@@ -943,6 +943,19 @@ export function AppSidebar({
           </IconActionButton>
         </HeaderAction>
       ) : null}
+      {isAgentWorkspace ? (
+        <HeaderAction
+          actionId="titlebar-divider"
+          slotPosition="left"
+          order={3}
+        >
+          <span
+            aria-hidden="true"
+            className="mx-1 h-4 w-px shrink-0 bg-[color:var(--lime-chrome-border)]"
+            data-testid="titlebar-divider"
+          />
+        </HeaderAction>
+      ) : null}
       <Container
         $collapsed={collapsed}
         data-testid="app-sidebar"
