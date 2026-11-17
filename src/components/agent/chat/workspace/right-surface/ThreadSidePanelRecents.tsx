@@ -49,6 +49,7 @@ export function ThreadSidePanelRecents({
   const [scroll, setScroll] = useState({ previous: false, next: false });
   const [interacted, setInteracted] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const fullViewCloseRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const list = listRef.current;
     const section = sectionRef.current;
@@ -97,11 +98,16 @@ export function ThreadSidePanelRecents({
   }, [outputs]);
   useEffect(() => {
     if (!expanded) return;
+    const previous = document.activeElement;
+    fullViewCloseRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setExpanded(false);
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      if (previous instanceof HTMLElement) previous.focus();
+    };
   }, [expanded]);
 
   if (!outputs.length) return null;
@@ -138,6 +144,7 @@ export function ThreadSidePanelRecents({
         <div className="flex gap-1">
           {expanded ? (
             <button
+              ref={fullViewCloseRef}
               type="button"
               className="flex size-7 items-center justify-center rounded-lg text-[color:var(--lime-text-muted)] outline-none hover:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={t("agentChat.rightSurface.newTab.showLess")}

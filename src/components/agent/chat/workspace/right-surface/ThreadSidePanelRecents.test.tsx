@@ -199,6 +199,7 @@ describe("New tab Recents", () => {
     const close = container.querySelector<HTMLButtonElement>(
       '[data-testid="thread-side-panel-recents-close"]',
     )!;
+    expect(document.activeElement).toBe(close);
     act(() => close.click());
     expect(section.dataset.expanded).toBe("false");
     act(() => toggle.click());
