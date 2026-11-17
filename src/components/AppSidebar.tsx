@@ -1054,17 +1054,6 @@ export function AppSidebar({
 
                   <SearchButton
                     $inline
-                    onClick={openSidebarSearchDialog}
-                    title={searchTaskLabel}
-                    aria-label={searchTaskLabel}
-                    aria-haspopup="dialog"
-                    aria-expanded={sidebarSearchOpen ? true : undefined}
-                    data-testid="app-sidebar-search-button"
-                  >
-                    <Search size={14} />
-                  </SearchButton>
-                  <SearchButton
-                    $inline
                     style={{ position: "relative" }}
                     onClick={() => setActivityViewOpen((open) => !open)}
                     title={activityViewLabel}
@@ -1083,6 +1072,18 @@ export function AppSidebar({
                       </span>
                     ) : null}
                   </SearchButton>
+                  <SearchButton
+                    $inline
+                    onClick={openSidebarSearchDialog}
+                    title={searchTaskLabel}
+                    aria-label={searchTaskLabel}
+                    aria-haspopup="dialog"
+                    aria-expanded={sidebarSearchOpen ? true : undefined}
+                    data-testid="app-sidebar-search-button"
+                  >
+                    <Search size={14} />
+                  </SearchButton>
+
                 </HeaderTopRow>
               </HeaderArea>
 
