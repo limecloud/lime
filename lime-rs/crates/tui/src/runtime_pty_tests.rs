@@ -663,7 +663,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after review branch"
@@ -708,7 +708,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after review commit"
@@ -761,7 +761,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after recap"
@@ -799,7 +799,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after hooks"
@@ -859,7 +859,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after memory reset"
@@ -902,7 +902,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after usage"
@@ -952,7 +952,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after warnings"
@@ -999,7 +999,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after memories"
@@ -1047,7 +1047,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after goal"
@@ -1089,7 +1089,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after mention"
@@ -1138,7 +1138,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after side"
@@ -1183,7 +1183,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after ps"
@@ -1228,7 +1228,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after plugin search"
@@ -1266,7 +1266,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after plugins"
@@ -1306,7 +1306,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after cd"
@@ -1354,7 +1354,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after diff"
@@ -1394,7 +1394,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after stop"
@@ -1437,7 +1437,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after memory"
@@ -1475,7 +1475,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after keymap"
@@ -1513,7 +1513,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after skills"
@@ -1570,7 +1570,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after permissions"
@@ -1620,7 +1620,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after effort"
@@ -1695,7 +1695,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         #[cfg(not(windows))]
         let mut last_exit = Instant::now();
         #[cfg(not(windows))]
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after config"
@@ -1748,7 +1748,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after clear"
@@ -1792,7 +1792,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush quit command");
         let deadline = Instant::now() + Duration::from_secs(30);
         #[cfg(not(windows))]
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after quit"
@@ -1874,7 +1874,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after experimental"
@@ -1923,7 +1923,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after review"
@@ -1973,7 +1973,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after fork"
@@ -2036,7 +2036,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after delete"
@@ -2096,7 +2096,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after archive"
@@ -2131,7 +2131,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.write_all(&[4]).expect("exit TUI");
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after compact"
@@ -2161,7 +2161,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         writer.flush().expect("flush TUI exit");
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut last_exit = Instant::now();
-        while !output.contains("\u{1b}[?1049l") {
+        while !tui_has_restored(child.as_mut(), &output) {
             assert!(
                 Instant::now() < deadline,
                 "terminal did not leave the alternate screen after rename"
@@ -3177,6 +3177,21 @@ fn wait_for_marker(
             writer.write_all(b"\x1b[1;1R").expect("answer ConPTY DSR");
             writer.flush().expect("flush ConPTY DSR response");
         }
+    }
+}
+
+fn tui_has_restored(child: &mut dyn portable_pty::Child, output: &str) -> bool {
+    #[cfg(windows)]
+    {
+        // ConPTY restores its console when the attached process exits and
+        // does not forward xterm's 1049 leave sequence to the PTY master.
+        let _ = output;
+        matches!(child.try_wait(), Ok(Some(_)))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = child;
+        output.contains("\u{1b}[?1049l")
     }
 }
 
