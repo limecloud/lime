@@ -477,11 +477,19 @@ function AppContent() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "hsl(var(--muted-foreground))",
-        fontSize: "14px",
       }}
     >
-      {t("common.app.loadingPage")}
+      <span
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+      >
+        {t("common.app.loadingPage")}
+      </span>
+      <div
+        aria-hidden="true"
+        className="h-3 w-44 animate-pulse rounded-full bg-[color:var(--lime-surface-border)]/50"
+      />
     </div>
   );
 
