@@ -1778,5 +1778,6 @@
   "agentChat.rightSurface.newTab.showLess": "Show less",
   "agentChat.rightSurface.close": "Close panel",
   "agentChat.rightSurface.more": "More",
-  "agentChat.rightSurface.showTabs": "Show tabs"
+  "agentChat.rightSurface.showTabs": "Show tabs",
+  "agentChat.rightSurface.newTab.noSources": "No sources yet"
 }

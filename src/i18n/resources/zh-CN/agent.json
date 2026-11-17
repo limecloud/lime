@@ -1778,5 +1778,6 @@
   "agentChat.rightSurface.newTab.showLess": "收起",
   "agentChat.rightSurface.close": "关闭面板",
   "agentChat.rightSurface.more": "更多",
-  "agentChat.rightSurface.showTabs": "显示标签页"
+  "agentChat.rightSurface.showTabs": "显示标签页",
+  "agentChat.rightSurface.newTab.noSources": "暂无来源"
 }

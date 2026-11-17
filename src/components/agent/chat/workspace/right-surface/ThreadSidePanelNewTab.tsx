@@ -177,7 +177,19 @@ export function ThreadSidePanelNewTab({
         )}
         {onOpenOutput && outputs.length ? (
           <ThreadSidePanelRecents outputs={outputs} onOpen={onOpenOutput} />
-        ) : null}
+        ) : (
+          <section
+            className="flex min-w-0 flex-col gap-1"
+            data-testid="thread-side-panel-empty-sources"
+          >
+            <h3 className="px-1 text-xs font-medium text-[color:var(--lime-text-muted)]">
+              {t("agentChat.rightSurface.newTab.recents")}
+            </h3>
+            <p className="px-1 py-1 text-xs text-[color:var(--lime-text-muted)]">
+              {t("agentChat.rightSurface.newTab.noSources")}
+            </p>
+          </section>
+        )}
       </div>
     </div>
   );

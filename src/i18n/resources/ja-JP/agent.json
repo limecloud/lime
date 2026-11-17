@@ -1778,5 +1778,6 @@
   "agentChat.rightSurface.newTab.showLess": "折りたたむ",
   "agentChat.rightSurface.close": "パネルを閉じる",
   "agentChat.rightSurface.more": "その他",
-  "agentChat.rightSurface.showTabs": "タブを表示"
+  "agentChat.rightSurface.showTabs": "タブを表示",
+  "agentChat.rightSurface.newTab.noSources": "ソースはまだありません"
 }

@@ -1778,5 +1778,6 @@
   "agentChat.rightSurface.newTab.showLess": "접기",
   "agentChat.rightSurface.close": "패널 닫기",
   "agentChat.rightSurface.more": "더 보기",
-  "agentChat.rightSurface.showTabs": "탭 표시"
+  "agentChat.rightSurface.showTabs": "탭 표시",
+  "agentChat.rightSurface.newTab.noSources": "아직 출처가 없습니다"
 }

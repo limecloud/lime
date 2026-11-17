@@ -115,10 +115,11 @@ describe("New tab Recents", () => {
       "2026-10-20T02:00:00.000Z",
     );
   });
-  it("无产物不渲染Sources、分页按钮或空产物占位", () => {
+  it("无产物显示空来源提示但不对渲染分页按钮", () => {
     const { container } = mount([]);
     expect(container.querySelector("ul")).toBeNull();
-    expect(container.textContent).not.toContain("Sources");
+    expect(container.textContent).toContain("Sources");
+    expect(container.textContent).toContain("No sources yet");
   });
   it("生成图片依canonical类型显示且打开保留原始thread/turn/item身份", () => {
     const image: ThreadOutput = {
