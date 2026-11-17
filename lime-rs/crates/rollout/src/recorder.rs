@@ -1154,6 +1154,15 @@ impl RolloutRecorder {
                     continue;
                 }
                 saw_non_empty_line = true;
+                let trimmed = line.trim_start();
+                // Canonical thread snapshots are consumed through the SQLite
+                // projection. They can be hundreds of megabytes in aggregate,
+                // so never deserialize them as legacy rollout items.
+                if trimmed.starts_with("{\"type\":\"thread_history\"")
+                    || trimmed.starts_with("{\"type\":\"thread_metadata\"")
+                {
+                    continue;
+                }
                 let mut value: Value = match serde_json::from_str(&line) {
                     Ok(value) => value,
                     Err(e) => {

@@ -372,6 +372,68 @@ async fn load_rollout_items_defaults_legacy_session_id() -> std::io::Result<()> 
 }
 
 #[tokio::test]
+async fn load_rollout_items_skips_canonical_thread_snapshots() -> std::io::Result<()> {
+    let home = TempDir::new().expect("temp dir");
+    let rollout_path = home.path().join("rollout.jsonl");
+    let mut file = File::create(&rollout_path)?;
+    let thread_id = ThreadId::new();
+    let ts = "2025-01-03T12:00:00Z";
+
+    writeln!(
+        file,
+        "{}",
+        serde_json::json!({
+            "timestamp": ts,
+            "type": "session_meta",
+            "payload": {
+                "id": thread_id,
+                "timestamp": ts,
+                "cwd": ".",
+                "originator": "test_originator",
+                "cli_version": "test_version",
+                "source": "cli",
+                "model_provider": "test-provider",
+            },
+        })
+    )?;
+    writeln!(
+        file,
+        "{}",
+        serde_json::json!({
+            "type": "thread_history",
+            "schema_version": 3,
+            "session_id": thread_id,
+            "thread_id": thread_id,
+            "sequence": 2,
+            "padding": "x".repeat(1_000_000),
+        })
+    )?;
+    writeln!(
+        file,
+        "{}",
+        serde_json::json!({
+            "timestamp": ts,
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "hello"}],
+            },
+        })
+    )?;
+
+    let (items, loaded_thread_id, parse_errors) =
+        RolloutRecorder::load_rollout_items(&rollout_path).await?;
+
+    assert_eq!(loaded_thread_id, Some(thread_id));
+    assert_eq!(parse_errors, 0);
+    assert_eq!(items.len(), 2);
+    assert!(matches!(items[1], RolloutItem::ResponseItem(_)));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn load_rollout_items_ignores_unknown_fork_source_history_mode() -> std::io::Result<()> {
     let home = TempDir::new().expect("temp dir");
     let uuid = Uuid::new_v4();
