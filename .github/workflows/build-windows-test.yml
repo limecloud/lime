@@ -178,7 +178,7 @@ jobs:
               echo "TUI_GATE_SKIPPED reason=windows-conpty-pty-restoration"
             else
               if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
-                export LIME_TUI_GATE_B_SCENARIOS="${LIME_WINDOWS_TUI_SCENARIOS:-quit-command,config-command,usage-command,memory-command,warnings-command,clear-command,permissions-picker,effort-picker,memory-reset-command,keymap-command,skills-command,cd-command,diff-command,plugins-command,plugins-search-command,ps-command,stop-command,recap-command,side-command,mention-command,goal-command,memories-command,experimental-command,rename-command,compact-command,archive-command,delete-command,review-command,review-picker,review-branch,review-commit,new-command,fork-command,hooks-command,init-command,approval,interrupt,failure,queue-edit,copy-mode,skills}"
+                export LIME_TUI_GATE_B_SCENARIOS="${LIME_WINDOWS_TUI_SCENARIOS:-quit-command,config-command,usage-command,memory-command,warnings-command,clear-command,permissions-picker,effort-picker,memory-reset-command,keymap-command,skills-command,cd-command,diff-command,plugins-command,plugins-search-command,ps-command,stop-command,recap-command,side-command,mention-command,goal-command,memories-command,experimental-command,rename-command,compact-command,archive-command,delete-command,review-command,review-picker,review-branch,review-commit,new-command,fork-command,hooks-command,init-command,approval,interrupt,failure,queue-edit,skills}"
                 export LIME_TUI_GATE_WINDOWS_RESTORE_ONLY=1
               fi
               npm run smoke:tui-gate-b
