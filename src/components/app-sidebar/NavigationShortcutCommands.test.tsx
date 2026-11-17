@@ -111,7 +111,8 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
       bindings: [],
     });
     expect(command("navigation.focusComposer").bindings).toEqual(["Alt+L"]);
-    expect(command("app.toggleSideChat").bindings).toEqual([
+    expect(command("app.toggleSideChat").bindings).toEqual([]);
+    expect(command("app.focusSideChat").bindings).toEqual([
       "CommandOrControl+Alt+S",
     ]);
   });
