@@ -50,6 +50,26 @@ describe("Inputbar controls current integration", () => {
     expect(container.textContent).not.toContain("Native schema");
   });
 
+  it("完整访问模式显示提示条并可关闭", async () => {
+    const { container } = renderInputbar({
+      accessMode: "full-access",
+      setAccessMode: vi.fn(),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const notice = container.querySelector(
+      '[data-testid="composer-full-access-notice"]',
+    );
+    expect(notice).not.toBeNull();
+    const dismiss = notice?.querySelector("button");
+    expect(dismiss).not.toBeNull();
+    act(() => dismiss?.click());
+    expect(
+      container.querySelector('[data-testid="composer-full-access-notice"]'),
+    ).toBeNull();
+  });
+
   it("高级设置只保留权限模式，不再渲染编程执行前置开关", async () => {
     const setAccessMode = vi.fn();
     const { container } = renderInputbar({
