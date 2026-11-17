@@ -207,4 +207,15 @@ describe("NavigationShortcutCommands Codex 对齐命令", () => {
     expect(runCommand("app.openSkills")).toBe(true);
     expect(navigate).toHaveBeenCalledWith("skills");
   });
+
+  it("打开文件夹快捷键派发 lime:open-folder", () => {
+    const listener = vi.fn();
+    window.addEventListener("lime:open-folder", listener);
+    try {
+      expect(runCommand("app.openFolder")).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("lime:open-folder", listener);
+    }
+  });
 });
