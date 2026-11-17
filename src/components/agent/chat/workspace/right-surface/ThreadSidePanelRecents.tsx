@@ -14,6 +14,7 @@ import {
   FileText,
   Globe,
   Presentation,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isReducedMotionPreferred } from "@/lib/appearance/reducedMotion";
@@ -126,6 +127,17 @@ export function ThreadSidePanelRecents({
           {t("agentChat.rightSurface.newTab.recents")}
         </h3>
         <div className="flex gap-1">
+          {expanded ? (
+            <button
+              type="button"
+              className="flex size-7 items-center justify-center rounded-lg text-[color:var(--lime-text-muted)] outline-none hover:bg-[color:var(--lime-chrome-tab-hover)] focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={t("agentChat.rightSurface.newTab.showLess")}
+              data-testid="thread-side-panel-recents-close"
+              onClick={() => setExpanded(false)}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          ) : null}
           {([-1, 1] as const).map((direction) => {
             const Icon = direction === -1 ? ChevronUp : ChevronDown;
             return (
