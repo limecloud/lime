@@ -177,6 +177,9 @@ jobs:
             if [[ "${RUNNER_OS:-}" == "Windows" && "${RUN_WINDOWS_TUI_GATE:-false}" != "true" ]]; then
               echo "TUI_GATE_SKIPPED reason=windows-conpty-pty-restoration"
             else
+              if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+                export LIME_TUI_GATE_B_SCENARIOS="${LIME_WINDOWS_TUI_SCENARIOS:-quit-command}"
+              fi
               npm run smoke:tui-gate-b
             fi
           } 2>&1 | tee "windows-cli-tui-gate-b.log"
