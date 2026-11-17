@@ -2693,5 +2693,6 @@
   "settings.browser.importCookiesTitle": "Chrome から Cookie をインポートしますか？",
   "settings.browser.importCookiesMessage": "Chrome プロファイルの Cookie を復号し、Lime ブラウザセッションに書き込みます。",
   "settings.browser.importCookiesCancel": "キャンセル",
-  "settings.browser.importCookiesFailed": "Cookie をインポートできませんでした"
+  "settings.browser.importCookiesFailed": "Cookie をインポートできませんでした",
+  "settings.desktop.desktopSection": "デスクトップ"
 }

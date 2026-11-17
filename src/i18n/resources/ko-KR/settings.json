@@ -2693,5 +2693,6 @@
   "settings.browser.importCookiesTitle": "Chrome에서 쿠키를 가져올까요?",
   "settings.browser.importCookiesMessage": "Chrome 프로필의 쿠키를 복호화하여 Lime 브라우저 세션에 기록합니다.",
   "settings.browser.importCookiesCancel": "취소",
-  "settings.browser.importCookiesFailed": "쿠키를 가져오지 못했습니다"
+  "settings.browser.importCookiesFailed": "쿠키를 가져오지 못했습니다",
+  "settings.desktop.desktopSection": "데스크톱"
 }

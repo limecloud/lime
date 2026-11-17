@@ -251,7 +251,7 @@ export function GeneralSettings() {
           </SettingsRow>
         </SettingsGroup>
       </SettingsSection>
-      <SettingsSection title={t("settings.desktop.general")}>
+      <SettingsSection title={t("settings.desktop.desktopSection")}>
         <SettingsGroup>
           <SettingsRow
             label={t("settings.desktop.projectlessFolder")}

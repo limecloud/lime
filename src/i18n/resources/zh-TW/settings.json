@@ -2693,5 +2693,6 @@
   "settings.browser.importCookiesTitle": "從 Chrome 匯入 Cookie？",
   "settings.browser.importCookiesMessage": "將讀取並解密 Chrome 設定檔中的 Cookie，寫入 Lime 瀏覽器工作階段。",
   "settings.browser.importCookiesCancel": "取消",
-  "settings.browser.importCookiesFailed": "無法匯入 Cookie"
+  "settings.browser.importCookiesFailed": "無法匯入 Cookie",
+  "settings.desktop.desktopSection": "桌面"
 }

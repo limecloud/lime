@@ -2693,5 +2693,6 @@
   "settings.browser.importCookiesTitle": "Import cookies from Chrome?",
   "settings.browser.importCookiesMessage": "Chrome profile cookies will be decrypted and written into the Lime browser session.",
   "settings.browser.importCookiesCancel": "Cancel",
-  "settings.browser.importCookiesFailed": "Could not import cookies"
+  "settings.browser.importCookiesFailed": "Could not import cookies",
+  "settings.desktop.desktopSection": "Desktop"
 }
