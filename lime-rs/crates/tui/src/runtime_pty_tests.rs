@@ -2976,10 +2976,12 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             &scenario,
         );
     }
+    #[cfg(not(windows))]
     assert!(
         output.contains("\u{1b}[?1049h"),
         "alternate screen not entered"
     );
+    #[cfg(not(windows))]
     assert!(
         output.contains("\u{1b}[?1000h"),
         "mouse capture not enabled"
