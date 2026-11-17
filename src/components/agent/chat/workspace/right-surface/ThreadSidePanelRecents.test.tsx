@@ -204,5 +204,9 @@ describe("New tab Recents", () => {
     act(() => toggle.click());
     expect(section.dataset.expanded).toBe("true");
     expect(list.style.maxHeight).toBe("");
+    act(() =>
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })),
+    );
+    expect(section.dataset.expanded).toBe("false");
   });
 });

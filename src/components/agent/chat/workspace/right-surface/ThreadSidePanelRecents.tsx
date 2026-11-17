@@ -95,6 +95,15 @@ export function ThreadSidePanelRecents({
       list.removeEventListener("scroll", update);
     };
   }, [outputs]);
+  useEffect(() => {
+    if (!expanded) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [expanded]);
+
   if (!outputs.length) return null;
   const page = (direction: number) => {
     setInteracted(true);
