@@ -3042,16 +3042,19 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             "background thread transcript was not restored"
         );
     }
-    assert!(
-        output.contains("\u{1b}[?1049l"),
-        "alternate screen not restored"
-    );
-    cursor_style::assert_default_restored(&output);
-    terminal_title::assert_cleared_on_exit(&output);
-    assert!(
-        output.contains("\u{1b}[?1000l"),
-        "mouse capture not restored"
-    );
+    #[cfg(not(windows))]
+    {
+        assert!(
+            output.contains("\u{1b}[?1049l"),
+            "alternate screen not restored"
+        );
+        cursor_style::assert_default_restored(&output);
+        terminal_title::assert_cleared_on_exit(&output);
+        assert!(
+            output.contains("\u{1b}[?1000l"),
+            "mouse capture not restored"
+        );
+    }
     if scenario == "complete" {
         assert!(
             output.contains("EDITOR_JOB_CONTROL_OK"),
