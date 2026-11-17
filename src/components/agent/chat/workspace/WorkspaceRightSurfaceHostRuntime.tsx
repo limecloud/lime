@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { TerminalTab } from "../components/TerminalTab";
 import { LocalConversationBackgroundTerminalTab } from "./LocalConversationBackgroundTerminalTab";
@@ -304,10 +305,36 @@ export function renderWorkspaceRightSurfaceHostRuntime({
   )
     return { content: null, tabStrip: null, open: false };
   const open = Boolean(activeSurface && hasActiveRightSurfaceDefinition);
+  const projectLabel =
+    canvasWorkbenchRootPath
+      ?.replace(/[\\/]+$/, "")
+      .split(/[\\/]/)
+      .pop() ?? null;
   return {
     open,
     content: (
-      <>
+      <div className="flex h-full min-h-0 flex-col">
+        {projectLabel ? (
+          <div
+            className="flex h-10 shrink-0 items-center justify-between border-b border-[color:var(--lime-surface-border)] px-3"
+            data-testid="right-surface-header"
+          >
+            <span className="truncate text-xs font-medium text-[color:var(--lime-text-strong)]">
+              {projectLabel}
+            </span>
+            <button
+              type="button"
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)]"
+              aria-label={String("Close")}
+              onClick={() => {
+                if (activeTabId) onCloseSidePanelTab(activeTabId);
+              }}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+        <div className="min-h-0 flex-1">
         <BrowserShortcutRuntime
           enabled={activeSurface === "browser"}
           tabId={activeTabId ?? null}
@@ -340,7 +367,8 @@ export function renderWorkspaceRightSurfaceHostRuntime({
         onPinTab={onPinSidePanelTab}
           previewTabId={sidePanelTabs.previewTabId ?? null}
         />
-      </>
+        </div>
+      </div>
     ),
     tabStrip: open ? (
       <RightSurfaceTabStrip
