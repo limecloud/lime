@@ -180,4 +180,17 @@ describe("New tab Recents", () => {
       for (const key of keys)
         expect((resource as Record<string, string>)[key]).toBeTruthy();
   });
+
+  it("查看全部可展开并收起来源列表", () => {
+    const { container } = mount();
+    const list = container.querySelector<HTMLUListElement>("ul[aria-label=\"Recent work\"]")!;
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="thread-side-panel-recents-toggle"]',
+    )!;
+    expect(list.style.maxHeight).not.toBe("");
+    act(() => toggle.click());
+    expect(list.style.maxHeight).toBe("");
+    act(() => toggle.click());
+    expect(list.style.maxHeight).not.toBe("");
+  });
 });
