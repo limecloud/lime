@@ -985,6 +985,7 @@ export function AppSidebar({
               title={homeLabel}
               aria-current={activePage === "agent" ? "page" : undefined}
               data-testid="app-sidebar-rail-home"
+              className="relative"
               onClick={() => {
                 setCollapsed(false);
                 onStartNewConversation?.({
@@ -994,6 +995,13 @@ export function AppSidebar({
               }}
             >
               <Home fill="currentColor" />
+              {unreadSessionCount > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-sky-500 ring-2 ring-[color:var(--sidebar-background)]"
+                  data-testid="app-sidebar-home-unread"
+                />
+              ) : null}
             </NavigationRailButton>
           </NavigationRailTooltip>
           {filteredMainNavItems
