@@ -5,6 +5,8 @@ import {
 
 export type SessionDetailFetchMode = "direct" | "deferred";
 
+const SESSION_DETAIL_FETCH_TIMEOUT_MS = 12_000;
+
 export interface SessionDetailFetchDetailLike {
   messages: readonly unknown[];
   items?: readonly unknown[] | null;
@@ -28,6 +30,7 @@ function buildSessionDetailFetchMetricContext<
   requestDurationMs: number;
   resumeSessionStartHooks?: boolean;
   startedAt: number;
+  timeoutMs?: number;
   topicId: string;
   workspaceId?: string | null;
   now: () => number;
@@ -63,6 +66,7 @@ export async function loadSessionDetailWithPrefetch<
   resumeSessionStartHooks?: boolean;
   source?: string | null;
   startedAt: number;
+  timeoutMs?: number;
   topicId: string;
   workspaceId?: string | null;
 }): Promise<TDetail> {
@@ -85,14 +89,30 @@ export async function loadSessionDetailWithPrefetch<
     metricContext: startContext,
   });
 
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
-    const detail = await params.getSession(
-      params.topicId,
-      buildSessionDetailHydrationOptions({
-        resumeSessionStartHooks,
-        source: params.source,
+    const detail = await Promise.race([
+      params.getSession(
+        params.topicId,
+        buildSessionDetailHydrationOptions({
+          resumeSessionStartHooks,
+          source: params.source,
+        }),
+      ),
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Session detail request timed out after ${params.timeoutMs ?? SESSION_DETAIL_FETCH_TIMEOUT_MS}ms`,
+              ),
+            ),
+          params.timeoutMs ?? SESSION_DETAIL_FETCH_TIMEOUT_MS,
+        );
       }),
-    );
+    ]).finally(() => {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+    });
     const context = buildSessionDetailFetchMetricContext({
       detail,
       mode: params.mode,

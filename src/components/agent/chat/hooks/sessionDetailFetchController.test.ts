@@ -92,4 +92,25 @@ describe("sessionDetailFetchController", () => {
       logLevel: "error",
     });
   });
+
+  it("详情请求超时应结束恢复而不是无限等待", async () => {
+    const getSession = vi.fn(() => new Promise(() => undefined));
+    const onEvent = vi.fn();
+
+    await expect(
+      loadSessionDetailWithPrefetch({
+        getSession,
+        mode: "direct",
+        timeoutMs: 10,
+        onEvent,
+        startedAt: 0,
+        topicId: "session-timeout",
+      }),
+    ).rejects.toThrow("timed out after 10ms");
+
+    expect(onEvent.mock.calls.map(([event]) => event.logEvent)).toEqual([
+      "switchTopic.fetchDetail.start",
+      "switchTopic.fetchDetail.error",
+    ]);
+  });
 });
