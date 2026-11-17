@@ -154,6 +154,10 @@ export function useTaskCenterTopicNavigationRuntime({
       };
 
       if (shouldSkipActiveTopicReopen) {
+        // The first navigation can observe the topic before its workspace
+        // metadata is loaded and mark it detached. Once the same active topic
+        // is resolved with a workspace, clear that stale detached marker.
+        if (!isDetachedTopic) setTaskCenterDetachedTopicId(null);
         return;
       }
 

@@ -29,6 +29,7 @@ import {
   HeaderToolbarActionMount,
 } from "@/components/app-shell/HeaderToolbar";
 import { useUnifiedToolbar } from "@/components/app-shell/unifiedTabStripContext";
+import { ensureConversationTab } from "@/lib/conversationTabs";
 import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
 import { requestSessionPinToggle } from "@/lib/sessionPinEvents";
 import { requestScheduledTaskForThread } from "@/lib/scheduledTaskEvents";
@@ -59,6 +60,7 @@ function useHeaderToolbarActionContainer(children: ReactNode) {
 
 export function ThreadWorkspaceHeader({
   sessionId,
+  ephemeral = false,
   scheduledTaskThreadId,
   title,
   onRename,
@@ -109,6 +111,12 @@ export function ThreadWorkspaceHeader({
     titleInputRef.current?.focus();
     titleInputRef.current?.select();
   }, [editingTitle]);
+
+  useEffect(() => {
+    // Register the session even though Codex uses a single title instead of
+    // a visible tab strip; task-center visibility depends on this registry.
+    if (sessionId) ensureConversationTab(sessionId, title, { ephemeral });
+  }, [ephemeral, sessionId, title]);
 
   const startRename = useCallback(() => {
     if (!onRename || currentSessionId.current !== sessionId) {
