@@ -1488,7 +1488,15 @@ async function main() {
         `[smoke:tui-gate-b] kept temp dir ${tempDir} (failure evidence: tui-backend.mjs, tui-backend.jsonl, scenario dirs, PTY output)`,
       );
     } else {
-      await rm(tempDir, { recursive: true, force: true });
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (error) {
+        if (!["EPERM", "EBUSY"].includes(error?.code)) throw error;
+        // Windows may still hold onnxruntime.dll briefly after the PTY exits.
+        console.error(
+          `[smoke:tui-gate-b] kept temp dir ${tempDir} (Windows file lock: ${error.code})`,
+        );
+      }
     }
   }
 }
