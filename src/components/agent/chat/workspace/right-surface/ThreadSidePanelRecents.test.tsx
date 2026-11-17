@@ -100,7 +100,7 @@ describe("New tab Recents", () => {
     const { container, open } = mount();
     expect(
       [...container.querySelectorAll("h3")].map((node) => node.textContent),
-    ).toEqual(["Tools", "Recents"]);
+    ).toEqual(["Tools", "Sources"]);
     const list = container.querySelector('ul[aria-label="Recent work"]')!;
     expect(list.children).toHaveLength(12);
     const button = list.querySelector<HTMLButtonElement>("button")!;
@@ -115,10 +115,10 @@ describe("New tab Recents", () => {
       "2026-10-20T02:00:00.000Z",
     );
   });
-  it("无产物不渲染Recents、分页按钮或空产物占位", () => {
+  it("无产物不渲染Sources、分页按钮或空产物占位", () => {
     const { container } = mount([]);
     expect(container.querySelector("ul")).toBeNull();
-    expect(container.textContent).not.toContain("Recents");
+    expect(container.textContent).not.toContain("Sources");
   });
   it("生成图片依canonical类型显示且打开保留原始thread/turn/item身份", () => {
     const image: ThreadOutput = {
