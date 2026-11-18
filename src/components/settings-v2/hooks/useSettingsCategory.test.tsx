@@ -57,7 +57,7 @@ afterEach(async () => {
 });
 
 describe("useSettingsCategory", () => {
-  it("集成导航应包含 MCP 设置", () => {
+  it("MCP 设置已并入插件页，不再作为集成导航项", () => {
     let groups: CategoryGroup[] = [];
 
     renderHookProbe((nextGroups) => {
@@ -71,12 +71,9 @@ describe("useSettingsCategory", () => {
       (item) => item.key === SettingsTabs.Plugins,
     );
     expect(pluginsItem?.label).toBe("Plugins");
-    const skillsItem = agentGroup?.items.find(
-      (item) => item.key === SettingsTabs.McpServers,
-    );
-
-    expect(skillsItem?.label).toBe("MCP");
-    expect(skillsItem?.label).not.toContain("settings.mcp.title");
+    expect(
+      agentGroup?.items.some((item) => item.key === SettingsTabs.McpServers),
+    ).toBe(false);
   });
 
   it("通用导航应包含已归档对话入口", () => {
@@ -99,7 +96,7 @@ describe("useSettingsCategory", () => {
 
     expect(generalKeys).toContain(SettingsTabs.ArchivedConversations);
     expect(generalKeys).not.toContain(SettingsTabs.Configuration);
-    expect(generalKeys).toContain(SettingsTabs.Memory);
+    expect(generalKeys).not.toContain(SettingsTabs.Memory);
     expect(generalKeys).toContain(SettingsTabs.Appearance);
     expect(generalKeys).not.toContain(SettingsTabs.KeyboardShortcuts);
 
@@ -109,6 +106,7 @@ describe("useSettingsCategory", () => {
     expect(configurationGroup?.title).toBe("");
     expect(configurationGroup?.items.map((item) => item.key)).toEqual([
       SettingsTabs.Configuration,
+      SettingsTabs.Memory,
       SettingsTabs.KeyboardShortcuts,
       SettingsTabs.Providers,
     ]);
@@ -152,15 +150,21 @@ describe("current settings navigation translations", () => {
     const items = groups.flatMap((group) => group.items);
     const availableSections = settingsSections;
     expect(groups).toHaveLength(4);
-    expect(items.at(-1)?.key).toBe(SettingsTabs.ExecutionPolicy);
+    expect(items.at(-1)?.key).toBe(SettingsTabs.Worktrees);
+    expect(items.some((item) => item.key === SettingsTabs.ExecutionPolicy)).toBe(
+      false,
+    );
     expect(
       items.find((item) => item.key === SettingsTabs.ArchivedConversations)
         ?.label,
     ).toBe(archivedLabel);
     expect(items.some((item) => item.key === SettingsTabs.Profile)).toBe(true);
-    expect(items).toHaveLength(availableSections.length);
+    const visibleSections = availableSections.filter(
+      (section) => section.group !== null,
+    );
+    expect(items).toHaveLength(visibleSections.length);
     expect(new Set(items.map((item) => item.key)).size).toBe(
-      availableSections.length,
+      visibleSections.length,
     );
     expect(items.map((item) => item.key)).toEqual(
       expect.arrayContaining([

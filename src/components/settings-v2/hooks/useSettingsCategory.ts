@@ -24,7 +24,7 @@ export function useSettingsCategory(): CategoryGroup[] {
   return useMemo(() => {
     const groups = new Map<SettingsGroupKey | null, CategoryGroup>();
     for (const section of settingsSections) {
-      if (!isSettingsSection(section.key)) continue;
+      if (!isSettingsSection(section.key) || section.group === null) continue;
       let group = groups.get(section.group);
       if (!group) {
         group = {

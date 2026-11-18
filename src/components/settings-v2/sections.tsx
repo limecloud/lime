@@ -13,10 +13,10 @@ import {
   Puzzle,
   MousePointer2,
   Cloud,
-  ShieldCheck,
   Variable,
   GitBranch,
   Cable,
+  ShieldCheck,
   SlidersHorizontal,
   Webhook,
   Download,
@@ -168,6 +168,11 @@ const LocalEnvironmentsSettings = lazy(() =>
 );
 
 const loadExecutionPolicy = () => import("./system/execution-policy");
+const ExecutionPolicySettings = lazy(() =>
+  loadExecutionPolicy().then((module) => ({
+    default: module.ExecutionPolicySettings,
+  })),
+);
 const loadHooks = () => import("./coding/hooks");
 const HooksSettings = lazy(() =>
   loadHooks().then((module) => ({ default: module.HooksSettings })),
@@ -175,11 +180,6 @@ const HooksSettings = lazy(() =>
 const loadConnections = () => import("./coding/connections");
 const ConnectionsSettings = lazy(() =>
   loadConnections().then((module) => ({ default: module.ConnectionsSettings })),
-);
-const ExecutionPolicySettings = lazy(() =>
-  loadExecutionPolicy().then((module) => ({
-    default: module.ExecutionPolicySettings,
-  })),
 );
 
 // current 章节在此登记一次；导航、可用性、预取与渲染共享同一事实。
@@ -245,7 +245,9 @@ export const settingsSections: readonly SettingsSection[] = [
     labelKey: "settings.configuration.title",
     icon: SlidersHorizontal,
     preload: loadConfiguration,
-    render: () => <ConfigurationPanel />,
+    render: (context) => (
+      <ConfigurationPanel onNavigate={context.onNavigate} />
+    ),
   },
   {
     key: SettingsTabs.Memory,
@@ -388,7 +390,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.ExecutionPolicy,
-    group: SettingsGroupKey.Coding,
+    group: null,
     labelKey: "settings.tab.executionPolicy",
     icon: ShieldCheck,
     loadingKey: "settings.layout.loading.executionPolicy",

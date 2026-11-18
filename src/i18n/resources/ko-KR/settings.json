@@ -2694,5 +2694,7 @@
   "settings.browser.importCookiesMessage": "Chrome 프로필의 쿠키를 복호화하여 Lime 브라우저 세션에 기록합니다.",
   "settings.browser.importCookiesCancel": "취소",
   "settings.browser.importCookiesFailed": "쿠키를 가져오지 못했습니다",
-  "settings.desktop.desktopSection": "데스크톱"
+  "settings.desktop.desktopSection": "데스크톱",
+  "settings.executionPolicy.description": "명령 및 네트워크 실행 규칙, 계획 도구, Windows 격리를 설정합니다.",
+  "settings.executionPolicy.open": "관리"
 }

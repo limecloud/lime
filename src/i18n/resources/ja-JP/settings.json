@@ -2694,5 +2694,7 @@
   "settings.browser.importCookiesMessage": "Chrome プロファイルの Cookie を復号し、Lime ブラウザセッションに書き込みます。",
   "settings.browser.importCookiesCancel": "キャンセル",
   "settings.browser.importCookiesFailed": "Cookie をインポートできませんでした",
-  "settings.desktop.desktopSection": "デスクトップ"
+  "settings.desktop.desktopSection": "デスクトップ",
+  "settings.executionPolicy.description": "コマンドとネットワークの実行ルール、計画ツール、Windows 分離を設定します。",
+  "settings.executionPolicy.open": "管理"
 }

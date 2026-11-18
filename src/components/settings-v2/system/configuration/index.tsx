@@ -2,6 +2,7 @@ import { Fragment, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { openIn } from "@/lib/api/openIn";
+import type { Page, PageParams } from "@/types/page";
 import { openExternalUrlWithSystemBrowser } from "@/lib/api/externalUrl";
 import { configLayerFile, type Config } from "@/lib/api/appConfig";
 import {
@@ -45,7 +46,11 @@ const FALLBACKS = {
   model_reasoning_summary: "auto",
 } as const;
 
-export function ConfigurationPanel() {
+export function ConfigurationPanel({
+  onNavigate,
+}: {
+  onNavigate?: (page: Page, params?: PageParams) => void;
+} = {}) {
   const { t } = useTranslation("settings");
   const state = useConfiguration();
   const [openError, setOpenError] = useState(false);
@@ -390,6 +395,26 @@ export function ConfigurationPanel() {
         </SettingsGroup>
       </SettingsSection>
       <WorkspaceDependenciesSection snapshot={snapshot} />
+      <SettingsSection title={t("settings.tab.executionPolicy")}>
+        <SettingsGroup>
+          <SettingsRow
+            label={t("settings.executionPolicy.title")}
+            description={t("settings.executionPolicy.description")}
+            targetId="general-execution-policy"
+          >
+            <SettingsAction
+              type="button"
+              onClick={() =>
+                onNavigate?.("settings", {
+                  tab: "execution-policy",
+                } as PageParams)
+              }
+            >
+              {t("settings.executionPolicy.open")}
+            </SettingsAction>
+          </SettingsRow>
+        </SettingsGroup>
+      </SettingsSection>
     </SettingsPageBody>
   );
 }
