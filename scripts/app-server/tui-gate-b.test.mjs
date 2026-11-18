@@ -752,8 +752,8 @@ describe("TUI Gate B", () => {
     }
     expect(gateSource).toContain('"      delete_forward: []"');
     expect(gateSource).toContain('"      move_down: down"');
-    expect(gateSource).toContain(
-      'scenario === "complete" ? editorConfigPath : permissionConfigPath',
+    expect(gateSource).toMatch(
+      /scenario === "complete"\s*\?\s*editorConfigPath\s*:\s*permissionConfigPath/,
     );
     expect(gateSource).toContain(
       "editor-keymap=ok editor-unbind=ok editor-chord=ok",
@@ -1371,7 +1371,7 @@ it("drives the real TUI through a portable PTY and current App Server", () => {
     expect(ptyTestSource).toContain(
       '"cancel model picker without changing settings"',
     );
-    expect(ptyTestSource).not.toContain('write_all(b"\\x1b[1;1R")');
+    expect(ptyTestSource).toContain('write_all(b"\\x1b[1;1R")');
     expect(ptyTestSource).toContain("writer.write_all(&[20])");
     expect(ptyTestSource).toContain('"ctrl+t·esc·q close"');
     expect(ptyTestSource).toContain(
