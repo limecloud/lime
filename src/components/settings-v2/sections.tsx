@@ -283,7 +283,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.MediaServices,
-    group: SettingsGroupKey.Personal,
+    group: SettingsGroupKey.Configuration,
     labelKey: "settings.tab.mediaServices",
     icon: Image,
     loadingKey: "settings.layout.loading.mediaServices",
@@ -292,7 +292,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.Profile,
-    group: SettingsGroupKey.Personal,
+    group: null,
     labelKey: "settings.tab.profile",
     icon: User,
     loadingKey: "settings.layout.loading.profile",

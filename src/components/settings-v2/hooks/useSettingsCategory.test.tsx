@@ -109,6 +109,7 @@ describe("useSettingsCategory", () => {
       SettingsTabs.Memory,
       SettingsTabs.KeyboardShortcuts,
       SettingsTabs.Providers,
+      SettingsTabs.MediaServices,
     ]);
   });
 
@@ -158,7 +159,7 @@ describe("current settings navigation translations", () => {
       items.find((item) => item.key === SettingsTabs.ArchivedConversations)
         ?.label,
     ).toBe(archivedLabel);
-    expect(items.some((item) => item.key === SettingsTabs.Profile)).toBe(true);
+    expect(items.some((item) => item.key === SettingsTabs.Profile)).toBe(false);
     const visibleSections = availableSections.filter(
       (section) => section.group !== null,
     );
