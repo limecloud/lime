@@ -12,7 +12,6 @@ import {
   Image,
   Server,
   Puzzle,
-  Blocks,
   MousePointer2,
   Cloud,
   ShieldCheck,
@@ -101,12 +100,6 @@ const loadBrowser = () => import("./general/browser");
 const loadAppSnapshots = () => import("./integrations/app-snapshots");
 const BrowserUseSettings = lazy(() =>
   loadBrowser().then((module) => ({ default: module.BrowserUseSettings })),
-);
-const loadBrowserExtensions = () => import("./general/browser/extensions");
-const BrowserExtensionSettings = lazy(() =>
-  loadBrowserExtensions().then((module) => ({
-    default: module.BrowserExtensionSettings,
-  })),
 );
 const AppSnapshotsSettings = lazy(() =>
   loadAppSnapshots().then((module) => ({
@@ -347,15 +340,6 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.layout.loading.browser",
     preload: loadBrowser,
     render: (context) => <BrowserUseSettings page={context.browserPage} />,
-  },
-  {
-    key: SettingsTabs.BrowserExtension,
-    group: SettingsGroupKey.Integrations,
-    labelKey: "settings.tab.browserExtension",
-    icon: Blocks,
-    loadingKey: "settings.layout.loading.browserExtensions",
-    preload: loadBrowserExtensions,
-    render: () => <BrowserExtensionSettings />,
   },
   {
     key: SettingsTabs.CloudDesktops,

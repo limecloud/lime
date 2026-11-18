@@ -14,6 +14,7 @@ import type { LinkOpenTarget } from "@/lib/api/appConfigTypes";
 import { PreferenceMenu } from "./PreferenceMenu";
 import { useBrowserSettings } from "./useBrowserSettings";
 import { BrowserAgentPermissions } from "./BrowserAgentPermissions";
+import { BrowserExtensionSettings } from "./extensions";
 import { BrowserHistoryPage } from "./BrowserHistoryPage";
 import { BrowserDownloadsPage } from "./BrowserDownloadsPage";
 import { BrowserSiteSettingsPage } from "./BrowserSiteSettingsPage";
@@ -583,6 +584,12 @@ function BrowserSettingsPage({
             {toggle("fullCdpAccessEnabled", "browser-full-cdp")}
           </div>
         </BrowserSettingsRow>
+      </BrowserSettingsSection>
+      <BrowserSettingsSection
+        id="browser-extensions"
+        title={t("settings.browser.extensionsTitle")}
+      >
+        <BrowserExtensionSettings embedded />
       </BrowserSettingsSection>
       <ConfirmDialog
         isOpen={cookieImportOpen}

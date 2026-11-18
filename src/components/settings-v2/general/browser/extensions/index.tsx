@@ -26,7 +26,11 @@ const SEARCH_CLASS =
 
 type ErrorKind = "load" | "import" | "remove" | "reveal";
 
-export function BrowserExtensionSettings() {
+export function BrowserExtensionSettings({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const { t } = useTranslation("settings");
   const [extensions, setExtensions] = useState<
     BrowserExtensionSummary[] | null
@@ -159,9 +163,8 @@ export function BrowserExtensionSettings() {
             ? t("settings.browser.extensionsRevealFailed")
             : null;
 
-  return (
-    <SettingsPageBody data-settings-search-target="browser-extension-manager">
-      <SettingsPageHeader title={t("settings.browser.extensionsTitle")} />
+  const content = (
+    <>
       <p className="text-[13px] text-muted-foreground">
         {t("settings.browser.extensionManagerDescription")}
       </p>
@@ -285,6 +288,22 @@ export function BrowserExtensionSettings() {
           {errorMessage}
         </p>
       ) : null}
+    </>
+  );
+  if (embedded) {
+    return (
+      <div
+        className="flex flex-col gap-3"
+        data-settings-search-target="browser-extension-manager"
+      >
+        {content}
+      </div>
+    );
+  }
+  return (
+    <SettingsPageBody data-settings-search-target="browser-extension-manager">
+      <SettingsPageHeader title={t("settings.browser.extensionsTitle")} />
+      {content}
     </SettingsPageBody>
   );
 }
