@@ -280,7 +280,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.Memory,
-    group: SettingsGroupKey.Personal,
+    group: SettingsGroupKey.Configuration,
     labelKey: "settings.desktop.personalization",
     icon: Brain,
     loadingKey: "settings.layout.loading.memory",
